@@ -72,6 +72,96 @@ Surprise is relative. `argot` uses a rolling percentile calibration: a hunk is f
 - **Training**: Python + PyTorch (JEPA implementation adapted from LeWM)
 - **Tokenizer**: tree-sitter for language-aware splitting
 
+---
+
+## Development
+
+### Prerequisites
+
+Install [mise](https://mise.jdx.dev/) then let it provision the toolchain:
+
+```bash
+mise install          # installs bun 1.3.11, node 22, python 3.11, uv 0.5.0, just 1.34.0, lefthook 1.7.0
+```
+
+### Setup
+
+```bash
+just install          # bun install + uv sync
+lefthook install      # wire pre-commit hooks
+```
+
+### Common tasks
+
+```bash
+just verify           # lint + format + typecheck + boundaries + knip + test
+just test             # bun test (cli) + pytest (engine)
+just extract .        # run the extract pipeline on this repo
+just verify-fix       # same as verify but auto-fixes lint/format
+```
+
+### Repository layout
+
+```
+argot/
+├── cli/              # TypeScript CLI (Bun runtime)
+│   └── src/
+│       ├── cli.ts                    # entrypoint, Effect CLI wiring
+│       ├── dependencies.ts           # root Effect Layer composition
+│       ├── modules/<name>/           # vertical slice per feature
+│       │   ├── domain/               # pure types, no deps
+│       │   ├── application/          # use-cases + port interfaces
+│       │   │   └── ports/out/        # outbound port interfaces
+│       │   ├── infrastructure/       # adapters implementing ports
+│       │   └── dependencies.ts       # module Layer
+│       └── shell/infrastructure/adapters/in/commands/   # CLI commands (inbound adapters)
+├── engine/           # Python data pipeline (UV workspace)
+│   └── argot/
+│       ├── git_walk.py   # pygit2 repo walker
+│       ├── tokenize.py   # tree-sitter tokeniser
+│       ├── extract.py    # CLI entrypoint → JSONL writer
+│       └── dataset.py    # msgspec record schema
+└── justfile          # task runner (canonical interface)
+```
+
+### Architecture
+
+**CLI** follows hexagonal architecture enforced by dependency-cruiser:
+
+- `domain` → no outward deps; pure types and errors
+- `application` → depends only on `domain` and port interfaces
+- `infrastructure` → implements ports; may call external I/O
+- `shell` → CLI commands; wires adapters via Effect Layers; must not import module infrastructure directly
+
+Cross-module imports must go through a module's public `dependencies.ts`, never deep into another module's layers.
+
+**Engine** is a standalone Python package invoked as a subprocess by the CLI's `BunEngineRunner` adapter. It walks git history with pygit2, tokenises hunks with tree-sitter, and streams JSONL records to disk.
+
+### Tooling
+
+| Tool | Role |
+|---|---|
+| `mise` | Toolchain version manager (replaces nvm/pyenv) |
+| `just` | Task runner — single source of truth for all dev commands |
+| `bun` | JS runtime, package manager, test runner |
+| `uv` | Python package manager and virtual env |
+| `oxlint` | Fast TypeScript/JS linter |
+| `oxfmt` | TypeScript formatter |
+| `tsgo` | TypeScript type-checker (native preview, ~10× faster) |
+| `dependency-cruiser` | Enforces hexagonal layer boundaries |
+| `knip` | Dead code and unused dependency detection |
+| `lefthook` | Git hook runner (pre-commit: lint + format + typecheck) |
+| `ruff` | Python linter + formatter |
+| `mypy` | Python type-checker (strict mode) |
+
+### Conventions
+
+- **Effect everywhere in CLI** — use `Console.log` not `console.log`; all side effects go through Effect
+- **No `any`** — TypeScript strict mode + `no-explicit-any` lint rule
+- **`#modules/*` / `#shell/*`** — path aliases; never use relative `../../` across layer boundaries
+- **Python line length**: 100 chars (ruff)
+- **Test files**: `*.test.ts` for Bun, `test_*.py` for pytest
+
 ## License
 
 MIT
