@@ -1,0 +1,16 @@
+pre-commit:
+  parallel: true
+  commands:
+    oxlint:
+      glob: "cli/**/*.ts"
+      run: bun run lint --files {staged_files}
+    oxfmt:
+      glob: "cli/**/*.ts"
+      run: bun run format --files {staged_files}
+    ruff:
+      glob: "engine/**/*.py"
+      run: uv run ruff check {staged_files}
+    tsgo:
+      run: bun run typecheck
+      skip:
+        files_without: "*.ts"

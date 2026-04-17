@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: argot-engine
+Version: 0.0.1
+Requires-Python: >=3.11
+Requires-Dist: pygit2==1.19.2
+Requires-Dist: tree-sitter==0.23.2
+Requires-Dist: tree-sitter-typescript==0.23.2
+Requires-Dist: tree-sitter-javascript==0.23.1
+Requires-Dist: tree-sitter-python==0.23.6

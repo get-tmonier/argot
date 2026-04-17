@@ -1,0 +1,22 @@
+{
+  "name": "@argot/cli",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "argot": "./src/cli.ts"
+  },
+  "imports": {
+    "#modules/*": "./src/modules/*",
+    "#shell/*": "./src/shell/*",
+    "#dependencies": "./src/dependencies.ts"
+  },
+  "dependencies": {
+    "effect": "4.0.0-beta.43",
+    "@effect/platform-bun": "4.0.0-beta.43",
+    "valibot": "1.0.0-rc.3"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.12"
+  }
+}

@@ -1,0 +1,51 @@
+# dependencies
+node_modules/
+
+# build outputs
+dist/
+build/
+cli/dist/
+
+# Next.js (removed)
+# .next/ — not used
+
+# env
+.env
+.env*.local
+
+# vercel (removed)
+
+# typescript
+*.tsbuildinfo
+
+# misc
+.DS_Store
+*.swp
+*.swo
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# lockfiles (keep bun.lock, uv.lock)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Python
+engine/.venv/
+engine/**/__pycache__/
+__pycache__/
+*.py[cod]
+*.pyo
+
+# argot output
+.argot/
+
+# cache
+.cache/
+.oxlintcache
+
+# history
+.history/
