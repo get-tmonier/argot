@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="argot-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E67E45"/>
+      <stop offset="100%" stop-color="#A0411C"/>
+    </linearGradient>
+  </defs>
+  <text x="32" y="52" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-weight="900" font-size="64" fill="url(#argot-gradient)">g</text>
+</svg>
