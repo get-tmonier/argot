@@ -37,6 +37,19 @@ dependencies.ts     # root Layer composition
 - TypeScript strict + `no-any`; Python mypy strict + ruff (line length 100)
 - Test files: `*.test.ts` (Bun), `test_*.py` (pytest)
 
+## Testing
+
+Write tests alongside any new logic — not 100% coverage, but enough for a fast feedback loop. Aim to cover:
+- Core logic correctness (shapes, invariants, non-trivial conditions)
+- Smoke tests for new entry points
+
+## Code quality
+
+The codebase is strict by design (mypy strict, no-any, ruff). When a check fails:
+- Diagnose the exact root cause before fixing
+- Prefer targeted fixes (`# type: ignore[specific-code]` on one line) over global config changes
+- Never add broad suppressions (`ignore_missing_imports = true` globally, etc.) to make errors go away
+
 ## Toolchain (managed by mise)
 
 `bun 1.3.11` · `node 22` · `python 3.11` · `uv 0.5.0` · `just 1.34.0` · `lefthook 1.7.0`

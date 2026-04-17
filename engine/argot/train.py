@@ -44,6 +44,7 @@ def main() -> None:
 
     vectorizer = TfidfVectorizer(max_features=INPUT_DIM)
     vectorizer.fit(ctx_texts + hunk_texts)
+    actual_input_dim = len(vectorizer.vocabulary_)
 
     ctx_x = torch.tensor(vectorizer.transform(ctx_texts).toarray(), dtype=torch.float32)
     hunk_x = torch.tensor(vectorizer.transform(hunk_texts).toarray(), dtype=torch.float32)
@@ -54,7 +55,7 @@ def main() -> None:
         shuffle=True,
     )
 
-    encoder = TokenEncoder(INPUT_DIM, EMBED_DIM)
+    encoder = TokenEncoder(actual_input_dim, EMBED_DIM)
     predictor = ArgotPredictor(embed_dim=EMBED_DIM)
     model = JEPAArgot(encoder, predictor, lambd=args.lambd)
 
@@ -80,7 +81,7 @@ def main() -> None:
             "encoder_state": model.encoder.state_dict(),
             "predictor_state": model.predictor.state_dict(),
             "embed_dim": EMBED_DIM,
-            "input_dim": INPUT_DIM,
+            "input_dim": actual_input_dim,
         },
         out_path,
     )
