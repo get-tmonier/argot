@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 80" width="220" height="80">
+  <defs>
+    <linearGradient id="argot-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E67E45"/>
+      <stop offset="100%" stop-color="#A0411C"/>
+    </linearGradient>
+  </defs>
+  <g font-family="ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="48" font-weight="700" fill="url(#argot-gradient)">
+    <text x="16" y="56">a</text>
+    <text x="46" y="56">r</text>
+    <text x="76" y="60" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-weight="900" font-size="58">g</text>
+    <text x="114" y="56">o</text>
+    <text x="144" y="56">t</text>
+  </g>
+</svg>

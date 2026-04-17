@@ -1,2 +1,4 @@
 [console_scripts]
+argot-check = argot.check:main
 argot-extract = argot.extract:main
+argot-train = argot.train:main
