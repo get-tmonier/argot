@@ -9,6 +9,12 @@ install:
 extract path=".":
     uv run --package argot-engine python -m argot.extract {{path}}
 
+train dataset=".argot/dataset.jsonl" model=".argot/model.pkl":
+    uv run --package argot-engine python -m argot.train --dataset {{dataset}} --out {{model}}
+
+check ref="HEAD~1..HEAD" model=".argot/model.pkl":
+    uv run --package argot-engine python -m argot.check . {{ref}} --model {{model}}
+
 # --- individual checks ---
 
 lint:
