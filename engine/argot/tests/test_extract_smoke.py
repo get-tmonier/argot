@@ -5,9 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
-REPO_ROOT = Path(__file__).parent.parent.parent.parent.parent
+REPO_ROOT = Path(__file__).parent.parent.parent.parent
 
 
 def test_smoke_extract_argot_repo(tmp_path: Path) -> None:

@@ -1,3 +1,4 @@
+const path = require('path');
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {
   forbidden: [
@@ -41,6 +42,6 @@ module.exports = {
     doNotFollow: { path: 'node_modules' },
     moduleSystems: ['es6'],
     tsPreCompilationDeps: true,
-    tsConfig: { fileName: 'cli/tsconfig.json' },
+    tsConfig: { fileName: path.resolve(__dirname, 'cli/tsconfig.json') },
   },
 };

@@ -1,2 +1,10 @@
 [tool.uv.workspace]
 members = ["engine"]
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+
+[[tool.mypy.overrides]]
+module = "pygit2"
+ignore_missing_imports = true

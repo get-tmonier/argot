@@ -21,7 +21,15 @@ def walk_repo(repo_path: str) -> Iterator[tuple[pygit2.Commit, str, bytes, list[
     if repo.is_empty:
         return
 
-    for commit in repo.walk(repo.head.target, pygit2.GIT_SORT_TOPOLOGICAL):
+    try:
+        start_oid = repo.head.target
+    except pygit2.GitError:
+        branch_refs = [r for r in repo.references if r.startswith("refs/heads/")]
+        if not branch_refs:
+            return
+        start_oid = repo.references[branch_refs[0]].target
+
+    for commit in repo.walk(start_oid, pygit2.GIT_SORT_TOPOLOGICAL):
         if len(commit.parents) != 1:
             # Skip merge commits and root commits
             continue

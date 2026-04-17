@@ -64,7 +64,9 @@ def tokenize(source: bytes, lang: Lang) -> list[Token]:
     return tokens
 
 
-def tokenize_lines(source_lines: list[str], lang: Lang, start_line: int, end_line: int) -> list[Token]:
+def tokenize_lines(
+    source_lines: list[str], lang: Lang, start_line: int, end_line: int
+) -> list[Token]:
     """Tokenize a slice of source lines (0-indexed, end_line exclusive)."""
     slice_source = "\n".join(source_lines[start_line:end_line]).encode()
     raw_tokens = tokenize(slice_source, lang)

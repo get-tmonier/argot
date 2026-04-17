@@ -15,7 +15,10 @@ dependencies = [
 argot-extract = "argot.extract:main"
 
 [tool.uv]
-dev-dependencies = [
+package = true
+
+[dependency-groups]
+dev = [
     "ruff==0.7.0",
     "mypy==1.11.2",
     "pytest==8.3.3",
@@ -24,6 +27,13 @@ dev-dependencies = [
 [tool.mypy]
 strict = true
 python_version = "3.11"
+
+[[tool.mypy.overrides]]
+module = "pygit2"
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM"]

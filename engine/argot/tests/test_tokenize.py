@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import pytest
-
-from argot.tokenize import tokenize, language_for_path
+from argot.tokenize import language_for_path, tokenize
 
 
 def test_tokenize_typescript() -> None:

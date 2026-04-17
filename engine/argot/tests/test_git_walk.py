@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import os
-import tempfile
 from pathlib import Path
 
 import pygit2
-import pytest
 
 from argot.git_walk import walk_repo
 
@@ -25,9 +22,8 @@ def _make_repo_with_commit(tmp_path: Path, filename: str, content: str) -> pygit
     repo.index.add(filename)
     repo.index.write()
     tree2 = repo.index.write_tree()
-    repo.create_commit(
-        "refs/heads/main", sig, sig, "second commit", tree2, [repo.head.target]
-    )
+    parent_oid = repo.references["refs/heads/main"].target
+    repo.create_commit("refs/heads/main", sig, sig, "second commit", tree2, [parent_oid])
     return repo
 
 

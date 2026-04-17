@@ -9,7 +9,7 @@ import pygit2
 
 from argot.dataset import HunkRecord
 from argot.git_walk import walk_repo
-from argot.tokenize import language_for_path, tokenize_lines
+from argot.tokenize import language_for_path
 
 CONTEXT_LINES = 50
 
@@ -60,7 +60,7 @@ def main() -> None:
             except Exception:
                 continue
 
-            parent_sha = commit.parents[0].hex if commit.parents else None
+            parent_sha = str(commit.parents[0].id) if commit.parents else None
             author_date_iso = commit.author.time
 
             for hunk in hunks:
@@ -89,7 +89,7 @@ def main() -> None:
                 )
 
                 record = HunkRecord(
-                    commit_sha=commit.hex,
+                    commit_sha=str(commit.id),
                     file_path=file_path,
                     language=lang,
                     hunk_start_line=hunk_start,
@@ -115,3 +115,7 @@ def main() -> None:
         sys.exit(2)
 
     print(f"Wrote {count} records to {out_path}")
+
+
+if __name__ == "__main__":
+    main()
