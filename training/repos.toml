@@ -1,0 +1,17 @@
+[[repos]]
+name = "vite"
+url = "https://github.com/vitejs/vite"
+limit = 5000
+label = "good"
+
+[[repos]]
+name = "zellij"
+url = "https://github.com/zellij-org/zellij"
+limit = 3000
+label = "good"
+
+[[repos]]
+name = "nickel"
+url = "https://github.com/nickel-lang/nickel"
+limit = 2000
+label = "good"
