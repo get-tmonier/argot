@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="docs/argot-mark.svg" alt="argot" width="72" />
+  <img src="docs/argot-logo.svg" alt="argot" width="200" />
 </p>
-
-<h1 align="center">argot</h1>
 
 <p align="center">
   <strong>Like ESLint, but for the unwritten rules.</strong><br/>
