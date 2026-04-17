@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from argot.train import ModelBundle, train_model
+
 
 def _make_dataset(path: Path, n: int = 20) -> None:
     records = [
@@ -21,6 +23,31 @@ def _make_dataset(path: Path, n: int = 20) -> None:
         for i in range(n)
     ]
     path.write_text("\n".join(json.dumps(r) for r in records))
+
+
+def _make_records(n: int) -> list[dict]:  # type: ignore[type-arg]
+    return [
+        {
+            "context_before": [
+                {"text": "def", "node_type": "keyword", "start_line": 0, "end_line": 0}
+            ],
+            "hunk_tokens": [
+                {"text": f"x{i}", "node_type": "identifier", "start_line": i, "end_line": i}
+            ],
+            "context_after": [],
+        }
+        for i in range(n)
+    ]
+
+
+def test_train_model_returns_bundle(tmp_path: Path) -> None:
+    records = _make_records(50)
+    bundle = train_model(records, epochs=1, batch_size=16)
+    assert isinstance(bundle, ModelBundle)
+    assert bundle.input_dim > 0
+    assert bundle.embed_dim == 192
+    assert bundle.vectorizer is not None
+    assert bundle.model is not None
 
 
 def test_train_produces_model(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

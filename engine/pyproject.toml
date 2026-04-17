@@ -17,6 +17,8 @@ dependencies = [
 argot-extract = "argot.extract:main"
 argot-train = "argot.train:main"
 argot-check = "argot.check:main"
+argot-fetch = "argot.fetch:main"
+argot-validate = "argot.validate:main"
 
 [tool.uv]
 package = true
