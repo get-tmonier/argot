@@ -1,0 +1,40 @@
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+REPO_ROOT = Path(__file__).parent.parent.parent.parent.parent
+
+
+def test_smoke_extract_argot_repo(tmp_path: Path) -> None:
+    """Run extract on the argot repo itself and verify ≥1 records (CI has limited history)."""
+    out = tmp_path / "dataset.jsonl"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "argot.extract",
+            str(REPO_ROOT),
+            "--out",
+            str(out),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    # exit 0 means records found, exit 2 means no history (OK in shallow clone)
+    assert result.returncode in (0, 2), f"stderr: {result.stderr}"
+
+    if result.returncode == 0:
+        assert out.exists(), "Output file should exist"
+        lines = out.read_text().strip().splitlines()
+        assert len(lines) >= 1, f"Expected ≥1 records, got {len(lines)}"
+        for line in lines[:10]:
+            record = json.loads(line)
+            assert "commit_sha" in record
+            assert "file_path" in record
+            assert "language" in record
+            assert record["hunk_start_line"] <= record["hunk_end_line"]
