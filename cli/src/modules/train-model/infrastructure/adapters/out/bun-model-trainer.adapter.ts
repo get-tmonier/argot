@@ -11,7 +11,18 @@ export const BunModelTrainerLive = Layer.effect(ModelTrainer)(
         try {
           proc = spawn(
             'uv',
-            ['run', '--package', 'argot-engine', 'python', '-m', 'argot.train', '--dataset', datasetPath, '--out', modelPath],
+            [
+              'run',
+              '--package',
+              'argot-engine',
+              'python',
+              '-m',
+              'argot.train',
+              '--dataset',
+              datasetPath,
+              '--out',
+              modelPath,
+            ],
             { stdio: ['ignore', 'inherit', 'pipe'] },
           );
         } catch (cause: unknown) {
@@ -21,10 +32,13 @@ export const BunModelTrainerLive = Layer.effect(ModelTrainer)(
 
         const stderrChunks: Buffer[] = [];
         proc.stderr!.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
-        proc.on('error', (cause: unknown) => { resume(Effect.fail(new TrainSpawnFailed({ cause }))); });
+        proc.on('error', (cause: unknown) => {
+          resume(Effect.fail(new TrainSpawnFailed({ cause })));
+        });
         proc.on('close', (code: number | null) => {
-          if (code === 0) { resume(Effect.void); }
-          else {
+          if (code === 0) {
+            resume(Effect.void);
+          } else {
             const stderr = Buffer.concat(stderrChunks).toString('utf-8');
             resume(Effect.fail(new TrainExitNonZero({ exitCode: code ?? -1, stderr })));
           }

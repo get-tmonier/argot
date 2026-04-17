@@ -5,13 +5,32 @@ import { CheckExitNonZero, CheckSpawnFailed } from '#modules/check-style/domain/
 
 export const BunStyleCheckerLive = Layer.effect(StyleChecker)(
   Effect.succeed({
-    runCheck: ({ repoPath, ref, modelPath }: { repoPath: string; ref: string; modelPath: string }) =>
+    runCheck: ({
+      repoPath,
+      ref,
+      modelPath,
+    }: {
+      repoPath: string;
+      ref: string;
+      modelPath: string;
+    }) =>
       Effect.callback<void, CheckExitNonZero | CheckSpawnFailed>((resume) => {
         let proc: ReturnType<typeof spawn>;
         try {
           proc = spawn(
             'uv',
-            ['run', '--package', 'argot-engine', 'python', '-m', 'argot.check', repoPath, ref, '--model', modelPath],
+            [
+              'run',
+              '--package',
+              'argot-engine',
+              'python',
+              '-m',
+              'argot.check',
+              repoPath,
+              ref,
+              '--model',
+              modelPath,
+            ],
             { stdio: ['ignore', 'inherit', 'pipe'] },
           );
         } catch (cause: unknown) {
@@ -21,10 +40,13 @@ export const BunStyleCheckerLive = Layer.effect(StyleChecker)(
 
         const stderrChunks: Buffer[] = [];
         proc.stderr!.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
-        proc.on('error', (cause: unknown) => { resume(Effect.fail(new CheckSpawnFailed({ cause }))); });
+        proc.on('error', (cause: unknown) => {
+          resume(Effect.fail(new CheckSpawnFailed({ cause })));
+        });
         proc.on('close', (code: number | null) => {
-          if (code === 0) { resume(Effect.void); }
-          else {
+          if (code === 0) {
+            resume(Effect.void);
+          } else {
             const stderr = Buffer.concat(stderrChunks).toString('utf-8');
             resume(Effect.fail(new CheckExitNonZero({ exitCode: code ?? -1, stderr })));
           }
