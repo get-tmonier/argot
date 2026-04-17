@@ -1,0 +1,5 @@
+{
+  "target": "latest",
+  "removeRange": true,
+  "cooldown": 3
+}
