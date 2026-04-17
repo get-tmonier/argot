@@ -4,7 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
-import joblib
+import joblib  # type: ignore[import-untyped]
 import pygit2
 import torch
 

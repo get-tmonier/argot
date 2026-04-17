@@ -5,9 +5,9 @@ import json
 import sys
 from pathlib import Path
 
-import joblib
+import joblib  # type: ignore[import-untyped]
 import torch
-from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer  # type: ignore[import-untyped]
 from torch.optim import AdamW
 from torch.utils.data import DataLoader, TensorDataset
 
