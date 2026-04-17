@@ -1,3 +1,5 @@
+export ARGOT_DEV := "1"
+
 default: help
 
 help:
@@ -5,6 +7,10 @@ help:
 
 install:
     bun install && uv sync
+
+build:
+    mkdir -p dist
+    cd cli && bun build --compile --target=bun src/cli.ts --outfile ../dist/argot
 
 extract path=".":
     uv run --package argot-engine python -m argot.extract {{path}}

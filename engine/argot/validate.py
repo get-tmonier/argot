@@ -113,7 +113,10 @@ def main() -> None:
         foreign_name = min(repo_groups, key=lambda n: len(repo_groups[n]))
         foreign = repo_groups[foreign_name]
         home = [r for r in records if r.get("_repo") != foreign_name]
-        print(f"Repos: {list(repo_groups)} — using '{foreign_name}' ({len(foreign)} records) as foreign set")
+        print(
+            f"Repos: {list(repo_groups)} — using '{foreign_name}'"
+            f" ({len(foreign)} records) as foreign set"
+        )
     else:
         home = records
         foreign = []
@@ -128,32 +131,53 @@ def main() -> None:
     good_scores = score_records(bundle, held_out)
     shuffled_scores = score_records(bundle, shuffle_negatives(held_out, seed=42))
     cross_scores = score_records(bundle, foreign) if has_cross_repo else []
-    injected_scores = score_records(bundle, inject_foreign(held_out, foreign, seed=42)) if has_cross_repo else []
+    injected_scores = (
+        score_records(bundle, inject_foreign(held_out, foreign, seed=42)) if has_cross_repo else []
+    )
 
+    good_p = compute_percentiles(good_scores)
+    shuffled_auc = compute_auc(good_scores, shuffled_scores)
     rows: list[Any] = [
-        ("Good (held-out)", compute_percentiles(good_scores), 0.5),
-        ("Bad — shuffled tokens", compute_percentiles(shuffled_scores), compute_auc(good_scores, shuffled_scores)),
+        ("Good (held-out)", good_p, 0.5),
+        ("Bad — shuffled tokens", compute_percentiles(shuffled_scores), shuffled_auc),
     ]
     if has_cross_repo:
+        cross_auc = compute_auc(good_scores, cross_scores)
+        injected_auc = compute_auc(good_scores, injected_scores)
         rows += [
-            ("Bad — cross-repo foreign", compute_percentiles(cross_scores), compute_auc(good_scores, cross_scores)),
-            ("Bad — injected foreign hunk", compute_percentiles(injected_scores), compute_auc(good_scores, injected_scores)),
+            ("Bad — cross-repo foreign", compute_percentiles(cross_scores), cross_auc),
+            ("Bad — injected foreign hunk", compute_percentiles(injected_scores), injected_auc),
         ]
 
     _print_table(rows)
 
-    checks = {
-        "shuffled": (compute_percentiles(shuffled_scores)["median"] > compute_percentiles(good_scores)["median"], compute_auc(good_scores, shuffled_scores)),
+    good_median = good_p["median"]
+    checks: dict[str, tuple[bool, float]] = {
+        "shuffled": (
+            compute_percentiles(shuffled_scores)["median"] > good_median,
+            shuffled_auc,
+        ),
     }
     if has_cross_repo:
-        checks["cross-repo"] = (compute_percentiles(cross_scores)["median"] > compute_percentiles(good_scores)["median"], compute_auc(good_scores, cross_scores))
-        checks["injected"] = (compute_percentiles(injected_scores)["median"] > compute_percentiles(good_scores)["median"], compute_auc(good_scores, injected_scores))
+        checks["cross-repo"] = (
+            compute_percentiles(cross_scores)["median"] > good_median,
+            cross_auc,
+        )
+        checks["injected"] = (
+            compute_percentiles(injected_scores)["median"] > good_median,
+            injected_auc,
+        )
 
     all_pass = True
     for name, (sep, auc) in checks.items():
         icon = "✓" if sep else "✗"
         auc_icon = "✓" if auc > 0.6 else "✗"
-        print(f"  {icon} [{name}] median separation {'ok' if sep else 'FAIL'}   {auc_icon} AUC={auc:.4f} ({'ok' if auc > 0.6 else 'FAIL — below 0.6'})")
+        auc_label = "ok" if auc > 0.6 else "FAIL — below 0.6"
+        sep_label = "ok" if sep else "FAIL"
+        print(
+            f"  {icon} [{name}] median separation {sep_label}"
+            f"   {auc_icon} AUC={auc:.4f} ({auc_label})"
+        )
         if not sep or auc <= 0.6:
             all_pass = False
 

@@ -59,7 +59,7 @@ def main() -> None:
 
     repos = load_repos_config(config_path)
     repos_dir = project_root / ".argot" / "repos"
-    part_files: list[Path] = []
+    part_files: list[tuple[Path, str]] = []
 
     for repo in repos:
         repo_dir = repos_dir / repo.name

@@ -1,4 +1,4 @@
-import { ServiceMap } from 'effect';
+import { Context } from 'effect';
 import type { Effect } from 'effect';
 import type { EngineError } from '#modules/extract-dataset/domain/errors.ts';
 
@@ -9,6 +9,6 @@ interface EngineRunnerShape {
   }) => Effect.Effect<void, EngineError>;
 }
 
-export class EngineRunner extends ServiceMap.Service<EngineRunner, EngineRunnerShape>()(
+export class EngineRunner extends Context.Service<EngineRunner, EngineRunnerShape>()(
   '@argot/EngineRunner',
 ) {}
