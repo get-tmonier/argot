@@ -29,16 +29,18 @@ def walk_repo(repo_path: str) -> Iterator[tuple[pygit2.Commit, str, bytes, list[
             return
         start_oid = repo.references[branch_refs[0]].target
 
-    for commit in repo.walk(start_oid, pygit2.GIT_SORT_TOPOLOGICAL):
+    for commit in repo.walk(start_oid, pygit2.enums.SortMode.TOPOLOGICAL):
         if len(commit.parents) != 1:
             # Skip merge commits and root commits
             continue
 
         parent = commit.parents[0]
-        diff = repo.diff(parent.tree, commit.tree)
+        diff = parent.tree.diff_to_tree(commit.tree)
         diff.find_similar()
 
         for patch in diff:
+            if patch is None:
+                continue
             file_path = patch.delta.new_file.path
             if _extension(file_path) not in SUPPORTED_EXTENSIONS:
                 continue
@@ -48,8 +50,10 @@ def walk_repo(repo_path: str) -> Iterator[tuple[pygit2.Commit, str, bytes, list[
                 continue
 
             try:
-                blob = commit.tree / file_path
-                post_blob_content = blob.data
+                obj = commit.tree / file_path
+                if not isinstance(obj, pygit2.Blob):
+                    continue
+                post_blob_content = obj.data
             except KeyError:
                 # File deleted in this commit
                 continue

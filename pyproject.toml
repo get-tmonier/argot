@@ -3,7 +3,7 @@ members = ["engine"]
 
 [tool.mypy]
 strict = true
-python_version = "3.11"
+python_version = "3.13"
 
 [[tool.mypy.overrides]]
 module = "pygit2"

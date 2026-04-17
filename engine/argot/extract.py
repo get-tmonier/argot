@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
-import msgspec.json
 import pygit2
 
 from argot.dataset import HunkRecord
@@ -47,9 +48,8 @@ def main() -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     count = 0
-    encoder = msgspec.json.Encoder()
 
-    with open(out_path, "wb") as fh:
+    with open(out_path, "w") as fh:
         for commit, file_path, post_blob, hunks in walk_repo(repo_path):
             lang = language_for_path(file_path)
             if lang is None:
@@ -101,8 +101,8 @@ def main() -> None:
                     author_date_iso=str(author_date_iso),
                 )
 
-                fh.write(encoder.encode(record))
-                fh.write(b"\n")
+                fh.write(json.dumps(asdict(record)))
+                fh.write("\n")
                 count += 1
 
                 if args.limit is not None and count >= args.limit:
