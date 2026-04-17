@@ -2,10 +2,17 @@ README.md
 pyproject.toml
 argot/__init__.py
 argot/__main__.py
+argot/check.py
 argot/dataset.py
 argot/extract.py
 argot/git_walk.py
 argot/tokenize.py
+argot/train.py
+argot/jepa/__init__.py
+argot/jepa/encoder.py
+argot/jepa/model.py
+argot/jepa/predictor.py
+argot/jepa/sigreg.py
 argot/tests/__init__.py
 argot/tests/test_extract_smoke.py
 argot/tests/test_git_walk.py
