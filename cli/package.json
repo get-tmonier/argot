@@ -15,5 +15,8 @@
     "effect": "4.0.0-beta.43",
     "@effect/platform-bun": "4.0.0-beta.43",
     "valibot": "1.0.0-rc.3"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.12"
   }
 }

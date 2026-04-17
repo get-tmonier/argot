@@ -33,7 +33,7 @@ knip:
     bun run knip
 
 test:
-    bun test && uv run pytest engine
+    bun test --cwd cli && uv run pytest engine
 
 smoke:
     just extract . && test -s .argot/dataset.jsonl

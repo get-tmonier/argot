@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/crates/oxc_linter/src/rules.rs",
   "plugins": ["typescript", "import", "unicorn"],
   "rules": {
-    "no-console": "warn",
+    "no-console": "error",
     "eqeqeq": "error",
     "no-unused-vars": "error",
     "typescript/no-explicit-any": "error",

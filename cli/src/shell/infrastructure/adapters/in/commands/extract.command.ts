@@ -1,5 +1,5 @@
 import { Argument, Command, Flag } from 'effect/unstable/cli';
-import { Effect } from 'effect';
+import { Console, Effect } from 'effect';
 import { runExtractDataset } from '#modules/extract-dataset/application/use-cases/extract-dataset.use-case.ts';
 
 export const extractCommand = Command.make(
@@ -11,6 +11,6 @@ export const extractCommand = Command.make(
   ({ path, out }) =>
     Effect.gen(function* () {
       const result = yield* runExtractDataset({ repoPath: path, outputPath: out });
-      console.log(`Dataset written to ${result.outputPath}`);
+      yield* Console.log(`Dataset written to ${result.outputPath}`);
     }),
 );
