@@ -21,13 +21,14 @@ const EngineRecord = Schema.Struct({
   style_examples: Schema.Array(Schema.String),
 });
 
-const ClaudeEnvelope = Schema.Struct({
-  result: Schema.String,
-});
-
 const Explanation = Schema.Struct({
   summary: Schema.String,
   issues: Schema.Array(Schema.String),
+});
+
+const ClaudeEnvelope = Schema.Struct({
+  structured_output: Schema.NullOr(Explanation),
+  result: Schema.String,
 });
 
 const CLAUDE_SCHEMA = JSON.stringify({
@@ -66,7 +67,6 @@ const callClaude = (
             '--print',
             '--output-format',
             'json',
-            '--bare',
             '--tools',
             '',
             '--json-schema',
@@ -98,9 +98,11 @@ const callClaude = (
     const envelope = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(ClaudeEnvelope))(
       raw,
     ).pipe(Effect.mapError((cause) => new ClaudeResponseInvalid({ raw, cause })));
-    const explanation = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(Explanation))(
-      envelope.result,
-    ).pipe(Effect.mapError((cause) => new ClaudeResponseInvalid({ raw: envelope.result, cause })));
+    const explanation =
+      envelope.structured_output ??
+      (yield* Schema.decodeUnknownEffect(Schema.fromJsonString(Explanation))(envelope.result).pipe(
+        Effect.mapError((cause) => new ClaudeResponseInvalid({ raw: envelope.result, cause })),
+      ));
     return explanation;
   });
 
