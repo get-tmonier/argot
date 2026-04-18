@@ -1,5 +1,7 @@
 export ARGOT_DEV := "1"
 
+VERSION := `bun -e "console.log(require('./cli/package.json').version)"`
+
 default: help
 
 help:
@@ -10,7 +12,9 @@ install:
 
 build:
     mkdir -p dist
-    cd cli && bun build --compile --target=bun src/cli.ts --outfile ../dist/argot
+    cd cli && bun build --compile --target=bun src/cli.ts \
+        --define "ARGOT_VERSION=\"$(VERSION)\"" \
+        --outfile ../dist/argot
 
 extract path=".":
     uv run --package argot-engine python -m argot.extract {{path}}
@@ -68,3 +72,34 @@ ci: verify smoke
 
 bump:
     ncu -u && bun install && uv lock --upgrade
+
+# --- release ---
+
+publish-engine:
+    cd engine && uv build && uv publish
+
+release VERSION:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ "$(git branch --show-current)" != "main" ]; then
+        echo "Error: must be on main branch to release" >&2
+        exit 1
+    fi
+    if [ -n "$(git status --porcelain)" ]; then
+        echo "Error: working tree is dirty" >&2
+        exit 1
+    fi
+    # Bump versions
+    bun -e "
+        const fs = require('fs');
+        const p = JSON.parse(fs.readFileSync('cli/package.json', 'utf8'));
+        p.version = '{{VERSION}}';
+        fs.writeFileSync('cli/package.json', JSON.stringify(p, null, 2) + '\n');
+    "
+    sed -i '' 's/^version = .*/version = "{{VERSION}}"/' engine/pyproject.toml
+    # Commit, tag, push
+    git add cli/package.json engine/pyproject.toml
+    git commit -m "chore: release v{{VERSION}}"
+    git tag "v{{VERSION}}"
+    git push origin main "v{{VERSION}}"
+    echo "Released v{{VERSION}} — CI will build binaries and publish to PyPI"
