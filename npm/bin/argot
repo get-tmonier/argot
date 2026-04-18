@@ -1,0 +1,12 @@
+#!/usr/bin/env node
+'use strict';
+const { execFileSync } = require('child_process');
+const path = require('path');
+const native = path.join(__dirname, '..', 'native', 'argot');
+try {
+  execFileSync(native, process.argv.slice(2), { stdio: 'inherit' });
+} catch (e) {
+  if (e.status !== undefined) process.exit(e.status);
+  console.error('argot: native binary not found — try reinstalling: npm install -g @tmonier/argot');
+  process.exit(1);
+}

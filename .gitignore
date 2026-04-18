@@ -50,4 +50,4 @@ __pycache__/
 # history
 .history/
 
-npm/bin/argot
+npm/native/

@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 
 const REPO = 'get-tmonier/argot';
-const BIN_PATH = path.join(__dirname, '..', 'bin', 'argot');
+const BIN_PATH = path.join(__dirname, '..', 'native', 'argot');
 
 function detectTarget() {
   const platform = process.platform;
