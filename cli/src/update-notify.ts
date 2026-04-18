@@ -6,7 +6,7 @@ import { version } from './version.ts';
 
 const REPO = 'get-tmonier/argot';
 const CACHE_PATH = join(homedir(), '.cache', 'argot', 'update-check.json');
-const TTL_MS = 24 * 60 * 60 * 1000;
+const TTL_MS = 60 * 60 * 1000;
 
 interface Cache {
   checkedAt: number;
