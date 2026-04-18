@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { Effect, Layer } from 'effect';
 import { engineCmd } from '#engine-cmd.ts';
+import { handleUvStderr } from '#spawn-with-progress.ts';
 import { StyleChecker } from '#modules/check-style/application/ports/out/style-checker.port.ts';
 import { CheckExitNonZero, CheckSpawnFailed } from '#modules/check-style/domain/errors.ts';
 
@@ -10,29 +11,35 @@ export const BunStyleCheckerLive = Layer.effect(StyleChecker)(
       repoPath,
       ref,
       modelPath,
+      threshold,
     }: {
       repoPath: string;
       ref: string;
       modelPath: string;
+      threshold: number;
     }) =>
       Effect.callback<void, CheckExitNonZero | CheckSpawnFailed>((resume) => {
         const { cmd, args } = engineCmd('argot.check');
         let proc: ReturnType<typeof spawn>;
         try {
-          proc = spawn(cmd, [...args, repoPath, ref, '--model', modelPath], {
-            stdio: ['ignore', 'inherit', 'pipe'],
-          });
+          proc = spawn(
+            cmd,
+            [...args, repoPath, ref, '--model', modelPath, '--threshold', String(threshold)],
+            { stdio: ['ignore', 'inherit', 'pipe'] },
+          );
         } catch (cause: unknown) {
           resume(Effect.fail(new CheckSpawnFailed({ cause })));
           return;
         }
 
         const stderrChunks: Buffer[] = [];
-        proc.stderr!.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
+        const stopSpinner = handleUvStderr(proc.stderr!, (chunk) => stderrChunks.push(chunk));
+
         proc.on('error', (cause: unknown) => {
           resume(Effect.fail(new CheckSpawnFailed({ cause })));
         });
         proc.on('close', (code: number | null) => {
+          stopSpinner();
           if (code === 0) {
             resume(Effect.void);
           } else {

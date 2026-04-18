@@ -7,6 +7,7 @@ interface StyleCheckerShape {
     repoPath: string;
     ref: string;
     modelPath: string;
+    threshold: number;
   }) => Effect.Effect<void, CheckError>;
 }
 

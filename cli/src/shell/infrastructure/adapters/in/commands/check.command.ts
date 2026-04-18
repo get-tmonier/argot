@@ -12,6 +12,8 @@ export const checkCommand = Command.make(
     ),
     model: Flag.string('model').pipe(Flag.withDefault('.argot/model.pkl')),
     repo: Flag.string('repo').pipe(Flag.withDefault('.')),
+    threshold: Flag.float('threshold').pipe(Flag.withDefault(0.8)),
   },
-  ({ ref, model, repo }) => runCheckStyle({ repoPath: repo, ref, modelPath: model }),
+  ({ ref, model, repo, threshold }) =>
+    runCheckStyle({ repoPath: repo, ref, modelPath: model, threshold }),
 );
