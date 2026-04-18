@@ -34,6 +34,11 @@ def main() -> None:
     parser.add_argument("repo_path", help="Path to git repository")
     parser.add_argument("--out", default=".argot/dataset.jsonl", help="Output JSONL path")
     parser.add_argument("--limit", type=int, default=None, help="Max number of records to emit")
+    parser.add_argument(
+        "--repo-name",
+        default=None,
+        help="Tag each record with _repo=<name> for cross-repo AUC (validate.py)",
+    )
     args = parser.parse_args()
 
     repo_path = args.repo_path
@@ -101,7 +106,10 @@ def main() -> None:
                     author_date_iso=str(author_date_iso),
                 )
 
-                fh.write(json.dumps(asdict(record)))
+                record_dict = asdict(record)
+                if args.repo_name is not None:
+                    record_dict["_repo"] = args.repo_name
+                fh.write(json.dumps(record_dict))
                 fh.write("\n")
                 count += 1
 

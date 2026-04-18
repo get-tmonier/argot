@@ -36,3 +36,45 @@ def test_smoke_extract_argot_repo(tmp_path: Path) -> None:
             assert "file_path" in record
             assert "language" in record
             assert record["hunk_start_line"] <= record["hunk_end_line"]
+
+
+def test_smoke_extract_with_repo_name(tmp_path: Path) -> None:
+    """--repo-name stamps _repo on every output record."""
+    out = tmp_path / "dataset.jsonl"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "argot.extract",
+            str(REPO_ROOT),
+            "--out",
+            str(out),
+            "--repo-name",
+            "argot",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode in (0, 2), f"stderr: {result.stderr}"
+    if result.returncode == 0:
+        lines = out.read_text().strip().splitlines()
+        assert len(lines) >= 1
+        for line in lines:
+            record = json.loads(line)
+            assert record.get("_repo") == "argot"
+
+
+def test_smoke_extract_without_repo_name_omits_tag(tmp_path: Path) -> None:
+    """Absence of --repo-name leaves records un-tagged (backwards-compat)."""
+    out = tmp_path / "dataset.jsonl"
+    result = subprocess.run(
+        [sys.executable, "-m", "argot.extract", str(REPO_ROOT), "--out", str(out)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode in (0, 2)
+    if result.returncode == 0:
+        lines = out.read_text().strip().splitlines()
+        for line in lines:
+            record = json.loads(line)
+            assert "_repo" not in record
