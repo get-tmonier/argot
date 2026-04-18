@@ -190,7 +190,7 @@ No training data or model leaves your machine. The only external call is the `cl
 Install [mise](https://mise.jdx.dev/) then provision the toolchain:
 
 ```bash
-mise install     # bun 1.3.11 · node 22 · python 3.11 · uv 0.5.0 · just 1.34.0 · lefthook 1.7.0
+mise install     # bun 1.3.12 · python 3.13 · uv 0.11.7 · just 1.49.0 · lefthook 2.1.6
 ```
 
 ### Setup

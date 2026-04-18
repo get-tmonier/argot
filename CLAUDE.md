@@ -52,7 +52,7 @@ The codebase is strict by design (mypy strict, no-any, ruff). When a check fails
 
 ## Toolchain (managed by mise)
 
-`bun 1.3.11` · `node 22` · `python 3.11` · `uv 0.5.0` · `just 1.34.0` · `lefthook 1.7.0`
+`bun 1.3.12` · `python 3.13` · `uv 0.11.7` · `just 1.49.0` · `lefthook 2.1.6`
 
 Linting/checking: `oxlint` · `oxfmt` · `tsgo` (native TS checker) · `dependency-cruiser` · `knip` · `ruff` · `mypy`
 
