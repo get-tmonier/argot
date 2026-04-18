@@ -34,6 +34,16 @@ poc-validate dataset=".argot/training.jsonl":
 benchmark model=".argot/model.pkl" dataset=".argot/dataset.jsonl" threshold="0.5":
     uv run --package argot-engine python -m argot.benchmark --model {{model}} --dataset {{dataset}} --threshold {{threshold}}
 
+# --- research ---
+
+research-concat out +inputs:
+    uv run --package argot-engine python -m argot.corpus concat {{inputs}} -o {{out}}
+
+research-benchmark dataset=".argot/research/combined.jsonl" sizes="500,2000,8000" seeds="3":
+    uv run --package argot-engine python -m argot.corpus benchmark \
+        --dataset {{dataset}} --sizes {{sizes}} --seeds {{seeds}} \
+        --out .argot/research/results.jsonl
+
 # --- individual checks ---
 
 lint:

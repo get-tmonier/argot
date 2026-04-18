@@ -21,6 +21,7 @@ argot-fetch = "argot.fetch:main"
 argot-validate = "argot.validate:main"
 argot-explain = "argot.explain:main"
 argot-benchmark = "argot.benchmark:main"
+argot-corpus = "argot.corpus:main"
 
 [tool.uv]
 package = true

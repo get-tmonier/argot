@@ -59,9 +59,7 @@ def run_benchmark(
     batch_size: int = 128,
 ) -> None:
     """Run validate-style AUC measurement at each (size, seed); append to output JSONL."""
-    records = [
-        json.loads(line) for line in dataset.read_text().splitlines() if line.strip()
-    ]
+    records = [json.loads(line) for line in dataset.read_text().splitlines() if line.strip()]
 
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("a") as out_fh:
@@ -159,8 +157,7 @@ def concat_datasets(inputs: list[Path], output: Path) -> dict[str, int]:
                 record = json.loads(line)
                 if "_repo" not in record:
                     raise ValueError(
-                        f"record in {src} missing _repo tag "
-                        f"(re-extract with --repo-name)"
+                        f"record in {src} missing _repo tag " f"(re-extract with --repo-name)"
                     )
                 counts[record["_repo"]] = counts.get(record["_repo"], 0) + 1
                 out_fh.write(line + "\n")
