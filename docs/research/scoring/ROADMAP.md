@@ -2,7 +2,7 @@
 
 > Read this at the start of every session. Update it at the end.
 
-**Current phase**: Phase 2 — sizing study (not started)
+**Current phase**: Phase 2 — sizing study (in progress — corpus reclassification, re-running small + xlarge benchmarks)
 **Active branch**: `research/scoring-benchmark`
 **Last touched**: 2026-04-18
 **Spec**: [`DESIGN.md`](DESIGN.md)
@@ -21,10 +21,12 @@
 
 ## Phase 2 — sizing study
 
-- [ ] 01-corpus.md: pin repo URLs + SHAs for 9 target repos (argot self +
-      2 per bucket × 4 buckets)
-- [ ] Clone + extract each → `.argot/research/datasets/<slug>.jsonl`
-- [ ] Concat per bucket; run `corpus benchmark` at bucket sizes × 3 seeds
+- [x] 01-corpus.md: pin repo URLs + SHAs — initial pass complete; reclassified
+      after audit (see decisions below)
+- [x] Clone + extract: argot, ruff, click, vite, effect, pydantic, django done
+- [ ] Clone + extract: vscode (xlarge TS) + TBD small TS repo
+- [x] Concat + benchmark: medium (7k) and large (20k) complete — results valid
+- [ ] Rebuild + re-benchmark: small (3k) and xlarge (60k) — pending new repos
 - [ ] 02-sizing-study.md: AUC-vs-size table + interpretation
 
 **Blocking**: Phase 1 complete.
@@ -66,6 +68,11 @@ without merging code.
 - 2026-04-18 — all 6 techniques attempted; stop rule = AUC lift < 0.01.
 - 2026-04-18 — calibration work (threshold recalibration from percentiles)
   is deferred to a separate branch after this research completes.
+- 2026-04-18 — corpus reclassification: buckets assigned by extracted record
+  count, not repo name/fame. zod (14,715 records) dropped — medium-scale, no
+  clean bucket. typescript-compiler (35,246 records, 94% JS fixtures) dropped
+  in favour of vscode. ruff moved from medium to small (3,343 records matches
+  small target). click + vite confirmed as medium. small TS slot TBD.
 
 ## Open questions (parked)
 
@@ -79,3 +86,9 @@ _None yet._
   `argot-corpus benchmark` land, `extract --repo-name` stamps `_repo`.
   `just research-concat` and `just research-benchmark` wired. Next: Phase 2
   corpus kickoff — pin repo URLs + SHAs in `01-corpus.md`.
+- **2026-04-18**: Phase 2 in progress. Extracted 7 repos. Medium + large
+  benchmarks complete and valid. Corpus audit triggered reclassification:
+  buckets now assigned by record count; zod and typescript-compiler dropped;
+  vscode added for xlarge TS; small TS slot TBD. benchmark fix: streaming
+  JSONL load in `corpus.py` (was crashing on 9.5 GB xlarge file). Re-running
+  small + xlarge benchmarks after new repo acquisition.

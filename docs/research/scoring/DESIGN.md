@@ -105,17 +105,20 @@ Does NOT modify the existing `validate` command — batch runner composes it.
 
 **Corpus** (2 repos per bucket; TS + Py mix):
 
-| bucket  | target records | TS candidate        | Py candidate       |
-|:--------|:---------------|:--------------------|:-------------------|
-| micro   | ~150           | argot (self)        | (shares bucket with TS) |
-| small   | ~1,500         | `colinhacks/zod`    | `pallets/click`    |
-| medium  | ~6,000         | `Effect-TS/vigie`   | `astral-sh/ruff` at early tag |
-| large   | ~20,000        | `Effect-TS/effect`  | `pydantic/pydantic` |
-| xlarge  | ~80,000        | `microsoft/tsgo`    | `django/django`    |
+Repos are classified by **extracted record count** — the number of commit
+records argot's extractor produces from the full git history. Bucket targets
+are set to match the available scale of each pair.
 
-Candidates above are the first pass; Phase 2 kickoff verifies each clone's
-record count and pins final URLs + SHAs in `01-corpus.md`. Swap-outs are
-expected if a candidate misses its bucket significantly.
+| bucket  | target records | TS repo                  | Py repo                    | records (approx)   |
+|:--------|:---------------|:-------------------------|:---------------------------|:-------------------|
+| micro   | ~250           | argot (self, ts+py)      | —                          | 243                |
+| small   | ~3,000         | TBD (~2–4k)              | `astral-sh/ruff` v0.1.0    | TBD + 3,343        |
+| medium  | ~7,000         | `vitejs/vite` v2.0.0     | `pallets/click`            | 8,252 + 6,334      |
+| large   | ~20,000        | `Effect-TS/effect`       | `pydantic/pydantic`        | 21,693 + 27,787    |
+| xlarge  | ~60,000        | `microsoft/vscode`       | `django/django`            | TBD + 174,877      |
+
+Final URLs, SHAs, and exact record counts are pinned in `01-corpus.md`.
+Swap-outs and drops are logged in `01-corpus.md §Swap-out log`.
 
 **Protocol per bucket:**
 - Clone each repo at the pinned commit into `.argot/research/repos/<slug>/`.
