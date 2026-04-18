@@ -17,7 +17,9 @@ export const checkCommand = Command.make(
     Effect.gen(function* () {
       const { resolveContext } = yield* RepoContext;
       const ctx = yield* resolveContext();
-      yield* Console.log(`argot · ${ctx.name} (${ctx.gitRoot}) · threshold ${ctx.preferences.threshold}`);
+      yield* Console.log(
+        `argot · ${ctx.name} (${ctx.gitRoot}) · threshold ${ctx.preferences.threshold}`,
+      );
       yield* runCheckStyle({
         repoPath: ctx.gitRoot,
         ref,

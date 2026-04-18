@@ -49,9 +49,13 @@ export const listCommand = Command.make('list', {}, () =>
     for (const repo of repos) {
       const prefix = repo.isCurrent ? '* ' : '  ';
       const datasetCol = repo.datasetInfo
-        ? `${formatBytes(repo.datasetInfo.sizeBytes)} · ${formatAge(repo.datasetInfo.mtime)}`.padEnd(20)
+        ? `${formatBytes(repo.datasetInfo.sizeBytes)} · ${formatAge(repo.datasetInfo.mtime)}`.padEnd(
+            20,
+          )
         : '—'.padEnd(20);
-      const modelCol = repo.modelInfo ? `trained ${formatAge(repo.modelInfo.mtime)}` : 'not trained';
+      const modelCol = repo.modelInfo
+        ? `trained ${formatAge(repo.modelInfo.mtime)}`
+        : 'not trained';
 
       const row = [
         prefix,
