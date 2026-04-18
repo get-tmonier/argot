@@ -16,6 +16,13 @@ from argot.jepa.model import JEPAArgot
 from argot.jepa.predictor import ArgotPredictor
 from argot.tokenize import language_for_path, tokenize_lines
 
+_FILE_COL_WIDTH = 55
+
+
+def _trunc(fp: str, width: int = _FILE_COL_WIDTH) -> str:
+    """Truncate a file path from the left to fit within width chars."""
+    return fp if len(fp) <= width else "..." + fp[-(width - 3) :]
+
 
 def _resolve_shas(repo: pygit2.Repository, ref: str) -> set[str]:
     """Parse a git range (A..B or bare ref) into a set of commit SHAs."""
@@ -177,12 +184,8 @@ def main() -> None:
 
     results.sort(key=lambda r: r[0], reverse=True)
 
-    col_w = 55
-
-    def _trunc(fp: str) -> str:
-        return fp if len(fp) <= col_w else "..." + fp[-(col_w - 3) :]
-
     t = args.threshold
+    col_w = _FILE_COL_WIDTH
     print(f"{'SURPRISE':>9}  {'TAG':<10}  {'FILE':<{col_w}}  {'LINE':>5}  REF")
     for score, fp, line, ref in results:
         if score <= t:

@@ -5,7 +5,7 @@ from typing import cast
 
 import pygit2
 
-from argot.check import _resolve_shas, _workdir_patches
+from argot.check import _FILE_COL_WIDTH, _resolve_shas, _trunc, _workdir_patches
 
 
 def _make_repo(tmp_path: Path, files: dict[str, str]) -> pygit2.Repository:
@@ -90,3 +90,32 @@ def test_workdir_patches_no_changes(tmp_path: Path) -> None:
 
     patches = list(_workdir_patches(str(tmp_path)))
     assert patches == []
+
+
+# --- _trunc ---
+
+
+def test_trunc_short_path() -> None:
+    assert _trunc("src/main.py") == "src/main.py"
+
+
+def test_trunc_exact_length() -> None:
+    path = "a" * _FILE_COL_WIDTH
+    assert _trunc(path) == path
+
+
+def test_trunc_long_path_length() -> None:
+    path = "x/" * 40 + "important.py"
+    result = _trunc(path)
+    assert len(result) == _FILE_COL_WIDTH
+
+
+def test_trunc_long_path_prefix() -> None:
+    path = "x/" * 40 + "important.py"
+    assert _trunc(path).startswith("...")
+
+
+def test_trunc_long_path_preserves_suffix() -> None:
+    # The filename at the end must survive truncation
+    path = "very/long/nested/path/" * 5 + "important.py"
+    assert _trunc(path).endswith("important.py")
