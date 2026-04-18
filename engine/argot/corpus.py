@@ -192,13 +192,14 @@ def concat_datasets(inputs: list[Path], output: Path) -> dict[str, int]:
                 for line in in_fh:
                     if not line.strip():
                         continue
-                record = json.loads(line)
-                if "_repo" not in record:
-                    raise ValueError(
-                        f"record in {src} missing _repo tag " f"(re-extract with --repo-name)"
-                    )
-                counts[record["_repo"]] = counts.get(record["_repo"], 0) + 1
-                out_fh.write(line + "\n")
+                    record = json.loads(line)
+                    if "_repo" not in record:
+                        raise ValueError(
+                            f"record in {src} missing _repo tag "
+                            f"(re-extract with --repo-name)"
+                        )
+                    counts[record["_repo"]] = counts.get(record["_repo"], 0) + 1
+                    out_fh.write(line + "\n")
     return counts
 
 
