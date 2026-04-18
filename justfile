@@ -44,6 +44,11 @@ research-benchmark dataset=".argot/research/combined.jsonl" sizes="500,2000,8000
         --dataset {{dataset}} --sizes {{sizes}} --seeds {{seeds}} \
         --out .argot/research/results.jsonl
 
+research-benchmark-combined sizes="3000,7000,20000" seeds="3" dataset=".argot/research/buckets/large.jsonl":
+    uv run --package argot-engine python -m argot.corpus benchmark \
+        --dataset {{dataset}} --sizes {{sizes}} --seeds {{seeds}} \
+        --out .argot/research/results-combined.jsonl
+
 # --- individual checks ---
 
 lint:

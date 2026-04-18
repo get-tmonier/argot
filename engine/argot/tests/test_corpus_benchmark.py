@@ -82,7 +82,13 @@ def test_load_records_strips_to_required_fields(tmp_path: Path) -> None:
 
     assert len(records) == 10
     for r in records:
-        assert set(r.keys()) == {"_repo", "author_date_iso", "context_before", "hunk_tokens"}
+        assert set(r.keys()) == {
+            "_repo",
+            "author_date_iso",
+            "context_before",
+            "context_after",
+            "hunk_tokens",
+        }
         for token in r["context_before"]:
             assert set(token.keys()) == {"text"}
         for token in r["hunk_tokens"]:
