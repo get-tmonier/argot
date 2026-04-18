@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from pathlib import Path
 
-from argot.corpus import run_benchmark
+from argot.corpus import _load_records, run_benchmark
 
 
 def _make_tagged_dataset(path: Path, n_per_repo: int = 40) -> None:
@@ -71,6 +72,60 @@ def test_benchmark_writes_one_row_per_size_seed(tmp_path: Path) -> None:
         assert "good_p95" in row
         assert "n_repos" in row
         assert "trained_at" in row
+
+
+def test_load_records_strips_to_required_fields(tmp_path: Path) -> None:
+    dataset = tmp_path / "data.jsonl"
+    _make_tagged_dataset(dataset, n_per_repo=5)
+
+    records = _load_records(dataset)
+
+    assert len(records) == 10
+    for r in records:
+        assert set(r.keys()) == {"_repo", "author_date_iso", "context_before", "hunk_tokens"}
+        for token in r["context_before"]:
+            assert set(token.keys()) == {"text"}
+        for token in r["hunk_tokens"]:
+            assert set(token.keys()) == {"text"}
+
+
+def test_load_records_reservoir_caps_count(tmp_path: Path) -> None:
+    dataset = tmp_path / "data.jsonl"
+    _make_tagged_dataset(dataset, n_per_repo=50)  # 100 records total
+
+    records = _load_records(dataset, max_records=40)
+
+    assert len(records) == 40
+
+
+def test_load_records_no_cap_returns_all(tmp_path: Path) -> None:
+    dataset = tmp_path / "data.jsonl"
+    _make_tagged_dataset(dataset, n_per_repo=20)
+
+    assert len(_load_records(dataset)) == 40
+    assert len(_load_records(dataset, max_records=None)) == 40
+
+
+def test_load_records_reservoir_includes_both_repos(tmp_path: Path) -> None:
+    dataset = tmp_path / "data.jsonl"
+    _make_tagged_dataset(dataset, n_per_repo=200)  # 400 records total
+
+    # Sample 100 — both repos should be represented (probability of missing
+    # one entirely is astronomically small at these counts).
+    records = _load_records(dataset, max_records=100)
+
+    repos = Counter(r["_repo"] for r in records)
+    assert "home" in repos
+    assert "foreign" in repos
+
+
+def test_load_records_reservoir_when_max_exceeds_total(tmp_path: Path) -> None:
+    dataset = tmp_path / "data.jsonl"
+    _make_tagged_dataset(dataset, n_per_repo=10)  # 20 records
+
+    # max_records > total → return everything, no truncation
+    records = _load_records(dataset, max_records=1000)
+    assert len(records) == 20
 
 
 def test_benchmark_appends_to_existing_output(tmp_path: Path) -> None:

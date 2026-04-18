@@ -49,28 +49,39 @@ def stratified_downsample(
     return sampled
 
 
-def _load_records(path: Path) -> list[dict[str, Any]]:
+def _load_records(path: Path, max_records: int | None = None) -> list[dict[str, Any]]:
     """Stream JSONL keeping only the four fields the benchmark needs.
 
     Avoids loading the full raw JSON into a single string (can be GB-scale for
     large corpora) and drops unused token fields (type, line, column, …) which
     dominate per-record size.
+
+    If max_records is given, applies Vitter's reservoir-sampling algorithm R so
+    the in-memory footprint is bounded regardless of input file size. The sample
+    is representative: each record has equal probability of inclusion.
     """
-    records: list[dict[str, Any]] = []
+    reservoir: list[dict[str, Any]] = []
+    rng = random.Random(0)
+    seen = 0
     with path.open() as f:
         for line in f:
             if not line.strip():
                 continue
             r = json.loads(line)
-            records.append(
-                {
-                    "_repo": r["_repo"],
-                    "author_date_iso": r["author_date_iso"],
-                    "context_before": [{"text": t["text"]} for t in r["context_before"]],
-                    "hunk_tokens": [{"text": t["text"]} for t in r["hunk_tokens"]],
-                }
-            )
-    return records
+            slim = {
+                "_repo": r["_repo"],
+                "author_date_iso": r["author_date_iso"],
+                "context_before": [{"text": t["text"]} for t in r["context_before"]],
+                "hunk_tokens": [{"text": t["text"]} for t in r["hunk_tokens"]],
+            }
+            seen += 1
+            if max_records is None or len(reservoir) < max_records:
+                reservoir.append(slim)
+            else:
+                j = rng.randint(0, seen - 1)
+                if j < max_records:
+                    reservoir[j] = slim
+    return reservoir
 
 
 def run_benchmark(
@@ -83,7 +94,9 @@ def run_benchmark(
     batch_size: int = 128,
 ) -> None:
     """Run validate-style AUC measurement at each (size, seed); append to output JSONL."""
-    records = _load_records(dataset)
+    # Load at most 2× the largest target — enough headroom for stratified_downsample
+    # while bounding peak RSS regardless of input file size.
+    records = _load_records(dataset, max_records=max(sizes) * 2)
 
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("a") as out_fh:
