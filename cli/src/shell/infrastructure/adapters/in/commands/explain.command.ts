@@ -7,8 +7,9 @@ export const explainCommand = Command.make(
   'explain',
   {
     ref: Argument.string('ref').pipe(
+      Argument.withDefault(''),
       Argument.withDescription(
-        'Git ref to explain: bare ref (HEAD, abc1234) or range (HEAD~5..HEAD)',
+        'Git ref to explain: bare ref (HEAD, abc1234), range (HEAD~5..HEAD), or omit to explain uncommitted changes',
       ),
     ),
   },

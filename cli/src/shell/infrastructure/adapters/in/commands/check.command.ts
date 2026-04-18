@@ -20,11 +20,12 @@ export const checkCommand = Command.make(
       yield* Console.log(
         `argot · ${ctx.name} (${ctx.gitRoot}) · threshold ${ctx.preferences.threshold}`,
       );
-      yield* runCheckStyle({
+      const hasViolations = yield* runCheckStyle({
         repoPath: ctx.gitRoot,
         ref,
         modelPath: ctx.modelPath,
         threshold: ctx.preferences.threshold,
       });
+      if (hasViolations) process.exit(1);
     }),
 );
