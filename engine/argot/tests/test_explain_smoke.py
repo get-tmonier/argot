@@ -112,3 +112,5 @@ def test_explain_workdir_mode_with_changes_emits_json(
     assert record["commit"] == "workdir"
     assert "file_path" in record
     assert "hunk_text" in record
+    assert "tag" in record
+    assert record["tag"] in {"unusual", "suspicious", "foreign"}
