@@ -49,6 +49,30 @@ def stratified_downsample(
     return sampled
 
 
+def _load_records(path: Path) -> list[dict[str, Any]]:
+    """Stream JSONL keeping only the four fields the benchmark needs.
+
+    Avoids loading the full raw JSON into a single string (can be GB-scale for
+    large corpora) and drops unused token fields (type, line, column, …) which
+    dominate per-record size.
+    """
+    records: list[dict[str, Any]] = []
+    with path.open() as f:
+        for line in f:
+            if not line.strip():
+                continue
+            r = json.loads(line)
+            records.append(
+                {
+                    "_repo": r["_repo"],
+                    "author_date_iso": r["author_date_iso"],
+                    "context_before": [{"text": t["text"]} for t in r["context_before"]],
+                    "hunk_tokens": [{"text": t["text"]} for t in r["hunk_tokens"]],
+                }
+            )
+    return records
+
+
 def run_benchmark(
     *,
     dataset: Path,
@@ -59,7 +83,7 @@ def run_benchmark(
     batch_size: int = 128,
 ) -> None:
     """Run validate-style AUC measurement at each (size, seed); append to output JSONL."""
-    records = [json.loads(line) for line in dataset.read_text().splitlines() if line.strip()]
+    records = _load_records(dataset)
 
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("a") as out_fh:
