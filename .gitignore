@@ -39,6 +39,7 @@ engine/**/__pycache__/
 __pycache__/
 *.py[cod]
 *.pyo
+*.egg-info/
 
 # argot output
 .argot/
