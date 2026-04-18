@@ -55,6 +55,25 @@ const downloadBinary = (url: string, destPath: string) =>
     catch: (e) => new Error(`Failed to download binary: ${String(e)}`),
   });
 
+const warmEngineCache = (remoteVersion: string) =>
+  Effect.tryPromise({
+    try: () =>
+      Bun.spawn(
+        [
+          'uvx',
+          '--refresh-package',
+          'argot-engine',
+          '--from',
+          `argot-engine==${remoteVersion}`,
+          'python',
+          '-c',
+          '',
+        ],
+        { stdout: 'ignore', stderr: 'ignore' },
+      ).exited,
+    catch: () => new Error(''),
+  }).pipe(Effect.ignore);
+
 export const updateCommand = Command.make('update', {}, () =>
   Effect.gen(function* () {
     yield* Console.log('Checking for updates…');
@@ -76,6 +95,8 @@ export const updateCommand = Command.make('update', {}, () =>
     const url = buildDownloadUrl(remoteVersion, target);
     yield* Console.log(`Downloading argot v${remoteVersion}…`);
     yield* downloadBinary(url, process.execPath);
+    yield* Console.log(`Warming engine cache…`);
+    yield* warmEngineCache(remoteVersion);
     yield* Console.log(
       `Updated to v${remoteVersion} — changelog: https://github.com/${REPO}/releases/tag/v${remoteVersion}`,
     );
