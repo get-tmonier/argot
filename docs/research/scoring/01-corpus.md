@@ -24,8 +24,8 @@ uv run --package argot-engine python -m argot.extract \
 | bucket  | slug     | url                                        | sha (pinned)                               | records | language |
 |:--------|:---------|:-------------------------------------------|:-------------------------------------------|--------:|:---------|
 | micro   | argot    | https://github.com/get-tmonier/argot       | fda874cee3d77563da347d8497ce330300bd8c0c   |     243 | ts+py    |
-| small   | zod      | https://github.com/colinhacks/zod          | <TBD task 2>                               |     TBD | ts       |
-| small   | click    | https://github.com/pallets/click           | <TBD task 2>                               |     TBD | py       |
+| small   | zod      | https://github.com/colinhacks/zod          | c7805073fef5b6b8857307c3d4b3597a70613bc2   |   14715 | ts       |
+| small   | click    | https://github.com/pallets/click           | 04ef3a6f473deb2499721a8d11f92a7d2c0912f2   |    6334 | py       |
 | medium  | vigie    | https://github.com/get-tmonier/vigie       | <TBD task 3>                               |     TBD | ts       |
 | medium  | ruff     | https://github.com/astral-sh/ruff          | <TBD task 3>                               |     TBD | py       |
 | large   | effect   | https://github.com/Effect-TS/effect        | <TBD task 4>                               |     TBD | ts       |
