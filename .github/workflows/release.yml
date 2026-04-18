@@ -1,0 +1,127 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-binaries:
+    if: github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v')
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - target: linux-x64
+            os: ubuntu-latest
+          - target: darwin-x64
+            os: macos-13
+          - target: darwin-arm64
+            os: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v2
+        with:
+          install: true
+
+      - name: Install JS dependencies
+        run: bun install
+
+      - name: Build binary
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          mkdir -p dist
+          cd cli && bun build --compile \
+            --target=bun-${{ matrix.target }} \
+            --define "ARGOT_VERSION=\"$VERSION\"" \
+            src/cli.ts \
+            --outfile ../dist/argot-${{ matrix.target }}
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: argot-${{ matrix.target }}
+          path: dist/argot-${{ matrix.target }}
+
+  publish-engine:
+    if: github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v')
+    name: Publish argot-engine to PyPI
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v2
+        with:
+          install: true
+
+      - name: Publish
+        run: cd engine && uv build && uv publish
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-binaries]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create release and attach binaries
+        run: |
+          gh release create "${{ github.ref_name }}" dist/argot-* \
+            --title "argot ${{ github.ref_name }}" \
+            --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-homebrew-tap:
+    name: Update Homebrew tap
+    needs: [create-release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download darwin binaries for checksums
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Compute SHA256 and update formula
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          SHA_X64=$(sha256sum dist/argot-darwin-x64 | awk '{print $1}')
+          SHA_ARM64=$(sha256sum dist/argot-darwin-arm64 | awk '{print $1}')
+
+          # Fetch current formula
+          CURRENT=$(gh api repos/tmonier/homebrew-argot/contents/Formula/argot.rb)
+          SHA_FILE=$(echo "$CURRENT" | jq -r '.sha')
+          CONTENT=$(echo "$CURRENT" | jq -r '.content' | base64 -d)
+
+          # Update urls and checksums
+          NEW_CONTENT=$(echo "$CONTENT" \
+            | sed "s|releases/download/v[^/]*/argot-darwin-x64|releases/download/v${VERSION}/argot-darwin-x64|g" \
+            | sed "s|sha256 \"[a-f0-9]*\" # x64|sha256 \"${SHA_X64}\" # x64|" \
+            | sed "s|releases/download/v[^/]*/argot-darwin-arm64|releases/download/v${VERSION}/argot-darwin-arm64|g" \
+            | sed "s|sha256 \"[a-f0-9]*\" # arm64|sha256 \"${SHA_ARM64}\" # arm64|")
+
+          ENCODED=$(echo "$NEW_CONTENT" | base64 -w 0)
+
+          gh api repos/tmonier/homebrew-argot/contents/Formula/argot.rb \
+            --method PUT \
+            --field message="chore: update argot to v${VERSION}" \
+            --field content="$ENCODED" \
+            --field sha="$SHA_FILE"
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
