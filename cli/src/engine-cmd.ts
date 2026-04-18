@@ -9,6 +9,14 @@ export function engineCmd(module: string): { cmd: string; args: string[] } {
   }
   return {
     cmd: 'uvx',
-    args: ['--from', `argot-engine==${version}`, 'python', '-m', module],
+    args: [
+      '--refresh-package',
+      'argot-engine',
+      '--from',
+      `argot-engine==${version}`,
+      'python',
+      '-m',
+      module,
+    ],
   };
 }
