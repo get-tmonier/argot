@@ -34,23 +34,57 @@ It does *not* replace ESLint, ruff, or type checkers. It catches what they can't
 
 ## Installation
 
-> **Note:** packaging is in progress. For now, build from source or use the dev setup below.
+### curl (recommended)
 
-**Prerequisites:** [`uv`](https://docs.astral.sh/uv/getting-started/installation/) must be in your PATH — argot's Python engine runs through it at runtime.
-
-```bash
-# clone and build a standalone binary
-git clone https://github.com/get-tmonier/argot
-cd argot
-mise install        # installs bun, python, uv, just — skip if you manage these yourself
-just install        # bun install + uv sync
-just build          # produces dist/argot (no runtime deps except uv)
-
-# put it on your PATH
-export PATH="$PWD/dist:$PATH"
+```sh
+curl -fsSL https://raw.githubusercontent.com/tmonier/argot/main/install.sh | sh
 ```
 
-For `argot explain` you also need the [Claude Code CLI](https://claude.ai/code) (`claude`) in your PATH — see [Explain](#explain) below.
+Installs the `argot` binary to `~/.local/bin` and installs `uv` if missing.
+
+### npm
+
+```sh
+npm install -g @tmonier/argot
+```
+
+### Homebrew
+
+```sh
+brew install tmonier/argot/argot
+```
+
+### Prerequisites
+
+| Dependency | Required for | Install |
+|---|---|---|
+| `uv` | All commands (Python engine) | Installed automatically by curl script, or `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
+| `claude` CLI | `argot explain` only | [Claude Code](https://claude.ai/code) |
+
+### Getting started
+
+```sh
+cd your-repo
+argot extract    # parse git history → .argot/dataset.jsonl
+argot train      # train JEPA model → .argot/model.pkl (downloads ~2GB torch once)
+argot check      # detect style anomalies in recent commits
+argot explain    # AI analysis of flagged hunks (requires claude CLI)
+```
+
+### Updating
+
+```sh
+argot update
+```
+
+### Development setup
+
+```sh
+git clone https://github.com/tmonier/argot
+cd argot
+just install     # bun install + uv sync
+just verify      # full check suite
+```
 
 ## Workflow
 
