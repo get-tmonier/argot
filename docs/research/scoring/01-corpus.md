@@ -30,8 +30,8 @@ uv run --package argot-engine python -m argot.extract \
 | medium  | ruff     | https://github.com/astral-sh/ruff          | 172ac2c9a27040e4a60726f82cabed6166af094a   |    3343 | py       |
 | large   | effect   | https://github.com/Effect-TS/effect        | b56a6ec05688c1461574b54a8044a849e7fe639c   |    9227 | ts       |
 | large   | pydantic | https://github.com/pydantic/pydantic       | a6bf50b721c2dd1ed609c8bb402076e8ec0c43f3   |   13446 | py       |
-| xlarge  | tsgo     | https://github.com/microsoft/tsgo          | <TBD task 5>                               |     TBD | ts       |
-| xlarge  | django   | https://github.com/django/django           | <TBD task 5>                               |     TBD | py       |
+| xlarge  | tsgo     | https://github.com/microsoft/TypeScript    | 55423abe4d029017f19b6e4c32097591994836b4   |   35246 | ts       |
+| xlarge  | django   | https://github.com/django/django           | 1b0d46f715849de53563aaf6912b4ded7d61641d   |  174877 | py       |
 
 ## Bucket targets and composition
 
@@ -45,6 +45,7 @@ uv run --package argot-engine python -m argot.extract \
 
 ## Swap-out log
 
-| task | bucket | candidate | reason              | replacement |
-|-----:|:-------|:----------|:--------------------|:------------|
-|    3 | medium | vigie     | 1194 records < 2400 | vite v2.0.0 |
+| task | bucket | candidate | reason                                            | replacement              |
+|-----:|:-------|:----------|:--------------------------------------------------|:-------------------------|
+|    3 | medium | vigie     | 1194 records < 2400                               | vite v2.0.0              |
+|    5 | xlarge | tsgo      | microsoft/tsgo not found (repo gone); also typescript-go is Go not TS | microsoft/TypeScript |
