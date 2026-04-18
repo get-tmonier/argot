@@ -8,6 +8,7 @@ import { explainCommand } from '#shell/infrastructure/adapters/in/commands/expla
 import { updateCommand } from '#shell/infrastructure/adapters/in/commands/update.command.ts';
 import { AppLive } from '#dependencies';
 import { version } from './version.ts';
+import { updateNotify } from './update-notify.ts';
 
 const app = Command.make('argot', {}, () =>
   Console.log(`argot v${version}
@@ -31,4 +32,9 @@ Run \`argot <command> --help\` for more information.`),
 );
 
 const program = Command.run(app, { version });
-program.pipe(Effect.provide(AppLive), Effect.provide(BunServices.layer), BunRuntime.runMain);
+program.pipe(
+  Effect.andThen(() => updateNotify),
+  Effect.provide(AppLive),
+  Effect.provide(BunServices.layer),
+  BunRuntime.runMain,
+);
