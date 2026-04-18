@@ -5,13 +5,15 @@ import json
 import random
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
 from sklearn.metrics import roc_auc_score  # type: ignore[import-untyped]
 
 from argot.train import ModelBundle, train_model
+
+StratifyBy = Literal["none", "language", "top-dir"]
 
 
 def split_by_time(
@@ -37,6 +39,31 @@ def inject_foreign(
     rng = random.Random(seed)
     foreign_hunks = [r["hunk_tokens"] for r in foreign]
     return [{**r, "hunk_tokens": rng.choice(foreign_hunks)} for r in home]
+
+
+def top_dir(file_path: str) -> str:
+    parts = Path(file_path).parts
+    return parts[0] if parts else ""
+
+
+def stratify_scores(
+    records: list[dict[str, Any]],
+    scores: list[float],
+    by: StratifyBy,
+) -> dict[str, list[float]]:
+    """Group scores by record attribute; returns {group_key: [scores]}."""
+    if by == "none":
+        return {"all": list(scores)}
+    groups: dict[str, list[float]] = {}
+    for r, s in zip(records, scores, strict=True):
+        if by == "language":
+            key = r.get("language", "unknown")
+        elif by == "top-dir":
+            key = top_dir(r.get("file_path", "")) or "unknown"
+        else:
+            raise ValueError(f"unknown stratify-by: {by}")
+        groups.setdefault(key, []).append(s)
+    return groups
 
 
 def compute_percentiles(scores: list[float]) -> dict[str, float]:
@@ -89,6 +116,17 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--ratio", type=float, default=0.8)
+    parser.add_argument(
+        "--stratify-by",
+        choices=["none", "language", "top-dir"],
+        default="none",
+        help="Group held-out percentile tables by file attribute",
+    )
+    parser.add_argument(
+        "--dump-scores",
+        default=None,
+        help="Write held-out per-record scores to this JSONL path",
+    )
     args = parser.parse_args()
 
     dataset_path = Path(args.dataset)
@@ -150,6 +188,33 @@ def main() -> None:
         ]
 
     _print_table(rows)
+
+    if args.stratify_by != "none":
+        strata = stratify_scores(held_out, good_scores, args.stratify_by)
+        strata_rows: list[Any] = [
+            (f"  {key} (n={len(vals)})", compute_percentiles(vals), 0.5)
+            for key, vals in sorted(strata.items())
+            if vals
+        ]
+        print(f"=== Held-out stratified by {args.stratify_by} ===")
+        _print_table(strata_rows)
+
+    if args.dump_scores:
+        dump_path = Path(args.dump_scores)
+        dump_path.parent.mkdir(parents=True, exist_ok=True)
+        with dump_path.open("w") as fh:
+            for record, score in zip(held_out, good_scores, strict=True):
+                fh.write(
+                    json.dumps(
+                        {
+                            "file_path": record.get("file_path", ""),
+                            "language": record.get("language", ""),
+                            "score": score,
+                        }
+                    )
+                )
+                fh.write("\n")
+        print(f"held-out scores written to {dump_path}")
 
     good_median = good_p["median"]
     checks: dict[str, tuple[bool, float]] = {

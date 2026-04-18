@@ -1,0 +1,76 @@
+{
+  "fixtures": [
+    {
+      "name": "paradigm_break_class",
+      "file": "paradigm_break_class.ts",
+      "hunk_start_line": 39,
+      "hunk_end_line": 64,
+      "min_band": "suspicious",
+      "max_band": "foreign",
+      "rationale": "A fluent builder class dropped into a file that is otherwise purely functional Effect.gen code. Classes are a paradigm break in argot's CLI. Expect at least 'suspicious'."
+    },
+    {
+      "name": "paradigm_break_console_log",
+      "file": "paradigm_break_console_log.ts",
+      "hunk_start_line": 35,
+      "hunk_end_line": 36,
+      "min_band": "unusual",
+      "max_band": "foreign",
+      "rationale": "A raw console.log inside a method whose surrounding lines use Effect.logInfo / Effect.logError. This is the vigie failure mode — the model currently underweights it. Tolerated at 'unusual' today; ideally 'suspicious'."
+    },
+    {
+      "name": "paradigm_break_throw_error",
+      "file": "paradigm_break_throw_error.ts",
+      "hunk_start_line": 36,
+      "hunk_end_line": 37,
+      "min_band": "unusual",
+      "max_band": "foreign",
+      "rationale": "`throw new Error(...)` in a file where Effect.fail is the convention for failure. Expect at least 'unusual'."
+    },
+    {
+      "name": "paradigm_break_relative_import",
+      "file": "paradigm_break_relative_import.ts",
+      "hunk_start_line": 15,
+      "hunk_end_line": 16,
+      "min_band": "unusual",
+      "max_band": "foreign",
+      "rationale": "Relative `../../` import in a block of `#modules/*` path-aliased imports. Subtle style deviation."
+    },
+    {
+      "name": "control_trivial_predicate",
+      "file": "control_trivial_predicate.ts",
+      "hunk_start_line": 24,
+      "hunk_end_line": 26,
+      "min_band": "ok",
+      "max_band": "unusual",
+      "rationale": "A one-liner named predicate helper. Borderline — argot tends to inline trivial conditions, so 'unusual' is acceptable; 'ok' is also fine."
+    },
+    {
+      "name": "control_normal_effect",
+      "file": "control_normal_effect.ts",
+      "hunk_start_line": 23,
+      "hunk_end_line": 30,
+      "min_band": "ok",
+      "max_band": "ok",
+      "rationale": "Plain Effect.gen function that mirrors existing use-case shape. Must score 'ok'."
+    },
+    {
+      "name": "paradigm_break_print",
+      "file": "paradigm_break_print.py",
+      "hunk_start_line": 33,
+      "hunk_end_line": 37,
+      "min_band": "unusual",
+      "max_band": "foreign",
+      "rationale": "`print(...)` used for output in a module that otherwise uses sys.stderr/sys.stdout and structured JSON. Paradigm break."
+    },
+    {
+      "name": "control_normal_python",
+      "file": "control_normal_python.py",
+      "hunk_start_line": 31,
+      "hunk_end_line": 38,
+      "min_band": "ok",
+      "max_band": "ok",
+      "rationale": "Idiomatic engine-style Python using sys.stdout.write/sys.stderr.write. Must score 'ok'."
+    }
+  ]
+}

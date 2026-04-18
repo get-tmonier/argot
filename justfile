@@ -31,6 +31,9 @@ fetch-training-data:
 poc-validate dataset=".argot/training.jsonl":
     uv run --package argot-engine python -m argot.validate --dataset {{dataset}}
 
+benchmark model=".argot/model.pkl" dataset=".argot/dataset.jsonl" threshold="0.5":
+    uv run --package argot-engine python -m argot.benchmark --model {{model}} --dataset {{dataset}} --threshold {{threshold}}
+
 # --- individual checks ---
 
 lint:
