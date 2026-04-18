@@ -9,7 +9,6 @@ const REPO = 'get-tmonier/argot';
 export function detectTarget(platform: string, arch: string): string {
   if (platform === 'linux' && arch === 'x64') return 'linux-x64';
   if (platform === 'darwin' && arch === 'arm64') return 'darwin-arm64';
-  if (platform === 'darwin' && arch === 'x64') return 'darwin-x64';
   throw new Error(`Unsupported platform: ${platform}-${arch}`);
 }
 

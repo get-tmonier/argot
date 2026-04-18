@@ -10,10 +10,6 @@ describe('detectTarget', () => {
     expect(detectTarget('darwin', 'arm64')).toBe('darwin-arm64');
   });
 
-  test('returns darwin-x64 on intel mac', () => {
-    expect(detectTarget('darwin', 'x64')).toBe('darwin-x64');
-  });
-
   test('throws on unsupported platform', () => {
     expect(() => detectTarget('win32', 'x64')).toThrow('Unsupported platform');
   });

@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: argot-engine
-Version: 0.0.1
+Version: 0.1.4
 Requires-Python: >=3.11
 Requires-Dist: pygit2==1.19.2
 Requires-Dist: scikit-learn>=1.5.0

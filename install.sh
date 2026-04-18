@@ -10,9 +10,8 @@ OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
 
 case "${OS}-${ARCH}" in
-  linux-x86_64)  TARGET="linux-x64" ;;
-  darwin-x86_64) TARGET="darwin-x64" ;;
-  darwin-arm64)  TARGET="darwin-arm64" ;;
+  linux-x86_64) TARGET="linux-x64" ;;
+  darwin-arm64) TARGET="darwin-arm64" ;;
   *)
     echo "Unsupported platform: ${OS}-${ARCH}" >&2
     exit 1
