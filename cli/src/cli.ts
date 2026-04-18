@@ -6,6 +6,8 @@ import { trainCommand } from '#shell/infrastructure/adapters/in/commands/train.c
 import { checkCommand } from '#shell/infrastructure/adapters/in/commands/check.command.ts';
 import { explainCommand } from '#shell/infrastructure/adapters/in/commands/explain.command.ts';
 import { updateCommand } from '#shell/infrastructure/adapters/in/commands/update.command.ts';
+import { statusCommand } from '#shell/infrastructure/adapters/in/commands/status.command.ts';
+import { listCommand } from '#shell/infrastructure/adapters/in/commands/list.command.ts';
 import { AppLive } from '#dependencies';
 import { version } from './version.ts';
 import { updateNotify } from './update-notify.ts';
@@ -14,10 +16,12 @@ const app = Command.make('argot', {}, () =>
   Console.log(`argot v${version}
 
 COMMANDS
-  extract   Extract dataset from a git repository
+  extract   Extract dataset from the current git repository
   train     Train a style model on the extracted dataset
   check     Check code against the trained style model
   explain   Explain style anomalies in detail
+  status    Show current repository's argot state
+  list      List all registered repositories
   update    Update the argot CLI
 
 Run \`argot <command> --help\` for more information.`),
@@ -27,6 +31,8 @@ Run \`argot <command> --help\` for more information.`),
     trainCommand,
     checkCommand,
     explainCommand,
+    statusCommand,
+    listCommand,
     updateCommand,
   ]),
 );

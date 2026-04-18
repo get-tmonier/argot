@@ -33,20 +33,18 @@ export const statusCommand = Command.make('status', {}, () =>
 
     yield* Console.log(`Repo:     ${ctx.name} (${ctx.gitRoot})`);
 
-    let datasetLine = '—';
-    try {
+    const datasetLine = yield* Effect.tryPromise(async () => {
       const s = await stat(ctx.datasetPath);
       const count = await countJsonlLines(ctx.datasetPath);
       const countStr = count !== null ? `${count} records · ` : '';
-      datasetLine = `${countStr}${formatBytes(s.size)} · last extracted ${formatAge(s.mtime)}`;
-    } catch {}
+      return `${countStr}${formatBytes(s.size)} · last extracted ${formatAge(s.mtime)}`;
+    }).pipe(Effect.orElseSucceed(() => '—'));
     yield* Console.log(`Dataset:  ${datasetLine}`);
 
-    let modelLine = 'not trained';
-    try {
+    const modelLine = yield* Effect.tryPromise(async () => {
       const s = await stat(ctx.modelPath);
-      modelLine = `trained ${formatAge(s.mtime)} · ${formatBytes(s.size)}`;
-    } catch {}
+      return `trained ${formatAge(s.mtime)} · ${formatBytes(s.size)}`;
+    }).pipe(Effect.orElseSucceed(() => 'not trained'));
     yield* Console.log(`Model:    ${modelLine}`);
 
     const thresholdSource =
