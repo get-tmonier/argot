@@ -2,13 +2,17 @@ name: CI
 
 on:
   push:
-    branches: [main, "feat/**"]
+    branches: ["**"]
+    paths-ignore:
+      - "cli/package.json"
+      - "engine/pyproject.toml"
+      - "uv.lock"
   pull_request:
     branches: [main]
 
 jobs:
   ts:
-    if: "!startsWith(github.event.head_commit.message, 'chore: release v')"
+    if: "github.event_name == 'pull_request' || !startsWith(github.event.head_commit.message, 'chore: release v')"
     name: TypeScript (lint · typecheck · boundaries · test)
     runs-on: ubuntu-latest
     steps:
@@ -34,7 +38,7 @@ jobs:
         run: bun test
 
   py:
-    if: "!startsWith(github.event.head_commit.message, 'chore: release v')"
+    if: "github.event_name == 'pull_request' || !startsWith(github.event.head_commit.message, 'chore: release v')"
     name: Python (ruff · mypy · pytest)
     runs-on: ubuntu-latest
     steps:
@@ -57,7 +61,7 @@ jobs:
         run: uv run pytest engine
 
   smoke:
-    if: "!startsWith(github.event.head_commit.message, 'chore: release v')"
+    if: "github.event_name == 'pull_request' || !startsWith(github.event.head_commit.message, 'chore: release v')"
     name: Smoke test (argot extract)
     runs-on: ubuntu-latest
     needs: [ts, py]
