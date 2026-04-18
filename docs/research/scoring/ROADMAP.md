@@ -2,7 +2,7 @@
 
 > Read this at the start of every session. Update it at the end.
 
-**Current phase**: Phase 1 — benchmark infrastructure (not started)
+**Current phase**: Phase 2 — sizing study (not started)
 **Active branch**: `research/scoring-benchmark`
 **Last touched**: 2026-04-18
 **Spec**: [`DESIGN.md`](DESIGN.md)
@@ -11,15 +11,13 @@
 
 ## Phase 1 — benchmark infrastructure
 
-- [ ] 1a. Add `--repo-name` to `argot-engine extract`; stamp `_repo` on records
-- [ ] 1b. Add `argot-engine corpus concat` utility
-- [ ] 1c. Add `argot-engine corpus benchmark` batch runner
-- [ ] Unit tests for downsample/stratify + concat
-- [ ] `just research benchmark` target wired
-- [ ] Verify suite green
+- [x] 1a. Add `--repo-name` to `argot-engine extract`; stamp `_repo` on records
+- [x] 1b. Add `argot-engine corpus concat` utility
+- [x] 1c. Add `argot-engine corpus benchmark` batch runner
+- [x] Unit tests for downsample/stratify + concat
+- [x] `just research benchmark` target wired
+- [x] Verify suite green
 
-**Entry point for next session**: start with 1a. Implementation plan will be
-written after this design is approved (see writing-plans).
 
 ## Phase 2 — sizing study
 
@@ -77,3 +75,7 @@ _None yet._
 
 - **2026-04-18**: design approved; branch created; DESIGN.md + ROADMAP.md
   committed. Next: write Phase 1 implementation plan via writing-plans skill.
+- **2026-04-18**: Phase 1 complete. `argot-corpus concat` and
+  `argot-corpus benchmark` land, `extract --repo-name` stamps `_repo`.
+  `just research-concat` and `just research-benchmark` wired. Next: Phase 2
+  corpus kickoff — pin repo URLs + SHAs in `01-corpus.md`.
