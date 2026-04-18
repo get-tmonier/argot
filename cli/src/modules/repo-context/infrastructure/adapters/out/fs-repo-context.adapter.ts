@@ -4,8 +4,12 @@ import { homedir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { Effect, Layer } from 'effect';
 import { RepoContext } from '#modules/repo-context/application/ports/out/repo-context.port.ts';
-import { GitRootNotFound, SettingsReadError } from '#modules/repo-context/domain/errors.ts';
-import type { DatasetInfo, ModelInfo, RepoStatus } from '#modules/repo-context/domain/repo-context.ts';
+import { SettingsReadError } from '#modules/repo-context/domain/errors.ts';
+import type {
+  DatasetInfo,
+  ModelInfo,
+  RepoStatus,
+} from '#modules/repo-context/domain/repo-context.ts';
 import {
   DEFAULT_GLOBAL_SETTINGS,
   mergePreferences,
