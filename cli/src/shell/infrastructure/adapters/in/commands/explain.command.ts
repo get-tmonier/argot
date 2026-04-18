@@ -24,6 +24,7 @@ export const explainCommand = Command.make(
         modelPath: ctx.modelPath,
         datasetPath: ctx.datasetPath,
         claudeModel: ctx.preferences.model,
+        threshold: ctx.preferences.threshold,
       });
     }),
 );

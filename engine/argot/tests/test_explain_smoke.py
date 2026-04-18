@@ -98,7 +98,7 @@ def test_explain_workdir_mode_with_changes_emits_json(
             str(model_path),
             "--dataset",
             str(dataset_path),
-            "--threshold-percentile",
+            "--threshold",
             "0.0",  # emit everything
         ],
     )

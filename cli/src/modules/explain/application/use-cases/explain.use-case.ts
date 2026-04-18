@@ -8,6 +8,7 @@ export const runExplain = (args: {
   modelPath: string;
   datasetPath: string;
   claudeModel: string;
+  threshold: number;
 }): Effect.Effect<void, ExplainError, Explainer> =>
   Effect.gen(function* () {
     const explainer = yield* Explainer;

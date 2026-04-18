@@ -71,7 +71,7 @@ def main() -> None:
     parser.add_argument("ref", nargs="?", default="")
     parser.add_argument("--model", default=".argot/model.pkl")
     parser.add_argument("--dataset", default=".argot/dataset.jsonl")
-    parser.add_argument("--threshold-percentile", type=float, default=75.0)
+    parser.add_argument("--threshold", type=float, default=0.5)
     parser.add_argument("--examples", type=int, default=5)
     args = parser.parse_args()
 
@@ -141,7 +141,7 @@ def main() -> None:
                     score = model.surprise(ctx_vec, hunk_vec).item()
                     pct = percentile_rank(score, distribution)
 
-                    if pct < args.threshold_percentile:
+                    if score <= args.threshold:
                         continue
 
                     print(

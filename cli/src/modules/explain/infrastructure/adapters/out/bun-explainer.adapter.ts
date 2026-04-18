@@ -118,12 +118,14 @@ export const BunExplainerLive = Layer.effect(Explainer)(
       modelPath,
       datasetPath,
       claudeModel,
+      threshold,
     }: {
       repoPath: string;
       ref: string;
       modelPath: string;
       datasetPath: string;
       claudeModel: string;
+      threshold: number;
     }) =>
       Effect.callback<void, ExplainEngineSpawnFailed | ExplainEngineExitNonZero>((resume) => {
         const { cmd, args } = engineCmd('argot.explain');
@@ -131,7 +133,17 @@ export const BunExplainerLive = Layer.effect(Explainer)(
         try {
           proc = spawn(
             cmd,
-            [...args, repoPath, ref, '--model', modelPath, '--dataset', datasetPath],
+            [
+              ...args,
+              repoPath,
+              ref,
+              '--model',
+              modelPath,
+              '--dataset',
+              datasetPath,
+              '--threshold',
+              String(threshold),
+            ],
             { stdio: ['ignore', 'pipe', 'pipe'] },
           );
         } catch (cause: unknown) {
