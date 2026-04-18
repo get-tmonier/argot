@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from argot.explain import percentile_rank, select_style_examples, _score_to_tag
+from argot.explain import _score_to_tag, percentile_rank, select_style_examples
 
 
 def _make_scored(n: int, base_score: float = 0.1, repo: str = "home") -> list[dict]:  # type: ignore[type-arg]
