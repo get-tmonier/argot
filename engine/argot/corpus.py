@@ -188,9 +188,10 @@ def concat_datasets(inputs: list[Path], output: Path) -> dict[str, int]:
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("w") as out_fh:
         for src in inputs:
-            for line in src.read_text().splitlines():
-                if not line.strip():
-                    continue
+            with src.open() as in_fh:
+                for line in in_fh:
+                    if not line.strip():
+                        continue
                 record = json.loads(line)
                 if "_repo" not in record:
                     raise ValueError(
