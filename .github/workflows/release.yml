@@ -87,7 +87,7 @@ jobs:
 
   create-release:
     name: Create GitHub Release
-    needs: [build-binaries]
+    needs: [build-binaries, publish-engine]
     runs-on: ubuntu-latest
     permissions:
       contents: write
