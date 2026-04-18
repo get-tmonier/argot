@@ -37,7 +37,7 @@ It does *not* replace ESLint, ruff, or type checkers. It catches what they can't
 ### curl (recommended)
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/get-tmonier/argot/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/tmonier/argot/main/install.sh | sh
 ```
 
 Installs the `argot` binary to `~/.local/bin` and installs `uv` if missing.
@@ -45,13 +45,13 @@ Installs the `argot` binary to `~/.local/bin` and installs `uv` if missing.
 ### npm
 
 ```sh
-npm install -g @get-tmonier/argot
+npm install -g @tmonier/argot
 ```
 
 ### Homebrew
 
 ```sh
-brew install get-tmonier/argot/argot
+brew install tmonier/argot/argot
 ```
 
 ### Prerequisites
@@ -80,7 +80,7 @@ argot update
 ### Development setup
 
 ```sh
-git clone https://github.com/get-tmonier/argot
+git clone https://github.com/tmonier/argot
 cd argot
 just install     # bun install + uv sync
 just verify      # full check suite

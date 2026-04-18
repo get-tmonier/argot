@@ -36,7 +36,7 @@ describe('compareVersions', () => {
 describe('buildDownloadUrl', () => {
   test('builds correct URL', () => {
     expect(buildDownloadUrl('0.2.0', 'darwin-arm64')).toBe(
-      'https://github.com/get-tmonier/argot/releases/download/v0.2.0/argot-darwin-arm64',
+      'https://github.com/tmonier/argot/releases/download/v0.2.0/argot-darwin-arm64',
     );
   });
 });

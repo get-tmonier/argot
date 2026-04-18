@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="get-tmonier/argot"
+REPO="tmonier/argot"
 INSTALL_DIR="${HOME}/.local/bin"
 BINARY_NAME="argot"
 

@@ -58,6 +58,6 @@ Linting/checking: `oxlint` · `oxfmt` · `tsgo` (native TS checker) · `dependen
 
 ## Homebrew tap
 
-Formula lives in a separate repo: https://github.com/get-tmonier/homebrew-argot
+Formula lives in a separate repo: https://github.com/tmonier/homebrew-argot
 The `update-homebrew-tap` job in `.github/workflows/release.yml` auto-updates it on each release.
-Requires secret `HOMEBREW_TAP_TOKEN` (PAT with `repo` scope on `get-tmonier/homebrew-argot`) in the main repo's GitHub Actions secrets.
+Requires secret `HOMEBREW_TAP_TOKEN` (PAT with `repo` scope on `tmonier/homebrew-argot`) in the main repo's GitHub Actions secrets.

@@ -105,7 +105,7 @@ jobs:
           SHA_ARM64=$(sha256sum dist/argot-darwin-arm64 | awk '{print $1}')
 
           # Fetch current formula
-          CURRENT=$(gh api repos/get-tmonier/homebrew-argot/contents/Formula/argot.rb)
+          CURRENT=$(gh api repos/tmonier/homebrew-argot/contents/Formula/argot.rb)
           SHA_FILE=$(echo "$CURRENT" | jq -r '.sha')
           CONTENT=$(echo "$CURRENT" | jq -r '.content' | base64 -d)
 
@@ -118,7 +118,7 @@ jobs:
 
           ENCODED=$(echo "$NEW_CONTENT" | base64 -w 0)
 
-          gh api repos/get-tmonier/homebrew-argot/contents/Formula/argot.rb \
+          gh api repos/tmonier/homebrew-argot/contents/Formula/argot.rb \
             --method PUT \
             --field message="chore: update argot to v${VERSION}" \
             --field content="$ENCODED" \
