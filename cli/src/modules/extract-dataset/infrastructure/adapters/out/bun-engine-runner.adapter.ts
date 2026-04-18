@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { Effect, Layer } from 'effect';
 import { engineCmd } from '#engine-cmd.ts';
+import { handleUvStderr } from '#spawn-with-progress.ts';
 import { EngineRunner } from '#modules/extract-dataset/application/ports/out/engine-runner.port.ts';
 import { EngineExitNonZero, EngineSpawnFailed } from '#modules/extract-dataset/domain/errors.ts';
 
@@ -20,13 +21,14 @@ export const BunEngineRunnerLive = Layer.effect(EngineRunner)(
         }
 
         const stderrChunks: Buffer[] = [];
-        proc.stderr!.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
+        const stopSpinner = handleUvStderr(proc.stderr!, (chunk) => stderrChunks.push(chunk));
 
         proc.on('error', (cause: unknown) => {
           resume(Effect.fail(new EngineSpawnFailed({ cause })));
         });
 
         proc.on('close', (code: number | null) => {
+          stopSpinner();
           if (code === 0) {
             resume(Effect.void);
           } else {

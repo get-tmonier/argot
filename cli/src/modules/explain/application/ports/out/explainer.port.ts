@@ -8,6 +8,7 @@ interface ExplainerShape {
     ref: string;
     modelPath: string;
     datasetPath: string;
+    claudeModel: string;
   }) => Effect.Effect<void, ExplainError>;
 }
 

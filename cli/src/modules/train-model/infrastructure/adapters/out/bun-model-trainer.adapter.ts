@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { Effect, Layer } from 'effect';
 import { engineCmd } from '#engine-cmd.ts';
+import { handleUvStderr } from '#spawn-with-progress.ts';
 import { ModelTrainer } from '#modules/train-model/application/ports/out/model-trainer.port.ts';
 import { TrainExitNonZero, TrainSpawnFailed } from '#modules/train-model/domain/errors.ts';
 
@@ -20,11 +21,13 @@ export const BunModelTrainerLive = Layer.effect(ModelTrainer)(
         }
 
         const stderrChunks: Buffer[] = [];
-        proc.stderr!.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
+        const stopSpinner = handleUvStderr(proc.stderr!, (chunk) => stderrChunks.push(chunk));
+
         proc.on('error', (cause: unknown) => {
           resume(Effect.fail(new TrainSpawnFailed({ cause })));
         });
         proc.on('close', (code: number | null) => {
+          stopSpinner();
           if (code === 0) {
             resume(Effect.void);
           } else {

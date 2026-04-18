@@ -1,4 +1,6 @@
-import { Argument, Command, Flag } from 'effect/unstable/cli';
+import { Argument, Command } from 'effect/unstable/cli';
+import { Console, Effect } from 'effect';
+import { RepoContext } from '#modules/repo-context/dependencies.ts';
 import { runExplain } from '#modules/explain/application/use-cases/explain.use-case.ts';
 
 export const explainCommand = Command.make(
@@ -9,10 +11,18 @@ export const explainCommand = Command.make(
         'Git ref to explain: bare ref (HEAD, abc1234) or range (HEAD~5..HEAD)',
       ),
     ),
-    model: Flag.string('model').pipe(Flag.withDefault('.argot/model.pkl')),
-    dataset: Flag.string('dataset').pipe(Flag.withDefault('.argot/dataset.jsonl')),
-    repo: Flag.string('repo').pipe(Flag.withDefault('.')),
   },
-  ({ ref, model, dataset, repo }) =>
-    runExplain({ repoPath: repo, ref, modelPath: model, datasetPath: dataset }),
+  ({ ref }) =>
+    Effect.gen(function* () {
+      const { resolveContext } = yield* RepoContext;
+      const ctx = yield* resolveContext();
+      yield* Console.log(`argot · ${ctx.name} (${ctx.gitRoot}) · model ${ctx.preferences.model}`);
+      yield* runExplain({
+        repoPath: ctx.gitRoot,
+        ref,
+        modelPath: ctx.modelPath,
+        datasetPath: ctx.datasetPath,
+        claudeModel: ctx.preferences.model,
+      });
+    }),
 );

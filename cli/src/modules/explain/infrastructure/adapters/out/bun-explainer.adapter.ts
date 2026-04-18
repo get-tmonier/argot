@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { Console, Effect, Layer, Schema } from 'effect';
 import { engineCmd } from '#engine-cmd.ts';
+import { handleUvStderr } from '#spawn-with-progress.ts';
 import { Explainer } from '#modules/explain/application/ports/out/explainer.port.ts';
 import {
   ClaudeExitNonZero,
@@ -42,6 +43,7 @@ const CLAUDE_SCHEMA = JSON.stringify({
 
 const callClaude = (
   record: typeof EngineRecord.Type,
+  claudeModel: string,
 ): Effect.Effect<
   typeof Explanation.Type,
   ClaudeSpawnFailed | ClaudeExitNonZero | ClaudeResponseInvalid
@@ -67,6 +69,8 @@ const callClaude = (
             '--print',
             '--output-format',
             'json',
+            '--model',
+            claudeModel,
             '--tools',
             '',
             '--json-schema',
@@ -113,11 +117,13 @@ export const BunExplainerLive = Layer.effect(Explainer)(
       ref,
       modelPath,
       datasetPath,
+      claudeModel,
     }: {
       repoPath: string;
       ref: string;
       modelPath: string;
       datasetPath: string;
+      claudeModel: string;
     }) =>
       Effect.callback<void, ExplainEngineSpawnFailed | ExplainEngineExitNonZero>((resume) => {
         const { cmd, args } = engineCmd('argot.explain');
@@ -134,7 +140,8 @@ export const BunExplainerLive = Layer.effect(Explainer)(
         }
 
         const stderrChunks: Buffer[] = [];
-        proc.stderr!.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
+        const stopSpinner = handleUvStderr(proc.stderr!, (chunk) => stderrChunks.push(chunk));
+
         proc.on('error', (cause: unknown) =>
           resume(Effect.fail(new ExplainEngineSpawnFailed({ cause }))),
         );
@@ -150,7 +157,7 @@ export const BunExplainerLive = Layer.effect(Explainer)(
                 const record = yield* Schema.decodeUnknownEffect(
                   Schema.fromJsonString(EngineRecord),
                 )(line);
-                const explanation = yield* callClaude(record);
+                const explanation = yield* callClaude(record, claudeModel);
                 yield* Console.log(
                   `\n${record.file_path}:${record.line} (p${record.percentile}, commit ${record.commit})`,
                 );
@@ -165,6 +172,7 @@ export const BunExplainerLive = Layer.effect(Explainer)(
 
         proc.on('close', (code: number | null) => {
           Promise.all(lines).then(() => {
+            stopSpinner();
             if (code === 0) {
               resume(Effect.void);
             } else {

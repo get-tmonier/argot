@@ -1,16 +1,17 @@
-import { Argument, Command, Flag } from 'effect/unstable/cli';
+import { Command } from 'effect/unstable/cli';
 import { Console, Effect } from 'effect';
+import { RepoContext } from '#modules/repo-context/dependencies.ts';
 import { runExtractDataset } from '#modules/extract-dataset/application/use-cases/extract-dataset.use-case.ts';
 
-export const extractCommand = Command.make(
-  'extract',
-  {
-    path: Argument.path('path', { mustExist: true }).pipe(Argument.withDefault('.')),
-    out: Flag.string('out').pipe(Flag.withDefault('.argot/dataset.jsonl')),
-  },
-  ({ path, out }) =>
-    Effect.gen(function* () {
-      const result = yield* runExtractDataset({ repoPath: path, outputPath: out });
-      yield* Console.log(`Dataset written to ${result.outputPath}`);
-    }),
+export const extractCommand = Command.make('extract', {}, () =>
+  Effect.gen(function* () {
+    const { resolveContext } = yield* RepoContext;
+    const ctx = yield* resolveContext();
+    yield* Console.log(`argot · ${ctx.name} (${ctx.gitRoot})`);
+    const result = yield* runExtractDataset({
+      repoPath: ctx.gitRoot,
+      outputPath: ctx.datasetPath,
+    });
+    yield* Console.log(`Dataset written to ${result.outputPath}`);
+  }),
 );
