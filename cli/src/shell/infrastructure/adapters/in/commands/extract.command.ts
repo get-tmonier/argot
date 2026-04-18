@@ -5,7 +5,7 @@ import { runExtractDataset } from '#modules/extract-dataset/application/use-case
 export const extractCommand = Command.make(
   'extract',
   {
-    path: Argument.path('path', { mustExist: true }),
+    path: Argument.path('path', { mustExist: true }).pipe(Argument.withDefault('.')),
     out: Flag.string('out').pipe(Flag.withDefault('.argot/dataset.jsonl')),
   },
   ({ path, out }) =>

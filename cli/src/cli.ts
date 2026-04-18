@@ -8,8 +8,20 @@ import { explainCommand } from '#shell/infrastructure/adapters/in/commands/expla
 import { updateCommand } from '#shell/infrastructure/adapters/in/commands/update.command.ts';
 import { AppLive } from '#dependencies';
 import { version } from './version.ts';
+import { updateNotify } from './update-notify.ts';
 
-const app = Command.make('argot', {}, () => Console.log('argot — run `argot --help`')).pipe(
+const app = Command.make('argot', {}, () =>
+  Console.log(`argot v${version}
+
+COMMANDS
+  extract   Extract dataset from a git repository
+  train     Train a style model on the extracted dataset
+  check     Check code against the trained style model
+  explain   Explain style anomalies in detail
+  update    Update the argot CLI
+
+Run \`argot <command> --help\` for more information.`),
+).pipe(
   Command.withSubcommands([
     extractCommand,
     trainCommand,
@@ -20,4 +32,9 @@ const app = Command.make('argot', {}, () => Console.log('argot — run `argot --
 );
 
 const program = Command.run(app, { version });
-program.pipe(Effect.provide(AppLive), Effect.provide(BunServices.layer), BunRuntime.runMain);
+program.pipe(
+  Effect.andThen(() => updateNotify),
+  Effect.provide(AppLive),
+  Effect.provide(BunServices.layer),
+  BunRuntime.runMain,
+);
