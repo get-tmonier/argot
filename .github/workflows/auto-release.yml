@@ -37,7 +37,8 @@ jobs:
           CURRENT=$(node -p "require('./cli/package.json').version")
           MAJOR=$(echo "$CURRENT" | cut -d. -f1)
           MINOR=$(echo "$CURRENT" | cut -d. -f2)
-          NEW="$MAJOR.$((MINOR + 1)).0"
+          PATCH=$(echo "$CURRENT" | cut -d. -f3)
+          NEW="$MAJOR.$MINOR.$((PATCH + 1))"
           echo "version=$NEW" >> "$GITHUB_OUTPUT"
 
           node -e "
