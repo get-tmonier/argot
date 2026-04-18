@@ -38,6 +38,10 @@ jobs:
             src/cli.ts \
             --outfile ../dist/argot-${{ matrix.target }}
 
+      - name: Sign binary (macOS ad-hoc)
+        if: runner.os == 'macOS'
+        run: codesign --sign - --force --preserve-metadata=entitlements dist/argot-${{ matrix.target }}
+
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
