@@ -48,12 +48,6 @@ Installs the `argot` binary to `~/.local/bin` and installs `uv` if missing.
 npm install -g @tmonier/argot
 ```
 
-### Homebrew
-
-```sh
-brew install tmonier/argot/argot
-```
-
 ### Prerequisites
 
 | Dependency | Required for | Install |

@@ -56,8 +56,3 @@ The codebase is strict by design (mypy strict, no-any, ruff). When a check fails
 
 Linting/checking: `oxlint` · `oxfmt` · `tsgo` (native TS checker) · `dependency-cruiser` · `knip` · `ruff` · `mypy`
 
-## Homebrew tap
-
-Formula lives in a separate repo: https://github.com/get-tmonier/homebrew-argot
-The `update-homebrew-tap` job in `.github/workflows/release.yml` auto-updates it on each release.
-Requires secret `HOMEBREW_TAP_TOKEN` (PAT with `repo` scope on `get-tmonier/homebrew-argot`) in the main repo's GitHub Actions secrets.
