@@ -43,6 +43,7 @@ const CLAUDE_SCHEMA = JSON.stringify({
 
 const callClaude = (
   record: typeof EngineRecord.Type,
+  claudeModel: string,
 ): Effect.Effect<
   typeof Explanation.Type,
   ClaudeSpawnFailed | ClaudeExitNonZero | ClaudeResponseInvalid
@@ -66,12 +67,10 @@ const callClaude = (
           'claude',
           [
             '--print',
-            '--output-format',
-            'json',
-            '--tools',
-            '',
-            '--json-schema',
-            CLAUDE_SCHEMA,
+            '--output-format', 'json',
+            '--model', claudeModel,
+            '--tools', '',
+            '--json-schema', CLAUDE_SCHEMA,
             prompt,
           ],
           { stdio: ['ignore', 'pipe', 'pipe'] },
@@ -114,11 +113,13 @@ export const BunExplainerLive = Layer.effect(Explainer)(
       ref,
       modelPath,
       datasetPath,
+      claudeModel,
     }: {
       repoPath: string;
       ref: string;
       modelPath: string;
       datasetPath: string;
+      claudeModel: string;
     }) =>
       Effect.callback<void, ExplainEngineSpawnFailed | ExplainEngineExitNonZero>((resume) => {
         const { cmd, args } = engineCmd('argot.explain');
@@ -136,6 +137,7 @@ export const BunExplainerLive = Layer.effect(Explainer)(
 
         const stderrChunks: Buffer[] = [];
         const stopSpinner = handleUvStderr(proc.stderr!, (chunk) => stderrChunks.push(chunk));
+
         proc.on('error', (cause: unknown) =>
           resume(Effect.fail(new ExplainEngineSpawnFailed({ cause }))),
         );
@@ -151,7 +153,7 @@ export const BunExplainerLive = Layer.effect(Explainer)(
                 const record = yield* Schema.decodeUnknownEffect(
                   Schema.fromJsonString(EngineRecord),
                 )(line);
-                const explanation = yield* callClaude(record);
+                const explanation = yield* callClaude(record, claudeModel);
                 yield* Console.log(
                   `\n${record.file_path}:${record.line} (p${record.percentile}, commit ${record.commit})`,
                 );

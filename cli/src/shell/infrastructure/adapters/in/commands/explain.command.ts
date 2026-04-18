@@ -12,7 +12,8 @@ export const explainCommand = Command.make(
     model: Flag.string('model').pipe(Flag.withDefault('.argot/model.pkl')),
     dataset: Flag.string('dataset').pipe(Flag.withDefault('.argot/dataset.jsonl')),
     repo: Flag.string('repo').pipe(Flag.withDefault('.')),
+    claudeModel: Flag.string('claude-model').pipe(Flag.withDefault('claude-sonnet-4-5')),
   },
-  ({ ref, model, dataset, repo }) =>
-    runExplain({ repoPath: repo, ref, modelPath: model, datasetPath: dataset }),
+  ({ ref, model, dataset, repo, claudeModel }) =>
+    runExplain({ repoPath: repo, ref, modelPath: model, datasetPath: dataset, claudeModel }),
 );
