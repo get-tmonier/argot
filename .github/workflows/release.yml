@@ -59,7 +59,7 @@ jobs:
           install: true
 
       - name: Publish
-        run: uv build --package argot-engine --out-dir dist/engine && uv publish dist/engine/
+        run: uv build --package argot-engine && uv publish dist/
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
 
