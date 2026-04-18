@@ -1,7 +1,7 @@
 import type { KnipConfig } from 'knip';
 
 const config: KnipConfig = {
-  ignore: ['.venv/**'],
+  ignore: ['.venv/**', 'npm/**'],
   workspaces: {
     'cli': {
       entry: ['src/**/*.test.ts'],

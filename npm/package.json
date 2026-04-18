@@ -1,0 +1,17 @@
+{
+  "name": "@tmonier/argot",
+  "version": "0.1.0",
+  "description": "Style linter that learns a repo's voice from git history",
+  "bin": {
+    "argot": "bin/argot"
+  },
+  "scripts": {
+    "postinstall": "node scripts/postinstall.js"
+  },
+  "keywords": ["git", "style", "linter", "cli"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tmonier/argot.git"
+  }
+}
