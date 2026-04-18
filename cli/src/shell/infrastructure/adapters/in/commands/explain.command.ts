@@ -7,7 +7,8 @@ export const explainCommand = Command.make(
     ref: Argument.string('ref'),
     model: Flag.string('model').pipe(Flag.withDefault('.argot/model.pkl')),
     dataset: Flag.string('dataset').pipe(Flag.withDefault('.argot/dataset.jsonl')),
+    repo: Flag.string('repo').pipe(Flag.withDefault('.')),
   },
-  ({ ref, model, dataset }) =>
-    runExplain({ repoPath: '.', ref, modelPath: model, datasetPath: dataset }),
+  ({ ref, model, dataset, repo }) =>
+    runExplain({ repoPath: repo, ref, modelPath: model, datasetPath: dataset }),
 );
