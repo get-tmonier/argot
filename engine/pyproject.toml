@@ -19,6 +19,7 @@ argot-train = "argot.train:main"
 argot-check = "argot.check:main"
 argot-fetch = "argot.fetch:main"
 argot-validate = "argot.validate:main"
+argot-explain = "argot.explain:main"
 
 [tool.uv]
 package = true

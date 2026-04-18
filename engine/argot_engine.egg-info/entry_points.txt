@@ -1,5 +1,6 @@
 [console_scripts]
 argot-check = argot.check:main
+argot-explain = argot.explain:main
 argot-extract = argot.extract:main
 argot-fetch = argot.fetch:main
 argot-train = argot.train:main

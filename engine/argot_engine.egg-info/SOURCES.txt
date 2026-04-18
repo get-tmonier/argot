@@ -4,6 +4,7 @@ argot/__init__.py
 argot/__main__.py
 argot/check.py
 argot/dataset.py
+argot/explain.py
 argot/extract.py
 argot/fetch.py
 argot/git_walk.py
@@ -17,6 +18,7 @@ argot/jepa/predictor.py
 argot/jepa/sigreg.py
 argot/tests/__init__.py
 argot/tests/test_check.py
+argot/tests/test_explain.py
 argot/tests/test_extract_smoke.py
 argot/tests/test_fetch.py
 argot/tests/test_git_walk.py
