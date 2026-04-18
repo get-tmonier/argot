@@ -17,7 +17,9 @@ export const explainCommand = Command.make(
     Effect.gen(function* () {
       const { resolveContext } = yield* RepoContext;
       const ctx = yield* resolveContext();
-      yield* Console.log(`argot · ${ctx.name} (${ctx.gitRoot}) · model ${ctx.preferences.model}`);
+      yield* Console.log(
+        `argot · ${ctx.name} (${ctx.gitRoot}) · threshold ${ctx.preferences.threshold} · model ${ctx.preferences.model}`,
+      );
       yield* runExplain({
         repoPath: ctx.gitRoot,
         ref,
