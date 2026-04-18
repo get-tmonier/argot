@@ -1,0 +1,60 @@
+name: Auto Release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "cli/package.json"
+      - "engine/pyproject.toml"
+
+jobs:
+  bump-and-tag:
+    name: Bump minor version and tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # PAT required: GITHUB_TOKEN pushes don't trigger downstream workflows
+          token: ${{ secrets.RELEASE_PAT }}
+          fetch-depth: 0
+
+      - name: Skip if this is a release commit
+        id: check
+        run: |
+          MSG=$(git log -1 --pretty=%s)
+          if echo "$MSG" | grep -qE '^chore: release v'; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Bump minor version
+        if: steps.check.outputs.skip == 'false'
+        id: bump
+        run: |
+          CURRENT=$(node -p "require('./cli/package.json').version")
+          MAJOR=$(echo "$CURRENT" | cut -d. -f1)
+          MINOR=$(echo "$CURRENT" | cut -d. -f2)
+          NEW="$MAJOR.$((MINOR + 1)).0"
+          echo "version=$NEW" >> "$GITHUB_OUTPUT"
+
+          node -e "
+            const fs = require('fs');
+            const p = JSON.parse(fs.readFileSync('cli/package.json', 'utf8'));
+            p.version = '$NEW';
+            fs.writeFileSync('cli/package.json', JSON.stringify(p, null, 2) + '\n');
+          "
+          sed -i "s/^version = .*/version = \"$NEW\"/" engine/pyproject.toml
+
+      - name: Commit, tag and push
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          VERSION=${{ steps.bump.outputs.version }}
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add cli/package.json engine/pyproject.toml
+          git commit -m "chore: release v$VERSION"
+          git tag "v$VERSION"
+          git push origin main "v$VERSION"
