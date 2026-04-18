@@ -20,9 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v2
+      - uses: oven-sh/setup-bun@v2
         with:
-          install: true
+          bun-version: latest
 
       - name: Install JS dependencies
         run: bun install
@@ -52,9 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v2
-        with:
-          install: true
+      - uses: astral-sh/setup-uv@v5
 
       - name: Publish
         run: uv build --package argot-engine && uv publish
