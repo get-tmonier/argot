@@ -6,6 +6,7 @@ on:
     paths-ignore:
       - "cli/package.json"
       - "engine/pyproject.toml"
+      - "uv.lock"
 
 jobs:
   bump-and-tag:
@@ -30,6 +31,9 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - uses: astral-sh/setup-uv@v5
+        if: steps.check.outputs.skip == 'false'
+
       - name: Bump minor version
         if: steps.check.outputs.skip == 'false'
         id: bump
@@ -48,6 +52,7 @@ jobs:
             fs.writeFileSync('cli/package.json', JSON.stringify(p, null, 2) + '\n');
           "
           sed -i "s/^version = .*/version = \"$NEW\"/" engine/pyproject.toml
+          uv lock
 
       - name: Commit, tag and push
         if: steps.check.outputs.skip == 'false'
@@ -55,7 +60,7 @@ jobs:
           VERSION=${{ steps.bump.outputs.version }}
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add cli/package.json engine/pyproject.toml
+          git add cli/package.json engine/pyproject.toml uv.lock
           git commit -m "chore: release v$VERSION"
           git tag "v$VERSION"
           git push origin main "v$VERSION"

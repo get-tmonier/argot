@@ -12,7 +12,7 @@ members = [
 
 [[package]]
 name = "argot-engine"
-version = "0.2.0"
+version = "0.2.3"
 source = { editable = "engine" }
 dependencies = [
     { name = "einops" },
