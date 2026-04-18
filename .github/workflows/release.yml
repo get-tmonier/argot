@@ -80,7 +80,7 @@ jobs:
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"
           cd npm
-          npm version "$VERSION" --no-git-tag-version
+          npm pkg set version="$VERSION"
           npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
