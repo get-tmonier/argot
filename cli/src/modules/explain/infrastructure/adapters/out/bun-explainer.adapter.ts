@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { Console, Effect, Layer, Schema } from 'effect';
+import { Effect, Layer, Schema } from 'effect';
 import { engineCmd } from '#engine-cmd.ts';
 import { handleUvStderr } from '#spawn-with-progress.ts';
 import { Explainer } from '#modules/explain/application/ports/out/explainer.port.ts';
@@ -18,6 +18,7 @@ const EngineRecord = Schema.Struct({
   commit: Schema.String,
   surprise: Schema.Number,
   percentile: Schema.Number,
+  tag: Schema.String,
   hunk_text: Schema.String,
   style_examples: Schema.Array(Schema.String),
 });
@@ -110,6 +111,12 @@ const callClaude = (
     return explanation;
   });
 
+function formatSeparator(index: number, total: number, record: typeof EngineRecord.Type): string {
+  const info = `── [${index}/${total}] ${record.file_path}:${record.line}  ${record.tag}  ${record.surprise.toFixed(4)}  ${record.commit} `;
+  const padLen = Math.max(0, 80 - info.length);
+  return info + '─'.repeat(padLen);
+}
+
 export const BunExplainerLive = Layer.effect(Explainer)(
   Effect.succeed({
     runExplain: ({
@@ -118,12 +125,14 @@ export const BunExplainerLive = Layer.effect(Explainer)(
       modelPath,
       datasetPath,
       claudeModel,
+      threshold,
     }: {
       repoPath: string;
       ref: string;
       modelPath: string;
       datasetPath: string;
       claudeModel: string;
+      threshold: number;
     }) =>
       Effect.callback<void, ExplainEngineSpawnFailed | ExplainEngineExitNonZero>((resume) => {
         const { cmd, args } = engineCmd('argot.explain');
@@ -131,7 +140,17 @@ export const BunExplainerLive = Layer.effect(Explainer)(
         try {
           proc = spawn(
             cmd,
-            [...args, repoPath, ref, '--model', modelPath, '--dataset', datasetPath],
+            [
+              ...args,
+              repoPath,
+              ref,
+              '--model',
+              modelPath,
+              '--dataset',
+              datasetPath,
+              '--threshold',
+              String(threshold),
+            ],
             { stdio: ['ignore', 'pipe', 'pipe'] },
           );
         } catch (cause: unknown) {
@@ -146,42 +165,73 @@ export const BunExplainerLive = Layer.effect(Explainer)(
           resume(Effect.fail(new ExplainEngineSpawnFailed({ cause }))),
         );
 
+        const items: Array<{
+          record: typeof EngineRecord.Type;
+          explanationPromise: Promise<typeof Explanation.Type>;
+        }> = [];
+
         const rl = createInterface({ input: proc.stdout! });
 
-        const lines: Promise<void>[] = [];
         rl.on('line', (line: string) => {
           if (!line.trim()) return;
-          lines.push(
-            Effect.runPromise(
-              Effect.gen(function* () {
-                const record = yield* Schema.decodeUnknownEffect(
-                  Schema.fromJsonString(EngineRecord),
-                )(line);
-                const explanation = yield* callClaude(record, claudeModel);
-                const location =
-                  record.commit === 'workdir' ? `workdir` : `commit ${record.commit}`;
-                yield* Console.log(
-                  `\n${record.file_path}:${record.line} (p${record.percentile}, ${location})`,
-                );
-                yield* Console.log(`  ${explanation.summary}`);
-                for (const issue of explanation.issues) {
-                  yield* Console.log(`  • ${issue}`);
-                }
-              }),
-            ),
-          );
+          let record: typeof EngineRecord.Type;
+          try {
+            record = Effect.runSync(
+              Schema.decodeUnknownEffect(Schema.fromJsonString(EngineRecord))(line),
+            );
+          } catch {
+            return;
+          }
+          items.push({
+            record,
+            explanationPromise: Effect.runPromise(callClaude(record, claudeModel)),
+          });
         });
 
         proc.on('close', (code: number | null) => {
-          Promise.all(lines).then(() => {
-            stopSpinner();
-            if (code === 0) {
-              resume(Effect.void);
-            } else {
-              const stderr = Buffer.concat(stderrChunks).toString('utf-8');
-              resume(Effect.fail(new ExplainEngineExitNonZero({ exitCode: code ?? -1, stderr })));
-            }
-          });
+          Promise.all(items.map(({ explanationPromise }) => explanationPromise))
+            .then((explanations) => {
+              stopSpinner();
+              const out = (s: string): void => {
+                process.stdout.write(`${s}\n`);
+              };
+              if (items.length === 0) {
+                out('No violations above threshold — nothing to explain.');
+              } else {
+                out(`\n${items.length} violation(s) above threshold — explaining...`);
+                items.forEach(({ record }, i) => {
+                  const explanation = explanations[i]!;
+                  out('');
+                  out(formatSeparator(i + 1, items.length, record));
+                  out('');
+                  out(`  ${explanation.summary}`);
+                  if (explanation.issues.length > 0) {
+                    out('');
+                    for (const issue of explanation.issues) {
+                      out(`  • ${issue}`);
+                    }
+                  }
+                  out('');
+                });
+              }
+              if (code === 0) {
+                resume(Effect.void);
+              } else {
+                const stderr = Buffer.concat(stderrChunks).toString('utf-8');
+                resume(Effect.fail(new ExplainEngineExitNonZero({ exitCode: code ?? -1, stderr })));
+              }
+            })
+            .catch((cause: unknown) => {
+              stopSpinner();
+              resume(
+                Effect.fail(
+                  new ExplainEngineExitNonZero({
+                    exitCode: code ?? -1,
+                    stderr: String(cause),
+                  }),
+                ),
+              );
+            });
         });
       }),
   }),

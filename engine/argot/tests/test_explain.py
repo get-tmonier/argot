@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from argot.explain import percentile_rank, select_style_examples
+from argot.explain import _score_to_tag, percentile_rank, select_style_examples
 
 
 def _make_scored(n: int, base_score: float = 0.1, repo: str = "home") -> list[dict]:  # type: ignore[type-arg]
@@ -52,3 +52,25 @@ def test_select_style_examples_fewer_than_n() -> None:
     records = _make_scored(3)
     examples = select_style_examples(records, n=5)
     assert len(examples) == 3
+
+
+def test_score_to_tag_unusual() -> None:
+    assert _score_to_tag(0.6, 0.5) == "unusual"
+
+
+def test_score_to_tag_suspicious() -> None:
+    assert _score_to_tag(0.9, 0.5) == "suspicious"
+
+
+def test_score_to_tag_foreign() -> None:
+    assert _score_to_tag(1.2, 0.5) == "foreign"
+
+
+def test_score_to_tag_boundary_unusual() -> None:
+    # exactly at threshold + 0.3 → still "unusual"
+    assert _score_to_tag(0.8, 0.5) == "unusual"
+
+
+def test_score_to_tag_boundary_suspicious() -> None:
+    # exactly at threshold + 0.6 → still "suspicious"
+    assert _score_to_tag(1.1, 0.5) == "suspicious"

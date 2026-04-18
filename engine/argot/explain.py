@@ -24,6 +24,15 @@ def percentile_rank(value: float, distribution: list[float]) -> float:
     return float(np.mean(arr < value) * 100)
 
 
+def _score_to_tag(score: float, threshold: float) -> str:
+    if score <= threshold + 0.3:
+        return "unusual"
+    elif score <= threshold + 0.6:
+        return "suspicious"
+    else:
+        return "foreign"
+
+
 def select_style_examples(records: list[dict[str, Any]], *, n: int = 5) -> list[dict[str, Any]]:
     """Pick n lowest-surprise records, one per file where possible."""
     sorted_records = sorted(records, key=lambda r: r["_score"])
@@ -71,7 +80,7 @@ def main() -> None:
     parser.add_argument("ref", nargs="?", default="")
     parser.add_argument("--model", default=".argot/model.pkl")
     parser.add_argument("--dataset", default=".argot/dataset.jsonl")
-    parser.add_argument("--threshold-percentile", type=float, default=75.0)
+    parser.add_argument("--threshold", type=float, default=0.5)
     parser.add_argument("--examples", type=int, default=5)
     args = parser.parse_args()
 
@@ -141,7 +150,7 @@ def main() -> None:
                     score = model.surprise(ctx_vec, hunk_vec).item()
                     pct = percentile_rank(score, distribution)
 
-                    if pct < args.threshold_percentile:
+                    if score <= args.threshold:
                         continue
 
                     print(
@@ -152,6 +161,7 @@ def main() -> None:
                                 "commit": commit_label,
                                 "surprise": round(score, 4),
                                 "percentile": round(pct, 1),
+                                "tag": _score_to_tag(score, args.threshold),
                                 "hunk_text": hunk_text,
                                 "context_text": ctx_text,
                                 "style_examples": example_texts,

@@ -9,6 +9,7 @@ interface ExplainerShape {
     modelPath: string;
     datasetPath: string;
     claudeModel: string;
+    threshold: number;
   }) => Effect.Effect<void, ExplainError>;
 }
 
