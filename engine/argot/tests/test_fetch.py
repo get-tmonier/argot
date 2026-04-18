@@ -36,7 +36,9 @@ def test_merge_jsonl_files(tmp_path: Path) -> None:
     out = tmp_path / "merged.jsonl"
     a.write_text('{"x": 1}\n{"x": 2}\n')
     b.write_text('{"x": 3}\n')
-    merge_jsonl([a, b], out)
+    merge_jsonl([(a, "repo-a"), (b, "repo-b")], out)
     lines = [json.loads(line) for line in out.read_text().splitlines()]
     assert len(lines) == 3
+    assert lines[0]["_repo"] == "repo-a"
+    assert lines[2]["_repo"] == "repo-b"
     assert lines[2]["x"] == 3

@@ -9,11 +9,12 @@
   "imports": {
     "#modules/*": "./src/modules/*",
     "#shell/*": "./src/shell/*",
-    "#dependencies": "./src/dependencies.ts"
+    "#dependencies": "./src/dependencies.ts",
+    "#engine-cmd.ts": "./src/engine-cmd.ts"
   },
   "dependencies": {
-    "effect": "4.0.0-beta.43",
-    "@effect/platform-bun": "4.0.0-beta.43",
+    "effect": "4.0.0-beta.50",
+    "@effect/platform-bun": "4.0.0-beta.50",
     "valibot": "1.0.0-rc.3"
   },
   "devDependencies": {

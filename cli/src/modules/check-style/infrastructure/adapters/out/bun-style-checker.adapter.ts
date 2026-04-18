@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { Effect, Layer } from 'effect';
+import { engineCmd } from '#engine-cmd.ts';
 import { StyleChecker } from '#modules/check-style/application/ports/out/style-checker.port.ts';
 import { CheckExitNonZero, CheckSpawnFailed } from '#modules/check-style/domain/errors.ts';
 
@@ -15,24 +16,12 @@ export const BunStyleCheckerLive = Layer.effect(StyleChecker)(
       modelPath: string;
     }) =>
       Effect.callback<void, CheckExitNonZero | CheckSpawnFailed>((resume) => {
+        const { cmd, args } = engineCmd('argot.check');
         let proc: ReturnType<typeof spawn>;
         try {
-          proc = spawn(
-            'uv',
-            [
-              'run',
-              '--package',
-              'argot-engine',
-              'python',
-              '-m',
-              'argot.check',
-              repoPath,
-              ref,
-              '--model',
-              modelPath,
-            ],
-            { stdio: ['ignore', 'inherit', 'pipe'] },
-          );
+          proc = spawn(cmd, [...args, repoPath, ref, '--model', modelPath], {
+            stdio: ['ignore', 'inherit', 'pipe'],
+          });
         } catch (cause: unknown) {
           resume(Effect.fail(new CheckSpawnFailed({ cause })));
           return;

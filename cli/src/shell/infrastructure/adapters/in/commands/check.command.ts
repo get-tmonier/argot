@@ -6,6 +6,7 @@ export const checkCommand = Command.make(
   {
     ref: Argument.string('ref'),
     model: Flag.string('model').pipe(Flag.withDefault('.argot/model.pkl')),
+    repo: Flag.string('repo').pipe(Flag.withDefault('.')),
   },
-  ({ ref, model }) => runCheckStyle({ repoPath: '.', ref, modelPath: model }),
+  ({ ref, model, repo }) => runCheckStyle({ repoPath: repo, ref, modelPath: model }),
 );

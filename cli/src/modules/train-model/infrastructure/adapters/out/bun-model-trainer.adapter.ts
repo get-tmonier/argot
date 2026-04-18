@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { Effect, Layer } from 'effect';
+import { engineCmd } from '#engine-cmd.ts';
 import { ModelTrainer } from '#modules/train-model/application/ports/out/model-trainer.port.ts';
 import { TrainExitNonZero, TrainSpawnFailed } from '#modules/train-model/domain/errors.ts';
 
@@ -7,24 +8,12 @@ export const BunModelTrainerLive = Layer.effect(ModelTrainer)(
   Effect.succeed({
     runTrain: ({ datasetPath, modelPath }: { datasetPath: string; modelPath: string }) =>
       Effect.callback<void, TrainExitNonZero | TrainSpawnFailed>((resume) => {
+        const { cmd, args } = engineCmd('argot.train');
         let proc: ReturnType<typeof spawn>;
         try {
-          proc = spawn(
-            'uv',
-            [
-              'run',
-              '--package',
-              'argot-engine',
-              'python',
-              '-m',
-              'argot.train',
-              '--dataset',
-              datasetPath,
-              '--out',
-              modelPath,
-            ],
-            { stdio: ['ignore', 'inherit', 'pipe'] },
-          );
+          proc = spawn(cmd, [...args, '--dataset', datasetPath, '--out', modelPath], {
+            stdio: ['ignore', 'inherit', 'pipe'],
+          });
         } catch (cause: unknown) {
           resume(Effect.fail(new TrainSpawnFailed({ cause })));
           return;

@@ -9,6 +9,7 @@ from typing import Any
 
 import numpy as np
 import torch
+from sklearn.metrics import roc_auc_score  # type: ignore[import-untyped]
 
 from argot.train import ModelBundle, train_model
 
@@ -29,6 +30,15 @@ def shuffle_negatives(records: list[dict[str, Any]], *, seed: int = 0) -> list[d
     return [{**r, "hunk_tokens": h} for r, h in zip(records, shuffled_hunks, strict=False)]
 
 
+def inject_foreign(
+    home: list[dict[str, Any]], foreign: list[dict[str, Any]], *, seed: int = 0
+) -> list[dict[str, Any]]:
+    """Replace hunk_tokens in home records with hunks randomly drawn from a foreign repo."""
+    rng = random.Random(seed)
+    foreign_hunks = [r["hunk_tokens"] for r in foreign]
+    return [{**r, "hunk_tokens": rng.choice(foreign_hunks)} for r in home]
+
+
 def compute_percentiles(scores: list[float]) -> dict[str, float]:
     arr = np.array(scores)
     return {
@@ -39,6 +49,12 @@ def compute_percentiles(scores: list[float]) -> dict[str, float]:
         "p95": float(np.percentile(arr, 95)),
         "max": float(np.max(arr)),
     }
+
+
+def compute_auc(good_scores: list[float], bad_scores: list[float]) -> float:
+    labels = [0] * len(good_scores) + [1] * len(bad_scores)
+    scores = good_scores + bad_scores
+    return float(roc_auc_score(labels, scores))
 
 
 def score_records(bundle: ModelBundle, records: list[dict[str, Any]]) -> list[float]:
@@ -57,12 +73,12 @@ def score_records(bundle: ModelBundle, records: list[dict[str, Any]]) -> list[fl
 
 def _print_table(rows: list[tuple[str, dict[str, float]]]) -> None:
     keys = ["min", "p25", "median", "p75", "p95", "max"]
-    header = f"{'':25s}" + "".join(f"{k:>10s}" for k in keys)
+    header = f"{'':30s}" + "".join(f"{k:>10s}" for k in keys) + f"{'AUC':>8s}"
     print("\n=== Score Distribution ===")
     print(header)
     print("-" * len(header))
-    for label, p in rows:
-        row = f"{label:25s}" + "".join(f"{p[k]:10.4f}" for k in keys)
+    for label, p, auc in rows:  # type: ignore[misc]
+        row = f"{label:30s}" + "".join(f"{p[k]:10.4f}" for k in keys) + f"{auc:8.4f}"
         print(row)
     print()
 
@@ -86,33 +102,90 @@ def main() -> None:
         sys.exit(2)
 
     print(f"Loaded {len(records)} records from {dataset_path}")
-    train_records, held_out = split_by_time(records, ratio=args.ratio)
+
+    # Partition by repo — smallest becomes the foreign (unseen) test set
+    repo_groups: dict[str, list[dict[str, Any]]] = {}
+    for r in records:
+        repo_groups.setdefault(r.get("_repo", "unknown"), []).append(r)
+
+    has_cross_repo = len(repo_groups) >= 2
+    if has_cross_repo:
+        foreign_name = min(repo_groups, key=lambda n: len(repo_groups[n]))
+        foreign = repo_groups[foreign_name]
+        home = [r for r in records if r.get("_repo") != foreign_name]
+        print(
+            f"Repos: {list(repo_groups)} — using '{foreign_name}'"
+            f" ({len(foreign)} records) as foreign set"
+        )
+    else:
+        home = records
+        foreign = []
+
+    train_records, held_out = split_by_time(home, ratio=args.ratio)
     print(f"Split: {len(train_records)} train / {len(held_out)} held-out")
 
     print(f"\nTraining on {len(train_records)} records ({args.epochs} epochs)...")
     bundle = train_model(train_records, epochs=args.epochs, batch_size=args.batch_size)
 
-    print("\nScoring held-out (good) set...")
+    print("\nScoring...")
     good_scores = score_records(bundle, held_out)
-
-    print("Scoring shuffled negatives...")
-    negatives = shuffle_negatives(held_out, seed=42)
-    bad_scores = score_records(bundle, negatives)
-
-    _print_table(
-        [
-            ("Good (held-out)", compute_percentiles(good_scores)),
-            ("Bad (shuffled)", compute_percentiles(bad_scores)),
-        ]
+    shuffled_scores = score_records(bundle, shuffle_negatives(held_out, seed=42))
+    cross_scores = score_records(bundle, foreign) if has_cross_repo else []
+    injected_scores = (
+        score_records(bundle, inject_foreign(held_out, foreign, seed=42)) if has_cross_repo else []
     )
 
-    good_median = compute_percentiles(good_scores)["median"]
-    bad_median = compute_percentiles(bad_scores)["median"]
-    gm, bm = f"{good_median:.4f}", f"{bad_median:.4f}"
-    if bad_median > good_median:
-        print(f"✓ Model shows separation: bad median ({bm}) > good median ({gm})")
+    good_p = compute_percentiles(good_scores)
+    shuffled_auc = compute_auc(good_scores, shuffled_scores)
+    rows: list[Any] = [
+        ("Good (held-out)", good_p, 0.5),
+        ("Bad — shuffled tokens", compute_percentiles(shuffled_scores), shuffled_auc),
+    ]
+    if has_cross_repo:
+        cross_auc = compute_auc(good_scores, cross_scores)
+        injected_auc = compute_auc(good_scores, injected_scores)
+        rows += [
+            ("Bad — cross-repo foreign", compute_percentiles(cross_scores), cross_auc),
+            ("Bad — injected foreign hunk", compute_percentiles(injected_scores), injected_auc),
+        ]
+
+    _print_table(rows)
+
+    good_median = good_p["median"]
+    checks: dict[str, tuple[bool, float]] = {
+        "shuffled": (
+            compute_percentiles(shuffled_scores)["median"] > good_median,
+            shuffled_auc,
+        ),
+    }
+    if has_cross_repo:
+        checks["cross-repo"] = (
+            compute_percentiles(cross_scores)["median"] > good_median,
+            cross_auc,
+        )
+        checks["injected"] = (
+            compute_percentiles(injected_scores)["median"] > good_median,
+            injected_auc,
+        )
+
+    all_pass = True
+    for name, (sep, auc) in checks.items():
+        icon = "✓" if sep else "✗"
+        auc_icon = "✓" if auc > 0.6 else "✗"
+        auc_label = "ok" if auc > 0.6 else "FAIL — below 0.6"
+        sep_label = "ok" if sep else "FAIL"
+        print(
+            f"  {icon} [{name}] median separation {sep_label}"
+            f"   {auc_icon} AUC={auc:.4f} ({auc_label})"
+        )
+        if not sep or auc <= 0.6:
+            all_pass = False
+
+    print()
+    if all_pass:
+        print("✓ All validation checks passed")
     else:
-        print(f"✗ No separation detected: bad median ({bm}) <= good median ({gm})")
+        print("✗ One or more validation checks failed")
         sys.exit(1)
 
 

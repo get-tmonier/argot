@@ -1,4 +1,4 @@
-import { ServiceMap } from 'effect';
+import { Context } from 'effect';
 import type { Effect } from 'effect';
 import type { CheckError } from '#modules/check-style/domain/errors.ts';
 
@@ -10,6 +10,6 @@ interface StyleCheckerShape {
   }) => Effect.Effect<void, CheckError>;
 }
 
-export class StyleChecker extends ServiceMap.Service<StyleChecker, StyleCheckerShape>()(
+export class StyleChecker extends Context.Service<StyleChecker, StyleCheckerShape>()(
   '@argot/StyleChecker',
 ) {}

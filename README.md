@@ -29,63 +29,123 @@ It does *not* replace ESLint, ruff, or type checkers. It catches what they can't
 |---|---|
 | **LLM paste-through** | A block whose style diverges sharply from the surrounding file |
 | **Convention drift** | Error handling, logging, or patterns that don't match the repo |
-| **Debug leftovers** | `console.log`, `.only`, commented-out code you never normally commit |
-| **Stylistic outlier** | New code that's correct, but stylistically foreign to this codebase |
+| **Foreign paradigm** | Class-based OOP dropped into a functional codebase, wrong import style |
+| **Stylistic outlier** | New code that's correct, but doesn't sound like anyone on this team wrote it |
 
-## Quick start
+## Installation
+
+> **Note:** packaging is in progress. For now, build from source or use the dev setup below.
+
+**Prerequisites:** [`uv`](https://docs.astral.sh/uv/getting-started/installation/) must be in your PATH — argot's Python engine runs through it at runtime.
 
 ```bash
-# install
-bun add -g argot               # or: brew install argot (eventually)
+# clone and build a standalone binary
+git clone https://github.com/get-tmonier/argot
+cd argot
+mise install        # installs bun, python, uv, just — skip if you manage these yourself
+just install        # bun install + uv sync
+just build          # produces dist/argot (no runtime deps except uv)
 
-# train a model on this repo's history (one-time, ~15–30 min on a consumer GPU)
-cd my-project
-argot train
-
-# lint your staged changes
-git add .
-argot check                    # lists the most surprising hunks
-
-# lint a specific range
-argot check HEAD~5..HEAD
-argot check --files src/foo.ts src/bar.ts
+# put it on your PATH
+export PATH="$PWD/dist:$PATH"
 ```
 
-The model lives in `.argot/model.ckpt`, gitignored by default.
+For `argot explain` you also need the [Claude Code CLI](https://claude.ai/code) (`claude`) in your PATH — see [Explain](#explain) below.
 
-## Where it runs
+## Workflow
 
-- **On demand** — `argot check`, same as `eslint .` or `knip`
-- **Pre-commit** — `argot install-hook` wires into `.git/hooks/pre-commit`. Opt-in, not the default.
-- **CI** — `argot check ${{ github.event.pull_request.base.sha }}..HEAD`, fails above a threshold
-- **Editor** — `--json` output makes it trivial to wrap in a VS Code extension or LSP _(planned)_
+argot has four commands. You run them in order the first time, then just `check` (and optionally `explain`) on every commit.
+
+### 1. Extract
+
+Walks the repo's git history and writes a training dataset:
+
+```bash
+argot extract                        # extracts from current directory
+argot extract /path/to/other/repo    # or any other repo
+```
+
+Output: `.argot/dataset.jsonl` — one record per hunk, with tokenized context and content.
+
+### 2. Train
+
+Trains a small JEPA model on the extracted dataset:
+
+```bash
+argot train
+```
+
+Output: `.argot/model.pkl`. Takes a few minutes on CPU. Only needs to be re-run when you want to refresh the model (e.g. after a major refactor).
+
+### 3. Check
+
+Scores every hunk in a git ref against the trained model. High surprise = stylistically foreign to this repo.
+
+```bash
+argot check                          # defaults to HEAD~1..HEAD
+argot check HEAD~5..HEAD             # any ref range
+argot check --repo /path/to/repo HEAD~1..HEAD   # check another repo
+argot check --model /path/to/model.pkl HEAD~1..HEAD
+```
+
+Output: a ranked table of surprising hunks with their scores. Exits non-zero if any hunk exceeds the threshold.
+
+```
+ SURPRISE  FILE                          LINE  COMMIT
+   1.1642  source/utils/http_helpers.ts     1  3d5cd8b6
+```
+
+### 4. Explain
+
+For flagged hunks, asks Claude to explain *why* they diverge from the codebase's style:
+
+```bash
+argot explain                        # defaults to HEAD~1..HEAD
+argot explain HEAD~5..HEAD
+argot explain --repo /path/to/repo HEAD~1..HEAD
+argot explain --model /path/to/model.pkl --dataset .argot/dataset.jsonl HEAD~1..HEAD
+```
+
+Output: per-hunk natural language analysis with concrete issues:
+
+```
+source/utils/http_helpers.ts:1 (p81.6, commit 3d5cd8b6)
+  Mixes unrelated concerns by embedding an Express app inside an HTTP queue
+  manager class, contrary to the codebase's narrow single-purpose design.
+  • Uses snake_case for private fields (_request_queue) while the codebase uses camelCase exclusively
+  • Imports express and lodash — dependencies absent from the rest of the codebase
+  • bare Function type violates the strict no-any TypeScript convention enforced here
+```
+
+#### Why Claude?
+
+argot's JEPA model detects *which* hunks are anomalous — it produces a surprise score based on how poorly it can predict a hunk's embedding from its context. It does not produce text.
+
+`argot explain` takes the flagged hunks, pairs each one with the lowest-surprise examples from the training data (what "normal" looks like for this repo), and passes both to Claude. Claude sees the contrast and can articulate the specific differences. This is the only step that requires a network call, and it's opt-in — `argot check` is entirely local.
 
 ## How it works
 
-1. **Train** — walks git log, extracts commit diffs, tokenizes with a language-aware tokenizer, trains a small [JEPA](https://github.com/lucas-maes/le-wm) (~15M params) to predict each hunk's embedding given its context.
-2. **Check** — runs the same pipeline on the target diff and scores each hunk by *prediction error*. High surprise = "this doesn't sound like the rest of the repo."
-3. **Output** — ranked list of hunks + per-hunk score. Exit code non-zero if any hunk exceeds the configured threshold.
+1. **Extract** — walks `git log`, extracts commit diffs, tokenizes each hunk and its surrounding context using a language-aware tree-sitter tokenizer.
 
-No code ever leaves your machine. The model is specific to your repo and useless to anyone else.
+2. **Train** — fits a bag-of-words vectorizer on the corpus, then trains a small JEPA (Joint Embedding Predictive Architecture): an encoder that embeds context and hunks into the same space, and a predictor that tries to predict the hunk embedding from the context embedding. Surprise = prediction error.
 
-## Calibration
+3. **Check** — runs the encoder on the target diff, scores each hunk by prediction error, ranks against the distribution of training scores. Flags hunks above the 75th percentile.
 
-Surprise is relative. `argot` uses a rolling percentile calibration: a hunk is flagged only if it's in the top X% of surprising hunks among recent commits. Tune with:
+4. **Explain** — emits the flagged hunks as JSONL (file, line, surprise score, percentile, raw hunk text, style examples from training), then for each one spawns `claude --print --output-format json --json-schema` with a prompt that includes the hunk and the style examples as context.
 
-```bash
-argot config set threshold 95
-```
+No training data or model leaves your machine. The only external call is the `claude` CLI invocation in `explain`, which goes to Anthropic's API through your existing Claude Code session.
 
 ## Limitations
 
-- Needs meaningful history (~200+ commits). Below that, `argot` will warn and abstain.
-- Best on codebases with a consistent hand. Highly polyglot repos with ten different styles are harder to model.
-- Cold start on brand-new files: less context to rely on.
+- Needs meaningful history (~200+ commits). Below that the model has too little signal.
+- Best on codebases with a consistent hand. Highly polyglot repos or repos with many contributors and no enforced style are harder to model.
+- Cold start on brand-new files: less context to score against.
 - Signal is noisier on very small hunks (< 5 lines).
+- The JEPA model is a small POC (~15M params, BoW features). Detection quality will improve with richer embeddings.
 
 ## Stack
 
-**CLI** TypeScript + Bun · **Training** Python + PyTorch (JEPA adapted from [LeWM](https://github.com/lucas-maes/le-wm)) · **Tokenizer** tree-sitter
+**CLI** TypeScript + Bun · **Engine** Python + PyTorch (JEPA) + tree-sitter · **Explain** Claude Code CLI
 
 ---
 
@@ -111,8 +171,10 @@ lefthook install      # wire pre-commit hooks
 ```bash
 just verify           # lint + format + typecheck + boundaries + knip + test
 just test             # bun test (cli) + pytest (engine)
-just extract .        # run the extract pipeline on this repo
-just verify-fix       # same as verify but auto-fixes lint/format
+just extract .        # extract training data from this repo
+just train            # train model on .argot/dataset.jsonl
+just check            # score HEAD~1..HEAD
+just build            # compile dist/argot standalone binary
 ```
 
 ### Repository layout
@@ -128,14 +190,15 @@ argot/
 │       │   ├── application/          # use-cases + port interfaces
 │       │   └── infrastructure/       # adapters implementing ports
 │       └── shell/                    # CLI commands (inbound adapters)
-├── engine/           # Python data pipeline (UV workspace)
+├── engine/           # Python data pipeline (uv workspace)
 │   └── argot/
 │       ├── git_walk.py   # pygit2 repo walker
 │       ├── tokenize.py   # tree-sitter tokenizer
-│       ├── extract.py    # CLI entrypoint → JSONL writer
-│       ├── train.py      # JEPA training entry point
-│       ├── check.py      # scoring entry point
-│       └── dataset.py    # msgspec record schema
+│       ├── extract.py    # extract → JSONL
+│       ├── train.py      # JEPA training
+│       ├── check.py      # surprise scoring
+│       ├── explain.py    # percentile ranking + style example selection
+│       └── dataset.py    # record schema
 └── justfile          # task runner (canonical interface)
 ```
 

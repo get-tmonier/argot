@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { Effect, Layer } from 'effect';
+import { engineCmd } from '#engine-cmd.ts';
 import { EngineRunner } from '#modules/extract-dataset/application/ports/out/engine-runner.port.ts';
 import { EngineExitNonZero, EngineSpawnFailed } from '#modules/extract-dataset/domain/errors.ts';
 
@@ -7,23 +8,12 @@ export const BunEngineRunnerLive = Layer.effect(EngineRunner)(
   Effect.succeed({
     runExtract: ({ repoPath, outputPath }: { repoPath: string; outputPath: string }) =>
       Effect.callback<void, EngineExitNonZero | EngineSpawnFailed>((resume) => {
+        const { cmd, args } = engineCmd('argot.extract');
         let proc: ReturnType<typeof spawn>;
         try {
-          proc = spawn(
-            'uv',
-            [
-              'run',
-              '--package',
-              'argot-engine',
-              'python',
-              '-m',
-              'argot.extract',
-              repoPath,
-              '--out',
-              outputPath,
-            ],
-            { stdio: ['ignore', 'inherit', 'pipe'] },
-          );
+          proc = spawn(cmd, [...args, repoPath, '--out', outputPath], {
+            stdio: ['ignore', 'inherit', 'pipe'],
+          });
         } catch (cause: unknown) {
           resume(Effect.fail(new EngineSpawnFailed({ cause })));
           return;
