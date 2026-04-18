@@ -61,7 +61,7 @@ npm install -g @tmonier/argot
 cd your-repo
 argot extract    # parse git history → .argot/dataset.jsonl
 argot train      # train JEPA model → .argot/model.pkl (downloads ~2GB torch once)
-argot check      # detect style anomalies in recent commits
+argot check      # score uncommitted changes (or pass a ref/range)
 argot explain    # AI analysis of flagged hunks (requires claude CLI)
 ```
 
@@ -107,31 +107,45 @@ Output: `.argot/model.pkl`. Takes a few minutes on CPU. Only needs to be re-run 
 
 ### 3. Check
 
-Scores every hunk in a git ref against the trained model. High surprise = stylistically foreign to this repo.
+Scores every hunk in a git ref against the trained model and prints a ranked table. Exits non-zero if any hunk is above the threshold.
 
 ```bash
-argot check                          # defaults to HEAD~1..HEAD
-argot check HEAD~5..HEAD             # any ref range
-argot check --repo /path/to/repo HEAD~1..HEAD   # check another repo
-argot check --model /path/to/model.pkl HEAD~1..HEAD
+argot check                          # check uncommitted changes (default)
+argot check HEAD                     # check the last commit
+argot check HEAD~5..HEAD             # check a range of commits
+argot check --repo /path/to/repo HEAD~5..HEAD
+argot check --model /path/to/model.pkl HEAD~5..HEAD
 ```
 
-Output: a ranked table of surprising hunks with their scores. Exits non-zero if any hunk exceeds the threshold.
+```
+ SURPRISE  TAG         FILE                          LINE  REF
+   1.1642  foreign     source/utils/http_helpers.ts     1  3d5cd8b6
+   0.7231  suspicious  source/api/router.ts            42  3d5cd8b6
+   0.5800  unusual     source/db/queries.ts            18  3d5cd8b6
+```
 
-```
- SURPRISE  FILE                          LINE  COMMIT
-   1.1642  source/utils/http_helpers.ts     1  3d5cd8b6
-```
+**Understanding the score**
+
+The surprise score is the model's prediction error for that hunk — how poorly it could predict the hunk's style from its surrounding context. A score of `0` means the hunk is completely in line with what the model expects; higher values mean it diverges from the repo's learned patterns.
+
+| Tag | Score range | Meaning |
+|---|---|---|
+| `ok` | ≤ threshold | Fits the repo's style |
+| `unusual` | threshold – threshold+0.3 | Slightly off; worth a glance |
+| `suspicious` | threshold+0.3 – threshold+0.6 | Noticeably diverges; review it |
+| `foreign` | > threshold+0.6 | Sharply inconsistent with the codebase |
+
+The default threshold is `0.5`. Adjust it with `--threshold`.
 
 ### 4. Explain
 
 For flagged hunks, asks Claude to explain *why* they diverge from the codebase's style:
 
 ```bash
-argot explain                        # defaults to HEAD~1..HEAD
-argot explain HEAD~5..HEAD
-argot explain --repo /path/to/repo HEAD~1..HEAD
-argot explain --model /path/to/model.pkl --dataset .argot/dataset.jsonl HEAD~1..HEAD
+argot explain HEAD                   # explain anomalies in the last commit
+argot explain HEAD~5..HEAD           # explain anomalies across a range
+argot explain --repo /path/to/repo HEAD~5..HEAD
+argot explain --model /path/to/model.pkl --dataset .argot/dataset.jsonl HEAD~5..HEAD
 ```
 
 Output: per-hunk natural language analysis with concrete issues:
