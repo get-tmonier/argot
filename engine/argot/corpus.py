@@ -85,6 +85,11 @@ def _load_records(path: Path, max_records: int | None = None) -> list[dict[str, 
     return reservoir
 
 
+def adaptive_epochs(size: int) -> int:
+    """Compute epoch count from dataset size: cap 200, ~70 at 20k, floor 20."""
+    return min(200, max(20, 1_400_000 // size))
+
+
 def run_benchmark(
     *,
     dataset: Path,
@@ -139,7 +144,7 @@ def _benchmark_one(
     home = [r for r in sample if r["_repo"] != foreign_name]
 
     train_records, held_out = split_by_time(home, ratio=0.8)
-    effective_epochs = epochs if epochs is not None else max(20, 1_400_000 // len(train_records))
+    effective_epochs = epochs if epochs is not None else adaptive_epochs(size)
     bundle = train_model(train_records, epochs=effective_epochs, batch_size=batch_size)
 
     good = score_records(bundle, held_out)
