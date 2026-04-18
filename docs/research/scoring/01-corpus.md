@@ -28,8 +28,8 @@ uv run --package argot-engine python -m argot.extract \
 | small   | click    | https://github.com/pallets/click           | 04ef3a6f473deb2499721a8d11f92a7d2c0912f2   |    6334 | py       |
 | medium  | vigie    | https://github.com/get-tmonier/vigie       | <TBD task 3>                               |     TBD | ts       |
 | medium  | ruff     | https://github.com/astral-sh/ruff          | <TBD task 3>                               |     TBD | py       |
-| large   | effect   | https://github.com/Effect-TS/effect        | <TBD task 4>                               |     TBD | ts       |
-| large   | pydantic | https://github.com/pydantic/pydantic       | <TBD task 4>                               |     TBD | py       |
+| large   | effect   | https://github.com/Effect-TS/effect        | b56a6ec05688c1461574b54a8044a849e7fe639c   |    9227 | ts       |
+| large   | pydantic | https://github.com/pydantic/pydantic       | a6bf50b721c2dd1ed609c8bb402076e8ec0c43f3   |   13446 | py       |
 | xlarge  | tsgo     | https://github.com/microsoft/tsgo          | <TBD task 5>                               |     TBD | ts       |
 | xlarge  | django   | https://github.com/django/django           | <TBD task 5>                               |     TBD | py       |
 
