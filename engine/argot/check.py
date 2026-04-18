@@ -177,8 +177,13 @@ def main() -> None:
 
     results.sort(key=lambda r: r[0], reverse=True)
 
+    col_w = 55
+
+    def _trunc(fp: str) -> str:
+        return fp if len(fp) <= col_w else "..." + fp[-(col_w - 3) :]
+
     t = args.threshold
-    print(f"{'SURPRISE':>9}  {'TAG':<10}  {'FILE':<48}  {'LINE':>5}  REF")
+    print(f"{'SURPRISE':>9}  {'TAG':<10}  {'FILE':<{col_w}}  {'LINE':>5}  REF")
     for score, fp, line, ref in results:
         if score <= t:
             tag = "ok"
@@ -188,7 +193,7 @@ def main() -> None:
             tag = "suspicious"
         else:
             tag = "foreign"
-        print(f"{score:>9.4f}  {tag:<10}  {fp:<48}  {line:>5}  {ref}")
+        print(f"{score:>9.4f}  {tag:<10}  {_trunc(fp):<{col_w}}  {line:>5}  {ref}")
 
     if any(s > args.threshold for s, *_ in results):
         sys.exit(1)

@@ -18,7 +18,7 @@ export const BunStyleCheckerLive = Layer.effect(StyleChecker)(
       modelPath: string;
       threshold: number;
     }) =>
-      Effect.callback<void, CheckExitNonZero | CheckSpawnFailed>((resume) => {
+      Effect.callback<boolean, CheckExitNonZero | CheckSpawnFailed>((resume) => {
         const { cmd, args } = engineCmd('argot.check');
         let proc: ReturnType<typeof spawn>;
         try {
@@ -41,7 +41,9 @@ export const BunStyleCheckerLive = Layer.effect(StyleChecker)(
         proc.on('close', (code: number | null) => {
           stopSpinner();
           if (code === 0) {
-            resume(Effect.void);
+            resume(Effect.succeed(false));
+          } else if (code === 1) {
+            resume(Effect.succeed(true));
           } else {
             const stderr = Buffer.concat(stderrChunks).toString('utf-8');
             resume(Effect.fail(new CheckExitNonZero({ exitCode: code ?? -1, stderr })));

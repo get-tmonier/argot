@@ -11,7 +11,7 @@ import numpy as np
 import pygit2
 import torch
 
-from argot.check import _resolve_shas
+from argot.check import _resolve_shas, _workdir_patches
 from argot.git_walk import walk_commits
 from argot.jepa.encoder import TokenEncoder
 from argot.jepa.model import JEPAArgot
@@ -68,7 +68,7 @@ def _score_dataset(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Explain style anomalies in a git ref")
     parser.add_argument("repo_path")
-    parser.add_argument("ref")
+    parser.add_argument("ref", nargs="?", default="")
     parser.add_argument("--model", default=".argot/model.pkl")
     parser.add_argument("--dataset", default=".argot/dataset.jsonl")
     parser.add_argument("--threshold-percentile", type=float, default=75.0)
@@ -105,62 +105,71 @@ def main() -> None:
     style_examples = select_style_examples(scored_dataset, n=args.examples)
     example_texts = [" ".join(t["text"] for t in r["hunk_tokens"]) for r in style_examples]
 
-    repo = pygit2.Repository(args.repo_path)
-    shas = _resolve_shas(repo, args.ref)
-    if not shas:
-        sys.exit(0)
-
     context_lines = 50
-    with torch.no_grad():
-        for commit, file_path, post_blob, hunks in walk_commits(args.repo_path, shas):
-            lang = language_for_path(file_path)
-            if lang is None:
-                continue
-            try:
-                source_lines = post_blob.decode("utf-8", errors="replace").splitlines()
-            except Exception:
-                continue
 
-            for hunk in hunks:
-                hunk_start = hunk.new_start - 1
-                hunk_end = hunk_start + hunk.new_lines
-                if hunk_start < 0 or hunk_end > len(source_lines):
+    def _emit_patches(patches: Any, commit_label: str) -> None:
+        with torch.no_grad():
+            for file_path, post_blob, hunks in patches:
+                lang = language_for_path(file_path)
+                if lang is None:
+                    continue
+                try:
+                    source_lines = post_blob.decode("utf-8", errors="replace").splitlines()
+                except Exception:
                     continue
 
-                before_start = max(0, hunk_start - context_lines)
-                ctx_tokens = tokenize_lines(source_lines, lang, before_start, hunk_start)
-                hunk_tokens = tokenize_lines(source_lines, lang, hunk_start, hunk_end)
+                for hunk in hunks:
+                    hunk_start = hunk.new_start - 1
+                    hunk_end = hunk_start + hunk.new_lines
+                    if hunk_start < 0 or hunk_end > len(source_lines):
+                        continue
 
-                ctx_text = " ".join(t.text for t in ctx_tokens)
-                hunk_text = " ".join(t.text for t in hunk_tokens)
+                    before_start = max(0, hunk_start - context_lines)
+                    ctx_tokens = tokenize_lines(source_lines, lang, before_start, hunk_start)
+                    hunk_tokens = tokenize_lines(source_lines, lang, hunk_start, hunk_end)
 
-                ctx_vec = torch.tensor(
-                    vectorizer.transform([ctx_text]).toarray(), dtype=torch.float32
-                )
-                hunk_vec = torch.tensor(
-                    vectorizer.transform([hunk_text]).toarray(), dtype=torch.float32
-                )
+                    ctx_text = " ".join(t.text for t in ctx_tokens)
+                    hunk_text = " ".join(t.text for t in hunk_tokens)
 
-                score = model.surprise(ctx_vec, hunk_vec).item()
-                pct = percentile_rank(score, distribution)
-
-                if pct < args.threshold_percentile:
-                    continue
-
-                print(
-                    json.dumps(
-                        {
-                            "file_path": file_path,
-                            "line": hunk.new_start,
-                            "commit": str(commit.id)[:8],
-                            "surprise": round(score, 4),
-                            "percentile": round(pct, 1),
-                            "hunk_text": hunk_text,
-                            "context_text": ctx_text,
-                            "style_examples": example_texts,
-                        }
+                    ctx_vec = torch.tensor(
+                        vectorizer.transform([ctx_text]).toarray(), dtype=torch.float32
                     )
-                )
+                    hunk_vec = torch.tensor(
+                        vectorizer.transform([hunk_text]).toarray(), dtype=torch.float32
+                    )
+
+                    score = model.surprise(ctx_vec, hunk_vec).item()
+                    pct = percentile_rank(score, distribution)
+
+                    if pct < args.threshold_percentile:
+                        continue
+
+                    print(
+                        json.dumps(
+                            {
+                                "file_path": file_path,
+                                "line": hunk.new_start,
+                                "commit": commit_label,
+                                "surprise": round(score, 4),
+                                "percentile": round(pct, 1),
+                                "hunk_text": hunk_text,
+                                "context_text": ctx_text,
+                                "style_examples": example_texts,
+                            }
+                        )
+                    )
+
+    if args.ref == "":
+        _emit_patches(_workdir_patches(args.repo_path), "workdir")
+    else:
+        repo = pygit2.Repository(args.repo_path)
+        shas = _resolve_shas(repo, args.ref)
+        if not shas:
+            sys.exit(0)
+        _emit_patches(
+            ((fp, blob, hunks) for _, fp, blob, hunks in walk_commits(args.repo_path, shas)),
+            args.ref,
+        )
 
 
 if __name__ == "__main__":

@@ -8,7 +8,7 @@ interface StyleCheckerShape {
     ref: string;
     modelPath: string;
     threshold: number;
-  }) => Effect.Effect<void, CheckError>;
+  }) => Effect.Effect<boolean, CheckError>;
 }
 
 export class StyleChecker extends Context.Service<StyleChecker, StyleCheckerShape>()(

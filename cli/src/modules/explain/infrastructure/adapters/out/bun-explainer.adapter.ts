@@ -55,7 +55,7 @@ const callClaude = (
       `This codebase's typical style (lowest-surprise commits from training data):\n\n` +
       `<examples>\n${examples}\n</examples>\n\n` +
       `This hunk from ${record.file_path}:${record.line} scored p${record.percentile} surprise ` +
-      `(commit ${record.commit}):\n\n` +
+      `(${record.commit === 'workdir' ? 'working tree' : `commit ${record.commit}`}):\n\n` +
       `<hunk>\n${record.hunk_text}\n</hunk>\n\n` +
       `In 2-3 sentences, what specific style differences do you see? Be concrete about naming, ` +
       `structure, patterns, line length. Return JSON only.`;
@@ -158,8 +158,10 @@ export const BunExplainerLive = Layer.effect(Explainer)(
                   Schema.fromJsonString(EngineRecord),
                 )(line);
                 const explanation = yield* callClaude(record, claudeModel);
+                const location =
+                  record.commit === 'workdir' ? `workdir` : `commit ${record.commit}`;
                 yield* Console.log(
-                  `\n${record.file_path}:${record.line} (p${record.percentile}, commit ${record.commit})`,
+                  `\n${record.file_path}:${record.line} (p${record.percentile}, ${location})`,
                 );
                 yield* Console.log(`  ${explanation.summary}`);
                 for (const issue of explanation.issues) {
