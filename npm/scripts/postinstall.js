@@ -5,7 +5,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
-const REPO = 'tmonier/argot';
+const REPO = 'get-tmonier/argot';
 const BIN_PATH = path.join(__dirname, '..', 'bin', 'argot');
 
 function detectTarget() {

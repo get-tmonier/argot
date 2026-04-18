@@ -4,7 +4,7 @@ import { writeFileSync, renameSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { version } from '../../../../../version.ts';
 
-const REPO = 'tmonier/argot';
+const REPO = 'get-tmonier/argot';
 
 export function detectTarget(platform: string, arch: string): string {
   if (platform === 'linux' && arch === 'x64') return 'linux-x64';
