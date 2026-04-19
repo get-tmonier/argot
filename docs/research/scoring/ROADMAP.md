@@ -2,7 +2,7 @@
 
 > Read this at the start of every session. Update it at the end.
 
-**Current phase**: Phase 5 complete — sequential encoders (2/3 branches)
+**Current phase**: Phase 6 complete — BPE tokenisation (A) + combined study (B)
 **Active branch**: `research/combined-optimizations`
 **Last touched**: 2026-04-19
 **Spec**: [`DESIGN.md`](DESIGN.md)
@@ -96,12 +96,37 @@ shuffled AUC must beat char_ngrams by ≥+0.02 on ≥2 buckets.
    char_ngrams without subword tokenisation (BPE).
 
 **Recommendation for next phase:**
-- Token embeddings + context_after + adaptive_epochs: address the cross-repo regression
-  via the same combined-study approach as Phase 4.
 - Subword tokenisation: BPE vocab prevents the embedding table fragmenting into
   repo-specific surface forms, expected to fix the large-scale cross-repo collapse.
 - Same-language corpus pairs: current benchmark conflates language detection with style
   (all bucket pairs are TS + Py). Valid shuffled AUC requires same-language pairs.
+
+## Phase 6 — BPE tokenisation + combined encoder study
+
+Branch off `research/token-embeddings`. Phase 5 discipline for Workstream A (keep
+combined-optimizations off to isolate encoder). Workstream B explicitly enables them.
+
+- [x] 13-bpe-tokenisation.md: `BpeVocab` (HuggingFace ByteLevelBPE) replacing raw token vocab
+- [x] 14-token-embed-combined.md: token_embed + context_after + adaptive_epochs (negative result)
+
+**Phase 6 findings:**
+
+1. BPE dramatically fixes cross-repo at small and medium — OOV collapse at small (token_embed
+   0.445 → BPE 0.710) nearly eliminated. BPE dominates all prior encoders on cross-repo at
+   medium (0.684 vs char_ngrams 0.650, token_embed 0.665).
+2. BPE cross-repo collapse at large is reduced but not fixed — 0.514 ± 0.054 vs token_embed
+   0.457. High variance; one seed regressed to 0.443. Shuffled AUC preserved (0.704 ≥ 0.697).
+3. context_after + adaptive_epochs are harmful for dense encoders — the Phase 4 regularisation
+   techniques that help TF-IDF cause catastrophic overfitting in token_embed at medium (shuffled
+   0.582 vs 0.701 baseline). Cross-repo at large collapses to 0.317 — worst result in research.
+   Dense encoders require architectural regularisation, not epoch scaling.
+
+**Recommendation for next phase:**
+- BPE + context_after + adaptive_epochs synthesis: despite Workstream B failing in isolation,
+  BPE changes the overfitting dynamics. With BPE's reduced OOV rate, adaptive_epochs may no
+  longer over-specialise to repo-specific tokens. Run a combined study analogous to 09-combined.
+- Same-language corpus pairs: required for honest cross-repo numbers (current pairs are TS + Py,
+  measuring language detection not style).
 
 ## Session log
 
@@ -122,3 +147,10 @@ shuffled AUC must beat char_ngrams by ≥+0.02 on ≥2 buckets.
   AUC at small (+0.139) and medium (+0.046) but cross-repo collapses at large
   scale. Conclusion: dense representation wins on order detection; char_ngrams
   still wins on style generalisation. Next: BPE tokenisation + combined study.
+- **2026-04-19**: Phase 6 complete. BPE (Workstream A) nearly eliminates
+  cross-repo collapse at small (0.445→0.710) and improves medium, but large
+  remains partially collapsed (0.514 vs target 0.600). Shuffled AUC preserved.
+  token_embed + context_after + adaptive_epochs (Workstream B) fails: medium
+  shuffled regression -0.119, cross-repo at large collapses to 0.317. Phase 4
+  techniques are harmful for dense encoders. Next: BPE synthesis (BPE +
+  context_after + adaptive_epochs combined), same-language corpus pairs.
