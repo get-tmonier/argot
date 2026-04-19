@@ -45,6 +45,17 @@ research-benchmark dataset=".argot/research/combined.jsonl" sizes="500,2000,8000
         --dataset {{dataset}} --sizes {{sizes}} --seeds {{seeds}} \
         --out .argot/research/results.jsonl
 
+research-benchmark-bpe:
+    uv run --package argot-engine python -m argot.corpus benchmark \
+        --dataset {{REPO_ROOT}}/.argot/research/buckets/small.jsonl --sizes 3000 --seeds 3 \
+        --encoder bpe --out {{REPO_ROOT}}/.argot/research/results-bpe.jsonl
+    uv run --package argot-engine python -m argot.corpus benchmark \
+        --dataset {{REPO_ROOT}}/.argot/research/buckets/medium.jsonl --sizes 7000 --seeds 3 \
+        --encoder bpe --out {{REPO_ROOT}}/.argot/research/results-bpe.jsonl
+    uv run --package argot-engine python -m argot.corpus benchmark \
+        --dataset {{REPO_ROOT}}/.argot/research/buckets/large.jsonl --sizes 20000 --seeds 3 \
+        --encoder bpe --out {{REPO_ROOT}}/.argot/research/results-bpe.jsonl
+
 research-benchmark-token-embed:
     uv run --package argot-engine python -m argot.corpus benchmark \
         --dataset {{REPO_ROOT}}/.argot/research/buckets/small.jsonl --sizes 3000 --seeds 3 \

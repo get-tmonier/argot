@@ -200,8 +200,7 @@ def concat_datasets(inputs: list[Path], output: Path) -> dict[str, int]:
                     record = json.loads(line)
                     if "_repo" not in record:
                         raise ValueError(
-                            f"record in {src} missing _repo tag "
-                            f"(re-extract with --repo-name)"
+                            f"record in {src} missing _repo tag " f"(re-extract with --repo-name)"
                         )
                     counts[record["_repo"]] = counts.get(record["_repo"], 0) + 1
                     out_fh.write(line.rstrip("\n") + "\n")
@@ -246,7 +245,7 @@ def main() -> None:
     bench_p.add_argument("--batch-size", type=int, default=128)
     bench_p.add_argument(
         "--encoder",
-        choices=["tfidf", "word_ngrams", "token_embed", "transformer"],
+        choices=["tfidf", "word_ngrams", "token_embed", "bpe", "transformer"],
         default="tfidf",
         help="Encoder to use for training",
     )

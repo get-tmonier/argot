@@ -13,6 +13,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer  # type: ignore[impo
 from torch.optim import AdamW
 from torch.utils.data import DataLoader, TensorDataset
 
+from argot.jepa.bpe_vocab import BpeVocab
 from argot.jepa.encoder import TokenEncoder
 from argot.jepa.model import JEPAArgot
 from argot.jepa.predictor import ArgotPredictor
@@ -22,7 +23,7 @@ from argot.jepa.vocab import Vocab
 INPUT_DIM = 5000
 EMBED_DIM = 192
 
-EncoderKind = Literal["tfidf", "word_ngrams", "token_embed", "transformer"]
+EncoderKind = Literal["tfidf", "word_ngrams", "token_embed", "bpe", "transformer"]
 
 
 @dataclass
@@ -100,7 +101,7 @@ _EMBED_DIM_TOKEN = 128
 
 
 def _encode_records(
-    records: list[dict[str, Any]], vocab: Vocab, seq_len: int
+    records: list[dict[str, Any]], vocab: Vocab | BpeVocab, seq_len: int
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Encode context_before + hunk_tokens as padded (B, seq_len) long tensors."""
     ctx_ids_list: list[list[int]] = []
@@ -167,6 +168,53 @@ def _train_token_embed(
     )
 
 
+def _train_bpe(
+    records: list[dict[str, Any]],
+    *,
+    epochs: int,
+    batch_size: int,
+    lr: float,
+    lambd: float,
+) -> ModelBundle:
+    bpe_vocab = BpeVocab.build(records, vocab_size=8000)
+    vocab_size = bpe_vocab.vocab_size
+
+    ctx_x, hunk_x = _encode_records(records, bpe_vocab, _SEQ_LEN)
+
+    loader = DataLoader(
+        TensorDataset(ctx_x, hunk_x),
+        batch_size=batch_size,
+        shuffle=True,
+    )
+
+    seq_encoder = MeanPoolEncoder(
+        vocab_size=vocab_size, embed_dim=_EMBED_DIM_TOKEN, output_dim=EMBED_DIM
+    )
+    predictor = ArgotPredictor(embed_dim=EMBED_DIM)
+    model = JEPAArgot(seq_encoder, predictor, lambd=lambd)  # type: ignore[arg-type]
+    optimizer = AdamW(model.parameters(), lr=lr, weight_decay=1e-3)
+
+    model.train()
+    for epoch in range(1, epochs + 1):
+        total_loss = 0.0
+        for ctx_batch, hunk_batch in loader:
+            optimizer.zero_grad()
+            losses = model(ctx_batch, hunk_batch)
+            losses["loss"].backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+            total_loss += losses["loss"].item()
+        print(f"epoch {epoch}/{epochs}  loss={total_loss / len(loader):.4f}")
+
+    return ModelBundle(
+        vectorizer=bpe_vocab,  # BpeVocab stored in TfidfVectorizer slot (sklearn untyped)
+        model=model,
+        input_dim=vocab_size,
+        embed_dim=EMBED_DIM,
+        encoder_kind="bpe",
+    )
+
+
 def _train_transformer(
     records: list[dict[str, Any]],
     *,
@@ -193,6 +241,8 @@ def train_model(
         return _train_word_ngrams(records, epochs=epochs, batch_size=batch_size, lr=lr, lambd=lambd)
     elif encoder == "token_embed":
         return _train_token_embed(records, epochs=epochs, batch_size=batch_size, lr=lr, lambd=lambd)
+    elif encoder == "bpe":
+        return _train_bpe(records, epochs=epochs, batch_size=batch_size, lr=lr, lambd=lambd)
     elif encoder == "transformer":
         return _train_transformer(records, epochs=epochs, batch_size=batch_size, lr=lr, lambd=lambd)
     else:

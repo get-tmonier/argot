@@ -11,6 +11,7 @@ import numpy as np
 import torch
 from sklearn.metrics import roc_auc_score  # type: ignore[import-untyped]
 
+from argot.jepa.bpe_vocab import BpeVocab
 from argot.jepa.seq_encoder import MeanPoolEncoder  # noqa: F401  (used for isinstance check)
 from argot.jepa.vocab import Vocab
 from argot.train import ModelBundle, train_model
@@ -104,6 +105,19 @@ def _vectorize_token_embed(bundle: ModelBundle, texts: list[str]) -> torch.Tenso
     return out
 
 
+def _vectorize_bpe(bundle: ModelBundle, texts: list[str]) -> torch.Tensor:
+    bpe_vocab = bundle.vectorizer
+    if not isinstance(bpe_vocab, BpeVocab):
+        raise TypeError(f"expected BpeVocab, got {type(bpe_vocab)}")
+    seq_len = 256
+    ids_list = [bpe_vocab.encode(text.split())[:seq_len] for text in texts]
+    out = torch.zeros(len(ids_list), seq_len, dtype=torch.long)
+    for i, ids in enumerate(ids_list):
+        if ids:
+            out[i, : len(ids)] = torch.tensor(ids, dtype=torch.long)
+    return out
+
+
 def _vectorize_transformer(bundle: ModelBundle, texts: list[str]) -> torch.Tensor:
     raise NotImplementedError("transformer vectorization not yet implemented")
 
@@ -113,6 +127,8 @@ def _vectorize(bundle: ModelBundle, texts: list[str]) -> torch.Tensor:
         return _vectorize_tfidf(bundle, texts)  # word_ngrams reuses same sklearn vectorizer
     elif bundle.encoder_kind == "token_embed":
         return _vectorize_token_embed(bundle, texts)
+    elif bundle.encoder_kind == "bpe":
+        return _vectorize_bpe(bundle, texts)
     elif bundle.encoder_kind == "transformer":
         return _vectorize_transformer(bundle, texts)
     else:

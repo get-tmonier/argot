@@ -11,6 +11,7 @@ dependencies = [
     "tree-sitter-typescript==0.23.2",
     "tree-sitter-javascript==0.23.1",
     "tree-sitter-python==0.23.6",
+    "tokenizers>=0.20.0",
 ]
 
 [project.scripts]
@@ -51,6 +52,14 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "einops"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tokenizers"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tokenizers.*"
 ignore_missing_imports = true
 
 [tool.ruff]
