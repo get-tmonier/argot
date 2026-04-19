@@ -28,13 +28,13 @@
       "rationale": "`throw new Error(...)` in a file where Effect.fail is the convention for failure. Expect at least 'unusual'."
     },
     {
-      "name": "paradigm_break_relative_import",
-      "file": "paradigm_break_relative_import.ts",
-      "hunk_start_line": 15,
-      "hunk_end_line": 16,
-      "min_band": "unusual",
+      "name": "paradigm_break_promise",
+      "file": "paradigm_break_promise.ts",
+      "hunk_start_line": 41,
+      "hunk_end_line": 73,
+      "min_band": "suspicious",
       "max_band": "foreign",
-      "rationale": "Relative `../../` import in a block of `#modules/*` path-aliased imports. Subtle style deviation."
+      "rationale": "async function returning Promise<T> in a codebase where every application-layer function returns Effect.Effect<T, E>. Direct async/await is the LLM-typical fallback."
     },
     {
       "name": "control_trivial_predicate",
@@ -100,19 +100,19 @@
       "rationale": "Imperative async/await + nested calls in a codebase that uses pipe() / Effect.gen throughout. Expect at least 'suspicious'."
     },
     {
-      "name": "paradigm_break_typed_exception",
-      "file": "paradigm_break_typed_exception.py",
-      "hunk_start_line": 28,
-      "hunk_end_line": 40,
+      "name": "paradigm_break_logging",
+      "file": "paradigm_break_logging.py",
+      "hunk_start_line": 32,
+      "hunk_end_line": 59,
       "min_band": "suspicious",
       "max_band": "foreign",
-      "rationale": "Bare `except Exception` with print() in a codebase that uses typed httpx exception hierarchy. LLM-typical fallback pattern."
+      "rationale": "logging.getLogger/logger.info in a codebase that uses sys.stderr.write for progress output throughout. LLM-typical substitution."
     },
     {
       "name": "paradigm_break_pathlib",
       "file": "paradigm_break_pathlib.py",
-      "hunk_start_line": 26,
-      "hunk_end_line": 37,
+      "hunk_start_line": 28,
+      "hunk_end_line": 38,
       "min_band": "unusual",
       "max_band": "foreign",
       "rationale": "os.path string-based path handling in a codebase that uses pathlib.Path throughout."
