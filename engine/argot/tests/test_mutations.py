@@ -64,3 +64,39 @@ def test_quote_flip_ignores_unbalanced_quotes() -> None:
 def test_quote_flip_is_deterministic() -> None:
     rec = _make_record(hunk_texts=['"a"', "'b'"])
     assert apply_mutation("quote_flip", rec, seed=0) == apply_mutation("quote_flip", rec, seed=42)
+
+
+def test_case_swap_snake_to_camel() -> None:
+    rec = _make_record(hunk_texts=["get_user_id", "foo_bar"])
+    out = apply_mutation("case_swap", rec, seed=0)
+    assert [t["text"] for t in out["hunk_tokens"]] == ["getUserId", "fooBar"]
+
+
+def test_case_swap_camel_to_snake() -> None:
+    rec = _make_record(hunk_texts=["getUserId", "fooBar"])
+    out = apply_mutation("case_swap", rec, seed=0)
+    assert [t["text"] for t in out["hunk_tokens"]] == ["get_user_id", "foo_bar"]
+
+
+def test_case_swap_pascal_to_snake() -> None:
+    rec = _make_record(hunk_texts=["HttpClient", "UserRecord"])
+    out = apply_mutation("case_swap", rec, seed=0)
+    assert [t["text"] for t in out["hunk_tokens"]] == ["http_client", "user_record"]
+
+
+def test_case_swap_preserves_single_lowercase_word() -> None:
+    rec = _make_record(hunk_texts=["foo", "bar", "baz"])
+    out = apply_mutation("case_swap", rec, seed=0)
+    assert [t["text"] for t in out["hunk_tokens"]] == ["foo", "bar", "baz"]
+
+
+def test_case_swap_preserves_screaming_snake() -> None:
+    rec = _make_record(hunk_texts=["MAX_SIZE", "DEBUG"])
+    out = apply_mutation("case_swap", rec, seed=0)
+    assert [t["text"] for t in out["hunk_tokens"]] == ["MAX_SIZE", "DEBUG"]
+
+
+def test_case_swap_skips_non_identifier_tokens() -> None:
+    rec = _make_record(hunk_texts=["(", ")", ":", "'", '"hello"', "123"])
+    out = apply_mutation("case_swap", rec, seed=0)
+    assert [t["text"] for t in out["hunk_tokens"]] == ["(", ")", ":", "'", '"hello"', "123"]

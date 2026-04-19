@@ -28,11 +28,40 @@ def _clone_with_hunk(record: dict[str, Any], new_hunk: list[dict[str, Any]]) -> 
 
 
 _STRING_RE = re.compile(r"^(['\"])(.*)\1$", re.DOTALL)
+_IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_CAMEL_SPLIT_RE = re.compile(r"(?<!^)(?=[A-Z])")
+
+
+def _swap_case(ident: str) -> str:
+    if "_" in ident and ident.upper() == ident:
+        return ident  # SCREAMING_SNAKE — leave alone
+    if "_" in ident:
+        # snake_case → camelCase
+        parts = ident.split("_")
+        if not parts[0]:
+            return ident  # leading underscore — leave alone
+        return parts[0] + "".join(p.capitalize() for p in parts[1:] if p)
+    # Check if it's a single-word all-uppercase (CONST) or all-lowercase (foo)
+    if ident == ident.upper() or ident == ident.lower():
+        return ident  # no change
+    # camelCase or PascalCase → snake_case
+    parts = _CAMEL_SPLIT_RE.split(ident)
+    if len(parts) == 1:
+        return ident  # safety check (shouldn't reach here)
+    return "_".join(p.lower() for p in parts if p)
 
 
 @_register("case_swap")
 def _case_swap(record: dict[str, Any], seed: int) -> dict[str, Any]:
-    raise NotImplementedError
+    del seed
+    new_hunk: list[dict[str, Any]] = []
+    for tok in record["hunk_tokens"]:
+        text = tok["text"]
+        if _IDENT_RE.fullmatch(text) is None:
+            new_hunk.append(tok)
+            continue
+        new_hunk.append({**tok, "text": _swap_case(text)})
+    return _clone_with_hunk(record, new_hunk)
 
 
 @_register("debug_inject")
