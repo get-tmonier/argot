@@ -118,6 +118,26 @@ research-honest-benchmark encoder="tfidf" seeds="3" out=".argot/research/results
 		--dataset .argot/research/buckets-v2/large-ts.jsonl --sizes 20000 --seeds {{seeds}} \
 		--encoder {{encoder}} --out {{out}}
 
+research-honest-benchmark-density head="knn-20" seeds="3" out=".argot/research/results-density.jsonl":
+	uv run --package argot-engine python -m argot.corpus benchmark-density \
+		--dataset .argot/research/buckets-v2/small-py.jsonl --sizes 3000 --seeds {{seeds}} \
+		--head {{head}} --out {{out}}
+	uv run --package argot-engine python -m argot.corpus benchmark-density \
+		--dataset .argot/research/buckets-v2/small-ts.jsonl --sizes 3000 --seeds {{seeds}} \
+		--head {{head}} --out {{out}}
+	uv run --package argot-engine python -m argot.corpus benchmark-density \
+		--dataset .argot/research/buckets-v2/medium-py.jsonl --sizes 7000 --seeds {{seeds}} \
+		--head {{head}} --out {{out}}
+	uv run --package argot-engine python -m argot.corpus benchmark-density \
+		--dataset .argot/research/buckets-v2/medium-ts.jsonl --sizes 7000 --seeds {{seeds}} \
+		--head {{head}} --out {{out}}
+	uv run --package argot-engine python -m argot.corpus benchmark-density \
+		--dataset .argot/research/buckets-v2/large-py.jsonl --sizes 20000 --seeds {{seeds}} \
+		--head {{head}} --out {{out}}
+	uv run --package argot-engine python -m argot.corpus benchmark-density \
+		--dataset .argot/research/buckets-v2/large-ts.jsonl --sizes 20000 --seeds {{seeds}} \
+		--head {{head}} --out {{out}}
+
 # --- individual checks ---
 
 lint:

@@ -8,12 +8,14 @@ from pathlib import Path
 from typing import Any, Literal
 
 import joblib  # type: ignore[import-untyped]
+import numpy as np
 import torch
 from sklearn.feature_extraction.text import TfidfVectorizer  # type: ignore[import-untyped]
 from torch.optim import AdamW
 from torch.utils.data import DataLoader, TensorDataset
 
 from argot.jepa.bpe_vocab import BpeVocab
+from argot.jepa.density_heads import DensityHead, DensityHeadKind, make_head
 from argot.jepa.encoder import TokenEncoder
 from argot.jepa.model import JEPAArgot
 from argot.jepa.predictor import ArgotPredictor
@@ -33,6 +35,14 @@ class ModelBundle:
     input_dim: int
     embed_dim: int
     encoder_kind: EncoderKind = field(default="tfidf")
+
+
+@dataclass
+class DensityBundle:
+    bpe_vocab: BpeVocab
+    encoder: MeanPoolEncoder
+    head: DensityHead
+    head_kind: DensityHeadKind
 
 
 def _train_sklearn_vec(
@@ -255,6 +265,45 @@ def _train_bpe(
         input_dim=vocab_size,
         embed_dim=EMBED_DIM,
         encoder_kind="bpe",
+    )
+
+
+def _get_bpe_embeddings(bundle: ModelBundle, records: list[dict[str, Any]]) -> np.ndarray:
+    """Extract mean-pooled BPE embeddings for records using a trained ModelBundle."""
+    bpe_vocab = bundle.vectorizer
+    if not isinstance(bpe_vocab, BpeVocab):
+        raise TypeError(f"expected BpeVocab, got {type(bpe_vocab)}")
+    ctx_x, hunk_x = _encode_records(records, bpe_vocab, _SEQ_LEN)
+    # Encode hunks only — the density head models the hunk distribution
+    bundle.model.encoder.eval()
+    with torch.no_grad():
+        emb = bundle.model.encoder(hunk_x)
+    return emb.numpy()  # type: ignore[no-any-return]
+
+
+def train_bpe_density(
+    records: list[dict[str, Any]],
+    *,
+    epochs: int,
+    batch_size: int,
+    lr: float,
+    lambd: float,
+    head_kind: DensityHeadKind,
+    seed: int = 0,
+) -> DensityBundle:
+    """Train BPE encoder then fit a density head on the resulting embeddings."""
+    bundle = _train_bpe(records, epochs=epochs, batch_size=batch_size, lr=lr, lambd=lambd)
+    embeddings = _get_bpe_embeddings(bundle, records)
+    head = make_head(head_kind, seed=seed)
+    head.fit(embeddings)
+    bpe_vocab = bundle.vectorizer
+    if not isinstance(bpe_vocab, BpeVocab):
+        raise TypeError(f"expected BpeVocab, got {type(bpe_vocab)}")
+    return DensityBundle(
+        bpe_vocab=bpe_vocab,
+        encoder=bundle.model.encoder,  # type: ignore[arg-type]
+        head=head,
+        head_kind=head_kind,
     )
 
 

@@ -14,7 +14,7 @@ from sklearn.metrics import roc_auc_score  # type: ignore[import-untyped]
 from argot.jepa.bpe_vocab import BpeVocab
 from argot.jepa.seq_encoder import MeanPoolEncoder  # noqa: F401  (used for isinstance check)
 from argot.jepa.vocab import Vocab
-from argot.train import ModelBundle, train_model
+from argot.train import _SEQ_LEN, DensityBundle, ModelBundle, _encode_records, train_model
 
 StratifyBy = Literal["none", "language", "top-dir"]
 
@@ -147,6 +147,15 @@ def score_records(bundle: ModelBundle, records: list[dict[str, Any]]) -> list[fl
             for i in range(len(records))
         ]
     return scores
+
+
+def score_records_density(bundle: DensityBundle, records: list[dict[str, Any]]) -> list[float]:
+    """Score records using a density head on BPE embeddings (higher = more anomalous)."""
+    _, hunk_x = _encode_records(records, bundle.bpe_vocab, _SEQ_LEN)
+    bundle.encoder.eval()
+    with torch.no_grad():
+        emb = bundle.encoder(hunk_x).numpy()
+    return bundle.head.score(emb).tolist()  # type: ignore[no-any-return]
 
 
 def _print_table(rows: list[tuple[str, dict[str, float]]]) -> None:
