@@ -54,7 +54,7 @@ to learn rather than noise.
 
 | bucket | Python pair        | domain             | TypeScript pair       | domain              |
 |:-------|:-------------------|:-------------------|:----------------------|:--------------------|
-| small  | httpx + requests   | HTTP client        | ky + chalk            | Small util library  |
+| small  | httpx + requests   | HTTP client        | ky + zod              | HTTP client / schema validation |
 | medium | fastapi + flask    | Web framework      | vite + rollup         | Bundler             |
 | large  | pydantic + django  | Lib/framework, mature | effect + angular  | (extreme contrast)  |
 
@@ -66,7 +66,7 @@ a well-trained model has discriminative signal to latch onto:
 | httpx + requests  | ✓     | (≈)        | ✓                 | ✓              | ✓         | async, line length |
 | fastapi + flask   | ✓     | ✓          | ✓                 | (≈)            | ✓         | metaprogramming    |
 | pydantic + django | ✓     | ✓          | ✓                 | ✓              | (≈)       | ORM patterns       |
-| ky + chalk        | ✓     | ✓          | (≈)               | (≈)            | (n/a)     | ESM/CJS, exports   |
+| ky + zod          | ✓     | ✓          | (≈)               | (≈)            | (n/a)     | minimalist vs builder API |
 | vite + rollup     | (≈)   | (≈)        | ✓                 | (≈)            | (n/a)     | file organisation  |
 | effect + angular  | ✓     | ✓ (extreme)| ✓                 | ✓              | ✓         | generators vs DI   |
 
@@ -83,10 +83,12 @@ a well-trained model has discriminative signal to latch onto:
   anything subtler. Alternative: `effect + typescript-eslint` (both tooling,
   still strong FP vs OOP contrast) if the angular domain mismatch proves
   problematic during 7.0.
+- **small-ts swap: chalk → zod.** chalk (130 TS records) and axios (488 TS records,
+  94% JS) were both dropped as JS-heavy. Replaced with `colinhacks/zod` (14,575
+  pure TS records). Style contrast with ky: minimalist HTTP client vs elaborate
+  generic builder API — strong signal on type annotation density and API design axes.
 - **Existing extracts reused where possible.** `ky`, `vite`, `effect`,
-  `pydantic`, `django` are already extracted under `.argot/research/datasets/`.
-  Phase 7.0 will re-verify those SHAs still parse cleanly, then add the new
-  partners.
+  `pydantic`, `django` are already extracted. New partners extracted fresh.
 
 **Record-count targets are hypotheses.** The bucket sizes (~3k, ~7k, ~20k)
 were set for the original TS+Py pairs based on existing extracts. The new
