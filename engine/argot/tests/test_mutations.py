@@ -159,3 +159,46 @@ def test_debug_inject_empty_hunk_passes_through() -> None:
     }
     out = apply_mutation("debug_inject", rec, seed=0)
     assert out["hunk_tokens"] == []
+
+
+def test_error_flip_python_except_and_raise() -> None:
+    rec = _make_record(
+        lang="python",
+        hunk_texts=["try", ":", "pass", "except", "Exception", ":", "raise"],
+    )
+    out = apply_mutation("error_flip", rec, seed=0)
+    texts = [t["text"] for t in out["hunk_tokens"]]
+    assert "except" not in texts
+    assert "raise" not in texts
+    assert texts.count("finally") == 1
+    assert texts.count("return") == 1
+
+
+def test_error_flip_typescript_catch_and_throw() -> None:
+    rec = _make_record(
+        lang="typescript",
+        hunk_texts=["try", "{", "}", "catch", "(", "e", ")", "{", "throw", "e", "}"],
+    )
+    out = apply_mutation("error_flip", rec, seed=0)
+    texts = [t["text"] for t in out["hunk_tokens"]]
+    assert "catch" not in texts
+    assert "throw" not in texts
+    assert "finally" in texts
+    assert "return" in texts
+
+
+def test_error_flip_leaves_unrelated_tokens_alone() -> None:
+    rec = _make_record(lang="python", hunk_texts=["def", "foo", "(", ")", ":", "pass"])
+    out = apply_mutation("error_flip", rec, seed=0)
+    assert [t["text"] for t in out["hunk_tokens"]] == ["def", "foo", "(", ")", ":", "pass"]
+
+
+def test_error_flip_unknown_language_uses_python_mapping() -> None:
+    rec = _make_record(lang="rust", hunk_texts=["raise", "except"])
+    out = apply_mutation("error_flip", rec, seed=0)
+    assert [t["text"] for t in out["hunk_tokens"]] == ["return", "finally"]
+
+
+def test_error_flip_is_deterministic() -> None:
+    rec = _make_record(lang="python", hunk_texts=["raise", "x"])
+    assert apply_mutation("error_flip", rec, seed=1) == apply_mutation("error_flip", rec, seed=99)

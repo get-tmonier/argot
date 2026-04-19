@@ -45,6 +45,19 @@ def _debug_template_for(language: str | None) -> list[str]:
     return _DEBUG_TEMPLATES["python"]
 
 
+_ERROR_MAPS: dict[str, dict[str, str]] = {
+    "python": {"except": "finally", "raise": "return"},
+    "typescript": {"catch": "finally", "throw": "return", "throws": "returns"},
+    "javascript": {"catch": "finally", "throw": "return", "throws": "returns"},
+}
+
+
+def _error_map_for(language: str | None) -> dict[str, str]:
+    if language in _ERROR_MAPS:
+        return _ERROR_MAPS[language]
+    return _ERROR_MAPS["python"]
+
+
 def _swap_case(ident: str) -> str:
     if "_" in ident and ident.upper() == ident:
         return ident  # SCREAMING_SNAKE — leave alone
@@ -91,7 +104,13 @@ def _debug_inject(record: dict[str, Any], seed: int) -> dict[str, Any]:
 
 @_register("error_flip")
 def _error_flip(record: dict[str, Any], seed: int) -> dict[str, Any]:
-    raise NotImplementedError
+    del seed
+    mapping = _error_map_for(record.get("language"))
+    new_hunk = [
+        {**tok, "text": mapping[tok["text"]]} if tok["text"] in mapping else tok
+        for tok in record["hunk_tokens"]
+    ]
+    return _clone_with_hunk(record, new_hunk)
 
 
 @_register("quote_flip")
