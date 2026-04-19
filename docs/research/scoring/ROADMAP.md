@@ -2,10 +2,11 @@
 
 > Read this at the start of every session. Update it at the end.
 
-**Current phase**: Phase 6 complete — BPE tokenisation (A) + combined study (B)
-**Active branch**: `research/combined-optimizations`
+**Current phase**: Phase 7 approved — honest eval rebuild + pretrained encoder pivot
+**Active branch**: `research/combined-optimizations` (Phase 7 work will branch off)
 **Last touched**: 2026-04-19
-**Spec**: [`DESIGN.md`](DESIGN.md)
+**Specs**: [`DESIGN.md`](DESIGN.md) (Phases 1–6), [`DESIGN-phase-7.md`](DESIGN-phase-7.md) (Phase 7)
+**Plans**: [`PLAN-phase-7-0.md`](PLAN-phase-7-0.md) (Phase 7.0 — honest eval rebuild)
 
 ---
 
@@ -128,6 +129,27 @@ combined-optimizations off to isolate encoder). Workstream B explicitly enables 
 - Same-language corpus pairs: required for honest cross-repo numbers (current pairs are TS + Py,
   measuring language detection not style).
 
+## Phase 7 — honest eval + pretrained encoder pivot
+
+Spec: [`DESIGN-phase-7.md`](DESIGN-phase-7.md). Primary metric: `synthetic_auc_mean`.
+Target: ≥ 0.85 at medium bucket on ≥ 2 of 3 seeds. Phase stops at the first
+experiment that clears the bar.
+
+- [ ] 7.0 eval rebuild — same-language pairs + synthetic mutations
+      (`15-honest-corpus.md`). Post-extract: re-verify that candidate pairs
+      (httpx+requests, fastapi+flask, pydantic+django, ky+chalk, vite+rollup,
+      effect+angular) actually cluster at expected bucket sizes; swap/rename
+      buckets if they don't.
+- [ ] 7.1 re-baseline existing encoders on new eval (`16-rebaseline.md`)
+- [ ] 7.2 density heads on BPE — kNN, GMM (`17-density-heads.md`)
+- [ ] 7.3 frozen CodeRankEmbed + current head (`18-pretrained-jepa.md`)
+- [ ] 7.4 frozen CodeRankEmbed + best density head (`19-pretrained-density.md`)
+- [ ] 7.5 structural context — conditional on 7.2–7.4 failing
+      (`20-structural-context.md`)
+
+**Decision gates** at every experiment (7.1 – 7.5). STOP, summarise, update
+this roadmap, wait for approval before continuing.
+
 ## Session log
 
 - **2026-04-18**: design approved; Phase 1 complete; Phase 2 sizing study
@@ -152,5 +174,12 @@ combined-optimizations off to isolate encoder). Workstream B explicitly enables 
   remains partially collapsed (0.514 vs target 0.600). Shuffled AUC preserved.
   token_embed + context_after + adaptive_epochs (Workstream B) fails: medium
   shuffled regression -0.119, cross-repo at large collapses to 0.317. Phase 4
-  techniques are harmful for dense encoders. Next: BPE synthesis (BPE +
-  context_after + adaptive_epochs combined), same-language corpus pairs.
+  techniques are harmful for dense encoders.
+- **2026-04-19**: Phase 7 planned. Six phases of from-scratch experiments have
+  plateaued around shuffled AUC 0.70. Target for v1 is 0.85. Two unresolved
+  issues: (a) eval is language-confounded (all bucket pairs TS+Py), (b) no
+  pretrained encoder has been tried. Phase 7 rebuilds the eval with
+  same-language pairs + synthetic mutations, then runs a focused architecture
+  search (density heads on BPE → CodeRankEmbed → cross-product → structural
+  context) with decision gates at 0.85 synthetic AUC. Research mode, no ship
+  pressure.
