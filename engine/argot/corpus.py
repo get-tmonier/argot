@@ -6,7 +6,7 @@ import random
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 
@@ -92,6 +92,7 @@ def run_benchmark(
     output: Path,
     epochs: int = 20,
     batch_size: int = 128,
+    encoder: Literal["tfidf", "word_ngrams", "token_embed", "transformer"] = "tfidf",
 ) -> None:
     """Run validate-style AUC measurement at each (size, seed); append to output JSONL."""
     # Load at most 2× the largest target — enough headroom for stratified_downsample
@@ -108,6 +109,7 @@ def run_benchmark(
                     seed=seed,
                     epochs=epochs,
                     batch_size=batch_size,
+                    encoder=encoder,
                 )
                 out_fh.write(json.dumps(row) + "\n")
                 out_fh.flush()
@@ -126,6 +128,7 @@ def _benchmark_one(
     seed: int,
     epochs: int,
     batch_size: int,
+    encoder: Literal["tfidf", "word_ngrams", "token_embed", "transformer"] = "tfidf",
 ) -> dict[str, Any]:
     sample = stratified_downsample(records, target_size=size, seed=seed)
 
@@ -138,7 +141,7 @@ def _benchmark_one(
     home = [r for r in sample if r["_repo"] != foreign_name]
 
     train_records, held_out = split_by_time(home, ratio=0.8)
-    bundle = train_model(train_records, epochs=epochs, batch_size=batch_size)
+    bundle = train_model(train_records, epochs=epochs, batch_size=batch_size, encoder=encoder)
 
     good = score_records(bundle, held_out)
     shuffled = score_records(bundle, shuffle_negatives(held_out, seed=seed))
@@ -149,6 +152,7 @@ def _benchmark_one(
     return {
         "size": size,
         "seed": seed,
+        "encoder": encoder,
         "n_repos": len(repo_groups),
         "n_train": len(train_records),
         "n_held_out": len(held_out),
@@ -175,6 +179,7 @@ def _cmd_benchmark(args: argparse.Namespace) -> int:
         output=Path(args.out),
         epochs=args.epochs,
         batch_size=args.batch_size,
+        encoder=args.encoder,
     )
     return 0
 
@@ -239,6 +244,12 @@ def main() -> None:
     )
     bench_p.add_argument("--epochs", type=int, default=20)
     bench_p.add_argument("--batch-size", type=int, default=128)
+    bench_p.add_argument(
+        "--encoder",
+        choices=["tfidf", "word_ngrams", "token_embed", "transformer"],
+        default="tfidf",
+        help="Encoder to use for training",
+    )
     bench_p.set_defaults(func=_cmd_benchmark)
 
     args = parser.parse_args()
