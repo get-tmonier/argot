@@ -75,6 +75,7 @@ def _score_patches(
     vectorizer: Any,
     model: JEPAArgot,
     label: str,
+    path_prefix: str | None = None,
 ) -> tuple[list[tuple[float, str, int, str]], int]:
     """Score hunk patches; returns (results, total_hunk_count)."""
     context_lines = 50
@@ -83,6 +84,8 @@ def _score_patches(
 
     with torch.no_grad():
         for file_path, post_blob, hunks in patches:
+            if path_prefix is not None and not file_path.startswith(path_prefix):
+                continue
             lang = language_for_path(file_path)
             if lang is None:
                 continue
@@ -124,6 +127,11 @@ def main() -> None:
     parser.add_argument("ref", nargs="?", default="")
     parser.add_argument("--model", default=".argot/model.pkl")
     parser.add_argument("--threshold", type=float, default=0.5)
+    parser.add_argument(
+        "--path-prefix",
+        default=None,
+        help="Only score hunks whose file_path starts with this prefix (e.g. 'cli/')",
+    )
     args = parser.parse_args()
 
     model_path = Path(args.model)
@@ -164,7 +172,9 @@ def main() -> None:
         context_label = args.ref
         commit_info = f"{len(shas)} commit(s)"
 
-    results, hunk_count = _score_patches(patches, vectorizer, model, context_label)
+    results, hunk_count = _score_patches(
+        patches, vectorizer, model, context_label, path_prefix=args.path_prefix
+    )
 
     if not results:
         if hunk_count == 0:
