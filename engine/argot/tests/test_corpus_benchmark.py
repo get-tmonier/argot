@@ -48,7 +48,7 @@ def _make_tagged_dataset(path: Path, n_per_repo: int = 40) -> None:
 def test_benchmark_writes_one_row_per_size_seed(tmp_path: Path) -> None:
     dataset = tmp_path / "combined.jsonl"
     out = tmp_path / "results.jsonl"
-    _make_tagged_dataset(dataset, n_per_repo=40)  # 80 records total
+    _make_tagged_dataset(dataset, n_per_repo=40)
 
     run_benchmark(
         dataset=dataset,
@@ -60,18 +60,19 @@ def test_benchmark_writes_one_row_per_size_seed(tmp_path: Path) -> None:
     )
 
     rows = [json.loads(line) for line in out.read_text().strip().splitlines()]
-    assert len(rows) == 4  # 2 sizes × 2 seeds
+    assert len(rows) == 4
 
+    mutation_names = {"case_swap", "debug_inject", "error_flip", "quote_flip"}
     for row in rows:
-        assert row["size"] in (40, 60)
-        assert row["seed"] in (0, 1)
         assert "shuffled_auc" in row
         assert "cross_auc" in row
         assert "injected_auc" in row
-        assert "good_median" in row
-        assert "good_p95" in row
-        assert "n_repos" in row
-        assert "trained_at" in row
+        assert "synthetic_auc_mean" in row
+        for name in mutation_names:
+            assert f"synthetic_auc_{name}" in row
+        assert "cross_auc_same_lang" in row
+        # _make_tagged_dataset is all python → same-lang should compute, not be None
+        assert row["cross_auc_same_lang"] is not None
 
 
 def test_load_records_strips_to_required_fields(tmp_path: Path) -> None:

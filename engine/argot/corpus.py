@@ -10,6 +10,7 @@ from typing import Any
 
 import numpy as np
 
+from argot.mutations import MUTATIONS, apply_mutation
 from argot.train import EncoderKind, train_model
 from argot.validate import (
     compute_auc,
@@ -118,7 +119,8 @@ def run_benchmark(
                     f"size={size:>6d} seed={seed}  "
                     f"shuffled={row['shuffled_auc']:.3f}  "
                     f"cross={row['cross_auc']:.3f}  "
-                    f"injected={row['injected_auc']:.3f}"
+                    f"injected={row['injected_auc']:.3f}  "
+                    f"synth_mean={row['synthetic_auc_mean']:.3f}"
                 )
 
 
@@ -149,8 +151,21 @@ def _benchmark_one(
     cross = score_records(bundle, foreign)
     injected = score_records(bundle, inject_foreign(held_out, foreign, seed=seed))
 
+    per_mutation_auc: dict[str, float] = {}
+    for name in MUTATIONS:
+        mutated = [apply_mutation(name, r, seed=seed) for r in held_out]
+        per_mutation_auc[name] = compute_auc(good, score_records(bundle, mutated))
+
+    synthetic_mean = float(np.mean(list(per_mutation_auc.values())))
+
+    langs = {r.get("language") for r in sample}
+    if len(langs) == 1 and len(repo_groups) >= 2:
+        cross_auc_same_lang: float | None = compute_auc(good, cross)
+    else:
+        cross_auc_same_lang = None
+
     good_arr = np.array(good) if good else np.array([0.0])
-    return {
+    row: dict[str, Any] = {
         "size": size,
         "seed": seed,
         "encoder": encoder,
@@ -161,10 +176,15 @@ def _benchmark_one(
         "shuffled_auc": compute_auc(good, shuffled),
         "cross_auc": compute_auc(good, cross),
         "injected_auc": compute_auc(good, injected),
+        "cross_auc_same_lang": cross_auc_same_lang,
+        "synthetic_auc_mean": synthetic_mean,
         "good_median": float(np.median(good_arr)),
         "good_p95": float(np.percentile(good_arr, 95)),
         "trained_at": datetime.now(UTC).isoformat(),
     }
+    for name, auc in per_mutation_auc.items():
+        row[f"synthetic_auc_{name}"] = auc
+    return row
 
 
 def _cmd_benchmark(args: argparse.Namespace) -> int:
