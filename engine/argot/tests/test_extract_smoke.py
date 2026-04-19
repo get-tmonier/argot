@@ -78,3 +78,31 @@ def test_smoke_extract_without_repo_name_omits_tag(tmp_path: Path) -> None:
         for line in lines:
             record = json.loads(line)
             assert "_repo" not in record
+
+
+def test_smoke_extract_with_path_prefix(tmp_path: Path) -> None:
+    """--path-prefix filters output to records whose file_path starts with the prefix."""
+    out = tmp_path / "dataset.jsonl"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "argot.extract",
+            str(REPO_ROOT),
+            "--out",
+            str(out),
+            "--path-prefix",
+            "engine/",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode in (0, 2), f"stderr: {result.stderr}"
+    if result.returncode == 0:
+        lines = out.read_text().strip().splitlines()
+        assert len(lines) >= 1
+        for line in lines:
+            record = json.loads(line)
+            assert record["file_path"].startswith("engine/"), (
+                f"expected file_path under 'engine/', got {record['file_path']}"
+            )
