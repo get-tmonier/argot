@@ -217,3 +217,31 @@ def test_cross_auc_same_lang_none_when_languages_balanced(tmp_path: Path) -> Non
 
     row = json.loads(out.read_text().strip().splitlines()[0])
     assert row["cross_auc_same_lang"] is None
+
+
+def test_benchmark_one_includes_semantic_auc(tmp_path: Path) -> None:
+    """benchmark result must contain semantic_auc_mean and per-mutator semantic fields."""
+    dataset = tmp_path / "combined.jsonl"
+    out = tmp_path / "results.jsonl"
+    _make_tagged_dataset(dataset, n_per_repo=40)
+
+    run_benchmark(
+        dataset=dataset,
+        sizes=[40],
+        seeds=1,
+        output=out,
+        epochs=1,
+        batch_size=16,
+    )
+
+    row = json.loads(out.read_text().strip().splitlines()[0])
+    assert "semantic_auc_mean" in row
+    semantic_names = [
+        "semantic_logging",
+        "semantic_error",
+        "semantic_validation",
+        "semantic_composition",
+        "semantic_di",
+    ]
+    for name in semantic_names:
+        assert f"semantic_auc_{name}" in row

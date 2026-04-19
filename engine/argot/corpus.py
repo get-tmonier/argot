@@ -240,6 +240,28 @@ def _benchmark_one(
 
     synthetic_mean = float(np.mean(list(per_mutation_auc.values())))
 
+    # Semantic mutations
+    semantic_names = [n for n in MUTATIONS if n.startswith("semantic_")]
+    per_semantic_auc: dict[str, float] = {}
+    if semantic_names:
+        print(
+            f"  semantic {len(semantic_names)} semantic perturbations "
+            f"({', '.join(semantic_names)})",
+            flush=True,
+        )
+        for name in semantic_names:
+            mutated = [apply_mutation(name, r, seed=seed) for r in held_out]
+            t0 = time.perf_counter()
+            mut_scores = score_records(bundle, mutated)
+            auc = compute_auc(good, mut_scores)
+            per_semantic_auc[name] = auc
+            print(
+                f"  sem.{name:<22s} {len(mutated)} recs → AUC={auc:.3f} "
+                f"({time.perf_counter() - t0:.1f}s)",
+                flush=True,
+            )
+    semantic_mean = float(np.mean(list(per_semantic_auc.values()))) if per_semantic_auc else 0.0
+
     lang_counts: dict[str, int] = {}
     for r in sample:
         lang_counts[r.get("language", "?")] = lang_counts.get(r.get("language", "?"), 0) + 1
@@ -270,6 +292,9 @@ def _benchmark_one(
     }
     for name, auc in per_mutation_auc.items():
         row[f"synthetic_auc_{name}"] = auc
+    row["semantic_auc_mean"] = semantic_mean
+    for name, auc in per_semantic_auc.items():
+        row[f"semantic_auc_{name}"] = auc
     return row
 
 
