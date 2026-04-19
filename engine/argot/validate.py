@@ -11,6 +11,8 @@ import numpy as np
 import torch
 from sklearn.metrics import roc_auc_score  # type: ignore[import-untyped]
 
+from argot.jepa.seq_encoder import MeanPoolEncoder  # noqa: F401  (used for isinstance check)
+from argot.jepa.vocab import Vocab
 from argot.train import ModelBundle, train_model
 
 StratifyBy = Literal["none", "language", "top-dir"]
@@ -89,7 +91,17 @@ def _vectorize_tfidf(bundle: ModelBundle, texts: list[str]) -> torch.Tensor:
 
 
 def _vectorize_token_embed(bundle: ModelBundle, texts: list[str]) -> torch.Tensor:
-    raise NotImplementedError("token_embed vectorization not yet implemented")
+    # bundle.vectorizer holds a Vocab object for token_embed encoder
+    vocab = bundle.vectorizer  # Vocab stored in TfidfVectorizer slot (sklearn untyped)
+    if not isinstance(vocab, Vocab):
+        raise TypeError(f"expected Vocab, got {type(vocab)}")
+    seq_len = 256
+    ids_list = [vocab.encode(text.split())[:seq_len] for text in texts]
+    out = torch.zeros(len(ids_list), seq_len, dtype=torch.long)
+    for i, ids in enumerate(ids_list):
+        if ids:
+            out[i, : len(ids)] = torch.tensor(ids, dtype=torch.long)
+    return out
 
 
 def _vectorize_transformer(bundle: ModelBundle, texts: list[str]) -> torch.Tensor:

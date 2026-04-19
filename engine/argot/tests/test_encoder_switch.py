@@ -29,7 +29,7 @@ def test_tfidf_encoder_kind_and_scores() -> None:
     assert all(isinstance(s, float) for s in scores)
 
 
-@pytest.mark.parametrize("enc", ["word_ngrams", "token_embed", "transformer"])
+@pytest.mark.parametrize("enc", ["word_ngrams", "transformer"])
 def test_unimplemented_encoders_raise(enc: str) -> None:
     records = _make_records(20)
     with pytest.raises(NotImplementedError):

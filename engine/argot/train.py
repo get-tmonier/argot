@@ -16,6 +16,8 @@ from torch.utils.data import DataLoader, TensorDataset
 from argot.jepa.encoder import TokenEncoder
 from argot.jepa.model import JEPAArgot
 from argot.jepa.predictor import ArgotPredictor
+from argot.jepa.seq_encoder import MeanPoolEncoder
+from argot.jepa.vocab import Vocab
 
 INPUT_DIM = 5000
 EMBED_DIM = 192
@@ -93,6 +95,31 @@ def _train_word_ngrams(
     raise NotImplementedError("word_ngrams")
 
 
+_SEQ_LEN = 256
+_EMBED_DIM_TOKEN = 128
+
+
+def _encode_records(
+    records: list[dict[str, Any]], vocab: Vocab, seq_len: int
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Encode context_before + hunk_tokens as padded (B, seq_len) long tensors."""
+    ctx_ids_list: list[list[int]] = []
+    hunk_ids_list: list[list[int]] = []
+    for r in records:
+        ctx_ids = vocab.encode([t["text"] for t in r["context_before"]])[:seq_len]
+        hunk_ids = vocab.encode([t["text"] for t in r["hunk_tokens"]])[:seq_len]
+        ctx_ids_list.append(ctx_ids)
+        hunk_ids_list.append(hunk_ids)
+
+    def pad(seqs: list[list[int]], length: int) -> torch.Tensor:
+        out = torch.zeros(len(seqs), length, dtype=torch.long)
+        for i, seq in enumerate(seqs):
+            out[i, : len(seq)] = torch.tensor(seq, dtype=torch.long)
+        return out
+
+    return pad(ctx_ids_list, seq_len), pad(hunk_ids_list, seq_len)
+
+
 def _train_token_embed(
     records: list[dict[str, Any]],
     *,
@@ -101,7 +128,46 @@ def _train_token_embed(
     lr: float,
     lambd: float,
 ) -> ModelBundle:
-    raise NotImplementedError("token_embed")
+    vocab = Vocab.build(records, max_size=8000, min_count=2)
+    vocab_size = len(vocab.id_to_token)
+
+    ctx_x, hunk_x = _encode_records(records, vocab, _SEQ_LEN)
+
+    loader = DataLoader(
+        TensorDataset(ctx_x, hunk_x),
+        batch_size=batch_size,
+        shuffle=True,
+    )
+
+    seq_encoder = MeanPoolEncoder(
+        vocab_size=vocab_size, embed_dim=_EMBED_DIM_TOKEN, output_dim=EMBED_DIM
+    )
+    predictor = ArgotPredictor(embed_dim=EMBED_DIM)
+    model = JEPAArgot(seq_encoder, predictor, lambd=lambd)  # type: ignore[arg-type]
+    optimizer = AdamW(model.parameters(), lr=lr, weight_decay=1e-3)
+
+    model.train()
+    for epoch in range(1, epochs + 1):
+        total_loss = 0.0
+        for ctx_batch, hunk_batch in loader:
+            optimizer.zero_grad()
+            losses = model(ctx_batch, hunk_batch)
+            losses["loss"].backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+            total_loss += losses["loss"].item()
+        print(f"epoch {epoch}/{epochs}  loss={total_loss / len(loader):.4f}")
+
+    bundle_vectorizer: TfidfVectorizer = TfidfVectorizer()  # placeholder for type compat
+    _ = bundle_vectorizer  # unused, vectorizer field overridden below
+
+    return ModelBundle(
+        vectorizer=vocab,  # Vocab stored in TfidfVectorizer slot (sklearn untyped → no error)
+        model=model,
+        input_dim=vocab_size,
+        embed_dim=EMBED_DIM,
+        encoder_kind="token_embed",
+    )
 
 
 def _train_transformer(

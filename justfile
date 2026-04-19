@@ -1,4 +1,5 @@
 export ARGOT_DEV := "1"
+REPO_ROOT := "/Users/damienmeur/projects/argot"
 
 VERSION := `bun -e "console.log(require('./cli/package.json').version)"`
 
@@ -43,6 +44,17 @@ research-benchmark dataset=".argot/research/combined.jsonl" sizes="500,2000,8000
     uv run --package argot-engine python -m argot.corpus benchmark \
         --dataset {{dataset}} --sizes {{sizes}} --seeds {{seeds}} \
         --out .argot/research/results.jsonl
+
+research-benchmark-token-embed:
+    uv run --package argot-engine python -m argot.corpus benchmark \
+        --dataset {{REPO_ROOT}}/.argot/research/buckets/small.jsonl --sizes 3000 --seeds 3 \
+        --encoder token_embed --out {{REPO_ROOT}}/.argot/research/results-token-embed.jsonl
+    uv run --package argot-engine python -m argot.corpus benchmark \
+        --dataset {{REPO_ROOT}}/.argot/research/buckets/medium.jsonl --sizes 7000 --seeds 3 \
+        --encoder token_embed --out {{REPO_ROOT}}/.argot/research/results-token-embed.jsonl
+    uv run --package argot-engine python -m argot.corpus benchmark \
+        --dataset {{REPO_ROOT}}/.argot/research/buckets/large.jsonl --sizes 20000 --seeds 3 \
+        --encoder token_embed --out {{REPO_ROOT}}/.argot/research/results-token-embed.jsonl
 
 # --- individual checks ---
 
