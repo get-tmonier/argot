@@ -16,7 +16,6 @@ from torch.optim import AdamW
 from torch.utils.data import DataLoader, TensorDataset
 
 from argot.jepa.bpe_vocab import BpeVocab
-from argot.jepa.density_heads import DensityHead, DensityHeadKind, make_head
 from argot.jepa.encoder import TokenEncoder
 from argot.jepa.model import JEPAArgot
 from argot.jepa.predictor import ArgotPredictor
@@ -38,13 +37,6 @@ class ModelBundle:
     embed_dim: int
     encoder_kind: EncoderKind = field(default="tfidf")
 
-
-@dataclass
-class DensityBundle:
-    bpe_vocab: BpeVocab
-    encoder: MeanPoolEncoder
-    head: DensityHead
-    head_kind: DensityHeadKind
 
 
 def _train_sklearn_vec(
@@ -294,31 +286,6 @@ def _get_bpe_embeddings(bundle: ModelBundle, records: list[dict[str, Any]]) -> n
         emb = bundle.model.encoder(hunk_x)
     return emb.numpy()  # type: ignore[no-any-return]
 
-
-def train_bpe_density(
-    records: list[dict[str, Any]],
-    *,
-    epochs: int,
-    batch_size: int,
-    lr: float,
-    lambd: float,
-    head_kind: DensityHeadKind,
-    seed: int = 0,
-) -> DensityBundle:
-    """Train BPE encoder then fit a density head on the resulting embeddings."""
-    bundle = _train_bpe(records, epochs=epochs, batch_size=batch_size, lr=lr, lambd=lambd)
-    embeddings = _get_bpe_embeddings(bundle, records)
-    head = make_head(head_kind, seed=seed)
-    head.fit(embeddings)
-    bpe_vocab = bundle.vectorizer
-    if not isinstance(bpe_vocab, BpeVocab):
-        raise TypeError(f"expected BpeVocab, got {type(bpe_vocab)}")
-    return DensityBundle(
-        bpe_vocab=bpe_vocab,
-        encoder=bundle.model.encoder,  # type: ignore[arg-type]
-        head=head,
-        head_kind=head_kind,
-    )
 
 
 def _texts_for_records(records: list[dict[str, Any]]) -> tuple[list[str], list[str]]:

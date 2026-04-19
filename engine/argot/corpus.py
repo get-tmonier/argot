@@ -11,14 +11,12 @@ from typing import Any
 
 import numpy as np
 
-from argot.jepa.density_heads import DensityHeadKind
 from argot.mutations import MUTATIONS, apply_mutation
-from argot.train import EncoderKind, train_bpe_density, train_model
+from argot.train import EncoderKind, train_model
 from argot.validate import (
     compute_auc,
     inject_foreign,
     score_records,
-    score_records_density,
     shuffle_negatives,
     split_by_time,
 )
@@ -316,119 +314,6 @@ def _cmd_benchmark(args: argparse.Namespace) -> int:
     return 0
 
 
-def run_benchmark_density(
-    *,
-    dataset: Path,
-    sizes: list[int],
-    seeds: int,
-    output: Path,
-    batch_size: int = 128,
-    head_kind: DensityHeadKind,
-    epochs: int | None = None,
-) -> None:
-    """Density-head variant: train BPE encoder, fit density head, compute Phase-7 metrics."""
-    records = _load_records(dataset, max_records=max(sizes) * 2)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    with output.open("a") as out_fh:
-        for size in sizes:
-            for seed in range(seeds):
-                row = _benchmark_one_density(
-                    records=records,
-                    size=size,
-                    seed=seed,
-                    batch_size=batch_size,
-                    head_kind=head_kind,
-                    epochs=epochs,
-                )
-                out_fh.write(json.dumps(row) + "\n")
-                out_fh.flush()
-                print(
-                    f"size={size:>6d} seed={seed}  head={head_kind}  "
-                    f"shuffled={row['shuffled_auc']:.3f}  "
-                    f"cross={row['cross_auc']:.3f}  "
-                    f"synth_mean={row['synthetic_auc_mean']:.3f}"
-                )
-
-
-def _benchmark_one_density(
-    *,
-    records: list[dict[str, Any]],
-    size: int,
-    seed: int,
-    batch_size: int,
-    head_kind: DensityHeadKind,
-    epochs: int | None = None,
-) -> dict[str, Any]:
-    sample = stratified_downsample(records, target_size=size, seed=seed)
-
-    repo_groups: dict[str, list[dict[str, Any]]] = {}
-    for r in sample:
-        repo_groups.setdefault(r["_repo"], []).append(r)
-
-    foreign_name = min(repo_groups, key=lambda n: len(repo_groups[n]))
-    foreign = repo_groups[foreign_name]
-    home = [r for r in sample if r["_repo"] != foreign_name]
-
-    train_records, held_out = split_by_time(home, ratio=0.8)
-    effective_epochs = epochs if epochs is not None else adaptive_epochs(size)
-    bundle = train_bpe_density(
-        train_records,
-        epochs=effective_epochs,
-        batch_size=batch_size,
-        lr=5e-5,
-        lambd=0.09,
-        head_kind=head_kind,
-        seed=seed,
-    )
-
-    def _score(recs: list[dict[str, Any]]) -> list[float]:
-        return score_records_density(bundle, recs)
-
-    good = _score(held_out)
-    shuffled = _score(shuffle_negatives(held_out, seed=seed))
-    cross = _score(foreign)
-    injected = _score(inject_foreign(held_out, foreign, seed=seed))
-
-    per_mutation_auc: dict[str, float] = {}
-    for name in MUTATIONS:
-        mutated = [apply_mutation(name, r, seed=seed) for r in held_out]
-        per_mutation_auc[name] = compute_auc(good, _score(mutated))
-
-    synthetic_mean = float(np.mean(list(per_mutation_auc.values())))
-
-    lang_counts: dict[str, int] = {}
-    for r in sample:
-        lang_counts[r.get("language", "?")] = lang_counts.get(r.get("language", "?"), 0) + 1
-    dominant_share = max(lang_counts.values()) / len(sample) if sample else 0.0
-    if dominant_share >= 0.95 and len(repo_groups) >= 2:
-        cross_auc_same_lang: float | None = compute_auc(good, cross)
-    else:
-        cross_auc_same_lang = None
-
-    good_arr = np.array(good) if good else np.array([0.0])
-    row: dict[str, Any] = {
-        "size": size,
-        "seed": seed,
-        "encoder": "bpe",
-        "head": head_kind,
-        "n_repos": len(repo_groups),
-        "n_train": len(train_records),
-        "n_held_out": len(held_out),
-        "n_foreign": len(foreign),
-        "epochs": effective_epochs,
-        "shuffled_auc": compute_auc(good, shuffled),
-        "cross_auc": compute_auc(good, cross),
-        "injected_auc": compute_auc(good, injected),
-        "cross_auc_same_lang": cross_auc_same_lang,
-        "synthetic_auc_mean": synthetic_mean,
-        "good_median": float(np.median(good_arr)),
-        "good_p95": float(np.percentile(good_arr, 95)),
-        "trained_at": datetime.now(UTC).isoformat(),
-    }
-    for name, auc in per_mutation_auc.items():
-        row[f"synthetic_auc_{name}"] = auc
-    return row
-
 
 def concat_datasets(inputs: list[Path], output: Path) -> dict[str, int]:
     """Concatenate tagged JSONL datasets; return per-repo record counts.
@@ -452,22 +337,6 @@ def concat_datasets(inputs: list[Path], output: Path) -> dict[str, int]:
                     out_fh.write(line.rstrip("\n") + "\n")
     return counts
 
-
-def _cmd_benchmark_density(args: argparse.Namespace) -> int:
-    dataset = Path(args.dataset)
-    if not dataset.exists():
-        print(f"error: dataset not found: {dataset}", file=sys.stderr)
-        return 2
-    sizes = [int(s) for s in args.sizes.split(",")]
-    run_benchmark_density(
-        dataset=dataset,
-        sizes=sizes,
-        seeds=args.seeds,
-        output=Path(args.out),
-        batch_size=args.batch_size,
-        head_kind=args.head,
-    )
-    return 0
 
 
 def _cmd_concat(args: argparse.Namespace) -> int:
@@ -493,7 +362,7 @@ def main() -> None:
     concat_p.add_argument("-o", "--out", required=True, help="Output JSONL path")
     concat_p.set_defaults(func=_cmd_concat)
 
-    bench_p = sub.add_parser("benchmark", help="Run AUC benchmark across sizes × seeds")
+    bench_p = sub.add_parser("benchmark", help="Encoder research: run AUC benchmark across sizes × seeds (not acceptance testing)")
     bench_p.add_argument("--dataset", required=True, help="Combined tagged JSONL")
     bench_p.add_argument(
         "--sizes",
@@ -518,30 +387,6 @@ def main() -> None:
         help="Override training epochs (default: adaptive min(200, max(20, 1.4M//size)))",
     )
     bench_p.set_defaults(func=_cmd_benchmark)
-
-    bench_density_p = sub.add_parser(
-        "benchmark-density", help="Run density-head benchmark (BPE encoder + kNN/GMM head)"
-    )
-    bench_density_p.add_argument("--dataset", required=True, help="Combined tagged JSONL")
-    bench_density_p.add_argument(
-        "--sizes",
-        default="500,2000,8000",
-        help="Comma-separated target dataset sizes",
-    )
-    bench_density_p.add_argument(
-        "--seeds", type=int, default=3, help="Runs per size (seeds 0..N-1)"
-    )
-    bench_density_p.add_argument(
-        "--out", default=".argot/research/results.jsonl", help="Append results to this JSONL"
-    )
-    bench_density_p.add_argument("--batch-size", type=int, default=128)
-    bench_density_p.add_argument(
-        "--head",
-        choices=["knn-20", "gmm-8", "gmm-16", "gmm-32"],
-        required=True,
-        help="Density head variant",
-    )
-    bench_density_p.set_defaults(func=_cmd_benchmark_density)
 
     args = parser.parse_args()
     sys.exit(args.func(args))
