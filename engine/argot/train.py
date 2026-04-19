@@ -3,9 +3,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import joblib  # type: ignore[import-untyped]
 import torch
@@ -20,6 +20,8 @@ from argot.jepa.predictor import ArgotPredictor
 INPUT_DIM = 5000
 EMBED_DIM = 192
 
+EncoderKind = Literal["tfidf", "word_ngrams", "token_embed", "transformer"]
+
 
 @dataclass
 class ModelBundle:
@@ -27,15 +29,16 @@ class ModelBundle:
     model: JEPAArgot
     input_dim: int
     embed_dim: int
+    encoder_kind: EncoderKind = field(default="tfidf")
 
 
-def train_model(
+def _train_tfidf(
     records: list[dict[str, Any]],
     *,
-    epochs: int = 50,
-    batch_size: int = 128,
-    lr: float = 5e-5,
-    lambd: float = 0.09,
+    epochs: int,
+    batch_size: int,
+    lr: float,
+    lambd: float,
 ) -> ModelBundle:
     ctx_texts = [" ".join(t["text"] for t in r["context_before"]) for r in records]
     hunk_texts = [" ".join(t["text"] for t in r["hunk_tokens"]) for r in records]
@@ -75,7 +78,62 @@ def train_model(
         model=model,
         input_dim=actual_input_dim,
         embed_dim=EMBED_DIM,
+        encoder_kind="tfidf",
     )
+
+
+def _train_word_ngrams(
+    records: list[dict[str, Any]],
+    *,
+    epochs: int,
+    batch_size: int,
+    lr: float,
+    lambd: float,
+) -> ModelBundle:
+    raise NotImplementedError("word_ngrams")
+
+
+def _train_token_embed(
+    records: list[dict[str, Any]],
+    *,
+    epochs: int,
+    batch_size: int,
+    lr: float,
+    lambd: float,
+) -> ModelBundle:
+    raise NotImplementedError("token_embed")
+
+
+def _train_transformer(
+    records: list[dict[str, Any]],
+    *,
+    epochs: int,
+    batch_size: int,
+    lr: float,
+    lambd: float,
+) -> ModelBundle:
+    raise NotImplementedError("transformer")
+
+
+def train_model(
+    records: list[dict[str, Any]],
+    *,
+    epochs: int = 50,
+    batch_size: int = 128,
+    lr: float = 5e-5,
+    lambd: float = 0.09,
+    encoder: EncoderKind = "tfidf",
+) -> ModelBundle:
+    if encoder == "tfidf":
+        return _train_tfidf(records, epochs=epochs, batch_size=batch_size, lr=lr, lambd=lambd)
+    elif encoder == "word_ngrams":
+        return _train_word_ngrams(records, epochs=epochs, batch_size=batch_size, lr=lr, lambd=lambd)
+    elif encoder == "token_embed":
+        return _train_token_embed(records, epochs=epochs, batch_size=batch_size, lr=lr, lambd=lambd)
+    elif encoder == "transformer":
+        return _train_transformer(records, epochs=epochs, batch_size=batch_size, lr=lr, lambd=lambd)
+    else:
+        raise ValueError(f"unknown encoder: {encoder!r}")
 
 
 def main() -> None:
@@ -111,6 +169,7 @@ def main() -> None:
             "predictor_state": bundle.model.predictor.state_dict(),
             "embed_dim": bundle.embed_dim,
             "input_dim": bundle.input_dim,
+            "encoder_kind": bundle.encoder_kind,
         },
         out_path,
     )
