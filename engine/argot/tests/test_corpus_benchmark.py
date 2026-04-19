@@ -165,3 +165,55 @@ def test_adaptive_epochs_scales_with_size() -> None:
     assert adaptive_epochs(7_000) == 200
     assert adaptive_epochs(20_000) == 70
     assert adaptive_epochs(70_000) == 20  # floor at 20
+
+
+def _make_mixed_lang_dataset(path: Path, py_frac: float, n_total: int = 120) -> None:
+    """Two-repo dataset where `py_frac` of records are python, rest javascript."""
+    records = []
+    base_ts = 1_700_000_000
+    n_py = int(n_total * py_frac)
+    for i in range(n_total):
+        repo = "home" if i % 2 == 0 else "foreign"
+        lang = "python" if i < n_py else "javascript"
+        records.append(
+            {
+                "_repo": repo,
+                "commit_sha": f"{repo}-{i:04d}",
+                "author_date_iso": str(base_ts + i * 3600),
+                "file_path": f"{repo}/file_{i % 5}",
+                "language": lang,
+                "hunk_start_line": 1,
+                "hunk_end_line": 2,
+                "parent_sha": None,
+                "context_before": [
+                    {"text": f"ctx_{i % 7}", "node_type": "id", "start_line": 0, "end_line": 1}
+                ],
+                "hunk_tokens": [
+                    {"text": f"hunk_{i % 11}", "node_type": "id", "start_line": 1, "end_line": 2}
+                ],
+                "context_after": [],
+            }
+        )
+    path.write_text("\n".join(json.dumps(r) for r in records) + "\n")
+
+
+def test_cross_auc_same_lang_computed_when_dominant_lang_above_95pct(tmp_path: Path) -> None:
+    dataset = tmp_path / "mixed.jsonl"
+    out = tmp_path / "results.jsonl"
+    _make_mixed_lang_dataset(dataset, py_frac=0.97)  # 97% py, 3% js
+
+    run_benchmark(dataset=dataset, sizes=[120], seeds=1, output=out, epochs=1, batch_size=16)
+
+    row = json.loads(out.read_text().strip().splitlines()[0])
+    assert row["cross_auc_same_lang"] is not None
+
+
+def test_cross_auc_same_lang_none_when_languages_balanced(tmp_path: Path) -> None:
+    dataset = tmp_path / "mixed.jsonl"
+    out = tmp_path / "results.jsonl"
+    _make_mixed_lang_dataset(dataset, py_frac=0.60)  # 60% py, 40% js — fails 95% bar
+
+    run_benchmark(dataset=dataset, sizes=[120], seeds=1, output=out, epochs=1, batch_size=16)
+
+    row = json.loads(out.read_text().strip().splitlines()[0])
+    assert row["cross_auc_same_lang"] is None

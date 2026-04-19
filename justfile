@@ -89,7 +89,7 @@ research-concat-honest:
 		.argot/research/datasets-v2/fastapi.jsonl .argot/research/datasets-v2/flask.jsonl \
 		-o .argot/research/buckets-v2/medium-py.jsonl
 	uv run --package argot-engine python -m argot.corpus concat \
-		.argot/research/datasets-v2/vite.jsonl .argot/research/datasets-v2/rollup.jsonl \
+		.argot/research/datasets-v2/vite.jsonl .argot/research/datasets-v2/typescript-eslint.jsonl \
 		-o .argot/research/buckets-v2/medium-ts.jsonl
 	uv run --package argot-engine python -m argot.corpus concat \
 		.argot/research/datasets-v2/pydantic.jsonl .argot/research/datasets-v2/django.jsonl \

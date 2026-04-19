@@ -16,7 +16,7 @@ REPOS=(
   "fastapi https://github.com/tiangolo/fastapi"
   "flask https://github.com/pallets/flask"
   "vite https://github.com/vitejs/vite"
-  "rollup https://github.com/rollup/rollup"
+  "typescript-eslint https://github.com/typescript-eslint/typescript-eslint"
   "pydantic https://github.com/pydantic/pydantic"
   "django https://github.com/django/django"
   "effect https://github.com/Effect-TS/effect"

@@ -167,8 +167,11 @@ def _benchmark_one(
 
     synthetic_mean = float(np.mean(list(per_mutation_auc.values())))
 
-    langs = {r.get("language") for r in sample}
-    if len(langs) == 1 and len(repo_groups) >= 2:
+    lang_counts: dict[str, int] = {}
+    for r in sample:
+        lang_counts[r.get("language", "?")] = lang_counts.get(r.get("language", "?"), 0) + 1
+    dominant_share = max(lang_counts.values()) / len(sample) if sample else 0.0
+    if dominant_share >= 0.95 and len(repo_groups) >= 2:
         cross_auc_same_lang: float | None = compute_auc(good, cross)
     else:
         cross_auc_same_lang = None

@@ -35,9 +35,11 @@ class ModelBundle:
     encoder_kind: EncoderKind = field(default="tfidf")
 
 
-def _train_tfidf(
+def _train_sklearn_vec(
     records: list[dict[str, Any]],
     *,
+    vectorizer: TfidfVectorizer,
+    encoder_kind: EncoderKind,
     epochs: int,
     batch_size: int,
     lr: float,
@@ -51,11 +53,6 @@ def _train_tfidf(
     ctx_texts = [_ctx(r) for r in records]
     hunk_texts = [" ".join(t["text"] for t in r["hunk_tokens"]) for r in records]
 
-    vectorizer: TfidfVectorizer = TfidfVectorizer(
-        max_features=INPUT_DIM,
-        analyzer="char_wb",
-        ngram_range=(3, 5),
-    )
     vectorizer.fit(ctx_texts + hunk_texts)
     actual_input_dim = len(vectorizer.vocabulary_)
 
@@ -90,7 +87,31 @@ def _train_tfidf(
         model=model,
         input_dim=actual_input_dim,
         embed_dim=EMBED_DIM,
+        encoder_kind=encoder_kind,
+    )
+
+
+def _train_tfidf(
+    records: list[dict[str, Any]],
+    *,
+    epochs: int,
+    batch_size: int,
+    lr: float,
+    lambd: float,
+) -> ModelBundle:
+    vectorizer: TfidfVectorizer = TfidfVectorizer(
+        max_features=INPUT_DIM,
+        analyzer="char_wb",
+        ngram_range=(3, 5),
+    )
+    return _train_sklearn_vec(
+        records,
+        vectorizer=vectorizer,
         encoder_kind="tfidf",
+        epochs=epochs,
+        batch_size=batch_size,
+        lr=lr,
+        lambd=lambd,
     )
 
 
@@ -102,7 +123,20 @@ def _train_word_ngrams(
     lr: float,
     lambd: float,
 ) -> ModelBundle:
-    raise NotImplementedError("word_ngrams")
+    vectorizer: TfidfVectorizer = TfidfVectorizer(
+        max_features=INPUT_DIM,
+        analyzer="word",
+        ngram_range=(1, 2),
+    )
+    return _train_sklearn_vec(
+        records,
+        vectorizer=vectorizer,
+        encoder_kind="word_ngrams",
+        epochs=epochs,
+        batch_size=batch_size,
+        lr=lr,
+        lambd=lambd,
+    )
 
 
 _SEQ_LEN = 256

@@ -20,17 +20,17 @@ def _make_records(n: int) -> list[dict[str, object]]:
     ]
 
 
-def test_tfidf_encoder_kind_and_scores() -> None:
+@pytest.mark.parametrize("enc", ["tfidf", "word_ngrams"])
+def test_sklearn_encoder_kind_and_scores(enc: str) -> None:
     records = _make_records(60)
-    bundle = train_model(records, epochs=1, encoder="tfidf")
-    assert bundle.encoder_kind == "tfidf"
+    bundle = train_model(records, epochs=1, encoder=cast(EncoderKind, enc))
+    assert bundle.encoder_kind == enc
     scores = score_records(bundle, records[:5])
     assert len(scores) == 5
     assert all(isinstance(s, float) for s in scores)
 
 
-@pytest.mark.parametrize("enc", ["word_ngrams", "transformer"])
-def test_unimplemented_encoders_raise(enc: str) -> None:
+def test_unimplemented_encoders_raise() -> None:
     records = _make_records(20)
     with pytest.raises(NotImplementedError):
-        train_model(records, epochs=1, encoder=cast(EncoderKind, enc))
+        train_model(records, epochs=1, encoder="transformer")
