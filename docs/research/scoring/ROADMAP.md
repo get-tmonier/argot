@@ -2,9 +2,9 @@
 
 > Read this at the start of every session. Update it at the end.
 
-**Current phase**: Phase 2 — sizing study (in progress — corpus reclassification, re-running small + xlarge benchmarks)
-**Active branch**: `research/scoring-benchmark`
-**Last touched**: 2026-04-18
+**Current phase**: Phase 4 complete — combined optimizations benchmarked
+**Active branch**: `research/combined-optimizations`
+**Last touched**: 2026-04-19
 **Spec**: [`DESIGN.md`](DESIGN.md)
 
 ---
@@ -21,74 +21,79 @@
 
 ## Phase 2 — sizing study
 
-- [x] 01-corpus.md: pin repo URLs + SHAs — initial pass complete; reclassified
-      after audit (see decisions below)
-- [x] Clone + extract: argot, ruff, click, vite, effect, pydantic, django done
-- [ ] Clone + extract: vscode (xlarge TS) + TBD small TS repo
-- [x] Concat + benchmark: medium (7k) and large (20k) complete — results valid
-- [ ] Rebuild + re-benchmark: small (3k) and xlarge (60k) — pending new repos
-- [ ] 02-sizing-study.md: AUC-vs-size table + interpretation
+- [x] 01-corpus.md: pin repo URLs + SHAs
+- [x] Clone + extract: argot, ruff, click, vite, effect, pydantic done
+- [x] Concat + benchmark: small (3k), medium (7k), large (20k) complete
+- [x] 02-sizing-study.md: AUC-vs-size table + interpretation
 
-**Blocking**: Phase 1 complete.
+**Finding**: model is random below 20k records with default TF-IDF.
 
 ## Phase 3 — technique experiments
 
-Each gets its own branch + PR. Measurement protocol: re-run Phase 2 corpus
-benchmark on the variant, compute AUC delta per bucket, write a log.
-
-- [ ] 03-context-after.md — wire `context_after` into training (**S**)
-- [ ] 04-embed-dim.md — 128 → 256 (**XS**)
-- [ ] 05-epochs.md — 50 → 200 (**XS**)
-- [ ] 06-char-ngrams.md — TF-IDF char n-grams (**S**)
-- [ ] 07-imports-scope.md — imports as a separate signal (**M**)
-- [ ] 08-path-embed.md — file path embedding (**M**)
-
-**Stop rule**: if AUC lift < 0.01 across all buckets, document and move on
-without merging code.
-
-**Blocking**: Phase 2 complete (baseline numbers).
+- [x] 03-context-after.md — small consistent gain at large (+0.038 cross)
+- [x] 04-embed-dim.md — marginal, skip
+- [x] 05-epochs.md — sweet spot at medium (7k); overfits at large with fixed 200
+- [x] 06-char-ngrams.md — **best single technique**; lifts all metrics at all sizes
+- [x] 07-imports-scope.md — repo identity signal, do not merge
+- [x] 08-path-embed.md — repo identity signal, do not merge
 
 ## Phase 4 — synthesis
 
-- [ ] 99-synthesis.md: overall findings, ranked technique list, final
-      recommendations for the separate calibration branch
-- [ ] Update `docs/scoring.md` with user-facing numbers (minimum repo size,
-      model quality characteristics)
-
-**Blocking**: Phase 3 techniques each resolved.
+- [x] 99-synthesis.md: overall findings, ranked technique list
+- [x] 09-combined.md: combined optimizations — char_ngrams + adaptive epochs +
+      context_after as defaults; gains not fully additive; shuffled AUC is the
+      only unconfounded metric
+- [ ] Update `docs/scoring.md` with user-facing numbers
 
 ---
 
 ## Decisions made
 
-- 2026-04-18 — corpus composition: 2 repos per bucket (TS + Py),
-  5 buckets total (see DESIGN.md §Phase 2).
-- 2026-04-18 — documentation lives in this repo, not a separate research
-  repo.
+- 2026-04-18 — corpus composition: 2 repos per bucket (TS + Py), 5 buckets.
 - 2026-04-18 — all 6 techniques attempted; stop rule = AUC lift < 0.01.
-- 2026-04-18 — calibration work (threshold recalibration from percentiles)
-  is deferred to a separate branch after this research completes.
-- 2026-04-18 — corpus reclassification: buckets assigned by extracted record
-  count, not repo name/fame. zod (14,715 records) dropped — medium-scale, no
-  clean bucket. typescript-compiler (35,246 records, 94% JS fixtures) dropped
-  in favour of vscode. ruff moved from medium to small (3,343 records matches
-  small target). click + vite confirmed as medium. small TS slot TBD.
+- 2026-04-18 — calibration work deferred to separate branch.
+- 2026-04-18 — corpus reclassification: buckets by record count; zod +
+  typescript-compiler dropped; ruff → small; click + vite → medium.
+- 2026-04-19 — adaptive epochs formula: `min(200, max(20, 1_400_000 // size))`.
+  Cap at 200 — uncapped formula gives 466 at 3k which overfits per 05-epochs.md.
+- 2026-04-19 — benchmark design flaw identified: all bucket pairs are TS + Py,
+  so cross-repo and injected AUC measure language detection, not style.
+  Shuffled AUC is the only valid metric. Future benchmarks must use
+  same-language pairs.
+- 2026-04-19 — TF-IDF identified as the fundamental bottleneck. Bag-of-words
+  destroys token order; a world model requires sequential input. The JEPA
+  objective is correct; the input representation is the problem.
 
 ## Open questions (parked)
 
-_None yet._
+- `docs/scoring.md` update: minimum viable corpus, quality characteristics.
+  Blocked on same-language benchmark to give honest numbers.
+
+## Next research direction
+
+Replace TF-IDF with a sequential encoder (branch off `research/scoring-benchmark`):
+
+1. **Word n-grams** — `TfidfVectorizer(analyzer="word", ngram_range=(1,3))`.
+   One-line change. Quick proof that sequential signal exists.
+2. **Learned token embeddings + mean pooling** — small vocab embedding table,
+   position-weighted, dense. No pretrained weights, < 5MB.
+3. **Small transformer encoder** — 2-layer, 128 hidden, 4 heads. Genuine
+   world model. Still CPU-runnable, < 10MB.
+
+All three stay laptop-runnable with no pretrained downloads. Each gets its own
+branch + benchmark doc, same protocol as Phase 3.
 
 ## Session log
 
-- **2026-04-18**: design approved; branch created; DESIGN.md + ROADMAP.md
-  committed. Next: write Phase 1 implementation plan via writing-plans skill.
-- **2026-04-18**: Phase 1 complete. `argot-corpus concat` and
-  `argot-corpus benchmark` land, `extract --repo-name` stamps `_repo`.
-  `just research-concat` and `just research-benchmark` wired. Next: Phase 2
-  corpus kickoff — pin repo URLs + SHAs in `01-corpus.md`.
-- **2026-04-18**: Phase 2 in progress. Extracted 7 repos. Medium + large
-  benchmarks complete and valid. Corpus audit triggered reclassification:
-  buckets now assigned by record count; zod and typescript-compiler dropped;
-  vscode added for xlarge TS; small TS slot TBD. benchmark fix: streaming
-  JSONL load in `corpus.py` (was crashing on 9.5 GB xlarge file). Re-running
-  small + xlarge benchmarks after new repo acquisition.
+- **2026-04-18**: design approved; Phase 1 complete; Phase 2 sizing study
+  complete (medium + large). Corpus reclassification triggered.
+- **2026-04-19**: Phase 3 all 6 techniques complete. char_ngrams is the
+  standout — merge unconditionally. imports_scope and path_embed are repo
+  identity signals — do not merge. Phase 4 synthesis complete (99-synthesis.md).
+- **2026-04-19**: Combined optimizations branch created. All three winning
+  techniques promoted to defaults (no flags). Adaptive epochs capped at 200
+  after discovering uncapped formula gives 466 epochs at 3k (overfitting risk).
+  Combined benchmark complete: shuffled AUC 0.637/0.616/0.713 at small/medium/
+  large — consistent improvement over baseline but gains not additive vs
+  char_ngrams alone on cross-repo. Key insight: TF-IDF is the fundamental
+  bottleneck; sequential encoder is the next research direction.
