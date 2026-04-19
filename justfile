@@ -67,6 +67,14 @@ research-benchmark-token-embed:
         --dataset {{REPO_ROOT}}/.argot/research/buckets/large.jsonl --sizes 20000 --seeds 3 \
         --encoder token_embed --out {{REPO_ROOT}}/.argot/research/results-token-embed.jsonl
 
+research-benchmark-combined seeds="3" out=".argot/research/results-combined.jsonl":
+    uv run --package argot-engine python -m argot.corpus benchmark \
+        --dataset .argot/research/buckets/small.jsonl --sizes 3000 --seeds {{seeds}} --out {{out}}
+    uv run --package argot-engine python -m argot.corpus benchmark \
+        --dataset .argot/research/buckets/medium.jsonl --sizes 7000 --seeds {{seeds}} --out {{out}}
+    uv run --package argot-engine python -m argot.corpus benchmark \
+        --dataset .argot/research/buckets/large.jsonl --sizes 20000 --seeds {{seeds}} --out {{out}}
+
 research-extract-honest:
 	scripts/research/extract-honest-corpus.sh
 

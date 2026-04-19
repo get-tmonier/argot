@@ -4,7 +4,7 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from argot.corpus import _load_records, run_benchmark
+from argot.corpus import _load_records, adaptive_epochs, run_benchmark
 
 
 def _make_tagged_dataset(path: Path, n_per_repo: int = 40) -> None:
@@ -82,7 +82,14 @@ def test_load_records_strips_to_required_fields(tmp_path: Path) -> None:
     records = _load_records(dataset)
 
     assert len(records) == 10
-    expected_keys = {"_repo", "author_date_iso", "language", "context_before", "hunk_tokens"}
+    expected_keys = {
+        "_repo",
+        "author_date_iso",
+        "language",
+        "context_before",
+        "context_after",
+        "hunk_tokens",
+    }
     for r in records:
         assert set(r.keys()) == expected_keys
         assert r["language"] == "python"  # _make_tagged_dataset hard-codes python
@@ -151,3 +158,10 @@ def test_benchmark_appends_to_existing_output(tmp_path: Path) -> None:
     assert len(rows) == 2  # 1 prior + 1 new
     assert rows[0] == {"prior": "run"}
     assert rows[1]["size"] == 40
+
+
+def test_adaptive_epochs_scales_with_size() -> None:
+    assert adaptive_epochs(3_000) == 200  # capped — 466 raw would overfit
+    assert adaptive_epochs(7_000) == 200
+    assert adaptive_epochs(20_000) == 70
+    assert adaptive_epochs(70_000) == 20  # floor at 20

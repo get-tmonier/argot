@@ -51,7 +51,7 @@ def stratified_downsample(
 
 
 def _load_records(path: Path, max_records: int | None = None) -> list[dict[str, Any]]:
-    """Stream JSONL keeping only the four fields the benchmark needs.
+    """Stream JSONL keeping only the fields the benchmark needs.
 
     Avoids loading the full raw JSON into a single string (can be GB-scale for
     large corpora) and drops unused token fields (type, line, column, …) which
@@ -74,6 +74,7 @@ def _load_records(path: Path, max_records: int | None = None) -> list[dict[str, 
                 "author_date_iso": r["author_date_iso"],
                 "language": r["language"],
                 "context_before": [{"text": t["text"]} for t in r["context_before"]],
+                "context_after": [{"text": t["text"]} for t in r.get("context_after", [])],
                 "hunk_tokens": [{"text": t["text"]} for t in r["hunk_tokens"]],
             }
             seen += 1
@@ -86,15 +87,20 @@ def _load_records(path: Path, max_records: int | None = None) -> list[dict[str, 
     return reservoir
 
 
+def adaptive_epochs(size: int) -> int:
+    """Compute epoch count from dataset size: cap 200, ~70 at 20k, floor 20."""
+    return min(200, max(20, 1_400_000 // size))
+
+
 def run_benchmark(
     *,
     dataset: Path,
     sizes: list[int],
     seeds: int,
     output: Path,
-    epochs: int = 20,
     batch_size: int = 128,
     encoder: EncoderKind = "tfidf",
+    epochs: int | None = None,
 ) -> None:
     """Run validate-style AUC measurement at each (size, seed); append to output JSONL."""
     # Load at most 2× the largest target — enough headroom for stratified_downsample
@@ -109,14 +115,14 @@ def run_benchmark(
                     records=records,
                     size=size,
                     seed=seed,
-                    epochs=epochs,
                     batch_size=batch_size,
                     encoder=encoder,
+                    epochs=epochs,
                 )
                 out_fh.write(json.dumps(row) + "\n")
                 out_fh.flush()
                 print(
-                    f"size={size:>6d} seed={seed}  "
+                    f"size={size:>6d} seed={seed}  epochs={row['epochs']:>4d}  "
                     f"shuffled={row['shuffled_auc']:.3f}  "
                     f"cross={row['cross_auc']:.3f}  "
                     f"injected={row['injected_auc']:.3f}  "
@@ -129,9 +135,9 @@ def _benchmark_one(
     records: list[dict[str, Any]],
     size: int,
     seed: int,
-    epochs: int,
     batch_size: int,
     encoder: EncoderKind = "tfidf",
+    epochs: int | None = None,
 ) -> dict[str, Any]:
     sample = stratified_downsample(records, target_size=size, seed=seed)
 
@@ -144,7 +150,10 @@ def _benchmark_one(
     home = [r for r in sample if r["_repo"] != foreign_name]
 
     train_records, held_out = split_by_time(home, ratio=0.8)
-    bundle = train_model(train_records, epochs=epochs, batch_size=batch_size, encoder=encoder)
+    effective_epochs = epochs if epochs is not None else adaptive_epochs(size)
+    bundle = train_model(
+        train_records, epochs=effective_epochs, batch_size=batch_size, encoder=encoder
+    )
 
     good = score_records(bundle, held_out)
     shuffled = score_records(bundle, shuffle_negatives(held_out, seed=seed))
@@ -173,6 +182,7 @@ def _benchmark_one(
         "n_train": len(train_records),
         "n_held_out": len(held_out),
         "n_foreign": len(foreign),
+        "epochs": effective_epochs,
         "shuffled_auc": compute_auc(good, shuffled),
         "cross_auc": compute_auc(good, cross),
         "injected_auc": compute_auc(good, injected),
@@ -198,7 +208,6 @@ def _cmd_benchmark(args: argparse.Namespace) -> int:
         sizes=sizes,
         seeds=args.seeds,
         output=Path(args.out),
-        epochs=args.epochs,
         batch_size=args.batch_size,
         encoder=args.encoder,
     )
@@ -262,7 +271,6 @@ def main() -> None:
     bench_p.add_argument(
         "--out", default=".argot/research/results.jsonl", help="Append results to this JSONL"
     )
-    bench_p.add_argument("--epochs", type=int, default=20)
     bench_p.add_argument("--batch-size", type=int, default=128)
     bench_p.add_argument(
         "--encoder",

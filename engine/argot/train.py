@@ -43,10 +43,19 @@ def _train_tfidf(
     lr: float,
     lambd: float,
 ) -> ModelBundle:
-    ctx_texts = [" ".join(t["text"] for t in r["context_before"]) for r in records]
+    def _ctx(r: dict[str, Any]) -> str:
+        before = " ".join(t["text"] for t in r["context_before"])
+        after = " ".join(t["text"] for t in r.get("context_after", []))
+        return f"{before} {after}".strip()
+
+    ctx_texts = [_ctx(r) for r in records]
     hunk_texts = [" ".join(t["text"] for t in r["hunk_tokens"]) for r in records]
 
-    vectorizer: TfidfVectorizer = TfidfVectorizer(max_features=INPUT_DIM)
+    vectorizer: TfidfVectorizer = TfidfVectorizer(
+        max_features=INPUT_DIM,
+        analyzer="char_wb",
+        ngram_range=(3, 5),
+    )
     vectorizer.fit(ctx_texts + hunk_texts)
     actual_input_dim = len(vectorizer.vocabulary_)
 
