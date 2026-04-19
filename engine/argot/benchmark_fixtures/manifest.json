@@ -71,6 +71,33 @@
       "min_band": "ok",
       "max_band": "ok",
       "rationale": "Idiomatic engine-style Python using sys.stdout.write/sys.stderr.write. Must score 'ok'."
+    },
+    {
+      "name": "paradigm_break_validation",
+      "file": "paradigm_break_validation.ts",
+      "hunk_start_line": 32,
+      "hunk_end_line": 49,
+      "min_band": "suspicious",
+      "max_band": "foreign",
+      "rationale": "Manual if/else validation in a codebase that uses Schema/Zod throughout. LLM-typical pattern. Expect at least 'suspicious'."
+    },
+    {
+      "name": "paradigm_break_di",
+      "file": "paradigm_break_di.ts",
+      "hunk_start_line": 33,
+      "hunk_end_line": 43,
+      "min_band": "suspicious",
+      "max_band": "foreign",
+      "rationale": "Direct class instantiation (new Foo()) in a codebase that uses Layer/Effect.Service for all DI. Expect at least 'suspicious'."
+    },
+    {
+      "name": "paradigm_break_composition",
+      "file": "paradigm_break_composition.ts",
+      "hunk_start_line": 34,
+      "hunk_end_line": 49,
+      "min_band": "suspicious",
+      "max_band": "foreign",
+      "rationale": "Imperative async/await + nested calls in a codebase that uses pipe() / Effect.gen throughout. Expect at least 'suspicious'."
     }
   ]
 }
