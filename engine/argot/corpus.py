@@ -199,7 +199,7 @@ def concat_datasets(inputs: list[Path], output: Path) -> dict[str, int]:
                             f"(re-extract with --repo-name)"
                         )
                     counts[record["_repo"]] = counts.get(record["_repo"], 0) + 1
-                    out_fh.write(line + "\n")
+                    out_fh.write(line.rstrip("\n") + "\n")
     return counts
 
 
