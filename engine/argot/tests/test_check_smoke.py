@@ -87,3 +87,33 @@ def test_check_workdir_violations_exit_1(tmp_path: Path, monkeypatch: pytest.Mon
     with pytest.raises(SystemExit) as exc:
         check_mod.main()
     assert exc.value.code == 1
+
+
+def test_check_path_prefix_filters_patches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """--path-prefix=other/ on a workdir change under main.py skips the hunk → exit 0."""
+    _make_repo(tmp_path)
+    model_path = _save_model(tmp_path)
+
+    (tmp_path / "main.py").write_text("x = 1\ny = 2\nz = 3\n")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "argot-check",
+            str(tmp_path),
+            "",
+            "--model",
+            str(model_path),
+            "--threshold",
+            "-1.0",
+            "--path-prefix",
+            "other/",
+        ],
+    )
+    with pytest.raises(SystemExit) as exc:
+        check_mod.main()
+    # prefix filters out the hunk → no violations → exit 0
+    assert exc.value.code == 0
