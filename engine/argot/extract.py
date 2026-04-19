@@ -39,6 +39,11 @@ def main() -> None:
         default=None,
         help="Tag each record with _repo=<name> for cross-repo AUC (validate.py)",
     )
+    parser.add_argument(
+        "--path-prefix",
+        default=None,
+        help="Only emit records whose file_path starts with this prefix (e.g. 'cli/')",
+    )
     args = parser.parse_args()
 
     repo_path = args.repo_path
@@ -56,6 +61,8 @@ def main() -> None:
 
     with open(out_path, "w") as fh:
         for commit, file_path, post_blob, hunks in walk_repo(repo_path):
+            if args.path_prefix is not None and not file_path.startswith(args.path_prefix):
+                continue
             lang = language_for_path(file_path)
             if lang is None:
                 continue
