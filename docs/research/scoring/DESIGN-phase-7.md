@@ -2,7 +2,7 @@
 
 **Status**: Phase 7.0 complete — Phase 7.1 next
 **Branch**: `research/phase-7-honest-eval`
-**Parent design**: [`DESIGN.md`](DESIGN.md)
+**Parent design**: [`DESIGN-phases-1-6.md`](DESIGN-phases-1-6.md)
 **Tracker**: [`ROADMAP.md`](ROADMAP.md)
 
 ## Why
@@ -100,13 +100,13 @@ same-language pairs may not cluster at these tiers:
 
 Post-extraction outcomes that force a revision:
 - If any candidate's sub-corpus is < 40% of its bucket target after extract,
-  swap it out and log the swap in `15-honest-corpus.md` §Swap-out log.
+  swap it out and log the swap in `phase-7/corpus.md` §Swap-out log.
 - If the actual record distribution doesn't cluster at 3k/7k/20k, rename the
   buckets to match the distribution (e.g. 5k/15k/40k) rather than force-fit.
 - Each bucket must still have ≥ 40% share per sub-corpus after downsample.
 
 Exact SHAs, URLs, and record counts pinned during implementation in
-[`15-honest-corpus.md`](15-honest-corpus.md). Swap-outs logged there.
+[`phase-7/corpus.md`](phase-7/corpus.md). Swap-outs logged there.
 
 Each bucket produces two files — `<bucket>-ts.jsonl` and `<bucket>-py.jsonl` —
 and each is benchmarked independently. `cross_auc_same_lang` is computed
@@ -189,7 +189,7 @@ need language (`case_swap`, `quote_flip`) are language-agnostic.
 - `corpus.py` — same-language sub-corpus loading, `--lang ts|py` flag
 - `justfile` — `just research honest-benchmark` wraps the new protocol
 
-**Deliverable**: [`15-honest-corpus.md`](15-honest-corpus.md) — corpus pins,
+**Deliverable**: [`phase-7/corpus.md`](phase-7/corpus.md) — corpus pins,
 mutation spec, sample mutated records, harness usage.
 
 ### 7.1 — Re-baseline on new eval
@@ -311,7 +311,7 @@ All worktrees branch off `research/phase-7-honest-eval` after 7.0 lands.
 
 ## Open questions (to resolve during implementation)
 
-- **Same-language corpus pin**: finalise URLs and SHAs in 15-honest-corpus.md
+- **Same-language corpus pin**: finalise URLs and SHAs in phase-7/corpus.md
   during 7.0. Record counts above are hypotheses based on public commit
   activity; actual extracted counts may cluster differently. Acceptable
   outcomes: (a) candidates land on target, (b) buckets are renamed to match

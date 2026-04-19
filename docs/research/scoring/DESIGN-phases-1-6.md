@@ -1,5 +1,7 @@
 # Scoring Benchmark & Technique Research — Design
 
+> **Scope**: Phases 1–6 (TF-IDF era). For Phase 7 onwards see [`DESIGN-phase-7.md`](DESIGN-phase-7.md).
+
 **Status**: approved 2026-04-18
 **Branch**: `research/scoring-benchmark`
 **Tracker**: [`ROADMAP.md`](ROADMAP.md) (read this at the start of every session)

@@ -1,5 +1,7 @@
 # Phase 3 Synthesis — Technique Rankings and Recommendations
 
+> **Scope**: This is the Phase 3–4 synthesis (TF-IDF technique experiments). For the project-level summary see [`ROADMAP.md`](../ROADMAP.md).
+
 **Status**: complete 2026-04-19  
 **Covers**: techniques 1–6 (`03-context-after.md` through `08-path-embed.md`)  
 **Baseline**: [`02-sizing-study.md`](02-sizing-study.md)
