@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 import re
 from collections.abc import Callable
 from typing import Any
@@ -30,6 +31,18 @@ def _clone_with_hunk(record: dict[str, Any], new_hunk: list[dict[str, Any]]) -> 
 _STRING_RE = re.compile(r"^(['\"])(.*)\1$", re.DOTALL)
 _IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _CAMEL_SPLIT_RE = re.compile(r"(?<!^)(?=[A-Z])")
+
+_DEBUG_TEMPLATES: dict[str, list[str]] = {
+    "python": ["print", "(", '"DEBUG"', ")"],
+    "typescript": ["console", ".", "log", "(", '"DEBUG"', ")"],
+    "javascript": ["console", ".", "log", "(", '"DEBUG"', ")"],
+}
+
+
+def _debug_template_for(language: str | None) -> list[str]:
+    if language in _DEBUG_TEMPLATES:
+        return _DEBUG_TEMPLATES[language]
+    return _DEBUG_TEMPLATES["python"]
 
 
 def _swap_case(ident: str) -> str:
@@ -66,7 +79,14 @@ def _case_swap(record: dict[str, Any], seed: int) -> dict[str, Any]:
 
 @_register("debug_inject")
 def _debug_inject(record: dict[str, Any], seed: int) -> dict[str, Any]:
-    raise NotImplementedError
+    hunk = record["hunk_tokens"]
+    if not hunk:
+        return _clone_with_hunk(record, list(hunk))
+    rng = random.Random(seed)
+    pos = rng.randint(0, len(hunk))
+    injection = [{"text": t} for t in _debug_template_for(record.get("language"))]
+    new_hunk = list(hunk[:pos]) + injection + list(hunk[pos:])
+    return _clone_with_hunk(record, new_hunk)
 
 
 @_register("error_flip")

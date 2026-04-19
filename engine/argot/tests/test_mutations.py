@@ -100,3 +100,62 @@ def test_case_swap_skips_non_identifier_tokens() -> None:
     rec = _make_record(hunk_texts=["(", ")", ":", "'", '"hello"', "123"])
     out = apply_mutation("case_swap", rec, seed=0)
     assert [t["text"] for t in out["hunk_tokens"]] == ["(", ")", ":", "'", '"hello"', "123"]
+
+
+def test_debug_inject_python_adds_print_call() -> None:
+    rec = _make_record(lang="python", hunk_texts=["def", "foo", "(", ")"])
+    out = apply_mutation("debug_inject", rec, seed=0)
+    texts = [t["text"] for t in out["hunk_tokens"]]
+    assert "print" in texts
+    assert '"DEBUG"' in texts
+    assert len(out["hunk_tokens"]) == 4 + 4  # original + 4-token print call
+
+
+def test_debug_inject_typescript_adds_console_log() -> None:
+    rec = _make_record(lang="typescript", hunk_texts=["const", "x", "=", "1"])
+    out = apply_mutation("debug_inject", rec, seed=0)
+    texts = [t["text"] for t in out["hunk_tokens"]]
+    assert "console" in texts
+    assert "log" in texts
+    assert "." in texts
+    assert len(out["hunk_tokens"]) == 4 + 6
+
+
+def test_debug_inject_javascript_uses_same_template_as_typescript() -> None:
+    rec = _make_record(lang="javascript", hunk_texts=["a"])
+    out = apply_mutation("debug_inject", rec, seed=0)
+    texts = [t["text"] for t in out["hunk_tokens"]]
+    assert "console" in texts
+
+
+def test_debug_inject_unknown_language_falls_back_to_python() -> None:
+    rec = _make_record(lang="rust", hunk_texts=["let", "x"])
+    out = apply_mutation("debug_inject", rec, seed=0)
+    texts = [t["text"] for t in out["hunk_tokens"]]
+    assert "print" in texts
+
+
+def test_debug_inject_is_deterministic_per_seed() -> None:
+    rec = _make_record(lang="python", hunk_texts=["a", "b", "c", "d"])
+    a = apply_mutation("debug_inject", rec, seed=7)
+    b = apply_mutation("debug_inject", rec, seed=7)
+    assert a == b
+
+
+def test_debug_inject_differs_across_seeds() -> None:
+    rec = _make_record(lang="python", hunk_texts=[str(i) for i in range(50)])
+    a = apply_mutation("debug_inject", rec, seed=0)
+    b = apply_mutation("debug_inject", rec, seed=1)
+    assert a != b
+
+
+def test_debug_inject_empty_hunk_passes_through() -> None:
+    rec = {
+        "_repo": "demo",
+        "author_date_iso": "1700000000",
+        "language": "python",
+        "context_before": [{"text": "x"}],
+        "hunk_tokens": [],
+    }
+    out = apply_mutation("debug_inject", rec, seed=0)
+    assert out["hunk_tokens"] == []
