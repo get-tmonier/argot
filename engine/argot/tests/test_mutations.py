@@ -16,7 +16,11 @@ def _make_record(lang: str = "python", hunk_texts: list[str] | None = None) -> d
 
 
 def test_dispatcher_lists_all_four_mutations() -> None:
-    assert set(MUTATIONS) == {"case_swap", "debug_inject", "error_flip", "quote_flip"}
+    assert set(MUTATIONS) == {
+        "case_swap", "debug_inject", "error_flip", "quote_flip",
+        "semantic_logging", "semantic_error", "semantic_validation",
+        "semantic_composition", "semantic_di",
+    }
 
 
 def test_dispatcher_rejects_unknown_name() -> None:
@@ -202,3 +206,87 @@ def test_error_flip_unknown_language_uses_python_mapping() -> None:
 def test_error_flip_is_deterministic() -> None:
     rec = _make_record(lang="python", hunk_texts=["raise", "x"])
     assert apply_mutation("error_flip", rec, seed=1) == apply_mutation("error_flip", rec, seed=99)
+
+
+# ── Semantic mutators ──────────────────────────────────────────────────────
+from typing import Any
+
+
+def _make_ts_record(hunk_tokens: list[str]) -> dict[str, Any]:
+    return {
+        "language": "typescript",
+        "context_before": [{"text": "Effect"}, {"text": "."}, {"text": "gen"}],
+        "context_after": [],
+        "hunk_tokens": [{"text": t} for t in hunk_tokens],
+    }
+
+
+def _make_py_record(hunk_tokens: list[str]) -> dict[str, Any]:
+    return {
+        "language": "python",
+        "context_before": [{"text": "async"}, {"text": "def"}, {"text": "fetch"}],
+        "context_after": [],
+        "hunk_tokens": [{"text": t} for t in hunk_tokens],
+    }
+
+
+def test_semantic_logging_ts_replaces_hunk() -> None:
+    rec = _make_ts_record(["Effect", ".", "logInfo", "(", '"msg"', ")"])
+    result = apply_mutation("semantic_logging", rec, seed=0)
+    text = " ".join(t["text"] for t in result["hunk_tokens"])
+    assert "console" in text
+    assert result["hunk_tokens"] != rec["hunk_tokens"]
+
+
+def test_semantic_logging_py_replaces_hunk() -> None:
+    rec = _make_py_record(["logger", ".", "info", "(", '"msg"', ")"])
+    result = apply_mutation("semantic_logging", rec, seed=0)
+    text = " ".join(t["text"] for t in result["hunk_tokens"])
+    assert "print" in text
+
+
+def test_semantic_error_ts_replaces_hunk() -> None:
+    rec = _make_ts_record(["Effect", ".", "fail", "(", "err", ")"])
+    result = apply_mutation("semantic_error", rec, seed=0)
+    text = " ".join(t["text"] for t in result["hunk_tokens"])
+    assert "throw" in text or "try" in text
+
+
+def test_semantic_error_py_replaces_hunk() -> None:
+    rec = _make_py_record(["raise", " ", "HTTPStatusError", "(", "msg", ")"])
+    result = apply_mutation("semantic_error", rec, seed=0)
+    text = " ".join(t["text"] for t in result["hunk_tokens"])
+    assert "except" in text
+
+
+def test_semantic_validation_ts_replaces_hunk() -> None:
+    rec = _make_ts_record(["Schema", ".", "parse", "(", "raw", ")"])
+    result = apply_mutation("semantic_validation", rec, seed=0)
+    text = " ".join(t["text"] for t in result["hunk_tokens"])
+    assert "if" in text or "typeof" in text
+
+
+def test_semantic_composition_ts_replaces_hunk() -> None:
+    rec = _make_ts_record(["pipe", "(", "a", ",", "f", ",", "g", ")"])
+    result = apply_mutation("semantic_composition", rec, seed=0)
+    text = " ".join(t["text"] for t in result["hunk_tokens"])
+    assert "async" in text or "await" in text or "const" in text
+
+
+def test_semantic_di_ts_replaces_hunk() -> None:
+    rec = _make_ts_record(["yield", "*", "ModelTrainer"])
+    result = apply_mutation("semantic_di", rec, seed=0)
+    text = " ".join(t["text"] for t in result["hunk_tokens"])
+    assert "new" in text
+
+
+def test_semantic_mutators_all_registered() -> None:
+    for name in ("semantic_logging", "semantic_error", "semantic_validation", "semantic_composition", "semantic_di"):
+        assert name in MUTATIONS, f"{name!r} not registered"
+
+
+def test_semantic_mutators_preserve_non_hunk_fields() -> None:
+    rec = _make_ts_record(["Effect", ".", "logInfo", "(", '"msg"', ")"])
+    result = apply_mutation("semantic_logging", rec, seed=0)
+    assert result["language"] == rec["language"]
+    assert result["context_before"] == rec["context_before"]

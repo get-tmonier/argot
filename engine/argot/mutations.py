@@ -127,3 +127,105 @@ def _quote_flip(record: dict[str, Any], seed: int) -> dict[str, Any]:
         new_quote = "'" if old_quote == '"' else '"'
         new_hunk.append({**tok, "text": f"{new_quote}{body}{new_quote}"})
     return _clone_with_hunk(record, new_hunk)
+
+
+# ── Semantic mutators ──────────────────────────────────────────────────────
+
+_SEMANTIC_LOGGING: dict[str, list[str]] = {
+    "typescript": ["console", ".", "log", "(", '"processing"', ",", "data", ")", ";",
+                   "console", ".", "error", "(", '"failed"', ",", "error", ".", "message", ")"],
+    "javascript": ["console", ".", "log", "(", '"processing"', ",", "data", ")", ";",
+                   "console", ".", "error", "(", '"failed"', ",", "error", ".", "message", ")"],
+    "python": ["print", "(", "f", '"processing {data}"', ")",
+               "print", "(", "f", '"error: {str(e)}"', ")"],
+}
+
+_SEMANTIC_ERROR: dict[str, list[str]] = {
+    "typescript": ["try", "{", "const", "result", "=", "await", "fn", "(", ")", ";",
+                   "if", "(", "!", "result", ".", "ok", ")", "{",
+                   "throw", "new", "Error", "(", "`failed`", ")", ";", "}", "}",
+                   "catch", "(", "e", ")", "{", "console", ".", "error", "(", "e", ")", ";", "throw", "e", ";", "}"],
+    "javascript": ["try", "{", "const", "result", "=", "await", "fn", "(", ")", ";",
+                   "throw", "new", "Error", "(", "`failed`", ")", ";", "}",
+                   "catch", "(", "e", ")", "{", "throw", "e", ";", "}"],
+    "python": ["try", ":", "result", "=", "await", "client", ".", "get", "(", "url", ")",
+               "except", "Exception", "as", "e", ":", "print", "(", "f", '"error: {e}"', ")", "return", "None"],
+}
+
+_SEMANTIC_VALIDATION: dict[str, list[str]] = {
+    "typescript": ["if", "(", "!", "input", ".", "name", "||",
+                   "typeof", "input", ".", "name", "!==", '"string"', ")", "{",
+                   "throw", "new", "Error", "(", '"name required"', ")", ";", "}",
+                   "if", "(", "input", ".", "age", "<", "0", ")", "{",
+                   "throw", "new", "Error", "(", '"invalid age"', ")", ";", "}"],
+    "javascript": ["if", "(", "!", "input", ".", "name", ")", "{",
+                   "throw", "new", "Error", "(", '"name required"', ")", ";", "}"],
+    "python": ["if", "not", "isinstance", "(", "data", ",", "dict", ")", ":",
+               "raise", "ValueError", "(", '"data must be a dict"', ")",
+               "if", '"name"', "not", "in", "data", ":",
+               "raise", "ValueError", "(", '"name is required"', ")"],
+}
+
+_SEMANTIC_COMPOSITION: dict[str, list[str]] = {
+    "typescript": ["const", "step1", "=", "parseInput", "(", "raw", ")", ";",
+                   "const", "step2", "=", "await", "validateStep1", "(", "step1", ")", ";",
+                   "const", "step3", "=", "await", "transformStep2", "(", "step2", ")", ";",
+                   "return", "step3", ";"],
+    "javascript": ["const", "step1", "=", "parseInput", "(", "raw", ")", ";",
+                   "const", "result", "=", "await", "transform", "(", "step1", ")", ";",
+                   "return", "result", ";"],
+    "python": ["step1", "=", "parse_input", "(", "raw", ")",
+               "step2", "=", "validate", "(", "step1", ")",
+               "result", "=", "await", "transform", "(", "step2", ")",
+               "return", "result"],
+}
+
+_SEMANTIC_DI: dict[str, list[str]] = {
+    "typescript": ["const", "db", "=", "new", "DatabaseConnection", "(", "{",
+                   "host", ":", '"localhost"', ",", "port", ":", "5432", "}", ")", ";",
+                   "const", "repo", "=", "new", "UserRepository", "(", "db", ")", ";",
+                   "const", "service", "=", "new", "UserService", "(", "repo", ")", ";",
+                   "return", "await", "service", ".", "find", "(", "id", ")", ";"],
+    "javascript": ["const", "db", "=", "new", "DatabaseConnection", "(", ")", ";",
+                   "const", "service", "=", "new", "UserService", "(", "db", ")", ";",
+                   "return", "service", ".", "find", "(", "id", ")", ";"],
+    "python": ["db", "=", "DatabaseConnection", "(", "host", "=", '"localhost"', ")",
+               "repo", "=", "UserRepository", "(", "db", ")",
+               "service", "=", "UserService", "(", "repo", ")",
+               "return", "await", "service", ".", "find", "(", "user_id", ")"],
+}
+
+
+def _semantic_snippet(templates: dict[str, list[str]], language: str | None) -> list[dict[str, Any]]:
+    lang = language if language in templates else "python"
+    return [{"text": t} for t in templates[lang]]
+
+
+@_register("semantic_logging")
+def _semantic_logging(record: dict[str, Any], seed: int) -> dict[str, Any]:
+    del seed
+    return _clone_with_hunk(record, _semantic_snippet(_SEMANTIC_LOGGING, record.get("language")))
+
+
+@_register("semantic_error")
+def _semantic_error(record: dict[str, Any], seed: int) -> dict[str, Any]:
+    del seed
+    return _clone_with_hunk(record, _semantic_snippet(_SEMANTIC_ERROR, record.get("language")))
+
+
+@_register("semantic_validation")
+def _semantic_validation(record: dict[str, Any], seed: int) -> dict[str, Any]:
+    del seed
+    return _clone_with_hunk(record, _semantic_snippet(_SEMANTIC_VALIDATION, record.get("language")))
+
+
+@_register("semantic_composition")
+def _semantic_composition(record: dict[str, Any], seed: int) -> dict[str, Any]:
+    del seed
+    return _clone_with_hunk(record, _semantic_snippet(_SEMANTIC_COMPOSITION, record.get("language")))
+
+
+@_register("semantic_di")
+def _semantic_di(record: dict[str, Any], seed: int) -> dict[str, Any]:
+    del seed
+    return _clone_with_hunk(record, _semantic_snippet(_SEMANTIC_DI, record.get("language")))
