@@ -3,13 +3,12 @@ import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { Effect, Layer } from 'effect';
+import * as v from 'valibot';
 import { RepoContext } from '#modules/repo-context/application/ports/out/repo-context.port.ts';
-import { SettingsReadError } from '#modules/repo-context/domain/errors.ts';
-import type {
-  DatasetInfo,
-  ModelInfo,
-  RepoStatus,
-} from '#modules/repo-context/domain/repo-context.ts';
+import { ScopeConfigInvalid, SettingsReadError } from '#modules/repo-context/domain/errors.ts';
+import type { RepoStatus } from '#modules/repo-context/domain/repo-context.ts';
+import { resolveScopes, ScopesFileSchema } from '#modules/repo-context/domain/scopes.ts';
+import type { ResolvedScope } from '#modules/repo-context/domain/scopes.ts';
 import {
   DEFAULT_GLOBAL_SETTINGS,
   mergePreferences,
@@ -56,6 +55,34 @@ async function readLocalSettingsAsync(gitRoot: string): Promise<LocalSettings | 
   }
 }
 
+async function readScopesConfigAsync(gitRoot: string): Promise<ResolvedScope[]> {
+  const configPath = join(gitRoot, '.argot', 'config.json');
+  let raw: string;
+  try {
+    raw = await readFile(configPath, 'utf-8');
+  } catch {
+    return resolveScopes(gitRoot, undefined);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (cause) {
+    throw new ScopeConfigInvalid({ cause });
+  }
+
+  const result = v.safeParse(ScopesFileSchema, parsed);
+  if (!result.success) {
+    throw new ScopeConfigInvalid({ cause: result.issues });
+  }
+
+  try {
+    return resolveScopes(gitRoot, result.output);
+  } catch (cause) {
+    throw new ScopeConfigInvalid({ cause });
+  }
+}
+
 async function statOrNull(path: string): Promise<{ sizeBytes: number; mtime: Date } | null> {
   try {
     const s = await stat(path);
@@ -74,6 +101,7 @@ export const FsRepoContextLive = Layer.effect(RepoContext)(
           const global = await readGlobalSettingsAsync();
           const local = await readLocalSettingsAsync(gitRoot);
           const preferences = mergePreferences(global.preferences, local?.preferences);
+          const scopes = await readScopesConfigAsync(gitRoot);
 
           const now = new Date().toISOString();
           if (!global.repos[gitRoot]) {
@@ -90,12 +118,13 @@ export const FsRepoContextLive = Layer.effect(RepoContext)(
           return {
             gitRoot,
             name: global.repos[gitRoot]!.name,
-            datasetPath: join(gitRoot, '.argot', 'dataset.jsonl'),
-            modelPath: join(gitRoot, '.argot', 'model.pkl'),
+            datasetPath: scopes[0]!.datasetPath,
+            modelPath: scopes[0]!.modelPath,
+            scopes,
             preferences,
           };
         },
-        catch: (e) => new SettingsReadError({ cause: e }),
+        catch: (e) => (e instanceof ScopeConfigInvalid ? e : new SettingsReadError({ cause: e })),
       }),
 
     listRepos: () =>
@@ -106,16 +135,30 @@ export const FsRepoContextLive = Layer.effect(RepoContext)(
 
           const results: RepoStatus[] = [];
           for (const [path, entry] of Object.entries(global.repos)) {
-            const datasetInfo: DatasetInfo | null = await statOrNull(
-              join(path, '.argot', 'dataset.jsonl'),
+            let scopesResolved: ResolvedScope[];
+            try {
+              scopesResolved = await readScopesConfigAsync(path);
+            } catch {
+              scopesResolved = resolveScopes(path, undefined);
+            }
+
+            const scopeStatuses = await Promise.all(
+              scopesResolved.map(async (s) => ({
+                name: s.name,
+                pathPrefix: s.pathPrefix,
+                datasetInfo: await statOrNull(s.datasetPath),
+                modelInfo: await statOrNull(s.modelPath),
+              })),
             );
-            const modelInfo: ModelInfo | null = await statOrNull(join(path, '.argot', 'model.pkl'));
+
+            const primary = scopeStatuses[0]!;
             results.push({
               path,
               name: entry.name,
               isCurrent: path === currentRoot,
-              datasetInfo,
-              modelInfo,
+              datasetInfo: primary.datasetInfo,
+              modelInfo: primary.modelInfo,
+              scopes: scopeStatuses,
             });
           }
           return results.sort((a, b) => a.name.localeCompare(b.name));
