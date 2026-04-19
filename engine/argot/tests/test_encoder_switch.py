@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from argot.train import train_model
+from typing import cast
+
+import pytest
+
+from argot.train import EncoderKind, train_model
 from argot.validate import score_records
 
 
@@ -23,3 +27,10 @@ def test_tfidf_encoder_kind_and_scores() -> None:
     scores = score_records(bundle, records[:5])
     assert len(scores) == 5
     assert all(isinstance(s, float) for s in scores)
+
+
+@pytest.mark.parametrize("enc", ["word_ngrams", "token_embed", "transformer"])
+def test_unimplemented_encoders_raise(enc: str) -> None:
+    records = _make_records(20)
+    with pytest.raises(NotImplementedError):
+        train_model(records, epochs=1, encoder=cast(EncoderKind, enc))

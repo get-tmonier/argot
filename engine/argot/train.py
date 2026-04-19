@@ -20,6 +20,8 @@ from argot.jepa.predictor import ArgotPredictor
 INPUT_DIM = 5000
 EMBED_DIM = 192
 
+EncoderKind = Literal["tfidf", "word_ngrams", "token_embed", "transformer"]
+
 
 @dataclass
 class ModelBundle:
@@ -27,7 +29,7 @@ class ModelBundle:
     model: JEPAArgot
     input_dim: int
     embed_dim: int
-    encoder_kind: str = field(default="tfidf")
+    encoder_kind: EncoderKind = field(default="tfidf")
 
 
 def _train_tfidf(
@@ -120,7 +122,7 @@ def train_model(
     batch_size: int = 128,
     lr: float = 5e-5,
     lambd: float = 0.09,
-    encoder: Literal["tfidf", "word_ngrams", "token_embed", "transformer"] = "tfidf",
+    encoder: EncoderKind = "tfidf",
 ) -> ModelBundle:
     if encoder == "tfidf":
         return _train_tfidf(records, epochs=epochs, batch_size=batch_size, lr=lr, lambd=lambd)

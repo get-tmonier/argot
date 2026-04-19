@@ -6,11 +6,11 @@ import random
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import numpy as np
 
-from argot.train import train_model
+from argot.train import EncoderKind, train_model
 from argot.validate import (
     compute_auc,
     inject_foreign,
@@ -92,7 +92,7 @@ def run_benchmark(
     output: Path,
     epochs: int = 20,
     batch_size: int = 128,
-    encoder: Literal["tfidf", "word_ngrams", "token_embed", "transformer"] = "tfidf",
+    encoder: EncoderKind = "tfidf",
 ) -> None:
     """Run validate-style AUC measurement at each (size, seed); append to output JSONL."""
     # Load at most 2× the largest target — enough headroom for stratified_downsample
@@ -128,7 +128,7 @@ def _benchmark_one(
     seed: int,
     epochs: int,
     batch_size: int,
-    encoder: Literal["tfidf", "word_ngrams", "token_embed", "transformer"] = "tfidf",
+    encoder: EncoderKind = "tfidf",
 ) -> dict[str, Any]:
     sample = stratified_downsample(records, target_size=size, seed=seed)
 

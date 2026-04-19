@@ -88,11 +88,6 @@ def _vectorize_tfidf(bundle: ModelBundle, texts: list[str]) -> torch.Tensor:
     return torch.tensor(bundle.vectorizer.transform(texts).toarray(), dtype=torch.float32)
 
 
-def _vectorize_word_ngrams(bundle: ModelBundle, texts: list[str]) -> torch.Tensor:
-    # word_ngrams reuses the same sklearn vectorizer path as tfidf
-    return _vectorize_tfidf(bundle, texts)
-
-
 def _vectorize_token_embed(bundle: ModelBundle, texts: list[str]) -> torch.Tensor:
     raise NotImplementedError("token_embed vectorization not yet implemented")
 
@@ -103,7 +98,7 @@ def _vectorize_transformer(bundle: ModelBundle, texts: list[str]) -> torch.Tenso
 
 def _vectorize(bundle: ModelBundle, texts: list[str]) -> torch.Tensor:
     if bundle.encoder_kind in ("tfidf", "word_ngrams"):
-        return _vectorize_tfidf(bundle, texts)
+        return _vectorize_tfidf(bundle, texts)  # word_ngrams reuses same sklearn vectorizer
     elif bundle.encoder_kind == "token_embed":
         return _vectorize_token_embed(bundle, texts)
     elif bundle.encoder_kind == "transformer":
