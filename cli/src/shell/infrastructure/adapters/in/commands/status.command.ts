@@ -26,6 +26,26 @@ async function countJsonlLines(path: string): Promise<number | null> {
   }
 }
 
+async function datasetLine(path: string): Promise<string> {
+  try {
+    const s = await stat(path);
+    const count = await countJsonlLines(path);
+    const countStr = count !== null ? `${count} records · ` : '';
+    return `${countStr}${formatBytes(s.size)} · last extracted ${formatAge(s.mtime)}`;
+  } catch {
+    return '—';
+  }
+}
+
+async function modelLine(path: string): Promise<string> {
+  try {
+    const s = await stat(path);
+    return `trained ${formatAge(s.mtime)} · ${formatBytes(s.size)}`;
+  } catch {
+    return 'not trained';
+  }
+}
+
 export const statusCommand = Command.make('status', {}, () =>
   Effect.gen(function* () {
     const { resolveContext } = yield* RepoContext;
@@ -33,19 +53,24 @@ export const statusCommand = Command.make('status', {}, () =>
 
     yield* Console.log(`Repo:     ${ctx.name} (${ctx.gitRoot})`);
 
-    const datasetLine = yield* Effect.tryPromise(async () => {
-      const s = await stat(ctx.datasetPath);
-      const count = await countJsonlLines(ctx.datasetPath);
-      const countStr = count !== null ? `${count} records · ` : '';
-      return `${countStr}${formatBytes(s.size)} · last extracted ${formatAge(s.mtime)}`;
-    }).pipe(Effect.orElseSucceed(() => '—'));
-    yield* Console.log(`Dataset:  ${datasetLine}`);
+    const multi = ctx.scopes.length > 1 || ctx.scopes[0]!.pathPrefix !== '';
 
-    const modelLine = yield* Effect.tryPromise(async () => {
-      const s = await stat(ctx.modelPath);
-      return `trained ${formatAge(s.mtime)} · ${formatBytes(s.size)}`;
-    }).pipe(Effect.orElseSucceed(() => 'not trained'));
-    yield* Console.log(`Model:    ${modelLine}`);
+    if (!multi) {
+      const s = ctx.scopes[0]!;
+      const ds = yield* Effect.promise(() => datasetLine(s.datasetPath));
+      const md = yield* Effect.promise(() => modelLine(s.modelPath));
+      yield* Console.log(`Dataset:  ${ds}`);
+      yield* Console.log(`Model:    ${md}`);
+    } else {
+      yield* Console.log(`Scopes:   ${ctx.scopes.length}`);
+      for (const s of ctx.scopes) {
+        const ds = yield* Effect.promise(() => datasetLine(s.datasetPath));
+        const md = yield* Effect.promise(() => modelLine(s.modelPath));
+        yield* Console.log(`  ${s.name} (${s.pathPrefix})`);
+        yield* Console.log(`    dataset: ${ds}`);
+        yield* Console.log(`    model:   ${md}`);
+      }
+    }
 
     const thresholdSource =
       ctx.preferences.threshold === 0.5 ? '(global default)' : '(local override)';
