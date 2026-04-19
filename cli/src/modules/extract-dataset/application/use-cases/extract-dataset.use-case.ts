@@ -8,6 +8,10 @@ export const runExtractDataset = (
 ): Effect.Effect<{ outputPath: string }, EngineError, EngineRunner> =>
   Effect.gen(function* () {
     const engineRunner = yield* EngineRunner;
-    yield* engineRunner.runExtract({ repoPath: opts.repoPath, outputPath: opts.outputPath });
+    yield* engineRunner.runExtract({
+      repoPath: opts.repoPath,
+      outputPath: opts.outputPath,
+      pathPrefix: opts.pathPrefix,
+    });
     return { outputPath: opts.outputPath };
   });
