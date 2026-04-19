@@ -75,7 +75,7 @@ research-concat-honest:
 		.argot/research/datasets-v2/httpx.jsonl .argot/research/datasets-v2/requests.jsonl \
 		-o .argot/research/buckets-v2/small-py.jsonl
 	uv run --package argot-engine python -m argot.corpus concat \
-		.argot/research/datasets-v2/ky.jsonl .argot/research/datasets-v2/chalk.jsonl \
+		.argot/research/datasets-v2/ky.jsonl .argot/research/datasets-v2/zod.jsonl \
 		-o .argot/research/buckets-v2/small-ts.jsonl
 	uv run --package argot-engine python -m argot.corpus concat \
 		.argot/research/datasets-v2/fastapi.jsonl .argot/research/datasets-v2/flask.jsonl \

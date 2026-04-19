@@ -18,7 +18,7 @@ Selection criteria:
 | bucket | lang | repo A (URL, SHA)                            | repo B (URL, SHA)                            |
 |:-------|:-----|:---------------------------------------------|:---------------------------------------------|
 | small  | py   | https://github.com/encode/httpx @ <SHA>      | https://github.com/psf/requests @ <SHA>      |
-| small  | ts   | https://github.com/sindresorhus/ky @ <SHA>   | https://github.com/chalk/chalk @ <SHA>       |
+| small  | ts   | https://github.com/sindresorhus/ky @ <SHA>   | https://github.com/colinhacks/zod @ c7805073fef5b6b8857307c3d4b3597a70613bc2 |
 | medium | py   | https://github.com/tiangolo/fastapi @ <SHA>  | https://github.com/pallets/flask @ <SHA>     |
 | medium | ts   | https://github.com/vitejs/vite @ <SHA>       | https://github.com/rollup/rollup @ <SHA>     |
 | large  | py   | https://github.com/pydantic/pydantic @ <SHA> | https://github.com/django/django @ <SHA>     |
@@ -36,7 +36,7 @@ Filled in after Task 11.
 | httpx         |       ? |
 | requests      |       ? |
 | ky            |       ? |
-| chalk         |       ? |
+| zod           |   14575 |
 | fastapi       |       ? |
 | flask         |       ? |
 | vite          |       ? |
@@ -80,4 +80,5 @@ just research-honest-benchmark
 
 ## Swap-out log
 
-(empty — fill in if any candidate gets dropped during extraction)
+- **chalk** dropped: 130 TS records — too few for a viable small-ts bucket. Replaced with **axios** (first attempt).
+- **axios** also dropped: 488 TS records (94% JS) — same problem as chalk. Replaced with **colinhacks/zod** (pure TypeScript, schema-validation library, strong style contrast with ky).

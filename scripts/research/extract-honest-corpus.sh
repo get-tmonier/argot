@@ -7,19 +7,20 @@ LOG=".argot/research/datasets-v2/SHAS.md"
 
 mkdir -p "$WORK" "$OUT"
 
-declare -A REPOS=(
-  [httpx]=https://github.com/encode/httpx
-  [requests]=https://github.com/psf/requests
-  [ky]=https://github.com/sindresorhus/ky
-  [chalk]=https://github.com/chalk/chalk
-  [fastapi]=https://github.com/tiangolo/fastapi
-  [flask]=https://github.com/pallets/flask
-  [vite]=https://github.com/vitejs/vite
-  [rollup]=https://github.com/rollup/rollup
-  [pydantic]=https://github.com/pydantic/pydantic
-  [django]=https://github.com/django/django
-  [effect]=https://github.com/Effect-TS/effect
-  [angular]=https://github.com/angular/angular
+# Pairs: "name url" — compatible with bash 3.2 (no associative arrays)
+REPOS=(
+  "httpx https://github.com/encode/httpx"
+  "requests https://github.com/psf/requests"
+  "ky https://github.com/sindresorhus/ky"
+  "zod https://github.com/colinhacks/zod"
+  "fastapi https://github.com/tiangolo/fastapi"
+  "flask https://github.com/pallets/flask"
+  "vite https://github.com/vitejs/vite"
+  "rollup https://github.com/rollup/rollup"
+  "pydantic https://github.com/pydantic/pydantic"
+  "django https://github.com/django/django"
+  "effect https://github.com/Effect-TS/effect"
+  "angular https://github.com/angular/angular"
 )
 
 echo "# Pinned SHAs" > "$LOG"
@@ -27,8 +28,9 @@ echo "" >> "$LOG"
 echo "| repo | sha | default branch |" >> "$LOG"
 echo "|:-----|:----|:---------------|" >> "$LOG"
 
-for name in "${!REPOS[@]}"; do
-  url="${REPOS[$name]}"
+for pair in "${REPOS[@]}"; do
+  name="${pair%% *}"
+  url="${pair#* }"
   out_jsonl="$OUT/$name.jsonl"
   repo_dir="$WORK/$name"
 
