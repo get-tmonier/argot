@@ -1,7 +1,17 @@
 import { Argument, Command } from 'effect/unstable/cli';
 import { Console, Effect } from 'effect';
+import { stat } from 'node:fs/promises';
 import { RepoContext } from '#modules/repo-context/dependencies.ts';
 import { runCheckStyle } from '#modules/check-style/application/use-cases/check-style.use-case.ts';
+
+async function modelExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export const checkCommand = Command.make(
   'check',
@@ -20,12 +30,33 @@ export const checkCommand = Command.make(
       yield* Console.log(
         `argot · ${ctx.name} (${ctx.gitRoot}) · threshold ${ctx.preferences.threshold}`,
       );
-      const hasViolations = yield* runCheckStyle({
-        repoPath: ctx.gitRoot,
-        ref,
-        modelPath: ctx.modelPath,
-        threshold: ctx.preferences.threshold,
-      });
-      if (hasViolations) process.exit(1);
+
+      let anyViolations = false;
+      for (const s of ctx.scopes) {
+        const hasModel = yield* Effect.tryPromise(() => modelExists(s.modelPath)).pipe(
+          Effect.orElseSucceed(() => false),
+        );
+        if (!hasModel) {
+          yield* Console.log(`scope ${s.name}: no model — run 'argot train --scope ${s.name}'`);
+          continue;
+        }
+
+        if (ctx.scopes.length > 1) {
+          yield* Console.log(
+            `→ scope ${s.name}${s.pathPrefix ? ` (${s.pathPrefix})` : ''}`,
+          );
+        }
+
+        const violations = yield* runCheckStyle({
+          repoPath: ctx.gitRoot,
+          ref,
+          modelPath: s.modelPath,
+          threshold: ctx.preferences.threshold,
+          pathPrefix: s.pathPrefix === '' ? undefined : s.pathPrefix,
+        });
+        anyViolations = anyViolations || violations;
+      }
+
+      if (anyViolations) process.exit(1);
     }),
 );
