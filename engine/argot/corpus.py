@@ -4,6 +4,7 @@ import argparse
 import json
 import random
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -108,11 +109,24 @@ def run_benchmark(
     # Load at most 2× the largest target — enough headroom for stratified_downsample
     # while bounding peak RSS regardless of input file size.
     records = _load_records(dataset, max_records=max(sizes) * 2)
+    total_runs = len(sizes) * seeds
+    print(
+        f"[bench] dataset={dataset.name} encoder={encoder} "
+        f"sizes={sizes} seeds={seeds} → {total_runs} runs",
+        flush=True,
+    )
 
     output.parent.mkdir(parents=True, exist_ok=True)
+    run_idx = 0
     with output.open("a") as out_fh:
         for size in sizes:
             for seed in range(seeds):
+                run_idx += 1
+                print(
+                    f"\n[run {run_idx}/{total_runs}] size={size} seed={seed}",
+                    flush=True,
+                )
+                run_t0 = time.perf_counter()
                 row = _benchmark_one(
                     records=records,
                     size=size,
@@ -123,13 +137,29 @@ def run_benchmark(
                 )
                 out_fh.write(json.dumps(row) + "\n")
                 out_fh.flush()
+                total_s = time.perf_counter() - run_t0
                 print(
-                    f"size={size:>6d} seed={seed}  epochs={row['epochs']:>4d}  "
+                    f"[run {run_idx}/{total_runs} done in {total_s:.0f}s]  "
+                    f"size={size} seed={seed} epochs={row['epochs']}  "
                     f"shuffled={row['shuffled_auc']:.3f}  "
                     f"cross={row['cross_auc']:.3f}  "
                     f"injected={row['injected_auc']:.3f}  "
-                    f"synth_mean={row['synthetic_auc_mean']:.3f}"
+                    f"synth_mean={row['synthetic_auc_mean']:.3f}",
+                    flush=True,
                 )
+
+
+def _timed_score(
+    label: str,
+    explanation: str,
+    bundle: Any,
+    records: list[dict[str, Any]],
+) -> list[float]:
+    print(f"  score.{label:<10s} {len(records)} recs — {explanation}", flush=True)
+    t0 = time.perf_counter()
+    scores = score_records(bundle, records)
+    print(f"  score.{label:<10s} done in {time.perf_counter() - t0:.1f}s", flush=True)
+    return scores
 
 
 def _benchmark_one(
@@ -153,19 +183,60 @@ def _benchmark_one(
 
     train_records, held_out = split_by_time(home, ratio=0.8)
     effective_epochs = epochs if epochs is not None else adaptive_epochs(size)
+    home_repos = sorted({r["_repo"] for r in home})
+    print(
+        f"  sample    n_sample={len(sample)} home={home_repos} (train={len(train_records)}, "
+        f"held={len(held_out)}) foreign={foreign_name!r} ({len(foreign)}) "
+        f"→ time-split 80/20",
+        flush=True,
+    )
+    print(
+        f"  train     {encoder} encoder + JEPA predictor, {effective_epochs} epochs",
+        flush=True,
+    )
     bundle = train_model(
         train_records, epochs=effective_epochs, batch_size=batch_size, encoder=encoder
     )
 
-    good = score_records(bundle, held_out)
-    shuffled = score_records(bundle, shuffle_negatives(held_out, seed=seed))
-    cross = score_records(bundle, foreign)
-    injected = score_records(bundle, inject_foreign(held_out, foreign, seed=seed))
+    good = _timed_score(
+        "good", "held-out real edits (expect LOW surprise = in-distribution)", bundle, held_out
+    )
+    shuffled = _timed_score(
+        "shuffled",
+        "held-out with hunks reshuffled across records (negative control — expect HIGH)",
+        bundle,
+        shuffle_negatives(held_out, seed=seed),
+    )
+    cross = _timed_score(
+        "cross",
+        f"foreign-repo real edits from {foreign_name!r} (different codebase — expect HIGH)",
+        bundle,
+        foreign,
+    )
+    injected = _timed_score(
+        "injected",
+        "home context + foreign hunk (mismatched pair — strongest negative, expect HIGH)",
+        bundle,
+        inject_foreign(held_out, foreign, seed=seed),
+    )
 
+    print(
+        f"  mutations {len(MUTATIONS)} synthetic perturbations of held-out "
+        f"({', '.join(MUTATIONS)}) — each must score HIGHER than clean",
+        flush=True,
+    )
     per_mutation_auc: dict[str, float] = {}
     for name in MUTATIONS:
         mutated = [apply_mutation(name, r, seed=seed) for r in held_out]
-        per_mutation_auc[name] = compute_auc(good, score_records(bundle, mutated))
+        t0 = time.perf_counter()
+        mut_scores = score_records(bundle, mutated)
+        auc = compute_auc(good, mut_scores)
+        per_mutation_auc[name] = auc
+        print(
+            f"  mut.{name:<12s} {len(mutated)} recs → AUC={auc:.3f} "
+            f"({time.perf_counter() - t0:.1f}s)",
+            flush=True,
+        )
 
     synthetic_mean = float(np.mean(list(per_mutation_auc.values())))
 
@@ -215,6 +286,7 @@ def _cmd_benchmark(args: argparse.Namespace) -> int:
         output=Path(args.out),
         batch_size=args.batch_size,
         encoder=args.encoder,
+        epochs=args.epochs,
     )
     return 0
 
@@ -410,9 +482,15 @@ def main() -> None:
     bench_p.add_argument("--batch-size", type=int, default=128)
     bench_p.add_argument(
         "--encoder",
-        choices=["tfidf", "word_ngrams", "token_embed", "bpe", "transformer"],
+        choices=["tfidf", "word_ngrams", "token_embed", "bpe", "pretrained", "transformer"],
         default="tfidf",
         help="Encoder to use for training",
+    )
+    bench_p.add_argument(
+        "--epochs",
+        type=int,
+        default=None,
+        help="Override training epochs (default: adaptive min(200, max(20, 1.4M//size)))",
     )
     bench_p.set_defaults(func=_cmd_benchmark)
 

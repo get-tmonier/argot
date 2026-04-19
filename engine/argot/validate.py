@@ -12,6 +12,7 @@ import torch
 from sklearn.metrics import roc_auc_score  # type: ignore[import-untyped]
 
 from argot.jepa.bpe_vocab import BpeVocab
+from argot.jepa.pretrained_encoder import PretrainedEncoder
 from argot.jepa.seq_encoder import MeanPoolEncoder  # noqa: F401  (used for isinstance check)
 from argot.jepa.vocab import Vocab
 from argot.train import _SEQ_LEN, DensityBundle, ModelBundle, _encode_records, train_model
@@ -122,6 +123,13 @@ def _vectorize_transformer(bundle: ModelBundle, texts: list[str]) -> torch.Tenso
     raise NotImplementedError("transformer vectorization not yet implemented")
 
 
+def _vectorize_pretrained(bundle: ModelBundle, texts: list[str]) -> torch.Tensor:
+    pretrained = bundle.vectorizer
+    if not isinstance(pretrained, PretrainedEncoder):
+        raise TypeError(f"expected PretrainedEncoder, got {type(pretrained)}")
+    return pretrained.encode_texts(texts).cpu()
+
+
 def _vectorize(bundle: ModelBundle, texts: list[str]) -> torch.Tensor:
     if bundle.encoder_kind in ("tfidf", "word_ngrams"):
         return _vectorize_tfidf(bundle, texts)  # word_ngrams reuses same sklearn vectorizer
@@ -129,23 +137,31 @@ def _vectorize(bundle: ModelBundle, texts: list[str]) -> torch.Tensor:
         return _vectorize_token_embed(bundle, texts)
     elif bundle.encoder_kind == "bpe":
         return _vectorize_bpe(bundle, texts)
+    elif bundle.encoder_kind == "pretrained":
+        return _vectorize_pretrained(bundle, texts)
     elif bundle.encoder_kind == "transformer":
         return _vectorize_transformer(bundle, texts)
     else:
         raise ValueError(f"unknown encoder_kind: {bundle.encoder_kind!r}")
 
 
+_SCORE_BATCH = 128
+
+
 def score_records(bundle: ModelBundle, records: list[dict[str, Any]]) -> list[float]:
+    if not records:
+        return []
     ctx_texts = [" ".join(t["text"] for t in r["context_before"]) for r in records]
     hunk_texts = [" ".join(t["text"] for t in r["hunk_tokens"]) for r in records]
     ctx_x = _vectorize(bundle, ctx_texts)
     hunk_x = _vectorize(bundle, hunk_texts)
     bundle.model.eval()
+    scores: list[float] = []
     with torch.no_grad():
-        scores = [
-            bundle.model.surprise(ctx_x[i : i + 1], hunk_x[i : i + 1]).item()
-            for i in range(len(records))
-        ]
+        for start in range(0, len(records), _SCORE_BATCH):
+            end = start + _SCORE_BATCH
+            batch_scores = bundle.model.surprise(ctx_x[start:end], hunk_x[start:end])
+            scores.extend(batch_scores.detach().cpu().tolist())
     return scores
 
 

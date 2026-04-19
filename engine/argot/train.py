@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -19,13 +20,14 @@ from argot.jepa.density_heads import DensityHead, DensityHeadKind, make_head
 from argot.jepa.encoder import TokenEncoder
 from argot.jepa.model import JEPAArgot
 from argot.jepa.predictor import ArgotPredictor
+from argot.jepa.pretrained_encoder import PretrainedEncoder, select_device
 from argot.jepa.seq_encoder import MeanPoolEncoder
 from argot.jepa.vocab import Vocab
 
 INPUT_DIM = 5000
 EMBED_DIM = 192
 
-EncoderKind = Literal["tfidf", "word_ngrams", "token_embed", "bpe", "transformer"]
+EncoderKind = Literal["tfidf", "word_ngrams", "token_embed", "bpe", "pretrained", "transformer"]
 
 
 @dataclass
@@ -90,7 +92,11 @@ def _train_sklearn_vec(
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
             total_loss += losses["loss"].item()
-        print(f"epoch {epoch}/{epochs}  loss={total_loss / len(loader):.4f}")
+        if epoch == 1 or epoch == epochs or epoch % 10 == 0:
+            print(
+                f"  epoch   {epoch:>3d}/{epochs}  loss={total_loss / len(loader):.4f}",
+                flush=True,
+            )
 
     return ModelBundle(
         vectorizer=vectorizer,
@@ -210,7 +216,11 @@ def _train_token_embed(
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
             total_loss += losses["loss"].item()
-        print(f"epoch {epoch}/{epochs}  loss={total_loss / len(loader):.4f}")
+        if epoch == 1 or epoch == epochs or epoch % 10 == 0:
+            print(
+                f"  epoch   {epoch:>3d}/{epochs}  loss={total_loss / len(loader):.4f}",
+                flush=True,
+            )
 
     return ModelBundle(
         vectorizer=vocab,  # Vocab stored in TfidfVectorizer slot (sklearn untyped, mypy accepts)
@@ -257,7 +267,11 @@ def _train_bpe(
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
             total_loss += losses["loss"].item()
-        print(f"epoch {epoch}/{epochs}  loss={total_loss / len(loader):.4f}")
+        if epoch == 1 or epoch == epochs or epoch % 10 == 0:
+            print(
+                f"  epoch   {epoch:>3d}/{epochs}  loss={total_loss / len(loader):.4f}",
+                flush=True,
+            )
 
     return ModelBundle(
         vectorizer=bpe_vocab,  # BpeVocab stored in TfidfVectorizer slot (sklearn untyped)
@@ -307,6 +321,92 @@ def train_bpe_density(
     )
 
 
+def _texts_for_records(records: list[dict[str, Any]]) -> tuple[list[str], list[str]]:
+    ctx = [" ".join(t["text"] for t in r["context_before"]) for r in records]
+    hunk = [" ".join(t["text"] for t in r["hunk_tokens"]) for r in records]
+    return ctx, hunk
+
+
+def _train_pretrained(
+    records: list[dict[str, Any]],
+    *,
+    epochs: int,
+    batch_size: int,
+    lr: float,
+    lambd: float,
+) -> ModelBundle:
+    """Frozen pretrained encoder (CodeRankEmbed) + trainable JEPA predictor.
+
+    The encoder is frozen: texts are pre-encoded once to fixed embeddings
+    (on GPU/MPS when available), then the predictor is trained against those
+    embeddings with the standard JEPA objective.
+    """
+    device = select_device()
+    pretrained = PretrainedEncoder(device=device)
+    embed_dim = pretrained.embed_dim
+
+    ctx_texts, hunk_texts = _texts_for_records(records)
+
+    n = len(records)
+    print(f"  encode  {n}×2 texts on device={pretrained.torch_device} ...", flush=True)
+    t0 = time.perf_counter()
+    with torch.no_grad():
+        ctx_x = pretrained.encode_texts(ctx_texts).cpu()
+        hunk_x = pretrained.encode_texts(hunk_texts).cpu()
+    dt = time.perf_counter() - t0
+    rate = (2 * n) / dt if dt > 0 else 0.0
+    print(f"  encode  done in {dt:.1f}s  ({rate:.0f} texts/s)", flush=True)
+
+    loader = DataLoader(
+        TensorDataset(ctx_x, hunk_x),
+        batch_size=batch_size,
+        shuffle=True,
+    )
+
+    identity_encoder = torch.nn.Identity()
+    predictor = ArgotPredictor(embed_dim=embed_dim)
+    model = JEPAArgot(identity_encoder, predictor, lambd=lambd)  # type: ignore[arg-type]
+    model = model.to(device)
+    optimizer = AdamW(predictor.parameters(), lr=lr, weight_decay=1e-3)
+
+    print(f"  train   {epochs} epochs × {len(loader)} batches on device={device}", flush=True)
+    train_t0 = time.perf_counter()
+    model.train()
+    for epoch in range(1, epochs + 1):
+        ep_t0 = time.perf_counter()
+        total_loss = 0.0
+        for ctx_batch, hunk_batch in loader:
+            ctx_batch = ctx_batch.to(device)
+            hunk_batch = hunk_batch.to(device)
+            optimizer.zero_grad()
+            losses = model(ctx_batch, hunk_batch)
+            losses["loss"].backward()
+            torch.nn.utils.clip_grad_norm_(predictor.parameters(), 1.0)
+            optimizer.step()
+            total_loss += losses["loss"].item()
+        ep_dt = time.perf_counter() - ep_t0
+        if epoch == 1 or epoch == epochs or epoch % 10 == 0:
+            elapsed = time.perf_counter() - train_t0
+            eta = ep_dt * (epochs - epoch)
+            print(
+                f"  epoch   {epoch:>3d}/{epochs}  loss={total_loss / len(loader):.4f}  "
+                f"ep_time={ep_dt:.1f}s  elapsed={elapsed:.0f}s  eta={eta:.0f}s",
+                flush=True,
+            )
+    train_dt = time.perf_counter() - train_t0
+    print(f"  train   done in {train_dt:.0f}s  ({train_dt / epochs:.1f}s/ep avg)", flush=True)
+
+    model = model.to("cpu")
+
+    return ModelBundle(
+        vectorizer=pretrained,  # PretrainedEncoder stored in vectorizer slot
+        model=model,
+        input_dim=embed_dim,
+        embed_dim=embed_dim,
+        encoder_kind="pretrained",
+    )
+
+
 def _train_transformer(
     records: list[dict[str, Any]],
     *,
@@ -335,6 +435,8 @@ def train_model(
         return _train_token_embed(records, epochs=epochs, batch_size=batch_size, lr=lr, lambd=lambd)
     elif encoder == "bpe":
         return _train_bpe(records, epochs=epochs, batch_size=batch_size, lr=lr, lambd=lambd)
+    elif encoder == "pretrained":
+        return _train_pretrained(records, epochs=epochs, batch_size=batch_size, lr=lr, lambd=lambd)
     elif encoder == "transformer":
         return _train_transformer(records, epochs=epochs, batch_size=batch_size, lr=lr, lambd=lambd)
     else:
