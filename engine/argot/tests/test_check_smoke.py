@@ -89,9 +89,7 @@ def test_check_workdir_violations_exit_1(tmp_path: Path, monkeypatch: pytest.Mon
     assert exc.value.code == 1
 
 
-def test_check_path_prefix_filters_patches(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_check_path_prefix_filters_patches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """--path-prefix=other/ on a workdir change under main.py skips the hunk → exit 0."""
     _make_repo(tmp_path)
     model_path = _save_model(tmp_path)

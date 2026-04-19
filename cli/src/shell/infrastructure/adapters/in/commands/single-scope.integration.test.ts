@@ -67,11 +67,7 @@ describe('no config (single default scope)', () => {
     const argotRoot = join(import.meta.dir, '..', '..', '..', '..', '..', '..', '..');
     const r = run('bun', ['run', cliEntry, 'extract'], workDir, argotRoot);
 
-    if (r.code !== 0) {
-      console.error('stdout:', r.stdout);
-      console.error('stderr:', r.stderr);
-    }
-    expect(r.code).toBe(0);
+    expect(r.code, `extract failed\nstdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
 
     await access(join(workDir, '.argot', 'dataset.jsonl'), constants.F_OK);
     await expect(access(join(workDir, '.argot', 'models'), constants.F_OK)).rejects.toThrow();

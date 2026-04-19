@@ -3,16 +3,15 @@ import * as v from 'valibot';
 
 export const DEFAULT_SCOPE_NAME = 'default';
 
-export const ScopeConfigSchema = v.object({
+const ScopeConfigSchema = v.object({
   name: v.pipe(v.string(), v.minLength(1)),
   path: v.string(),
 });
-export type ScopeConfig = v.InferOutput<typeof ScopeConfigSchema>;
 
 export const ScopesFileSchema = v.object({
   scopes: v.array(ScopeConfigSchema),
 });
-export type ScopesFile = v.InferOutput<typeof ScopesFileSchema>;
+type ScopesFile = v.InferOutput<typeof ScopesFileSchema>;
 
 export interface ResolvedScope {
   name: string;
@@ -21,10 +20,7 @@ export interface ResolvedScope {
   modelPath: string;
 }
 
-export function resolveScopes(
-  gitRoot: string,
-  config: ScopesFile | undefined,
-): ResolvedScope[] {
+export function resolveScopes(gitRoot: string, config: ScopesFile | undefined): ResolvedScope[] {
   if (!config) {
     return [
       {

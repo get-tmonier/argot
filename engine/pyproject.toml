@@ -71,6 +71,10 @@ ignore_missing_imports = true
 module = "sentence_transformers.*"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "httpx"
+ignore_missing_imports = true
+
 [tool.ruff]
 line-length = 100
 

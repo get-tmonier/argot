@@ -42,9 +42,7 @@ export const checkCommand = Command.make(
         }
 
         if (ctx.scopes.length > 1) {
-          yield* Console.log(
-            `→ scope ${s.name}${s.pathPrefix ? ` (${s.pathPrefix})` : ''}`,
-          );
+          yield* Console.log(`→ scope ${s.name}${s.pathPrefix ? ` (${s.pathPrefix})` : ''}`);
         }
 
         const violations = yield* runCheckStyle({

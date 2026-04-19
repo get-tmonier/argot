@@ -34,8 +34,4 @@ def ensure_output_dir_legacy(output: str) -> None:
 
 
 def list_jsonl_files_legacy(directory: str) -> list[str]:
-    return sorted(
-        os.path.join(directory, f)
-        for f in os.listdir(directory)
-        if f.endswith(".jsonl")
-    )
+    return sorted(os.path.join(directory, f) for f in os.listdir(directory) if f.endswith(".jsonl"))

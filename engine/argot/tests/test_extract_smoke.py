@@ -103,6 +103,6 @@ def test_smoke_extract_with_path_prefix(tmp_path: Path) -> None:
         assert len(lines) >= 1
         for line in lines:
             record = json.loads(line)
-            assert record["file_path"].startswith("engine/"), (
-                f"expected file_path under 'engine/', got {record['file_path']}"
-            )
+            assert record["file_path"].startswith(
+                "engine/"
+            ), f"expected file_path under 'engine/', got {record['file_path']}"

@@ -82,17 +82,10 @@ describe('multi-scope extract', () => {
     const argotRoot = join(import.meta.dir, '..', '..', '..', '..', '..', '..', '..');
     const r = run('bun', ['run', cliEntry, 'extract'], workDir, argotRoot);
 
-    if (r.code !== 0) {
-      console.error('stdout:', r.stdout);
-      console.error('stderr:', r.stderr);
-    }
-    expect(r.code).toBe(0);
+    expect(r.code, `extract failed\nstdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
 
     const cliData = await readFile(join(workDir, '.argot/models/cli/dataset.jsonl'), 'utf-8');
-    const engineData = await readFile(
-      join(workDir, '.argot/models/engine/dataset.jsonl'),
-      'utf-8',
-    );
+    const engineData = await readFile(join(workDir, '.argot/models/engine/dataset.jsonl'), 'utf-8');
 
     const cliLines = cliData.trim().split('\n').filter(Boolean);
     const engineLines = engineData.trim().split('\n').filter(Boolean);

@@ -21,9 +21,7 @@ export const extractCommand = Command.make(
       yield* Console.log(`argot · ${ctx.name} (${ctx.gitRoot})`);
 
       const scopeName = Option.getOrNull(scope);
-      const scopesToRun = scopeName
-        ? ctx.scopes.filter((s) => s.name === scopeName)
-        : ctx.scopes;
+      const scopesToRun = scopeName ? ctx.scopes.filter((s) => s.name === scopeName) : ctx.scopes;
 
       if (scopeName && scopesToRun.length === 0) {
         return yield* Effect.fail(
