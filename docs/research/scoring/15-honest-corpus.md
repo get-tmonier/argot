@@ -1,7 +1,7 @@
 # Phase 7.0 — Honest Corpus
 
 **Branch**: `research/phase-7-honest-eval`
-**Status**: in progress — SHAs pinned at clone time; counts filled in post-extract
+**Status**: complete — Phase 7.0 done; Phase 7.1 benchmarks next
 
 ## Design
 
@@ -17,51 +17,46 @@ Selection criteria:
 
 | bucket | lang | repo A (URL, SHA)                            | repo B (URL, SHA)                            |
 |:-------|:-----|:---------------------------------------------|:---------------------------------------------|
-| small  | py   | https://github.com/encode/httpx @ <SHA>      | https://github.com/psf/requests @ <SHA>      |
-| small  | ts   | https://github.com/sindresorhus/ky @ <SHA>   | https://github.com/colinhacks/zod @ c7805073fef5b6b8857307c3d4b3597a70613bc2 |
-| medium | py   | https://github.com/tiangolo/fastapi @ <SHA>  | https://github.com/pallets/flask @ <SHA>     |
-| medium | ts   | https://github.com/vitejs/vite @ <SHA>       | https://github.com/rollup/rollup @ <SHA>     |
-| large  | py   | https://github.com/pydantic/pydantic @ <SHA> | https://github.com/django/django @ <SHA>     |
-| large  | ts   | https://github.com/Effect-TS/effect @ <SHA>  | https://github.com/angular/angular @ <SHA>   |
+| small  | py   | https://github.com/encode/httpx @ `b5addb64` | https://github.com/psf/requests @ `514c1623` |
+| small  | ts   | https://github.com/sindresorhus/ky @ `e9eeb357` | https://github.com/colinhacks/zod @ `c7805073` |
+| medium | py   | https://github.com/tiangolo/fastapi @ `2fa00db8` | https://github.com/pallets/flask @ `2ac89889` |
+| medium | ts   | https://github.com/vitejs/vite @ `e6e9fc9e`  | https://github.com/rollup/rollup @ `a6be82b8` |
+| large  | py   | https://github.com/pydantic/pydantic @ `a6bf50b7` | https://github.com/django/django @ `a284a491` |
+| large  | ts   | https://github.com/Effect-TS/effect @ `b56a6ec0` | https://github.com/angular/angular @ `a0d45639` |
 
 **Pin SHAs to whatever `HEAD` is at clone time** (documented below per repo).
 Do not hunt for a "nice" commit; reproducibility is what matters.
 
 ## Extracted record counts (post-extract)
 
-Filled in after Task 11.
-
-| repo          | records |
-|:--------------|--------:|
-| httpx         |       ? |
-| requests      |       ? |
-| ky            |       ? |
-| zod           |   14575 |
-| fastapi       |       ? |
-| flask         |       ? |
-| vite          |       ? |
-| rollup        |       ? |
-| pydantic      |       ? |
-| django        |       ? |
-| effect        |       ? |
-| angular       |       ? |
+| repo          | total records | lang records |
+|:--------------|-------------:|-------------:|
+| httpx         |        9,877 |   9,875 py   |
+| requests      |        8,936 |   8,933 py   |
+| ky            |        2,431 |   2,017 ts   |
+| zod           |       14,715 |  14,575 ts   |
+| fastapi       |       10,985 |  10,966 py   |
+| flask         |        9,283 |   9,281 py   |
+| vite          |       22,974 |  20,535 ts   |
+| rollup        |       91,123 |  25,870 ts   |
+| pydantic      |       36,267 |  36,196 py   |
+| django        |       36,738 |  36,313 py   |
+| effect        |       97,525 |  97,525 ts   |
+| angular       |       44,467 |  38,712 ts   |
 
 ## Bucket composition (post-downsample)
 
 Each bucket concatenates its two same-language repos and downsamples to the
 target count. Minimum share per sub-corpus after downsample: ≥ 40%.
 
-| bucket | lang | target | actual (home + foreign, share) |
-|:-------|:-----|-------:|:-------------------------------|
-| small  | py   |   3000 | ?                              |
-| small  | ts   |   3000 | ?                              |
-| medium | py   |   7000 | ?                              |
-| medium | ts   |   7000 | ?                              |
-| large  | py   |  20000 | ?                              |
-| large  | ts   |  20000 | ?                              |
-
-If targets are unreachable (e.g. both chalk + ky land below 3000), rename the
-bucket to its actual size rather than force-fit.
+| bucket | lang | target | combined lang records | both ≥ 40% of target? |
+|:-------|:-----|-------:|----------------------:|:----------------------|
+| small  | py   |   3000 |  18,808               | ✅ (9,875 / 8,933)    |
+| small  | ts   |   3000 |  16,592               | ✅ (2,017 / 14,575)   |
+| medium | py   |   7000 |  20,247               | ✅ (10,966 / 9,281)   |
+| medium | ts   |   7000 |  46,405               | ✅ (20,535 / 25,870)  |
+| large  | py   |  20000 |  72,509               | ✅ (36,196 / 36,313)  |
+| large  | ts   |  20000 | 136,237               | ✅ (97,525 / 38,712)  |
 
 ## Mutations
 

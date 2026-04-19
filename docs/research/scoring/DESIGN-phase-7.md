@@ -1,7 +1,7 @@
 # Phase 7 — Honest eval + pretrained encoder pivot
 
-**Status**: approved 2026-04-19
-**Branch**: `research/phase-7-honest-eval` (to be created)
+**Status**: Phase 7.0 complete — Phase 7.1 next
+**Branch**: `research/phase-7-honest-eval`
 **Parent design**: [`DESIGN.md`](DESIGN.md)
 **Tracker**: [`ROADMAP.md`](ROADMAP.md)
 

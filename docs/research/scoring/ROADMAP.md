@@ -46,15 +46,6 @@
       only unconfounded metric
 - [ ] Update `docs/scoring.md` with user-facing numbers
 
-## Phase 7.0 — honest evaluation rebuild
-
-- [x] 7.0 eval rebuild — honest corpus with 12 repos (6 buckets × 2 langs),
-      pinned SHAs, per-lang benchmarking. `mutations.py` with 4 mutations
-      (case_swap, debug_inject, error_flip, quote_flip). `_benchmark_one`
-      emits synthetic_auc_mean + per-mutation AUCs + cross_auc_same_lang.
-
-**Blocking**: None; new baseline for Phase 7.1+.
-
 ---
 
 ## Decisions made
@@ -144,11 +135,10 @@ Spec: [`DESIGN-phase-7.md`](DESIGN-phase-7.md). Primary metric: `synthetic_auc_m
 Target: ≥ 0.85 at medium bucket on ≥ 2 of 3 seeds. Phase stops at the first
 experiment that clears the bar.
 
-- [ ] 7.0 eval rebuild — same-language pairs + synthetic mutations
-      (`15-honest-corpus.md`). Post-extract: re-verify that candidate pairs
-      (httpx+requests, fastapi+flask, pydantic+django, ky+chalk, vite+rollup,
-      effect+angular) actually cluster at expected bucket sizes; swap/rename
-      buckets if they don't.
+- [x] 7.0 eval rebuild — same-language pairs + synthetic mutations
+      (`15-honest-corpus.md`). Corpus: httpx+requests, fastapi+flask,
+      pydantic+django (py); ky+zod, vite+rollup, effect+angular (ts).
+      chalk and axios dropped (JS-heavy); replaced with zod.
 - [ ] 7.1 re-baseline existing encoders on new eval (`16-rebaseline.md`)
 - [ ] 7.2 density heads on BPE — kNN, GMM (`17-density-heads.md`)
 - [ ] 7.3 frozen CodeRankEmbed + current head (`18-pretrained-jepa.md`)

@@ -1,5 +1,7 @@
 # Phase 7.0 — Honest Eval Rebuild — Implementation Plan
 
+> **Status: COMPLETE** — implemented 2026-04-19 on `research/phase-7-honest-eval`. See `15-honest-corpus.md` for results.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Rebuild the scoring-research eval so the primary metric is `synthetic_auc_mean` (4 deterministic token-level mutations) measured independently within same-language sub-corpora, replacing the language-confounded TS+Py cross-repo metric.
