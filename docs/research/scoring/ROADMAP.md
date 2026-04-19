@@ -2,7 +2,7 @@
 
 > Read at the start of every session. Update at the end.
 
-**Current phase**: Phase 7.1 — re-baseline existing encoders on honest eval
+**Current phase**: Phase 7.2 — density heads on BPE (kNN, GMM)
 **Active branch**: `research/phase-7-honest-eval`
 **Last touched**: 2026-04-19
 **Design docs**: [`DESIGN-phases-1-6.md`](DESIGN-phases-1-6.md) · [`DESIGN-phase-7.md`](DESIGN-phase-7.md)
@@ -17,7 +17,7 @@ Target: ≥ 0.85 at medium bucket on ≥ 2 of 3 seeds
 Corpus: [`phase-7/corpus.md`](phase-7/corpus.md)
 
 - [x] 7.0 — eval rebuild: 12-repo honest corpus, `mutations.py`, per-mutation AUCs in `_benchmark_one`. Sanity run: `cross_auc_same_lang=0.628`, `synthetic_auc_mean=0.507` (3/4 mutations invisible to TF-IDF — expected; Phase 7.1 is the real test).
-- [ ] 7.1 — re-baseline 4 encoders on new eval (`phase-7/16-rebaseline.md`)
+- [x] 7.1 — re-baseline 4 encoders on new eval ([`phase-7/16-rebaseline.md`](phase-7/16-rebaseline.md)). Decision gate NOT cleared: best `synthetic_auc_mean` = 0.525 (word_ngrams medium-py seed 0) vs 0.85 target. All 4 encoders sit in 0.48–0.52 across all buckets. Confirms from-scratch ceiling; move to pretrained in 7.3 after exhausting 7.2.
 - [ ] 7.2 — density heads on BPE: kNN, GMM (`phase-7/17-density-heads.md`)
 - [ ] 7.3 — frozen CodeRankEmbed + current head (`phase-7/18-pretrained-jepa.md`)
 - [ ] 7.4 — frozen CodeRankEmbed + best density head (`phase-7/19-pretrained-density.md`)
@@ -53,6 +53,9 @@ Full results in [`phases-1-6/`](phases-1-6/) · design: [`DESIGN-phases-1-6.md`]
 - 2026-04-19 — cross/injected AUC invalid for Phases 1–6 (measure language detection, not style). Shuffled AUC is the only honest metric for mixed TS+Py pairs.
 - 2026-04-19 — Phase 7 pivots to same-language pairs + synthetic mutations + pretrained encoders.
 - 2026-04-19 — chalk and axios dropped from small-ts (JS-heavy); replaced with colinhacks/zod.
+- 2026-04-19 — rollup dropped from medium-ts (72% JS → bucket was 59% JS); replaced with typescript-eslint (98.5% TS → bucket now 95.4% TS).
+- 2026-04-19 — `cross_auc_same_lang` guard relaxed from `len(langs) == 1` to `dominant_lang_share >= 0.95`; every bucket has tree-sitter stragglers from other languages so the strict guard was always null.
+- 2026-04-19 — `word_ngrams` encoder implemented (word analyzer, ngram (1,2)) to complete the 4-way re-baseline; was a `NotImplementedError` stub.
 
 ## Open questions
 
@@ -104,3 +107,4 @@ Full results in [`phases-1-6/`](phases-1-6/) · design: [`DESIGN-phases-1-6.md`]
   context) with decision gates at 0.85 synthetic AUC. Research mode, no ship
   pressure.
 - **2026-04-19**: Phase 7.0 complete. Honest corpus pinned (12 repos — httpx, requests, ky, zod, fastapi, flask, vite, rollup, pydantic, django, effect, angular — SHAs recorded in `.argot/research/datasets-v2/SHAS.md`). `mutations.py` with 4 mutations (case_swap, debug_inject, error_flip, quote_flip) landed with unit-test coverage. `_benchmark_one` now emits `synthetic_auc_mean` + per-mutation AUCs + `cross_auc_same_lang`. Sanity run on small-py confirmed end-to-end (cross_auc_same_lang=0.628, synthetic_auc_mean=0.507 — 3/4 mutations invisible to TF-IDF as expected; Phase 7.1 tests char_ngrams/BPE). Note: chalk and axios were dropped from small-ts (JS-heavy); replaced with zod (14,575 pure TS records). Next: Phase 7.1 — re-baseline 4 existing encoders on the new eval.
+- **2026-04-19**: Phase 7.1 complete. 4 encoders (tfidf, word_ngrams, token_embed, bpe) × 6 buckets × 3 seeds re-baselined on honest eval. **Decision gate NOT cleared**: best `synthetic_auc_mean` = 0.525 (word_ngrams medium-py seed 0) vs 0.85 target; all encoders sit in 0.48–0.52 band across all sizes. Token-order signal survives (shuffled 0.57–0.83, token_embed leads), and weak real-style signal exists (`cross_auc_same_lang` 0.46–0.65) — encoders work, they just can't resolve the synthetic mutations. Two mid-run infra fixes: rollup → typescript-eslint swap (medium-ts was 59% JavaScript), and `cross_auc_same_lang` guard relaxed to dominant-lang ≥ 95%. `word_ngrams` stub implemented to enable the 4-way comparison. `error_flip`/`quote_flip` land at exactly 0.500 — mutations no-op when trigger syntax absent from hunk (flagged for Phase 8 mutation redesign). BPE killed after 7/18 runs (tracking the pack, not worth continuing). Full write-up: `phase-7/16-rebaseline.md`. Next: Phase 7.2 — density heads (kNN, GMM) on BPE embeddings.
