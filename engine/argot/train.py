@@ -158,11 +158,8 @@ def _train_token_embed(
             total_loss += losses["loss"].item()
         print(f"epoch {epoch}/{epochs}  loss={total_loss / len(loader):.4f}")
 
-    bundle_vectorizer: TfidfVectorizer = TfidfVectorizer()  # placeholder for type compat
-    _ = bundle_vectorizer  # unused, vectorizer field overridden below
-
     return ModelBundle(
-        vectorizer=vocab,  # Vocab stored in TfidfVectorizer slot (sklearn untyped → no error)
+        vectorizer=vocab,  # Vocab stored in TfidfVectorizer slot (sklearn untyped, mypy accepts)
         model=model,
         input_dim=vocab_size,
         embed_dim=EMBED_DIM,
