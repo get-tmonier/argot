@@ -1,0 +1,9 @@
+{
+  "scopes": [
+    {
+      "name": "default",
+      "path_prefix": "",
+      "paradigm": "Fetch-first HTTP client built on a factory function (createInstance/ky.create()/ky.extend()) that returns a callable KyInstance — callers never use `new` at call sites. All configuration is a plain Options object merging KyOptions with RequestInit; response body access is via typed method shortcuts on a ResponsePromise (`.json<T>()`, `.text()`, `.arrayBuffer()`). Error handling uses a custom HTTPError subclass (extends KyError extends Error) carrying `.response`, `.request`, and pre-parsed `.data` — thrown automatically on non-2xx status, caught at the top of a single async IIFE, never via callbacks or `.catch()` chains in user code. Hooks (init/beforeRequest/beforeRetry/afterResponse/beforeError) are arrays of async functions on a plain `hooks` object — no EventEmitter, no axios-style interceptor class, no `this`-heavy patterns. No Node.js `http`/`https` module, no `require()`, no explicit `new Promise()` constructor, no class instantiation at call sites."
+    }
+  ]
+}
