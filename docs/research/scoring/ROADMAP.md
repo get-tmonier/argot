@@ -4,7 +4,7 @@
 
 **Current phase**: Phase 2 — sizing study (in progress — corpus reclassification, re-running small + xlarge benchmarks)
 **Active branch**: `research/scoring-benchmark`
-**Last touched**: 2026-04-18
+**Last touched**: 2026-04-19
 **Spec**: [`DESIGN.md`](DESIGN.md)
 
 ---
@@ -57,6 +57,15 @@ without merging code.
 
 **Blocking**: Phase 3 techniques each resolved.
 
+## Phase 7.0 — honest evaluation rebuild
+
+- [x] 7.0 eval rebuild — honest corpus with 12 repos (6 buckets × 2 langs),
+      pinned SHAs, per-lang benchmarking. `mutations.py` with 4 mutations
+      (case_swap, debug_inject, error_flip, quote_flip). `_benchmark_one`
+      emits synthetic_auc_mean + per-mutation AUCs + cross_auc_same_lang.
+
+**Blocking**: None; new baseline for Phase 7.1+.
+
 ---
 
 ## Decisions made
@@ -92,3 +101,4 @@ _None yet._
   vscode added for xlarge TS; small TS slot TBD. benchmark fix: streaming
   JSONL load in `corpus.py` (was crashing on 9.5 GB xlarge file). Re-running
   small + xlarge benchmarks after new repo acquisition.
+- **2026-04-19**: Phase 7.0 complete. Honest corpus pinned (12 repos — httpx, requests, ky, zod, fastapi, flask, vite, rollup, pydantic, django, effect, angular — SHAs recorded in `.argot/research/datasets-v2/SHAS.md`). `mutations.py` with 4 mutations (case_swap, debug_inject, error_flip, quote_flip) landed with unit-test coverage. `_benchmark_one` now emits `synthetic_auc_mean` + per-mutation AUCs + `cross_auc_same_lang`. Sanity run on small-py confirmed end-to-end (cross_auc_same_lang=0.628, synthetic_auc_mean=0.507 — 3/4 mutations invisible to TF-IDF as expected; Phase 7.1 tests char_ngrams/BPE). Note: chalk and axios were dropped from small-ts (JS-heavy); replaced with zod (14,575 pure TS records). Next: Phase 7.1 — re-baseline 4 existing encoders on the new eval.
