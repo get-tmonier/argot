@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from typing import Any
 
@@ -26,6 +27,9 @@ def _clone_with_hunk(record: dict[str, Any], new_hunk: list[dict[str, Any]]) -> 
     return {**record, "hunk_tokens": new_hunk}
 
 
+_STRING_RE = re.compile(r"^(['\"])(.*)\1$", re.DOTALL)
+
+
 @_register("case_swap")
 def _case_swap(record: dict[str, Any], seed: int) -> dict[str, Any]:
     raise NotImplementedError
@@ -43,4 +47,15 @@ def _error_flip(record: dict[str, Any], seed: int) -> dict[str, Any]:
 
 @_register("quote_flip")
 def _quote_flip(record: dict[str, Any], seed: int) -> dict[str, Any]:
-    raise NotImplementedError
+    del seed  # deterministic transform
+    new_hunk: list[dict[str, Any]] = []
+    for tok in record["hunk_tokens"]:
+        text = tok["text"]
+        m = _STRING_RE.match(text)
+        if m is None:
+            new_hunk.append(tok)
+            continue
+        old_quote, body = m.group(1), m.group(2)
+        new_quote = "'" if old_quote == '"' else '"'
+        new_hunk.append({**tok, "text": f"{new_quote}{body}{new_quote}"})
+    return _clone_with_hunk(record, new_hunk)
