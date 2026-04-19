@@ -67,6 +67,49 @@ research-benchmark-token-embed:
         --dataset {{REPO_ROOT}}/.argot/research/buckets/large.jsonl --sizes 20000 --seeds 3 \
         --encoder token_embed --out {{REPO_ROOT}}/.argot/research/results-token-embed.jsonl
 
+research-extract-honest:
+	scripts/research/extract-honest-corpus.sh
+
+research-concat-honest:
+	uv run --package argot-engine python -m argot.corpus concat \
+		.argot/research/datasets-v2/httpx.jsonl .argot/research/datasets-v2/requests.jsonl \
+		-o .argot/research/buckets-v2/small-py.jsonl
+	uv run --package argot-engine python -m argot.corpus concat \
+		.argot/research/datasets-v2/ky.jsonl .argot/research/datasets-v2/chalk.jsonl \
+		-o .argot/research/buckets-v2/small-ts.jsonl
+	uv run --package argot-engine python -m argot.corpus concat \
+		.argot/research/datasets-v2/fastapi.jsonl .argot/research/datasets-v2/flask.jsonl \
+		-o .argot/research/buckets-v2/medium-py.jsonl
+	uv run --package argot-engine python -m argot.corpus concat \
+		.argot/research/datasets-v2/vite.jsonl .argot/research/datasets-v2/rollup.jsonl \
+		-o .argot/research/buckets-v2/medium-ts.jsonl
+	uv run --package argot-engine python -m argot.corpus concat \
+		.argot/research/datasets-v2/pydantic.jsonl .argot/research/datasets-v2/django.jsonl \
+		-o .argot/research/buckets-v2/large-py.jsonl
+	uv run --package argot-engine python -m argot.corpus concat \
+		.argot/research/datasets-v2/effect.jsonl .argot/research/datasets-v2/angular.jsonl \
+		-o .argot/research/buckets-v2/large-ts.jsonl
+
+research-honest-benchmark encoder="tfidf" seeds="3" out=".argot/research/results-honest.jsonl":
+	uv run --package argot-engine python -m argot.corpus benchmark \
+		--dataset .argot/research/buckets-v2/small-py.jsonl --sizes 3000 --seeds {{seeds}} \
+		--encoder {{encoder}} --out {{out}}
+	uv run --package argot-engine python -m argot.corpus benchmark \
+		--dataset .argot/research/buckets-v2/small-ts.jsonl --sizes 3000 --seeds {{seeds}} \
+		--encoder {{encoder}} --out {{out}}
+	uv run --package argot-engine python -m argot.corpus benchmark \
+		--dataset .argot/research/buckets-v2/medium-py.jsonl --sizes 7000 --seeds {{seeds}} \
+		--encoder {{encoder}} --out {{out}}
+	uv run --package argot-engine python -m argot.corpus benchmark \
+		--dataset .argot/research/buckets-v2/medium-ts.jsonl --sizes 7000 --seeds {{seeds}} \
+		--encoder {{encoder}} --out {{out}}
+	uv run --package argot-engine python -m argot.corpus benchmark \
+		--dataset .argot/research/buckets-v2/large-py.jsonl --sizes 20000 --seeds {{seeds}} \
+		--encoder {{encoder}} --out {{out}}
+	uv run --package argot-engine python -m argot.corpus benchmark \
+		--dataset .argot/research/buckets-v2/large-ts.jsonl --sizes 20000 --seeds {{seeds}} \
+		--encoder {{encoder}} --out {{out}}
+
 # --- individual checks ---
 
 lint:
