@@ -2,7 +2,7 @@
 
 > Read this at the start of every session. Update it at the end.
 
-**Current phase**: Phase 4 complete — combined optimizations benchmarked
+**Current phase**: Phase 5 complete — sequential encoders (2/3 branches)
 **Active branch**: `research/combined-optimizations`
 **Last touched**: 2026-04-19
 **Spec**: [`DESIGN.md`](DESIGN.md)
@@ -69,19 +69,39 @@
 - `docs/scoring.md` update: minimum viable corpus, quality characteristics.
   Blocked on same-language benchmark to give honest numbers.
 
-## Next research direction
+## Phase 5 — sequential encoders
 
-Replace TF-IDF with a sequential encoder (branch off `research/scoring-benchmark`):
+Branch off `research/scoring-benchmark`. Combined-optimizations kept **off** to isolate
+encoder signal. Primary metric: shuffled AUC. Kill criterion for Branch 3: Branch 1
+shuffled AUC must beat char_ngrams by ≥+0.02 on ≥2 buckets.
 
-1. **Word n-grams** — `TfidfVectorizer(analyzer="word", ngram_range=(1,3))`.
-   One-line change. Quick proof that sequential signal exists.
-2. **Learned token embeddings + mean pooling** — small vocab embedding table,
-   position-weighted, dense. No pretrained weights, < 5MB.
-3. **Small transformer encoder** — 2-layer, 128 hidden, 4 heads. Genuine
-   world model. Still CPU-runnable, < 10MB.
+- [x] Prep PR: encoder dispatch infrastructure (EncoderKind, _train_tfidf factored, stubs)
+- [x] 10-word-ngrams.md: `TfidfVectorizer(analyzer="word", ngram_range=(1,3))` — kill
+      criterion triggered; Branch 3 blocked
+- [x] 11-token-embeddings.md: `nn.Embedding` + masked mean pool — shuffled AUC beats
+      char_ngrams at small (+0.139) and medium (+0.046); cross-repo collapses at large
+- [ ] 12-transformer-encoder.md — **BLOCKED** (Branch 1 kill criterion triggered)
 
-All three stay laptop-runnable with no pretrained downloads. Each gets its own
-branch + benchmark doc, same protocol as Phase 3.
+**Phase 5 findings:**
+
+1. Token order signal exists — both encoders beat TF-IDF baseline on shuffled AUC.
+2. Dense > sparse for order detection — token embeddings beat char_ngrams on shuffled AUC
+   at small and medium despite mean pooling being order-invariant. The gain is from richer
+   representation, not positional encoding.
+3. Cross-repo vs shuffled trade-off — dense embeddings overfit to in-repo vocabulary at
+   large scale (cross-repo 0.457 vs baseline 0.544 at 20k). char_ngrams remains the best
+   cross-repo encoder at every scale.
+4. Kill criterion insight — word-level order doesn't beat char-level features, suggesting
+   style signal lives sub-word. A transformer on raw token atoms is unlikely to leapfrog
+   char_ngrams without subword tokenisation (BPE).
+
+**Recommendation for next phase:**
+- Token embeddings + context_after + adaptive_epochs: address the cross-repo regression
+  via the same combined-study approach as Phase 4.
+- Subword tokenisation: BPE vocab prevents the embedding table fragmenting into
+  repo-specific surface forms, expected to fix the large-scale cross-repo collapse.
+- Same-language corpus pairs: current benchmark conflates language detection with style
+  (all bucket pairs are TS + Py). Valid shuffled AUC requires same-language pairs.
 
 ## Session log
 
@@ -97,3 +117,8 @@ branch + benchmark doc, same protocol as Phase 3.
   large — consistent improvement over baseline but gains not additive vs
   char_ngrams alone on cross-repo. Key insight: TF-IDF is the fundamental
   bottleneck; sequential encoder is the next research direction.
+- **2026-04-19**: Phase 5 complete (2/3 branches). Word n-grams kill criterion
+  triggered — branch 3 blocked. Token embeddings beat char_ngrams on shuffled
+  AUC at small (+0.139) and medium (+0.046) but cross-repo collapses at large
+  scale. Conclusion: dense representation wins on order detection; char_ngrams
+  still wins on style generalisation. Next: BPE tokenisation + combined study.
