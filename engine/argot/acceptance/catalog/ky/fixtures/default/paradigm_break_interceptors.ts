@@ -3,6 +3,7 @@ import {mergeHeaders, mergeHooks} from './utils.js';
 
 type HookFn = (options: NormalizedOptions) => NormalizedOptions | Promise<NormalizedOptions>;
 type ResponseHookFn = (response: Response) => Response | Promise<Response>;
+type RejectedFn = (error: unknown) => unknown;
 
 function normalizeHooksArray(
 	hooks: HookFn | HookFn[] | undefined,
@@ -30,40 +31,64 @@ function mergeInstanceOptions(
 	} as NormalizedOptions;
 }
 
+// Axios-style interceptor manager — ky uses plain hooks arrays on `options.hooks`, never this pattern
+class InterceptorManager<V> {
+	private readonly handlers: Array<{fulfilled: (value: V) => V | Promise<V>; rejected: RejectedFn} | null> = [];
+
+	use(fulfilled: (value: V) => V | Promise<V>, rejected?: RejectedFn): number {
+		this.handlers.push({fulfilled, rejected: rejected ?? ((e: unknown) => Promise.reject(e))});
+		return this.handlers.length - 1;
+	}
+
+	eject(id: number): void {
+		if (this.handlers[id]) {
+			this.handlers[id] = null;
+		}
+	}
+
+	forEach(fn: (handler: {fulfilled: (value: V) => V | Promise<V>; rejected: RejectedFn}) => void): void {
+		for (const handler of this.handlers) {
+			if (handler !== null) {
+				fn(handler);
+			}
+		}
+	}
+}
+
 function createInstance(defaults: Partial<Options> = {}): KyInstance & {
 	interceptors: {
-		request: {use: (fn: HookFn) => void};
-		response: {use: (fn: ResponseHookFn) => void};
+		request: InterceptorManager<NormalizedOptions>;
+		response: InterceptorManager<Response>;
 	};
 } {
-	const hooks = createDefaultHooks();
+	const requestInterceptors = new InterceptorManager<NormalizedOptions>();
+	const responseInterceptors = new InterceptorManager<Response>();
 
-	const client = ((url: string, options: Options = {}) =>
-		fetch(url, mergeInstanceOptions(defaults, options))) as unknown as KyInstance;
+	const client = ((url: string, options: Options = {}) => {
+		let chain: Array<((v: unknown) => unknown) | undefined> = [
+			(opts: unknown) => fetch(url, opts as RequestInit),
+			undefined,
+		];
+
+		requestInterceptors.forEach(({fulfilled, rejected}) => {
+			chain = [(v: unknown) => fulfilled(v as NormalizedOptions), rejected, ...chain];
+		});
+		responseInterceptors.forEach(({fulfilled, rejected}) => {
+			chain = [...chain, (v: unknown) => fulfilled(v as Response), rejected];
+		});
+
+		let promise = Promise.resolve(mergeInstanceOptions(defaults, options)) as Promise<unknown>;
+		while (chain.length > 0) {
+			promise = promise.then(chain.shift() as (v: unknown) => unknown, chain.shift());
+		}
+
+		return promise;
+	}) as unknown as KyInstance;
 
 	(client as unknown as {interceptors: unknown}).interceptors = {
-		request: {
-			use(fn: HookFn) {
-				hooks.beforeRequest.push(fn);
-			},
-		},
-		response: {
-			use(fn: ResponseHookFn) {
-				hooks.afterResponse.push(fn);
-			},
-		},
+		request: requestInterceptors,
+		response: responseInterceptors,
 	};
-
-	// Register a request interceptor (axios-style — ky uses hooks arrays, not this)
-	client.interceptors.request.use((options) => {
-		options.headers = {...(options.headers ?? {}), 'X-Request-ID': crypto.randomUUID()};
-		return options;
-	});
-
-	client.interceptors.response.use(
-		(response) => response,
-		(error) => Promise.reject(error),
-	);
 
 	return client as ReturnType<typeof createInstance>;
 }

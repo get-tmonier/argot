@@ -31,17 +31,17 @@
       "name": "paradigm_break_explicit_promise",
       "scope": "default",
       "file": "fixtures/default/paradigm_break_explicit_promise.ts",
-      "hunk_start_line": 33,
-      "hunk_end_line": 53,
+      "hunk_start_line": 28,
+      "hunk_end_line": 80,
       "is_break": true,
-      "rationale": "ky never wraps fetch in new Promise(); it chains directly on the fetch Promise or uses async/await"
+      "rationale": "ky is fetch-only; Node.js http/https transport with res.on('data') event listeners and Buffer.concat is never used"
     },
     {
       "name": "paradigm_break_interceptors",
       "scope": "default",
       "file": "fixtures/default/paradigm_break_interceptors.ts",
-      "hunk_start_line": 33,
-      "hunk_end_line": 69,
+      "hunk_start_line": 34,
+      "hunk_end_line": 95,
       "is_break": true,
       "rationale": "ky uses plain hooks arrays on a hooks object; axios-style client.interceptors.request.use() is never present"
     },
@@ -58,10 +58,10 @@
       "name": "control_response_handling",
       "scope": "default",
       "file": "fixtures/default/control_response_handling.ts",
-      "hunk_start_line": 38,
-      "hunk_end_line": 68,
+      "hunk_start_line": 37,
+      "hunk_end_line": 57,
       "is_break": false,
-      "rationale": "Idiomatic ky ResponsePromise pattern: response.clone(), status check throwing HTTPError, typed .json<T>() / .text() shortcuts"
+      "rationale": "Idiomatic ky options normalization: new Headers(), mergeHeaders/mergeHooks spread, hooks defaultHooks merge, searchParams normalization, prefixUrl/retry/timeout defaults"
     }
   ]
 }

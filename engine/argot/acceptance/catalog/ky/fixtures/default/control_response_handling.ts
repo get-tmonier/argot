@@ -1,68 +1,58 @@
-import type {Options, NormalizedOptions, ResponsePromise} from './types.js';
+import type {Options, NormalizedOptions, RetryOptions, Hooks} from './types.js';
 import {HTTPError} from './errors.js';
+import {mergeHeaders, mergeHooks} from './utils.js';
 
-type ParsedBody<T> = T extends string
-	? string
-	: T extends ArrayBuffer
-		? ArrayBuffer
-		: T extends Blob
-			? Blob
-			: T;
+const retryMethods = ['get', 'put', 'head', 'delete', 'options', 'trace'];
+const retryStatusCodes = [408, 413, 429, 500, 502, 503, 504];
+const retryAfterStatusCodes = [413, 429, 503];
 
-async function parseErrorBody(response: Response): Promise<unknown> {
-	const contentType = response.headers.get('content-type') ?? '';
-	try {
-		if (contentType.includes('application/json')) {
-			return await response.clone().json();
-		}
+const defaultHooks: Required<Hooks> = {
+	beforeRequest: [],
+	beforeRetry: [],
+	beforeError: [],
+	afterResponse: [],
+};
 
-		return await response.clone().text();
-	} catch {
+function normalizeSearchParams(input: Options['searchParams']): URLSearchParams | undefined {
+	if (!input) {
 		return undefined;
 	}
-}
 
-async function checkResponseStatus(
-	response: Response,
-	request: Request,
-	options: NormalizedOptions,
-): Promise<Response> {
-	if (response.ok) {
-		return response;
+	if (input instanceof URLSearchParams) {
+		return input;
 	}
 
-	const data = await parseErrorBody(response);
-	throw new HTTPError(response, request, options, data);
+	if (typeof input === 'string') {
+		return new URLSearchParams(input);
+	}
+
+	const params = new URLSearchParams();
+	for (const [key, value] of Object.entries(input)) {
+		params.set(key, String(value));
+	}
+
+	return params;
 }
 
-function createResponsePromise(
-	fetchPromise: Promise<Response>,
-	request: Request,
-	options: NormalizedOptions,
-): ResponsePromise {
-	const checkedPromise = fetchPromise.then(async (response) =>
-		checkResponseStatus(response.clone(), request, options),
-	);
+function normalizeOptions(input: Options, prefixUrl?: string | URL): NormalizedOptions {
+	const headers = new Headers(mergeHeaders(input.headers));
 
-	const responsePromise = Object.assign(checkedPromise, {
-		async json<T>(): Promise<T> {
-			return (await checkedPromise).json() as Promise<T>;
-		},
-		async text(): Promise<string> {
-			return (await checkedPromise).text();
-		},
-		async arrayBuffer(): Promise<ArrayBuffer> {
-			return (await checkedPromise).arrayBuffer();
-		},
-		async blob(): Promise<Blob> {
-			return (await checkedPromise).blob();
-		},
-		async formData(): Promise<FormData> {
-			return (await checkedPromise).formData();
-		},
-	});
+	if (!headers.has('accept')) {
+		headers.set('accept', 'application/json, text/plain, */*');
+	}
 
-	return responsePromise as ResponsePromise;
+	return {
+		...input,
+		headers,
+		prefixUrl: prefixUrl ? String(prefixUrl) : '',
+		retry: typeof input.retry === 'number' ? {limit: input.retry} : (input.retry ?? {limit: 2}),
+		timeout: input.timeout ?? 10_000,
+		hooks: {
+			...defaultHooks,
+			...mergeHooks(defaultHooks, input.hooks ?? {}),
+		},
+		searchParams: normalizeSearchParams(input.searchParams),
+	};
 }
 
-export {createResponsePromise, checkResponseStatus, parseErrorBody};
+export {normalizeOptions, normalizeSearchParams, defaultHooks};
