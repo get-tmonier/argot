@@ -98,6 +98,24 @@
       "min_band": "suspicious",
       "max_band": "foreign",
       "rationale": "Imperative async/await + nested calls in a codebase that uses pipe() / Effect.gen throughout. Expect at least 'suspicious'."
+    },
+    {
+      "name": "paradigm_break_typed_exception",
+      "file": "paradigm_break_typed_exception.py",
+      "hunk_start_line": 28,
+      "hunk_end_line": 40,
+      "min_band": "suspicious",
+      "max_band": "foreign",
+      "rationale": "Bare `except Exception` with print() in a codebase that uses typed httpx exception hierarchy. LLM-typical fallback pattern."
+    },
+    {
+      "name": "paradigm_break_pathlib",
+      "file": "paradigm_break_pathlib.py",
+      "hunk_start_line": 26,
+      "hunk_end_line": 37,
+      "min_band": "unusual",
+      "max_band": "foreign",
+      "rationale": "os.path string-based path handling in a codebase that uses pathlib.Path throughout."
     }
   ]
 }
