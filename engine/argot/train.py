@@ -280,7 +280,6 @@ def _get_bpe_embeddings(bundle: ModelBundle, records: list[dict[str, Any]]) -> n
     if not isinstance(bpe_vocab, BpeVocab):
         raise TypeError(f"expected BpeVocab, got {type(bpe_vocab)}")
     ctx_x, hunk_x = _encode_records(records, bpe_vocab, _SEQ_LEN)
-    # Encode hunks only — the density head models the hunk distribution
     bundle.model.encoder.eval()
     with torch.no_grad():
         emb = bundle.model.encoder(hunk_x)

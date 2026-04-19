@@ -82,7 +82,7 @@ def fixture_to_record(entry_dir: Path, spec: FixtureSpec) -> dict[str, Any]:
     hunk_tokens = tokenize_lines(lines, lang, hunk_start, hunk_end)
     return {
         "_repo": "acceptance-fixture",
-        "author_date_iso": "0",
+        "author_date_iso": "0",  # fixture records are never time-split; sentinel value
         "language": lang,
         "context_before": [{"text": t.text} for t in ctx_tokens],
         "context_after": [],
@@ -141,6 +141,10 @@ def run_entry(entry_dir: Path, epochs: int = EPOCHS) -> EntryResult:
         scope_fs = [f for f in fixture_scores if f["scope"] == scope.name]
         breaks = [f["score"] for f in scope_fs if f["is_break"]]
         controls = [f["score"] for f in scope_fs if not f["is_break"]]
+        if not breaks:
+            raise RuntimeError(f"Scope {scope.name!r}: no break fixtures in manifest")
+        if not controls:
+            raise RuntimeError(f"Scope {scope.name!r}: no control fixtures in manifest")
         bm = sum(breaks) / len(breaks) if breaks else 0.0
         cm = sum(controls) / len(controls) if controls else 0.0
         delta = bm - cm
