@@ -76,7 +76,7 @@ def fixture_to_record(entry_dir: Path, spec: FixtureSpec) -> dict[str, Any]:
     lines = source.splitlines()
     lang = language_for_path(str(fixture_path)) or "python"
     hunk_start = spec.hunk_start_line - 1
-    hunk_end = spec.hunk_end_line - 1
+    hunk_end = spec.hunk_end_line
     ctx_start = max(0, hunk_start - 20)
     ctx_tokens = tokenize_lines(lines, lang, ctx_start, hunk_start)
     hunk_tokens = tokenize_lines(lines, lang, hunk_start, hunk_end)

@@ -115,7 +115,7 @@ def test_fixture_to_record_returns_tokens(tmp_path: Path) -> None:
     specs = load_manifest(entry)
     record = fixture_to_record(entry, specs[0])
     assert record["language"] == "typescript"
-    assert len(record["hunk_tokens"]) > 0
+    assert len(record["hunk_tokens"]) >= 3
     assert all("text" in t for t in record["hunk_tokens"])
 
 
