@@ -12,19 +12,31 @@ export const BunStyleCheckerLive = Layer.effect(StyleChecker)(
       ref,
       modelPath,
       threshold,
+      pathPrefix,
     }: {
       repoPath: string;
       ref: string;
       modelPath: string;
       threshold: number;
+      pathPrefix?: string;
     }) =>
       Effect.callback<boolean, CheckExitNonZero | CheckSpawnFailed>((resume) => {
         const { cmd, args } = engineCmd('argot.check');
+        const extraArgs: string[] = pathPrefix ? ['--path-prefix', pathPrefix] : [];
         let proc: ReturnType<typeof spawn>;
         try {
           proc = spawn(
             cmd,
-            [...args, repoPath, ref, '--model', modelPath, '--threshold', String(threshold)],
+            [
+              ...args,
+              repoPath,
+              ref,
+              '--model',
+              modelPath,
+              '--threshold',
+              String(threshold),
+              ...extraArgs,
+            ],
             { stdio: ['ignore', 'inherit', 'pipe'] },
           );
         } catch (cause: unknown) {

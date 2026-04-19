@@ -7,6 +7,7 @@ export const runCheckStyle = (args: {
   ref: string;
   modelPath: string;
   threshold: number;
+  pathPrefix?: string;
 }): Effect.Effect<boolean, CheckError, StyleChecker> =>
   Effect.gen(function* () {
     const styleChecker = yield* StyleChecker;

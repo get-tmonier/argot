@@ -8,6 +8,7 @@ interface StyleCheckerShape {
     ref: string;
     modelPath: string;
     threshold: number;
+    pathPrefix?: string;
   }) => Effect.Effect<boolean, CheckError>;
 }
 
