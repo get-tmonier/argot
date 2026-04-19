@@ -71,6 +71,7 @@ def _load_records(path: Path, max_records: int | None = None) -> list[dict[str, 
             slim = {
                 "_repo": r["_repo"],
                 "author_date_iso": r["author_date_iso"],
+                "language": r["language"],
                 "context_before": [{"text": t["text"]} for t in r["context_before"]],
                 "hunk_tokens": [{"text": t["text"]} for t in r["hunk_tokens"]],
             }

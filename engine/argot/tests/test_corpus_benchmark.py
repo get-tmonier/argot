@@ -81,8 +81,10 @@ def test_load_records_strips_to_required_fields(tmp_path: Path) -> None:
     records = _load_records(dataset)
 
     assert len(records) == 10
+    expected_keys = {"_repo", "author_date_iso", "language", "context_before", "hunk_tokens"}
     for r in records:
-        assert set(r.keys()) == {"_repo", "author_date_iso", "context_before", "hunk_tokens"}
+        assert set(r.keys()) == expected_keys
+        assert r["language"] == "python"  # _make_tagged_dataset hard-codes python
         for token in r["context_before"]:
             assert set(token.keys()) == {"text"}
         for token in r["hunk_tokens"]:
