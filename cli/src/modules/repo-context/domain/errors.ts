@@ -14,4 +14,17 @@ export class SettingsReadError extends Data.TaggedError('SettingsReadError')<{
   }
 }
 
-export type RepoContextError = GitRootNotFound | SettingsReadError;
+export class ScopeConfigInvalid extends Data.TaggedError('ScopeConfigInvalid')<{
+  readonly cause: unknown;
+}> {}
+
+export class ScopeNotFound extends Data.TaggedError('ScopeNotFound')<{
+  readonly name: string;
+  readonly available: readonly string[];
+}> {}
+
+export type RepoContextError =
+  | GitRootNotFound
+  | SettingsReadError
+  | ScopeConfigInvalid
+  | ScopeNotFound;
