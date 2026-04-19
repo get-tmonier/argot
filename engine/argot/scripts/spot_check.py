@@ -29,7 +29,7 @@ def load_jsonl(path: Path, max_records: int = 2000) -> list[dict[str, Any]]:
                 continue
             r = json.loads(line)
             records.append({
-                "_repo": r["_repo"],
+                "_repo": r.get("_repo", "argot"),
                 "author_date_iso": r["author_date_iso"],
                 "language": r["language"],
                 "context_before": [{"text": t["text"]} for t in r["context_before"]],
