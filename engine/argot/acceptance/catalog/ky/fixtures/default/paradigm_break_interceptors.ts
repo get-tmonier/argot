@@ -54,6 +54,17 @@ function createInstance(defaults: Partial<Options> = {}): KyInstance & {
 		},
 	};
 
+	// Register a request interceptor (axios-style — ky uses hooks arrays, not this)
+	client.interceptors.request.use((options) => {
+		options.headers = {...(options.headers ?? {}), 'X-Request-ID': crypto.randomUUID()};
+		return options;
+	});
+
+	client.interceptors.response.use(
+		(response) => response,
+		(error) => Promise.reject(error),
+	);
+
 	return client as ReturnType<typeof createInstance>;
 }
 

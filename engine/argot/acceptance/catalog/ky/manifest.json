@@ -32,7 +32,7 @@
       "scope": "default",
       "file": "fixtures/default/paradigm_break_explicit_promise.ts",
       "hunk_start_line": 33,
-      "hunk_end_line": 51,
+      "hunk_end_line": 53,
       "is_break": true,
       "rationale": "ky never wraps fetch in new Promise(); it chains directly on the fetch Promise or uses async/await"
     },
@@ -41,7 +41,7 @@
       "scope": "default",
       "file": "fixtures/default/paradigm_break_interceptors.ts",
       "hunk_start_line": 33,
-      "hunk_end_line": 58,
+      "hunk_end_line": 69,
       "is_break": true,
       "rationale": "ky uses plain hooks arrays on a hooks object; axios-style client.interceptors.request.use() is never present"
     },
@@ -59,7 +59,7 @@
       "scope": "default",
       "file": "fixtures/default/control_response_handling.ts",
       "hunk_start_line": 38,
-      "hunk_end_line": 66,
+      "hunk_end_line": 68,
       "is_break": false,
       "rationale": "Idiomatic ky ResponsePromise pattern: response.clone(), status check throwing HTTPError, typed .json<T>() / .text() shortcuts"
     }
