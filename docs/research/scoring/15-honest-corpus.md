@@ -68,7 +68,39 @@ bucket to its actual size rather than force-fit.
 See `DESIGN-phase-7.md` §Feasible mutation set. Four mutations:
 `case_swap`, `debug_inject`, `error_flip`, `quote_flip`.
 
-Sample mutated records (filled in Task 14 after the sanity run).
+Sample mutated records (captured in Task 13 sanity run).
+
+### case_swap sample 0
+- before: `assert response . status_code == 200 assert response . reason_phrase == " OK " # The encoded byte string is consistent with either ISO-8859-1 or # WINDOWS-1252. Versions <6.0 of chardet claim the former, while chardet # 6.0 detects the latter. assert response . encoding in ( " ISO-8859-1 " , " WINDOWS-1252 "`
+- after:  `assert response . statusCode == 200 assert response . reasonPhrase == " OK " # The encoded byte string is consistent with either ISO-8859-1 or # WINDOWS-1252. Versions <6.0 of chardet claim the former, while chardet # 6.0 detects the latter. assert response . encoding in ( " ISO-8859-1 " , " WINDOWS-1252 "`
+
+### case_swap sample 1
+- before: `" DecodingError " , " delete " , " DigestAuth " , " FunctionAuth " , " get " , " head " , " Headers " ,`
+- after:  `" decoding_error " , " delete " , " digest_auth " , " function_auth " , " get " , " head " , " Headers " ,`
+
+### debug_inject sample 0
+- before: `assert response . status_code == 200 assert response . reason_phrase == " OK " # The encoded byte string is consistent with either ISO-8859-1 or # WINDOWS-1252. Versions <6.0 of chardet claim the former, while chardet # 6.0 detects the latter. assert response . encoding in ( " ISO-8859-1 " , " WINDOWS-1252 "`
+- after:  `assert response . status_code == 200 assert response . reason_phrase == " OK " # The encoded byte string is consistent with either ISO-8859-1 or # WINDOWS-1252. Versions <6.0 of chardet claim the former, while chardet # 6.0 detects the latter. assert response . encoding in ( " print ( "DEBUG" ) ISO-8859-1 "`
+
+### debug_inject sample 1
+- before: `" DecodingError " , " delete " , " DigestAuth " , " FunctionAuth " , " get " , " head " , " Headers " ,`
+- after:  `" DecodingError " , " delete " , " DigestAuth " , " FunctionAuth " , " get " , " head " , " Headers " print ( "DEBUG"`
+
+### error_flip sample 0
+- before: `assert response . status_code == 200 assert response . reason_phrase == " OK " # The encoded byte string is consistent with either ISO-8859-1 or # WINDOWS-1252. Versions <6.0 of chardet claim the former, while chardet # 6.0 detects the latter. assert response . encoding in ( " ISO-8859-1 " , " WINDOWS-1252 "`
+- after:  `assert response . status_code == 200 assert response . reason_phrase == " OK " # The encoded byte string is consistent with either ISO-8859-1 or # WINDOWS-1252. Versions <6.0 of chardet claim the former, while chardet # 6.0 detects the latter. assert response . encoding in ( " ISO-8859-1 " , " WINDOWS-1252 "`
+
+### error_flip sample 1
+- before: `" DecodingError " , " delete " , " DigestAuth " , " FunctionAuth " , " get " , " head " , " Headers " ,`
+- after:  `" DecodingError " , " delete " , " DigestAuth " , " FunctionAuth " , " get " , " head " , " Headers " ,`
+
+### quote_flip sample 0
+- before: `assert response . status_code == 200 assert response . reason_phrase == " OK " # The encoded byte string is consistent with either ISO-8859-1 or # WINDOWS-1252. Versions <6.0 of chardet claim the former, while chardet # 6.0 detects the latter. assert response . encoding in ( " ISO-8859-1 " , " WINDOWS-1252 "`
+- after:  `assert response . status_code == 200 assert response . reason_phrase == " OK " # The encoded byte string is consistent with either ISO-8859-1 or # WINDOWS-1252. Versions <6.0 of chardet claim the former, while chardet # 6.0 detects the latter. assert response . encoding in ( " ISO-8859-1 " , " WINDOWS-1252 "`
+
+### quote_flip sample 1
+- before: `" DecodingError " , " delete " , " DigestAuth " , " FunctionAuth " , " get " , " head " , " Headers " ,`
+- after:  `" DecodingError " , " delete " , " DigestAuth " , " FunctionAuth " , " get " , " head " , " Headers " ,`
 
 ## Harness usage
 
