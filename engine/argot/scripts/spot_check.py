@@ -16,8 +16,10 @@ from argot.train import ModelBundle, train_model
 from argot.validate import score_records, split_by_time
 
 FIXTURES_DIR = DEFAULT_FIXTURES_DIR
-# Argot's own git history — multi-scope extract covers both cli/ and engine/
-CORPUS_PATH = Path(".argot/dataset.jsonl")
+ARGOT_CORPUS = Path(".argot/dataset.jsonl")
+# vigie: only packages/app uses Effect-TS — rest is React/landing/etc
+VIGIE_CORPUS = Path("/Users/damienmeur/projects/vigie/.argot/dataset.jsonl")
+VIGIE_EFFECT_PREFIX = "packages/app/"
 OUTPUT_PATH = Path("docs/research/scoring/phase-8/spot-check.md")
 
 TS_LANGS = {"typescript", "javascript"}
@@ -63,14 +65,40 @@ def fixture_to_record(fixture_path: Path, start_line: int, end_line: int) -> dic
     }
 
 
+def train_scope_ts(epochs: int = 20) -> tuple[ModelBundle, list[dict[str, Any]]]:
+    """TypeScript scope: argot cli/ + vigie packages/app/ (both Effect-TS)."""
+    print("\n=== cli (TypeScript/Effect) scope ===", flush=True)
+    records: list[dict[str, Any]] = []
+    if ARGOT_CORPUS.exists():
+        argot_recs = load_jsonl_by_path_prefix(ARGOT_CORPUS, "cli/")
+        print(f"  {len(argot_recs)} records from argot cli/", flush=True)
+        records += argot_recs
+    if VIGIE_CORPUS.exists():
+        vigie_recs = load_jsonl_by_path_prefix(VIGIE_CORPUS, VIGIE_EFFECT_PREFIX)
+        print(f"  {len(vigie_recs)} records from vigie {VIGIE_EFFECT_PREFIX}", flush=True)
+        records += vigie_recs
+    if len(records) < 10:
+        print(f"  ERROR: too few records ({len(records)})", file=sys.stderr)
+        sys.exit(1)
+    print(f"  {len(records)} total Effect-TS records", flush=True)
+    train_records, held_out = split_by_time(records, ratio=0.8)
+    print(f"  train={len(train_records)}, held_out={len(held_out)}", flush=True)
+    print(f"  Training pretrained encoder (epochs={epochs})...", flush=True)
+    bundle = train_model(train_records, encoder="pretrained", epochs=epochs)
+    good_scores = score_records(bundle, held_out)
+    good_mean = sum(good_scores) / len(good_scores) if good_scores else 0.0
+    print(f"  held-out mean: {good_mean:.4f}", flush=True)
+    return bundle, held_out
+
+
 def train_scope(
     label: str, path_prefix: str, epochs: int = 20
 ) -> tuple[ModelBundle, list[dict[str, Any]]]:
     print(f"\n=== {label} scope (path: {path_prefix!r}) ===", flush=True)
-    if not CORPUS_PATH.exists():
-        print(f"  ERROR: {CORPUS_PATH} not found. Run `just extract .` first.", file=sys.stderr)
+    if not ARGOT_CORPUS.exists():
+        print(f"  ERROR: {ARGOT_CORPUS} not found. Run `just extract .` first.", file=sys.stderr)
         sys.exit(1)
-    records = load_jsonl_by_path_prefix(CORPUS_PATH, path_prefix)
+    records = load_jsonl_by_path_prefix(ARGOT_CORPUS, path_prefix)
     print(f"  {len(records)} records from argot history under {path_prefix!r}", flush=True)
     if len(records) < 10:
         print(f"  ERROR: too few records ({len(records)}) — try `just extract .` to refresh", file=sys.stderr)
@@ -86,9 +114,9 @@ def train_scope(
 
 
 def main() -> None:
-    # cli/ → TypeScript/Effect model (argot CLI package)
-    # engine/ → Python model (argot engine package)
-    ts_bundle, _ = train_scope("cli (TypeScript)", "cli/", epochs=20)
+    # TypeScript/Effect model: argot cli/ + vigie packages/app/
+    # Python model: argot engine/
+    ts_bundle, _ = train_scope_ts(epochs=20)
     py_bundle, _ = train_scope("engine (Python)", "engine/", epochs=20)
 
     print("\n=== Scoring fixtures ===", flush=True)
@@ -131,9 +159,8 @@ def main() -> None:
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     with OUTPUT_PATH.open("w") as f:
         f.write("# Phase 8 Spot-Check Results\n\n")
-        f.write("**Training:** each scope trains on argot's own git history filtered by path\n")
-        f.write("- `cli/` scope → TypeScript/Effect model (argot CLI package)\n")
-        f.write("- `engine/` scope → Python model (argot engine package)\n\n")
+        f.write("**Training:** Effect-TS model = argot `cli/` + vigie `packages/app/` (both Effect-TS repos)\n")
+        f.write("Python model = argot `engine/` only\n\n")
         f.write("**Gate criterion:** overall delta ≥ 0.20\n\n")
         f.write("| fixture | scope | score | type |\n|---|---|---|---|\n")
         for r in results:
