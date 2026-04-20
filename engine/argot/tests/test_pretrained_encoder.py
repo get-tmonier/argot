@@ -69,7 +69,7 @@ def test_pretrained_encoder_empty_string_safe() -> None:
 
 def test_pretrained_encoder_weights_are_frozen() -> None:
     enc = PretrainedEncoder(model_name="fake-model", device="cpu")
-    assert all(not p.requires_grad for p in enc._model.parameters())
+    assert all(not p.requires_grad for p in enc._st_model.parameters())  # type: ignore[union-attr]
 
 
 def test_forward_is_passthrough() -> None:

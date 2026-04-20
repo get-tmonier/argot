@@ -4,7 +4,7 @@ from typing import Any
 
 import torch
 import torch.nn.functional as F  # noqa: N812
-from sklearn.neighbors import LocalOutlierFactor  # type: ignore[import-untyped]
+from sklearn.neighbors import LocalOutlierFactor
 
 from argot.jepa.pretrained_encoder import PretrainedEncoder, select_device
 from argot.research.signal.base import REGISTRY

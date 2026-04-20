@@ -12,9 +12,14 @@ def test_lof_embedding_ordering() -> None:
     scorer = LofEmbeddingScorer.__new__(LofEmbeddingScorer)
     scorer._lof = None
 
-    corpus_emb = F.normalize(torch.randn(10, 16), p=2, dim=1)
+    # Corpus: 10 points tightly clustered near +e₀. Outlier points at -e₀,
+    # guaranteeing cosine distance ≈ 2 from all corpus points (vs ≈ 0 in-distribution).
+    gen = torch.Generator().manual_seed(0)
+    base = torch.zeros(10, 16)
+    base[:, 0] = 1.0
+    corpus_emb = F.normalize(base + torch.randn(10, 16, generator=gen) * 0.05, p=2, dim=1)
     in_distribution = corpus_emb[0:1].clone()
-    outlier = -corpus_emb[0:1].clone()
+    outlier = F.normalize(torch.tensor([[-1.0] + [0.0] * 15]), p=2, dim=1)
 
     mock_encoder = MagicMock()
     scorer._encoder = mock_encoder

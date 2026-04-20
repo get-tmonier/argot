@@ -10,7 +10,7 @@ from typing import Any, Literal
 import numpy as np
 import torch
 import torch.nn.functional as F  # noqa: N812
-from sklearn.metrics import roc_auc_score  # type: ignore[import-untyped]
+from sklearn.metrics import roc_auc_score
 
 from argot.jepa.bpe_vocab import BpeVocab
 from argot.jepa.pretrained_encoder import PretrainedEncoder

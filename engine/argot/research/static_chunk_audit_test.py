@@ -10,6 +10,7 @@ Run as: uv run python -m argot.research.static_chunk_audit_test
 from __future__ import annotations
 
 import ast
+import random
 import statistics
 import subprocess
 import sys
@@ -29,12 +30,21 @@ from argot.jepa.pretrained_encoder import PretrainedEncoder, select_device
 from argot.research.signal.scorers.jepa_infonce import JepaInfoNCEScorer
 from argot.tokenize import language_for_path, tokenize_lines
 from argot.train import _texts_for_records
+from argot.validate import score_from_tensors
 
 # Stage 6 winner config (b01_t01_w0)
 WINNER_BETA: float = 0.1
 WINNER_TAU: float = 0.1
 WINNER_WARMUP: int = 0
 ENSEMBLE_N: int = 3
+
+# UnixCoder: RoBERTa-based, 768-dim, HF direct backend (mean-pool last hidden state).
+# normalize_embeddings=False: JEPA predictor ends with LayerNorm (magnitude ≈ sqrt(768) ≈ 27).
+# Unit-sphere targets (magnitude=1) create a 27× scale gap that collapses MSE signal — every
+# chunk scores ≈ 0.90, delta ≈ 0. Raw UnixCoder embeddings (magnitude ≈ 43) are much closer
+# to the predictor's output scale, letting JEPA learn directional prediction.
+ENCODER_MODEL: str = "microsoft/unixcoder-base"
+NORMALIZE_EMBEDDINGS: bool = False
 
 FASTAPI_CLONE_DIR = Path("/tmp/argot-fastapi-static")
 ENTRY_DIR = CATALOG_DIR / "fastapi"
@@ -177,6 +187,34 @@ class _EnsembleForAudit:
         preencoded: tuple[torch.Tensor, torch.Tensor] | None = None,
     ) -> None:
         self._members = []
+
+        # File-level 80/20 holdout: shuffle files, assign 80% to train.
+        # Methods from the same file never appear in both train and holdout.
+        all_files = sorted({c["file_path"] for c in corpus})
+        rng = random.Random(42)
+        rng.shuffle(all_files)
+        n_train_files = int(len(all_files) * 0.8)
+        train_files = set(all_files[:n_train_files])
+
+        train_indices = [i for i, c in enumerate(corpus) if c["file_path"] in train_files]
+        train_corpus = [corpus[i] for i in train_indices]
+
+        train_pre: tuple[torch.Tensor, torch.Tensor] | None
+        if preencoded is not None:
+            idx_t = torch.tensor(train_indices, dtype=torch.long)
+            train_pre = (preencoded[0][idx_t], preencoded[1][idx_t])
+        else:
+            train_pre = None
+
+        n_holdout_files = len(all_files) - n_train_files
+        n_holdout_chunks = len(corpus) - len(train_corpus)
+        print(
+            f"\nFile-level holdout: {n_train_files}/{len(all_files)} files → train "
+            f"({len(train_corpus)} chunks), {n_holdout_files} files held out "
+            f"({n_holdout_chunks} chunks never seen during training)",
+            flush=True,
+        )
+
         for i in range(self._n):
             print(f"\n  --- Training member {i + 1}/{self._n} ---", flush=True)
             m = JepaInfoNCEScorer(
@@ -184,16 +222,26 @@ class _EnsembleForAudit:
                 tau=self._tau,
                 warmup_epochs=self._warmup_epochs,
                 random_seed=i,
-                corpus_cap=len(corpus),  # no cap — train on full static corpus
+                corpus_cap=len(train_corpus),  # no cap — train on full train split
             )
-            m.fit(corpus, preencoded=preencoded)
+            m.fit(train_corpus, preencoded=train_pre)
             self._members.append(m)
 
-    def score(self, records: list[dict[str, Any]]) -> list[float]:
+    def score_from_preencoded(
+        self,
+        ctx_x: torch.Tensor,
+        hunk_x: torch.Tensor,
+    ) -> list[float]:
+        """Score using pre-encoded tensors — avoids re-encoding with wrong model."""
         if not self._members:
-            raise RuntimeError("fit() must be called before score()")
-        all_scores = [m.score(records) for m in self._members]
-        return [sum(run[i] for run in all_scores) / self._n for i in range(len(records))]
+            raise RuntimeError("fit() must be called before score_from_preencoded()")
+        all_scores: list[list[float]] = []
+        for m in self._members:
+            assert m._bundle is not None  # noqa: SLF001
+            scores = score_from_tensors(m._bundle, ctx_x, hunk_x)  # noqa: SLF001
+            all_scores.append(scores)
+        n = ctx_x.shape[0]
+        return [sum(run[i] for run in all_scores) / self._n for i in range(n)]
 
 
 # ---------------------------------------------------------------------------
@@ -207,14 +255,19 @@ def _encode_records(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Encode records once with the pretrained encoder."""
     device = select_device()
-    pretrained = PretrainedEncoder(device=device)
+    pretrained = PretrainedEncoder(device=device, model_name=ENCODER_MODEL)
     ctx_texts, hunk_texts = _texts_for_records(records)
     n = len(records)
-    print(f"Pre-encoding {n} {label} ({n * 2} texts) ...", flush=True)
+    print(
+        f"Pre-encoding {n} {label} ({n * 2} texts) using {ENCODER_MODEL} ...",
+        flush=True,
+    )
     t0 = time.perf_counter()
     with torch.no_grad():
-        ctx_x = pretrained.encode_texts(ctx_texts).cpu()
-        hunk_x = pretrained.encode_texts(hunk_texts).cpu()
+        ctx_x = pretrained.encode_texts(ctx_texts, normalize_embeddings=NORMALIZE_EMBEDDINGS).cpu()
+        hunk_x = pretrained.encode_texts(
+            hunk_texts, normalize_embeddings=NORMALIZE_EMBEDDINGS
+        ).cpu()
     del pretrained
     print(f"  done in {time.perf_counter() - t0:.1f}s", flush=True)
     return (ctx_x, hunk_x)
@@ -257,10 +310,13 @@ def _print_report(
     print(f"corpus mean={BASELINE_CORPUS_MEAN:.4f} p95={BASELINE_P95:.4f} n={BASELINE_N}")
     print(f"fixture break mean={BASELINE_BREAK_MEAN:.4f}  control mean={BASELINE_CTRL_MEAN:.4f}")
 
-    print("\n=== static-chunk audit (git-history-free, trained on HEAD) ===")
+    print(f"\n=== static-chunk audit (encoder={ENCODER_MODEL}, file-level holdout) ===")
     print(f"static chunks extracted: {n}")
     print(f"corpus (static) mean={corpus_mean:.4f} p95={corpus_p95:.4f} n={n}")
     print(f"fixture break mean={break_mean:.4f}  control mean={ctrl_mean:.4f}")
+    delta = break_mean - ctrl_mean
+    prev_delta = 0.1817
+    print(f"delta (break-ctrl)={delta:.4f}  (prev best={prev_delta:.4f})")
 
     indexed = sorted(enumerate(chunk_scores), key=lambda x: x[1], reverse=True)
 
@@ -298,14 +354,9 @@ def _print_report(
     print(
         f"Top-20 breakdown: {n_framework}/20 from fastapi/ (framework core), "
         f"{n_tests}/20 from test files, {n_docs}/20 from docs/scripts. "
-        f"Compared to commit-hunk top-20 (which included 2 JS files, Jinja templates, "
-        f"and anonymous diff fragments), static chunks surface named semantic units with "
-        f"precise line ranges and function/class names — making the results directly actionable "
-        f"as audit findings. "
         f"Signal level: static p95/break ratio={signal_ratio:.3f} vs "
         f"baseline p95/break ratio={baseline_ratio:.3f}. "
-        f"The AST approach {'preserves' if signal_ratio >= baseline_ratio * 0.8 else 'degrades'} "
-        f"detection signal while producing a semantically cleaner top-20."
+        f"Delta vs prev best (0.1817): {delta - prev_delta:+.4f}."
     )
 
 
@@ -330,13 +381,14 @@ def main() -> None:
         print("ERROR: No chunks extracted. Check clone path.", file=sys.stderr)
         sys.exit(1)
 
-    # 3. Pre-encode all static chunks once (reused across all 3 ensemble members)
+    # 3. Pre-encode all static chunks once with UnixCoder (reused across all ensemble members)
     preencoded = _encode_records(chunks, label="static chunks")
 
-    # 4. Train ensemble on the static chunks themselves — learns what "normal" looks like
+    # 4. Train ensemble on file-level 80% train split
     print(
-        f"\nTraining {ENSEMBLE_N}-member ensemble on {len(chunks)} static chunks "
-        f"(beta={WINNER_BETA} tau={WINNER_TAU} warmup={WINNER_WARMUP}) ...",
+        f"\nTraining {ENSEMBLE_N}-member ensemble on static chunks "
+        f"(beta={WINNER_BETA} tau={WINNER_TAU} warmup={WINNER_WARMUP} "
+        f"encoder={ENCODER_MODEL}) ...",
         flush=True,
     )
     ensemble = _EnsembleForAudit(
@@ -347,17 +399,18 @@ def main() -> None:
     )
     ensemble.fit(chunks, preencoded=preencoded)
 
-    # 5. Score acceptance fixtures (verifies detection signal vs known breaks/controls)
+    # 5. Pre-encode fixtures with same UnixCoder encoder and score (verifies detection signal)
     specs: list[FixtureSpec] = load_manifest(ENTRY_DIR)
     fixture_records = [fixture_to_record(ENTRY_DIR, s) for s in specs]
+    fixture_preencoded = _encode_records(fixture_records, label="fixture records")
     print(f"\nScoring {len(fixture_records)} fixture records ...", flush=True)
-    fixture_scores = ensemble.score(fixture_records)
+    fixture_scores = ensemble.score_from_preencoded(*fixture_preencoded)
     break_scores = [fixture_scores[i] for i, s in enumerate(specs) if s.is_break]
     ctrl_scores = [fixture_scores[i] for i, s in enumerate(specs) if not s.is_break]
 
-    # 6. Score all static chunks (trained and unseen via 80/20 internal split)
+    # 6. Score all static chunks via preencoded tensors (avoids re-encoding with wrong model)
     print(f"Scoring {len(chunks)} static chunks ...", flush=True)
-    chunk_scores = ensemble.score(chunks)
+    chunk_scores = ensemble.score_from_preencoded(*preencoded)
 
     elapsed = time.perf_counter() - t_start
     print(f"\nTotal elapsed: {elapsed:.0f}s", flush=True)

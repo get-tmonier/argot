@@ -11,7 +11,7 @@ from typing import Any, Literal
 import joblib  # type: ignore[import-untyped]
 import numpy as np
 import torch
-from sklearn.feature_extraction.text import TfidfVectorizer  # type: ignore[import-untyped]
+from sklearn.feature_extraction.text import TfidfVectorizer
 from torch.optim import AdamW
 from torch.utils.data import DataLoader, TensorDataset
 
