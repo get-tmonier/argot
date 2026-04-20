@@ -7,6 +7,8 @@
       "hunk_start_line": 28,
       "hunk_end_line": 67,
       "is_break": true,
+      "category": "routing",
+      "set": "v1",
       "rationale": "FastAPI uses @app.get / @router.post method-specific decorators and Pydantic parameter injection; Flask's @app.route(..., methods=[...]), request.get_json(), request.args.get(), jsonify(), abort(), and app.run() are absent from the FastAPI corpus"
     },
     {
@@ -16,6 +18,8 @@
       "hunk_start_line": 30,
       "hunk_end_line": 78,
       "is_break": true,
+      "category": "framework_swap",
+      "set": "v1",
       "rationale": "FastAPI uses function-based endpoints with typed parameter injection; Django class-based views (View subclasses with def get/post methods), request.body + json.loads(), JsonResponse, HttpResponseNotFound, and urlpatterns = path() have no equivalent in the FastAPI corpus"
     },
     {
@@ -25,6 +29,8 @@
       "hunk_start_line": 29,
       "hunk_end_line": 74,
       "is_break": true,
+      "category": "framework_swap",
+      "set": "v1",
       "rationale": "FastAPI uses declarative method decorators with parameter injection; aiohttp's async def handler(request: web.Request), await request.json(), request.match_info, web.json_response(), web.HTTPNotFound(), and app.router.add_get() are entirely absent from the FastAPI corpus"
     },
     {
@@ -34,6 +40,8 @@
       "hunk_start_line": 29,
       "hunk_end_line": 84,
       "is_break": true,
+      "category": "validation",
+      "set": "v1",
       "rationale": "FastAPI's idiomatic pattern is Pydantic BaseModel parameter injection for automatic validation; accepting `body: dict = Body(...)` and then manually checking isinstance(), field membership, length, and type with if-raise blocks recreates what Pydantic provides automatically — this manual validation pattern is absent from the FastAPI corpus"
     },
     {
@@ -43,6 +51,8 @@
       "hunk_start_line": 34,
       "hunk_end_line": 81,
       "is_break": true,
+      "category": "serialization",
+      "set": "v1",
       "rationale": "FastAPI automatically serializes dicts and Pydantic models returned from endpoints; manually constructing Response(content=json.dumps(...)) and JSONResponse(content=jsonable_encoder(...)) at every call site bypasses the framework's serialization layer — this explicit construction pattern is absent from the FastAPI application-endpoint corpus"
     },
     {
@@ -52,6 +62,8 @@
       "hunk_start_line": 49,
       "hunk_end_line": 89,
       "is_break": true,
+      "category": "exception_handling",
+      "set": "v1",
       "rationale": "decorators, Pydantic models, and Depends() are all idiomatic; the break is confined to the raise statements: ValueError, KeyError, and RuntimeError are raised instead of HTTPException — plain Python exceptions propagate as unhandled 500s rather than the intended 404/503 status codes, and this exception vocabulary is absent from the FastAPI corpus"
     },
     {
@@ -61,6 +73,8 @@
       "hunk_start_line": 29,
       "hunk_end_line": 65,
       "is_break": true,
+      "category": "downstream_http",
+      "set": "v1",
       "rationale": "FastAPI + httpx corpus uses response.raise_for_status() to propagate downstream errors; manually checking `if response.status_code >= 400: raise HTTPException(...)` at every call site instead of calling raise_for_status() is a structural pattern absent from the corpus — all tokens are individually present but the branching structure is non-idiomatic"
     },
     {
@@ -70,6 +84,8 @@
       "hunk_start_line": 41,
       "hunk_end_line": 85,
       "is_break": true,
+      "category": "async_blocking",
+      "set": "v1",
       "rationale": "the FastAPI corpus is dominated by async def endpoints; sync def endpoints with blocking I/O (time.sleep, requests.get, blocking DB calls) block the event loop's thread pool — the decorator and Depends() vocabulary is correct but the sync + blocking-I/O combination is structurally absent from the corpus"
     },
     {
@@ -79,6 +95,8 @@
       "hunk_start_line": 51,
       "hunk_end_line": 109,
       "is_break": true,
+      "category": "exception_handling",
+      "set": "v1",
       "rationale": "decorators, Pydantic models, Depends(), HTTPException, and async def are all idiomatic; the break is purely structural: every endpoint body is wrapped in try/except Exception: pass or except Exception as e: logger.warning — broad exception-swallowing is absent from the FastAPI corpus, which propagates errors or handles specific exception types"
     },
     {
@@ -88,6 +106,8 @@
       "hunk_start_line": 46,
       "hunk_end_line": 121,
       "is_break": false,
+      "category": "routing",
+      "set": "v1",
       "rationale": "idiomatic FastAPI: APIRouter with method-specific decorators, Pydantic BaseModel body params, typed path/query params with Query(), response_model= annotation, HTTPException(status_code=..., detail=...) on not-found, Depends() for DB session and auth — canonical pattern for CRUD endpoints"
     },
     {
@@ -97,6 +117,8 @@
       "hunk_start_line": 36,
       "hunk_end_line": 127,
       "is_break": false,
+      "category": "dependency_injection",
+      "set": "v1",
       "rationale": "idiomatic FastAPI dependency injection: generator dep with yield for session lifecycle, nested Depends() chain, Annotated[T, Depends(...)] shorthand, OAuth2PasswordBearer token extraction, sub-dependencies accepting their own Depends() params — all canonical DI patterns from the FastAPI corpus"
     },
     {
@@ -106,7 +128,174 @@
       "hunk_start_line": 49,
       "hunk_end_line": 103,
       "is_break": false,
+      "category": "exception_handling",
+      "set": "v1",
       "rationale": "idiomatic FastAPI error handling: @app.exception_handler(RequestValidationError) returning JSONResponse with exc.errors(), @app.exception_handler(HTTPException) forwarding status_code and headers, raise HTTPException(404/401/403, detail=...) at endpoint call sites, HTTPException with headers={'WWW-Authenticate': 'Bearer'} — canonical pattern from the FastAPI corpus"
+    },
+    {
+      "name": "paradigm_break_starlette_mount",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_starlette_mount.py",
+      "hunk_start_line": 19,
+      "hunk_end_line": 82,
+      "is_break": true,
+      "category": "routing",
+      "set": "v2",
+      "rationale": "bare Starlette Router with add_route() and url_for() instead of FastAPI's @router.get/@router.post DSL — imperative route registration with {id:int} path converters, no Pydantic and no Depends, is entirely absent from the FastAPI corpus"
+    },
+    {
+      "name": "paradigm_break_tornado_handler",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_tornado_handler.py",
+      "hunk_start_line": 19,
+      "hunk_end_line": 99,
+      "is_break": true,
+      "category": "framework_swap",
+      "set": "v2",
+      "rationale": "tornado RequestHandler subclass with GET/POST methods using self.get_argument(), self.write(), self.finish(), and IOLoop — classic tornado vocabulary entirely foreign to the FastAPI corpus"
+    },
+    {
+      "name": "paradigm_break_marshmallow_schema",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_marshmallow_schema.py",
+      "hunk_start_line": 17,
+      "hunk_end_line": 87,
+      "is_break": true,
+      "category": "validation",
+      "set": "v2",
+      "rationale": "marshmallow Schema.load() called manually inside endpoints for validation instead of Pydantic BaseModel injection — @validates, @post_load, and fields.String/Float are marshmallow idioms absent from the FastAPI corpus"
+    },
+    {
+      "name": "paradigm_break_cerberus_validation",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_cerberus_validation.py",
+      "hunk_start_line": 16,
+      "hunk_end_line": 69,
+      "is_break": true,
+      "category": "validation",
+      "set": "v2",
+      "rationale": "cerberus Validator with schema dicts validates plain dict body params instead of Pydantic BaseModel injection — v.errors, validator.validate(), and validator.normalized() are cerberus idioms absent from the FastAPI corpus"
+    },
+    {
+      "name": "paradigm_break_orjson_serialization",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_orjson_serialization.py",
+      "hunk_start_line": 17,
+      "hunk_end_line": 75,
+      "is_break": true,
+      "category": "serialization",
+      "set": "v2",
+      "rationale": "explicit orjson.dumps() with OPT_INDENT_2/OPT_NON_STR_KEYS/OPT_SORT_KEYS options at every endpoint, wrapped in Response(..., media_type='application/json') — bypasses FastAPI's automatic serialization layer, pattern absent from the corpus"
+    },
+    {
+      "name": "paradigm_break_bare_except",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_bare_except.py",
+      "hunk_start_line": 18,
+      "hunk_end_line": 71,
+      "is_break": true,
+      "category": "exception_handling",
+      "set": "v2",
+      "rationale": "every endpoint body wrapped in bare except: (no exception type) that silently returns empty data — broad exception-swallowing with no HTTPException or logging is an anti-pattern absent from the FastAPI corpus"
+    },
+    {
+      "name": "paradigm_break_event_loop_blocking",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_event_loop_blocking.py",
+      "hunk_start_line": 18,
+      "hunk_end_line": 59,
+      "is_break": true,
+      "category": "async_blocking",
+      "set": "v2",
+      "rationale": "asyncio.get_event_loop().run_until_complete() called inside async def endpoint bodies — incorrect usage that raises RuntimeError inside a running loop, represents the wrong mental model of async programming absent from the FastAPI corpus"
+    },
+    {
+      "name": "paradigm_break_sync_requests_in_async",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_sync_requests_in_async.py",
+      "hunk_start_line": 17,
+      "hunk_end_line": 73,
+      "is_break": true,
+      "category": "downstream_http",
+      "set": "v2",
+      "rationale": "synchronous requests.get() / requests.post() with Session() inside async def endpoints blocks the event loop — the correct pattern is httpx.AsyncClient with await, and requests.Session with cert=/verify= is absent from the FastAPI corpus"
+    },
+    {
+      "name": "paradigm_break_global_singletons",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_global_singletons.py",
+      "hunk_start_line": 18,
+      "hunk_end_line": 98,
+      "is_break": true,
+      "category": "dependency_injection",
+      "set": "v2",
+      "rationale": "module-level singletons (_db, _cache, _conn) accessed via get_db()/get_cache() called directly in endpoints without Depends() — global keyword to reassign singletons with no teardown or context management is absent from the FastAPI corpus"
+    },
+    {
+      "name": "paradigm_break_threading_background",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_threading_background.py",
+      "hunk_start_line": 20,
+      "hunk_end_line": 75,
+      "is_break": true,
+      "category": "background_tasks",
+      "set": "v2",
+      "rationale": "threading.Thread with daemon=True launched from each endpoint instead of FastAPI BackgroundTasks — Thread, Lock, daemon, and t.join() blocking the async event loop are all absent from the FastAPI corpus"
+    },
+    {
+      "name": "control_pydantic_validator",
+      "scope": "default",
+      "file": "fixtures/default/control_pydantic_validator.py",
+      "hunk_start_line": 20,
+      "hunk_end_line": 74,
+      "is_break": false,
+      "category": "validation",
+      "set": "v2",
+      "rationale": "idiomatic Pydantic @field_validator and @model_validator on BaseModel subclasses injected as FastAPI parameters — canonical validation pattern with no manual isinstance checks"
+    },
+    {
+      "name": "control_response_model",
+      "scope": "default",
+      "file": "fixtures/default/control_response_model.py",
+      "hunk_start_line": 21,
+      "hunk_end_line": 88,
+      "is_break": false,
+      "category": "serialization",
+      "set": "v2",
+      "rationale": "response_model= annotation on every endpoint so FastAPI validates and serializes output — endpoints return plain dicts or Pydantic models with no manual json.dumps() or explicit Response construction"
+    },
+    {
+      "name": "control_async_streaming",
+      "scope": "default",
+      "file": "fixtures/default/control_async_streaming.py",
+      "hunk_start_line": 24,
+      "hunk_end_line": 86,
+      "is_break": false,
+      "category": "async_blocking",
+      "set": "v2",
+      "rationale": "async generator functions yielding chunks wrapped in StreamingResponse — correct non-blocking streaming pattern with await, Depends(), and APIRouter, entirely in-corpus"
+    },
+    {
+      "name": "control_httpx_async",
+      "scope": "default",
+      "file": "fixtures/default/control_httpx_async.py",
+      "hunk_start_line": 22,
+      "hunk_end_line": 66,
+      "is_break": false,
+      "category": "downstream_http",
+      "set": "v2",
+      "rationale": "httpx.AsyncClient as a context manager in a Depends() dependency with await client.get() and response.raise_for_status() — canonical async downstream HTTP pattern, no synchronous requests library"
+    },
+    {
+      "name": "control_annotated_depends",
+      "scope": "default",
+      "file": "fixtures/default/control_annotated_depends.py",
+      "hunk_start_line": 21,
+      "hunk_end_line": 94,
+      "is_break": false,
+      "category": "dependency_injection",
+      "set": "v2",
+      "rationale": "Annotated[T, Depends(...)] TypeAlias shorthand for all dependency injection with yield-based resource lifecycle — modern FastAPI DI pattern, deeply in-distribution with 646 Annotated occurrences in the corpus"
     }
   ]
 }

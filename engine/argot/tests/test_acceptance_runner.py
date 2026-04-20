@@ -103,6 +103,88 @@ def test_load_manifest(tmp_path: Path) -> None:
     assert specs[1].is_break is False
 
 
+def test_fixture_spec_defaults() -> None:
+    # Instantiate without category/set — defaults must apply
+    from argot.acceptance.runner import FixtureSpec
+
+    spec = FixtureSpec(
+        name="x",
+        scope="default",
+        file="f.py",
+        hunk_start_line=1,
+        hunk_end_line=10,
+        is_break=True,
+        rationale="test",
+    )
+    assert spec.category == "legacy"
+    assert spec.set == "v1"
+
+
+def test_fixture_spec_explicit_fields() -> None:
+    from argot.acceptance.runner import FixtureSpec
+
+    spec = FixtureSpec(
+        name="x",
+        scope="default",
+        file="f.py",
+        hunk_start_line=1,
+        hunk_end_line=10,
+        is_break=True,
+        rationale="test",
+        category="routing",
+        set="v2",
+    )
+    assert spec.category == "routing"
+    assert spec.set == "v2"
+
+
+def test_load_manifest_backwards_compat_no_category(tmp_path: Path) -> None:
+    # Manifests without category/set should get defaults (legacy, v1)
+    from argot.acceptance.runner import load_manifest
+
+    entry = _make_entry(tmp_path)
+    specs = load_manifest(entry)
+    # _make_entry creates manifest without category/set
+    assert all(s.category == "legacy" for s in specs)
+    assert all(s.set == "v1" for s in specs)
+
+
+def test_load_manifest_with_category_and_set(tmp_path: Path) -> None:
+    from argot.acceptance.runner import load_manifest
+
+    entry = tmp_path / "fastapi_test"
+    entry.mkdir()
+    (entry / "scopes.json").write_text(
+        json.dumps({
+            "scopes": [{"name": "default", "path_prefix": "", "paradigm": "FastAPI"}]
+        })
+    )
+    fixture_dir = entry / "fixtures" / "default"
+    fixture_dir.mkdir(parents=True)
+    (fixture_dir / "break.py").write_text("# break\nx = 1\n")
+    (entry / "manifest.json").write_text(
+        json.dumps({
+            "fixtures": [
+                {
+                    "name": "break_v2",
+                    "scope": "default",
+                    "file": "fixtures/default/break.py",
+                    "hunk_start_line": 2,
+                    "hunk_end_line": 2,
+                    "is_break": True,
+                    "rationale": "test",
+                    "category": "routing",
+                    "set": "v2",
+                }
+            ]
+        })
+    )
+    specs = load_manifest(entry)
+    assert len(specs) == 1
+    assert specs[0].category == "routing"
+    assert specs[0].set == "v2"
+
+
 def test_load_corpus(tmp_path: Path) -> None:
     entry = _make_entry(tmp_path)
     records = load_corpus(entry)

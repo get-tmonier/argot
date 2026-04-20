@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import math
 import random
 import statistics
 import sys
@@ -281,8 +282,8 @@ def _run_sweep(
         print(f"  done in {time.perf_counter() - t0:.1f}s", flush=True)
         scope_preencoded[scope.name] = (ctx_x, hunk_x)
 
-    # Raw rows: (config_name, seed, delta)
-    raw_rows: list[tuple[str, int, float]] = []
+    # Raw rows: (config_name, seed, delta_v2, delta_v1, delta_by_category)
+    raw_rows: list[tuple[str, int, float, float, dict[str, float]]] = []
 
     for cfg in configs:
         config_name: str = str(cfg["name"])
@@ -294,6 +295,12 @@ def _run_sweep(
 
             break_scores: list[float] = []
             ctrl_scores: list[float] = []
+            # v1-only buckets
+            v1_break_scores: list[float] = []
+            v1_ctrl_scores: list[float] = []
+            # per-category buckets: category -> (break_scores, ctrl_scores)
+            cat_break: dict[str, list[float]] = {}
+            cat_ctrl: dict[str, list[float]] = {}
 
             for scope in scopes:
                 scope_corpus = scope_sorted_corpus.get(scope.name)
@@ -319,16 +326,41 @@ def _run_sweep(
                 scores = scorer.score(fixture_records)
 
                 for idx, spec in enumerate(scope_specs):
+                    score = scores[idx]
+                    category = spec.category
                     if spec.is_break:
-                        break_scores.append(scores[idx])
+                        break_scores.append(score)
+                        if spec.set == "v1":
+                            v1_break_scores.append(score)
+                        cat_break.setdefault(category, []).append(score)
                     else:
-                        ctrl_scores.append(scores[idx])
+                        ctrl_scores.append(score)
+                        if spec.set == "v1":
+                            v1_ctrl_scores.append(score)
+                        cat_ctrl.setdefault(category, []).append(score)
 
             break_mean = statistics.mean(break_scores) if break_scores else 0.0
             ctrl_mean = statistics.mean(ctrl_scores) if ctrl_scores else 0.0
-            delta = break_mean - ctrl_mean
-            raw_rows.append((config_name, seed, delta))
-            print(f"  config={config_name!r} seed={seed} delta={delta:.4f}", flush=True)
+            delta_v2 = break_mean - ctrl_mean
+
+            # v1 delta (preserves historical comparability)
+            v1_break_mean = statistics.mean(v1_break_scores) if v1_break_scores else 0.0
+            v1_ctrl_mean = statistics.mean(v1_ctrl_scores) if v1_ctrl_scores else 0.0
+            delta_v1 = v1_break_mean - v1_ctrl_mean
+
+            # per-category deltas (use global ctrl mean if category has no controls)
+            delta_by_category: dict[str, float] = {}
+            for cat in set(list(cat_break.keys()) + list(cat_ctrl.keys())):
+                b = statistics.mean(cat_break[cat]) if cat_break.get(cat) else 0.0
+                c = statistics.mean(cat_ctrl[cat]) if cat_ctrl.get(cat) else ctrl_mean
+                delta_by_category[cat] = b - c
+
+            raw_rows.append((config_name, seed, delta_v2, delta_v1, delta_by_category))
+            print(
+                f"  config={config_name!r} seed={seed} "
+                f"delta_v2={delta_v2:.4f} delta_v1={delta_v1:.4f}",
+                flush=True,
+            )
 
     _write_report(stage, entry_name, configs, seeds, raw_rows, out_dir)
 
@@ -338,7 +370,7 @@ def _write_report(
     entry_name: str,
     configs: list[dict[str, Any]],
     seeds: list[int],
-    raw_rows: list[tuple[str, int, float]],
+    raw_rows: list[tuple[str, int, float, float, dict[str, float]]],
     out_dir: Path,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -350,25 +382,58 @@ def _write_report(
     lines: list[str] = [f"# {entry_name} stage {stage} sweep\n"]
 
     lines.append("## Raw\n")
-    lines.append("| config | seed | delta | gate |")
-    lines.append("|---|---|---|---|")
-    for config_name, seed, delta in raw_rows:
-        gate = "✓" if delta >= 0.20 else "✗"
-        lines.append(f"| {config_name} | {seed} | {delta:.4f} | {gate} |")
+    lines.append("| config | seed | delta_v2 | delta_v1 | gate |")
+    lines.append("|---|---|---|---|---|")
+    for config_name, seed, delta_v2, delta_v1, _cat_dict in raw_rows:
+        gate = "✓" if delta_v2 >= 0.20 else "✗"
+        lines.append(f"| {config_name} | {seed} | {delta_v2:.4f} | {delta_v1:.4f} | {gate} |")
     lines.append("")
 
     lines.append("## Summary\n")
-    lines.append("| config | mean_delta | std_delta | gate |")
-    lines.append("|---|---|---|---|")
+    lines.append("| config | mean_delta_v1 | mean_delta_v2 | std_delta | gate |")
+    lines.append("|---|---|---|---|---|")
     for config_name in config_names:
-        deltas = [delta for (cn, _seed, delta) in raw_rows if cn == config_name]
-        if not deltas:
+        rows = [(dv2, dv1) for (cn, _seed, dv2, dv1, _cat) in raw_rows if cn == config_name]
+        if not rows:
             continue
-        mean_delta = statistics.mean(deltas)
-        std_delta = statistics.stdev(deltas) if len(deltas) >= 2 else 0.0
-        gate = "✓" if mean_delta >= 0.20 else "✗"
-        lines.append(f"| {config_name} | {mean_delta:.4f} | {std_delta:.4f} | {gate} |")
+        deltas_v2 = [dv2 for (dv2, _) in rows]
+        deltas_v1 = [dv1 for (_, dv1) in rows]
+        mean_delta_v2 = statistics.mean(deltas_v2)
+        mean_delta_v1 = statistics.mean(deltas_v1)
+        std_delta = statistics.stdev(deltas_v2) if len(deltas_v2) >= 2 else 0.0
+        gate = "✓" if mean_delta_v2 >= 0.20 else "✗"
+        lines.append(
+            f"| {config_name} | {mean_delta_v1:.4f} | {mean_delta_v2:.4f}"
+            f" | {std_delta:.4f} | {gate} |"
+        )
     lines.append("")
+
+    # Per-category section
+    all_categories = sorted(
+        set(cat for (_cn, _seed, _dv2, _dv1, cat_dict) in raw_rows for cat in cat_dict)
+    )
+    lines.append("## Per-category deltas (v2)\n")
+    lines.append("> Categories with no controls share the global v2 control mean.\n")
+    for config_name in config_names:
+        config_rows = [
+            cat_dict
+            for (cn, _seed, _dv2, _dv1, cat_dict) in raw_rows
+            if cn == config_name
+        ]
+        if not config_rows:
+            continue
+        if len(config_names) > 1:
+            lines.append(f"### {config_name}\n")
+        lines.append("| category | mean_delta |")
+        lines.append("|---|---|")
+        for cat in all_categories:
+            cat_deltas = [cat_dict.get(cat, float("nan")) for cat_dict in config_rows]
+            cat_deltas_valid = [d for d in cat_deltas if not math.isnan(d)]
+            if not cat_deltas_valid:
+                continue
+            mean_cat_delta = statistics.mean(cat_deltas_valid)
+            lines.append(f"| {cat} | {mean_cat_delta:.4f} |")
+        lines.append("")
 
     out_path.write_text("\n".join(lines))
     print(f"Report written to {out_path}", flush=True)

@@ -32,6 +32,8 @@ class FixtureSpec:
     hunk_end_line: int
     is_break: bool
     rationale: str
+    category: str = "legacy"
+    set: str = "v1"
 
 
 @dataclass
