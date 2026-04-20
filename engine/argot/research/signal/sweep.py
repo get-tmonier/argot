@@ -22,6 +22,7 @@ from argot.acceptance.runner import (
     load_scopes,
 )
 from argot.research.signal.base import SignalScorer
+from argot.research.signal.scorers.jepa_custom import JepaCustomScorer
 from argot.research.signal.scorers.jepa_pretrained import JepaPretrainedScorer
 
 STAGE1_CONFIGS: list[dict[str, Any]] = [
@@ -33,7 +34,19 @@ STAGE1_CONFIGS: list[dict[str, Any]] = [
     {"name": "ep100_lr1e4", "epochs": 100, "lr": 1e-4},
 ]
 
-STAGE2_CONFIGS: list[dict[str, Any]] = []
+# Stage 2: base=ep20_lr1e4, lr_schedule × predictor capacity
+# 2 schedules × 4 predictor configs = 8 configs × 3 seeds = 24 runs
+STAGE2_CONFIGS: list[dict[str, Any]] = [
+    {"name": "flat_d4m512",   "lr_schedule": "flat",   "depth": 4, "mlp_dim": 512},
+    {"name": "flat_d6m512",   "lr_schedule": "flat",   "depth": 6, "mlp_dim": 512},
+    {"name": "flat_d4m1024",  "lr_schedule": "flat",   "depth": 4, "mlp_dim": 1024},
+    {"name": "flat_d6m1024",  "lr_schedule": "flat",   "depth": 6, "mlp_dim": 1024},
+    {"name": "cos_d4m512",    "lr_schedule": "cosine", "depth": 4, "mlp_dim": 512},
+    {"name": "cos_d6m512",    "lr_schedule": "cosine", "depth": 6, "mlp_dim": 512},
+    {"name": "cos_d4m1024",   "lr_schedule": "cosine", "depth": 4, "mlp_dim": 1024},
+    {"name": "cos_d6m1024",   "lr_schedule": "cosine", "depth": 6, "mlp_dim": 1024},
+]
+
 STAGE3_CONFIGS: list[dict[str, Any]] = []
 STAGE4_CONFIGS: list[dict[str, Any]] = []
 
@@ -51,8 +64,18 @@ def _stage1_factory(cfg: dict[str, Any]) -> SignalScorer:
     return JepaPretrainedScorer(epochs=int(cfg["epochs"]), lr=float(cfg["lr"]))
 
 
+def _stage2_factory(cfg: dict[str, Any]) -> SignalScorer:
+    return JepaCustomScorer(
+        epochs=20,
+        lr=1e-4,
+        lr_schedule=str(cfg["lr_schedule"]),  # type: ignore[arg-type]
+        predictor_overrides={"depth": int(cfg["depth"]), "mlp_dim": int(cfg["mlp_dim"])},
+    )
+
+
 _STAGE_FACTORIES: dict[int, Callable[[dict[str, Any]], SignalScorer]] = {
     1: _stage1_factory,
+    2: _stage2_factory,
 }
 
 
@@ -167,6 +190,7 @@ def main() -> None:
     parser.add_argument("--seeds", default=",".join(str(s) for s in DEFAULT_SEEDS))
     parser.add_argument("--catalog", default=str(CATALOG_DIR))
     parser.add_argument("--out", default="docs/research/scoring/signal")
+    parser.add_argument("--start-from", default=None, help="Skip configs before this name")
     args = parser.parse_args()
 
     stage: int = args.stage
@@ -182,6 +206,12 @@ def main() -> None:
 
     if not configs:
         raise NotImplementedError(f"Stage {stage} not yet implemented")
+
+    if args.start_from is not None:
+        names = [str(c["name"]) for c in configs]
+        if args.start_from not in names:
+            raise ValueError(f"--start-from {args.start_from!r} not found in stage {stage} configs")
+        configs = configs[names.index(args.start_from):]
 
     print(f"=== JEPA sweep: stage={stage} entry={args.entry} seeds={seeds} ===", flush=True)
 
