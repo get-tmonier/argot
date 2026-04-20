@@ -51,6 +51,18 @@ NORMALIZE_EMBEDDINGS: bool = False
 FASTAPI_CLONE_DIR = Path("/tmp/argot-fastapi-static")
 ENTRY_DIR = CATALOG_DIR / "fastapi"
 
+_REPO_ROOT = Path(__file__).parent.parent.parent.parent
+
+
+def _file_class_for_path(rel_path: str) -> str:
+    """Derive file class from repo-relative path: 'test' | 'core' | 'docs_scripts'."""
+    top = Path(rel_path).parts[0] if Path(rel_path).parts else ""
+    if top == "tests":
+        return "test"
+    if top in ("docs", "scripts"):
+        return "docs_scripts"
+    return "core"
+
 # Baseline: commit-hunk holdout scorer on the 2000-record FastAPI catalog corpus
 BASELINE_CORPUS_MEAN: float = 0.6907
 BASELINE_P95: float = 1.2123
@@ -155,6 +167,7 @@ def _extract_chunks(repo_dir: Path, head_sha: str) -> list[dict[str, Any]]:
                     "hunk_end_line": end_line,
                     "_chunk_name": node.name,
                     "_source_lines": lines[hunk_start_0:hunk_end_0],
+                    "_file_class": _file_class_for_path(rel_path),
                 }
             )
     return chunks
@@ -445,9 +458,7 @@ def _write_phase8_report(
         f"  p75={ctl_pct['p75']:.4f}  p95={ctl_pct['p95']:.4f}  max={ctl_pct['max']:.4f}",
     ]
 
-    # engine/argot/research/ → ../../.. → engine/ → ../ → repo root
-    _repo_root = Path(__file__).parent.parent.parent.parent
-    report_dir = _repo_root / "docs" / "research" / "scoring" / "signal"
+    report_dir = _REPO_ROOT / "docs" / "research" / "scoring" / "signal"
     report_dir.mkdir(parents=True, exist_ok=True)
     report_path = report_dir / "phase8_measurement_2026-04-20.md"
     report_path.write_text("\n".join(md_lines) + "\n", encoding="utf-8")
@@ -522,6 +533,236 @@ def _print_report(
 
 
 # ---------------------------------------------------------------------------
+# Phase 2 helpers
+# ---------------------------------------------------------------------------
+
+
+def _top20_composition(
+    chunks: list[dict[str, Any]],
+    scores: list[float],
+) -> dict[str, int]:
+    """Return {file_class: count} for the top-20 highest-scoring chunks."""
+    indexed = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)
+    counts: dict[str, int] = {"test": 0, "core": 0, "docs_scripts": 0}
+    for idx, _ in indexed[:20]:
+        fc = str(chunks[idx].get("_file_class", "core"))
+        counts[fc] = counts.get(fc, 0) + 1
+    return counts
+
+
+def _per_category_delta(
+    specs: list[FixtureSpec],
+    fixture_scores: list[float],
+) -> list[tuple[str, float, float, float, int, int]]:
+    """Return [(category, break_mean, ctrl_mean, delta, n_break, n_ctrl), ...]."""
+    by_cat: dict[str, tuple[list[float], list[float]]] = {}
+    for spec, score in zip(specs, fixture_scores):
+        cat = spec.category
+        if cat not in by_cat:
+            by_cat[cat] = ([], [])
+        if spec.is_break:
+            by_cat[cat][0].append(score)
+        else:
+            by_cat[cat][1].append(score)
+    rows = []
+    for cat, (brk, ctl) in sorted(by_cat.items()):
+        if not brk and not ctl:
+            continue
+        bm = statistics.mean(brk) if brk else float("nan")
+        cm = statistics.mean(ctl) if ctl else float("nan")
+        d = bm - cm if brk and ctl else float("nan")
+        rows.append((cat, bm, cm, d, len(brk), len(ctl)))
+    return rows
+
+
+def _stratified_chunk_scores(
+    chunks: list[dict[str, Any]],
+    chunk_scores: list[float],
+) -> list[float]:
+    """Z-score chunk scores within each file class to remove between-class offset."""
+    class_vals: dict[str, list[float]] = {}
+    for c, s in zip(chunks, chunk_scores):
+        fc = str(c.get("_file_class", "core"))
+        class_vals.setdefault(fc, []).append(s)
+    class_stats: dict[str, tuple[float, float]] = {}
+    for fc, vals in class_vals.items():
+        arr = np.array(vals)
+        mu = float(arr.mean())
+        sigma = float(arr.std()) if arr.std() > 0 else 1.0
+        class_stats[fc] = (mu, sigma)
+    result = []
+    for c, s in zip(chunks, chunk_scores):
+        fc = str(c.get("_file_class", "core"))
+        mu, sigma = class_stats[fc]
+        result.append((s - mu) / sigma)
+    return result
+
+
+def _core_fixture_auc(
+    specs: list[FixtureSpec],
+    fixture_scores: list[float],
+) -> float:
+    """AUC on non-framework_swap fixtures only (harder subtlety signal)."""
+    pairs = [
+        (s, score)
+        for s, score in zip(specs, fixture_scores)
+        if s.category != "framework_swap"
+    ]
+    core_breaks = [score for s, score in pairs if s.is_break]
+    core_ctrls = [score for s, score in pairs if not s.is_break]
+    if not core_breaks or not core_ctrls:
+        return float("nan")
+    return compute_auc(core_ctrls, core_breaks)
+
+
+def _print_phase2_block(
+    chunks: list[dict[str, Any]],
+    chunk_scores: list[float],
+    specs: list[FixtureSpec],
+    fixture_scores: list[float],
+    approach: str,
+    strat_scores: list[float] | None = None,
+) -> None:
+    comp = _top20_composition(chunks, chunk_scores)
+    core_auc = _core_fixture_auc(specs, fixture_scores)
+    cat_rows = _per_category_delta(specs, fixture_scores)
+
+    break_scores = [s for spec, s in zip(specs, fixture_scores) if spec.is_break]
+    ctrl_scores = [s for spec, s in zip(specs, fixture_scores) if not spec.is_break]
+    delta = (
+        statistics.mean(break_scores) - statistics.mean(ctrl_scores)
+        if break_scores and ctrl_scores
+        else 0.0
+    )
+
+    if core_auc >= 0.65 and comp.get("core", 0) >= 5:
+        verdict = "✅ top-20 core ≥ 5 AND core AUC ≥ 0.65 — continue to Phase 3"
+    elif core_auc < 0.60:
+        verdict = "⚠️  STOP — core AUC < 0.60 under both approaches, architecture ceiling reached"
+    else:
+        verdict = "⚠️  borderline"
+
+    print(f"\n=== Phase 2 — Bias Fix ({approach}) ===")
+    print(
+        f"Top-20 composition: core={comp.get('core', 0)}  "
+        f"test={comp.get('test', 0)}  docs_scripts={comp.get('docs_scripts', 0)}"
+    )
+    print(f"Core-only-fixture AUC (non-framework_swap): {core_auc:.4f}")
+    print(f"Overall delta (break−ctrl): {delta:.4f}")
+    print(f"Verdict: {verdict}")
+    print("\nPer-category delta:")
+    print(f"  {'category':25}  {'Δ':>7}  {'brk_μ':>7}  {'ctl_μ':>7}  {'#brk':>4}  {'#ctl':>4}")
+    for cat, bm, cm, d, nb, nc in cat_rows:
+        d_str = f"{d:+.4f}" if d == d else "   n/a"
+        bm_str = f"{bm:.4f}" if bm == bm else "   n/a"
+        cm_str = f"{cm:.4f}" if cm == cm else "   n/a"
+        print(f"  {cat:25}  {d_str:>7}  {bm_str:>7}  {cm_str:>7}  {nb:>4}  {nc:>4}")
+
+    if strat_scores is not None:
+        strat_comp = _top20_composition(chunks, strat_scores)
+        print("\nFallback: stratified z-score top-20 composition:")
+        print(
+            f"  core={strat_comp.get('core', 0)}  "
+            f"test={strat_comp.get('test', 0)}  "
+            f"docs_scripts={strat_comp.get('docs_scripts', 0)}"
+        )
+
+
+def _write_phase8_bias_fix_report(
+    chunks: list[dict[str, Any]],
+    chunk_scores: list[float],
+    specs: list[FixtureSpec],
+    fixture_scores: list[float],
+    n_core_train: int,
+    n_test_excluded: int,
+    head_sha: str,
+    approach: str,
+    strat_scores: list[float] | None = None,
+) -> None:
+    comp = _top20_composition(chunks, chunk_scores)
+    core_auc = _core_fixture_auc(specs, fixture_scores)
+    cat_rows = _per_category_delta(specs, fixture_scores)
+
+    break_scores = [s for spec, s in zip(specs, fixture_scores) if spec.is_break]
+    ctrl_scores = [s for spec, s in zip(specs, fixture_scores) if not spec.is_break]
+    delta = (
+        statistics.mean(break_scores) - statistics.mean(ctrl_scores)
+        if break_scores and ctrl_scores
+        else 0.0
+    )
+
+    if core_auc >= 0.65 and comp.get("core", 0) >= 5:
+        verdict = "✅ top-20 core ≥ 5 AND core AUC ≥ 0.65 — continue to Phase 3"
+    elif core_auc < 0.60:
+        verdict = "⚠️ STOP — core AUC < 0.60, architecture ceiling reached"
+    else:
+        verdict = "⚠️ borderline — top-20 core or AUC marginal"
+
+    md: list[str] = [
+        "# Phase 8 Bias Fix — 2026-04-20",
+        "",
+        "## Setup",
+        "",
+        f"- Encoder: `{ENCODER_MODEL}`",
+        f"- Ensemble: `EnsembleInfoNCE(n={ENSEMBLE_N}, beta={WINNER_BETA}, tau={WINNER_TAU})`",
+        f"- FastAPI HEAD: `{head_sha}`",
+        f"- Approach: {approach}",
+        f"- Training corpus: {n_core_train} core chunks ({n_test_excluded} test chunks excluded)",
+        f"- Scoring corpus: {len(chunks)} chunks (all, including test)",
+        "- Command: `uv run python -m argot.research.static_chunk_audit_test`",
+        "",
+        "## Go/No-go",
+        "",
+        f"**{verdict}**",
+        "",
+        "## Top-20 Composition",
+        "",
+        f"| File class | Count |",
+        "|------------|------:|",
+        f"| core | {comp.get('core', 0)} |",
+        f"| test | {comp.get('test', 0)} |",
+        f"| docs_scripts | {comp.get('docs_scripts', 0)} |",
+        "",
+        "## Core-only-fixture AUC (non-framework_swap)",
+        "",
+        f"**AUC: {core_auc:.4f}**  (threshold ≥ 0.65 to continue)",
+        "",
+        "## Overall Delta",
+        "",
+        f"break mean − ctrl mean = **{delta:.4f}**  (threshold ≥ 0.20 before stratified fallback)",
+        "",
+        "## Per-category Delta",
+        "",
+        "| Category | Δ | Break μ | Ctrl μ | #Break | #Ctrl |",
+        "|----------|--:|--------:|-------:|-------:|------:|",
+    ]
+    for cat, bm, cm, d, nb, nc in cat_rows:
+        d_str = f"{d:+.4f}" if d == d else "n/a"
+        bm_str = f"{bm:.4f}" if bm == bm else "n/a"
+        cm_str = f"{cm:.4f}" if cm == cm else "n/a"
+        md.append(f"| {cat} | {d_str} | {bm_str} | {cm_str} | {nb} | {nc} |")
+
+    if strat_scores is not None:
+        strat_comp = _top20_composition(chunks, strat_scores)
+        md += [
+            "",
+            "## Fallback: Stratified Z-score Top-20 Composition",
+            "",
+            f"| File class | Count |",
+            "|------------|------:|",
+            f"| core | {strat_comp.get('core', 0)} |",
+            f"| test | {strat_comp.get('test', 0)} |",
+            f"| docs_scripts | {strat_comp.get('docs_scripts', 0)} |",
+        ]
+
+    report_dir = _REPO_ROOT / "docs" / "research" / "scoring" / "signal"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    report_path = report_dir / "phase8_bias_fix_2026-04-20.md"
+    report_path.write_text("\n".join(md) + "\n", encoding="utf-8")
+    print(f"\nPhase 2 report written to {report_path}", flush=True)
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -545,9 +786,23 @@ def main() -> None:
     # 3. Pre-encode all static chunks once with UnixCoder (reused across all ensemble members)
     preencoded = _encode_records(chunks, label="static chunks")
 
-    # 4. Train ensemble on file-level 80% train split
+    # 4. Phase 2: train on core-only subset (exclude test files to reduce test-file bias)
+    core_indices = [i for i, c in enumerate(chunks) if c["_file_class"] != "test"]
+    core_chunks = [chunks[i] for i in core_indices]
+    idx_t = torch.tensor(core_indices, dtype=torch.long)
+    core_preencoded = (preencoded[0][idx_t], preencoded[1][idx_t])
+
+    n_test_excluded = len(chunks) - len(core_chunks)
+    n_docs = sum(1 for c in chunks if c["_file_class"] == "docs_scripts")
     print(
-        f"\nTraining {ENSEMBLE_N}-member ensemble on static chunks "
+        f"\nPhase 2 corpus filter: {len(core_chunks)} chunks kept "
+        f"({n_test_excluded} test-file chunks excluded, {n_docs} docs/scripts included), "
+        "training on core-only subset.",
+        flush=True,
+    )
+
+    print(
+        f"\nTraining {ENSEMBLE_N}-member ensemble on core-only chunks "
         f"(beta={WINNER_BETA} tau={WINNER_TAU} warmup={WINNER_WARMUP} "
         f"encoder={ENCODER_MODEL}) ...",
         flush=True,
@@ -558,7 +813,7 @@ def main() -> None:
         tau=WINNER_TAU,
         warmup_epochs=WINNER_WARMUP,
     )
-    ensemble.fit(chunks, preencoded=preencoded)
+    ensemble.fit(core_chunks, preencoded=core_preencoded)
 
     # 5. Pre-encode fixtures with same UnixCoder encoder and score (verifies detection signal)
     specs: list[FixtureSpec] = load_manifest(ENTRY_DIR)
@@ -569,16 +824,49 @@ def main() -> None:
     break_scores = [fixture_scores[i] for i, s in enumerate(specs) if s.is_break]
     ctrl_scores = [fixture_scores[i] for i, s in enumerate(specs) if not s.is_break]
 
-    # 6. Score all static chunks via preencoded tensors (avoids re-encoding with wrong model)
+    # 6. Score ALL static chunks via preencoded tensors (includes test chunks for ranking)
     print(f"Scoring {len(chunks)} static chunks ...", flush=True)
     chunk_scores = ensemble.score_from_preencoded(*preencoded)
+
+    # 7. Compute overall delta; if < 0.20 also compute stratified fallback
+    delta_approach1 = (
+        statistics.mean(break_scores) - statistics.mean(ctrl_scores)
+        if break_scores and ctrl_scores
+        else 0.0
+    )
+    strat_scores: list[float] | None = None
+    if delta_approach1 < 0.20:
+        print(
+            f"\nDelta {delta_approach1:.4f} < 0.20 — computing stratified z-score fallback ...",
+            flush=True,
+        )
+        strat_scores = _stratified_chunk_scores(chunks, chunk_scores)
 
     elapsed = time.perf_counter() - t_start
     print(f"\nTotal elapsed: {elapsed:.0f}s", flush=True)
 
     _print_report(chunks, chunk_scores, break_scores, ctrl_scores)
     _print_metrics_block(break_scores, ctrl_scores)
+    _print_phase2_block(
+        chunks,
+        chunk_scores,
+        specs,
+        fixture_scores,
+        approach="exclude-tests-from-train",
+        strat_scores=strat_scores,
+    )
     _write_phase8_report(break_scores, ctrl_scores, len(chunks), head_sha, specs)
+    _write_phase8_bias_fix_report(
+        chunks,
+        chunk_scores,
+        specs,
+        fixture_scores,
+        n_core_train=len(core_chunks),
+        n_test_excluded=n_test_excluded,
+        head_sha=head_sha,
+        approach="exclude-tests-from-train",
+        strat_scores=strat_scores,
+    )
 
 
 if __name__ == "__main__":
