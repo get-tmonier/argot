@@ -1,0 +1,67 @@
+{
+  "fixtures": [
+    {
+      "name": "paradigm_break_requests_session_mount",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_requests_session_mount.py",
+      "hunk_start_line": 34,
+      "hunk_end_line": 84,
+      "is_break": true,
+      "rationale": "httpx uses a mounts= dict passed to Client() constructor — there is no public .mount() method and no HTTPAdapter subclassing; requests.auth.AuthBase.__call__(), init_poolmanager() override, create_urllib3_context(), and session.mount() are requests/urllib3-specific APIs with no httpx equivalent"
+    },
+    {
+      "name": "paradigm_break_urllib3_pool",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_urllib3_pool.py",
+      "hunk_start_line": 52,
+      "hunk_end_line": 110,
+      "is_break": true,
+      "rationale": "httpx abstracts connection pool management entirely; urllib3.HTTPSConnectionPool, pool.request(), and explicit pool.close() have no httpx equivalent — connection lifecycle is internal to Client/transport"
+    },
+    {
+      "name": "paradigm_break_aiohttp_session",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_aiohttp_session.py",
+      "hunk_start_line": 38,
+      "hunk_end_line": 88,
+      "is_break": true,
+      "rationale": "httpx uses transport= not connector=, and response objects are returned directly rather than used as async context managers; aiohttp.ClientSession(connector=...) and `async with session.get() as resp:` are not httpx patterns"
+    },
+    {
+      "name": "paradigm_break_sync_in_async",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_sync_in_async.py",
+      "hunk_start_line": 28,
+      "hunk_end_line": 80,
+      "is_break": true,
+      "rationale": "importing requests and calling requests.get() inside async def blocks the event loop; httpx provides httpx.AsyncClient with await client.get() as the correct async transport"
+    },
+    {
+      "name": "paradigm_break_raw_socket",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_raw_socket.py",
+      "hunk_start_line": 36,
+      "hunk_end_line": 101,
+      "is_break": true,
+      "rationale": "http.client.HTTPSConnection with conn.request() / conn.getresponse() / conn.close() is the low-level stdlib API that httpx abstracts; callers never construct connection objects or manage their lifecycle in httpx"
+    },
+    {
+      "name": "control_client_context_manager",
+      "scope": "default",
+      "file": "fixtures/default/control_client_context_manager.py",
+      "hunk_start_line": 95,
+      "hunk_end_line": 128,
+      "is_break": false,
+      "rationale": "idiomatic httpx sync usage: httpx.Client() with transport=, event_hooks=, timeout=, auth= keyword arguments as context managers; response.status_code assertions and raise_for_status() patterns identical to httpx test corpus"
+    },
+    {
+      "name": "control_async_client_transport",
+      "scope": "default",
+      "file": "fixtures/default/control_async_client_transport.py",
+      "hunk_start_line": 45,
+      "hunk_end_line": 82,
+      "is_break": false,
+      "rationale": "idiomatic httpx async usage: httpx.AsyncClient() with transport=, auth=, timeout= as async context manager; await client.get/post with status_code assertions; named handler functions (not lambda) for MockTransport"
+    }
+  ]
+}
