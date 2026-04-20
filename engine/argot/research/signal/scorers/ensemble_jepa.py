@@ -27,12 +27,16 @@ class EnsembleJepaScorer:
         aggregation: Literal["mean", "topk", "random_topk"] = "mean",
         topk_k: int = 64,
         zscore_vs_corpus: bool = False,
+        sampling: Literal["linear", "diverse_kmeans", "fps"] = "linear",
+        corpus_cap: int = 2000,
     ) -> None:
         self._n = n
         self._base_seed = base_seed
         self._aggregation = aggregation
         self._topk_k = topk_k
         self._zscore_vs_corpus = zscore_vs_corpus
+        self._sampling = sampling
+        self._corpus_cap = corpus_cap
         self._members: list[JepaCustomScorer] = []
 
     def fit(
@@ -52,6 +56,8 @@ class EnsembleJepaScorer:
                 aggregation=self._aggregation,
                 topk_k=self._topk_k,
                 zscore_vs_corpus=self._zscore_vs_corpus,
+                sampling=self._sampling,
+                corpus_cap=self._corpus_cap,
             )
             member.fit(corpus, preencoded=preencoded)
             self._members.append(member)

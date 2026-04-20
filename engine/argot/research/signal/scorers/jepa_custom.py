@@ -17,6 +17,68 @@ from argot.train import ModelBundle, _texts_for_records
 from argot.validate import score_from_tensors, score_records, split_by_time
 
 
+def _diverse_sample(
+    embeddings: torch.Tensor,
+    n: int,
+    method: Literal["linear", "diverse_kmeans", "fps"],
+    seed: int = 0,
+) -> torch.Tensor:
+    """Return indices of n records selected by the given strategy.
+
+    linear:         first n indices (existing behaviour)
+    diverse_kmeans: KMeans(n_clusters=min(8, n//32)) on embeddings, equal
+                    count per cluster (floor division, remainder dropped)
+    fps:            greedy farthest-point selection starting from a random seed
+    """
+    total = len(embeddings)
+    if n >= total:
+        return torch.arange(total, dtype=torch.long)
+
+    if method == "linear":
+        return torch.arange(n, dtype=torch.long)
+
+    if method == "diverse_kmeans":
+        from sklearn.cluster import KMeans
+
+        n_clusters = min(8, n // 32)
+        n_clusters = max(1, n_clusters)  # clamp to at least 1
+        per_cluster = n // n_clusters
+        if per_cluster == 0:
+            # n < n_clusters: just return first n
+            return torch.arange(n, dtype=torch.long)
+
+        emb_np = embeddings.cpu().numpy()
+        km = KMeans(n_clusters=n_clusters, random_state=seed, n_init="auto")
+        labels = km.fit_predict(emb_np)
+        rng = np.random.default_rng(seed)
+        selected: list[int] = []
+        for c in range(n_clusters):
+            cluster_idx = np.where(labels == c)[0]
+            rng.shuffle(cluster_idx)
+            selected.extend(cluster_idx[:per_cluster].tolist())
+        return torch.tensor(selected, dtype=torch.long)
+
+    # fps
+    rng = np.random.default_rng(seed)
+    emb_cpu = embeddings.cpu().float()
+    first = int(rng.integers(total))
+    selected_fps: list[int] = [first]
+    # min_dists[i] = squared L2 distance from point i to nearest selected point
+    diff = emb_cpu - emb_cpu[first]
+    min_dists = (diff * diff).sum(dim=1).numpy()
+    min_dists[first] = -1.0  # mark as selected
+
+    for _ in range(n - 1):
+        next_idx = int(np.argmax(min_dists))
+        selected_fps.append(next_idx)
+        diff = emb_cpu - emb_cpu[next_idx]
+        new_dists = (diff * diff).sum(dim=1).numpy()
+        min_dists = np.minimum(min_dists, new_dists)
+        min_dists[next_idx] = -1.0  # mark as selected
+
+    return torch.tensor(selected_fps, dtype=torch.long)
+
+
 class JepaCustomScorer:
     """JEPA scorer with configurable predictor capacity and LR schedule.
 
@@ -39,6 +101,8 @@ class JepaCustomScorer:
         aggregation: Literal["mean", "topk", "random_topk"] = "mean",
         topk_k: int = 64,
         zscore_vs_corpus: bool = False,
+        sampling: Literal["linear", "diverse_kmeans", "fps"] = "linear",
+        corpus_cap: int = 2000,
     ) -> None:
         self._epochs = epochs
         self._lr = lr
@@ -50,6 +114,8 @@ class JepaCustomScorer:
         self._aggregation = aggregation
         self._topk_k = topk_k
         self._zscore_vs_corpus = zscore_vs_corpus
+        self._sampling = sampling
+        self._corpus_cap = corpus_cap
         self._bundle: ModelBundle | None = None
         self._zscore_stats: tuple[float, float] | None = None
 
@@ -64,19 +130,30 @@ class JepaCustomScorer:
             np.random.seed(self._random_seed)
             random.seed(self._random_seed)
 
+        train_pre: tuple[torch.Tensor, torch.Tensor] | None
+        held_out_pre: tuple[torch.Tensor, torch.Tensor] | None
         if preencoded is not None:
             # corpus is pre-sorted by caller; split index mirrors split_by_time ratio
             split_idx = int(len(corpus) * 0.8)
             train_records = corpus[:split_idx]
             held_out_records = corpus[split_idx:]
-            train_pre: tuple[torch.Tensor, torch.Tensor] | None = (
+            _train_pre: tuple[torch.Tensor, torch.Tensor] = (
                 preencoded[0][:split_idx],
                 preencoded[1][:split_idx],
             )
-            held_out_pre: tuple[torch.Tensor, torch.Tensor] | None = (
+            held_out_pre = (
                 preencoded[0][split_idx:],
                 preencoded[1][split_idx:],
             )
+            # Apply corpus cap + diversity sampling to training split only
+            if len(train_records) > self._corpus_cap or self._sampling != "linear":
+                emb = (_train_pre[0] + _train_pre[1]) / 2.0  # mean of ctx+hunk embeddings
+                idx = _diverse_sample(
+                    emb, self._corpus_cap, self._sampling, seed=self._random_seed or 0
+                )
+                train_records = [train_records[i] for i in idx.tolist()]
+                _train_pre = (_train_pre[0][idx], _train_pre[1][idx])
+            train_pre = _train_pre
         else:
             train_records, held_out_records = split_by_time(corpus, ratio=0.8)
             train_pre = None

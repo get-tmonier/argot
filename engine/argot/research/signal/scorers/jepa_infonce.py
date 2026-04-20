@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import random
 import time
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from argot.jepa.model import JEPAArgot
 from argot.jepa.predictor import ArgotPredictor
 from argot.jepa.pretrained_encoder import PretrainedEncoder, select_device
+from argot.research.signal.scorers.jepa_custom import _diverse_sample
 from argot.train import ModelBundle, _texts_for_records
 from argot.validate import score_records, split_by_time
 
@@ -38,6 +39,8 @@ class JepaInfoNCEScorer:
         tau: float = 0.07,
         warmup_epochs: int = 0,
         random_seed: int | None = None,
+        sampling: Literal["linear", "diverse_kmeans", "fps"] = "linear",
+        corpus_cap: int = 2000,
     ) -> None:
         self._epochs = epochs
         self._lr = lr
@@ -47,6 +50,8 @@ class JepaInfoNCEScorer:
         self._tau = tau
         self._warmup_epochs = warmup_epochs
         self._random_seed = random_seed
+        self._sampling = sampling
+        self._corpus_cap = corpus_cap
         self._bundle: ModelBundle | None = None
 
     def fit(
@@ -60,14 +65,24 @@ class JepaInfoNCEScorer:
             np.random.seed(self._random_seed)
             random.seed(self._random_seed)
 
+        train_pre: tuple[torch.Tensor, torch.Tensor] | None
         if preencoded is not None:
             # corpus is pre-sorted by caller; split index mirrors split_by_time ratio
             split_idx = int(len(corpus) * 0.8)
             train_records = corpus[:split_idx]
-            train_pre: tuple[torch.Tensor, torch.Tensor] | None = (
+            _train_pre: tuple[torch.Tensor, torch.Tensor] = (
                 preencoded[0][:split_idx],
                 preencoded[1][:split_idx],
             )
+            # Apply corpus cap + diversity sampling to training split only
+            if len(train_records) > self._corpus_cap or self._sampling != "linear":
+                emb = (_train_pre[0] + _train_pre[1]) / 2.0  # mean of ctx+hunk embeddings
+                idx = _diverse_sample(
+                    emb, self._corpus_cap, self._sampling, seed=self._random_seed or 0
+                )
+                train_records = [train_records[i] for i in idx.tolist()]
+                _train_pre = (_train_pre[0][idx], _train_pre[1][idx])
+            train_pre = _train_pre
         else:
             train_records, _ = split_by_time(corpus, ratio=0.8)
             train_pre = None

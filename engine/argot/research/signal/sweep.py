@@ -115,6 +115,12 @@ STAGE6_CONFIGS: list[dict[str, Any]] = [
     for w in [0, 5]
 ]
 
+STAGE7_CONFIGS: list[dict[str, Any]] = [
+    {"name": f"{sampling}_{cap}", "sampling": sampling, "corpus_cap": cap}
+    for sampling in ["linear", "diverse_kmeans", "fps"]
+    for cap in [2000, 4000, 8000]
+]
+
 _STAGE_CONFIGS: dict[int, list[dict[str, Any]]] = {
     1: STAGE1_CONFIGS,
     2: STAGE2_CONFIGS,
@@ -122,6 +128,7 @@ _STAGE_CONFIGS: dict[int, list[dict[str, Any]]] = {
     4: STAGE4_CONFIGS,
     5: STAGE5_CONFIGS,
     6: STAGE6_CONFIGS,
+    7: STAGE7_CONFIGS,
 }
 
 DEFAULT_SEEDS = [0, 1, 2]
@@ -160,13 +167,24 @@ def _stage5_factory(cfg: dict[str, Any]) -> SignalScorer:
 
 
 class _EnsembleInfoNCE:
-    """Ensemble of JepaInfoNCEScorer for Stage 6 sweep."""
+    """Ensemble of JepaInfoNCEScorer for Stage 6/7 sweep."""
 
-    def __init__(self, *, n: int = 3, beta: float, tau: float, warmup_epochs: int) -> None:
+    def __init__(
+        self,
+        *,
+        n: int = 3,
+        beta: float,
+        tau: float,
+        warmup_epochs: int,
+        sampling: str = "linear",
+        corpus_cap: int = 2000,
+    ) -> None:
         self._n = n
         self._beta = beta
         self._tau = tau
         self._warmup_epochs = warmup_epochs
+        self._sampling = sampling
+        self._corpus_cap = corpus_cap
         self._members: list[JepaInfoNCEScorer] = []
 
     def fit(
@@ -182,6 +200,8 @@ class _EnsembleInfoNCE:
                 tau=self._tau,
                 warmup_epochs=self._warmup_epochs,
                 random_seed=i,
+                sampling=self._sampling,  # type: ignore[arg-type]
+                corpus_cap=self._corpus_cap,
             )
             m.fit(corpus, preencoded=preencoded)
             self._members.append(m)
@@ -200,6 +220,17 @@ def _stage6_factory(cfg: dict[str, Any]) -> SignalScorer:
     )
 
 
+def _stage7_factory(cfg: dict[str, Any]) -> SignalScorer:
+    return _EnsembleInfoNCE(  # type: ignore[return-value]
+        n=3,
+        beta=0.1,
+        tau=0.1,
+        warmup_epochs=0,
+        sampling=str(cfg["sampling"]),
+        corpus_cap=int(cfg["corpus_cap"]),
+    )
+
+
 _STAGE_FACTORIES: dict[int, Callable[[dict[str, Any]], SignalScorer]] = {
     1: _stage1_factory,
     2: _stage2_factory,
@@ -207,6 +238,7 @@ _STAGE_FACTORIES: dict[int, Callable[[dict[str, Any]], SignalScorer]] = {
     4: _stage4_factory,
     5: _stage5_factory,
     6: _stage6_factory,
+    7: _stage7_factory,
 }
 
 
@@ -218,12 +250,13 @@ def _run_sweep(
     factory: Callable[[dict[str, Any]], SignalScorer],
     seeds: list[int],
     out_dir: Path,
+    corpus_cap: int = 2000,
 ) -> None:
     entry_dir = catalog_dir / entry_name
     scopes: list[ScopeConfig] = load_scopes(entry_dir)
     specs: list[FixtureSpec] = load_manifest(entry_dir)
     corpus: list[dict[str, Any]] = load_corpus(entry_dir)
-    corpus = corpus[:2000]
+    corpus = corpus[:corpus_cap]
 
     # Pre-encode corpus per scope once (reused across all configs and seeds)
     print("Pre-encoding corpus per scope (runs once)...", flush=True)
@@ -344,7 +377,7 @@ def _write_report(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="JEPA fine-tuning hyperparameter sweep")
-    parser.add_argument("--stage", type=int, choices=[1, 2, 3, 4, 5, 6], default=1)
+    parser.add_argument("--stage", type=int, choices=[1, 2, 3, 4, 5, 6, 7], default=1)
     parser.add_argument("--entry", default="fastapi")
     # Parse stage early to set the correct default seeds before building the parser default
     _pre = argparse.ArgumentParser(add_help=False)
@@ -379,7 +412,8 @@ def main() -> None:
 
     print(f"=== JEPA sweep: stage={stage} entry={args.entry} seeds={seeds} ===", flush=True)
 
-    _run_sweep(stage, args.entry, catalog_dir, configs, factory, seeds, out_dir)
+    max_cap = max((int(c.get("corpus_cap", 2000)) for c in configs), default=2000)
+    _run_sweep(stage, args.entry, catalog_dir, configs, factory, seeds, out_dir, corpus_cap=max_cap)
 
 
 if __name__ == "__main__":
