@@ -173,6 +173,71 @@ Both catalogs produced only two controls each. With two controls, a single bad c
 
 ---
 
+## Contamination Experiment: httpx httpcore/ records
+
+**Question:** The httpx corpus (600 records) contains 70 records from `httpcore/` paths — httpx's underlying transport library. Does removing this 11.7% contamination improve the gate delta?
+
+### Corpus composition
+
+| source | records | % |
+|---|---|---|
+| `httpx/` implementation | 294 | 49.0% |
+| `tests/` | 225 | 37.5% |
+| `httpcore/` (dependency) | 70 | 11.7% |
+| `http3/`, `noxfile.py`, `setup.py` | 11 | 1.8% |
+
+### Experiment design
+
+The 70 `httpcore/` records were replaced with 70 additional `httpx/`-prefixed records sampled from `.argot/research/buckets-v2/small-py.jsonl` (`_repo == "httpx"`, seed=43), deduplicating by `commit_sha`. Total stayed at 600. The 4 subtle-break fixtures are research artifacts and are reported separately; gate scoring uses only the 5 obvious breaks and 2 controls.
+
+### Results
+
+| metric | baseline (httpx.md) | filtered corpus | change |
+|---|---|---|---|
+| gate break avg (5 fixtures) | 1.1755 | 1.1910 | +0.0155 |
+| gate control avg (2 fixtures) | 0.9206 | 0.9787 | +0.0581 |
+| **gate delta** | **0.2549** | **0.2123** | **−0.0426** |
+| gate pass (≥ 0.20) | ✓ | ✓ | — |
+
+Per-fixture comparison (gate fixtures only):
+
+| fixture | baseline | filtered | change |
+|---|---|---|---|
+| paradigm_break_requests_session_mount | 1.0766 | 1.1355 | +0.059 |
+| paradigm_break_urllib3_pool | 1.2123 | 1.2014 | −0.011 |
+| paradigm_break_aiohttp_session | 1.1732 | 1.1654 | −0.008 |
+| paradigm_break_sync_in_async | 1.2296 | 1.2159 | −0.014 |
+| paradigm_break_raw_socket | 1.1857 | 1.2370 | +0.051 |
+| control_client_context_manager | 0.9817 | 1.0673 | **+0.086** |
+| control_async_client_transport | 0.8594 | 0.8901 | +0.031 |
+
+Subtle breaks (research artifacts, not part of gate):
+
+| fixture | baseline | filtered | change |
+|---|---|---|---|
+| paradigm_break_subtle_wrong_exception | 0.6773 | 0.6956 | +0.018 |
+| paradigm_break_subtle_status_check | 0.9332 | 0.9568 | +0.023 |
+| paradigm_break_subtle_sync_in_async_context | 1.1245 | 1.1333 | +0.008 |
+| paradigm_break_subtle_exception_swallow | 0.8461 | 0.8459 | ±0.000 |
+
+### Interpretation
+
+Removing httpcore/ contamination **did not improve the gate delta** — it worsened it by 0.043. The gate still passes (0.2123 ≥ 0.20) but is closer to the threshold.
+
+The main effect was on the controls: `control_client_context_manager` rose from 0.9817 to 1.0673 (+0.086), nearly cancelling the break-score improvement. Two possible explanations:
+
+1. **httpcore/ records anchor transport-layer vocabulary as "normal."** Both controls use `httpx.AsyncClient` and transport-related patterns. httpcore implements the same transport abstractions (connections, streams, SSL), so its tokens partially overlap with control fixture vocabulary. Removing those records removes that anchoring, making control fixtures look slightly more anomalous.
+
+2. **The replacement httpx/ records add internal implementation vocabulary.** The 70 sampled replacement records come from internal `httpx/` paths (private methods, codec internals, etc.), which broadens the "normal" vocabulary space without grounding it in the specific public-API patterns that controls exercise. Net effect: the baseline anomaly level for everything increases slightly.
+
+Break scores were largely stable (±0.05), which confirms the model's ability to detect paradigm breaks is robust to this corpus variation. The sensitivity to contamination appears to be in the control calibration, not the break detection.
+
+### Conclusion
+
+For the httpx catalog, the httpcore/ contamination is **not harmful enough to be worth filtering**. The gate passes in both configurations. Filtering only makes sense if control scores are drifting above 1.0 and the contamination is from a library whose vocabulary is entirely foreign to the target library. When the contamination is from a related library (same vocabulary domain, as httpcore/httpx are), removing it can remove useful calibration signal for controls.
+
+---
+
 ## Summary
 
 | metric | ky | httpx |
