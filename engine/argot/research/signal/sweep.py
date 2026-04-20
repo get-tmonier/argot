@@ -22,6 +22,7 @@ from argot.acceptance.runner import (
     load_scopes,
 )
 from argot.research.signal.base import SignalScorer
+from argot.research.signal.scorers.ensemble_jepa import EnsembleJepaScorer
 from argot.research.signal.scorers.jepa_custom import JepaCustomScorer
 from argot.research.signal.scorers.jepa_filtered import JepaFilteredScorer
 from argot.research.signal.scorers.jepa_pretrained import JepaPretrainedScorer
@@ -54,7 +55,12 @@ STAGE3_CONFIGS: list[dict[str, Any]] = [
     {"name": "filtered_tau1",  "tau_percentile": 1.0},
     {"name": "filtered_tau5",  "tau_percentile": 5.0},
 ]
-STAGE4_CONFIGS: list[dict[str, Any]] = []
+# Stage 4: ensemble over flat_d6m1024 (mean=0.221 unensembled, std=0.024)
+# N ∈ {3, 5} = 2 configs × 3 base_seeds = 6 runs (each run trains N predictors internally)
+STAGE4_CONFIGS: list[dict[str, Any]] = [
+    {"name": "ensemble_n3", "n": 3},
+    {"name": "ensemble_n5", "n": 5},
+]
 
 _STAGE_CONFIGS: dict[int, list[dict[str, Any]]] = {
     1: STAGE1_CONFIGS,
@@ -83,10 +89,15 @@ def _stage3_factory(cfg: dict[str, Any]) -> SignalScorer:
     return JepaFilteredScorer(tau_percentile=float(cfg["tau_percentile"]))
 
 
+def _stage4_factory(cfg: dict[str, Any]) -> SignalScorer:
+    return EnsembleJepaScorer(n=int(cfg["n"]))
+
+
 _STAGE_FACTORIES: dict[int, Callable[[dict[str, Any]], SignalScorer]] = {
     1: _stage1_factory,
     2: _stage2_factory,
     3: _stage3_factory,
+    4: _stage4_factory,
 }
 
 
