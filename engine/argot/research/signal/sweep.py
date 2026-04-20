@@ -27,6 +27,7 @@ from argot.research.signal.base import SignalScorer
 from argot.research.signal.scorers.ensemble_jepa import EnsembleJepaScorer
 from argot.research.signal.scorers.jepa_custom import JepaCustomScorer
 from argot.research.signal.scorers.jepa_filtered import JepaFilteredScorer
+from argot.research.signal.scorers.jepa_infonce import JepaInfoNCEScorer
 from argot.research.signal.scorers.jepa_pretrained import JepaPretrainedScorer
 from argot.train import _texts_for_records
 
@@ -100,12 +101,27 @@ STAGE5_CONFIGS: list[dict[str, Any]] = [
     _s5("rand128_z", "topk", 128, True, True),
 ]
 
+# Stage 6: InfoNCE loss sweep
+# {beta ∈ 0.1, 0.25, 0.5, 1.0} × {tau ∈ 0.05, 0.07, 0.1} × {warmup ∈ 0, 5} = 24 configs × 1 seed
+STAGE6_CONFIGS: list[dict[str, Any]] = [
+    {
+        "name": f"b{str(b).replace('.', '')}_t{str(t).replace('.', '')}_w{w}",
+        "beta": b,
+        "tau": t,
+        "warmup": w,
+    }
+    for b in [0.1, 0.25, 0.5, 1.0]
+    for t in [0.05, 0.07, 0.1]
+    for w in [0, 5]
+]
+
 _STAGE_CONFIGS: dict[int, list[dict[str, Any]]] = {
     1: STAGE1_CONFIGS,
     2: STAGE2_CONFIGS,
     3: STAGE3_CONFIGS,
     4: STAGE4_CONFIGS,
     5: STAGE5_CONFIGS,
+    6: STAGE6_CONFIGS,
 }
 
 DEFAULT_SEEDS = [0, 1, 2]
@@ -143,12 +159,54 @@ def _stage5_factory(cfg: dict[str, Any]) -> SignalScorer:
     )
 
 
+class _EnsembleInfoNCE:
+    """Ensemble of JepaInfoNCEScorer for Stage 6 sweep."""
+
+    def __init__(self, *, n: int = 3, beta: float, tau: float, warmup_epochs: int) -> None:
+        self._n = n
+        self._beta = beta
+        self._tau = tau
+        self._warmup_epochs = warmup_epochs
+        self._members: list[JepaInfoNCEScorer] = []
+
+    def fit(
+        self,
+        corpus: list[dict[str, Any]],
+        *,
+        preencoded: tuple[torch.Tensor, torch.Tensor] | None = None,
+    ) -> None:
+        self._members = []
+        for i in range(self._n):
+            m = JepaInfoNCEScorer(
+                beta=self._beta,
+                tau=self._tau,
+                warmup_epochs=self._warmup_epochs,
+                random_seed=i,
+            )
+            m.fit(corpus, preencoded=preencoded)
+            self._members.append(m)
+
+    def score(self, fixtures: list[dict[str, Any]]) -> list[float]:
+        all_scores = [m.score(fixtures) for m in self._members]
+        return [sum(run[i] for run in all_scores) / self._n for i in range(len(fixtures))]
+
+
+def _stage6_factory(cfg: dict[str, Any]) -> SignalScorer:
+    return _EnsembleInfoNCE(  # type: ignore[return-value]
+        n=3,
+        beta=float(cfg["beta"]),
+        tau=float(cfg["tau"]),
+        warmup_epochs=int(cfg["warmup"]),
+    )
+
+
 _STAGE_FACTORIES: dict[int, Callable[[dict[str, Any]], SignalScorer]] = {
     1: _stage1_factory,
     2: _stage2_factory,
     3: _stage3_factory,
     4: _stage4_factory,
     5: _stage5_factory,
+    6: _stage6_factory,
 }
 
 
@@ -286,7 +344,7 @@ def _write_report(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="JEPA fine-tuning hyperparameter sweep")
-    parser.add_argument("--stage", type=int, choices=[1, 2, 3, 4, 5], default=1)
+    parser.add_argument("--stage", type=int, choices=[1, 2, 3, 4, 5, 6], default=1)
     parser.add_argument("--entry", default="fastapi")
     # Parse stage early to set the correct default seeds before building the parser default
     _pre = argparse.ArgumentParser(add_help=False)
