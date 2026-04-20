@@ -166,6 +166,60 @@ httpx remains below gate — its corpus size is below the ~1200-record stabilisa
 
 ---
 
+---
+
+## Stage 5 — Top-k Surprise Aggregation + Z-score Normalization
+
+**Hypothesis:** break anomalies concentrate in a minority of the 768 MSE dimensions; selecting the k highest squared errors before averaging (top-k pooling) should lift delta. Z-score normalization against the held-out training split should additionally calibrate scores.
+**Base:** `EnsembleJepaScorer(n=3)` over `flat_d6m1024` (mean=0.2215, std=0.000).
+**Grid:** `{mean, top16, top32, top64, top128} × {zscore off, on}` + Goodhart random-k baseline `{rand16, rand32, rand64, rand128} × {zscore off, on}` — 18 configs × 1 seed = 18 runs. (Single outer seed — ensemble already collapses std to 0.000.)
+
+### Results
+
+Raw deltas for top-k configs are not comparable to the 0.2215 baseline: selecting the k largest squared errors inflates the absolute score scale for both breaks and controls. Z-scored deltas (normalized by held-out corpus std) provide the honest apples-to-apples comparison.
+
+**Z-score track (honest comparison):**
+
+| config | delta |
+|---|---|
+| `mean_z` (baseline) | **0.8404** |
+| `top16_z` | 0.7168 |
+| `top32_z` | 0.7876 |
+| `top64_z` | 0.8187 |
+| `top128_z` | 0.8652 |
+| `rand16_z` | 0.7891 |
+| `rand32_z` | 0.7486 |
+| `rand64_z` | 1.1085 |
+| `rand128_z` | 1.1038 |
+
+**Raw track (scale-inflated, for completeness):**
+
+| config | delta |
+|---|---|
+| `mean_no_z` (baseline) | 0.2215 |
+| `top16` | 1.3447 |
+| `top32` | 1.2220 |
+| `top64` | 1.0102 |
+| `top128` | 0.8051 |
+| `rand16` | 0.1207 |
+| `rand32` | 0.1696 |
+| `rand64` | 0.2071 |
+| `rand128` | 0.2121 |
+
+### Findings
+
+**Top-k does not improve signal separation.** In the z-score track, every top-k config underperforms the `mean_z` baseline (0.8404). The best top-k config (`top128_z` = 0.8652) barely exceeds the baseline, and that margin is within noise.
+
+**Goodhart guardrail fires.** `rand16_z` (0.7891) beats `top16_z` (0.7168) — random dimension selection outperforms selecting actual highest-error dimensions. This confirms top-k is not localizing meaningful signal; it is just reducing dimensionality. When both dimensions and z-scoring are combined (`rand64_z` = 1.1085), the large number is an artifact of the interaction between random subsampling and z-score scale, not a genuine improvement.
+
+**Z-scoring is scale-only.** Z-scoring divides all scores by the held-out corpus std (a constant ~0.26). The ranking of every fixture is unchanged, so AUC and classification quality are identical before and after z-scoring. The larger z-scored deltas carry no additional information.
+
+**Phase 1 hypothesis rejected.** Break anomalies are diffuse across all 768 MSE dimensions; mean-pooling is already optimal. No setting from Stage 5 improves on `EnsembleJepaScorer(n=3, aggregation="mean")` = 0.2215.
+
+**Baseline carried into Phase 2:** `EnsembleJepaScorer(n=3)` with default mean aggregation, no z-score.
+
+---
+
 ## Key Learnings
 
 1. **Variance, not mean, was the primary obstacle.** The predictor could produce high-delta runs individually but not consistently across seeds. The fix was architectural (ensemble), not more training.
