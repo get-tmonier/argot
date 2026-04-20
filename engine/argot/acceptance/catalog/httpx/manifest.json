@@ -62,6 +62,42 @@
       "hunk_end_line": 82,
       "is_break": false,
       "rationale": "idiomatic httpx async usage: httpx.AsyncClient() with transport=, auth=, timeout= as async context manager; await client.get/post with status_code assertions; named handler functions (not lambda) for MockTransport"
+    },
+    {
+      "name": "paradigm_break_subtle_wrong_exception",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_subtle_wrong_exception.py",
+      "hunk_start_line": 33,
+      "hunk_end_line": 67,
+      "is_break": true,
+      "rationale": "httpx.Client() and raise_for_status() are used correctly everywhere, but except clauses catch requests.exceptions.ConnectionError and requests.exceptions.HTTPError instead of httpx.ConnectError and httpx.HTTPStatusError — only two foreign exception type references constitute the break"
+    },
+    {
+      "name": "paradigm_break_subtle_status_check",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_subtle_status_check.py",
+      "hunk_start_line": 28,
+      "hunk_end_line": 63,
+      "is_break": true,
+      "rationale": "every HTTP call manually checks `if response.status_code >= 400: raise ValueError(...)` instead of calling response.raise_for_status(); all tokens are corpus-present but the structural absence of raise_for_status() and presence of plain ValueError is the paradigm break"
+    },
+    {
+      "name": "paradigm_break_subtle_sync_in_async_context",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_subtle_sync_in_async_context.py",
+      "hunk_start_line": 30,
+      "hunk_end_line": 66,
+      "is_break": true,
+      "rationale": "httpx.Client() (sync) is instantiated inside async def functions with no await and no AsyncClient; token vocabulary overlaps heavily with idiomatic async httpx but the sync/async mismatch is the break — the event loop is blocked on every call"
+    },
+    {
+      "name": "paradigm_break_subtle_exception_swallow",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_subtle_exception_swallow.py",
+      "hunk_start_line": 29,
+      "hunk_end_line": 72,
+      "is_break": true,
+      "rationale": "idiomatic httpx async patterns (AsyncClient, await client.get/post, raise_for_status) are used correctly but every call is wrapped in try/except Exception: pass or except Exception as e: logger.warning; no foreign tokens — purely structural exception-swallowing deviation"
     }
   ]
 }

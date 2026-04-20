@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-20
 **Branch:** research/phase-7-honest-eval
-**Status:** Both entries passing gate (delta >= 0.20)
+**Status:** Both entries passing gate (delta >= 0.20) · Subtle-break spike confirms vocabulary novelty detector
 
 ---
 
