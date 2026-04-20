@@ -5,6 +5,7 @@ import datetime
 import random
 import statistics
 import sys
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -21,11 +22,13 @@ from argot.acceptance.runner import (
     load_manifest,
     load_scopes,
 )
+from argot.jepa.pretrained_encoder import PretrainedEncoder, select_device
 from argot.research.signal.base import SignalScorer
 from argot.research.signal.scorers.ensemble_jepa import EnsembleJepaScorer
 from argot.research.signal.scorers.jepa_custom import JepaCustomScorer
 from argot.research.signal.scorers.jepa_filtered import JepaFilteredScorer
 from argot.research.signal.scorers.jepa_pretrained import JepaPretrainedScorer
+from argot.train import _texts_for_records
 
 STAGE1_CONFIGS: list[dict[str, Any]] = [
     {"name": "ep20_lr5e5", "epochs": 20, "lr": 5e-5},
@@ -106,6 +109,7 @@ _STAGE_CONFIGS: dict[int, list[dict[str, Any]]] = {
 }
 
 DEFAULT_SEEDS = [0, 1, 2]
+DEFAULT_SEEDS_ENSEMBLE = [0]  # n=3 ensemble eliminates variance; single outer seed suffices
 
 
 def _stage1_factory(cfg: dict[str, Any]) -> SignalScorer:
@@ -163,6 +167,30 @@ def _run_sweep(
     corpus: list[dict[str, Any]] = load_corpus(entry_dir)
     corpus = corpus[:2000]
 
+    # Pre-encode corpus per scope once (reused across all configs and seeds)
+    print("Pre-encoding corpus per scope (runs once)...", flush=True)
+    scope_sorted_corpus: dict[str, list[dict[str, Any]]] = {}
+    scope_preencoded: dict[str, tuple[torch.Tensor, torch.Tensor]] = {}
+    for scope in scopes:
+        sc = sorted(
+            [r for r in corpus if r.get("file_path", "").startswith(scope.path_prefix)],
+            key=lambda r: int(r["author_date_iso"]),
+        )
+        if not sc:
+            continue
+        scope_sorted_corpus[scope.name] = sc
+        device = select_device()
+        pretrained = PretrainedEncoder(device=device)
+        ctx_texts, hunk_texts = _texts_for_records(sc)
+        print(f"  scope={scope.name!r}  {len(sc)}×2 texts ...", flush=True)
+        t0 = time.perf_counter()
+        with torch.no_grad():
+            ctx_x = pretrained.encode_texts(ctx_texts).cpu()
+            hunk_x = pretrained.encode_texts(hunk_texts).cpu()
+        del pretrained
+        print(f"  done in {time.perf_counter() - t0:.1f}s", flush=True)
+        scope_preencoded[scope.name] = (ctx_x, hunk_x)
+
     # Raw rows: (config_name, seed, delta)
     raw_rows: list[tuple[str, int, float]] = []
 
@@ -178,9 +206,7 @@ def _run_sweep(
             ctrl_scores: list[float] = []
 
             for scope in scopes:
-                scope_corpus = [
-                    r for r in corpus if r.get("file_path", "").startswith(scope.path_prefix)
-                ]
+                scope_corpus = scope_sorted_corpus.get(scope.name)
                 if not scope_corpus:
                     print(
                         f"  WARNING: config={config_name!r} seed={seed} scope={scope.name!r}: "
@@ -199,7 +225,7 @@ def _run_sweep(
                         fixture_to_record(entry_dir, s) for s in scope_specs if s.is_break
                     ]
                     scorer.prime_breaks(break_records)
-                scorer.fit(scope_corpus)
+                scorer.fit(scope_corpus, preencoded=scope_preencoded.get(scope.name))  # type: ignore[call-arg]
                 scores = scorer.score(fixture_records)
 
                 for idx, spec in enumerate(scope_specs):
@@ -262,7 +288,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="JEPA fine-tuning hyperparameter sweep")
     parser.add_argument("--stage", type=int, choices=[1, 2, 3, 4, 5], default=1)
     parser.add_argument("--entry", default="fastapi")
-    parser.add_argument("--seeds", default=",".join(str(s) for s in DEFAULT_SEEDS))
+    # Parse stage early to set the correct default seeds before building the parser default
+    _pre = argparse.ArgumentParser(add_help=False)
+    _pre.add_argument("--stage", type=int, default=1)
+    _pre_args, _ = _pre.parse_known_args()
+    _default_seeds = DEFAULT_SEEDS_ENSEMBLE if _pre_args.stage >= 5 else DEFAULT_SEEDS
+    parser.add_argument("--seeds", default=",".join(str(s) for s in _default_seeds))
     parser.add_argument("--catalog", default=str(CATALOG_DIR))
     parser.add_argument("--out", default="docs/research/scoring/signal")
     parser.add_argument("--start-from", default=None, help="Skip configs before this name")

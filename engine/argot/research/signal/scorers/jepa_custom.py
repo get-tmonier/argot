@@ -14,7 +14,7 @@ from argot.jepa.predictor import ArgotPredictor
 from argot.jepa.pretrained_encoder import PretrainedEncoder, select_device
 from argot.research.signal.base import REGISTRY
 from argot.train import ModelBundle, _texts_for_records
-from argot.validate import score_records, split_by_time
+from argot.validate import score_from_tensors, score_records, split_by_time
 
 
 class JepaCustomScorer:
@@ -53,25 +53,54 @@ class JepaCustomScorer:
         self._bundle: ModelBundle | None = None
         self._zscore_stats: tuple[float, float] | None = None
 
-    def fit(self, corpus: list[dict[str, Any]]) -> None:
+    def fit(
+        self,
+        corpus: list[dict[str, Any]],
+        *,
+        preencoded: tuple[torch.Tensor, torch.Tensor] | None = None,
+    ) -> None:
         if self._random_seed is not None:
             torch.manual_seed(self._random_seed)
             np.random.seed(self._random_seed)
             random.seed(self._random_seed)
 
-        train_records, held_out_records = split_by_time(corpus, ratio=0.8)
-        self._bundle = self._train(train_records)
+        if preencoded is not None:
+            # corpus is pre-sorted by caller; split index mirrors split_by_time ratio
+            split_idx = int(len(corpus) * 0.8)
+            train_records = corpus[:split_idx]
+            held_out_records = corpus[split_idx:]
+            train_pre: tuple[torch.Tensor, torch.Tensor] | None = (
+                preencoded[0][:split_idx],
+                preencoded[1][:split_idx],
+            )
+            held_out_pre: tuple[torch.Tensor, torch.Tensor] | None = (
+                preencoded[0][split_idx:],
+                preencoded[1][split_idx:],
+            )
+        else:
+            train_records, held_out_records = split_by_time(corpus, ratio=0.8)
+            train_pre = None
+            held_out_pre = None
+
+        self._bundle = self._train(train_records, preencoded=train_pre)
 
         if self._zscore_vs_corpus and held_out_records:
-            ref_scores = score_records(
-                self._bundle,
-                held_out_records,
-                aggregation=self._aggregation,
-                topk_k=self._topk_k,
-            )
-            ref_mean = float(np.mean(ref_scores))
-            ref_std = float(np.std(ref_scores))
-            self._zscore_stats = (ref_mean, ref_std)
+            if held_out_pre is not None:
+                ref_scores = score_from_tensors(
+                    self._bundle,
+                    held_out_pre[0],
+                    held_out_pre[1],
+                    aggregation=self._aggregation,
+                    topk_k=self._topk_k,
+                )
+            else:
+                ref_scores = score_records(
+                    self._bundle,
+                    held_out_records,
+                    aggregation=self._aggregation,
+                    topk_k=self._topk_k,
+                )
+            self._zscore_stats = (float(np.mean(ref_scores)), float(np.std(ref_scores)))
 
     def score(self, fixtures: list[dict[str, Any]]) -> list[float]:
         if self._bundle is None:
@@ -84,21 +113,30 @@ class JepaCustomScorer:
             zscore_ref_stats=self._zscore_stats if self._zscore_vs_corpus else None,
         )
 
-    def _train(self, records: list[dict[str, Any]]) -> ModelBundle:
+    def _train(
+        self,
+        records: list[dict[str, Any]],
+        *,
+        preencoded: tuple[torch.Tensor, torch.Tensor] | None = None,
+    ) -> ModelBundle:
         device = select_device()
         pretrained = PretrainedEncoder(device=device)
         embed_dim = pretrained.embed_dim
 
-        ctx_texts, hunk_texts = _texts_for_records(records)
-        n = len(records)
-        print(f"  encode  {n}×2 texts on device={pretrained.torch_device} ...", flush=True)
-        t0 = time.perf_counter()
-        with torch.no_grad():
-            ctx_x = pretrained.encode_texts(ctx_texts).cpu()
-            hunk_x = pretrained.encode_texts(hunk_texts).cpu()
-        dt = time.perf_counter() - t0
-        rate = (2 * n) / dt if dt > 0 else 0.0
-        print(f"  encode  done in {dt:.1f}s  ({rate:.0f} texts/s)", flush=True)
+        if preencoded is not None:
+            ctx_x, hunk_x = preencoded
+            print(f"  [pre-encoded tensors: shape={ctx_x.shape}]", flush=True)
+        else:
+            ctx_texts, hunk_texts = _texts_for_records(records)
+            n = len(records)
+            print(f"  encode  {n}×2 texts on device={pretrained.torch_device} ...", flush=True)
+            t0 = time.perf_counter()
+            with torch.no_grad():
+                ctx_x = pretrained.encode_texts(ctx_texts).cpu()
+                hunk_x = pretrained.encode_texts(hunk_texts).cpu()
+            dt = time.perf_counter() - t0
+            rate = (2 * n) / dt if dt > 0 else 0.0
+            print(f"  encode  done in {dt:.1f}s  ({rate:.0f} texts/s)", flush=True)
 
         loader = DataLoader(
             TensorDataset(ctx_x, hunk_x),

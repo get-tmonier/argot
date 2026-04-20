@@ -64,7 +64,7 @@ def test_jepa_custom_predictor_overrides_and_schedule() -> None:
         scorer.fit(corpus)
         result = scorer.score(fixtures)
 
-    mock_train.assert_called_once_with(corpus)
+    mock_train.assert_called_once_with(corpus, preencoded=None)
     assert scorer._lr_schedule == "cosine"
     assert scorer._predictor_overrides == {"depth": 6, "mlp_dim": 1024}
     assert result == [0.3, 0.7]

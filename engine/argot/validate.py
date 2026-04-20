@@ -190,6 +190,42 @@ def score_records(
     return scores
 
 
+def score_from_tensors(
+    bundle: ModelBundle,
+    ctx_x: torch.Tensor,
+    hunk_x: torch.Tensor,
+    *,
+    aggregation: Literal["mean", "topk", "random_topk"] = "mean",
+    topk_k: int = 64,
+    zscore_ref_stats: tuple[float, float] | None = None,
+) -> list[float]:
+    """Score using pre-encoded tensors, bypassing vectorization."""
+    bundle.model.eval()
+    scores: list[float] = []
+    with torch.no_grad():
+        for start in range(0, ctx_x.shape[0], _SCORE_BATCH):
+            end = start + _SCORE_BATCH
+            batch_ctx = ctx_x[start:end]
+            batch_hunk = hunk_x[start:end]
+            if aggregation == "topk":
+                batch_scores = bundle.model.surprise_topk(batch_ctx, batch_hunk, k=topk_k)
+            elif aggregation == "random_topk":
+                sq_err = torch.nn.functional.mse_loss(
+                    bundle.model.predict(bundle.model.encode(batch_ctx)),
+                    bundle.model.encode(batch_hunk),
+                    reduction="none",
+                )
+                idx = torch.randperm(sq_err.shape[-1], device=sq_err.device)[:topk_k]
+                batch_scores = sq_err[:, idx].mean(dim=-1)
+            else:
+                batch_scores = bundle.model.surprise(batch_ctx, batch_hunk)
+            scores.extend(batch_scores.detach().cpu().tolist())
+    if zscore_ref_stats is not None:
+        ref_mean, ref_std = zscore_ref_stats
+        scores = [(s - ref_mean) / (ref_std + 1e-8) for s in scores]
+    return scores
+
+
 def _print_table(rows: list[tuple[str, dict[str, float]]]) -> None:
     keys = ["min", "p25", "median", "p75", "p95", "max"]
     header = f"{'':30s}" + "".join(f"{k:>10s}" for k in keys) + f"{'AUC':>8s}"

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
+import torch
+
 from argot.research.signal.base import REGISTRY
 from argot.research.signal.scorers.jepa_custom import JepaCustomScorer
 
@@ -33,7 +35,12 @@ class EnsembleJepaScorer:
         self._zscore_vs_corpus = zscore_vs_corpus
         self._members: list[JepaCustomScorer] = []
 
-    def fit(self, corpus: list[dict[str, Any]]) -> None:
+    def fit(
+        self,
+        corpus: list[dict[str, Any]],
+        *,
+        preencoded: tuple[torch.Tensor, torch.Tensor] | None = None,
+    ) -> None:
         self._members = []
         for i in range(self._n):
             member = JepaCustomScorer(
@@ -46,7 +53,7 @@ class EnsembleJepaScorer:
                 topk_k=self._topk_k,
                 zscore_vs_corpus=self._zscore_vs_corpus,
             )
-            member.fit(corpus)
+            member.fit(corpus, preencoded=preencoded)
             self._members.append(member)
 
     def score(self, fixtures: list[dict[str, Any]]) -> list[float]:
