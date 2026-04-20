@@ -42,18 +42,7 @@
       "is_break": true,
       "category": "validation",
       "set": "v1",
-      "rationale": "FastAPI's idiomatic pattern is Pydantic BaseModel parameter injection for automatic validation; accepting `body: dict = Body(...)` and then manually checking isinstance(), field membership, length, and type with if-raise blocks recreates what Pydantic provides automatically — this manual validation pattern is absent from the FastAPI corpus"
-    },
-    {
-      "name": "paradigm_break_raw_response",
-      "scope": "default",
-      "file": "fixtures/default/paradigm_break_raw_response.py",
-      "hunk_start_line": 34,
-      "hunk_end_line": 81,
-      "is_break": true,
-      "category": "serialization",
-      "set": "v1",
-      "rationale": "FastAPI automatically serializes dicts and Pydantic models returned from endpoints; manually constructing Response(content=json.dumps(...)) and JSONResponse(content=jsonable_encoder(...)) at every call site bypasses the framework's serialization layer — this explicit construction pattern is absent from the FastAPI application-endpoint corpus"
+      "rationale": "FastAPI's idiomatic pattern is Pydantic BaseModel parameter injection for automatic validation; accepting `body: dict = Body(...)` and then manually checking isinstance(), field membership, length, and type with if-raise blocks recreates what Pydantic provides automatically \u2014 this manual validation pattern is absent from the FastAPI corpus"
     },
     {
       "name": "paradigm_break_subtle_wrong_exception",
@@ -64,7 +53,7 @@
       "is_break": true,
       "category": "exception_handling",
       "set": "v1",
-      "rationale": "decorators, Pydantic models, and Depends() are all idiomatic; the break is confined to the raise statements: ValueError, KeyError, and RuntimeError are raised instead of HTTPException — plain Python exceptions propagate as unhandled 500s rather than the intended 404/503 status codes, and this exception vocabulary is absent from the FastAPI corpus"
+      "rationale": "decorators, Pydantic models, and Depends() are all idiomatic; the break is confined to the raise statements: ValueError, KeyError, and RuntimeError are raised instead of HTTPException \u2014 plain Python exceptions propagate as unhandled 500s rather than the intended 404/503 status codes, and this exception vocabulary is absent from the FastAPI corpus"
     },
     {
       "name": "paradigm_break_subtle_manual_status_check",
@@ -75,7 +64,7 @@
       "is_break": true,
       "category": "downstream_http",
       "set": "v1",
-      "rationale": "FastAPI + httpx corpus uses response.raise_for_status() to propagate downstream errors; manually checking `if response.status_code >= 400: raise HTTPException(...)` at every call site instead of calling raise_for_status() is a structural pattern absent from the corpus — all tokens are individually present but the branching structure is non-idiomatic"
+      "rationale": "FastAPI + httpx corpus uses response.raise_for_status() to propagate downstream errors; manually checking `if response.status_code >= 400: raise HTTPException(...)` at every call site instead of calling raise_for_status() is a structural pattern absent from the corpus \u2014 all tokens are individually present but the branching structure is non-idiomatic"
     },
     {
       "name": "paradigm_break_subtle_sync_endpoint",
@@ -86,7 +75,7 @@
       "is_break": true,
       "category": "async_blocking",
       "set": "v1",
-      "rationale": "the FastAPI corpus is dominated by async def endpoints; sync def endpoints with blocking I/O (time.sleep, requests.get, blocking DB calls) block the event loop's thread pool — the decorator and Depends() vocabulary is correct but the sync + blocking-I/O combination is structurally absent from the corpus"
+      "rationale": "the FastAPI corpus is dominated by async def endpoints; sync def endpoints with blocking I/O (time.sleep, requests.get, blocking DB calls) block the event loop's thread pool \u2014 the decorator and Depends() vocabulary is correct but the sync + blocking-I/O combination is structurally absent from the corpus"
     },
     {
       "name": "paradigm_break_subtle_exception_swallow",
@@ -97,7 +86,7 @@
       "is_break": true,
       "category": "exception_handling",
       "set": "v1",
-      "rationale": "decorators, Pydantic models, Depends(), HTTPException, and async def are all idiomatic; the break is purely structural: every endpoint body is wrapped in try/except Exception: pass or except Exception as e: logger.warning — broad exception-swallowing is absent from the FastAPI corpus, which propagates errors or handles specific exception types"
+      "rationale": "decorators, Pydantic models, Depends(), HTTPException, and async def are all idiomatic; the break is purely structural: every endpoint body is wrapped in try/except Exception: pass or except Exception as e: logger.warning \u2014 broad exception-swallowing is absent from the FastAPI corpus, which propagates errors or handles specific exception types"
     },
     {
       "name": "control_router_endpoint",
@@ -108,7 +97,7 @@
       "is_break": false,
       "category": "routing",
       "set": "v1",
-      "rationale": "idiomatic FastAPI: APIRouter with method-specific decorators, Pydantic BaseModel body params, typed path/query params with Query(), response_model= annotation, HTTPException(status_code=..., detail=...) on not-found, Depends() for DB session and auth — canonical pattern for CRUD endpoints"
+      "rationale": "idiomatic FastAPI: APIRouter with method-specific decorators, Pydantic BaseModel body params, typed path/query params with Query(), response_model= annotation, HTTPException(status_code=..., detail=...) on not-found, Depends() for DB session and auth \u2014 canonical pattern for CRUD endpoints"
     },
     {
       "name": "control_dependency_injection",
@@ -119,7 +108,7 @@
       "is_break": false,
       "category": "dependency_injection",
       "set": "v1",
-      "rationale": "idiomatic FastAPI dependency injection: generator dep with yield for session lifecycle, nested Depends() chain, Annotated[T, Depends(...)] shorthand, OAuth2PasswordBearer token extraction, sub-dependencies accepting their own Depends() params — all canonical DI patterns from the FastAPI corpus"
+      "rationale": "idiomatic FastAPI dependency injection: generator dep with yield for session lifecycle, nested Depends() chain, Annotated[T, Depends(...)] shorthand, OAuth2PasswordBearer token extraction, sub-dependencies accepting their own Depends() params \u2014 all canonical DI patterns from the FastAPI corpus"
     },
     {
       "name": "control_exception_handling",
@@ -130,7 +119,7 @@
       "is_break": false,
       "category": "exception_handling",
       "set": "v1",
-      "rationale": "idiomatic FastAPI error handling: @app.exception_handler(RequestValidationError) returning JSONResponse with exc.errors(), @app.exception_handler(HTTPException) forwarding status_code and headers, raise HTTPException(404/401/403, detail=...) at endpoint call sites, HTTPException with headers={'WWW-Authenticate': 'Bearer'} — canonical pattern from the FastAPI corpus"
+      "rationale": "idiomatic FastAPI error handling: @app.exception_handler(RequestValidationError) returning JSONResponse with exc.errors(), @app.exception_handler(HTTPException) forwarding status_code and headers, raise HTTPException(404/401/403, detail=...) at endpoint call sites, HTTPException with headers={'WWW-Authenticate': 'Bearer'} \u2014 canonical pattern from the FastAPI corpus"
     },
     {
       "name": "paradigm_break_starlette_mount",
@@ -141,7 +130,7 @@
       "is_break": true,
       "category": "routing",
       "set": "v2",
-      "rationale": "bare Starlette Router with add_route() and url_for() instead of FastAPI's @router.get/@router.post DSL — imperative route registration with {id:int} path converters, no Pydantic and no Depends, is entirely absent from the FastAPI corpus"
+      "rationale": "bare Starlette Router with add_route() and url_for() instead of FastAPI's @router.get/@router.post DSL \u2014 imperative route registration with {id:int} path converters, no Pydantic and no Depends, is entirely absent from the FastAPI corpus"
     },
     {
       "name": "paradigm_break_tornado_handler",
@@ -152,7 +141,7 @@
       "is_break": true,
       "category": "framework_swap",
       "set": "v2",
-      "rationale": "tornado RequestHandler subclass with GET/POST methods using self.get_argument(), self.write(), self.finish(), and IOLoop — classic tornado vocabulary entirely foreign to the FastAPI corpus"
+      "rationale": "tornado RequestHandler subclass with GET/POST methods using self.get_argument(), self.write(), self.finish(), and IOLoop \u2014 classic tornado vocabulary entirely foreign to the FastAPI corpus"
     },
     {
       "name": "paradigm_break_marshmallow_schema",
@@ -163,7 +152,7 @@
       "is_break": true,
       "category": "validation",
       "set": "v2",
-      "rationale": "marshmallow Schema.load() called manually inside endpoints for validation instead of Pydantic BaseModel injection — @validates, @post_load, and fields.String/Float are marshmallow idioms absent from the FastAPI corpus"
+      "rationale": "marshmallow Schema.load() called manually inside endpoints for validation instead of Pydantic BaseModel injection \u2014 @validates, @post_load, and fields.String/Float are marshmallow idioms absent from the FastAPI corpus"
     },
     {
       "name": "paradigm_break_cerberus_validation",
@@ -174,7 +163,7 @@
       "is_break": true,
       "category": "validation",
       "set": "v2",
-      "rationale": "cerberus Validator with schema dicts validates plain dict body params instead of Pydantic BaseModel injection — v.errors, validator.validate(), and validator.normalized() are cerberus idioms absent from the FastAPI corpus"
+      "rationale": "cerberus Validator with schema dicts validates plain dict body params instead of Pydantic BaseModel injection \u2014 v.errors, validator.validate(), and validator.normalized() are cerberus idioms absent from the FastAPI corpus"
     },
     {
       "name": "paradigm_break_orjson_serialization",
@@ -185,7 +174,7 @@
       "is_break": true,
       "category": "serialization",
       "set": "v2",
-      "rationale": "explicit orjson.dumps() with OPT_INDENT_2/OPT_NON_STR_KEYS/OPT_SORT_KEYS options at every endpoint, wrapped in Response(..., media_type='application/json') — bypasses FastAPI's automatic serialization layer, pattern absent from the corpus"
+      "rationale": "explicit orjson.dumps() with OPT_INDENT_2/OPT_NON_STR_KEYS/OPT_SORT_KEYS options at every endpoint, wrapped in Response(..., media_type='application/json') \u2014 bypasses FastAPI's automatic serialization layer, pattern absent from the corpus"
     },
     {
       "name": "paradigm_break_bare_except",
@@ -196,7 +185,7 @@
       "is_break": true,
       "category": "exception_handling",
       "set": "v2",
-      "rationale": "every endpoint body wrapped in bare except: (no exception type) that silently returns empty data — broad exception-swallowing with no HTTPException or logging is an anti-pattern absent from the FastAPI corpus"
+      "rationale": "every endpoint body wrapped in bare except: (no exception type) that silently returns empty data \u2014 broad exception-swallowing with no HTTPException or logging is an anti-pattern absent from the FastAPI corpus"
     },
     {
       "name": "paradigm_break_event_loop_blocking",
@@ -207,7 +196,7 @@
       "is_break": true,
       "category": "async_blocking",
       "set": "v2",
-      "rationale": "asyncio.get_event_loop().run_until_complete() called inside async def endpoint bodies — incorrect usage that raises RuntimeError inside a running loop, represents the wrong mental model of async programming absent from the FastAPI corpus"
+      "rationale": "asyncio.get_event_loop().run_until_complete() called inside async def endpoint bodies \u2014 incorrect usage that raises RuntimeError inside a running loop, represents the wrong mental model of async programming absent from the FastAPI corpus"
     },
     {
       "name": "paradigm_break_sync_requests_in_async",
@@ -218,18 +207,7 @@
       "is_break": true,
       "category": "downstream_http",
       "set": "v2",
-      "rationale": "synchronous requests.get() / requests.post() with Session() inside async def endpoints blocks the event loop — the correct pattern is httpx.AsyncClient with await, and requests.Session with cert=/verify= is absent from the FastAPI corpus"
-    },
-    {
-      "name": "paradigm_break_global_singletons",
-      "scope": "default",
-      "file": "fixtures/default/paradigm_break_global_singletons.py",
-      "hunk_start_line": 18,
-      "hunk_end_line": 98,
-      "is_break": true,
-      "category": "dependency_injection",
-      "set": "v2",
-      "rationale": "module-level singletons (_db, _cache, _conn) accessed via get_db()/get_cache() called directly in endpoints without Depends() — global keyword to reassign singletons with no teardown or context management is absent from the FastAPI corpus"
+      "rationale": "synchronous requests.get() / requests.post() with Session() inside async def endpoints blocks the event loop \u2014 the correct pattern is httpx.AsyncClient with await, and requests.Session with cert=/verify= is absent from the FastAPI corpus"
     },
     {
       "name": "paradigm_break_threading_background",
@@ -240,7 +218,7 @@
       "is_break": true,
       "category": "background_tasks",
       "set": "v2",
-      "rationale": "threading.Thread with daemon=True launched from each endpoint instead of FastAPI BackgroundTasks — Thread, Lock, daemon, and t.join() blocking the async event loop are all absent from the FastAPI corpus"
+      "rationale": "threading.Thread with daemon=True launched from each endpoint instead of FastAPI BackgroundTasks \u2014 Thread, Lock, daemon, and t.join() blocking the async event loop are all absent from the FastAPI corpus"
     },
     {
       "name": "control_pydantic_validator",
@@ -251,7 +229,7 @@
       "is_break": false,
       "category": "validation",
       "set": "v2",
-      "rationale": "idiomatic FastAPI query-param validation via Pydantic BaseModel + Field constraints + Query() injection — grounded in corpus docs_src/query_param_models pattern, no @field_validator"
+      "rationale": "idiomatic FastAPI query-param validation via Pydantic BaseModel + Field constraints + Query() injection \u2014 grounded in corpus docs_src/query_param_models pattern, no @field_validator"
     },
     {
       "name": "control_response_model",
@@ -262,7 +240,7 @@
       "is_break": false,
       "category": "serialization",
       "set": "v2",
-      "rationale": "response_model= annotation on every endpoint so FastAPI validates and serializes output — endpoints return plain dicts or Pydantic models with no manual json.dumps() or explicit Response construction"
+      "rationale": "response_model= annotation on every endpoint so FastAPI validates and serializes output \u2014 endpoints return plain dicts or Pydantic models with no manual json.dumps() or explicit Response construction"
     },
     {
       "name": "control_async_streaming",
@@ -273,7 +251,7 @@
       "is_break": false,
       "category": "async_blocking",
       "set": "v2",
-      "rationale": "async request handling with custom APIRoute and await — grounded in corpus docs_src/custom_request_and_route pattern using Request, Response, HTTPException, RequestValidationError"
+      "rationale": "async request handling with custom APIRoute and await \u2014 grounded in corpus docs_src/custom_request_and_route pattern using Request, Response, HTTPException, RequestValidationError"
     },
     {
       "name": "control_httpx_async",
@@ -284,7 +262,7 @@
       "is_break": false,
       "category": "downstream_http",
       "set": "v2",
-      "rationale": "httpx.AsyncClient as a context manager in a Depends() dependency with await client.get() and response.raise_for_status() — canonical async downstream HTTP pattern, no synchronous requests library"
+      "rationale": "httpx.AsyncClient as a context manager in a Depends() dependency with await client.get() and response.raise_for_status() \u2014 canonical async downstream HTTP pattern, no synchronous requests library"
     },
     {
       "name": "control_annotated_depends",
@@ -295,7 +273,293 @@
       "is_break": false,
       "category": "dependency_injection",
       "set": "v2",
-      "rationale": "Annotated[T, Depends(...)] TypeAlias shorthand for all dependency injection with yield-based resource lifecycle — modern FastAPI DI pattern, deeply in-distribution with 646 Annotated occurrences in the corpus"
+      "rationale": "Annotated[T, Depends(...)] TypeAlias shorthand for all dependency injection with yield-based resource lifecycle \u2014 modern FastAPI DI pattern, deeply in-distribution with 646 Annotated occurrences in the corpus"
+    },
+    {
+      "name": "paradigm_break_sync_file_io_async",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_sync_file_io_async.py",
+      "hunk_start_line": 40,
+      "hunk_end_line": 86,
+      "is_break": true,
+      "category": "async_blocking",
+      "set": "v3",
+      "rationale": "OOV axis: blocking open() / Path.read_text() / json.loads() tight-loop calls inside async def endpoint bodies. Corpus evidence: 0 instances of open() or .read_text() inside AsyncFunctionDef bodies at endpoint scope across docs_src/ and tests/. Async endpoints in the corpus use aiofiles or offload to threads via anyio.to_thread.run_sync() (fastapi/concurrency.py lines 32, 39). Fixture simulates a realistic document-storage API that reads and writes JSON files synchronously in every async endpoint, blocking the event loop for the full disk-operation duration."
+    },
+    {
+      "name": "control_anyio_thread_offload",
+      "scope": "default",
+      "file": "fixtures/default/control_anyio_thread_offload.py",
+      "hunk_start_line": 67,
+      "hunk_end_line": 110,
+      "is_break": false,
+      "category": "async_blocking",
+      "set": "v3",
+      "rationale": "Idiomatic FastAPI pattern for blocking I/O from async endpoints: wrap each blocking callable in functools.partial() and hand it to `await anyio.to_thread.run_sync(fn)`. Grounded in fastapi/concurrency.py lines 6, 32, 39 (`import anyio.to_thread`; `await anyio.to_thread.run_sync(cm.__exit__, ...)`) and tests/test_stream_cancellation.py (line 9: `import anyio` in async endpoint context). No blocking calls appear directly inside async def bodies \u2014 all file I/O and JSON parsing are wrapped in synchronous helper functions and dispatched to the thread pool."
+    },
+    {
+      "name": "paradigm_break_asyncio_create_task",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_asyncio_create_task.py",
+      "hunk_start_line": 54,
+      "hunk_end_line": 73,
+      "is_break": true,
+      "category": "background_tasks",
+      "set": "v3",
+      "rationale": "Canonical pattern: docs_src/background_tasks/tutorial001_py310.py lines 12-15 uses background_tasks.add_task(write_notification, email, ...) from a BackgroundTasks DI parameter. Deviation axis: endpoints call asyncio.create_task(coroutine()) directly; no BackgroundTasks parameter in signature. Corpus evidence: BackgroundTasks parameter sites = 10, add_task call sites = 10; asyncio.create_task inside endpoint-decorated functions = 0."
+    },
+    {
+      "name": "paradigm_break_queue_carryover",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_queue_carryover.py",
+      "hunk_start_line": 54,
+      "hunk_end_line": 97,
+      "is_break": true,
+      "category": "background_tasks",
+      "set": "v3",
+      "rationale": "Canonical pattern: docs_src/background_tasks/tutorial001_py310.py lines 12-15 \u2014 background_tasks.add_task() from an injected BackgroundTasks parameter. Deviation axis: module-level asyncio.Queue() + @app.on_event('startup') worker loop replaces BackgroundTasks; endpoints use queue.put_nowait(). Corpus evidence: BackgroundTasks sites = 10, add_task sites = 10; module-level asyncio.Queue() with startup worker = 0. @app.on_event('startup') is present in corpus but never paired with a queue-draining pattern."
+    },
+    {
+      "name": "paradigm_break_run_in_executor_endpoint",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_run_in_executor_endpoint.py",
+      "hunk_start_line": 54,
+      "hunk_end_line": 78,
+      "is_break": true,
+      "category": "background_tasks",
+      "set": "v3",
+      "rationale": "Canonical pattern: docs_src/background_tasks/tutorial001_py310.py lines 12-15 \u2014 background_tasks.add_task() returns immediately. Deviation axis: endpoints call asyncio.get_event_loop() then await loop.run_in_executor(None, blocking_func, arg), blocking the endpoint until the executor future resolves instead of scheduling deferred work via BackgroundTasks. Corpus evidence: BackgroundTasks sites = 10, add_task sites = 10; asyncio.get_event_loop() / run_in_executor inside endpoint-decorated functions = 0."
+    },
+    {
+      "name": "control_background_tasks_basic",
+      "scope": "default",
+      "file": "fixtures/default/control_background_tasks_basic.py",
+      "hunk_start_line": 43,
+      "hunk_end_line": 73,
+      "is_break": false,
+      "category": "background_tasks",
+      "set": "v3",
+      "rationale": "Near-verbatim adaptation of docs_src/background_tasks/tutorial001_py310.py (lines 1-15). Canonical FastAPI pattern: BackgroundTasks as a typed endpoint parameter, background_tasks.add_task(func, *args, **kwargs) to schedule deferred work, endpoint returns immediately. Extended with multiple endpoints and an audit-log task to cover common real-world variations while keeping the structural pattern identical."
+    },
+    {
+      "name": "control_background_tasks_depends",
+      "scope": "default",
+      "file": "fixtures/default/control_background_tasks_depends.py",
+      "hunk_start_line": 70,
+      "hunk_end_line": 101,
+      "is_break": false,
+      "category": "background_tasks",
+      "set": "v3",
+      "rationale": "Adapted from docs_src/background_tasks/tutorial002_an_py310.py (lines 1-26). Modern DI-aware BackgroundTasks pattern: a Depends() factory constructs a NotificationService helper that wraps BackgroundTasks.add_task; endpoints Depends on the helper, not on BackgroundTasks directly. Single structural axis over control_background_tasks_basic: BackgroundTasks flows through the DI graph via a sub-dependency rather than appearing directly in the endpoint signature."
+    },
+    {
+      "name": "paradigm_break_manual_generator_drain",
+      "file": "fixtures/default/paradigm_break_manual_generator_drain.py",
+      "category": "dependency_injection",
+      "set": "v3",
+      "rationale": "Endpoints call next(get_db()) manually and manage teardown with try/finally, bypassing FastAPI's Depends() lifecycle. 428 Depends() sites in corpus vs 0 manual-drain sites \u2014 OOV structural pattern.",
+      "is_break": true,
+      "scope": "default",
+      "hunk_start_line": 51,
+      "hunk_end_line": 112
+    },
+    {
+      "name": "paradigm_break_class_instance_no_depends",
+      "file": "fixtures/default/paradigm_break_class_instance_no_depends.py",
+      "category": "dependency_injection",
+      "set": "v3",
+      "rationale": "Service classes instantiated at module level and passed as plain default argument values (service: EmailService = email_service) instead of Depends(). FastAPI cannot manage lifecycle or substitute for testing. 0 corpus sites use this pattern vs 428 Depends() sites.",
+      "is_break": true,
+      "scope": "default",
+      "hunk_start_line": 73,
+      "hunk_end_line": 120
+    },
+    {
+      "name": "control_nested_depends",
+      "file": "fixtures/default/control_nested_depends.py",
+      "category": "dependency_injection",
+      "set": "v3",
+      "rationale": "Nested Depends() chain: ReportParams class-based dependency itself Depends() on a generator sub-dep (get_db_session) and an auth sub-dep (get_current_user) that chains from a credential extractor. Pattern from docs_src/dependencies/tutorial005.py and tutorial002.py. Uses Annotated aliases throughout (1,136 corpus sites).",
+      "is_break": false,
+      "scope": "default",
+      "hunk_start_line": 108,
+      "hunk_end_line": 142
+    },
+    {
+      "category": "downstream_http",
+      "file": "fixtures/default/paradigm_break_aiohttp_no_context.py",
+      "name": "paradigm_break_aiohttp_no_context",
+      "is_break": true,
+      "hunk_start_line": 24,
+      "hunk_end_line": 61,
+      "scope": "default",
+      "set": "v3",
+      "rationale": ""
+    },
+    {
+      "category": "downstream_http",
+      "file": "fixtures/default/control_httpx_depends.py",
+      "name": "control_httpx_depends",
+      "is_break": false,
+      "hunk_start_line": 31,
+      "hunk_end_line": 84,
+      "scope": "default",
+      "set": "v3",
+      "rationale": ""
+    },
+    {
+      "name": "paradigm_break_json_error_response",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_json_error_response.py",
+      "hunk_start_line": 51,
+      "hunk_end_line": 100,
+      "is_break": true,
+      "category": "exception_handling",
+      "set": "v3",
+      "rationale": "Endpoints return JSONResponse({\"error\": str(e)}) directly from except blocks instead of raising HTTPException. Canonical pattern: raise HTTPException(status_code=..., detail=...) at 78 corpus sites. Single axis: error response constructed and returned at call site vs. raised and dispatched through registered exception handlers. Inline JSONResponse({\"error\": ...}) at endpoint scope is rare in corpus."
+    },
+    {
+      "name": "paradigm_break_traceback_in_response",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_traceback_in_response.py",
+      "hunk_start_line": 46,
+      "hunk_end_line": 100,
+      "is_break": true,
+      "category": "exception_handling",
+      "set": "v3",
+      "rationale": "Endpoints expose full stack traces via traceback.format_exc() in response bodies on any exception. traceback.format_exc() is absent from the FastAPI corpus (0 sites). Canonical pattern: raise HTTPException(status_code=..., detail=...) with a controlled detail string (78 corpus sites). Single axis: raw traceback string in response content vs. structured detail field."
+    },
+    {
+      "name": "paradigm_break_flask_errorhandler",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_flask_errorhandler.py",
+      "hunk_start_line": 46,
+      "hunk_end_line": 84,
+      "is_break": true,
+      "category": "exception_handling",
+      "set": "v3",
+      "rationale": "Uses Flask's @app.errorhandler(...) decorator for exception registration instead of FastAPI's @app.exception_handler(...). Flask's errorhandler decorator is absent from the FastAPI corpus (0 sites). Canonical FastAPI pattern: @app.exception_handler(...) at 12 corpus registration sites. Single axis: wrong decorator name \u2014 Flask vocabulary in an otherwise valid FastAPI application. Endpoints correctly use raise HTTPException."
+    },
+    {
+      "name": "control_exception_handler_registration",
+      "scope": "default",
+      "file": "fixtures/default/control_exception_handler_registration.py",
+      "hunk_start_line": 72,
+      "hunk_end_line": 106,
+      "is_break": false,
+      "category": "exception_handling",
+      "set": "v3",
+      "rationale": "Uses exception_handlers={...} dict passed to FastAPI() constructor instead of @app.exception_handler decorators. Both registration styles are canonical FastAPI, documented and tested in tests/test_exception_handlers.py in the FastAPI source. Handlers receive (request, exc) and return JSONResponse. Endpoints use raise HTTPException(status_code=..., detail=...) \u2014 the dominant corpus pattern (78 sites). No anti-patterns present."
+    },
+    {
+      "name": "control_lifespan_context",
+      "scope": "default",
+      "file": "fixtures/default/control_lifespan_context.py",
+      "hunk_start_line": 36,
+      "hunk_end_line": 98,
+      "is_break": false,
+      "category": "framework_swap",
+      "set": "v3",
+      "rationale": "Idiomatic FastAPI lifespan with @asynccontextmanager. Source: near-verbatim adaptation of docs_src/events/tutorial003_py310.py (lines 1-29) extended with an httpx.AsyncClient pool and in-memory DB stub. Key corpus markers: @asynccontextmanager (16 sites), app = FastAPI(lifespan=lifespan) (modern constructor), @app.get/@app.post (833/270 sites), HTTPException (78 sites). The lifespan block (lines 36-55) is the distinguishing hunk \u2014 startup/shutdown resource management via yield is the canonical pattern that replaces the deprecated @app.on_event pair."
+    },
+    {
+      "name": "control_apirouter_composition",
+      "scope": "default",
+      "file": "fixtures/default/control_apirouter_composition.py",
+      "hunk_start_line": 63,
+      "hunk_end_line": 150,
+      "is_break": false,
+      "category": "framework_swap",
+      "set": "v3",
+      "rationale": "Canonical APIRouter composition with app.include_router(). Source: adapted from docs_src/bigger_applications/app_an_py310/main.py (lines 1-23) and routers/items.py (lines 1-38), routers/users.py (lines 1-17), consolidated into a single self-contained file. Key corpus markers: include_router() (86 sites), APIRouter(prefix=..., tags=...) (corpus-confirmed), @router.get/@router.post (20/11 sites), Depends() (428 sites), response_model= (163 sites). The hunk (lines 63-150) covers the items router definition, users router definition, and app assembly \u2014 the three-module structure is the canonical multi-router pattern."
+    },
+    {
+      "name": "control_mounted_subapp",
+      "scope": "default",
+      "file": "fixtures/default/control_mounted_subapp.py",
+      "hunk_start_line": 41,
+      "hunk_end_line": 107,
+      "is_break": false,
+      "category": "framework_swap",
+      "set": "v3",
+      "rationale": "Idiomatic app.mount() for ASGI sub-app composition with StaticFiles. Source: adapted from docs_src/static_files/tutorial001_py310.py (lines 1-6) with a realistic API surface alongside the mount. Key corpus markers: app.mount() (6 sites), StaticFiles from fastapi.staticfiles (corpus-confirmed), @app.get/@app.post (833/270 sites), HTTPException (78 sites), response_model= (163 sites). The hunk (lines 41-107) covers the app.mount() call and all endpoints \u2014 valid FastAPI app.mount() is the positive control axis contrasting with the existing paradigm_break_starlette_mount fixture (bare Starlette Router + add_route(), 0 corpus sites)."
+    },
+    {
+      "file": "fixtures/default/paradigm_break_imperative_route_loop.py",
+      "category": "routing",
+      "name": "paradigm_break_imperative_route_loop",
+      "is_break": true,
+      "hunk_start_line": 77,
+      "hunk_end_line": 90,
+      "scope": "default",
+      "set": "v3",
+      "rationale": ""
+    },
+    {
+      "file": "fixtures/default/control_nested_router.py",
+      "category": "routing",
+      "name": "control_nested_router",
+      "is_break": false,
+      "hunk_start_line": 58,
+      "hunk_end_line": 132,
+      "scope": "default",
+      "set": "v3",
+      "rationale": ""
+    },
+    {
+      "name": "paradigm_break_manual_dict_response",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_manual_dict_response.py",
+      "hunk_start_line": 45,
+      "hunk_end_line": 106,
+      "is_break": true,
+      "category": "serialization",
+      "set": "v3",
+      "rationale": "Break axis: explicit field-by-field dict construction with manual float(), bool(), and .isoformat() coercions at every endpoint instead of response_model=. Canonical pattern: docs_src/response_model/tutorial001_py310.py:17-27 shows response_model=list[Item] and response_model=Item on every route with no manual coercions; corpus has 163 response_model= sites. OOV evidence: explicit float()/bool()/.isoformat() coercions at endpoint scope appear 0 times in the FastAPI corpus \u2014 type coercion is handled entirely by Pydantic in the idiomatic pattern. Single axis of deviation: absence of response_model= plus presence of per-field coercion idiom."
+    },
+    {
+      "name": "paradigm_break_msgpack_response",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_msgpack_response.py",
+      "hunk_start_line": 43,
+      "hunk_end_line": 85,
+      "is_break": true,
+      "category": "serialization",
+      "set": "v3",
+      "rationale": "Break axis: msgpack.packb() binary serialization with Response(media_type='application/x-msgpack') at every endpoint instead of JSON/response_model=. Canonical pattern: docs_src/response_model/tutorial001_py310.py:17-27 uses response_model= for automatic JSON; corpus has 163 response_model= sites and 0 msgpack import sites. OOV evidence: msgpack is entirely absent from the FastAPI corpus (0 import sites) \u2014 all msgpack.* identifiers are OOV. Single axis of deviation: entire serialization pipeline replaced by binary msgpack, bypassing FastAPI's JSON stack."
+    },
+    {
+      "name": "control_response_model_list",
+      "scope": "default",
+      "file": "fixtures/default/control_response_model_list.py",
+      "hunk_start_line": 56,
+      "hunk_end_line": 95,
+      "is_break": false,
+      "category": "serialization",
+      "set": "v3",
+      "rationale": "Control: response_model=list[ItemOut] on the collection GET endpoint and response_model=ItemOut on single-item GET/POST, with response_model_exclude_unset=True on PATCH. Near-verbatim adaptation of docs_src/response_model/tutorial001_py310.py (lines 1-27) extended with CRUD operations. Corpus evidence: 163 response_model= sites confirm this as the dominant FastAPI serialization pattern. No manual type coercions, no Response(content=...) construction, no third-party serialization libraries. Demonstrates the list-variant of the response_model= axis to pair against manual_dict_response and msgpack_response breaks."
+    },
+    {
+      "name": "paradigm_break_assert_validation",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_assert_validation.py",
+      "hunk_start_line": 31,
+      "hunk_end_line": 95,
+      "is_break": true,
+      "category": "validation",
+      "set": "v3",
+      "rationale": "Endpoints accept `body: dict = Body(...)` and validate fields with bare `assert` statements instead of Pydantic BaseModel injection. The FastAPI corpus shows 0 instances of `assert` used for request validation at endpoint scope; BaseModel subclasses appear at 384 corpus sites. Unhandled AssertionError produces a 500 rather than a 422, making the break operationally visible. Single axis: assert-based validation vs. declarative Pydantic constraints."
+    },
+    {
+      "name": "control_field_validator",
+      "scope": "default",
+      "file": "fixtures/default/control_field_validator.py",
+      "hunk_start_line": 72,
+      "hunk_end_line": 115,
+      "is_break": false,
+      "category": "validation",
+      "set": "v3",
+      "rationale": "A Pydantic BaseModel with @field_validator decorators injected directly as an endpoint body parameter. Adapted from @field_validator usage in tests/test_filter_pydantic_sub_model_pv2.py in the FastAPI source. Uses high-frequency corpus tokens: BaseModel (384 sites), Field with constraints, @field_validator (present in corpus), APIRouter, Depends, HTTPException. No anti-patterns; all validation is declarative and dispatched through Pydantic."
     }
   ]
 }
