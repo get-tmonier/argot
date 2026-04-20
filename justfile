@@ -122,7 +122,7 @@ acceptance entry="":
 	uv run --package argot-engine python -m argot.acceptance.runner \
 		--catalog engine/argot/acceptance/catalog \
 		--out docs/research/scoring/acceptance \
-		--epochs 20 {{if entry != ""}}--entry {{entry}}{{end}}
+		--epochs 20 $([ -n "{{entry}}" ] && echo "--entry {{entry}}")
 
 # --- individual checks ---
 

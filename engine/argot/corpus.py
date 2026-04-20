@@ -314,7 +314,6 @@ def _cmd_benchmark(args: argparse.Namespace) -> int:
     return 0
 
 
-
 def concat_datasets(inputs: list[Path], output: Path) -> dict[str, int]:
     """Concatenate tagged JSONL datasets; return per-repo record counts.
 
@@ -336,7 +335,6 @@ def concat_datasets(inputs: list[Path], output: Path) -> dict[str, int]:
                     counts[record["_repo"]] = counts.get(record["_repo"], 0) + 1
                     out_fh.write(line.rstrip("\n") + "\n")
     return counts
-
 
 
 def _cmd_concat(args: argparse.Namespace) -> int:
@@ -362,7 +360,10 @@ def main() -> None:
     concat_p.add_argument("-o", "--out", required=True, help="Output JSONL path")
     concat_p.set_defaults(func=_cmd_concat)
 
-    bench_p = sub.add_parser("benchmark", help="Encoder research: run AUC benchmark across sizes × seeds (not acceptance testing)")
+    bench_p = sub.add_parser(
+        "benchmark",
+        help="Encoder research: run AUC benchmark across sizes × seeds (not acceptance testing)",
+    )
     bench_p.add_argument("--dataset", required=True, help="Combined tagged JSONL")
     bench_p.add_argument(
         "--sizes",

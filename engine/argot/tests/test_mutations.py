@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from argot.mutations import MUTATIONS, apply_mutation
@@ -17,9 +19,15 @@ def _make_record(lang: str = "python", hunk_texts: list[str] | None = None) -> d
 
 def test_dispatcher_lists_all_four_mutations() -> None:
     assert set(MUTATIONS) == {
-        "case_swap", "debug_inject", "error_flip", "quote_flip",
-        "semantic_logging", "semantic_error", "semantic_validation",
-        "semantic_composition", "semantic_di",
+        "case_swap",
+        "debug_inject",
+        "error_flip",
+        "quote_flip",
+        "semantic_logging",
+        "semantic_error",
+        "semantic_validation",
+        "semantic_composition",
+        "semantic_di",
     }
 
 
@@ -209,7 +217,6 @@ def test_error_flip_is_deterministic() -> None:
 
 
 # ── Semantic mutators ──────────────────────────────────────────────────────
-from typing import Any
 
 
 def _make_ts_record(hunk_tokens: list[str]) -> dict[str, Any]:
@@ -281,7 +288,13 @@ def test_semantic_di_ts_replaces_hunk() -> None:
 
 
 def test_semantic_mutators_all_registered() -> None:
-    for name in ("semantic_logging", "semantic_error", "semantic_validation", "semantic_composition", "semantic_di"):
+    for name in (
+        "semantic_logging",
+        "semantic_error",
+        "semantic_validation",
+        "semantic_composition",
+        "semantic_di",
+    ):
         assert name in MUTATIONS, f"{name!r} not registered"
 
 
