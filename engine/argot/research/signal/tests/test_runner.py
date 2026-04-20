@@ -10,7 +10,7 @@ from argot.research.signal.runner import _run_entry
 
 
 def test_runner_smoke_ky(tmp_path: Path) -> None:
-    catalog_dir = Path(__file__).parents[4] / "acceptance" / "catalog"
+    catalog_dir = Path(__file__).parents[3] / "acceptance" / "catalog"
     if not (catalog_dir / "ky").exists():
         pytest.skip("ky catalog entry not found")
 
