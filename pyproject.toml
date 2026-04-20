@@ -17,3 +17,8 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "sklearn.*"
 ignore_missing_imports = true
+
+[dependency-groups]
+dev = [
+    "accelerate>=1.13.0",
+]
