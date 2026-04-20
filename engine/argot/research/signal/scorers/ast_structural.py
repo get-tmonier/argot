@@ -38,10 +38,12 @@ class AstStructuralScorer:
         variant: Literal["loglik", "zscore", "oov"],
         alpha: float = 1.0,
         parent_context: bool = False,
+        cooccurrence: bool = False,
     ) -> None:
         self._variant = variant
         self._alpha = alpha
         self._parent_context = parent_context
+        self._cooccurrence = cooccurrence
 
         # Populated by fit():
         # _counts[c][v] = raw occurrence count
@@ -63,7 +65,9 @@ class AstStructuralScorer:
 
         for record in corpus:
             src = _source_for_record(record)
-            feats = extract_features(src, parent_context=self._parent_context)
+            feats = extract_features(
+                src, parent_context=self._parent_context, cooccurrence=self._cooccurrence
+            )
             for cat, values in feats.items():
                 if cat not in counts:
                     counts[cat] = {}
@@ -84,7 +88,9 @@ class AstStructuralScorer:
         cat_logprobs: dict[str, list[float]] = {}
         for record in corpus:
             src = _source_for_record(record)
-            feats = extract_features(src, parent_context=self._parent_context)
+            feats = extract_features(
+                src, parent_context=self._parent_context, cooccurrence=self._cooccurrence
+            )
             for cat, values in feats.items():
                 lp = sum(
                     -math.log(self._prob(cat, v)) for v in values
@@ -142,7 +148,9 @@ class AstStructuralScorer:
         results: list[float] = []
         for record in fixtures:
             src = _source_for_record(record)
-            feats = extract_features(src, parent_context=self._parent_context)
+            feats = extract_features(
+                src, parent_context=self._parent_context, cooccurrence=self._cooccurrence
+            )
             if self._variant == "loglik":
                 results.append(self._score_loglik(feats))
             elif self._variant == "zscore":
@@ -162,3 +170,13 @@ REGISTRY["ast_structural_ctx_zscore"] = lambda: AstStructuralScorer(
     variant="zscore", parent_context=True
 )
 REGISTRY["ast_structural_ctx_oov"] = lambda: AstStructuralScorer(variant="oov", parent_context=True)
+REGISTRY["ast_structural_cooc_ll"] = lambda: AstStructuralScorer(
+    variant="loglik", cooccurrence=True
+)
+REGISTRY["ast_structural_cooc_zscore"] = lambda: AstStructuralScorer(
+    variant="zscore", cooccurrence=True
+)
+REGISTRY["ast_structural_cooc_oov"] = lambda: AstStructuralScorer(variant="oov", cooccurrence=True)
+REGISTRY["ast_structural_full_oov"] = lambda: AstStructuralScorer(
+    variant="oov", parent_context=True, cooccurrence=True
+)

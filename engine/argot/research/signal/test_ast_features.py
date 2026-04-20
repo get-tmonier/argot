@@ -115,3 +115,37 @@ def test_parent_context_false_regression() -> None:
     """flag=False produces identical output to the default (no parent_context)."""
     source = "def f():\n    x = foo.bar\n"
     assert extract_features(source) == extract_features(source, parent_context=False)
+
+
+# ---------------------------------------------------------------------------
+# cooccurrence tests
+# ---------------------------------------------------------------------------
+
+
+def test_cooccurrence_pair_emitted() -> None:
+    """Test D: co-occurrence pair emitted for two features in the same function."""
+    source = """
+def endpoint(x: SomeModel):
+    result = db.query(Table)
+    return result
+"""
+    feats = extract_features(source, cooccurrence=True)
+    assert "cooccur" in feats
+    assert len(feats["cooccur"]) > 0
+
+
+def test_cooccurrence_scope_boundary() -> None:
+    """Test E: features in different functions do NOT pair across scope boundaries."""
+    source = """
+def f1():
+    x = foo.bar
+
+def f2():
+    y = baz.qux
+"""
+    feats = extract_features(source, cooccurrence=True)
+    cooccur_vals = feats.get("cooccur", [])
+    # No pair should contain features from both f1 (foo.bar) and f2 (baz.qux)
+    for pair in cooccur_vals:
+        parts = pair.split("|")
+        assert not ("foo.bar" in " ".join(parts) and "baz.qux" in " ".join(parts))
