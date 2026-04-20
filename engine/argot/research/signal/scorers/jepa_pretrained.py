@@ -7,6 +7,7 @@ import numpy as np
 import torch
 
 from argot.research.signal.base import REGISTRY
+from argot.research.signal.scorers.ensemble_jepa import EnsembleJepaScorer
 from argot.train import ModelBundle, train_model
 from argot.validate import score_records, split_by_time
 
@@ -51,4 +52,5 @@ class JepaPretrainedScorer:
         return score_records(self._bundle, fixtures)
 
 
-REGISTRY["jepa_pretrained"] = JepaPretrainedScorer
+# Winner from Phase 7 sweep: ensemble_n3 on flat_d6m1024 (mean=0.2215, std=0.000)
+REGISTRY["jepa_pretrained"] = EnsembleJepaScorer
