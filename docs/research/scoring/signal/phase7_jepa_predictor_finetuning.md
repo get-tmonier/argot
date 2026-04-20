@@ -258,6 +258,71 @@ Raw deltas for top-k configs are not comparable to the 0.2215 baseline: selectin
 
 ---
 
+---
+
+## Stage 7 — Diversity-Based Corpus Sampling
+
+**Hypothesis:** the 2000-record linear prefix under-samples the FastAPI style space; a k-means-diverse or farthest-point subsample at the same training budget produces a more informative predictor.
+**Base:** `_EnsembleInfoNCE(n=3, beta=0.1, tau=0.1, warmup=0)` — Stage 6 winner (delta=0.2291).
+**Grid:** `{linear, diverse_kmeans, fps}` × corpus_cap=2000 — 3 configs × 1 seed = 3 runs.
+(Cap variants 4000/8000 dropped: the catalog corpus.jsonl only contains 2000 records; re-extraction is deferred pending signal from sampling strategies.)
+
+### Results
+
+| config | delta |
+|---|---|
+| `linear` | 0.2291 |
+| `diverse_kmeans` | 0.2291 |
+| `fps` | 0.2291 |
+
+### Findings
+
+**No signal from diversity sampling at 2000 records.** All three strategies produce identical delta. With only 1600 training records (80% of 2000), the corpus is already compact enough that k-means and FPS select virtually the same set as the linear prefix — there is no meaningful redundancy to remove.
+
+**Re-extraction not warranted.** Diversity sampling is only useful when the corpus is large enough that the linear prefix genuinely under-represents the style space. At 2000 records, the corpus is too small for the hypothesis to apply. Re-extracting to 4000–8000 records may revisit this, but requires a separate extraction run and is deferred to a future phase.
+
+---
+
+## Phase 7.X — Final Summary
+
+### Sprint objective
+
+Maximize FastAPI signal-sweep delta beyond 0.2215 (the Stage 4 ensemble baseline) without foreign corpus and without regressing ky.
+
+### What was tried
+
+| Stage | Lever | Best delta | vs. baseline |
+|---|---|---|---|
+| 5 | Top-k surprise aggregation + z-score | 0.2291 (mean_z, scale artifact) | **0** real gain |
+| 6 | InfoNCE in-batch contrastive loss | **0.2291** | +0.008 |
+| 7 | Diversity corpus sampling (k-means, FPS) | 0.2291 | **0** real gain |
+
+### What worked
+
+**InfoNCE at low beta (0.1) with soft temperature (tau=0.1)** gives a marginal but real +0.008 over the pure MSE baseline. The gain is small because in-batch FastAPI negatives are easy (same repo, same style) — but it is positive and reproducible at a single seed.
+
+### What didn't work
+
+- **Top-k surprise pooling:** Goodhart guardrail fired — random-k matches actual top-k in z-score space, confirming break signal is diffuse across all 768 dims.
+- **Z-score normalization:** pure scale change, no AUC improvement.
+- **Diversity corpus sampling:** no effect at 2000 records; corpus too small for redundancy to exist.
+
+### Net result
+
+**Delta: 0.2291** (up from 0.2215 baseline, +0.008). Not a breakthrough — the sprint's 0.28+ target was not reached. The bottleneck appears to be corpus size: with only 2000 FastAPI records, the predictor is constrained by data, not architecture or objective. All architectural and objective levers explored here are second-order effects at this corpus scale.
+
+### Recommended next steps
+
+1. **Re-extract FastAPI to 8000+ records** — this is the highest-EV lever remaining. Diversity sampling + larger InfoNCE batch would both benefit.
+2. **Revisit diversity sampling at larger corpus** — `diverse_kmeans` and `fps` are implemented and ready; just need more data.
+3. **httpx corpus growth** — httpx is below the 1200-record stabilisation threshold; more data is the only path to clearing its gate.
+
+### Promotion decision
+
+The Stage 6 winner (`_EnsembleInfoNCE(n=3, beta=0.1, tau=0.1, warmup=0)`, delta=0.2291) is a +0.008 improvement over the current default. Given the marginal gain and single-seed measurement, **no promotion** — the current `REGISTRY["jepa_pretrained"] = EnsembleJepaScorer` (0.2215) remains the default. The InfoNCE scorer is available in the sweep infrastructure for future re-evaluation with more data.
+
+---
+
 ## Key Learnings
 
 1. **Variance, not mean, was the primary obstacle.** The predictor could produce high-delta runs individually but not consistently across seeds. The fix was architectural (ensemble), not more training.

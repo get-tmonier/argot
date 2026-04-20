@@ -116,9 +116,8 @@ STAGE6_CONFIGS: list[dict[str, Any]] = [
 ]
 
 STAGE7_CONFIGS: list[dict[str, Any]] = [
-    {"name": f"{sampling}_{cap}", "sampling": sampling, "corpus_cap": cap}
+    {"name": sampling, "sampling": sampling, "corpus_cap": 2000}
     for sampling in ["linear", "diverse_kmeans", "fps"]
-    for cap in [2000, 4000, 8000]
 ]
 
 _STAGE_CONFIGS: dict[int, list[dict[str, Any]]] = {
