@@ -1,0 +1,59 @@
+{
+  "fixtures": [
+    {
+      "name": "paradigm_break_asyncio_create_task",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_asyncio_create_task.py",
+      "hunk_start_line": 54,
+      "hunk_end_line": 73,
+      "is_break": true,
+      "category": "background_tasks",
+      "set": "v3",
+      "rationale": "Canonical pattern: docs_src/background_tasks/tutorial001_py310.py lines 12-15 uses background_tasks.add_task(write_notification, email, ...) from a BackgroundTasks DI parameter. Deviation axis: endpoints call asyncio.create_task(coroutine()) directly; no BackgroundTasks parameter in signature. Corpus evidence: BackgroundTasks parameter sites = 10, add_task call sites = 10; asyncio.create_task inside endpoint-decorated functions = 0."
+    },
+    {
+      "name": "paradigm_break_queue_carryover",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_queue_carryover.py",
+      "hunk_start_line": 54,
+      "hunk_end_line": 97,
+      "is_break": true,
+      "category": "background_tasks",
+      "set": "v3",
+      "rationale": "Canonical pattern: docs_src/background_tasks/tutorial001_py310.py lines 12-15 — background_tasks.add_task() from an injected BackgroundTasks parameter. Deviation axis: module-level asyncio.Queue() + @app.on_event('startup') worker loop replaces BackgroundTasks; endpoints use queue.put_nowait(). Corpus evidence: BackgroundTasks sites = 10, add_task sites = 10; module-level asyncio.Queue() with startup worker = 0. @app.on_event('startup') is present in corpus but never paired with a queue-draining pattern."
+    },
+    {
+      "name": "paradigm_break_run_in_executor_endpoint",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_run_in_executor_endpoint.py",
+      "hunk_start_line": 54,
+      "hunk_end_line": 78,
+      "is_break": true,
+      "category": "background_tasks",
+      "set": "v3",
+      "rationale": "Canonical pattern: docs_src/background_tasks/tutorial001_py310.py lines 12-15 — background_tasks.add_task() returns immediately. Deviation axis: endpoints call asyncio.get_event_loop() then await loop.run_in_executor(None, blocking_func, arg), blocking the endpoint until the executor future resolves instead of scheduling deferred work via BackgroundTasks. Corpus evidence: BackgroundTasks sites = 10, add_task sites = 10; asyncio.get_event_loop() / run_in_executor inside endpoint-decorated functions = 0."
+    },
+    {
+      "name": "control_background_tasks_basic",
+      "scope": "default",
+      "file": "fixtures/default/control_background_tasks_basic.py",
+      "hunk_start_line": 43,
+      "hunk_end_line": 73,
+      "is_break": false,
+      "category": "background_tasks",
+      "set": "v3",
+      "rationale": "Near-verbatim adaptation of docs_src/background_tasks/tutorial001_py310.py (lines 1-15). Canonical FastAPI pattern: BackgroundTasks as a typed endpoint parameter, background_tasks.add_task(func, *args, **kwargs) to schedule deferred work, endpoint returns immediately. Extended with multiple endpoints and an audit-log task to cover common real-world variations while keeping the structural pattern identical."
+    },
+    {
+      "name": "control_background_tasks_depends",
+      "scope": "default",
+      "file": "fixtures/default/control_background_tasks_depends.py",
+      "hunk_start_line": 70,
+      "hunk_end_line": 101,
+      "is_break": false,
+      "category": "background_tasks",
+      "set": "v3",
+      "rationale": "Adapted from docs_src/background_tasks/tutorial002_an_py310.py (lines 1-26). Modern DI-aware BackgroundTasks pattern: a Depends() factory constructs a NotificationService helper that wraps BackgroundTasks.add_task; endpoints Depends on the helper, not on BackgroundTasks directly. Single structural axis over control_background_tasks_basic: BackgroundTasks flows through the DI graph via a sub-dependency rather than appearing directly in the endpoint signature."
+    }
+  ]
+}
