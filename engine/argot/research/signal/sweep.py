@@ -39,21 +39,21 @@ STAGE1_CONFIGS: list[dict[str, Any]] = [
 # Stage 2: base=ep20_lr1e4, lr_schedule × predictor capacity
 # 2 schedules × 4 predictor configs = 8 configs × 3 seeds = 24 runs
 STAGE2_CONFIGS: list[dict[str, Any]] = [
-    {"name": "flat_d4m512",   "lr_schedule": "flat",   "depth": 4, "mlp_dim": 512},
-    {"name": "flat_d6m512",   "lr_schedule": "flat",   "depth": 6, "mlp_dim": 512},
-    {"name": "flat_d4m1024",  "lr_schedule": "flat",   "depth": 4, "mlp_dim": 1024},
-    {"name": "flat_d6m1024",  "lr_schedule": "flat",   "depth": 6, "mlp_dim": 1024},
-    {"name": "cos_d4m512",    "lr_schedule": "cosine", "depth": 4, "mlp_dim": 512},
-    {"name": "cos_d6m512",    "lr_schedule": "cosine", "depth": 6, "mlp_dim": 512},
-    {"name": "cos_d4m1024",   "lr_schedule": "cosine", "depth": 4, "mlp_dim": 1024},
-    {"name": "cos_d6m1024",   "lr_schedule": "cosine", "depth": 6, "mlp_dim": 1024},
+    {"name": "flat_d4m512", "lr_schedule": "flat", "depth": 4, "mlp_dim": 512},
+    {"name": "flat_d6m512", "lr_schedule": "flat", "depth": 6, "mlp_dim": 512},
+    {"name": "flat_d4m1024", "lr_schedule": "flat", "depth": 4, "mlp_dim": 1024},
+    {"name": "flat_d6m1024", "lr_schedule": "flat", "depth": 6, "mlp_dim": 1024},
+    {"name": "cos_d4m512", "lr_schedule": "cosine", "depth": 4, "mlp_dim": 512},
+    {"name": "cos_d6m512", "lr_schedule": "cosine", "depth": 6, "mlp_dim": 512},
+    {"name": "cos_d4m1024", "lr_schedule": "cosine", "depth": 4, "mlp_dim": 1024},
+    {"name": "cos_d6m1024", "lr_schedule": "cosine", "depth": 6, "mlp_dim": 1024},
 ]
 
 # Stage 3: corpus filter on top of Stage 2 winner (flat_d4m1024)
 # τ ∈ {top-1%, top-5%} = 2 configs × 3 seeds = 6 runs
 STAGE3_CONFIGS: list[dict[str, Any]] = [
-    {"name": "filtered_tau1",  "tau_percentile": 1.0},
-    {"name": "filtered_tau5",  "tau_percentile": 5.0},
+    {"name": "filtered_tau1", "tau_percentile": 1.0},
+    {"name": "filtered_tau5", "tau_percentile": 5.0},
 ]
 # Stage 4: ensemble over flat_d6m1024 (mean=0.221 unensembled, std=0.024)
 # N ∈ {3, 5} = 2 configs × 3 base_seeds = 6 runs (each run trains N predictors internally)
@@ -62,11 +62,47 @@ STAGE4_CONFIGS: list[dict[str, Any]] = [
     {"name": "ensemble_n5", "n": 5},
 ]
 
+
+# Stage 5: top-k surprise aggregation + z-score normalization sweep
+# {aggregation ∈ mean, top16, top32, top64, top128} × {zscore ∈ off, on} = 10 configs
+# + Goodhart random-k baseline: {rand16, rand32, rand64, rand128} × {zscore ∈ off, on} = 8 configs
+# Total: 18 configs × 3 seeds = 54 runs
+def _s5(name: str, agg: str, k: int, z: bool, rand: bool) -> dict[str, Any]:
+    return {"name": name, "aggregation": agg, "topk_k": k, "zscore": z, "random_k": rand}
+
+
+STAGE5_CONFIGS: list[dict[str, Any]] = [
+    # mean aggregation (baseline comparators)
+    _s5("mean_no_z", "mean", 64, False, False),
+    _s5("mean_z", "mean", 64, True, False),
+    # top-k without z-score
+    _s5("top16", "topk", 16, False, False),
+    _s5("top32", "topk", 32, False, False),
+    _s5("top64", "topk", 64, False, False),
+    _s5("top128", "topk", 128, False, False),
+    # top-k with z-score
+    _s5("top16_z", "topk", 16, True, False),
+    _s5("top32_z", "topk", 32, True, False),
+    _s5("top64_z", "topk", 64, True, False),
+    _s5("top128_z", "topk", 128, True, False),
+    # Goodhart random-k baseline (no z-score)
+    _s5("rand16", "topk", 16, False, True),
+    _s5("rand32", "topk", 32, False, True),
+    _s5("rand64", "topk", 64, False, True),
+    _s5("rand128", "topk", 128, False, True),
+    # Goodhart random-k with z-score
+    _s5("rand16_z", "topk", 16, True, True),
+    _s5("rand32_z", "topk", 32, True, True),
+    _s5("rand64_z", "topk", 64, True, True),
+    _s5("rand128_z", "topk", 128, True, True),
+]
+
 _STAGE_CONFIGS: dict[int, list[dict[str, Any]]] = {
     1: STAGE1_CONFIGS,
     2: STAGE2_CONFIGS,
     3: STAGE3_CONFIGS,
     4: STAGE4_CONFIGS,
+    5: STAGE5_CONFIGS,
 }
 
 DEFAULT_SEEDS = [0, 1, 2]
@@ -93,11 +129,22 @@ def _stage4_factory(cfg: dict[str, Any]) -> SignalScorer:
     return EnsembleJepaScorer(n=int(cfg["n"]))
 
 
+def _stage5_factory(cfg: dict[str, Any]) -> SignalScorer:
+    agg = "random_topk" if cfg["random_k"] else str(cfg["aggregation"])
+    return EnsembleJepaScorer(
+        n=3,
+        aggregation=agg,  # type: ignore[arg-type]
+        topk_k=int(cfg["topk_k"]),
+        zscore_vs_corpus=bool(cfg["zscore"]),
+    )
+
+
 _STAGE_FACTORIES: dict[int, Callable[[dict[str, Any]], SignalScorer]] = {
     1: _stage1_factory,
     2: _stage2_factory,
     3: _stage3_factory,
     4: _stage4_factory,
+    5: _stage5_factory,
 }
 
 
@@ -149,9 +196,7 @@ def _run_sweep(
                 # Stage 3 filter scorers need break fixtures before fit()
                 if hasattr(scorer, "prime_breaks"):
                     break_records = [
-                        fixture_to_record(entry_dir, s)
-                        for s in scope_specs
-                        if s.is_break
+                        fixture_to_record(entry_dir, s) for s in scope_specs if s.is_break
                     ]
                     scorer.prime_breaks(break_records)
                 scorer.fit(scope_corpus)
@@ -215,7 +260,7 @@ def _write_report(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="JEPA fine-tuning hyperparameter sweep")
-    parser.add_argument("--stage", type=int, choices=[1, 2, 3, 4], default=1)
+    parser.add_argument("--stage", type=int, choices=[1, 2, 3, 4, 5], default=1)
     parser.add_argument("--entry", default="fastapi")
     parser.add_argument("--seeds", default=",".join(str(s) for s in DEFAULT_SEEDS))
     parser.add_argument("--catalog", default=str(CATALOG_DIR))
@@ -241,7 +286,7 @@ def main() -> None:
         names = [str(c["name"]) for c in configs]
         if args.start_from not in names:
             raise ValueError(f"--start-from {args.start_from!r} not found in stage {stage} configs")
-        configs = configs[names.index(args.start_from):]
+        configs = configs[names.index(args.start_from) :]
 
     print(f"=== JEPA sweep: stage={stage} entry={args.entry} seeds={seeds} ===", flush=True)
 

@@ -58,3 +58,10 @@ class JEPAArgot(nn.Module):
         z_hunk = self.encode(hunk)
         z_pred = self.predict(z_ctx)
         return F.mse_loss(z_pred, z_hunk, reduction="none").mean(dim=-1)
+
+    def surprise_topk(self, ctx: torch.Tensor, hunk: torch.Tensor, k: int) -> torch.Tensor:
+        """Top-k surprise: mean of the k highest squared errors per sample."""
+        z_ctx = self.encode(ctx)
+        z_hunk = self.encode(hunk)
+        z_pred = self.predict(z_ctx)
+        return F.mse_loss(z_pred, z_hunk, reduction="none").topk(k, dim=-1).values.mean(dim=-1)

@@ -36,6 +36,9 @@ class JepaCustomScorer:
         lr_schedule: Literal["flat", "cosine"] = "flat",
         predictor_overrides: dict[str, int] | None = None,
         random_seed: int | None = None,
+        aggregation: Literal["mean", "topk", "random_topk"] = "mean",
+        topk_k: int = 64,
+        zscore_vs_corpus: bool = False,
     ) -> None:
         self._epochs = epochs
         self._lr = lr
@@ -44,7 +47,11 @@ class JepaCustomScorer:
         self._lr_schedule = lr_schedule
         self._predictor_overrides = predictor_overrides or {}
         self._random_seed = random_seed
+        self._aggregation = aggregation
+        self._topk_k = topk_k
+        self._zscore_vs_corpus = zscore_vs_corpus
         self._bundle: ModelBundle | None = None
+        self._zscore_stats: tuple[float, float] | None = None
 
     def fit(self, corpus: list[dict[str, Any]]) -> None:
         if self._random_seed is not None:
@@ -52,13 +59,30 @@ class JepaCustomScorer:
             np.random.seed(self._random_seed)
             random.seed(self._random_seed)
 
-        train_records, _ = split_by_time(corpus, ratio=0.8)
+        train_records, held_out_records = split_by_time(corpus, ratio=0.8)
         self._bundle = self._train(train_records)
+
+        if self._zscore_vs_corpus and held_out_records:
+            ref_scores = score_records(
+                self._bundle,
+                held_out_records,
+                aggregation=self._aggregation,
+                topk_k=self._topk_k,
+            )
+            ref_mean = float(np.mean(ref_scores))
+            ref_std = float(np.std(ref_scores))
+            self._zscore_stats = (ref_mean, ref_std)
 
     def score(self, fixtures: list[dict[str, Any]]) -> list[float]:
         if self._bundle is None:
             raise RuntimeError("fit() must be called before score()")
-        return score_records(self._bundle, fixtures)
+        return score_records(
+            self._bundle,
+            fixtures,
+            aggregation=self._aggregation,
+            topk_k=self._topk_k,
+            zscore_ref_stats=self._zscore_stats if self._zscore_vs_corpus else None,
+        )
 
     def _train(self, records: list[dict[str, Any]]) -> ModelBundle:
         device = select_device()

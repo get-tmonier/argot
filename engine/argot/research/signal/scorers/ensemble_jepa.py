@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from argot.research.signal.base import REGISTRY
 from argot.research.signal.scorers.jepa_custom import JepaCustomScorer
@@ -17,9 +17,20 @@ class EnsembleJepaScorer:
 
     name = "ensemble_jepa"
 
-    def __init__(self, *, n: int = 3, base_seed: int = 0) -> None:
+    def __init__(
+        self,
+        *,
+        n: int = 3,
+        base_seed: int = 0,
+        aggregation: Literal["mean", "topk", "random_topk"] = "mean",
+        topk_k: int = 64,
+        zscore_vs_corpus: bool = False,
+    ) -> None:
         self._n = n
         self._base_seed = base_seed
+        self._aggregation = aggregation
+        self._topk_k = topk_k
+        self._zscore_vs_corpus = zscore_vs_corpus
         self._members: list[JepaCustomScorer] = []
 
     def fit(self, corpus: list[dict[str, Any]]) -> None:
@@ -31,6 +42,9 @@ class EnsembleJepaScorer:
                 lr_schedule="flat",
                 predictor_overrides={"depth": 6, "mlp_dim": 1024},
                 random_seed=self._base_seed + i,
+                aggregation=self._aggregation,
+                topk_k=self._topk_k,
+                zscore_vs_corpus=self._zscore_vs_corpus,
             )
             member.fit(corpus)
             self._members.append(member)

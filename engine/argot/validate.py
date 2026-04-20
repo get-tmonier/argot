@@ -9,13 +9,14 @@ from typing import Any, Literal
 
 import numpy as np
 import torch
+import torch.nn.functional as F  # noqa: N812
 from sklearn.metrics import roc_auc_score  # type: ignore[import-untyped]
 
 from argot.jepa.bpe_vocab import BpeVocab
 from argot.jepa.pretrained_encoder import PretrainedEncoder
 from argot.jepa.seq_encoder import MeanPoolEncoder  # noqa: F401  (used for isinstance check)
 from argot.jepa.vocab import Vocab
-from argot.train import _SEQ_LEN, ModelBundle, _encode_records, train_model
+from argot.train import ModelBundle, train_model
 
 StratifyBy = Literal["none", "language", "top-dir"]
 
@@ -148,7 +149,14 @@ def _vectorize(bundle: ModelBundle, texts: list[str]) -> torch.Tensor:
 _SCORE_BATCH = 128
 
 
-def score_records(bundle: ModelBundle, records: list[dict[str, Any]]) -> list[float]:
+def score_records(
+    bundle: ModelBundle,
+    records: list[dict[str, Any]],
+    *,
+    aggregation: Literal["mean", "topk", "random_topk"] = "mean",
+    topk_k: int = 64,
+    zscore_ref_stats: tuple[float, float] | None = None,
+) -> list[float]:
     if not records:
         return []
     ctx_texts = [" ".join(t["text"] for t in r["context_before"]) for r in records]
@@ -160,10 +168,26 @@ def score_records(bundle: ModelBundle, records: list[dict[str, Any]]) -> list[fl
     with torch.no_grad():
         for start in range(0, len(records), _SCORE_BATCH):
             end = start + _SCORE_BATCH
-            batch_scores = bundle.model.surprise(ctx_x[start:end], hunk_x[start:end])
+            if aggregation == "topk":
+                batch_scores = bundle.model.surprise_topk(
+                    ctx_x[start:end], hunk_x[start:end], k=topk_k
+                )
+            elif aggregation == "random_topk":
+                model = bundle.model
+                z_ctx = model.encode(ctx_x[start:end])
+                z_hunk = model.encode(hunk_x[start:end])
+                z_pred = model.predict(z_ctx)
+                per_dim = F.mse_loss(z_pred, z_hunk, reduction="none")
+                dim = per_dim.shape[-1]
+                perm = torch.randperm(dim)[:topk_k]
+                batch_scores = per_dim[:, perm].mean(dim=-1)
+            else:
+                batch_scores = bundle.model.surprise(ctx_x[start:end], hunk_x[start:end])
             scores.extend(batch_scores.detach().cpu().tolist())
+    if zscore_ref_stats is not None:
+        ref_mean, ref_std = zscore_ref_stats
+        scores = [(s - ref_mean) / (ref_std + 1e-8) for s in scores]
     return scores
-
 
 
 def _print_table(rows: list[tuple[str, dict[str, float]]]) -> None:
