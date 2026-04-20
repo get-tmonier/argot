@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import torch
 import pytest
+import torch
 
 from argot.research.signal.runner import _run_entry
 
@@ -21,7 +21,7 @@ def test_runner_smoke_ky(tmp_path: Path) -> None:
 
         def fake_encode(texts: list[str]) -> torch.Tensor:
             n = len(texts)
-            return torch.ones(n, 16) / (16 ** 0.5)
+            return torch.ones(n, 16) / (16**0.5)
 
         mock_enc.encode_texts.side_effect = fake_encode
 

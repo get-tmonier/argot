@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from typing import Any
+
 import torch
-import torch.nn.functional as F
+import torch.nn.functional as F  # noqa: N812
 
 from argot.jepa.pretrained_encoder import PretrainedEncoder, select_device
 from argot.research.signal.base import REGISTRY
@@ -15,13 +17,13 @@ class KnnCosineScorer:
         self._encoder: PretrainedEncoder = PretrainedEncoder(device=device)
         self._corpus_emb: torch.Tensor | None = None
 
-    def fit(self, corpus: list[dict]) -> None:
+    def fit(self, corpus: list[dict[str, Any]]) -> None:
         texts = [" ".join(t["text"] for t in r["hunk_tokens"]) for r in corpus]
         with torch.no_grad():
             emb = self._encoder.encode_texts(texts)
         self._corpus_emb = F.normalize(emb, p=2, dim=1)
 
-    def score(self, fixtures: list[dict]) -> list[float]:
+    def score(self, fixtures: list[dict[str, Any]]) -> list[float]:
         if self._corpus_emb is None:
             raise RuntimeError("fit() must be called before score()")
         texts = [" ".join(t["text"] for t in r["hunk_tokens"]) for r in fixtures]

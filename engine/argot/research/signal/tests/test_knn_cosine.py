@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import torch
-import torch.nn.functional as F
 from unittest.mock import MagicMock
+
+import torch
+import torch.nn.functional as F  # noqa: N812
 
 from argot.research.signal.scorers.knn_cosine import KnnCosineScorer
 

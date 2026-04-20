@@ -81,7 +81,11 @@ def _write_report(
 
     scorer_ranks: dict[str, dict[str, int]] = {}
     for scorer_name in scorer_names:
-        ordered = sorted(per_fixture.items(), key=lambda kv: kv[1]["scores"].get(scorer_name, 0.0), reverse=True)
+        ordered = sorted(
+            per_fixture.items(),
+            key=lambda kv: kv[1]["scores"].get(scorer_name, 0.0),
+            reverse=True,
+        )
         scorer_ranks[scorer_name] = {fname: idx + 1 for idx, (fname, _) in enumerate(ordered)}
 
     for fname, data in per_fixture.items():
@@ -94,13 +98,19 @@ def _write_report(
     lines.append("| scorer | break_mean | ctrl_mean | delta | gate |")
     lines.append("|---|---|---|---|---|")
     for scorer_name in scorer_names:
-        break_scores = [d["scores"].get(scorer_name, 0.0) for d in per_fixture.values() if d["is_break"]]
-        ctrl_scores = [d["scores"].get(scorer_name, 0.0) for d in per_fixture.values() if not d["is_break"]]
+        break_scores = [
+            d["scores"].get(scorer_name, 0.0) for d in per_fixture.values() if d["is_break"]
+        ]
+        ctrl_scores = [
+            d["scores"].get(scorer_name, 0.0) for d in per_fixture.values() if not d["is_break"]
+        ]
         break_mean = sum(break_scores) / len(break_scores) if break_scores else 0.0
         ctrl_mean = sum(ctrl_scores) / len(ctrl_scores) if ctrl_scores else 0.0
         delta = break_mean - ctrl_mean
         gate = "✓" if delta >= 0.20 else "✗"
-        lines.append(f"| {scorer_name} | {break_mean:.4f} | {ctrl_mean:.4f} | {delta:.4f} | {gate} |")
+        lines.append(
+            f"| {scorer_name} | {break_mean:.4f} | {ctrl_mean:.4f} | {delta:.4f} | {gate} |"
+        )
     lines.append("")
 
     (out_dir / f"{entry_name}.md").write_text("\n".join(lines))
@@ -118,10 +128,9 @@ def main() -> None:
     scorer_names = [s.strip() for s in args.scorers.split(",")]
     out_dir = Path(args.out)
 
-    if args.entry:
-        entries = [args.entry]
-    else:
-        entries = [p.name for p in catalog_dir.iterdir() if p.is_dir()]
+    entries = (
+        [args.entry] if args.entry else [p.name for p in catalog_dir.iterdir() if p.is_dir()]
+    )
 
     for entry_name in entries:
         _run_entry(entry_name, catalog_dir, scorer_names, out_dir)
