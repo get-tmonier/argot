@@ -5,155 +5,74 @@
 - Encoder: `microsoft/unixcoder-base`
 - JEPA ensemble: `EnsembleInfoNCE(n=3, beta=0.1, tau=0.1)`
 - FastAPI HEAD: `2fa00db8581bb4e74b2d00d859c8469b6da296c4`
-- Static chunks: 3868 total, 1089 core used for training (test files excluded)
+- Static chunks: 3868 total, 1089 core used for training
 - Fixtures: 27 total (19 breaks, 8 controls)
-- AST variants: loglik, zscore, oov (fully corpus-derived, zero hand-crafted rules)
-- Blend weights tested: 0.25 / 0.50 / 0.75 fraction AST
+- AST variants: loglik, zscore, oov (fully corpus-derived, no hand-crafted rules)
+- Blend weights tested: 0.25/0.50/0.75 fraction AST
 - Command: `uv run python -m argot.research.ast_structural_audit_test`
-
-### AST feature extraction design
-
-Features are extracted by walking every AST node and emitting `(NodeClassName, dotted_name)`
-for any field that resolves to a dotted identifier chain. No pre-defined categories — any
-node type with an identifier field contributes automatically. The `_dotted_name` helper
-returns `None` for ambiguous nodes (subscripts, lambdas, boolean operators), which are
-silently skipped. This keeps the extractor maintenance-free across Python codebases.
-
-Three scoring variants share the same frequency tables:
-
-| Variant | Scoring rule |
-|---------|-------------|
-| `loglik` | sum of `−log P(v\|category)` across all emitted features |
-| `zscore` | per-category log-prob z-scored against corpus chunk distribution, summed |
-| `oov` | count of (category, value) pairs with zero corpus occurrences |
-
-All use Laplace smoothing (`alpha=1.0`) so empty-feature fixtures score 0 cleanly.
-
----
 
 ## Headline Results
 
+### Raw scores
+
 | Scorer | AUC | Delta (break−ctrl) |
 |--------|----:|-------------------:|
-| **jepa (baseline)** | **0.7368** | +0.2898 |
-| ast_ll | 0.6118 | +24.17 † |
-| ast_zscore | 0.5329 | +0.87 |
-| ast_oov | 0.6974 | +11.16 † |
-| jepa+ast_ll@0.25 | 0.6974 | +0.63 ‡ |
-| jepa+ast_zscore@0.25 | 0.7105 | +0.63 ‡ |
-| jepa+ast_oov@0.25 | 0.7368 | +0.75 ‡ |
-| **jepa+ast_oov@0.50** | **0.7697** | **+0.70 ‡** |
-| jepa+ast_oov@0.75 | 0.7632 | +0.66 ‡ |
+| jepa | 0.7368 | +0.2898 |
+| ast_ll | 0.6118 | +24.1747 |
+| ast_zscore | 0.5329 | +0.8741 |
+| ast_oov | 0.6974 | +11.1579 |
 
-**Best result: `jepa+ast_oov@0.50` — AUC 0.7697 (+0.033 over JEPA baseline), delta +0.70.**
+### Z-normalized scores (deltas comparable across rows)
 
-† Raw AST scores (loglik = sum of log-probs; oov = raw count). Large magnitudes expected — not comparable to JEPA delta.  
-‡ Blend of z-normalized JEPA + z-normalized AST scores. Delta is in z-score units; direction and ranking are meaningful, magnitude is not directly comparable to the raw JEPA delta (+0.2898).
-
----
+| Scorer | AUC | Delta (z-score units) |
+|--------|----:|----------------------:|
+| jepa (z) | 0.7368 | +0.7910 |
+| jepa+ast_ll@0.25 | 0.6974 | +0.6285 |
+| jepa+ast_ll@0.50 | 0.6776 | +0.4660 |
+| jepa+ast_ll@0.75 | 0.6447 | +0.3035 |
+| jepa+ast_zscore@0.25 | 0.7105 | +0.6276 |
+| jepa+ast_zscore@0.50 | 0.6711 | +0.4641 |
+| jepa+ast_zscore@0.75 | 0.5921 | +0.3007 |
+| jepa+ast_oov@0.25 | 0.7368 | +0.7466 |
+| jepa+ast_oov@0.50 | 0.7697 | +0.7023 |
+| jepa+ast_oov@0.75 | 0.7632 | +0.6579 |
 
 ## Per-category AUC
 
-| Category | jepa | ast_ll | ast_zscore | ast_oov | jepa+ast_oov@0.50 |
-|----------|-----:|-------:|-----------:|--------:|------------------:|
-| async_blocking | 0.5000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 |
-| dependency_injection | 0.5000 | 0.5000 | 1.0000 | 1.0000 | 1.0000 |
-| exception_handling | 0.6667 | 0.3333 | 0.6667 | **1.0000** | 0.6667 |
-| downstream_http | 1.0000 | 1.0000 | 0.0000 | 1.0000 | 1.0000 |
-| routing | 1.0000 | 0.5000 | 0.5000 | 0.5000 | 1.0000 |
-| validation | 1.0000 | 1.0000 | 0.6667 | 1.0000 | 1.0000 |
-| serialization | 0.5000 | 0.5000 | 0.0000 | **0.0000** | 0.5000 |
-| background_tasks | n/a | n/a | n/a | n/a | n/a |
-| framework_swap | n/a | n/a | n/a | n/a | n/a |
+| Category | jepa | ast_ll | ast_zscore | ast_oov | jepa (z) | jepa+ast_ll@0.25 | jepa+ast_ll@0.50 | jepa+ast_ll@0.75 | jepa+ast_zscore@0.25 | jepa+ast_zscore@0.50 | jepa+ast_zscore@0.75 | jepa+ast_oov@0.25 | jepa+ast_oov@0.50 | jepa+ast_oov@0.75 |
+|----------|------:|------:|------:|------:|------:|------:|------:|------:|------:|------:|------:|------:|------:|------:|
+| async_blocking | 0.5000 | 1.0000 | 1.0000 | 1.0000 | 0.5000 | 0.5000 | 1.0000 | 1.0000 | 0.5000 | 1.0000 | 1.0000 | 0.5000 | 1.0000 | 1.0000 |
+| background_tasks | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| dependency_injection | 0.5000 | 0.5000 | 1.0000 | 1.0000 | 0.5000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 |
+| downstream_http | 1.0000 | 1.0000 | 0.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 |
+| exception_handling | 0.6667 | 0.3333 | 0.6667 | 1.0000 | 0.6667 | 0.6667 | 0.6667 | 0.6667 | 0.6667 | 0.6667 | 0.6667 | 0.6667 | 0.6667 | 0.6667 |
+| framework_swap | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| routing | 1.0000 | 0.5000 | 0.5000 | 0.5000 | 1.0000 | 1.0000 | 0.5000 | 0.5000 | 1.0000 | 0.5000 | 0.5000 | 1.0000 | 1.0000 | 1.0000 |
+| serialization | 0.5000 | 0.5000 | 0.0000 | 0.0000 | 0.5000 | 0.5000 | 1.0000 | 0.5000 | 0.5000 | 0.0000 | 0.0000 | 0.5000 | 0.5000 | 0.0000 |
+| validation | 1.0000 | 1.0000 | 0.6667 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 |
 
----
+## Per-category Delta
 
-## Analysis
+| Category | jepa | ast_ll | ast_zscore | ast_oov | jepa (z) | jepa+ast_ll@0.25 | jepa+ast_ll@0.50 | jepa+ast_ll@0.75 | jepa+ast_zscore@0.25 | jepa+ast_zscore@0.50 | jepa+ast_zscore@0.75 | jepa+ast_oov@0.25 | jepa+ast_oov@0.50 | jepa+ast_oov@0.75 |
+|----------|-------:|-------:|-------:|-------:|-------:|-------:|-------:|-------:|-------:|-------:|-------:|-------:|-------:|-------:|
+| async_blocking | +0.0755 | +190.2624 | +10.1479 | +25.0000 | +0.2062 | +0.4321 | +0.6581 | +0.8840 | +0.5533 | +0.9003 | +1.2474 | +0.4983 | +0.7905 | +1.0826 |
+| background_tasks | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| dependency_injection | +0.2279 | +73.5113 | +3.9797 | +18.0000 | +0.6220 | +0.5737 | +0.5254 | +0.4771 | +0.6228 | +0.6237 | +0.6245 | +0.7139 | +0.8059 | +0.8978 |
+| downstream_http | +0.8830 | +42.3751 | -3.6434 | +14.5000 | +2.4102 | +1.8695 | +1.3287 | +0.7880 | +1.6646 | +0.9189 | +0.1732 | +2.0070 | +1.6038 | +1.2006 |
+| exception_handling | +0.1384 | -0.0785 | -0.1806 | +5.3333 | +0.3779 | +0.2833 | +0.1887 | +0.0941 | +0.2763 | +0.1747 | +0.0732 | +0.3567 | +0.3356 | +0.3144 |
+| framework_swap | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| routing | +0.3357 | -157.8140 | -1.9641 | +4.0000 | +0.9162 | +0.4570 | -0.0022 | -0.4614 | +0.6100 | +0.3038 | -0.0024 | +0.7422 | +0.5681 | +0.3940 |
+| serialization | +0.1703 | -26.6264 | -5.9958 | -15.5000 | +0.4648 | +0.3098 | +0.1547 | -0.0003 | +0.1131 | -0.2386 | -0.5904 | +0.1355 | -0.1938 | -0.5230 |
+| validation | +0.5061 | +194.5473 | +5.2922 | +30.3333 | +1.3815 | +1.3198 | +1.2582 | +1.1966 | +1.2440 | +1.1065 | +0.9690 | +1.4531 | +1.5247 | +1.5964 |
 
-### The structural hypothesis validates on the hard three
+## Top-20 Corpus Composition (per AST variant)
 
-The three categories where JEPA was architecturally stuck all flip to perfect AUC=1.0
-under `ast_oov`:
+| Scorer | core | test | docs_scripts |
+|--------|-----:|-----:|-------------:|
 
-- **`exception_handling`** (JEPA=0.67 → ast_oov=1.0): break fixtures raise `ValueError`/
-  `RuntimeError`; the corpus is FastAPI code where `HTTPException` dominates. Those exception
-  types are OOV or very rare in the corpus raise-sites, so the OOV counter fires correctly.
-- **`async_blocking`** (JEPA=0.50 → ast_oov=1.0): break code calls blocking APIs. Those
-  call patterns appear outside async contexts in the corpus; when they appear in async
-  functions in break fixtures the feature identity is still the same dotted name, but
-  the surrounding structural context (AsyncFunctionDef) makes the combination rare enough
-  to flag.
-- **`dependency_injection`** (JEPA=0.50 → ast_oov=1.0): wrong DI patterns use class
-  names / decorators that are OOV to the core corpus.
+## Discussion
 
-This confirms the original diagnosis: these categories fail for JEPA because the vocabulary
-is corpus-present — the embedding space cannot separate right vs wrong idioms. A frequency
-counter over AST structure catches exactly what the embedding model cannot.
-
-### The `ast_oov` corpus ranking is inverted
-
-Under `ast_oov`, the top-20 corpus chunks are entirely from test files (core=0, test=20).
-Test files are structurally alien to the core training corpus: pytest decorators (`@pytest.mark.*`),
-fixture factories, parametrize calls — all OOV relative to production FastAPI code. This
-means `ast_oov` cannot be used to rank production corpus chunks for anomaly surfacing.
-It is useful only for fixture-level discrimination.
-
-`ast_ll` (core=14/20) and `ast_zscore` (core=10/20) have much healthier corpus
-compositions, but weaker fixture AUC.
-
-### Serialization inversion (ast_oov = 0.0)
-
-`ast_oov` scores serialization *controls* as more anomalous than breaks. The most likely
-explanation: the "good" serialization code in the fixtures uses a structural pattern
-(e.g. a `TypeAdapter`, a custom `__get_validators__` classmethod, a Pydantic v2 annotated
-type) that is genuinely rare in the corpus, while the "bad" code falls back to common
-built-in patterns. The OOV scorer has no way to distinguish rare-but-correct from
-rare-and-wrong. `loglik` and `zscore` are also flat (0.5) on serialization, so no
-variant helps there; the blend at 0.50 neutralises the inversion back to 0.5.
-
-### Variant comparison
-
-| | loglik | zscore | oov |
-|---|---|---|---|
-| Best standalone AUC | 0.61 | 0.53 | **0.70** |
-| Hard categories | mixed | fixes async+DI, not exc | fixes all three |
-| Corpus composition | good (14/20 core) | ok (10/20) | bad (0/20 core) |
-| Scale | raw sum, large | z-normalized | integer count |
-
-`zscore` fixes `async_blocking` and `dependency_injection` to 1.0 but leaves
-`exception_handling` unchanged (0.67) — the z-score normalization washes out the
-exception-type signal when the per-category distribution is wide. `oov` is blunter
-but more reliable: a zero-count is a hard signal that survives any scoring regime.
-
----
-
-## Conclusions
-
-1. **Structural + embedding is better than either alone.** `jepa+ast_oov@0.50` = 0.7697
-   is the new best result, beating the Phase 2 JEPA baseline (0.7368) by +0.033 with
-   zero additional training cost for the AST side.
-
-2. **`ast_oov` is the right variant for blending.** It nails the hard three categories
-   and its corpus-ranking bias is irrelevant when used as a blend component (JEPA
-   anchors the corpus ranking; OOV contributes the structural signal).
-
-3. **The feature extractor is maintenance-free.** Fully automatic extraction from AST
-   node types — no per-repo rules, no category definitions to update when the language
-   or framework evolves.
-
-4. **Remaining weaknesses:**
-   - `serialization`: no structural signal found in any variant. Likely needs a
-     semantic understanding of type correctness that AST structure alone cannot provide.
-   - `routing`: AST is flat (0.5); JEPA carries this category entirely. The blend
-     at 0.50 restores JEPA's 1.0, so no regression in practice.
-   - `ast_oov` corpus ranking unusable for production anomaly surfacing — the
-     test-file OOV bias would need a separate normalization step.
-
-5. **Next step candidates:**
-   - Try `jepa+ast_oov` at finer weight grid (0.3, 0.4, 0.5, 0.6) to find the exact
-     optimum.
-   - Investigate whether filtering the OOV counter to core-only feature categories
-     (excluding test-file-specific node types) fixes the corpus ranking bias without
-     hurting fixture AUC.
-   - Cross-validate on a second repo to check whether the structural signal generalises
-     beyond FastAPI.
+Best AST variant standalone: `ast_oov` AUC=0.6974 (JEPA baseline: 0.7368). Best blend: `jepa+ast_oov@0.50` AUC=0.7697.
+`exception_handling`: JEPA=0.6667  ast_oov=1.0000  blend=0.6667.
+`async_blocking`: JEPA=0.5000  ast_oov=1.0000  blend=1.0000.
+`dependency_injection`: JEPA=0.5000  ast_oov=1.0000  blend=1.0000.

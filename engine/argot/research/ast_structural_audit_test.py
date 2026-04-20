@@ -113,13 +113,18 @@ def _write_report(
     specs: list[FixtureSpec],
     chunks: list[dict[str, Any]],
     jepa_fixture_scores: list[float],
+    jepa_z_scores: list[float],
     ast_results: list[tuple[str, list[float]]],
     blend_results: list[tuple[str, list[float]]],
 ) -> None:
     n_break = sum(s.is_break for s in specs)
     n_ctrl = sum(not s.is_break for s in specs)
 
-    all_scorers = [("jepa", jepa_fixture_scores)] + ast_results + blend_results
+    # jepa_z and blends are all in z-score units — deltas are comparable across these
+    all_scorers_z = [("jepa (z)", jepa_z_scores)] + blend_results
+    # raw scorers reported separately
+    all_scorers_raw = [("jepa", jepa_fixture_scores)] + ast_results
+    all_scorers = all_scorers_raw + all_scorers_z
     categories = sorted({s.category for s in specs})
 
     md: list[str] = [
@@ -136,12 +141,28 @@ def _write_report(
         "- Blend weights tested: 0.25/0.50/0.75 fraction AST",
         "- Command: `uv run python -m argot.research.ast_structural_audit_test`",
         "",
-        "## Headline AUC",
+        "## Headline Results",
+        "",
+        "### Raw scores",
         "",
         "| Scorer | AUC | Delta (break−ctrl) |",
         "|--------|----:|-------------------:|",
     ]
-    for name, scores in all_scorers:
+    for name, scores in all_scorers_raw:
+        auc = _auc(specs, scores)
+        d = _delta(specs, scores)
+        auc_str = f"{auc:.4f}" if auc == auc else "n/a"
+        d_str = f"{d:+.4f}" if d == d else "n/a"
+        md.append(f"| {name} | {auc_str} | {d_str} |")
+
+    md += [
+        "",
+        "### Z-normalized scores (deltas comparable across rows)",
+        "",
+        "| Scorer | AUC | Delta (z-score units) |",
+        "|--------|----:|----------------------:|",
+    ]
+    for name, scores in all_scorers_z:
         auc = _auc(specs, scores)
         d = _delta(specs, scores)
         auc_str = f"{auc:.4f}" if auc == auc else "n/a"
@@ -309,13 +330,14 @@ def main() -> None:
     jepa_fixture_scores = ensemble.score_from_preencoded(ctx_fx, hunk_fx)
 
     jepa_auc = _auc(specs, jepa_fixture_scores)
-    jepa_d = _delta(specs, jepa_fixture_scores)
-    print(f"  jepa: AUC={jepa_auc:.4f}  delta={jepa_d:+.4f}", flush=True)
-
-    # 8. Blend sweep (z-normalized)
+    jepa_d_raw = _delta(specs, jepa_fixture_scores)
     jepa_z = _z_normalize(jepa_fixture_scores)
+    jepa_d_z = _delta(specs, jepa_z)
+    print(f"  jepa: AUC={jepa_auc:.4f}  delta_raw={jepa_d_raw:+.4f}  delta_z={jepa_d_z:+.4f}", flush=True)
+
+    # 8. Blend sweep (z-normalized) — deltas in z-score units, comparable to delta_z above
     blend_results: list[tuple[str, list[float]]] = []
-    print("\nBlend sweep (z-normalized JEPA + AST):", flush=True)
+    print("\nBlend sweep (z-normalized JEPA + AST) — delta in z-score units:", flush=True)
     for ast_name, ast_scores in ast_fixture_scores:
         ast_z = _z_normalize(ast_scores)
         for w_ast in BLEND_WEIGHTS:
@@ -327,7 +349,7 @@ def main() -> None:
             blend_results.append((label, blended))
             auc = _auc(specs, blended)
             d = _delta(specs, blended)
-            print(f"  {label}: AUC={auc:.4f}  delta={d:+.4f}", flush=True)
+            print(f"  {label}: AUC={auc:.4f}  delta_z={d:+.4f}", flush=True)
 
     # 9. Top-20 composition under each AST variant on corpus
     print("\nTop-20 corpus composition (AST scoring on all chunks):", flush=True)
@@ -347,6 +369,7 @@ def main() -> None:
         specs=specs,
         chunks=chunks,
         jepa_fixture_scores=jepa_fixture_scores,
+        jepa_z_scores=jepa_z,
         ast_results=ast_fixture_scores,
         blend_results=blend_results,
     )
