@@ -18,7 +18,9 @@ import time
 from pathlib import Path
 from typing import Any, cast
 
+import numpy as np
 import torch
+from sklearn.metrics import precision_recall_curve, roc_curve
 
 from argot.acceptance.runner import (
     CATALOG_DIR,
@@ -30,7 +32,7 @@ from argot.jepa.pretrained_encoder import PretrainedEncoder, select_device
 from argot.research.signal.scorers.jepa_infonce import JepaInfoNCEScorer
 from argot.tokenize import language_for_path, tokenize_lines
 from argot.train import _texts_for_records
-from argot.validate import score_from_tensors
+from argot.validate import compute_auc, compute_percentiles, score_from_tensors
 
 # Stage 6 winner config (b01_t01_w0)
 WINNER_BETA: float = 0.1
@@ -293,6 +295,165 @@ def _chunk_preview(chunk: dict[str, Any], max_lines: int = 15) -> str:
     return "    " + "\n    ".join(visible) + tail
 
 
+def _threshold_table_rows(
+    fpr_arr: Any,
+    tpr_arr: Any,
+    thresh_arr: Any,
+    target_fprs: list[float],
+) -> list[tuple[float, float, float]]:
+    rows: list[tuple[float, float, float]] = []
+    for t_fpr in target_fprs:
+        mask = fpr_arr <= t_fpr
+        if not mask.any():
+            rows.append((t_fpr, 0.0, float("nan")))
+        else:
+            idx = int(np.where(mask)[0][-1])
+            cut = float(thresh_arr[min(idx, len(thresh_arr) - 1)])
+            rows.append((t_fpr, float(tpr_arr[idx]), cut))
+    return rows
+
+
+def _histogram_rows(
+    break_arr: Any,
+    ctrl_arr: Any,
+    edges: Any,
+) -> list[tuple[float, float, int, int]]:
+    rows: list[tuple[float, float, int, int]] = []
+    for i in range(len(edges) - 1):
+        lo, hi = edges[i], edges[i + 1]
+        if i == len(edges) - 2:
+            n_brk = int(((break_arr >= lo) & (break_arr <= hi)).sum())
+            n_ctl = int(((ctrl_arr >= lo) & (ctrl_arr <= hi)).sum())
+        else:
+            n_brk = int(((break_arr >= lo) & (break_arr < hi)).sum())
+            n_ctl = int(((ctrl_arr >= lo) & (ctrl_arr < hi)).sum())
+        rows.append((float(lo), float(hi), n_brk, n_ctl))
+    return rows
+
+
+def _print_metrics_block(break_scores: list[float], ctrl_scores: list[float]) -> None:
+    """Print Phase 1 distributional metrics: AUC, threshold table, overlap histogram."""
+    y_true = [1] * len(break_scores) + [0] * len(ctrl_scores)
+    y_score = break_scores + ctrl_scores
+
+    auc = compute_auc(ctrl_scores, break_scores)
+    fpr_arr, tpr_arr, thresh_arr = roc_curve(y_true, y_score)
+
+    rows = _threshold_table_rows(fpr_arr, tpr_arr, thresh_arr, [0.05, 0.10, 0.15, 0.20])
+
+    all_arr = np.array(y_score)
+    edges = np.percentile(all_arr, np.linspace(0, 100, 11))
+    hist_rows = _histogram_rows(np.array(break_scores), np.array(ctrl_scores), edges)
+
+    if auc >= 0.70:
+        verdict = "✅ AUC ≥ 0.70 — continue"
+    elif auc < 0.65:
+        verdict = "⚠️  STOP — AUC < 0.65, signal too weak"
+    else:
+        verdict = "⚠️  borderline (0.65–0.70), proceed with caution"
+
+    print("\n=== Phase 1 — Distributional Metrics ===")
+    print(f"AUC (ROC): {auc:.4f}  {verdict}")
+    print("\nThreshold table (target FPR → actual TPR, score cutoff):")
+    for fpr_t, tpr_t, cut_t in rows:
+        print(f"  FPR≤{fpr_t:.2f} → TPR={tpr_t:.3f}  cutoff={cut_t:.4f}")
+    print("\nScore overlap histogram (decile buckets of combined distribution):")
+    print(f"  {'bucket':>23}  {'break':>6}  {'ctrl':>6}")
+    for lo, hi, n_brk, n_ctl in hist_rows:
+        print(f"  [{lo:.4f}, {hi:.4f})  {n_brk:>6}  {n_ctl:>6}")
+
+
+def _write_phase8_report(
+    break_scores: list[float],
+    ctrl_scores: list[float],
+    n_chunks: int,
+    head_sha: str,
+    specs: list[FixtureSpec],
+) -> None:
+    """Write Phase 1 metrics to docs/research/scoring/signal/phase8_measurement_2026-04-20.md."""
+    y_true = [1] * len(break_scores) + [0] * len(ctrl_scores)
+    y_score = break_scores + ctrl_scores
+
+    auc = compute_auc(ctrl_scores, break_scores)
+    fpr_arr, tpr_arr, thresh_arr = roc_curve(y_true, y_score)
+    # PR curve computed for completeness; threshold table uses ROC only
+    _pr_prec, _pr_rec, _ = precision_recall_curve(y_true, y_score)
+
+    rows = _threshold_table_rows(fpr_arr, tpr_arr, thresh_arr, [0.05, 0.10, 0.15, 0.20])
+
+    all_arr = np.array(y_score)
+    edges = np.percentile(all_arr, np.linspace(0, 100, 11))
+    hist_rows = _histogram_rows(np.array(break_scores), np.array(ctrl_scores), edges)
+
+    n_break = sum(s.is_break for s in specs)
+    n_ctrl = sum(not s.is_break for s in specs)
+
+    if auc >= 0.70:
+        verdict = "✅ AUC ≥ 0.70 — continue to Phase 2"
+    elif auc < 0.65:
+        verdict = "⚠️ STOP — AUC < 0.65, signal too weak; consider LLM hybrid"
+    else:
+        verdict = "⚠️ borderline AUC (0.65–0.70), proceed with caution"
+
+    brk_pct = compute_percentiles(break_scores)
+    ctl_pct = compute_percentiles(ctrl_scores)
+
+    md_lines = [
+        "# Phase 8 Measurement — 2026-04-20",
+        "",
+        "## Setup",
+        "",
+        f"- Encoder: `{ENCODER_MODEL}`",
+        f"- Ensemble: `EnsembleInfoNCE(n={ENSEMBLE_N}, beta={WINNER_BETA}, tau={WINNER_TAU})`",
+        f"- FastAPI HEAD: `{head_sha}`",
+        f"- Static chunks extracted: {n_chunks}",
+        f"- Fixtures: {len(specs)} total ({n_break} breaks, {n_ctrl} controls)",
+        "- Command: `uv run python -m argot.research.static_chunk_audit_test`",
+        "",
+        "## AUC",
+        "",
+        f"**AUC (ROC): {auc:.4f}**  {verdict}",
+        "",
+        "## Threshold Table",
+        "",
+        "| Target FPR | Actual TPR | Score Cutoff |",
+        "|:----------:|:----------:|:------------:|",
+    ]
+    for fpr_t, tpr_t, cut_t in rows:
+        md_lines.append(f"| {fpr_t:.2f} | {tpr_t:.3f} | {cut_t:.4f} |")
+
+    md_lines += [
+        "",
+        "## Score Overlap Histogram (decile buckets)",
+        "",
+        "| Bucket | Break | Control |",
+        "|--------|------:|--------:|",
+    ]
+    for lo, hi, n_brk, n_ctl in hist_rows:
+        md_lines.append(f"| [{lo:.4f}, {hi:.4f}) | {n_brk} | {n_ctl} |")
+
+    md_lines += [
+        "",
+        "## Score Percentiles",
+        "",
+        "**Break scores:**",
+        f"min={brk_pct['min']:.4f}  p25={brk_pct['p25']:.4f}  median={brk_pct['median']:.4f}"
+        f"  p75={brk_pct['p75']:.4f}  p95={brk_pct['p95']:.4f}  max={brk_pct['max']:.4f}",
+        "",
+        "**Control scores:**",
+        f"min={ctl_pct['min']:.4f}  p25={ctl_pct['p25']:.4f}  median={ctl_pct['median']:.4f}"
+        f"  p75={ctl_pct['p75']:.4f}  p95={ctl_pct['p95']:.4f}  max={ctl_pct['max']:.4f}",
+    ]
+
+    # engine/argot/research/ → ../../.. → engine/ → ../ → repo root
+    _repo_root = Path(__file__).parent.parent.parent.parent
+    report_dir = _repo_root / "docs" / "research" / "scoring" / "signal"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    report_path = report_dir / "phase8_measurement_2026-04-20.md"
+    report_path.write_text("\n".join(md_lines) + "\n", encoding="utf-8")
+    print(f"\nPhase 1 report written to {report_path}", flush=True)
+
+
 def _print_report(
     chunks: list[dict[str, Any]],
     chunk_scores: list[float],
@@ -416,6 +577,8 @@ def main() -> None:
     print(f"\nTotal elapsed: {elapsed:.0f}s", flush=True)
 
     _print_report(chunks, chunk_scores, break_scores, ctrl_scores)
+    _print_metrics_block(break_scores, ctrl_scores)
+    _write_phase8_report(break_scores, ctrl_scores, len(chunks), head_sha, specs)
 
 
 if __name__ == "__main__":
