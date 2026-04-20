@@ -220,6 +220,44 @@ Raw deltas for top-k configs are not comparable to the 0.2215 baseline: selectin
 
 ---
 
+---
+
+## Stage 6 — InfoNCE In-Batch Contrastive Loss
+
+**Hypothesis:** pure MSE trains the predictor to reconstruct the true hunk on average but doesn't push predictions closer to the true hunk than to other in-repo hunks. Adding an in-batch InfoNCE term (positives = true hunk; negatives = all other hunks in the batch, all FastAPI) sharpens the predictor without foreign data.
+**Base:** `EnsembleJepaScorer(n=3)` MSE baseline (delta=0.2215).
+**Grid:** `{beta ∈ 0.1, 0.25, 0.5, 1.0} × {tau ∈ 0.05, 0.07, 0.1} × {warmup ∈ 0, 5ep}` — 24 configs × 1 seed = 24 runs.
+
+### Results
+
+| config | beta | tau | warmup | delta | vs baseline |
+|---|---|---|---|---|---|
+| `b01_t01_w0` | 0.1 | 0.10 | 0 | **0.2291** | +0.008 |
+| `b01_t01_w5` | 0.1 | 0.10 | 5 | 0.2268 | +0.005 |
+| `b01_t007_w0` | 0.1 | 0.07 | 0 | 0.2173 | −0.004 |
+| `b025_t01_w0` | 0.25 | 0.10 | 0 | 0.2143 | −0.007 |
+| `b025_t01_w5` | 0.25 | 0.10 | 5 | 0.2079 | −0.014 |
+| `b01_t005_w0` | 0.1 | 0.05 | 0 | 0.2075 | −0.014 |
+| `b05_t01_w0` | 0.5 | 0.10 | 0 | 0.2014 | −0.020 |
+| `b10_t01_w0` | 1.0 | 0.10 | 0 | 0.1929 | −0.029 |
+| `b10_t005_w5` | 1.0 | 0.05 | 5 | 0.1464 | −0.075 |
+
+### Findings
+
+**Marginal improvement at best.** Only two configs beat the 0.2215 baseline: `b01_t01_w0` (+0.008) and `b01_t01_w5` (+0.005). Expected gain was +0.02–0.06; actual best is +0.008.
+
+**Higher beta consistently hurts.** As beta increases (0.1 → 0.25 → 0.5 → 1.0), delta drops monotonically across all tau values. At beta=1.0, InfoNCE dominates the loss and collapses the predictor — worst config (b10_t005_w5) falls to 0.146. The loss can only help at beta=0.1, the weakest possible weight.
+
+**Higher tau helps.** tau=0.1 outperforms tau=0.07 > tau=0.05 at every beta level. A softer contrastive temperature is less aggressive and preserves more MSE gradient.
+
+**Warmup adds nothing.** w0 beats w5 in nearly every matched pair. The 5-epoch ramp-up delays InfoNCE without any mean gain.
+
+**Root cause of weak signal:** in-batch FastAPI negatives are all from the same repo and similar style. They are easy negatives that provide little useful gradient — the predictor can already distinguish true context→hunk pairs from same-repo negatives after MSE training alone. InfoNCE with harder negatives (cross-repo) would be more informative but is ruled out by the self-supervised-only constraint.
+
+**Winner carried into Phase 3:** `JepaInfoNCEScorer(beta=0.1, tau=0.1, warmup=0)` wrapped in `EnsembleJepaScorer(n=3)` — delta=0.2291. Treated as a tentative +0.008 gain; Phase 3 results will determine whether it stacks.
+
+---
+
 ## Key Learnings
 
 1. **Variance, not mean, was the primary obstacle.** The predictor could produce high-delta runs individually but not consistently across seeds. The fix was architectural (ensemble), not more training.
