@@ -1,0 +1,112 @@
+{
+  "fixtures": [
+    {
+      "name": "paradigm_break_flask_routing",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_flask_routing.py",
+      "hunk_start_line": 28,
+      "hunk_end_line": 67,
+      "is_break": true,
+      "rationale": "FastAPI uses @app.get / @router.post method-specific decorators and Pydantic parameter injection; Flask's @app.route(..., methods=[...]), request.get_json(), request.args.get(), jsonify(), abort(), and app.run() are absent from the FastAPI corpus"
+    },
+    {
+      "name": "paradigm_break_django_cbv",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_django_cbv.py",
+      "hunk_start_line": 30,
+      "hunk_end_line": 78,
+      "is_break": true,
+      "rationale": "FastAPI uses function-based endpoints with typed parameter injection; Django class-based views (View subclasses with def get/post methods), request.body + json.loads(), JsonResponse, HttpResponseNotFound, and urlpatterns = path() have no equivalent in the FastAPI corpus"
+    },
+    {
+      "name": "paradigm_break_aiohttp_handler",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_aiohttp_handler.py",
+      "hunk_start_line": 29,
+      "hunk_end_line": 74,
+      "is_break": true,
+      "rationale": "FastAPI uses declarative method decorators with parameter injection; aiohttp's async def handler(request: web.Request), await request.json(), request.match_info, web.json_response(), web.HTTPNotFound(), and app.router.add_get() are entirely absent from the FastAPI corpus"
+    },
+    {
+      "name": "paradigm_break_manual_validation",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_manual_validation.py",
+      "hunk_start_line": 29,
+      "hunk_end_line": 84,
+      "is_break": true,
+      "rationale": "FastAPI's idiomatic pattern is Pydantic BaseModel parameter injection for automatic validation; accepting `body: dict = Body(...)` and then manually checking isinstance(), field membership, length, and type with if-raise blocks recreates what Pydantic provides automatically — this manual validation pattern is absent from the FastAPI corpus"
+    },
+    {
+      "name": "paradigm_break_raw_response",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_raw_response.py",
+      "hunk_start_line": 34,
+      "hunk_end_line": 81,
+      "is_break": true,
+      "rationale": "FastAPI automatically serializes dicts and Pydantic models returned from endpoints; manually constructing Response(content=json.dumps(...)) and JSONResponse(content=jsonable_encoder(...)) at every call site bypasses the framework's serialization layer — this explicit construction pattern is absent from the FastAPI application-endpoint corpus"
+    },
+    {
+      "name": "paradigm_break_subtle_wrong_exception",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_subtle_wrong_exception.py",
+      "hunk_start_line": 49,
+      "hunk_end_line": 89,
+      "is_break": true,
+      "rationale": "decorators, Pydantic models, and Depends() are all idiomatic; the break is confined to the raise statements: ValueError, KeyError, and RuntimeError are raised instead of HTTPException — plain Python exceptions propagate as unhandled 500s rather than the intended 404/503 status codes, and this exception vocabulary is absent from the FastAPI corpus"
+    },
+    {
+      "name": "paradigm_break_subtle_manual_status_check",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_subtle_manual_status_check.py",
+      "hunk_start_line": 29,
+      "hunk_end_line": 65,
+      "is_break": true,
+      "rationale": "FastAPI + httpx corpus uses response.raise_for_status() to propagate downstream errors; manually checking `if response.status_code >= 400: raise HTTPException(...)` at every call site instead of calling raise_for_status() is a structural pattern absent from the corpus — all tokens are individually present but the branching structure is non-idiomatic"
+    },
+    {
+      "name": "paradigm_break_subtle_sync_endpoint",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_subtle_sync_endpoint.py",
+      "hunk_start_line": 41,
+      "hunk_end_line": 85,
+      "is_break": true,
+      "rationale": "the FastAPI corpus is dominated by async def endpoints; sync def endpoints with blocking I/O (time.sleep, requests.get, blocking DB calls) block the event loop's thread pool — the decorator and Depends() vocabulary is correct but the sync + blocking-I/O combination is structurally absent from the corpus"
+    },
+    {
+      "name": "paradigm_break_subtle_exception_swallow",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_subtle_exception_swallow.py",
+      "hunk_start_line": 51,
+      "hunk_end_line": 109,
+      "is_break": true,
+      "rationale": "decorators, Pydantic models, Depends(), HTTPException, and async def are all idiomatic; the break is purely structural: every endpoint body is wrapped in try/except Exception: pass or except Exception as e: logger.warning — broad exception-swallowing is absent from the FastAPI corpus, which propagates errors or handles specific exception types"
+    },
+    {
+      "name": "control_router_endpoint",
+      "scope": "default",
+      "file": "fixtures/default/control_router_endpoint.py",
+      "hunk_start_line": 46,
+      "hunk_end_line": 121,
+      "is_break": false,
+      "rationale": "idiomatic FastAPI: APIRouter with method-specific decorators, Pydantic BaseModel body params, typed path/query params with Query(), response_model= annotation, HTTPException(status_code=..., detail=...) on not-found, Depends() for DB session and auth — canonical pattern for CRUD endpoints"
+    },
+    {
+      "name": "control_dependency_injection",
+      "scope": "default",
+      "file": "fixtures/default/control_dependency_injection.py",
+      "hunk_start_line": 36,
+      "hunk_end_line": 127,
+      "is_break": false,
+      "rationale": "idiomatic FastAPI dependency injection: generator dep with yield for session lifecycle, nested Depends() chain, Annotated[T, Depends(...)] shorthand, OAuth2PasswordBearer token extraction, sub-dependencies accepting their own Depends() params — all canonical DI patterns from the FastAPI corpus"
+    },
+    {
+      "name": "control_exception_handling",
+      "scope": "default",
+      "file": "fixtures/default/control_exception_handling.py",
+      "hunk_start_line": 49,
+      "hunk_end_line": 103,
+      "is_break": false,
+      "rationale": "idiomatic FastAPI error handling: @app.exception_handler(RequestValidationError) returning JSONResponse with exc.errors(), @app.exception_handler(HTTPException) forwarding status_code and headers, raise HTTPException(404/401/403, detail=...) at endpoint call sites, HTTPException with headers={'WWW-Authenticate': 'Bearer'} — canonical pattern from the FastAPI corpus"
+    }
+  ]
+}
