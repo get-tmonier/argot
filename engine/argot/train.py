@@ -38,7 +38,6 @@ class ModelBundle:
     encoder_kind: EncoderKind = field(default="tfidf")
 
 
-
 def _train_sklearn_vec(
     records: list[dict[str, Any]],
     *,
@@ -284,7 +283,6 @@ def _get_bpe_embeddings(bundle: ModelBundle, records: list[dict[str, Any]]) -> n
     with torch.no_grad():
         emb = bundle.model.encoder(hunk_x)
     return emb.numpy()  # type: ignore[no-any-return]
-
 
 
 def _texts_for_records(records: list[dict[str, Any]]) -> tuple[list[str], list[str]]:

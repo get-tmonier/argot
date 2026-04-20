@@ -246,12 +246,12 @@
       "name": "control_pydantic_validator",
       "scope": "default",
       "file": "fixtures/default/control_pydantic_validator.py",
-      "hunk_start_line": 20,
-      "hunk_end_line": 74,
+      "hunk_start_line": 16,
+      "hunk_end_line": 66,
       "is_break": false,
       "category": "validation",
       "set": "v2",
-      "rationale": "idiomatic Pydantic @field_validator and @model_validator on BaseModel subclasses injected as FastAPI parameters — canonical validation pattern with no manual isinstance checks"
+      "rationale": "idiomatic FastAPI query-param validation via Pydantic BaseModel + Field constraints + Query() injection — grounded in corpus docs_src/query_param_models pattern, no @field_validator"
     },
     {
       "name": "control_response_model",
@@ -268,12 +268,12 @@
       "name": "control_async_streaming",
       "scope": "default",
       "file": "fixtures/default/control_async_streaming.py",
-      "hunk_start_line": 24,
-      "hunk_end_line": 86,
+      "hunk_start_line": 18,
+      "hunk_end_line": 59,
       "is_break": false,
       "category": "async_blocking",
       "set": "v2",
-      "rationale": "async generator functions yielding chunks wrapped in StreamingResponse — correct non-blocking streaming pattern with await, Depends(), and APIRouter, entirely in-corpus"
+      "rationale": "async request handling with custom APIRoute and await — grounded in corpus docs_src/custom_request_and_route pattern using Request, Response, HTTPException, RequestValidationError"
     },
     {
       "name": "control_httpx_async",

@@ -128,9 +128,7 @@ def main() -> None:
     scorer_names = [s.strip() for s in args.scorers.split(",")]
     out_dir = Path(args.out)
 
-    entries = (
-        [args.entry] if args.entry else [p.name for p in catalog_dir.iterdir() if p.is_dir()]
-    )
+    entries = [args.entry] if args.entry else [p.name for p in catalog_dir.iterdir() if p.is_dir()]
 
     for entry_name in entries:
         _run_entry(entry_name, catalog_dir, scorer_names, out_dir)

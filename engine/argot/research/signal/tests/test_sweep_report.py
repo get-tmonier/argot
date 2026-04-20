@@ -1,4 +1,5 @@
 """Tests for sweep._write_report with the v2 schema (delta_v1, delta_v2, per-category)."""
+
 from __future__ import annotations
 
 import statistics

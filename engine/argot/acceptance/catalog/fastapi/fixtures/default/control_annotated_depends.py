@@ -13,7 +13,8 @@ Annotated appears 646 times in the FastAPI corpus — this is deeply in-distribu
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Generator
+from collections.abc import Generator
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer

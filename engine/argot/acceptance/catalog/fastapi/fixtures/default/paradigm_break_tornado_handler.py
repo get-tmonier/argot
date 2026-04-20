@@ -11,8 +11,6 @@ from __future__ import annotations
 
 import json
 
-import tornado.ioloop
-import tornado.web
 from tornado.ioloop import IOLoop
 from tornado.web import Application, RequestHandler
 

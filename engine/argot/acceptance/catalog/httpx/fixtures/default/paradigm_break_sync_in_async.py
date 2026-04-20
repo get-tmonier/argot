@@ -55,7 +55,7 @@ async def fetch_all_users(user_ids: list[int], api_key: str) -> list[dict[str, A
     tasks = [fetch_user(uid, api_key) for uid in user_ids]
     results: list[dict[str, Any]] = await asyncio.gather(*tasks, return_exceptions=True)
     users = []
-    for uid, result in zip(user_ids, results):
+    for uid, result in zip(user_ids, results, strict=False):
         if isinstance(result, Exception):
             logger.error("failed to fetch user %d: %s", uid, result)
         else:

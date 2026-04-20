@@ -74,6 +74,6 @@ def test_jepa_custom_score_before_fit_raises() -> None:
     scorer = JepaCustomScorer()
     try:
         scorer.score([])
-        assert False, "Expected RuntimeError"
+        raise AssertionError("Expected RuntimeError")
     except RuntimeError:
         pass

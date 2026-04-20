@@ -22,15 +22,17 @@ def _write_corpus(path: Path, n: int = 40) -> None:
     with path.open("w") as f:
         for i in range(n):
             f.write(
-                json.dumps({
-                    "_repo": "ky",
-                    "author_date_iso": str(base_ts + i * 3600),
-                    "file_path": f"source/file_{i % 3}.ts",
-                    "language": "typescript",
-                    "context_before": [{"text": f"ctx_{i % 7}"}],
-                    "context_after": [],
-                    "hunk_tokens": [{"text": f"hunk_{i % 11}"}],
-                })
+                json.dumps(
+                    {
+                        "_repo": "ky",
+                        "author_date_iso": str(base_ts + i * 3600),
+                        "file_path": f"source/file_{i % 3}.ts",
+                        "language": "typescript",
+                        "context_before": [{"text": f"ctx_{i % 7}"}],
+                        "context_after": [],
+                        "hunk_tokens": [{"text": f"hunk_{i % 11}"}],
+                    }
+                )
                 + "\n"
             )
 
@@ -40,11 +42,9 @@ def _make_entry(tmp_path: Path) -> Path:
     entry.mkdir()
 
     (entry / "scopes.json").write_text(
-        json.dumps({
-            "scopes": [
-                {"name": "default", "path_prefix": "", "paradigm": "Fetch-based HTTP"}
-            ]
-        })
+        json.dumps(
+            {"scopes": [{"name": "default", "path_prefix": "", "paradigm": "Fetch-based HTTP"}]}
+        )
     )
 
     fixture_dir = entry / "fixtures" / "default"
@@ -57,28 +57,30 @@ def _make_entry(tmp_path: Path) -> Path:
     )
 
     (entry / "manifest.json").write_text(
-        json.dumps({
-            "fixtures": [
-                {
-                    "name": "break_example",
-                    "scope": "default",
-                    "file": "fixtures/default/break.ts",
-                    "hunk_start_line": 2,
-                    "hunk_end_line": 4,
-                    "is_break": True,
-                    "rationale": "Test break fixture",
-                },
-                {
-                    "name": "control_example",
-                    "scope": "default",
-                    "file": "fixtures/default/control.ts",
-                    "hunk_start_line": 2,
-                    "hunk_end_line": 4,
-                    "is_break": False,
-                    "rationale": "Test control fixture",
-                },
-            ]
-        })
+        json.dumps(
+            {
+                "fixtures": [
+                    {
+                        "name": "break_example",
+                        "scope": "default",
+                        "file": "fixtures/default/break.ts",
+                        "hunk_start_line": 2,
+                        "hunk_end_line": 4,
+                        "is_break": True,
+                        "rationale": "Test break fixture",
+                    },
+                    {
+                        "name": "control_example",
+                        "scope": "default",
+                        "file": "fixtures/default/control.ts",
+                        "hunk_start_line": 2,
+                        "hunk_end_line": 4,
+                        "is_break": False,
+                        "rationale": "Test control fixture",
+                    },
+                ]
+            }
+        )
     )
 
     _write_corpus(entry / "corpus.jsonl", n=40)
@@ -155,29 +157,29 @@ def test_load_manifest_with_category_and_set(tmp_path: Path) -> None:
     entry = tmp_path / "fastapi_test"
     entry.mkdir()
     (entry / "scopes.json").write_text(
-        json.dumps({
-            "scopes": [{"name": "default", "path_prefix": "", "paradigm": "FastAPI"}]
-        })
+        json.dumps({"scopes": [{"name": "default", "path_prefix": "", "paradigm": "FastAPI"}]})
     )
     fixture_dir = entry / "fixtures" / "default"
     fixture_dir.mkdir(parents=True)
     (fixture_dir / "break.py").write_text("# break\nx = 1\n")
     (entry / "manifest.json").write_text(
-        json.dumps({
-            "fixtures": [
-                {
-                    "name": "break_v2",
-                    "scope": "default",
-                    "file": "fixtures/default/break.py",
-                    "hunk_start_line": 2,
-                    "hunk_end_line": 2,
-                    "is_break": True,
-                    "rationale": "test",
-                    "category": "routing",
-                    "set": "v2",
-                }
-            ]
-        })
+        json.dumps(
+            {
+                "fixtures": [
+                    {
+                        "name": "break_v2",
+                        "scope": "default",
+                        "file": "fixtures/default/break.py",
+                        "hunk_start_line": 2,
+                        "hunk_end_line": 2,
+                        "is_break": True,
+                        "rationale": "test",
+                        "category": "routing",
+                        "set": "v2",
+                    }
+                ]
+            }
+        )
     )
     specs = load_manifest(entry)
     assert len(specs) == 1

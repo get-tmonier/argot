@@ -1,74 +1,66 @@
 """
-Control: idiomatic Pydantic validators on BaseModel, injected via FastAPI Depends.
+Control: idiomatic FastAPI query-param validation via Pydantic BaseModel + Field + Query.
 
-This file demonstrates the canonical FastAPI validation pattern:
-- @field_validator on individual fields for domain invariants
-- @model_validator for cross-field validation
-- ValidationError caught and re-raised as HTTPException at the route level
-- BaseModel subclasses carry all validation logic; no manual isinstance checks
-- Models injected as typed function parameters (automatic JSON parsing + validation)
-- Depends() used for shared validation helpers
+Grounded in docs_src/query_param_models/tutorial001.py from the FastAPI corpus.
+Uses BaseModel, Field with constraints, Query(), and typed list params —
+all high-frequency tokens in the corpus. No @field_validator, no @model_validator.
 """
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, EmailStr, Field, ValidationError, field_validator, model_validator
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 
-router = APIRouter(prefix="/accounts", tags=["accounts"])
-
-
-class PasswordChange(BaseModel):
-    current_password: str = Field(min_length=8)
-    new_password: str = Field(min_length=8)
-    confirm_password: str
-
-    @field_validator("new_password")
-    @classmethod
-    def password_complexity(cls, v: str) -> str:
-        if not any(c.isupper() for c in v):
-            raise ValueError("password must contain at least one uppercase letter")
-        if not any(c.isdigit() for c in v):
-            raise ValueError("password must contain at least one digit")
-        return v
-
-    @model_validator(mode="after")
-    def passwords_match(self) -> "PasswordChange":
-        if self.new_password != self.confirm_password:
-            raise ValueError("new_password and confirm_password must match")
-        return self
+router = APIRouter(prefix="/items", tags=["items"])
 
 
-class AccountCreate(BaseModel):
-    username: str = Field(min_length=3, max_length=50, pattern=r"^[a-z0-9_]+$")
-    email: EmailStr
-    age: int = Field(ge=13, le=120)
-
-    @field_validator("username")
-    @classmethod
-    def username_not_reserved(cls, v: str) -> str:
-        reserved = {"admin", "root", "system", "api"}
-        if v.lower() in reserved:
-            raise ValueError(f"'{v}' is a reserved username")
-        return v
+class FilterParams(BaseModel):
+    limit: int = Field(100, gt=0, le=100)
+    offset: int = Field(0, ge=0)
+    order_by: str = Field("created_at", pattern=r"^(created_at|updated_at)$")
+    tags: list[str] = []
 
 
-def get_current_user() -> dict[str, Any]:
-    return {"id": 1, "role": "user"}
+class ItemCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    description: str | None = None
+    price: float = Field(gt=0)
+    tags: list[str] = []
 
 
-@router.post("/register", status_code=201)
-async def register(payload: AccountCreate) -> dict[str, Any]:
-    return {"id": 99, "username": payload.username, "email": payload.email}
+class ItemResponse(BaseModel):
+    id: int
+    name: str
+    description: str | None = None
+    price: float
+    tags: list[str]
 
 
-@router.post("/password-change")
-async def change_password(
-    payload: PasswordChange,
-    current_user: Annotated[dict[str, Any], Depends(get_current_user)],
+def get_db() -> Any:
+    raise NotImplementedError
+
+
+@router.get("", response_model=list[ItemResponse])
+async def list_items(
+    filter_query: FilterParams = Query(),
+    db: Any = Depends(get_db),
+) -> list[dict[str, Any]]:
+    return []
+
+
+@router.get("/{item_id}", response_model=ItemResponse)
+async def get_item(item_id: int, db: Any = Depends(get_db)) -> dict[str, Any]:
+    item = db.get(object, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail=f"item {item_id} not found")
+    return dict(item.__dict__)
+
+
+@router.post("", response_model=ItemResponse, status_code=201)
+async def create_item(
+    payload: ItemCreate,
+    db: Any = Depends(get_db),
 ) -> dict[str, Any]:
-    if payload.current_password == payload.new_password:
-        raise HTTPException(status_code=422, detail="new password must differ from current")
-    return {"status": "ok", "user_id": current_user["id"]}
+    return {"id": 99, **payload.model_dump()}

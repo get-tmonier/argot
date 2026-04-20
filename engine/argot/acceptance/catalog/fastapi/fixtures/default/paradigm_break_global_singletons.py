@@ -53,7 +53,7 @@ _next_id = 1
 
 @app.get("/items")
 async def list_items() -> JSONResponse:
-    db = get_db()
+    get_db()
     cache = get_cache()
     cached = cache.get("items_list") if hasattr(cache, "get") else None
     if cached:
@@ -65,7 +65,7 @@ async def list_items() -> JSONResponse:
 @app.get("/items/{item_id}")
 async def get_item(item_id: int) -> JSONResponse:
     global _cache
-    db = get_db()
+    get_db()
     item = _items_store.get(item_id)
     if item is None:
         raise HTTPException(status_code=404, detail="item not found")
@@ -77,7 +77,7 @@ async def get_item(item_id: int) -> JSONResponse:
 @app.post("/items", status_code=201)
 async def create_item(body: dict[str, object]) -> JSONResponse:
     global _next_id, _db, _conn
-    db = get_db()
+    get_db()
     item: dict[str, object] = {"id": _next_id, **body}
     _items_store[_next_id] = item
     _next_id += 1
@@ -89,7 +89,7 @@ async def create_item(body: dict[str, object]) -> JSONResponse:
 @app.delete("/items/{item_id}", status_code=204)
 async def delete_item(item_id: int) -> JSONResponse:
     global _cache, _db
-    db = get_db()
+    get_db()
     if item_id not in _items_store:
         raise HTTPException(status_code=404, detail="item not found")
     del _items_store[item_id]

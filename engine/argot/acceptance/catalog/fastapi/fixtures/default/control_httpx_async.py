@@ -13,7 +13,8 @@ Vocabulary: httpx, AsyncClient, await, Depends, raise_for_status, APIRouter, HTT
 
 from __future__ import annotations
 
-from typing import Any, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException

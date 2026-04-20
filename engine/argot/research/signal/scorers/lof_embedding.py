@@ -24,9 +24,7 @@ class LofEmbeddingScorer:
             emb = self._encoder.encode_texts(texts)
         x = F.normalize(emb, p=2, dim=1).cpu().numpy()
         n = x.shape[0]
-        self._lof = LocalOutlierFactor(
-            n_neighbors=min(20, n - 1), metric="cosine", novelty=True
-        )
+        self._lof = LocalOutlierFactor(n_neighbors=min(20, n - 1), metric="cosine", novelty=True)
         self._lof.fit(x)
 
     def score(self, fixtures: list[dict[str, Any]]) -> list[float]:

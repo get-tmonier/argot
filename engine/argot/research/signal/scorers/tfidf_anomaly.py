@@ -17,9 +17,7 @@ class TfidfAnomalyScorer:
 
     def __init__(self) -> None:
         # bigrams capture local idioms; 5000 caps vocab for code token sequences
-        self._vectorizer: TfidfVectorizer = TfidfVectorizer(
-            ngram_range=(1, 2), max_features=5000
-        )
+        self._vectorizer: TfidfVectorizer = TfidfVectorizer(ngram_range=(1, 2), max_features=5000)
         self._neighbors: NearestNeighbors | None = None
         self._corpus_tfidf: csr_matrix | None = None
 

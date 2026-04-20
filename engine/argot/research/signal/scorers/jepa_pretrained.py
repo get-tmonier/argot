@@ -31,7 +31,13 @@ class JepaPretrainedScorer:
         self._random_seed = random_seed
         self._bundle: ModelBundle | None = None
 
-    def fit(self, corpus: list[dict[str, Any]]) -> None:
+    def fit(
+        self,
+        corpus: list[dict[str, Any]],
+        *,
+        preencoded: tuple[torch.Tensor, torch.Tensor] | None = None,
+    ) -> None:
+        del preencoded  # JepaPretrainedScorer re-encodes internally via train_model
         if self._random_seed is not None:
             torch.manual_seed(self._random_seed)
             np.random.seed(self._random_seed)

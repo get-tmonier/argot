@@ -100,10 +100,7 @@ def run_entry(entry_dir: Path, epochs: int = EPOCHS) -> EntryResult:
 
     bundles: dict[str, ModelBundle] = {}
     for scope in scopes:
-        scope_records = [
-            r for r in corpus
-            if r.get("file_path", "").startswith(scope.path_prefix)
-        ]
+        scope_records = [r for r in corpus if r.get("file_path", "").startswith(scope.path_prefix)]
         if len(scope_records) < 10:
             raise RuntimeError(
                 f"Entry {entry_name!r}, scope {scope.name!r}: "
@@ -111,13 +108,10 @@ def run_entry(entry_dir: Path, epochs: int = EPOCHS) -> EntryResult:
             )
         train_records, _ = split_by_time(scope_records, ratio=0.8)
         print(
-            f"  [{scope.name}] {len(train_records)} train records, "
-            f"training {epochs} epochs...",
+            f"  [{scope.name}] {len(train_records)} train records, " f"training {epochs} epochs...",
             flush=True,
         )
-        bundles[scope.name] = train_model(
-            train_records, encoder="pretrained", epochs=epochs
-        )
+        bundles[scope.name] = train_model(train_records, encoder="pretrained", epochs=epochs)
 
     fixture_scores: list[dict[str, Any]] = []
     for spec in fixtures:
@@ -188,9 +182,7 @@ def _write_markdown(result: EntryResult, output_path: Path) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Run acceptance tests on catalog entries"
-    )
+    parser = argparse.ArgumentParser(description="Run acceptance tests on catalog entries")
     parser.add_argument("--entry", help="Run a single catalog entry by name")
     parser.add_argument(
         "--catalog",
@@ -209,9 +201,7 @@ def main() -> None:
     out_dir = Path(args.out)
 
     entries = (
-        [catalog / args.entry]
-        if args.entry
-        else sorted(e for e in catalog.iterdir() if e.is_dir())
+        [catalog / args.entry] if args.entry else sorted(e for e in catalog.iterdir() if e.is_dir())
     )
 
     if not entries:

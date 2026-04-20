@@ -416,9 +416,7 @@ def _write_report(
     lines.append("> Categories with no controls share the global v2 control mean.\n")
     for config_name in config_names:
         config_rows = [
-            cat_dict
-            for (cn, _seed, _dv2, _dv1, cat_dict) in raw_rows
-            if cn == config_name
+            cat_dict for (cn, _seed, _dv2, _dv1, cat_dict) in raw_rows if cn == config_name
         ]
         if not config_rows:
             continue

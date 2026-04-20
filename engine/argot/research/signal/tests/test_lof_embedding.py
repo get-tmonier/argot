@@ -31,6 +31,6 @@ def test_lof_embedding_ordering() -> None:
     scores = scorer.score(fixture_records)
 
     assert len(scores) == 2
-    assert scores[1] > scores[0], (
-        f"Expected outlier({scores[1]:.4f}) > in_distribution({scores[0]:.4f})"
-    )
+    assert (
+        scores[1] > scores[0]
+    ), f"Expected outlier({scores[1]:.4f}) > in_distribution({scores[0]:.4f})"
