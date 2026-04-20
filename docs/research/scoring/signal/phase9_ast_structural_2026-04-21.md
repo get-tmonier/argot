@@ -36,20 +36,19 @@ All use Laplace smoothing (`alpha=1.0`) so empty-feature fixtures score 0 cleanl
 | Scorer | AUC | Delta (break−ctrl) |
 |--------|----:|-------------------:|
 | **jepa (baseline)** | **0.7368** | +0.2898 |
-| ast_ll | 0.6118 | — |
-| ast_zscore | 0.5329 | — |
-| ast_oov | 0.6974 | — |
-| jepa+ast_ll@0.25 | 0.6974 | — |
-| jepa+ast_zscore@0.25 | 0.7105 | — |
-| jepa+ast_oov@0.25 | 0.7368 | — |
-| jepa+ast_oov@0.50 | **0.7697** | — |
-| jepa+ast_oov@0.75 | 0.7632 | — |
+| ast_ll | 0.6118 | +24.17 † |
+| ast_zscore | 0.5329 | +0.87 |
+| ast_oov | 0.6974 | +11.16 † |
+| jepa+ast_ll@0.25 | 0.6974 | +0.63 ‡ |
+| jepa+ast_zscore@0.25 | 0.7105 | +0.63 ‡ |
+| jepa+ast_oov@0.25 | 0.7368 | +0.75 ‡ |
+| **jepa+ast_oov@0.50** | **0.7697** | **+0.70 ‡** |
+| jepa+ast_oov@0.75 | 0.7632 | +0.66 ‡ |
 
-**Best result: `jepa+ast_oov@0.50` — AUC 0.7697 (+0.033 over JEPA baseline).**
+**Best result: `jepa+ast_oov@0.50` — AUC 0.7697 (+0.033 over JEPA baseline), delta +0.70.**
 
-Delta columns for the blend are omitted: raw AST scores are not on the same scale as
-z-normalized JEPA scores, so blend deltas are artifacts of the normalization, not
-comparable to the JEPA-only delta.
+† Raw AST scores (loglik = sum of log-probs; oov = raw count). Large magnitudes expected — not comparable to JEPA delta.  
+‡ Blend of z-normalized JEPA + z-normalized AST scores. Delta is in z-score units; direction and ranking are meaningful, magnitude is not directly comparable to the raw JEPA delta (+0.2898).
 
 ---
 
