@@ -85,3 +85,33 @@ def test_multiple_features_accumulated() -> None:
     feats = extract_features(src)
     all_values = [v for values in feats.values() for v in values]
     assert len(all_values) >= 2
+
+
+# ---------------------------------------------------------------------------
+# parent_context tests
+# ---------------------------------------------------------------------------
+
+
+def test_parent_context_async_raise() -> None:
+    """raise inside async def emits AsyncFunctionDef::Raise as a category key."""
+    source = """
+async def endpoint():
+    raise HTTPException(status_code=404)
+"""
+    feats = extract_features(source, parent_context=True)
+    assert "AsyncFunctionDef::Raise" in feats
+
+
+def test_parent_context_async_vs_sync_keys_differ() -> None:
+    """time.sleep() inside async def vs def produces different parent keys."""
+    async_source = "async def f():\n    time.sleep(1)\n"
+    sync_source = "def f():\n    time.sleep(1)\n"
+    async_feats = extract_features(async_source, parent_context=True)
+    sync_feats = extract_features(sync_source, parent_context=True)
+    assert set(async_feats.keys()) != set(sync_feats.keys())
+
+
+def test_parent_context_false_regression() -> None:
+    """flag=False produces identical output to the default (no parent_context)."""
+    source = "def f():\n    x = foo.bar\n"
+    assert extract_features(source) == extract_features(source, parent_context=False)
