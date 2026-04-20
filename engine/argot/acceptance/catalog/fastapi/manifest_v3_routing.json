@@ -1,0 +1,36 @@
+{
+  "fixtures": [
+    {
+      "file": "fixtures/default/paradigm_break_imperative_route_loop.py",
+      "category": "routing",
+      "label": "break",
+      "id": "paradigm_break_imperative_route_loop",
+      "description": "Imperative route-table loop with app.add_api_route() — Flask carryover pattern absent from corpus.",
+      "corpus_evidence": {
+        "add_api_route_corpus_sites": 6,
+        "loop_pattern_corpus_sites": 0,
+        "decorator_routing_corpus_sites": 1138
+      },
+      "hunk": {
+        "start_line": 77,
+        "end_line": 90
+      }
+    },
+    {
+      "file": "fixtures/default/control_nested_router.py",
+      "category": "routing",
+      "label": "control",
+      "id": "control_nested_router",
+      "description": "Nested APIRouter composition for versioned APIs — canonical include_router() pattern.",
+      "corpus_evidence": {
+        "include_router_corpus_sites": 86,
+        "router_get_post_corpus_sites": 35
+      },
+      "source_reference": "docs_src/bigger_applications/app/routers/items.py:1-30, docs_src/bigger_applications/app/main.py:1-25",
+      "hunk": {
+        "start_line": 58,
+        "end_line": 132
+      }
+    }
+  ]
+}
