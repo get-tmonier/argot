@@ -118,6 +118,12 @@ research-honest-benchmark encoder="tfidf" seeds="3" out=".argot/research/results
 		--dataset .argot/research/buckets-v2/large-ts.jsonl --sizes 20000 --seeds {{seeds}} \
 		--encoder {{encoder}} --out {{out}}
 
+acceptance entry="":
+	uv run --package argot-engine python -m argot.acceptance.runner \
+		--catalog engine/argot/acceptance/catalog \
+		--out docs/research/scoring/acceptance \
+		--epochs 20 {{if entry != ""}}--entry {{entry}}{{end}}
+
 # --- individual checks ---
 
 lint:
