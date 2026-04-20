@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-20
 **Branch:** research/phase-7-honest-eval
-**Status:** Both entries passing gate (delta >= 0.20) · Subtle-break spike confirms vocabulary novelty detector
+**Status:** All three entries passing gate (delta >= 0.20) · Subtle-break spike confirms vocabulary novelty detector
 
 ---
 
@@ -173,6 +173,43 @@ Both catalogs produced only two controls each. With two controls, a single bad c
 
 ---
 
+### fastapi (Python, 600 corpus records, 12 fixtures)
+
+| fixture | type | score |
+|---|---|---|
+| paradigm_break_manual_validation | break | 1.3469 |
+| paradigm_break_raw_response | break | 1.3423 |
+| paradigm_break_aiohttp_handler | break | 1.2290 |
+| paradigm_break_django_cbv | break | 1.2031 |
+| paradigm_break_flask_routing | break | 1.1210 |
+| control_router_endpoint | control | 1.0495 |
+| control_exception_handling | control | 0.8829 |
+| control_dependency_injection | control | 0.8245 |
+
+**Gate scope (5 obvious breaks + 3 controls):** control=0.9190 · break=1.2485 · **delta=0.3295 ✓**
+
+**Reported overall (all 9 breaks + 3 controls):** control=0.9190 · break=1.1229 · **delta=0.2040 ✓**
+
+Subtle breaks (research artifacts, not part of gate):
+
+| fixture | score | note |
+|---|---|---|
+| paradigm_break_subtle_manual_status_check | 1.2844 | detected — above all obvious breaks except manual_validation |
+| paradigm_break_subtle_exception_swallow | 0.9224 | marginal — just above control mean |
+| paradigm_break_subtle_wrong_exception | 0.8759 | weak — below `control_router_endpoint` |
+| paradigm_break_subtle_sync_endpoint | 0.7814 | **missed** — scored below all controls |
+
+Score observations:
+
+- **Strongest gate delta in the catalog so far (0.3295).** FastAPI's corpus is tightly focused on async endpoint patterns; foreign-framework vocabulary (Flask, Django, aiohttp) is completely absent, giving breaks a large lift.
+- **Strongest individual breaks:** `paradigm_break_manual_validation` (1.3469) and `paradigm_break_raw_response` (1.3423). Both inject patterns structurally absent from the corpus: manual `isinstance`/length checks and explicit `json.dumps`/`jsonable_encoder` calls at every call site.
+- **Weakest gate break:** `paradigm_break_flask_routing` (1.1210). Flask and FastAPI share some Python web vocabulary (`@app`, route path strings, HTTP verbs as strings) even though the decorator style differs.
+- **`control_router_endpoint` scored 1.0495** — the highest control score in the entire catalog, just 0.071 below the weakest break. It uses a large hunk (76 lines, lines 46–121) with broad vocabulary: `APIRouter`, `Query()`, `Depends()`, `HTTPException`, `response_model`, `Optional`, `Union`. The breadth itself signals vocabulary diversity, pushing the score up even though every token is individually idiomatic.
+- **`paradigm_break_subtle_sync_endpoint` scored 0.7814 — below all controls.** Sync `def` endpoints with `time.sleep` / `requests.get` are actually common in Python web code and in the FastAPI corpus (FastAPI supports sync endpoints). The corpus doesn't strongly associate FastAPI with `async def` exclusively, so the model rates sync-blocking code as *less* unusual than idiomatic async DI patterns.
+- **`paradigm_break_subtle_manual_status_check` scored 1.2844**, above four of the five obvious breaks. This was designed to be subtle (all tokens individually present) but the branching structure (`if response.status_code >= 400: raise HTTPException(...)`) is genuinely absent from the corpus, which uses `raise_for_status()` consistently.
+
+---
+
 ## Contamination Experiment: httpx httpcore/ records
 
 **Question:** The httpx corpus (600 records) contains 70 records from `httpcore/` paths — httpx's underlying transport library. Does removing this 11.7% contamination improve the gate delta?
@@ -240,14 +277,14 @@ For the httpx catalog, the httpcore/ contamination is **not harmful enough to be
 
 ## Summary
 
-| metric | ky | httpx |
-|---|---|---|
-| corpus records | 600 | 600 |
-| fixtures (break/control) | 5 / 2 | 5 / 2 |
-| break mean | 0.9736 | 1.1937 |
-| control mean | 0.7401 | 0.9682 |
-| **delta** | **0.2335** | **0.2255** |
-| gate (>= 0.20) | ✓ | ✓ |
-| runs to pass | 1 | 2 |
+| metric | ky | httpx | fastapi |
+|---|---|---|---|
+| corpus records | 600 | 600 | 600 |
+| fixtures (break/control) | 5 / 2 | 5 / 2 | 5 / 3 |
+| gate break mean | 0.9736 | 1.1755 | 1.2485 |
+| gate control mean | 0.7401 | 0.9206 | 0.9190 |
+| **gate delta** | **0.2335** | **0.2549** | **0.3295** |
+| gate (>= 0.20) | ✓ | ✓ | ✓ |
+| runs to pass | 1 | 2 | 1 |
 
 httpx required a second run due to vocabulary mismatches that would have been caught by a corpus analysis pass before fixture writing. The fix was targeted (two fixtures, no structural changes) and confirmed the model behavior is correct — the failure was in fixture design, not in the model.
