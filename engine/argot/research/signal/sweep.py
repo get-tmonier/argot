@@ -23,6 +23,7 @@ from argot.acceptance.runner import (
 )
 from argot.research.signal.base import SignalScorer
 from argot.research.signal.scorers.jepa_custom import JepaCustomScorer
+from argot.research.signal.scorers.jepa_filtered import JepaFilteredScorer
 from argot.research.signal.scorers.jepa_pretrained import JepaPretrainedScorer
 
 STAGE1_CONFIGS: list[dict[str, Any]] = [
@@ -47,7 +48,12 @@ STAGE2_CONFIGS: list[dict[str, Any]] = [
     {"name": "cos_d6m1024",   "lr_schedule": "cosine", "depth": 6, "mlp_dim": 1024},
 ]
 
-STAGE3_CONFIGS: list[dict[str, Any]] = []
+# Stage 3: corpus filter on top of Stage 2 winner (flat_d4m1024)
+# τ ∈ {top-1%, top-5%} = 2 configs × 3 seeds = 6 runs
+STAGE3_CONFIGS: list[dict[str, Any]] = [
+    {"name": "filtered_tau1",  "tau_percentile": 1.0},
+    {"name": "filtered_tau5",  "tau_percentile": 5.0},
+]
 STAGE4_CONFIGS: list[dict[str, Any]] = []
 
 _STAGE_CONFIGS: dict[int, list[dict[str, Any]]] = {
@@ -73,9 +79,14 @@ def _stage2_factory(cfg: dict[str, Any]) -> SignalScorer:
     )
 
 
+def _stage3_factory(cfg: dict[str, Any]) -> SignalScorer:
+    return JepaFilteredScorer(tau_percentile=float(cfg["tau_percentile"]))
+
+
 _STAGE_FACTORIES: dict[int, Callable[[dict[str, Any]], SignalScorer]] = {
     1: _stage1_factory,
     2: _stage2_factory,
+    3: _stage3_factory,
 }
 
 
@@ -124,6 +135,14 @@ def _run_sweep(
                 fixture_records = [fixture_to_record(entry_dir, spec) for spec in scope_specs]
 
                 scorer = factory(cfg)
+                # Stage 3 filter scorers need break fixtures before fit()
+                if hasattr(scorer, "prime_breaks"):
+                    break_records = [
+                        fixture_to_record(entry_dir, s)
+                        for s in scope_specs
+                        if s.is_break
+                    ]
+                    scorer.prime_breaks(break_records)
                 scorer.fit(scope_corpus)
                 scores = scorer.score(fixture_records)
 
