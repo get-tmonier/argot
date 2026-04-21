@@ -51,3 +51,48 @@ def test_bpe_end_to_end_fastapi_no_crash() -> None:
     scores = score_records_bpe(records, tokenizer, model_a, total_a, model_b, total_b)
     assert len(scores) == 51
     assert all(isinstance(s, float) for s in scores)
+
+
+def test_bpe_end_to_end_click_no_crash() -> None:
+    """BPE click runner: loads 8 breaks + 10 controls, scores all, returns floats."""
+    import json
+    import os
+
+    from argot.acceptance.runner import FixtureSpec, fixture_to_record
+    from argot.research.signal.phase13.experiments.bpe_contrastive_tfidf import _get_tokenizer
+    from argot.research.signal.phase13.experiments.bpe_contrastive_tfidf_click import (
+        _build_model_a_bpe_click,
+        _load_model_b_bpe,
+        score_records_bpe,
+    )
+
+    fixture_dir = Path(__file__).parent.parent / "tier3_fixtures" / "click"
+    manifest_path = fixture_dir / "manifest_matched.json"
+
+    manifest = json.loads(manifest_path.read_text())
+    records = []
+    is_break_list = []
+    for f in manifest["fixtures"]:
+        spec = FixtureSpec(
+            name=f["name"],
+            scope="default",
+            file=f["file"],
+            hunk_start_line=f["hunk_start_line"],
+            hunk_end_line=f["hunk_end_line"],
+            is_break=f["is_break"],
+            rationale=f.get("rationale", ""),
+            category=f.get("category", "control" if not f["is_break"] else "break"),
+        )
+        records.append(fixture_to_record(fixture_dir, spec, "file_only"))
+        is_break_list.append(spec.is_break)
+    assert sum(is_break_list) == 8
+    assert sum(not b for b in is_break_list) == 10
+    click_dir = Path(os.environ.get("CLICK_DIR", "/tmp/click-clone"))
+    if not click_dir.is_dir():
+        pytest.skip("CLICK_DIR not available; set env var to run this test")
+    tokenizer = _get_tokenizer()
+    model_a, total_a = _build_model_a_bpe_click(click_dir, tokenizer)
+    model_b, total_b = _load_model_b_bpe()
+    scores = score_records_bpe(records, tokenizer, model_a, total_a, model_b, total_b)
+    assert len(scores) == 18
+    assert all(isinstance(s, float) for s in scores)
