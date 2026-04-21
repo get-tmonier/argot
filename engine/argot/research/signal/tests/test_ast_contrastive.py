@@ -7,8 +7,7 @@ from argot.research.signal.scorers.ast_contrastive import ContrastiveAstTreeletS
 
 
 def _make_record(source: str, path: str = "test.py") -> dict[str, Any]:
-    tokens = [{"text": t} for t in source.split()]
-    return {"context_before": [], "hunk_tokens": tokens, "file_path": path}
+    return {"context_before": [], "hunk_tokens": [{"text": source}], "file_path": path}
 
 
 def test_smoke_empty_corpus() -> None:

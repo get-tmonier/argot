@@ -26,24 +26,17 @@ class ContrastiveAstTreeletScorer:
         self._model_b: Counter[str] = _load_reference()
 
     def fit(self, corpus: list[dict[str, Any]]) -> None:
-        seen: set[str] = set()
         counts: Counter[str] = Counter()
         for record in corpus:
-            path: str = record["file_path"]
-            if path in seen:
-                continue
-            seen.add(path)
-            all_tokens = list(record["context_before"]) + list(record["hunk_tokens"])
-            source = " ".join(t["text"] for t in all_tokens)
-            treelets = extract_treelets(source)
-            counts.update(treelets)
+            source = "\n".join(t["text"] for t in record["hunk_tokens"])
+            counts.update(extract_treelets(source))
         self._model_a = counts
 
     def score(self, fixtures: list[dict[str, Any]]) -> list[float]:
         eps = self._epsilon
         results: list[float] = []
         for record in fixtures:
-            hunk_source = " ".join(t["text"] for t in record["hunk_tokens"])
+            hunk_source = "\n".join(t["text"] for t in record["hunk_tokens"])
             treelets = extract_treelets(hunk_source)
             if len(treelets) < 3:
                 results.append(0.0)
