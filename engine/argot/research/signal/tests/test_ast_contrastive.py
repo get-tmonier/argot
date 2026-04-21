@@ -29,18 +29,39 @@ def test_returns_float_after_fit() -> None:
     assert isinstance(scores[0], float)
 
 
-def test_direction_common_in_model_a_rare_in_model_b() -> None:
-    rare_treelet = "d1:AsyncFunctionDef>arguments"
+def test_direction_anomaly_high_when_rare_in_model_a() -> None:
+    """Hunk with a treelet that is rare in the repo (model_A) but common in
+    generic Python (model_B) should receive a HIGH anomaly score — i.e. it
+    looks more generic than repo-specific, signalling a potential paradigm break.
+    """
+    treelet = "d1:AsyncFunctionDef>arguments"
     source = "async def foo(x, y): return x"
 
     scorer = ContrastiveAstTreeletScorer(epsilon=1.0)
-    scorer._model_a = Counter({rare_treelet: 500})
-    scorer._model_b = Counter({rare_treelet: 0})
+    scorer._model_a = Counter({treelet: 0})   # rare in repo
+    scorer._model_b = Counter({treelet: 500})  # common generically
 
     records = [_make_record(source)]
     scores = scorer.score(records)
     assert len(scores) == 1
-    assert scores[0] > 0.0, f"Expected positive score, got {scores[0]}"
+    assert scores[0] > 0.0, f"Expected positive anomaly score, got {scores[0]}"
+
+
+def test_direction_anomaly_low_when_common_in_model_a() -> None:
+    """Hunk with a treelet that is common in the repo (model_A) should receive
+    a LOW anomaly score — it looks repo-idiomatic, not a break.
+    """
+    treelet = "d1:AsyncFunctionDef>arguments"
+    source = "async def foo(x, y): return x"
+
+    scorer = ContrastiveAstTreeletScorer(epsilon=1.0)
+    scorer._model_a = Counter({treelet: 500})  # common in repo
+    scorer._model_b = Counter({treelet: 0})    # rare generically
+
+    records = [_make_record(source)]
+    scores = scorer.score(records)
+    assert len(scores) == 1
+    assert scores[0] < 0.0, f"Expected negative anomaly score, got {scores[0]}"
 
 
 def test_minimum_treelet_returns_zero() -> None:

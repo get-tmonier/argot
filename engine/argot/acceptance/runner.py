@@ -95,13 +95,20 @@ def fixture_to_record(
             {"text": t.text} for t in tokenize_lines(lines, lang, ctx_start, hunk_start)
         ]
     hunk_tokens = tokenize_lines(lines, lang, hunk_start, hunk_end)
+    hunk_source_lines = lines[hunk_start:hunk_end]
     return {
         "_repo": "acceptance-fixture",
         "author_date_iso": "0",  # fixture records are never time-split; sentinel value
         "language": lang,
         "context_before": ctx_tokens_dicts,
         "context_after": [],
-        "hunk_tokens": [{"text": t.text} for t in hunk_tokens],
+        "hunk_tokens": [
+            {"text": t.text, "node_type": t.node_type, "start_line": t.start_line}
+            for t in hunk_tokens
+        ],
+        "hunk_source": "\n".join(hunk_source_lines),
+        "hunk_start_line": spec.hunk_start_line,
+        "hunk_end_line": spec.hunk_end_line,
         "_ctx_fallback": ctx_fallback,
         "_ctx_truncated": ctx_truncated,
     }

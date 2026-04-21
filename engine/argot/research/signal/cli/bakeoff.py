@@ -24,6 +24,7 @@ from typing import Any
 import torch
 
 # Side-effect imports — populate REGISTRY before lookup
+import argot.research.signal.scorers.ast_contrastive  # noqa: F401
 import argot.research.signal.scorers.ast_structural  # noqa: F401
 import argot.research.signal.scorers.knn_cosine  # noqa: F401
 import argot.research.signal.scorers.lm_perplexity  # noqa: F401

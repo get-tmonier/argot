@@ -1,0 +1,734 @@
+{
+  "entry": "fastapi",
+  "context_mode": "file_only",
+  "date": "2026-04-21",
+  "scorers": [
+    "ast_contrastive",
+    "ast_contrastive_e01",
+    "ast_contrastive_e10",
+    "tfidf_anomaly"
+  ],
+  "fixtures": [
+    {
+      "name": "paradigm_break_flask_routing",
+      "scope": "default",
+      "is_break": true,
+      "category": "routing",
+      "set": "v1",
+      "scores": {
+        "ast_contrastive": 6.296436475771359,
+        "ast_contrastive_e01": 7.243597601250026,
+        "ast_contrastive_e10": 5.217302289902606,
+        "tfidf_anomaly": 0.7787638672128466
+      }
+    },
+    {
+      "name": "paradigm_break_django_cbv",
+      "scope": "default",
+      "is_break": true,
+      "category": "framework_swap",
+      "set": "v1",
+      "scores": {
+        "ast_contrastive": 6.513338763441479,
+        "ast_contrastive_e01": 7.446284262965005,
+        "ast_contrastive_e10": 5.410010363866849,
+        "tfidf_anomaly": 0.7779335756727361
+      }
+    },
+    {
+      "name": "paradigm_break_aiohttp_handler",
+      "scope": "default",
+      "is_break": true,
+      "category": "framework_swap",
+      "set": "v1",
+      "scores": {
+        "ast_contrastive": 5.655614315848396,
+        "ast_contrastive_e01": 6.390073766757541,
+        "ast_contrastive_e10": 4.793861152220319,
+        "tfidf_anomaly": 0.713196145269731
+      }
+    },
+    {
+      "name": "paradigm_break_manual_validation",
+      "scope": "default",
+      "is_break": true,
+      "category": "validation",
+      "set": "v1",
+      "scores": {
+        "ast_contrastive": 6.173252089107507,
+        "ast_contrastive_e01": 7.130683794724717,
+        "ast_contrastive_e10": 5.059531564398345,
+        "tfidf_anomaly": 0.7019654624518697
+      }
+    },
+    {
+      "name": "paradigm_break_subtle_wrong_exception",
+      "scope": "default",
+      "is_break": true,
+      "category": "exception_handling",
+      "set": "v1",
+      "scores": {
+        "ast_contrastive": 5.012664759737216,
+        "ast_contrastive_e01": 5.703312460637651,
+        "ast_contrastive_e10": 4.248398804314063,
+        "tfidf_anomaly": 0.6610607940711192
+      }
+    },
+    {
+      "name": "paradigm_break_subtle_manual_status_check",
+      "scope": "default",
+      "is_break": true,
+      "category": "downstream_http",
+      "set": "v1",
+      "scores": {
+        "ast_contrastive": 5.475863327042055,
+        "ast_contrastive_e01": 6.080585069923554,
+        "ast_contrastive_e10": 4.7136848196737935,
+        "tfidf_anomaly": 0.6876673216480463
+      }
+    },
+    {
+      "name": "paradigm_break_subtle_sync_endpoint",
+      "scope": "default",
+      "is_break": true,
+      "category": "async_blocking",
+      "set": "v1",
+      "scores": {
+        "ast_contrastive": 6.375253092591046,
+        "ast_contrastive_e01": 7.166171827166059,
+        "ast_contrastive_e10": 5.426341478740918,
+        "tfidf_anomaly": 0.7577353755612398
+      }
+    },
+    {
+      "name": "paradigm_break_subtle_exception_swallow",
+      "scope": "default",
+      "is_break": true,
+      "category": "exception_handling",
+      "set": "v1",
+      "scores": {
+        "ast_contrastive": 5.299891781017442,
+        "ast_contrastive_e01": 6.0240387269604,
+        "ast_contrastive_e10": 4.467337184447753,
+        "tfidf_anomaly": 0.6793909818714927
+      }
+    },
+    {
+      "name": "control_router_endpoint",
+      "scope": "default",
+      "is_break": false,
+      "category": "routing",
+      "set": "v1",
+      "scores": {
+        "ast_contrastive": 5.367520229499217,
+        "ast_contrastive_e01": 6.091768090951486,
+        "ast_contrastive_e10": 4.578061681445372,
+        "tfidf_anomaly": 0.7152638472377857
+      }
+    },
+    {
+      "name": "control_dependency_injection",
+      "scope": "default",
+      "is_break": false,
+      "category": "dependency_injection",
+      "set": "v1",
+      "scores": {
+        "ast_contrastive": 5.560924662634374,
+        "ast_contrastive_e01": 6.261683778639063,
+        "ast_contrastive_e10": 4.73781950339558,
+        "tfidf_anomaly": 0.6642393910447518
+      }
+    },
+    {
+      "name": "control_exception_handling",
+      "scope": "default",
+      "is_break": false,
+      "category": "exception_handling",
+      "set": "v1",
+      "scores": {
+        "ast_contrastive": 5.0456479311780855,
+        "ast_contrastive_e01": 5.74934312641995,
+        "ast_contrastive_e10": 4.24233745595583,
+        "tfidf_anomaly": 0.59522746507749
+      }
+    },
+    {
+      "name": "paradigm_break_starlette_mount",
+      "scope": "default",
+      "is_break": true,
+      "category": "routing",
+      "set": "v2",
+      "scores": {
+        "ast_contrastive": 5.2419426139854135,
+        "ast_contrastive_e01": 5.893139643629026,
+        "ast_contrastive_e10": 4.472087165913827,
+        "tfidf_anomaly": 0.7051285554201167
+      }
+    },
+    {
+      "name": "paradigm_break_tornado_handler",
+      "scope": "default",
+      "is_break": true,
+      "category": "framework_swap",
+      "set": "v2",
+      "scores": {
+        "ast_contrastive": 0.0,
+        "ast_contrastive_e01": 0.0,
+        "ast_contrastive_e10": 0.0,
+        "tfidf_anomaly": 0.5307736887866812
+      }
+    },
+    {
+      "name": "paradigm_break_voluptuous_validation",
+      "scope": "default",
+      "is_break": true,
+      "category": "validation",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 0.0,
+        "ast_contrastive_e01": 0.0,
+        "ast_contrastive_e10": 0.0,
+        "tfidf_anomaly": 0.6327205946101664
+      }
+    },
+    {
+      "name": "paradigm_break_cerberus_validation",
+      "scope": "default",
+      "is_break": true,
+      "category": "validation",
+      "set": "v2",
+      "scores": {
+        "ast_contrastive": 4.925243112782442,
+        "ast_contrastive_e01": 5.4423786419414135,
+        "ast_contrastive_e10": 4.326543033718537,
+        "tfidf_anomaly": 0.7223020938080147
+      }
+    },
+    {
+      "name": "paradigm_break_manual_json_response",
+      "scope": "default",
+      "is_break": true,
+      "category": "serialization",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 5.340457551107007,
+        "ast_contrastive_e01": 6.090110043020408,
+        "ast_contrastive_e10": 4.532203014230801,
+        "tfidf_anomaly": 0.7118009898371673
+      }
+    },
+    {
+      "name": "paradigm_break_bare_except",
+      "scope": "default",
+      "is_break": true,
+      "category": "exception_handling",
+      "set": "v2",
+      "scores": {
+        "ast_contrastive": 5.173322801272518,
+        "ast_contrastive_e01": 5.922534566172437,
+        "ast_contrastive_e10": 4.334639381135122,
+        "tfidf_anomaly": 0.7646843624806923
+      }
+    },
+    {
+      "name": "paradigm_break_event_loop_blocking",
+      "scope": "default",
+      "is_break": true,
+      "category": "async_blocking",
+      "set": "v2",
+      "scores": {
+        "ast_contrastive": 5.239178172074396,
+        "ast_contrastive_e01": 5.976817615706849,
+        "ast_contrastive_e10": 4.469809769875696,
+        "tfidf_anomaly": 0.6416980169216951
+      }
+    },
+    {
+      "name": "paradigm_break_sync_requests_in_async",
+      "scope": "default",
+      "is_break": true,
+      "category": "downstream_http",
+      "set": "v2",
+      "scores": {
+        "ast_contrastive": 5.394852836953676,
+        "ast_contrastive_e01": 5.902961813294542,
+        "ast_contrastive_e10": 4.738793061024038,
+        "tfidf_anomaly": 0.7325769028343182
+      }
+    },
+    {
+      "name": "paradigm_break_concurrent_futures_background",
+      "scope": "default",
+      "is_break": true,
+      "category": "background_tasks",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 4.501841396207174,
+        "ast_contrastive_e01": 5.000340440587058,
+        "ast_contrastive_e10": 3.98292405560848,
+        "tfidf_anomaly": 0.7804462167606099
+      }
+    },
+    {
+      "name": "control_pydantic_validator",
+      "scope": "default",
+      "is_break": false,
+      "category": "validation",
+      "set": "v2",
+      "scores": {
+        "ast_contrastive": 4.951449968389369,
+        "ast_contrastive_e01": 5.6701476972295,
+        "ast_contrastive_e10": 4.1576284631957305,
+        "tfidf_anomaly": 0.5990823691996287
+      }
+    },
+    {
+      "name": "control_response_model",
+      "scope": "default",
+      "is_break": false,
+      "category": "serialization",
+      "set": "v2",
+      "scores": {
+        "ast_contrastive": 4.99869055073243,
+        "ast_contrastive_e01": 5.74281286748971,
+        "ast_contrastive_e10": 4.1697716332960395,
+        "tfidf_anomaly": 0.6125580837962838
+      }
+    },
+    {
+      "name": "control_async_streaming",
+      "scope": "default",
+      "is_break": false,
+      "category": "async_blocking",
+      "set": "v2",
+      "scores": {
+        "ast_contrastive": 5.210346351198307,
+        "ast_contrastive_e01": 5.9362988569497395,
+        "ast_contrastive_e10": 4.415047388520477,
+        "tfidf_anomaly": 0.5962732222355429
+      }
+    },
+    {
+      "name": "control_httpx_async",
+      "scope": "default",
+      "is_break": false,
+      "category": "downstream_http",
+      "set": "v2",
+      "scores": {
+        "ast_contrastive": 5.28543690215224,
+        "ast_contrastive_e01": 6.060061526795191,
+        "ast_contrastive_e10": 4.438544929023905,
+        "tfidf_anomaly": 0.653763311165952
+      }
+    },
+    {
+      "name": "control_annotated_depends",
+      "scope": "default",
+      "is_break": false,
+      "category": "dependency_injection",
+      "set": "v2",
+      "scores": {
+        "ast_contrastive": 5.021225807169358,
+        "ast_contrastive_e01": 5.6191502960960475,
+        "ast_contrastive_e10": 4.321553407149387,
+        "tfidf_anomaly": 0.5504614777030149
+      }
+    },
+    {
+      "name": "paradigm_break_sync_file_io_async",
+      "scope": "default",
+      "is_break": true,
+      "category": "async_blocking",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 0.0,
+        "ast_contrastive_e01": 0.0,
+        "ast_contrastive_e10": 0.0,
+        "tfidf_anomaly": 0.7483617010917696
+      }
+    },
+    {
+      "name": "control_anyio_thread_offload",
+      "scope": "default",
+      "is_break": false,
+      "category": "async_blocking",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 0.0,
+        "ast_contrastive_e01": 0.0,
+        "ast_contrastive_e10": 0.0,
+        "tfidf_anomaly": 0.7181127757969856
+      }
+    },
+    {
+      "name": "paradigm_break_multiprocessing_background",
+      "scope": "default",
+      "is_break": true,
+      "category": "background_tasks",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 0.0,
+        "ast_contrastive_e01": 0.0,
+        "ast_contrastive_e10": 0.0,
+        "tfidf_anomaly": 0.7083532815581386
+      }
+    },
+    {
+      "name": "paradigm_break_queue_carryover",
+      "scope": "default",
+      "is_break": true,
+      "category": "background_tasks",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 0.0,
+        "ast_contrastive_e01": 0.0,
+        "ast_contrastive_e10": 0.0,
+        "tfidf_anomaly": 0.7332670262300688
+      }
+    },
+    {
+      "name": "paradigm_break_atexit_background",
+      "scope": "default",
+      "is_break": true,
+      "category": "background_tasks",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 4.892811311069874,
+        "ast_contrastive_e01": 5.564442896185537,
+        "ast_contrastive_e10": 4.145722670380915,
+        "tfidf_anomaly": 0.7438803546414692
+      }
+    },
+    {
+      "name": "control_background_tasks_basic",
+      "scope": "default",
+      "is_break": false,
+      "category": "background_tasks",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 0.0,
+        "ast_contrastive_e01": 0.0,
+        "ast_contrastive_e10": 0.0,
+        "tfidf_anomaly": 0.7886393217480473
+      }
+    },
+    {
+      "name": "control_background_tasks_depends",
+      "scope": "default",
+      "is_break": false,
+      "category": "background_tasks",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 0.0,
+        "ast_contrastive_e01": 0.0,
+        "ast_contrastive_e10": 0.0,
+        "tfidf_anomaly": 0.7204005847852899
+      }
+    },
+    {
+      "name": "paradigm_break_manual_generator_drain",
+      "scope": "default",
+      "is_break": true,
+      "category": "dependency_injection",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 5.33982059860918,
+        "ast_contrastive_e01": 6.189611342874068,
+        "ast_contrastive_e10": 4.433095325222049,
+        "tfidf_anomaly": 0.7271477938880484
+      }
+    },
+    {
+      "name": "paradigm_break_class_instance_no_depends",
+      "scope": "default",
+      "is_break": true,
+      "category": "dependency_injection",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 5.346149597845628,
+        "ast_contrastive_e01": 6.101954402566797,
+        "ast_contrastive_e10": 4.521760513898128,
+        "tfidf_anomaly": 0.5975216179423523
+      }
+    },
+    {
+      "name": "control_nested_depends",
+      "scope": "default",
+      "is_break": false,
+      "category": "dependency_injection",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 5.343541263119831,
+        "ast_contrastive_e01": 6.112539016891643,
+        "ast_contrastive_e10": 4.458995710398177,
+        "tfidf_anomaly": 0.721459354983653
+      }
+    },
+    {
+      "name": "paradigm_break_aiohttp_no_context",
+      "scope": "default",
+      "is_break": true,
+      "category": "downstream_http",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 0.0,
+        "ast_contrastive_e01": 0.0,
+        "ast_contrastive_e10": 0.0,
+        "tfidf_anomaly": 0.7242209178125295
+      }
+    },
+    {
+      "name": "control_httpx_depends",
+      "scope": "default",
+      "is_break": false,
+      "category": "downstream_http",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 0.0,
+        "ast_contrastive_e01": 0.0,
+        "ast_contrastive_e10": 0.0,
+        "tfidf_anomaly": 0.646791789657402
+      }
+    },
+    {
+      "name": "paradigm_break_json_error_response",
+      "scope": "default",
+      "is_break": true,
+      "category": "exception_handling",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 0.0,
+        "ast_contrastive_e01": 0.0,
+        "ast_contrastive_e10": 0.0,
+        "tfidf_anomaly": 0.5861846650944548
+      }
+    },
+    {
+      "name": "paradigm_break_traceback_in_response",
+      "scope": "default",
+      "is_break": true,
+      "category": "exception_handling",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 0.0,
+        "ast_contrastive_e01": 0.0,
+        "ast_contrastive_e10": 0.0,
+        "tfidf_anomaly": 0.5790768821327547
+      }
+    },
+    {
+      "name": "paradigm_break_flask_errorhandler",
+      "scope": "default",
+      "is_break": true,
+      "category": "exception_handling",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 5.139824727181413,
+        "ast_contrastive_e01": 5.897092479844214,
+        "ast_contrastive_e10": 4.286799086766827,
+        "tfidf_anomaly": 0.5518893823036659
+      }
+    },
+    {
+      "name": "control_exception_handler_registration",
+      "scope": "default",
+      "is_break": false,
+      "category": "exception_handling",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 0.0,
+        "ast_contrastive_e01": 0.0,
+        "ast_contrastive_e10": 0.0,
+        "tfidf_anomaly": 0.6056261142335773
+      }
+    },
+    {
+      "name": "control_lifespan_context",
+      "scope": "default",
+      "is_break": false,
+      "category": "framework_swap",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 4.735655929493351,
+        "ast_contrastive_e01": 5.310859827427483,
+        "ast_contrastive_e10": 4.093095467749184,
+        "tfidf_anomaly": 0.6636725914238024
+      }
+    },
+    {
+      "name": "control_apirouter_composition",
+      "scope": "default",
+      "is_break": false,
+      "category": "framework_swap",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 4.618583170966441,
+        "ast_contrastive_e01": 5.1327293616996315,
+        "ast_contrastive_e10": 4.029535331198064,
+        "tfidf_anomaly": 0.6095490965863536
+      }
+    },
+    {
+      "name": "control_mounted_subapp",
+      "scope": "default",
+      "is_break": false,
+      "category": "framework_swap",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 4.777488110749755,
+        "ast_contrastive_e01": 5.45576511966496,
+        "ast_contrastive_e10": 4.038075092307362,
+        "tfidf_anomaly": 0.5845664893117075
+      }
+    },
+    {
+      "name": "paradigm_break_imperative_route_loop",
+      "scope": "default",
+      "is_break": true,
+      "category": "routing",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 0.0,
+        "ast_contrastive_e01": 0.0,
+        "ast_contrastive_e10": 0.0,
+        "tfidf_anomaly": 0.615644575127592
+      }
+    },
+    {
+      "name": "control_nested_router",
+      "scope": "default",
+      "is_break": false,
+      "category": "routing",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 0.0,
+        "ast_contrastive_e01": 0.0,
+        "ast_contrastive_e10": 0.0,
+        "tfidf_anomaly": 0.49543929713066265
+      }
+    },
+    {
+      "name": "paradigm_break_manual_dict_response",
+      "scope": "default",
+      "is_break": true,
+      "category": "serialization",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 5.005597409443161,
+        "ast_contrastive_e01": 5.689726043378342,
+        "ast_contrastive_e10": 4.2358126965258,
+        "tfidf_anomaly": 0.663648654488077
+      }
+    },
+    {
+      "name": "paradigm_break_msgpack_response",
+      "scope": "default",
+      "is_break": true,
+      "category": "serialization",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 5.249774350724418,
+        "ast_contrastive_e01": 6.0133614264188,
+        "ast_contrastive_e10": 4.412951980829165,
+        "tfidf_anomaly": 0.7574181442346298
+      }
+    },
+    {
+      "name": "control_response_model_list",
+      "scope": "default",
+      "is_break": false,
+      "category": "serialization",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 5.178607933114246,
+        "ast_contrastive_e01": 5.970388396088802,
+        "ast_contrastive_e10": 4.319232994682446,
+        "tfidf_anomaly": 0.5384171475222418
+      }
+    },
+    {
+      "name": "paradigm_break_assert_validation",
+      "scope": "default",
+      "is_break": true,
+      "category": "validation",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 5.121540576278917,
+        "ast_contrastive_e01": 5.903034643762413,
+        "ast_contrastive_e10": 4.236515957605453,
+        "tfidf_anomaly": 0.6490495548334254
+      }
+    },
+    {
+      "name": "control_field_validator",
+      "scope": "default",
+      "is_break": false,
+      "category": "validation",
+      "set": "v3",
+      "scores": {
+        "ast_contrastive": 5.275059050301541,
+        "ast_contrastive_e01": 6.020226194735243,
+        "ast_contrastive_e10": 4.451410152631308,
+        "tfidf_anomaly": 0.6968310832278188
+      }
+    }
+  ],
+  "scorer_aucs": {
+    "ast_contrastive": {
+      "overall": 0.5870967741935483,
+      "by_category": {
+        "async_blocking": 0.75,
+        "background_tasks": 0.75,
+        "dependency_injection": 0.5,
+        "downstream_http": 0.75,
+        "exception_handling": 0.6666666666666666,
+        "framework_swap": 0.6666666666666666,
+        "routing": 0.5833333333333334,
+        "serialization": 0.8333333333333334,
+        "validation": 0.375
+      }
+    },
+    "ast_contrastive_e01": {
+      "overall": 0.5709677419354838,
+      "by_category": {
+        "async_blocking": 0.75,
+        "background_tasks": 0.75,
+        "dependency_injection": 0.5,
+        "downstream_http": 0.5833333333333334,
+        "exception_handling": 0.6666666666666666,
+        "framework_swap": 0.6666666666666666,
+        "routing": 0.5833333333333334,
+        "serialization": 0.6666666666666666,
+        "validation": 0.375
+      }
+    },
+    "ast_contrastive_e10": {
+      "overall": 0.603225806451613,
+      "by_category": {
+        "async_blocking": 0.75,
+        "background_tasks": 0.75,
+        "dependency_injection": 0.5,
+        "downstream_http": 0.75,
+        "exception_handling": 0.75,
+        "framework_swap": 0.6666666666666666,
+        "routing": 0.5833333333333334,
+        "serialization": 0.8333333333333334,
+        "validation": 0.5
+      }
+    },
+    "tfidf_anomaly": {
+      "overall": 0.6967741935483871,
+      "by_category": {
+        "async_blocking": 0.8333333333333334,
+        "background_tasks": 0.375,
+        "dependency_injection": 0.6666666666666666,
+        "downstream_http": 1.0,
+        "exception_handling": 0.5,
+        "framework_swap": 0.6666666666666666,
+        "routing": 0.6666666666666666,
+        "serialization": 1.0,
+        "validation": 0.75
+      }
+    }
+  }
+}
