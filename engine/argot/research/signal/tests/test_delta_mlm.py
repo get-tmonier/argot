@@ -266,47 +266,45 @@ def test_score_empty_hunk_returns_zero() -> None:
     assert result == [0.0]
 
 
-def test_delta_computation_base_minus_adapted() -> None:
-    """delta = logprob_base - logprob_adapted is computed correctly.
+def test_delta_computation_adapted_minus_base() -> None:
+    """delta = logprob_adapted - logprob_base is computed correctly.
 
-    Use two models where the adapted model is more confident on certain tokens
-    (higher logprob → more negative base logprob in log-space relative to adapted).
-    We verify the sign: delta positive when base is less confident than adapted.
+    Genuine idiomatic scenario: the adapted model is very confident on the TRUE tokens
+    (tokenizer returns [1, 2, 3]) while the base model is uniform.
+    Expected: logprob_adapted >> logprob_base → delta > 0 for every position.
     """
     scorer = _make_scorer("mean")
 
-    # Build two different models: one uniform, one confident on token index 0
-    confident_token = 0  # adapted model always predicts this token
+    # Adapted model: concentrated on ALL true tokens (1, 2, 3) simultaneously.
+    # The sequence built by _score_one with no context is [CLS=101, 1, 2, 3, SEP=102].
+    # Hunk positions are [1, 2, 3] with true token ids [1, 2, 3].
+    # We give high logits to tokens 1, 2, and 3 so every position gets logprob ≈ 0.
 
-    def _confident_model(
+    def _confident_on_true_model(
         input_ids: torch.Tensor, attention_mask: torch.Tensor, **kwargs: Any
     ) -> Any:
         batch = input_ids.shape[0]
         seq = input_ids.shape[1]
-        # Put very high logit on token 0 so log_softmax(0) ≈ 0 and rest ≈ -∞
+        # All probability mass on tokens 1, 2, 3 (equal high logits) → each gets
+        # log_softmax ≈ log(1/3) ≈ -1.1, still far above uniform log(1/32) ≈ -3.47
         logits = torch.full((batch, seq, _VOCAB_SIZE), -1e9)
-        logits[:, :, confident_token] = 100.0
+        logits[:, :, 1] = 100.0
+        logits[:, :, 2] = 100.0
+        logits[:, :, 3] = 100.0
         result = MagicMock()
         result.logits = logits
         return result
 
-    # Use the uniform model as base and the confident model as adapted.
-    # For any token OTHER than _CONFIDENT_TOKEN, base logprob > adapted logprob
-    # (uniform is less peaked), so delta = base - adapted should be positive.
+    # Base: uniform → logprob ≈ -log(32) ≈ -3.47 for every token
+    # Adapted: three-way concentration on {1,2,3} → logprob ≈ -log(3) ≈ -1.10
+    # delta = logprob_adapted - logprob_base ≈ -1.10 - (-3.47) = +2.37 > 0
     scorer._base_model = _fake_model_uniform()
-    scorer._adapted_model = _confident_model
+    scorer._adapted_model = _confident_on_true_model
 
-    # Fixture with a single hunk token (tokenizer returns [1, 2, 3] for hunk)
-    # True token ids are [1, 2, 3] — none is _CONFIDENT_TOKEN (0),
-    # so base is more confident (uniform) and adapted is very negative.
-    # delta = logprob_base - logprob_adapted = (-log32) - (-1e9 approx) > 0
-
+    # Fixture: tokenizer encodes hunk_text → [1, 2, 3]; no context.
     fixture = _make_fixture(n_hunk=3)
     scores = scorer.score([fixture])
-    # With adapted model extremely confident on token 0, but true tokens are 1/2/3,
-    # adapted logprob for those tokens is ≈ -200 (very negative), base is -log(32) ≈ -3.47
-    # delta = (-3.47) - (-200) = +196 → positive
-    assert scores[0] > 0.0, f"Expected positive delta, got {scores[0]}"
+    assert scores[0] > 0.0, f"Expected positive delta (idiomatic signal), got {scores[0]}"
 
 
 def test_aggregation_variants_differ() -> None:

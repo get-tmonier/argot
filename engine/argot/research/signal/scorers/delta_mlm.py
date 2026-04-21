@@ -5,8 +5,9 @@ Addresses the "inverted category" problem: rare-but-idiomatic patterns (e.g. Fas
 Depends(), BackgroundTasks) look surprising to the *base* UniXCoder prior, causing
 zero-shot MLM to mislabel idiomatic code as anomalous.  After fine-tuning on the corpus,
 idiomatic patterns become *less* surprising to the adapted model, so
-``delta = logprob_base - logprob_adapted`` is *high* for idiomatic code and *low* for
-paradigm breaks — inverting the direction relative to raw surprise.
+``delta = surprise_base - surprise_adapted = logprob_adapted - logprob_base`` is *high*
+for idiomatic code and *low* for paradigm breaks — inverting the direction relative to
+raw surprise.
 
 Three registered variants:
   delta_mlm_mean  — mean delta across hunk positions
@@ -327,9 +328,9 @@ class DeltaMlmScorer:
             self._adapted_model, input_ids, attention_mask, hunk_positions
         )
 
-        # delta_i = logprob_base_i - logprob_adapted_i
-        # positive → base found it surprising, adapter did not → idiomatic signal
-        deltas = [b - a for b, a in zip(base_lps, adapted_lps, strict=True)]
+        # delta_i = logprob_adapted_i - logprob_base_i
+        # positive → adapter found it less surprising than base → idiomatic signal
+        deltas = [a - b for b, a in zip(base_lps, adapted_lps, strict=True)]
         return self._aggregate(deltas)
 
     def _compute_logprobs(
