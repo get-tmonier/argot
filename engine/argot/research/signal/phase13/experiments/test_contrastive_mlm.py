@@ -77,16 +77,17 @@ def test_lora_model_produces_different_logits() -> None:
     attention_mask = encoding["attention_mask"].to(device)
 
     lora_model.eval()
-    base_model.eval()
-    base_model = base_model.to(device)
 
     with torch.no_grad():
-        logits_lora = lora_model(input_ids=input_ids, attention_mask=attention_mask).logits
-        logits_base = base_model(input_ids=input_ids, attention_mask=attention_mask).logits
+        logits_adapters_on = lora_model(input_ids=input_ids, attention_mask=attention_mask).logits
+        with lora_model.disable_adapter():
+            logits_adapters_off = lora_model(
+                input_ids=input_ids, attention_mask=attention_mask
+            ).logits
 
     assert not torch.allclose(
-        logits_lora, logits_base, atol=1e-4
-    ), "Expected LoRA logits to differ from base model after fine-tuning"
+        logits_adapters_on, logits_adapters_off, atol=1e-4
+    ), "Expected adapter-on logits to differ from adapter-off logits after fine-tuning"
 
 
 def test_log_ratio_formula_sign() -> None:
