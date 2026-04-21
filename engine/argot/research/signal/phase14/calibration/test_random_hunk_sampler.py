@@ -12,6 +12,7 @@ from argot.research.signal.phase14.calibration.random_hunk_sampler import (
     MIN_BODY_LINES,
     collect_candidates,
     sample_hunks,
+    sample_hunks_disjoint,
 )
 
 
@@ -125,6 +126,37 @@ def test_excludes_test_directory(tmp_path: Path) -> None:
     )
     candidates = collect_candidates(tmp_path)
     assert len(candidates) == 1
+
+
+def test_disjoint_no_overlap(mini_corpus: Path) -> None:
+    cal, ctrl = sample_hunks_disjoint(mini_corpus, n_cal=2, n_ctrl=1, seed=0)
+    assert set(cal) & set(ctrl) == set(), "cal and ctrl must be disjoint"
+
+
+def test_disjoint_correct_counts(mini_corpus: Path) -> None:
+    cal, ctrl = sample_hunks_disjoint(mini_corpus, n_cal=2, n_ctrl=1, seed=0)
+    assert len(cal) == 2
+    assert len(ctrl) == 1
+
+
+def test_disjoint_reproducibility(mini_corpus: Path) -> None:
+    cal_a, ctrl_a = sample_hunks_disjoint(mini_corpus, n_cal=2, n_ctrl=1, seed=7)
+    cal_b, ctrl_b = sample_hunks_disjoint(mini_corpus, n_cal=2, n_ctrl=1, seed=7)
+    assert cal_a == cal_b
+    assert ctrl_a == ctrl_b
+
+
+def test_disjoint_different_seeds_differ(mini_corpus: Path) -> None:
+    results = {
+        frozenset(sample_hunks_disjoint(mini_corpus, n_cal=1, n_ctrl=1, seed=s)[0])
+        for s in range(10)
+    }
+    assert len(results) > 1, "Different seeds should yield different cal sets"
+
+
+def test_disjoint_too_large_raises(mini_corpus: Path) -> None:
+    with pytest.raises(ValueError, match="cannot sample"):
+        sample_hunks_disjoint(mini_corpus, n_cal=2, n_ctrl=2, seed=0)
 
 
 def test_excludes_test_prefixed_files(tmp_path: Path) -> None:

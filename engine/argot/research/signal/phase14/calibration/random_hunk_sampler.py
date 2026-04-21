@@ -108,3 +108,43 @@ def sample_hunks(
     rng = np.random.default_rng(seed)
     indices = rng.choice(len(candidates), size=n, replace=False)
     return [candidates[int(i)] for i in sorted(indices)]
+
+
+def sample_hunks_disjoint(
+    source_dir: Path,
+    n_cal: int,
+    n_ctrl: int,
+    seed: int,
+    *,
+    exclude_dirs: frozenset[str] | None = None,
+) -> tuple[list[str], list[str]]:
+    """Sample two disjoint hunk sets from source_dir using a fixed numpy RNG seed.
+
+    Shuffles all candidates with `seed`, then splits:
+      - cal_hunks  = first n_cal elements
+      - ctrl_hunks = next n_ctrl elements (index n_cal … n_cal+n_ctrl−1)
+
+    The two sets are guaranteed disjoint by construction.
+
+    Returns:
+        (cal_hunks, ctrl_hunks)
+
+    Raises:
+        ValueError: if fewer than n_cal + n_ctrl qualifying hunks exist.
+    """
+    candidates = collect_candidates(source_dir, exclude_dirs=exclude_dirs)
+    needed = n_cal + n_ctrl
+    if len(candidates) < needed:
+        raise ValueError(
+            f"Only {len(candidates)} qualifying hunks found in {source_dir!r}, "
+            f"cannot sample n_cal={n_cal} + n_ctrl={n_ctrl}={needed}. "
+            f"Reduce counts or expand source_dir."
+        )
+    rng = np.random.default_rng(seed)
+    perm = rng.permutation(len(candidates))
+    cal_indices = perm[:n_cal]
+    ctrl_indices = perm[n_cal : n_cal + n_ctrl]
+    return (
+        [candidates[int(i)] for i in cal_indices],
+        [candidates[int(i)] for i in ctrl_indices],
+    )
