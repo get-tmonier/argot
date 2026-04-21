@@ -1,0 +1,1130 @@
+{
+  "entry": "fastapi",
+  "context_mode": "file_only",
+  "date": "2026-04-21",
+  "scorers": [
+    "mlm_surprise_mean",
+    "mlm_surprise_min",
+    "mlm_surprise_p05",
+    "tfidf_anomaly",
+    "knn_cosine",
+    "lof_embedding",
+    "lm_perplexity",
+    "ast_structural_ll",
+    "ast_structural_zscore",
+    "ast_structural_oov"
+  ],
+  "fixtures": [
+    {
+      "name": "paradigm_break_flask_routing",
+      "scope": "default",
+      "is_break": true,
+      "category": "routing",
+      "set": "v1",
+      "scores": {
+        "mlm_surprise_mean": 11.276876111104698,
+        "mlm_surprise_min": 14.237991333007812,
+        "mlm_surprise_p05": 12.820677757263184,
+        "tfidf_anomaly": 0.7787638672128466,
+        "knn_cosine": 0.571849524974823,
+        "lof_embedding": 1.356804370880127,
+        "lm_perplexity": 1.5127670764923096,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_django_cbv",
+      "scope": "default",
+      "is_break": true,
+      "category": "framework_swap",
+      "set": "v1",
+      "scores": {
+        "mlm_surprise_mean": 10.93532244562044,
+        "mlm_surprise_min": 14.864013671875,
+        "mlm_surprise_p05": 13.187633514404297,
+        "tfidf_anomaly": 0.7779335756727361,
+        "knn_cosine": 0.6029560565948486,
+        "lof_embedding": 1.5217690467834473,
+        "lm_perplexity": 0.9717791676521301,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_aiohttp_handler",
+      "scope": "default",
+      "is_break": true,
+      "category": "framework_swap",
+      "set": "v1",
+      "scores": {
+        "mlm_surprise_mean": 11.109635364464216,
+        "mlm_surprise_min": 14.838372230529785,
+        "mlm_surprise_p05": 12.784157752990723,
+        "tfidf_anomaly": 0.713196145269731,
+        "knn_cosine": 0.5948987007141113,
+        "lof_embedding": 1.3870517015457153,
+        "lm_perplexity": 1.1564017534255981,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_manual_validation",
+      "scope": "default",
+      "is_break": true,
+      "category": "validation",
+      "set": "v1",
+      "scores": {
+        "mlm_surprise_mean": 11.358691060746702,
+        "mlm_surprise_min": 15.139984130859375,
+        "mlm_surprise_p05": 13.323074340820312,
+        "tfidf_anomaly": 0.7019654624518697,
+        "knn_cosine": 0.5517231822013855,
+        "lof_embedding": 1.416412591934204,
+        "lm_perplexity": 0.659325361251831,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_subtle_wrong_exception",
+      "scope": "default",
+      "is_break": true,
+      "category": "exception_handling",
+      "set": "v1",
+      "scores": {
+        "mlm_surprise_mean": 10.871131739240264,
+        "mlm_surprise_min": 15.356184005737305,
+        "mlm_surprise_p05": 12.871387481689453,
+        "tfidf_anomaly": 0.6610607940711192,
+        "knn_cosine": 0.5592105984687805,
+        "lof_embedding": 1.2830039262771606,
+        "lm_perplexity": 1.485428810119629,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_subtle_manual_status_check",
+      "scope": "default",
+      "is_break": true,
+      "category": "downstream_http",
+      "set": "v1",
+      "scores": {
+        "mlm_surprise_mean": 10.938875486601644,
+        "mlm_surprise_min": 13.748462677001953,
+        "mlm_surprise_p05": 12.70871353149414,
+        "tfidf_anomaly": 0.6876673216480463,
+        "knn_cosine": 0.6012592017650604,
+        "lof_embedding": 1.420878529548645,
+        "lm_perplexity": 0.5463777780532837,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_subtle_sync_endpoint",
+      "scope": "default",
+      "is_break": true,
+      "category": "async_blocking",
+      "set": "v1",
+      "scores": {
+        "mlm_surprise_mean": 11.150131760613393,
+        "mlm_surprise_min": 15.358343124389648,
+        "mlm_surprise_p05": 13.31431770324707,
+        "tfidf_anomaly": 0.7577353755612398,
+        "knn_cosine": 0.4762040376663208,
+        "lof_embedding": 1.2312219142913818,
+        "lm_perplexity": 1.3502683639526367,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_subtle_exception_swallow",
+      "scope": "default",
+      "is_break": true,
+      "category": "exception_handling",
+      "set": "v1",
+      "scores": {
+        "mlm_surprise_mean": 10.918129926388358,
+        "mlm_surprise_min": 14.723609924316406,
+        "mlm_surprise_p05": 12.978939056396484,
+        "tfidf_anomaly": 0.6793909818714927,
+        "knn_cosine": 0.5665135979652405,
+        "lof_embedding": 1.3423608541488647,
+        "lm_perplexity": 1.0162370204925537,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "control_router_endpoint",
+      "scope": "default",
+      "is_break": false,
+      "category": "routing",
+      "set": "v1",
+      "scores": {
+        "mlm_surprise_mean": 11.43698002915931,
+        "mlm_surprise_min": 15.442869186401367,
+        "mlm_surprise_p05": 13.33659553527832,
+        "tfidf_anomaly": 0.7152638472377857,
+        "knn_cosine": 0.5563498437404633,
+        "lof_embedding": 1.265953779220581,
+        "lm_perplexity": 1.1461600065231323,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "control_dependency_injection",
+      "scope": "default",
+      "is_break": false,
+      "category": "dependency_injection",
+      "set": "v1",
+      "scores": {
+        "mlm_surprise_mean": 11.316547548179527,
+        "mlm_surprise_min": 17.05592155456543,
+        "mlm_surprise_p05": 13.630965232849121,
+        "tfidf_anomaly": 0.6642393910447518,
+        "knn_cosine": 0.5434068143367767,
+        "lof_embedding": 1.2230985164642334,
+        "lm_perplexity": 1.543382167816162,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "control_exception_handling",
+      "scope": "default",
+      "is_break": false,
+      "category": "exception_handling",
+      "set": "v1",
+      "scores": {
+        "mlm_surprise_mean": 11.318381189346313,
+        "mlm_surprise_min": 15.84994888305664,
+        "mlm_surprise_p05": 13.372659683227539,
+        "tfidf_anomaly": 0.59522746507749,
+        "knn_cosine": 0.3838139772415161,
+        "lof_embedding": 1.3927719593048096,
+        "lm_perplexity": 1.3715583086013794,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_starlette_mount",
+      "scope": "default",
+      "is_break": true,
+      "category": "routing",
+      "set": "v2",
+      "scores": {
+        "mlm_surprise_mean": 11.42257700500294,
+        "mlm_surprise_min": 16.127887725830078,
+        "mlm_surprise_p05": 13.671931266784668,
+        "tfidf_anomaly": 0.7051285554201167,
+        "knn_cosine": 0.4003068208694458,
+        "lof_embedding": 1.4443620443344116,
+        "lm_perplexity": 1.068254828453064,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_tornado_handler",
+      "scope": "default",
+      "is_break": true,
+      "category": "framework_swap",
+      "set": "v2",
+      "scores": {
+        "mlm_surprise_mean": 11.140216184545446,
+        "mlm_surprise_min": 15.429197311401367,
+        "mlm_surprise_p05": 13.331104278564453,
+        "tfidf_anomaly": 0.5307736887866812,
+        "knn_cosine": 0.6105850636959076,
+        "lof_embedding": 1.504437804222107,
+        "lm_perplexity": 1.190238356590271,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_voluptuous_validation",
+      "scope": "default",
+      "is_break": true,
+      "category": "validation",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.152393591113206,
+        "mlm_surprise_min": 15.122049331665039,
+        "mlm_surprise_p05": 13.455049514770508,
+        "tfidf_anomaly": 0.6327205946101664,
+        "knn_cosine": 0.5873042047023773,
+        "lof_embedding": 1.7288509607315063,
+        "lm_perplexity": 1.2928310632705688,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_cerberus_validation",
+      "scope": "default",
+      "is_break": true,
+      "category": "validation",
+      "set": "v2",
+      "scores": {
+        "mlm_surprise_mean": 11.240756089813612,
+        "mlm_surprise_min": 15.68465518951416,
+        "mlm_surprise_p05": 13.455272674560547,
+        "tfidf_anomaly": 0.7223020938080147,
+        "knn_cosine": 0.43734675645828247,
+        "lof_embedding": 1.536684274673462,
+        "lm_perplexity": 1.1701842546463013,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_manual_json_response",
+      "scope": "default",
+      "is_break": true,
+      "category": "serialization",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.078358438074934,
+        "mlm_surprise_min": 15.237968444824219,
+        "mlm_surprise_p05": 13.592365264892578,
+        "tfidf_anomaly": 0.7118009898371673,
+        "knn_cosine": 0.6172073185443878,
+        "lof_embedding": 1.723527193069458,
+        "lm_perplexity": 1.1191226243972778,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_bare_except",
+      "scope": "default",
+      "is_break": true,
+      "category": "exception_handling",
+      "set": "v2",
+      "scores": {
+        "mlm_surprise_mean": 11.434641362385577,
+        "mlm_surprise_min": 15.931884765625,
+        "mlm_surprise_p05": 13.2320556640625,
+        "tfidf_anomaly": 0.7646843624806923,
+        "knn_cosine": 0.3772953152656555,
+        "lof_embedding": 1.5094877481460571,
+        "lm_perplexity": 1.2933658361434937,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_event_loop_blocking",
+      "scope": "default",
+      "is_break": true,
+      "category": "async_blocking",
+      "set": "v2",
+      "scores": {
+        "mlm_surprise_mean": 11.002348235079378,
+        "mlm_surprise_min": 15.736358642578125,
+        "mlm_surprise_p05": 13.337738990783691,
+        "tfidf_anomaly": 0.6416980169216951,
+        "knn_cosine": 0.3879770040512085,
+        "lof_embedding": 1.3151557445526123,
+        "lm_perplexity": 1.0089707374572754,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_sync_requests_in_async",
+      "scope": "default",
+      "is_break": true,
+      "category": "downstream_http",
+      "set": "v2",
+      "scores": {
+        "mlm_surprise_mean": 11.229672428759807,
+        "mlm_surprise_min": 14.578310012817383,
+        "mlm_surprise_p05": 13.185335159301758,
+        "tfidf_anomaly": 0.7325769028343182,
+        "knn_cosine": 0.3762815594673157,
+        "lof_embedding": 1.772833228111267,
+        "lm_perplexity": 1.1949599981307983,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_concurrent_futures_background",
+      "scope": "default",
+      "is_break": true,
+      "category": "background_tasks",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.456232109989028,
+        "mlm_surprise_min": 15.577919006347656,
+        "mlm_surprise_p05": 13.798233032226562,
+        "tfidf_anomaly": 0.7804462167606099,
+        "knn_cosine": 0.6148648262023926,
+        "lof_embedding": 1.437346339225769,
+        "lm_perplexity": 1.2985738515853882,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "control_pydantic_validator",
+      "scope": "default",
+      "is_break": false,
+      "category": "validation",
+      "set": "v2",
+      "scores": {
+        "mlm_surprise_mean": 11.023831433688892,
+        "mlm_surprise_min": 14.188262939453125,
+        "mlm_surprise_p05": 13.21877670288086,
+        "tfidf_anomaly": 0.5990823691996287,
+        "knn_cosine": 0.3264598846435547,
+        "lof_embedding": 1.1253890991210938,
+        "lm_perplexity": 1.7797307968139648,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "control_response_model",
+      "scope": "default",
+      "is_break": false,
+      "category": "serialization",
+      "set": "v2",
+      "scores": {
+        "mlm_surprise_mean": 10.963865899889251,
+        "mlm_surprise_min": 14.64163589477539,
+        "mlm_surprise_p05": 13.120807647705078,
+        "tfidf_anomaly": 0.6125580837962838,
+        "knn_cosine": 0.5254358649253845,
+        "lof_embedding": 1.600287675857544,
+        "lm_perplexity": 1.2756835222244263,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "control_async_streaming",
+      "scope": "default",
+      "is_break": false,
+      "category": "async_blocking",
+      "set": "v2",
+      "scores": {
+        "mlm_surprise_mean": 11.22148860742047,
+        "mlm_surprise_min": 14.709264755249023,
+        "mlm_surprise_p05": 13.655228614807129,
+        "tfidf_anomaly": 0.5962732222355429,
+        "knn_cosine": 0.4736708402633667,
+        "lof_embedding": 1.3703596591949463,
+        "lm_perplexity": 1.5655540227890015,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "control_httpx_async",
+      "scope": "default",
+      "is_break": false,
+      "category": "downstream_http",
+      "set": "v2",
+      "scores": {
+        "mlm_surprise_mean": 11.283219007259243,
+        "mlm_surprise_min": 15.775506973266602,
+        "mlm_surprise_p05": 13.401689529418945,
+        "tfidf_anomaly": 0.653763311165952,
+        "knn_cosine": 0.5585223138332367,
+        "lof_embedding": 2.0794215202331543,
+        "lm_perplexity": 1.4207630157470703,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "control_annotated_depends",
+      "scope": "default",
+      "is_break": false,
+      "category": "dependency_injection",
+      "set": "v2",
+      "scores": {
+        "mlm_surprise_mean": 11.024729998215385,
+        "mlm_surprise_min": 14.502099990844727,
+        "mlm_surprise_p05": 13.02346420288086,
+        "tfidf_anomaly": 0.5504614777030149,
+        "knn_cosine": 0.5767075419425964,
+        "lof_embedding": 1.690281629562378,
+        "lm_perplexity": 1.4626399278640747,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_sync_file_io_async",
+      "scope": "default",
+      "is_break": true,
+      "category": "async_blocking",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.32548223071628,
+        "mlm_surprise_min": 14.619619369506836,
+        "mlm_surprise_p05": 13.434463500976562,
+        "tfidf_anomaly": 0.7483617010917696,
+        "knn_cosine": 0.6646228134632111,
+        "lof_embedding": 1.7387243509292603,
+        "lm_perplexity": 1.3708115816116333,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "control_anyio_thread_offload",
+      "scope": "default",
+      "is_break": false,
+      "category": "async_blocking",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.428695405424818,
+        "mlm_surprise_min": 15.54415512084961,
+        "mlm_surprise_p05": 14.004579544067383,
+        "tfidf_anomaly": 0.7181127757969856,
+        "knn_cosine": 0.6608350872993469,
+        "lof_embedding": 1.5665295124053955,
+        "lm_perplexity": 1.4244637489318848,
+        "ast_structural_ll": 26.850548485319194,
+        "ast_structural_zscore": 5.321400243107664,
+        "ast_structural_oov": 5.0
+      }
+    },
+    {
+      "name": "paradigm_break_multiprocessing_background",
+      "scope": "default",
+      "is_break": true,
+      "category": "background_tasks",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.328112649356617,
+        "mlm_surprise_min": 15.109716415405273,
+        "mlm_surprise_p05": 13.549942016601562,
+        "tfidf_anomaly": 0.7083532815581386,
+        "knn_cosine": 0.6516081690788269,
+        "lof_embedding": 1.530365228652954,
+        "lm_perplexity": 1.2382644414901733,
+        "ast_structural_ll": 4.795790545596741,
+        "ast_structural_zscore": 1.9858470897099367,
+        "ast_structural_oov": 2.0
+      }
+    },
+    {
+      "name": "paradigm_break_queue_carryover",
+      "scope": "default",
+      "is_break": true,
+      "category": "background_tasks",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.628520881152545,
+        "mlm_surprise_min": 14.410712242126465,
+        "mlm_surprise_p05": 13.16739559173584,
+        "tfidf_anomaly": 0.7332670262300688,
+        "knn_cosine": 0.7820660322904587,
+        "lof_embedding": 1.4493463039398193,
+        "lm_perplexity": 1.9495292901992798,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_atexit_background",
+      "scope": "default",
+      "is_break": true,
+      "category": "background_tasks",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.572539033208574,
+        "mlm_surprise_min": 15.37758731842041,
+        "mlm_surprise_p05": 13.177324295043945,
+        "tfidf_anomaly": 0.7438803546414692,
+        "knn_cosine": 0.6224643290042877,
+        "lof_embedding": 1.6507076025009155,
+        "lm_perplexity": 1.994692087173462,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "control_background_tasks_basic",
+      "scope": "default",
+      "is_break": false,
+      "category": "background_tasks",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.929149211653128,
+        "mlm_surprise_min": 14.446353912353516,
+        "mlm_surprise_p05": 13.532285690307617,
+        "tfidf_anomaly": 0.7886393217480473,
+        "knn_cosine": 0.5757507681846619,
+        "lof_embedding": 1.7540788650512695,
+        "lm_perplexity": 1.1864228248596191,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "control_background_tasks_depends",
+      "scope": "default",
+      "is_break": false,
+      "category": "background_tasks",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.708668377608934,
+        "mlm_surprise_min": 15.439764022827148,
+        "mlm_surprise_p05": 13.059280395507812,
+        "tfidf_anomaly": 0.7204005847852899,
+        "knn_cosine": 0.6346330642700195,
+        "lof_embedding": 1.6888405084609985,
+        "lm_perplexity": 1.6594140529632568,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_manual_generator_drain",
+      "scope": "default",
+      "is_break": true,
+      "category": "dependency_injection",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.214031821231364,
+        "mlm_surprise_min": 15.111675262451172,
+        "mlm_surprise_p05": 13.329719543457031,
+        "tfidf_anomaly": 0.7271477938880484,
+        "knn_cosine": 0.47242802381515503,
+        "lof_embedding": 1.8159503936767578,
+        "lm_perplexity": 1.4459973573684692,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_class_instance_no_depends",
+      "scope": "default",
+      "is_break": true,
+      "category": "dependency_injection",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.18702632803666,
+        "mlm_surprise_min": 15.17597770690918,
+        "mlm_surprise_p05": 13.611181259155273,
+        "tfidf_anomaly": 0.5975216179423523,
+        "knn_cosine": 0.7095815241336823,
+        "lof_embedding": 1.6652510166168213,
+        "lm_perplexity": 0.9587293267250061,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "control_nested_depends",
+      "scope": "default",
+      "is_break": false,
+      "category": "dependency_injection",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.4440748597269,
+        "mlm_surprise_min": 15.431650161743164,
+        "mlm_surprise_p05": 13.882898330688477,
+        "tfidf_anomaly": 0.721459354983653,
+        "knn_cosine": 0.6592587530612946,
+        "lof_embedding": 2.1332485675811768,
+        "lm_perplexity": 1.5590543746948242,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_aiohttp_no_context",
+      "scope": "default",
+      "is_break": true,
+      "category": "downstream_http",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.147375566654485,
+        "mlm_surprise_min": 16.452795028686523,
+        "mlm_surprise_p05": 13.244659423828125,
+        "tfidf_anomaly": 0.7242209178125295,
+        "knn_cosine": 0.6290744841098785,
+        "lof_embedding": 1.5875251293182373,
+        "lm_perplexity": 1.2207705974578857,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "control_httpx_depends",
+      "scope": "default",
+      "is_break": false,
+      "category": "downstream_http",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.072234725952148,
+        "mlm_surprise_min": 15.941705703735352,
+        "mlm_surprise_p05": 13.039794921875,
+        "tfidf_anomaly": 0.646791789657402,
+        "knn_cosine": 0.5766916275024414,
+        "lof_embedding": 1.8004029989242554,
+        "lm_perplexity": 1.2018473148345947,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_json_error_response",
+      "scope": "default",
+      "is_break": true,
+      "category": "exception_handling",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.379275267103077,
+        "mlm_surprise_min": 14.70561695098877,
+        "mlm_surprise_p05": 13.537691116333008,
+        "tfidf_anomaly": 0.5861846650944548,
+        "knn_cosine": 0.39937853813171387,
+        "lof_embedding": 1.3112733364105225,
+        "lm_perplexity": 1.0526542663574219,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_traceback_in_response",
+      "scope": "default",
+      "is_break": true,
+      "category": "exception_handling",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.2166418948416,
+        "mlm_surprise_min": 14.106698989868164,
+        "mlm_surprise_p05": 13.50545883178711,
+        "tfidf_anomaly": 0.5790768821327547,
+        "knn_cosine": 0.36351680755615234,
+        "lof_embedding": 1.284480333328247,
+        "lm_perplexity": 1.0484195947647095,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_flask_errorhandler",
+      "scope": "default",
+      "is_break": true,
+      "category": "exception_handling",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.163534246367316,
+        "mlm_surprise_min": 14.373199462890625,
+        "mlm_surprise_p05": 13.414779663085938,
+        "tfidf_anomaly": 0.5518893823036659,
+        "knn_cosine": 0.42464035749435425,
+        "lof_embedding": 1.2973856925964355,
+        "lm_perplexity": 1.3533964157104492,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "control_exception_handler_registration",
+      "scope": "default",
+      "is_break": false,
+      "category": "exception_handling",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.499560922564882,
+        "mlm_surprise_min": 15.10272216796875,
+        "mlm_surprise_p05": 13.93832778930664,
+        "tfidf_anomaly": 0.6056261142335773,
+        "knn_cosine": 0.41112393140792847,
+        "lof_embedding": 1.3881516456604004,
+        "lm_perplexity": 1.8058724403381348,
+        "ast_structural_ll": 16.728227459853983,
+        "ast_structural_zscore": -1.9194886051599365,
+        "ast_structural_oov": 8.0
+      }
+    },
+    {
+      "name": "control_lifespan_context",
+      "scope": "default",
+      "is_break": false,
+      "category": "framework_swap",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.134889243713603,
+        "mlm_surprise_min": 15.891996383666992,
+        "mlm_surprise_p05": 13.577939987182617,
+        "tfidf_anomaly": 0.6636725914238024,
+        "knn_cosine": 0.5029105246067047,
+        "lof_embedding": 2.2024598121643066,
+        "lm_perplexity": 1.772887110710144,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "control_apirouter_composition",
+      "scope": "default",
+      "is_break": false,
+      "category": "framework_swap",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.531692856362781,
+        "mlm_surprise_min": 16.217540740966797,
+        "mlm_surprise_p05": 13.838310241699219,
+        "tfidf_anomaly": 0.6095490965863536,
+        "knn_cosine": 0.37282752990722656,
+        "lof_embedding": 1.3279845714569092,
+        "lm_perplexity": 1.0399829149246216,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "control_mounted_subapp",
+      "scope": "default",
+      "is_break": false,
+      "category": "framework_swap",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 10.902771970418495,
+        "mlm_surprise_min": 14.90058708190918,
+        "mlm_surprise_p05": 12.77718734741211,
+        "tfidf_anomaly": 0.5845664893117075,
+        "knn_cosine": 0.6068682074546814,
+        "lof_embedding": 1.9796130657196045,
+        "lm_perplexity": 1.529440999031067,
+        "ast_structural_ll": 25.925420137898413,
+        "ast_structural_zscore": 3.349671014771215,
+        "ast_structural_oov": 4.0
+      }
+    },
+    {
+      "name": "paradigm_break_imperative_route_loop",
+      "scope": "default",
+      "is_break": true,
+      "category": "routing",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.780327092276679,
+        "mlm_surprise_min": 16.938373565673828,
+        "mlm_surprise_p05": 13.950748443603516,
+        "tfidf_anomaly": 0.615644575127592,
+        "knn_cosine": 0.42234206199645996,
+        "lof_embedding": 1.5075795650482178,
+        "lm_perplexity": 2.4679644107818604,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "control_nested_router",
+      "scope": "default",
+      "is_break": false,
+      "category": "routing",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.15486735479755,
+        "mlm_surprise_min": 14.976618766784668,
+        "mlm_surprise_p05": 13.445659637451172,
+        "tfidf_anomaly": 0.49543929713066265,
+        "knn_cosine": 0.4005054235458374,
+        "lof_embedding": 1.339529037475586,
+        "lm_perplexity": 1.0890322923660278,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_manual_dict_response",
+      "scope": "default",
+      "is_break": true,
+      "category": "serialization",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.135713311128837,
+        "mlm_surprise_min": 14.485671043395996,
+        "mlm_surprise_p05": 13.281768798828125,
+        "tfidf_anomaly": 0.663648654488077,
+        "knn_cosine": 0.38592058420181274,
+        "lof_embedding": 1.5321558713912964,
+        "lm_perplexity": 0.941581666469574,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_msgpack_response",
+      "scope": "default",
+      "is_break": true,
+      "category": "serialization",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.210577487945557,
+        "mlm_surprise_min": 14.829160690307617,
+        "mlm_surprise_p05": 13.542364120483398,
+        "tfidf_anomaly": 0.7574181442346298,
+        "knn_cosine": 0.6016733050346375,
+        "lof_embedding": 1.8012268543243408,
+        "lm_perplexity": 1.32838773727417,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "control_response_model_list",
+      "scope": "default",
+      "is_break": false,
+      "category": "serialization",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.202194390358862,
+        "mlm_surprise_min": 14.873825073242188,
+        "mlm_surprise_p05": 13.461515426635742,
+        "tfidf_anomaly": 0.5384171475222418,
+        "knn_cosine": 0.4260643720626831,
+        "lof_embedding": 1.6135298013687134,
+        "lm_perplexity": 1.123181700706482,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "paradigm_break_assert_validation",
+      "scope": "default",
+      "is_break": true,
+      "category": "validation",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.30615156037467,
+        "mlm_surprise_min": 15.386947631835938,
+        "mlm_surprise_p05": 13.48586368560791,
+        "tfidf_anomaly": 0.6490495548334254,
+        "knn_cosine": 0.27367258071899414,
+        "lof_embedding": 1.064753770828247,
+        "lm_perplexity": 0.9921137690544128,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    },
+    {
+      "name": "control_field_validator",
+      "scope": "default",
+      "is_break": false,
+      "category": "validation",
+      "set": "v3",
+      "scores": {
+        "mlm_surprise_mean": 11.413593044671256,
+        "mlm_surprise_min": 15.159852981567383,
+        "mlm_surprise_p05": 13.415802001953125,
+        "tfidf_anomaly": 0.6968310832278188,
+        "knn_cosine": 0.6142424941062927,
+        "lof_embedding": 1.8394944667816162,
+        "lm_perplexity": 1.6398067474365234,
+        "ast_structural_ll": 0.0,
+        "ast_structural_zscore": 0.0,
+        "ast_structural_oov": 0.0
+      }
+    }
+  ],
+  "scorer_aucs": {
+    "mlm_surprise_mean": {
+      "overall": 0.4290322580645161,
+      "by_category": {
+        "async_blocking": 0.16666666666666666,
+        "background_tasks": 0.0,
+        "dependency_injection": 0.3333333333333333,
+        "downstream_http": 0.3333333333333333,
+        "exception_handling": 0.16666666666666666,
+        "framework_swap": 0.4444444444444444,
+        "routing": 0.6666666666666666,
+        "serialization": 0.6666666666666666,
+        "validation": 0.5
+      }
+    },
+    "mlm_surprise_min": {
+      "overall": 0.4129032258064516,
+      "by_category": {
+        "async_blocking": 0.5,
+        "background_tasks": 0.5,
+        "dependency_injection": 0.3333333333333333,
+        "downstream_http": 0.3333333333333333,
+        "exception_handling": 0.25,
+        "framework_swap": 0.1111111111111111,
+        "routing": 0.6666666666666666,
+        "serialization": 0.5,
+        "validation": 0.75
+      }
+    },
+    "mlm_surprise_p05": {
+      "overall": 0.4129032258064516,
+      "by_category": {
+        "async_blocking": 0.0,
+        "background_tasks": 0.75,
+        "dependency_injection": 0.3333333333333333,
+        "downstream_http": 0.3333333333333333,
+        "exception_handling": 0.25,
+        "framework_swap": 0.3333333333333333,
+        "routing": 0.6666666666666666,
+        "serialization": 0.8333333333333334,
+        "validation": 0.875
+      }
+    },
+    "tfidf_anomaly": {
+      "overall": 0.6967741935483871,
+      "by_category": {
+        "async_blocking": 0.8333333333333334,
+        "background_tasks": 0.375,
+        "dependency_injection": 0.6666666666666666,
+        "downstream_http": 1.0,
+        "exception_handling": 0.5,
+        "framework_swap": 0.6666666666666666,
+        "routing": 0.6666666666666666,
+        "serialization": 1.0,
+        "validation": 0.75
+      }
+    },
+    "knn_cosine": {
+      "overall": 0.5306451612903226,
+      "by_category": {
+        "async_blocking": 0.5,
+        "background_tasks": 0.75,
+        "dependency_injection": 0.5,
+        "downstream_http": 0.6666666666666666,
+        "exception_handling": 0.5833333333333334,
+        "framework_swap": 0.7777777777777778,
+        "routing": 0.5,
+        "serialization": 0.6666666666666666,
+        "validation": 0.375
+      }
+    },
+    "lof_embedding": {
+      "overall": 0.3919354838709677,
+      "by_category": {
+        "async_blocking": 0.3333333333333333,
+        "background_tasks": 0.0,
+        "dependency_injection": 0.5,
+        "downstream_http": 0.0,
+        "exception_handling": 0.16666666666666666,
+        "framework_swap": 0.3333333333333333,
+        "routing": 1.0,
+        "serialization": 0.6666666666666666,
+        "validation": 0.375
+      }
+    },
+    "lm_perplexity": {
+      "overall": 0.2838709677419355,
+      "by_category": {
+        "async_blocking": 0.0,
+        "background_tasks": 0.75,
+        "dependency_injection": 0.0,
+        "downstream_http": 0.16666666666666666,
+        "exception_handling": 0.08333333333333333,
+        "framework_swap": 0.2222222222222222,
+        "routing": 0.6666666666666666,
+        "serialization": 0.3333333333333333,
+        "validation": 0.0
+      }
+    },
+    "ast_structural_ll": {
+      "overall": 0.43870967741935485,
+      "by_category": {
+        "async_blocking": 0.25,
+        "background_tasks": 0.625,
+        "dependency_injection": 0.5,
+        "downstream_http": 0.5,
+        "exception_handling": 0.25,
+        "framework_swap": 0.3333333333333333,
+        "routing": 0.5,
+        "serialization": 0.5,
+        "validation": 0.5
+      }
+    },
+    "ast_structural_zscore": {
+      "overall": 0.48870967741935484,
+      "by_category": {
+        "async_blocking": 0.25,
+        "background_tasks": 0.625,
+        "dependency_injection": 0.5,
+        "downstream_http": 0.5,
+        "exception_handling": 0.75,
+        "framework_swap": 0.3333333333333333,
+        "routing": 0.5,
+        "serialization": 0.5,
+        "validation": 0.5
+      }
+    },
+    "ast_structural_oov": {
+      "overall": 0.43870967741935485,
+      "by_category": {
+        "async_blocking": 0.25,
+        "background_tasks": 0.625,
+        "dependency_injection": 0.5,
+        "downstream_http": 0.5,
+        "exception_handling": 0.25,
+        "framework_swap": 0.3333333333333333,
+        "routing": 0.5,
+        "serialization": 0.5,
+        "validation": 0.5
+      }
+    }
+  }
+}

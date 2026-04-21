@@ -154,7 +154,7 @@ phase12-s5:
         --scores docs/research/scoring/signal/phase12/b_scores_$(date +%Y-%m-%d).json \
         --out docs/research/scoring/signal/phase12
 
-phase12: phase12-s0 phase12-s1s4 phase12-s5
+phase12: phase12-s1s4 phase12-s5
 
 phase11:
     uv run --package argot-engine python -m argot.research.signal.sweep \

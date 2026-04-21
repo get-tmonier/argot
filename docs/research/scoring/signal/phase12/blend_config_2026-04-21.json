@@ -1,0 +1,57 @@
+{
+  "date": "2026-04-21",
+  "blend_auc": 0.6967741935483871,
+  "beats_phase11_winner": true,
+  "meets_victory_gate": false,
+  "bootstrap_ci": {
+    "lo": 0.5532258064516129,
+    "hi": 0.8435483870967742
+  },
+  "ci_clears_winner": false,
+  "no_cat_below_floor": false,
+  "inverted_cats": [
+    "background_tasks"
+  ],
+  "inverted_lifted": false,
+  "victory": false,
+  "scorers": [
+    "tfidf_anomaly",
+    "knn_cosine",
+    "ast_structural_zscore"
+  ],
+  "alphas": [
+    1.0,
+    0.0,
+    0.0
+  ],
+  "z_stats": {
+    "tfidf_anomaly": {
+      "mean": 0.669448711969912,
+      "std": 0.07449826712638886
+    },
+    "knn_cosine": {
+      "mean": 0.5239774949994742,
+      "std": 0.11363774996462175
+    },
+    "ast_structural_zscore": {
+      "mean": 0.17132215181233099,
+      "std": 0.9557060882803983
+    }
+  },
+  "individual_aucs": {
+    "tfidf_anomaly": 0.6967741935483871,
+    "knn_cosine": 0.5306451612903226,
+    "ast_structural_zscore": 0.48870967741935484
+  },
+  "per_category_blend_auc": {
+    "async_blocking": 0.8333333333333334,
+    "background_tasks": 0.375,
+    "dependency_injection": 0.6666666666666666,
+    "downstream_http": 1.0,
+    "exception_handling": 0.5,
+    "framework_swap": 0.6666666666666666,
+    "routing": 0.6666666666666666,
+    "serialization": 1.0,
+    "validation": 0.75
+  }
+}

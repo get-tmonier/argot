@@ -28,7 +28,6 @@ import torch
 from argot.acceptance.runner import (
     CATALOG_DIR,
     FixtureSpec,
-    ScopeConfig,
     fixture_to_record,
     load_corpus,
     load_manifest,
@@ -73,9 +72,9 @@ def _load_corpus_for_mode(entry_dir: Path, mode: str) -> list[dict[str, Any]]:
 
 def _score_one_run(
     entry_dir: Path,
-    scopes: list[ScopeConfig],
     specs: list[FixtureSpec],
     corpus: list[dict[str, Any]],
+    *,
     context_mode: str,
     seed: int,
 ) -> tuple[list[float], list[float]]:
@@ -84,36 +83,16 @@ def _score_one_run(
     np.random.seed(seed)
     torch.manual_seed(seed)
 
-    break_scores: list[float] = []
-    ctrl_scores: list[float] = []
+    # Fit once on the full corpus — matches bakeoff.py semantics and avoids
+    # N_scopes × N_seeds × N_modes × N_members encode runs (270 → 10).
+    scorer = EnsembleJepaScorer(**_MEAN_Z_CONFIG)
+    scorer.fit(corpus, preencoded=None)
 
-    for scope in scopes:
-        scope_corpus = sorted(
-            [r for r in corpus if r.get("file_path", "").startswith(scope.path_prefix)],
-            key=lambda r: int(r["author_date_iso"]),
-        )
-        if not scope_corpus:
-            print(
-                f"  WARNING: scope={scope.name!r} context={context_mode} seed={seed}: "
-                "empty corpus — skipping"
-            )
-            continue
+    fixture_records = [fixture_to_record(entry_dir, spec, context_mode) for spec in specs]
+    scores = scorer.score(fixture_records)
 
-        scope_specs = [s for s in specs if s.scope == scope.name]
-        fixture_records = [fixture_to_record(entry_dir, spec, context_mode) for spec in scope_specs]
-
-        scorer = EnsembleJepaScorer(**_MEAN_Z_CONFIG)
-        # Pre-encoding is skipped here: seeded_ci runs only once per experiment session,
-        # so the re-encoding overhead (one pass per seed×mode) is acceptable vs. sweep.py's
-        # corpus-pre-encode-once pattern which is designed for many configs.
-        scorer.fit(scope_corpus, preencoded=None)
-        scores = scorer.score(fixture_records)
-
-        for idx, spec in enumerate(scope_specs):
-            if spec.is_break:
-                break_scores.append(scores[idx])
-            else:
-                ctrl_scores.append(scores[idx])
+    break_scores = [scores[i] for i, spec in enumerate(specs) if spec.is_break]
+    ctrl_scores = [scores[i] for i, spec in enumerate(specs) if not spec.is_break]
 
     return break_scores, ctrl_scores
 
@@ -136,7 +115,7 @@ def run_seeded_ci(
         catalog_dir = CATALOG_DIR
 
     entry_dir = catalog_dir / entry_name
-    scopes: list[ScopeConfig] = load_scopes(entry_dir)
+    load_scopes(entry_dir)  # validate entry has scopes.json
     specs: list[FixtureSpec] = load_manifest(entry_dir)
 
     # Pre-load corpora for both modes (done once, reused across seeds)
@@ -152,7 +131,9 @@ def run_seeded_ci(
     for seed in seeds:
         for mode in CONTEXT_MODES:
             print(f"  seed={seed} mode={mode!r} ...", flush=True)
-            break_s, ctrl_s = _score_one_run(entry_dir, scopes, specs, corpora[mode], mode, seed)
+            break_s, ctrl_s = _score_one_run(
+                entry_dir, specs, corpora[mode], context_mode=mode, seed=seed
+            )
             auc = auc_from_scores(break_s, ctrl_s)
             seed_aucs[mode].append(auc)
             print(f"    AUC={auc:.4f}  breaks={len(break_s)}  ctrls={len(ctrl_s)}", flush=True)

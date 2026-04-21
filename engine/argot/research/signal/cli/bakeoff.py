@@ -16,9 +16,12 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import gc
 import json
 from pathlib import Path
 from typing import Any
+
+import torch
 
 # Side-effect imports — populate REGISTRY before lookup
 import argot.research.signal.scorers.ast_structural  # noqa: F401
@@ -99,10 +102,31 @@ def _run_bakeoff(
         fixture_to_record(entry_dir, spec, context_mode) for spec in specs
     ]
 
-    # Fit + score each scorer across all scopes merged
-    # (bakeoff operates on the merged corpus to match how phase11 sweep works)
+    # Fit + score each scorer sequentially; free each before loading the next.
+    # MLM surprise variants share one model load via score_all_variants().
     scorer_scores: dict[str, list[float]] = {}
-    for name in scorer_names:
+
+    _mlm_variants = {"mlm_surprise_mean", "mlm_surprise_min", "mlm_surprise_p05"}
+    mlm_requested = [n for n in scorer_names if n in _mlm_variants]
+    if mlm_requested:
+        from argot.research.signal.scorers.mlm_surprise import MlmSurpriseScorer
+
+        print("  Loading MLM model (shared across all mlm_surprise variants) ...", flush=True)
+        mlm_scorer = MlmSurpriseScorer(variant="mean")
+        print("  Scoring all mlm_surprise variants in one pass ...", flush=True)
+        all_variant_scores = mlm_scorer.score_all_variants(fixture_records)
+        for name in mlm_requested:
+            scorer_scores[name] = all_variant_scores[name]
+            print(f"  Done {name!r}", flush=True)
+        del mlm_scorer
+        gc.collect()
+        if torch.backends.mps.is_available():
+            torch.mps.empty_cache()
+        elif torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    remaining = [n for n in scorer_names if n not in _mlm_variants]
+    for name in remaining:
         if name not in REGISTRY:
             raise KeyError(f"Scorer {name!r} not in REGISTRY. Available: {sorted(REGISTRY)}")
         scorer: SignalScorer = REGISTRY[name]()
@@ -110,6 +134,12 @@ def _run_bakeoff(
         scorer.fit(corpus)
         print(f"  Scoring {name!r} ...", flush=True)
         scorer_scores[name] = scorer.score(fixture_records)
+        del scorer
+        gc.collect()
+        if torch.backends.mps.is_available():
+            torch.mps.empty_cache()
+        elif torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     # Build per-fixture result dicts
     fixture_results: list[dict[str, Any]] = []
