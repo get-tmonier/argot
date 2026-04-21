@@ -68,3 +68,28 @@ def test_break_entries_reuse_existing_fixtures() -> None:
         path = FIXTURE_DIR / f["file"]
         assert path.exists(), f"break fixture missing: {path}"
         ast.parse(path.read_text())
+
+
+def test_runner_produces_auc_and_model_a_count(tmp_path: Path) -> None:
+    """End-to-end: load matched manifest, build model_A=13, score, write report."""
+    import os
+    click_dir = Path(os.environ.get("TIER3_CLICK_DIR", "/tmp/click-clone"))
+    if not click_dir.exists():
+        import pytest
+        pytest.skip(f"click clone not found at {click_dir}; set TIER3_CLICK_DIR")
+
+    from argot.research.signal.phase13.validate_tier3_click_matched import run
+
+    out = tmp_path / "report.md"
+    result = run(click_dir=click_dir, out=out)
+
+    assert "auc" in result
+    assert 0.0 <= result["auc"] <= 1.0
+    # With 3 held-out files and ~16 click/*.py total, we expect exactly 13 model_A files.
+    assert result["model_a_count"] == 13, (
+        f"expected model_A=13 (16 click files minus 3 held-out), got {result['model_a_count']}"
+    )
+    assert out.exists()
+    body = out.read_text()
+    assert "Verdict" in body
+    assert "Comparison to v1" in body
