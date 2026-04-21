@@ -1,0 +1,101 @@
+{
+  "experiment": "ensemble_bpe_ast_faker_breaks",
+  "axes": [
+    "bpe_tfidf",
+    "ast_contrastive"
+  ],
+  "ensemble_rule": "max(bpe, ast)",
+  "fastapi_sanity_auc": 0.9741935483870968,
+  "n_calibration_hunks": 159,
+  "calibration_stats": {
+    "bpe": {
+      "min": -0.798582171641594,
+      "p50": 2.6346951510502414,
+      "p90": 4.553757368883012,
+      "p99": 5.822102008557438,
+      "max": 7.373205321984541,
+      "mean": 2.8235327935177263,
+      "stdev": 1.4497457296278313
+    },
+    "ast": {
+      "min": 0.0,
+      "p50": 0.0,
+      "p90": 2.284959374413443,
+      "p99": 3.9061014628273014,
+      "max": 3.986558268680911,
+      "mean": 0.7712161897769843,
+      "stdev": 1.1416950702925852
+    },
+    "ensemble": {
+      "min": 0.0,
+      "p50": 2.6346951510502414,
+      "p90": 4.553757368883012,
+      "p99": 5.822102008557438,
+      "max": 7.373205321984541,
+      "mean": 2.8624446355457858,
+      "stdev": 1.4020013945150653
+    }
+  },
+  "break_scores": [
+    {
+      "name": "break_mimesis_alt_1",
+      "category": "mimesis_alt",
+      "bpe_score": 4.204340393662699,
+      "ast_score": 6.396885423304633,
+      "ensemble_score": 6.396885423304633,
+      "bpe_top_3_tokens": [
+        "\u0120here",
+        "username",
+        "username"
+      ]
+    },
+    {
+      "name": "break_threading_provider_1",
+      "category": "threading_provider",
+      "bpe_score": 6.95894304574081,
+      "ast_score": 5.992253338330409,
+      "ensemble_score": 6.95894304574081,
+      "bpe_top_3_tokens": [
+        "thread",
+        "\u0120threading",
+        "\u0120threading"
+      ]
+    },
+    {
+      "name": "break_sqlalchemy_sink_1",
+      "category": "sqlalchemy_sink",
+      "bpe_score": 6.956828655756679,
+      "ast_score": 4.569581246660559,
+      "ensemble_score": 6.956828655756679,
+      "bpe_top_3_tokens": [
+        "metadata",
+        "Record",
+        "Record"
+      ]
+    },
+    {
+      "name": "break_numpy_random_1",
+      "category": "numpy_random",
+      "bpe_score": 4.593258125805839,
+      "ast_score": 4.950073057650162,
+      "ensemble_score": 4.950073057650162,
+      "bpe_top_3_tokens": [
+        "FIRST",
+        "FIRST",
+        "FIRST"
+      ]
+    },
+    {
+      "name": "break_requests_source_1",
+      "category": "requests_source",
+      "bpe_score": 7.380159938259968,
+      "ast_score": 4.32202019928077,
+      "ensemble_score": 7.380159938259968,
+      "bpe_top_3_tokens": [
+        "\u0120response",
+        "\u0120response",
+        "\u0120response"
+      ]
+    }
+  ]
+}
