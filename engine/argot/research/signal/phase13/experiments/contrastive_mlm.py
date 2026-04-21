@@ -4,13 +4,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import torch
 import torch.nn.functional as F  # noqa: N812
-
-if TYPE_CHECKING:
-    pass
 
 _CODEBERT_MODEL = "microsoft/codebert-base-mlm"
 _FASTAPI_DIR = (
@@ -55,10 +52,7 @@ def fine_tune_lora(
 
     chunks: list[list[int]] = []
     for path in corpus_paths:
-        if isinstance(path, Path):
-            source = path.read_text(encoding="utf-8", errors="replace")
-        else:
-            source = str(path)
+        source = path.read_text(encoding="utf-8", errors="replace")
         ids: list[int] = tokenizer.encode(source, add_special_tokens=True)
         for start in range(0, len(ids), 512):
             chunk = ids[start : start + 512]
@@ -135,10 +129,10 @@ def score_hunk_mlm(
             return []
 
         per_token_scores: list[float] = []
-        _batch = 32
+        per_token_batch = 32
 
-        for b_start in range(0, len(non_special), _batch):
-            batch_positions = non_special[b_start : b_start + _batch]
+        for b_start in range(0, len(non_special), per_token_batch):
+            batch_positions = non_special[b_start : b_start + per_token_batch]
             batch_input = window_ids.unsqueeze(0).repeat(len(batch_positions), 1).to(device)
             for j, pos in enumerate(batch_positions):
                 batch_input[j, pos] = tokenizer.mask_token_id
