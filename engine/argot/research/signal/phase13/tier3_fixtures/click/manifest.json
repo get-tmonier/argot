@@ -1,5 +1,96 @@
 {
   "source_repo": "https://github.com/pallets/click",
   "source_tag": "8.1.7",
-  "fixtures": []
+  "fixtures": [
+    {
+      "name": "control_click_decorators",
+      "file": "controls/decorators.py",
+      "hunk_start_line": 1,
+      "hunk_end_line": 561,
+      "is_break": false,
+      "rationale": "Canonical click decorator definitions — should score as in-distribution",
+      "category": "control"
+    },
+    {
+      "name": "control_click_types",
+      "file": "controls/types.py",
+      "hunk_start_line": 1,
+      "hunk_end_line": 1089,
+      "is_break": false,
+      "rationale": "Canonical click type definitions — should score as in-distribution",
+      "category": "control"
+    },
+    {
+      "name": "control_click_core",
+      "file": "controls/core.py",
+      "hunk_start_line": 1,
+      "hunk_end_line": 3042,
+      "is_break": false,
+      "rationale": "Canonical click core classes and logic — should score as in-distribution",
+      "category": "control"
+    },
+    {
+      "name": "control_click_termui",
+      "file": "controls/termui.py",
+      "hunk_start_line": 1,
+      "hunk_end_line": 784,
+      "is_break": false,
+      "rationale": "Canonical click terminal UI utilities — should score as in-distribution",
+      "category": "control"
+    },
+    {
+      "name": "control_click_utils",
+      "file": "controls/utils.py",
+      "hunk_start_line": 1,
+      "hunk_end_line": 624,
+      "is_break": false,
+      "rationale": "Canonical click utility functions — should score as in-distribution",
+      "category": "control"
+    },
+    {
+      "name": "control_click_parser",
+      "file": "controls/parser.py",
+      "hunk_start_line": 1,
+      "hunk_end_line": 529,
+      "is_break": false,
+      "rationale": "Canonical click argument parser — should score as in-distribution",
+      "category": "control"
+    },
+    {
+      "name": "control_click_formatting",
+      "file": "controls/formatting.py",
+      "hunk_start_line": 1,
+      "hunk_end_line": 301,
+      "is_break": false,
+      "rationale": "Canonical click formatting helpers — should score as in-distribution",
+      "category": "control"
+    },
+    {
+      "name": "control_click_exceptions",
+      "file": "controls/exceptions.py",
+      "hunk_start_line": 1,
+      "hunk_end_line": 288,
+      "is_break": false,
+      "rationale": "Canonical click exception hierarchy — should score as in-distribution",
+      "category": "control"
+    },
+    {
+      "name": "control_click_globals",
+      "file": "controls/globals.py",
+      "hunk_start_line": 1,
+      "hunk_end_line": 68,
+      "is_break": false,
+      "rationale": "Canonical click global context handling — should score as in-distribution",
+      "category": "control"
+    },
+    {
+      "name": "control_click_shell_completion",
+      "file": "controls/shell_completion.py",
+      "hunk_start_line": 1,
+      "hunk_end_line": 596,
+      "is_break": false,
+      "rationale": "Canonical click shell completion logic — should score as in-distribution",
+      "category": "control"
+    }
+  ]
 }
