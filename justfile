@@ -124,6 +124,10 @@ acceptance entry="":
 		--out docs/research/scoring/acceptance \
 		--epochs 20 $([ -n "{{entry}}" ] && echo "--entry {{entry}}")
 
+phase12-s0:
+    uv run --package argot-engine python -m argot.research.signal.cli.seeded_ci \
+        --out docs/research/scoring/signal/phase12
+
 phase11:
     uv run --package argot-engine python -m argot.research.signal.sweep \
         --stage 5 --entry fastapi --configs mean_z --context-mode baseline \

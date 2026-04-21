@@ -144,15 +144,15 @@
       "rationale": "tornado RequestHandler subclass with GET/POST methods using self.get_argument(), self.write(), self.finish(), and IOLoop \u2014 classic tornado vocabulary entirely foreign to the FastAPI corpus"
     },
     {
-      "name": "paradigm_break_marshmallow_schema",
+      "name": "paradigm_break_voluptuous_validation",
       "scope": "default",
-      "file": "fixtures/default/paradigm_break_marshmallow_schema.py",
-      "hunk_start_line": 17,
-      "hunk_end_line": 87,
+      "file": "fixtures/default/paradigm_break_voluptuous_validation.py",
+      "hunk_start_line": 30,
+      "hunk_end_line": 85,
       "is_break": true,
       "category": "validation",
-      "set": "v2",
-      "rationale": "marshmallow Schema.load() called manually inside endpoints for validation instead of Pydantic BaseModel injection \u2014 @validates, @post_load, and fields.String/Float are marshmallow idioms absent from the FastAPI corpus"
+      "set": "v3",
+      "rationale": "voluptuous Schema called manually inside endpoints for validation instead of Pydantic BaseModel injection \u2014 Schema, Required, Optional, All, Length, Range, Invalid, MultipleInvalid are voluptuous idioms entirely absent from the FastAPI corpus (0 import sites). Single axis: imperative schema-call validation vs declarative Pydantic parameter injection."
     },
     {
       "name": "paradigm_break_cerberus_validation",
@@ -166,15 +166,15 @@
       "rationale": "cerberus Validator with schema dicts validates plain dict body params instead of Pydantic BaseModel injection \u2014 v.errors, validator.validate(), and validator.normalized() are cerberus idioms absent from the FastAPI corpus"
     },
     {
-      "name": "paradigm_break_orjson_serialization",
+      "name": "paradigm_break_manual_json_response",
       "scope": "default",
-      "file": "fixtures/default/paradigm_break_orjson_serialization.py",
-      "hunk_start_line": 17,
-      "hunk_end_line": 75,
+      "file": "fixtures/default/paradigm_break_manual_json_response.py",
+      "hunk_start_line": 47,
+      "hunk_end_line": 95,
       "is_break": true,
       "category": "serialization",
-      "set": "v2",
-      "rationale": "explicit orjson.dumps() with OPT_INDENT_2/OPT_NON_STR_KEYS/OPT_SORT_KEYS options at every endpoint, wrapped in Response(..., media_type='application/json') \u2014 bypasses FastAPI's automatic serialization layer, pattern absent from the corpus"
+      "set": "v3",
+      "rationale": "explicit json.dumps() with custom default= for datetime/Decimal at every endpoint, wrapped in Response(content=..., media_type='application/json') \u2014 bypasses FastAPI's automatic Pydantic serialization; no response_model= annotation. OOV evidence: json.dumps() at endpoint scope with manual type coercions = 0 corpus sites; 163 response_model= sites confirm automatic serialization is the dominant pattern."
     },
     {
       "name": "paradigm_break_bare_except",
@@ -210,15 +210,15 @@
       "rationale": "synchronous requests.get() / requests.post() with Session() inside async def endpoints blocks the event loop \u2014 the correct pattern is httpx.AsyncClient with await, and requests.Session with cert=/verify= is absent from the FastAPI corpus"
     },
     {
-      "name": "paradigm_break_threading_background",
+      "name": "paradigm_break_concurrent_futures_background",
       "scope": "default",
-      "file": "fixtures/default/paradigm_break_threading_background.py",
-      "hunk_start_line": 20,
-      "hunk_end_line": 75,
+      "file": "fixtures/default/paradigm_break_concurrent_futures_background.py",
+      "hunk_start_line": 55,
+      "hunk_end_line": 87,
       "is_break": true,
       "category": "background_tasks",
-      "set": "v2",
-      "rationale": "threading.Thread with daemon=True launched from each endpoint instead of FastAPI BackgroundTasks \u2014 Thread, Lock, daemon, and t.join() blocking the async event loop are all absent from the FastAPI corpus"
+      "set": "v3",
+      "rationale": "concurrent.futures executor.submit() called from each endpoint to dispatch deferred work, discarding the returned Future, instead of FastAPI BackgroundTasks.add_task(). ProcessPoolExecutor, ThreadPoolExecutor, and Future at endpoint scope are absent from the FastAPI corpus (0 sites). Corpus evidence: BackgroundTasks = 10 sites, add_task = 10 sites; concurrent.futures inside endpoint-decorated functions = 0."
     },
     {
       "name": "control_pydantic_validator",
@@ -298,15 +298,15 @@
       "rationale": "Idiomatic FastAPI pattern for blocking I/O from async endpoints: wrap each blocking callable in functools.partial() and hand it to `await anyio.to_thread.run_sync(fn)`. Grounded in fastapi/concurrency.py lines 6, 32, 39 (`import anyio.to_thread`; `await anyio.to_thread.run_sync(cm.__exit__, ...)`) and tests/test_stream_cancellation.py (line 9: `import anyio` in async endpoint context). No blocking calls appear directly inside async def bodies \u2014 all file I/O and JSON parsing are wrapped in synchronous helper functions and dispatched to the thread pool."
     },
     {
-      "name": "paradigm_break_asyncio_create_task",
+      "name": "paradigm_break_multiprocessing_background",
       "scope": "default",
-      "file": "fixtures/default/paradigm_break_asyncio_create_task.py",
-      "hunk_start_line": 54,
-      "hunk_end_line": 73,
+      "file": "fixtures/default/paradigm_break_multiprocessing_background.py",
+      "hunk_start_line": 45,
+      "hunk_end_line": 90,
       "is_break": true,
       "category": "background_tasks",
       "set": "v3",
-      "rationale": "Canonical pattern: docs_src/background_tasks/tutorial001_py310.py lines 12-15 uses background_tasks.add_task(write_notification, email, ...) from a BackgroundTasks DI parameter. Deviation axis: endpoints call asyncio.create_task(coroutine()) directly; no BackgroundTasks parameter in signature. Corpus evidence: BackgroundTasks parameter sites = 10, add_task call sites = 10; asyncio.create_task inside endpoint-decorated functions = 0."
+      "rationale": "multiprocessing.Process with daemon=True spawned from each endpoint instead of FastAPI BackgroundTasks.add_task(). multiprocessing.Process, multiprocessing.Queue, Process.start(), Process.daemon inside endpoint-decorated functions are absent from the FastAPI corpus (0 sites). Corpus evidence: BackgroundTasks = 10 sites, add_task = 10 sites; multiprocessing.Process at endpoint scope = 0."
     },
     {
       "name": "paradigm_break_queue_carryover",
@@ -320,15 +320,15 @@
       "rationale": "Canonical pattern: docs_src/background_tasks/tutorial001_py310.py lines 12-15 \u2014 background_tasks.add_task() from an injected BackgroundTasks parameter. Deviation axis: module-level asyncio.Queue() + @app.on_event('startup') worker loop replaces BackgroundTasks; endpoints use queue.put_nowait(). Corpus evidence: BackgroundTasks sites = 10, add_task sites = 10; module-level asyncio.Queue() with startup worker = 0. @app.on_event('startup') is present in corpus but never paired with a queue-draining pattern."
     },
     {
-      "name": "paradigm_break_run_in_executor_endpoint",
+      "name": "paradigm_break_atexit_background",
       "scope": "default",
-      "file": "fixtures/default/paradigm_break_run_in_executor_endpoint.py",
-      "hunk_start_line": 54,
-      "hunk_end_line": 78,
+      "file": "fixtures/default/paradigm_break_atexit_background.py",
+      "hunk_start_line": 68,
+      "hunk_end_line": 100,
       "is_break": true,
       "category": "background_tasks",
       "set": "v3",
-      "rationale": "Canonical pattern: docs_src/background_tasks/tutorial001_py310.py lines 12-15 \u2014 background_tasks.add_task() returns immediately. Deviation axis: endpoints call asyncio.get_event_loop() then await loop.run_in_executor(None, blocking_func, arg), blocking the endpoint until the executor future resolves instead of scheduling deferred work via BackgroundTasks. Corpus evidence: BackgroundTasks sites = 10, add_task sites = 10; asyncio.get_event_loop() / run_in_executor inside endpoint-decorated functions = 0."
+      "rationale": "Deferred work accumulated in a module-level deque drained by a repeating threading.Timer, with atexit.register() as a flush safety net \u2014 instead of FastAPI BackgroundTasks.add_task(). atexit.register inside endpoint scope, threading.Timer, and deque-based work queues are absent from the FastAPI corpus (0 sites). Corpus evidence: BackgroundTasks = 10 sites, add_task = 10 sites; atexit / Timer at endpoint scope = 0."
     },
     {
       "name": "control_background_tasks_basic",
