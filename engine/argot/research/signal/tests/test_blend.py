@@ -85,8 +85,7 @@ def test_blend_scorer_weighted_output() -> None:
     b_std = statistics.stdev(b_corpus)
 
     expected = [
-        0.6 * (a_raw[i] - a_mean) / a_std + 0.4 * (b_raw[i] - b_mean) / b_std
-        for i in range(3)
+        0.6 * (a_raw[i] - a_mean) / a_std + 0.4 * (b_raw[i] - b_mean) / b_std for i in range(3)
     ]
 
     for got, exp in zip(scores, expected, strict=True):

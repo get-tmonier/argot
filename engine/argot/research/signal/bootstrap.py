@@ -39,9 +39,7 @@ def paired_bootstrap_ci(
         b_base = auc_from_scores(
             [baseline_break[i] for i in b_idx], [baseline_ctrl[i] for i in c_idx]
         )
-        b_var = auc_from_scores(
-            [variant_break[i] for i in b_idx], [variant_ctrl[i] for i in c_idx]
-        )
+        b_var = auc_from_scores([variant_break[i] for i in b_idx], [variant_ctrl[i] for i in c_idx])
         boot_deltas.append(b_var - b_base)
 
     boot_deltas.sort()

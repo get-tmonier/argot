@@ -10,27 +10,35 @@ from argot.research.signal.scorers.ast_structural import AstStructuralScorer
 # Synthetic corpus helpers
 # ---------------------------------------------------------------------------
 
-_HTTP_RECORD = {"_source_lines": [
-    "from fastapi import HTTPException",
-    "def handler():",
-    "    raise HTTPException(status_code=404)",
-]}
+_HTTP_RECORD = {
+    "_source_lines": [
+        "from fastapi import HTTPException",
+        "def handler():",
+        "    raise HTTPException(status_code=404)",
+    ]
+}
 
-_VALUE_ERROR_RECORD = {"_source_lines": [
-    "def handler():",
-    "    raise ValueError('bad')",
-]}
+_VALUE_ERROR_RECORD = {
+    "_source_lines": [
+        "def handler():",
+        "    raise ValueError('bad')",
+    ]
+}
 
-_BASE_MODEL_RECORD = {"_source_lines": [
-    "from pydantic import BaseModel",
-    "class Item(BaseModel):",
-    "    name: str",
-]}
+_BASE_MODEL_RECORD = {
+    "_source_lines": [
+        "from pydantic import BaseModel",
+        "class Item(BaseModel):",
+        "    name: str",
+    ]
+}
 
-_DECORATOR_RECORD = {"_source_lines": [
-    "@app.get('/items')",
-    "def list_items(): pass",
-]}
+_DECORATOR_RECORD = {
+    "_source_lines": [
+        "@app.get('/items')",
+        "def list_items(): pass",
+    ]
+}
 
 
 def _make_corpus(n_http: int = 8, n_value: int = 2) -> list[dict]:  # type: ignore[type-arg]

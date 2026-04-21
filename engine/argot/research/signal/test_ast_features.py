@@ -58,8 +58,10 @@ def test_categories_are_ast_node_names() -> None:
     src = "@app.get('/x')\ndef f():\n    raise HTTPException(status_code=400)\n"
     feats = extract_features(src)
     import ast
+
     valid_node_names = {
-        cls.__name__ for cls in ast.__dict__.values()
+        cls.__name__
+        for cls in ast.__dict__.values()
         if isinstance(cls, type) and issubclass(cls, ast.AST)
     }
     for cat in feats:

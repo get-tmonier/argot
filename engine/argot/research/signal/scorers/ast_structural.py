@@ -92,9 +92,7 @@ class AstStructuralScorer:
                 src, parent_context=self._parent_context, cooccurrence=self._cooccurrence
             )
             for cat, values in feats.items():
-                lp = sum(
-                    -math.log(self._prob(cat, v)) for v in values
-                )
+                lp = sum(-math.log(self._prob(cat, v)) for v in values)
                 cat_logprobs.setdefault(cat, []).append(lp)
 
         for cat, lps in cat_logprobs.items():

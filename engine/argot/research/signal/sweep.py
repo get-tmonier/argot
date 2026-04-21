@@ -352,14 +352,16 @@ def _run_sweep(
                     score = scores[idx]
                     category = spec.category
                     rec = fixture_records[idx]
-                    run_fixture_scores.append({
-                        "name": spec.name,
-                        "category": category,
-                        "is_break": spec.is_break,
-                        "score": score,
-                        "ctx_fallback": rec.get("_ctx_fallback", False),
-                        "ctx_truncated": rec.get("_ctx_truncated", False),
-                    })
+                    run_fixture_scores.append(
+                        {
+                            "name": spec.name,
+                            "category": category,
+                            "is_break": spec.is_break,
+                            "score": score,
+                            "ctx_fallback": rec.get("_ctx_fallback", False),
+                            "ctx_truncated": rec.get("_ctx_truncated", False),
+                        }
+                    )
                     if spec.is_break:
                         break_scores.append(score)
                         if spec.set == "v1":
@@ -399,7 +401,15 @@ def _run_sweep(
             }
 
             raw_rows.append(
-                (config_name, seed, delta_v2, delta_v1, delta_by_category, overall_auc, auc_by_category)  # noqa: E501
+                (
+                    config_name,
+                    seed,
+                    delta_v2,
+                    delta_v1,
+                    delta_by_category,
+                    overall_auc,
+                    auc_by_category,
+                )  # noqa: E501
             )
             print(
                 f"  config={config_name!r} seed={seed} "

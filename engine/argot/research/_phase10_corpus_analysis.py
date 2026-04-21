@@ -46,7 +46,11 @@ def is_endpoint_decorated(func: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     """Heuristic: function has a decorator like @app.get / @router.post / etc."""
     http_methods = {"get", "post", "put", "delete", "patch", "head", "options", "trace"}
     for dec in func.decorator_list:
-        if isinstance(dec, ast.Call) and isinstance(dec.func, ast.Attribute) and dec.func.attr in http_methods:
+        if (
+            isinstance(dec, ast.Call)
+            and isinstance(dec.func, ast.Attribute)
+            and dec.func.attr in http_methods
+        ):
             return True
     return False
 
@@ -228,7 +232,9 @@ class CorpusVisitor(ast.NodeVisitor):
             if "BaseModel" in name:
                 self.val.base_model_subclasses += 1
                 if len(self.val.base_model_citations) < 3:
-                    self.val.base_model_citations.append(f"{self._loc(node)} — class {node.name}(BaseModel)")
+                    self.val.base_model_citations.append(
+                        f"{self._loc(node)} — class {node.name}(BaseModel)"
+                    )
                 break
         self.generic_visit(node)
 
@@ -252,7 +258,9 @@ class CorpusVisitor(ast.NodeVisitor):
                 if "field_validator" in fname or "validator" in fname:
                     self.val.field_validator_sites += 1
                     if len(self.val.field_validator_citations) < 3:
-                        self.val.field_validator_citations.append(f"{self._loc(dec)} — {fname}(...)")
+                        self.val.field_validator_citations.append(
+                            f"{self._loc(dec)} — {fname}(...)"
+                        )
                 # response_model= kw on endpoint decorators
                 for kw in dec.keywords:
                     if kw.arg == "response_model":
@@ -263,7 +271,11 @@ class CorpusVisitor(ast.NodeVisitor):
                             )
                 # Routing decorator counts
                 if isinstance(dec.func, ast.Attribute):
-                    obj = get_func_name(dec.func.value) if isinstance(dec.func.value, ast.expr) else "?"
+                    obj = (
+                        get_func_name(dec.func.value)
+                        if isinstance(dec.func.value, ast.expr)
+                        else "?"
+                    )
                     meth = dec.func.attr
                     key = f"@{obj}.{meth}"
                     self.routing.decorator_counts[key] += 1
@@ -299,12 +311,16 @@ class CorpusVisitor(ast.NodeVisitor):
                 if "Annotated" in ann_str:
                     self.di.annotated_count += 1
                     if len(self.di.annotated_citations) < 3:
-                        self.di.annotated_citations.append(f"{self._loc(node)} — {arg.arg}: {ann_str[:60]}")
+                        self.di.annotated_citations.append(
+                            f"{self._loc(node)} — {arg.arg}: {ann_str[:60]}"
+                        )
                 # Query/Path/Body
                 if "Query(" in ann_str or ann_str.startswith("Query"):
                     self.val.query_param_defaults += 1
                     if len(self.val.query_citations) < 3:
-                        self.val.query_citations.append(f"{self._loc(node)} — {arg.arg}: {ann_str[:60]}")
+                        self.val.query_citations.append(
+                            f"{self._loc(node)} — {arg.arg}: {ann_str[:60]}"
+                        )
                 if "Path(" in ann_str:
                     self.val.path_param_defaults += 1
                 if "Body(" in ann_str:
@@ -338,7 +354,9 @@ class CorpusVisitor(ast.NodeVisitor):
             if "HTTPException" in top_name:
                 self.exc.raise_http_exception += 1
                 if len(self.exc.citations_raise_http) < 3:
-                    self.exc.citations_raise_http.append(f"{self._loc(node)} — raise HTTPException(...)")
+                    self.exc.citations_raise_http.append(
+                        f"{self._loc(node)} — raise HTTPException(...)"
+                    )
         self.generic_visit(node)
 
     # ---- calls ----
@@ -358,7 +376,9 @@ class CorpusVisitor(ast.NodeVisitor):
                         if isinstance(key, ast.Constant) and key.value == "error":
                             self.exc.json_response_error += 1
                             if len(self.exc.citations_json_err) < 3:
-                                self.exc.citations_json_err.append(f'{loc} — JSONResponse({{"error": ...}})')
+                                self.exc.citations_json_err.append(
+                                    f'{loc} — JSONResponse({{"error": ...}})'
+                                )
             # serialization: JSONResponse(content=...)
             for kw in node.keywords:
                 if kw.arg == "content":
@@ -368,8 +388,11 @@ class CorpusVisitor(ast.NodeVisitor):
 
         # --- async blocking ---
         blocking_patterns = {
-            "time.sleep", "requests.get", "requests.post",
-            "requests.Session", "urlopen",
+            "time.sleep",
+            "requests.get",
+            "requests.post",
+            "requests.Session",
+            "urlopen",
         }
         for bp in blocking_patterns:
             if fname == bp:
@@ -407,7 +430,9 @@ class CorpusVisitor(ast.NodeVisitor):
                 if isinstance(arg0, ast.Name) and arg0.id in self._yielding_functions:
                     self.di.generator_deps += 1
                     if len(self.di.generator_citations) < 3:
-                        self.di.generator_citations.append(f"{loc} — Depends({arg0.id}) [generator]")
+                        self.di.generator_citations.append(
+                            f"{loc} — Depends({arg0.id}) [generator]"
+                        )
 
         # --- background tasks ---
         if fname == "background_tasks.add_task" or (
@@ -439,7 +464,9 @@ class CorpusVisitor(ast.NodeVisitor):
         # --- routing ---
         if fname == "add_api_route" or fname.endswith(".add_api_route"):
             self.routing.add_api_route_calls += 1
-        if fname == "app.mount" or (isinstance(node.func, ast.Attribute) and node.func.attr == "mount"):
+        if fname == "app.mount" or (
+            isinstance(node.func, ast.Attribute) and node.func.attr == "mount"
+        ):
             self.routing.app_mount_calls += 1
         if "include_router" in fname:
             self.routing.include_router_calls += 1
@@ -523,25 +550,35 @@ def merge(stats: CorpusStats, visitor: CorpusVisitor) -> None:  # noqa: PLR0912,
     stats.exc.exception_handler_decorators += v.exc.exception_handler_decorators
     stats.exc.json_response_error += v.exc.json_response_error
     if len(stats.exc.citations_raise_http) < 3:
-        stats.exc.citations_raise_http.extend(v.exc.citations_raise_http[: 3 - len(stats.exc.citations_raise_http)])
+        stats.exc.citations_raise_http.extend(
+            v.exc.citations_raise_http[: 3 - len(stats.exc.citations_raise_http)]
+        )
     if len(stats.exc.citations_exc_handler) < 3:
         stats.exc.citations_exc_handler.extend(
             v.exc.citations_exc_handler[: 3 - len(stats.exc.citations_exc_handler)]
         )
     if len(stats.exc.citations_json_err) < 3:
-        stats.exc.citations_json_err.extend(v.exc.citations_json_err[: 3 - len(stats.exc.citations_json_err)])
+        stats.exc.citations_json_err.extend(
+            v.exc.citations_json_err[: 3 - len(stats.exc.citations_json_err)]
+        )
 
     # async_blocking
     for k, c in v.async_b.blocking_calls.items():
         stats.async_b.blocking_calls[k] += c
     for k, cits in v.async_b.blocking_citations.items():
-        stats.async_b.blocking_citations[k].extend(cits[: 3 - len(stats.async_b.blocking_citations[k])])
+        stats.async_b.blocking_citations[k].extend(
+            cits[: 3 - len(stats.async_b.blocking_citations[k])]
+        )
     stats.async_b.httpx_async_client += v.async_b.httpx_async_client
     stats.async_b.anyio_to_thread += v.async_b.anyio_to_thread
     if len(stats.async_b.httpx_citations) < 3:
-        stats.async_b.httpx_citations.extend(v.async_b.httpx_citations[: 3 - len(stats.async_b.httpx_citations)])
+        stats.async_b.httpx_citations.extend(
+            v.async_b.httpx_citations[: 3 - len(stats.async_b.httpx_citations)]
+        )
     if len(stats.async_b.anyio_citations) < 3:
-        stats.async_b.anyio_citations.extend(v.async_b.anyio_citations[: 3 - len(stats.async_b.anyio_citations)])
+        stats.async_b.anyio_citations.extend(
+            v.async_b.anyio_citations[: 3 - len(stats.async_b.anyio_citations)]
+        )
 
     # dependency_injection
     stats.di.depends_count += v.di.depends_count
@@ -549,11 +586,17 @@ def merge(stats: CorpusStats, visitor: CorpusVisitor) -> None:  # noqa: PLR0912,
     stats.di.annotated_count += v.di.annotated_count
     stats.di.module_singletons += v.di.module_singletons
     if len(stats.di.depends_citations) < 3:
-        stats.di.depends_citations.extend(v.di.depends_citations[: 3 - len(stats.di.depends_citations)])
+        stats.di.depends_citations.extend(
+            v.di.depends_citations[: 3 - len(stats.di.depends_citations)]
+        )
     if len(stats.di.annotated_citations) < 3:
-        stats.di.annotated_citations.extend(v.di.annotated_citations[: 3 - len(stats.di.annotated_citations)])
+        stats.di.annotated_citations.extend(
+            v.di.annotated_citations[: 3 - len(stats.di.annotated_citations)]
+        )
     if len(stats.di.generator_citations) < 3:
-        stats.di.generator_citations.extend(v.di.generator_citations[: 3 - len(stats.di.generator_citations)])
+        stats.di.generator_citations.extend(
+            v.di.generator_citations[: 3 - len(stats.di.generator_citations)]
+        )
 
     # background_tasks
     stats.bt.background_tasks_param += v.bt.background_tasks_param
@@ -562,9 +605,13 @@ def merge(stats: CorpusStats, visitor: CorpusVisitor) -> None:  # noqa: PLR0912,
     stats.bt.endpoint_thread += v.bt.endpoint_thread
     stats.bt.endpoint_run_in_executor += v.bt.endpoint_run_in_executor
     if len(stats.bt.bt_param_citations) < 3:
-        stats.bt.bt_param_citations.extend(v.bt.bt_param_citations[: 3 - len(stats.bt.bt_param_citations)])
+        stats.bt.bt_param_citations.extend(
+            v.bt.bt_param_citations[: 3 - len(stats.bt.bt_param_citations)]
+        )
     if len(stats.bt.add_task_citations) < 3:
-        stats.bt.add_task_citations.extend(v.bt.add_task_citations[: 3 - len(stats.bt.add_task_citations)])
+        stats.bt.add_task_citations.extend(
+            v.bt.add_task_citations[: 3 - len(stats.bt.add_task_citations)]
+        )
 
     # serialization
     stats.ser.response_model_kw += v.ser.response_model_kw
@@ -587,7 +634,9 @@ def merge(stats: CorpusStats, visitor: CorpusVisitor) -> None:  # noqa: PLR0912,
     for k, c in v.routing.decorator_counts.items():
         stats.routing.decorator_counts[k] += c
     for k, cits in v.routing.decorator_citations.items():
-        stats.routing.decorator_citations[k].extend(cits[: 3 - len(stats.routing.decorator_citations[k])])
+        stats.routing.decorator_citations[k].extend(
+            cits[: 3 - len(stats.routing.decorator_citations[k])]
+        )
     stats.routing.add_api_route_calls += v.routing.add_api_route_calls
     stats.routing.app_mount_calls += v.routing.app_mount_calls
     stats.routing.include_router_calls += v.routing.include_router_calls
@@ -605,13 +654,17 @@ def merge(stats: CorpusStats, visitor: CorpusVisitor) -> None:  # noqa: PLR0912,
     stats.val.body_param_defaults += v.val.body_param_defaults
     stats.val.manual_isinstance_raise += v.val.manual_isinstance_raise
     if len(stats.val.base_model_citations) < 3:
-        stats.val.base_model_citations.extend(v.val.base_model_citations[: 3 - len(stats.val.base_model_citations)])
+        stats.val.base_model_citations.extend(
+            v.val.base_model_citations[: 3 - len(stats.val.base_model_citations)]
+        )
     if len(stats.val.field_validator_citations) < 3:
         stats.val.field_validator_citations.extend(
             v.val.field_validator_citations[: 3 - len(stats.val.field_validator_citations)]
         )
     if len(stats.val.query_citations) < 3:
-        stats.val.query_citations.extend(v.val.query_citations[: 3 - len(stats.val.query_citations)])
+        stats.val.query_citations.extend(
+            v.val.query_citations[: 3 - len(stats.val.query_citations)]
+        )
 
     # downstream_http
     stats.ds.httpx_sites += v.ds.httpx_sites
@@ -621,7 +674,9 @@ def merge(stats: CorpusStats, visitor: CorpusVisitor) -> None:  # noqa: PLR0912,
     if len(stats.ds.httpx_citations) < 3:
         stats.ds.httpx_citations.extend(v.ds.httpx_citations[: 3 - len(stats.ds.httpx_citations)])
     if len(stats.ds.requests_citations) < 3:
-        stats.ds.requests_citations.extend(v.ds.requests_citations[: 3 - len(stats.ds.requests_citations)])
+        stats.ds.requests_citations.extend(
+            v.ds.requests_citations[: 3 - len(stats.ds.requests_citations)]
+        )
     if len(stats.ds.raise_for_status_citations) < 3:
         stats.ds.raise_for_status_citations.extend(
             v.ds.raise_for_status_citations[: 3 - len(stats.ds.raise_for_status_citations)]

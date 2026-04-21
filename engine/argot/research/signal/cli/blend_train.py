@@ -63,10 +63,7 @@ def _simplex_points(n_scorers: int = 3, step: float = 0.05) -> list[tuple[float,
     """
     n_steps = int(round(1.0 / step))
     if n_scorers == 2:
-        return [
-            (i / n_steps, (n_steps - i) / n_steps)
-            for i in range(n_steps + 1)
-        ]
+        return [(i / n_steps, (n_steps - i) / n_steps) for i in range(n_steps + 1)]
     if n_scorers == 3:
         return [
             (i / n_steps, j / n_steps, (n_steps - i - j) / n_steps)
@@ -173,8 +170,7 @@ def _run_blend_train(scores_path: Path, out_dir: Path) -> None:
     # ------------------------------------------------------------------
     best_alpha, best_blend_auc = _find_best_alpha(fixture_z_scores, fixture_is_break, top3)
     print(
-        f"Best α: {tuple(f'{a:.2f}' for a in best_alpha)}  "
-        f"blend AUC={best_blend_auc:.4f}",
+        f"Best α: {tuple(f'{a:.2f}' for a in best_alpha)}  " f"blend AUC={best_blend_auc:.4f}",
         flush=True,
     )
 
@@ -205,9 +201,7 @@ def _run_blend_train(scores_path: Path, out_dir: Path) -> None:
         per_cat_blend[cat] = auc_from_scores(cat_break_blend, cat_ctrl_blend)
 
         cat_break_best = [
-            f["scores"][best_individual]
-            for f in fixtures
-            if f["is_break"] and f["category"] == cat
+            f["scores"][best_individual] for f in fixtures if f["is_break"] and f["category"] == cat
         ]
         cat_ctrl_best = [
             f["scores"][best_individual]
@@ -274,24 +268,18 @@ def _run_blend_train(scores_path: Path, out_dir: Path) -> None:
     lines.append("")
 
     lines.append("## Verdict\n")
-    lines.append(
-        f'- AUC \u2265 0.80: {"✓" if meets_gate else "✗"} ({best_blend_auc:.4f})\n'
-    )
+    lines.append(f'- AUC \u2265 0.80: {"✓" if meets_gate else "✗"} ({best_blend_auc:.4f})\n')
     lines.append(
         f'- Bootstrap 95% CI lower bound > {_PHASE11_WINNER_AUC:.4f}: '
         f'{"✓" if ci_clears_winner else "✗"} (CI: [{ci_lo:.4f}, {ci_hi:.4f}])\n'
     )
-    lines.append(
-        f'- No category AUC < 0.50: {"✓" if no_cat_below_floor else "✗"}\n'
-    )
+    lines.append(f'- No category AUC < 0.50: {"✓" if no_cat_below_floor else "✗"}\n')
     lines.append(
         f'- Inverted category lifted \u2265 0.70: '
         f'{"✓" if inverted_lifted else "✗"} (inverted: {inverted_cats})\n'
     )
     lines.append("")
-    lines.append(
-        f'Victory gate: {"CLEARED ✓" if victory else "NOT YET CLEARED ✗"}\n'
-    )
+    lines.append(f'Victory gate: {"CLEARED ✓" if victory else "NOT YET CLEARED ✗"}\n')
 
     md_path.write_text("\n".join(lines))
     print(f"Report written to {md_path}", flush=True)

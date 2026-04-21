@@ -110,9 +110,7 @@ def _has_high_churn(diff_text: str, *, min_churn_lines: int) -> bool:
                 current_added += 1
 
     # Check last hunk
-    return bool(
-        in_hunk and current_removed >= min_churn_lines and current_added >= min_churn_lines
-    )
+    return bool(in_hunk and current_removed >= min_churn_lines and current_added >= min_churn_lines)
 
 
 def _token_count(text: str) -> int:
