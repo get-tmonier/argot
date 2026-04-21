@@ -9,11 +9,15 @@ from rich.table import Table
 def show_rich_info(title: str, body: str) -> None:
     console = Console()
     console.print(Panel(body, title=f"[bold blue]{title}[/bold blue]", border_style="blue"))
+    table = Table(title=title)
+    table.add_column("Key", style="cyan")
+    table.add_column("Value", style="magenta")
+    console.print(table)
 
 
 import curses
 
-# hunk starts at line 14 (0-indexed)
+# hunk starts at line 16 (0-indexed)
 
 def curses_menu(stdscr: "curses._CursesWindow", options: list[str]) -> int:
     """Render a navigable menu and return the selected index."""

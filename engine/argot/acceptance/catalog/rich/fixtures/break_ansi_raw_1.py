@@ -15,7 +15,7 @@ def show_rich_banner() -> None:
     console.print(table)
 
 
-# hunk starts at line 17 (0-indexed)
+# hunk starts at line 18 (0-indexed)
 RESET = "\033[0m"
 RED = "\033[31m"
 GREEN = "\033[32m"
