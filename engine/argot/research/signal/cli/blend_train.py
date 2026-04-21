@@ -28,6 +28,29 @@ _PHASE11_WINNER_AUC = 0.6532
 _VICTORY_GATE = 0.80
 
 
+def _bootstrap_auc_ci(
+    break_scores: list[float],
+    ctrl_scores: list[float],
+    n_resamples: int = 1000,
+    ci: float = 0.95,
+    seed: int = 42,
+) -> tuple[float, float]:
+    """Bootstrap 95% CI on AUC itself (not a delta). Returns (ci_lo, ci_hi)."""
+    import random as _random
+
+    rng = _random.Random(seed)
+    boot_aucs: list[float] = []
+    for _ in range(n_resamples):
+        b = [rng.choice(break_scores) for _ in break_scores]
+        c = [rng.choice(ctrl_scores) for _ in ctrl_scores]
+        boot_aucs.append(auc_from_scores(b, c))
+    boot_aucs.sort()
+    alpha = (1 - ci) / 2
+    lo = boot_aucs[int(alpha * n_resamples)]
+    hi = boot_aucs[int((1 - alpha) * n_resamples)]
+    return lo, hi
+
+
 # ---------------------------------------------------------------------------
 # Simplex grid search helpers
 # ---------------------------------------------------------------------------
@@ -204,6 +227,20 @@ def _run_blend_train(scores_path: Path, out_dir: Path) -> None:
     beats_winner = best_blend_auc > _PHASE11_WINNER_AUC
     meets_gate = best_blend_auc >= _VICTORY_GATE
 
+    # Compute blend break/ctrl score lists for CI bootstrap
+    blend_break_scores = [blended_scores[i] for i in range(n_fixtures) if fixture_is_break[i]]
+    blend_ctrl_scores = [blended_scores[i] for i in range(n_fixtures) if not fixture_is_break[i]]
+    ci_lo, ci_hi = _bootstrap_auc_ci(blend_break_scores, blend_ctrl_scores)
+    ci_clears_winner = ci_lo > _PHASE11_WINNER_AUC
+
+    # "Inverted" categories: where best individual scorer had AUC < 0.50
+    inverted_cats = [cat for cat, auc in per_cat_best.items() if auc < 0.50]
+    inverted_lifted = any(per_cat_blend.get(cat, 0.0) >= 0.70 for cat in inverted_cats)
+
+    no_cat_below_floor = all(v >= 0.50 for v in per_cat_blend.values())
+
+    victory = all([meets_gate, ci_clears_winner, no_cat_below_floor, inverted_lifted])
+
     lines: list[str] = []
     lines.append("# Phase 12 S5 — Ensemble Blend Report\n")
     lines.append(f"Date: {date_str}\n")
@@ -230,37 +267,31 @@ def _run_blend_train(scores_path: Path, out_dir: Path) -> None:
     cat_header = " | ".join(categories)
     lines.append(f"| scorer | {cat_header} |")
     lines.append("|---|" + "---|" * len(categories))
-    blend_row = " | ".join(f"{per_cat_blend.get(c, 0.5):.4f}" for c in categories)
-    best_row = " | ".join(f"{per_cat_best.get(c, 0.5):.4f}" for c in categories)
+    blend_row = " | ".join(f"{per_cat_blend[c]:.4f}" for c in categories)
+    best_row = " | ".join(f"{per_cat_best[c]:.4f}" for c in categories)
     lines.append(f"| blend | {blend_row} |")
     lines.append(f"| {best_individual} | {best_row} |")
     lines.append("")
 
     lines.append("## Verdict\n")
     lines.append(
-        f"- Beats phase-11 winner ({_PHASE11_WINNER_AUC:.4f})? "
-        f"**{'YES' if beats_winner else 'NO'}** "
-        f"(blend={best_blend_auc:.4f})\n"
+        f'- AUC \u2265 0.80: {"✓" if meets_gate else "✗"} ({best_blend_auc:.4f})\n'
     )
     lines.append(
-        f"- Meets victory gate (≥ {_VICTORY_GATE:.2f})? "
-        f"**{'YES' if meets_gate else 'NO'}**\n"
+        f'- Bootstrap 95% CI lower bound > {_PHASE11_WINNER_AUC:.4f}: '
+        f'{"✓" if ci_clears_winner else "✗"} (CI: [{ci_lo:.4f}, {ci_hi:.4f}])\n'
     )
-    if meets_gate:
-        lines.append(
-            f"> VICTORY: blend AUC {best_blend_auc:.4f} ≥ {_VICTORY_GATE:.2f}. "
-            f"Proceed to production promotion.\n"
-        )
-    elif beats_winner:
-        lines.append(
-            "> PROGRESS: blend beats the phase-11 winner but does not yet reach the gate. "
-            "Consider further scorer development.\n"
-        )
-    else:
-        lines.append(
-            "> NO GAIN: blend does not exceed the phase-11 winner AUC. "
-            "Investigate scorer quality.\n"
-        )
+    lines.append(
+        f'- No category AUC < 0.50: {"✓" if no_cat_below_floor else "✗"}\n'
+    )
+    lines.append(
+        f'- Inverted category lifted \u2265 0.70: '
+        f'{"✓" if inverted_lifted else "✗"} (inverted: {inverted_cats})\n'
+    )
+    lines.append("")
+    lines.append(
+        f'Victory gate: {"CLEARED ✓" if victory else "NOT YET CLEARED ✗"}\n'
+    )
 
     md_path.write_text("\n".join(lines))
     print(f"Report written to {md_path}", flush=True)
@@ -273,6 +304,12 @@ def _run_blend_train(scores_path: Path, out_dir: Path) -> None:
         "blend_auc": best_blend_auc,
         "beats_phase11_winner": beats_winner,
         "meets_victory_gate": meets_gate,
+        "bootstrap_ci": {"lo": ci_lo, "hi": ci_hi},
+        "ci_clears_winner": ci_clears_winner,
+        "no_cat_below_floor": no_cat_below_floor,
+        "inverted_cats": inverted_cats,
+        "inverted_lifted": inverted_lifted,
+        "victory": victory,
         "scorers": top3,
         "alphas": list(best_alpha),
         "z_stats": {name: {"mean": z_stats[name][0], "std": z_stats[name][1]} for name in top3},

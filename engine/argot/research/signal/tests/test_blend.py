@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from argot.research.signal.cli.blend_train import (
+    _bootstrap_auc_ci,
     _find_best_alpha,
     _run_blend_train,
     _simplex_points,
@@ -229,6 +230,44 @@ def test_find_best_alpha_selects_correct_alpha() -> None:
 
 
 # ---------------------------------------------------------------------------
+# _bootstrap_auc_ci
+# ---------------------------------------------------------------------------
+
+
+def test_bootstrap_auc_ci_bounds_are_ordered() -> None:
+    """CI lower bound must be <= CI upper bound."""
+    break_scores = [1.0, 2.0, 3.0, 4.0, 5.0]
+    ctrl_scores = [0.1, 0.2, 0.3, 0.4, 0.5]
+    lo, hi = _bootstrap_auc_ci(break_scores, ctrl_scores, n_resamples=200, seed=0)
+    assert lo <= hi, f"Expected lo <= hi, got lo={lo:.4f} hi={hi:.4f}"
+
+
+def test_bootstrap_auc_ci_perfect_separation() -> None:
+    """Perfect separation → both CI bounds should be close to 1.0."""
+    break_scores = [10.0, 11.0, 12.0, 13.0]
+    ctrl_scores = [0.0, 1.0, 2.0, 3.0]
+    lo, hi = _bootstrap_auc_ci(break_scores, ctrl_scores, n_resamples=200, seed=42)
+    assert lo > 0.95, f"Expected lo > 0.95 for perfect separation, got {lo:.4f}"
+    assert hi == 1.0, f"Expected hi == 1.0 for perfect separation, got {hi:.4f}"
+
+
+def test_bootstrap_auc_ci_random_chance() -> None:
+    """Identical distributions → CI should straddle 0.5."""
+    scores = [1.0, 2.0, 3.0, 4.0, 5.0]
+    lo, hi = _bootstrap_auc_ci(scores, scores, n_resamples=200, seed=42)
+    assert lo < 0.5 < hi, f"Expected CI to straddle 0.5, got [{lo:.4f}, {hi:.4f}]"
+
+
+def test_bootstrap_auc_ci_deterministic() -> None:
+    """Same seed → same result."""
+    break_scores = [3.0, 4.0, 5.0]
+    ctrl_scores = [1.0, 2.0, 3.0]
+    lo1, hi1 = _bootstrap_auc_ci(break_scores, ctrl_scores, n_resamples=100, seed=99)
+    lo2, hi2 = _bootstrap_auc_ci(break_scores, ctrl_scores, n_resamples=100, seed=99)
+    assert lo1 == lo2 and hi1 == hi2
+
+
+# ---------------------------------------------------------------------------
 # _run_blend_train — integration test (no model loading)
 # ---------------------------------------------------------------------------
 
@@ -327,6 +366,22 @@ def test_run_blend_train_writes_output_files() -> None:
         assert abs(sum(config["alphas"]) - 1.0) < 1e-9
         assert "blend_auc" in config
         assert 0.0 <= config["blend_auc"] <= 1.0
+
+        # New gate condition fields must be present
+        assert "bootstrap_ci" in config
+        assert "lo" in config["bootstrap_ci"]
+        assert "hi" in config["bootstrap_ci"]
+        assert config["bootstrap_ci"]["lo"] <= config["bootstrap_ci"]["hi"]
+        assert "ci_clears_winner" in config
+        assert isinstance(config["ci_clears_winner"], bool)
+        assert "no_cat_below_floor" in config
+        assert isinstance(config["no_cat_below_floor"], bool)
+        assert "inverted_cats" in config
+        assert isinstance(config["inverted_cats"], list)
+        assert "inverted_lifted" in config
+        assert isinstance(config["inverted_lifted"], bool)
+        assert "victory" in config
+        assert isinstance(config["victory"], bool)
 
 
 def test_run_blend_train_top3_by_auc() -> None:
