@@ -11,7 +11,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import random
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -113,11 +112,8 @@ def fine_tune_lora(
 def score_hunk_mlm(
     hunk_source: str,
     tokenizer: Any,
-    model: Any,  # single LoRA model (adapters on = A, disable_adapter() = B)
+    model: Any,
     device: torch.device,
-    *,
-    k_passes: int = 5,
-    mask_prob: float = 0.15,
 ) -> tuple[float, float, float]:
     encoding = tokenizer(
         hunk_source,
@@ -138,30 +134,23 @@ def score_hunk_mlm(
     if not non_special:
         return 0.0, 0.0, 0.0
 
+    attn = torch.ones(1, n, device=device)
     all_scores: list[float] = []
-    for _ in range(k_passes):
-        n_mask = max(1, int(len(non_special) * mask_prob))
-        mask_positions = random.sample(non_special, n_mask)
 
-        masked_input = input_ids.clone()
-        for pos in mask_positions:
-            masked_input[pos] = tokenizer.mask_token_id
-        batch = masked_input.unsqueeze(0)
-        attn = torch.ones_like(batch)
+    for pos in non_special:
+        masked = input_ids.clone()
+        masked[pos] = tokenizer.mask_token_id
+        batch = masked.unsqueeze(0)
+        true_token = int(input_ids[pos].item())
 
         with torch.no_grad():
             logits_a = model(input_ids=batch, attention_mask=attn).logits
             with model.disable_adapter():
                 logits_b = model(input_ids=batch, attention_mask=attn).logits
 
-        for pos in mask_positions:
-            true_token = int(input_ids[pos].item())
-            log_p_a = F.log_softmax(logits_a[0, pos, :], dim=-1)[true_token].item()
-            log_p_b = F.log_softmax(logits_b[0, pos, :], dim=-1)[true_token].item()
-            all_scores.append(log_p_b - log_p_a)
-
-    if not all_scores:
-        return 0.0, 0.0, 0.0
+        log_p_a = F.log_softmax(logits_a[0, pos, :], dim=-1)[true_token].item()
+        log_p_b = F.log_softmax(logits_b[0, pos, :], dim=-1)[true_token].item()
+        all_scores.append(log_p_b - log_p_a)
 
     max_score = float(max(all_scores))
     mean_score = float(sum(all_scores) / len(all_scores))
@@ -260,22 +249,19 @@ def _top3_argmax_tokens(
         return []
 
     per_token_ratios: list[tuple[int, float]] = []
-    batch_size = 32
-    for b_start in range(0, len(non_special), batch_size):
-        batch_positions = non_special[b_start : b_start + batch_size]
-        batch_input = input_ids.unsqueeze(0).repeat(len(batch_positions), 1).to(device)
-        for j, pos in enumerate(batch_positions):
-            batch_input[j, pos] = tokenizer.mask_token_id
-        attn_mask = torch.ones_like(batch_input)
+    attn = torch.ones(1, input_ids.shape[0], device=device)
+    for pos in non_special:
+        masked = input_ids.clone().to(device)
+        masked[pos] = tokenizer.mask_token_id
+        batch = masked.unsqueeze(0)
+        true_token = int(input_ids[pos].item())
         with torch.no_grad():
-            logits_a = model(input_ids=batch_input, attention_mask=attn_mask).logits
+            logits_a = model(input_ids=batch, attention_mask=attn).logits
             with model.disable_adapter():
-                logits_b = model(input_ids=batch_input, attention_mask=attn_mask).logits
-        for j, pos in enumerate(batch_positions):
-            true_token = int(input_ids[pos].item())
-            log_p_a = F.log_softmax(logits_a[j, pos, :], dim=-1)[true_token].item()
-            log_p_b = F.log_softmax(logits_b[j, pos, :], dim=-1)[true_token].item()
-            per_token_ratios.append((pos, log_p_b - log_p_a))
+                logits_b = model(input_ids=batch, attention_mask=attn).logits
+        log_p_a = F.log_softmax(logits_a[0, pos, :], dim=-1)[true_token].item()
+        log_p_b = F.log_softmax(logits_b[0, pos, :], dim=-1)[true_token].item()
+        per_token_ratios.append((pos, log_p_b - log_p_a))
 
     per_token_ratios.sort(key=lambda x: x[1], reverse=True)
     top3 = per_token_ratios[:3]
