@@ -502,7 +502,7 @@ def main() -> None:
     parser.add_argument("--entry", default="fastapi")
     parser.add_argument(
         "--context-mode",
-        default="baseline",
+        default="file_only",
         choices=["baseline", "parent_only", "file_only", "siblings_only", "combined"],
     )
     # Parse stage early to set the correct default seeds before building the parser default

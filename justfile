@@ -127,19 +127,19 @@ acceptance entry="":
 phase11:
     uv run --package argot-engine python -m argot.research.signal.sweep \
         --stage 5 --entry fastapi --configs mean_z --context-mode baseline \
-        --out .argot/phase11_results
+        --out docs/research/scoring/signal/phase11
     uv run --package argot-engine python -m argot.research.signal.sweep \
         --stage 5 --entry fastapi --configs mean_z --context-mode parent_only \
-        --out .argot/phase11_results
+        --out docs/research/scoring/signal/phase11
     uv run --package argot-engine python -m argot.research.signal.sweep \
         --stage 5 --entry fastapi --configs mean_z --context-mode file_only \
-        --out .argot/phase11_results
+        --out docs/research/scoring/signal/phase11
     uv run --package argot-engine python -m argot.research.signal.sweep \
         --stage 5 --entry fastapi --configs mean_z --context-mode siblings_only \
-        --out .argot/phase11_results
+        --out docs/research/scoring/signal/phase11
     uv run --package argot-engine python -m argot.research.signal.sweep \
         --stage 5 --entry fastapi --configs mean_z --context-mode combined \
-        --out .argot/phase11_results
+        --out docs/research/scoring/signal/phase11
 
 # --- individual checks ---
 

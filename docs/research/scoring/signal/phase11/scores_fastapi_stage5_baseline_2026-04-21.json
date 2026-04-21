@@ -1,0 +1,512 @@
+[
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_flask_routing",
+    "category": "routing",
+    "is_break": true,
+    "score": 2.143366733260058,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_django_cbv",
+    "category": "framework_swap",
+    "is_break": true,
+    "score": 1.5087275550046424,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_aiohttp_handler",
+    "category": "framework_swap",
+    "is_break": true,
+    "score": 2.1955083729818106,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_manual_validation",
+    "category": "validation",
+    "is_break": true,
+    "score": 3.0779051498418872,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_subtle_wrong_exception",
+    "category": "exception_handling",
+    "is_break": true,
+    "score": 0.8598168101412011,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_subtle_manual_status_check",
+    "category": "downstream_http",
+    "is_break": true,
+    "score": 2.5426231497296334,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_subtle_sync_endpoint",
+    "category": "async_blocking",
+    "is_break": true,
+    "score": 0.9001513948549075,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_subtle_exception_swallow",
+    "category": "exception_handling",
+    "is_break": true,
+    "score": 0.8830130213475821,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "control_router_endpoint",
+    "category": "routing",
+    "is_break": false,
+    "score": 1.4829611006648704,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "control_dependency_injection",
+    "category": "dependency_injection",
+    "is_break": false,
+    "score": 1.0787070990618257,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "control_exception_handling",
+    "category": "exception_handling",
+    "is_break": false,
+    "score": 0.42928026346509646,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_starlette_mount",
+    "category": "routing",
+    "is_break": true,
+    "score": 2.312516281776307,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_tornado_handler",
+    "category": "framework_swap",
+    "is_break": true,
+    "score": 1.9380128024121064,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_marshmallow_schema",
+    "category": "validation",
+    "is_break": true,
+    "score": 0.6747659876529757,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_cerberus_validation",
+    "category": "validation",
+    "is_break": true,
+    "score": 1.4374026713986898,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_orjson_serialization",
+    "category": "serialization",
+    "is_break": true,
+    "score": 1.1786838720060184,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_bare_except",
+    "category": "exception_handling",
+    "is_break": true,
+    "score": 2.077394319115869,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_event_loop_blocking",
+    "category": "async_blocking",
+    "is_break": true,
+    "score": 1.4675469261768466,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_sync_requests_in_async",
+    "category": "downstream_http",
+    "is_break": true,
+    "score": 1.008982848346441,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_threading_background",
+    "category": "background_tasks",
+    "is_break": true,
+    "score": 1.3900515504512845,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "control_pydantic_validator",
+    "category": "validation",
+    "is_break": false,
+    "score": 2.526128403617388,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "control_response_model",
+    "category": "serialization",
+    "is_break": false,
+    "score": 1.1885589299699808,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "control_async_streaming",
+    "category": "async_blocking",
+    "is_break": false,
+    "score": 0.9479944238233798,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "control_httpx_async",
+    "category": "downstream_http",
+    "is_break": false,
+    "score": 1.4721043995723047,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "control_annotated_depends",
+    "category": "dependency_injection",
+    "is_break": false,
+    "score": 2.1690035397355056,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_sync_file_io_async",
+    "category": "async_blocking",
+    "is_break": true,
+    "score": 1.6086739599128108,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "control_anyio_thread_offload",
+    "category": "async_blocking",
+    "is_break": false,
+    "score": 0.7516561533790765,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_asyncio_create_task",
+    "category": "background_tasks",
+    "is_break": true,
+    "score": 0.23862698215799538,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_queue_carryover",
+    "category": "background_tasks",
+    "is_break": true,
+    "score": 0.8983983470651283,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_run_in_executor_endpoint",
+    "category": "background_tasks",
+    "is_break": true,
+    "score": 0.623924226575974,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "control_background_tasks_basic",
+    "category": "background_tasks",
+    "is_break": false,
+    "score": 1.7122694100494176,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "control_background_tasks_depends",
+    "category": "background_tasks",
+    "is_break": false,
+    "score": 1.43328851694928,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_manual_generator_drain",
+    "category": "dependency_injection",
+    "is_break": true,
+    "score": 0.8294683768990548,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_class_instance_no_depends",
+    "category": "dependency_injection",
+    "is_break": true,
+    "score": 2.1591988118651497,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "control_nested_depends",
+    "category": "dependency_injection",
+    "is_break": false,
+    "score": 2.064212730791024,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_aiohttp_no_context",
+    "category": "downstream_http",
+    "is_break": true,
+    "score": 0.946931082334865,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "control_httpx_depends",
+    "category": "downstream_http",
+    "is_break": false,
+    "score": 0.36901314872582286,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_json_error_response",
+    "category": "exception_handling",
+    "is_break": true,
+    "score": 0.3118805111582034,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_traceback_in_response",
+    "category": "exception_handling",
+    "is_break": true,
+    "score": -0.09594902307011556,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_flask_errorhandler",
+    "category": "exception_handling",
+    "is_break": true,
+    "score": 0.15677473378349763,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "control_exception_handler_registration",
+    "category": "exception_handling",
+    "is_break": false,
+    "score": 0.2876619896330926,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "control_lifespan_context",
+    "category": "framework_swap",
+    "is_break": false,
+    "score": 1.4227405317888246,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "control_apirouter_composition",
+    "category": "framework_swap",
+    "is_break": false,
+    "score": 0.07919814730550451,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "control_mounted_subapp",
+    "category": "framework_swap",
+    "is_break": false,
+    "score": 1.281037949660977,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_imperative_route_loop",
+    "category": "routing",
+    "is_break": true,
+    "score": 0.6287774585656923,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "control_nested_router",
+    "category": "routing",
+    "is_break": false,
+    "score": 2.392383571354482,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_manual_dict_response",
+    "category": "serialization",
+    "is_break": true,
+    "score": 0.35240907739146415,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_msgpack_response",
+    "category": "serialization",
+    "is_break": true,
+    "score": 1.4666073281308893,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "control_response_model_list",
+    "category": "serialization",
+    "is_break": false,
+    "score": 0.11138453759745759,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "paradigm_break_assert_validation",
+    "category": "validation",
+    "is_break": true,
+    "score": 1.4049660242673614,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  },
+  {
+    "config": "mean_z",
+    "seed": 0,
+    "name": "control_field_validator",
+    "category": "validation",
+    "is_break": false,
+    "score": 2.0682115492126054,
+    "ctx_fallback": false,
+    "ctx_truncated": false
+  }
+]

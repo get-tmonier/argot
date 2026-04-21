@@ -74,7 +74,7 @@ def load_corpus(entry_dir: Path) -> list[dict[str, Any]]:
 
 
 def fixture_to_record(
-    entry_dir: Path, spec: FixtureSpec, context_mode: str = "baseline"
+    entry_dir: Path, spec: FixtureSpec, context_mode: str = "file_only"
 ) -> dict[str, Any]:
     fixture_path = entry_dir / spec.file
     source = fixture_path.read_text(encoding="utf-8")
