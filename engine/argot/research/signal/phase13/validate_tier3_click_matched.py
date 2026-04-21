@@ -74,8 +74,8 @@ def run(*, click_dir: Path, out: Path) -> dict[str, Any]:
     scorer.fit([], model_a_files=model_a)
     scores = scorer.score(records)
 
-    break_scores = [s for s, b in zip(scores, is_break) if b]
-    ctrl_scores = [s for s, b in zip(scores, is_break) if not b]
+    break_scores = [s for s, b in zip(scores, is_break, strict=False) if b]
+    ctrl_scores = [s for s, b in zip(scores, is_break, strict=False) if not b]
     auc = auc_from_scores(break_scores, ctrl_scores)
 
     _write_report(out, auc, scores, is_break, names, categories, model_a)
@@ -160,7 +160,7 @@ def _write_report(
         "| fixture | category | is_break | score |",
         "|---|---|---|---|",
     ]
-    for n, c, b, s in zip(names, categories, is_break, scores):
+    for n, c, b, s in zip(names, categories, is_break, scores, strict=False):
         lines.append(f"| {n} | {c} | {b} | {s:.4f} |")
     lines += [
         "",
