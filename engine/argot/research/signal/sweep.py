@@ -300,6 +300,8 @@ def _run_sweep(
 
     # Raw rows: (config_name, seed, delta_v2, delta_v1, delta_by_category, auc, auc_by_category)
     raw_rows: list[tuple[str, int, float, float, dict[str, float], float, dict[str, float]]] = []
+    # Per-fixture scores: (config_name, seed) -> list of {name, category, is_break, score}
+    fixture_scores: dict[tuple[str, int], list[dict[str, Any]]] = {}
 
     for cfg in configs:
         config_name: str = str(cfg["name"])
@@ -317,6 +319,7 @@ def _run_sweep(
             # per-category buckets: category -> (break_scores, ctrl_scores)
             cat_break: dict[str, list[float]] = {}
             cat_ctrl: dict[str, list[float]] = {}
+            run_fixture_scores: list[dict[str, Any]] = []
 
             for scope in scopes:
                 scope_corpus = scope_sorted_corpus.get(scope.name)
@@ -348,6 +351,15 @@ def _run_sweep(
                 for idx, spec in enumerate(scope_specs):
                     score = scores[idx]
                     category = spec.category
+                    rec = fixture_records[idx]
+                    run_fixture_scores.append({
+                        "name": spec.name,
+                        "category": category,
+                        "is_break": spec.is_break,
+                        "score": score,
+                        "ctx_fallback": rec.get("_ctx_fallback", False),
+                        "ctx_truncated": rec.get("_ctx_truncated", False),
+                    })
                     if spec.is_break:
                         break_scores.append(score)
                         if spec.set == "v1":
@@ -358,6 +370,8 @@ def _run_sweep(
                         if spec.set == "v1":
                             v1_ctrl_scores.append(score)
                         cat_ctrl.setdefault(category, []).append(score)
+
+            fixture_scores[(config_name, seed)] = run_fixture_scores
 
             break_mean = statistics.mean(break_scores) if break_scores else 0.0
             ctrl_mean = statistics.mean(ctrl_scores) if ctrl_scores else 0.0
@@ -393,7 +407,9 @@ def _run_sweep(
                 flush=True,
             )
 
-    _write_report(stage, entry_name, configs, seeds, raw_rows, out_dir, context_mode)
+    _write_report(
+        stage, entry_name, configs, seeds, raw_rows, fixture_scores, out_dir, context_mode
+    )
 
 
 def _write_report(
@@ -402,6 +418,7 @@ def _write_report(
     configs: list[dict[str, Any]],
     seeds: list[int],
     raw_rows: list[tuple[str, int, float, float, dict[str, float], float, dict[str, float]]],
+    fixture_scores: dict[tuple[str, int], list[dict[str, Any]]],
     out_dir: Path,
     context_mode: str = "baseline",
 ) -> None:
@@ -469,6 +486,14 @@ def _write_report(
 
     out_path.write_text("\n".join(lines))
     print(f"Report written to {out_path}", flush=True)
+
+    scores_path = out_dir / f"scores_{entry_name}_stage{stage}_{context_mode}_{date_str}.json"
+    scores_out: list[dict[str, Any]] = []
+    for (cfg_name, seed), fx_list in fixture_scores.items():
+        for fx in fx_list:
+            scores_out.append({"config": cfg_name, "seed": seed, **fx})
+    scores_path.write_text(json.dumps(scores_out, indent=2))
+    print(f"Scores written to {scores_path}", flush=True)
 
 
 def main() -> None:

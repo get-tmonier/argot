@@ -82,9 +82,13 @@ def fixture_to_record(
     lang = language_for_path(str(fixture_path)) or "python"
     hunk_start = spec.hunk_start_line - 1
     hunk_end = spec.hunk_end_line
+    ctx_fallback = False
+    ctx_truncated = False
     if context_mode != "baseline":
         result = build_context(source, spec.hunk_start_line, spec.hunk_end_line, context_mode)
         ctx_tokens_dicts = result.tokens
+        ctx_fallback = result.variant_fallback
+        ctx_truncated = result.truncated
     else:
         ctx_start = max(0, hunk_start - 20)
         ctx_tokens_dicts = [
@@ -98,6 +102,8 @@ def fixture_to_record(
         "context_before": ctx_tokens_dicts,
         "context_after": [],
         "hunk_tokens": [{"text": t.text} for t in hunk_tokens],
+        "_ctx_fallback": ctx_fallback,
+        "_ctx_truncated": ctx_truncated,
     }
 
 
