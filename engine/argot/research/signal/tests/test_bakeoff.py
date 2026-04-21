@@ -124,7 +124,7 @@ def test_run_bakeoff_returns_expected_keys() -> None:
             corpus_record = {"hunk_tokens": [{"text": "def"}, {"text": "foo"}]}
             fixture_record = {
                 "hunk_tokens": [{"text": "def"}],
-                "ctx_before_tokens": [],
+                "context_before": [],
             }
 
             with (
@@ -168,7 +168,7 @@ def test_run_bakeoff_auc_ordering() -> None:
             # (breaks are first in our test manifest)
             return [1.0, 0.0]
 
-    REGISTRY["_test_perfect"] = _PerfectScorer
+    REGISTRY["_test_perfect"] = lambda: _PerfectScorer()
 
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -206,7 +206,7 @@ def test_run_bakeoff_auc_ordering() -> None:
             (entry_dir / "f.py").write_text("x = 1\n")
 
             corpus_record = {"hunk_tokens": [{"text": "x"}]}
-            fixture_record = {"hunk_tokens": [{"text": "x"}], "ctx_before_tokens": []}
+            fixture_record = {"hunk_tokens": [{"text": "x"}], "context_before": []}
 
             with (
                 patch(

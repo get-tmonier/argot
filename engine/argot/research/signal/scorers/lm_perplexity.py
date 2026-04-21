@@ -34,7 +34,7 @@ class LmPerplexityScorer:
         scores: list[float] = []
         max_len: int = self._model.config.max_position_embeddings
         for rec in fixtures:
-            ctx_text = " ".join(t["text"] for t in rec.get("ctx_before_tokens", []))
+            ctx_text = " ".join(t["text"] for t in rec.get("context_before", []))
             hunk_text = " ".join(t["text"] for t in rec["hunk_tokens"])
             ctx_ids: list[int] = self._tokenizer.encode(ctx_text, add_special_tokens=False)
             hunk_ids: list[int] = self._tokenizer.encode(hunk_text, add_special_tokens=False)

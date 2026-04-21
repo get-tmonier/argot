@@ -208,13 +208,11 @@ def _write_report(result: dict[str, Any], out_dir: Path) -> None:
     # Summary table
     lines.append("## Summary: Overall AUC\n")
     if scorer_ci is not None:
-        lines.append("| scorer | overall_auc | auc_ci_lo | auc_ci_hi |")
+        lines.append("| scorer | overall_auc | delta_ci_lo | delta_ci_hi |")
         lines.append("|---|---|---|---|")
         for name in scorer_names:
             auc = scorer_aucs[name]["overall"]
             ci = scorer_ci[name]
-            # ci_lo/ci_hi here are *delta* CI, not absolute AUC CI —
-            # report them as delta_ci for clarity
             lines.append(f"| {name} | {auc:.4f} | {ci['ci_lo']:+.4f} | {ci['ci_hi']:+.4f} |")
     else:
         lines.append("| scorer | overall_auc |")

@@ -4,7 +4,8 @@ Zero-shot scorer: no training required, no fit() side-effects.
 
 Three registered variants:
   mlm_surprise_mean  — mean negative log-prob across hunk tokens (higher = more surprising)
-  mlm_surprise_min   — min negative log-prob (i.e. most surprising single token)
+  mlm_surprise_min   — minimum log-prob token = maximum single-token surprise — the single
+                        most OOV token in the hunk
   mlm_surprise_p05   — 5th-percentile negative log-prob (tail-extreme surprise)
 """
 
@@ -33,7 +34,8 @@ class MlmSurpriseScorer:
     variant:
         Aggregation variant over per-token log-probs.
         ``mean`` — arithmetic mean of negative log-probs.
-        ``min``  — minimum negative log-prob (= maximum single-token surprise).
+        ``min``  — minimum log-prob token = maximum single-token surprise
+                   (the single most OOV token in the hunk).
         ``p05``  — 5th-percentile negative log-prob (extreme tail).
     batch_size:
         Number of masked sequences processed per forward pass.
@@ -83,48 +85,28 @@ class MlmSurpriseScorer:
 
     def _score_one(self, rec: dict[str, Any]) -> float:
         """Compute the surprise score for a single fixture record."""
-        ctx_text = " ".join(t["text"] for t in rec.get("ctx_before_tokens", []))
+        ctx_text = " ".join(t["text"] for t in rec.get("context_before", []))
         hunk_text = " ".join(t["text"] for t in rec["hunk_tokens"])
 
-        full_text = (ctx_text + " " + hunk_text).strip() if ctx_text else hunk_text
+        # Encode context and hunk separately (no special tokens) to avoid BPE
+        # non-compositionality — joint encoding changes boundary tokens.
+        ctx_ids: list[int] = self._tokenizer.encode(ctx_text, add_special_tokens=False)
+        hunk_ids: list[int] = self._tokenizer.encode(hunk_text, add_special_tokens=False)
 
-        # Tokenize full text once to get all token ids
-        full_enc: Any = self._tokenizer(
-            full_text,
-            max_length=_MAX_LENGTH,
-            truncation=True,
-            return_tensors="pt",
-            add_special_tokens=True,
-        )
-        input_ids: torch.Tensor = full_enc["input_ids"][0]  # (seq_len,)
-        attention_mask: torch.Tensor = full_enc["attention_mask"][0]
+        # Truncate ctx to fit within max_length (leave room for [CLS] + [SEP] + hunk_ids)
+        max_ctx = max(0, _MAX_LENGTH - len(hunk_ids) - 2)
+        ctx_ids = ctx_ids[-max_ctx:] if max_ctx > 0 else []
 
-        # Tokenize context alone to find the boundary in the full sequence
-        # We identify hunk-position tokens as those after the ctx prefix in input_ids.
-        # To find the split point: tokenize context and count its tokens (minus special tokens).
-        if ctx_text:
-            ctx_enc: Any = self._tokenizer(
-                ctx_text,
-                max_length=_MAX_LENGTH,
-                truncation=True,
-                return_tensors="pt",
-                add_special_tokens=True,
-            )
-            # Number of real tokens in context (excluding [CLS] and [SEP])
-            ctx_token_count = int(ctx_enc["attention_mask"].sum()) - 2
-            # In the full sequence (with [CLS] at pos 0), hunk starts at:
-            # [CLS] + ctx_tokens → hunk starts at index 1 + ctx_token_count
-            hunk_start_pos = 1 + ctx_token_count
-        else:
-            # No context: hunk starts right after [CLS]
-            hunk_start_pos = 1
+        # Build full token sequence with special tokens
+        cls_id: int = int(self._tokenizer.cls_token_id)
+        sep_id: int = int(self._tokenizer.sep_token_id)
+        all_ids: list[int] = [cls_id] + ctx_ids + hunk_ids + [sep_id]
+        hunk_start_pos = 1 + len(ctx_ids)
+        hunk_end_pos = hunk_start_pos + len(hunk_ids)
 
-        seq_len = int(input_ids.shape[0])
-        # The last token is [SEP] — exclude it from masking
-        hunk_end_pos = seq_len - 1  # exclusive
+        input_ids: torch.Tensor = torch.tensor(all_ids)
+        attention_mask: torch.Tensor = torch.ones(len(all_ids), dtype=torch.long)
 
-        # Clamp start to avoid masking special tokens
-        hunk_start_pos = max(1, min(hunk_start_pos, hunk_end_pos))
         hunk_positions = list(range(hunk_start_pos, hunk_end_pos))
 
         if not hunk_positions:

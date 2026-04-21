@@ -30,15 +30,16 @@ def _make_scorer(variant: str) -> Any:
     scorer._device = torch.device("cpu")
     scorer._mask_token_id = _MASK_TOKEN_ID
 
-    # Fake tokenizer that returns deterministic fixed-length sequences
+    # Fake tokenizer that handles separate encode() calls for ctx and hunk
     tokenizer = MagicMock()
-    # full text encoding: seq of [101, 1, 2, 3, 4, 102] (CLS, tokens, SEP)
-    tokenizer.return_value = {
-        "input_ids": torch.tensor([[101, 1, 2, 3, 4, 102]]),
-        "attention_mask": torch.tensor([[1, 1, 1, 1, 1, 1]]),
-    }
-    # ctx encoding for boundary detection: [101, 1, 102] → 1 real ctx token
     tokenizer.mask_token_id = _MASK_TOKEN_ID
+    tokenizer.cls_token_id = 101
+    tokenizer.sep_token_id = 102
+    # encode() is called separately for ctx_text and hunk_text (no special tokens)
+    # ctx_text = "" → [] ; hunk_text = "tok0 tok1 tok2" → [1, 2, 3]
+    tokenizer.encode.side_effect = lambda text, add_special_tokens=True: (
+        [] if not text.strip() else [1, 2, 3]
+    )
     scorer._tokenizer = tokenizer
 
     # Fake MLM model: returns uniform logits so every token has the same log-prob
@@ -58,7 +59,7 @@ def _make_fixture(n_hunk: int = 3, with_ctx: bool = False) -> dict[str, Any]:
     hunk_tokens = [{"text": f"tok{i}"} for i in range(n_hunk)]
     result: dict[str, Any] = {"hunk_tokens": hunk_tokens}
     if with_ctx:
-        result["ctx_before_tokens"] = [{"text": "ctx_tok"}]
+        result["context_before"] = [{"text": "ctx_tok"}]
     return result
 
 
@@ -122,13 +123,13 @@ def test_score_empty_hunk_positions() -> None:
     """Edge case: a fixture that produces no hunk positions returns 0.0."""
     scorer = _make_scorer("mean")
 
-    # Force hunk_positions to be empty by returning a very short sequence
+    # Force hunk_positions to be empty by making encode() return [] for both ctx and hunk.
+    # With no hunk_ids, hunk_start_pos == hunk_end_pos and the range is empty.
     short_tokenizer = MagicMock()
-    short_tokenizer.return_value = {
-        "input_ids": torch.tensor([[101, 102]]),  # CLS + SEP only
-        "attention_mask": torch.tensor([[1, 1]]),
-    }
     short_tokenizer.mask_token_id = _MASK_TOKEN_ID
+    short_tokenizer.cls_token_id = 101
+    short_tokenizer.sep_token_id = 102
+    short_tokenizer.encode.return_value = []
     scorer._tokenizer = short_tokenizer
 
     result = scorer._score_one({"hunk_tokens": [{"text": "x"}]})
