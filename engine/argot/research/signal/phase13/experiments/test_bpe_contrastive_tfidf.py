@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,9 @@ _MODEL_CACHED = (
 _FASTAPI_DIR = (
     Path(__file__).parent.parent.parent.parent.parent / "acceptance" / "catalog" / "fastapi"
 )
+
+_CLICK_DIR = Path(os.environ.get("CLICK_DIR", "/tmp/click-clone"))
+_CLICK_AVAILABLE = _CLICK_DIR.is_dir()
 
 
 @pytest.mark.skipif(not _MODEL_CACHED, reason="microsoft/unixcoder-base not in local HF cache")
@@ -53,10 +57,12 @@ def test_bpe_end_to_end_fastapi_no_crash() -> None:
     assert all(isinstance(s, float) for s in scores)
 
 
+@pytest.mark.skipif(
+    not _CLICK_AVAILABLE, reason="CLICK_DIR not available; set env var to run this test"
+)
 def test_bpe_end_to_end_click_no_crash() -> None:
     """BPE click runner: loads 8 breaks + 10 controls, scores all, returns floats."""
     import json
-    import os
 
     from argot.acceptance.runner import FixtureSpec, fixture_to_record
     from argot.research.signal.phase13.experiments.bpe_contrastive_tfidf import _get_tokenizer
@@ -87,9 +93,7 @@ def test_bpe_end_to_end_click_no_crash() -> None:
         is_break_list.append(spec.is_break)
     assert sum(is_break_list) == 8
     assert sum(not b for b in is_break_list) == 10
-    click_dir = Path(os.environ.get("CLICK_DIR", "/tmp/click-clone"))
-    if not click_dir.is_dir():
-        pytest.skip("CLICK_DIR not available; set env var to run this test")
+    click_dir = _CLICK_DIR
     tokenizer = _get_tokenizer()
     model_a, total_a = _build_model_a_bpe_click(click_dir, tokenizer)
     model_b, total_b = _load_model_b_bpe()

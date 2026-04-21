@@ -1,3 +1,4 @@
+# engine/argot/research/signal/phase13/experiments/bpe_contrastive_tfidf_click.py
 """Phase 13: BPE-contrastive TF-IDF on click (tier3 matched).
 
 Mirrors bpe_contrastive_tfidf.py but uses click's 18-fixture matched manifest.
