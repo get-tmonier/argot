@@ -1,0 +1,2010 @@
+{
+  "fastapi": {
+    "domain": "fastapi",
+    "n_model_a_files": 20,
+    "n_calibration": 20,
+    "bpe_threshold": 3.978308337527383,
+    "n_breaks": 31,
+    "n_controls": 20,
+    "n_breaks_flagged": 31,
+    "n_controls_flagged": 0,
+    "break_recall": 1.0,
+    "fp_rate": 0.0,
+    "fixtures": [
+      {
+        "name": "paradigm_break_flask_routing",
+        "category": "routing",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 7.66421431885002,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "paradigm_break_django_cbv",
+        "category": "framework_swap",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 8.723855691365914,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "paradigm_break_aiohttp_handler",
+        "category": "framework_swap",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 8.543228612092417,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "paradigm_break_manual_validation",
+        "category": "validation",
+        "is_break": true,
+        "import_score": 0.0,
+        "bpe_score": 8.63267553216042,
+        "flagged": true,
+        "reason": "bpe"
+      },
+      {
+        "name": "paradigm_break_subtle_wrong_exception",
+        "category": "exception_handling",
+        "is_break": true,
+        "import_score": 0.0,
+        "bpe_score": 8.182544781211949,
+        "flagged": true,
+        "reason": "bpe"
+      },
+      {
+        "name": "paradigm_break_subtle_manual_status_check",
+        "category": "downstream_http",
+        "is_break": true,
+        "import_score": 0.0,
+        "bpe_score": 7.672526488331739,
+        "flagged": true,
+        "reason": "bpe"
+      },
+      {
+        "name": "paradigm_break_subtle_sync_endpoint",
+        "category": "async_blocking",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 8.723855691365914,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "paradigm_break_subtle_exception_swallow",
+        "category": "exception_handling",
+        "is_break": true,
+        "import_score": 0.0,
+        "bpe_score": 7.672526488331739,
+        "flagged": true,
+        "reason": "bpe"
+      },
+      {
+        "name": "control_router_endpoint",
+        "category": "routing",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 2.365406474712925,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "control_dependency_injection",
+        "category": "dependency_injection",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 2.4308688625700112,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "control_exception_handling",
+        "category": "exception_handling",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 2.603324822289416,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "paradigm_break_starlette_mount",
+        "category": "routing",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 7.503862564321757,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "paradigm_break_tornado_handler",
+        "category": "framework_swap",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 8.691517167936826,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "paradigm_break_voluptuous_validation",
+        "category": "validation",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 8.05903299819107,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "paradigm_break_cerberus_validation",
+        "category": "validation",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 8.723855691365914,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "paradigm_break_manual_json_response",
+        "category": "serialization",
+        "is_break": true,
+        "import_score": 2.0,
+        "bpe_score": 8.723855691365914,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "paradigm_break_bare_except",
+        "category": "exception_handling",
+        "is_break": true,
+        "import_score": 0.0,
+        "bpe_score": 8.765292950518374,
+        "flagged": true,
+        "reason": "bpe"
+      },
+      {
+        "name": "paradigm_break_event_loop_blocking",
+        "category": "async_blocking",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 7.50018135193722,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "paradigm_break_sync_requests_in_async",
+        "category": "downstream_http",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 7.50018135193722,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "paradigm_break_concurrent_futures_background",
+        "category": "background_tasks",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 8.05903299819107,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "control_pydantic_validator",
+        "category": "validation",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 1.302562129250814,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "control_response_model",
+        "category": "serialization",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 1.6501936871203817,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "control_async_streaming",
+        "category": "async_blocking",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 3.2149145949659195,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "control_httpx_async",
+        "category": "downstream_http",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 1.8791423970148555,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "control_annotated_depends",
+        "category": "dependency_injection",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 2.089700582167228,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "paradigm_break_sync_file_io_async",
+        "category": "async_blocking",
+        "is_break": true,
+        "import_score": 0.0,
+        "bpe_score": 7.50018135193722,
+        "flagged": true,
+        "reason": "bpe"
+      },
+      {
+        "name": "control_anyio_thread_offload",
+        "category": "async_blocking",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 2.437516196918229,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "paradigm_break_multiprocessing_background",
+        "category": "background_tasks",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 8.691517167936826,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "paradigm_break_queue_carryover",
+        "category": "background_tasks",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 8.614689075070117,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "paradigm_break_atexit_background",
+        "category": "background_tasks",
+        "is_break": true,
+        "import_score": 2.0,
+        "bpe_score": 8.723855691365914,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "control_background_tasks_basic",
+        "category": "background_tasks",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 2.2293667222406652,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "control_background_tasks_depends",
+        "category": "background_tasks",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 3.2149145949659195,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "paradigm_break_manual_generator_drain",
+        "category": "dependency_injection",
+        "is_break": true,
+        "import_score": 0.0,
+        "bpe_score": 7.50018135193722,
+        "flagged": true,
+        "reason": "bpe"
+      },
+      {
+        "name": "paradigm_break_class_instance_no_depends",
+        "category": "dependency_injection",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 8.765292950518374,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "control_nested_depends",
+        "category": "dependency_injection",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 2.930511533476129,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "paradigm_break_aiohttp_no_context",
+        "category": "downstream_http",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 8.05692173355526,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "control_httpx_depends",
+        "category": "downstream_http",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 1.8568898527112783,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "paradigm_break_json_error_response",
+        "category": "exception_handling",
+        "is_break": true,
+        "import_score": 0.0,
+        "bpe_score": 7.557513917961375,
+        "flagged": true,
+        "reason": "bpe"
+      },
+      {
+        "name": "paradigm_break_traceback_in_response",
+        "category": "exception_handling",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 8.160558278007837,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "paradigm_break_flask_errorhandler",
+        "category": "exception_handling",
+        "is_break": true,
+        "import_score": 0.0,
+        "bpe_score": 7.50018135193722,
+        "flagged": true,
+        "reason": "bpe"
+      },
+      {
+        "name": "control_exception_handler_registration",
+        "category": "exception_handling",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 2.603324822289416,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "control_lifespan_context",
+        "category": "framework_swap",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 1.6608679764742567,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "control_apirouter_composition",
+        "category": "framework_swap",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 2.930511533476129,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "control_mounted_subapp",
+        "category": "framework_swap",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 2.0661769431685295,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "paradigm_break_imperative_route_loop",
+        "category": "routing",
+        "is_break": true,
+        "import_score": 0.0,
+        "bpe_score": 7.656884057969007,
+        "flagged": true,
+        "reason": "bpe"
+      },
+      {
+        "name": "control_nested_router",
+        "category": "routing",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 1.6608679764742567,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "paradigm_break_manual_dict_response",
+        "category": "serialization",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 8.723855691365914,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "paradigm_break_msgpack_response",
+        "category": "serialization",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 8.723855691365914,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "control_response_model_list",
+        "category": "serialization",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 3.978308337527383,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "paradigm_break_assert_validation",
+        "category": "validation",
+        "is_break": true,
+        "import_score": 0.0,
+        "bpe_score": 8.63267553216042,
+        "flagged": true,
+        "reason": "bpe"
+      },
+      {
+        "name": "control_field_validator",
+        "category": "validation",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 2.7047389522005476,
+        "flagged": false,
+        "reason": "none"
+      }
+    ]
+  },
+  "rich": {
+    "domain": "rich",
+    "n_model_a_files": 72,
+    "n_calibration": 10,
+    "bpe_threshold": 5.598398318239187,
+    "n_breaks": 10,
+    "n_controls": 10,
+    "n_breaks_flagged": 10,
+    "n_controls_flagged": 0,
+    "break_recall": 1.0,
+    "fp_rate": 0.0,
+    "fixtures": [
+      {
+        "name": "control_console_capture",
+        "category": "control_console",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 4.3089436542533655,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "control_console_init",
+        "category": "control_console",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 4.814375659549144,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "control_table_add_column_body",
+        "category": "control_table",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 4.181585066374691,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "control_table_rich_console",
+        "category": "control_table",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 5.598398318239187,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "control_live_enter_exit",
+        "category": "control_live",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 4.933260536484301,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "control_live_renderable",
+        "category": "control_live",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 3.7667351676728096,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "control_text_init",
+        "category": "control_text",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 3.3206036558835503,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "control_text_styled",
+        "category": "control_text",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 4.2472905177447196,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "control_panel_init_body",
+        "category": "control_panel",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 4.1470391077421525,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "control_panel_rich_console",
+        "category": "control_panel",
+        "is_break": false,
+        "import_score": 0.0,
+        "bpe_score": 2.933042812787331,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "break_ansi_raw_1",
+        "category": "ansi_raw",
+        "is_break": true,
+        "import_score": 0.0,
+        "bpe_score": 7.7849549555955875,
+        "flagged": true,
+        "reason": "bpe"
+      },
+      {
+        "name": "break_ansi_raw_2",
+        "category": "ansi_raw",
+        "is_break": true,
+        "import_score": 0.0,
+        "bpe_score": 5.685100998314903,
+        "flagged": true,
+        "reason": "bpe"
+      },
+      {
+        "name": "break_colorama_1",
+        "category": "colorama",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 6.729681876256576,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "break_colorama_2",
+        "category": "colorama",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 5.966250208814639,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "break_termcolor_1",
+        "category": "termcolor",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 6.152884840714487,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "break_termcolor_2",
+        "category": "termcolor",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 6.729681876256576,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "break_curses_1",
+        "category": "curses",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 6.216994733115355,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "break_curses_2",
+        "category": "curses",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 7.668379040086203,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "break_print_manual_1",
+        "category": "print_manual",
+        "is_break": true,
+        "import_score": 0.0,
+        "bpe_score": 7.347760448693386,
+        "flagged": true,
+        "reason": "bpe"
+      },
+      {
+        "name": "break_print_manual_2",
+        "category": "print_manual",
+        "is_break": true,
+        "import_score": 0.0,
+        "bpe_score": 6.729681876256576,
+        "flagged": true,
+        "reason": "bpe"
+      }
+    ]
+  },
+  "faker": {
+    "domain": "faker",
+    "n_model_a_files": 722,
+    "n_calibration": 159,
+    "bpe_threshold": 7.373205321984541,
+    "n_breaks": 5,
+    "n_calibration_hunks": 159,
+    "n_breaks_flagged": 5,
+    "n_cal_flagged": 0,
+    "break_recall": 1.0,
+    "cal_fp_rate": 0.0,
+    "hunk_0047": {
+      "name": "faker_hunk_0047",
+      "file_path": "faker/providers/date_time/__init__.py",
+      "import_score": 0.0,
+      "bpe_score": 7.373205321984541,
+      "flagged": false,
+      "reason": "none"
+    },
+    "break_fixtures": [
+      {
+        "name": "break_mimesis_alt_1",
+        "category": "mimesis_alt",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 4.204340393662699,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "break_threading_provider_1",
+        "category": "threading_provider",
+        "is_break": true,
+        "import_score": 2.0,
+        "bpe_score": 6.95894304574081,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "break_sqlalchemy_sink_1",
+        "category": "sqlalchemy_sink",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 6.956828655756679,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "break_numpy_random_1",
+        "category": "numpy_random",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 4.593258125805839,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "break_requests_source_1",
+        "category": "requests_source",
+        "is_break": true,
+        "import_score": 1.0,
+        "bpe_score": 7.380159938259968,
+        "flagged": true,
+        "reason": "import"
+      }
+    ],
+    "calibration": [
+      {
+        "name": "faker_hunk_0001",
+        "file_path": "faker/providers/date_time/ar_DZ/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.555965023330291,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0002",
+        "file_path": "faker/providers/ssn/ar_DZ/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 5.614037179692378,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0003",
+        "file_path": "faker/providers/bank/de_CH/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.077849602967458,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0004",
+        "file_path": "faker/providers/person/es_MX/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 0.8109009476726117,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0005",
+        "file_path": "faker/providers/person/es_MX/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.5135471964670604,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0006",
+        "file_path": "faker/providers/address/pl_PL/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.120963518079309,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0007",
+        "file_path": "faker/providers/passport/it_IT/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.4613340818038765,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0008",
+        "file_path": "faker/providers/ssn/it_IT/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.9112477891578443,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0009",
+        "file_path": "faker/providers/bank/el_GR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 4.505095617895375,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0010",
+        "file_path": "faker/providers/internet/pt_BR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.0733114014838545,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0011",
+        "file_path": "faker/providers/python/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 4.55097557888247,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0012",
+        "file_path": "faker/providers/company/fr_FR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 4.201531104084231,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0013",
+        "file_path": "faker/sphinx/validator.py",
+        "import_score": 0.0,
+        "bpe_score": 4.564884528885181,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0014",
+        "file_path": "faker/providers/company/fr_FR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": -0.798582171641594,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0015",
+        "file_path": "faker/providers/company/fr_FR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 4.634774341381808,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0016",
+        "file_path": "faker/providers/person/en_NG/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 0.7196456475988153,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0017",
+        "file_path": "faker/providers/person/en_NG/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.350734784291241,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0018",
+        "file_path": "faker/providers/person/ha_NG/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 0.8621370569834053,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0019",
+        "file_path": "faker/providers/person/ha_NG/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.8693083998900946,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0020",
+        "file_path": "faker/providers/person/ig_NG/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.7666041622678836,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0021",
+        "file_path": "faker/providers/person/ig_NG/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.4981780245484533,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0022",
+        "file_path": "faker/providers/person/en_NG/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.519908100729591,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0023",
+        "file_path": "faker/providers/person/ha_NG/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.519908100729591,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0024",
+        "file_path": "faker/providers/person/ig_NG/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.519908100729591,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0025",
+        "file_path": "faker/providers/automotive/ko_KR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.630220914273993,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0026",
+        "file_path": "faker/providers/automotive/ko_KR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 5.692622668359421,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0027",
+        "file_path": "faker/providers/ssn/tr_TR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.497991833235073,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0028",
+        "file_path": "faker/providers/address/it_IT/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.7643439533756613,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0029",
+        "file_path": "faker/providers/address/uk_UA/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.9967237215489266,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0030",
+        "file_path": "faker/providers/address/zu_ZA/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.7643439533756613,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0031",
+        "file_path": "faker/providers/color/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.837054342468055,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0032",
+        "file_path": "faker/providers/credit_card/zh_CN/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.236580344374034,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0033",
+        "file_path": "faker/providers/doi/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.5627194856091773,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0034",
+        "file_path": "faker/providers/currency/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.429091721193787,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0035",
+        "file_path": "faker/providers/currency/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 0.6784531473594289,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0036",
+        "file_path": "faker/providers/company/de_AT/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.6352980838487206,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0037",
+        "file_path": "faker/providers/company/de_CH/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.6474852023631712,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0038",
+        "file_path": "faker/providers/passport/de_AT/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.5726282515230814,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0039",
+        "file_path": "faker/providers/person/de_AT/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0040",
+        "file_path": "faker/providers/person/de_DE/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.1339091954003013,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0041",
+        "file_path": "faker/providers/phone_number/de_LU/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0042",
+        "file_path": "faker/providers/ssn/de_AT/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 4.495981718009183,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0043",
+        "file_path": "faker/providers/phone_number/de_CH/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.294346019576741,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0044",
+        "file_path": "faker/providers/phone_number/it_CH/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.294346019576741,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0045",
+        "file_path": "faker/providers/date_time/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 4.706385706276386,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0046",
+        "file_path": "faker/providers/date_time/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 4.861022425476044,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0047",
+        "file_path": "faker/providers/date_time/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 7.373205321984541,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0048",
+        "file_path": "faker/providers/date_time/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 4.326960417038477,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0049",
+        "file_path": "faker/providers/bank/nl_BE/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.3818068297881325,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0050",
+        "file_path": "faker/providers/passport/ru_RU/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 4.329502480921409,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0051",
+        "file_path": "faker/providers/address/ko_KR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 4.4476167377609315,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0052",
+        "file_path": "faker/providers/date_time/uz_UZ/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0053",
+        "file_path": "faker/providers/phone_number/uz_UZ/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.6352980838487206,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0054",
+        "file_path": "faker/providers/address/uk_UA/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": -0.798582171641594,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0055",
+        "file_path": "faker/providers/address/uk_UA/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": -0.798582171641594,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0056",
+        "file_path": "faker/providers/address/uk_UA/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": -0.798582171641594,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0057",
+        "file_path": "faker/providers/date_time/ka_GE/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0058",
+        "file_path": "faker/providers/phone_number/ka_GE/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.6352980838487206,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0059",
+        "file_path": "faker/providers/person/uk_UA/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.41236357311921,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0060",
+        "file_path": "faker/providers/isbn/en_US/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.6346951510502414,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0061",
+        "file_path": "faker/providers/isbn/es_ES/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.6346951510502414,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0062",
+        "file_path": "faker/providers/company/vi_VN/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0063",
+        "file_path": "faker/providers/date_time/vi_VN/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0064",
+        "file_path": "faker/providers/job/vi_VN/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 4.099968100346735,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0065",
+        "file_path": "faker/providers/phone_number/vi_VN/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.4563494662861585,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0066",
+        "file_path": "faker/providers/geo/sk_SK/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 0.7258156382375116,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0067",
+        "file_path": "faker/providers/lorem/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 4.326960417038477,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0068",
+        "file_path": "faker/providers/geo/pl_PL/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.6502455148753796,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0069",
+        "file_path": "faker/providers/geo/pl_PL/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.6502455148753796,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0070",
+        "file_path": "faker/providers/geo/pl_PL/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.6502455148753796,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0071",
+        "file_path": "faker/providers/ssn/nl_BE/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.3139798147697714,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0072",
+        "file_path": "faker/providers/geo/pl_PL/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.800011963293249,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0073",
+        "file_path": "faker/providers/geo/sk_SK/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.589435542431099,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0074",
+        "file_path": "faker/providers/person/pt_BR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 0.9610453451009526,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0075",
+        "file_path": "faker/providers/person/pt_BR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.256905641417805,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0076",
+        "file_path": "faker/providers/person/pt_BR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.5585347451436125,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0077",
+        "file_path": "faker/providers/person/pt_BR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 0.6238628528398795,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0078",
+        "file_path": "faker/providers/phone_number/cs_CZ/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.221175433526403,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0079",
+        "file_path": "faker/providers/python/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.6943824303238166,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0080",
+        "file_path": "faker/providers/ssn/uk_UA/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 4.509241859906255,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0081",
+        "file_path": "faker/providers/internet/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 5.075983696276934,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0082",
+        "file_path": "faker/providers/file/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 5.299127616107718,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0083",
+        "file_path": "faker/providers/color/color.py",
+        "import_score": 0.0,
+        "bpe_score": 3.991030461777221,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0084",
+        "file_path": "faker/providers/date_time/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 4.4619991229694875,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0085",
+        "file_path": "faker/providers/ssn/it_IT/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.991030461777221,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0086",
+        "file_path": "faker/providers/color/cs_CZ/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.4563494662861585,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0087",
+        "file_path": "faker/providers/address/cs_CZ/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.4854785857993367,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0088",
+        "file_path": "faker/providers/phone_number/cs_CZ/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.1948478946430523,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0089",
+        "file_path": "faker/providers/person/cs_CZ/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.7724274053181626,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0090",
+        "file_path": "faker/providers/person/cs_CZ/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 0.7928293052318693,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0091",
+        "file_path": "faker/providers/python/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 4.4619991229694875,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0092",
+        "file_path": "faker/providers/person/lv_LV/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.0713871318168025,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0093",
+        "file_path": "faker/providers/color/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.1827324806915156,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0094",
+        "file_path": "faker/providers/color/color.py",
+        "import_score": 0.0,
+        "bpe_score": 3.251306861453717,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0095",
+        "file_path": "faker/providers/internet/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 5.0256183592213794,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0096",
+        "file_path": "faker/providers/ssn/es_MX/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.6088680114596032,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0097",
+        "file_path": "faker/providers/automotive/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 5.4778049548733065,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0098",
+        "file_path": "faker/providers/phone_number/fr_FR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.3154410925493423,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0099",
+        "file_path": "faker/providers/phone_number/en_US/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 0.7143991524519553,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0100",
+        "file_path": "faker/providers/passport/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 4.3368581690240795,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0101",
+        "file_path": "faker/providers/misc/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 4.861022425476044,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0102",
+        "file_path": "faker/providers/bank/zh_CN/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0103",
+        "file_path": "faker/providers/automotive/zh_CN/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.814421613231298,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0104",
+        "file_path": "faker/providers/automotive/zh_TW/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.262583051311811,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0105",
+        "file_path": "faker/providers/ssn/zh_TW/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.3971422832561444,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0106",
+        "file_path": "faker/providers/address/en_US/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.6584163805458694,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0107",
+        "file_path": "faker/providers/python/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.837054342468055,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0108",
+        "file_path": "faker/providers/automotive/nl_BE/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.4563494662861585,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0109",
+        "file_path": "faker/providers/sbn/rules.py",
+        "import_score": 0.0,
+        "bpe_score": 4.74663361440389,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0110",
+        "file_path": "faker/providers/sbn/sbn.py",
+        "import_score": 0.0,
+        "bpe_score": 4.74663361440389,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0111",
+        "file_path": "faker/providers/date_time/zh_TW/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0112",
+        "file_path": "faker/providers/address/es_AR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 0.0512448566334176,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0113",
+        "file_path": "faker/providers/automotive/es_AR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.498149128787542,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0114",
+        "file_path": "faker/providers/internet/es_AR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.6352980838487206,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0115",
+        "file_path": "faker/providers/phone_number/es_AR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.757535846535893,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0116",
+        "file_path": "faker/providers/bank/es_AR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.9112477891578443,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0117",
+        "file_path": "faker/providers/misc/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 4.319832969671602,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0118",
+        "file_path": "faker/providers/address/pl_PL/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0119",
+        "file_path": "faker/providers/date_time/sl_SI/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0120",
+        "file_path": "faker/providers/address/es_AR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 0.0512448566334176,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0121",
+        "file_path": "faker/providers/automotive/es_AR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.498149128787542,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0122",
+        "file_path": "faker/providers/misc/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 4.319832969671602,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0123",
+        "file_path": "faker/providers/address/pl_PL/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0124",
+        "file_path": "faker/providers/misc/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 4.319832969671602,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0125",
+        "file_path": "faker/providers/address/pl_PL/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0126",
+        "file_path": "faker/providers/date_time/sl_SI/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0127",
+        "file_path": "faker/providers/phone_number/es_AR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.757535846535893,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0128",
+        "file_path": "faker/providers/bank/es_AR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.9112477891578443,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0129",
+        "file_path": "faker/providers/internet/es_AR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.6352980838487206,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0130",
+        "file_path": "faker/providers/bank/en_IN/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.1827324806915156,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0131",
+        "file_path": "faker/providers/date_time/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.6269622151178886,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0132",
+        "file_path": "faker/providers/date_time/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.35932969425172,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0133",
+        "file_path": "faker/providers/date_time/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.103843891119519,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0134",
+        "file_path": "faker/providers/date_time/ar_AA/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.6269622151178886,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0135",
+        "file_path": "faker/providers/date_time/ar_AA/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.35932969425172,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0136",
+        "file_path": "faker/providers/date_time/ar_AA/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.35932969425172,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0137",
+        "file_path": "faker/providers/date_time/bn_BD/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.35932969425172,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0138",
+        "file_path": "faker/providers/date_time/bn_BD/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.35932969425172,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0139",
+        "file_path": "faker/providers/date_time/bn_BD/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.35932969425172,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0140",
+        "file_path": "faker/providers/address/az_AZ/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.2886705465973085,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0141",
+        "file_path": "faker/providers/person/et_EE/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0142",
+        "file_path": "faker/providers/person/ja_JP/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0143",
+        "file_path": "faker/providers/python/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 5.4778049548733065,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0144",
+        "file_path": "faker/providers/internet/bn_BD/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.546363948006178,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0145",
+        "file_path": "faker/providers/ssn/bn_BD/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.3409274885401876,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0146",
+        "file_path": "faker/providers/automotive/de_CH/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 4.495981718009183,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0147",
+        "file_path": "faker/providers/date_time/th_TH/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.6088680114596032,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0148",
+        "file_path": "faker/providers/address/az_AZ/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.2886705465973085,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0149",
+        "file_path": "faker/providers/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 6.0009068116880435,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0150",
+        "file_path": "faker/providers/person/et_EE/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.1827324806915156,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0151",
+        "file_path": "faker/providers/internet/tr_TR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 1.6352980838487206,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0152",
+        "file_path": "faker/providers/person/tr_TR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 0.4606708797896708,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0153",
+        "file_path": "faker/providers/date_time/es/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0154",
+        "file_path": "faker/providers/internet/es_CL/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 3.9238944202997104,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0155",
+        "file_path": "faker/providers/date_time/fr_FR/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0156",
+        "file_path": "faker/providers/date_time/no_NO/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0157",
+        "file_path": "faker/providers/date_time/zh_CN/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0158",
+        "file_path": "faker/providers/automotive/vi_VN/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.8839431913961215,
+        "flagged": false,
+        "reason": "none"
+      },
+      {
+        "name": "faker_hunk_0159",
+        "file_path": "faker/providers/automotive/it_IT/__init__.py",
+        "import_score": 0.0,
+        "bpe_score": 2.4563494662861585,
+        "flagged": false,
+        "reason": "none"
+      }
+    ]
+  }
+}
