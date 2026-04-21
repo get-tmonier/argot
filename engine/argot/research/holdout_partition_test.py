@@ -163,7 +163,7 @@ def main() -> None:
 
         # Save cache
         CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with CACHE_PATH.open("wb") as f:
+        with CACHE_PATH.open("wb") as f:  # type: ignore[assignment]
             pickle.dump(scored, f)
         print(f"\nScores cached to {CACHE_PATH}")
 

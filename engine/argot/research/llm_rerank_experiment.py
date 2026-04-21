@@ -22,8 +22,6 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from argot.acceptance.runner import CATALOG_DIR, FixtureSpec, fixture_to_record, load_manifest
 from argot.jepa.pretrained_encoder import PretrainedEncoder, select_device
-from argot.train import _texts_for_records
-from argot.validate import compute_auc
 from argot.research.static_chunk_audit_test import (
     ENCODER_MODEL,
     ENSEMBLE_N,
@@ -32,10 +30,12 @@ from argot.research.static_chunk_audit_test import (
     WINNER_BETA,
     WINNER_TAU,
     WINNER_WARMUP,
-    _EnsembleForAudit,
     _clone_or_reuse,
+    _EnsembleForAudit,
     _extract_chunks,
 )
+from argot.train import _texts_for_records
+from argot.validate import compute_auc
 
 LLM_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
 ENTRY_DIR = CATALOG_DIR / "fastapi"
@@ -200,7 +200,7 @@ def _category_auc_table(
 ) -> list[tuple[str, float, float]]:
     """Per-category AUC: JEPA vs LLM (skip categories with only one class)."""
     cats: dict[str, list[tuple[float, float, bool]]] = {}
-    for s, j, lv in zip(specs, jepa, llm):
+    for s, j, lv in zip(specs, jepa, llm, strict=False):
         cats.setdefault(s.category, []).append((j, lv, s.is_break))
 
     rows = []
@@ -245,7 +245,7 @@ def _print_results(
 
     print("\n=== Per-fixture P(FOREIGN) ===")
     print(f"  {'fixture':48}  {'truth':>5}  {'P(FOR)':>6}  {'JEPA':>6}")
-    for s, j, lv in sorted(zip(specs, jepa, llm), key=lambda x: -x[2]):
+    for s, j, lv in sorted(zip(specs, jepa, llm, strict=False), key=lambda x: -x[2]):
         truth = "BREAK" if s.is_break else "CTRL"
         print(f"  {s.name:48}  {truth:>5}  {lv:.3f}   {j:.4f}")
 
@@ -306,8 +306,10 @@ def _write_report(
 
 def main() -> None:
     t_start = time.perf_counter()
-    device = "mps" if torch.backends.mps.is_available() else (
-        "cuda" if torch.cuda.is_available() else "cpu"
+    device = (
+        "mps"
+        if torch.backends.mps.is_available()
+        else ("cuda" if torch.cuda.is_available() else "cpu")
     )
 
     # 1. Clone/reuse + cache key
@@ -335,7 +337,10 @@ def main() -> None:
 
     print(f"\nTraining JEPA on {len(core_chunks)} core chunks ...", flush=True)
     ensemble = _EnsembleForAudit(
-        n=ENSEMBLE_N, beta=WINNER_BETA, tau=WINNER_TAU, warmup_epochs=WINNER_WARMUP,
+        n=ENSEMBLE_N,
+        beta=WINNER_BETA,
+        tau=WINNER_TAU,
+        warmup_epochs=WINNER_WARMUP,
     )
     ensemble.fit(core_chunks, preencoded=core_enc)
 

@@ -63,6 +63,7 @@ def _file_class_for_path(rel_path: str) -> str:
         return "docs_scripts"
     return "core"
 
+
 # Baseline: commit-hunk holdout scorer on the 2000-record FastAPI catalog corpus
 BASELINE_CORPUS_MEAN: float = 0.6907
 BASELINE_P95: float = 1.2123
@@ -556,7 +557,7 @@ def _per_category_delta(
 ) -> list[tuple[str, float, float, float, int, int]]:
     """Return [(category, break_mean, ctrl_mean, delta, n_break, n_ctrl), ...]."""
     by_cat: dict[str, tuple[list[float], list[float]]] = {}
-    for spec, score in zip(specs, fixture_scores):
+    for spec, score in zip(specs, fixture_scores, strict=False):
         cat = spec.category
         if cat not in by_cat:
             by_cat[cat] = ([], [])
@@ -581,7 +582,7 @@ def _stratified_chunk_scores(
 ) -> list[float]:
     """Z-score chunk scores within each file class to remove between-class offset."""
     class_vals: dict[str, list[float]] = {}
-    for c, s in zip(chunks, chunk_scores):
+    for c, s in zip(chunks, chunk_scores, strict=False):
         fc = str(c.get("_file_class", "core"))
         class_vals.setdefault(fc, []).append(s)
     class_stats: dict[str, tuple[float, float]] = {}
@@ -591,7 +592,7 @@ def _stratified_chunk_scores(
         sigma = float(arr.std()) if arr.std() > 0 else 1.0
         class_stats[fc] = (mu, sigma)
     result = []
-    for c, s in zip(chunks, chunk_scores):
+    for c, s in zip(chunks, chunk_scores, strict=False):
         fc = str(c.get("_file_class", "core"))
         mu, sigma = class_stats[fc]
         result.append((s - mu) / sigma)
@@ -605,7 +606,7 @@ def _core_fixture_auc(
     """AUC on non-framework_swap fixtures only (harder subtlety signal)."""
     pairs = [
         (s, score)
-        for s, score in zip(specs, fixture_scores)
+        for s, score in zip(specs, fixture_scores, strict=False)
         if s.category != "framework_swap"
     ]
     core_breaks = [score for s, score in pairs if s.is_break]
@@ -627,8 +628,8 @@ def _print_phase2_block(
     core_auc = _core_fixture_auc(specs, fixture_scores)
     cat_rows = _per_category_delta(specs, fixture_scores)
 
-    break_scores = [s for spec, s in zip(specs, fixture_scores) if spec.is_break]
-    ctrl_scores = [s for spec, s in zip(specs, fixture_scores) if not spec.is_break]
+    break_scores = [s for spec, s in zip(specs, fixture_scores, strict=False) if spec.is_break]
+    ctrl_scores = [s for spec, s in zip(specs, fixture_scores, strict=False) if not spec.is_break]
     delta = (
         statistics.mean(break_scores) - statistics.mean(ctrl_scores)
         if break_scores and ctrl_scores
@@ -683,8 +684,8 @@ def _write_phase8_bias_fix_report(
     core_auc = _core_fixture_auc(specs, fixture_scores)
     cat_rows = _per_category_delta(specs, fixture_scores)
 
-    break_scores = [s for spec, s in zip(specs, fixture_scores) if spec.is_break]
-    ctrl_scores = [s for spec, s in zip(specs, fixture_scores) if not spec.is_break]
+    break_scores = [s for spec, s in zip(specs, fixture_scores, strict=False) if spec.is_break]
+    ctrl_scores = [s for spec, s in zip(specs, fixture_scores, strict=False) if not spec.is_break]
     delta = (
         statistics.mean(break_scores) - statistics.mean(ctrl_scores)
         if break_scores and ctrl_scores
@@ -717,7 +718,7 @@ def _write_phase8_bias_fix_report(
         "",
         "## Top-20 Composition",
         "",
-        f"| File class | Count |",
+        "| File class | Count |",
         "|------------|------:|",
         f"| core | {comp.get('core', 0)} |",
         f"| test | {comp.get('test', 0)} |",
@@ -748,7 +749,7 @@ def _write_phase8_bias_fix_report(
             "",
             "## Fallback: Stratified Z-score Top-20 Composition",
             "",
-            f"| File class | Count |",
+            "| File class | Count |",
             "|------------|------:|",
             f"| core | {strat_comp.get('core', 0)} |",
             f"| test | {strat_comp.get('test', 0)} |",

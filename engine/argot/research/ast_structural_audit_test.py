@@ -25,7 +25,9 @@ from argot.acceptance.runner import (
     load_manifest,
 )
 from argot.research.signal.base import REGISTRY
-from argot.research.signal.scorers.ast_structural import AstStructuralScorer  # noqa: F401 — populates REGISTRY
+from argot.research.signal.scorers.ast_structural import (
+    AstStructuralScorer,  # noqa: F401 — populates REGISTRY
+)
 from argot.research.static_chunk_audit_test import (
     ENCODER_MODEL,
     ENSEMBLE_N,
@@ -36,8 +38,6 @@ from argot.research.static_chunk_audit_test import (
     _clone_or_reuse,
     _EnsembleForAudit,
     _extract_chunks,
-    _per_category_delta,
-    _top20_composition,
 )
 from argot.validate import compute_auc
 
@@ -251,8 +251,7 @@ def _run_config(
         best_blend: dict[str, Any] = {}
         for w_ast in BLEND_WEIGHTS:
             blended = [
-                (1 - w_ast) * j + w_ast * a
-                for j, a in zip(jepa_z_scores, ast_z, strict=False)
+                (1 - w_ast) * j + w_ast * a for j, a in zip(jepa_z_scores, ast_z, strict=False)
             ]
             blend_auc = _auc(specs, blended)
             blend_delta = _delta(specs, blended)
@@ -272,7 +271,8 @@ def _run_config(
 
         print(
             f"  {scorer_name}: AUC={auc_val:.4f}  delta={delta_val:+.4f}  "
-            f"best_blend={best_blend.get('label', 'n/a')} AUC={best_blend.get('auc', float('nan')):.4f}",
+            f"best_blend={best_blend.get('label', 'n/a')} "
+            f"AUC={best_blend.get('auc', float('nan')):.4f}",
             flush=True,
         )
 
@@ -307,7 +307,12 @@ def _run_config(
                 "auc": jepa_auc,
                 "delta": jepa_delta,
                 "per_cat_auc": {k: v for k, v in jepa_per_cat.items() if v == v},
-                "best_blend": {"label": "jepa_alone", "w_ast": 0.0, "auc": jepa_auc, "delta": jepa_delta},
+                "best_blend": {
+                    "label": "jepa_alone",
+                    "w_ast": 0.0,
+                    "auc": jepa_auc,
+                    "delta": jepa_delta,
+                },
                 "best_blend_scores": jepa_fixture_scores,
             }
         )
@@ -433,7 +438,13 @@ def _write_summary(
                 row += f" {cat_auc:.4f} |" if cat_auc == cat_auc else " n/a |"
         md.append(row)
 
-    md += ["", "## Per-config Best", "", "| Config | Best scorer | AUC | Best blend | Blend AUC |", "|--------|------------|----:|-----------|----------:|"]
+    md += [
+        "",
+        "## Per-config Best",
+        "",
+        "| Config | Best scorer | AUC | Best blend | Blend AUC |",
+        "|--------|------------|----:|-----------|----------:|",
+    ]
     for cfg in config_results:
         cfg_name = cfg["config"]
         scorers = cfg["scorers"]
@@ -514,7 +525,9 @@ def main() -> None:
     elif args.config in CONFIG_MATRIX:
         configs_to_run = [args.config]
     else:
-        print(f"ERROR: unknown config {args.config!r}. Choose from: all, {', '.join(CONFIG_MATRIX)}", file=sys.stderr)
+        choices = ", ".join(CONFIG_MATRIX)
+        msg = f"ERROR: unknown config {args.config!r}. Choose from: all, {choices}"
+        print(msg, file=sys.stderr)
         sys.exit(1)
 
     # 1. Clone/reuse FastAPI
@@ -535,7 +548,7 @@ def main() -> None:
     print(f"Core training corpus: {len(core_chunks)} chunks", flush=True)
 
     # 4. Load fixtures — attach _source_lines so AST scorer gets parseable Python
-    specs: list[FixtureSpec] = load_manifest(ENTRY_DIR)
+    specs: list[FixtureSpec] = load_manifest(ENTRY_DIR)  # type: ignore[no-redef]
     fixture_records = []
     for s in specs:
         rec = fixture_to_record(ENTRY_DIR, s)
