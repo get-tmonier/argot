@@ -128,6 +128,13 @@ phase12-s0:
     uv run --package argot-engine python -m argot.research.signal.cli.seeded_ci \
         --out docs/research/scoring/signal/phase12
 
+phase12-s1s4:
+    uv run --package argot-engine python -m argot.research.signal.cli.bakeoff \
+        --scorers mlm_surprise_mean,mlm_surprise_min,mlm_surprise_p05,tfidf_anomaly,knn_cosine,lof_embedding,lm_perplexity,ast_structural_ll,ast_structural_zscore,ast_structural_oov \
+        --context-mode file_only \
+        --entry fastapi \
+        --out docs/research/scoring/signal/phase12
+
 phase11:
     uv run --package argot-engine python -m argot.research.signal.sweep \
         --stage 5 --entry fastapi --configs mean_z --context-mode baseline \
