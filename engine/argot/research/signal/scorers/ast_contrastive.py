@@ -21,11 +21,10 @@ def _record_to_source(record: dict[str, Any]) -> str:
     """Extract the best available Python source string from a record.
 
     Priority order:
-    1. ``hunk_source`` — exact source lines added to fixture records by
-       :func:`~argot.acceptance.runner.fixture_to_record`.
-    2. ``start_line``-grouped token reconstruction — used for corpus records
-       whose tokens carry per-token line numbers.
-    3. Space-joined token texts — last-resort fallback.
+    1. ``hunk_source`` — exact source lines from fixture records (lossless).
+    2. ``start_line``-grouped token reconstruction — lossy approximation for
+       corpus records; tokens are re-joined per line without original spacing.
+    3. Space-joined token texts — last-resort lossy fallback.
     """
     if "hunk_source" in record:
         return record["hunk_source"]  # type: ignore[no-any-return]
