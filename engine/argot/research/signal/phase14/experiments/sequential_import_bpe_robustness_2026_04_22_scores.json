@@ -1,0 +1,3404 @@
+{
+  "fastapi": {
+    "domain": "fastapi",
+    "n_model_a_files": 496,
+    "n_candidates": 367,
+    "n_cal": 100,
+    "seeds": [
+      {
+        "bpe_threshold": 4.0184951721188895,
+        "n_breaks": 31,
+        "n_controls": 20,
+        "n_flagged": 31,
+        "n_fp": 20,
+        "recall": 1.0,
+        "fp_rate": 1.0,
+        "fixtures": [
+          {
+            "name": "paradigm_break_flask_routing",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_django_cbv",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_aiohttp_handler",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.8476742498990415,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_wrong_exception",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.672526488331739,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_manual_status_check",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.672526488331739,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_sync_endpoint",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 3.0,
+            "bpe_score": 7.672526488331739,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_exception_swallow",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.672526488331739,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_router_endpoint",
+            "category": "routing",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.917984616404752,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_dependency_injection",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_exception_handling",
+            "category": "exception_handling",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.97153635354192,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_starlette_mount",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_tornado_handler",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.360563813352925,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_voluptuous_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.05903299819107,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_cerberus_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_json_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 8.05903299819107,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_bare_except",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_event_loop_blocking",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.38844213268108,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_sync_requests_in_async",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.204868799189796,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_concurrent_futures_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_pydantic_validator",
+            "category": "validation",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_response_model",
+            "category": "serialization",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_async_streaming",
+            "category": "async_blocking",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.38844213268108,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_httpx_async",
+            "category": "downstream_http",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_annotated_depends",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_sync_file_io_async",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.8041872012608895,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_anyio_thread_offload",
+            "category": "async_blocking",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.8041872012608895,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_multiprocessing_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.05903299819107,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_queue_carryover",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_atexit_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 3.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_background_tasks_basic",
+            "category": "background_tasks",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_background_tasks_depends",
+            "category": "background_tasks",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.118675385968757,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_generator_drain",
+            "category": "dependency_injection",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_class_instance_no_depends",
+            "category": "dependency_injection",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_nested_depends",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_aiohttp_no_context",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_httpx_depends",
+            "category": "downstream_http",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_json_error_response",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_traceback_in_response",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_flask_errorhandler",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_exception_handler_registration",
+            "category": "exception_handling",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_lifespan_context",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 7.2421532969506845,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_apirouter_composition",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_mounted_subapp",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 8.34610856927329,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_imperative_route_loop",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.41823647576615,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_nested_router",
+            "category": "routing",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_dict_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_msgpack_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.818596025919756,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_response_model_list",
+            "category": "serialization",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.935435169509434,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_assert_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.481569234222722,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_field_validator",
+            "category": "validation",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          }
+        ],
+        "seed": 0
+      },
+      {
+        "bpe_threshold": 4.0184951721188895,
+        "n_breaks": 31,
+        "n_controls": 20,
+        "n_flagged": 31,
+        "n_fp": 20,
+        "recall": 1.0,
+        "fp_rate": 1.0,
+        "fixtures": [
+          {
+            "name": "paradigm_break_flask_routing",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_django_cbv",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_aiohttp_handler",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.8476742498990415,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_wrong_exception",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.672526488331739,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_manual_status_check",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.672526488331739,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_sync_endpoint",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 3.0,
+            "bpe_score": 7.672526488331739,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_exception_swallow",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.672526488331739,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_router_endpoint",
+            "category": "routing",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.917984616404752,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_dependency_injection",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_exception_handling",
+            "category": "exception_handling",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.97153635354192,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_starlette_mount",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_tornado_handler",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.360563813352925,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_voluptuous_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.05903299819107,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_cerberus_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_json_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 8.05903299819107,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_bare_except",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_event_loop_blocking",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.38844213268108,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_sync_requests_in_async",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.204868799189796,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_concurrent_futures_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_pydantic_validator",
+            "category": "validation",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_response_model",
+            "category": "serialization",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_async_streaming",
+            "category": "async_blocking",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.38844213268108,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_httpx_async",
+            "category": "downstream_http",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_annotated_depends",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_sync_file_io_async",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.8041872012608895,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_anyio_thread_offload",
+            "category": "async_blocking",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.8041872012608895,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_multiprocessing_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.05903299819107,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_queue_carryover",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_atexit_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 3.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_background_tasks_basic",
+            "category": "background_tasks",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_background_tasks_depends",
+            "category": "background_tasks",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.118675385968757,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_generator_drain",
+            "category": "dependency_injection",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_class_instance_no_depends",
+            "category": "dependency_injection",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_nested_depends",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_aiohttp_no_context",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_httpx_depends",
+            "category": "downstream_http",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_json_error_response",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_traceback_in_response",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_flask_errorhandler",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_exception_handler_registration",
+            "category": "exception_handling",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_lifespan_context",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 7.2421532969506845,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_apirouter_composition",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_mounted_subapp",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 8.34610856927329,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_imperative_route_loop",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.41823647576615,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_nested_router",
+            "category": "routing",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_dict_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_msgpack_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.818596025919756,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_response_model_list",
+            "category": "serialization",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.935435169509434,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_assert_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.481569234222722,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_field_validator",
+            "category": "validation",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          }
+        ],
+        "seed": 1
+      },
+      {
+        "bpe_threshold": 4.0667856651452965,
+        "n_breaks": 31,
+        "n_controls": 20,
+        "n_flagged": 31,
+        "n_fp": 20,
+        "recall": 1.0,
+        "fp_rate": 1.0,
+        "fixtures": [
+          {
+            "name": "paradigm_break_flask_routing",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_django_cbv",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_aiohttp_handler",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.8476742498990415,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_wrong_exception",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.672526488331739,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_manual_status_check",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.672526488331739,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_sync_endpoint",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 3.0,
+            "bpe_score": 7.672526488331739,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_exception_swallow",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.672526488331739,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_router_endpoint",
+            "category": "routing",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.917984616404752,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_dependency_injection",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_exception_handling",
+            "category": "exception_handling",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.97153635354192,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_starlette_mount",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_tornado_handler",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.360563813352925,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_voluptuous_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.05903299819107,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_cerberus_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_json_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 8.05903299819107,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_bare_except",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_event_loop_blocking",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.38844213268108,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_sync_requests_in_async",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.204868799189796,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_concurrent_futures_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_pydantic_validator",
+            "category": "validation",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_response_model",
+            "category": "serialization",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_async_streaming",
+            "category": "async_blocking",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.38844213268108,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_httpx_async",
+            "category": "downstream_http",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_annotated_depends",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_sync_file_io_async",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.8041872012608895,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_anyio_thread_offload",
+            "category": "async_blocking",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.8041872012608895,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_multiprocessing_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.05903299819107,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_queue_carryover",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_atexit_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 3.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_background_tasks_basic",
+            "category": "background_tasks",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_background_tasks_depends",
+            "category": "background_tasks",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.118675385968757,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_generator_drain",
+            "category": "dependency_injection",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_class_instance_no_depends",
+            "category": "dependency_injection",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_nested_depends",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_aiohttp_no_context",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_httpx_depends",
+            "category": "downstream_http",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_json_error_response",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_traceback_in_response",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_flask_errorhandler",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_exception_handler_registration",
+            "category": "exception_handling",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_lifespan_context",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 7.2421532969506845,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_apirouter_composition",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_mounted_subapp",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 8.34610856927329,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_imperative_route_loop",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.41823647576615,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_nested_router",
+            "category": "routing",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_dict_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_msgpack_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.818596025919756,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_response_model_list",
+            "category": "serialization",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.935435169509434,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_assert_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.481569234222722,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_field_validator",
+            "category": "validation",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          }
+        ],
+        "seed": 2
+      },
+      {
+        "bpe_threshold": 4.2038983054916494,
+        "n_breaks": 31,
+        "n_controls": 20,
+        "n_flagged": 31,
+        "n_fp": 20,
+        "recall": 1.0,
+        "fp_rate": 1.0,
+        "fixtures": [
+          {
+            "name": "paradigm_break_flask_routing",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_django_cbv",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_aiohttp_handler",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.8476742498990415,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_wrong_exception",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.672526488331739,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_manual_status_check",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.672526488331739,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_sync_endpoint",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 3.0,
+            "bpe_score": 7.672526488331739,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_exception_swallow",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.672526488331739,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_router_endpoint",
+            "category": "routing",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.917984616404752,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_dependency_injection",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_exception_handling",
+            "category": "exception_handling",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.97153635354192,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_starlette_mount",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_tornado_handler",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.360563813352925,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_voluptuous_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.05903299819107,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_cerberus_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_json_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 8.05903299819107,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_bare_except",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_event_loop_blocking",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.38844213268108,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_sync_requests_in_async",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.204868799189796,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_concurrent_futures_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_pydantic_validator",
+            "category": "validation",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_response_model",
+            "category": "serialization",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_async_streaming",
+            "category": "async_blocking",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.38844213268108,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_httpx_async",
+            "category": "downstream_http",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_annotated_depends",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_sync_file_io_async",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.8041872012608895,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_anyio_thread_offload",
+            "category": "async_blocking",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.8041872012608895,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_multiprocessing_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.05903299819107,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_queue_carryover",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_atexit_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 3.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_background_tasks_basic",
+            "category": "background_tasks",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_background_tasks_depends",
+            "category": "background_tasks",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.118675385968757,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_generator_drain",
+            "category": "dependency_injection",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_class_instance_no_depends",
+            "category": "dependency_injection",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_nested_depends",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_aiohttp_no_context",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_httpx_depends",
+            "category": "downstream_http",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_json_error_response",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_traceback_in_response",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_flask_errorhandler",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_exception_handler_registration",
+            "category": "exception_handling",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_lifespan_context",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 7.2421532969506845,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_apirouter_composition",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_mounted_subapp",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 8.34610856927329,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_imperative_route_loop",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.41823647576615,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_nested_router",
+            "category": "routing",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_dict_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_msgpack_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.818596025919756,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_response_model_list",
+            "category": "serialization",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.935435169509434,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_assert_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.481569234222722,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_field_validator",
+            "category": "validation",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          }
+        ],
+        "seed": 3
+      },
+      {
+        "bpe_threshold": 4.2038983054916494,
+        "n_breaks": 31,
+        "n_controls": 20,
+        "n_flagged": 31,
+        "n_fp": 20,
+        "recall": 1.0,
+        "fp_rate": 1.0,
+        "fixtures": [
+          {
+            "name": "paradigm_break_flask_routing",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_django_cbv",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_aiohttp_handler",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.8476742498990415,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_wrong_exception",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.672526488331739,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_manual_status_check",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.672526488331739,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_sync_endpoint",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 3.0,
+            "bpe_score": 7.672526488331739,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_exception_swallow",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.672526488331739,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_router_endpoint",
+            "category": "routing",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.917984616404752,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_dependency_injection",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_exception_handling",
+            "category": "exception_handling",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.97153635354192,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_starlette_mount",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_tornado_handler",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.360563813352925,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_voluptuous_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.05903299819107,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_cerberus_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_json_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 8.05903299819107,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_bare_except",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_event_loop_blocking",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.38844213268108,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_sync_requests_in_async",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.204868799189796,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_concurrent_futures_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_pydantic_validator",
+            "category": "validation",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_response_model",
+            "category": "serialization",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_async_streaming",
+            "category": "async_blocking",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.38844213268108,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_httpx_async",
+            "category": "downstream_http",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_annotated_depends",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_sync_file_io_async",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.8041872012608895,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_anyio_thread_offload",
+            "category": "async_blocking",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.8041872012608895,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_multiprocessing_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.05903299819107,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_queue_carryover",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_atexit_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 3.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_background_tasks_basic",
+            "category": "background_tasks",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_background_tasks_depends",
+            "category": "background_tasks",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.118675385968757,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_generator_drain",
+            "category": "dependency_injection",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_class_instance_no_depends",
+            "category": "dependency_injection",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_nested_depends",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_aiohttp_no_context",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_httpx_depends",
+            "category": "downstream_http",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_json_error_response",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_traceback_in_response",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_flask_errorhandler",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_exception_handler_registration",
+            "category": "exception_handling",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_lifespan_context",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 7.2421532969506845,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_apirouter_composition",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_mounted_subapp",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 8.34610856927329,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_imperative_route_loop",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.41823647576615,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_nested_router",
+            "category": "routing",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_dict_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_msgpack_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.818596025919756,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_response_model_list",
+            "category": "serialization",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.935435169509434,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_assert_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.481569234222722,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_field_validator",
+            "category": "validation",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.861402017609482,
+            "flagged": true,
+            "reason": "import"
+          }
+        ],
+        "seed": 4
+      }
+    ]
+  },
+  "rich": {
+    "domain": "rich",
+    "n_model_a_files": 106,
+    "n_candidates": 237,
+    "n_cal": 100,
+    "seeds": [
+      {
+        "bpe_threshold": 4.40147118314893,
+        "n_breaks": 10,
+        "n_controls": 10,
+        "n_flagged": 10,
+        "n_fp": 0,
+        "recall": 1.0,
+        "fp_rate": 0.0,
+        "fixtures": [
+          {
+            "name": "control_console_capture",
+            "category": "control_console",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.0899142391402314,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_console_init",
+            "category": "control_console",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.166377898843641,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_table_add_column_body",
+            "category": "control_table",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.1608976051921651,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_table_rich_console",
+            "category": "control_table",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.271498705982948,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_live_enter_exit",
+            "category": "control_live",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.5963535072725659,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_live_renderable",
+            "category": "control_live",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.08601188058595,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_text_init",
+            "category": "control_text",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 0.8236975974904821,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_text_styled",
+            "category": "control_text",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.272452324834978,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_panel_init_body",
+            "category": "control_panel",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 0.7887038578007664,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_panel_rich_console",
+            "category": "control_panel",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.2697284362430459,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "break_ansi_raw_1",
+            "category": "ansi_raw",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 7.7849549555955875,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_ansi_raw_2",
+            "category": "ansi_raw",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 5.685100998314903,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_colorama_1",
+            "category": "colorama",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_colorama_2",
+            "category": "colorama",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.966250208814639,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_termcolor_1",
+            "category": "termcolor",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.152884840714487,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_termcolor_2",
+            "category": "termcolor",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_curses_1",
+            "category": "curses",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.216994733115355,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_curses_2",
+            "category": "curses",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.668379040086203,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_print_manual_1",
+            "category": "print_manual",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 5.685100998314903,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_print_manual_2",
+            "category": "print_manual",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "bpe"
+          }
+        ],
+        "seed": 0
+      },
+      {
+        "bpe_threshold": 4.81585711299134,
+        "n_breaks": 10,
+        "n_controls": 10,
+        "n_flagged": 10,
+        "n_fp": 0,
+        "recall": 1.0,
+        "fp_rate": 0.0,
+        "fixtures": [
+          {
+            "name": "control_console_capture",
+            "category": "control_console",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.0899142391402314,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_console_init",
+            "category": "control_console",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.166377898843641,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_table_add_column_body",
+            "category": "control_table",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.1608976051921651,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_table_rich_console",
+            "category": "control_table",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.271498705982948,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_live_enter_exit",
+            "category": "control_live",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.5963535072725659,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_live_renderable",
+            "category": "control_live",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.08601188058595,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_text_init",
+            "category": "control_text",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 0.8236975974904821,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_text_styled",
+            "category": "control_text",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.272452324834978,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_panel_init_body",
+            "category": "control_panel",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 0.7887038578007664,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_panel_rich_console",
+            "category": "control_panel",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.2697284362430459,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "break_ansi_raw_1",
+            "category": "ansi_raw",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 7.7849549555955875,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_ansi_raw_2",
+            "category": "ansi_raw",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 5.685100998314903,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_colorama_1",
+            "category": "colorama",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_colorama_2",
+            "category": "colorama",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.966250208814639,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_termcolor_1",
+            "category": "termcolor",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.152884840714487,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_termcolor_2",
+            "category": "termcolor",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_curses_1",
+            "category": "curses",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.216994733115355,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_curses_2",
+            "category": "curses",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.668379040086203,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_print_manual_1",
+            "category": "print_manual",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 5.685100998314903,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_print_manual_2",
+            "category": "print_manual",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "bpe"
+          }
+        ],
+        "seed": 1
+      },
+      {
+        "bpe_threshold": 4.81585711299134,
+        "n_breaks": 10,
+        "n_controls": 10,
+        "n_flagged": 10,
+        "n_fp": 0,
+        "recall": 1.0,
+        "fp_rate": 0.0,
+        "fixtures": [
+          {
+            "name": "control_console_capture",
+            "category": "control_console",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.0899142391402314,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_console_init",
+            "category": "control_console",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.166377898843641,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_table_add_column_body",
+            "category": "control_table",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.1608976051921651,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_table_rich_console",
+            "category": "control_table",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.271498705982948,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_live_enter_exit",
+            "category": "control_live",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.5963535072725659,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_live_renderable",
+            "category": "control_live",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.08601188058595,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_text_init",
+            "category": "control_text",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 0.8236975974904821,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_text_styled",
+            "category": "control_text",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.272452324834978,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_panel_init_body",
+            "category": "control_panel",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 0.7887038578007664,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_panel_rich_console",
+            "category": "control_panel",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.2697284362430459,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "break_ansi_raw_1",
+            "category": "ansi_raw",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 7.7849549555955875,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_ansi_raw_2",
+            "category": "ansi_raw",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 5.685100998314903,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_colorama_1",
+            "category": "colorama",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_colorama_2",
+            "category": "colorama",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.966250208814639,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_termcolor_1",
+            "category": "termcolor",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.152884840714487,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_termcolor_2",
+            "category": "termcolor",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_curses_1",
+            "category": "curses",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.216994733115355,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_curses_2",
+            "category": "curses",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.668379040086203,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_print_manual_1",
+            "category": "print_manual",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 5.685100998314903,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_print_manual_2",
+            "category": "print_manual",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "bpe"
+          }
+        ],
+        "seed": 2
+      },
+      {
+        "bpe_threshold": 4.81585711299134,
+        "n_breaks": 10,
+        "n_controls": 10,
+        "n_flagged": 10,
+        "n_fp": 0,
+        "recall": 1.0,
+        "fp_rate": 0.0,
+        "fixtures": [
+          {
+            "name": "control_console_capture",
+            "category": "control_console",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.0899142391402314,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_console_init",
+            "category": "control_console",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.166377898843641,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_table_add_column_body",
+            "category": "control_table",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.1608976051921651,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_table_rich_console",
+            "category": "control_table",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.271498705982948,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_live_enter_exit",
+            "category": "control_live",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.5963535072725659,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_live_renderable",
+            "category": "control_live",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.08601188058595,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_text_init",
+            "category": "control_text",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 0.8236975974904821,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_text_styled",
+            "category": "control_text",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.272452324834978,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_panel_init_body",
+            "category": "control_panel",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 0.7887038578007664,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_panel_rich_console",
+            "category": "control_panel",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.2697284362430459,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "break_ansi_raw_1",
+            "category": "ansi_raw",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 7.7849549555955875,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_ansi_raw_2",
+            "category": "ansi_raw",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 5.685100998314903,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_colorama_1",
+            "category": "colorama",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_colorama_2",
+            "category": "colorama",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.966250208814639,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_termcolor_1",
+            "category": "termcolor",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.152884840714487,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_termcolor_2",
+            "category": "termcolor",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_curses_1",
+            "category": "curses",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.216994733115355,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_curses_2",
+            "category": "curses",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.668379040086203,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_print_manual_1",
+            "category": "print_manual",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 5.685100998314903,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_print_manual_2",
+            "category": "print_manual",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "bpe"
+          }
+        ],
+        "seed": 3
+      },
+      {
+        "bpe_threshold": 3.704581751210325,
+        "n_breaks": 10,
+        "n_controls": 10,
+        "n_flagged": 10,
+        "n_fp": 0,
+        "recall": 1.0,
+        "fp_rate": 0.0,
+        "fixtures": [
+          {
+            "name": "control_console_capture",
+            "category": "control_console",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.0899142391402314,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_console_init",
+            "category": "control_console",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.166377898843641,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_table_add_column_body",
+            "category": "control_table",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.1608976051921651,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_table_rich_console",
+            "category": "control_table",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.271498705982948,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_live_enter_exit",
+            "category": "control_live",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.5963535072725659,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_live_renderable",
+            "category": "control_live",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.08601188058595,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_text_init",
+            "category": "control_text",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 0.8236975974904821,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_text_styled",
+            "category": "control_text",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.272452324834978,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_panel_init_body",
+            "category": "control_panel",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 0.7887038578007664,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_panel_rich_console",
+            "category": "control_panel",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.2697284362430459,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "break_ansi_raw_1",
+            "category": "ansi_raw",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 7.7849549555955875,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_ansi_raw_2",
+            "category": "ansi_raw",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 5.685100998314903,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_colorama_1",
+            "category": "colorama",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_colorama_2",
+            "category": "colorama",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.966250208814639,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_termcolor_1",
+            "category": "termcolor",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.152884840714487,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_termcolor_2",
+            "category": "termcolor",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_curses_1",
+            "category": "curses",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.216994733115355,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_curses_2",
+            "category": "curses",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.668379040086203,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_print_manual_1",
+            "category": "print_manual",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 5.685100998314903,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_print_manual_2",
+            "category": "print_manual",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "bpe"
+          }
+        ],
+        "seed": 4
+      }
+    ]
+  },
+  "faker": {
+    "domain": "faker",
+    "n_model_a_files": 722,
+    "n_calibration": 159,
+    "bpe_threshold": 7.373205321984541,
+    "n_breaks": 5,
+    "n_breaks_flagged": 5,
+    "n_cal_flagged": 0,
+    "recall": 1.0,
+    "cal_fp_rate": 0.0,
+    "hunk_0047": {
+      "name": "faker_hunk_0047",
+      "import_score": 0.0,
+      "bpe_score": 7.373205321984541,
+      "flagged": false,
+      "reason": "none"
+    },
+    "break_fixtures": [
+      {
+        "name": "break_mimesis_alt_1",
+        "category": "mimesis_alt",
+        "import_score": 1.0,
+        "bpe_score": 4.204340393662699,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "break_threading_provider_1",
+        "category": "threading_provider",
+        "import_score": 2.0,
+        "bpe_score": 6.95894304574081,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "break_sqlalchemy_sink_1",
+        "category": "sqlalchemy_sink",
+        "import_score": 1.0,
+        "bpe_score": 6.956828655756679,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "break_numpy_random_1",
+        "category": "numpy_random",
+        "import_score": 1.0,
+        "bpe_score": 4.593258125805839,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "break_requests_source_1",
+        "category": "requests_source",
+        "import_score": 1.0,
+        "bpe_score": 7.380159938259968,
+        "flagged": true,
+        "reason": "import"
+      }
+    ]
+  },
+  "faker_holdout": {
+    "original_n_cal": 159,
+    "holdout_n_cal": 158,
+    "new_threshold": 6.0009068116880435,
+    "hunk_0047": {
+      "bpe_score": 7.373205321984541,
+      "new_threshold": 6.0009068116880435,
+      "flagged": true,
+      "reason": "bpe"
+    }
+  }
+}
