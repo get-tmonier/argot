@@ -4,7 +4,7 @@ members = ["engine"]
 [tool.mypy]
 strict = true
 python_version = "3.13"
-exclude = [".*/acceptance/catalog/.*"]
+exclude = [".*/acceptance/catalog/.*", ".*/tier3_fixtures/.*"]
 
 [[tool.mypy.overrides]]
 module = "pygit2"

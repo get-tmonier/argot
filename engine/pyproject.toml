@@ -39,6 +39,7 @@ dev = [
 [tool.mypy]
 strict = true
 python_version = "3.13"
+exclude = [".*/tier3_fixtures/.*"]
 
 [[tool.mypy.overrides]]
 module = "pygit2"
@@ -94,7 +95,7 @@ ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 100
-exclude = ["argot/acceptance/catalog"]
+exclude = ["argot/acceptance/catalog", "argot/research/signal/phase13/tier3_fixtures"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM"]

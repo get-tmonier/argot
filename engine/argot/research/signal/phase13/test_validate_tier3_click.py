@@ -1,5 +1,7 @@
 """Tests for Tier 3 click validation."""
+
 from __future__ import annotations
+
 import json
 from pathlib import Path
 
@@ -26,6 +28,7 @@ def test_all_fixture_files_exist() -> None:
 
 def test_control_files_parse_as_python() -> None:
     import ast
+
     for path in CONTROLS_DIR.glob("*.py"):
         ast.parse(path.read_text())
 
@@ -43,12 +46,16 @@ def test_break_hunk_ranges_are_valid() -> None:
             continue
         path = FIXTURE_DIR / f["file"]
         line_count = len(path.read_text().splitlines())
-        assert 1 <= f["hunk_start_line"] <= f["hunk_end_line"] <= line_count, \
-            f"invalid hunk range in {f['name']}: {f['hunk_start_line']}-{f['hunk_end_line']} for {line_count}-line file"
+        start = f["hunk_start_line"]
+        end = f["hunk_end_line"]
+        assert (
+            1 <= start <= end <= line_count
+        ), f"invalid hunk range in {f['name']}: {start}-{end} for {line_count}-line file"
 
 
 def test_break_files_parse_as_python() -> None:
     import ast
+
     for path in BREAKS_DIR.glob("*.py"):
         ast.parse(path.read_text())
 
@@ -56,9 +63,11 @@ def test_break_files_parse_as_python() -> None:
 def test_runner_produces_auc_report(tmp_path: Path) -> None:
     """End-to-end: load manifest, build model_A, score, compute AUC, write report."""
     import os
+
     click_dir = Path(os.environ.get("TIER3_CLICK_DIR", "/tmp/click-clone"))
     if not click_dir.exists():
         import pytest
+
         pytest.skip(f"click clone not found at {click_dir}; set TIER3_CLICK_DIR env var")
 
     from argot.research.signal.phase13.validate_tier3_click import run

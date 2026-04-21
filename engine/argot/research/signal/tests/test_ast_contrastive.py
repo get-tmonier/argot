@@ -42,7 +42,7 @@ def test_direction_anomaly_high_when_rare_in_model_a() -> None:
     source = "async def foo(x, y): return x"
 
     scorer = ContrastiveAstTreeletScorer(epsilon=1.0)
-    scorer._model_a = Counter({treelet: 0})   # rare in repo
+    scorer._model_a = Counter({treelet: 0})  # rare in repo
     scorer._model_b = Counter({treelet: 500})  # common generically
 
     records = [_make_record(source)]
@@ -60,7 +60,7 @@ def test_direction_anomaly_low_when_common_in_model_a() -> None:
 
     scorer = ContrastiveAstTreeletScorer(epsilon=1.0)
     scorer._model_a = Counter({treelet: 500})  # common in repo
-    scorer._model_b = Counter({treelet: 0})    # rare generically
+    scorer._model_b = Counter({treelet: 0})  # rare generically
 
     records = [_make_record(source)]
     scores = scorer.score(records)
@@ -86,19 +86,23 @@ def test_minimum_treelet_returns_zero() -> None:
 def two_py_files(tmp_path: Path) -> list[Path]:
     """Two small but complete .py files that ast.parse() can handle."""
     f1 = tmp_path / "a.py"
-    f1.write_text(textwrap.dedent("""\
+    f1.write_text(
+        textwrap.dedent("""\
         import asyncio
 
         async def handle(request):
             return await request.json()
-    """))
+    """)
+    )
     f2 = tmp_path / "b.py"
-    f2.write_text(textwrap.dedent("""\
+    f2.write_text(
+        textwrap.dedent("""\
         from typing import List
 
         def process(items: List[int]) -> int:
             return sum(items)
-    """))
+    """)
+    )
     return [f1, f2]
 
 
@@ -132,16 +136,15 @@ def test_model_a_files_identity_gives_near_zero_scores(two_py_files: list[Path])
 
     source = "def foo(x, y):\n    return x + y\n"
     scores = scorer.score([_make_record(source)])
-    assert abs(scores[0]) < 1e-6, (
-        f"A=B should give score ≈ 0, got {scores[0]}"
-    )
+    assert abs(scores[0]) < 1e-6, f"A=B should give score ≈ 0, got {scores[0]}"
 
 
 def test_fixture_path_fallback_scores_unparseable_hunk(tmp_path: Path) -> None:
     """When hunk_source is a mid-block fragment (SyntaxError), the scorer
     must fall back to the full fixture file via _fixture_path."""
     full_file = tmp_path / "full.py"
-    full_file.write_text(textwrap.dedent("""\
+    full_file.write_text(
+        textwrap.dedent("""\
         import queue
         import multiprocessing
 
@@ -149,7 +152,8 @@ def test_fixture_path_fallback_scores_unparseable_hunk(tmp_path: Path) -> None:
             q = queue.Queue()
             p = multiprocessing.Process(target=worker)
             p.start()
-    """))
+    """)
+    )
 
     # Hunk is mid-block (indented fragment) — cannot be parsed standalone
     unparseable_record = {
@@ -192,9 +196,9 @@ def test_fixture_path_fallback_not_used_when_hunk_parseable(two_py_files: list[P
     scores_with_fallback = scorer.score([record])
 
     # Score should be negative (hunk is idiomatic in model_A)
-    assert scores_with_fallback[0] < 0.0, (
-        "Hunk is parseable; model_A-favoured treelet should drive score negative"
-    )
+    assert (
+        scores_with_fallback[0] < 0.0
+    ), "Hunk is parseable; model_A-favoured treelet should drive score negative"
 
 
 def test_model_a_files_direction_correct(two_py_files: list[Path]) -> None:

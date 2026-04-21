@@ -139,10 +139,15 @@ def _run_bakeoff(
             # Use only control files: they represent genuine repo patterns.
             # Break fixtures contain the non-idiomatic patterns we're trying to
             # detect, so including them in model_A would dilute the contrast.
-            py_files = sorted(fixture_default.glob("control*.py")) if fixture_default.exists() else None
+            py_files = (
+                sorted(fixture_default.glob("control*.py")) if fixture_default.exists() else None
+            )
             if py_files:
-                print(f"    model_a_files: {len(py_files)} control .py files from {fixture_default}", flush=True)
-            scorer.fit(corpus, model_a_files=py_files or None)
+                print(
+                    f"    model_a_files: {len(py_files)} control .py files from {fixture_default}",
+                    flush=True,
+                )
+            scorer.fit(corpus, model_a_files=py_files or None)  # type: ignore[call-arg]
         else:
             scorer.fit(corpus)
         print(f"  Scoring {name!r} ...", flush=True)

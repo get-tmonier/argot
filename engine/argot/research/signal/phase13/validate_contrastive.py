@@ -15,8 +15,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
+from typing import Any
 
 from argot.acceptance.runner import fixture_to_record, load_manifest
 from argot.research.signal.bootstrap import auc_from_scores
@@ -34,7 +34,7 @@ def _build_scorer() -> ContrastiveAstTreeletScorer:
 
 def _load_fixture_records(
     context_mode: str = "file_only",
-) -> tuple[list[dict], list[bool], list[str]]:
+) -> tuple[list[dict[str, Any]], list[bool], list[str]]:
     specs = load_manifest(FASTAPI_DIR)
     records = [fixture_to_record(FASTAPI_DIR, spec, context_mode) for spec in specs]
     is_break = [spec.is_break for spec in specs]
@@ -43,8 +43,8 @@ def _load_fixture_records(
 
 
 def _compute_auc(scores: list[float], is_break: list[bool]) -> float:
-    break_scores = [s for s, b in zip(scores, is_break) if b]
-    ctrl_scores = [s for s, b in zip(scores, is_break) if not b]
+    break_scores = [s for s, b in zip(scores, is_break, strict=False) if b]
+    ctrl_scores = [s for s, b in zip(scores, is_break, strict=False) if not b]
     return auc_from_scores(break_scores, ctrl_scores)
 
 
@@ -53,10 +53,10 @@ def _stdlib_py_files() -> list[Path]:
 
 
 def run_tier1_smoke(
-    records: list[dict],
+    records: list[dict[str, Any]],
     is_break: list[bool],
     names: list[str],
-) -> dict:
+) -> dict[str, Any]:
     """Build model_A from same stdlib files as model_B. Expect all scores ≈ 0."""
     print("  Tier 1.1: building model_A from stdlib files ...", flush=True)
     stdlib_files = _stdlib_py_files()
@@ -65,21 +65,23 @@ def run_tier1_smoke(
     scorer.fit([], model_a_files=stdlib_files)
     scores = scorer.score(records)
     max_abs = max(abs(s) for s in scores)
-    rows = [{"name": n, "score": s, "is_break": b}
-            for n, s, b in zip(names, scores, is_break)]
+    rows = [
+        {"name": n, "score": s, "is_break": b}
+        for n, s, b in zip(names, scores, is_break, strict=False)
+    ]
     passed = max_abs < 0.5
     return {"scores": rows, "max_abs_score": max_abs, "passed": passed}
 
 
 def run_tier1_loo(
-    records: list[dict],
+    records: list[dict[str, Any]],
     is_break: list[bool],
     names: list[str],
-) -> dict:
+) -> dict[str, Any]:
     """For each of the 20 control files, exclude it, rebuild model_A, record AUC."""
     control_files = sorted(FIXTURE_DEFAULT.glob("control*.py"))
     print(f"  Tier 1.2: LOO over {len(control_files)} control files ...", flush=True)
-    auc_rows: list[dict] = []
+    auc_rows: list[dict[str, Any]] = []
     for exclude in control_files:
         remaining = [f for f in control_files if f != exclude]
         scorer = _build_scorer()
@@ -109,11 +111,11 @@ def _django_view_files(django_dir: Path) -> list[Path]:
 
 
 def run_tier2_wrong_contrast(
-    records: list[dict],
+    records: list[dict[str, Any]],
     is_break: list[bool],
     names: list[str],
     django_dir: Path,
-) -> dict:
+) -> dict[str, Any]:
     """Use Django view files as model_A; keep model_B = stdlib. Record AUC."""
     django_files = _django_view_files(django_dir)
     print(f"  Tier 2: using {len(django_files)} Django view files as model_A ...", flush=True)
@@ -123,8 +125,10 @@ def run_tier2_wrong_contrast(
     scorer.fit([], model_a_files=django_files)
     scores = scorer.score(records)
     auc = _compute_auc(scores, is_break)
-    rows = [{"name": n, "score": s, "is_break": b}
-            for n, s, b in zip(names, scores, is_break)]
+    rows = [
+        {"name": n, "score": s, "is_break": b}
+        for n, s, b in zip(names, scores, is_break, strict=False)
+    ]
     return {
         "auc": auc,
         "delta_vs_baseline": auc - 0.9742,
@@ -135,9 +139,9 @@ def run_tier2_wrong_contrast(
 
 def _write_report(
     out: Path,
-    t11: dict,
-    t12: dict,
-    t2: dict,
+    t11: dict[str, Any],
+    t12: dict[str, Any],
+    t2: dict[str, Any],
 ) -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     lines: list[str] = [
@@ -180,8 +184,7 @@ def _write_report(
     delta_str = f"{t2['delta_vs_baseline']:+.4f}"
     lines += [
         "",
-        f"**AUC with Django model_A:** {t2['auc']:.4f}  "
-        f"(Δ vs baseline: {delta_str})\n",
+        f"**AUC with Django model_A:** {t2['auc']:.4f}  " f"(Δ vs baseline: {delta_str})\n",
         "",
         "## Verdict\n",
         "",
@@ -194,11 +197,14 @@ def _write_report(
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--django-dir", required=True, type=Path,
+        "--django-dir",
+        required=True,
+        type=Path,
         help="Path to a local Django git clone (tag 4.2.16 recommended)",
     )
     parser.add_argument(
-        "--out", type=Path,
+        "--out",
+        type=Path,
         default=Path("docs/research/scoring/signal/phase13/stage2_validation_2026-04-21.md"),
     )
     args = parser.parse_args()
@@ -210,10 +216,13 @@ def main() -> None:
     print(f"  {len(records)} fixtures ({n_breaks} breaks, {n_ctrls} controls)\n")
 
     t11 = run_tier1_smoke(records, is_break, names)
-    print(f"  Smoke result: max|score|={t11['max_abs_score']:.4f}  {'PASS' if t11['passed'] else 'FAIL'}\n")
+    passed_str = "PASS" if t11["passed"] else "FAIL"
+    print(f"  Smoke result: max|score|={t11['max_abs_score']:.4f}  {passed_str}\n")
 
     t12 = run_tier1_loo(records, is_break, names)
-    print(f"  LOO AUC: min={t12['min_auc']:.4f} mean={t12['mean_auc']:.4f} max={t12['max_auc']:.4f}\n")
+    print(
+        f"  LOO AUC: min={t12['min_auc']:.4f} mean={t12['mean_auc']:.4f} max={t12['max_auc']:.4f}\n"
+    )
 
     t2 = run_tier2_wrong_contrast(records, is_break, names, args.django_dir)
     print(f"  Wrong-contrast AUC: {t2['auc']:.4f}  Δ={t2['delta_vs_baseline']:+.4f}\n")

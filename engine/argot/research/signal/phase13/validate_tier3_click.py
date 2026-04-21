@@ -10,6 +10,7 @@ Usage:
         --click-dir /tmp/click-clone \\
         --out docs/research/scoring/signal/phase13/stage3_tier3_click_2026-04-21.md
 """
+
 from __future__ import annotations
 
 import argparse
@@ -52,11 +53,7 @@ def _load_fixtures() -> tuple[list[dict[str, Any]], list[bool], list[str], list[
 def _model_a_files(click_dir: Path) -> list[Path]:
     """All click/*.py files except those mirrored as fixture controls."""
     manifest = json.loads(MANIFEST_PATH.read_text())
-    control_basenames = {
-        Path(f["file"]).name
-        for f in manifest["fixtures"]
-        if not f["is_break"]
-    }
+    control_basenames = {Path(f["file"]).name for f in manifest["fixtures"] if not f["is_break"]}
     src = click_dir / "src" / "click"
     return [p for p in sorted(src.glob("*.py")) if p.name not in control_basenames]
 
@@ -74,8 +71,8 @@ def run(*, click_dir: Path, out: Path) -> dict[str, Any]:
     scorer.fit([], model_a_files=model_a)
     scores = scorer.score(records)
 
-    break_scores = [s for s, b in zip(scores, is_break) if b]
-    ctrl_scores = [s for s, b in zip(scores, is_break) if not b]
+    break_scores = [s for s, b in zip(scores, is_break, strict=False) if b]
+    ctrl_scores = [s for s, b in zip(scores, is_break, strict=False) if not b]
     auc = auc_from_scores(break_scores, ctrl_scores)
 
     _write_report(out, auc, scores, is_break, names, categories, model_a)
@@ -96,9 +93,7 @@ def _verdict(auc: float) -> str:
             f"**MIXED** (AUC {auc:.4f} in 0.65–0.80). Investigate per-category "
             "before any promotion decision."
         )
-    return (
-        f"**FAIL** (AUC {auc:.4f} < 0.65). Method is FastAPI-tuned; do not promote."
-    )
+    return f"**FAIL** (AUC {auc:.4f} < 0.65). Method is FastAPI-tuned; do not promote."
 
 
 def _write_report(
@@ -115,8 +110,7 @@ def _write_report(
         "# Phase 13 Stage 3 — Tier 3 Cross-Domain Validation (click)\n",
         "Scorer: `ContrastiveAstTreeletScorer(epsilon=1e-7, aggregation='max')`",
         "",
-        f"model_A: {len(model_a)} click source files "
-        "(click/*.py minus 10 held-out controls)",
+        f"model_A: {len(model_a)} click source files " "(click/*.py minus 10 held-out controls)",
         "",
         f"**Overall AUC: {auc:.4f}**",
         "",
@@ -125,7 +119,7 @@ def _write_report(
         "| fixture | category | is_break | score |",
         "|---|---|---|---|",
     ]
-    for n, c, b, s in zip(names, categories, is_break, scores):
+    for n, c, b, s in zip(names, categories, is_break, scores, strict=False):
         lines.append(f"| {n} | {c} | {b} | {s:.4f} |")
     lines += [
         "",
@@ -142,7 +136,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--click-dir", required=True, type=Path)
     parser.add_argument(
-        "--out", type=Path,
+        "--out",
+        type=Path,
         default=Path("docs/research/scoring/signal/phase13/stage3_tier3_click_2026-04-21.md"),
     )
     args = parser.parse_args()

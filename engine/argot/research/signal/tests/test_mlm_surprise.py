@@ -25,7 +25,6 @@ def _make_scorer(variant: str) -> Any:
     lit_variant: Literal["mean", "min", "p05"] = variant  # type: ignore[assignment]
     scorer = MlmSurpriseScorer.__new__(MlmSurpriseScorer)
     scorer._variant = lit_variant
-    scorer._batch_size = 32
     scorer.name = f"mlm_surprise_{variant}"
     scorer._device = torch.device("cpu")
     scorer._mask_token_id = _MASK_TOKEN_ID
@@ -146,17 +145,14 @@ def test_registry_has_three_variants() -> None:
     assert "mlm_surprise_p05" in REGISTRY
 
 
-def test_compute_logprobs_batching() -> None:
-    """_compute_logprobs should work correctly with batch_size < n_positions."""
+def test_compute_fixture_logprobs_joint_masking() -> None:
+    """_compute_fixture_logprobs should use joint masking in a single forward pass."""
     scorer = _make_scorer("mean")
-    scorer._batch_size = 2  # force multiple batches
 
-    # input_ids: [CLS, tok1, tok2, tok3, SEP]
-    input_ids = torch.tensor([101, 10, 20, 30, 102])
-    attention_mask = torch.tensor([1, 1, 1, 1, 1])
-    hunk_positions = [1, 2, 3]
+    # Three hunk tokens; tokenizer encodes each call to [1, 2, 3]
+    fixture = _make_fixture(n_hunk=3)
 
-    logprobs = scorer._compute_logprobs(input_ids, attention_mask, hunk_positions)
+    logprobs = scorer._compute_fixture_logprobs(fixture)
 
     assert len(logprobs) == 3
     assert all(isinstance(lp, float) for lp in logprobs)

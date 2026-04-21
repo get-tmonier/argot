@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import math
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from argot.research.signal.base import REGISTRY
 from argot.research.signal.treelet_extractor import extract_treelets
@@ -75,10 +77,8 @@ class ContrastiveAstTreeletScorer:
         counts: Counter[str] = Counter()
         if model_a_files is not None:
             for path in model_a_files:
-                try:
+                with contextlib.suppress(Exception):
                     counts.update(extract_treelets(path.read_text(errors="replace")))
-                except Exception:
-                    pass
         else:
             for record in corpus:
                 source = _record_to_source(record)
@@ -136,4 +136,6 @@ class ContrastiveAstTreeletScorer:
 REGISTRY["ast_contrastive"] = lambda: ContrastiveAstTreeletScorer(epsilon=1e-6)
 REGISTRY["ast_contrastive_e01"] = lambda: ContrastiveAstTreeletScorer(epsilon=1e-5)
 REGISTRY["ast_contrastive_e10"] = lambda: ContrastiveAstTreeletScorer(epsilon=1e-7)
-REGISTRY["ast_contrastive_max"] = lambda: ContrastiveAstTreeletScorer(epsilon=1e-7, aggregation="max")
+REGISTRY["ast_contrastive_max"] = lambda: ContrastiveAstTreeletScorer(
+    epsilon=1e-7, aggregation="max"
+)
