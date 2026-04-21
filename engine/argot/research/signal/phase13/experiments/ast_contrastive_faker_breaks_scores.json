@@ -1,0 +1,45 @@
+{
+  "experiment": "ast_contrastive_faker_breaks",
+  "scorer_params": {
+    "epsilon": 1e-07,
+    "aggregation": "max"
+  },
+  "fastapi_sanity_auc": 0.9741935483870968,
+  "n_calibration_hunks": 159,
+  "calibration_stats": {
+    "min": 0.0,
+    "p50": 0.0,
+    "p90": 2.284959374413443,
+    "p99": 3.9061014628273014,
+    "max": 3.986558268680911,
+    "mean": 0.7712161897769843,
+    "stdev": 1.1416950702925852
+  },
+  "break_scores": [
+    {
+      "name": "break_mimesis_alt_1",
+      "category": "mimesis_alt",
+      "score": 6.396885423304633
+    },
+    {
+      "name": "break_threading_provider_1",
+      "category": "threading_provider",
+      "score": 5.992253338330409
+    },
+    {
+      "name": "break_sqlalchemy_sink_1",
+      "category": "sqlalchemy_sink",
+      "score": 4.569581246660559
+    },
+    {
+      "name": "break_numpy_random_1",
+      "category": "numpy_random",
+      "score": 4.950073057650162
+    },
+    {
+      "name": "break_requests_source_1",
+      "category": "requests_source",
+      "score": 4.32202019928077
+    }
+  ]
+}
