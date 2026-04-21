@@ -10,6 +10,7 @@ Usage:
         --click-dir /tmp/click-clone \\
         --out docs/research/scoring/signal/phase13/stage3_tier3_click_matched_2026-04-21.md
 """
+
 from __future__ import annotations
 
 import argparse
@@ -181,10 +182,10 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--click-dir", required=True, type=Path)
     parser.add_argument(
-        "--out", type=Path,
+        "--out",
+        type=Path,
         default=Path(
-            "docs/research/scoring/signal/phase13/"
-            "stage3_tier3_click_matched_2026-04-21.md"
+            "docs/research/scoring/signal/phase13/" "stage3_tier3_click_matched_2026-04-21.md"
         ),
     )
     args = parser.parse_args()

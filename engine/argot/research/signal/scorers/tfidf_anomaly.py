@@ -4,10 +4,10 @@ from typing import Any
 
 import numpy as np
 from scipy.sparse import csr_matrix  # type: ignore[import-untyped]
-from sklearn.feature_extraction.text import (  # type: ignore[import-untyped]
+from sklearn.feature_extraction.text import (
     TfidfVectorizer,
 )
-from sklearn.neighbors import NearestNeighbors  # type: ignore[import-untyped]
+from sklearn.neighbors import NearestNeighbors
 
 from argot.research.signal.base import REGISTRY
 

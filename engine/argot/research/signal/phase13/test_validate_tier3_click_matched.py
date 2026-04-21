@@ -1,4 +1,5 @@
 """Tests for Tier 3 methodology-controlled rerun on click."""
+
 from __future__ import annotations
 
 import ast
@@ -29,9 +30,9 @@ def test_controls_only_reference_held_out_files() -> None:
         if f["is_break"]:
             continue
         basename = Path(f["file"]).name
-        assert basename in HELD_OUT, (
-            f"control {f['name']} references {basename}, not in held-out set {HELD_OUT}"
-        )
+        assert (
+            basename in HELD_OUT
+        ), f"control {f['name']} references {basename}, not in held-out set {HELD_OUT}"
 
 
 def test_control_hunks_are_size_matched() -> None:
@@ -42,9 +43,9 @@ def test_control_hunks_are_size_matched() -> None:
         hunk_size = f["hunk_end_line"] - f["hunk_start_line"] + 1
         low = CONTROL_TARGET_LINES - CONTROL_TOLERANCE
         high = CONTROL_TARGET_LINES + CONTROL_TOLERANCE
-        assert low <= hunk_size <= high, (
-            f"control {f['name']} hunk size {hunk_size} outside [{low}, {high}]"
-        )
+        assert (
+            low <= hunk_size <= high
+        ), f"control {f['name']} hunk size {hunk_size} outside [{low}, {high}]"
 
 
 def test_control_hunk_ranges_valid() -> None:
@@ -73,9 +74,11 @@ def test_break_entries_reuse_existing_fixtures() -> None:
 def test_runner_produces_auc_and_model_a_count(tmp_path: Path) -> None:
     """End-to-end: load matched manifest, build model_A=13, score, write report."""
     import os
+
     click_dir = Path(os.environ.get("TIER3_CLICK_DIR", "/tmp/click-clone"))
     if not click_dir.exists():
         import pytest
+
         pytest.skip(f"click clone not found at {click_dir}; set TIER3_CLICK_DIR")
 
     from argot.research.signal.phase13.validate_tier3_click_matched import run
@@ -86,9 +89,9 @@ def test_runner_produces_auc_and_model_a_count(tmp_path: Path) -> None:
     assert "auc" in result
     assert 0.0 <= result["auc"] <= 1.0
     # With 3 held-out files and ~16 click/*.py total, we expect exactly 13 model_A files.
-    assert result["model_a_count"] == 13, (
-        f"expected model_A=13 (16 click files minus 3 held-out), got {result['model_a_count']}"
-    )
+    assert (
+        result["model_a_count"] == 13
+    ), f"expected model_A=13 (16 click files minus 3 held-out), got {result['model_a_count']}"
     assert out.exists()
     body = out.read_text()
     assert "Verdict" in body
