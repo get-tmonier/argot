@@ -12,10 +12,7 @@ from argot.research.signal.phase13.experiments.contrastive_tfidf import (
 )
 
 _FASTAPI_DIR = (
-    Path(__file__).parent.parent.parent.parent.parent
-    / "acceptance"
-    / "catalog"
-    / "fastapi"
+    Path(__file__).parent.parent.parent.parent.parent / "acceptance" / "catalog" / "fastapi"
 )
 
 

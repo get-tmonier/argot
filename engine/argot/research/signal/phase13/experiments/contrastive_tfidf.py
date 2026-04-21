@@ -25,16 +25,9 @@ from argot.tokenize import tokenize_lines
 
 _EPSILON = 1e-7
 _FASTAPI_DIR = (
-    Path(__file__).parent.parent.parent.parent.parent
-    / "acceptance"
-    / "catalog"
-    / "fastapi"
+    Path(__file__).parent.parent.parent.parent.parent / "acceptance" / "catalog" / "fastapi"
 )
-_REFERENCE_PATH = (
-    Path(__file__).parent.parent.parent.parent
-    / "reference"
-    / "generic_tokens.json"
-)
+_REFERENCE_PATH = Path(__file__).parent.parent.parent.parent / "reference" / "generic_tokens.json"
 
 
 def _load_model_b() -> tuple[dict[str, int], int]:
