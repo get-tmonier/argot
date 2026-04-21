@@ -260,6 +260,12 @@ def _run_sweep(
     corpus: list[dict[str, Any]] = load_corpus(entry_dir)
     if context_mode != "baseline":
         variant_corpus_path = entry_dir / f"corpus_{context_mode}.jsonl"
+        if not variant_corpus_path.exists():
+            raise FileNotFoundError(
+                f"Variant corpus not found: {variant_corpus_path}\n"
+                f"Run first: uv run --package argot-engine python -m "
+                f"argot.research.signal.build_variant_corpus --mode {context_mode}"
+            )
         corpus = []
         with variant_corpus_path.open() as f:
             for line in f:
