@@ -124,6 +124,23 @@ acceptance entry="":
 		--out docs/research/scoring/acceptance \
 		--epochs 20 $([ -n "{{entry}}" ] && echo "--entry {{entry}}")
 
+phase11:
+    uv run --package argot-engine python -m argot.research.signal.sweep \
+        --stage 5 --entry fastapi --context-mode baseline \
+        --out .argot/phase11_results
+    uv run --package argot-engine python -m argot.research.signal.sweep \
+        --stage 5 --entry fastapi --context-mode parent_only \
+        --out .argot/phase11_results
+    uv run --package argot-engine python -m argot.research.signal.sweep \
+        --stage 5 --entry fastapi --context-mode file_only \
+        --out .argot/phase11_results
+    uv run --package argot-engine python -m argot.research.signal.sweep \
+        --stage 5 --entry fastapi --context-mode siblings_only \
+        --out .argot/phase11_results
+    uv run --package argot-engine python -m argot.research.signal.sweep \
+        --stage 5 --entry fastapi --context-mode combined \
+        --out .argot/phase11_results
+
 # --- individual checks ---
 
 lint:

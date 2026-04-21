@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import json
 import math
 import random
 import statistics
@@ -251,11 +252,19 @@ def _run_sweep(
     seeds: list[int],
     out_dir: Path,
     corpus_cap: int = 2000,
+    context_mode: str = "baseline",
 ) -> None:
     entry_dir = catalog_dir / entry_name
     scopes: list[ScopeConfig] = load_scopes(entry_dir)
     specs: list[FixtureSpec] = load_manifest(entry_dir)
     corpus: list[dict[str, Any]] = load_corpus(entry_dir)
+    if context_mode != "baseline":
+        variant_corpus_path = entry_dir / f"corpus_{context_mode}.jsonl"
+        corpus = []
+        with variant_corpus_path.open() as f:
+            for line in f:
+                if line.strip():
+                    corpus.append(json.loads(line))
     corpus = corpus[:corpus_cap]
 
     # Pre-encode corpus per scope once (reused across all configs and seeds)
@@ -313,13 +322,17 @@ def _run_sweep(
                     continue
 
                 scope_specs = [s for s in specs if s.scope == scope.name]
-                fixture_records = [fixture_to_record(entry_dir, spec) for spec in scope_specs]
+                fixture_records = [
+                    fixture_to_record(entry_dir, spec, context_mode) for spec in scope_specs
+                ]
 
                 scorer = factory(cfg)
                 # Stage 3 filter scorers need break fixtures before fit()
                 if hasattr(scorer, "prime_breaks"):
                     break_records = [
-                        fixture_to_record(entry_dir, s) for s in scope_specs if s.is_break
+                        fixture_to_record(entry_dir, s, context_mode)
+                        for s in scope_specs
+                        if s.is_break
                     ]
                     scorer.prime_breaks(break_records)
                 scorer.fit(scope_corpus, preencoded=scope_preencoded.get(scope.name))  # type: ignore[call-arg]
@@ -362,7 +375,7 @@ def _run_sweep(
                 flush=True,
             )
 
-    _write_report(stage, entry_name, configs, seeds, raw_rows, out_dir)
+    _write_report(stage, entry_name, configs, seeds, raw_rows, out_dir, context_mode)
 
 
 def _write_report(
@@ -372,10 +385,11 @@ def _write_report(
     seeds: list[int],
     raw_rows: list[tuple[str, int, float, float, dict[str, float]]],
     out_dir: Path,
+    context_mode: str = "baseline",
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     date_str = datetime.date.today().isoformat()
-    out_path = out_dir / f"sweep_{entry_name}_stage{stage}_{date_str}.md"
+    out_path = out_dir / f"sweep_{entry_name}_stage{stage}_{context_mode}_{date_str}.md"
 
     config_names = [str(cfg["name"]) for cfg in configs]
 
@@ -441,6 +455,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="JEPA fine-tuning hyperparameter sweep")
     parser.add_argument("--stage", type=int, choices=[1, 2, 3, 4, 5, 6, 7], default=1)
     parser.add_argument("--entry", default="fastapi")
+    parser.add_argument(
+        "--context-mode",
+        default="baseline",
+        choices=["baseline", "parent_only", "file_only", "siblings_only", "combined"],
+    )
     # Parse stage early to set the correct default seeds before building the parser default
     _pre = argparse.ArgumentParser(add_help=False)
     _pre.add_argument("--stage", type=int, default=1)
@@ -453,6 +472,7 @@ def main() -> None:
     args = parser.parse_args()
 
     stage: int = args.stage
+    context_mode: str = args.context_mode
     seeds = [int(s.strip()) for s in args.seeds.split(",")]
     catalog_dir = Path(args.catalog)
     out_dir = Path(args.out)
@@ -472,10 +492,24 @@ def main() -> None:
             raise ValueError(f"--start-from {args.start_from!r} not found in stage {stage} configs")
         configs = configs[names.index(args.start_from) :]
 
-    print(f"=== JEPA sweep: stage={stage} entry={args.entry} seeds={seeds} ===", flush=True)
+    print(
+        f"=== JEPA sweep: stage={stage} entry={args.entry} seeds={seeds} "
+        f"context_mode={context_mode} ===",
+        flush=True,
+    )
 
     max_cap = max((int(c.get("corpus_cap", 2000)) for c in configs), default=2000)
-    _run_sweep(stage, args.entry, catalog_dir, configs, factory, seeds, out_dir, corpus_cap=max_cap)
+    _run_sweep(
+        stage,
+        args.entry,
+        catalog_dir,
+        configs,
+        factory,
+        seeds,
+        out_dir,
+        corpus_cap=max_cap,
+        context_mode=context_mode,
+    )
 
 
 if __name__ == "__main__":

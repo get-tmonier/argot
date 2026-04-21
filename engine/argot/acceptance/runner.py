@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from argot.research.signal.context_variants import build_context
 from argot.tokenize import language_for_path, tokenize_lines
 from argot.train import ModelBundle, train_model
 from argot.validate import score_records, split_by_time
@@ -72,21 +73,29 @@ def load_corpus(entry_dir: Path) -> list[dict[str, Any]]:
     return records
 
 
-def fixture_to_record(entry_dir: Path, spec: FixtureSpec) -> dict[str, Any]:
+def fixture_to_record(
+    entry_dir: Path, spec: FixtureSpec, context_mode: str = "baseline"
+) -> dict[str, Any]:
     fixture_path = entry_dir / spec.file
     source = fixture_path.read_text(encoding="utf-8")
     lines = source.splitlines()
     lang = language_for_path(str(fixture_path)) or "python"
     hunk_start = spec.hunk_start_line - 1
     hunk_end = spec.hunk_end_line
-    ctx_start = max(0, hunk_start - 20)
-    ctx_tokens = tokenize_lines(lines, lang, ctx_start, hunk_start)
+    if context_mode != "baseline":
+        result = build_context(source, spec.hunk_start_line, spec.hunk_end_line, context_mode)
+        ctx_tokens_dicts = result.tokens
+    else:
+        ctx_start = max(0, hunk_start - 20)
+        ctx_tokens_dicts = [
+            {"text": t.text} for t in tokenize_lines(lines, lang, ctx_start, hunk_start)
+        ]
     hunk_tokens = tokenize_lines(lines, lang, hunk_start, hunk_end)
     return {
         "_repo": "acceptance-fixture",
         "author_date_iso": "0",  # fixture records are never time-split; sentinel value
         "language": lang,
-        "context_before": [{"text": t.text} for t in ctx_tokens],
+        "context_before": ctx_tokens_dicts,
         "context_after": [],
         "hunk_tokens": [{"text": t.text} for t in hunk_tokens],
     }
