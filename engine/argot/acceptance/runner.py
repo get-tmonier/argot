@@ -111,6 +111,7 @@ def fixture_to_record(
         "hunk_end_line": spec.hunk_end_line,
         "_ctx_fallback": ctx_fallback,
         "_ctx_truncated": ctx_truncated,
+        "_fixture_path": str(fixture_path.resolve()),
     }
 
 

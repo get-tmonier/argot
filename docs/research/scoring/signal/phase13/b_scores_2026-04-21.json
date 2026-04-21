@@ -3,8 +3,7 @@
   "context_mode": "file_only",
   "date": "2026-04-21",
   "scorers": [
-    "ast_contrastive",
-    "ast_contrastive_e01",
+    "ast_contrastive_max",
     "ast_contrastive_e10",
     "tfidf_anomaly"
   ],
@@ -16,9 +15,8 @@
       "category": "routing",
       "set": "v1",
       "scores": {
-        "ast_contrastive": 6.296436475771359,
-        "ast_contrastive_e01": 7.243597601250026,
-        "ast_contrastive_e10": 5.217302289902606,
+        "ast_contrastive_max": 9.780865425812614,
+        "ast_contrastive_e10": 1.5106759658569313,
         "tfidf_anomaly": 0.7787638672128466
       }
     },
@@ -29,9 +27,8 @@
       "category": "framework_swap",
       "set": "v1",
       "scores": {
-        "ast_contrastive": 6.513338763441479,
-        "ast_contrastive_e01": 7.446284262965005,
-        "ast_contrastive_e10": 5.410010363866849,
+        "ast_contrastive_max": 8.345913742588223,
+        "ast_contrastive_e10": 1.26431595120324,
         "tfidf_anomaly": 0.7779335756727361
       }
     },
@@ -42,9 +39,8 @@
       "category": "framework_swap",
       "set": "v1",
       "scores": {
-        "ast_contrastive": 5.655614315848396,
-        "ast_contrastive_e01": 6.390073766757541,
-        "ast_contrastive_e10": 4.793861152220319,
+        "ast_contrastive_max": 8.063506577736023,
+        "ast_contrastive_e10": -0.9924668198041254,
         "tfidf_anomaly": 0.713196145269731
       }
     },
@@ -55,9 +51,8 @@
       "category": "validation",
       "set": "v1",
       "scores": {
-        "ast_contrastive": 6.173252089107507,
-        "ast_contrastive_e01": 7.130683794724717,
-        "ast_contrastive_e10": 5.059531564398345,
+        "ast_contrastive_max": 9.780865425812614,
+        "ast_contrastive_e10": 0.7738017537352272,
         "tfidf_anomaly": 0.7019654624518697
       }
     },
@@ -68,9 +63,8 @@
       "category": "exception_handling",
       "set": "v1",
       "scores": {
-        "ast_contrastive": 5.012664759737216,
-        "ast_contrastive_e01": 5.703312460637651,
-        "ast_contrastive_e10": 4.248398804314063,
+        "ast_contrastive_max": 9.297626397581869,
+        "ast_contrastive_e10": -2.5929712438762924,
         "tfidf_anomaly": 0.6610607940711192
       }
     },
@@ -81,9 +75,8 @@
       "category": "downstream_http",
       "set": "v1",
       "scores": {
-        "ast_contrastive": 5.475863327042055,
-        "ast_contrastive_e01": 6.080585069923554,
-        "ast_contrastive_e10": 4.7136848196737935,
+        "ast_contrastive_max": 7.130837538564807,
+        "ast_contrastive_e10": -2.138602250667686,
         "tfidf_anomaly": 0.6876673216480463
       }
     },
@@ -94,9 +87,8 @@
       "category": "async_blocking",
       "set": "v1",
       "scores": {
-        "ast_contrastive": 6.375253092591046,
-        "ast_contrastive_e01": 7.166171827166059,
-        "ast_contrastive_e10": 5.426341478740918,
+        "ast_contrastive_max": 8.181923118321684,
+        "ast_contrastive_e10": -0.3630609717716318,
         "tfidf_anomaly": 0.7577353755612398
       }
     },
@@ -107,9 +99,8 @@
       "category": "exception_handling",
       "set": "v1",
       "scores": {
-        "ast_contrastive": 5.299891781017442,
-        "ast_contrastive_e01": 6.0240387269604,
-        "ast_contrastive_e10": 4.467337184447753,
+        "ast_contrastive_max": 8.573938721434093,
+        "ast_contrastive_e10": -1.1802958250958515,
         "tfidf_anomaly": 0.6793909818714927
       }
     },
@@ -120,9 +111,8 @@
       "category": "routing",
       "set": "v1",
       "scores": {
-        "ast_contrastive": 5.367520229499217,
-        "ast_contrastive_e01": 6.091768090951486,
-        "ast_contrastive_e10": 4.578061681445372,
+        "ast_contrastive_max": 3.2955050100204932,
+        "ast_contrastive_e10": -2.876045804255269,
         "tfidf_anomaly": 0.7152638472377857
       }
     },
@@ -133,9 +123,8 @@
       "category": "dependency_injection",
       "set": "v1",
       "scores": {
-        "ast_contrastive": 5.560924662634374,
-        "ast_contrastive_e01": 6.261683778639063,
-        "ast_contrastive_e10": 4.73781950339558,
+        "ast_contrastive_max": 3.2611316768080183,
+        "ast_contrastive_e10": -1.9434573806175077,
         "tfidf_anomaly": 0.6642393910447518
       }
     },
@@ -146,9 +135,8 @@
       "category": "exception_handling",
       "set": "v1",
       "scores": {
-        "ast_contrastive": 5.0456479311780855,
-        "ast_contrastive_e01": 5.74934312641995,
-        "ast_contrastive_e10": 4.24233745595583,
+        "ast_contrastive_max": 1.804916815064031,
+        "ast_contrastive_e10": -3.2160034329494263,
         "tfidf_anomaly": 0.59522746507749
       }
     },
@@ -159,9 +147,8 @@
       "category": "routing",
       "set": "v2",
       "scores": {
-        "ast_contrastive": 5.2419426139854135,
-        "ast_contrastive_e01": 5.893139643629026,
-        "ast_contrastive_e10": 4.472087165913827,
+        "ast_contrastive_max": 8.345913742588223,
+        "ast_contrastive_e10": -0.8495330209650659,
         "tfidf_anomaly": 0.7051285554201167
       }
     },
@@ -172,9 +159,8 @@
       "category": "framework_swap",
       "set": "v2",
       "scores": {
-        "ast_contrastive": 0.0,
-        "ast_contrastive_e01": 0.0,
-        "ast_contrastive_e10": 0.0,
+        "ast_contrastive_max": 10.932210034396483,
+        "ast_contrastive_e10": 1.210525273267712,
         "tfidf_anomaly": 0.5307736887866812
       }
     },
@@ -185,9 +171,8 @@
       "category": "validation",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 0.0,
-        "ast_contrastive_e01": 0.0,
-        "ast_contrastive_e10": 0.0,
+        "ast_contrastive_max": 8.260709810017033,
+        "ast_contrastive_e10": -1.8197480787720663,
         "tfidf_anomaly": 0.6327205946101664
       }
     },
@@ -198,9 +183,8 @@
       "category": "validation",
       "set": "v2",
       "scores": {
-        "ast_contrastive": 4.925243112782442,
-        "ast_contrastive_e01": 5.4423786419414135,
-        "ast_contrastive_e10": 4.326543033718537,
+        "ast_contrastive_max": 11.274021087079067,
+        "ast_contrastive_e10": -1.6031331492690895,
         "tfidf_anomaly": 0.7223020938080147
       }
     },
@@ -211,9 +195,8 @@
       "category": "serialization",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 5.340457551107007,
-        "ast_contrastive_e01": 6.090110043020408,
-        "ast_contrastive_e10": 4.532203014230801,
+        "ast_contrastive_max": 8.228916318919403,
+        "ast_contrastive_e10": -1.2882583482684922,
         "tfidf_anomaly": 0.7118009898371673
       }
     },
@@ -224,9 +207,8 @@
       "category": "exception_handling",
       "set": "v2",
       "scores": {
-        "ast_contrastive": 5.173322801272518,
-        "ast_contrastive_e01": 5.922534566172437,
-        "ast_contrastive_e10": 4.334639381135122,
+        "ast_contrastive_max": 9.169017781332176,
+        "ast_contrastive_e10": -0.7362587625748236,
         "tfidf_anomaly": 0.7646843624806923
       }
     },
@@ -237,9 +219,8 @@
       "category": "async_blocking",
       "set": "v2",
       "scores": {
-        "ast_contrastive": 5.239178172074396,
-        "ast_contrastive_e01": 5.976817615706849,
-        "ast_contrastive_e10": 4.469809769875696,
+        "ast_contrastive_max": 8.062168311179638,
+        "ast_contrastive_e10": -1.5806381739797706,
         "tfidf_anomaly": 0.6416980169216951
       }
     },
@@ -250,9 +231,8 @@
       "category": "downstream_http",
       "set": "v2",
       "scores": {
-        "ast_contrastive": 5.394852836953676,
-        "ast_contrastive_e01": 5.902961813294542,
-        "ast_contrastive_e10": 4.738793061024038,
+        "ast_contrastive_max": 9.251416573625896,
+        "ast_contrastive_e10": -1.7482998083156813,
         "tfidf_anomaly": 0.7325769028343182
       }
     },
@@ -263,9 +243,8 @@
       "category": "background_tasks",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 4.501841396207174,
-        "ast_contrastive_e01": 5.000340440587058,
-        "ast_contrastive_e10": 3.98292405560848,
+        "ast_contrastive_max": 6.4586608175986555,
+        "ast_contrastive_e10": -2.9081799236648482,
         "tfidf_anomaly": 0.7804462167606099
       }
     },
@@ -276,9 +255,8 @@
       "category": "validation",
       "set": "v2",
       "scores": {
-        "ast_contrastive": 4.951449968389369,
-        "ast_contrastive_e01": 5.6701476972295,
-        "ast_contrastive_e10": 4.1576284631957305,
+        "ast_contrastive_max": 1.242473728615792,
+        "ast_contrastive_e10": -3.009483867485234,
         "tfidf_anomaly": 0.5990823691996287
       }
     },
@@ -289,9 +267,8 @@
       "category": "serialization",
       "set": "v2",
       "scores": {
-        "ast_contrastive": 4.99869055073243,
-        "ast_contrastive_e01": 5.74281286748971,
-        "ast_contrastive_e10": 4.1697716332960395,
+        "ast_contrastive_max": 3.823946567936531,
+        "ast_contrastive_e10": -2.8427420852590894,
         "tfidf_anomaly": 0.6125580837962838
       }
     },
@@ -302,9 +279,8 @@
       "category": "async_blocking",
       "set": "v2",
       "scores": {
-        "ast_contrastive": 5.210346351198307,
-        "ast_contrastive_e01": 5.9362988569497395,
-        "ast_contrastive_e10": 4.415047388520477,
+        "ast_contrastive_max": 3.984786168973331,
+        "ast_contrastive_e10": -2.159882588140501,
         "tfidf_anomaly": 0.5962732222355429
       }
     },
@@ -315,9 +291,8 @@
       "category": "downstream_http",
       "set": "v2",
       "scores": {
-        "ast_contrastive": 5.28543690215224,
-        "ast_contrastive_e01": 6.060061526795191,
-        "ast_contrastive_e10": 4.438544929023905,
+        "ast_contrastive_max": 3.2611316768080183,
+        "ast_contrastive_e10": -2.440353863738913,
         "tfidf_anomaly": 0.653763311165952
       }
     },
@@ -328,9 +303,8 @@
       "category": "dependency_injection",
       "set": "v2",
       "scores": {
-        "ast_contrastive": 5.021225807169358,
-        "ast_contrastive_e01": 5.6191502960960475,
-        "ast_contrastive_e10": 4.321553407149387,
+        "ast_contrastive_max": 3.2611316768080183,
+        "ast_contrastive_e10": -2.527715562239903,
         "tfidf_anomaly": 0.5504614777030149
       }
     },
@@ -341,9 +315,8 @@
       "category": "async_blocking",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 0.0,
-        "ast_contrastive_e01": 0.0,
-        "ast_contrastive_e10": 0.0,
+        "ast_contrastive_max": 9.169017781332176,
+        "ast_contrastive_e10": -2.012568373401273,
         "tfidf_anomaly": 0.7483617010917696
       }
     },
@@ -354,9 +327,8 @@
       "category": "async_blocking",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 0.0,
-        "ast_contrastive_e01": 0.0,
-        "ast_contrastive_e10": 0.0,
+        "ast_contrastive_max": 3.873643564724947,
+        "ast_contrastive_e10": -1.855233027763358,
         "tfidf_anomaly": 0.7181127757969856
       }
     },
@@ -367,9 +339,8 @@
       "category": "background_tasks",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 0.0,
-        "ast_contrastive_e01": 0.0,
-        "ast_contrastive_e10": 0.0,
+        "ast_contrastive_max": 9.251416573625896,
+        "ast_contrastive_e10": -1.405168406031987,
         "tfidf_anomaly": 0.7083532815581386
       }
     },
@@ -380,9 +351,8 @@
       "category": "background_tasks",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 0.0,
-        "ast_contrastive_e01": 0.0,
-        "ast_contrastive_e10": 0.0,
+        "ast_contrastive_max": 9.670415907748687,
+        "ast_contrastive_e10": -1.3930985083143839,
         "tfidf_anomaly": 0.7332670262300688
       }
     },
@@ -393,9 +363,8 @@
       "category": "background_tasks",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 4.892811311069874,
-        "ast_contrastive_e01": 5.564442896185537,
-        "ast_contrastive_e10": 4.145722670380915,
+        "ast_contrastive_max": 9.251416573625896,
+        "ast_contrastive_e10": -1.6303898756545636,
         "tfidf_anomaly": 0.7438803546414692
       }
     },
@@ -406,9 +375,8 @@
       "category": "background_tasks",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 0.0,
-        "ast_contrastive_e01": 0.0,
-        "ast_contrastive_e10": 0.0,
+        "ast_contrastive_max": 2.5424049636815917,
+        "ast_contrastive_e10": -2.24726408872872,
         "tfidf_anomaly": 0.7886393217480473
       }
     },
@@ -419,9 +387,8 @@
       "category": "background_tasks",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 0.0,
-        "ast_contrastive_e01": 0.0,
-        "ast_contrastive_e10": 0.0,
+        "ast_contrastive_max": 3.4919675471212885,
+        "ast_contrastive_e10": -1.5112659170765794,
         "tfidf_anomaly": 0.7204005847852899
       }
     },
@@ -432,9 +399,8 @@
       "category": "dependency_injection",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 5.33982059860918,
-        "ast_contrastive_e01": 6.189611342874068,
-        "ast_contrastive_e10": 4.433095325222049,
+        "ast_contrastive_max": 8.26999964251516,
+        "ast_contrastive_e10": -1.156741845788691,
         "tfidf_anomaly": 0.7271477938880484
       }
     },
@@ -445,9 +411,8 @@
       "category": "dependency_injection",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 5.346149597845628,
-        "ast_contrastive_e01": 6.101954402566797,
-        "ast_contrastive_e10": 4.521760513898128,
+        "ast_contrastive_max": 8.710302235520142,
+        "ast_contrastive_e10": -2.5156471714689848,
         "tfidf_anomaly": 0.5975216179423523
       }
     },
@@ -458,9 +423,8 @@
       "category": "dependency_injection",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 5.343541263119831,
-        "ast_contrastive_e01": 6.112539016891643,
-        "ast_contrastive_e10": 4.458995710398177,
+        "ast_contrastive_max": 2.6087893618351945,
+        "ast_contrastive_e10": -2.5335076655136084,
         "tfidf_anomaly": 0.721459354983653
       }
     },
@@ -471,9 +435,8 @@
       "category": "downstream_http",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 0.0,
-        "ast_contrastive_e01": 0.0,
-        "ast_contrastive_e10": 0.0,
+        "ast_contrastive_max": 7.130837538564807,
+        "ast_contrastive_e10": -1.601618315212864,
         "tfidf_anomaly": 0.7242209178125295
       }
     },
@@ -484,9 +447,8 @@
       "category": "downstream_http",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 0.0,
-        "ast_contrastive_e01": 0.0,
-        "ast_contrastive_e10": 0.0,
+        "ast_contrastive_max": 3.2611316768080183,
+        "ast_contrastive_e10": -2.3617501086481103,
         "tfidf_anomaly": 0.646791789657402
       }
     },
@@ -497,9 +459,8 @@
       "category": "exception_handling",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 0.0,
-        "ast_contrastive_e01": 0.0,
-        "ast_contrastive_e10": 0.0,
+        "ast_contrastive_max": 8.26999964251516,
+        "ast_contrastive_e10": -1.2929302461603231,
         "tfidf_anomaly": 0.5861846650944548
       }
     },
@@ -510,9 +471,8 @@
       "category": "exception_handling",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 0.0,
-        "ast_contrastive_e01": 0.0,
-        "ast_contrastive_e10": 0.0,
+        "ast_contrastive_max": 8.26999964251516,
+        "ast_contrastive_e10": -1.0905772134592069,
         "tfidf_anomaly": 0.5790768821327547
       }
     },
@@ -523,9 +483,8 @@
       "category": "exception_handling",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 5.139824727181413,
-        "ast_contrastive_e01": 5.897092479844214,
-        "ast_contrastive_e10": 4.286799086766827,
+        "ast_contrastive_max": 1.6965974397232593,
+        "ast_contrastive_e10": -3.214173838242269,
         "tfidf_anomaly": 0.5518893823036659
       }
     },
@@ -536,9 +495,8 @@
       "category": "exception_handling",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 0.0,
-        "ast_contrastive_e01": 0.0,
-        "ast_contrastive_e10": 0.0,
+        "ast_contrastive_max": 1.804916815064031,
+        "ast_contrastive_e10": -2.8983241792693253,
         "tfidf_anomaly": 0.6056261142335773
       }
     },
@@ -549,9 +507,8 @@
       "category": "framework_swap",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 4.735655929493351,
-        "ast_contrastive_e01": 5.310859827427483,
-        "ast_contrastive_e10": 4.093095467749184,
+        "ast_contrastive_max": 3.984786168973331,
+        "ast_contrastive_e10": -2.8961682668486723,
         "tfidf_anomaly": 0.6636725914238024
       }
     },
@@ -562,9 +519,8 @@
       "category": "framework_swap",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 4.618583170966441,
-        "ast_contrastive_e01": 5.1327293616996315,
-        "ast_contrastive_e10": 4.029535331198064,
+        "ast_contrastive_max": 1.5092116662903798,
+        "ast_contrastive_e10": -2.987444380366326,
         "tfidf_anomaly": 0.6095490965863536
       }
     },
@@ -575,9 +531,8 @@
       "category": "framework_swap",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 4.777488110749755,
-        "ast_contrastive_e01": 5.45576511966496,
-        "ast_contrastive_e10": 4.038075092307362,
+        "ast_contrastive_max": 1.96437490515045,
+        "ast_contrastive_e10": -2.8740496133316884,
         "tfidf_anomaly": 0.5845664893117075
       }
     },
@@ -588,9 +543,8 @@
       "category": "routing",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 0.0,
-        "ast_contrastive_e01": 0.0,
-        "ast_contrastive_e10": 0.0,
+        "ast_contrastive_max": 10.932210034396483,
+        "ast_contrastive_e10": -1.898414473157219,
         "tfidf_anomaly": 0.615644575127592
       }
     },
@@ -601,9 +555,8 @@
       "category": "routing",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 0.0,
-        "ast_contrastive_e01": 0.0,
-        "ast_contrastive_e10": 0.0,
+        "ast_contrastive_max": 1.5092116662903798,
+        "ast_contrastive_e10": -2.9117515008199355,
         "tfidf_anomaly": 0.49543929713066265
       }
     },
@@ -614,9 +567,8 @@
       "category": "serialization",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 5.005597409443161,
-        "ast_contrastive_e01": 5.689726043378342,
-        "ast_contrastive_e10": 4.2358126965258,
+        "ast_contrastive_max": 8.063506577736023,
+        "ast_contrastive_e10": -1.5329762929693274,
         "tfidf_anomaly": 0.663648654488077
       }
     },
@@ -627,9 +579,8 @@
       "category": "serialization",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 5.249774350724418,
-        "ast_contrastive_e01": 6.0133614264188,
-        "ast_contrastive_e10": 4.412951980829165,
+        "ast_contrastive_max": 8.228916318919403,
+        "ast_contrastive_e10": -2.6905981460072343,
         "tfidf_anomaly": 0.7574181442346298
       }
     },
@@ -640,9 +591,8 @@
       "category": "serialization",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 5.178607933114246,
-        "ast_contrastive_e01": 5.970388396088802,
-        "ast_contrastive_e10": 4.319232994682446,
+        "ast_contrastive_max": 3.823946567936531,
+        "ast_contrastive_e10": -3.097214521991248,
         "tfidf_anomaly": 0.5384171475222418
       }
     },
@@ -653,9 +603,8 @@
       "category": "validation",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 5.121540576278917,
-        "ast_contrastive_e01": 5.903034643762413,
-        "ast_contrastive_e10": 4.236515957605453,
+        "ast_contrastive_max": 9.53876881674294,
+        "ast_contrastive_e10": -0.4884778485097224,
         "tfidf_anomaly": 0.6490495548334254
       }
     },
@@ -666,54 +615,39 @@
       "category": "validation",
       "set": "v3",
       "scores": {
-        "ast_contrastive": 5.275059050301541,
-        "ast_contrastive_e01": 6.020226194735243,
-        "ast_contrastive_e10": 4.451410152631308,
+        "ast_contrastive_max": 1.5401405994010693,
+        "ast_contrastive_e10": -2.9781254275915114,
         "tfidf_anomaly": 0.6968310832278188
       }
     }
   ],
   "scorer_aucs": {
-    "ast_contrastive": {
-      "overall": 0.5870967741935483,
+    "ast_contrastive_max": {
+      "overall": 0.9741935483870968,
       "by_category": {
-        "async_blocking": 0.75,
-        "background_tasks": 0.75,
-        "dependency_injection": 0.5,
-        "downstream_http": 0.75,
-        "exception_handling": 0.6666666666666666,
-        "framework_swap": 0.6666666666666666,
-        "routing": 0.5833333333333334,
-        "serialization": 0.8333333333333334,
-        "validation": 0.375
-      }
-    },
-    "ast_contrastive_e01": {
-      "overall": 0.5709677419354838,
-      "by_category": {
-        "async_blocking": 0.75,
-        "background_tasks": 0.75,
-        "dependency_injection": 0.5,
-        "downstream_http": 0.5833333333333334,
-        "exception_handling": 0.6666666666666666,
-        "framework_swap": 0.6666666666666666,
-        "routing": 0.5833333333333334,
-        "serialization": 0.6666666666666666,
-        "validation": 0.375
+        "async_blocking": 1.0,
+        "background_tasks": 1.0,
+        "dependency_injection": 1.0,
+        "downstream_http": 1.0,
+        "exception_handling": 0.8333333333333334,
+        "framework_swap": 1.0,
+        "routing": 1.0,
+        "serialization": 1.0,
+        "validation": 1.0
       }
     },
     "ast_contrastive_e10": {
-      "overall": 0.603225806451613,
+      "overall": 0.882258064516129,
       "by_category": {
-        "async_blocking": 0.75,
-        "background_tasks": 0.75,
-        "dependency_injection": 0.5,
-        "downstream_http": 0.75,
-        "exception_handling": 0.75,
-        "framework_swap": 0.6666666666666666,
-        "routing": 0.5833333333333334,
-        "serialization": 0.8333333333333334,
-        "validation": 0.5
+        "async_blocking": 0.8333333333333334,
+        "background_tasks": 0.625,
+        "dependency_injection": 0.8333333333333334,
+        "downstream_http": 1.0,
+        "exception_handling": 0.9166666666666666,
+        "framework_swap": 1.0,
+        "routing": 1.0,
+        "serialization": 1.0,
+        "validation": 1.0
       }
     },
     "tfidf_anomaly": {

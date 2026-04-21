@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import gc
+import inspect
 import json
 from pathlib import Path
 from typing import Any
@@ -132,7 +133,18 @@ def _run_bakeoff(
             raise KeyError(f"Scorer {name!r} not in REGISTRY. Available: {sorted(REGISTRY)}")
         scorer: SignalScorer = REGISTRY[name]()
         print(f"  Fitting {name!r} ...", flush=True)
-        scorer.fit(corpus)
+        fit_sig = inspect.signature(scorer.fit)
+        if "model_a_files" in fit_sig.parameters:
+            fixture_default = entry_dir / "fixtures" / "default"
+            # Use only control files: they represent genuine repo patterns.
+            # Break fixtures contain the non-idiomatic patterns we're trying to
+            # detect, so including them in model_A would dilute the contrast.
+            py_files = sorted(fixture_default.glob("control*.py")) if fixture_default.exists() else None
+            if py_files:
+                print(f"    model_a_files: {len(py_files)} control .py files from {fixture_default}", flush=True)
+            scorer.fit(corpus, model_a_files=py_files or None)
+        else:
+            scorer.fit(corpus)
         print(f"  Scoring {name!r} ...", flush=True)
         scorer_scores[name] = scorer.score(fixture_records)
         del scorer

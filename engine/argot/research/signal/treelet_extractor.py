@@ -4,7 +4,7 @@ import ast
 
 
 def extract_treelets(source: str) -> list[str]:
-    """Parse *source* and return depth-1 and depth-2 treelet strings.
+    """Parse *source* and return depth-1, depth-2, and depth-3 treelet strings.
 
     Each treelet encodes only AST node type names — no identifier strings.
     Returns [] on SyntaxError.
@@ -23,5 +23,8 @@ def extract_treelets(source: str) -> list[str]:
             for grandchild in ast.iter_child_nodes(child):
                 g_name = type(grandchild).__name__
                 treelets.append(f"d2:{p_name}>{c_name}>{g_name}")
+                for ggchild in ast.iter_child_nodes(grandchild):
+                    gg_name = type(ggchild).__name__
+                    treelets.append(f"d3:{p_name}>{c_name}>{g_name}>{gg_name}")
 
     return treelets
