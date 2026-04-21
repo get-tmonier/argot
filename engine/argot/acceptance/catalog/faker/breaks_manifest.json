@@ -1,0 +1,51 @@
+{
+  "source_repo": "https://github.com/joke2k/faker",
+  "note": "Faker paradigm-break validation — 5 breaks (5 categories x 1), foreign-paradigm hunks in faker-looking files.",
+  "fixtures": [
+    {
+      "name": "break_mimesis_alt_1",
+      "file": "fixtures/break_mimesis_alt_1.py",
+      "hunk_start_line": 19,
+      "hunk_end_line": 46,
+      "is_break": true,
+      "rationale": "mimesis Person/Address/Finance with Gender enum — competing fake-data library paradigm in a faker-looking file",
+      "category": "mimesis_alt"
+    },
+    {
+      "name": "break_threading_provider_1",
+      "file": "fixtures/break_threading_provider_1.py",
+      "hunk_start_line": 13,
+      "hunk_end_line": 47,
+      "is_break": true,
+      "rationale": "threading.Thread + Lock + Event parallel fake-data generator class in a faker-looking file",
+      "category": "threading_provider"
+    },
+    {
+      "name": "break_sqlalchemy_sink_1",
+      "file": "fixtures/break_sqlalchemy_sink_1.py",
+      "hunk_start_line": 17,
+      "hunk_end_line": 49,
+      "is_break": true,
+      "rationale": "SQLAlchemy ORM model + session.add/commit to persist fakes — DB-sink paradigm in a faker-looking file",
+      "category": "sqlalchemy_sink"
+    },
+    {
+      "name": "break_numpy_random_1",
+      "file": "fixtures/break_numpy_random_1.py",
+      "hunk_start_line": 13,
+      "hunk_end_line": 40,
+      "is_break": true,
+      "rationale": "numpy.random Generator/default_rng for name and age generation instead of faker internals in a faker-looking file",
+      "category": "numpy_random"
+    },
+    {
+      "name": "break_requests_source_1",
+      "file": "fixtures/break_requests_source_1.py",
+      "hunk_start_line": 17,
+      "hunk_end_line": 47,
+      "is_break": true,
+      "rationale": "requests.get() fetching real user data from HTTP APIs instead of local fake generation in a faker-looking file",
+      "category": "requests_source"
+    }
+  ]
+}
