@@ -31,12 +31,12 @@
       "category": "control_decorators"
     },
     {
-      "name": "control_types_int_range",
+      "name": "control_types_datetime",
       "file": "controls/types.py",
       "hunk_start_line": 338,
       "hunk_end_line": 358,
       "is_break": false,
-      "rationale": "DateTime class definition with docstring — canonical click type",
+      "rationale": "DateTime class definition with docstring — canonical click ParamType subclass",
       "category": "control_types"
     },
     {
