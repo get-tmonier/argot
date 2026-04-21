@@ -40,8 +40,11 @@ class Solo:
 """
 
 
-def _texts(dicts: list[dict[str, str]]) -> list[str]:
-    return [d["text"] for d in dicts]
+def _texts(result: object) -> list[str]:
+    from argot.research.signal.context_variants import ContextResult
+
+    assert isinstance(result, ContextResult)
+    return [d["text"] for d in result.tokens]
 
 
 class TestParentOnly:
@@ -82,15 +85,17 @@ class TestSiblingsOnly:
         po = build_context(SOURCE_SINGLE_CHILD, 3, 3, "parent_only")
         so = build_context(SOURCE_SINGLE_CHILD, 3, 3, "siblings_only")
         assert _texts(po) == _texts(so)
+        assert so.variant_fallback is True
 
 
 class TestSyntaxErrorFallback:
     def test_all_non_baseline_modes_return_baseline(self) -> None:
         bad_source = "def broken(\n    x =\n"
         baseline = _texts(build_context(bad_source, 2, 2, "baseline"))
-        for mode in ("parent_only", "file_only", "siblings_only"):
-            result = _texts(build_context(bad_source, 2, 2, mode))
-            assert result == baseline, f"mode={mode} did not match baseline"
+        for mode in ("parent_only", "file_only", "siblings_only", "combined"):
+            result = build_context(bad_source, 2, 2, mode)
+            assert _texts(result) == baseline, f"mode={mode} did not match baseline"
+            assert result.variant_fallback is True, f"mode={mode} did not set variant_fallback"
 
 
 class TestCharBudgetTruncation:
@@ -98,21 +103,54 @@ class TestCharBudgetTruncation:
         long_line = "x = " + "a" * 200
         many_lines = "\n".join([long_line] * 30)
         result = build_context(many_lines, 15, 15, "file_only")
-        total_chars = sum(len(d["text"]) for d in result)
+        total_chars = sum(len(d["text"]) for d in result.tokens)
+        assert total_chars <= 2000
+        assert result.truncated is True
+
+
+class TestCombinedMode:
+    def test_combined_has_separators_and_respects_budget(self) -> None:
+        long_line = "x = " + "a" * 200
+        many_lines = "\n".join([long_line] * 30)
+        result = build_context(many_lines, 15, 15, "combined")
+        total_chars = sum(len(d["text"]) for d in result.tokens)
         assert total_chars <= 2100
+        assert any(d["text"] == "---" for d in result.tokens)
+
+    def test_combined_small_source_has_separators(self) -> None:
+        result = build_context(SOURCE_CLASS_WITH_METHODS, 7, 7, "combined")
+        assert any(d["text"] == "---" for d in result.tokens)
 
 
 class TestBaseline:
     def test_returns_up_to_20_lines_before_hunk(self) -> None:
         source = "\n".join(f"line{i}" for i in range(1, 31))
         result = build_context(source, 25, 25, "baseline")
-        assert len(result) == 20
-        assert result[0]["text"] == "line5"
-        assert result[-1]["text"] == "line24"
+        assert len(result.tokens) == 20
+        assert result.tokens[0]["text"] == "line5"
+        assert result.tokens[-1]["text"] == "line24"
 
     def test_near_file_start_returns_fewer_lines(self) -> None:
         source = "\n".join(f"line{i}" for i in range(1, 11))
         result = build_context(source, 3, 3, "baseline")
-        assert len(result) == 2
-        assert result[0]["text"] == "line1"
-        assert result[1]["text"] == "line2"
+        assert len(result.tokens) == 2
+        assert result.tokens[0]["text"] == "line1"
+        assert result.tokens[1]["text"] == "line2"
+
+
+class TestDiagnosticFlags:
+    def test_baseline_has_no_flags(self) -> None:
+        source = "\n".join(f"line{i}" for i in range(1, 10))
+        result = build_context(source, 5, 5, "baseline")
+        assert result.truncated is False
+        assert result.variant_fallback is False
+
+    def test_truncated_flag_set_on_file_only(self) -> None:
+        long_line = "x = " + "a" * 200
+        many_lines = "\n".join([long_line] * 30)
+        result = build_context(many_lines, 15, 15, "file_only")
+        assert result.truncated is True
+
+    def test_no_truncation_flag_on_small_source(self) -> None:
+        result = build_context(SOURCE_NESTED, 4, 4, "file_only")
+        assert result.truncated is False
