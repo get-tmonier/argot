@@ -26,6 +26,7 @@ from argot.acceptance.runner import (
 )
 from argot.jepa.pretrained_encoder import PretrainedEncoder, select_device
 from argot.research.signal.base import SignalScorer
+from argot.research.signal.bootstrap import auc_from_scores
 from argot.research.signal.scorers.ensemble_jepa import EnsembleJepaScorer
 from argot.research.signal.scorers.jepa_custom import JepaCustomScorer
 from argot.research.signal.scorers.jepa_filtered import JepaFilteredScorer
@@ -297,8 +298,8 @@ def _run_sweep(
         print(f"  done in {time.perf_counter() - t0:.1f}s", flush=True)
         scope_preencoded[scope.name] = (ctx_x, hunk_x)
 
-    # Raw rows: (config_name, seed, delta_v2, delta_v1, delta_by_category)
-    raw_rows: list[tuple[str, int, float, float, dict[str, float]]] = []
+    # Raw rows: (config_name, seed, delta_v2, delta_v1, delta_by_category, auc, auc_by_category)
+    raw_rows: list[tuple[str, int, float, float, dict[str, float], float, dict[str, float]]] = []
 
     for cfg in configs:
         config_name: str = str(cfg["name"])
@@ -374,10 +375,21 @@ def _run_sweep(
                 c = statistics.mean(cat_ctrl[cat]) if cat_ctrl.get(cat) else ctrl_mean
                 delta_by_category[cat] = b - c
 
-            raw_rows.append((config_name, seed, delta_v2, delta_v1, delta_by_category))
+            overall_auc = auc_from_scores(break_scores, ctrl_scores)
+            auc_by_category: dict[str, float] = {
+                cat: auc_from_scores(
+                    cat_break.get(cat, []),
+                    cat_ctrl.get(cat, ctrl_scores),
+                )
+                for cat in set(list(cat_break.keys()) + list(cat_ctrl.keys()))
+            }
+
+            raw_rows.append(
+                (config_name, seed, delta_v2, delta_v1, delta_by_category, overall_auc, auc_by_category)  # noqa: E501
+            )
             print(
                 f"  config={config_name!r} seed={seed} "
-                f"delta_v2={delta_v2:.4f} delta_v1={delta_v1:.4f}",
+                f"delta_v2={delta_v2:.4f} auc={overall_auc:.4f}",
                 flush=True,
             )
 
@@ -389,7 +401,7 @@ def _write_report(
     entry_name: str,
     configs: list[dict[str, Any]],
     seeds: list[int],
-    raw_rows: list[tuple[str, int, float, float, dict[str, float]]],
+    raw_rows: list[tuple[str, int, float, float, dict[str, float], float, dict[str, float]]],
     out_dir: Path,
     context_mode: str = "baseline",
 ) -> None:
@@ -399,58 +411,60 @@ def _write_report(
 
     config_names = [str(cfg["name"]) for cfg in configs]
 
-    lines: list[str] = [f"# {entry_name} stage {stage} sweep\n"]
+    lines: list[str] = [f"# {entry_name} stage {stage} sweep — context_mode={context_mode}\n"]
 
     lines.append("## Raw\n")
-    lines.append("| config | seed | delta_v2 | delta_v1 | gate |")
-    lines.append("|---|---|---|---|---|")
-    for config_name, seed, delta_v2, delta_v1, _cat_dict in raw_rows:
-        gate = "✓" if delta_v2 >= 0.20 else "✗"
-        lines.append(f"| {config_name} | {seed} | {delta_v2:.4f} | {delta_v1:.4f} | {gate} |")
+    lines.append("| config | seed | auc | delta_v2 |")
+    lines.append("|---|---|---|---|")
+    for config_name, seed, delta_v2, _dv1, _cat_dict, auc, _auc_cat in raw_rows:
+        lines.append(f"| {config_name} | {seed} | {auc:.4f} | {delta_v2:.4f} |")
     lines.append("")
 
     lines.append("## Summary\n")
-    lines.append("| config | mean_delta_v1 | mean_delta_v2 | std_delta | gate |")
-    lines.append("|---|---|---|---|---|")
+    lines.append("| config | mean_auc | std_auc | mean_delta_v2 |")
+    lines.append("|---|---|---|---|")
     for config_name in config_names:
-        rows = [(dv2, dv1) for (cn, _seed, dv2, dv1, _cat) in raw_rows if cn == config_name]
+        rows = [
+            (dv2, auc)
+            for (cn, _seed, dv2, _dv1, _cat, auc, _auc_cat) in raw_rows
+            if cn == config_name
+        ]
         if not rows:
             continue
+        aucs = [auc for (_, auc) in rows]
         deltas_v2 = [dv2 for (dv2, _) in rows]
-        deltas_v1 = [dv1 for (_, dv1) in rows]
+        mean_auc = statistics.mean(aucs)
+        std_auc = statistics.stdev(aucs) if len(aucs) >= 2 else 0.0
         mean_delta_v2 = statistics.mean(deltas_v2)
-        mean_delta_v1 = statistics.mean(deltas_v1)
-        std_delta = statistics.stdev(deltas_v2) if len(deltas_v2) >= 2 else 0.0
-        gate = "✓" if mean_delta_v2 >= 0.20 else "✗"
-        lines.append(
-            f"| {config_name} | {mean_delta_v1:.4f} | {mean_delta_v2:.4f}"
-            f" | {std_delta:.4f} | {gate} |"
-        )
+        lines.append(f"| {config_name} | {mean_auc:.4f} | {std_auc:.4f} | {mean_delta_v2:.4f} |")
     lines.append("")
 
-    # Per-category section
     all_categories = sorted(
-        set(cat for (_cn, _seed, _dv2, _dv1, cat_dict) in raw_rows for cat in cat_dict)
+        set(
+            cat
+            for (_cn, _seed, _dv2, _dv1, _cat_dict, _auc, auc_cat) in raw_rows
+            for cat in auc_cat
+        )
     )
-    lines.append("## Per-category deltas (v2)\n")
-    lines.append("> Categories with no controls share the global v2 control mean.\n")
+    lines.append("## Per-category AUC\n")
     for config_name in config_names:
-        config_rows = [
-            cat_dict for (cn, _seed, _dv2, _dv1, cat_dict) in raw_rows if cn == config_name
+        auc_rows = [
+            auc_cat
+            for (cn, _seed, _dv2, _dv1, _cat_dict, _auc, auc_cat) in raw_rows
+            if cn == config_name
         ]
-        if not config_rows:
+        if not auc_rows:
             continue
         if len(config_names) > 1:
             lines.append(f"### {config_name}\n")
-        lines.append("| category | mean_delta |")
+        lines.append("| category | mean_auc |")
         lines.append("|---|---|")
         for cat in all_categories:
-            cat_deltas = [cat_dict.get(cat, float("nan")) for cat_dict in config_rows]
-            cat_deltas_valid = [d for d in cat_deltas if not math.isnan(d)]
-            if not cat_deltas_valid:
+            cat_aucs = [d.get(cat, float("nan")) for d in auc_rows]
+            cat_aucs_valid = [a for a in cat_aucs if not math.isnan(a)]
+            if not cat_aucs_valid:
                 continue
-            mean_cat_delta = statistics.mean(cat_deltas_valid)
-            lines.append(f"| {cat} | {mean_cat_delta:.4f} |")
+            lines.append(f"| {cat} | {statistics.mean(cat_aucs_valid):.4f} |")
         lines.append("")
 
     out_path.write_text("\n".join(lines))
@@ -475,6 +489,9 @@ def main() -> None:
     parser.add_argument("--catalog", default=str(CATALOG_DIR))
     parser.add_argument("--out", default="docs/research/scoring/signal")
     parser.add_argument("--start-from", default=None, help="Skip configs before this name")
+    parser.add_argument(
+        "--configs", default=None, help="Comma-separated list of config names to run (default: all)"
+    )
     args = parser.parse_args()
 
     stage: int = args.stage
@@ -497,6 +514,12 @@ def main() -> None:
         if args.start_from not in names:
             raise ValueError(f"--start-from {args.start_from!r} not found in stage {stage} configs")
         configs = configs[names.index(args.start_from) :]
+
+    if args.configs is not None:
+        allowed = {s.strip() for s in args.configs.split(",")}
+        configs = [c for c in configs if str(c["name"]) in allowed]
+        if not configs:
+            raise ValueError(f"--configs {args.configs!r} matched no configs in stage {stage}")
 
     print(
         f"=== JEPA sweep: stage={stage} entry={args.entry} seeds={seeds} "
