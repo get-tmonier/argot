@@ -1,0 +1,169 @@
+{
+  "source_repo": "https://github.com/pallets/click",
+  "source_tag": "8.1.7",
+  "note": "Methodology-controlled rerun — 3 held-out files, size-matched ~20-line control hunks. See stage3_tier3_rerun_plan_2026-04-21.md.",
+  "fixtures": [
+    {
+      "name": "control_decorators_pass_context",
+      "file": "controls/decorators.py",
+      "hunk_start_line": 26,
+      "hunk_end_line": 45,
+      "is_break": false,
+      "rationale": "pass_context decorator body — canonical click decorator idiom",
+      "category": "control_decorators"
+    },
+    {
+      "name": "control_decorators_command",
+      "file": "controls/decorators.py",
+      "hunk_start_line": 146,
+      "hunk_end_line": 167,
+      "is_break": false,
+      "rationale": "command decorator overload signatures — canonical click decorator idiom",
+      "category": "control_decorators"
+    },
+    {
+      "name": "control_decorators_option",
+      "file": "controls/decorators.py",
+      "hunk_start_line": 329,
+      "hunk_end_line": 351,
+      "is_break": false,
+      "rationale": "argument decorator with docstring — canonical click decorator idiom",
+      "category": "control_decorators"
+    },
+    {
+      "name": "control_types_int_range",
+      "file": "controls/types.py",
+      "hunk_start_line": 338,
+      "hunk_end_line": 358,
+      "is_break": false,
+      "rationale": "DateTime class definition with docstring — canonical click type",
+      "category": "control_types"
+    },
+    {
+      "name": "control_types_choice_convert",
+      "file": "controls/types.py",
+      "hunk_start_line": 242,
+      "hunk_end_line": 263,
+      "is_break": false,
+      "rationale": "Choice type __init__ and helpers — canonical click type",
+      "category": "control_types"
+    },
+    {
+      "name": "control_types_path_convert",
+      "file": "controls/types.py",
+      "hunk_start_line": 776,
+      "hunk_end_line": 797,
+      "is_break": false,
+      "rationale": "Path type docstring section — canonical click type",
+      "category": "control_types"
+    },
+    {
+      "name": "control_types_paramtype_convert",
+      "file": "controls/types.py",
+      "hunk_start_line": 95,
+      "hunk_end_line": 114,
+      "is_break": false,
+      "rationale": "ParamType.convert method with docstring — canonical click type",
+      "category": "control_types"
+    },
+    {
+      "name": "control_core_context_init_tail",
+      "file": "controls/core.py",
+      "hunk_start_line": 228,
+      "hunk_end_line": 249,
+      "is_break": false,
+      "rationale": "Context class docstring section — canonical click core",
+      "category": "control_core"
+    },
+    {
+      "name": "control_core_command_parse_args",
+      "file": "controls/core.py",
+      "hunk_start_line": 1420,
+      "hunk_end_line": 1441,
+      "is_break": false,
+      "rationale": "Command.invoke method — canonical click core",
+      "category": "control_core"
+    },
+    {
+      "name": "control_core_group_add_command",
+      "file": "controls/core.py",
+      "hunk_start_line": 1720,
+      "hunk_end_line": 1742,
+      "is_break": false,
+      "rationale": "Group.resolve_command method — canonical click core",
+      "category": "control_core"
+    },
+    {
+      "name": "break_argparse_class_based_1",
+      "file": "breaks/break_argparse_class_based_1.py",
+      "hunk_start_line": 13,
+      "hunk_end_line": 27,
+      "is_break": true,
+      "rationale": "argparse class-based paradigm in click-looking file",
+      "category": "argparse_class"
+    },
+    {
+      "name": "break_argparse_class_based_2",
+      "file": "breaks/break_argparse_class_based_2.py",
+      "hunk_start_line": 13,
+      "hunk_end_line": 27,
+      "is_break": true,
+      "rationale": "argparse class-based paradigm in click-looking file",
+      "category": "argparse_class"
+    },
+    {
+      "name": "break_argparse_class_based_3",
+      "file": "breaks/break_argparse_class_based_3.py",
+      "hunk_start_line": 13,
+      "hunk_end_line": 28,
+      "is_break": true,
+      "rationale": "argparse class-based paradigm in click-looking file",
+      "category": "argparse_class"
+    },
+    {
+      "name": "break_optparse_deprecated_1",
+      "file": "breaks/break_optparse_deprecated_1.py",
+      "hunk_start_line": 13,
+      "hunk_end_line": 27,
+      "is_break": true,
+      "rationale": "optparse deprecated paradigm in click-looking file",
+      "category": "optparse"
+    },
+    {
+      "name": "break_optparse_deprecated_2",
+      "file": "breaks/break_optparse_deprecated_2.py",
+      "hunk_start_line": 14,
+      "hunk_end_line": 27,
+      "is_break": true,
+      "rationale": "optparse deprecated paradigm in click-looking file",
+      "category": "optparse"
+    },
+    {
+      "name": "break_raw_sys_argv_1",
+      "file": "breaks/break_raw_sys_argv_1.py",
+      "hunk_start_line": 13,
+      "hunk_end_line": 31,
+      "is_break": true,
+      "rationale": "raw sys.argv manual parsing in click-looking file",
+      "category": "raw_argv"
+    },
+    {
+      "name": "break_raw_sys_argv_2",
+      "file": "breaks/break_raw_sys_argv_2.py",
+      "hunk_start_line": 14,
+      "hunk_end_line": 33,
+      "is_break": true,
+      "rationale": "raw sys.argv manual parsing in click-looking file",
+      "category": "raw_argv"
+    },
+    {
+      "name": "break_docopt_style_1",
+      "file": "breaks/break_docopt_style_1.py",
+      "hunk_start_line": 13,
+      "hunk_end_line": 37,
+      "is_break": true,
+      "rationale": "docopt-style manual parsing in click-looking file",
+      "category": "docopt"
+    }
+  ]
+}
