@@ -47,8 +47,7 @@ def _load_model_b_bpe() -> tuple[dict[int, int], int]:
     return token_counts, total_tokens
 
 
-def _build_model_a_bpe(fastapi_dir: Path) -> tuple[dict[int, int], int]:
-    tokenizer = _get_tokenizer()
+def _build_model_a_bpe(fastapi_dir: Path, tokenizer: Any) -> tuple[dict[int, int], int]:
     counts: Counter[int] = Counter()
     for path in sorted((fastapi_dir / "fixtures" / "default").glob("control_*.py")):
         source = path.read_text(encoding="utf-8", errors="replace")
@@ -64,6 +63,7 @@ def _hunk_bpe_ids(record: dict[str, Any], tokenizer: Any) -> list[int]:
     hunk_end = record.get("hunk_end_line", 0)
     source = fixture_path.read_text(encoding="utf-8", errors="replace")
     lines = source.splitlines(keepends=True)
+    # Use hunk slice when line range is non-empty; fall back to full file if BPE yields nothing
     hunk_source = "".join(lines[hunk_start:hunk_end]) if hunk_end > hunk_start else source
     ids: list[int] = tokenizer.encode(hunk_source, add_special_tokens=False)
     if not ids:
@@ -90,12 +90,12 @@ def _score_one_bpe(
 
 def score_records_bpe(
     records: list[dict[str, Any]],
+    tokenizer: Any,
     model_a: dict[int, int],
     total_a: int,
     model_b: dict[int, int],
     total_b: int,
 ) -> list[float]:
-    tokenizer = _get_tokenizer()
     return [_score_one_bpe(r, tokenizer, model_a, total_a, model_b, total_b) for r in records]
 
 
@@ -214,10 +214,11 @@ def run(fastapi_dir: Path = _FASTAPI_DIR, out: Path | None = None) -> float:
     assert n_breaks == 31, f"Expected 31 breaks, got {n_breaks}"
     assert n_ctrls == 20, f"Expected 20 controls, got {n_ctrls}"
 
-    model_a, total_a = _build_model_a_bpe(fastapi_dir)
+    tokenizer = _get_tokenizer()
+    model_a, total_a = _build_model_a_bpe(fastapi_dir, tokenizer)
     model_b, total_b = _load_model_b_bpe()
 
-    scores = score_records_bpe(records, model_a, total_a, model_b, total_b)
+    scores = score_records_bpe(records, tokenizer, model_a, total_a, model_b, total_b)
 
     break_scores = [s for s, b in zip(scores, is_break, strict=False) if b]
     ctrl_scores = [s for s, b in zip(scores, is_break, strict=False) if not b]

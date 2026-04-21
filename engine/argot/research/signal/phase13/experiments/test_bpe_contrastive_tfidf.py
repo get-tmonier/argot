@@ -36,6 +36,7 @@ def test_bpe_end_to_end_fastapi_no_crash() -> None:
     """BPE FastAPI runner: loads 31 breaks + 20 controls, scores all, returns floats."""
     from argot.research.signal.phase13.experiments.bpe_contrastive_tfidf import (
         _build_model_a_bpe,
+        _get_tokenizer,
         _load_model_b_bpe,
         score_records_bpe,
     )
@@ -44,8 +45,9 @@ def test_bpe_end_to_end_fastapi_no_crash() -> None:
     records = [fixture_to_record(_FASTAPI_DIR, spec) for spec in specs]
     assert sum(s.is_break for s in specs) == 31
     assert sum(not s.is_break for s in specs) == 20
-    model_a, total_a = _build_model_a_bpe(_FASTAPI_DIR)
+    tokenizer = _get_tokenizer()
+    model_a, total_a = _build_model_a_bpe(_FASTAPI_DIR, tokenizer)
     model_b, total_b = _load_model_b_bpe()
-    scores = score_records_bpe(records, model_a, total_a, model_b, total_b)
+    scores = score_records_bpe(records, tokenizer, model_a, total_a, model_b, total_b)
     assert len(scores) == 51
     assert all(isinstance(s, float) for s in scores)
