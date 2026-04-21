@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -142,8 +143,6 @@ def fake_catalog(tmp_path: Path) -> Path:
     (fixtures_dir / "ctrl_foo.py").write_text("a = 1\nb = 2\nc = 3\n")
 
     # corpus.jsonl with a couple records scoped to src/
-    import json
-
     records = [
         {
             "file_path": "src/main.py",

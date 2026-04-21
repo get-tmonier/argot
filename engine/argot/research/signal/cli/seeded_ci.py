@@ -103,6 +103,9 @@ def _score_one_run(
         fixture_records = [fixture_to_record(entry_dir, spec, context_mode) for spec in scope_specs]
 
         scorer = EnsembleJepaScorer(**_MEAN_Z_CONFIG)
+        # Pre-encoding is skipped here: seeded_ci runs only once per experiment session,
+        # so the re-encoding overhead (one pass per seed×mode) is acceptable vs. sweep.py's
+        # corpus-pre-encode-once pattern which is designed for many configs.
         scorer.fit(scope_corpus, preencoded=None)
         scores = scorer.score(fixture_records)
 
