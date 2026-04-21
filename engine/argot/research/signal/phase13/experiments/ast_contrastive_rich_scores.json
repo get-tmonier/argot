@@ -1,0 +1,155 @@
+{
+  "experiment": "ast_contrastive_rich",
+  "scorer_params": {
+    "epsilon": 1e-07,
+    "aggregation": "max",
+    "depth": 3
+  },
+  "model_a": "rich/sources/model_a/ (72 files)",
+  "fastapi_sanity_auc": 0.9741935483870968,
+  "overall_auc": 0.29,
+  "per_category_auc": {
+    "ansi_raw": {
+      "n_breaks": 2,
+      "auc": 0.3
+    },
+    "colorama": {
+      "n_breaks": 2,
+      "auc": 0.6
+    },
+    "curses": {
+      "n_breaks": 2,
+      "auc": 0.3
+    },
+    "print_manual": {
+      "n_breaks": 2,
+      "auc": 0.25
+    },
+    "termcolor": {
+      "n_breaks": 2,
+      "auc": 0.0
+    }
+  },
+  "fixtures": [
+    {
+      "name": "control_console_capture",
+      "category": "control_console",
+      "is_break": false,
+      "score": 7.051286210808414
+    },
+    {
+      "name": "control_console_init",
+      "category": "control_console",
+      "is_break": false,
+      "score": 7.051286210808414
+    },
+    {
+      "name": "control_table_add_column_body",
+      "category": "control_table",
+      "is_break": false,
+      "score": 5.874119261972766
+    },
+    {
+      "name": "control_table_rich_console",
+      "category": "control_table",
+      "is_break": false,
+      "score": 5.874119261972766
+    },
+    {
+      "name": "control_live_enter_exit",
+      "category": "control_live",
+      "is_break": false,
+      "score": 6.7923041513430125
+    },
+    {
+      "name": "control_live_renderable",
+      "category": "control_live",
+      "is_break": false,
+      "score": 6.7923041513430125
+    },
+    {
+      "name": "control_text_init",
+      "category": "control_text",
+      "is_break": false,
+      "score": 5.926465676181202
+    },
+    {
+      "name": "control_text_styled",
+      "category": "control_text",
+      "is_break": false,
+      "score": 5.926465676181202
+    },
+    {
+      "name": "control_panel_init_body",
+      "category": "control_panel",
+      "is_break": false,
+      "score": 5.116036872577412
+    },
+    {
+      "name": "control_panel_rich_console",
+      "category": "control_panel",
+      "is_break": false,
+      "score": 5.116036872577412
+    },
+    {
+      "name": "break_ansi_raw_1",
+      "category": "ansi_raw",
+      "is_break": true,
+      "score": 4.066434043996244
+    },
+    {
+      "name": "break_ansi_raw_2",
+      "category": "ansi_raw",
+      "is_break": true,
+      "score": 6.002809152275232
+    },
+    {
+      "name": "break_colorama_1",
+      "category": "colorama",
+      "is_break": true,
+      "score": 6.30809297088731
+    },
+    {
+      "name": "break_colorama_2",
+      "category": "colorama",
+      "is_break": true,
+      "score": 6.30809297088731
+    },
+    {
+      "name": "break_termcolor_1",
+      "category": "termcolor",
+      "is_break": true,
+      "score": 2.682273841426114
+    },
+    {
+      "name": "break_termcolor_2",
+      "category": "termcolor",
+      "is_break": true,
+      "score": 4.066434043996244
+    },
+    {
+      "name": "break_curses_1",
+      "category": "curses",
+      "is_break": true,
+      "score": 6.30809297088731
+    },
+    {
+      "name": "break_curses_2",
+      "category": "curses",
+      "is_break": true,
+      "score": 4.066434043996244
+    },
+    {
+      "name": "break_print_manual_1",
+      "category": "print_manual",
+      "is_break": true,
+      "score": 5.719441789929963
+    },
+    {
+      "name": "break_print_manual_2",
+      "category": "print_manual",
+      "is_break": true,
+      "score": 5.874119261972766
+    }
+  ]
+}
