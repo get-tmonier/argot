@@ -1,4 +1,4 @@
-# Phase 13 — Retrieval-Augmented Contrastive TF-IDF Smoke Test (2026-04-21)
+# Phase 13 — Retrieval-Augmented Contrastive TF-IDF Smoke Test v2 (filtered) (2026-04-21)
 
 ## Setup
 
@@ -7,25 +7,28 @@
 - P_A: Laplace add-1 smoothed token frequencies over top-k retrieved hunks
 - P_B: `generic_tokens_bpe.json` (generic code reference)
 - Fixtures: routing category (break vs control)
+- Token filter: len >= 3 AND has alphanumeric (BPE `##` prefix stripped first)
 
 ## Results
 
-=== Retrieval-Augmented Contrastive TF-IDF Smoke Test ===
+=== Retrieval-Augmented Contrastive TF-IDF Smoke v2 (filtered) ===
 Retrieval corpus: 2000 FastAPI records
 k=20 nearest neighbors
+Filter: len ≥ 3 AND has alphanumeric (BPE ## stripped before length check)
 
-| Fixture | max | mean | top-3 tokens |
-|---|---|---|---|
-| paradigm_break_flask_routing | 10.500 | 1.662 | ` _` (10.500) / ` _` (10.500) / ` _` (10.500) |
-| control_router_endpoint | 9.901 | 0.756 | `]` (9.901) / `]` (9.901) / `]` (9.901) |
+| Fixture | n_tokens | n_filtered | max | mean | top-3 meaningful tokens |
+|---|---|---|---|---|---|
+| paradigm_break_flask_routing | 693 | 256 | 8.684 | 1.861 | `args` (8.684) / `args` (8.684) / `int` (8.365) |
+| control_router_endpoint | 1219 | 515 | 9.045 | -0.308 | `file` (9.045) / `key` (8.548) / `key` (8.548) |
 
-Delta (break − control, max): +0.599
+Delta (break − control, max):  -0.362
+Delta (break − control, mean): +2.168
 
-**Verdict: MODERATE SIGNAL, worth Stage 2**
+**Verdict: PUNCTUATION WAS THE ONLY SIGNAL. Retrieval does not capture paradigm. Abandon retrieval direction.**
 
-## Retrieved Neighbor Diagnostics
+## Retrieved Neighbor Diagnostics (top-3)
 
-*(Top-3 retrieved neighbors per fixture — key diagnostic for embedding quality)*
+*(Top-3 retrieved neighbors per fixture — key diagnostic)*
 
 ### paradigm_break_flask_routing
 

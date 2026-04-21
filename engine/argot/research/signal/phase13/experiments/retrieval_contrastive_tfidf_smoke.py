@@ -1,5 +1,5 @@
 # engine/argot/research/signal/phase13/experiments/retrieval_contrastive_tfidf_smoke.py
-"""Phase 13: Retrieval-Augmented Contrastive TF-IDF smoke test.
+"""Phase 13: Retrieval-Augmented Contrastive TF-IDF smoke test (v2, filtered).
 
 Hypothesis: replacing global P_A (marginal over all repo hunks) with local P_A
 (marginal over the top-k most similar hunks retrieved by embedding similarity)
@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -57,6 +58,12 @@ _SMOKE_FIXTURES = [
     "paradigm_break_flask_routing",
     "control_router_endpoint",
 ]
+
+
+def _is_meaningful_token(token: str) -> bool:
+    stripped = token[2:] if token.startswith("##") else token
+    stripped = stripped.strip()
+    return len(stripped) >= 3 and bool(re.search(r"[A-Za-z0-9]", stripped))
 
 
 def _hunk_text_from_record(record: dict[str, Any]) -> str:
@@ -134,7 +141,7 @@ def _top3_tokens(ids: list[int], scores: list[float], tokenizer: Any) -> str:
     paired = sorted(zip(scores, ids, strict=True), reverse=True)[:3]
     parts = []
     for s, tok_id in paired:
-        tok_str = tokenizer.decode([tok_id]).replace("\n", "\\n")
+        tok_str = tokenizer.decode([tok_id]).replace("\n", "\\n").strip()
         parts.append(f"`{tok_str}` ({s:.3f})")
     return " / ".join(parts)
 
@@ -148,35 +155,45 @@ def _score_fixture(
     model_b: dict[int, int],
     total_b: int,
     k: int = _K,
-) -> tuple[float, float, str, list[tuple[int, float]]]:
-    """Score one fixture. Returns (max_score, mean_score, top3_str, neighbors)."""
+) -> tuple[float, float, str, list[tuple[int, float]], int, int]:
+    """Score one fixture. Returns (max, mean, top3, neighbors, n_tokens, n_filtered)."""
     hunk_text = _fixture_hunk_text(fixture_name)
     neighbors = _retrieve_top_k(hunk_text, corpus_texts, index, encoder, k=k)
     model_a, total_a = _build_local_model_a(neighbors, corpus_texts, tokenizer)
 
     ids: list[int] = tokenizer.encode(hunk_text, add_special_tokens=False)
-    if not ids:
-        return 0.0, 0.0, "", neighbors
+    n_tokens = len(ids)
+
+    filtered_ids = [i for i in ids if _is_meaningful_token(tokenizer.decode([i]))]
+    n_filtered = len(filtered_ids)
+
+    if not filtered_ids:
+        return 0.0, 0.0, "", neighbors, n_tokens, n_filtered
 
     per_token_scores = [
         math.log(model_b.get(i, 0) / total_b + _EPSILON)
         - math.log(model_a.get(i, 0) / total_a + _EPSILON)
-        for i in ids
+        for i in filtered_ids
     ]
     max_score = max(per_token_scores)
     mean_score = sum(per_token_scores) / len(per_token_scores)
-    top3 = _top3_tokens(ids, per_token_scores, tokenizer)
-    return max_score, mean_score, top3, neighbors
+    top3 = _top3_tokens(filtered_ids, per_token_scores, tokenizer)
+    return max_score, mean_score, top3, neighbors, n_tokens, n_filtered
 
 
-def _verdict(delta: float) -> str:
-    if delta > 1.0:
-        return "STRONG SIGNAL, proceed to Stage 2"
-    if delta >= 0.3:
-        return "MODERATE SIGNAL, worth Stage 2"
-    if delta >= 0.0:
-        return "WEAK SIGNAL, borderline — see retrieved neighbors below for diagnosis"
-    return "INVERTED, retrieval is not capturing paradigm — see retrieved neighbors below"
+def _verdict(delta_max: float, mean_delta: float) -> str:
+    if delta_max >= 0.3 and mean_delta > 0:
+        return "FILTER RESCUED SIGNAL. Proceed to Stage 2 full run."
+    if delta_max < 0.1:
+        return (
+            "PUNCTUATION WAS THE ONLY SIGNAL. "
+            "Retrieval does not capture paradigm. Abandon retrieval direction."
+        )
+    return (
+        "FILTER INSUFFICIENT or RETRIEVAL NOT DISCRIMINATING. "
+        "Print the top-10 retrieved neighbors for each fixture and STOP — "
+        "user will decide next step from the retrieval diagnostic."
+    )
 
 
 def _neighbor_lines(
@@ -217,46 +234,73 @@ def run(
     model_b, total_b = _load_model_b()
 
     print(f"Scoring {len(_SMOKE_FIXTURES)} fixtures (k={k})…", flush=True)
-    results: list[tuple[str, float, float, str, list[tuple[int, float]]]] = []
+    results: list[tuple[str, float, float, str, list[tuple[int, float]], int, int]] = []
     for fixture_name in _SMOKE_FIXTURES:
-        max_s, mean_s, top3, neighbors = _score_fixture(
+        max_s, mean_s, top3, neighbors, n_tok, n_filt = _score_fixture(
             fixture_name, corpus_texts, index, encoder, tokenizer, model_b, total_b, k=k
         )
-        results.append((fixture_name, max_s, mean_s, top3, neighbors))
-        print(f"  {fixture_name}: max={max_s:.4f}  mean={mean_s:.4f}  top3={top3}", flush=True)
+        results.append((fixture_name, max_s, mean_s, top3, neighbors, n_tok, n_filt))
+        print(
+            f"  {fixture_name}: n_tokens={n_tok} n_filtered={n_filt} "
+            f"max={max_s:.4f} mean={mean_s:.4f} top3={top3}",
+            flush=True,
+        )
 
-    break_max = results[0][1]
-    ctrl_max = results[1][1]
-    delta = break_max - ctrl_max
+    break_max, break_mean = results[0][1], results[0][2]
+    ctrl_max, ctrl_mean = results[1][1], results[1][2]
+    delta_max = break_max - ctrl_max
+    delta_mean = break_mean - ctrl_mean
 
-    verdict = _verdict(delta)
-    print(f"\nDelta (break − control, max): {delta:+.4f}")
-    print(f"Verdict: {verdict}")
+    print("\n=== Retrieval-Augmented Contrastive TF-IDF Smoke v2 (filtered) ===")
+    print(f"Retrieval corpus: {corpus_limit} FastAPI records")
+    print(f"k={k} nearest neighbors")
+    print("Filter: len >= 3 AND has alphanumeric (BPE ## stripped before length check)")
+    print()
+    header = (
+        f"{'Fixture':<35} | {'n_tokens':>8} | {'n_filtered':>10} "
+        f"| {'max':>7} | {'mean':>7} | top-3 meaningful tokens"
+    )
+    sep = "-" * len(header)
+    print(header)
+    print(sep)
+    for name, max_s, mean_s, top3, _, n_tok, n_filt in results:
+        print(f"{name:<35} | {n_tok:>8} | {n_filt:>10} | {max_s:>7.3f} | {mean_s:>7.3f} | {top3}")
 
-    # Always print neighbor diagnostics
-    for fixture_name, _, _, _, neighbors in results:
-        print(f"\nTop-3 retrieved neighbors for {fixture_name}:")
-        for line in _neighbor_lines(neighbors, corpus_texts):
+    print()
+    print(f"Delta (break − control, max):  {delta_max:+.3f}")
+    print(f"Delta (break − control, mean): {delta_mean:+.3f}")
+
+    verdict = _verdict(delta_max, delta_mean)
+
+    # Always print top-3 neighbor diagnostics; top-10 for Case C
+    n_neighbors = 10 if "FILTER INSUFFICIENT" in verdict else 3
+    for name, _, _, _, neighbors, _, _ in results:
+        print(f"\nTop-{n_neighbors} retrieved neighbors for {name}:")
+        for line in _neighbor_lines(neighbors, corpus_texts, n=n_neighbors):
             print(line)
 
-    if out is not None:
-        _write_report(out, results, delta, verdict, corpus_texts, k, corpus_limit)
+    print(f"\nVerdict: {verdict}")
 
-    return delta
+    if out is not None:
+        _write_report(out, results, delta_max, delta_mean, verdict, corpus_texts, k, corpus_limit)
+
+    return delta_max
 
 
 def _write_report(
     out: Path,
-    results: list[tuple[str, float, float, str, list[tuple[int, float]]]],
-    delta: float,
+    results: list[tuple[str, float, float, str, list[tuple[int, float]], int, int]],
+    delta_max: float,
+    delta_mean: float,
     verdict: str,
     corpus_texts: list[str],
     k: int,
     corpus_limit: int,
 ) -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
+    n_neighbors = 10 if "FILTER INSUFFICIENT" in verdict else 3
     lines: list[str] = [
-        "# Phase 13 — Retrieval-Augmented Contrastive TF-IDF Smoke Test (2026-04-21)",
+        "# Phase 13 — Retrieval-Augmented Contrastive TF-IDF Smoke Test v2 (filtered) (2026-04-21)",
         "",
         "## Setup",
         "",
@@ -265,33 +309,36 @@ def _write_report(
         "- P_A: Laplace add-1 smoothed token frequencies over top-k retrieved hunks",
         "- P_B: `generic_tokens_bpe.json` (generic code reference)",
         "- Fixtures: routing category (break vs control)",
+        "- Token filter: len >= 3 AND has alphanumeric (BPE `##` prefix stripped first)",
         "",
         "## Results",
         "",
-        "=== Retrieval-Augmented Contrastive TF-IDF Smoke Test ===",
+        "=== Retrieval-Augmented Contrastive TF-IDF Smoke v2 (filtered) ===",
         f"Retrieval corpus: {corpus_limit} FastAPI records",
         f"k={k} nearest neighbors",
+        "Filter: len ≥ 3 AND has alphanumeric (BPE ## stripped before length check)",
         "",
-        "| Fixture | max | mean | top-3 tokens |",
-        "|---|---|---|---|",
+        "| Fixture | n_tokens | n_filtered | max | mean | top-3 meaningful tokens |",
+        "|---|---|---|---|---|---|",
     ]
-    for name, max_s, mean_s, top3, _ in results:
-        lines.append(f"| {name} | {max_s:.3f} | {mean_s:.3f} | {top3} |")
+    for name, max_s, mean_s, top3, _, n_tok, n_filt in results:
+        lines.append(f"| {name} | {n_tok} | {n_filt} | {max_s:.3f} | {mean_s:.3f} | {top3} |")
     lines += [
         "",
-        f"Delta (break − control, max): {delta:+.3f}",
+        f"Delta (break − control, max):  {delta_max:+.3f}",
+        f"Delta (break − control, mean): {delta_mean:+.3f}",
         "",
         f"**Verdict: {verdict}**",
         "",
-        "## Retrieved Neighbor Diagnostics",
+        f"## Retrieved Neighbor Diagnostics (top-{n_neighbors})",
         "",
-        "*(Top-3 retrieved neighbors per fixture — key diagnostic for embedding quality)*",
+        f"*(Top-{n_neighbors} retrieved neighbors per fixture — key diagnostic)*",
         "",
     ]
-    for name, _, _, _, neighbors in results:
+    for name, _, _, _, neighbors, _, _ in results:
         lines.append(f"### {name}")
         lines.append("")
-        for rank, (idx, sim) in enumerate(neighbors[:3], 1):
+        for rank, (idx, sim) in enumerate(neighbors[:n_neighbors], 1):
             preview = corpus_texts[idx][:100].replace("\n", " ").replace("|", "\\|")
             lines.append(f"{rank}. sim={sim:.4f} — `{preview}`")
         lines.append("")
@@ -301,7 +348,7 @@ def _write_report(
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
-        description="Retrieval-Augmented Contrastive TF-IDF smoke test"
+        description="Retrieval-Augmented Contrastive TF-IDF smoke test v2 (filtered)"
     )
     parser.add_argument("--out", help="Path for markdown report (optional)")
     parser.add_argument("--k", type=int, default=_K, help="Number of nearest neighbors")
