@@ -51,3 +51,22 @@ def test_break_files_parse_as_python() -> None:
     import ast
     for path in BREAKS_DIR.glob("*.py"):
         ast.parse(path.read_text())
+
+
+def test_runner_produces_auc_report(tmp_path: Path) -> None:
+    """End-to-end: load manifest, build model_A, score, compute AUC, write report."""
+    import os
+    click_dir = Path(os.environ.get("TIER3_CLICK_DIR", "/tmp/click-clone"))
+    if not click_dir.exists():
+        import pytest
+        pytest.skip(f"click clone not found at {click_dir}; set TIER3_CLICK_DIR env var")
+
+    from argot.research.signal.phase13.validate_tier3_click import run
+
+    out = tmp_path / "report.md"
+    result = run(click_dir=click_dir, out=out)
+
+    assert "auc" in result
+    assert 0.0 <= result["auc"] <= 1.0
+    assert out.exists()
+    assert "Verdict" in out.read_text()
