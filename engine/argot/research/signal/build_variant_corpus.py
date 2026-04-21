@@ -43,7 +43,11 @@ def _build_variant_corpus(
         for line in fh:
             line = line.strip()
             if line:
-                records.append(json.loads(line))
+                try:
+                    records.append(json.loads(line))
+                except json.JSONDecodeError:
+                    print("  WARN: JSON parse error — skipping malformed line", file=sys.stderr)
+                    continue
 
     total = len(records)
     resolved = 0
@@ -57,6 +61,16 @@ def _build_variant_corpus(
             clone_path = REPO_MAP.get(repo)
             if clone_path is None:
                 print(f"  WARN: unknown repo {repo!r} — skipping record {i}", file=sys.stderr)
+                dropped += 1
+                continue
+
+            required_keys = ["commit_sha", "file_path", "hunk_start_line", "hunk_end_line", "_repo"]
+            missing_keys = [key for key in required_keys if key not in record]
+            if missing_keys:
+                print(
+                    f"  WARN: missing required keys {missing_keys} in record {i} — skipping",
+                    file=sys.stderr,
+                )
                 dropped += 1
                 continue
 
