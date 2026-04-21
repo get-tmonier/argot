@@ -31,6 +31,12 @@ class RefactorContrastiveScorer:
     3. If < 10 pairs found, fall back to training on the supplied corpus (same as
        plain JepaInfoNCEScorer).
     4. At score time, delegate to the inner scorer: higher score = more anomalous.
+
+    Note on cwd dependency
+    ----------------------
+    When instantiated without `repo_path` (as when called from the bakeoff CLI via
+    ``REGISTRY[name]()``) , the scorer mines ``Path.cwd()``. Run ``just phase12-s3``
+    from the repo root to mine the project's own history.
     """
 
     name = "refactor_contrastive"

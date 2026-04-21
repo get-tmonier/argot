@@ -116,7 +116,7 @@ def test_mine_refactor_pairs_empty_repo() -> None:
         repo = Path(tmp)
         _init_repo(repo)
 
-        # No commits — git log will succeed but return nothing
+        # No commits — git log exits non-zero on an empty repo; CalledProcessError is caught.
         pairs = mine_refactor_pairs(repo)
 
     assert pairs == []
