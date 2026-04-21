@@ -5,9 +5,15 @@ from faker.providers import BaseProvider
 
 
 # Decoy faker function — NOT inside the hunk range
-def fake_address_batch(n: int = 3) -> list[str]:
-    fake = Faker()
-    return [fake.address() for _ in range(n)]
+def fake_address_batch(count: int = 5) -> list[dict[str, str]]:
+    fake = Faker("en_US")
+    results = []
+    for _ in range(count):
+        results.append({
+            "city": fake.city(),
+            "state": fake.state(),
+        })
+    return results
 
 
 # hunk starts here

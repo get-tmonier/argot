@@ -14,8 +14,8 @@
     {
       "name": "break_threading_provider_1",
       "file": "fixtures/break_threading_provider_1.py",
-      "hunk_start_line": 13,
-      "hunk_end_line": 47,
+      "hunk_start_line": 19,
+      "hunk_end_line": 53,
       "is_break": true,
       "rationale": "threading.Thread + Lock + Event parallel fake-data generator class in a faker-looking file",
       "category": "threading_provider"
@@ -32,8 +32,8 @@
     {
       "name": "break_numpy_random_1",
       "file": "fixtures/break_numpy_random_1.py",
-      "hunk_start_line": 13,
-      "hunk_end_line": 40,
+      "hunk_start_line": 19,
+      "hunk_end_line": 46,
       "is_break": true,
       "rationale": "numpy.random Generator/default_rng for name and age generation instead of faker internals in a faker-looking file",
       "category": "numpy_random"
