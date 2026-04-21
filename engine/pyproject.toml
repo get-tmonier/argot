@@ -13,6 +13,7 @@ dependencies = [
     "tree-sitter-python==0.23.6",
     "tokenizers>=0.20.0",
     "sentence-transformers>=3.0.0,<4.0.0",
+    "peft>=0.10",
 ]
 
 [project.scripts]
@@ -81,6 +82,14 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "httpx"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "peft"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "peft.*"
 ignore_missing_imports = true
 
 [tool.ruff]

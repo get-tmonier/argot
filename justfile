@@ -128,6 +128,13 @@ phase12-s0:
     uv run --package argot-engine python -m argot.research.signal.cli.seeded_ci \
         --out docs/research/scoring/signal/phase12
 
+phase12-s2:
+    uv run --package argot-engine python -m argot.research.signal.cli.bakeoff \
+        --scorers delta_mlm_mean,delta_mlm_min,delta_mlm_p05 \
+        --context-mode file_only \
+        --entry fastapi \
+        --out docs/research/scoring/signal/phase12
+
 phase12-s3:
     uv run --package argot-engine python -m argot.research.signal.cli.bakeoff \
         --scorers refactor_contrastive \
