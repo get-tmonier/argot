@@ -91,6 +91,78 @@
       "is_break": false,
       "rationale": "Canonical click shell completion logic — should score as in-distribution",
       "category": "control"
+    },
+    {
+      "name": "break_argparse_class_based_1",
+      "file": "breaks/break_argparse_class_based_1.py",
+      "hunk_start_line": 13,
+      "hunk_end_line": 27,
+      "is_break": true,
+      "rationale": "argparse class-based paradigm in click-looking file",
+      "category": "argparse_class"
+    },
+    {
+      "name": "break_argparse_class_based_2",
+      "file": "breaks/break_argparse_class_based_2.py",
+      "hunk_start_line": 13,
+      "hunk_end_line": 27,
+      "is_break": true,
+      "rationale": "argparse class-based paradigm in click-looking file",
+      "category": "argparse_class"
+    },
+    {
+      "name": "break_argparse_class_based_3",
+      "file": "breaks/break_argparse_class_based_3.py",
+      "hunk_start_line": 13,
+      "hunk_end_line": 28,
+      "is_break": true,
+      "rationale": "argparse class-based paradigm in click-looking file",
+      "category": "argparse_class"
+    },
+    {
+      "name": "break_optparse_deprecated_1",
+      "file": "breaks/break_optparse_deprecated_1.py",
+      "hunk_start_line": 13,
+      "hunk_end_line": 27,
+      "is_break": true,
+      "rationale": "optparse deprecated paradigm in click-looking file",
+      "category": "optparse"
+    },
+    {
+      "name": "break_optparse_deprecated_2",
+      "file": "breaks/break_optparse_deprecated_2.py",
+      "hunk_start_line": 14,
+      "hunk_end_line": 27,
+      "is_break": true,
+      "rationale": "optparse deprecated paradigm in click-looking file",
+      "category": "optparse"
+    },
+    {
+      "name": "break_raw_sys_argv_1",
+      "file": "breaks/break_raw_sys_argv_1.py",
+      "hunk_start_line": 13,
+      "hunk_end_line": 31,
+      "is_break": true,
+      "rationale": "raw sys.argv manual parsing in click-looking file",
+      "category": "raw_argv"
+    },
+    {
+      "name": "break_raw_sys_argv_2",
+      "file": "breaks/break_raw_sys_argv_2.py",
+      "hunk_start_line": 14,
+      "hunk_end_line": 33,
+      "is_break": true,
+      "rationale": "raw sys.argv manual parsing in click-looking file",
+      "category": "raw_argv"
+    },
+    {
+      "name": "break_docopt_style_1",
+      "file": "breaks/break_docopt_style_1.py",
+      "hunk_start_line": 13,
+      "hunk_end_line": 37,
+      "is_break": true,
+      "rationale": "docopt-style manual parsing in click-looking file",
+      "category": "docopt"
     }
   ]
 }
