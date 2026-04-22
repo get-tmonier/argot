@@ -367,3 +367,73 @@ def test_include_data_dominant_when_opted_out(tmp_path: Path) -> None:
     # Opt-out: data-dominant file included — locale_info() and real_func both qualify.
     candidates = collect_candidates(tmp_path, exclude_data_dominant=False)
     assert len(candidates) == 2
+
+
+def _write_ts(directory: Path, name: str, source: str) -> Path:
+    p = directory / name
+    p.write_text(textwrap.dedent(source))
+    return p
+
+
+def test_collect_candidates_typescript_adapter(tmp_path: Path) -> None:
+    """Passing a TypeScriptAdapter must yield TS hunks, not Python ones."""
+    from argot.research.signal.phase14.adapters.typescript_adapter import TypeScriptAdapter
+
+    _write_ts(
+        tmp_path,
+        "utils.ts",
+        """\
+        export function add(a: number, b: number): number {
+          const sum = a + b;
+          const result = sum;
+          const check = result > 0;
+          const out = check ? result : 0;
+          return out;
+        }
+
+        export const multiply = (a: number, b: number): number => {
+          const product = a * b;
+          const result = product;
+          const check = result > 0;
+          const out = check ? result : 0;
+          return out;
+        };
+        """,
+    )
+    candidates = collect_candidates(tmp_path, adapter=TypeScriptAdapter())
+    assert len(candidates) == 2
+
+
+def test_sample_hunks_typescript_adapter(tmp_path: Path) -> None:
+    """sample_hunks with TypeScriptAdapter samples from TS files."""
+    from argot.research.signal.phase14.adapters.typescript_adapter import TypeScriptAdapter
+
+    _write_ts(
+        tmp_path,
+        "a.ts",
+        """\
+        export function one(x: number): number {
+          const a = x + 1;
+          const b = a + 1;
+          const c = b + 1;
+          const d = c + 1;
+          return d;
+        }
+        export function two(x: number): number {
+          const a = x + 2;
+          const b = a + 2;
+          const c = b + 2;
+          const d = c + 2;
+          return d;
+        }
+        export function three(x: number): number {
+          const a = x + 3;
+          const b = a + 3;
+          const c = b + 3;
+          const d = c + 3;
+          return d;
+        }
+        """,
+    )
+    result = sample_hunks(tmp_path, n=2, seed=0, adapter=TypeScriptAdapter())
+    assert len(result) == 2
