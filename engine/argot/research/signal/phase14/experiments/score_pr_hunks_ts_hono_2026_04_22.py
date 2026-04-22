@@ -27,16 +27,11 @@ import re
 import subprocess
 import tarfile
 import tempfile
-from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-import tree_sitter_typescript as tstypescript
-from tree_sitter import Language, Node
-from tree_sitter import Parser as TsParser
-
 from argot.research.signal.phase14.adapters.typescript_adapter import TypeScriptAdapter
+from argot.research.signal.phase14.calibration.random_hunk_sampler import sample_hunks
 from argot.research.signal.phase14.scorers.sequential_import_bpe_scorer import (
     SequentialImportBpeScorer,
 )
@@ -67,26 +62,6 @@ _SELECTED_PRS: list[tuple[int, str]] = [
     (4834, "f82aba8e8ea45d56199e751cee6ea7c067bcd176"),
 ]
 
-_TS_LANGUAGE = Language(tstypescript.language_typescript())
-_TSX_LANGUAGE = Language(tstypescript.language_tsx())
-
-# Top-level node types we extract as calibration hunks
-_TOP_LEVEL_TYPES: frozenset[str] = frozenset(
-    {
-        "function_declaration",
-        "generator_function_declaration",
-        "class_declaration",
-        "abstract_class_declaration",
-        "interface_declaration",
-        "type_alias_declaration",
-    }
-)
-
-# RHS node types in lexical_declaration that count as function bodies
-_FUNCTION_VALUE_TYPES: frozenset[str] = frozenset({"arrow_function", "function_expression"})
-
-_MIN_BODY_LINES = 5
-
 _DEFAULT_EXCLUDE_DIRS: frozenset[str] = frozenset(
     {
         "test",
@@ -109,128 +84,6 @@ _DEFAULT_EXCLUDE_DIRS: frozenset[str] = frozenset(
 )
 
 _git_show_cache: dict[tuple[str, str], str | None] = {}
-
-
-# ---------------------------------------------------------------------------
-# TypeScript calibration hunk sampler
-# ---------------------------------------------------------------------------
-
-
-def _walk(node: Node) -> Generator[Node, None, None]:
-    yield node
-    for child in node.children:
-        yield from _walk(child)
-
-
-def _extract_lexical_arrow_hunks(node: Node, lines: list[str]) -> list[str]:
-    """Return hunk strings for lexical_declaration nodes with arrow/function bodies.
-
-    Handles:  const foo = () => { ... }
-              const foo = function() { ... }
-    Extracts the whole declarator span when the RHS is a function body >= MIN_BODY_LINES.
-    """
-    hunks: list[str] = []
-    for decl_child in node.children:
-        if decl_child.type != "variable_declarator":
-            continue
-        # Find RHS: first named child after "="
-        found_eq = False
-        rhs: Node | None = None
-        for c in decl_child.children:
-            if c.type == "=":
-                found_eq = True
-                continue
-            if found_eq and c.is_named:
-                rhs = c
-                break
-        if rhs is None or rhs.type not in _FUNCTION_VALUE_TYPES:
-            continue
-        start = decl_child.start_point[0]
-        end = decl_child.end_point[0]
-        if (end - start) < _MIN_BODY_LINES:
-            continue
-        hunks.append("\n".join(lines[start : end + 1]))
-    return hunks
-
-
-def _collect_ts_candidates(source_dir: Path, adapter: TypeScriptAdapter) -> list[str]:
-    """Return all qualifying hunk strings from .ts/.tsx files in source_dir.
-
-    A qualifying hunk is a top-level function/class/interface/type declaration
-    OR a const arrow-function assignment, with at least MIN_BODY_LINES lines.
-    Auto-generated and data-dominant files are excluded.
-    """
-    hunks: list[str] = []
-    for ext in (".ts", ".tsx"):
-        lang = _TSX_LANGUAGE if ext == ".tsx" else _TS_LANGUAGE
-        for ts_file in sorted(source_dir.rglob(f"*{ext}")):
-            rel = ts_file.relative_to(source_dir)
-            # Skip test files
-            name = rel.name
-            if (
-                name.endswith(".test.ts")
-                or name.endswith(".test.tsx")
-                or name.endswith(".spec.ts")
-                or name.endswith(".spec.tsx")
-                or "test" in rel.parts
-                or "tests" in rel.parts
-                or "__tests__" in rel.parts
-            ):
-                continue
-            # Skip excluded dirs
-            skip = False
-            for part in rel.parts[:-1]:
-                if part in _DEFAULT_EXCLUDE_DIRS or part.startswith("."):
-                    skip = True
-                    break
-            if skip:
-                continue
-            try:
-                source = ts_file.read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                continue
-            if adapter.is_auto_generated(source):
-                continue
-            if adapter.is_data_dominant(source):
-                continue
-            try:
-                parser = TsParser(lang)
-                tree = parser.parse(source.encode("utf-8"))
-            except Exception:
-                continue
-            lines = source.splitlines()
-            root = tree.root_node
-            for child in root.children:
-                # Unwrap `export` wrapper to get the inner declaration
-                inner = child
-                if child.type == "export_statement":
-                    for sub in child.children:
-                        if sub.type in _TOP_LEVEL_TYPES or sub.type in (
-                            "lexical_declaration",
-                            "variable_declaration",
-                        ):
-                            inner = sub
-                            break
-
-                if inner.type in _TOP_LEVEL_TYPES:
-                    start = inner.start_point[0]
-                    end = inner.end_point[0]
-                    if (end - start) >= _MIN_BODY_LINES:
-                        hunks.append("\n".join(lines[start : end + 1]))
-                elif inner.type in ("lexical_declaration", "variable_declaration"):
-                    hunks.extend(_extract_lexical_arrow_hunks(inner, lines))
-    return hunks
-
-
-def _sample_ts_hunks(source_dir: Path, n: int, seed: int, adapter: TypeScriptAdapter) -> list[str]:
-    candidates = _collect_ts_candidates(source_dir, adapter)
-    if len(candidates) < n:
-        raise ValueError(
-            f"Only {len(candidates)} qualifying TS hunks in {source_dir!r}, need {n}."
-        )
-    rng = np.random.default_rng(seed)
-    indices = rng.choice(len(candidates), size=n, replace=False)
-    return [candidates[int(i)] for i in sorted(indices)]
 
 
 # ---------------------------------------------------------------------------
@@ -425,7 +278,7 @@ def main(sanity_check: bool = False) -> None:
                     flush=True,
                 )
 
-                cal_hunks = _sample_ts_hunks(tmppath, _N_CAL, _CAL_SEED, adapter)
+                cal_hunks = sample_hunks(tmppath, _N_CAL, _CAL_SEED, adapter=adapter)
                 print(f"    calibration: {len(cal_hunks)} hunks sampled (N_CAL={_N_CAL})", flush=True)
 
                 scorer = SequentialImportBpeScorer(
