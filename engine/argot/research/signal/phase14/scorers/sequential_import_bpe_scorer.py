@@ -19,6 +19,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, Literal
 
+from argot.research.signal.phase14.parsers import Parser, PythonTreeSitterParser
 from argot.research.signal.phase14.scorers.import_graph_scorer import (
     ImportGraphScorer,
     _imports_from_ast,
@@ -29,6 +30,25 @@ _BPE_MODEL_NAME = "microsoft/unixcoder-base"
 
 # Matches lines starting with "import " or "from " (no leading spaces — top-of-file only)
 _RE_IMPORT_LINE = re.compile(r"^(?:import |from )\S", re.MULTILINE)
+
+
+def _blank_prose_lines(src: str, ranges: frozenset[int]) -> str:
+    """Return *src* with every 1-indexed line number in *ranges* replaced by an empty string.
+
+    Used to suppress prose (docstrings, comments) before BPE scoring so that
+    natural-language tokens don't inflate the BPE score.
+    """
+    if not ranges:
+        return src
+    lines = src.splitlines(keepends=True)
+    result: list[str] = []
+    for i, line in enumerate(lines, start=1):
+        if i in ranges:
+            # Preserve the trailing newline (if any) so line count is stable
+            result.append("\n" if line.endswith("\n") else "")
+        else:
+            result.append(line)
+    return "".join(result)
 
 
 def extract_imports(source: str) -> str:
@@ -86,9 +106,13 @@ class SequentialImportBpeScorer:
         bpe_model_b_path: Path,
         calibration_hunks: list[str],
         *,
+        parser: Parser | None = None,
         _tokenizer: Any = None,
     ) -> None:
         model_a_list = list(model_a_files)
+
+        # Prose parser (used to blank docstrings/comments before BPE scoring)
+        self._parser: Parser = parser if parser is not None else PythonTreeSitterParser()
 
         # Stage 1: import-graph scorer
         self._import_scorer = ImportGraphScorer()
@@ -121,7 +145,12 @@ class SequentialImportBpeScorer:
         self._total_a: int = sum(counts.values()) or 1  # avoid division by zero
 
         # Per-repo BPE threshold: max score over calibration hunks
-        cal_scores = [self._bpe_score(h) for h in calibration_hunks]
+        # Blank prose (docstrings/comments) symmetrically before scoring so the
+        # threshold reflects code tokens only, matching how score_hunk operates.
+        cal_scores = [
+            self._bpe_score(_blank_prose_lines(h, self._parser.prose_line_ranges(h)))
+            for h in calibration_hunks
+        ]
         self.bpe_threshold: float = max(cal_scores) if cal_scores else 0.0
         self.n_calibration: int = len(cal_scores)
 
@@ -139,7 +168,14 @@ class SequentialImportBpeScorer:
         ]
         return max(scores)
 
-    def score_hunk(self, hunk_content: str, *, file_source: str | None = None) -> ScoredHunk:
+    def score_hunk(
+        self,
+        hunk_content: str,
+        *,
+        file_source: str | None = None,
+        hunk_start_line: int | None = None,
+        hunk_end_line: int | None = None,
+    ) -> ScoredHunk:
         """Score a hunk through both stages.
 
         Args:
@@ -154,6 +190,18 @@ class SequentialImportBpeScorer:
                 Stage 2 always scores ``hunk_content`` only, regardless of
                 file_source, to avoid token-position false positives from a
                 large file prefix.
+            hunk_start_line: 1-indexed line number of the first line of the hunk
+                within *file_source*.  Must be provided together with
+                *file_source* and *hunk_end_line* to enable prose masking.
+            hunk_end_line: 1-indexed line number of the last line of the hunk
+                within *file_source* (inclusive).  Must be provided together
+                with *file_source* and *hunk_start_line* to enable prose
+                masking.
+
+        When *file_source*, *hunk_start_line*, and *hunk_end_line* are all
+        provided, Stage 2 blanks any prose lines (docstrings, comments) that
+        fall within the hunk range before BPE scoring, mirroring the symmetric
+        treatment applied to calibration hunks.
 
         Returns a dict with keys:
           - import_score (float): number of foreign modules (Stage 1 output)
@@ -174,7 +222,20 @@ class SequentialImportBpeScorer:
         else:
             import_score = self._import_scorer.score_hunk(hunk_content)
 
-        bpe_score: float = self._bpe_score(hunk_content)
+        # Stage 2: optionally blank prose lines before BPE scoring
+        bpe_input = hunk_content
+        if file_source is not None and hunk_start_line is not None and hunk_end_line is not None:
+            file_prose = self._parser.prose_line_ranges(file_source)
+            # Intersect global prose ranges with the hunk's line span, then
+            # re-index to 1-based lines within hunk_content itself.
+            hunk_prose_local: frozenset[int] = frozenset(
+                ln - hunk_start_line + 1
+                for ln in file_prose
+                if hunk_start_line <= ln <= hunk_end_line
+            )
+            bpe_input = _blank_prose_lines(hunk_content, hunk_prose_local)
+
+        bpe_score: float = self._bpe_score(bpe_input)
 
         reason: Reason
         if import_score >= 1.0:

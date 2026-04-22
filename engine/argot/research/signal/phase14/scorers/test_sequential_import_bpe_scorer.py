@@ -7,8 +7,10 @@ import json
 import math
 from pathlib import Path
 
+from argot.research.signal.phase14.parsers import Parser
 from argot.research.signal.phase14.scorers.sequential_import_bpe_scorer import (
     SequentialImportBpeScorer,
+    _blank_prose_lines,
     _is_meaningful_token,
     extract_imports,
 )
@@ -405,3 +407,179 @@ def test_stage2_bpe_invariant_to_file_size(tmp_path: Path) -> None:
 
     # BPE score must be identical — file_source must not affect Stage 2
     assert score_without_file["bpe_score"] == score_with_file["bpe_score"]
+
+
+# ---------------------------------------------------------------------------
+# Fake parser for prose-masking tests
+# ---------------------------------------------------------------------------
+
+
+class _FakeParser:
+    """Parser that returns a fixed frozenset of prose line numbers for any source."""
+
+    def __init__(self, prose_lines: frozenset[int]) -> None:
+        self._prose_lines = prose_lines
+
+    def prose_line_ranges(self, src: str) -> frozenset[int]:
+        return self._prose_lines
+
+
+# Verify _FakeParser satisfies the Parser protocol
+_: Parser = _FakeParser(frozenset())
+
+
+# ---------------------------------------------------------------------------
+# Test 1: Masking drops BPE score when prose lines are blanked
+# ---------------------------------------------------------------------------
+
+
+def test_prose_masking_lowers_bpe_score(tmp_path: Path) -> None:
+    """score_hunk with hunk_start_line/hunk_end_line should return a lower bpe_score
+    than without, when the hunk contains high-scoring prose tokens that get blanked."""
+    ma_file = _write_py(tmp_path, "a.py", "import faker\n")
+
+    # token 1: absent in model_a, heavy in model_b → very high BPE score (prose tokens)
+    # token 2: heavy in model_a, rare in model_b → low BPE score (code tokens)
+    model_b_path = _make_model_b(tmp_path, {1: 90, 2: 10})
+
+    # Hunk source: line 1 is prose (high-scoring token), line 2 is code (low-scoring token).
+    # The _FakeParser marks line 1 as prose within the file (file line = hunk_start_line + 0).
+    # _blank_prose_lines will blank line 1 in hunk_content, leaving only line 2 for BPE.
+    hunk_content = "docstring text here\ncode_line\n"
+    # Blanked version: line 1 becomes "\n", only line 2 ("code_line\n") remains
+    blanked_hunk = "\ncode_line\n"
+    file_source = "# file header\n" + hunk_content  # hunk starts at line 2
+
+    tok = _FakeTok(
+        {
+            "import faker\n": [2, 2],
+            "calibration\n": [2],  # calibration hunk → low threshold (no prose, returned as-is)
+            hunk_content: [1],  # raw hunk → high-scoring prose token
+            blanked_hunk: [2],  # blanked hunk → low-scoring code token
+        }
+    )
+
+    # hunk starts at line 2 in the file (line 1 is "# file header\n")
+    # prose_line_ranges returns {2} for any source → line 2 in the file = line 1 in hunk
+    fake_parser = _FakeParser(frozenset({2}))
+
+    scorer = SequentialImportBpeScorer(
+        model_a_files=[ma_file],
+        bpe_model_b_path=model_b_path,
+        calibration_hunks=["calibration\n"],
+        parser=fake_parser,
+        _tokenizer=tok,
+    )
+
+    # Without masking (no line kwargs): raw hunk uses token 1 (high BPE)
+    score_raw = scorer.score_hunk(hunk_content, file_source=file_source)
+    # With masking: blanked hunk uses token 2 (low BPE)
+    score_masked = scorer.score_hunk(
+        hunk_content,
+        file_source=file_source,
+        hunk_start_line=2,
+        hunk_end_line=3,
+    )
+
+    assert score_masked["bpe_score"] < score_raw["bpe_score"]
+
+
+# ---------------------------------------------------------------------------
+# Test 2: Symmetric calibration — threshold is lower when cal hunks have prose
+# ---------------------------------------------------------------------------
+
+
+def test_symmetric_calibration_lowers_threshold(tmp_path: Path) -> None:
+    """When calibration hunks contain prose tokens that score high in model_b,
+    blanking them symmetrically should result in a lower bpe_threshold compared
+    to a scorer that does NOT blank during calibration (i.e. uses default parser
+    but with a fake parser that returns no prose lines)."""
+    ma_file = _write_py(tmp_path, "a.py", "import faker\n")
+
+    # token 1: absent in model_a, very heavy in model_b → high BPE score
+    # token 2: in model_a, moderate in model_b → lower BPE score
+    model_b_path = _make_model_b(tmp_path, {1: 90, 2: 10})
+
+    # Calibration hunk: line 1 is prose (token 1), line 2 is code (token 2)
+    cal_hunk = "docstring line\ncode line\n"
+    blanked_cal_hunk = "\ncode line\n"
+
+    tok = _FakeTok(
+        {
+            "import faker\n": [2, 2],
+            cal_hunk: [1],         # raw cal hunk → high-BPE token (prose)
+            blanked_cal_hunk: [2], # blanked cal hunk → lower-BPE token (code)
+        }
+    )
+
+    # parser that marks line 1 of any source as prose → blanks first line of cal hunk
+    prose_parser = _FakeParser(frozenset({1}))
+    # parser that returns no prose → calibration uses raw hunk (token 1)
+    no_prose_parser = _FakeParser(frozenset())
+
+    scorer_with_prose = SequentialImportBpeScorer(
+        model_a_files=[ma_file],
+        bpe_model_b_path=model_b_path,
+        calibration_hunks=[cal_hunk],
+        parser=prose_parser,
+        _tokenizer=tok,
+    )
+    scorer_without_prose = SequentialImportBpeScorer(
+        model_a_files=[ma_file],
+        bpe_model_b_path=model_b_path,
+        calibration_hunks=[cal_hunk],
+        parser=no_prose_parser,
+        _tokenizer=tok,
+    )
+
+    # With prose blanking, threshold is computed on blanked_cal_hunk (token 2 → lower score)
+    # Without prose blanking, threshold is computed on raw cal_hunk (token 1 → higher score)
+    assert scorer_with_prose.bpe_threshold < scorer_without_prose.bpe_threshold
+
+
+# ---------------------------------------------------------------------------
+# Test 3: Back-compat — no masking when kwargs are absent or partial
+# ---------------------------------------------------------------------------
+
+
+def test_back_compat_no_masking_without_line_kwargs(tmp_path: Path) -> None:
+    """score_hunk without hunk_start_line/hunk_end_line must return the same result
+    as before the prose-masking change, regardless of whether file_source is provided."""
+    ma_file = _write_py(tmp_path, "a.py", "import faker\n")
+    model_b_path = _make_model_b(tmp_path, {1: 50, 2: 50})
+
+    hunk_content = "def foo():\n    return 42\n"
+    file_source = "import os\n" + hunk_content
+
+    tok = _FakeTok(
+        {
+            "import faker\n": [1],
+            "calibration\n": [1],
+            hunk_content: [2],
+        }
+    )
+
+    # parser that marks everything as prose — but it should NOT be invoked when
+    # hunk_start_line/hunk_end_line are absent
+    all_prose_parser = _FakeParser(frozenset({1, 2, 3, 4, 5}))
+
+    scorer = SequentialImportBpeScorer(
+        model_a_files=[ma_file],
+        bpe_model_b_path=model_b_path,
+        calibration_hunks=["calibration\n"],
+        parser=all_prose_parser,
+        _tokenizer=tok,
+    )
+
+    # Call without any kwargs — no masking
+    score_no_kwargs = scorer.score_hunk(hunk_content)
+    # Call with file_source only (no line kwargs) — no masking
+    score_file_only = scorer.score_hunk(hunk_content, file_source=file_source)
+    # Call with hunk_start_line only (missing hunk_end_line) — no masking
+    score_partial = scorer.score_hunk(
+        hunk_content, file_source=file_source, hunk_start_line=2
+    )
+
+    # All three should produce identical BPE scores (no masking applied)
+    assert score_no_kwargs["bpe_score"] == score_file_only["bpe_score"]
+    assert score_no_kwargs["bpe_score"] == score_partial["bpe_score"]

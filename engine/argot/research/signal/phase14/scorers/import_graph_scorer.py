@@ -27,6 +27,8 @@ import re
 from collections.abc import Iterable
 from pathlib import Path
 
+from argot.research.signal.phase14.parsers import Parser, PythonTreeSitterParser
+
 # Matches ``import foo`` or ``import foo.bar`` (captures the leading name)
 _RE_IMPORT = re.compile(r"^\s*import\s+([A-Za-z_]\w*)", re.MULTILINE)
 # Matches ``from foo`` or ``from foo.bar`` but NOT ``from .foo`` (relative)
@@ -71,7 +73,8 @@ def _imports_from_regex(source: str) -> set[str]:
 class ImportGraphScorer:
     """Score a hunk by how many modules it imports that are foreign to the repo."""
 
-    def __init__(self) -> None:
+    def __init__(self, parser: Parser | None = None) -> None:
+        self._parser: Parser = parser if parser is not None else PythonTreeSitterParser()
         self._repo_modules: frozenset[str] = frozenset()
 
     def fit(self, model_a_files: Iterable[Path]) -> None:
@@ -82,7 +85,7 @@ class ImportGraphScorer:
                 source = path.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 continue
-            seen.update(_imports_from_ast(source))
+            seen.update(self._parser.extract_imports(source))
         self._repo_modules = frozenset(seen)
 
     def score_hunk(self, hunk_source: str) -> float:
