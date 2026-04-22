@@ -61,9 +61,7 @@ def _is_excluded(path: Path, source_dir: Path, exclude_dirs: frozenset[str]) -> 
     if name.startswith("test_") or name == "conftest.py":
         return True
     # TypeScript/JavaScript test files: foo.test.ts, foo.spec.tsx, etc.
-    if ".test." in name or ".spec." in name:
-        return True
-    return False
+    return ".test." in name or ".spec." in name
 
 
 def collect_candidates(
@@ -72,7 +70,7 @@ def collect_candidates(
     exclude_dirs: frozenset[str] | None = None,
     exclude_auto_generated: bool = True,
     exclude_data_dominant: bool = True,
-    adapter: "LanguageAdapter | None" = None,
+    adapter: "LanguageAdapter | None" = None,  # noqa: UP037
 ) -> list[str]:
     """Return all qualifying hunk strings from source_dir.
 
@@ -119,7 +117,7 @@ def sample_hunks(
     exclude_dirs: frozenset[str] | None = None,
     exclude_auto_generated: bool = True,
     exclude_data_dominant: bool = True,
-    adapter: "LanguageAdapter | None" = None,
+    adapter: "LanguageAdapter | None" = None,  # noqa: UP037
 ) -> list[str]:
     """Sample n hunk strings from source_dir using a fixed numpy RNG seed.
 
@@ -152,7 +150,7 @@ def sample_hunks_disjoint(
     exclude_dirs: frozenset[str] | None = None,
     exclude_auto_generated: bool = True,
     exclude_data_dominant: bool = True,
-    adapter: "LanguageAdapter | None" = None,
+    adapter: "LanguageAdapter | None" = None,  # noqa: UP037
 ) -> tuple[list[str], list[str]]:
     """Sample two disjoint hunk sets from source_dir using a fixed numpy RNG seed.
 
