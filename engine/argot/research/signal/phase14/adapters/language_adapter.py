@@ -65,6 +65,18 @@ class LanguageAdapter(Protocol):
         """
         ...
 
+    def enumerate_sampleable_ranges(self, source: str) -> list[tuple[int, int]]:
+        """Return 1-indexed (start_line, end_line) spans for top-level sampleable units.
+
+        A sampleable unit is a top-level function/class/arrow-const that a
+        calibration corpus sampler should consider.  Implementations must be safe
+        to call on partial/invalid source — return ``[]`` on parse error.
+
+        The caller applies the MIN_BODY_LINES filter; this method returns all
+        top-level units regardless of body size.
+        """
+        ...
+
     def prose_line_ranges(self, source: str) -> frozenset[int]:
         """Return 1-indexed line numbers that are pure prose (comments / docstrings).
 
