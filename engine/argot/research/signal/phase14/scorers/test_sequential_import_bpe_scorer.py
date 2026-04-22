@@ -10,6 +10,7 @@ from pathlib import Path
 from argot.research.signal.phase14.scorers.sequential_import_bpe_scorer import (
     SequentialImportBpeScorer,
     _is_meaningful_token,
+    extract_imports,
 )
 
 _EPSILON = 1e-7
@@ -276,3 +277,123 @@ def test_n_calibration_stored(tmp_path: Path) -> None:
     )
 
     assert scorer.n_calibration == 3
+
+
+# ---------------------------------------------------------------------------
+# extract_imports unit tests
+# ---------------------------------------------------------------------------
+
+
+def test_extract_imports_valid_python() -> None:
+    source = "import os\nimport sys\n\ndef foo():\n    pass\n"
+    result = extract_imports(source)
+    assert result == "import os\nimport sys"
+
+
+def test_extract_imports_from_import() -> None:
+    source = "from pathlib import Path\nimport json\n\nclass Foo:\n    pass\n"
+    result = extract_imports(source)
+    assert result == "from pathlib import Path\nimport json"
+
+
+def test_extract_imports_stops_at_first_non_import() -> None:
+    # A docstring (Expr node) before any imports should cause an empty result
+    source = '"""Module docstring."""\nimport os\n'
+    result = extract_imports(source)
+    # The module docstring is an Expr node — it's not Import/ImportFrom,
+    # so we stop before collecting anything.
+    assert result == ""
+
+
+def test_extract_imports_syntax_error_fallback() -> None:
+    # Invalid Python — should fall back to regex
+    source = "import os\nfrom sys import path\ndef broken(:\n    pass\n"
+    result = extract_imports(source)
+    assert "import os" in result
+    assert "from sys import path" in result
+
+
+def test_extract_imports_empty_source() -> None:
+    assert extract_imports("") == ""
+
+
+# ---------------------------------------------------------------------------
+# Stage 1 detects foreign imports via file_source even if not in hunk
+# ---------------------------------------------------------------------------
+
+
+def test_stage1_detects_foreign_import_via_file_source(tmp_path: Path) -> None:
+    """Stage 1 should flag a hunk when the foreign import is in the file header
+    (file_source) but not in the hunk_content itself."""
+    # model_a has only "faker"
+    ma_file = _write_py(tmp_path, "a.py", "import faker\n")
+    model_b_path = _make_model_b(tmp_path, {1: 50, 2: 50})
+
+    # file_source contains "from mimesis import Person" (foreign import for model_a)
+    # hunk_content is just a plain function body with no imports
+    file_source = "from mimesis import Person\n\ndef generate():\n    return Person().name()\n"
+    hunk_content = "def generate():\n    return Person().name()\n"
+
+    tok = _FakeTok(
+        {
+            "import faker\n": [1],
+            "calibration\n": [1],
+            # stage1_input = extract_imports(file_source) + "\n" + hunk_content
+            "from mimesis import Person\n\ndef generate():\n    return Person().name()\n": [1],
+            hunk_content: [1],
+            # The actual stage1_input passed to ImportGraphScorer:
+            "from mimesis import Person" + "\n" + hunk_content: [1],
+        }
+    )
+
+    scorer = SequentialImportBpeScorer(
+        model_a_files=[ma_file],
+        bpe_model_b_path=model_b_path,
+        calibration_hunks=["calibration\n"],
+        _tokenizer=tok,
+    )
+
+    result = scorer.score_hunk(hunk_content, file_source=file_source)
+    # ImportGraphScorer parses text — it sees "from mimesis import Person" in stage1_input
+    assert result["flagged"] is True
+    assert result["reason"] == "import"
+    assert result["import_score"] >= 1.0
+
+
+# ---------------------------------------------------------------------------
+# Stage 2 score is invariant to file size (file_source does not affect BPE)
+# ---------------------------------------------------------------------------
+
+
+def test_stage2_bpe_invariant_to_file_size(tmp_path: Path) -> None:
+    """Stage 2 BPE score must be identical regardless of how much code is in
+    file_source — the file prefix must not affect BPE scoring."""
+    ma_file = _write_py(tmp_path, "a.py", "import faker\n")
+    model_b_path = _make_model_b(tmp_path, {1: 50, 2: 50})
+
+    hunk_content = "def simple():\n    return 42\n"
+    # A large, unrelated file prefix
+    large_file_source = ("# unrelated\n" * 1000) + hunk_content
+
+    tok = _FakeTok(
+        {
+            "import faker\n": [1],
+            "calibration\n": [1],
+            hunk_content: [2],
+            # large_file_source would encode differently but it should NOT be
+            # passed to _bpe_score at all
+        }
+    )
+
+    scorer = SequentialImportBpeScorer(
+        model_a_files=[ma_file],
+        bpe_model_b_path=model_b_path,
+        calibration_hunks=["calibration\n"],
+        _tokenizer=tok,
+    )
+
+    score_without_file = scorer.score_hunk(hunk_content)
+    score_with_file = scorer.score_hunk(hunk_content, file_source=large_file_source)
+
+    # BPE score must be identical — file_source must not affect Stage 2
+    assert score_without_file["bpe_score"] == score_with_file["bpe_score"]

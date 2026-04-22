@@ -10,8 +10,10 @@ Both scores are always computed so callers can use the full trace for diagnostic
 
 from __future__ import annotations
 
+import ast
 import json
 import math
+import re
 from collections import Counter
 from collections.abc import Iterable
 from pathlib import Path
@@ -21,6 +23,43 @@ from argot.research.signal.phase14.scorers.import_graph_scorer import ImportGrap
 
 _EPSILON = 1e-7
 _BPE_MODEL_NAME = "microsoft/unixcoder-base"
+
+# Matches lines starting with "import " or "from " (no leading spaces — top-of-file only)
+_RE_IMPORT_LINE = re.compile(r"^(?:import |from )\S", re.MULTILINE)
+
+
+def extract_imports(source: str) -> str:
+    """Return just the top-of-file import block from *source*.
+
+    Uses ``ast.parse`` where the source is valid Python: collects all
+    ``ast.Import`` / ``ast.ImportFrom`` nodes that appear before the first
+    non-import top-level statement and returns the corresponding source lines.
+
+    Falls back to a line-prefix regex on ``SyntaxError``: matches lines
+    starting with ``import `` or ``from `` (exact keyword + space, at column 0).
+    This is deliberately conservative — no indented imports are collected.
+
+    Returns the import lines joined with ``\\n``, or an empty string if none.
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        # Regex fallback: only match lines at column 0 with exact keyword prefix
+        lines = source.splitlines()
+        import_lines = [ln for ln in lines if _RE_IMPORT_LINE.match(ln)]
+        return "\n".join(import_lines)
+
+    source_lines = source.splitlines()
+    collected: list[str] = []
+    for node in ast.iter_child_nodes(tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            # end_lineno is 1-based; slice is exclusive
+            end = node.end_lineno if node.end_lineno is not None else node.lineno
+            collected.extend(source_lines[node.lineno - 1 : end])
+        else:
+            # First non-import statement — stop collecting
+            break
+    return "\n".join(collected)
 
 
 def _is_meaningful_token(token_str: str) -> bool:
@@ -101,8 +140,18 @@ class SequentialImportBpeScorer:
         ]
         return max(scores)
 
-    def score_hunk(self, hunk_source: str) -> ScoredHunk:
+    def score_hunk(self, hunk_content: str, *, file_source: str | None = None) -> ScoredHunk:
         """Score a hunk through both stages.
+
+        Args:
+            hunk_content: The raw hunk diff / function body to score.
+            file_source: Optional full source of the file containing the hunk.
+                When provided, Stage 1 receives ``extract_imports(file_source) + "\\n" +
+                hunk_content`` so it can detect foreign modules declared at the top of
+                the file even when they don't appear in the hunk itself.
+                Stage 2 always scores ``hunk_content`` only, regardless of file_source,
+                to avoid the token-position false positives caused by scoring a large
+                file prefix.
 
         Returns a dict with keys:
           - import_score (float): number of foreign modules (Stage 1 output)
@@ -110,8 +159,13 @@ class SequentialImportBpeScorer:
           - flagged (bool): True if either stage fires
           - reason ("import" | "bpe" | "none"): which stage fired first
         """
-        import_score: float = self._import_scorer.score_hunk(hunk_source)
-        bpe_score: float = self._bpe_score(hunk_source)
+        if file_source is not None:
+            stage1_input = extract_imports(file_source) + "\n" + hunk_content
+        else:
+            stage1_input = hunk_content
+
+        import_score: float = self._import_scorer.score_hunk(stage1_input)
+        bpe_score: float = self._bpe_score(hunk_content)
 
         reason: Reason
         if import_score >= 1.0:
