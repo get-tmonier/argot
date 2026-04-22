@@ -53,12 +53,8 @@ def extract_imports(source: str) -> str:
     collected: list[str] = []
     for node in ast.iter_child_nodes(tree):
         if isinstance(node, (ast.Import, ast.ImportFrom)):
-            # end_lineno is 1-based; slice is exclusive
             end = node.end_lineno if node.end_lineno is not None else node.lineno
             collected.extend(source_lines[node.lineno - 1 : end])
-        else:
-            # First non-import statement — stop collecting
-            break
     return "\n".join(collected)
 
 

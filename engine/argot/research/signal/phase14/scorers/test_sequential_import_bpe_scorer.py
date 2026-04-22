@@ -296,13 +296,12 @@ def test_extract_imports_from_import() -> None:
     assert result == "from pathlib import Path\nimport json"
 
 
-def test_extract_imports_stops_at_first_non_import() -> None:
-    # A docstring (Expr node) before any imports should cause an empty result
-    source = '"""Module docstring."""\nimport os\n'
+def test_extract_imports_with_leading_docstring() -> None:
+    # Module docstring before imports — imports must still be collected
+    source = '"""Module docstring."""\nimport os\nfrom sys import path\n'
     result = extract_imports(source)
-    # The module docstring is an Expr node — it's not Import/ImportFrom,
-    # so we stop before collecting anything.
-    assert result == ""
+    assert "import os" in result
+    assert "from sys import path" in result
 
 
 def test_extract_imports_syntax_error_fallback() -> None:
