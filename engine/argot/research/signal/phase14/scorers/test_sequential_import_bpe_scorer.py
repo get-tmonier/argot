@@ -323,25 +323,33 @@ def test_extract_imports_empty_source() -> None:
 
 def test_stage1_detects_foreign_import_via_file_source(tmp_path: Path) -> None:
     """Stage 1 should flag a hunk when the foreign import is in the file header
-    (file_source) but not in the hunk_content itself."""
+    (file_source) but not in the hunk_content itself.
+
+    Crucially, hunk_content is an incomplete code fragment (mid-block slice) that
+    would produce a SyntaxError if concatenated with the import block.  The split
+    approach — parse extract_imports(file_source) and hunk_content separately —
+    must still detect the foreign import from file_source.
+    """
     # model_a has only "faker"
     ma_file = _write_py(tmp_path, "a.py", "import faker\n")
     model_b_path = _make_model_b(tmp_path, {1: 50, 2: 50})
 
-    # file_source contains "from mimesis import Person" (foreign import for model_a)
-    # hunk_content is just a plain function body with no imports
-    file_source = "from mimesis import Person\n\ndef generate():\n    return Person().name()\n"
-    hunk_content = "def generate():\n    return Person().name()\n"
+    # file_source contains "from voluptuous import Schema" (foreign import for model_a)
+    # hunk_content is a mid-block slice — concatenating it with the import line
+    # produces invalid Python (SyntaxError), so the old approach would have needed
+    # a regex fallback which caused docstring false positives.
+    file_source = (
+        "from voluptuous import Schema\n\ndef validate(data):\n    schema = Schema({str: int})\n"
+    )
+    # Mid-block fragment: indented code with no closing block — invalid if ast.parse'd
+    # together with the import line above
+    hunk_content = "    schema = Schema({str: int})\n    return schema(data)\n"
 
     tok = _FakeTok(
         {
             "import faker\n": [1],
             "calibration\n": [1],
-            # stage1_input = extract_imports(file_source) + "\n" + hunk_content
-            "from mimesis import Person\n\ndef generate():\n    return Person().name()\n": [1],
             hunk_content: [1],
-            # The actual stage1_input passed to ImportGraphScorer:
-            "from mimesis import Person" + "\n" + hunk_content: [1],
         }
     )
 
@@ -353,7 +361,8 @@ def test_stage1_detects_foreign_import_via_file_source(tmp_path: Path) -> None:
     )
 
     result = scorer.score_hunk(hunk_content, file_source=file_source)
-    # ImportGraphScorer parses text — it sees "from mimesis import Person" in stage1_input
+    # Stage 1 must detect "voluptuous" from file_source even though the concatenated
+    # string would be invalid Python — the split parse approach handles this correctly.
     assert result["flagged"] is True
     assert result["reason"] == "import"
     assert result["import_score"] >= 1.0

@@ -19,7 +19,10 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, Literal
 
-from argot.research.signal.phase14.scorers.import_graph_scorer import ImportGraphScorer
+from argot.research.signal.phase14.scorers.import_graph_scorer import (
+    ImportGraphScorer,
+    _imports_from_ast,
+)
 
 _EPSILON = 1e-7
 _BPE_MODEL_NAME = "microsoft/unixcoder-base"
@@ -142,12 +145,15 @@ class SequentialImportBpeScorer:
         Args:
             hunk_content: The raw hunk diff / function body to score.
             file_source: Optional full source of the file containing the hunk.
-                When provided, Stage 1 receives ``extract_imports(file_source) + "\\n" +
-                hunk_content`` so it can detect foreign modules declared at the top of
-                the file even when they don't appear in the hunk itself.
-                Stage 2 always scores ``hunk_content`` only, regardless of file_source,
-                to avoid the token-position false positives caused by scoring a large
-                file prefix.
+                When provided, Stage 1 detects foreign modules from both the
+                file's import block and the hunk itself by parsing each input
+                separately and unioning the results.  This avoids passing a
+                concatenated (potentially invalid-Python) string to ``ast.parse``
+                and removes the need for a regex fallback in
+                ``_imports_from_ast``.
+                Stage 2 always scores ``hunk_content`` only, regardless of
+                file_source, to avoid token-position false positives from a
+                large file prefix.
 
         Returns a dict with keys:
           - import_score (float): number of foreign modules (Stage 1 output)
@@ -156,11 +162,18 @@ class SequentialImportBpeScorer:
           - reason ("import" | "bpe" | "none"): which stage fired first
         """
         if file_source is not None:
-            stage1_input = extract_imports(file_source) + "\n" + hunk_content
+            # Stage 1 — split: parse the import block and the hunk independently.
+            # extract_imports() returns only import lines (always valid Python), so
+            # ast.parse succeeds.  The hunk may be a mid-block slice (SyntaxError is
+            # fine — _imports_from_ast returns set() in that case).
+            file_imports = _imports_from_ast(extract_imports(file_source))
+            hunk_imports = _imports_from_ast(hunk_content)
+            all_imports = file_imports | hunk_imports
+            foreign = all_imports - self._import_scorer._repo_modules
+            import_score: float = float(len(foreign))
         else:
-            stage1_input = hunk_content
+            import_score = self._import_scorer.score_hunk(hunk_content)
 
-        import_score: float = self._import_scorer.score_hunk(stage1_input)
         bpe_score: float = self._bpe_score(hunk_content)
 
         reason: Reason

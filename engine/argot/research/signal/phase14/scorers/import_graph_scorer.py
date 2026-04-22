@@ -12,10 +12,12 @@ Design decisions:
 - Stdlib has no special treatment: if the repo never imports ``threading``,
   a hunk importing ``threading`` is flagged.
 - Relative imports (``from . import X``, ``from ..foo import Y``) are ignored.
-- Hunk parsing fallback: if ``ast.parse`` raises ``SyntaxError`` (mid-block
-  slice), a line-by-line regex extracts ``import X`` / ``from X import`` lines.
-  The full-file _fixture_path fallback is intentionally excluded — that would
-  leak decoy-function imports into the hunk score.
+- Hunk parsing: if ``ast.parse`` raises ``SyntaxError`` (mid-block slice),
+  ``_imports_from_ast`` returns an empty set.  Callers that need to detect
+  imports from the file header must pass them separately (already parsed) and
+  union the results — see ``SequentialImportBpeScorer.score_hunk``.
+  A regex fallback is intentionally excluded: it matches module names from
+  prose/docstrings and produces false positives.
 """
 
 from __future__ import annotations
@@ -39,9 +41,10 @@ def _imports_from_ast(source: str) -> set[str]:
     try:
         tree = ast.parse(source)
     except SyntaxError:
-        # Fall back to regex when the source is not valid Python (e.g. stage1_input
-        # concatenates an import block with a mid-block hunk, producing invalid syntax).
-        return _imports_from_regex(source)
+        # Mid-block hunk slices are not valid Python — return empty set.
+        # Do NOT fall back to regex: regex matches module names from prose/docstrings
+        # and produces false positives.  Callers handle file-header imports separately.
+        return set()
 
     modules: set[str] = set()
     for node in ast.walk(tree):
