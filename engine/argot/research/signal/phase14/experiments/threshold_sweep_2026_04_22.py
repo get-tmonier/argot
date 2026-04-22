@@ -81,7 +81,7 @@ _DOCS_OUT = (
     / "threshold_sweep_2026-04-22.md"
 )
 
-_N_CAL = 100
+_N_CAL = 500
 _CAL_SEED = 0
 
 _THRESHOLDS: list[tuple[str, float | None]] = [

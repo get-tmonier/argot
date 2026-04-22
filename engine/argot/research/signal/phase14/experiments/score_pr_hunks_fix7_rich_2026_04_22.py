@@ -46,7 +46,7 @@ _HUNKS_JSONL = _SCRIPT_DIR / "real_pr_base_rate_hunks_fix7_rich_2026_04_22.jsonl
 
 _RICH_REPO = _REPOS_DIR / "rich"
 _REPO_GH = "Textualize/rich"
-_N_CAL = 100
+_N_CAL = 230  # Rich corpus maxes out at ~234-238 qualifying hunks per commit; 500 is not feasible
 _CAL_SEED = 0
 
 _git_show_cache: dict[tuple[str, str], str | None] = {}

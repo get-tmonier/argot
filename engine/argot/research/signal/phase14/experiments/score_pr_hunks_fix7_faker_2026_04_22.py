@@ -1,18 +1,16 @@
-# engine/argot/research/signal/phase14/experiments/score_pr_hunks_fix7_2026_04_22.py
-"""Phase 14 Exp #7 Step P — Score PR hunks with fix7 (auto-generated file filter).
+# engine/argot/research/signal/phase14/experiments/score_pr_hunks_fix7_faker_2026_04_22.py
+"""Phase 14 Prompt S — Score faker PR hunks with fix7 (auto-generated filter).
 
-Reads:  real_pr_base_rate_prs_with_sha_2026_04_22.jsonl   (cached, with mergeCommit SHAs)
-Writes: real_pr_base_rate_hunks_fix7_2026_04_22.jsonl
+Reads:  faker_real_pr_base_rate_prs_2026_04_22.jsonl
+Writes: real_pr_base_rate_hunks_fix7_faker_2026_04_22.jsonl
 
-Builds on fix6 (prose masking) and adds auto-generated file detection: files whose
-header contains an auto-generation marker are short-circuited in score_hunk with
-flagged=False, reason='auto_generated'.  Calibration also excludes auto-gen files.
-
-No logic changes relative to fix6 — the scorer handles auto-gen internally.
+Mirror of score_pr_hunks_fix7_rich_2026_04_22.py adapted for joke2k/faker.
+Per-PR recalibration + prose masking + auto-gen filter unchanged from fix7.
+N_CAL=500 per Prompt R seed-stability finding (N=100 was unstable).
 
 Usage:
-    uv run python engine/argot/research/signal/phase14/experiments/score_pr_hunks_fix7_2026_04_22.py
-    uv run python engine/argot/research/signal/phase14/experiments/score_pr_hunks_fix7_2026_04_22.py --sanity-check
+    uv run python engine/argot/research/signal/phase14/experiments/score_pr_hunks_fix7_faker_2026_04_22.py
+    uv run python engine/argot/research/signal/phase14/experiments/score_pr_hunks_fix7_faker_2026_04_22.py --sanity-check
 """
 
 from __future__ import annotations
@@ -44,20 +42,18 @@ _RESEARCH_DIR = Path(__file__).parent.parent.parent.parent
 _BPE_MODEL_B_PATH = _RESEARCH_DIR / "reference" / "generic_tokens_bpe.json"
 
 _SCRIPT_DIR = Path(__file__).parent
-_PRS_JSONL = _SCRIPT_DIR / "real_pr_base_rate_prs_with_sha_2026_04_22.jsonl"
-_HUNKS_JSONL = _SCRIPT_DIR / "real_pr_base_rate_hunks_fix7_2026_04_22.jsonl"
+_PRS_JSONL = _SCRIPT_DIR / "faker_real_pr_base_rate_prs_2026_04_22.jsonl"
+_HUNKS_JSONL = _SCRIPT_DIR / "real_pr_base_rate_hunks_fix7_faker_2026_04_22.jsonl"
 
-_FASTAPI_REPO = _REPOS_DIR / "fastapi"
-_REPO_GH = "tiangolo/fastapi"
-_N_CAL = 500
+_FAKER_REPO = _REPOS_DIR / "faker"
+_REPO_GH = "joke2k/faker"
+_N_CAL = 500  # R: N=100 unstable; N=500 passes threshold+jaccard gates
 _CAL_SEED = 0
 
-# In-process cache for git show results: (sha, path) -> content or None
 _git_show_cache: dict[tuple[str, str], str | None] = {}
 
 
 def _git_show(repo: Path, sha: str, path: str) -> str | None:
-    """Return file content at <sha>:<path>, or None if path doesn't exist at that commit."""
     key = (sha, path)
     if key not in _git_show_cache:
         result = subprocess.run(
@@ -78,7 +74,6 @@ def _collect_source_files(repo_dir: Path) -> list[Path]:
 
 
 def _parse_diff_hunks(diff_text: str) -> list[dict[str, Any]]:
-    """Parse unified diff into per-hunk records with diff content."""
     hunks: list[dict[str, Any]] = []
     current_file: str | None = None
     active_hunk: dict[str, Any] | None = None
@@ -97,7 +92,7 @@ def _parse_diff_hunks(diff_text: str) -> list[dict[str, Any]]:
         elif line.startswith("+++ b/"):
             current_file = line[6:].strip()
         elif line.startswith("+++ /dev/null"):
-            current_file = None  # deleted file — skip
+            current_file = None
         elif line.startswith("@@ ") and current_file is not None:
             _flush_hunk()
             hunk_lines = []
@@ -105,7 +100,7 @@ def _parse_diff_hunks(diff_text: str) -> list[dict[str, Any]]:
             if m:
                 new_start = int(m.group(1))
                 new_count = int(m.group(2)) if m.group(2) is not None else 1
-                if new_count > 0:  # skip pure deletions
+                if new_count > 0:
                     active_hunk = {
                         "file": current_file,
                         "start_line": new_start,
@@ -124,7 +119,7 @@ def _parse_diff_hunks(diff_text: str) -> list[dict[str, Any]]:
 
 
 def _is_source_hunk(path: str) -> bool:
-    return path.startswith("fastapi/") and path.endswith(".py")
+    return path.startswith("faker/") and path.endswith(".py")
 
 
 def _is_test_hunk(path: str) -> bool:
@@ -146,7 +141,6 @@ def main(sanity_check: bool = False) -> None:
     shared_tokenizer = AutoTokenizer.from_pretrained("microsoft/unixcoder-base")
     print("Tokenizer loaded.", flush=True)
 
-    # Load PR list (includes mergeCommit SHAs)
     prs: list[dict[str, Any]] = []
     with _PRS_JSONL.open(encoding="utf-8") as fh:
         for line in fh:
@@ -156,12 +150,8 @@ def main(sanity_check: bool = False) -> None:
     print(f"Loaded {len(prs)} PRs", flush=True)
 
     if sanity_check:
-        target = next((p for p in prs if p["number"] == 14564), None)
-        if target is None:
-            print("ERROR: PR #14564 not found in JSONL", flush=True)
-            return
-        prs = [target]
-        print("SANITY CHECK MODE — running PR #14564 only", flush=True)
+        prs = prs[:1]
+        print(f"SANITY CHECK MODE — running PR #{prs[0]['number']} only", flush=True)
 
     all_records: list[dict[str, Any]] = []
     n_diffs_failed = 0
@@ -173,10 +163,9 @@ def main(sanity_check: bool = False) -> None:
         merge_sha = pr["mergeCommit"]["oid"]
         pre_sha_ref = f"{merge_sha}^1"
 
-        # Resolve pre_sha to full SHA
         try:
             result = subprocess.run(
-                ["git", "-C", str(_FASTAPI_REPO), "rev-parse", pre_sha_ref],
+                ["git", "-C", str(_FAKER_REPO), "rev-parse", pre_sha_ref],
                 capture_output=True,
                 text=True,
                 check=True,
@@ -188,21 +177,17 @@ def main(sanity_check: bool = False) -> None:
             n_diffs_failed += 1
             continue
 
-        # Per-PR calibration: extract repo state at pre_sha via git archive
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
                 tmppath = Path(tmpdir)
 
                 archive_proc = subprocess.run(
-                    ["git", "-C", str(_FASTAPI_REPO), "archive", pre_sha],
+                    ["git", "-C", str(_FAKER_REPO), "archive", pre_sha],
                     capture_output=True,
                     timeout=120,
                 )
                 if archive_proc.returncode != 0:
-                    print(
-                        f"  WARN: git archive failed for {pre_sha[:8]}, skipping",
-                        flush=True,
-                    )
+                    print(f"  WARN: git archive failed for {pre_sha[:8]}, skipping", flush=True)
                     n_diffs_failed += 1
                     continue
 
@@ -239,7 +224,6 @@ def main(sanity_check: bool = False) -> None:
 
         per_pr_thresholds.append(cal_threshold)
 
-        # Fetch diff
         try:
             diff_result = subprocess.run(
                 ["gh", "pr", "diff", str(pr_num), "--repo", _REPO_GH],
@@ -271,7 +255,7 @@ def main(sanity_check: bool = False) -> None:
             n_missing = 0
             for hi, hunk in enumerate(hunks):
                 pr_merge_sha = pr_rec["mergeCommit"]["oid"]
-                file_content = _git_show(_FASTAPI_REPO, pr_merge_sha, hunk["file"])
+                file_content = _git_show(_FAKER_REPO, pr_merge_sha, hunk["file"])
                 if file_content is None:
                     n_missing += 1
                     continue
@@ -280,7 +264,7 @@ def main(sanity_check: bool = False) -> None:
                 lo = max(0, hunk["start_line"] - 1)
                 hi_idx = min(len(lines), hunk["end_line"])
                 hunk_content = "\n".join(lines[lo:hi_idx])
-                file_text = file_content  # full file at merge-commit, for Stage 1 + auto-gen
+                file_text = file_content
 
                 if not hunk_content.strip():
                     continue
@@ -353,7 +337,6 @@ def main(sanity_check: bool = False) -> None:
         print("Sanity check complete — no output written.", flush=True)
         return
 
-    # Write output
     with _HUNKS_JSONL.open("w", encoding="utf-8") as fh:
         for rec in all_records:
             fh.write(json.dumps(rec) + "\n")
@@ -374,7 +357,6 @@ def main(sanity_check: bool = False) -> None:
     )
     print(f"Auto-generated hunks (suppressed): {src_autogen}", flush=True)
 
-    # PR-level flag summary
     pr_flags: dict[int, int] = {}
     pr_totals: dict[int, int] = {}
     for r in all_records:
@@ -386,13 +368,11 @@ def main(sanity_check: bool = False) -> None:
     prs_with_flags = sum(1 for pn, cnt in pr_flags.items() if cnt > 0)
     print(f"PRs with ≥1 source flag: {prs_with_flags}/{len(pr_totals)}", flush=True)
 
-    # Stage breakdown
     st1 = sum(1 for r in all_records if not r["is_test"] and r.get("reason") == "import")
     st2 = sum(1 for r in all_records if not r["is_test"] and r.get("reason") == "bpe")
     print(f"  Stage 1 (import): {st1}", flush=True)
     print(f"  Stage 2 (bpe):    {st2}", flush=True)
 
-    # Flagged files
     flagged_files: dict[str, int] = {}
     for r in all_records:
         if not r["is_test"] and r["flagged"]:
@@ -403,7 +383,6 @@ def main(sanity_check: bool = False) -> None:
         for fp, cnt in sorted(flagged_files.items(), key=lambda x: -x[1]):
             print(f"  {fp}: {cnt}", flush=True)
 
-    # BPE score distribution on source hunks
     bpe_scores = [
         r.get("bpe_score", 0.0)
         for r in all_records
@@ -417,7 +396,6 @@ def main(sanity_check: bool = False) -> None:
         print(f"  p95={bpe_scores_sorted[int(len(bpe_scores_sorted) * 0.05)]:.4f}", flush=True)
         print(f"  median={bpe_scores_sorted[len(bpe_scores_sorted) // 2]:.4f}", flush=True)
 
-    # Per-PR threshold distribution
     if per_pr_thresholds:
         thr_sorted = sorted(per_pr_thresholds)
         n_thr = len(thr_sorted)
@@ -437,7 +415,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--sanity-check",
         action="store_true",
-        help="Run on PR #14564 only and print calibration threshold, flagged count, and first 3 BPE scores",
+        help="Run on first PR only and print calibration threshold, flagged count, BPE scores",
     )
     args = parser.parse_args()
     main(sanity_check=args.sanity_check)
