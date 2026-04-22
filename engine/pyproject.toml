@@ -97,6 +97,10 @@ ignore_missing_imports = true
 module = "tree_sitter_python"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "tree_sitter_typescript"
+ignore_missing_imports = true
+
 [tool.ruff]
 line-length = 100
 exclude = ["argot/acceptance/catalog", "argot/research/signal/phase13/tier3_fixtures"]

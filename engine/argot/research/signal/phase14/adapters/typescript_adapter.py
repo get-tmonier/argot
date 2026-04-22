@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Generator
 from pathlib import Path
 
 import tree_sitter_typescript as tstypescript
@@ -90,7 +91,7 @@ def _extract_require_imports(root: Node) -> set[str]:
     return mods
 
 
-def _walk(node: Node):  # type: ignore[return]
+def _walk(node: Node) -> Generator[Node, None, None]:
     """Depth-first traversal yielding every node."""
     yield node
     for child in node.children:
