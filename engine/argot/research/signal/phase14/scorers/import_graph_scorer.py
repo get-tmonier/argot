@@ -69,12 +69,26 @@ def _imports_from_regex(source: str) -> set[str]:
     return modules
 
 
+def _is_foreign(spec: str, exact: frozenset[str], prefixes: frozenset[str]) -> bool:
+    if spec in exact:
+        return False
+    if any(spec.startswith(p) for p in prefixes):
+        return False
+    return True
+
+
 class ImportGraphScorer:
     """Score a hunk by how many modules it imports that are foreign to the repo."""
 
-    def __init__(self, adapter: LanguageAdapter | None = None) -> None:
+    def __init__(
+        self,
+        adapter: LanguageAdapter | None = None,
+        repo_root: Path | None = None,
+    ) -> None:
         self._adapter: LanguageAdapter = adapter if adapter is not None else get_adapter(".py")
+        self._repo_root: Path | None = repo_root
         self._repo_modules: frozenset[str] = frozenset()
+        self._repo_modules_prefixes: frozenset[str] = frozenset()
 
     def fit(self, model_a_files: Iterable[Path]) -> None:
         """Parse every file in model_A and collect the set of top-level modules."""
@@ -85,7 +99,17 @@ class ImportGraphScorer:
             except OSError:
                 continue
             seen.update(self._adapter.extract_imports(source))
+        if self._repo_root is not None:
+            repo_mods = self._adapter.resolve_repo_modules(self._repo_root)
+            seen.update(repo_mods.exact)
+            self._repo_modules_prefixes = repo_mods.prefixes
+        else:
+            self._repo_modules_prefixes = frozenset()
         self._repo_modules = frozenset(seen)
+
+    def is_foreign(self, spec: str) -> bool:
+        """Return True if *spec* is not a known internal module specifier."""
+        return _is_foreign(spec, self._repo_modules, self._repo_modules_prefixes)
 
     def score_hunk(self, hunk_source: str) -> float:
         """Return the count of top-level modules in hunk_source not seen in model_A.
@@ -93,5 +117,5 @@ class ImportGraphScorer:
         Returns 0.0 if no foreign imports are found.
         """
         hunk_modules = self._adapter.extract_imports(hunk_source)
-        foreign = hunk_modules - self._repo_modules
+        foreign = {spec for spec in hunk_modules if self.is_foreign(spec)}
         return float(len(foreign))

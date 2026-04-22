@@ -7,7 +7,7 @@ import json
 import math
 from pathlib import Path
 
-from argot.research.signal.phase14.adapters.language_adapter import LanguageAdapter
+from argot.research.signal.phase14.adapters.language_adapter import LanguageAdapter, RepoModules
 from argot.research.signal.phase14.scorers.sequential_import_bpe_scorer import (
     SequentialImportBpeScorer,
     _blank_prose_lines,
@@ -513,8 +513,8 @@ class _FakeAdapter:
     def extract_imports(self, source: str) -> set[str]:
         return set()
 
-    def resolve_repo_modules(self, repo_root: Path) -> set[str]:
-        return set()
+    def resolve_repo_modules(self, repo_root: Path) -> RepoModules:
+        return RepoModules(exact=frozenset(), prefixes=frozenset())
 
     def is_data_dominant(self, source: str, threshold: float = 0.65) -> bool:
         return False

@@ -6,6 +6,7 @@ from __future__ import annotations
 import textwrap
 from pathlib import Path
 
+from argot.research.signal.phase14.adapters.typescript_adapter import TypeScriptAdapter
 from argot.research.signal.phase14.scorers.import_graph_scorer import (
     ImportGraphScorer,
     _imports_from_ast,
@@ -147,3 +148,55 @@ def test_score_hunk_mixed_repo_and_foreign(tmp_path: Path) -> None:
     hunk = "import os\nfrom mimesis import Person\nimport requests\n"
     # os is repo-internal; mimesis and requests are foreign
     assert scorer.score_hunk(hunk) == 2.0
+
+
+def test_stage1_glob_alias_import_not_foreign(tmp_path: Path) -> None:
+    """@/utils/deep matches glob prefix @/ from tsconfig "@/*" → not flagged."""
+    import json
+
+    (tmp_path / "package.json").write_text(json.dumps({"name": "app"}), encoding="utf-8")
+    tsconfig = {"compilerOptions": {"paths": {"@/*": ["src/*"]}}}
+    (tmp_path / "tsconfig.json").write_text(json.dumps(tsconfig), encoding="utf-8")
+
+    scorer = ImportGraphScorer(adapter=TypeScriptAdapter(), repo_root=tmp_path)
+    scorer.fit([])
+    result = scorer.score_hunk("import { x } from '@/utils/deep';\n")
+    assert result == 0.0
+
+
+def test_stage1_glob_alias_non_matching_import_foreign(tmp_path: Path) -> None:
+    """lodash does not match prefix @/ → Stage 1 fires."""
+    import json
+
+    (tmp_path / "package.json").write_text(json.dumps({"name": "app"}), encoding="utf-8")
+    tsconfig = {"compilerOptions": {"paths": {"@/*": ["src/*"]}}}
+    (tmp_path / "tsconfig.json").write_text(json.dumps(tsconfig), encoding="utf-8")
+
+    scorer = ImportGraphScorer(adapter=TypeScriptAdapter(), repo_root=tmp_path)
+    scorer.fit([])
+    result = scorer.score_hunk("import lodash from 'lodash';\n")
+    assert result >= 1.0
+
+
+def test_fit_unions_resolve_repo_modules_when_repo_root_given(tmp_path: Path) -> None:
+    """resolve_repo_modules result is unioned into _repo_modules after fit."""
+    # Create a minimal Python package: one module file that is NOT imported by any model_A file
+    pkg_dir = tmp_path / "mypackage"
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").write_text("", encoding="utf-8")
+    (pkg_dir / "utils.py").write_text("x = 1\n", encoding="utf-8")
+
+    # model_A file only imports 'os' — 'mypackage' is not seen via extract_imports
+    model_a = _write_py(tmp_path, "main.py", "import os\n")
+
+    # Without repo_root: mypackage is NOT in _repo_modules
+    scorer_no_root = ImportGraphScorer()
+    scorer_no_root.fit([model_a])
+    assert "mypackage" not in scorer_no_root._repo_modules
+
+    # With repo_root: PythonAdapter.resolve_repo_modules returns empty set (by design),
+    # so _repo_modules stays identical — this validates the code path runs without error
+    # and that the union operation is a no-op for Python (correct behavior).
+    scorer_with_root = ImportGraphScorer(repo_root=tmp_path)
+    scorer_with_root.fit([model_a])
+    assert scorer_with_root._repo_modules == scorer_no_root._repo_modules

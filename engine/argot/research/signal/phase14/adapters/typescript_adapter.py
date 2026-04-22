@@ -4,8 +4,13 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Generator
 from pathlib import Path
+
+from argot.research.signal.phase14.adapters.language_adapter import RepoModules
+
+_logger = logging.getLogger(__name__)
 
 import tree_sitter_typescript as tstypescript
 from tree_sitter import Language, Node
@@ -174,21 +179,27 @@ class TypeScriptAdapter:
         except Exception:
             return set()
 
-    def resolve_repo_modules(self, repo_root: Path) -> set[str]:
+    def resolve_repo_modules(self, repo_root: Path) -> RepoModules:
         """Return package names and tsconfig path alias prefixes for *repo_root*.
 
         Reads ``package.json`` (own name + workspace package names) and
         ``tsconfig.json`` ``compilerOptions.paths``.  Falls back gracefully if
         either file is absent or malformed.
+
+        tsconfig paths classification:
+        - ``"@/*"`` → prefix ``"@/"`` (strip trailing ``*``)
+        - ``"@myorg/lib"`` → exact
+        - ``"@lib/*/tests"`` (wildcard in middle) → skipped with a warning
         """
-        mods: set[str] = set()
+        exact: set[str] = set()
+        prefixes: set[str] = set()
 
         pkg_json = repo_root / "package.json"
         if pkg_json.exists():
             try:
                 data: dict[str, object] = json.loads(pkg_json.read_text(encoding="utf-8"))
                 if name := data.get("name"):
-                    mods.add(str(name))
+                    exact.add(str(name))
                 workspaces = data.get("workspaces", [])
                 if isinstance(workspaces, dict):
                     workspaces = workspaces.get("packages", [])
@@ -201,7 +212,7 @@ class TypeScriptAdapter:
                                         ws_pkg.read_text(encoding="utf-8")
                                     )
                                     if ws_name := ws_data.get("name"):
-                                        mods.add(str(ws_name))
+                                        exact.add(str(ws_name))
                                 except Exception:
                                     pass
             except Exception:
@@ -216,14 +227,26 @@ class TypeScriptAdapter:
                     paths = compiler_opts.get("paths", {})
                     if isinstance(paths, dict):
                         for alias in paths:
-                            # "@scope/pkg/*" → "@scope/pkg"
-                            prefix = str(alias).rstrip("/*").rstrip("/")
-                            if prefix:
-                                mods.add(prefix)
+                            key = str(alias)
+                            star_count = key.count("*")
+                            if star_count == 0:
+                                if key:
+                                    exact.add(key)
+                            elif star_count == 1 and key.endswith("/*"):
+                                # "@/*" → prefix "@/"
+                                prefix = key[:-1]  # strip trailing "*"
+                                if prefix:
+                                    prefixes.add(prefix)
+                            else:
+                                _logger.warning(
+                                    "tsconfig path alias %r has unsupported wildcard pattern"
+                                    " — skipped",
+                                    key,
+                                )
             except Exception:
                 pass
 
-        return mods
+        return RepoModules(exact=frozenset(exact), prefixes=frozenset(prefixes))
 
     def is_data_dominant(self, source: str, threshold: float = 0.65) -> bool:
         """Return True if the file is overwhelmingly composed of top-level data literals.

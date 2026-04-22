@@ -120,3 +120,182 @@ The adapter seam is unit-tested against inline TypeScript fixtures.  Both adapte
 implement the full `LanguageAdapter` protocol.  All existing Python scorer tests pass
 unchanged.  The `TypeScriptAdapter` has **not yet been exercised on real TS repository
 PRs** (Hono, Ink, faker-js) — that is the next validation step.
+
+## §5 — Hot-Path Wiring (2026-04-22)
+
+### What was wired
+
+**Change 1 — `repo_root` threading through the scorer stack**
+
+`ImportGraphScorer.__init__` now accepts `repo_root: Path | None = None`.  When
+non-None, `fit()` calls `self._adapter.resolve_repo_modules(repo_root)` after
+scanning model_A files and unions the result into `_repo_modules`.  This closes the
+TypeScript gap where relative-path imports (`./utils`) are excluded from
+`extract_imports` output (by design), so internal TS modules only appear in
+`_repo_modules` via `resolve_repo_modules` (reading `package.json` name and
+`tsconfig.json` paths).
+
+`SequentialImportBpeScorer.__init__` accepts the same `repo_root: Path | None = None`
+parameter and forwards it to the internal `ImportGraphScorer`.
+
+Both parameters are optional — existing call sites pass neither and see identical
+Python behavior.
+
+**Change 2 — Hunk-scope Stage 1 routed through the adapter**
+
+In `SequentialImportBpeScorer.score_hunk`, the hunk-scope Stage 1 branch previously
+called `_imports_from_ast(hunk_content)` (Python AST only).  This has been replaced
+with `self._adapter.extract_imports(hunk_content)`, routing TypeScript hunks through
+`TypeScriptAdapter` (tree-sitter) instead of silently returning an empty set for TS.
+The `_imports_from_ast` symbol is no longer imported in `sequential_import_bpe_scorer`
+(it remains defined in `import_graph_scorer.py` for internal use and is exercised by
+unit tests there).
+
+### Test results
+
+**Full suite (52 tests, all passing):**
+
+```
+engine/argot/research/signal/phase14/scorers/   52 passed in 0.10s
+```
+
+Previous count: 46 tests.  Six new tests added:
+- `test_import_graph_scorer.py` +1: `test_fit_unions_resolve_repo_modules_when_repo_root_given`
+- `test_sequential_import_bpe_scorer_typescript.py` +5 (new file):
+  - `test_hunk_with_foreign_ts_import_flags`
+  - `test_hunk_with_repo_ts_import_does_not_flag`
+  - `test_hunk_with_tsconfig_alias_does_not_flag`
+  - `test_hunk_with_package_self_import_does_not_flag`
+  - `test_hunk_with_no_imports_does_not_flag`
+
+**mypy**: clean on both modified scorer files.
+
+### Python behavior unchanged
+
+The `repo_root=None` default means all existing Python scorer construction call sites
+are unaffected.  When `repo_root` is None, `fit()` skips the `resolve_repo_modules`
+call entirely — the code path is identical to before this change.  The hunk-scope
+adapter dispatch (`self._adapter.extract_imports`) produces the same result as the
+previous `_imports_from_ast` call for valid Python input; for invalid fragments
+(mid-block slices), `PythonAdapter` tree-sitter is error-tolerant and returns imports
+that `_imports_from_ast` (which uses `ast.parse`) would have missed — this is a
+pre-existing and deliberate behavior from the `PythonAdapter` migration.
+
+### Known limitation: glob-style tsconfig alias prefixes
+
+The fixture for `test_hunk_with_tsconfig_alias_does_not_flag` uses an exact tsconfig
+paths key (`"@/utils": ["src/utils"]`) rather than a glob key (`"@/*": ["src/*"]`).
+With a glob key, `resolve_repo_modules` would emit `"@"` (the stripped prefix) but
+`extract_imports` emits the full specifier `"@/utils"` — the exact-set membership
+check in `score_hunk` would flag it as foreign.  Prefix-matching for glob aliases is
+deferred (§3 item 3 scope note).
+
+> **This limitation was resolved in §6.**
+
+### Statement
+
+**TS scorer hot path is now adapter-routed; ready for real-repo validation.**
+
+---
+
+## §6 — Glob Aliases + Python Re-validation (2026-04-22)
+
+### Part A — Glob-alias tsconfig resolution
+
+#### Problem
+
+`TypeScriptAdapter.resolve_repo_modules` treated all tsconfig `compilerOptions.paths`
+keys the same: strip `/*` and emit the prefix as an exact module specifier (e.g.
+`"@/*"` → `"@"`).  But `extract_imports` returns the full import specifier from the
+hunk (`"@/utils/deep"`).  Since `"@/utils/deep" ≠ "@"`, the exact-set membership check
+in `score_hunk` flagged every `@/`-prefixed import as foreign — breaking all three
+TypeScript target repos (Hono, Ink, faker-js all use `"@/*": ["src/*"]`).
+
+#### Solution: `RepoModules` shape + `_is_foreign`
+
+New dataclass in `language_adapter.py`:
+
+```python
+@dataclass(frozen=True)
+class RepoModules:
+    exact: frozenset[str]      # e.g. "lodash", "@myorg/lib"
+    prefixes: frozenset[str]   # e.g. "@/" from "@/*": ["src/*"]
+```
+
+`LanguageAdapter.resolve_repo_modules` now returns `RepoModules`.
+
+**`TypeScriptAdapter.resolve_repo_modules` classification:**
+
+| tsconfig key | Action |
+|---|---|
+| `"@myorg/lib"` (no `*`) | → `exact` |
+| `"@/*"` (ends with `/*`) | → strip `*`, emit `"@/"` as prefix |
+| `"@lib/*/tests"` (mid `*`) | → skipped, `_logger.warning` once |
+
+`package.json` names (own + workspace) → always `exact`.
+
+**`PythonAdapter`**: returns `RepoModules(exact=frozenset(), prefixes=frozenset())`
+— no semantic change.
+
+**`ImportGraphScorer`** stores both `_repo_modules: frozenset[str]` (exact, backward-
+compatible) and `_repo_modules_prefixes: frozenset[str]`.  New `is_foreign(spec)` method
+gates on both.  All experiment scripts that access `_repo_modules` directly continue to
+work.
+
+**`SequentialImportBpeScorer`** Stage 1 path updated from set-subtraction on `_repo_modules`
+to `{spec for spec in hunk_imports if self._import_scorer.is_foreign(spec)}`.
+
+#### Tests
+
+| Test | File | Result |
+|---|---|---|
+| `test_resolve_glob_alias_emits_prefix` | `test_typescript_adapter.py` | ✅ |
+| `test_resolve_exact_alias_emits_exact` | `test_typescript_adapter.py` | ✅ |
+| `test_resolve_mixed_aliases` | `test_typescript_adapter.py` | ✅ |
+| `test_resolve_ignores_middle_wildcard` | `test_typescript_adapter.py` | ✅ |
+| `test_stage1_glob_alias_import_not_foreign` | `test_import_graph_scorer.py` | ✅ |
+| `test_stage1_glob_alias_non_matching_import_foreign` | `test_import_graph_scorer.py` | ✅ |
+
+Existing tests updated (monorepo and tsconfig-paths assertions now reference `mods.exact`
+/ `mods.prefixes`).  `_FakeAdapter` in `test_sequential_import_bpe_scorer.py` updated
+to return `RepoModules`.
+
+**Test count: 52 → 70 (all passing).**
+
+---
+
+### Part B — Python re-validation (Rich corpus)
+
+**Goal:** prove the `_imports_from_ast → self._adapter.extract_imports` swap in
+`score_hunk` didn't shift Python flag counts.
+
+**Method:** re-ran the same 37 PRs, same N=230 calibration seed=0, same Rich repo,
+against the current code (post-glob-fix).  Script:
+`experiments/revalidate_rich_post_glob_fix_2026_04_22.py`.
+
+**Result:**
+
+| Metric | fix10 baseline | Post-glob-fix re-run |
+|---|---|---|
+| Source hunks scored | 194 | 194 |
+| Flags (source) | 23 | 23 |
+| Stage 1 (import) | 2 | 2 |
+| Stage 2 (bpe) | 21 | 21 |
+| Delta | — | **ZERO** |
+
+Flag keys (pr_number, file_path, hunk_start_line) are identical across both runs.
+The glob fix is TS-only; PythonAdapter.prefixes is always empty, making `_is_foreign`
+equivalent to the previous set-subtraction for Python.
+
+---
+
+### Final statement
+
+**Green-light for TypeScript real-repo validation.**
+
+- Glob-style `"@/*"` tsconfig aliases now routed to `prefixes`, not mis-classified as
+  exact specifiers.  Hono, Ink, and faker-js `@/` imports will no longer be false-positive
+  Stage 1 flags.
+- Python behavior is unchanged: Rich re-run produces exactly 23 flags with zero delta
+  against the fix10 baseline.
+- 70 tests passing, mypy clean.

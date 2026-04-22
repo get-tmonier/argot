@@ -87,9 +87,10 @@ def test_resolve_repo_modules_monorepo(adapter: TypeScriptAdapter, tmp_path: Pat
         (ws / "package.json").write_text(json.dumps({"name": f"@acme/{name}"}))
 
     mods = adapter.resolve_repo_modules(tmp_path)
-    assert "root-pkg" in mods
-    assert "@acme/alpha" in mods
-    assert "@acme/beta" in mods
+    assert "root-pkg" in mods.exact
+    assert "@acme/alpha" in mods.exact
+    assert "@acme/beta" in mods.exact
+    assert mods.prefixes == frozenset()
 
 
 def test_resolve_repo_modules_tsconfig_paths(adapter: TypeScriptAdapter, tmp_path: Path) -> None:
@@ -105,12 +106,58 @@ def test_resolve_repo_modules_tsconfig_paths(adapter: TypeScriptAdapter, tmp_pat
     (tmp_path / "tsconfig.json").write_text(json.dumps(tsconfig))
 
     mods = adapter.resolve_repo_modules(tmp_path)
-    assert "@/*" not in mods  # raw key not included
-    assert "@" in mods or "@/" in mods or any(m.startswith("@") for m in mods)
-    # The prefix before the wildcard should be present
-    # "@/*" → "@" or "@/" as prefix
-    # "@utils/*" → "@utils" or "@utils/"
-    assert any("utils" in m for m in mods)
+    assert "app" in mods.exact
+    assert "@/" in mods.prefixes
+    assert "@utils/" in mods.prefixes
+    assert "@/*" not in mods.exact and "@/*" not in mods.prefixes
+
+
+def test_resolve_glob_alias_emits_prefix(adapter: TypeScriptAdapter, tmp_path: Path) -> None:
+    (tmp_path / "package.json").write_text(json.dumps({"name": "app"}))
+    tsconfig = {"compilerOptions": {"paths": {"@/*": ["src/*"]}}}
+    (tmp_path / "tsconfig.json").write_text(json.dumps(tsconfig))
+
+    mods = adapter.resolve_repo_modules(tmp_path)
+    assert mods.prefixes == frozenset({"@/"})
+    assert "@/*" not in mods.exact
+
+
+def test_resolve_exact_alias_emits_exact(adapter: TypeScriptAdapter, tmp_path: Path) -> None:
+    (tmp_path / "package.json").write_text(json.dumps({"name": "app"}))
+    tsconfig = {"compilerOptions": {"paths": {"@myorg/lib": ["src/lib"]}}}
+    (tmp_path / "tsconfig.json").write_text(json.dumps(tsconfig))
+
+    mods = adapter.resolve_repo_modules(tmp_path)
+    assert "@myorg/lib" in mods.exact
+    assert mods.prefixes == frozenset()
+
+
+def test_resolve_mixed_aliases(adapter: TypeScriptAdapter, tmp_path: Path) -> None:
+    (tmp_path / "package.json").write_text(json.dumps({"name": "app"}))
+    tsconfig = {
+        "compilerOptions": {
+            "paths": {
+                "@/*": ["src/*"],
+                "@myorg/lib": ["src/lib"],
+            }
+        }
+    }
+    (tmp_path / "tsconfig.json").write_text(json.dumps(tsconfig))
+
+    mods = adapter.resolve_repo_modules(tmp_path)
+    assert "@/" in mods.prefixes
+    assert "@myorg/lib" in mods.exact
+
+
+def test_resolve_ignores_middle_wildcard(adapter: TypeScriptAdapter, tmp_path: Path) -> None:
+    (tmp_path / "package.json").write_text(json.dumps({"name": "app"}))
+    tsconfig = {"compilerOptions": {"paths": {"@lib/*/tests": ["src/lib/*/tests"]}}}
+    (tmp_path / "tsconfig.json").write_text(json.dumps(tsconfig))
+
+    # Must not crash; middle-wildcard key is skipped
+    mods = adapter.resolve_repo_modules(tmp_path)
+    assert mods.prefixes == frozenset()
+    assert "@lib/*/tests" not in mods.exact
 
 
 # ---------------------------------------------------------------------------

@@ -3,8 +3,22 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, runtime_checkable
+
+
+@dataclass(frozen=True)
+class RepoModules:
+    """Resolved internal module identifiers for a repository.
+
+    ``exact`` holds full specifiers (e.g. ``"lodash"``, ``"@myorg/lib"``).
+    ``prefixes`` holds stripped glob-alias prefixes (e.g. ``"@/"`` from
+    ``"@/*": ["src/*"]`` in tsconfig ``compilerOptions.paths``).
+    """
+
+    exact: frozenset[str]
+    prefixes: frozenset[str]
 
 
 @runtime_checkable
@@ -26,13 +40,13 @@ class LanguageAdapter(Protocol):
         """
         ...
 
-    def resolve_repo_modules(self, repo_root: Path) -> set[str]:
+    def resolve_repo_modules(self, repo_root: Path) -> RepoModules:
         """Return the set of known internal module names for *repo_root*.
 
-        For Python: returns an empty set (internal modules are discovered via
-        ``extract_imports`` over model_A files during ``ImportGraphScorer.fit``).
+        For Python: returns empty exact/prefixes sets (internal modules are discovered
+        via ``extract_imports`` over model_A files during ``ImportGraphScorer.fit``).
         For TypeScript: reads ``package.json`` (package name + workspace names) and
-        ``tsconfig.json`` ``compilerOptions.paths`` (alias prefixes).
+        ``tsconfig.json`` ``compilerOptions.paths`` (exact aliases and glob prefixes).
         """
         ...
 

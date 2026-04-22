@@ -21,10 +21,7 @@ from typing import Any, Literal
 
 from argot.research.signal.phase14.adapters.language_adapter import LanguageAdapter
 from argot.research.signal.phase14.adapters.registry import adapter_for_files
-from argot.research.signal.phase14.scorers.import_graph_scorer import (
-    ImportGraphScorer,
-    _imports_from_ast,
-)
+from argot.research.signal.phase14.scorers.import_graph_scorer import ImportGraphScorer
 
 _EPSILON = 1e-7
 _BPE_MODEL_NAME = "microsoft/unixcoder-base"
@@ -133,6 +130,7 @@ class SequentialImportBpeScorer:
         calibration_hunks: list[str],
         *,
         adapter: LanguageAdapter | None = None,
+        repo_root: Path | None = None,
         threshold_percentile: float | None = None,
         exclude_data_dominant: bool = True,
         _tokenizer: Any = None,
@@ -165,7 +163,7 @@ class SequentialImportBpeScorer:
             model_a_list = filtered
 
         # Stage 1: import-graph scorer (uses same adapter)
-        self._import_scorer = ImportGraphScorer(adapter=self._adapter)
+        self._import_scorer = ImportGraphScorer(adapter=self._adapter, repo_root=repo_root)
         self._import_scorer.fit(model_a_list)
 
         # BPE tokenizer
@@ -269,8 +267,8 @@ class SequentialImportBpeScorer:
             # Stage 1 — hunk-only: only imports added in the hunk can introduce a
             # foreign module.  A pure string/comment edit in an import-heavy file
             # has no hunk imports and cannot trigger Stage 1.
-            hunk_imports = _imports_from_ast(hunk_content)
-            foreign = hunk_imports - self._import_scorer._repo_modules
+            hunk_imports = self._adapter.extract_imports(hunk_content)
+            foreign = {spec for spec in hunk_imports if self._import_scorer.is_foreign(spec)}
             import_score: float = float(len(foreign))
         else:
             import_score = self._import_scorer.score_hunk(hunk_content)
