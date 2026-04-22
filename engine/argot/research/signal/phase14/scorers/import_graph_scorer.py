@@ -12,12 +12,10 @@ Design decisions:
 - Stdlib has no special treatment: if the repo never imports ``threading``,
   a hunk importing ``threading`` is flagged.
 - Relative imports (``from . import X``, ``from ..foo import Y``) are ignored.
-- Hunk parsing: if ``ast.parse`` raises ``SyntaxError`` (mid-block slice),
-  ``_imports_from_ast`` returns an empty set.  Callers that need to detect
-  imports from the file header must pass them separately (already parsed) and
-  union the results — see ``SequentialImportBpeScorer.score_hunk``.
-  A regex fallback is intentionally excluded: it matches module names from
-  prose/docstrings and produces false positives.
+- Hunk parsing: if parsing raises an error (mid-block slice),
+  ``adapter.extract_imports`` returns an empty set.  Callers that need to detect
+  imports from the file header must pass them separately — see
+  ``SequentialImportBpeScorer.score_hunk``.
 """
 
 from __future__ import annotations
@@ -27,7 +25,8 @@ import re
 from collections.abc import Iterable
 from pathlib import Path
 
-from argot.research.signal.phase14.parsers import Parser, PythonTreeSitterParser
+from argot.research.signal.phase14.adapters.language_adapter import LanguageAdapter
+from argot.research.signal.phase14.adapters.registry import get_adapter
 
 # Matches ``import foo`` or ``import foo.bar`` (captures the leading name)
 _RE_IMPORT = re.compile(r"^\s*import\s+([A-Za-z_]\w*)", re.MULTILINE)
@@ -45,7 +44,7 @@ def _imports_from_ast(source: str) -> set[str]:
     except SyntaxError:
         # Mid-block hunk slices are not valid Python — return empty set.
         # Do NOT fall back to regex: regex matches module names from prose/docstrings
-        # and produces false positives.  Callers handle file-header imports separately.
+        # and produces false positives.
         return set()
 
     modules: set[str] = set()
@@ -73,8 +72,8 @@ def _imports_from_regex(source: str) -> set[str]:
 class ImportGraphScorer:
     """Score a hunk by how many modules it imports that are foreign to the repo."""
 
-    def __init__(self, parser: Parser | None = None) -> None:
-        self._parser: Parser = parser if parser is not None else PythonTreeSitterParser()
+    def __init__(self, adapter: LanguageAdapter | None = None) -> None:
+        self._adapter: LanguageAdapter = adapter if adapter is not None else get_adapter(".py")
         self._repo_modules: frozenset[str] = frozenset()
 
     def fit(self, model_a_files: Iterable[Path]) -> None:
@@ -85,7 +84,7 @@ class ImportGraphScorer:
                 source = path.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 continue
-            seen.update(self._parser.extract_imports(source))
+            seen.update(self._adapter.extract_imports(source))
         self._repo_modules = frozenset(seen)
 
     def score_hunk(self, hunk_source: str) -> float:
@@ -93,6 +92,6 @@ class ImportGraphScorer:
 
         Returns 0.0 if no foreign imports are found.
         """
-        hunk_modules = _imports_from_ast(hunk_source)
+        hunk_modules = self._adapter.extract_imports(hunk_source)
         foreign = hunk_modules - self._repo_modules
         return float(len(foreign))

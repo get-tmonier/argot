@@ -121,9 +121,10 @@ def test_score_hunk_unparseable_slice(tmp_path: Path) -> None:
     _write_py(tmp_path, "a.py", "import faker\n")
     scorer = ImportGraphScorer()
     scorer.fit(tmp_path.glob("*.py"))
-    # Indented slice — ast.parse fails; regex fallback removed, so no imports extracted.
-    unparseable = "    from mimesis import Person\n    p = Person()\n"
-    assert scorer.score_hunk(unparseable) == 0.0
+    # Indented slice — ast.parse fails, but tree-sitter (used by PythonAdapter)
+    # is error-tolerant and still extracts the import.  mimesis is foreign → 1.0.
+    indented = "    from mimesis import Person\n    p = Person()\n"
+    assert scorer.score_hunk(indented) == 1.0
 
 
 def test_score_hunk_empty_model_a_flags_everything(tmp_path: Path) -> None:
