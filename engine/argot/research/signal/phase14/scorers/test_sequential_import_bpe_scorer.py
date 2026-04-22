@@ -653,6 +653,88 @@ def test_auto_generated_only_fires_when_file_source_provided(tmp_path: Path) -> 
     assert result["flagged"] is True
 
 
+# ---------------------------------------------------------------------------
+# exclude_data_dominant (fix9)
+# ---------------------------------------------------------------------------
+
+# A multiline list assignment that makes >65% of lines data literals.
+_DD_CONTENT = "x = [\n    'a',\n    'b',\n    'c',\n    'd',\n    'e',\n]\n"
+
+
+def test_exclude_data_dominant_default_excludes_dd_files(tmp_path: Path) -> None:
+    """Default exclude_data_dominant=True must remove data-dominant files from model A.
+
+    The data-dominant file encodes to unique token IDs [7, 8].  After exclusion
+    those token IDs must be absent from _model_a.
+    """
+    normal_file = _write_py(tmp_path, "normal.py", "import os\n")
+    dd_file = _write_py(tmp_path, "dd.py", _DD_CONTENT)
+    model_b_path = _make_model_b(tmp_path, {1: 50, 2: 50, 7: 1, 8: 1})
+
+    tok = _FakeTok(
+        {
+            "import os\n": [1, 2],
+            _DD_CONTENT: [7, 8],
+            "calibration\n": [1],
+        }
+    )
+
+    scorer = SequentialImportBpeScorer(
+        model_a_files=[normal_file, dd_file],
+        bpe_model_b_path=model_b_path,
+        calibration_hunks=["calibration\n"],
+        _tokenizer=tok,
+    )
+
+    assert 7 not in scorer._model_a, "data-dominant file token should be excluded from model A"
+    assert 8 not in scorer._model_a, "data-dominant file token should be excluded from model A"
+    assert 1 in scorer._model_a, "normal file token should remain in model A"
+
+
+def test_exclude_data_dominant_opt_out_includes_all_files(tmp_path: Path) -> None:
+    """exclude_data_dominant=False must include all files — reproduces pre-fix9 behaviour."""
+    normal_file = _write_py(tmp_path, "normal.py", "import os\n")
+    dd_file = _write_py(tmp_path, "dd.py", _DD_CONTENT)
+    model_b_path = _make_model_b(tmp_path, {1: 50, 2: 50, 7: 1, 8: 1})
+
+    tok = _FakeTok(
+        {
+            "import os\n": [1, 2],
+            _DD_CONTENT: [7, 8],
+            "calibration\n": [1],
+        }
+    )
+
+    scorer = SequentialImportBpeScorer(
+        model_a_files=[normal_file, dd_file],
+        bpe_model_b_path=model_b_path,
+        calibration_hunks=["calibration\n"],
+        _tokenizer=tok,
+        exclude_data_dominant=False,
+    )
+
+    assert 7 in scorer._model_a, "data-dominant file token should be in model A when opt-out"
+    assert 8 in scorer._model_a, "data-dominant file token should be in model A when opt-out"
+
+
+def test_exclude_data_dominant_empty_corpus_raises(tmp_path: Path) -> None:
+    """exclude_data_dominant=True must raise ValueError when all files are data-dominant."""
+    dd_file = _write_py(tmp_path, "dd.py", _DD_CONTENT)
+    model_b_path = _make_model_b(tmp_path, {7: 50, 8: 50})
+
+    tok = _FakeTok({_DD_CONTENT: [7, 8], "calibration\n": [7]})
+
+    import pytest
+
+    with pytest.raises(ValueError, match="empty corpus"):
+        SequentialImportBpeScorer(
+            model_a_files=[dd_file],
+            bpe_model_b_path=model_b_path,
+            calibration_hunks=["calibration\n"],
+            _tokenizer=tok,
+        )
+
+
 def test_non_auto_generated_file_proceeds_normally(tmp_path: Path) -> None:
     """A regular file_source (no markers) must not trigger auto_generated short-circuit."""
     ma_file = _write_py(tmp_path, "a.py", "import faker\n")

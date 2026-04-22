@@ -234,3 +234,136 @@ def test_include_auto_generated_when_opted_out(tmp_path: Path) -> None:
     # Opt-out: auto-generated file included
     candidates = collect_candidates(tmp_path, exclude_auto_generated=False)
     assert len(candidates) == 1
+
+
+def test_excludes_data_dominant_files_by_default(tmp_path: Path) -> None:
+    # Data-dominant file: overwhelmingly top-level tuple/list assignments.
+    _write_py(
+        tmp_path,
+        "locale_data.py",
+        """\
+        CITIES = (
+            "city_alpha",
+            "city_beta",
+            "city_gamma",
+            "city_delta",
+            "city_epsilon",
+            "city_zeta",
+            "city_eta",
+            "city_theta",
+            "city_iota",
+            "city_kappa",
+        )
+        STREETS = [
+            "street_one",
+            "street_two",
+            "street_three",
+            "street_four",
+            "street_five",
+            "street_six",
+            "street_seven",
+            "street_eight",
+            "street_nine",
+            "street_ten",
+        ]
+        DISTRICTS = (
+            "district_a",
+            "district_b",
+            "district_c",
+            "district_d",
+            "district_e",
+            "district_f",
+            "district_g",
+            "district_h",
+        )
+
+
+        def locale() -> str:
+            return "xx_XX"
+        """,
+    )
+    # Normal module with qualifying hunks.
+    _write_py(
+        tmp_path,
+        "real_module.py",
+        """\
+        def real_func() -> int:
+            a = 1
+            b = 2
+            c = 3
+            d = 4
+            return a + b + c + d
+        """,
+    )
+    # Default: data-dominant file excluded → only real_module hunks remain.
+    candidates = collect_candidates(tmp_path)
+    assert len(candidates) == 1
+    assert "real_func" in candidates[0]
+
+
+def test_include_data_dominant_when_opted_out(tmp_path: Path) -> None:
+    _write_py(
+        tmp_path,
+        "locale_data.py",
+        """\
+        CITIES = (
+            "city_alpha",
+            "city_beta",
+            "city_gamma",
+            "city_delta",
+            "city_epsilon",
+            "city_zeta",
+            "city_eta",
+            "city_theta",
+            "city_iota",
+            "city_kappa",
+        )
+        STREETS = [
+            "street_one",
+            "street_two",
+            "street_three",
+            "street_four",
+            "street_five",
+            "street_six",
+            "street_seven",
+            "street_eight",
+            "street_nine",
+            "street_ten",
+        ]
+        DISTRICTS = (
+            "district_a",
+            "district_b",
+            "district_c",
+            "district_d",
+            "district_e",
+            "district_f",
+            "district_g",
+            "district_h",
+        )
+
+
+        def locale_info() -> dict[str, str]:
+            return {
+                "code": "xx_XX",
+                "language": "unknown",
+                "country": "unknown",
+                "encoding": "utf-8",
+                "direction": "ltr",
+            }
+        """,
+    )
+    _write_py(
+        tmp_path,
+        "real_module.py",
+        """\
+        def real_func() -> int:
+            a = 1
+            b = 2
+            c = 3
+            d = 4
+            return a + b + c + d
+        """,
+    )
+    # Opt-out: data-dominant file included — locale_info() and real_func both qualify.
+    candidates = collect_candidates(tmp_path, exclude_data_dominant=False)
+    assert len(candidates) == 2
