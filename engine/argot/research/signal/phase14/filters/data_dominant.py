@@ -20,6 +20,48 @@ _PARSER = TsParser(_PY_LANGUAGE)
 # RHS node types that count as "static data literals"
 _DATA_LITERAL_TYPES: frozenset[str] = frozenset({"list", "tuple", "dictionary", "set"})
 
+_PY_VALUE_LITERAL_TYPES: frozenset[str] = frozenset({
+    "string",
+    "concatenated_string",
+    "integer",
+    "float",
+    "true",
+    "false",
+    "none",
+    "list",
+    "tuple",
+    "dictionary",
+    "set",
+})
+
+_VALUE_DOMINANT_THRESHOLD: float = 0.8
+
+
+def _is_value_literal_dominant(node: Node) -> bool:
+    """Return True if ≥80% of the node's immediate named values are literal data.
+
+    For list/tuple/set: checks each named child element.
+    For dictionary: checks the value side of each pair node.
+    Empty containers and unknown types return True (conservative — allow).
+    """
+    if node.type in ("list", "tuple", "set"):
+        values = [c for c in node.children if c.is_named]
+    elif node.type == "dictionary":
+        values = []
+        for child in node.children:
+            if child.type == "pair":
+                val = child.child_by_field_name("value")
+                if val is not None:
+                    values.append(val)
+            elif child.type == "dictionary_splat":
+                values.append(child)  # splat (**x) is non-literal
+    else:
+        return True
+    if not values:
+        return True
+    literal_count = sum(1 for v in values if v.type in _PY_VALUE_LITERAL_TYPES)
+    return literal_count / len(values) >= _VALUE_DOMINANT_THRESHOLD
+
 
 def _get_rhs(node: Node) -> Node | None:
     """Return the right-hand-side child of an assignment node, or None."""
@@ -52,7 +94,7 @@ def _collect_stmt_data_rows(stmts: list[Node], rows: set[int]) -> None:
             continue
 
         rhs = _get_rhs(target)
-        if rhs is not None and rhs.type in _DATA_LITERAL_TYPES:
+        if rhs is not None and rhs.type in _DATA_LITERAL_TYPES and _is_value_literal_dominant(rhs):
             rows.update(range(stmt.start_point[0], stmt.end_point[0] + 1))
 
 
