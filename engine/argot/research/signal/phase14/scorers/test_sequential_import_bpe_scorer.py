@@ -7,7 +7,7 @@ import json
 import math
 from pathlib import Path
 
-from argot.research.signal.phase14.parsers import Parser
+from argot.research.signal.phase14.adapters.language_adapter import LanguageAdapter
 from argot.research.signal.phase14.scorers.sequential_import_bpe_scorer import (
     SequentialImportBpeScorer,
     _blank_prose_lines,
@@ -498,22 +498,36 @@ def test_stage2_bpe_invariant_to_file_size(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Fake parser for prose-masking tests
+# Fake adapter for prose-masking tests
 # ---------------------------------------------------------------------------
 
 
-class _FakeParser:
-    """Parser that returns a fixed frozenset of prose line numbers for any source."""
+class _FakeAdapter:
+    """Minimal LanguageAdapter that returns a fixed frozenset of prose line numbers."""
+
+    file_extensions: frozenset[str] = frozenset({".py"})
 
     def __init__(self, prose_lines: frozenset[int]) -> None:
         self._prose_lines = prose_lines
+
+    def extract_imports(self, source: str) -> set[str]:
+        return set()
+
+    def resolve_repo_modules(self, repo_root: Path) -> set[str]:
+        return set()
+
+    def is_data_dominant(self, source: str, threshold: float = 0.65) -> bool:
+        return False
+
+    def is_auto_generated(self, source: str) -> bool:
+        return False
 
     def prose_line_ranges(self, src: str) -> frozenset[int]:
         return self._prose_lines
 
 
-# Verify _FakeParser satisfies the Parser protocol
-_: Parser = _FakeParser(frozenset())
+# Verify _FakeAdapter satisfies the LanguageAdapter protocol
+_: LanguageAdapter = _FakeAdapter(frozenset())
 
 
 # ---------------------------------------------------------------------------
@@ -531,7 +545,7 @@ def test_prose_masking_lowers_bpe_score(tmp_path: Path) -> None:
     model_b_path = _make_model_b(tmp_path, {1: 90, 2: 10})
 
     # Hunk source: line 1 is prose (high-scoring token), line 2 is code (low-scoring token).
-    # The _FakeParser marks line 1 as prose within the file (file line = hunk_start_line + 0).
+    # The _FakeAdapter marks line 1 as prose within the file (file line = hunk_start_line + 0).
     # _blank_prose_lines will blank line 1 in hunk_content, leaving only line 2 for BPE.
     hunk_content = "docstring text here\ncode_line\n"
     # Blanked version: line 1 becomes "\n", only line 2 ("code_line\n") remains
@@ -549,13 +563,13 @@ def test_prose_masking_lowers_bpe_score(tmp_path: Path) -> None:
 
     # hunk starts at line 2 in the file (line 1 is "# file header\n")
     # prose_line_ranges returns {2} for any source → line 2 in the file = line 1 in hunk
-    fake_parser = _FakeParser(frozenset({2}))
+    fake_adapter = _FakeAdapter(frozenset({2}))
 
     scorer = SequentialImportBpeScorer(
         model_a_files=[ma_file],
         bpe_model_b_path=model_b_path,
         calibration_hunks=["calibration\n"],
-        parser=fake_parser,
+        adapter=fake_adapter,
         _tokenizer=tok,
     )
 
@@ -580,8 +594,8 @@ def test_prose_masking_lowers_bpe_score(tmp_path: Path) -> None:
 def test_symmetric_calibration_lowers_threshold(tmp_path: Path) -> None:
     """When calibration hunks contain prose tokens that score high in model_b,
     blanking them symmetrically should result in a lower bpe_threshold compared
-    to a scorer that does NOT blank during calibration (i.e. uses default parser
-    but with a fake parser that returns no prose lines)."""
+    to a scorer that does NOT blank during calibration (i.e. uses default adapter
+    but with a fake adapter that returns no prose lines)."""
     ma_file = _write_py(tmp_path, "a.py", "import faker\n")
 
     # token 1: absent in model_a, very heavy in model_b → high BPE score
@@ -600,23 +614,23 @@ def test_symmetric_calibration_lowers_threshold(tmp_path: Path) -> None:
         }
     )
 
-    # parser that marks line 1 of any source as prose → blanks first line of cal hunk
-    prose_parser = _FakeParser(frozenset({1}))
-    # parser that returns no prose → calibration uses raw hunk (token 1)
-    no_prose_parser = _FakeParser(frozenset())
+    # adapter that marks line 1 of any source as prose → blanks first line of cal hunk
+    prose_adapter = _FakeAdapter(frozenset({1}))
+    # adapter that returns no prose → calibration uses raw hunk (token 1)
+    no_prose_adapter = _FakeAdapter(frozenset())
 
     scorer_with_prose = SequentialImportBpeScorer(
         model_a_files=[ma_file],
         bpe_model_b_path=model_b_path,
         calibration_hunks=[cal_hunk],
-        parser=prose_parser,
+        adapter=prose_adapter,
         _tokenizer=tok,
     )
     scorer_without_prose = SequentialImportBpeScorer(
         model_a_files=[ma_file],
         bpe_model_b_path=model_b_path,
         calibration_hunks=[cal_hunk],
-        parser=no_prose_parser,
+        adapter=no_prose_adapter,
         _tokenizer=tok,
     )
 
@@ -647,15 +661,15 @@ def test_back_compat_no_masking_without_line_kwargs(tmp_path: Path) -> None:
         }
     )
 
-    # parser that marks everything as prose — but it should NOT be invoked when
+    # adapter that marks everything as prose — but it should NOT be invoked when
     # hunk_start_line/hunk_end_line are absent
-    all_prose_parser = _FakeParser(frozenset({1, 2, 3, 4, 5}))
+    all_prose_adapter = _FakeAdapter(frozenset({1, 2, 3, 4, 5}))
 
     scorer = SequentialImportBpeScorer(
         model_a_files=[ma_file],
         bpe_model_b_path=model_b_path,
         calibration_hunks=["calibration\n"],
-        parser=all_prose_parser,
+        adapter=all_prose_adapter,
         _tokenizer=tok,
     )
 
