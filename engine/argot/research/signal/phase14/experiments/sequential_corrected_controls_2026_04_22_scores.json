@@ -244,10 +244,10 @@
             "name": "paradigm_break_sync_file_io_async",
             "category": "async_blocking",
             "is_break": true,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 7.8041872012608895,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_anyio_thread_offload",
@@ -271,10 +271,10 @@
             "name": "paradigm_break_queue_carryover",
             "category": "background_tasks",
             "is_break": true,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 8.424711580154643,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_atexit_background",
@@ -289,19 +289,19 @@
             "name": "control_background_tasks_basic",
             "category": "background_tasks",
             "is_break": false,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_background_tasks_depends",
             "category": "background_tasks",
             "is_break": false,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 7.118675385968757,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_manual_generator_drain",
@@ -334,37 +334,37 @@
             "name": "paradigm_break_aiohttp_no_context",
             "category": "downstream_http",
             "is_break": true,
-            "import_score": 2.0,
+            "import_score": 0.0,
             "bpe_score": 8.424711580154643,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_httpx_depends",
             "category": "downstream_http",
             "is_break": false,
-            "import_score": 2.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_json_error_response",
             "category": "exception_handling",
             "is_break": true,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_traceback_in_response",
             "category": "exception_handling",
             "is_break": true,
-            "import_score": 2.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_flask_errorhandler",
@@ -379,10 +379,10 @@
             "name": "control_exception_handler_registration",
             "category": "exception_handling",
             "is_break": false,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_lifespan_context",
@@ -415,10 +415,10 @@
             "name": "paradigm_break_imperative_route_loop",
             "category": "routing",
             "is_break": true,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 7.41823647576615,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_nested_router",
@@ -877,10 +877,10 @@
             "name": "paradigm_break_sync_file_io_async",
             "category": "async_blocking",
             "is_break": true,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 7.8041872012608895,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_anyio_thread_offload",
@@ -904,10 +904,10 @@
             "name": "paradigm_break_queue_carryover",
             "category": "background_tasks",
             "is_break": true,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 8.424711580154643,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_atexit_background",
@@ -922,19 +922,19 @@
             "name": "control_background_tasks_basic",
             "category": "background_tasks",
             "is_break": false,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_background_tasks_depends",
             "category": "background_tasks",
             "is_break": false,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 7.118675385968757,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_manual_generator_drain",
@@ -967,37 +967,37 @@
             "name": "paradigm_break_aiohttp_no_context",
             "category": "downstream_http",
             "is_break": true,
-            "import_score": 2.0,
+            "import_score": 0.0,
             "bpe_score": 8.424711580154643,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_httpx_depends",
             "category": "downstream_http",
             "is_break": false,
-            "import_score": 2.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_json_error_response",
             "category": "exception_handling",
             "is_break": true,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_traceback_in_response",
             "category": "exception_handling",
             "is_break": true,
-            "import_score": 2.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_flask_errorhandler",
@@ -1012,10 +1012,10 @@
             "name": "control_exception_handler_registration",
             "category": "exception_handling",
             "is_break": false,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_lifespan_context",
@@ -1048,10 +1048,10 @@
             "name": "paradigm_break_imperative_route_loop",
             "category": "routing",
             "is_break": true,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 7.41823647576615,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_nested_router",
@@ -1510,10 +1510,10 @@
             "name": "paradigm_break_sync_file_io_async",
             "category": "async_blocking",
             "is_break": true,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 7.8041872012608895,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_anyio_thread_offload",
@@ -1537,10 +1537,10 @@
             "name": "paradigm_break_queue_carryover",
             "category": "background_tasks",
             "is_break": true,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 8.424711580154643,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_atexit_background",
@@ -1555,19 +1555,19 @@
             "name": "control_background_tasks_basic",
             "category": "background_tasks",
             "is_break": false,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_background_tasks_depends",
             "category": "background_tasks",
             "is_break": false,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 7.118675385968757,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_manual_generator_drain",
@@ -1600,37 +1600,37 @@
             "name": "paradigm_break_aiohttp_no_context",
             "category": "downstream_http",
             "is_break": true,
-            "import_score": 2.0,
+            "import_score": 0.0,
             "bpe_score": 8.424711580154643,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_httpx_depends",
             "category": "downstream_http",
             "is_break": false,
-            "import_score": 2.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_json_error_response",
             "category": "exception_handling",
             "is_break": true,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_traceback_in_response",
             "category": "exception_handling",
             "is_break": true,
-            "import_score": 2.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_flask_errorhandler",
@@ -1645,10 +1645,10 @@
             "name": "control_exception_handler_registration",
             "category": "exception_handling",
             "is_break": false,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_lifespan_context",
@@ -1681,10 +1681,10 @@
             "name": "paradigm_break_imperative_route_loop",
             "category": "routing",
             "is_break": true,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 7.41823647576615,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_nested_router",
@@ -2143,10 +2143,10 @@
             "name": "paradigm_break_sync_file_io_async",
             "category": "async_blocking",
             "is_break": true,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 7.8041872012608895,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_anyio_thread_offload",
@@ -2170,10 +2170,10 @@
             "name": "paradigm_break_queue_carryover",
             "category": "background_tasks",
             "is_break": true,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 8.424711580154643,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_atexit_background",
@@ -2188,19 +2188,19 @@
             "name": "control_background_tasks_basic",
             "category": "background_tasks",
             "is_break": false,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_background_tasks_depends",
             "category": "background_tasks",
             "is_break": false,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 7.118675385968757,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_manual_generator_drain",
@@ -2233,37 +2233,37 @@
             "name": "paradigm_break_aiohttp_no_context",
             "category": "downstream_http",
             "is_break": true,
-            "import_score": 2.0,
+            "import_score": 0.0,
             "bpe_score": 8.424711580154643,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_httpx_depends",
             "category": "downstream_http",
             "is_break": false,
-            "import_score": 2.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_json_error_response",
             "category": "exception_handling",
             "is_break": true,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_traceback_in_response",
             "category": "exception_handling",
             "is_break": true,
-            "import_score": 2.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_flask_errorhandler",
@@ -2278,10 +2278,10 @@
             "name": "control_exception_handler_registration",
             "category": "exception_handling",
             "is_break": false,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_lifespan_context",
@@ -2314,10 +2314,10 @@
             "name": "paradigm_break_imperative_route_loop",
             "category": "routing",
             "is_break": true,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 7.41823647576615,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_nested_router",
@@ -2776,10 +2776,10 @@
             "name": "paradigm_break_sync_file_io_async",
             "category": "async_blocking",
             "is_break": true,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 7.8041872012608895,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_anyio_thread_offload",
@@ -2803,10 +2803,10 @@
             "name": "paradigm_break_queue_carryover",
             "category": "background_tasks",
             "is_break": true,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 8.424711580154643,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_atexit_background",
@@ -2821,19 +2821,19 @@
             "name": "control_background_tasks_basic",
             "category": "background_tasks",
             "is_break": false,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_background_tasks_depends",
             "category": "background_tasks",
             "is_break": false,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 7.118675385968757,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_manual_generator_drain",
@@ -2866,37 +2866,37 @@
             "name": "paradigm_break_aiohttp_no_context",
             "category": "downstream_http",
             "is_break": true,
-            "import_score": 2.0,
+            "import_score": 0.0,
             "bpe_score": 8.424711580154643,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_httpx_depends",
             "category": "downstream_http",
             "is_break": false,
-            "import_score": 2.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_json_error_response",
             "category": "exception_handling",
             "is_break": true,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_traceback_in_response",
             "category": "exception_handling",
             "is_break": true,
-            "import_score": 2.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "paradigm_break_flask_errorhandler",
@@ -2911,10 +2911,10 @@
             "name": "control_exception_handler_registration",
             "category": "exception_handling",
             "is_break": false,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 6.861402017609482,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_lifespan_context",
@@ -2947,10 +2947,10 @@
             "name": "paradigm_break_imperative_route_loop",
             "category": "routing",
             "is_break": true,
-            "import_score": 1.0,
+            "import_score": 0.0,
             "bpe_score": 7.41823647576615,
             "flagged": true,
-            "reason": "import"
+            "reason": "bpe"
           },
           {
             "name": "control_nested_router",
