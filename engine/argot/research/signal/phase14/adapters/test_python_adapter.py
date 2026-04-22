@@ -39,7 +39,6 @@ def test_enumerate_sampleable_ranges_python_functions_and_classes(adapter: Pytho
     assert len(ranges) == 3
     starts = [r[0] for r in ranges]
     assert all(isinstance(s, int) and s >= 1 for s in starts)
-    ends = [r[1] for r in ranges]
     assert all(e >= s for s, e in ranges)
 
 

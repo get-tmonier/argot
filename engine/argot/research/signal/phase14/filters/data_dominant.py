@@ -147,11 +147,10 @@ def is_data_dominant(file_source: str, threshold: float = 0.65) -> bool:
     except Exception:
         return False
 
-    if tree.root_node.has_error:
-        # Tolerate minor errors — the heuristic degrades gracefully; but if the
-        # tree is entirely an ERROR node, bail out.
-        if tree.root_node.type == "ERROR":
-            return False
+    # Tolerate minor errors — the heuristic degrades gracefully; but if the
+    # tree is entirely an ERROR node, bail out.
+    if tree.root_node.has_error and tree.root_node.type == "ERROR":
+        return False
 
     total_nonblank = sum(1 for line in file_source.splitlines() if line.strip())
     if total_nonblank == 0:
