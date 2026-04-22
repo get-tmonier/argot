@@ -525,6 +525,9 @@ class _FakeAdapter:
     def prose_line_ranges(self, src: str) -> frozenset[int]:
         return self._prose_lines
 
+    def enumerate_sampleable_ranges(self, source: str) -> list[tuple[int, int]]:
+        return []
+
 
 # Verify _FakeAdapter satisfies the LanguageAdapter protocol
 _: LanguageAdapter = _FakeAdapter(frozenset())
