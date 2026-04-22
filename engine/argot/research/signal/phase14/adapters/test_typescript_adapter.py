@@ -334,7 +334,8 @@ def test_autogen_body_comment_mentioning_generated_not_flagged_ts(
 ) -> None:
     """JSDoc comment beyond line 20 saying 'generated' must NOT flag."""
     # 20 blank lines pushes the comment to line 21 (0-indexed: 20 >= HEADER_LINE_LIMIT=20)
-    src = "\n" * 20 + "/** This function generates streaming HTML. */\nexport function stream() {}\n"
+    body = "/** This function generates streaming HTML. */\nexport function stream() {}\n"
+    src = "\n" * 20 + body
     assert adapter.is_auto_generated(src) is False
 
 

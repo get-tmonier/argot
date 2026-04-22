@@ -26,7 +26,6 @@ from argot.research.signal.phase14.scorers.sequential_import_bpe_scorer import (
     SequentialImportBpeScorer,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fake tokenizer — identical pattern to test_sequential_import_bpe_scorer.py
 # ---------------------------------------------------------------------------

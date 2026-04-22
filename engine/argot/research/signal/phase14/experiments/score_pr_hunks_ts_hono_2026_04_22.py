@@ -14,8 +14,8 @@ Selected PRs (merged Oct 2025 – Apr 2026, no mass refactors, ≥1 .ts/.tsx fil
 N_CAL = 500, seed = 0.  No seed-stability probe (Hono is Green — analog of FastAPI).
 
 Usage:
-    uv run python engine/argot/research/signal/phase14/experiments/score_pr_hunks_ts_hono_2026_04_22.py
-    uv run python engine/argot/research/signal/phase14/experiments/score_pr_hunks_ts_hono_2026_04_22.py --sanity-check
+    uv run python engine/.../experiments/score_pr_hunks_ts_hono_2026_04_22.py
+    uv run python engine/.../experiments/score_pr_hunks_ts_hono_2026_04_22.py --sanity-check
 """
 
 from __future__ import annotations
@@ -202,10 +202,10 @@ def _parse_diff_hunks(diff_text: str) -> list[dict[str, Any]]:
 
 
 def main(sanity_check: bool = False) -> None:
-    from transformers import AutoTokenizer  # type: ignore[import-untyped]
+    from transformers import AutoTokenizer  # noqa: PLC0415
 
     print("Loading shared tokenizer...", flush=True)
-    shared_tokenizer = AutoTokenizer.from_pretrained("microsoft/unixcoder-base")
+    shared_tokenizer = AutoTokenizer.from_pretrained("microsoft/unixcoder-base")  # type: ignore[no-untyped-call]
     print("Tokenizer loaded.", flush=True)
 
     adapter = TypeScriptAdapter()
@@ -244,7 +244,7 @@ def main(sanity_check: bool = False) -> None:
                     timeout=120,
                 )
                 if archive_proc.returncode != 0:
-                    print(f"    WARN: git archive failed, skipping", flush=True)
+                    print("    WARN: git archive failed, skipping", flush=True)
                     n_diffs_failed += 1
                     continue
 
@@ -254,7 +254,7 @@ def main(sanity_check: bool = False) -> None:
                 ts_files = _collect_ts_source_files(tmppath)
                 print(f"    model_A: {len(ts_files)} .ts/.tsx files", flush=True)
                 if not ts_files:
-                    print(f"    WARN: no TS source files, skipping", flush=True)
+                    print("    WARN: no TS source files, skipping", flush=True)
                     n_diffs_failed += 1
                     continue
 
@@ -279,7 +279,10 @@ def main(sanity_check: bool = False) -> None:
                 )
 
                 cal_hunks = sample_hunks(tmppath, _N_CAL, _CAL_SEED, adapter=adapter)
-                print(f"    calibration: {len(cal_hunks)} hunks sampled (N_CAL={_N_CAL})", flush=True)
+                print(
+                    f"    calibration: {len(cal_hunks)} hunks sampled (N_CAL={_N_CAL})",
+                    flush=True,
+                )
 
                 scorer = SequentialImportBpeScorer(
                     model_a_files=ts_files,
@@ -320,10 +323,15 @@ def main(sanity_check: bool = False) -> None:
         def _score_hunk_list(
             hunks: list[dict[str, Any]],
             is_test: bool,
+            *,
+            _pr_num: int = pr_num,
+            _merge_sha: str = merge_sha,
+            _scorer: SequentialImportBpeScorer = scorer,
+            _cal_threshold: float = cal_threshold,
         ) -> list[dict[str, Any]]:
             records: list[dict[str, Any]] = []
             for hunk in hunks:
-                file_content = _git_show(_HONO_REPO, merge_sha, hunk["file"])
+                file_content = _git_show(_HONO_REPO, _merge_sha, hunk["file"])
                 if file_content is None:
                     continue
                 lines = file_content.splitlines()
@@ -332,7 +340,7 @@ def main(sanity_check: bool = False) -> None:
                 hunk_content = "\n".join(lines[lo:hi])
                 if not hunk_content.strip():
                     continue
-                scored = scorer.score_hunk(
+                scored = _scorer.score_hunk(
                     hunk_content,
                     file_source=file_content,
                     hunk_start_line=hunk["start_line"],
@@ -340,7 +348,7 @@ def main(sanity_check: bool = False) -> None:
                 )
                 records.append(
                     {
-                        "pr_number": pr_num,
+                        "pr_number": _pr_num,
                         "file_path": hunk["file"],
                         "hunk_start_line": hunk["start_line"],
                         "hunk_end_line": hunk["end_line"],
@@ -349,7 +357,7 @@ def main(sanity_check: bool = False) -> None:
                         "bpe_score": scored["bpe_score"],
                         "flagged": scored["flagged"],
                         "reason": scored.get("reason"),
-                        "bpe_threshold": cal_threshold,
+                        "bpe_threshold": _cal_threshold,
                     }
                 )
             return records
@@ -400,10 +408,11 @@ def _print_summary(records: list[dict[str, Any]]) -> None:
     if src_flagged:
         print("\nFlagged source hunks:")
         for r in src_flagged:
+            loc = f"{r['file_path']}:{r['hunk_start_line']}-{r['hunk_end_line']}"
             print(
-                f"  PR#{r['pr_number']} {r['file_path']}:{r['hunk_start_line']}-{r['hunk_end_line']}"
-                f"  reason={r['reason']}  import={r['import_score']:.3f}  bpe={r['bpe_score']:.4f}"
-                f"  thr={r['bpe_threshold']:.4f}"
+                f"  PR#{r['pr_number']} {loc}"
+                f"  reason={r['reason']}  import={r['import_score']:.3f}"
+                f"  bpe={r['bpe_score']:.4f}  thr={r['bpe_threshold']:.4f}"
             )
 
     print("\nPer-PR breakdown:")

@@ -8,13 +8,13 @@ import logging
 from collections.abc import Generator
 from pathlib import Path
 
-from argot.research.signal.phase14.adapters.language_adapter import RepoModules
-
-_logger = logging.getLogger(__name__)
-
 import tree_sitter_typescript as tstypescript
 from tree_sitter import Language, Node
 from tree_sitter import Parser as TsParser
+
+from argot.research.signal.phase14.adapters.language_adapter import RepoModules
+
+_logger = logging.getLogger(__name__)
 
 _TS_LANGUAGE = Language(tstypescript.language_typescript())
 _TSX_LANGUAGE = Language(tstypescript.language_tsx())
