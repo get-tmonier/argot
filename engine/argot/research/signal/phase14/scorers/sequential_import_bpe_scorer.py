@@ -86,6 +86,24 @@ def _is_meaningful_token(token_str: str) -> bool:
     return len(token_str) >= 3 and any(c.isalnum() for c in token_str)
 
 
+def _compute_threshold(cal_scores: list[float], threshold_percentile: float | None) -> float:
+    """Compute BPE threshold from calibration scores.
+
+    threshold_percentile=None → max(cal_scores).
+    threshold_percentile in (0, 100] → that percentile via linear interpolation.
+    """
+    if not cal_scores:
+        return 0.0
+    if threshold_percentile is None:
+        return max(cal_scores)
+    n = len(cal_scores)
+    sorted_vals = sorted(cal_scores)
+    idx = (threshold_percentile / 100.0) * (n - 1)
+    lo = int(idx)
+    hi = min(lo + 1, n - 1)
+    return sorted_vals[lo] + (idx - lo) * (sorted_vals[hi] - sorted_vals[lo])
+
+
 ScoredHunk = dict[str, Any]
 Reason = Literal["import", "bpe", "none", "auto_generated"]
 
@@ -97,7 +115,11 @@ class SequentialImportBpeScorer:
         model_a_files: Source files of the repo being analysed (model_A corpus).
         bpe_model_b_path: Path to generic_tokens_bpe.json (model_B reference).
         calibration_hunks: Representative normal hunks from the target repo.
-            BPE threshold is set to max(bpe_score(h) for h in calibration_hunks).
+            BPE threshold is set to max(bpe_score(h) for h in calibration_hunks) when
+            threshold_percentile is None, or to that percentile otherwise.
+        threshold_percentile: None → max(cal_scores). A value in (0, 100] → that
+            percentile of cal_scores via linear interpolation. Default None preserves
+            the existing max behaviour.
         _tokenizer: Optional pre-loaded tokenizer; loads UnixCoder if None (for DI in tests).
     """
 
@@ -108,6 +130,7 @@ class SequentialImportBpeScorer:
         calibration_hunks: list[str],
         *,
         parser: Parser | None = None,
+        threshold_percentile: float | None = None,
         _tokenizer: Any = None,
     ) -> None:
         model_a_list = list(model_a_files)
@@ -145,14 +168,15 @@ class SequentialImportBpeScorer:
         self._model_a: dict[int, int] = dict(counts)
         self._total_a: int = sum(counts.values()) or 1  # avoid division by zero
 
-        # Per-repo BPE threshold: max score over calibration hunks
+        # Per-repo BPE threshold over calibration hunks.
         # Blank prose (docstrings/comments) symmetrically before scoring so the
         # threshold reflects code tokens only, matching how score_hunk operates.
         cal_scores = [
             self._bpe_score(_blank_prose_lines(h, self._parser.prose_line_ranges(h)))
             for h in calibration_hunks
         ]
-        self.bpe_threshold: float = max(cal_scores) if cal_scores else 0.0
+        self.cal_scores: list[float] = cal_scores
+        self.bpe_threshold: float = _compute_threshold(cal_scores, threshold_percentile)
         self.n_calibration: int = len(cal_scores)
 
     def _bpe_score(self, hunk_source: str) -> float:
