@@ -1,0 +1,5199 @@
+{
+  "fastapi": {
+    "domain": "fastapi",
+    "n_model_a_files": 496,
+    "n_candidates": 367,
+    "n_cal": 100,
+    "n_ctrl": 20,
+    "seeds": [
+      {
+        "bpe_threshold": 4.2038983054916494,
+        "n_breaks": 31,
+        "n_ctrl": 20,
+        "n_flagged": 31,
+        "n_fp": 0,
+        "recall": 1.0,
+        "fp_rate": 0.0,
+        "fixtures": [
+          {
+            "name": "paradigm_break_flask_routing",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.771829319396087,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_django_cbv",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.365139495885913,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_aiohttp_handler",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.306845972769596,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.225826769097539,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_wrong_exception",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.852044125857216,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_manual_status_check",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 4.498959417582949,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_sync_endpoint",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 3.0,
+            "bpe_score": 7.204868799189796,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_exception_swallow",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_router_endpoint",
+            "category": "routing",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.917984616404752,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_dependency_injection",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.094459805296392,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_exception_handling",
+            "category": "exception_handling",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_starlette_mount",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.62279972637932,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_tornado_handler",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.844967787236138,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_voluptuous_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 3.9955201556120414,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_cerberus_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 5.346965844357095,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_json_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.925535035141788,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_bare_except",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.781446593157257,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_event_loop_blocking",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.38844213268108,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_sync_requests_in_async",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.50750068910534,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_concurrent_futures_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.118675385968757,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_pydantic_validator",
+            "category": "validation",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.773850655050248,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_response_model",
+            "category": "serialization",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_async_streaming",
+            "category": "async_blocking",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.38844213268108,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_httpx_async",
+            "category": "downstream_http",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.50750068910534,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_annotated_depends",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.3765486403656855,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_sync_file_io_async",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.8041872012608895,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_anyio_thread_offload",
+            "category": "async_blocking",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.8041872012608895,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_multiprocessing_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.552896740780618,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_queue_carryover",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.552896740780618,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_atexit_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 3.0,
+            "bpe_score": 7.238965788381366,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_background_tasks_basic",
+            "category": "background_tasks",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.581028006437283,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_background_tasks_depends",
+            "category": "background_tasks",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.643744513131113,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_generator_drain",
+            "category": "dependency_injection",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.010838301133223,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_class_instance_no_depends",
+            "category": "dependency_injection",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.024998097559681,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_nested_depends",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_aiohttp_no_context",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_httpx_depends",
+            "category": "downstream_http",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.50750068910534,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_json_error_response",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_traceback_in_response",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.852044125857216,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_flask_errorhandler",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_exception_handler_registration",
+            "category": "exception_handling",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_lifespan_context",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 7.2421532969506845,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_apirouter_composition",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_mounted_subapp",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 8.34610856927329,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_imperative_route_loop",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.41823647576615,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_nested_router",
+            "category": "routing",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.094459805296392,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_dict_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.504177873015459,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_msgpack_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.127636825222119,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_response_model_list",
+            "category": "serialization",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_assert_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.481569234222722,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_field_validator",
+            "category": "validation",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.773850655050248,
+            "flagged": true,
+            "reason": "import"
+          }
+        ],
+        "ctrl_results": [
+          {
+            "ctrl_index": 0,
+            "hunk_preview": "async def read_items(\n    *,\n    item_id: Annotated[int, Path(title=\"The ID of t",
+            "import_score": 0.0,
+            "bpe_score": 3.0331507619936655,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 1,
+            "hunk_preview": "class Item(BaseModel):\n    name: str\n    description: str | None = None\n    pric",
+            "import_score": 0.0,
+            "bpe_score": 0.20248620638291648,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 2,
+            "hunk_preview": "async def read_items(\n    item_id: Annotated[int, Path(title=\"The ID of the item",
+            "import_score": 0.0,
+            "bpe_score": 0.656747977848581,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 3,
+            "hunk_preview": "class Body(FieldInfo):  # type: ignore[misc]\n    def __init__(\n        self,\n   ",
+            "import_score": 0.0,
+            "bpe_score": 2.6064820157499717,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 4,
+            "hunk_preview": "class OAuth2PasswordRequestForm:\n    \"\"\"\n    This is a dependency class to colle",
+            "import_score": 0.0,
+            "bpe_score": 2.4202863191931865,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 5,
+            "hunk_preview": "async def get_current_active_user(\n    current_user: Annotated[User, Depends(get",
+            "import_score": 0.0,
+            "bpe_score": 0.6945047670656148,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 6,
+            "hunk_preview": "async def create_item(item: Item) -> Item:\n    \"\"\"\n    Create an item with all t",
+            "import_score": 0.0,
+            "bpe_score": 1.2071520573466534,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 7,
+            "hunk_preview": "class PathItem(BaseModelWithConfig):\n    ref: str | None = Field(default=None, a",
+            "import_score": 0.0,
+            "bpe_score": 2.4275649653741684,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 8,
+            "hunk_preview": "def _should_embed_body_fields(fields: list[ModelField]) -> bool:\n    if not fiel",
+            "import_score": 0.0,
+            "bpe_score": 3.1312571894285046,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 9,
+            "hunk_preview": "def read_heroes(\n    session: Session = Depends(get_session),\n    offset: int = ",
+            "import_score": 0.0,
+            "bpe_score": 1.3560331030489987,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 10,
+            "hunk_preview": "def create_hero(hero: HeroCreate, session: Session = Depends(get_session)):\n    ",
+            "import_score": 0.0,
+            "bpe_score": 0.6039720733301719,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 11,
+            "hunk_preview": "class _AsyncLiftContextManager(AbstractAsyncContextManager[_T]):\n    \"\"\"\n    Wra",
+            "import_score": 0.0,
+            "bpe_score": 2.9216218533226677,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 12,
+            "hunk_preview": "class ResponseValidationError(ValidationException):\n    def __init__(\n        se",
+            "import_score": 0.0,
+            "bpe_score": 1.4692827757101181,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 13,
+            "hunk_preview": "async def read_items():\n    html_content = \"\"\"\n    <html>\n        <head>\n       ",
+            "import_score": 0.0,
+            "bpe_score": 2.1920797325426253,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 14,
+            "hunk_preview": "def authenticate_user(fake_db, username: str, password: str):\n    user = get_use",
+            "import_score": 0.0,
+            "bpe_score": 0.6160599666090194,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 15,
+            "hunk_preview": "async def read_items(\n    id: Annotated[str | None, AfterValidator(check_valid_i",
+            "import_score": 0.0,
+            "bpe_score": 1.4319820830612997,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 16,
+            "hunk_preview": "class Item(BaseModel):\n    name: str\n    description: str | None = Field(\n      ",
+            "import_score": 0.0,
+            "bpe_score": 1.9991762886617952,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 17,
+            "hunk_preview": "class CommonHeaders(BaseModel):\n    host: str\n    save_data: bool\n    if_modifie",
+            "import_score": 0.0,
+            "bpe_score": 1.3987765228471023,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 18,
+            "hunk_preview": "async def get_current_user(token: str = Depends(oauth2_scheme)):\n    credentials",
+            "import_score": 0.0,
+            "bpe_score": 1.5931363774768306,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 19,
+            "hunk_preview": "def get_legacy_data():\n    data = \"\"\"<?xml version=\"1.0\"?>\n    <shampoo>\n    <He",
+            "import_score": 0.0,
+            "bpe_score": 1.8709557223833908,
+            "flagged": false,
+            "reason": "none"
+          }
+        ],
+        "seed": 0
+      },
+      {
+        "bpe_threshold": 4.2038983054916494,
+        "n_breaks": 31,
+        "n_ctrl": 20,
+        "n_flagged": 31,
+        "n_fp": 0,
+        "recall": 1.0,
+        "fp_rate": 0.0,
+        "fixtures": [
+          {
+            "name": "paradigm_break_flask_routing",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.771829319396087,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_django_cbv",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.365139495885913,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_aiohttp_handler",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.306845972769596,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.225826769097539,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_wrong_exception",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.852044125857216,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_manual_status_check",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 4.498959417582949,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_sync_endpoint",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 3.0,
+            "bpe_score": 7.204868799189796,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_exception_swallow",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_router_endpoint",
+            "category": "routing",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.917984616404752,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_dependency_injection",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.094459805296392,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_exception_handling",
+            "category": "exception_handling",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_starlette_mount",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.62279972637932,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_tornado_handler",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.844967787236138,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_voluptuous_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 3.9955201556120414,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_cerberus_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 5.346965844357095,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_json_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.925535035141788,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_bare_except",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.781446593157257,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_event_loop_blocking",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.38844213268108,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_sync_requests_in_async",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.50750068910534,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_concurrent_futures_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.118675385968757,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_pydantic_validator",
+            "category": "validation",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.773850655050248,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_response_model",
+            "category": "serialization",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_async_streaming",
+            "category": "async_blocking",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.38844213268108,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_httpx_async",
+            "category": "downstream_http",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.50750068910534,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_annotated_depends",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.3765486403656855,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_sync_file_io_async",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.8041872012608895,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_anyio_thread_offload",
+            "category": "async_blocking",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.8041872012608895,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_multiprocessing_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.552896740780618,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_queue_carryover",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.552896740780618,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_atexit_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 3.0,
+            "bpe_score": 7.238965788381366,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_background_tasks_basic",
+            "category": "background_tasks",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.581028006437283,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_background_tasks_depends",
+            "category": "background_tasks",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.643744513131113,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_generator_drain",
+            "category": "dependency_injection",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.010838301133223,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_class_instance_no_depends",
+            "category": "dependency_injection",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.024998097559681,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_nested_depends",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_aiohttp_no_context",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_httpx_depends",
+            "category": "downstream_http",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.50750068910534,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_json_error_response",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_traceback_in_response",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.852044125857216,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_flask_errorhandler",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_exception_handler_registration",
+            "category": "exception_handling",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_lifespan_context",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 7.2421532969506845,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_apirouter_composition",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_mounted_subapp",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 8.34610856927329,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_imperative_route_loop",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.41823647576615,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_nested_router",
+            "category": "routing",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.094459805296392,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_dict_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.504177873015459,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_msgpack_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.127636825222119,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_response_model_list",
+            "category": "serialization",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_assert_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.481569234222722,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_field_validator",
+            "category": "validation",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.773850655050248,
+            "flagged": true,
+            "reason": "import"
+          }
+        ],
+        "ctrl_results": [
+          {
+            "ctrl_index": 0,
+            "hunk_preview": "async def solve_dependencies(\n    *,\n    request: Request | WebSocket,\n    depen",
+            "import_score": 0.0,
+            "bpe_score": 3.2836741462817933,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 1,
+            "hunk_preview": "async def get_model(model_name: ModelName):\n    if model_name is ModelName.alexn",
+            "import_score": 0.0,
+            "bpe_score": 1.8199325670810858,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 2,
+            "hunk_preview": "def generate_html_response():\n    html_content = \"\"\"\n    <html>\n        <head>\n ",
+            "import_score": 0.0,
+            "bpe_score": 2.1920797325426253,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 3,
+            "hunk_preview": "class Cookies(BaseModel):\n    model_config = {\"extra\": \"forbid\"}\n\n    session_id",
+            "import_score": 0.0,
+            "bpe_score": 1.1829816096004624,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 4,
+            "hunk_preview": "def format_sse_event(\n    *,\n    data_str: Annotated[\n        str | None,\n      ",
+            "import_score": 0.0,
+            "bpe_score": 3.323965154015214,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 5,
+            "hunk_preview": "def copy_field_info(*, field_info: FieldInfo, annotation: Any) -> FieldInfo:\n   ",
+            "import_score": 0.0,
+            "bpe_score": 1.8886278961700027,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 6,
+            "hunk_preview": "def generate_operation_id_for_path(\n    *, name: str, path: str, method: str\n) -",
+            "import_score": 0.0,
+            "bpe_score": 1.6811830414534672,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 7,
+            "hunk_preview": "def authenticate_user(fake_db, username: str, password: str):\n    user = get_use",
+            "import_score": 0.0,
+            "bpe_score": 0.6160599666090194,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 8,
+            "hunk_preview": "async def read_items(\n    item_id: Annotated[int, Path(title=\"The ID of the item",
+            "import_score": 0.0,
+            "bpe_score": 0.656747977848581,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 9,
+            "hunk_preview": "def test_read_items():\n    # Before the lifespan starts, \"items\" is still empty\n",
+            "import_score": 0.0,
+            "bpe_score": 2.7580289282383728,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 10,
+            "hunk_preview": "async def read_main(item_id: str, x_token: str = Header()):\n    if x_token != fa",
+            "import_score": 0.0,
+            "bpe_score": 0.8861310119119672,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 11,
+            "hunk_preview": "async def lifespan(app: FastAPI):\n    # Load the ML model\n    ml_models[\"answer_",
+            "import_score": 0.0,
+            "bpe_score": 2.80844126790565,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 12,
+            "hunk_preview": "def authenticate_user(fake_db, username: str, password: str):\n    user = get_use",
+            "import_score": 0.0,
+            "bpe_score": 0.6160599666090194,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 13,
+            "hunk_preview": "def test_override_in_items():\n    response = client.get(\"/items/\")\n    assert re",
+            "import_score": 0.0,
+            "bpe_score": 1.437924083469225,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 14,
+            "hunk_preview": "def get_swagger_ui_html(\n    *,\n    openapi_url: Annotated[\n        str,\n       ",
+            "import_score": 0.0,
+            "bpe_score": 2.8909745031503924,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 15,
+            "hunk_preview": "def get_item(item_id: str, username: str = Depends(get_username)):\n    if item_i",
+            "import_score": 0.0,
+            "bpe_score": 1.437924083469225,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 16,
+            "hunk_preview": "def get_item(item_id: str, username: str = Depends(get_username)):\n    if item_i",
+            "import_score": 0.0,
+            "bpe_score": 0.9877496155829837,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 17,
+            "hunk_preview": "def update_hero(\n    hero_id: int, hero: HeroUpdate, session: Session = Depends(",
+            "import_score": 0.0,
+            "bpe_score": 0.6945047670656148,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 18,
+            "hunk_preview": "async def update_item(\n    *,\n    item_id: int,\n    item: Item = Body(\n        o",
+            "import_score": 0.0,
+            "bpe_score": 2.0368584540596455,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 19,
+            "hunk_preview": "class GenerateJsonSchema(_GenerateJsonSchema):\n    # TODO: remove when this is m",
+            "import_score": 0.0,
+            "bpe_score": 2.303640020393029,
+            "flagged": false,
+            "reason": "none"
+          }
+        ],
+        "seed": 1
+      },
+      {
+        "bpe_threshold": 4.0184951721188895,
+        "n_breaks": 31,
+        "n_ctrl": 20,
+        "n_flagged": 31,
+        "n_fp": 1,
+        "recall": 1.0,
+        "fp_rate": 0.05,
+        "fixtures": [
+          {
+            "name": "paradigm_break_flask_routing",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.771829319396087,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_django_cbv",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.365139495885913,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_aiohttp_handler",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.306845972769596,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.225826769097539,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_wrong_exception",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.852044125857216,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_manual_status_check",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 4.498959417582949,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_sync_endpoint",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 3.0,
+            "bpe_score": 7.204868799189796,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_exception_swallow",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_router_endpoint",
+            "category": "routing",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.917984616404752,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_dependency_injection",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.094459805296392,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_exception_handling",
+            "category": "exception_handling",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_starlette_mount",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.62279972637932,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_tornado_handler",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.844967787236138,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_voluptuous_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 3.9955201556120414,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_cerberus_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 5.346965844357095,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_json_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.925535035141788,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_bare_except",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.781446593157257,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_event_loop_blocking",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.38844213268108,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_sync_requests_in_async",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.50750068910534,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_concurrent_futures_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.118675385968757,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_pydantic_validator",
+            "category": "validation",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.773850655050248,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_response_model",
+            "category": "serialization",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_async_streaming",
+            "category": "async_blocking",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.38844213268108,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_httpx_async",
+            "category": "downstream_http",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.50750068910534,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_annotated_depends",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.3765486403656855,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_sync_file_io_async",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.8041872012608895,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_anyio_thread_offload",
+            "category": "async_blocking",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.8041872012608895,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_multiprocessing_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.552896740780618,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_queue_carryover",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.552896740780618,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_atexit_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 3.0,
+            "bpe_score": 7.238965788381366,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_background_tasks_basic",
+            "category": "background_tasks",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.581028006437283,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_background_tasks_depends",
+            "category": "background_tasks",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.643744513131113,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_generator_drain",
+            "category": "dependency_injection",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.010838301133223,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_class_instance_no_depends",
+            "category": "dependency_injection",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.024998097559681,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_nested_depends",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_aiohttp_no_context",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_httpx_depends",
+            "category": "downstream_http",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.50750068910534,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_json_error_response",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_traceback_in_response",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.852044125857216,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_flask_errorhandler",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_exception_handler_registration",
+            "category": "exception_handling",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_lifespan_context",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 7.2421532969506845,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_apirouter_composition",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_mounted_subapp",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 8.34610856927329,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_imperative_route_loop",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.41823647576615,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_nested_router",
+            "category": "routing",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.094459805296392,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_dict_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.504177873015459,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_msgpack_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.127636825222119,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_response_model_list",
+            "category": "serialization",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_assert_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.481569234222722,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_field_validator",
+            "category": "validation",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.773850655050248,
+            "flagged": true,
+            "reason": "import"
+          }
+        ],
+        "ctrl_results": [
+          {
+            "ctrl_index": 0,
+            "hunk_preview": "class CommonHeaders(BaseModel):\n    host: str\n    save_data: bool\n    if_modifie",
+            "import_score": 0.0,
+            "bpe_score": 1.3987765228471023,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 1,
+            "hunk_preview": "async def read_items(commons: CommonQueryParams = Depends(CommonQueryParams)):\n ",
+            "import_score": 0.0,
+            "bpe_score": 0.6160599666090194,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 2,
+            "hunk_preview": "def _annotation_is_complex(annotation: type[Any] | None) -> bool:\n    return (\n ",
+            "import_score": 0.0,
+            "bpe_score": 1.2071520573466534,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 3,
+            "hunk_preview": "class Cookies(BaseModel):\n    model_config = {\"extra\": \"forbid\"}\n\n    session_id",
+            "import_score": 0.0,
+            "bpe_score": 1.1829816096004624,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 4,
+            "hunk_preview": "def is_pydantic_v1_model_class(cls: Any) -> bool:\n    # TODO: remove this functi",
+            "import_score": 0.0,
+            "bpe_score": 1.687326131189904,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 5,
+            "hunk_preview": "def get_request_handler(\n    dependant: Dependant,\n    body_field: ModelField | ",
+            "import_score": 0.0,
+            "bpe_score": 4.0667856651452965,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "ctrl_index": 6,
+            "hunk_preview": "class WebSocketException(StarletteWebSocketException):\n    \"\"\"\n    A WebSocket e",
+            "import_score": 0.0,
+            "bpe_score": 3.6856627649160245,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 7,
+            "hunk_preview": "def create_hero(hero: HeroCreate, session: Session = Depends(get_session)):\n    ",
+            "import_score": 0.0,
+            "bpe_score": 0.6039720733301719,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 8,
+            "hunk_preview": "class Item(BaseModel):\n    name: str | None = None\n    description: str | None =",
+            "import_score": 0.0,
+            "bpe_score": 0.20248620638291648,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 9,
+            "hunk_preview": "async def create_item(item: Item) -> Item:\n    \"\"\"\n    Create an item with all t",
+            "import_score": 0.0,
+            "bpe_score": 1.2071520573466534,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 10,
+            "hunk_preview": "class Body(FieldInfo):  # type: ignore[misc]\n    def __init__(\n        self,\n   ",
+            "import_score": 0.0,
+            "bpe_score": 2.6064820157499717,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 11,
+            "hunk_preview": "def get_parameterless_sub_dependant(*, depends: params.Depends, path: str) -> De",
+            "import_score": 0.0,
+            "bpe_score": 1.2071520573466534,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 12,
+            "hunk_preview": "def Body(  # noqa: N802\n    default: Annotated[\n        Any,\n        Doc(\n      ",
+            "import_score": 0.0,
+            "bpe_score": 2.868080373989047,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 13,
+            "hunk_preview": "class ORJSONResponse(JSONResponse):\n    \"\"\"JSON response using the orjson librar",
+            "import_score": 0.0,
+            "bpe_score": 2.523761424341089,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 14,
+            "hunk_preview": "class Cookies(BaseModel):\n    model_config = {\"extra\": \"forbid\"}\n\n    session_id",
+            "import_score": 0.0,
+            "bpe_score": 1.1829816096004624,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 15,
+            "hunk_preview": "async def upsert_item(\n    item_id: str,\n    name: Annotated[str | None, Body()]",
+            "import_score": 0.0,
+            "bpe_score": 1.2248827141000351,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 16,
+            "hunk_preview": "def authenticate_user(fake_db, username: str, password: str):\n    user = get_use",
+            "import_score": 0.0,
+            "bpe_score": 0.6160599666090194,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 17,
+            "hunk_preview": "class Example(TypedDict, total=False):\n    summary: str | None\n    description: ",
+            "import_score": 0.0,
+            "bpe_score": 1.937590310722351,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 18,
+            "hunk_preview": "def authenticate_user(fake_db, username: str, password: str):\n    user = get_use",
+            "import_score": 0.0,
+            "bpe_score": 0.6160599666090194,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 19,
+            "hunk_preview": "async def login_for_access_token(\n    form_data: Annotated[OAuth2PasswordRequest",
+            "import_score": 0.0,
+            "bpe_score": 2.7977675442165992,
+            "flagged": false,
+            "reason": "none"
+          }
+        ],
+        "seed": 2
+      },
+      {
+        "bpe_threshold": 3.820559155775854,
+        "n_breaks": 31,
+        "n_ctrl": 20,
+        "n_flagged": 31,
+        "n_fp": 0,
+        "recall": 1.0,
+        "fp_rate": 0.0,
+        "fixtures": [
+          {
+            "name": "paradigm_break_flask_routing",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.771829319396087,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_django_cbv",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.365139495885913,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_aiohttp_handler",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.306845972769596,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.225826769097539,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_wrong_exception",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.852044125857216,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_manual_status_check",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 4.498959417582949,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_sync_endpoint",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 3.0,
+            "bpe_score": 7.204868799189796,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_exception_swallow",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_router_endpoint",
+            "category": "routing",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.917984616404752,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_dependency_injection",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.094459805296392,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_exception_handling",
+            "category": "exception_handling",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_starlette_mount",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.62279972637932,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_tornado_handler",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.844967787236138,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_voluptuous_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 3.9955201556120414,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_cerberus_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 5.346965844357095,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_json_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.925535035141788,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_bare_except",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.781446593157257,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_event_loop_blocking",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.38844213268108,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_sync_requests_in_async",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.50750068910534,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_concurrent_futures_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.118675385968757,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_pydantic_validator",
+            "category": "validation",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.773850655050248,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_response_model",
+            "category": "serialization",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_async_streaming",
+            "category": "async_blocking",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.38844213268108,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_httpx_async",
+            "category": "downstream_http",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.50750068910534,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_annotated_depends",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.3765486403656855,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_sync_file_io_async",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.8041872012608895,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_anyio_thread_offload",
+            "category": "async_blocking",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.8041872012608895,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_multiprocessing_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.552896740780618,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_queue_carryover",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.552896740780618,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_atexit_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 3.0,
+            "bpe_score": 7.238965788381366,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_background_tasks_basic",
+            "category": "background_tasks",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.581028006437283,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_background_tasks_depends",
+            "category": "background_tasks",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.643744513131113,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_generator_drain",
+            "category": "dependency_injection",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.010838301133223,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_class_instance_no_depends",
+            "category": "dependency_injection",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.024998097559681,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_nested_depends",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_aiohttp_no_context",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_httpx_depends",
+            "category": "downstream_http",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.50750068910534,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_json_error_response",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_traceback_in_response",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.852044125857216,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_flask_errorhandler",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_exception_handler_registration",
+            "category": "exception_handling",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_lifespan_context",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 7.2421532969506845,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_apirouter_composition",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_mounted_subapp",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 8.34610856927329,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_imperative_route_loop",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.41823647576615,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_nested_router",
+            "category": "routing",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.094459805296392,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_dict_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.504177873015459,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_msgpack_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.127636825222119,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_response_model_list",
+            "category": "serialization",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_assert_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.481569234222722,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_field_validator",
+            "category": "validation",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.773850655050248,
+            "flagged": true,
+            "reason": "import"
+          }
+        ],
+        "ctrl_results": [
+          {
+            "ctrl_index": 0,
+            "hunk_preview": "class UJSONResponse(JSONResponse):\n    \"\"\"JSON response using the ujson library ",
+            "import_score": 0.0,
+            "bpe_score": 2.273330269116089,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 1,
+            "hunk_preview": "def request_params_to_args(\n    fields: Sequence[ModelField],\n    received_param",
+            "import_score": 0.0,
+            "bpe_score": 1.880716563923146,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 2,
+            "hunk_preview": "async def read_items(\n    item_id: Annotated[int, Path(title=\"The ID of the item",
+            "import_score": 0.0,
+            "bpe_score": 0.656747977848581,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 3,
+            "hunk_preview": "def get_missing_field_error(loc: tuple[int | str, ...]) -> dict[str, Any]:\n    e",
+            "import_score": 0.0,
+            "bpe_score": 2.0093766531225494,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 4,
+            "hunk_preview": "class ModelField:\n    field_info: FieldInfo\n    name: str\n    mode: Literal[\"val",
+            "import_score": 0.0,
+            "bpe_score": 2.9105857310103165,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 5,
+            "hunk_preview": "class EventSourceResponse(StreamingResponse):\n    \"\"\"Streaming response with `te",
+            "import_score": 0.0,
+            "bpe_score": 2.9905324589612174,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 6,
+            "hunk_preview": "async def update_item(\n    *,\n    item_id: int,\n    item: Item = Body(\n        o",
+            "import_score": 0.0,
+            "bpe_score": 2.0368584540596455,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 7,
+            "hunk_preview": "class Item(BaseModel):\n    name: str\n    description: str | None = Field(\n      ",
+            "import_score": 0.0,
+            "bpe_score": 1.9991762886617952,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 8,
+            "hunk_preview": "def is_pydantic_v1_model_instance(obj: Any) -> bool:\n    # TODO: remove this fun",
+            "import_score": 0.0,
+            "bpe_score": 1.5931363774768306,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 9,
+            "hunk_preview": "async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):\n    u",
+            "import_score": 0.0,
+            "bpe_score": 0.8267310072889078,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 10,
+            "hunk_preview": "def Body(  # noqa: N802\n    default: Annotated[\n        Any,\n        Doc(\n      ",
+            "import_score": 0.0,
+            "bpe_score": 2.868080373989047,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 11,
+            "hunk_preview": "def get_openapi_operation_metadata(\n    *, route: routing.APIRoute, method: str,",
+            "import_score": 0.0,
+            "bpe_score": 1.6811830414534672,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 12,
+            "hunk_preview": "class Item(BaseModel):\n    name: str\n    description: str | None = None\n    pric",
+            "import_score": 0.0,
+            "bpe_score": 0.20248620638291648,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 13,
+            "hunk_preview": "async def read_items(commons: Annotated[CommonQueryParams, Depends()]):\n    resp",
+            "import_score": 0.0,
+            "bpe_score": 0.6160599666090194,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 14,
+            "hunk_preview": "def authenticate_user(fake_db, username: str, password: str):\n    user = get_use",
+            "import_score": 0.0,
+            "bpe_score": 0.6160599666090194,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 15,
+            "hunk_preview": "def get_flat_models_from_fields(\n    fields: Sequence[ModelField], known_models:",
+            "import_score": 0.0,
+            "bpe_score": 1.2071520573466534,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 16,
+            "hunk_preview": "async def get_current_user(token: str = Depends(oauth2_scheme)):\n    user = fake",
+            "import_score": 0.0,
+            "bpe_score": 0.8267310072889078,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 17,
+            "hunk_preview": "async def read_items(commons=Depends(CommonQueryParams)):\n    response = {}\n    ",
+            "import_score": 0.0,
+            "bpe_score": 0.6160599666090194,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 18,
+            "hunk_preview": "class CustomORJSONResponse(Response):\n    media_type = \"application/json\"\n\n    d",
+            "import_score": 0.0,
+            "bpe_score": 2.523761424341089,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 19,
+            "hunk_preview": "def _regenerate_error_with_loc(\n    *, errors: Sequence[Any], loc_prefix: tuple[",
+            "import_score": 0.0,
+            "bpe_score": 2.043584288592946,
+            "flagged": false,
+            "reason": "none"
+          }
+        ],
+        "seed": 3
+      },
+      {
+        "bpe_threshold": 4.0184951721188895,
+        "n_breaks": 31,
+        "n_ctrl": 20,
+        "n_flagged": 31,
+        "n_fp": 0,
+        "recall": 1.0,
+        "fp_rate": 0.0,
+        "fixtures": [
+          {
+            "name": "paradigm_break_flask_routing",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.771829319396087,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_django_cbv",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.365139495885913,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_aiohttp_handler",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.306845972769596,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.225826769097539,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_wrong_exception",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.852044125857216,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_manual_status_check",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 4.498959417582949,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_sync_endpoint",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 3.0,
+            "bpe_score": 7.204868799189796,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_subtle_exception_swallow",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_router_endpoint",
+            "category": "routing",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.917984616404752,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_dependency_injection",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.094459805296392,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_exception_handling",
+            "category": "exception_handling",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_starlette_mount",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.62279972637932,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_tornado_handler",
+            "category": "framework_swap",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.844967787236138,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_voluptuous_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 3.9955201556120414,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_cerberus_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 5.346965844357095,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_json_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.925535035141788,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_bare_except",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.781446593157257,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_event_loop_blocking",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.38844213268108,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_sync_requests_in_async",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.50750068910534,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_concurrent_futures_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.118675385968757,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_pydantic_validator",
+            "category": "validation",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.773850655050248,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_response_model",
+            "category": "serialization",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_async_streaming",
+            "category": "async_blocking",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.38844213268108,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_httpx_async",
+            "category": "downstream_http",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.50750068910534,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_annotated_depends",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.3765486403656855,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_sync_file_io_async",
+            "category": "async_blocking",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.8041872012608895,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_anyio_thread_offload",
+            "category": "async_blocking",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 7.8041872012608895,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_multiprocessing_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.552896740780618,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_queue_carryover",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.552896740780618,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_atexit_background",
+            "category": "background_tasks",
+            "is_break": true,
+            "import_score": 3.0,
+            "bpe_score": 7.238965788381366,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_background_tasks_basic",
+            "category": "background_tasks",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.581028006437283,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_background_tasks_depends",
+            "category": "background_tasks",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.643744513131113,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_generator_drain",
+            "category": "dependency_injection",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.010838301133223,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_class_instance_no_depends",
+            "category": "dependency_injection",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.024998097559681,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_nested_depends",
+            "category": "dependency_injection",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_aiohttp_no_context",
+            "category": "downstream_http",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 8.424711580154643,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_httpx_depends",
+            "category": "downstream_http",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 6.50750068910534,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_json_error_response",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_traceback_in_response",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 6.852044125857216,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_flask_errorhandler",
+            "category": "exception_handling",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_exception_handler_registration",
+            "category": "exception_handling",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_lifespan_context",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 2.0,
+            "bpe_score": 7.2421532969506845,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_apirouter_composition",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_mounted_subapp",
+            "category": "framework_swap",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 8.34610856927329,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_imperative_route_loop",
+            "category": "routing",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.41823647576615,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_nested_router",
+            "category": "routing",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.094459805296392,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_manual_dict_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.504177873015459,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_msgpack_response",
+            "category": "serialization",
+            "is_break": true,
+            "import_score": 2.0,
+            "bpe_score": 7.127636825222119,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_response_model_list",
+            "category": "serialization",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 5.832270744686118,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "paradigm_break_assert_validation",
+            "category": "validation",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.481569234222722,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "control_field_validator",
+            "category": "validation",
+            "is_break": false,
+            "import_score": 1.0,
+            "bpe_score": 6.773850655050248,
+            "flagged": true,
+            "reason": "import"
+          }
+        ],
+        "ctrl_results": [
+          {
+            "ctrl_index": 0,
+            "hunk_preview": "async def update_item(\n    item_id: int,\n    item: Annotated[\n        Item,\n    ",
+            "import_score": 0.0,
+            "bpe_score": 0.23860841692898527,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 1,
+            "hunk_preview": "def get_swagger_ui_oauth2_redirect_html() -> HTMLResponse:\n    \"\"\"\n    Generate ",
+            "import_score": 0.0,
+            "bpe_score": 3.43870658013733,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 2,
+            "hunk_preview": "async def read_items(commons: Annotated[Any, Depends(CommonQueryParams)]):\n    r",
+            "import_score": 0.0,
+            "bpe_score": 0.6160599666090194,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 3,
+            "hunk_preview": "def create_access_token(data: dict, expires_delta: timedelta | None = None):\n   ",
+            "import_score": 0.0,
+            "bpe_score": 1.408279125035504,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 4,
+            "hunk_preview": "def main() -> None:\n    if not cli_main:  # type: ignore[truthy-function]  # ty:",
+            "import_score": 0.0,
+            "bpe_score": 3.6831034181374633,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 5,
+            "hunk_preview": "class GzipRoute(APIRoute):\n    def get_route_handler(self) -> Callable:\n        ",
+            "import_score": 0.0,
+            "bpe_score": 1.7762890618326406,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 6,
+            "hunk_preview": "def field_annotation_is_scalar_sequence(annotation: type[Any] | None) -> bool:\n ",
+            "import_score": 0.0,
+            "bpe_score": 1.3061954776279254,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 7,
+            "hunk_preview": "async def request_body_to_args(\n    body_fields: list[ModelField],\n    received_",
+            "import_score": 0.0,
+            "bpe_score": 3.1597710303673683,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 8,
+            "hunk_preview": "async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):\n    c",
+            "import_score": 0.0,
+            "bpe_score": 1.5931363774768306,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 9,
+            "hunk_preview": "class Settings(BaseSettings):\n    app_name: str = \"Awesome API\"\n    admin_email:",
+            "import_score": 0.0,
+            "bpe_score": 1.3085967531218383,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 10,
+            "hunk_preview": "class BackgroundTasks(StarletteBackgroundTasks):\n    \"\"\"\n    A collection of bac",
+            "import_score": 0.0,
+            "bpe_score": 1.6277589386490554,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 11,
+            "hunk_preview": "async def update_item(item_id: str, item: Item) -> Item:\n    stored_item_data = ",
+            "import_score": 0.0,
+            "bpe_score": 1.2071520573466534,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 12,
+            "hunk_preview": "def deep_dict_update(main_dict: dict[Any, Any], update_dict: dict[Any, Any]) -> ",
+            "import_score": 0.0,
+            "bpe_score": 1.3061954776279254,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 13,
+            "hunk_preview": "async def lifespan(app: FastAPI):\n    items[\"foo\"] = {\"name\": \"Fighters\"}\n    it",
+            "import_score": 0.0,
+            "bpe_score": 2.298614939627752,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 14,
+            "hunk_preview": "class _DefaultLifespan:\n    \"\"\"\n    Default lifespan context manager that runs o",
+            "import_score": 0.0,
+            "bpe_score": 1.7762890618326406,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 15,
+            "hunk_preview": "class Settings(BaseSettings):\n    app_name: str = \"Awesome API\"\n    admin_email:",
+            "import_score": 0.0,
+            "bpe_score": 1.3085967531218383,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 16,
+            "hunk_preview": "class Item(BaseModel):\n    name: str | None = None\n    description: str | None =",
+            "import_score": 0.0,
+            "bpe_score": 0.20248620638291648,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 17,
+            "hunk_preview": "async def read_item_header(item_id: str):\n    if item_id not in items:\n        r",
+            "import_score": 0.0,
+            "bpe_score": 0.9877496155829837,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 18,
+            "hunk_preview": "async def read_items(\n    q: Annotated[\n        str | None,\n        Query(\n     ",
+            "import_score": 0.0,
+            "bpe_score": 1.488433886340406,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 19,
+            "hunk_preview": "class CommonHeaders(BaseModel):\n    host: str\n    save_data: bool\n    if_modifie",
+            "import_score": 0.0,
+            "bpe_score": 1.3987765228471023,
+            "flagged": false,
+            "reason": "none"
+          }
+        ],
+        "seed": 4
+      }
+    ]
+  },
+  "rich": {
+    "domain": "rich",
+    "n_model_a_files": 106,
+    "n_candidates": 237,
+    "n_cal": 100,
+    "n_ctrl": 20,
+    "seeds": [
+      {
+        "bpe_threshold": 4.421264530486491,
+        "n_breaks": 10,
+        "n_ctrl": 20,
+        "n_flagged": 10,
+        "n_fp": 0,
+        "recall": 1.0,
+        "fp_rate": 0.0,
+        "fixtures": [
+          {
+            "name": "control_console_capture",
+            "category": "control_console",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.0899142391402314,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_console_init",
+            "category": "control_console",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.166377898843641,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_table_add_column_body",
+            "category": "control_table",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.1608976051921651,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_table_rich_console",
+            "category": "control_table",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.271498705982948,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_live_enter_exit",
+            "category": "control_live",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.5963535072725659,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_live_renderable",
+            "category": "control_live",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.08601188058595,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_text_init",
+            "category": "control_text",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 0.8236975974904821,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_text_styled",
+            "category": "control_text",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.272452324834978,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_panel_init_body",
+            "category": "control_panel",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 0.7887038578007664,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_panel_rich_console",
+            "category": "control_panel",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.2697284362430459,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "break_ansi_raw_1",
+            "category": "ansi_raw",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 7.7849549555955875,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_ansi_raw_2",
+            "category": "ansi_raw",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 5.685100998314903,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_colorama_1",
+            "category": "colorama",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_colorama_2",
+            "category": "colorama",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.966250208814639,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_termcolor_1",
+            "category": "termcolor",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.152884840714487,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_termcolor_2",
+            "category": "termcolor",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_curses_1",
+            "category": "curses",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.216994733115355,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_curses_2",
+            "category": "curses",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.668379040086203,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_print_manual_1",
+            "category": "print_manual",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 5.685100998314903,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_print_manual_2",
+            "category": "print_manual",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "bpe"
+          }
+        ],
+        "ctrl_results": [
+          {
+            "ctrl_index": 0,
+            "hunk_preview": "class StyleStack:\n    \"\"\"A stack of styles.\"\"\"\n\n    __slots__ = [\"_stack\"]\n\n    ",
+            "import_score": 0.0,
+            "bpe_score": 1.6396110399043282,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 1,
+            "hunk_preview": "class Constrain(JupyterMixin):\n    \"\"\"Constrain the width of a renderable to a g",
+            "import_score": 0.0,
+            "bpe_score": 1.2302330466309526,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 2,
+            "hunk_preview": "class NullFile(IO[str]):\n    def close(self) -> None:\n        pass\n\n    def isat",
+            "import_score": 0.0,
+            "bpe_score": 2.7833676008536603,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 3,
+            "hunk_preview": "def GetConsoleCursorInfo(\n    std_handle: wintypes.HANDLE, cursor_info: CONSOLE_",
+            "import_score": 0.0,
+            "bpe_score": 3.2031820255879957,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 4,
+            "hunk_preview": "def install(\n    console: Optional[\"Console\"] = None,\n    overflow: \"OverflowMet",
+            "import_score": 0.0,
+            "bpe_score": 2.6609612780560887,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 5,
+            "hunk_preview": "class _Bit:\n    \"\"\"A descriptor to get/set a style attribute bit.\"\"\"\n\n    __slot",
+            "import_score": 0.0,
+            "bpe_score": 2.7780470193627647,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 6,
+            "hunk_preview": "class Paragraph(TextElement):\n    \"\"\"A Paragraph.\"\"\"\n\n    style_name = \"markdown",
+            "import_score": 0.0,
+            "bpe_score": 1.3740399113070136,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 7,
+            "hunk_preview": "def loop_last(values: Iterable[T]) -> Iterable[Tuple[bool, T]]:\n    \"\"\"Iterate a",
+            "import_score": 0.0,
+            "bpe_score": 1.5169292418661522,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 8,
+            "hunk_preview": "class VerticalCenter(JupyterMixin):\n    \"\"\"Vertically aligns a renderable.\n\n    ",
+            "import_score": 0.0,
+            "bpe_score": 3.288979706475738,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 9,
+            "hunk_preview": "class ISO8601Highlighter(RegexHighlighter):\n    \"\"\"Highlights the ISO8601 date t",
+            "import_score": 0.0,
+            "bpe_score": 3.0060336434127777,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 10,
+            "hunk_preview": "def words(text: str) -> Iterable[tuple[int, int, str]]:\n    \"\"\"Yields each word ",
+            "import_score": 0.0,
+            "bpe_score": 1.6893749672960912,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 11,
+            "hunk_preview": "class Heading(TextElement):\n    \"\"\"A heading.\"\"\"\n\n    LEVEL_ALIGN: ClassVar[dict",
+            "import_score": 0.0,
+            "bpe_score": 1.718602852008015,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 12,
+            "hunk_preview": "def load_ipython_extension(ip: Any) -> None:  # pragma: no cover\n    # prevent c",
+            "import_score": 0.0,
+            "bpe_score": 2.494112054632655,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 13,
+            "hunk_preview": "class _TrackThread(Thread):\n    \"\"\"A thread to periodically update progress.\"\"\"\n",
+            "import_score": 0.0,
+            "bpe_score": 2.680372499505637,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 14,
+            "hunk_preview": "class ColorType(IntEnum):\n    \"\"\"Type of color stored in Color class.\"\"\"\n\n    DE",
+            "import_score": 0.0,
+            "bpe_score": 2.3522371634395967,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 15,
+            "hunk_preview": "class PaddingProperty:\n    \"\"\"Descriptor to get and set padding.\"\"\"\n\n    def __g",
+            "import_score": 0.0,
+            "bpe_score": 1.5016848147435953,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 16,
+            "hunk_preview": "def display(segments: Iterable[Segment], text: str) -> None:\n    \"\"\"Render segme",
+            "import_score": 0.0,
+            "bpe_score": 2.1739443667424325,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 17,
+            "hunk_preview": "def _is_jupyter() -> bool:  # pragma: no cover\n    \"\"\"Check if we're running in ",
+            "import_score": 0.0,
+            "bpe_score": 3.23303483562829,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 18,
+            "hunk_preview": "class Table(JupyterMixin):\n    \"\"\"A console renderable to draw a table.\n\n    Arg",
+            "import_score": 0.0,
+            "bpe_score": 3.672386663169089,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 19,
+            "hunk_preview": "def GetStdHandle(handle: int = STDOUT) -> wintypes.HANDLE:\n    \"\"\"Retrieves a ha",
+            "import_score": 0.0,
+            "bpe_score": 2.1664427957789503,
+            "flagged": false,
+            "reason": "none"
+          }
+        ],
+        "seed": 0
+      },
+      {
+        "bpe_threshold": 4.81585711299134,
+        "n_breaks": 10,
+        "n_ctrl": 20,
+        "n_flagged": 10,
+        "n_fp": 0,
+        "recall": 1.0,
+        "fp_rate": 0.0,
+        "fixtures": [
+          {
+            "name": "control_console_capture",
+            "category": "control_console",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.0899142391402314,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_console_init",
+            "category": "control_console",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.166377898843641,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_table_add_column_body",
+            "category": "control_table",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.1608976051921651,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_table_rich_console",
+            "category": "control_table",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.271498705982948,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_live_enter_exit",
+            "category": "control_live",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.5963535072725659,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_live_renderable",
+            "category": "control_live",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.08601188058595,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_text_init",
+            "category": "control_text",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 0.8236975974904821,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_text_styled",
+            "category": "control_text",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.272452324834978,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_panel_init_body",
+            "category": "control_panel",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 0.7887038578007664,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_panel_rich_console",
+            "category": "control_panel",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.2697284362430459,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "break_ansi_raw_1",
+            "category": "ansi_raw",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 7.7849549555955875,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_ansi_raw_2",
+            "category": "ansi_raw",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 5.685100998314903,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_colorama_1",
+            "category": "colorama",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_colorama_2",
+            "category": "colorama",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.966250208814639,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_termcolor_1",
+            "category": "termcolor",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.152884840714487,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_termcolor_2",
+            "category": "termcolor",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_curses_1",
+            "category": "curses",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.216994733115355,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_curses_2",
+            "category": "curses",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.668379040086203,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_print_manual_1",
+            "category": "print_manual",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 5.685100998314903,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_print_manual_2",
+            "category": "print_manual",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "bpe"
+          }
+        ],
+        "ctrl_results": [
+          {
+            "ctrl_index": 0,
+            "hunk_preview": "class _Reader(RawIOBase, BinaryIO):\n    \"\"\"A reader that tracks progress while i",
+            "import_score": 0.0,
+            "bpe_score": 2.9845689697450677,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 1,
+            "hunk_preview": "class SystemPager(Pager):\n    \"\"\"Uses the pager installed on the system.\"\"\"\n\n   ",
+            "import_score": 0.0,
+            "bpe_score": 2.1739443667424325,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 2,
+            "hunk_preview": "class Panel(JupyterMixin):\n    \"\"\"A console renderable that draws a border aroun",
+            "import_score": 0.0,
+            "bpe_score": 2.5779094501556337,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 3,
+            "hunk_preview": "class TotalFileSizeColumn(ProgressColumn):\n    \"\"\"Renders total filesize.\"\"\"\n\n  ",
+            "import_score": 0.0,
+            "bpe_score": 1.4597993497331379,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 4,
+            "hunk_preview": "def SetConsoleTextAttribute(\n    std_handle: wintypes.HANDLE, attributes: wintyp",
+            "import_score": 0.0,
+            "bpe_score": 2.711245960939137,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 5,
+            "hunk_preview": "def FillConsoleOutputCharacter(\n    std_handle: wintypes.HANDLE,\n    char: str,\n",
+            "import_score": 0.0,
+            "bpe_score": 3.5085415328910603,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 6,
+            "hunk_preview": "class TimeRemainingColumn(ProgressColumn):\n    \"\"\"Renders estimated time remaini",
+            "import_score": 0.0,
+            "bpe_score": 1.956725734909675,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 7,
+            "hunk_preview": "def _to_str(\n    size: int,\n    suffixes: Iterable[str],\n    base: int,\n    *,\n ",
+            "import_score": 0.0,
+            "bpe_score": 3.014492147985834,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 8,
+            "hunk_preview": "def _ipy_display_hook(\n    value: Any,\n    console: Optional[\"Console\"] = None,\n",
+            "import_score": 0.0,
+            "bpe_score": 2.819839506676143,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 9,
+            "hunk_preview": "class _AnsiToken(NamedTuple):\n    \"\"\"Result of ansi tokenized string.\"\"\"\n\n    pl",
+            "import_score": 0.0,
+            "bpe_score": 0.7168393001206281,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 10,
+            "hunk_preview": "def pretty_repr(\n    _object: Any,\n    *,\n    max_width: int = 80,\n    indent_si",
+            "import_score": 0.0,
+            "bpe_score": 1.9196614986503366,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 11,
+            "hunk_preview": "class Heading(TextElement):\n    \"\"\"A heading.\"\"\"\n\n    LEVEL_ALIGN: ClassVar[dict",
+            "import_score": 0.0,
+            "bpe_score": 1.718602852008015,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 12,
+            "hunk_preview": "def GetStdHandle(handle: int = STDOUT) -> wintypes.HANDLE:\n    \"\"\"Retrieves a ha",
+            "import_score": 0.0,
+            "bpe_score": 2.1664427957789503,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 13,
+            "hunk_preview": "class Frame:\n    filename: str\n    lineno: int\n    name: str\n    line: str = \"\"\n",
+            "import_score": 0.0,
+            "bpe_score": 2.317652734103545,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 14,
+            "hunk_preview": "def make_test_card() -> Table:\n    \"\"\"Get a renderable that demonstrates a numbe",
+            "import_score": 0.0,
+            "bpe_score": 3.5296045100393805,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 15,
+            "hunk_preview": "class ConsoleRenderable(Protocol):\n    \"\"\"An object that supports the console pr",
+            "import_score": 0.0,
+            "bpe_score": 2.2952089697144764,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 16,
+            "hunk_preview": "class Emoji(JupyterMixin):\n    __slots__ = [\"name\", \"style\", \"_char\", \"variant\"]",
+            "import_score": 0.0,
+            "bpe_score": 2.0899142391402314,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 17,
+            "hunk_preview": "def GetConsoleCursorInfo(\n    std_handle: wintypes.HANDLE, cursor_info: CONSOLE_",
+            "import_score": 0.0,
+            "bpe_score": 3.2031820255879957,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 18,
+            "hunk_preview": "def pick_unit_and_suffix(size: int, suffixes: List[str], base: int) -> Tuple[int",
+            "import_score": 0.0,
+            "bpe_score": 1.4211905162150273,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 19,
+            "hunk_preview": "class Measurement(NamedTuple):\n    \"\"\"Stores the minimum and maximum widths (in ",
+            "import_score": 0.0,
+            "bpe_score": 2.230823432611089,
+            "flagged": false,
+            "reason": "none"
+          }
+        ],
+        "seed": 1
+      },
+      {
+        "bpe_threshold": 4.7608412693824,
+        "n_breaks": 10,
+        "n_ctrl": 20,
+        "n_flagged": 10,
+        "n_fp": 1,
+        "recall": 1.0,
+        "fp_rate": 0.05,
+        "fixtures": [
+          {
+            "name": "control_console_capture",
+            "category": "control_console",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.0899142391402314,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_console_init",
+            "category": "control_console",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.166377898843641,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_table_add_column_body",
+            "category": "control_table",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.1608976051921651,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_table_rich_console",
+            "category": "control_table",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.271498705982948,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_live_enter_exit",
+            "category": "control_live",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.5963535072725659,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_live_renderable",
+            "category": "control_live",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.08601188058595,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_text_init",
+            "category": "control_text",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 0.8236975974904821,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_text_styled",
+            "category": "control_text",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.272452324834978,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_panel_init_body",
+            "category": "control_panel",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 0.7887038578007664,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_panel_rich_console",
+            "category": "control_panel",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.2697284362430459,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "break_ansi_raw_1",
+            "category": "ansi_raw",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 7.7849549555955875,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_ansi_raw_2",
+            "category": "ansi_raw",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 5.685100998314903,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_colorama_1",
+            "category": "colorama",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_colorama_2",
+            "category": "colorama",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.966250208814639,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_termcolor_1",
+            "category": "termcolor",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.152884840714487,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_termcolor_2",
+            "category": "termcolor",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_curses_1",
+            "category": "curses",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.216994733115355,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_curses_2",
+            "category": "curses",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.668379040086203,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_print_manual_1",
+            "category": "print_manual",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 5.685100998314903,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_print_manual_2",
+            "category": "print_manual",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "bpe"
+          }
+        ],
+        "ctrl_results": [
+          {
+            "ctrl_index": 0,
+            "hunk_preview": "class Bar(JupyterMixin):\n    \"\"\"Renders a solid block bar.\n\n    Args:\n        si",
+            "import_score": 0.0,
+            "bpe_score": 2.538023757891711,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 1,
+            "hunk_preview": "class Segments:\n    \"\"\"A simple renderable to render an iterable of segments. Th",
+            "import_score": 0.0,
+            "bpe_score": 1.8845097344124593,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 2,
+            "hunk_preview": "class Row:\n    \"\"\"Information regarding a row.\"\"\"\n\n    style: Optional[StyleType",
+            "import_score": 0.0,
+            "bpe_score": 2.655011358288485,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 3,
+            "hunk_preview": "class Theme:\n    \"\"\"A container for style information, used by :class:`~rich.con",
+            "import_score": 0.0,
+            "bpe_score": 3.118398742463768,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 4,
+            "hunk_preview": "def _iter_syntax_lines(\n    start: SyntaxPosition, end: SyntaxPosition\n) -> Iter",
+            "import_score": 0.0,
+            "bpe_score": 1.4044380388595474,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 5,
+            "hunk_preview": "class Capture:\n    \"\"\"Context manager to capture the result of printing to the c",
+            "import_score": 0.0,
+            "bpe_score": 2.8842341746676468,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 6,
+            "hunk_preview": "class Span(NamedTuple):\n    \"\"\"A marked up region in some text.\"\"\"\n\n    start: i",
+            "import_score": 0.0,
+            "bpe_score": 1.7731294705270422,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 7,
+            "hunk_preview": "class LegacyWindowsTerm:\n    \"\"\"This class allows interaction with the legacy Wi",
+            "import_score": 0.0,
+            "bpe_score": 4.81585711299134,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "ctrl_index": 8,
+            "hunk_preview": "class Syntax(JupyterMixin):\n    \"\"\"Construct a Syntax object to render syntax hi",
+            "import_score": 0.0,
+            "bpe_score": 3.4207292968805003,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 9,
+            "hunk_preview": "class FileProxy(io.TextIOBase):\n    \"\"\"Wraps a file (e.g. sys.stdout) and redire",
+            "import_score": 0.0,
+            "bpe_score": 2.792417575996277,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 10,
+            "hunk_preview": "class _ReadContext(ContextManager[_I], Generic[_I]):\n    \"\"\"A utility class to h",
+            "import_score": 0.0,
+            "bpe_score": 2.370386380208494,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 11,
+            "hunk_preview": "class SegmentLines:\n    def __init__(self, lines: Iterable[List[Segment]], new_l",
+            "import_score": 0.0,
+            "bpe_score": 1.6995873490615718,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 12,
+            "hunk_preview": "class TableDataElement(MarkdownElement):\n    \"\"\"MarkdownElement corresponding to",
+            "import_score": 0.0,
+            "bpe_score": 1.4976028009261801,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 13,
+            "hunk_preview": "class JupyterMixin:\n    \"\"\"Add to an Rich renderable to make it render in Jupyte",
+            "import_score": 0.0,
+            "bpe_score": 1.8539656264456283,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 14,
+            "hunk_preview": "class ConsoleDimensions(NamedTuple):\n    \"\"\"Size of the terminal.\"\"\"\n\n    width:",
+            "import_score": 0.0,
+            "bpe_score": 1.2302330466309526,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 15,
+            "hunk_preview": "class RichHandler(Handler):\n    \"\"\"A logging handler that renders output with Ri",
+            "import_score": 0.0,
+            "bpe_score": 3.157715502278771,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 16,
+            "hunk_preview": "def _to_str(\n    size: int,\n    suffixes: Iterable[str],\n    base: int,\n    *,\n ",
+            "import_score": 0.0,
+            "bpe_score": 3.014492147985834,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 17,
+            "hunk_preview": "class RowSplitter(Splitter):\n    \"\"\"Split a layout region in to rows.\"\"\"\n\n    na",
+            "import_score": 0.0,
+            "bpe_score": 1.7405886105235986,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 18,
+            "hunk_preview": "class TextColumn(ProgressColumn):\n    \"\"\"A column containing text.\"\"\"\n\n    def _",
+            "import_score": 0.0,
+            "bpe_score": 1.3508467151504284,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 19,
+            "hunk_preview": "class Spinner:\n    \"\"\"A spinner animation.\n\n    Args:\n        name (str): Name o",
+            "import_score": 0.0,
+            "bpe_score": 2.550670912865492,
+            "flagged": false,
+            "reason": "none"
+          }
+        ],
+        "seed": 2
+      },
+      {
+        "bpe_threshold": 4.7608412693824,
+        "n_breaks": 10,
+        "n_ctrl": 20,
+        "n_flagged": 10,
+        "n_fp": 0,
+        "recall": 1.0,
+        "fp_rate": 0.0,
+        "fixtures": [
+          {
+            "name": "control_console_capture",
+            "category": "control_console",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.0899142391402314,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_console_init",
+            "category": "control_console",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.166377898843641,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_table_add_column_body",
+            "category": "control_table",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.1608976051921651,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_table_rich_console",
+            "category": "control_table",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.271498705982948,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_live_enter_exit",
+            "category": "control_live",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.5963535072725659,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_live_renderable",
+            "category": "control_live",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.08601188058595,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_text_init",
+            "category": "control_text",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 0.8236975974904821,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_text_styled",
+            "category": "control_text",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.272452324834978,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_panel_init_body",
+            "category": "control_panel",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 0.7887038578007664,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_panel_rich_console",
+            "category": "control_panel",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.2697284362430459,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "break_ansi_raw_1",
+            "category": "ansi_raw",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 7.7849549555955875,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_ansi_raw_2",
+            "category": "ansi_raw",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 5.685100998314903,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_colorama_1",
+            "category": "colorama",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_colorama_2",
+            "category": "colorama",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.966250208814639,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_termcolor_1",
+            "category": "termcolor",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.152884840714487,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_termcolor_2",
+            "category": "termcolor",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_curses_1",
+            "category": "curses",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.216994733115355,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_curses_2",
+            "category": "curses",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.668379040086203,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_print_manual_1",
+            "category": "print_manual",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 5.685100998314903,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_print_manual_2",
+            "category": "print_manual",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "bpe"
+          }
+        ],
+        "ctrl_results": [
+          {
+            "ctrl_index": 0,
+            "hunk_preview": "class _Placeholder:\n    \"\"\"An internal renderable used as a Layout placeholder.\"",
+            "import_score": 0.0,
+            "bpe_score": 1.6396110399043282,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 1,
+            "hunk_preview": "class _SyntaxHighlightRange(NamedTuple):\n    \"\"\"\n    A range to highlight in a S",
+            "import_score": 0.0,
+            "bpe_score": 1.9634413298418574,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 2,
+            "hunk_preview": "def group(fit: bool = True) -> Callable[..., Callable[..., Group]]:\n    \"\"\"A dec",
+            "import_score": 0.0,
+            "bpe_score": 1.918556251280906,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 3,
+            "hunk_preview": "def _get_code_index_for_syntax_position(\n    newlines_offsets: Sequence[int], po",
+            "import_score": 0.0,
+            "bpe_score": 2.507274927087428,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 4,
+            "hunk_preview": "class InvalidResponse(PromptError):\n    \"\"\"Exception to indicate a response was ",
+            "import_score": 0.0,
+            "bpe_score": 2.0807206085405667,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 5,
+            "hunk_preview": "class Edge(Protocol):\n    \"\"\"Any object that defines an edge (such as Layout).\"\"",
+            "import_score": 0.0,
+            "bpe_score": 1.8631211108791543,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 6,
+            "hunk_preview": "def ratio_reduce(\n    total: int, ratios: List[int], maximums: List[int], values",
+            "import_score": 0.0,
+            "bpe_score": 1.6995873490615718,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 7,
+            "hunk_preview": "class Color(NamedTuple):\n    \"\"\"Terminal color definition.\"\"\"\n\n    name: str\n   ",
+            "import_score": 0.0,
+            "bpe_score": 2.337199170073614,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 8,
+            "hunk_preview": "class Markdown(JupyterMixin):\n    \"\"\"A Markdown renderable.\n\n    Args:\n        m",
+            "import_score": 0.0,
+            "bpe_score": 3.1178582350571133,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 9,
+            "hunk_preview": "class Theme:\n    \"\"\"A container for style information, used by :class:`~rich.con",
+            "import_score": 0.0,
+            "bpe_score": 3.118398742463768,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 10,
+            "hunk_preview": "class BlockQuote(TextElement):\n    \"\"\"A block quote.\"\"\"\n\n    style_name = \"markd",
+            "import_score": 0.0,
+            "bpe_score": 2.8842341746676468,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 11,
+            "hunk_preview": "def open(\n    file: Union[str, \"PathLike[str]\", bytes],\n    mode: Union[Literal[",
+            "import_score": 0.0,
+            "bpe_score": 3.704581751210325,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 12,
+            "hunk_preview": "class CellTable(NamedTuple):\n    \"\"\"Contains unicode data required to measure th",
+            "import_score": 0.0,
+            "bpe_score": 1.2302330466309526,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 13,
+            "hunk_preview": "class Lines:\n    \"\"\"A list subclass which can render to the console.\"\"\"\n\n    def",
+            "import_score": 0.0,
+            "bpe_score": 2.0001098612013823,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 14,
+            "hunk_preview": "def is_renderable(check_object: Any) -> bool:\n    \"\"\"Check if an object may be r",
+            "import_score": 0.0,
+            "bpe_score": 1.6995873490615718,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 15,
+            "hunk_preview": "class TableHeaderElement(MarkdownElement):\n    \"\"\"MarkdownElement corresponding ",
+            "import_score": 0.0,
+            "bpe_score": 1.6783624849261933,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 16,
+            "hunk_preview": "class _AnsiToken(NamedTuple):\n    \"\"\"Result of ansi tokenized string.\"\"\"\n\n    pl",
+            "import_score": 0.0,
+            "bpe_score": 0.7168393001206281,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 17,
+            "hunk_preview": "def GetConsoleScreenBufferInfo(\n    std_handle: wintypes.HANDLE,\n) -> CONSOLE_SC",
+            "import_score": 0.0,
+            "bpe_score": 1.7258773706188713,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 18,
+            "hunk_preview": "class ProgressColumn(ABC):\n    \"\"\"Base class for a widget to use in progress dis",
+            "import_score": 0.0,
+            "bpe_score": 3.1706558848429474,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 19,
+            "hunk_preview": "class _Cell(NamedTuple):\n    \"\"\"A single cell in a table.\"\"\"\n\n    style: StyleTy",
+            "import_score": 0.0,
+            "bpe_score": 0.7837682573375853,
+            "flagged": false,
+            "reason": "none"
+          }
+        ],
+        "seed": 3
+      },
+      {
+        "bpe_threshold": 4.421264530486491,
+        "n_breaks": 10,
+        "n_ctrl": 20,
+        "n_flagged": 10,
+        "n_fp": 0,
+        "recall": 1.0,
+        "fp_rate": 0.0,
+        "fixtures": [
+          {
+            "name": "control_console_capture",
+            "category": "control_console",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.0899142391402314,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_console_init",
+            "category": "control_console",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.166377898843641,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_table_add_column_body",
+            "category": "control_table",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.1608976051921651,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_table_rich_console",
+            "category": "control_table",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.271498705982948,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_live_enter_exit",
+            "category": "control_live",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.5963535072725659,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_live_renderable",
+            "category": "control_live",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.08601188058595,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_text_init",
+            "category": "control_text",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 0.8236975974904821,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_text_styled",
+            "category": "control_text",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 2.272452324834978,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_panel_init_body",
+            "category": "control_panel",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 0.7887038578007664,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "control_panel_rich_console",
+            "category": "control_panel",
+            "is_break": false,
+            "import_score": 0.0,
+            "bpe_score": 1.2697284362430459,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "name": "break_ansi_raw_1",
+            "category": "ansi_raw",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 7.7849549555955875,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_ansi_raw_2",
+            "category": "ansi_raw",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 5.685100998314903,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_colorama_1",
+            "category": "colorama",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_colorama_2",
+            "category": "colorama",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 5.966250208814639,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_termcolor_1",
+            "category": "termcolor",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.152884840714487,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_termcolor_2",
+            "category": "termcolor",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_curses_1",
+            "category": "curses",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 6.216994733115355,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_curses_2",
+            "category": "curses",
+            "is_break": true,
+            "import_score": 1.0,
+            "bpe_score": 7.668379040086203,
+            "flagged": true,
+            "reason": "import"
+          },
+          {
+            "name": "break_print_manual_1",
+            "category": "print_manual",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 5.685100998314903,
+            "flagged": true,
+            "reason": "bpe"
+          },
+          {
+            "name": "break_print_manual_2",
+            "category": "print_manual",
+            "is_break": true,
+            "import_score": 0.0,
+            "bpe_score": 6.729681876256576,
+            "flagged": true,
+            "reason": "bpe"
+          }
+        ],
+        "ctrl_results": [
+          {
+            "ctrl_index": 0,
+            "hunk_preview": "class ListItem(TextElement):\n    \"\"\"An item in a list.\"\"\"\n\n    style_name = \"mar",
+            "import_score": 0.0,
+            "bpe_score": 1.7646056588419796,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 1,
+            "hunk_preview": "class Rule(JupyterMixin):\n    \"\"\"A console renderable to draw a horizontal rule ",
+            "import_score": 0.0,
+            "bpe_score": 2.8147099704290426,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 2,
+            "hunk_preview": "class Color(NamedTuple):\n    \"\"\"Terminal color definition.\"\"\"\n\n    name: str\n   ",
+            "import_score": 0.0,
+            "bpe_score": 2.337199170073614,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 3,
+            "hunk_preview": "class Palette:\n    \"\"\"A palette of available colors.\"\"\"\n\n    def __init__(self, ",
+            "import_score": 0.0,
+            "bpe_score": 1.9872384059807793,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 4,
+            "hunk_preview": "class RowSplitter(Splitter):\n    \"\"\"Split a layout region in to rows.\"\"\"\n\n    na",
+            "import_score": 0.0,
+            "bpe_score": 1.7405886105235986,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 5,
+            "hunk_preview": "def set_cell_size(text: str, total: int, unicode_version: str = \"auto\") -> str:\n",
+            "import_score": 0.0,
+            "bpe_score": 1.55633965591156,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 6,
+            "hunk_preview": "class HorizontalRule(MarkdownElement):\n    \"\"\"A horizontal rule to divide sectio",
+            "import_score": 0.0,
+            "bpe_score": 1.193889950204822,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 7,
+            "hunk_preview": "class WindowsConsoleFeatures:\n    \"\"\"Windows features available.\"\"\"\n\n    vt: boo",
+            "import_score": 0.0,
+            "bpe_score": 1.5273802844134607,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 8,
+            "hunk_preview": "class Box:\n    \"\"\"Defines characters to render boxes.\n\n    \u250c\u2500\u252c\u2510 top\n    \u2502 \u2502\u2502 hea",
+            "import_score": 0.0,
+            "bpe_score": 3.2242928521555125,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 9,
+            "hunk_preview": "def _parse_version(version: str) -> tuple[int, int, int]:\n    \"\"\"Parse a version",
+            "import_score": 0.0,
+            "bpe_score": 2.0899142391402314,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 10,
+            "hunk_preview": "def GetConsoleMode(std_handle: wintypes.HANDLE) -> int:\n    \"\"\"Retrieves the cur",
+            "import_score": 0.0,
+            "bpe_score": 2.551496527261353,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 11,
+            "hunk_preview": "def _render_segments(segments: Iterable[Segment]) -> str:\n    def escape(text: s",
+            "import_score": 0.0,
+            "bpe_score": 3.3361688158669693,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 12,
+            "hunk_preview": "class ColorBox:\n    def __rich_console__(\n        self, console: Console, option",
+            "import_score": 0.0,
+            "bpe_score": 1.5963535072725659,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 13,
+            "hunk_preview": "def track(\n    sequence: Iterable[ProgressType],\n    description: str = \"Working",
+            "import_score": 0.0,
+            "bpe_score": 2.0325172591766165,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 14,
+            "hunk_preview": "class ScreenUpdate:\n    \"\"\"Render a list of lines at a given offset.\"\"\"\n\n    def",
+            "import_score": 0.0,
+            "bpe_score": 0.9621443331006159,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 15,
+            "hunk_preview": "class JupyterMixin:\n    \"\"\"Add to an Rich renderable to make it render in Jupyte",
+            "import_score": 0.0,
+            "bpe_score": 1.8539656264456283,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 16,
+            "hunk_preview": "class Link(TextElement):\n    @classmethod\n    def create(cls, markdown: Markdown",
+            "import_score": 0.0,
+            "bpe_score": 2.917714792166226,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 17,
+            "hunk_preview": "class ColorSystem(IntEnum):\n    \"\"\"One of the 3 color system supported by termin",
+            "import_score": 0.0,
+            "bpe_score": 1.2928585963708787,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 18,
+            "hunk_preview": "class TableBodyElement(MarkdownElement):\n    \"\"\"MarkdownElement corresponding to",
+            "import_score": 0.0,
+            "bpe_score": 1.261584668472306,
+            "flagged": false,
+            "reason": "none"
+          },
+          {
+            "ctrl_index": 19,
+            "hunk_preview": "def _ansi_tokenize(ansi_text: str) -> Iterable[_AnsiToken]:\n    \"\"\"Tokenize a st",
+            "import_score": 0.0,
+            "bpe_score": 1.7765725131725691,
+            "flagged": false,
+            "reason": "none"
+          }
+        ],
+        "seed": 4
+      }
+    ]
+  },
+  "faker": {
+    "domain": "faker",
+    "n_model_a_files": 722,
+    "n_cal": 139,
+    "n_ctrl": 20,
+    "bpe_threshold": 7.373205321984541,
+    "n_breaks": 5,
+    "n_breaks_flagged": 5,
+    "n_fp": 0,
+    "recall": 1.0,
+    "fp_rate": 0.0,
+    "hunk_0047": {
+      "in_set": "cal",
+      "bpe_score": 7.373205321984541,
+      "threshold": 7.373205321984541,
+      "flagged_as_cal": false,
+      "holdout_threshold": 5.692622668359421,
+      "holdout_flagged": true
+    },
+    "break_fixtures": [
+      {
+        "name": "break_mimesis_alt_1",
+        "category": "mimesis_alt",
+        "import_score": 1.0,
+        "bpe_score": 4.204340393662699,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "break_threading_provider_1",
+        "category": "threading_provider",
+        "import_score": 2.0,
+        "bpe_score": 6.95894304574081,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "break_sqlalchemy_sink_1",
+        "category": "sqlalchemy_sink",
+        "import_score": 1.0,
+        "bpe_score": 6.956828655756679,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "break_numpy_random_1",
+        "category": "numpy_random",
+        "import_score": 1.0,
+        "bpe_score": 4.593258125805839,
+        "flagged": true,
+        "reason": "import"
+      },
+      {
+        "name": "break_requests_source_1",
+        "category": "requests_source",
+        "import_score": 1.0,
+        "bpe_score": 7.380159938259968,
+        "flagged": true,
+        "reason": "import"
+      }
+    ],
+    "ctrl_results": [
+      {
+        "ctrl_index": 0,
+        "hunk_preview": "    def city(self):\n        return self.random_element(self.cities)\n    def city",
+        "import_score": 0.0,
+        "bpe_score": 3.2886705465973085,
+        "flagged": false,
+        "reason": "none",
+        "name": "faker_hunk_0140"
+      },
+      {
+        "ctrl_index": 1,
+        "hunk_preview": "    def first_name_male_est(self) -> str:\n        return self.random_element(sel",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none",
+        "name": "faker_hunk_0141"
+      },
+      {
+        "ctrl_index": 2,
+        "hunk_preview": "    def first_name_pair(self) -> Tuple[str, str, str]:\n        return self.rando",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none",
+        "name": "faker_hunk_0142"
+      },
+      {
+        "ctrl_index": 3,
+        "hunk_preview": "\n    def enum(self, enum_cls: Type[TEnum]) -> TEnum:\n        \"\"\"\n        Returns",
+        "import_score": 0.0,
+        "bpe_score": 5.4778049548733065,
+        "flagged": false,
+        "reason": "none",
+        "name": "faker_hunk_0143"
+      },
+      {
+        "ctrl_index": 4,
+        "hunk_preview": "from .. import Provider as InternetProvider\n\n\nclass Provider(InternetProvider):\n",
+        "import_score": 0.0,
+        "bpe_score": 2.546363948006178,
+        "flagged": false,
+        "reason": "none",
+        "name": "faker_hunk_0144"
+      },
+      {
+        "ctrl_index": 5,
+        "hunk_preview": "from .. import Provider as SsnProvider\n\n\nclass Provider(SsnProvider):\n    \"\"\"\n  ",
+        "import_score": 0.0,
+        "bpe_score": 3.3409274885401876,
+        "flagged": false,
+        "reason": "none",
+        "name": "faker_hunk_0145"
+      },
+      {
+        "ctrl_index": 6,
+        "hunk_preview": "from .. import Provider as AutomotiveProvider\n\n\nclass Provider(AutomotiveProvide",
+        "import_score": 0.0,
+        "bpe_score": 4.495981718009183,
+        "flagged": false,
+        "reason": "none",
+        "name": "faker_hunk_0146"
+      },
+      {
+        "ctrl_index": 7,
+        "hunk_preview": "    def century(\n        self,\n        min_length: Optional[int] = None,\n       ",
+        "import_score": 0.0,
+        "bpe_score": 3.6088680114596032,
+        "flagged": false,
+        "reason": "none",
+        "name": "faker_hunk_0147"
+      },
+      {
+        "ctrl_index": 8,
+        "hunk_preview": "    def city(self, min_length: Optional[int] = None, max_length: Optional[int] =",
+        "import_score": 0.0,
+        "bpe_score": 3.2886705465973085,
+        "flagged": false,
+        "reason": "none",
+        "name": "faker_hunk_0148"
+      },
+      {
+        "ctrl_index": 9,
+        "hunk_preview": "    @staticmethod\n    def filter_by_length(\n        elements: ElementsType = (\"a",
+        "import_score": 0.0,
+        "bpe_score": 6.0009068116880435,
+        "flagged": false,
+        "reason": "none",
+        "name": "faker_hunk_0149"
+      },
+      {
+        "ctrl_index": 10,
+        "hunk_preview": "    def first_name_male_est(self, min_length: Optional[int] = None, max_length: ",
+        "import_score": 0.0,
+        "bpe_score": 3.1827324806915156,
+        "flagged": false,
+        "reason": "none",
+        "name": "faker_hunk_0150"
+      },
+      {
+        "ctrl_index": 11,
+        "hunk_preview": "from .. import Provider as InternetProvider\n\n\nclass Provider(InternetProvider):\n",
+        "import_score": 0.0,
+        "bpe_score": 1.6352980838487206,
+        "flagged": false,
+        "reason": "none",
+        "name": "faker_hunk_0151"
+      },
+      {
+        "ctrl_index": 12,
+        "hunk_preview": "    prefixes_female = (\n        \"Bayan\",\n        \"Dr.\",\n        \"Uz.\",\n        \"",
+        "import_score": 0.0,
+        "bpe_score": 0.4606708797896708,
+        "flagged": false,
+        "reason": "none",
+        "name": "faker_hunk_0152"
+      },
+      {
+        "ctrl_index": 13,
+        "hunk_preview": "from .. import Provider as DateTimeProvider\n\n\nclass Provider(DateTimeProvider):\n",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none",
+        "name": "faker_hunk_0153"
+      },
+      {
+        "ctrl_index": 14,
+        "hunk_preview": "from typing import List\n\nfrom faker.utils.decorators import lowercase, slugify_u",
+        "import_score": 0.0,
+        "bpe_score": 3.9238944202997104,
+        "flagged": false,
+        "reason": "none",
+        "name": "faker_hunk_0154"
+      },
+      {
+        "ctrl_index": 15,
+        "hunk_preview": "    DAY_NAMES = {\n        \"0\": \"dimanche\",\n        \"1\": \"lundi\",\n        \"2\": \"m",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none",
+        "name": "faker_hunk_0155"
+      },
+      {
+        "ctrl_index": 16,
+        "hunk_preview": "from .. import Provider as DateTimeProvider\n\n\nclass Provider(DateTimeProvider):\n",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none",
+        "name": "faker_hunk_0156"
+      },
+      {
+        "ctrl_index": 17,
+        "hunk_preview": "from .. import Provider as DateTimeProvider\n\n\nclass Provider(DateTimeProvider):\n",
+        "import_score": 0.0,
+        "bpe_score": 2.5568478028814248,
+        "flagged": false,
+        "reason": "none",
+        "name": "faker_hunk_0157"
+      },
+      {
+        "ctrl_index": 18,
+        "hunk_preview": "import re\n\nfrom .. import Provider as AutomotiveProvider\n\n\nclass Provider(Automo",
+        "import_score": 0.0,
+        "bpe_score": 2.8839431913961215,
+        "flagged": false,
+        "reason": "none",
+        "name": "faker_hunk_0158"
+      },
+      {
+        "ctrl_index": 19,
+        "hunk_preview": "from .. import Provider as AutomotiveProvider\n\n\nclass Provider(AutomotiveProvide",
+        "import_score": 0.0,
+        "bpe_score": 2.4563494662861585,
+        "flagged": false,
+        "reason": "none",
+        "name": "faker_hunk_0159"
+      }
+    ]
+  }
+}

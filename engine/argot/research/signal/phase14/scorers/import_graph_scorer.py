@@ -39,8 +39,9 @@ def _imports_from_ast(source: str) -> set[str]:
     try:
         tree = ast.parse(source)
     except SyntaxError:
-        # Dead code: _imports_from_regex is no longer called here — pending removal in a follow-up.
-        return set()
+        # Fall back to regex when the source is not valid Python (e.g. stage1_input
+        # concatenates an import block with a mid-block hunk, producing invalid syntax).
+        return _imports_from_regex(source)
 
     modules: set[str] = set()
     for node in ast.walk(tree):
