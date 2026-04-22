@@ -79,7 +79,7 @@ class Stage2OnlyScorer(SequentialImportBpeScorer):
         # Stage 2: prose masking + BPE (identical to parent)
         bpe_input = hunk_content
         if file_source is not None and hunk_start_line is not None and hunk_end_line is not None:
-            file_prose = self._parser.prose_line_ranges(file_source)
+            file_prose = self._adapter.prose_line_ranges(file_source)
             hunk_prose_local: frozenset[int] = frozenset(
                 ln - hunk_start_line + 1
                 for ln in file_prose
