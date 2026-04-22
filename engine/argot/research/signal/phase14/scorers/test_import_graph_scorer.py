@@ -37,11 +37,23 @@ def test_imports_from_ast_top_level_only() -> None:
     assert _imports_from_ast(source) == {"faker", "os"}
 
 
-def test_imports_from_ast_syntax_error_falls_back_to_regex() -> None:
-    # Mid-block slice — not valid Python on its own
+def test_imports_from_ast_syntax_error_returns_empty_set() -> None:
+    # Mid-block slice — not valid Python on its own; regex fallback removed, returns empty set.
     source = "    from mimesis import Person\n    x = Person()\n"
     result = _imports_from_ast(source)
-    assert "mimesis" in result
+    assert result == set()
+
+
+def test_imports_from_ast_docstring_prose_not_extracted() -> None:
+    # Regression: "Starlette" in a docstring but source is truncated mid-function
+    # (ast.parse raises SyntaxError). Must return set(), not {"Starlette"}.
+    source = textwrap.dedent('''\
+        def app():
+            """This is built on top of Starlette.
+            It uses Starlette under the hood.
+        ''')
+    result = _imports_from_ast(source)
+    assert result == set(), f"Expected empty set, got {result!r}"
 
 
 def test_imports_from_regex_basic() -> None:
@@ -109,9 +121,9 @@ def test_score_hunk_unparseable_slice(tmp_path: Path) -> None:
     _write_py(tmp_path, "a.py", "import faker\n")
     scorer = ImportGraphScorer()
     scorer.fit(tmp_path.glob("*.py"))
-    # Indented slice — ast.parse fails, regex fallback kicks in
+    # Indented slice — ast.parse fails; regex fallback removed, so no imports extracted.
     unparseable = "    from mimesis import Person\n    p = Person()\n"
-    assert scorer.score_hunk(unparseable) == 1.0
+    assert scorer.score_hunk(unparseable) == 0.0
 
 
 def test_score_hunk_empty_model_a_flags_everything(tmp_path: Path) -> None:
