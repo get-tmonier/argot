@@ -583,3 +583,100 @@ def test_back_compat_no_masking_without_line_kwargs(tmp_path: Path) -> None:
     # All three should produce identical BPE scores (no masking applied)
     assert score_no_kwargs["bpe_score"] == score_file_only["bpe_score"]
     assert score_no_kwargs["bpe_score"] == score_partial["bpe_score"]
+
+
+# ---------------------------------------------------------------------------
+# Auto-generated file short-circuit
+# ---------------------------------------------------------------------------
+
+
+def test_auto_generated_short_circuits_both_stages(tmp_path: Path) -> None:
+    """score_hunk must return flagged=False, reason='auto_generated' without
+    invoking Stage 1 or Stage 2 when file_source is an auto-generated file."""
+    # model_a has only "faker"; hunk has a foreign import that would trigger Stage 1
+    ma_file = _write_py(tmp_path, "a.py", "import faker\n")
+    model_b_path = _make_model_b(tmp_path, {1: 50, 2: 50})
+
+    # hunk_content contains a foreign import — would normally fire Stage 1
+    hunk_content = "from voluptuous import Schema\n"
+    # file_source has an auto-gen marker in the header
+    file_source = "# auto-generated — do not edit\nfrom voluptuous import Schema\n"
+
+    tok = _FakeTok(
+        {
+            "import faker\n": [1],
+            "calibration\n": [1],
+            hunk_content: [2],
+        }
+    )
+
+    scorer = SequentialImportBpeScorer(
+        model_a_files=[ma_file],
+        bpe_model_b_path=model_b_path,
+        calibration_hunks=["calibration\n"],
+        _tokenizer=tok,
+    )
+
+    result = scorer.score_hunk(hunk_content, file_source=file_source)
+    assert result["flagged"] is False
+    assert result["reason"] == "auto_generated"
+    assert result["import_score"] == 0.0
+    assert result["bpe_score"] == 0.0
+
+
+def test_auto_generated_only_fires_when_file_source_provided(tmp_path: Path) -> None:
+    """Without file_source, auto-gen detection is skipped and Stage 1 may fire."""
+    ma_file = _write_py(tmp_path, "a.py", "import faker\n")
+    model_b_path = _make_model_b(tmp_path, {1: 50, 2: 50})
+
+    # hunk_content has a foreign import — Stage 1 should catch it
+    hunk_content = "from voluptuous import Schema\n"
+
+    tok = _FakeTok(
+        {
+            "import faker\n": [1],
+            "calibration\n": [1],
+            hunk_content: [2],
+        }
+    )
+
+    scorer = SequentialImportBpeScorer(
+        model_a_files=[ma_file],
+        bpe_model_b_path=model_b_path,
+        calibration_hunks=["calibration\n"],
+        _tokenizer=tok,
+    )
+
+    # No file_source → auto-gen check skipped → Stage 1 catches foreign import
+    result = scorer.score_hunk(hunk_content)
+    assert result["reason"] == "import"
+    assert result["flagged"] is True
+
+
+def test_non_auto_generated_file_proceeds_normally(tmp_path: Path) -> None:
+    """A regular file_source (no markers) must not trigger auto_generated short-circuit."""
+    ma_file = _write_py(tmp_path, "a.py", "import faker\n")
+    model_b_path = _make_model_b(tmp_path, {1: 50, 2: 50})
+
+    hunk_content = "from voluptuous import Schema\n"
+    # Normal file header — no auto-gen markers
+    file_source = "# Hand-written module.\nfrom voluptuous import Schema\n"
+
+    tok = _FakeTok(
+        {
+            "import faker\n": [1],
+            "calibration\n": [1],
+            hunk_content: [2],
+        }
+    )
+
+    scorer = SequentialImportBpeScorer(
+        model_a_files=[ma_file],
+        bpe_model_b_path=model_b_path,
+        calibration_hunks=["calibration\n"],
+        _tokenizer=tok,
+    )
+
+    result = scorer.score_hunk(hunk_content, file_source=file_source)
+    assert result["reason"] == "import"
+    assert result["flagged"] is True

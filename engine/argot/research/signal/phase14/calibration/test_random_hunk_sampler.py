@@ -174,3 +174,63 @@ def test_excludes_test_prefixed_files(tmp_path: Path) -> None:
     )
     candidates = collect_candidates(tmp_path)
     assert len(candidates) == 0
+
+
+def test_excludes_auto_generated_files_by_default(tmp_path: Path) -> None:
+    _write_py(
+        tmp_path,
+        "generated_data.py",
+        """\
+        # auto-generated — do not edit
+        DATA = {
+            "a": 1,
+            "b": 2,
+            "c": 3,
+            "d": 4,
+        }
+
+        def lookup(key: str) -> int:
+            v = DATA.get(key, 0)
+            w = v * 2
+            x = w + 1
+            y = x - 1
+            return y
+        """,
+    )
+    _write_py(
+        tmp_path,
+        "real_module.py",
+        """\
+        def real_func() -> int:
+            a = 1
+            b = 2
+            c = 3
+            d = 4
+            return a + b + c + d
+        """,
+    )
+    # Default: auto-generated file excluded → only real_module hunks remain
+    candidates = collect_candidates(tmp_path)
+    assert len(candidates) == 1
+    assert "real_func" in candidates[0]
+
+
+def test_include_auto_generated_when_opted_out(tmp_path: Path) -> None:
+    _write_py(
+        tmp_path,
+        "generated_data.py",
+        """\
+        # auto-generated — do not edit
+        DATA = {}
+
+        def lookup(key: str) -> int:
+            a = 1
+            b = 2
+            c = 3
+            d = 4
+            return a + b + c + d
+        """,
+    )
+    # Opt-out: auto-generated file included
+    candidates = collect_candidates(tmp_path, exclude_auto_generated=False)
+    assert len(candidates) == 1
