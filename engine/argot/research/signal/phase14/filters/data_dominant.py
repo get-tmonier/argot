@@ -1,5 +1,12 @@
 # engine/argot/research/signal/phase14/filters/data_dominant.py
-"""Data-dominant file detector — tree-sitter structural heuristic, no I/O."""
+"""Data-dominant file detector — tree-sitter structural heuristic, no I/O.
+
+.. deprecated::
+    Direct use of this module is deprecated.  Use
+    ``argot.research.signal.phase14.adapters.PythonAdapter.is_data_dominant``
+    instead.  This module is kept as a thin shim because external callers
+    (validation scripts, experiments) may still import it directly.
+"""
 
 from __future__ import annotations
 
