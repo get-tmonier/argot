@@ -44,7 +44,10 @@ class PythonAdapter:
             return []
         ranges: list[tuple[int, int]] = []
         for node in ast.iter_child_nodes(tree):
-            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef) and node.end_lineno is not None:
+            if (
+                isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
+                and node.end_lineno is not None
+            ):
                 ranges.append((node.lineno, node.end_lineno))
         return ranges
 
