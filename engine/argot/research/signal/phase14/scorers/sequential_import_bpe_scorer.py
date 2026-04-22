@@ -229,12 +229,10 @@ class SequentialImportBpeScorer:
         Args:
             hunk_content: The raw hunk diff / function body to score.
             file_source: Optional full source of the file containing the hunk.
-                When provided, Stage 1 detects foreign modules from both the
-                file's import block and the hunk itself by parsing each input
-                separately and unioning the results.  This avoids passing a
-                concatenated (potentially invalid-Python) string to ``ast.parse``
-                and removes the need for a regex fallback in
-                ``_imports_from_ast``.
+                When provided, Stage 1 fires only on imports added in the hunk
+                itself (not the file's header imports).  A pure string or comment
+                edit in an import-heavy file will not trigger Stage 1 because the
+                hunk has no import statements of its own.
                 Stage 2 always scores ``hunk_content`` only, regardless of
                 file_source, to avoid token-position false positives from a
                 large file prefix.
@@ -266,14 +264,11 @@ class SequentialImportBpeScorer:
             }
 
         if file_source is not None:
-            # Stage 1 — split: parse the import block and the hunk independently.
-            # extract_imports() returns only import lines (always valid Python), so
-            # ast.parse succeeds.  The hunk may be a mid-block slice (SyntaxError is
-            # fine — _imports_from_ast returns set() in that case).
-            file_imports = _imports_from_ast(extract_imports(file_source))
+            # Stage 1 — hunk-only: only imports added in the hunk can introduce a
+            # foreign module.  A pure string/comment edit in an import-heavy file
+            # has no hunk imports and cannot trigger Stage 1.
             hunk_imports = _imports_from_ast(hunk_content)
-            all_imports = file_imports | hunk_imports
-            foreign = all_imports - self._import_scorer._repo_modules
+            foreign = hunk_imports - self._import_scorer._repo_modules
             import_score: float = float(len(foreign))
         else:
             import_score = self._import_scorer.score_hunk(hunk_content)

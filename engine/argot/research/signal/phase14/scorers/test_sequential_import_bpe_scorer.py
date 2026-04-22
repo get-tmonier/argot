@@ -319,32 +319,22 @@ def test_extract_imports_empty_source() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Stage 1 detects foreign imports via file_source even if not in hunk
+# Stage 1 is hunk-only — foreign import in file_source alone does NOT fire
 # ---------------------------------------------------------------------------
 
 
-def test_stage1_detects_foreign_import_via_file_source(tmp_path: Path) -> None:
-    """Stage 1 should flag a hunk when the foreign import is in the file header
-    (file_source) but not in the hunk_content itself.
-
-    Crucially, hunk_content is an incomplete code fragment (mid-block slice) that
-    would produce a SyntaxError if concatenated with the import block.  The split
-    approach — parse extract_imports(file_source) and hunk_content separately —
-    must still detect the foreign import from file_source.
+def test_stage1_file_only_import_does_not_flag(tmp_path: Path) -> None:
+    """Stage 1 must NOT fire when the foreign import is only in file_source but
+    absent from hunk_content.  After the hunk-scope fix (Task #7), Stage 1 only
+    counts imports added in the hunk itself.
     """
-    # model_a has only "faker"
     ma_file = _write_py(tmp_path, "a.py", "import faker\n")
     model_b_path = _make_model_b(tmp_path, {1: 50, 2: 50})
 
-    # file_source contains "from voluptuous import Schema" (foreign import for model_a)
-    # hunk_content is a mid-block slice — concatenating it with the import line
-    # produces invalid Python (SyntaxError), so the old approach would have needed
-    # a regex fallback which caused docstring false positives.
+    # file_source contains a foreign import; hunk_content is a pure code slice with none
     file_source = (
         "from voluptuous import Schema\n\ndef validate(data):\n    schema = Schema({str: int})\n"
     )
-    # Mid-block fragment: indented code with no closing block — invalid if ast.parse'd
-    # together with the import line above
     hunk_content = "    schema = Schema({str: int})\n    return schema(data)\n"
 
     tok = _FakeTok(
@@ -363,11 +353,109 @@ def test_stage1_detects_foreign_import_via_file_source(tmp_path: Path) -> None:
     )
 
     result = scorer.score_hunk(hunk_content, file_source=file_source)
-    # Stage 1 must detect "voluptuous" from file_source even though the concatenated
-    # string would be invalid Python — the split parse approach handles this correctly.
+    # Hunk has no import statement → Stage 1 must not fire, regardless of file_source
+    assert result["import_score"] == 0.0
+    assert result["reason"] != "import"
+
+
+# ---------------------------------------------------------------------------
+# Stage 1 hunk-scope unit tests (Task #7)
+# ---------------------------------------------------------------------------
+
+
+def test_stage1_hunk_with_foreign_import_flags(tmp_path: Path) -> None:
+    """Hunk that adds a foreign import triggers Stage 1."""
+    ma_file = _write_py(tmp_path, "a.py", "import faker\n")
+    model_b_path = _make_model_b(tmp_path, {1: 50, 2: 50})
+
+    hunk_content = "import foreign_pkg\n"
+    tok = _FakeTok(
+        {
+            "import faker\n": [1],
+            "calibration\n": [1],
+            hunk_content: [2],
+        }
+    )
+
+    scorer = SequentialImportBpeScorer(
+        model_a_files=[ma_file],
+        bpe_model_b_path=model_b_path,
+        calibration_hunks=["calibration\n"],
+        _tokenizer=tok,
+    )
+
+    result = scorer.score_hunk(hunk_content, file_source="import faker\n")
     assert result["flagged"] is True
     assert result["reason"] == "import"
     assert result["import_score"] >= 1.0
+
+
+def test_stage1_hunk_with_no_imports_does_not_flag(tmp_path: Path) -> None:
+    """Pure string/comment edit in an import-heavy file must not fire Stage 1.
+
+    Regression test for faker PR #2259 — a logger.debug string change in
+    faker/factory.py fired Stage 1 because factory.py imports stdlib modules.
+    After the hunk-scope fix, Stage 1 only inspects hunk imports.
+    """
+    # model_a is a file that imports stdlib modules (mimics faker/factory.py)
+    ma_file = _write_py(
+        tmp_path, "factory.py", "import os\nimport sys\nimport logging\n\ndef make():\n    pass\n"
+    )
+    model_b_path = _make_model_b(tmp_path, {1: 50, 2: 50})
+
+    # The hunk is a pure string change — no import statement
+    hunk_content = '    logger.debug("not used")\n'
+    # file_source has lots of stdlib imports (would have triggered Stage 1 before fix)
+    file_source = "import os\nimport sys\nimport logging\n\ndef make():\n" + hunk_content
+
+    tok = _FakeTok(
+        {
+            "import os\nimport sys\nimport logging\n\ndef make():\n    pass\n": [1],
+            "calibration\n": [1],
+            hunk_content: [1],
+        }
+    )
+
+    scorer = SequentialImportBpeScorer(
+        model_a_files=[ma_file],
+        bpe_model_b_path=model_b_path,
+        calibration_hunks=["calibration\n"],
+        _tokenizer=tok,
+    )
+
+    result = scorer.score_hunk(hunk_content, file_source=file_source)
+    assert result["import_score"] == 0.0
+    assert result["reason"] != "import"
+
+
+def test_stage1_hunk_with_repo_import_does_not_flag(tmp_path: Path) -> None:
+    """Hunk that adds a repo-local import must not trigger Stage 1.
+
+    _repo_modules is populated from imports found in model_a files.  A module
+    that appears in model_a's own imports is considered local and should not flag.
+    """
+    # model_a file that imports "localmod" — makes "localmod" a known repo module
+    ma_file = _write_py(tmp_path, "a.py", "import localmod\n")
+    model_b_path = _make_model_b(tmp_path, {1: 50, 2: 50})
+
+    hunk_content = "import localmod\n"
+    tok = _FakeTok(
+        {
+            "import localmod\n": [1],
+            "calibration\n": [1],
+        }
+    )
+
+    scorer = SequentialImportBpeScorer(
+        model_a_files=[ma_file],
+        bpe_model_b_path=model_b_path,
+        calibration_hunks=["calibration\n"],
+        _tokenizer=tok,
+    )
+
+    result = scorer.score_hunk(hunk_content, file_source="import localmod\n")
+    assert result["import_score"] == 0.0
+    assert result["reason"] != "import"
 
 
 # ---------------------------------------------------------------------------
