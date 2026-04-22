@@ -230,3 +230,174 @@ def test_prose_line_ranges_jsdoc(adapter: TypeScriptAdapter) -> None:
     assert {1, 2, 3, 4, 5}.issubset(ranges), f"JSDoc lines missing from ranges: {ranges}"
     # Line 6 (function signature) must NOT be prose
     assert 6 not in ranges
+
+
+# ---------------------------------------------------------------------------
+# Fix A: enumerate_sampleable_ranges
+# ---------------------------------------------------------------------------
+
+
+def test_enumerate_sampleable_ranges_typescript_function_declaration(
+    adapter: TypeScriptAdapter,
+) -> None:
+    src = textwrap.dedent("""\
+        function greet(name: string): string {
+          const prefix = "Hello";
+          const suffix = "!";
+          return `${prefix}, ${name}${suffix}`;
+        }
+    """)
+    ranges = adapter.enumerate_sampleable_ranges(src)
+    assert len(ranges) == 1
+    assert ranges[0][0] == 1
+    assert ranges[0][1] == 5
+
+
+def test_enumerate_sampleable_ranges_typescript_arrow_const_export(
+    adapter: TypeScriptAdapter,
+) -> None:
+    """export const foo = () => { ... } must produce a range."""
+    src = textwrap.dedent("""\
+        export const handler = (req: Request): Response => {
+          const body = req.body;
+          const result = process(body);
+          const status = 200;
+          return new Response(result, { status });
+        };
+    """)
+    ranges = adapter.enumerate_sampleable_ranges(src)
+    assert len(ranges) == 1
+    assert ranges[0][0] == 1
+
+
+def test_enumerate_sampleable_ranges_typescript_class_declaration(
+    adapter: TypeScriptAdapter,
+) -> None:
+    src = textwrap.dedent("""\
+        class Counter {
+          private count = 0;
+          increment() { this.count++; }
+          decrement() { this.count--; }
+          value() { return this.count; }
+        }
+    """)
+    ranges = adapter.enumerate_sampleable_ranges(src)
+    assert len(ranges) == 1
+    assert ranges[0][0] == 1
+
+
+def test_enumerate_sampleable_ranges_typescript_interface_type_alias(
+    adapter: TypeScriptAdapter,
+) -> None:
+    src = textwrap.dedent("""\
+        interface Config {
+          host: string;
+          port: number;
+          timeout: number;
+        }
+
+        type Handler = (req: Request) => Response;
+    """)
+    ranges = adapter.enumerate_sampleable_ranges(src)
+    # Both interface and type_alias_declaration should appear
+    assert len(ranges) == 2
+
+
+def test_enumerate_sampleable_ranges_typescript_nested_not_double_counted(
+    adapter: TypeScriptAdapter,
+) -> None:
+    """A nested function inside a top-level function must NOT produce a separate range."""
+    src = textwrap.dedent("""\
+        function outer(x: number): number {
+          function inner(y: number): number {
+            return y * 2;
+          }
+          return inner(x) + 1;
+        }
+    """)
+    ranges = adapter.enumerate_sampleable_ranges(src)
+    assert len(ranges) == 1, f"Expected 1 range (outer only), got {len(ranges)}: {ranges}"
+
+
+# ---------------------------------------------------------------------------
+# Fix B: is_auto_generated restricted to header (HEADER_LINE_LIMIT=20)
+# ---------------------------------------------------------------------------
+
+
+def test_autogen_header_comment_still_flagged_ts(adapter: TypeScriptAdapter) -> None:
+    src = "// AUTO-GENERATED FILE. DO NOT EDIT.\n\nexport const x = 1;\n"
+    assert adapter.is_auto_generated(src) is True
+
+
+def test_autogen_body_comment_mentioning_generated_not_flagged_ts(
+    adapter: TypeScriptAdapter,
+) -> None:
+    """JSDoc comment beyond line 20 saying 'generated' must NOT flag."""
+    # 20 blank lines pushes the comment to line 21 (0-indexed: 20 >= HEADER_LINE_LIMIT=20)
+    src = "\n" * 20 + "/** This function generates streaming HTML. */\nexport function stream() {}\n"
+    assert adapter.is_auto_generated(src) is False
+
+
+def test_autogen_marker_at_line_20_still_flagged_ts(adapter: TypeScriptAdapter) -> None:
+    """Marker at line 20 (1-indexed) must still flag."""
+    # 19 blank lines → comment at line 20 (0-indexed: 19 < 20) → flagged
+    src = "\n" * 19 + "// auto-generated — do not edit\n"
+    assert adapter.is_auto_generated(src) is True
+
+
+def test_autogen_marker_at_line_21_not_flagged_ts(adapter: TypeScriptAdapter) -> None:
+    """Marker at line 21 (1-indexed) must NOT flag."""
+    # 20 blank lines → comment at line 21 (0-indexed: 20 >= 20) → not flagged
+    src = "\n" * 20 + "// auto-generated — do not edit\n"
+    assert adapter.is_auto_generated(src) is False
+
+
+# ---------------------------------------------------------------------------
+# Fix C: value-type-aware is_data_dominant
+# ---------------------------------------------------------------------------
+
+
+def test_data_dominant_array_of_strings_ts(adapter: TypeScriptAdapter) -> None:
+    """Regression: faker-js locale style array of strings must still be flagged."""
+    names = [f"'name_{i}'" for i in range(60)]
+    src = "export const firstName = [\n  " + ",\n  ".join(names) + ",\n];\n"
+    assert adapter.is_data_dominant(src) is True
+
+
+def test_data_dominant_object_of_arrow_functions_ts_not_flagged(
+    adapter: TypeScriptAdapter,
+) -> None:
+    """Object whose values are arrow functions (Hono children.ts pattern) must NOT flag."""
+    src = textwrap.dedent("""\
+        import type { FC } from 'hono/jsx';
+
+        export const Children: Record<string, FC> = {
+          Head: ({ children }) => <head>{children}</head>,
+          Body: ({ children }) => <body>{children}</body>,
+          Title: ({ children }) => <title>{children}</title>,
+          Script: ({ src }) => <script src={src} />,
+          Link: ({ rel, href }) => <link rel={rel} href={href} />,
+          Meta: ({ name, content }) => <meta name={name} content={content} />,
+          Style: ({ children }) => <style>{children}</style>,
+          Html: ({ children }) => <html>{children}</html>,
+        };
+    """)
+    assert adapter.is_data_dominant(src) is False
+
+
+def test_data_dominant_object_of_strings_ts_flagged(adapter: TypeScriptAdapter) -> None:
+    """Pure data object (string values) must still be flagged."""
+    entries = [f"'key_{i}': 'value_{i}'" for i in range(50)]
+    src = "export const MAP = {\n  " + ",\n  ".join(entries) + ",\n};\n"
+    assert adapter.is_data_dominant(src) is True
+
+
+def test_data_dominant_nested_data_array_of_objects_of_strings_ts(
+    adapter: TypeScriptAdapter,
+) -> None:
+    """faker-js locale-style nested structure (array of objects with string values) must flag."""
+    rows = [
+        "{ firstName: 'Alice', lastName: 'Smith', city: 'Paris' }" for _ in range(30)
+    ]
+    src = "export const localeData = [\n  " + ",\n  ".join(rows) + ",\n];\n"
+    assert adapter.is_data_dominant(src) is True
