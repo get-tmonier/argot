@@ -45,51 +45,73 @@ flowchart LR
 | **Import-graph breakthrough** | 13–14 | `SequentialImportBpeScorer` flagged 46/46 breaks with 0 FP across 189 calibration+control hunks; TS bring-up clean on hono (0/22), ink (3/14 all INTENTIONAL), and faker-js (2/46 after 74.8% locale-data filter) | [04-import-graph-breakthrough.md](04-import-graph-breakthrough.md) |
 | **Calibration hygiene** | 15+ | AST-derived typicality predicate brought FP rate below 1% on all 6 corpora; peak reduction on faker-js (5.0% → 0.8%). Ink recall improved +6.6 pp as a side effect of calibration-pool cleanup; one fixture regression on rich (ansi_raw_2 at threshold boundary). | [05-calibration-hygiene.md](05-calibration-hygiene.md) |
 
-## Era-4 → era-5: what changed
+## The arc across five eras
 
-Era 5 added an AST-derived typicality filter on top of the era-4
-scorer. The two metrics worth comparing across corpora are
-false-positive rate and recall. Numbers below are from the
-committed 5-seed full bench runs:
-[`baseline/20260423T155121Z`](../../benchmarks/results/baseline/20260423T155121Z/report.md)
-(era 4) and
-[`baseline/20260423T223111Z`](../../benchmarks/results/baseline/20260423T223111Z/report.md)
-(era 5).
-
-### False-positive rate per corpus
+Each era had a pre-registered success gate in its own metric
+(shuffled AUC for eras 1–3, recall for era 4, "FP <1% on all
+corpora" for era 5). The chart below normalizes each era's
+achievement to a fraction of its own gate — so a bar of 1.0
+means "cleared exactly", below 1.0 means "came in under".
 
 ```mermaid
 xychart-beta
-    title "FP rate (%) — era-4 baseline (bars) vs era-5 (line)"
+    title "Gate clearance per era (1.0 = cleared exactly)"
+    x-axis ["Era 1", "Era 2", "Era 3", "Era 4", "Era 5"]
+    y-axis "fraction of gate" 0 --> 1.1
+    bar [0.89, 0.68, 0.87, 1.00, 0.83]
+    line [1.0, 1.0, 1.0, 1.0, 1.0]
+```
+
+| Era | Best result | Gate | Clearance |
+|:---|---:|---:|---:|
+| 1 (JEPA) | shuffled AUC 0.713 | 0.80 | 0.89 |
+| 2 (honest eval) | synthetic AUC 0.581 | 0.85 | 0.68 |
+| 3 (token-freq hunt) | fixture AUC 0.6968 | 0.80 | 0.87 |
+| 4 (import-graph) | recall 1.0 | 1.0 | 1.00 |
+| 5 (calibration hygiene) | 5/6 corpora at FP <1% | 6/6 | 0.83 |
+
+Eras 1–3 came in short on their own gates. Era 4 cleared
+exactly. Era 5 nearly cleared a new gate (FP <1% on all six
+corpora) — ink at 1.1% is the one marginal miss, with peak
+reduction 84% on faker-js (5.0% → 0.8%).
+
+## Era-4 → era-5: what changed in detail
+
+Era 5's contribution is FP hygiene on top of era 4's recall.
+Per-corpus detail, era-4 baseline (bars) → era-5 (line):
+
+### False-positive rate
+
+```mermaid
+xychart-beta
+    title "FP rate (%) per corpus — era-4 (bars) vs era-5 (line)"
     x-axis ["fastapi", "rich", "faker", "hono", "ink", "faker-js"]
     y-axis "FP rate (%)" 0 --> 6
     bar [0.3, 1.0, 1.7, 0.6, 1.1, 5.0]
     line [0.1, 0.0, 0.1, 0.3, 1.1, 0.8]
 ```
 
-FP rate dropped on 5 of 6 corpora. Five corpora now sit below
-1%; the sixth (ink) is unchanged at 1.1%. Peak reduction on
-faker-js (5.0% → 0.8%, −4.2 pp).
+FP dropped on 5 of 6; unchanged on ink. Peak reduction on
+faker-js (5.0% → 0.8%).
 
-### Recall per corpus
+### Recall
 
 ```mermaid
 xychart-beta
-    title "Recall (%) — era-4 baseline (bars) vs era-5 (line)"
+    title "Recall (%) per corpus — era-4 (bars) vs era-5 (line)"
     x-axis ["fastapi", "rich", "faker", "hono", "ink", "faker-js"]
     y-axis "recall (%)" 0 --> 110
     bar [69.4, 90.0, 100, 60, 86.7, 20.0]
     line [69.4, 80.0, 100, 60, 93.3, 20.0]
 ```
 
-Recall is unchanged on 4 of 6 corpora, +6.6 pp on ink, and
-−10 pp on rich (one fixture — `ansi_raw_2` — sitting at a
-threshold boundary). Net break-fixture count across the
-91-fixture catalog: 0 (ink gained one, rich lost one).
+Unchanged on 4 of 6 corpora; +6.6 pp on ink; −10 pp on rich
+(one fixture at a threshold boundary). Net break-fixture
+count across the 91-fixture catalog: zero change.
 
 ### Summary table
 
-| Corpus | FP (era 4 → era 5) | Recall (era 4 → era 5) |
+| Corpus | FP (era 4 → 5) | Recall (era 4 → 5) |
 |:---|---:|---:|
 | fastapi  | 0.3% → **0.1%** | 69.4% → 69.4% |
 | rich     | 1.0% → **0.0%** | 90.0% → 80.0% |
@@ -98,7 +120,7 @@ threshold boundary). Net break-fixture count across the
 | ink      | 1.1% → 1.1%     | 86.7% → **93.3%** |
 | faker-js | 5.0% → **0.8%** | 20.0% → 20.0% |
 
-Recall limitations on hono (60%) and faker-js (20%) are era-4
+Recall limits on hono (60%) and faker-js (20%) are era-4
 carryover — the scorer can't detect context-dependent breaks
 where the tokens themselves are idiomatic (`Math.random` in a
 provider file, Express patterns in a Hono app). Era 6's
