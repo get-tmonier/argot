@@ -7,19 +7,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import torch
-from sklearn.metrics import roc_auc_score  # type: ignore[import-untyped]
 
+from argot.stats import compute_auc as compute_auc
+from argot.stats import compute_percentiles as compute_percentiles
+from argot.stats import split_by_time as split_by_time
 from argot.train import ModelBundle, train_model
-
-
-def split_by_time(
-    records: list[dict[str, Any]], *, ratio: float = 0.8
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    sorted_records = sorted(records, key=lambda r: int(r["author_date_iso"]))
-    split_idx = int(len(sorted_records) * ratio)
-    return sorted_records[:split_idx], sorted_records[split_idx:]
 
 
 def shuffle_negatives(records: list[dict[str, Any]], *, seed: int = 0) -> list[dict[str, Any]]:
@@ -37,24 +30,6 @@ def inject_foreign(
     rng = random.Random(seed)
     foreign_hunks = [r["hunk_tokens"] for r in foreign]
     return [{**r, "hunk_tokens": rng.choice(foreign_hunks)} for r in home]
-
-
-def compute_percentiles(scores: list[float]) -> dict[str, float]:
-    arr = np.array(scores)
-    return {
-        "min": float(np.min(arr)),
-        "p25": float(np.percentile(arr, 25)),
-        "median": float(np.median(arr)),
-        "p75": float(np.percentile(arr, 75)),
-        "p95": float(np.percentile(arr, 95)),
-        "max": float(np.max(arr)),
-    }
-
-
-def compute_auc(good_scores: list[float], bad_scores: list[float]) -> float:
-    labels = [0] * len(good_scores) + [1] * len(bad_scores)
-    scores = good_scores + bad_scores
-    return float(roc_auc_score(labels, scores))
 
 
 def score_records(bundle: ModelBundle, records: list[dict[str, Any]]) -> list[float]:
