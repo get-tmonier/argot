@@ -357,6 +357,91 @@ def test_score_real_hunks_short_circuits_path_excluded(tmp_path: Path):
     assert stats["controls_path_excluded"] == 1
 
 
+class _FlagAtypicalFile:
+    """Stub TypicalityModel: hunk-level passes, file-level flags."""
+
+    def is_atypical(self, hunk: str):  # noqa: ARG002
+        from argot_bench.typicality import TypicalityFeatures
+
+        return False, 0.0, TypicalityFeatures(0.3, 0.0, 1.0, 0.9, 8)
+
+    def is_atypical_file(self, source: str):  # noqa: ARG002
+        from argot_bench.typicality import TypicalityFeatures
+
+        return True, TypicalityFeatures(0.85, 0.0, 0.5, 0.6, 300)
+
+
+def test_score_real_hunks_file_level_fallback(tmp_path: Path):
+    """When hunk-level passes but is_atypical_file fires, result carries reason='atypical_file'."""
+    repo = tmp_path / "repo"
+    (repo / "pkg").mkdir(parents=True)
+    (repo / "pkg" / "data.py").write_text("x = 1\n")
+
+    class AssertNotCalledScorer:
+        def score_hunk(self, *_a: object, **_kw: object) -> ScoreResult:
+            raise AssertionError("scorer must not be invoked for atypical_file hunks")
+
+    record = {
+        "file_path": "pkg/data.py",
+        "hunk_start_line": 0,
+        "hunk_end_line": 1,
+    }
+    stats: dict[str, int] = {"controls_atypical_file": 0}
+    results = _score_real_hunks(
+        AssertNotCalledScorer(),  # type: ignore[arg-type]
+        [record],
+        repo,
+        typicality_model=_FlagAtypicalFile(),  # type: ignore[arg-type]
+        filter_stats=stats,
+    )
+
+    assert len(results) == 1
+    r = results[0]
+    assert r["reason"] == "atypical_file"
+    assert r["flagged"] is False
+    assert "file_typicality_features" in r
+    assert stats["controls_atypical_file"] == 1
+
+
+def test_score_real_hunks_file_level_cache_used(tmp_path: Path):
+    """is_atypical_file is called once per file, not once per hunk."""
+    repo = tmp_path / "repo"
+    (repo / "pkg").mkdir(parents=True)
+    (repo / "pkg" / "data.py").write_text("x = 1\ny = 2\nz = 3\n")
+
+    file_call_count = {"n": 0}
+
+    class CountingTypicality:
+        def is_atypical(self, hunk: str):  # noqa: ARG002
+            from argot_bench.typicality import TypicalityFeatures
+
+            return False, 0.0, TypicalityFeatures(0.3, 0.0, 1.0, 0.9, 3)
+
+        def is_atypical_file(self, source: str):  # noqa: ARG002
+            file_call_count["n"] += 1
+            from argot_bench.typicality import TypicalityFeatures
+
+            return False, TypicalityFeatures(0.3, 0.0, 1.0, 0.9, 3)
+
+    records = [
+        {"file_path": "pkg/data.py", "hunk_start_line": 0, "hunk_end_line": 1},
+        {"file_path": "pkg/data.py", "hunk_start_line": 1, "hunk_end_line": 2},
+        {"file_path": "pkg/data.py", "hunk_start_line": 2, "hunk_end_line": 3},
+    ]
+
+    class NoopScorer:
+        def score_hunk(self, *_a: object, **_kw: object) -> ScoreResult:
+            return ScoreResult(import_score=0.0, bpe_score=1.0, flagged=False, reason="none")
+
+    _score_real_hunks(
+        NoopScorer(),  # type: ignore[arg-type]
+        records,
+        repo,
+        typicality_model=CountingTypicality(),  # type: ignore[arg-type]
+    )
+    assert file_call_count["n"] == 1, f"expected 1 file-level call, got {file_call_count['n']}"
+
+
 def test_filter_stats_counts_path_exclusions(tmp_path: Path):
     """filter_stats['controls_path_excluded'] is incremented for each excluded-path hunk."""
     repo = tmp_path / "repo"

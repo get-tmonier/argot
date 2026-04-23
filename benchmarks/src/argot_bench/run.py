@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal, cast
 
 if TYPE_CHECKING:
-    from argot_bench.typicality import TypicalityModel
+    from argot_bench.typicality import TypicalityFeatures, TypicalityModel
 
 from argot_bench.clone import ensure_clone, ensure_sha_checked_out
 from argot_bench.extract import ensure_extracted
@@ -132,6 +132,7 @@ def _score_real_hunks(
         _path_excl_fn = _is_excluded
         _exclude_dirs = _DEFAULT_EXCLUDE_DIRS
 
+    file_level_cache: dict[str, tuple[bool, TypicalityFeatures]] = {}
     out: list[dict[str, object]] = []
     for h in hunks:
         file_path_rel = h.get("file_path")
@@ -181,6 +182,31 @@ def _score_real_hunks(
                         "reason": "atypical",
                         "typicality_distance": distance,
                         "typicality_features": list(features),
+                    }
+                )
+                continue
+            # File-level fallback: hunk passed, but check whether the containing
+            # file is data-dominant overall (catches partial-array hunks whose
+            # fragment is too small to exceed the hunk-level gate alone).
+            if file_path_rel not in file_level_cache:
+                fa, ff = typicality_model.is_atypical_file(file_source)
+                file_level_cache[file_path_rel] = (fa, ff)
+            file_atypical, file_features = file_level_cache[file_path_rel]
+            if file_atypical:
+                if filter_stats is not None:
+                    filter_stats["controls_atypical_file"] = (
+                        filter_stats.get("controls_atypical_file", 0) + 1
+                    )
+                out.append(
+                    {
+                        "file_path": file_path_rel,
+                        "hunk_start_line": hs,
+                        "hunk_end_line": he,
+                        "bpe_score": 0.0,
+                        "import_score": 0.0,
+                        "flagged": False,
+                        "reason": "atypical_file",
+                        "file_typicality_features": list(file_features),
                     }
                 )
                 continue
@@ -237,6 +263,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
         "pool_filtered": 0,
         "controls_filtered": 0,
         "controls_path_excluded": 0,
+        "controls_atypical_file": 0,
     }
     if cfg.typicality_filter:
         from argot.scoring.adapters.language_adapter import LanguageAdapter
@@ -328,7 +355,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
                 )
             )
 
-    _excluded_reasons = {"atypical", "excluded_path"}
+    _excluded_reasons = {"atypical", "excluded_path", "atypical_file"}
     break_scores = [cast(float, r["bpe_score"]) for r in fixture_results]
     ctrl_scores = [
         cast(float, r["bpe_score"])
