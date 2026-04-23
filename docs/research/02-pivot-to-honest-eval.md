@@ -1,5 +1,12 @@
 # The pivot to honest evaluation (phases 7–9)
 
+> **TL;DR.** Same-language eval, one pass/fail gate (synthetic AUC
+> 0.85), three architecture races back-to-back. **All three failed**
+> (0.516 / 0.581 / 0.514). The diagnosis: distance-from-home objectives
+> and semantics-preserving mutations are mathematically incompatible.
+> Time to stop learning representations and start asking whether a
+> single hunk carries any detectable signal at all.
+
 ## The hypothesis we were testing
 
 Era 1 ended with a structural problem in the eval itself. Every bucket paired
@@ -48,6 +55,18 @@ own CLI (Effect-TS) and engine (Python) repos, gated at overall delta ≥ 0.20.
 
 ## What the numbers said
 
+```mermaid
+xychart-beta
+    title "Three architectures vs the 0.85 gate — all miss"
+    x-axis ["7.1 word_ngrams", "7.2 BPE + gmm-8", "7.3 CodeRankEmbed", "Phase 8 spot-check (scaled)"]
+    y-axis "synthetic AUC" 0 --> 1
+    bar [0.516, 0.581, 0.514, 0.5646]
+    line [0.85, 0.85, 0.85, 0.85]
+```
+
+> Phase 8's delta 0.0646 is plotted on the AUC axis as 0.5 + 0.0646/2 ≈ 0.565 for
+> visual comparison; the actual gate was delta ≥ 0.20. Either way: well under.
+
 | experiment | encoder + head | best `synthetic_auc_mean` | delta vs 0.85 gate | citation |
 |:-----------|:---------------|:--------------------------|:-------------------|:---------|
 | 7.1 re-baseline | word_ngrams + JEPA | 0.516 ± 0.007 (medium-py) | −0.334 | [jepa rebaseline on the honest corpus](evidence/jepa-rebaseline-honest-corpus.md) |
@@ -57,14 +76,18 @@ own CLI (Effect-TS) and engine (Python) repos, gated at overall delta ≥ 0.20.
 
 Three things the secondary metrics revealed, in order of importance:
 
-**The pretrained encoder worked — just not for mutation detection.** On the
+### The pretrained encoder worked — just not for mutation detection
+
+On the
 7.3 pilot, CodeRankEmbed + JEPA hit `injected_auc` 0.942 ± 0.004 on small-py
 and 0.965 ± 0.007 on small-ts, with `cross_auc_same_lang` 0.75 and
 `shuffled_auc` 0.82–0.89 ([pretrained encoder CodeRankEmbed](evidence/pretrained-encoder-coderankembed.md)).
 The representation discriminated repo origin, token order,
 and foreign-hunk injection sharply. Synthetic mutations stayed at 0.50–0.52.
 
-**Density heads traded sequential signal for repo-identity signal.** GMM-16
+### Density heads traded sequential signal for repo-identity signal
+
+GMM-16
 on BPE cleared `cross_auc_same_lang` 0.868 at large-ts
 ([density heads on BPE](evidence/density-heads-on-bpe.md)) and picked
 up the `case_swap` axis at medium-ts (0.780), but `shuffled_auc` collapsed
@@ -72,7 +95,9 @@ to exactly 0.500 — density scores a hunk by distance from the home
 distribution, with no sequential input, so shuffled tokens sit at the same
 distance as real ones.
 
-**Two of four mutations were no-ops.** `error_flip` and `quote_flip` landed
+### Two of four mutations were no-ops
+
+`error_flip` and `quote_flip` landed
 at exactly 0.500 across every encoder, head, and bucket in 7.1, 7.2, and
 7.3, because ~half the held-out hunks lacked the trigger tokens (`raise`/
 `throw`, quote characters) the mutations needed

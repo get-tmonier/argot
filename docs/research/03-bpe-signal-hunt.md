@@ -1,5 +1,13 @@
 # The token-frequency signal hunt (phases 10–12)
 
+> **TL;DR.** Before swinging at a third architecture, stop and ask the
+> primitive question: is a style break statistically different at the
+> token level? Two findings from the hunt: the 20-line lexical context
+> window was **below chance** (AUC 0.487); replacing it with a full
+> file-level window lifted JEPA to 0.653. And a zero-training
+> **`tfidf_anomaly`** scorer then beat that at **AUC 0.6968** — JEPA
+> was deposed by a frequency table. But still short of the 0.80 gate.
+
 ## The hypothesis we were testing
 
 Era 2 ended with a direct diagnosis: no training signal in the loop
@@ -50,6 +58,36 @@ much cheaper vocabulary-based scorer ought to reach the same frontier.
 
 ## What the numbers said
 
+**Finding 1 — the 20-line window was actively harmful.**
+
+```mermaid
+xychart-beta
+    title "Phase 11 context window sweep — 51 FastAPI fixtures"
+    x-axis ["baseline (20-line)", "parent_only", "siblings_only", "combined", "file_only"]
+    y-axis "AUC" 0.4 --> 0.7
+    bar [0.487, 0.627, 0.624, 0.645, 0.653]
+```
+
+Every AST-derived context beat the 20-line baseline by ≥ +0.14 AUC.
+`file_only` (full source file minus the hunk, 2000-char budget) took the
+lead at **0.653** — biggest single-step AUC jump of the hunt, no scorer
+change needed.
+
+**Finding 2 — a frequency table beat JEPA at zero training cost.**
+
+```mermaid
+xychart-beta
+    title "Phase 12 scorer bakeoff — same 51 fixtures, file_only context"
+    x-axis ["MLM surprise", "JEPA file_only (prev winner)", "tfidf_anomaly"]
+    y-axis "AUC" 0.4 --> 0.8
+    bar [0.429, 0.6532, 0.6968]
+    line [0.80, 0.80, 0.80]
+```
+
+`tfidf_anomaly` — no GPU, no training loop, no neural network — beat
+the Phase 11 JEPA winner by **+0.0436**. MLM came in inverted
+(systematically ranked controls as more anomalous than breaks).
+
 | experiment | key result | citation |
 |:-----------|:-----------|:---------|
 | 10 — JEPA on expanded corpus | `jepa (z)` AUC 0.6419; no AST blend surpassed it (best blend 0.6339) | [AST structural context blend](evidence/ast-structural-context-blend.md) |
@@ -60,7 +98,9 @@ much cheaper vocabulary-based scorer ought to reach the same frontier.
 
 Three findings changed the next move.
 
-**The 20-line lexical window was hurting, not helping.** Phase 11's
+### The 20-line lexical window was hurting, not helping
+
+Phase 11's
 baseline re-run of `EnsembleJepa mean_z` with the original 20-line
 context landed at 0.4871 — below chance on 51 fixtures. Every AST-derived
 context mode beat it by at least +0.1371 AUC, and `file_only` (full source
@@ -70,7 +110,9 @@ The lift was concentrated on `routing` (+0.3334),
 `exception_handling` (+0.3334), and `background_tasks` (+0.3750 from a
 0.0000 baseline), with zero categories regressing from the baseline.
 
-**MLM surprise brought no useful signal.** All three aggregations
+### MLM surprise brought no useful signal
+
+All three aggregations
 (mean / min / p05) came in inverted on the 51-fixture set, systematically
 ranking controls as more anomalous than breaks (overall AUC 0.4129–0.4290)
 ([MLM surprise bakeoff](evidence/mlm-surprise-bakeoff.md)).
@@ -79,7 +121,8 @@ constraints, which changes the conditional semantics; the per-token
 variant was left unmeasured, but joint-masking MLM was cleanly ruled
 out ([MLM surprise bakeoff](evidence/mlm-surprise-bakeoff.md)).
 
-**A zero-training token-frequency scorer beat the JEPA ensemble.**
+### A zero-training token-frequency scorer beat the JEPA ensemble
+
 `tfidf_anomaly` at `file_only` context reached AUC 0.6968 on the same
 51 fixtures — +0.0436 over the Phase 11 JEPA winner, with no training
 and no GPU ([tfidf-anomaly victory](evidence/tfidf-anomaly-victory.md)).

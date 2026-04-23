@@ -1,5 +1,13 @@
 # The JEPA era (phases 1–6)
 
+> **TL;DR.** Six sweeps along the obvious JEPA axes — context, capacity,
+> epochs, n-grams, structural side-features, dense encoders. The
+> eye-catching wins (cross-repo AUC up to 0.867) turned out to be
+> **language detection**, not style discrimination. The only honest
+> metric — shuffled AUC — plateaued at **0.713** at 20k records, well
+> short of a usable style linter. More tuning would only produce more
+> confident wrong numbers.
+
 ## The hypothesis we were testing
 
 Argot's scoring model is trained under a **JEPA** objective — a joint embedding
@@ -40,6 +48,23 @@ and learned dense token encoders — expecting one or two to clear the plateau.
 
 ## What the numbers said
 
+```mermaid
+xychart-beta
+    title "Cross-repo AUC vs shuffled AUC — the gap that broke the era"
+    x-axis ["baseline", "char_ngrams", "path_embed", "combined", "BPE"]
+    y-axis "AUC" 0 --> 1
+    bar [0.637, 0.719, 0.867, 0.394, 0.704]
+```
+
+The eye-catching wins (`char_ngrams` 0.719, `path_embed` 0.867) are
+**cross-repo AUC** — scores on bucket pairs that mixed one TypeScript
+repo with one Python repo. That metric was mostly measuring whether the
+model could tell TS from Python, not whether it could spot a style break.
+The same `path_embed` win — a 200-feature TF-IDF over file paths like
+`packages/*/src/*.ts` vs `tests/test_*.py` — hit 0.867 without reading a
+single line of code. When we held language and repo constant (shuffled
+AUC), the best combined run plateaued at **0.713**.
+
 | sweep | corpus / bucket | headline metric | Δ vs prior best | citation |
 |:------|:----------------|:----------------|:----------------|:---------|
 | baseline JEPA (TF-IDF) | TS+Py large (20k) | shuffled AUC 0.637 ± 0.006 | — (random below 20k) | [sizing plateau](evidence/jepa-sizing-plateau.md) |
@@ -55,15 +80,18 @@ Two findings, both surfaced by the
 [combined run where wins did not compound](evidence/jepa-combined-wins-did-not-compound.md),
 forced the pivot.
 
-**The wins did not compound.** Stacking char_ngrams + adaptive epochs +
+### The wins did not compound
+
+Stacking char_ngrams + adaptive epochs +
 context_after gave the best shuffled AUC in the series at every size, but
 regressed cross-repo by −0.325 at small and −0.170 at medium versus
 char_ngrams alone. Different techniques pulled the model in different
 directions and competed for capacity rather than adding up. There was no
 obvious next sweep that would un-stick this.
 
-**Cross-repo and injected AUC were measuring the wrong thing.** Every bucket
-paired one TypeScript repo with one Python repo, so cross-repo and injected
+### Cross-repo AUC was measuring the wrong thing
+
+Every bucket paired one TypeScript repo with one Python repo, so cross-repo and injected
 AUC were mostly **language detection**, not style discrimination. The path
 embedding result made this brutally explicit: a 200-feature TF-IDF over
 `packages/*/src/*.ts` vs `tests/test_*.py` reached cross-repo 0.867 at small
