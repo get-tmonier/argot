@@ -99,7 +99,7 @@ while IFS=$'\t' read -r target_name target_url pr_num sha; do
       run_or_print git -C "${REPO_DIR}" fetch --quiet
     else
       echo "[${target_name}] cloning from ${target_url}"
-      run_or_print git clone --filter=blob:none --quiet "${target_url}" "${REPO_DIR}"
+      run_or_print git clone --quiet "${target_url}" "${REPO_DIR}"
     fi
     PREV_TARGET="${target_name}"
   fi
