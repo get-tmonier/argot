@@ -8,12 +8,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+import numpy as np
 
 from argot.scoring.adapters.language_adapter import LanguageAdapter
 from argot.scoring.adapters.python_adapter import PythonAdapter
-from argot.scoring.calibration.random_hunk_sampler import sample_hunks
+from argot.scoring.calibration.random_hunk_sampler import collect_candidates, sample_hunks
 from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
+
+if TYPE_CHECKING:
+    from argot_bench.typicality import TypicalityModel
 
 Language = Literal["python", "typescript"]
 Reason = Literal["import", "bpe", "none", "auto_generated"]
@@ -103,6 +108,7 @@ def build_scorer(
     seed: int,
     language: Language,
     bpe_model_b: Path | None = None,
+    typicality_model: "TypicalityModel | None" = None,
 ) -> BenchScorer:
     """Build a BenchScorer calibrated on n_cal sampled hunks from repo_dir.
 
@@ -112,6 +118,9 @@ def build_scorer(
         seed: numpy RNG seed for deterministic sampling.
         language: Source language of the target repo.
         bpe_model_b: Optional override for the generic BPE reference model path.
+        typicality_model: Optional model to filter atypical hunks from the
+            calibration pool. When provided, only hunks not flagged as atypical
+            are eligible for sampling.
 
     Raises:
         ValueError: if repo_dir has no source files for the language, or
@@ -122,7 +131,19 @@ def build_scorer(
     if not files:
         raise ValueError(f"No {language} source files found in {repo_dir}")
 
-    cal_hunks = sample_hunks(repo_dir, n_cal, seed, adapter=adapter)
+    if typicality_model is None:
+        cal_hunks = sample_hunks(repo_dir, n_cal, seed, adapter=adapter)
+    else:
+        pool = collect_candidates(repo_dir, adapter=adapter)
+        filtered = [h for h in pool if not typicality_model.is_atypical(h)[0]]
+        if len(filtered) < n_cal:
+            raise ValueError(
+                f"After typicality filter, only {len(filtered)} qualifying hunks "
+                f"remain in {repo_dir!r}; cannot sample n_cal={n_cal}."
+            )
+        rng = np.random.default_rng(seed)
+        indices = rng.choice(len(filtered), size=n_cal, replace=False)
+        cal_hunks = [filtered[int(i)] for i in sorted(indices)]
 
     inner = SequentialImportBpeScorer(
         model_a_files=files,
