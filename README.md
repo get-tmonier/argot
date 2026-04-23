@@ -253,7 +253,7 @@ argot's scorer was benchmarked across 6 open-source repos (3 Python, 3 TypeScrip
 
 ### Controlled break-detection experiment (Python corpora)
 
-The cleanest signal: calibrate on repo-native hunks, inject paradigm-break fixtures, measure recall and FP rate on a held-out control set. Run with 5 independent random seeds per corpus.
+The cleanest signal: calibrate on repo-native hunks, inject paradigm-break fixtures, measure recall and FP rate on a held-out control set. FastAPI and rich were run with 5 independent random seeds to measure threshold variance; faker was run once over its full 139-hunk pool (the pool size makes seed-to-seed variance negligible — confirmed by a pool-capped stability probe).
 
 | Corpus | Seeds | Calibration hunks | Recall | FP rate | Threshold CV |
 |---|---|---|---|---|---|
