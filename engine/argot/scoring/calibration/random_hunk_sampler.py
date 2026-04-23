@@ -73,8 +73,8 @@ def collect_candidates(
     source_dir: Path,
     *,
     exclude_dirs: frozenset[str] | None = None,
-    exclude_data_dominant: bool = True,   # primary file-level filter
-    exclude_atypical: bool = False,       # typicality file-level is opt-in here
+    exclude_data_dominant: bool = True,  # primary file-level filter
+    exclude_atypical: bool = False,  # typicality file-level is opt-in here
     exclude_auto_generated: bool = True,  # deprecated: silently no-op
     adapter: "LanguageAdapter | None" = None,  # noqa: UP037
 ) -> list[str]:
