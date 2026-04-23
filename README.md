@@ -20,6 +20,8 @@
   No GPU · No cloud · No telemetry · Runs in seconds after a one-time calibration
 </p>
 
+$$\text{score}(\text{hunk}) = \max_{t \;\in\; \text{tokens}(\text{hunk})} \log \frac{P_{\text{generic}}(t)}{P_{\text{repo}}(t)}$$
+
 ---
 
 ## What it catches
@@ -231,14 +233,11 @@ flowchart TD
 
    **Stage 2 — BPE log-ratio:** tokenizes the hunk with the [UnixCoder](https://huggingface.co/microsoft/unixcoder-base) BPE tokenizer (pre-trained on 9M+ code files across 9 languages — only the vocabulary is used, not the neural network) and computes a max-surprise score over the hunk's tokens:
 
-   ```
-   P_A(t) = count_A(t) / total_A + ε     # repo-specific token frequency
-   P_B(t) = count_B(t) / total_B + ε     # generic open-source token frequency
+$$P_A(t) = \frac{\text{count}_A(t)}{\text{total}_A} + \varepsilon \qquad P_B(t) = \frac{\text{count}_B(t)}{\text{total}_B} + \varepsilon$$
 
-   surprise(t)  = log P_B(t) − log P_A(t)
-   score(hunk)  = max  surprise(t)
-                   t ∈ tokens(hunk)
-   ```
+$$\text{surprise}(t) = \log P_B(t) - \log P_A(t)$$
+
+$$\text{score}(\text{hunk}) = \max_{t \;\in\; \text{tokens}(\text{hunk})} \text{surprise}(t)$$
 
    A high score means at least one token in the hunk is far more common in generic open-source code than in *this* repo — a reliable signal of foreign style. Model A is built by counting BPE tokens across the repo's non-test source files (CPU-only, takes seconds). Model B is a pre-built reference distribution bundled with argot — no download, no training loop. Prose lines (comments, docstrings) are blanked before scoring to avoid natural-language noise inflating the signal.
 
