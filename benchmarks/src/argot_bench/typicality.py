@@ -11,12 +11,17 @@ No imports from ``engine/argot/scoring/``. Parses source directly with
 from __future__ import annotations
 
 import math
+import warnings
 from collections import Counter
 from collections.abc import Iterator
 from typing import Literal, NamedTuple
 
+import numpy as np
 import tree_sitter_python as tspython
 import tree_sitter_typescript as tstypescript
+from scipy.stats import chi2
+from sklearn.covariance import MinCovDet
+from sklearn.exceptions import NotFittedError
 from tree_sitter import Language, Node
 from tree_sitter import Parser as TsParser
 
@@ -148,9 +153,7 @@ def _compute_generic(
         tree = parser.parse(source.encode("utf-8"))
     except Exception:
         return _NEUTRAL
-    if tree.root_node.has_error and all(
-        c.type == "ERROR" for c in tree.root_node.children if c.is_named
-    ):
+    if tree.root_node.has_error and all(c.type == "ERROR" for c in tree.root_node.children if c.is_named):
         return _NEUTRAL
 
     leaves_total = 0
@@ -206,3 +209,151 @@ def compute_features(source: str, language: Language_) -> TypicalityFeatures:
     if language == "typescript":
         return _compute_typescript(source)
     raise ValueError(f"unsupported language: {language}")
+
+
+# Chi-squared 99th percentile, 4 degrees of freedom — ~13.28.
+_CHI2_CUTOFF_P99_DF4: float = float(chi2.ppf(0.99, df=4))
+
+# Minimum pool size below which MCD is skipped and the fallback engages.
+# MCD requires >= 2 * n_features + 1 samples for a non-degenerate fit.
+_MCD_MIN_SAMPLES: int = 50
+
+# log-transform applied to index 1 (control_node_density) before fitting /
+# predicting, to compress the long right tail + zero-heavy left side.
+_LOG_TRANSFORM_INDICES: tuple[int, ...] = (1,)
+
+
+def _features_to_vector(f: TypicalityFeatures) -> np.ndarray:
+    v = np.array(
+        [
+            f.literal_leaf_ratio,
+            f.control_node_density,
+            f.ast_type_entropy,
+            f.unique_token_ratio,
+        ],
+        dtype=np.float64,
+    )
+    for idx in _LOG_TRANSFORM_INDICES:
+        v[idx] = math.log1p(v[idx])
+    return v
+
+
+class TypicalityModel:
+    """Robust Mahalanobis outlier model fit on a corpus candidate pool.
+
+    Applied symmetrically at both calibration (to drop atypical hunks from
+    the calibration sampling pool) and inference (to short-circuit atypical
+    control hunks to "not flagged" before the production scorer sees them).
+
+    Falls back to per-feature percentile-OR cutoffs when MCD cannot fit
+    robustly (pool size < ``_MCD_MIN_SAMPLES`` or singular covariance).
+    """
+
+    def __init__(self, language: Language_) -> None:
+        self.language: Language_ = language
+        self._fitted: bool = False
+        self._mcd: MinCovDet | None = None
+        self._fallback_bounds: dict[str, tuple[float, float]] | None = None
+        self.used_fallback: bool = False
+
+    def fit(self, pool: list[str]) -> None:
+        """Fit the outlier model on ``pool`` — list of hunk source strings."""
+        features_list = [compute_features(h, self.language) for h in pool]
+        # Drop neutral-zero features (parse errors) from the fitting pool.
+        vectors = np.array(
+            [_features_to_vector(f) for f in features_list if f != _NEUTRAL],
+            dtype=np.float64,
+        )
+
+        if vectors.shape[0] >= _MCD_MIN_SAMPLES:
+            try:
+                with warnings.catch_warnings(record=True) as caught:
+                    warnings.simplefilter("always")
+                    mcd = MinCovDet(random_state=0).fit(vectors)
+                # Treat near-singular covariance as a fallback condition — a
+                # degenerate pool (all structurally identical) produces rank-
+                # deficient estimates that lead to false positives.
+                rank_deficient = any(
+                    issubclass(w.category, UserWarning) and "not full rank" in str(w.message) for w in caught
+                )
+                if not rank_deficient:
+                    self._mcd = mcd
+                    self.used_fallback = False
+                    self._fitted = True
+                    return
+            except (ValueError, np.linalg.LinAlgError):
+                pass  # fall through to fallback
+
+        self._fallback_bounds = self._compute_fallback_bounds(vectors)
+        self.used_fallback = True
+        self._fitted = True
+
+    @staticmethod
+    def _compute_fallback_bounds(
+        vectors: np.ndarray,
+    ) -> dict[str, tuple[float, float]]:
+        """Per-feature (p1, p99) bounds for the percentile-OR fallback.
+
+        When the pool is near-degenerate (all items structurally identical),
+        p1 ≈ p99.  We add a minimum slack per feature so that minor
+        structural variation in normal code does not produce false positives.
+        Only extreme outliers (data tables, generated boilerplate) should be
+        caught by the fallback.
+        """
+        if vectors.shape[0] == 0:
+            return {
+                "literal_leaf_ratio": (-math.inf, math.inf),
+                "control_node_density": (-math.inf, math.inf),
+                "ast_type_entropy": (-math.inf, math.inf),
+                "unique_token_ratio": (-math.inf, math.inf),
+            }
+        p1 = np.percentile(vectors, 1, axis=0)
+        p99 = np.percentile(vectors, 99, axis=0)
+        # Minimum slack: ensures the bound never collapses to a point even
+        # when the pool is homogeneous.  Values are chosen so that only
+        # clearly extreme outliers (literal_leaf_ratio > 0.9, etc.) are caught.
+        _MIN_SLACK: tuple[float, float, float, float] = (0.3, 1.0, 0.5, 0.2)
+        return {
+            # high literal ratio = atypical (data-dense); low side doesn't matter
+            "literal_leaf_ratio": (-math.inf, float(p99[0]) + _MIN_SLACK[0]),
+            # low control density = atypical (data/boilerplate); high side doesn't matter
+            "control_node_density": (max(0.0, float(p1[1]) - _MIN_SLACK[1]), math.inf),
+            # low entropy = atypical (repetitive)
+            "ast_type_entropy": (max(0.0, float(p1[2]) - _MIN_SLACK[2]), math.inf),
+            # low unique-token ratio = atypical (repetitive tokens)
+            "unique_token_ratio": (max(0.0, float(p1[3]) - _MIN_SLACK[3]), math.inf),
+        }
+
+    def is_atypical(self, hunk: str) -> tuple[bool, float, TypicalityFeatures]:
+        """Decide whether ``hunk`` is structurally atypical.
+
+        Returns ``(is_atypical, distance, features)``. For parse errors /
+        empty input the features are the neutral zero tuple, distance is
+        0.0, and ``is_atypical`` is False (never filter what we couldn't
+        parse).
+        """
+        if not self._fitted:
+            raise NotFittedError("TypicalityModel.fit() must be called first")
+
+        features = compute_features(hunk, self.language)
+        if features == _NEUTRAL:
+            return False, 0.0, features
+
+        if self.used_fallback:
+            return self._predict_fallback(features), 0.0, features
+
+        assert self._mcd is not None
+        vec = _features_to_vector(features).reshape(1, -1)
+        distance_sq = float(self._mcd.mahalanobis(vec)[0])
+        return distance_sq > _CHI2_CUTOFF_P99_DF4, distance_sq, features
+
+    def _predict_fallback(self, features: TypicalityFeatures) -> bool:
+        assert self._fallback_bounds is not None
+        b = self._fallback_bounds
+        if features.literal_leaf_ratio > b["literal_leaf_ratio"][1]:
+            return True
+        if features.control_node_density < b["control_node_density"][0]:
+            return True
+        if features.ast_type_entropy < b["ast_type_entropy"][0]:
+            return True
+        return features.unique_token_ratio < b["unique_token_ratio"][0]

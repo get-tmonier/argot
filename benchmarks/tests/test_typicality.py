@@ -131,3 +131,99 @@ def test_typescript_parse_error_returns_zero_features():
 
     source = "function ((("
     assert compute_features(source, "typescript") == TypicalityFeatures(0.0, 0.0, 0.0, 0.0)
+
+
+def _synthetic_normal_python_pool(n: int = 50) -> list[str]:
+    """Generate a pool of structurally normal Python snippets."""
+    pool: list[str] = []
+    for i in range(n):
+        pool.append(
+            "\n".join(
+                [
+                    f"def fn_{i}(value, registry):",
+                    "    items = registry.lookup(value)",
+                    "    if not items:",
+                    "        return None",
+                    "    out = []",
+                    "    for item in items:",
+                    "        out.append(item.transform(value))",
+                    "    return out",
+                ]
+            )
+        )
+    return pool
+
+
+def _data_heavy_python_hunk() -> str:
+    return "\n".join(
+        [
+            "EMOJI = {",
+            *(f'    "emoji_{i}": "U+{i:05X}",' for i in range(80)),
+            "}",
+        ]
+    )
+
+
+def test_typicality_model_flags_data_heavy_against_code_pool():
+    from argot_bench.typicality import TypicalityModel
+
+    pool = _synthetic_normal_python_pool(n=60)
+    model = TypicalityModel(language="python")
+    model.fit(pool)
+
+    data_hunk = _data_heavy_python_hunk()
+    is_atypical, distance, features = model.is_atypical(data_hunk)
+    assert is_atypical, (distance, features)
+    assert features is not None
+    assert features.literal_leaf_ratio > 0.8
+
+
+def test_typicality_model_does_not_flag_normal_code():
+    from argot_bench.typicality import TypicalityModel
+
+    pool = _synthetic_normal_python_pool(n=60)
+    model = TypicalityModel(language="python")
+    model.fit(pool)
+
+    normal_hunk = """
+def parse(request, registry):
+    handlers = registry.lookup(request.path)
+    if not handlers:
+        raise KeyError(request.path)
+    for h in handlers:
+        if h.matches(request):
+            return h.handle(request)
+    return None
+""".strip()
+    is_atypical, distance, features = model.is_atypical(normal_hunk)
+    assert not is_atypical, (distance, features)
+
+
+def test_typicality_model_fallback_on_tiny_pool():
+    """When MCD can't fit (too few samples), the percentile-OR fallback engages
+    and still flags obviously atypical hunks."""
+    from argot_bench.typicality import TypicalityModel
+
+    # 4 samples, 4 features — way below MCD's support_fraction requirement
+    pool = _synthetic_normal_python_pool(n=4)
+    model = TypicalityModel(language="python")
+    model.fit(pool)
+
+    assert model.used_fallback, "expected fallback path on tiny pool"
+
+    data_hunk = _data_heavy_python_hunk()
+    is_atypical, _, _ = model.is_atypical(data_hunk)
+    assert is_atypical
+
+
+def test_typicality_model_is_atypical_safe_on_parse_error():
+    """Unparseable hunks are treated as typical (not filtered)."""
+    from argot_bench.typicality import TypicalityModel
+
+    pool = _synthetic_normal_python_pool(n=60)
+    model = TypicalityModel(language="python")
+    model.fit(pool)
+
+    is_atypical, distance, features = model.is_atypical("def ((((")
+    assert not is_atypical
+    assert features is not None  # features will be the neutral zero tuple
