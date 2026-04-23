@@ -42,7 +42,7 @@ export const statusCommand = Command.make('status', {}, () =>
     yield* Console.log(`Dataset:  ${datasetLine}`);
 
     const modelLine = yield* Effect.tryPromise(async () => {
-      const s = await stat(ctx.modelPath);
+      const s = await stat(ctx.modelAPath);
       return `trained ${formatAge(s.mtime)} · ${formatBytes(s.size)}`;
     }).pipe(Effect.orElseSucceed(() => 'not trained'));
     yield* Console.log(`Model:    ${modelLine}`);

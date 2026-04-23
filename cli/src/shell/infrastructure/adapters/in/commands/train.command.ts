@@ -8,7 +8,11 @@ export const trainCommand = Command.make('train', {}, () =>
     const { resolveContext } = yield* RepoContext;
     const ctx = yield* resolveContext();
     yield* Console.log(`argot · ${ctx.name} (${ctx.gitRoot})`);
-    yield* runTrainModel({ datasetPath: ctx.datasetPath, modelPath: ctx.modelPath });
-    yield* Console.log(`Model written to ${ctx.modelPath}`);
+    yield* runTrainModel({
+      repoPath: ctx.gitRoot,
+      modelAPath: ctx.modelAPath,
+      modelBPath: ctx.modelBPath,
+    });
+    yield* Console.log(`Model written to ${ctx.argotDir}`);
   }),
 );

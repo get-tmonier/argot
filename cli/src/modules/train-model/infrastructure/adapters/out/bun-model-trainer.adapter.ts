@@ -7,14 +7,24 @@ import { TrainExitNonZero, TrainSpawnFailed } from '#modules/train-model/domain/
 
 export const BunModelTrainerLive = Layer.effect(ModelTrainer)(
   Effect.succeed({
-    runTrain: ({ datasetPath, modelPath }: { datasetPath: string; modelPath: string }) =>
+    runTrain: ({
+      repoPath,
+      modelAPath,
+      modelBPath,
+    }: {
+      repoPath: string;
+      modelAPath: string;
+      modelBPath: string;
+    }) =>
       Effect.callback<void, TrainExitNonZero | TrainSpawnFailed>((resume) => {
         const { cmd, args } = engineCmd('argot.train');
         let proc: ReturnType<typeof spawn>;
         try {
-          proc = spawn(cmd, [...args, '--dataset', datasetPath, '--out', modelPath], {
-            stdio: ['ignore', 'inherit', 'pipe'],
-          });
+          proc = spawn(
+            cmd,
+            [...args, '--repo', repoPath, '--model-a-out', modelAPath, '--model-b-out', modelBPath],
+            { stdio: ['ignore', 'inherit', 'pipe'] },
+          );
         } catch (cause: unknown) {
           resume(Effect.fail(new TrainSpawnFailed({ cause })));
           return;

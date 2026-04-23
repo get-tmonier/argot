@@ -87,11 +87,14 @@ export const FsRepoContextLive = Layer.effect(RepoContext)(
           }
           await writeGlobalSettingsAsync(global);
 
+          const argotDir = join(gitRoot, '.argot');
           return {
             gitRoot,
             name: global.repos[gitRoot]!.name,
-            datasetPath: join(gitRoot, '.argot', 'dataset.jsonl'),
-            modelPath: join(gitRoot, '.argot', 'model.pkl'),
+            argotDir,
+            datasetPath: join(argotDir, 'dataset.jsonl'),
+            modelAPath: join(argotDir, 'model_a.txt'),
+            modelBPath: join(argotDir, 'model_b.json'),
             preferences,
           };
         },
@@ -109,7 +112,9 @@ export const FsRepoContextLive = Layer.effect(RepoContext)(
             const datasetInfo: DatasetInfo | null = await statOrNull(
               join(path, '.argot', 'dataset.jsonl'),
             );
-            const modelInfo: ModelInfo | null = await statOrNull(join(path, '.argot', 'model.pkl'));
+            const modelInfo: ModelInfo | null = await statOrNull(
+              join(path, '.argot', 'model_a.txt'),
+            );
             results.push({
               path,
               name: entry.name,

@@ -23,7 +23,7 @@ export const checkCommand = Command.make(
       const hasViolations = yield* runCheckStyle({
         repoPath: ctx.gitRoot,
         ref,
-        modelPath: ctx.modelPath,
+        argotDir: ctx.argotDir,
         threshold: ctx.preferences.threshold,
       });
       if (hasViolations) process.exit(1);
