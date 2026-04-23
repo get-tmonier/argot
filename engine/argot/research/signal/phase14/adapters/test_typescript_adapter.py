@@ -402,3 +402,139 @@ def test_data_dominant_nested_data_array_of_objects_of_strings_ts(
     ]
     src = "export const localeData = [\n  " + ",\n  ".join(rows) + ",\n];\n"
     assert adapter.is_data_dominant(src) is True
+
+
+# ---------------------------------------------------------------------------
+# Fix: is_data_dominant export_default path
+# ---------------------------------------------------------------------------
+
+
+def test_is_data_dominant_export_default_string_array(adapter: TypeScriptAdapter) -> None:
+    """faker-js locale shape: export default ['Alice', 'Bob', ...] must be flagged."""
+    names = [f"'Name{i}'" for i in range(80)]
+    src = "export default [\n  " + ",\n  ".join(names) + ",\n];\n"
+    assert adapter.is_data_dominant(src) is True
+
+
+def test_is_data_dominant_export_default_object_of_strings(adapter: TypeScriptAdapter) -> None:
+    """export default {first_name: '...', last_name: '...'} must be flagged."""
+    keys = ["first_name", "last_name", "city", "country"]
+    entries = [f"'{k}': 'value_{k}'" for k in keys * 15]
+    src = "export default {\n  " + ",\n  ".join(entries) + ",\n};\n"
+    assert adapter.is_data_dominant(src) is True
+
+
+def test_is_data_dominant_export_default_object_of_methods(adapter: TypeScriptAdapter) -> None:
+    """Fix C value-type guard still holds: export default {foo: () => {}} must NOT flag."""
+    src = textwrap.dedent("""\
+        export default {
+          foo: () => { return 1; },
+          bar: () => { return 2; },
+          baz: () => { return 3; },
+          qux: () => { return 4; },
+          quux: () => { return 5; },
+        };
+    """)
+    assert adapter.is_data_dominant(src) is False
+
+
+def test_is_data_dominant_export_default_function_not_flagged(adapter: TypeScriptAdapter) -> None:
+    """export default function foo() {...} must NOT be flagged as data-dominant."""
+    src = textwrap.dedent("""\
+        export default function processLocale(data: string[]): string[] {
+          return data.map(s => s.trim());
+        }
+    """)
+    assert adapter.is_data_dominant(src) is False
+
+
+def test_is_data_dominant_export_default_class_not_flagged(adapter: TypeScriptAdapter) -> None:
+    """export default class Foo {...} must NOT be flagged as data-dominant."""
+    src = textwrap.dedent("""\
+        export default class Locale {
+          constructor(private data: string[]) {}
+          get(index: number): string { return this.data[index]; }
+        }
+    """)
+    assert adapter.is_data_dominant(src) is False
+
+
+def test_is_data_dominant_export_const_array_still_works(adapter: TypeScriptAdapter) -> None:
+    """Regression: export const firstName = ['A', 'B'] still works after fix."""
+    names = [f"'name_{i}'" for i in range(60)]
+    src = "export const firstName = [\n  " + ",\n  ".join(names) + ",\n];\n"
+    assert adapter.is_data_dominant(src) is True
+
+
+def test_is_data_dominant_nested_locale_style(adapter: TypeScriptAdapter) -> None:
+    """export default {names: ['A', 'B'], ages: [1, 2]} — typical faker pattern."""
+    src = textwrap.dedent("""\
+        export default {
+          names: ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve'],
+          ages: [25, 30, 35, 40, 45],
+          cities: ['Paris', 'London', 'Berlin', 'Rome', 'Madrid'],
+        };
+    """)
+    assert adapter.is_data_dominant(src) is True
+
+
+# ---------------------------------------------------------------------------
+# Fix: enumerate_sampleable_ranges export_default paths
+# ---------------------------------------------------------------------------
+
+
+def test_enumerate_sampleable_ranges_export_default_function(adapter: TypeScriptAdapter) -> None:
+    """export default function foo() {...} must produce 1 sampleable range."""
+    src = textwrap.dedent("""\
+        export default function processLocale(data: string[]): string[] {
+          const result = data.map(s => s.trim());
+          const filtered = result.filter(s => s.length > 0);
+          return filtered;
+        }
+    """)
+    ranges = adapter.enumerate_sampleable_ranges(src)
+    assert len(ranges) == 1
+    assert ranges[0][0] == 1
+
+
+def test_enumerate_sampleable_ranges_export_default_class(adapter: TypeScriptAdapter) -> None:
+    """export default class Foo {...} must produce 1 sampleable range."""
+    src = textwrap.dedent("""\
+        export default class Locale {
+          constructor(private data: string[]) {}
+          get(index: number): string { return this.data[index]; }
+          size(): number { return this.data.length; }
+        }
+    """)
+    ranges = adapter.enumerate_sampleable_ranges(src)
+    assert len(ranges) == 1
+    assert ranges[0][0] == 1
+
+
+def test_enumerate_sampleable_ranges_export_default_arrow(adapter: TypeScriptAdapter) -> None:
+    """export default (data: string[]) => {...} must produce 1 sampleable range."""
+    src = textwrap.dedent("""\
+        export default (data: string[]): string[] => {
+          const result = data.map(s => s.trim());
+          const filtered = result.filter(s => s.length > 0);
+          return filtered;
+        };
+    """)
+    ranges = adapter.enumerate_sampleable_ranges(src)
+    assert len(ranges) == 1
+    assert ranges[0][0] == 1
+
+
+def test_enumerate_sampleable_ranges_export_default_array_not_sampleable(
+    adapter: TypeScriptAdapter,
+) -> None:
+    """export default [...] (pure data) must NOT produce any sampleable range."""
+    src = textwrap.dedent("""\
+        export default [
+          'Alice',
+          'Bob',
+          'Charlie',
+        ];
+    """)
+    ranges = adapter.enumerate_sampleable_ranges(src)
+    assert len(ranges) == 0

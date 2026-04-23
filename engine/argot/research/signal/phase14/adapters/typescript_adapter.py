@@ -184,6 +184,11 @@ def _collect_ts_data_rows(root: Node, rows: set[int]) -> None:
                 if sub.type in ("lexical_declaration", "variable_declaration"):
                     target_decl = sub
                     break
+                elif sub.type in _TS_DATA_LITERAL_TYPES:
+                    # export default [...] or export default {...}
+                    if _is_ts_value_literal_dominant(sub):
+                        rows.update(range(child.start_point[0], child.end_point[0] + 1))
+                    break
 
         if target_decl is None:
             continue
@@ -332,12 +337,18 @@ class TypeScriptAdapter:
                     if sub.type in _TS_SAMPLEABLE_TOP_LEVEL or sub.type in (
                         "lexical_declaration",
                         "variable_declaration",
+                        *_TS_FUNCTION_VALUE_TYPES,
                     ):
                         inner = sub
                         break
 
             if inner.type in _TS_SAMPLEABLE_TOP_LEVEL:
                 start = inner.start_point[0] + 1  # 1-indexed
+                end = inner.end_point[0] + 1
+                ranges.append((start, end))
+            elif inner.type in _TS_FUNCTION_VALUE_TYPES:
+                # export default () => { ... } or export default function() { ... } expression
+                start = inner.start_point[0] + 1
                 end = inner.end_point[0] + 1
                 ranges.append((start, end))
             elif inner.type in ("lexical_declaration", "variable_declaration"):
