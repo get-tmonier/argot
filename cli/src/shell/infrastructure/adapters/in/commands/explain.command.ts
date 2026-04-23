@@ -23,7 +23,7 @@ export const explainCommand = Command.make(
       yield* runExplain({
         repoPath: ctx.gitRoot,
         ref,
-        modelPath: ctx.modelPath,
+        modelPath: ctx.modelAPath,
         datasetPath: ctx.datasetPath,
         claudeModel: ctx.preferences.model,
         threshold: ctx.preferences.threshold,

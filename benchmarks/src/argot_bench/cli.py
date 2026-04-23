@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import json
+import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -29,10 +31,44 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--fresh", action="store_true")
     p.add_argument("--data-dir", type=Path, default=_DEFAULT_DATA)
     p.add_argument("--results-dir", type=Path, default=_DEFAULT_RESULTS)
+    p.add_argument(
+        "--no-typicality-filter",
+        action="store_true",
+        default=False,
+        help="Disable the prod typicality filter for A/B comparison (filter is on by default).",
+    )
+    p.add_argument(
+        "--seeds",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Cap the number of seeds actually run to the first N (default: all 5).",
+    )
+    p.add_argument(
+        "--sample-controls",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "Randomly subsample N control hunks per PR before scoring. "
+            "Reproducible: uses np.random.default_rng(seed) to shuffle then take first N. "
+            "Sampled runs are NOT suitable as baselines."
+        ),
+    )
 
     sub.add_parser("list-corpora", help="Print the 6 corpora in targets.yaml")
     rep = sub.add_parser("report", help="Regenerate report.md from existing JSON")
     rep.add_argument("results_dir", type=Path)
+
+    one = sub.add_parser("run-one", help="Process a single corpus and exit.")
+    one.add_argument("corpus", help="Corpus name from targets.yaml.")
+    one.add_argument("--out-dir", type=Path, required=True)
+    one.add_argument("--quick", action="store_true")
+    one.add_argument("--fresh", action="store_true")
+    one.add_argument("--data-dir", type=Path, default=_DEFAULT_DATA)
+    one.add_argument("--no-typicality-filter", action="store_true", default=False)
+    one.add_argument("--seeds", type=int, default=None)
+    one.add_argument("--sample-controls", type=int, default=None)
 
     return p
 
@@ -46,9 +82,7 @@ def _cmd_list_corpora() -> int:
 def _cmd_regenerate_report(results_dir: Path) -> int:
     reports: list[CorpusReport] = []
     for j in sorted(results_dir.glob("*.json")):
-        import json as _json
-
-        raw = _json.loads(j.read_text())
+        raw = json.loads(j.read_text())
         reports.append(
             CorpusReport(
                 corpus=raw["corpus"],
@@ -75,6 +109,36 @@ def _select_targets(targets: list[Target], filt: list[str] | None) -> list[Targe
     return out
 
 
+_ALL_SEEDS = [0, 1, 2, 3, 4]
+
+
+def _cmd_run_one(args: argparse.Namespace) -> int:
+    targets = load_targets(_TARGETS_YAML)
+    by_name = {t.name: t for t in targets}
+    if args.corpus not in by_name:
+        print(f"unknown corpus: {args.corpus}", file=sys.stderr)
+        return 2
+    t = by_name[args.corpus]
+    seeds = _ALL_SEEDS[: args.seeds] if args.seeds is not None else _ALL_SEEDS
+    cfg = RunConfig(
+        corpus=t.name,
+        url=t.url,
+        language=t.language,
+        prs=[(pr.pr, pr.sha) for pr in t.prs],
+        catalog_dir=_CATALOGS_DIR / t.name,
+        data_dir=args.data_dir,
+        quick=args.quick,
+        fresh=args.fresh,
+        typicality_filter=not args.no_typicality_filter,
+        seeds=seeds,
+        sample_controls=args.sample_controls,
+    )
+    args.out_dir.mkdir(parents=True, exist_ok=True)
+    r = run_corpus(cfg)
+    write_corpus_json(r, args.out_dir / f"{t.name}.json")
+    return 0
+
+
 def _run(args: argparse.Namespace) -> int:
     targets = load_targets(_TARGETS_YAML)
     selected = _select_targets(targets, args.corpus)
@@ -82,22 +146,52 @@ def _run(args: argparse.Namespace) -> int:
     out_dir = args.results_dir / ts
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    base_cmd = [
+        sys.executable,
+        "-m",
+        "argot_bench",
+        "run-one",
+        "--out-dir",
+        str(out_dir),
+        "--data-dir",
+        str(args.data_dir),
+    ]
+    if args.no_typicality_filter:
+        base_cmd.append("--no-typicality-filter")
+    if args.quick:
+        base_cmd.append("--quick")
+    if args.fresh:
+        base_cmd.append("--fresh")
+    if args.seeds is not None:
+        base_cmd.extend(["--seeds", str(args.seeds)])
+    if args.sample_controls is not None:
+        base_cmd.extend(["--sample-controls", str(args.sample_controls)])
+
+    for t in selected:
+        print(f"[{t.name}] spawning subprocess...")
+        proc = subprocess.run(base_cmd + [t.name], check=False)
+        if proc.returncode != 0:
+            print(
+                f"[{t.name}] subprocess failed with exit {proc.returncode}",
+                file=sys.stderr,
+            )
+            return proc.returncode
+
     reports: list[CorpusReport] = []
     for t in selected:
-        print(f"[{t.name}] running...")
-        cfg = RunConfig(
-            corpus=t.name,
-            url=t.url,
-            language=t.language,
-            prs=[(pr.pr, pr.sha) for pr in t.prs],
-            catalog_dir=_CATALOGS_DIR / t.name,
-            data_dir=args.data_dir,
-            quick=args.quick,
-            fresh=args.fresh,
+        j = out_dir / f"{t.name}.json"
+        if not j.exists():
+            print(f"[{t.name}] missing output {j}", file=sys.stderr)
+            return 1
+        raw = json.loads(j.read_text())
+        reports.append(
+            CorpusReport(
+                corpus=raw["corpus"],
+                language=raw["language"],
+                metrics=raw["metrics"],
+                raw_scores=raw.get("raw_scores", []),
+            )
         )
-        r = run_corpus(cfg)
-        reports.append(r)
-        write_corpus_json(r, out_dir / f"{t.name}.json")
 
     (out_dir / "report.md").write_text(render_report_md(reports))
     print(f"wrote {out_dir / 'report.md'}")
@@ -111,4 +205,6 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_list_corpora()
     if args.subcommand == "report":
         return _cmd_regenerate_report(args.results_dir)
+    if args.subcommand == "run-one":
+        return _cmd_run_one(args)
     return _run(args)

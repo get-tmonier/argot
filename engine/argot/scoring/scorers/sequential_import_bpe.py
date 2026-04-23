@@ -21,6 +21,7 @@ from typing import Any, Literal
 
 from argot.scoring.adapters.language_adapter import LanguageAdapter
 from argot.scoring.adapters.registry import adapter_for_files
+from argot.scoring.filters.typicality import TypicalityModel, language_for_adapter
 from argot.scoring.scorers.import_graph import ImportGraphScorer
 
 _EPSILON = 1e-7
@@ -102,7 +103,7 @@ def _compute_threshold(cal_scores: list[float], threshold_percentile: float | No
 
 
 ScoredHunk = dict[str, Any]
-Reason = Literal["import", "bpe", "none", "auto_generated"]
+Reason = Literal["import", "bpe", "none", "auto_generated", "atypical", "atypical_file"]
 
 
 class SequentialImportBpeScorer:
@@ -117,9 +118,11 @@ class SequentialImportBpeScorer:
         threshold_percentile: None → max(cal_scores). A value in (0, 100] → that
             percentile of cal_scores via linear interpolation. Default None preserves
             the existing max behaviour.
-        exclude_data_dominant: Exclude data-dominant files (e.g., locale string tables) from
-            model A's training corpus. Default True — no-op on corpora without such files
-            (FastAPI, Rich). Set False to reproduce pre-fix9 behaviour.
+        enable_typicality_filter: Build a TypicalityModel for calibration pool filtering
+            and inference short-circuit (hunk- and file-level).  Default True.
+            Does NOT affect model-A filtering; model A always uses ``exclude_data_dominant``.
+        exclude_data_dominant: Filter model-A files using LanguageAdapter.is_data_dominant().
+            Unchanged from era 4; typicality does not replace this.
         _tokenizer: Optional pre-loaded tokenizer; loads UnixCoder if None (for DI in tests).
     """
 
@@ -134,6 +137,7 @@ class SequentialImportBpeScorer:
         repo_root: Path | None = None,
         threshold_percentile: float | None = None,
         exclude_data_dominant: bool = True,
+        enable_typicality_filter: bool = True,
         _tokenizer: Any = None,
     ) -> None:
         if calibration_hunks is None and bpe_threshold is None:
@@ -144,6 +148,11 @@ class SequentialImportBpeScorer:
         self._adapter: LanguageAdapter = (
             adapter if adapter is not None else adapter_for_files([str(p) for p in model_a_list])
         )
+
+        # Typicality model — stateless, language-parameterized.
+        self._typicality_model: TypicalityModel | None = None
+        if enable_typicality_filter:
+            self._typicality_model = TypicalityModel(language=language_for_adapter(self._adapter))
 
         if exclude_data_dominant:
             filtered: list[Path] = []
@@ -157,9 +166,8 @@ class SequentialImportBpeScorer:
                     filtered.append(p)
             if not filtered:
                 raise ValueError(
-                    f"exclude_data_dominant=True removed all {len(model_a_list)} model A file(s); "
-                    "cannot train on an empty corpus. "
-                    "Pass exclude_data_dominant=False to skip filtering."
+                    f"exclude_data_dominant=True removed all {len(model_a_list)} "
+                    "model A file(s); cannot train on an empty corpus."
                 )
             model_a_list = filtered
 
@@ -199,7 +207,9 @@ class SequentialImportBpeScorer:
             self.cal_scores: list[float] = []
             self.n_calibration: int = 0
         else:
-            cal_list = calibration_hunks or []
+            cal_list = list(calibration_hunks or [])
+            if self._typicality_model is not None:
+                cal_list = [h for h in cal_list if not self._typicality_model.is_atypical(h)[0]]
             cal_scores = [
                 self._bpe_score(_blank_prose_lines(h, self._adapter.prose_line_ranges(h)))
                 for h in cal_list
@@ -261,7 +271,26 @@ class SequentialImportBpeScorer:
           - flagged (bool): True if either stage fires
           - reason ("import" | "bpe" | "none"): which stage fired first
         """
-        if file_source is not None and self._adapter.is_auto_generated(file_source):
+        # Typicality short-circuits (replaces the legacy auto-generated gate).
+        if self._typicality_model is not None:
+            is_atyp_hunk, _ = self._typicality_model.is_atypical(hunk_content)
+            if is_atyp_hunk:
+                return {
+                    "import_score": 0.0,
+                    "bpe_score": 0.0,
+                    "flagged": False,
+                    "reason": "atypical",
+                }
+            if file_source is not None:
+                is_atyp_file, _ = self._typicality_model.is_atypical_file(file_source)
+                if is_atyp_file:
+                    return {
+                        "import_score": 0.0,
+                        "bpe_score": 0.0,
+                        "flagged": False,
+                        "reason": "atypical_file",
+                    }
+        elif file_source is not None and self._adapter.is_auto_generated(file_source):
             return {
                 "import_score": 0.0,
                 "bpe_score": 0.0,

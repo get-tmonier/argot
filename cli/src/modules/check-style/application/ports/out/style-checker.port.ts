@@ -6,7 +6,7 @@ interface StyleCheckerShape {
   readonly runCheck: (args: {
     repoPath: string;
     ref: string;
-    modelPath: string;
+    argotDir: string;
     threshold: number;
   }) => Effect.Effect<boolean, CheckError>;
 }

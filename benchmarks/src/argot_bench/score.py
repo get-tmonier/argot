@@ -16,7 +16,7 @@ from argot.scoring.calibration.random_hunk_sampler import sample_hunks
 from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
 
 Language = Literal["python", "typescript"]
-Reason = Literal["import", "bpe", "none", "auto_generated"]
+Reason = Literal["import", "bpe", "none", "auto_generated", "atypical", "atypical_file"]
 
 # engine/argot/scoring/bpe/generic_tokens_bpe.json
 # score.py → argot_bench → src → benchmarks → <repo root>
@@ -103,6 +103,7 @@ def build_scorer(
     seed: int,
     language: Language,
     bpe_model_b: Path | None = None,
+    enable_typicality_filter: bool = True,
 ) -> BenchScorer:
     """Build a BenchScorer calibrated on n_cal sampled hunks from repo_dir.
 
@@ -112,10 +113,11 @@ def build_scorer(
         seed: numpy RNG seed for deterministic sampling.
         language: Source language of the target repo.
         bpe_model_b: Optional override for the generic BPE reference model path.
+        enable_typicality_filter: Pass True (default) to let the prod scorer filter
+            atypical model-A files and calibration hunks internally.
 
     Raises:
-        ValueError: if repo_dir has no source files for the language, or
-            if fewer than n_cal qualifying hunks are available for sampling.
+        ValueError: if repo_dir has no source files, or insufficient qualifying hunks.
     """
     adapter = _resolve_adapter(language)
     files = _source_files(repo_dir, adapter)
@@ -130,5 +132,6 @@ def build_scorer(
         calibration_hunks=cal_hunks,
         adapter=adapter,
         repo_root=repo_dir,
+        enable_typicality_filter=enable_typicality_filter,
     )
     return BenchScorer(inner)

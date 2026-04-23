@@ -10,12 +10,12 @@ export const BunStyleCheckerLive = Layer.effect(StyleChecker)(
     runCheck: ({
       repoPath,
       ref,
-      modelPath,
+      argotDir,
       threshold,
     }: {
       repoPath: string;
       ref: string;
-      modelPath: string;
+      argotDir: string;
       threshold: number;
     }) =>
       Effect.callback<boolean, CheckExitNonZero | CheckSpawnFailed>((resume) => {
@@ -24,7 +24,7 @@ export const BunStyleCheckerLive = Layer.effect(StyleChecker)(
         try {
           proc = spawn(
             cmd,
-            [...args, repoPath, ref, '--model', modelPath, '--threshold', String(threshold)],
+            [...args, repoPath, ref, '--argot-dir', argotDir, '--threshold', String(threshold)],
             { stdio: ['ignore', 'inherit', 'pipe'] },
           );
         } catch (cause: unknown) {

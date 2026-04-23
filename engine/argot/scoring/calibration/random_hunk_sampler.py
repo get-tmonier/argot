@@ -18,13 +18,14 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from argot.scoring.adapters.python_adapter import PythonAdapter
+from argot.scoring.filters.typicality import TypicalityModel, language_for_adapter
 
 if TYPE_CHECKING:
     from argot.scoring.adapters.language_adapter import LanguageAdapter
 
 MIN_BODY_LINES: int = 5
 
-_DEFAULT_EXCLUDE_DIRS: frozenset[str] = frozenset(
+DEFAULT_EXCLUDE_DIRS: frozenset[str] = frozenset(
     {
         "test",
         "tests",
@@ -46,9 +47,10 @@ _DEFAULT_EXCLUDE_DIRS: frozenset[str] = frozenset(
         ".eggs",
     }
 )
+_DEFAULT_EXCLUDE_DIRS = DEFAULT_EXCLUDE_DIRS
 
 
-def _is_excluded(path: Path, source_dir: Path, exclude_dirs: frozenset[str]) -> bool:
+def is_excluded_path(path: Path, source_dir: Path, exclude_dirs: frozenset[str]) -> bool:
     try:
         rel = path.relative_to(source_dir)
     except ValueError:
@@ -64,48 +66,51 @@ def _is_excluded(path: Path, source_dir: Path, exclude_dirs: frozenset[str]) -> 
     return ".test." in name or ".spec." in name
 
 
+_is_excluded = is_excluded_path
+
+
 def collect_candidates(
     source_dir: Path,
     *,
     exclude_dirs: frozenset[str] | None = None,
-    exclude_auto_generated: bool = True,
-    exclude_data_dominant: bool = True,
+    exclude_data_dominant: bool = True,  # primary file-level filter
+    exclude_atypical: bool = False,  # typicality file-level is opt-in here
+    exclude_auto_generated: bool = True,  # deprecated: silently no-op
     adapter: "LanguageAdapter | None" = None,  # noqa: UP037
 ) -> list[str]:
     """Return all qualifying hunk strings from source_dir.
 
-    A qualifying hunk is a top-level sampleable unit (as returned by
-    ``adapter.enumerate_sampleable_ranges``) with at least MIN_BODY_LINES lines.
-
-    Args:
-        adapter: LanguageAdapter implementation to use.  Defaults to PythonAdapter.
-        exclude_auto_generated: When True (default), skip auto-generated files.
-        exclude_data_dominant: When True (default), skip data-dominant files.
+    Uses is_data_dominant as the primary file-level filter;
+    typicality file-level gate is opt-in via exclude_atypical.
+    The hunk-level typicality gate still applies inside
+    SequentialImportBpeScorer.__init__ for calibration hunks,
+    and score_hunk short-circuits atypical hunks at inference.
     """
-    excl = exclude_dirs if exclude_dirs is not None else _DEFAULT_EXCLUDE_DIRS
+    excl = exclude_dirs if exclude_dirs is not None else DEFAULT_EXCLUDE_DIRS
     _adapter: LanguageAdapter = adapter if adapter is not None else PythonAdapter()
-    hunks: list[str] = []
 
+    typicality_model: TypicalityModel | None = None
+    if exclude_atypical:
+        typicality_model = TypicalityModel(language=language_for_adapter(_adapter))
+
+    hunks: list[str] = []
     for ext in _adapter.file_extensions:
         for src_file in sorted(source_dir.rglob(f"*{ext}")):
-            if _is_excluded(src_file, source_dir, excl):
+            if is_excluded_path(src_file, source_dir, excl):
                 continue
             try:
                 source = src_file.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 continue
-
-            if exclude_auto_generated and _adapter.is_auto_generated(source):
-                continue
             if exclude_data_dominant and _adapter.is_data_dominant(source):
                 continue
-
+            if typicality_model is not None and typicality_model.is_atypical_file(source)[0]:
+                continue
             lines = source.splitlines()
             for start, end in _adapter.enumerate_sampleable_ranges(source):
                 if (end - start) < MIN_BODY_LINES:
                     continue
                 hunks.append("\n".join(lines[start - 1 : end]))
-
     return hunks
 
 

@@ -5,7 +5,7 @@ import type { CheckError } from '#modules/check-style/domain/errors.ts';
 export const runCheckStyle = (args: {
   repoPath: string;
   ref: string;
-  modelPath: string;
+  argotDir: string;
   threshold: number;
 }): Effect.Effect<boolean, CheckError, StyleChecker> =>
   Effect.gen(function* () {

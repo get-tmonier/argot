@@ -61,3 +61,5 @@ def test_build_scorer_calibrates_on_repo_hunks(tmp_path: Path, monkeypatch):
         hunk_end_line=None,
     )
     assert "flagged" in vars(result) or hasattr(result, "flagged")
+
+

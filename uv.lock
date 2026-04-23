@@ -46,6 +46,10 @@ dependencies = [
     { name = "pandas" },
     { name = "pyyaml" },
     { name = "scikit-learn" },
+    { name = "scipy" },
+    { name = "tree-sitter" },
+    { name = "tree-sitter-python" },
+    { name = "tree-sitter-typescript" },
 ]
 
 [package.metadata]
@@ -54,6 +58,10 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.2" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "scikit-learn", specifier = ">=1.5" },
+    { name = "scipy", specifier = ">=1.12" },
+    { name = "tree-sitter", specifier = ">=0.23" },
+    { name = "tree-sitter-python", specifier = ">=0.23" },
+    { name = "tree-sitter-typescript", specifier = ">=0.23" },
 ]
 
 [[package]]

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
+from itertools import islice
 from pathlib import Path
 from typing import Literal, cast
 
@@ -34,28 +36,41 @@ class RunConfig:
     seeds: list[int] = field(default_factory=lambda: [0, 1, 2, 3, 4])
     quick: bool = False
     fresh: bool = False
+    typicality_filter: bool = True
+    sample_controls: int | None = None
 
 
 def _read_hunk_pair(catalog_dir: Path, fixture: Fixture) -> tuple[str, str]:
     return read_hunk(catalog_dir, fixture)
 
 
-def _real_pr_hunks(
-    dataset_path: Path,
-    *,
-    max_hunks: int | None = None,
-) -> list[dict[str, object]]:
-    hunks: list[dict[str, object]] = []
+def _real_pr_hunks(dataset_path: Path) -> Iterator[dict[str, object]]:
     with dataset_path.open() as f:
         for line in f:
             line = line.strip()
             if not line:
                 continue
-            rec = json.loads(line)
-            hunks.append(rec)
-            if max_hunks is not None and len(hunks) >= max_hunks:
-                break
-    return hunks
+            yield json.loads(line)
+
+
+def _reservoir_sample(
+    hunks: Iterable[dict[str, object]],
+    n: int,
+    seed: int,
+) -> list[dict[str, object]]:
+    """Algorithm R reservoir sampling — O(n) time, O(k) space."""
+    import numpy as np
+
+    rng = np.random.default_rng(seed)
+    reservoir: list[dict[str, object]] = []
+    for i, h in enumerate(hunks):
+        if i < n:
+            reservoir.append(h)
+        else:
+            j = int(rng.integers(0, i + 1))
+            if j < n:
+                reservoir[j] = h
+    return reservoir
 
 
 def _score_fixtures(
@@ -91,7 +106,7 @@ def _score_fixtures(
 
 def _score_real_hunks(
     scorer: BenchScorer,
-    hunks: list[dict[str, object]],
+    hunks: Iterable[dict[str, object]],
     repo_dir: Path,
 ) -> list[dict[str, object]]:
     """Score real-PR hunks from an argot-extract dataset record.
@@ -100,7 +115,14 @@ def _score_real_hunks(
     hunk_end_line)` bounds. The scorer expects the full file source and
     1-indexed inclusive line bounds, so we read the file from the checked-out
     repo and convert the indexing here.
+
+    Hunks whose file falls under an excluded directory (test/, docs/, etc.) are
+    returned with reason='excluded_path' without invoking the scorer.
+    Atypical hunks and data-dominant files produce reason='atypical' or
+    'atypical_file' from the scorer itself.
     """
+    from argot.scoring.calibration.random_hunk_sampler import DEFAULT_EXCLUDE_DIRS, is_excluded_path
+
     out: list[dict[str, object]] = []
     for h in hunks:
         file_path_rel = h.get("file_path")
@@ -109,6 +131,19 @@ def _score_real_hunks(
         if not (isinstance(file_path_rel, str) and isinstance(hs, int) and isinstance(he, int)):
             continue
         file_abs = repo_dir / file_path_rel
+        if is_excluded_path(file_abs, repo_dir, DEFAULT_EXCLUDE_DIRS):
+            out.append(
+                {
+                    "file_path": file_path_rel,
+                    "hunk_start_line": hs,
+                    "hunk_end_line": he,
+                    "bpe_score": 0.0,
+                    "import_score": 0.0,
+                    "flagged": False,
+                    "reason": "excluded_path",
+                }
+            )
+            continue
         try:
             file_source = file_abs.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
@@ -152,6 +187,8 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             seeds=[cfg.seeds[0]],
             quick=True,
             fresh=cfg.fresh,
+            typicality_filter=cfg.typicality_filter,
+            sample_controls=cfg.sample_controls,
         )
         by_cat: dict[str, Fixture] = {}
         for fx in break_fixtures:
@@ -178,14 +215,22 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             n_cal=cfg.n_cal,
             seed=seed,
             language=cfg.language,
+            enable_typicality_filter=cfg.typicality_filter,
         )
         thresholds.append(scorer.threshold)
         cal_score_signatures.append({f"{i}:{s:.4f}" for i, s in enumerate(scorer.cal_scores)})
 
         if seed == cfg.seeds[0]:
             fixture_results = _score_fixtures(scorer, cfg.catalog_dir, break_fixtures)
-            hunks = _real_pr_hunks(dataset, max_hunks=None if not cfg.quick else 50)
-            real_pr_results = _score_real_hunks(scorer, hunks, repo)
+            hunks_stream: Iterable[dict[str, object]] = _real_pr_hunks(dataset)
+            if cfg.quick:
+                hunks_stream = islice(hunks_stream, 50)
+            hunks_input: Iterable[dict[str, object]]
+            if cfg.sample_controls is not None:
+                hunks_input = _reservoir_sample(hunks_stream, cfg.sample_controls, seed)
+            else:
+                hunks_input = hunks_stream
+            real_pr_results = _score_real_hunks(scorer, hunks_input, repo)
 
     # For each injection-host PR beyond the primary, score real hunks (not in quick)
     if not cfg.quick:
@@ -200,19 +245,32 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
                 n_cal=cfg.n_cal,
                 seed=cfg.seeds[0],
                 language=cfg.language,
+                enable_typicality_filter=cfg.typicality_filter,
             )
-            hunks = _real_pr_hunks(dataset)
-            real_pr_results.extend(_score_real_hunks(scorer2, hunks, repo))
+            hunks_stream2: Iterable[dict[str, object]] = _real_pr_hunks(dataset)
+            hunks_input2: Iterable[dict[str, object]]
+            if cfg.sample_controls is not None:
+                hunks_input2 = _reservoir_sample(hunks_stream2, cfg.sample_controls, cfg.seeds[0])
+            else:
+                hunks_input2 = hunks_stream2
+            real_pr_results.extend(_score_real_hunks(scorer2, hunks_input2, repo))
 
+    _excluded_reasons = {"atypical", "atypical_file", "excluded_path", "auto_generated"}
     break_scores = [cast(float, r["bpe_score"]) for r in fixture_results]
-    ctrl_scores = [cast(float, r["bpe_score"]) for r in real_pr_results]
+    ctrl_scores = [
+        cast(float, r["bpe_score"])
+        for r in real_pr_results
+        if r.get("reason") not in _excluded_reasons
+    ]
 
     threshold_mean = sum(thresholds) / len(thresholds) if thresholds else 0.0
 
     metrics = {
         "auc_catalog": auc_catalog(break_scores, ctrl_scores),
         "recall_by_category": recall_by_category(fixture_results),
-        "fp_rate_real_pr": fp_rate(real_pr_results),
+        "fp_rate_real_pr": fp_rate(
+            [r for r in real_pr_results if r.get("reason") not in _excluded_reasons]
+        ),
         "threshold_cv": threshold_cv(thresholds),
         "threshold_mean": threshold_mean,
         "thresholds": thresholds,
@@ -220,6 +278,8 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
         "stage_attribution": stage_attribution(fixture_results),
         "n_fixtures": len(fixture_results),
         "n_real_pr_hunks": len(real_pr_results),
+        "typicality_filter": cfg.typicality_filter,
+        "sample_controls": cfg.sample_controls,
     }
 
     return CorpusReport(

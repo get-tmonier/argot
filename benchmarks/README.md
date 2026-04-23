@@ -82,6 +82,15 @@ Repeat across 5 independent seeds (Python corpora) or 5 seeds on the
 primary PR plus 4 additional PRs (TypeScript) to measure threshold
 stability.
 
+The calibration-pool candidates and the real-PR control hunks are
+both pre-filtered through the AST-derived typicality predicate
+(`engine/argot/scoring/filters/typicality.py`). Atypical candidates are
+excluded from calibration sampling; atypical controls short-circuit to
+`reason="atypical"` or `reason="atypical_file"` without invoking the
+scorer and are excluded from the FP-rate denominator. See
+[`docs/research/05-calibration-hygiene.md`](../docs/research/05-calibration-hygiene.md)
+for the design.
+
 ### Metrics
 
 | Metric | Meaning |
@@ -111,44 +120,38 @@ stability.
 ## Current baseline
 
 From [`latest/report.md`](results/baseline/latest/report.md)
-(run `20260423T155121Z`):
+(run `20260423T231552Z`):
 
 | Corpus | AUC | Recall | FP | N_fix | N_ctrl |
 |:---|---:|---:|---:|---:|---:|
-| fastapi | 0.9915 | 69.4% | 0.3% | 31 | 8,494 |
-| rich | 0.9933 | 90.0% | 1.0% | 10 | 11,502 |
-| faker | 0.9295 | 100.0% | 1.7% | 5 | 12,603 |
-| hono | 0.7853 | 60.0% | 0.6% | 15 | 49,032 |
-| ink | 0.9881 | 86.7% | 1.1% | 15 | 14,668 |
-| faker-js | 0.8568 | 20.0% | 5.0% | 15 | 71,535 |
+| fastapi | 0.9918 | 69.4% | 0.1% | 31 | 10,012 |
+| rich | 0.9959 | 90.0% | 0.2% | 10 | 11,536 |
+| faker | 0.9237 | 100.0% | 0.3% | 5 | 12,936 |
+| hono | 0.8107 | 60.0% | 0.4% | 15 | 54,717 |
+| ink | 0.9888 | 93.3% | 1.1% | 15 | 16,678 |
+| faker-js | 0.9408 | 20.0% | 0.8% | 15 | 255,760 |
 
-Threshold CV is 0% on every corpus — runs are fully deterministic
+Threshold CV ≤ 10% across all corpora (0%–9.7%): runs are reproducible
 across seeds.
 
 ### Known weaknesses (flagged by this baseline)
 
-1. **Data/locale/test files dominate the near-FP tail on every corpus.**
-   The top-5 false positives across all six corpora are consistently
-   things like `rich/_emoji_codes.py`, `src/locales/en/book/title.ts`,
-   `faker/providers/currency/ru_RU/__init__.py`, and test files. These
-   files are structurally unusual (long data tables, assertion-heavy
-   test bodies) but aren't style breaks. This is a calibration-pool
-   pollution issue, not a scorer issue — filtering `**/test*`,
-   `**/locales/**`, and auto-detected data tables out of calibration
-   should fix most of it.
+1. **Object-keyed structured data resists structural detection.**
+   The era-5 typicality filter closed the broader data/locale/test
+   false-positive tail (see [`docs/research/05-calibration-hygiene.md`](../docs/research/05-calibration-hygiene.md))
+   but residual FP sources remain on TS / Python locale providers
+   where property/class/method identifiers dilute `literal_leaf_ratio`
+   below the 0.80 cutoff.
 
-2. **Semantic breaks are invisible to token-novelty.** Categories like
-   faker-js `foreign_rng` (Math.random in a deterministic RNG library)
-   and `http_sink` (fetch/axios inside a pure-data generator) score in
-   the 0.5–3.8 range because the tokens themselves (`Math.random`,
-   `fetch`, `axios`) are perfectly common in JS. The break is
-   structural/contextual, not lexical, and needs a different detection
-   stage (rule-based or AST-pattern).
+3. **Semantic breaks are invisible to token-novelty.** Categories like
+   faker-js `foreign_rng` (`Math.random` in a deterministic RNG library)
+   and `http_sink` (`fetch`/`axios` inside a pure-data generator) score
+   in the 0.5–3.8 range because the tokens themselves are perfectly
+   common in JS.
 
-3. **Keyword-compatible reframings slip through.** fastapi routing 0/3
+4. **Keyword-compatible reframings slip through.** fastapi routing 0/3
    (Flask-style `@app.route` scores 4.31 vs threshold 5.28) — the token
-   vocabulary is too similar to FastAPI routes to clear the threshold,
-   even though the structural idiom is different.
+   vocabulary is too similar to FastAPI routes to clear the threshold.
 
 ## Reading a report
 
