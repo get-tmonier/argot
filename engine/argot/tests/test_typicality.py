@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 
-def test_typicality_features_has_five_fields():
+def test_typicality_features_has_five_fields() -> None:
     from argot.scoring.filters.typicality import TypicalityFeatures
 
     tf = TypicalityFeatures(
@@ -15,7 +15,7 @@ def test_typicality_features_has_five_fields():
     assert tf.named_leaf_count == 42
 
 
-def test_python_data_heavy_has_high_literal_ratio():
+def test_python_data_heavy_has_high_literal_ratio() -> None:
     from argot.scoring.filters.typicality import compute_features
 
     source = """
@@ -34,7 +34,7 @@ EMOJI_CODES = {
     assert f.named_leaf_count > 5, f
 
 
-def test_python_normal_code_has_moderate_literal_ratio():
+def test_python_normal_code_has_moderate_literal_ratio() -> None:
     from argot.scoring.filters.typicality import compute_features
 
     source = """
@@ -52,7 +52,7 @@ def parse(request, registry):
     assert f.control_node_density > 5.0, f
 
 
-def test_python_empty_and_invalid_return_neutral():
+def test_python_empty_and_invalid_return_neutral() -> None:
     from argot.scoring.filters.typicality import TypicalityFeatures, compute_features
 
     neutral = TypicalityFeatures(0.0, 0.0, 0.0, 0.0, 0)
@@ -60,7 +60,7 @@ def test_python_empty_and_invalid_return_neutral():
     assert compute_features("def ((((", "python") == neutral
 
 
-def test_typescript_data_heavy_has_high_literal_ratio():
+def test_typescript_data_heavy_has_high_literal_ratio() -> None:
     from argot.scoring.filters.typicality import compute_features
 
     source = """
@@ -77,7 +77,7 @@ export const TITLES = [
     assert f.literal_leaf_ratio > 0.85, f
 
 
-def test_typescript_normal_code_has_moderate_literal_ratio():
+def test_typescript_normal_code_has_moderate_literal_ratio() -> None:
     from argot.scoring.filters.typicality import compute_features
 
     source = """
@@ -99,7 +99,7 @@ function parse(request: Request, registry: Registry): Handler | null {
     assert f.control_node_density > 5.0, f
 
 
-def test_typicality_model_flags_data_heavy():
+def test_typicality_model_flags_data_heavy() -> None:
     from argot.scoring.filters.typicality import TypicalityModel
 
     model = TypicalityModel(language="python")
@@ -116,7 +116,7 @@ def test_typicality_model_flags_data_heavy():
     assert features.named_leaf_count >= 5
 
 
-def test_typicality_model_does_not_flag_normal_code():
+def test_typicality_model_does_not_flag_normal_code() -> None:
     from argot.scoring.filters.typicality import TypicalityModel
 
     model = TypicalityModel(language="python")
@@ -134,7 +134,7 @@ def parse(request, registry):
     assert not is_atypical
 
 
-def test_typicality_model_respects_size_gate():
+def test_typicality_model_respects_size_gate() -> None:
     from argot.scoring.filters.typicality import TypicalityModel
 
     model = TypicalityModel(language="python")
@@ -150,7 +150,7 @@ def test_typicality_model_respects_size_gate():
     assert at_features.named_leaf_count > features.named_leaf_count
 
 
-def test_typicality_model_is_atypical_safe_on_parse_error():
+def test_typicality_model_is_atypical_safe_on_parse_error() -> None:
     from argot.scoring.filters.typicality import TypicalityModel
 
     model = TypicalityModel(language="python")
@@ -159,7 +159,7 @@ def test_typicality_model_is_atypical_safe_on_parse_error():
     assert features.named_leaf_count == 0
 
 
-def test_is_atypical_file_flags_pure_data():
+def test_is_atypical_file_flags_pure_data() -> None:
     from argot.scoring.filters.typicality import TypicalityModel
 
     model = TypicalityModel(language="python")
@@ -170,13 +170,13 @@ def test_is_atypical_file_flags_pure_data():
     assert features.literal_leaf_ratio > 0.80
 
 
-def test_is_atypical_file_does_not_flag_normal_code():
+def test_is_atypical_file_does_not_flag_normal_code() -> None:
     from argot.scoring.filters.typicality import TypicalityModel
 
     model = TypicalityModel(language="python")
     normal_code = "\n".join(
         [
-            "def fn_{i}(value, registry):".format(i=i)
+            f"def fn_{i}(value, registry):"
             + "\n    items = registry.lookup(value)"
             + "\n    if not items:"
             + "\n        return None"
@@ -191,14 +191,14 @@ def test_is_atypical_file_does_not_flag_normal_code():
     assert not is_atypical
 
 
-def test_language_for_adapter_python():
+def test_language_for_adapter_python() -> None:
     from argot.scoring.adapters.python_adapter import PythonAdapter
     from argot.scoring.filters.typicality import language_for_adapter
 
     assert language_for_adapter(PythonAdapter()) == "python"
 
 
-def test_language_for_adapter_typescript():
+def test_language_for_adapter_typescript() -> None:
     from argot.scoring.adapters.typescript import TypeScriptAdapter
     from argot.scoring.filters.typicality import language_for_adapter
 

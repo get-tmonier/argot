@@ -226,7 +226,7 @@ def test_sample_hunks_typescript(ts_source_dir: Path) -> None:
         assert len(hunk) > 0
 
 
-def test_exclude_dirs_and_is_excluded_path_are_public():
+def test_exclude_dirs_and_is_excluded_path_are_public() -> None:
     from argot.scoring.calibration.random_hunk_sampler import (
         DEFAULT_EXCLUDE_DIRS,
         is_excluded_path,
@@ -234,9 +234,10 @@ def test_exclude_dirs_and_is_excluded_path_are_public():
 
     assert "tests" in DEFAULT_EXCLUDE_DIRS
     assert "node_modules" in DEFAULT_EXCLUDE_DIRS or "build" in DEFAULT_EXCLUDE_DIRS
+    assert callable(is_excluded_path)
 
 
-def test_collect_candidates_filters_data_dominant_file(tmp_path):
+def test_collect_candidates_filters_data_dominant_file(tmp_path: Path) -> None:
     from argot.scoring.adapters.python_adapter import PythonAdapter
     from argot.scoring.calibration.random_hunk_sampler import collect_candidates
 

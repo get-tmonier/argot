@@ -153,9 +153,7 @@ class SequentialImportBpeScorer:
         # Typicality model — stateless, language-parameterized.
         self._typicality_model: TypicalityModel | None = None
         if enable_typicality_filter:
-            self._typicality_model = TypicalityModel(
-                language=language_for_adapter(self._adapter)
-            )
+            self._typicality_model = TypicalityModel(language=language_for_adapter(self._adapter))
 
         if self._typicality_model is not None:
             filtered: list[Path] = []
@@ -229,9 +227,7 @@ class SequentialImportBpeScorer:
         else:
             cal_list = list(calibration_hunks or [])
             if self._typicality_model is not None:
-                cal_list = [
-                    h for h in cal_list if not self._typicality_model.is_atypical(h)[0]
-                ]
+                cal_list = [h for h in cal_list if not self._typicality_model.is_atypical(h)[0]]
             cal_scores = [
                 self._bpe_score(_blank_prose_lines(h, self._adapter.prose_line_ranges(h)))
                 for h in cal_list

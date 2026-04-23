@@ -272,7 +272,7 @@ class TypicalityModel:
 
 def language_for_adapter(adapter: object) -> Language_:
     """Derive a language string from a LanguageAdapter instance via file extensions."""
-    exts = getattr(adapter, "file_extensions", frozenset())
+    exts: frozenset[str] = getattr(adapter, "file_extensions", frozenset())
     if ".py" in exts:
         return "python"
     if ".ts" in exts or ".tsx" in exts:

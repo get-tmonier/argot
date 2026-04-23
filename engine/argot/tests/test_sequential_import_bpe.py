@@ -141,7 +141,7 @@ def test_scorer_raises_without_hunks_or_threshold() -> None:
         )
 
 
-def test_scorer_filters_data_dominant_model_a_files(tmp_path):
+def test_scorer_filters_data_dominant_model_a_files(tmp_path: Path) -> None:
     from argot.scoring.adapters.python_adapter import PythonAdapter
     from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
 
@@ -175,19 +175,16 @@ def test_scorer_filters_data_dominant_model_a_files(tmp_path):
         adapter=PythonAdapter(),
     )
     # The scorer should have a typicality model attached.
-    assert scorer._typicality_model is not None  # type: ignore[attr-defined]
+    assert scorer._typicality_model is not None
 
 
-def test_scorer_filters_atypical_calibration_hunks(tmp_path):
+def test_scorer_filters_atypical_calibration_hunks(tmp_path: Path) -> None:
     from argot.scoring.adapters.python_adapter import PythonAdapter
     from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
 
     code_file = tmp_path / "code.py"
     code_file.write_text(
-        "def fn(x):\n"
-        "    if x > 0:\n"
-        "        return x + 1\n"
-        "    return x - 1\n"
+        "def fn(x):\n" "    if x > 0:\n" "        return x + 1\n" "    return x - 1\n"
     )
     bpe_model_b = tmp_path / "bpe.json"
     bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
@@ -211,16 +208,13 @@ def test_scorer_filters_atypical_calibration_hunks(tmp_path):
     assert len(scorer.cal_scores) == 1
 
 
-def _make_scorer_for_score_hunk_tests(tmp_path):
+def _make_scorer_for_score_hunk_tests(tmp_path: Path) -> SequentialImportBpeScorer:
     from argot.scoring.adapters.python_adapter import PythonAdapter
     from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
 
     code_file = tmp_path / "code.py"
     code_file.write_text(
-        "def fn(x):\n"
-        "    if x > 0:\n"
-        "        return x + 1\n"
-        "    return x - 1\n"
+        "def fn(x):\n" "    if x > 0:\n" "        return x + 1\n" "    return x - 1\n"
     )
     bpe_model_b = tmp_path / "bpe.json"
     bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
@@ -234,17 +228,15 @@ def _make_scorer_for_score_hunk_tests(tmp_path):
     )
 
 
-def test_score_hunk_short_circuits_atypical_hunk(tmp_path):
+def test_score_hunk_short_circuits_atypical_hunk(tmp_path: Path) -> None:
     scorer = _make_scorer_for_score_hunk_tests(tmp_path)
-    data_hunk = "\n".join(
-        ["EMOJI = {", *(f'    "e{i}": "U+{i:05X}",' for i in range(60)), "}"]
-    )
+    data_hunk = "\n".join(["EMOJI = {", *(f'    "e{i}": "U+{i:05X}",' for i in range(60)), "}"])
     result = scorer.score_hunk(data_hunk)
     assert result["flagged"] is False
     assert result["reason"] == "atypical"
 
 
-def test_score_hunk_short_circuits_atypical_file(tmp_path):
+def test_score_hunk_short_circuits_atypical_file(tmp_path: Path) -> None:
     scorer = _make_scorer_for_score_hunk_tests(tmp_path)
     # Hunk itself is short, but its enclosing file_source is data-dominant.
     file_source = "DATA = {\n" + "\n".join(f'  "k{i}": "v{i}",' for i in range(120)) + "\n}"
@@ -257,9 +249,11 @@ def test_score_hunk_short_circuits_atypical_file(tmp_path):
     assert result["reason"] == "atypical_file"
 
 
-def test_score_hunk_scores_normal_code_normally(tmp_path):
+def test_score_hunk_scores_normal_code_normally(tmp_path: Path) -> None:
     scorer = _make_scorer_for_score_hunk_tests(tmp_path)
-    normal_hunk = "def other(x, registry):\n    if x:\n        return registry[x]\n    return None\n"
+    normal_hunk = (
+        "def other(x, registry):\n    if x:\n        return registry[x]\n    return None\n"
+    )
     result = scorer.score_hunk(normal_hunk)
     # Not short-circuited — reason is one of the normal values.
     assert result["reason"] in ("none", "import", "bpe")
