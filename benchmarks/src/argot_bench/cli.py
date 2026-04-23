@@ -35,6 +35,24 @@ def build_parser() -> argparse.ArgumentParser:
         default="off",
         help="Apply the AST-derived typicality filter to calibration pool and control scoring.",
     )
+    p.add_argument(
+        "--seeds",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Cap the number of seeds actually run to the first N (default: all 5).",
+    )
+    p.add_argument(
+        "--sample-controls",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "Randomly subsample N control hunks per PR before scoring. "
+            "Reproducible: uses np.random.default_rng(seed) to shuffle then take first N. "
+            "Sampled runs are NOT suitable as baselines."
+        ),
+    )
 
     sub.add_parser("list-corpora", help="Print the 6 corpora in targets.yaml")
     rep = sub.add_parser("report", help="Regenerate report.md from existing JSON")
@@ -88,6 +106,9 @@ def _run(args: argparse.Namespace) -> int:
     out_dir = args.results_dir / ts
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    _all_seeds = [0, 1, 2, 3, 4]
+    seeds = _all_seeds[: args.seeds] if args.seeds is not None else _all_seeds
+
     reports: list[CorpusReport] = []
     for t in selected:
         print(f"[{t.name}] running...")
@@ -101,6 +122,8 @@ def _run(args: argparse.Namespace) -> int:
             quick=args.quick,
             fresh=args.fresh,
             typicality_filter=(args.typicality_filter == "on"),
+            seeds=seeds,
+            sample_controls=args.sample_controls,
         )
         r = run_corpus(cfg)
         reports.append(r)

@@ -110,6 +110,9 @@ def _render_summary(r: CorpusReport) -> list[str]:
     marker = "clean" if gap > 0 else "overlap"
     lines.append(f"- **Separation gap (min break − max control):** {gap:+.4f} ({marker})")
     lines.append(f"- **Sample sizes:** {len(breaks)} fixtures · {len(ctrls)} real-PR controls")
+    sc = m.get("sample_controls")
+    if sc:
+        lines.append(f"- ⚠️  **Control subsample:** {sc} hunks per PR — not a baseline run")
     lines.append("")
     return lines
 

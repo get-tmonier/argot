@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from argot_bench.run import RunConfig, _score_real_hunks, run_corpus
+from argot_bench.run import RunConfig, _score_real_hunks, _subsample_hunks, run_corpus
 from argot_bench.score import ScoreResult
 
 
@@ -212,3 +212,82 @@ def test_score_real_hunks_short_circuits_atypical_hunks(tmp_path: Path):
     assert r["typicality_distance"] == 99.0
     assert r["typicality_features"] == [0.95, 0.0, 0.1, 0.1]
     assert stats["controls_filtered"] == 1
+
+
+def test_run_sample_controls_subsample(tmp_path: Path, monkeypatch):
+    """run_corpus with sample_controls=50 on a stub 200-hunk dataset returns exactly 50 records."""
+    import argot_bench.run as run_mod
+
+    def fake_clone(data_dir, corpus, url):
+        r = data_dir / corpus / ".repo"
+        r.mkdir(parents=True, exist_ok=True)
+        (r / ".git").mkdir(exist_ok=True)
+        return r
+
+    monkeypatch.setattr(run_mod, "ensure_clone", fake_clone)
+    monkeypatch.setattr(run_mod, "ensure_sha_checked_out", lambda *_a: None)
+    def fake_extract(repo, out):
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text("")
+        return out
+
+    monkeypatch.setattr(run_mod, "ensure_extracted", fake_extract)
+
+    class FakeScorer:
+        threshold = 2.5
+        cal_scores = [1.0]
+
+        def score_hunk(self, *_a, **_kw):
+            from argot_bench.score import ScoreResult
+
+            return ScoreResult(import_score=0.0, bpe_score=1.0, flagged=False, reason="none")
+
+    monkeypatch.setattr(run_mod, "build_scorer", lambda *_a, **_kw: FakeScorer())
+
+    import argot_bench.fixtures as fx
+
+    cat = fx.Catalog(
+        corpus="fastapi",
+        language="python",
+        categories=["async_blocking"],
+        injection_hosts=[fx.PRHost(pr=0, sha="a" * 40)],
+        fixtures=[],
+    )
+    monkeypatch.setattr(run_mod, "load_catalog", lambda _p: cat)
+    monkeypatch.setattr(run_mod, "_read_hunk_pair", lambda *_a: ("source", "hunk"))
+
+    # 200 stub hunks
+    stub_hunks = [{"file_path": f"f{i}.py", "hunk_start_line": 0, "hunk_end_line": 1} for i in range(200)]
+    monkeypatch.setattr(run_mod, "_real_pr_hunks", lambda *_a, **_kw: list(stub_hunks))
+
+    # Make the repo directory contain "f0.py" … so _score_real_hunks can read files
+    repo_dir = tmp_path / "data" / "fastapi" / ".repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    for i in range(200):
+        (repo_dir / f"f{i}.py").write_text("x = 1\n")
+
+    cfg = RunConfig(
+        corpus="fastapi",
+        url="https://example.com/fastapi",
+        language="python",
+        prs=[("pr", "a" * 40)],
+        catalog_dir=tmp_path / "catalogs" / "fastapi",
+        data_dir=tmp_path / "data",
+        n_cal=2,
+        seeds=[0],
+        sample_controls=50,
+    )
+    report = run_corpus(cfg)
+    real_pr = [r for r in report.raw_scores if r.get("source") == "real_pr"]
+    assert len(real_pr) == 50, f"expected 50 control records, got {len(real_pr)}"
+
+
+def test_subsample_hunks_is_reproducible_and_bounded():
+    hunks = [{"id": i} for i in range(200)]
+    result_a = _subsample_hunks(hunks, 50, seed=0)
+    result_b = _subsample_hunks(hunks, 50, seed=0)
+    assert len(result_a) == 50
+    assert result_a == result_b  # same seed → same order
+
+    result_c = _subsample_hunks(hunks, 50, seed=1)
+    assert result_a != result_c  # different seed → different order

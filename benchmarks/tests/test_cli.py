@@ -27,3 +27,21 @@ def test_cli_accepts_typicality_filter_flag():
 
     ns_off = parser.parse_args([])
     assert ns_off.typicality_filter == "off"
+
+
+def test_cli_seeds_flag():
+    parser = build_parser()
+    ns = parser.parse_args(["--seeds", "1"])
+    assert ns.seeds == 1
+
+    ns_default = parser.parse_args([])
+    assert ns_default.seeds is None
+
+
+def test_cli_sample_controls_flag():
+    parser = build_parser()
+    ns = parser.parse_args(["--sample-controls", "500"])
+    assert ns.sample_controls == 500
+
+    ns_default = parser.parse_args([])
+    assert ns_default.sample_controls is None

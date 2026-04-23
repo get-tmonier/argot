@@ -38,6 +38,7 @@ class RunConfig:
     quick: bool = False
     fresh: bool = False
     typicality_filter: bool = False
+    sample_controls: int | None = None
 
 
 def _read_hunk_pair(catalog_dir: Path, fixture: Fixture) -> tuple[str, str]:
@@ -60,6 +61,17 @@ def _real_pr_hunks(
             if max_hunks is not None and len(hunks) >= max_hunks:
                 break
     return hunks
+
+
+def _subsample_hunks(
+    hunks: list[dict[str, object]], n: int, seed: int
+) -> list[dict[str, object]]:
+    """Return n hunks chosen in a reproducible random order (seed-stable)."""
+    import numpy as np
+
+    rng = np.random.default_rng(seed)
+    indices = rng.permutation(len(hunks))[:n]
+    return [hunks[int(i)] for i in indices]
 
 
 def _score_fixtures(
@@ -181,6 +193,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             quick=True,
             fresh=cfg.fresh,
             typicality_filter=cfg.typicality_filter,
+            sample_controls=cfg.sample_controls,
         )
         by_cat: dict[str, Fixture] = {}
         for fx in break_fixtures:
@@ -239,6 +252,8 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
         if seed == cfg.seeds[0]:
             fixture_results = _score_fixtures(scorer, cfg.catalog_dir, break_fixtures)
             hunks = _real_pr_hunks(dataset, max_hunks=None if not cfg.quick else 50)
+            if cfg.sample_controls is not None and len(hunks) > cfg.sample_controls:
+                hunks = _subsample_hunks(hunks, cfg.sample_controls, seed)
             real_pr_results = _score_real_hunks(
                 scorer, hunks, repo, typicality_model=typicality_model, filter_stats=filter_stats
             )
@@ -259,6 +274,8 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
                 typicality_model=typicality_model,
             )
             hunks = _real_pr_hunks(dataset)
+            if cfg.sample_controls is not None and len(hunks) > cfg.sample_controls:
+                hunks = _subsample_hunks(hunks, cfg.sample_controls, cfg.seeds[0])
             real_pr_results.extend(
                 _score_real_hunks(
                     scorer2,
@@ -289,6 +306,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
         "n_real_pr_hunks": len(real_pr_results),
         "typicality_filter": cfg.typicality_filter,
         "typicality_stats": filter_stats,
+        "sample_controls": cfg.sample_controls,
     }
 
     return CorpusReport(
