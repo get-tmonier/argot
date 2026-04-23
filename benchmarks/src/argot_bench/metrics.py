@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
@@ -38,3 +39,51 @@ def fp_rate(hunks: Sequence[Mapping[str, Any]]) -> float:
 def stage_attribution(results: Iterable[Mapping[str, Any]]) -> dict[str, int]:
     """Count of each scorer reason."""
     return dict(Counter(r["reason"] for r in results))
+
+
+def threshold_cv(thresholds: Sequence[float]) -> float:
+    """Coefficient of variation (population std / mean) over per-seed thresholds."""
+    if not thresholds:
+        return 0.0
+    mean = sum(thresholds) / len(thresholds)
+    if mean == 0.0:
+        return 0.0
+    var = sum((t - mean) ** 2 for t in thresholds) / len(thresholds)
+    std = math.sqrt(var)
+    return std / mean
+
+
+def calibration_stability(
+    cal_hunk_sets: Sequence[set[str]],
+    thresholds: Sequence[float],
+) -> dict[str, float]:
+    """Pool-capped calibration stability: pairwise Jaccard on hunk IDs + relative
+    variance on thresholds.
+
+    rel_var = variance(thresholds) / mean(thresholds), divide-by-zero → 0.
+    jaccard = mean of all pairwise |A∩B|/|A∪B| over cal_hunk_sets.
+    """
+    if not thresholds:
+        return {"rel_var": 0.0, "jaccard": 0.0}
+
+    mean = sum(thresholds) / len(thresholds)
+    if mean == 0.0:
+        rel_var = 0.0
+    else:
+        var = sum((t - mean) ** 2 for t in thresholds) / len(thresholds)
+        rel_var = var / mean
+
+    n = len(cal_hunk_sets)
+    if n < 2:
+        return {"rel_var": rel_var, "jaccard": 1.0 if n == 1 else 0.0}
+    pairs: list[float] = []
+    for i in range(n):
+        for j in range(i + 1, n):
+            a = cal_hunk_sets[i]
+            b = cal_hunk_sets[j]
+            union = a | b
+            if not union:
+                pairs.append(1.0)
+            else:
+                pairs.append(len(a & b) / len(union))
+    return {"rel_var": rel_var, "jaccard": sum(pairs) / len(pairs)}

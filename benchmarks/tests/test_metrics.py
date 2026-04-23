@@ -1,8 +1,10 @@
 from argot_bench.metrics import (
     auc_catalog,
+    calibration_stability,
     fp_rate,
     recall_by_category,
     stage_attribution,
+    threshold_cv,
 )
 
 
@@ -55,3 +57,34 @@ def test_stage_attribution_counts_reasons():
     ]
     att = stage_attribution(results)
     assert att == {"import": 2, "bpe": 1, "none": 1}
+
+
+def test_threshold_cv_identical_seeds():
+    assert threshold_cv([1.0, 1.0, 1.0, 1.0, 1.0]) == 0.0
+
+
+def test_threshold_cv_computes_std_over_mean():
+    # mean = 2, std (population) ≈ 0.8165 → CV ≈ 0.408
+    thresholds = [1.0, 2.0, 3.0]
+    cv = threshold_cv(thresholds)
+    assert abs(cv - 0.408) < 0.01
+
+
+def test_threshold_cv_zero_mean_returns_nan_sentinel():
+    # Defensive: empty or all-zero inputs return 0.0 (can't be computed)
+    assert threshold_cv([]) == 0.0
+    assert threshold_cv([0.0, 0.0]) == 0.0
+
+
+def test_calibration_stability_jaccard_and_rel_var():
+    # Three seed-specific cal score sets
+    sets_of_ids = [
+        {"h1", "h2", "h3", "h4"},
+        {"h1", "h2", "h3", "h5"},
+        {"h1", "h2", "h3", "h6"},
+    ]
+    thresholds = [2.5, 2.6, 2.4]  # mean 2.5, rel_var = variance / mean = 0.00667/2.5
+    result = calibration_stability(sets_of_ids, thresholds)
+    # Jaccard pair-average: intersection 3 / union 5 = 0.6 for each pair
+    assert abs(result["jaccard"] - 0.6) < 1e-9
+    assert abs(result["rel_var"] - (0.00666667 / 2.5)) < 1e-4
