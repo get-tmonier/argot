@@ -22,13 +22,13 @@ structurally different signals in series.
 | JEPA era | 1–6 | Wins did not compound and cross-repo AUC was measuring language detection, not style — best honest metric (shuffled AUC) plateaued at 0.713 | [01-jepa-era.md](01-jepa-era.md) |
 | Honest eval | 7–9 | Three architectures (from-scratch encoders, density heads, frozen pretrained) all failed the 0.85 gate at 0.48–0.58 — targeted mutations carried no detectable training signal | [02-pivot-to-honest-eval.md](02-pivot-to-honest-eval.md) |
 | Token-frequency signal hunt | 10–12 | Zero-training `tfidf_anomaly` beat the JEPA ensemble (AUC 0.6968 vs 0.6532) and was promoted as the new default, but stalled short of the 0.80 gate | [03-bpe-signal-hunt.md](03-bpe-signal-hunt.md) |
-| Import-graph breakthrough | 13–14 | `SequentialImportBpeScorer` flagged 46/46 breaks with 0 FP across 189 calibration+control hunks — era ended with promotion, not pivot | [04-import-graph-breakthrough.md](04-import-graph-breakthrough.md) |
+| Import-graph breakthrough | 13–14 | `SequentialImportBpeScorer` flagged 46/46 breaks with 0 FP across 189 calibration+control hunks; TS bring-up clean on hono (0/22), ink (3/14 all INTENTIONAL), and faker-js (2/46 after 74.8% locale-data filter) | [04-import-graph-breakthrough.md](04-import-graph-breakthrough.md) |
 
 ## Evidence
 
 Each era doc cites peer docs under `docs/research/evidence/`. Those are
 freshly written, 200–400 word summaries of the experiments the narrative
-load-bears on — 25 in total, covering every cited result. The era docs
+load-bears on — 27 in total, covering every cited result. The era docs
 are the story; the evidence docs are the receipts.
 
 ## What's next

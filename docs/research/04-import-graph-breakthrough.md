@@ -97,9 +97,16 @@ production-time training) now lined up with the winning architecture
 for free: Stage 1 is a single AST pass, Stage 2 is BPE surprise against
 a calibration sample of the same repo. The `LanguageAdapter` refactor
 generalised both stages across Python and TypeScript without changing
-the scorer core, and the TS validation on hono returned 0 source flags
-across 22 hunks from 5 PRs
-([TypeScript validation on hono](evidence/typescript-validation-hono.md)).
+the scorer core, and TS bring-up validated on three shape-diverse
+corpora: hono returned 0 source flags across 22 hunks from 5 PRs
+([TypeScript validation on hono](evidence/typescript-validation-hono.md)),
+ink returned 3/14 (21.4%) below the 30% investigation threshold with
+every flag on feature-introduced content
+([TypeScript validation on ink](evidence/typescript-validation-ink.md)),
+and faker-js — whose ~75% locale-data corpus would otherwise flood
+calibration — returned 2/46 (4.3%) after the `is_data_dominant` filter
+excluded 2219/2965 locale files (74.8%, passing the 70% gate)
+([TypeScript validation on faker-js](evidence/typescript-validation-faker-js.md)).
 
 ## → today
 
