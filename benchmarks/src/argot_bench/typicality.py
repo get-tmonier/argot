@@ -114,6 +114,18 @@ def _walk_all_nodes(root: Node, atomic_types: frozenset[str] = frozenset()) -> I
             stack.extend(reversed(node.children))
 
 
+def _entropy(counts: Counter[str]) -> float:
+    total = sum(counts.values())
+    if total == 0:
+        return 0.0
+    h = 0.0
+    for c in counts.values():
+        p = c / total
+        if p > 0:
+            h -= p * math.log2(p)
+    return h
+
+
 def _is_leaf_equivalent_generic(node: Node, literal_types: frozenset[str]) -> bool:
     """True for named nodes treated as atomic leaves for ratio computation."""
     if not node.is_named:
@@ -180,18 +192,6 @@ def _compute_python(source: str) -> TypicalityFeatures:
 
 def _compute_typescript(source: str) -> TypicalityFeatures:
     return _compute_generic(source, _TS_LANGUAGE, _TS_LITERAL_NODE_TYPES, _TS_CONTROL_NODE_TYPES)
-
-
-def _entropy(counts: Counter[str]) -> float:
-    total = sum(counts.values())
-    if total == 0:
-        return 0.0
-    h = 0.0
-    for c in counts.values():
-        p = c / total
-        if p > 0:
-            h -= p * math.log2(p)
-    return h
 
 
 def compute_features(source: str, language: Language_) -> TypicalityFeatures:
