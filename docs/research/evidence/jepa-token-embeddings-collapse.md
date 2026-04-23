@@ -41,9 +41,3 @@ to `<unk>`, and produce near-random scores. The model fingerprints which
 repo it was trained on. This framed the Phase 6 follow-up: move to BPE
 subwords, which are shared across repos, and see whether the OOV collapse
 recovers at large scale.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/phases-1-6/11-token-embeddings.md`. Re-written here
-for clarity, not copied.*

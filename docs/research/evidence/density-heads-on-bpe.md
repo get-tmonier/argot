@@ -42,9 +42,3 @@ trade sequential signal for repo-identity signal, isolating that
 BPE embeddings encode repo-style structure but not fine-grained
 mutation-detectability. One real axis (`case_swap`) was recoverable;
 nothing else was.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/phase-7/17-density-heads.md`. Re-written here for
-clarity, not copied.*

@@ -39,9 +39,3 @@ concrete lesson that knobs couple to data volume: a uniform default that
 helps medium-sized repos will hurt large ones. It also set up the
 combined-defaults run in Phase 4, which promoted adaptive epochs alongside
 char n-grams and context_after.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/phases-1-6/05-epochs.md`. Re-written here for
-clarity, not copied.*

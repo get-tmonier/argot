@@ -24,16 +24,12 @@ structurally different signals in series.
 | Token-frequency signal hunt | 10–12 | Zero-training `tfidf_anomaly` beat the JEPA ensemble (AUC 0.6968 vs 0.6532) and was promoted as the new default, but stalled short of the 0.80 gate | [03-bpe-signal-hunt.md](03-bpe-signal-hunt.md) |
 | Import-graph breakthrough | 13–14 | `SequentialImportBpeScorer` flagged 46/46 breaks with 0 FP across 189 calibration+control hunks — era ended with promotion, not pivot | [04-import-graph-breakthrough.md](04-import-graph-breakthrough.md) |
 
-## What lives on the tag
+## Evidence
 
-Detailed per-experiment docs (~90 markdown files and committed result
-JSONs) are preserved on git tag `research/phase-14-pre-cleanup`. Access
-without switching branches:
-
-```bash
-git show research/phase-14-pre-cleanup:docs/research/scoring/phase-7/16-rebaseline.md
-git ls-tree research/phase-14-pre-cleanup -r --name-only | grep docs/research/scoring/
-```
+Each era doc cites peer docs under `docs/research/evidence/`. Those are
+freshly written, 200–400 word summaries of the experiments the narrative
+load-bears on — 25 in total, covering every cited result. The era docs
+are the story; the evidence docs are the receipts.
 
 ## What's next
 

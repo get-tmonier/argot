@@ -28,9 +28,3 @@ The victory gate was NOT cleared. Paired bootstrap 95% CI on `tfidf_anomaly` vs 
 ## Interpretation
 
 `tfidf_anomaly` promoted over `EnsembleJepa mean_z` as the new production default: materially better AUC, zero training cost, and it actually fixed `validation` where JEPA inverted. The wide CI and the stubborn `background_tasks` inversion pointed at the same ceiling — both scorers treat "anomalous against corpus frequency" as a proxy for "non-idiomatic", which is exactly backwards when the idiomatic pattern is rare in commit diffs.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/signal/phase12/final_2026-04-21.md`.
-Re-written here for clarity, not copied.*

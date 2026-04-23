@@ -45,9 +45,3 @@ the stdlib" with "unusual for the repo", and those two things only
 coincide in special cases like FastAPI. Two independent cross-domain
 failures (rich and click) closed the AST-contrastive thread and
 redirected Phase 14 toward the import-graph idea.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/signal/phase13/stage3_tier3_click_matched_2026-04-21.md`.
-Re-written here for clarity, not copied.*

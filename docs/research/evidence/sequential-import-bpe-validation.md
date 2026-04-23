@@ -46,9 +46,3 @@ scorers could not: every break flagged, no false positives, and the
 one diagnostic outlier from era 3 was suppressed at exactly the right
 boundary. Promoted as the Phase 14 primary scorer, pending the
 corrected-controls robustness protocol.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/signal/phase14/experiments/sequential_import_bpe_phase13_validation_2026-04-22.md`.
-Re-written here for clarity, not copied.*

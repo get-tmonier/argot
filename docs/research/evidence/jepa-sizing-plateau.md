@@ -39,9 +39,3 @@ that size. Second, even at 60k the plateau is modest: shuffled ceiling ~0.71,
 cross-repo ~0.55. The hypothesis the era would test is that this plateau is
 a *tuning* problem — right objective, wrong inputs and encoder — solvable
 with sweeps along context, capacity, training length, and representation.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/phases-1-6/sizing-study.md`. Re-written here for
-clarity, not copied.*

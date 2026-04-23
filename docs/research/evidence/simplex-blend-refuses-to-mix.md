@@ -42,9 +42,3 @@ signal on the 51-fixture eval. If the next era was going to clear
 the 0.80 victory gate, the additional signal would have to come
 from somewhere structurally different than the hunk itself. Token
 frequency had reached its ceiling.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/signal/phase12/e_blend_2026-04-21.md`.
-Re-written here for clarity, not copied.*

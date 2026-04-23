@@ -42,9 +42,3 @@ exotic, the contrast flattens and the scorer fails silently — uniformly
 high scores for both classes, no threshold separates them. Corpus size
 was not the explanation: 72 rich files failed in exactly the same way
 as 13 click files.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/signal/phase13/experiments/ast_contrastive_rich_2026-04-21.md`.
-Re-written here for clarity, not copied.*

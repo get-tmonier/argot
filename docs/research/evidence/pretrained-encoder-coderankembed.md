@@ -43,9 +43,3 @@ mutations, and the mutations are engineered to stay inside the home
 distribution. A third architectural swing against a distance-based
 objective was ruled out; the next era had to ask whether the hunk
 carried any detectable single-token signal at all.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/phase-7/18-pretrained-jepa.md`. Re-written here
-for clarity, not copied.*

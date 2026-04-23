@@ -41,9 +41,3 @@ better than anything prior, zero training cost, and the gate battery
 ruled out the obvious artefacts. Promotion to cross-domain validation
 was the only defensible next move, which is exactly where the story
 turned.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/signal/phase13/b_mlm_and_existing_2026-04-21.md`.
-Re-written here for clarity, not copied.*

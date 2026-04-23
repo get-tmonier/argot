@@ -42,9 +42,3 @@ The `LanguageAdapter` refactor carried the scorer to TypeScript without
 changing the two-stage core. Clean 0% source-flag rate on in-domain
 fix/feat PRs, stable thresholds, and no import-axis dispatch errors —
 the seam holds.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/signal/phase14/experiments/ts_validation_hono_2026-04-22.md`.
-Re-written here for clarity, not copied.*

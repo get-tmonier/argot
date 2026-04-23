@@ -40,9 +40,3 @@ wrecked serialization. No single AST slice was reliably additive.
 The Phase 10 blend refusal was the first clean signal that the
 useful signal was living elsewhere — likely in the context selection
 itself, which Phase 11 tested next.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/signal/phase10_structural_context_2026-04-21.md`.
-Re-written here for clarity, not copied.*

@@ -42,9 +42,3 @@ regressions. Code style is heavily character-patterned — naming
 conventions, operator choices, comment markers — and sub-word n-grams
 capture the recurring 3–5-char sequences that define a repo's surface
 style. This became the baseline all later sweeps had to clear.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/phases-1-6/06-char-ngrams.md`. Re-written here for
-clarity, not copied.*

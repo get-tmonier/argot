@@ -46,9 +46,3 @@ calibration sample sizes were moved above n=100, and the scorer still
 validated on all three domains across all 5 seeds. The pipeline's
 signal is not a calibration artefact — it is stable under the more
 realistic source-derived protocol that production will actually use.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/signal/phase14/experiments/sequential_corrected_controls_postfix_v2_2026-04-22.md`.
-Re-written here for clarity, not copied.*

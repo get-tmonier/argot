@@ -38,9 +38,3 @@ the signal hunt had produced to date, without any scorer change.
 This reframed the Phase 12 question: if context alone moved the
 needle this far, how much of JEPA's remaining advantage over cheap
 baselines was vocabulary-level to begin with?
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/signal/phase11_context_variants_2026-04-21.md`.
-Re-written here for clarity, not copied.*

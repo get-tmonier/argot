@@ -43,9 +43,3 @@ Py repo. Shuffled AUC (same repo, same language, tokens wrong order) was
 the only honest metric left, and its 0.713 ceiling at 20k meant ~29%
 failure on obvious violations. More tuning of the same harness would only
 buy more confident wrong numbers; the pivot to honest eval followed.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/phases-1-6/09-combined.md`. Re-written here for
-clarity, not copied.*

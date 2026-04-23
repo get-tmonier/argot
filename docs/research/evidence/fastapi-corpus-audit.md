@@ -43,9 +43,3 @@ structural categories where token frequency alone cannot work —
 `BackgroundTasks` parameter × 10 vs `Thread` / `create_task`
 in endpoint × 0 — forewarning the later `background_tasks`
 inversion under both JEPA and tfidf.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/signal/phase10_corpus_analysis_2026-04-21.md`.
-Re-written here for clarity, not copied.*

@@ -44,9 +44,3 @@ repo-specific (library-specific function-name fragments). BPE was the
 last sweep of the JEPA era; its partial result — primary metric held,
 cross-repo still stuck — confirmed that tuning alone would not clear the
 plateau, and the pivot to honest eval followed immediately.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/phases-1-6/13-bpe-tokenisation.md`. Re-written here
-for clarity, not copied.*

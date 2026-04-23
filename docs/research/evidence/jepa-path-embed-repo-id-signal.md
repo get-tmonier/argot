@@ -42,9 +42,3 @@ useless for a style linter asked "does this commit look consistent with
 this repo?" This result, alongside the imports_scope finding, was the
 era's first concrete hint that cross-repo AUC was not measuring what the
 team thought it measured — a hint that hardened into the Phase 4 pivot.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/phases-1-6/08-path-embed.md`. Re-written here for
-clarity, not copied.*

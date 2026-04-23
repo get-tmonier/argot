@@ -37,9 +37,3 @@ pretrained LLM's out-of-the-box token-level surprise was not the
 lever for this eval, and justified the investment already made in
 JEPA (0.6532 > 0.43 on the same fixtures) before the Phase 12
 re-benchmark of every other existing non-JEPA scorer.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/signal/phase12/b_mlm_and_existing_2026-04-21.md`.
-Re-written here for clarity, not copied.*

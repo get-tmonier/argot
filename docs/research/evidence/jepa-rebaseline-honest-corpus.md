@@ -41,9 +41,3 @@ representation, not predictor or training data size. With two mutations
 contributing zero by construction, the four-way mean was depressed by
 design; the result still locked in the verdict on from-scratch encoders
 and forced the pivot to density heads.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/phase-7/16-rebaseline.md`. Re-written here for
-clarity, not copied.*

@@ -39,9 +39,3 @@ general: not just synthetic-eval-specific, not just mutation-specific
 obviously wrong to human readers. The negative Python delta ruled out
 a soft fail where the pipeline "almost works"; it worked in the wrong
 direction on half the scope, forcing the reframe into Era 3.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/phase-8/spot-check.md`. Re-written here for
-clarity, not copied.*

@@ -38,9 +38,3 @@ frequency" as a proxy for "non-idiomatic" inherits the same blind
 spot as JEPA on subtle-idiom breaks. This reframed the next move —
 before the third architecture swing, find out whether the hunk is
 statistically different at the token level and on which axis.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/signal/jepa_detection_limits.md`. Re-written
-here for clarity, not copied.*

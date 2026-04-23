@@ -45,9 +45,3 @@ The 0% FP rate across all validation sets — and the correct suppression
 of `faker_hunk_0047` — argued for the sequential pipeline that followed:
 import as a fast pre-filter, BPE as the recovery axis for the 33% it
 misses.
-
----
-
-*Source on tag `research/phase-14-pre-cleanup`:
-`docs/research/scoring/signal/phase14/experiments/import_graph_phase13_validation_2026-04-22.md`.
-Re-written here for clarity, not copied.*
