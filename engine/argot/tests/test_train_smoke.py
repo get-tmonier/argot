@@ -51,23 +51,38 @@ def test_train_model_returns_bundle(tmp_path: Path) -> None:
 
 
 def test_train_produces_model(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    dataset = tmp_path / "dataset.jsonl"
-    model_out = tmp_path / "model.pkl"
-    _make_dataset(dataset)
+    """argot-train writes model_a.txt and model_b.json into --argot-dir."""
+    import pygit2
+
+    repo = pygit2.init_repository(str(tmp_path))
+    sig = pygit2.Signature("Test", "test@example.com")
+    (tmp_path / "main.py").write_text("x = 1\n")
+    repo.index.add("main.py")
+    repo.index.write()
+    tree = repo.index.write_tree()
+    repo.create_commit("refs/heads/main", sig, sig, "init", tree, [])
+
+    argot_dir = tmp_path / ".argot"
+    argot_dir.mkdir()
 
     import argot.train as train_mod
 
     monkeypatch.setattr(
         sys,
         "argv",
-        ["argot-train", "--dataset", str(dataset), "--out", str(model_out), "--epochs", "2"],
+        [
+            "argot-train",
+            "--repo",
+            str(tmp_path),
+            "--model-a-out",
+            str(argot_dir / "model_a.txt"),
+            "--model-b-out",
+            str(argot_dir / "model_b.json"),
+        ],
     )
     train_mod.main()
 
-    assert model_out.exists()
-    import joblib  # type: ignore[import-untyped]
-
-    bundle = joblib.load(model_out)
-    assert "vectorizer" in bundle
-    assert "encoder_state" in bundle
-    assert "predictor_state" in bundle
+    assert (argot_dir / "model_a.txt").exists()
+    assert (argot_dir / "model_b.json").exists()
+    lines = (argot_dir / "model_a.txt").read_text().splitlines()
+    assert any("main.py" in ln for ln in lines)
