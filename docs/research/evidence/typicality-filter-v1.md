@@ -103,3 +103,17 @@ inference-time FPs.
 `_compute_fallback_bounds` + `_predict_one_sided` triad to
 `engine/argot/scoring/` is the graduation path. On this branch the
 predicate lives inside the benchmark sandbox only.
+
+## Memory profiling
+
+**Root cause:** `_real_pr_hunks` materialized the full JSONL into a
+`list[dict]` before scoring. For faker-js (71k hunks) this transiently
+allocated ~20 GB across JSON parse buffers + dict overhead.
+
+**Fix:** Converted to a generator; scoring consumes the stream without
+materialization. `--sample-controls` switched from shuffle-and-take-N
+to reservoir sampling (Algorithm R) to keep O(k) space under sampling.
+
+After-fix peak RSS on faker-js: <to be measured>. Full-run numbers
+unchanged. Sampled-run numbers differ from pre-fix sampled runs
+(different sampling algorithm, not a regression).

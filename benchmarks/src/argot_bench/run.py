@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
+from itertools import islice
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, cast
 
@@ -45,33 +47,33 @@ def _read_hunk_pair(catalog_dir: Path, fixture: Fixture) -> tuple[str, str]:
     return read_hunk(catalog_dir, fixture)
 
 
-def _real_pr_hunks(
-    dataset_path: Path,
-    *,
-    max_hunks: int | None = None,
-) -> list[dict[str, object]]:
-    hunks: list[dict[str, object]] = []
+def _real_pr_hunks(dataset_path: Path) -> Iterator[dict[str, object]]:
     with dataset_path.open() as f:
         for line in f:
             line = line.strip()
             if not line:
                 continue
-            rec = json.loads(line)
-            hunks.append(rec)
-            if max_hunks is not None and len(hunks) >= max_hunks:
-                break
-    return hunks
+            yield json.loads(line)
 
 
-def _subsample_hunks(
-    hunks: list[dict[str, object]], n: int, seed: int
+def _reservoir_sample(
+    hunks: Iterable[dict[str, object]],
+    n: int,
+    seed: int,
 ) -> list[dict[str, object]]:
-    """Return n hunks chosen in a reproducible random order (seed-stable)."""
+    """Algorithm R reservoir sampling — O(n) time, O(k) space."""
     import numpy as np
 
     rng = np.random.default_rng(seed)
-    indices = rng.permutation(len(hunks))[:n]
-    return [hunks[int(i)] for i in indices]
+    reservoir: list[dict[str, object]] = []
+    for i, h in enumerate(hunks):
+        if i < n:
+            reservoir.append(h)
+        else:
+            j = int(rng.integers(0, i + 1))
+            if j < n:
+                reservoir[j] = h
+    return reservoir
 
 
 def _score_fixtures(
@@ -107,7 +109,7 @@ def _score_fixtures(
 
 def _score_real_hunks(
     scorer: BenchScorer,
-    hunks: list[dict[str, object]],
+    hunks: Iterable[dict[str, object]],
     repo_dir: Path,
     *,
     typicality_model: TypicalityModel | None = None,
@@ -251,11 +253,16 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
 
         if seed == cfg.seeds[0]:
             fixture_results = _score_fixtures(scorer, cfg.catalog_dir, break_fixtures)
-            hunks = _real_pr_hunks(dataset, max_hunks=None if not cfg.quick else 50)
-            if cfg.sample_controls is not None and len(hunks) > cfg.sample_controls:
-                hunks = _subsample_hunks(hunks, cfg.sample_controls, seed)
+            hunks_stream: Iterable[dict[str, object]] = _real_pr_hunks(dataset)
+            if cfg.quick:
+                hunks_stream = islice(hunks_stream, 50)
+            hunks_input: Iterable[dict[str, object]]
+            if cfg.sample_controls is not None:
+                hunks_input = _reservoir_sample(hunks_stream, cfg.sample_controls, seed)
+            else:
+                hunks_input = hunks_stream
             real_pr_results = _score_real_hunks(
-                scorer, hunks, repo, typicality_model=typicality_model, filter_stats=filter_stats
+                scorer, hunks_input, repo, typicality_model=typicality_model, filter_stats=filter_stats
             )
 
     # For each injection-host PR beyond the primary, score real hunks (not in quick)
@@ -273,13 +280,16 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
                 language=cfg.language,
                 typicality_model=typicality_model,
             )
-            hunks = _real_pr_hunks(dataset)
-            if cfg.sample_controls is not None and len(hunks) > cfg.sample_controls:
-                hunks = _subsample_hunks(hunks, cfg.sample_controls, cfg.seeds[0])
+            hunks_stream2: Iterable[dict[str, object]] = _real_pr_hunks(dataset)
+            hunks_input2: Iterable[dict[str, object]]
+            if cfg.sample_controls is not None:
+                hunks_input2 = _reservoir_sample(hunks_stream2, cfg.sample_controls, cfg.seeds[0])
+            else:
+                hunks_input2 = hunks_stream2
             real_pr_results.extend(
                 _score_real_hunks(
                     scorer2,
-                    hunks,
+                    hunks_input2,
                     repo,
                     typicality_model=typicality_model,
                     filter_stats=filter_stats,

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from argot_bench.run import RunConfig, _score_real_hunks, _subsample_hunks, run_corpus
+from argot_bench.run import RunConfig, _real_pr_hunks, _reservoir_sample, _score_real_hunks, run_corpus
 from argot_bench.score import ScoreResult
 
 
@@ -258,7 +258,7 @@ def test_run_sample_controls_subsample(tmp_path: Path, monkeypatch):
 
     # 200 stub hunks
     stub_hunks = [{"file_path": f"f{i}.py", "hunk_start_line": 0, "hunk_end_line": 1} for i in range(200)]
-    monkeypatch.setattr(run_mod, "_real_pr_hunks", lambda *_a, **_kw: list(stub_hunks))
+    monkeypatch.setattr(run_mod, "_real_pr_hunks", lambda *_a: iter(stub_hunks))
 
     # Make the repo directory contain "f0.py" … so _score_real_hunks can read files
     repo_dir = tmp_path / "data" / "fastapi" / ".repo"
@@ -282,12 +282,39 @@ def test_run_sample_controls_subsample(tmp_path: Path, monkeypatch):
     assert len(real_pr) == 50, f"expected 50 control records, got {len(real_pr)}"
 
 
-def test_subsample_hunks_is_reproducible_and_bounded():
-    hunks = [{"id": i} for i in range(200)]
-    result_a = _subsample_hunks(hunks, 50, seed=0)
-    result_b = _subsample_hunks(hunks, 50, seed=0)
-    assert len(result_a) == 50
-    assert result_a == result_b  # same seed → same order
+def test_real_pr_hunks_yields_lazily(tmp_path: Path):
+    import json
+    import types
 
-    result_c = _subsample_hunks(hunks, 50, seed=1)
-    assert result_a != result_c  # different seed → different order
+    ds = tmp_path / "dataset.jsonl"
+    ds.write_text(
+        "\n".join(
+            json.dumps({"file_path": f"x{i}.py", "hunk_start_line": i, "hunk_end_line": i + 1})
+            for i in range(5)
+        )
+    )
+    gen = _real_pr_hunks(ds)
+    assert isinstance(gen, types.GeneratorType)
+    first = next(gen)
+    assert first["file_path"] == "x0.py"
+
+
+def test_reservoir_sample_is_deterministic():
+    src = [{"i": i} for i in range(1000)]
+    a = _reservoir_sample(iter(src), 50, seed=0)
+    b = _reservoir_sample(iter(src), 50, seed=0)
+    assert [x["i"] for x in a] == [x["i"] for x in b]
+
+
+def test_reservoir_sample_size_exactly_n():
+    src = [{"i": i} for i in range(100)]
+    out = _reservoir_sample(iter(src), 20, seed=0)
+    assert len(out) == 20
+    assert all(x in src for x in out)
+
+
+def test_reservoir_sample_shorter_than_n():
+    src = [{"i": i} for i in range(10)]
+    out = _reservoir_sample(iter(src), 50, seed=0)
+    assert len(out) == 10
+    assert {x["i"] for x in out} == set(range(10))
