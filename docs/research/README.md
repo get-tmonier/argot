@@ -20,7 +20,7 @@ structurally different signals in series.
 | Era | Phases | Headline finding | Link |
 |---|---|---|---|
 | JEPA era | 1–6 | Wins did not compound and cross-repo AUC was measuring language detection, not style — best honest metric (shuffled AUC) plateaued at 0.713 | [01-jepa-era.md](01-jepa-era.md) |
-| Honest eval | 7–9 | Three architectures (from-scratch encoders, density heads, frozen pretrained) all failed the 0.85 gate at 0.48–0.58 — no training signal anywhere targeted mutations | [02-pivot-to-honest-eval.md](02-pivot-to-honest-eval.md) |
+| Honest eval | 7–9 | Three architectures (from-scratch encoders, density heads, frozen pretrained) all failed the 0.85 gate at 0.48–0.58 — targeted mutations carried no detectable training signal | [02-pivot-to-honest-eval.md](02-pivot-to-honest-eval.md) |
 | Token-frequency signal hunt | 10–12 | Zero-training `tfidf_anomaly` beat the JEPA ensemble (AUC 0.6968 vs 0.6532) and was promoted as the new default, but stalled short of the 0.80 gate | [03-bpe-signal-hunt.md](03-bpe-signal-hunt.md) |
 | Import-graph breakthrough | 13–14 | `SequentialImportBpeScorer` flagged 46/46 breaks with 0 FP across 189 calibration+control hunks — era ended with promotion, not pivot | [04-import-graph-breakthrough.md](04-import-graph-breakthrough.md) |
 
