@@ -37,6 +37,13 @@ module.exports = {
       from: { path: 'cli/src/shell/' },
       to: { path: 'cli/src/modules/[^/]+/infrastructure/' },
     },
+    {
+      name: 'no-research-imports',
+      comment: 'CLI must not import from research paths (research is Python-only; defensive rule)',
+      severity: 'error',
+      from: { path: '^cli/src' },
+      to: { path: 'research' },
+    },
   ],
   options: {
     doNotFollow: { path: 'node_modules' },

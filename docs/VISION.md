@@ -35,7 +35,7 @@ Pre-commit is one integration mode among many. It is not the identity of the too
 Goal: show that the surprise signal is non-trivially useful on a real repo.
 
 - [ ] Dataset extraction from git log (TS + Python files, tokenized with tree-sitter)
-- [ ] JEPA training loop, adapted from LeWM
+- [x] Two-stage scoring: import-graph anomaly detection + BPE log-ratio calibrated per-repo
 - [ ] CLI: `argot train`, `argot check` (staged diff + arbitrary git range)
 - [ ] JSON output mode for machine consumption
 - [ ] Manual validation on 3 repos: Vigie, spot-the-glitch, one public repo
