@@ -7,8 +7,10 @@ from pathlib import Path
 
 import pytest
 
+from argot.scoring.adapters.registry import adapter_for_files
+from argot.scoring.adapters.typescript import TypeScriptAdapter
 from argot.scoring.calibration import load_config
-from argot.scoring.calibration.random_hunk_sampler import sample_hunks
+from argot.scoring.calibration.random_hunk_sampler import collect_candidates, sample_hunks
 from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
 
 _CATALOG = Path(__file__).parent.parent / "acceptance" / "catalog"
@@ -105,3 +107,120 @@ def test_n_calibration_matches_hunks() -> None:
     )
     assert scorer.n_calibration == 8
     assert len(scorer.cal_scores) == 8
+
+
+# --- TypeScript path tests ---
+
+_TS_FILE_A = """\
+import { readFile } from "fs/promises";
+import { join } from "path";
+
+export function parseConfig(raw: string): Record<string, unknown> {
+    const lines = raw.split("\\n");
+    const result: Record<string, unknown> = {};
+    for (const line of lines) {
+        const [key, value] = line.split("=");
+        if (key && value) {
+            result[key.trim()] = value.trim();
+        }
+    }
+    return result;
+}
+
+export async function loadFile(p: string): Promise<string> {
+    const full = join(process.cwd(), p);
+    const buf = await readFile(full);
+    const text = buf.toString("utf-8");
+    return text;
+}
+"""
+
+_TS_FILE_B = """\
+import { EventEmitter } from "events";
+
+export class MessageBus extends EventEmitter {
+    private readonly queue: string[] = [];
+
+    enqueue(msg: string): void {
+        this.queue.push(msg);
+        this.emit("message", msg);
+    }
+
+    drain(): string[] {
+        const out = [...this.queue];
+        this.queue.length = 0;
+        return out;
+    }
+}
+
+export function formatMessage(id: number, body: string): string {
+    const prefix = `[${id}]`;
+    const trimmed = body.trim();
+    const result = `${prefix} ${trimmed}`;
+    return result;
+}
+"""
+
+_TS_FILE_C = """\
+import type { RequestInit } from "node-fetch";
+
+export interface RetryOptions {
+    maxAttempts: number;
+    delayMs: number;
+}
+
+export async function fetchWithRetry(
+    url: string,
+    opts: RequestInit,
+    retry: RetryOptions,
+): Promise<Response> {
+    let last: Error = new Error("no attempts");
+    for (let i = 0; i < retry.maxAttempts; i++) {
+        try {
+            const res = await fetch(url, opts);
+            return res;
+        } catch (err) {
+            last = err as Error;
+            await new Promise((r) => setTimeout(r, retry.delayMs));
+        }
+    }
+    throw last;
+}
+"""
+
+
+@pytest.fixture()
+def ts_source_dir(tmp_path: Path) -> Path:
+    """A tmp directory containing three .ts files with sampleable top-level declarations."""
+    (tmp_path / "parser.ts").write_text(_TS_FILE_A, encoding="utf-8")
+    (tmp_path / "bus.ts").write_text(_TS_FILE_B, encoding="utf-8")
+    (tmp_path / "fetch.ts").write_text(_TS_FILE_C, encoding="utf-8")
+    return tmp_path
+
+
+def test_adapter_for_files_returns_typescript(ts_source_dir: Path) -> None:
+    """adapter_for_files selects TypeScriptAdapter when all paths are .ts files."""
+    paths = [str(p) for p in sorted(ts_source_dir.glob("*.ts"))]
+    adapter = adapter_for_files(paths)
+    assert isinstance(adapter, TypeScriptAdapter)
+
+
+def test_collect_candidates_typescript(ts_source_dir: Path) -> None:
+    """collect_candidates returns at least one hunk from a TypeScript source tree."""
+    paths = [str(p) for p in sorted(ts_source_dir.glob("*.ts"))]
+    ts_adapter = adapter_for_files(paths)
+    candidates = collect_candidates(ts_source_dir, adapter=ts_adapter)
+    assert len(candidates) > 0
+
+
+def test_sample_hunks_typescript(ts_source_dir: Path) -> None:
+    """sample_hunks returns the requested number of hunks from TypeScript sources."""
+    paths = [str(p) for p in sorted(ts_source_dir.glob("*.ts"))]
+    ts_adapter = adapter_for_files(paths)
+    candidates = collect_candidates(ts_source_dir, adapter=ts_adapter)
+    n = min(2, len(candidates))
+    hunks = sample_hunks(ts_source_dir, n=n, seed=0, adapter=ts_adapter)
+    assert len(hunks) == n
+    for hunk in hunks:
+        assert isinstance(hunk, str)
+        assert len(hunk) > 0
