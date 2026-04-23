@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 MIN_BODY_LINES: int = 5
 
-_DEFAULT_EXCLUDE_DIRS: frozenset[str] = frozenset(
+DEFAULT_EXCLUDE_DIRS: frozenset[str] = frozenset(
     {
         "test",
         "tests",
@@ -46,9 +46,10 @@ _DEFAULT_EXCLUDE_DIRS: frozenset[str] = frozenset(
         ".eggs",
     }
 )
+_DEFAULT_EXCLUDE_DIRS = DEFAULT_EXCLUDE_DIRS
 
 
-def _is_excluded(path: Path, source_dir: Path, exclude_dirs: frozenset[str]) -> bool:
+def is_excluded_path(path: Path, source_dir: Path, exclude_dirs: frozenset[str]) -> bool:
     try:
         rel = path.relative_to(source_dir)
     except ValueError:
@@ -62,6 +63,9 @@ def _is_excluded(path: Path, source_dir: Path, exclude_dirs: frozenset[str]) -> 
         return True
     # TypeScript/JavaScript test files: foo.test.ts, foo.spec.tsx, etc.
     return ".test." in name or ".spec." in name
+
+
+_is_excluded = is_excluded_path
 
 
 def collect_candidates(
@@ -82,13 +86,13 @@ def collect_candidates(
         exclude_auto_generated: When True (default), skip auto-generated files.
         exclude_data_dominant: When True (default), skip data-dominant files.
     """
-    excl = exclude_dirs if exclude_dirs is not None else _DEFAULT_EXCLUDE_DIRS
+    excl = exclude_dirs if exclude_dirs is not None else DEFAULT_EXCLUDE_DIRS
     _adapter: LanguageAdapter = adapter if adapter is not None else PythonAdapter()
     hunks: list[str] = []
 
     for ext in _adapter.file_extensions:
         for src_file in sorted(source_dir.rglob(f"*{ext}")):
-            if _is_excluded(src_file, source_dir, excl):
+            if is_excluded_path(src_file, source_dir, excl):
                 continue
             try:
                 source = src_file.read_text(encoding="utf-8", errors="replace")

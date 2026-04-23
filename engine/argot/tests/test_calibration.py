@@ -224,3 +224,13 @@ def test_sample_hunks_typescript(ts_source_dir: Path) -> None:
     for hunk in hunks:
         assert isinstance(hunk, str)
         assert len(hunk) > 0
+
+
+def test_exclude_dirs_and_is_excluded_path_are_public():
+    from argot.scoring.calibration.random_hunk_sampler import (
+        DEFAULT_EXCLUDE_DIRS,
+        is_excluded_path,
+    )
+
+    assert "tests" in DEFAULT_EXCLUDE_DIRS
+    assert "node_modules" in DEFAULT_EXCLUDE_DIRS or "build" in DEFAULT_EXCLUDE_DIRS
