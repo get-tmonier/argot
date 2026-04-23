@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import math
-
 
 def test_typicality_features_has_four_fields():
     from argot_bench.typicality import TypicalityFeatures

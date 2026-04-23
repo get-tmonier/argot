@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
-
 from argot.scoring.adapters.language_adapter import LanguageAdapter
 from argot.scoring.adapters.python_adapter import PythonAdapter
 from argot.scoring.calibration.random_hunk_sampler import collect_candidates, sample_hunks
@@ -108,7 +107,7 @@ def build_scorer(
     seed: int,
     language: Language,
     bpe_model_b: Path | None = None,
-    typicality_model: "TypicalityModel | None" = None,
+    typicality_model: TypicalityModel | None = None,
 ) -> BenchScorer:
     """Build a BenchScorer calibrated on n_cal sampled hunks from repo_dir.
 

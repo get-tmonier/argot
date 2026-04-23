@@ -98,7 +98,7 @@ def _score_real_hunks(
     hunks: list[dict[str, object]],
     repo_dir: Path,
     *,
-    typicality_model: "TypicalityModel | None" = None,
+    typicality_model: TypicalityModel | None = None,
     filter_stats: dict[str, int] | None = None,
 ) -> list[dict[str, object]]:
     """Score real-PR hunks from an argot-extract dataset record.
@@ -192,11 +192,13 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
     typicality_model: TypicalityModel | None = None
     filter_stats: dict[str, int] = {"pool_size": 0, "pool_filtered": 0, "controls_filtered": 0}
     if cfg.typicality_filter:
+        from argot.scoring.adapters.language_adapter import LanguageAdapter
         from argot.scoring.adapters.python_adapter import PythonAdapter
         from argot.scoring.calibration.random_hunk_sampler import collect_candidates
 
         from argot_bench.typicality import TypicalityModel
 
+        adapter_for_fit: LanguageAdapter
         if cfg.language == "python":
             adapter_for_fit = PythonAdapter()
         else:
