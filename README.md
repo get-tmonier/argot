@@ -247,94 +247,51 @@ Language-specific logic (import extraction, prose masking, auto-generated file d
 
 No training data or model leaves your machine. All stages run entirely locally.
 
+> **How we got here.** This two-stage design wasn't the first attempt — it's
+> the one that cleared the gate after a GPU-hungry neural scorer, three dead
+> ends, and 14 phases of experiments. See
+> [`docs/research/`](docs/research/README.md) for the four-era narrative
+> (JEPA ensembles → honest eval → token-frequency signal hunt →
+> import-graph breakthrough) with 27 evidence docs.
+
 ## Validation
 
-argot's scorer was benchmarked across 6 open-source repos (3 Python, 3 TypeScript), 150+ real merged PRs, and a handcrafted catalog of 39 paradigm-break fixtures. The paradigm-break fixtures are Python-only (Flask routing, Django CBV, `requests` in async, etc.); TypeScript corpora were validated end-to-end through the base-rate experiment on real merged PRs below.
+argot ships with a reproducible benchmark harness
+([`benchmarks/`](benchmarks/)) that runs the production scorer against
+six pinned open-source repos — fastapi, rich, faker (Python) and hono,
+ink, faker-js (TypeScript) — using a hand-crafted catalog of **91
+paradigm-break fixtures** across **34 categories** (Flask routing in a
+FastAPI app, `requests` in async code, Django CBV, `Math.random` inside
+a deterministic faker-js provider, etc.). Each break is scored against
+a backdrop of **167k+ real PR hunks** from the same repos as negative
+controls.
 
-### Controlled break-detection experiment (Python corpora)
+Latest full baseline ([`benchmarks/results/baseline/latest/report.md`](benchmarks/results/baseline/latest/report.md)):
 
-The cleanest signal: calibrate on repo-native hunks, inject paradigm-break fixtures, measure recall and FP rate on a held-out control set. FastAPI and rich were run with 5 independent random seeds to measure threshold variance; faker was run once over its full 139-hunk pool (the pool size makes seed-to-seed variance negligible — confirmed by a pool-capped stability probe).
+| Corpus | AUC | Recall | FP rate |
+|:---|---:|---:|---:|
+| fastapi | **0.9915** | 69.4% | 0.3% |
+| rich | **0.9933** | 90.0% | 1.0% |
+| faker (py) | 0.9295 | 100.0% | 1.7% |
+| hono | 0.7853 | 60.0% | 0.6% |
+| ink | **0.9881** | 86.7% | 1.1% |
+| faker-js | 0.8568 | 20.0% | 5.0% |
 
-| Corpus | Seeds | Calibration hunks | Recall | FP rate | Threshold CV |
-|---|---|---|---|---|---|
-| FastAPI | 5 | 100 | **100%** | mean 1% (1 FP at seed 2) | 3.5% — STABLE |
-| Rich | 5 | 100 | **100%** | mean 1% (1 FP at seed 2) | 3.8% — STABLE |
-| faker (Python) | 1 | 139 | **100%** | 0% | — |
+AUC > 0.98 on 4 of 6 corpora — the scorer consistently ranks hand-crafted
+breaks above real idiomatic code. **Threshold CV = 0%** across 5 seeds:
+runs are fully deterministic.
 
-All single FP events were at a margin of < 0.06 above threshold — within calibration noise. Gate criteria: recall ≥ 100%, FP rate ≤ 5%, threshold CV < 5%. **All three Python corpora passed all three gates.**
-
-### Recall by paradigm-break category
-
-31 categories × 4 host PRs = 124 injected hunk pairs. Scored through Stage 2 only (import detection disabled), to isolate BPE signal. **Overall recall: 95.2%** (118/124).
-
-```mermaid
-xychart-beta
-    title "Stage-2 recall by category (FastAPI, 124 hunk pairs)"
-    x-axis ["Framework swap", "Async violations", "Serialization", "Exceptions", "Bg tasks", "Dep. injection", "Validation", "Lang idioms"]
-    y-axis "recall %" 0 --> 110
-    bar [100, 100, 100, 100, 100, 100, 87.5, 100]
-```
-
-> Two fixtures in the Validation category (Voluptuous and imperative route loop) scored below threshold on some host PRs with narrow margins. All other categories: 100%.
-
-| Category | Examples |
-|---|---|
-| Framework swap | Flask routing, Django CBV, aiohttp handler, Tornado handler |
-| Async violations | `requests` blocking event loop, sync file I/O in async |
-| Validation | Manual dict guards, Cerberus, Voluptuous, assert validation |
-| Serialization | Manual JSON dict, msgpack, orjson |
-| Exception handling | Bare `except:`, exception swallow, traceback in response |
-| Background tasks | `threading.Queue`, `atexit`, `multiprocessing` |
-| Dependency injection | Manual class instantiation vs `Depends(...)` |
-| Language idioms | walrus, match/case, dataclasses, f-strings, async, union syntax |
-
-### Threshold sensitivity (recall–FP operating curve)
-
-Measured on FastAPI across 35 real merged PRs. Bars = FP rate on real PRs, line = recall on catalog breaks.
-
-```mermaid
-xychart-beta
-    title "Operating curve — recall vs FP rate (FastAPI, 35 PRs)"
-    x-axis ["max  (prod)", "p99", "p95", "p90"]
-    y-axis "%" 0 --> 105
-    bar [1.5, 2.3, 4.4, 7.1]
-    line [93.5, 96.8, 100, 100]
-```
-
-Production uses `max(cal_scores)` — the most conservative point: **1.5% FP rate, 93.5% recall**. Moving to p95 reaches 100% recall at a 3× FP-rate cost (4.4%).
-
-### Base-rate experiment (false-positive rate on real PRs)
-
-Unfiltered flag rate on real merged PRs — the realistic noise floor in production use:
-
-| Corpus | Language | PRs | Hunks | Flag rate | Confirmed FPs |
-|---|---|---|---|---|---|
-| FastAPI | Python | 50 | 1,452 | 4.0% | 0 |
-| Rich | Python | 37 | 194 | 11.0% | 0 (21 auto-gen suppressed) |
-| faker (Python) | Python | 50 | 130 | 0.8% | 1 — Stage 1 on a pure string edit in an import-heavy file |
-| hono | TypeScript | 5 | 22 | 0.0% | 0 |
-| ink | TypeScript | 5 | 14 | 21.4% | 0 — 3 flags on feature-introduced content |
-| faker-js | TypeScript | 5 | 46 | 4.3% | 0 — 2 flags on a genuine `LocaleProxy` core refactor |
-
-All flags were reviewed manually. Rich's 11% flag rate reflects a PR that added machine-generated Unicode data tables — 21 of those hunks were correctly suppressed by the auto-generated file filter; the remaining flags were on hand-written code that legitimately restructured the import graph. Ink's 21.4% rate is on a small hunk count (14 source hunks across 5 PRs) and remains below the 30% investigation threshold.
-
-> **TypeScript sample size.** Each TS corpus was validated against only 5 recent merged PRs (22/14/46 source hunks respectively). This is a deliberately narrow first-pass bring-up — enough to verify the `LanguageAdapter` seam holds and filters behave on three shape-diverse corpora (HTTP framework, TSX React library, locale-heavy data repo), but not a flag-rate estimate at Python-corpus resolution. Broader TS validation is an open follow-up.
-
-### Known limits
-
-- **Locale-heavy corpora:** Repos dominated by locale data literals (e.g. faker-js with ~75% of files as `export default` data arrays) would otherwise flood the calibration pool and suppress the BPE threshold. The `is_data_dominant` filter excludes these files before calibration — validated on faker-js, where it excluded 2219/2965 locale files (74.8%) while leaving module aggregators and application code intact (<0.5% false-exclusion rate on non-locale files). For Python corpora, p95 threshold remains the recommended fallback when data-dominance heuristics under-trigger.
-- **Stage 1 file-level import contamination:** Stage 1 can fire on unchanged import lines in the surrounding file when the full file source is not passed. The `check` command always passes `file_source`, so this is not observable in normal use.
-
-### Reproduce the benchmark numbers
+Reproduce with a single command:
 
 ```bash
-just bench             # full 6-corpus run (~1.5h first time, ~20min cached)
-just bench-quick       # ~8 min — 1 PR + 1 fixture per category per corpus
-just verify-bench      # lint + mypy + unit tests for the harness itself
+just bench         # all 6 corpora, ~1.5h first time (~20 min with caches)
+just bench-quick   # ~1 min — one fixture per category on fastapi
 ```
 
-Results land in `benchmarks/results/<timestamp>/` — `report.md` plus one
-JSON per corpus with every raw score.
+See [`benchmarks/README.md`](benchmarks/README.md) for methodology,
+per-category breakdowns, known weaknesses (calibration pollution from
+data/locale/test files, semantic-break blind spots on TS corpora), and
+how to read a generated report.
 
 ## Limitations
 
