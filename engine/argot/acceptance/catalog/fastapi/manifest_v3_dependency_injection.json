@@ -1,0 +1,28 @@
+{
+  "fixtures": [
+    {
+      "name": "paradigm_break_manual_generator_drain",
+      "file": "fixtures/default/paradigm_break_manual_generator_drain.py",
+      "verdict": "break",
+      "category": "dependency_injection",
+      "set": "v3",
+      "rationale": "Endpoints call next(get_db()) manually and manage teardown with try/finally, bypassing FastAPI's Depends() lifecycle. 428 Depends() sites in corpus vs 0 manual-drain sites — OOV structural pattern."
+    },
+    {
+      "name": "paradigm_break_class_instance_no_depends",
+      "file": "fixtures/default/paradigm_break_class_instance_no_depends.py",
+      "verdict": "break",
+      "category": "dependency_injection",
+      "set": "v3",
+      "rationale": "Service classes instantiated at module level and passed as plain default argument values (service: EmailService = email_service) instead of Depends(). FastAPI cannot manage lifecycle or substitute for testing. 0 corpus sites use this pattern vs 428 Depends() sites."
+    },
+    {
+      "name": "control_nested_depends",
+      "file": "fixtures/default/control_nested_depends.py",
+      "verdict": "control",
+      "category": "dependency_injection",
+      "set": "v3",
+      "rationale": "Nested Depends() chain: ReportParams class-based dependency itself Depends() on a generator sub-dep (get_db_session) and an auth sub-dep (get_current_user) that chains from a credential extractor. Pattern from docs_src/dependencies/tutorial005.py and tutorial002.py. Uses Annotated aliases throughout (1,136 corpus sites)."
+    }
+  ]
+}

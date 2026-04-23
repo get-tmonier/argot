@@ -1,0 +1,48 @@
+{
+  "fixtures": [
+    {
+      "name": "paradigm_break_json_error_response",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_json_error_response.py",
+      "hunk_start_line": 51,
+      "hunk_end_line": 100,
+      "is_break": true,
+      "category": "exception_handling",
+      "set": "v3",
+      "rationale": "Endpoints return JSONResponse({\"error\": str(e)}) directly from except blocks instead of raising HTTPException. Canonical pattern: raise HTTPException(status_code=..., detail=...) at 78 corpus sites. Single axis: error response constructed and returned at call site vs. raised and dispatched through registered exception handlers. Inline JSONResponse({\"error\": ...}) at endpoint scope is rare in corpus."
+    },
+    {
+      "name": "paradigm_break_traceback_in_response",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_traceback_in_response.py",
+      "hunk_start_line": 46,
+      "hunk_end_line": 100,
+      "is_break": true,
+      "category": "exception_handling",
+      "set": "v3",
+      "rationale": "Endpoints expose full stack traces via traceback.format_exc() in response bodies on any exception. traceback.format_exc() is absent from the FastAPI corpus (0 sites). Canonical pattern: raise HTTPException(status_code=..., detail=...) with a controlled detail string (78 corpus sites). Single axis: raw traceback string in response content vs. structured detail field."
+    },
+    {
+      "name": "paradigm_break_flask_errorhandler",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_flask_errorhandler.py",
+      "hunk_start_line": 46,
+      "hunk_end_line": 84,
+      "is_break": true,
+      "category": "exception_handling",
+      "set": "v3",
+      "rationale": "Uses Flask's @app.errorhandler(...) decorator for exception registration instead of FastAPI's @app.exception_handler(...). Flask's errorhandler decorator is absent from the FastAPI corpus (0 sites). Canonical FastAPI pattern: @app.exception_handler(...) at 12 corpus registration sites. Single axis: wrong decorator name — Flask vocabulary in an otherwise valid FastAPI application. Endpoints correctly use raise HTTPException."
+    },
+    {
+      "name": "control_exception_handler_registration",
+      "scope": "default",
+      "file": "fixtures/default/control_exception_handler_registration.py",
+      "hunk_start_line": 72,
+      "hunk_end_line": 106,
+      "is_break": false,
+      "category": "exception_handling",
+      "set": "v3",
+      "rationale": "Uses exception_handlers={...} dict passed to FastAPI() constructor instead of @app.exception_handler decorators. Both registration styles are canonical FastAPI, documented and tested in tests/test_exception_handlers.py in the FastAPI source. Handlers receive (request, exc) and return JSONResponse. Endpoints use raise HTTPException(status_code=..., detail=...) — the dominant corpus pattern (78 sites). No anti-patterns present."
+    }
+  ]
+}

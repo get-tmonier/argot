@@ -1,0 +1,31 @@
+{
+  "fixtures": [
+    {
+      "id": "paradigm_break_aiohttp_no_context",
+      "category": "downstream_http",
+      "label": "break",
+      "file": "fixtures/default/paradigm_break_aiohttp_no_context.py",
+      "break_axes": ["session_lifecycle", "foreign_library"],
+      "corpus_evidence": {
+        "aiohttp.ClientSession": 0,
+        "httpx.AsyncClient": "present (idiomatic)"
+      },
+      "description": "aiohttp.ClientSession created at module level and per-request without async with; connections are never closed. 0 corpus sites for aiohttp; corpus uses httpx.AsyncClient via Depends() lifecycle.",
+      "hunk_lines": [24, 61]
+    },
+    {
+      "id": "control_httpx_depends",
+      "category": "downstream_http",
+      "label": "control",
+      "file": "fixtures/default/control_httpx_depends.py",
+      "corpus_evidence": {
+        "httpx.AsyncClient": "present (idiomatic)",
+        "raise_for_status": "18 corpus sites",
+        "Depends": "present"
+      },
+      "description": "httpx.AsyncClient as a yield-based Depends() dependency. The dependency owns the client lifecycle (create/yield/close); endpoints contain only application logic. Pattern from FastAPI docs on dependencies-with-yield.",
+      "source_reference": "https://fastapi.tiangolo.com/tutorial/dependencies/dependencies-with-yield/",
+      "hunk_lines": [31, 84]
+    }
+  ]
+}

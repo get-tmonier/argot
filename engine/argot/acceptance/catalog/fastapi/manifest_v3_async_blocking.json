@@ -1,0 +1,26 @@
+{
+  "fixtures": [
+    {
+      "name": "paradigm_break_sync_file_io_async",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_sync_file_io_async.py",
+      "hunk_start_line": 40,
+      "hunk_end_line": 86,
+      "is_break": true,
+      "category": "async_blocking",
+      "set": "v3",
+      "rationale": "OOV axis: blocking open() / Path.read_text() / json.loads() tight-loop calls inside async def endpoint bodies. Corpus evidence: 0 instances of open() or .read_text() inside AsyncFunctionDef bodies at endpoint scope across docs_src/ and tests/. Async endpoints in the corpus use aiofiles or offload to threads via anyio.to_thread.run_sync() (fastapi/concurrency.py lines 32, 39). Fixture simulates a realistic document-storage API that reads and writes JSON files synchronously in every async endpoint, blocking the event loop for the full disk-operation duration."
+    },
+    {
+      "name": "control_anyio_thread_offload",
+      "scope": "default",
+      "file": "fixtures/default/control_anyio_thread_offload.py",
+      "hunk_start_line": 67,
+      "hunk_end_line": 110,
+      "is_break": false,
+      "category": "async_blocking",
+      "set": "v3",
+      "rationale": "Idiomatic FastAPI pattern for blocking I/O from async endpoints: wrap each blocking callable in functools.partial() and hand it to `await anyio.to_thread.run_sync(fn)`. Grounded in fastapi/concurrency.py lines 6, 32, 39 (`import anyio.to_thread`; `await anyio.to_thread.run_sync(cm.__exit__, ...)`) and tests/test_stream_cancellation.py (line 9: `import anyio` in async endpoint context). No blocking calls appear directly inside async def bodies — all file I/O and JSON parsing are wrapped in synchronous helper functions and dispatched to the thread pool."
+    }
+  ]
+}

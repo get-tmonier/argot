@@ -1,0 +1,37 @@
+{
+  "fixtures": [
+    {
+      "name": "control_lifespan_context",
+      "scope": "default",
+      "file": "fixtures/default/control_lifespan_context.py",
+      "hunk_start_line": 36,
+      "hunk_end_line": 98,
+      "is_break": false,
+      "category": "framework_swap",
+      "set": "v3",
+      "rationale": "Idiomatic FastAPI lifespan with @asynccontextmanager. Source: near-verbatim adaptation of docs_src/events/tutorial003_py310.py (lines 1-29) extended with an httpx.AsyncClient pool and in-memory DB stub. Key corpus markers: @asynccontextmanager (16 sites), app = FastAPI(lifespan=lifespan) (modern constructor), @app.get/@app.post (833/270 sites), HTTPException (78 sites). The lifespan block (lines 36-55) is the distinguishing hunk — startup/shutdown resource management via yield is the canonical pattern that replaces the deprecated @app.on_event pair."
+    },
+    {
+      "name": "control_apirouter_composition",
+      "scope": "default",
+      "file": "fixtures/default/control_apirouter_composition.py",
+      "hunk_start_line": 63,
+      "hunk_end_line": 150,
+      "is_break": false,
+      "category": "framework_swap",
+      "set": "v3",
+      "rationale": "Canonical APIRouter composition with app.include_router(). Source: adapted from docs_src/bigger_applications/app_an_py310/main.py (lines 1-23) and routers/items.py (lines 1-38), routers/users.py (lines 1-17), consolidated into a single self-contained file. Key corpus markers: include_router() (86 sites), APIRouter(prefix=..., tags=...) (corpus-confirmed), @router.get/@router.post (20/11 sites), Depends() (428 sites), response_model= (163 sites). The hunk (lines 63-150) covers the items router definition, users router definition, and app assembly — the three-module structure is the canonical multi-router pattern."
+    },
+    {
+      "name": "control_mounted_subapp",
+      "scope": "default",
+      "file": "fixtures/default/control_mounted_subapp.py",
+      "hunk_start_line": 41,
+      "hunk_end_line": 107,
+      "is_break": false,
+      "category": "framework_swap",
+      "set": "v3",
+      "rationale": "Idiomatic app.mount() for ASGI sub-app composition with StaticFiles. Source: adapted from docs_src/static_files/tutorial001_py310.py (lines 1-6) with a realistic API surface alongside the mount. Key corpus markers: app.mount() (6 sites), StaticFiles from fastapi.staticfiles (corpus-confirmed), @app.get/@app.post (833/270 sites), HTTPException (78 sites), response_model= (163 sites). The hunk (lines 41-107) covers the app.mount() call and all endpoints — valid FastAPI app.mount() is the positive control axis contrasting with the existing paradigm_break_starlette_mount fixture (bare Starlette Router + add_route(), 0 corpus sites)."
+    }
+  ]
+}

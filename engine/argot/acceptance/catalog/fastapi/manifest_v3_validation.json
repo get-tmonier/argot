@@ -1,0 +1,26 @@
+{
+  "fixtures": [
+    {
+      "name": "paradigm_break_assert_validation",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_assert_validation.py",
+      "hunk_start_line": 31,
+      "hunk_end_line": 97,
+      "is_break": true,
+      "category": "validation",
+      "set": "v3",
+      "rationale": "Endpoints accept `body: dict = Body(...)` and validate fields with bare `assert` statements instead of Pydantic BaseModel injection. The FastAPI corpus shows 0 instances of `assert` used for request validation at endpoint scope; BaseModel subclasses appear at 384 corpus sites. Unhandled AssertionError produces a 500 rather than a 422, making the break operationally visible. Single axis: assert-based validation vs. declarative Pydantic constraints."
+    },
+    {
+      "name": "control_field_validator",
+      "scope": "default",
+      "file": "fixtures/default/control_field_validator.py",
+      "hunk_start_line": 72,
+      "hunk_end_line": 115,
+      "is_break": false,
+      "category": "validation",
+      "set": "v3",
+      "rationale": "A Pydantic BaseModel with @field_validator decorators injected directly as an endpoint body parameter. Adapted from @field_validator usage in tests/test_filter_pydantic_sub_model_pv2.py in the FastAPI source. Uses high-frequency corpus tokens: BaseModel (384 sites), Field with constraints, @field_validator (present in corpus), APIRouter, Depends, HTTPException. No anti-patterns; all validation is declarative and dispatched through Pydantic."
+    }
+  ]
+}

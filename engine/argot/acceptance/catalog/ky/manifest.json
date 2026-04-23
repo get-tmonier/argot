@@ -1,0 +1,67 @@
+{
+  "fixtures": [
+    {
+      "name": "paradigm_break_xhr",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_xhr.ts",
+      "hunk_start_line": 39,
+      "hunk_end_line": 75,
+      "is_break": true,
+      "rationale": "ky is entirely fetch-based; XMLHttpRequest is never used in the source"
+    },
+    {
+      "name": "paradigm_break_callback",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_callback.ts",
+      "hunk_start_line": 36,
+      "hunk_end_line": 55,
+      "is_break": true,
+      "rationale": "ky always returns a ResponsePromise; Node.js-style error-first callbacks are never used"
+    },
+    {
+      "name": "paradigm_break_class_client",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_class_client.ts",
+      "hunk_start_line": 34,
+      "hunk_end_line": 52,
+      "is_break": true,
+      "rationale": "ky exposes a factory function (ky.create/ky.extend), never a class that callers instantiate with new"
+    },
+    {
+      "name": "paradigm_break_explicit_promise",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_explicit_promise.ts",
+      "hunk_start_line": 28,
+      "hunk_end_line": 80,
+      "is_break": true,
+      "rationale": "ky is fetch-only; Node.js http/https transport with res.on('data') event listeners and Buffer.concat is never used"
+    },
+    {
+      "name": "paradigm_break_interceptors",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_interceptors.ts",
+      "hunk_start_line": 34,
+      "hunk_end_line": 95,
+      "is_break": true,
+      "rationale": "ky uses plain hooks arrays on a hooks object; axios-style client.interceptors.request.use() is never present"
+    },
+    {
+      "name": "control_options_normalization",
+      "scope": "default",
+      "file": "fixtures/default/control_options_normalization.ts",
+      "hunk_start_line": 37,
+      "hunk_end_line": 57,
+      "is_break": false,
+      "rationale": "Idiomatic ky options normalization: plain object spread, new Headers(), hooks array merging, retry/timeout defaults"
+    },
+    {
+      "name": "control_response_handling",
+      "scope": "default",
+      "file": "fixtures/default/control_response_handling.ts",
+      "hunk_start_line": 37,
+      "hunk_end_line": 57,
+      "is_break": false,
+      "rationale": "Idiomatic ky options normalization: new Headers(), mergeHeaders/mergeHooks spread, hooks defaultHooks merge, searchParams normalization, prefixUrl/retry/timeout defaults"
+    }
+  ]
+}
