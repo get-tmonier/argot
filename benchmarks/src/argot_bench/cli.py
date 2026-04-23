@@ -29,6 +29,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--fresh", action="store_true")
     p.add_argument("--data-dir", type=Path, default=_DEFAULT_DATA)
     p.add_argument("--results-dir", type=Path, default=_DEFAULT_RESULTS)
+    p.add_argument(
+        "--typicality-filter",
+        choices=["on", "off"],
+        default="off",
+        help="Apply the AST-derived typicality filter to calibration pool and control scoring.",
+    )
 
     sub.add_parser("list-corpora", help="Print the 6 corpora in targets.yaml")
     rep = sub.add_parser("report", help="Regenerate report.md from existing JSON")
@@ -94,6 +100,7 @@ def _run(args: argparse.Namespace) -> int:
             data_dir=args.data_dir,
             quick=args.quick,
             fresh=args.fresh,
+            typicality_filter=(args.typicality_filter == "on"),
         )
         r = run_corpus(cfg)
         reports.append(r)
