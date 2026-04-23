@@ -1,3 +1,7 @@
+> **Superseded by typicality-filter-v2.md.** v1's MCD predicate
+> did not achieve its primary objective; see v2 for the final
+> design and results.
+
 # Typicality filter v1: one-sided percentile-OR structural predicate
 
 ## Setup
