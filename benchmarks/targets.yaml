@@ -1,0 +1,52 @@
+# Pinned corpora for reproducing argot's validation numbers.
+# Python corpora: single HEAD SHA — validation walks git history from there.
+# TS corpora: 5 PRs each — pre-merge snapshots.
+
+targets:
+  - name: fastapi
+    url: https://github.com/tiangolo/fastapi
+    language: python
+    prs:
+      - { pr: 0, sha: 88021c3dc016d02fe609397cb034648262c270e8 }
+
+  - name: rich
+    url: https://github.com/Textualize/rich
+    language: python
+    prs:
+      - { pr: 0, sha: 46cebbb032f920eb096efbaf23cdc6fe9dd541f7 }
+
+  - name: faker
+    url: https://github.com/joke2k/faker
+    language: python
+    prs:
+      - { pr: 0, sha: e7d5cf2ee9c90058b56d393e40a91dc58506e4f7 }
+
+  - name: hono
+    url: https://github.com/honojs/hono
+    language: typescript
+    prs:
+      - { pr: 4883, sha: fa2c74fe5c3ce996d025d9d97bf5670c207bb82e }
+      - { pr: 4848, sha: 0bce36bf368ca4c1749285aeed537cba36b551bf }
+      - { pr: 4750, sha: 0c0bf8d789949d69d4e5bea244c468d2c7d9986b }
+      - { pr: 4780, sha: 58825a72f7cc0a36d08535fc11dc90934ba77aeb }
+      - { pr: 4834, sha: f82aba8e8ea45d56199e751cee6ea7c067bcd176 }
+
+  - name: ink
+    url: https://github.com/vadimdemedes/ink
+    language: typescript
+    prs:
+      - { pr: 937, sha: cb6687322886ec245a17fd75999c69b95114ec90 }
+      - { pr: 906, sha: d3c6d146bb6cf537430382dbf0653e1e50b2f76e }
+      - { pr: 925, sha: 2b1e3a6c58e3321f2e6a1feeb3cdff64aecfcdd3 }
+      - { pr: 910, sha: c32da0b3066590df08da5cef8351a7b863081c1b }
+      - { pr: 879, sha: 1761c3ae42b647a32132a7b34ce75ef143677cf9 }
+
+  - name: faker-js
+    url: https://github.com/faker-js/faker
+    language: typescript
+    prs:
+      - { pr: 3798, sha: 6c2a0abd3092c8afb2bca67544a16e85a13b6b61 }
+      - { pr: 3796, sha: d17c0f1fe2ea95666b668c1e87ef4a1505a19538 }
+      - { pr: 3820, sha: a7825a71ce1dd6b0728848ab73da8134f518e689 }
+      - { pr: 3783, sha: 237e7dc34aafafeef68e667a0140d08a8bfa7fb2 }
+      - { pr: 3809, sha: f45c508c3da0f6faee6a5a5edefce5eca0c90aa8 }
