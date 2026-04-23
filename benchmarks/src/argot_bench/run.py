@@ -76,6 +76,10 @@ def _score_fixtures(
             {
                 "id": fx.id,
                 "category": fx.category,
+                "file": fx.file,
+                "hunk_start_line": fx.hunk_start_line,
+                "hunk_end_line": fx.hunk_end_line,
+                "rationale": fx.rationale,
                 "import_score": r.import_score,
                 "bpe_score": r.bpe_score,
                 "flagged": r.flagged,
@@ -119,6 +123,9 @@ def _score_real_hunks(
         )
         out.append(
             {
+                "file_path": file_path_rel,
+                "hunk_start_line": hs,
+                "hunk_end_line": he,
                 "bpe_score": r.bpe_score,
                 "import_score": r.import_score,
                 "flagged": r.flagged,
@@ -200,11 +207,15 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
     break_scores = [cast(float, r["bpe_score"]) for r in fixture_results]
     ctrl_scores = [cast(float, r["bpe_score"]) for r in real_pr_results]
 
+    threshold_mean = sum(thresholds) / len(thresholds) if thresholds else 0.0
+
     metrics = {
         "auc_catalog": auc_catalog(break_scores, ctrl_scores),
         "recall_by_category": recall_by_category(fixture_results),
         "fp_rate_real_pr": fp_rate(real_pr_results),
         "threshold_cv": threshold_cv(thresholds),
+        "threshold_mean": threshold_mean,
+        "thresholds": thresholds,
         "calibration_stability": calibration_stability(cal_score_signatures, thresholds),
         "stage_attribution": stage_attribution(fixture_results),
         "n_fixtures": len(fixture_results),
