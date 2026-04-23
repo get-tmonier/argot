@@ -26,7 +26,7 @@ flowchart LR
     E3 -->|"token frequency hit<br/>its ceiling"| E4
     E4 -->|"FP tail on data/locale<br/>files needed a pre-filter"| E5
 
-    E5["<b>Era 5 — Calibration hygiene</b><br/>typicality filter<br/>FP −60–100% all corpora<br/>(phases 15+)"]
+    E5["<b>Era 5 — Calibration hygiene</b><br/>typicality filter<br/>FP <1% on all 6 corpora;<br/>peak −84% on faker-js<br/>(phases 15+)"]
 
     style E4 fill:#d4edda,stroke:#28a745,stroke-width:2px
     style E5 fill:#d4edda,stroke:#28a745,stroke-width:2px
@@ -43,7 +43,14 @@ flowchart LR
 | **Honest eval** | 7–9 | Three architectures (from-scratch encoders, density heads, frozen pretrained) all failed the 0.85 gate at 0.48–0.58 — targeted mutations carried no detectable training signal | [02-pivot-to-honest-eval.md](02-pivot-to-honest-eval.md) |
 | **Token-frequency signal hunt** | 10–12 | Zero-training `tfidf_anomaly` beat the JEPA ensemble (AUC 0.6968 vs 0.6532) and was promoted as the new default, but stalled short of the 0.80 gate | [03-bpe-signal-hunt.md](03-bpe-signal-hunt.md) |
 | **Import-graph breakthrough** | 13–14 | `SequentialImportBpeScorer` flagged 46/46 breaks with 0 FP across 189 calibration+control hunks; TS bring-up clean on hono (0/22), ink (3/14 all INTENTIONAL), and faker-js (2/46 after 74.8% locale-data filter) | [04-import-graph-breakthrough.md](04-import-graph-breakthrough.md) |
-| **Calibration hygiene** | 15+ | AST-derived typicality predicate reduced FP rate on all 6 corpora (−60–100%); data/locale/test files no longer dominate the near-FP tail | [05-calibration-hygiene.md](05-calibration-hygiene.md) |
+| **Calibration hygiene** | 15+ | AST-derived typicality predicate brought FP rate below 1% on all 6 corpora; peak reduction on faker-js (5.0% → 0.8%). Ink recall improved +6.6 pp as a side effect of calibration-pool cleanup; one fixture regression on rich (ansi_raw_2 at threshold boundary). | [05-calibration-hygiene.md](05-calibration-hygiene.md) |
+
+**Metric notes:** Era 1's *shuffled AUC* is AUC on a permutation-shuffled
+control condition, the honest generalization metric from phase 2. Era 2's
+*synthetic AUC* is AUC on mutation-generated breaks. Era 3's *fixture AUC*
+is AUC on handcrafted break/control pairs. Era 4 reports raw *recall* on
+the validation fixture catalog. Era 5 reports peak *FP reduction* on the
+worst-affected corpus (faker-js).
 
 ## The arc in one chart
 
@@ -52,10 +59,10 @@ and eventually good enough:
 
 ```mermaid
 xychart-beta
-    title "Best scorer per era vs the era's pass/fail gate"
+    title "Era-gate clearance: each bar is the best score on that era's chosen metric, normalized to its gate."
     x-axis ["Era 1 (shuffled AUC)", "Era 2 (synthetic AUC)", "Era 3 (fixture AUC)", "Era 4 (recall)", "Era 5 (FP reduction)"]
-    y-axis "score (0–1)" 0 --> 1.05
-    bar [0.713, 0.581, 0.6968, 1.0, 1.00]
+    y-axis "fraction of era's gate cleared" 0 --> 1.05
+    bar [0.713, 0.581, 0.6968, 1.0, 0.84]
     line [0.80, 0.85, 0.80, 1.0, 0.50]
 ```
 
@@ -75,10 +82,13 @@ The era-5 predicate lives at `engine/argot/scoring/filters/typicality.py`
 and is applied by the production `SequentialImportBpeScorer` at both
 calibration and inference. Remaining research items:
 
-- **Symmetric calibration filtering trade-off** — the hunk-level atypicality
-  gate removes some break-representative calibration hunks, pulling the
-  threshold down on a few corpora (rich: −10 pp recall, faker-js: −6.7 pp).
-  A targeted fix would apply the filter only at inference, not calibration.
+- **Calibration pool composition** — the file-level filter at
+  `collect_candidates` changed from `is_data_dominant + is_auto_generated`
+  to `is_atypical_file` during the port, which shifted rich's threshold up
+  by 0.16 and cost the ansi_raw_2 fixture. A targeted fix (restore
+  `is_data_dominant` as the primary file-level filter, make typicality
+  opt-in at that scope) could recover rich's 90% recall but trades against
+  FP elsewhere. See era-5 Interpretation for the tradeoff analysis.
 - **Object-keyed structured data** (documented limit in era 5) — a 5th
   feature treating TS `property_identifier` nodes in `pair` position as
   literal-equivalent, or a Python class-boilerplate-stripped ratio.
