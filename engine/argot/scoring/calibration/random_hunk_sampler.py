@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from argot.scoring.adapters.python_adapter import PythonAdapter
+from argot.scoring.filters.typicality import TypicalityModel, language_for_adapter
 
 if TYPE_CHECKING:
     from argot.scoring.adapters.language_adapter import LanguageAdapter
@@ -72,8 +73,9 @@ def collect_candidates(
     source_dir: Path,
     *,
     exclude_dirs: frozenset[str] | None = None,
-    exclude_auto_generated: bool = True,
-    exclude_data_dominant: bool = True,
+    exclude_atypical: bool = True,
+    exclude_auto_generated: bool = True,  # deprecated, kept as no-op shim
+    exclude_data_dominant: bool = True,  # deprecated, kept as no-op shim
     adapter: "LanguageAdapter | None" = None,  # noqa: UP037
 ) -> list[str]:
     """Return all qualifying hunk strings from source_dir.
@@ -83,11 +85,19 @@ def collect_candidates(
 
     Args:
         adapter: LanguageAdapter implementation to use.  Defaults to PythonAdapter.
-        exclude_auto_generated: When True (default), skip auto-generated files.
-        exclude_data_dominant: When True (default), skip data-dominant files.
+        exclude_atypical: When True (default), skip structurally atypical files
+            via TypicalityModel.is_atypical_file.  Replaces the legacy
+            exclude_auto_generated + exclude_data_dominant flags.
+        exclude_auto_generated: Deprecated. No-op when exclude_atypical is True.
+        exclude_data_dominant: Deprecated. No-op when exclude_atypical is True.
     """
     excl = exclude_dirs if exclude_dirs is not None else DEFAULT_EXCLUDE_DIRS
     _adapter: LanguageAdapter = adapter if adapter is not None else PythonAdapter()
+
+    typicality_model: TypicalityModel | None = None
+    if exclude_atypical:
+        typicality_model = TypicalityModel(language=language_for_adapter(_adapter))
+
     hunks: list[str] = []
 
     for ext in _adapter.file_extensions:
@@ -99,10 +109,14 @@ def collect_candidates(
             except OSError:
                 continue
 
-            if exclude_auto_generated and _adapter.is_auto_generated(source):
-                continue
-            if exclude_data_dominant and _adapter.is_data_dominant(source):
-                continue
+            if typicality_model is not None:
+                if typicality_model.is_atypical_file(source)[0]:
+                    continue
+            else:
+                if exclude_auto_generated and _adapter.is_auto_generated(source):
+                    continue
+                if exclude_data_dominant and _adapter.is_data_dominant(source):
+                    continue
 
             lines = source.splitlines()
             for start, end in _adapter.enumerate_sampleable_ranges(source):

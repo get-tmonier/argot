@@ -234,3 +234,35 @@ def test_exclude_dirs_and_is_excluded_path_are_public():
 
     assert "tests" in DEFAULT_EXCLUDE_DIRS
     assert "node_modules" in DEFAULT_EXCLUDE_DIRS or "build" in DEFAULT_EXCLUDE_DIRS
+
+
+def test_collect_candidates_filters_data_dominant_file(tmp_path):
+    from argot.scoring.adapters.python_adapter import PythonAdapter
+    from argot.scoring.calibration.random_hunk_sampler import collect_candidates
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    # Normal code file.
+    (repo / "normal.py").write_text(
+        "\n".join(
+            [
+                "def fn(value, registry):",
+                "    items = registry.lookup(value)",
+                "    if not items:",
+                "        return None",
+                "    out = []",
+                "    for item in items:",
+                "        out.append(item.transform(value))",
+                "    return out",
+            ]
+        )
+    )
+    # Data-dominant file.
+    (repo / "data.py").write_text(
+        "DATA = {\n" + "\n".join(f'    "k{i}": "v{i}",' for i in range(120)) + "\n}"
+    )
+
+    candidates = collect_candidates(repo, adapter=PythonAdapter())
+    # Should include fn from normal.py but not DATA from data.py.
+    assert any("def fn" in h for h in candidates)
+    assert not any("DATA" in h for h in candidates)
