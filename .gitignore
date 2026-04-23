@@ -42,7 +42,8 @@ __pycache__/
 *.egg-info/
 
 # argot output
-.argot/**
+.argot/
+**/.argot/
 
 # cache
 .cache/
