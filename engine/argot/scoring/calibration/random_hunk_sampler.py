@@ -73,23 +73,18 @@ def collect_candidates(
     source_dir: Path,
     *,
     exclude_dirs: frozenset[str] | None = None,
-    exclude_atypical: bool = True,
-    exclude_auto_generated: bool = True,  # deprecated, kept as no-op shim
-    exclude_data_dominant: bool = True,  # deprecated, kept as no-op shim
+    exclude_data_dominant: bool = True,   # primary file-level filter
+    exclude_atypical: bool = False,       # typicality file-level is opt-in here
+    exclude_auto_generated: bool = True,  # deprecated: silently no-op
     adapter: "LanguageAdapter | None" = None,  # noqa: UP037
 ) -> list[str]:
     """Return all qualifying hunk strings from source_dir.
 
-    A qualifying hunk is a top-level sampleable unit (as returned by
-    ``adapter.enumerate_sampleable_ranges``) with at least MIN_BODY_LINES lines.
-
-    Args:
-        adapter: LanguageAdapter implementation to use.  Defaults to PythonAdapter.
-        exclude_atypical: When True (default), skip structurally atypical files
-            via TypicalityModel.is_atypical_file.  Replaces the legacy
-            exclude_auto_generated + exclude_data_dominant flags.
-        exclude_auto_generated: Deprecated. No-op when exclude_atypical is True.
-        exclude_data_dominant: Deprecated. No-op when exclude_atypical is True.
+    Uses is_data_dominant as the primary file-level filter;
+    typicality file-level gate is opt-in via exclude_atypical.
+    The hunk-level typicality gate still applies inside
+    SequentialImportBpeScorer.__init__ for calibration hunks,
+    and score_hunk short-circuits atypical hunks at inference.
     """
     excl = exclude_dirs if exclude_dirs is not None else DEFAULT_EXCLUDE_DIRS
     _adapter: LanguageAdapter = adapter if adapter is not None else PythonAdapter()
@@ -99,7 +94,6 @@ def collect_candidates(
         typicality_model = TypicalityModel(language=language_for_adapter(_adapter))
 
     hunks: list[str] = []
-
     for ext in _adapter.file_extensions:
         for src_file in sorted(source_dir.rglob(f"*{ext}")):
             if is_excluded_path(src_file, source_dir, excl):
@@ -108,22 +102,15 @@ def collect_candidates(
                 source = src_file.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 continue
-
-            if typicality_model is not None:
-                if typicality_model.is_atypical_file(source)[0]:
-                    continue
-            else:
-                if exclude_auto_generated and _adapter.is_auto_generated(source):
-                    continue
-                if exclude_data_dominant and _adapter.is_data_dominant(source):
-                    continue
-
+            if exclude_data_dominant and _adapter.is_data_dominant(source):
+                continue
+            if typicality_model is not None and typicality_model.is_atypical_file(source)[0]:
+                continue
             lines = source.splitlines()
             for start, end in _adapter.enumerate_sampleable_ranges(source):
                 if (end - start) < MIN_BODY_LINES:
                     continue
                 hunks.append("\n".join(lines[start - 1 : end]))
-
     return hunks
 
 
