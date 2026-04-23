@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import math
 from collections import Counter
+from collections.abc import Iterator
 from typing import Literal, NamedTuple
 
 import tree_sitter_python as tspython
@@ -63,32 +64,18 @@ class TypicalityFeatures(NamedTuple):
 _NEUTRAL = TypicalityFeatures(0.0, 0.0, 0.0, 0.0)
 
 
-_ATOMIC_NODE_TYPES: frozenset[str] = frozenset(
-    {
-        "string",
-        "concatenated_string",
-        "integer",
-        "float",
-        "true",
-        "false",
-        "none",
-    }
-)
-
-
-def _walk_all_nodes(root: Node):
+def _walk_all_nodes(root: Node, atomic_types: frozenset[str] = frozenset()) -> Iterator[Node]:
     """Depth-first iterator over every node in the tree (named + anonymous).
 
-    Treats string/literal nodes as atomic — does not descend into their
-    implementation-detail children (string_start, string_content, string_end).
+    When ``atomic_types`` is provided, does not descend into nodes whose type
+    is in that set — their children are grammar-internal detail (e.g. tree-sitter
+    Python wraps string literals in string_start/string_content/string_end).
     """
     stack: list[Node] = [root]
     while stack:
         node = stack.pop()
         yield node
-        # Don't descend into atomic literal nodes — their children are
-        # grammar-internal detail, not semantic children.
-        if node.type not in _ATOMIC_NODE_TYPES:
+        if node.type not in atomic_types:
             stack.extend(reversed(node.children))
 
 
@@ -130,7 +117,7 @@ def _compute_python(source: str) -> TypicalityFeatures:
     control_nodes = 0
     token_counts: Counter[str] = Counter()
 
-    for node in _walk_all_nodes(tree.root_node):
+    for node in _walk_all_nodes(tree.root_node, _PY_LITERAL_NODE_TYPES):
         if node.is_named:
             node_type_counts[node.type] += 1
             if node.type in _PY_CONTROL_NODE_TYPES:
