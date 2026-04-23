@@ -10,8 +10,8 @@
 <p align="center">
   <a href="https://github.com/get-tmonier/argot/actions/workflows/ci.yml"><img src="https://github.com/get-tmonier/argot/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://github.com/get-tmonier/argot/blob/main/LICENSE"><img src="https://img.shields.io/github/license/get-tmonier/argot" alt="License" /></a>
-  <img src="https://img.shields.io/badge/bun-1.3.11-F472B6" alt="Bun" />
-  <img src="https://img.shields.io/badge/python-3.11-3776AB" alt="Python" />
+  <img src="https://img.shields.io/badge/bun-1.3.12-F472B6" alt="Bun" />
+  <img src="https://img.shields.io/badge/python-3.13-3776AB" alt="Python" />
 </p>
 
 <p align="center">
@@ -249,11 +249,11 @@ No training data or model leaves your machine. All stages run entirely locally.
 
 ## Validation
 
-argot's scorer was benchmarked across 5 open-source repos (Python + TypeScript), 172+ real merged PRs, and a handcrafted catalog of 39 paradigm-break fixtures.
+argot's scorer was benchmarked across 6 open-source repos (Python + TypeScript), 150+ real merged PRs, and a handcrafted catalog of 39 paradigm-break fixtures.
 
 ### Controlled break-detection experiment
 
-The cleanest signal: calibrate on repo-native hunks, inject paradigm-break fixtures, measure recall and FP rate on a held-out control set. Run with 5 independent random seeds per corpus.
+The cleanest signal: calibrate on repo-native hunks, inject paradigm-break fixtures, measure recall and FP rate on a held-out control set. Run with 5 independent random seeds per corpus. Fixtures are Python-only; TypeScript corpora were validated via real merged PRs (see base-rate experiment below).
 
 | Corpus | Seeds | Calibration hunks | Recall | FP rate | Threshold CV |
 |---|---|---|---|---|---|
@@ -312,13 +312,15 @@ Unfiltered flag rate on real merged PRs — the realistic noise floor in product
 | FastAPI | Python | 50 | 1,452 | 4.0% | 0 |
 | Rich | Python | 37 | 194 | 11.0% | 0 (21 auto-gen suppressed) |
 | faker (Python) | Python | 50 | 130 | 0.8% | 1 — Stage 1 on a pure string edit in an import-heavy file |
+| hono | TypeScript | 5 | 22 | 0.0% | 0 |
+| ink | TypeScript | 5 | 14 | 21.4% | 0 — 3 flags on feature-introduced content |
 | faker-js | TypeScript | 5 | 46 | 4.3% | 0 — 2 flags on a genuine `LocaleProxy` core refactor |
 
-All flags in FastAPI, Rich, and faker-js were reviewed manually. Rich's 11% flag rate reflects a PR that added machine-generated Unicode data tables — 21 of those hunks were correctly suppressed by the auto-generated file filter; the remaining flags were on hand-written code that legitimately restructured the import graph.
+All flags were reviewed manually. Rich's 11% flag rate reflects a PR that added machine-generated Unicode data tables — 21 of those hunks were correctly suppressed by the auto-generated file filter; the remaining flags were on hand-written code that legitimately restructured the import graph. Ink's 21.4% rate is on a small hunk count (14 source hunks across 5 PRs) and remains below the 30% investigation threshold.
 
 ### Known limits
 
-- **Locale-heavy corpora:** The `max(cal_scores)` strategy degenerates when a large fraction of source files are locale/data tables (tested: faker Python at 50 PRs). The calibration ceiling rises above the observable PR score range, making Stage 2 structurally blind. Use p95 threshold for such repos.
+- **Locale-heavy corpora:** Repos dominated by locale data literals (e.g. faker-js with ~75% of files as `export default` data arrays) would otherwise flood the calibration pool and suppress the BPE threshold. The `is_data_dominant` filter excludes these files before calibration — validated on faker-js, where it excluded 2219/2965 locale files (74.8%) while leaving module aggregators and application code intact (<0.5% false-exclusion rate on non-locale files). For Python corpora, p95 threshold remains the recommended fallback when data-dominance heuristics under-trigger.
 - **Stage 1 file-level import contamination:** Stage 1 can fire on unchanged import lines in the surrounding file when the full file source is not passed. The `check` command always passes `file_source`, so this is not observable in normal use.
 
 ## Limitations
@@ -382,6 +384,7 @@ argot/
 │       │   ├── calibration/  # random hunk sampler + calibrate entry point
 │       │   ├── adapters/ # LanguageAdapter protocol + Python/TypeScript impls
 │       │   ├── filters/  # auto-generated and data-dominant file detection
+│       │   ├── bpe/      # bundled generic BPE reference (model B)
 │       │   └── parsers/  # tree-sitter parse helpers
 │       ├── git_walk.py   # pygit2 repo walker
 │       ├── tokenize.py   # tree-sitter tokenizer
