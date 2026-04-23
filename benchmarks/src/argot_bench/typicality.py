@@ -103,6 +103,22 @@ class TypicalityFeatures(NamedTuple):
 
 _NEUTRAL = TypicalityFeatures(0.0, 0.0, 0.0, 0.0)
 
+# Chi-squared 99th percentile, 4 degrees of freedom — ~13.28.
+_CHI2_CUTOFF_P99_DF4: float = float(chi2.ppf(0.99, df=4))
+
+# Minimum pool size below which MCD is skipped and the fallback engages.
+# MCD requires >= 2 * n_features + 1 samples for a non-degenerate fit.
+_MCD_MIN_SAMPLES: int = 50
+
+# log-transform applied to index 1 (control_node_density) before fitting /
+# predicting, to compress the long right tail + zero-heavy left side.
+_LOG_TRANSFORM_INDICES: tuple[int, ...] = (1,)
+
+# Minimum slack per feature for the percentile-OR fallback bounds, so that
+# the threshold never collapses to a point when the pool is homogeneous.
+# Order: literal_leaf_ratio, control_node_density (log1p), ast_type_entropy, unique_token_ratio.
+_FALLBACK_MIN_SLACK: tuple[float, float, float, float] = (0.3, 1.0, 0.5, 0.2)
+
 
 def _walk_all_nodes(root: Node, atomic_types: frozenset[str] = frozenset()) -> Iterator[Node]:
     """Depth-first iterator over every node in the tree (named + anonymous).
@@ -211,18 +227,6 @@ def compute_features(source: str, language: Language_) -> TypicalityFeatures:
     raise ValueError(f"unsupported language: {language}")
 
 
-# Chi-squared 99th percentile, 4 degrees of freedom — ~13.28.
-_CHI2_CUTOFF_P99_DF4: float = float(chi2.ppf(0.99, df=4))
-
-# Minimum pool size below which MCD is skipped and the fallback engages.
-# MCD requires >= 2 * n_features + 1 samples for a non-degenerate fit.
-_MCD_MIN_SAMPLES: int = 50
-
-# log-transform applied to index 1 (control_node_density) before fitting /
-# predicting, to compress the long right tail + zero-heavy left side.
-_LOG_TRANSFORM_INDICES: tuple[int, ...] = (1,)
-
-
 def _features_to_vector(f: TypicalityFeatures) -> np.ndarray:
     v = np.array(
         [
@@ -309,19 +313,18 @@ class TypicalityModel:
             }
         p1 = np.percentile(vectors, 1, axis=0)
         p99 = np.percentile(vectors, 99, axis=0)
-        # Minimum slack: ensures the bound never collapses to a point even
-        # when the pool is homogeneous.  Values are chosen so that only
-        # clearly extreme outliers (literal_leaf_ratio > 0.9, etc.) are caught.
-        _MIN_SLACK: tuple[float, float, float, float] = (0.3, 1.0, 0.5, 0.2)
+        s = _FALLBACK_MIN_SLACK
         return {
+            # Bounds are in the same transformed space as _features_to_vector.
+            # control_node_density (index 1) is stored in log1p space.
             # high literal ratio = atypical (data-dense); low side doesn't matter
-            "literal_leaf_ratio": (-math.inf, float(p99[0]) + _MIN_SLACK[0]),
-            # low control density = atypical (data/boilerplate); high side doesn't matter
-            "control_node_density": (max(0.0, float(p1[1]) - _MIN_SLACK[1]), math.inf),
+            "literal_leaf_ratio": (-math.inf, float(p99[0]) + s[0]),
+            # low control density (log1p) = atypical (data/boilerplate)
+            "control_node_density": (max(0.0, float(p1[1]) - s[1]), math.inf),
             # low entropy = atypical (repetitive)
-            "ast_type_entropy": (max(0.0, float(p1[2]) - _MIN_SLACK[2]), math.inf),
+            "ast_type_entropy": (max(0.0, float(p1[2]) - s[2]), math.inf),
             # low unique-token ratio = atypical (repetitive tokens)
-            "unique_token_ratio": (max(0.0, float(p1[3]) - _MIN_SLACK[3]), math.inf),
+            "unique_token_ratio": (max(0.0, float(p1[3]) - s[3]), math.inf),
         }
 
     def is_atypical(self, hunk: str) -> tuple[bool, float, TypicalityFeatures]:
@@ -350,9 +353,11 @@ class TypicalityModel:
     def _predict_fallback(self, features: TypicalityFeatures) -> bool:
         assert self._fallback_bounds is not None
         b = self._fallback_bounds
+        # Apply the same log1p transform as _features_to_vector for index 1.
+        ctrl_density_log = math.log1p(features.control_node_density)
         if features.literal_leaf_ratio > b["literal_leaf_ratio"][1]:
             return True
-        if features.control_node_density < b["control_node_density"][0]:
+        if ctrl_density_log < b["control_node_density"][0]:
             return True
         if features.ast_type_entropy < b["ast_type_entropy"][0]:
             return True
