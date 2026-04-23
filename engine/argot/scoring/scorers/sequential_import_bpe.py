@@ -293,7 +293,26 @@ class SequentialImportBpeScorer:
           - flagged (bool): True if either stage fires
           - reason ("import" | "bpe" | "none"): which stage fired first
         """
-        if file_source is not None and self._adapter.is_auto_generated(file_source):
+        # Typicality short-circuits (replaces the legacy auto-generated gate).
+        if self._typicality_model is not None:
+            is_atyp_hunk, _ = self._typicality_model.is_atypical(hunk_content)
+            if is_atyp_hunk:
+                return {
+                    "import_score": 0.0,
+                    "bpe_score": 0.0,
+                    "flagged": False,
+                    "reason": "atypical",
+                }
+            if file_source is not None:
+                is_atyp_file, _ = self._typicality_model.is_atypical_file(file_source)
+                if is_atyp_file:
+                    return {
+                        "import_score": 0.0,
+                        "bpe_score": 0.0,
+                        "flagged": False,
+                        "reason": "atypical_file",
+                    }
+        elif file_source is not None and self._adapter.is_auto_generated(file_source):
             return {
                 "import_score": 0.0,
                 "bpe_score": 0.0,
