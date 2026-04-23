@@ -15,8 +15,9 @@
 </p>
 
 <p align="center">
-  Style linter that learns your codebase's voice from its own git history.<br/>
-  Local-first · Zero cloud · Zero telemetry
+  Style linter that builds a statistical model of your codebase's voice from its own git history,<br/>
+  then flags hunks whose token distribution diverges from the learned norm.<br/>
+  No GPU · No cloud · No telemetry · Runs in seconds after a one-time calibration
 </p>
 
 ---
@@ -161,7 +162,18 @@ The threshold is set automatically by `argot calibrate`. Override it with `--thr
 
    **Stage 1 — import graph:** for each hunk, extracts its import statements and checks whether any imported module is absent from the repo's own first-party import set. A single foreign import immediately flags the hunk (`reason: "import"`).
 
-   **Stage 2 — BPE log-ratio:** tokenizes the hunk with the UnixCoder BPE tokenizer and computes the max per-token log-likelihood ratio between the generic reference corpus (model B) and the repo's corpus (model A). A token that is common in generic open-source code but rare in this repo inflates the score. Prose lines (comments, docstrings) are blanked before scoring to avoid natural-language noise.
+   **Stage 2 — BPE log-ratio:** tokenizes the hunk with the [UnixCoder](https://huggingface.co/microsoft/unixcoder-base) BPE tokenizer and computes a max-surprise score over the hunk's tokens:
+
+   ```
+   P_A(t) = count_A(t) / total_A + ε     # repo-specific token frequency
+   P_B(t) = count_B(t) / total_B + ε     # generic open-source token frequency
+
+   surprise(t)  = log P_B(t) − log P_A(t)
+   score(hunk)  = max  surprise(t)
+                   t ∈ tokens(hunk)
+   ```
+
+   A high score means at least one token in the hunk is far more common in generic open-source code than in *this* repo — a reliable signal of foreign style. Model A is built by counting BPE tokens across the repo's non-test source files (CPU-only, takes seconds). Model B is a pre-built reference distribution bundled with argot — no download, no training loop. Prose lines (comments, docstrings) are blanked before scoring to avoid natural-language noise inflating the signal.
 
    A hunk is flagged if either stage fires. Both scores are always computed and included in the output for diagnostics.
 
@@ -178,7 +190,7 @@ No training data or model leaves your machine. All stages run entirely locally.
 
 ## Stack
 
-**CLI** TypeScript + Bun · **Engine** Python + tree-sitter + HuggingFace tokenizer (UnixCoder BPE)
+**CLI** TypeScript + Bun · **Engine** Python + tree-sitter + HuggingFace tokenizer (UnixCoder BPE) · **Model** two frequency tables + max log-ratio — no neural network, no GPU
 
 ---
 
