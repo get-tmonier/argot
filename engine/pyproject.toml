@@ -5,8 +5,6 @@ requires-python = ">=3.11"
 dependencies = [
     "pygit2==1.19.2",
     "scikit-learn>=1.5.0",
-    "torch>=2.0.0",
-    "einops>=0.6.0",
     "tree-sitter==0.23.2",
     "tree-sitter-typescript==0.23.2",
     "tree-sitter-javascript==0.23.1",
@@ -21,8 +19,6 @@ argot-train = "argot.train:main"
 argot-check = "argot.check:main"
 argot-calibrate = "argot.scoring.calibration:main"
 argot-fetch = "argot.fetch:main"
-argot-validate = "argot.validate:main"
-argot-explain = "argot.explain:main"
 
 [tool.uv]
 package = true
@@ -41,18 +37,6 @@ exclude = "acceptance/catalog"
 
 [[tool.mypy.overrides]]
 module = "pygit2"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "torch"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "torch.*"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "einops"
 ignore_missing_imports = true
 
 [tool.ruff]
