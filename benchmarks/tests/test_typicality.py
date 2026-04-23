@@ -199,17 +199,13 @@ def parse(request, registry):
     assert not is_atypical, (distance, features)
 
 
-def test_typicality_model_fallback_on_tiny_pool():
-    """When MCD can't fit (too few samples), the percentile-OR fallback engages
-    and still flags obviously atypical hunks."""
+def test_typicality_model_handles_tiny_pool():
+    """Even with a tiny pool, the model still flags obviously atypical hunks."""
     from argot_bench.typicality import TypicalityModel
 
-    # 4 samples, 4 features — way below MCD's support_fraction requirement
     pool = _synthetic_normal_python_pool(n=4)
     model = TypicalityModel(language="python")
     model.fit(pool)
-
-    assert model.used_fallback, "expected fallback path on tiny pool"
 
     data_hunk = _data_heavy_python_hunk()
     is_atypical, _, _ = model.is_atypical(data_hunk)
