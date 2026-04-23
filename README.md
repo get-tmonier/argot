@@ -212,22 +212,24 @@ The threshold is set automatically by `argot calibrate`. Override it with `--thr
 
 1. **Extract** — walks `git log`, extracts commit diffs, tokenizes each hunk and its surrounding context using a language-aware [tree-sitter](https://tree-sitter.github.io/tree-sitter/) tokenizer. Tree-sitter is an incremental, error-tolerant parser that works on partial and syntactically invalid fragments (essential for mid-block hunk slices) and provides a single uniform interface for every supported language.
 
-2. **Train** — collects the repo's non-test source files into model A (the repo's own token distribution) and copies the bundled generic BPE reference (model B, a broad open-source corpus baseline).
+2. **Train** — collects the repo's non-test, non-atypical source files into model A (the repo's own token distribution) and copies the bundled generic BPE reference (model B, a broad open-source corpus baseline). Files flagged as structurally atypical (data tables, locale dumps, generated code) by the typicality filter are excluded so they don't pollute the token distribution.
 
-3. **Calibrate** — samples up to 500 representative top-level functions and classes from the repo, scores them through the full two-stage scorer, and sets the BPE threshold to the max score over those normal hunks. Writes `.argot/scorer-config.json`.
+3. **Calibrate** — samples up to 500 representative top-level functions and classes from the repo (the typicality filter pre-excludes atypical candidates), scores them through the full two-stage scorer, and sets the BPE threshold to the max score over those normal hunks. Writes `.argot/scorer-config.json`.
 
 4. **Check** — runs the two-stage scorer on the target diff:
 
 ```mermaid
 flowchart TD
-    H(["diff hunk"]) --> AG{"auto-generated?"}
-    AG -- yes --> SKIP(["⏭  skip"])
-    AG -- no --> S1["Stage 1 — import graph\nextract hunk imports\nflag if any are foreign to this repo"]
+    H(["diff hunk"]) --> TYP{"typicality filter<br/>atypical hunk or file?"}
+    TYP -- yes --> SKIP(["⏭  skip<br/>reason: atypical / atypical_file"])
+    TYP -- no --> S1["Stage 1 — import graph\nextract hunk imports\nflag if any are foreign to this repo"]
     S1 -- "foreign module found" --> F1(["🚩 flagged  reason: import"])
     S1 -- "all imports native" --> S2["Stage 2 — BPE log-ratio\ntokenize with UnixCoder BPE\nscore = max log P_B / P_A over tokens"]
     S2 -- "score > threshold" --> F2(["🚩 flagged  reason: bpe"])
     S2 -- "score ≤ threshold" --> OK(["✅ clean"])
 ```
+
+   **Pre-scorer — typicality filter:** an AST-derived predicate short-circuits hunks whose content is structurally data-dominant (`literal_leaf_ratio > 0.80` with a named-leaf size gate) or whose enclosing file is globally data-dominant (file-level fallback). Replaces the legacy auto-generated / data-dominant heuristics. See [era 5](docs/research/05-calibration-hygiene.md) for the design.
 
    **Stage 1 — import graph:** for each hunk, extracts its import statements and checks whether any imported module is absent from the repo's own first-party import set. A single foreign import immediately flags the hunk (`reason: "import"`).
 
@@ -243,7 +245,7 @@ $$\text{score}(\text{hunk}) = \max_{t \;\in\; \text{tokens}(\text{hunk})} \text{
 
    A hunk is flagged if either stage fires. Both scores are always computed and included in the output for diagnostics.
 
-Language-specific logic (import extraction, prose masking, auto-generated file detection, sampleable-range enumeration) is fully encapsulated in `LanguageAdapter` implementations. Python and TypeScript are supported out of the box.
+Language-specific logic (import extraction, prose masking, sampleable-range enumeration) is fully encapsulated in `LanguageAdapter` implementations; the typicality filter is language-parameterized via a shared module rather than per-adapter methods. Python and TypeScript are supported out of the box.
 
 No training data or model leaves your machine. All stages run entirely locally.
 
@@ -270,16 +272,18 @@ Latest full baseline ([`benchmarks/results/baseline/latest/report.md`](benchmark
 
 | Corpus | AUC | Recall | FP rate |
 |:---|---:|---:|---:|
-| fastapi | **0.9915** | 69.4% | 0.3% |
-| rich | **0.9933** | 90.0% | 1.0% |
-| faker (py) | 0.9295 | 100.0% | 1.7% |
-| hono | 0.7853 | 60.0% | 0.6% |
-| ink | **0.9881** | 86.7% | 1.1% |
-| faker-js | 0.8568 | 20.0% | 5.0% |
+| fastapi | **0.9920** | 73.1% | 0.1% |
+| rich | **0.9968** | 80.0% | 0.0% |
+| faker (py) | **0.9973** | 100.0% | 0.0% |
+| hono | 0.8107 | 60.0% | 0.3% |
+| ink | **0.9893** | 86.7% | 0.2% |
+| faker-js | 0.9651 | 13.3% | 0.0% |
 
-AUC > 0.98 on 4 of 6 corpora — the scorer consistently ranks hand-crafted
-breaks above real idiomatic code. **Threshold CV = 0%** across 5 seeds:
-runs are fully deterministic.
+AUC > 0.98 on 5 of 6 corpora; **FP rate below 0.3% on all six**. The
+production scorer ships with an AST-derived typicality filter
+([era 5](docs/research/05-calibration-hygiene.md)) that drops
+data-dominant files from both calibration and inference. **Threshold CV = 0%** across
+5 seeds: runs are fully deterministic.
 
 Reproduce with a single command:
 
@@ -289,9 +293,9 @@ just bench-quick   # ~1 min — one fixture per category on fastapi
 ```
 
 See [`benchmarks/README.md`](benchmarks/README.md) for methodology,
-per-category breakdowns, known weaknesses (calibration pollution from
-data/locale/test files, semantic-break blind spots on TS corpora), and
-how to read a generated report.
+per-category breakdowns, known weaknesses (calibration filtering
+trade-off on two corpora, semantic-break blind spots on TS corpora),
+and how to read a generated report.
 
 ## Limitations
 
@@ -353,7 +357,7 @@ argot/
 │       │   ├── scorers/  # SequentialImportBpeScorer + ImportGraphScorer
 │       │   ├── calibration/  # random hunk sampler + calibrate entry point
 │       │   ├── adapters/ # LanguageAdapter protocol + Python/TypeScript impls
-│       │   ├── filters/  # auto-generated and data-dominant file detection
+│       │   ├── filters/  # typicality predicate (AST-derived, hunk + file level)
 │       │   ├── bpe/      # bundled generic BPE reference (model B)
 │       │   └── parsers/  # tree-sitter parse helpers
 │       ├── git_walk.py   # pygit2 repo walker
