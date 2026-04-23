@@ -1,0 +1,184 @@
+# The import-graph breakthrough (phases 13–14)
+
+> **TL;DR.** A 180-line `ImportGraphScorer` — zero training, no model,
+> just "which modules has this repo never imported?" — plus BPE in
+> series cleared the 0.80 gate with **100% recall, 0 FP** on 46 breaks
+> across three Python corpora. The `LanguageAdapter` refactor carried
+> the same scorer to three shape-diverse TypeScript corpora (HTTP
+> framework, TSX React library, locale-heavy data repo) with a
+> first-pass source flag rate of **0–21%**. Era ended with a promotion,
+> not a pivot.
+
+## The hypothesis we were testing
+
+Era 3 closed with `tfidf_anomaly` promoted over JEPA on the strength of
++0.0436 AUC — a clean win, but one that stalled at overall AUC 0.6968
+against the 0.80 gate, with `background_tasks` still inverted and the
+simplex blend refusing to mix `tfidf_anomaly` with any other scorer
+([era 3 closing](03-bpe-signal-hunt.md#what-broke-the-era)). The
+implication was mechanical: token frequency had taken the scorer as far
+as it could, and whatever came next had to draw signal from a
+structurally different place than the hunk tokens themselves.
+
+Phase 13 picked up that thread with an AST-structural answer — a
+contrastive treelet scorer that compared the hunk's subtree frequencies
+against a repo-fit model and the generic Python stdlib. If BPE captured
+"what words are rare", AST treelets would capture "what *shapes* are
+rare", and the two axes would complement each other.
+
+## What we tried
+
+- **Phase 13 — `ContrastiveAstTreeletScorer`.** Depth-3 AST treelets,
+  `max` aggregation, log-ratio of hunk treelet frequency against a
+  repo-specific `model_A` over a stdlib `model_B`. Validated with a
+  full three-tier gauntlet on FastAPI (smoke, LOO stability, wrong-contrast
+  Django substitution) before promotion.
+- **Phase 13 — Cross-domain validation on rich and click.** Same scorer,
+  swapped corpora; both with size-matched rerun controls to rule out a
+  methodology artefact.
+- **Phase 13 — Ensemble with BPE-tfidf on faker.** `max(bpe, ast)` over
+  5 faker paradigm-breaks, expressly to see whether the AST axis rescued
+  the `mimesis_alt` break that BPE had missed (score 4.20, below calibration p90).
+- **Phase 14 — `ImportGraphScorer`.** A single-line idea: count
+  top-level module imports in the hunk that were never seen in `model_A`.
+  Zero training; one pass over the source tree.
+- **Phase 14 — `SequentialImportBpeScorer`.** Two stages in series —
+  Stage 1 imports flags any hunk with ≥1 foreign module, Stage 2 BPE
+  catches the rest against a per-repo calibration threshold.
+- **Phase 14 — Language adapters + TS bring-up.** Refactor to a
+  `LanguageAdapter` seam, then validate on TypeScript repos (hono, ink,
+  faker-ts) through the same calibration protocol.
+
+## What the numbers said
+
+**Finding 1 — AST contrastive was FastAPI-tuned, not general.**
+
+```mermaid
+xychart-beta
+    title "AST contrastive AUC across corpora — in-domain strength, cross-domain collapse"
+    x-axis ["FastAPI (in-domain)", "rich (cross)", "click (cross, rerun)"]
+    y-axis "AUC" 0 --> 1
+    bar [0.9742, 0.2900, 0.2500]
+    line [0.85, 0.85, 0.85]
+```
+
+A 0.9742 on FastAPI then 0.29 / 0.25 on the other two. Controls
+consistently outscored breaks on small or lexically-generic repos.
+Abandoned.
+
+**Finding 2 — the import-graph scorer had the complementary signal.**
+
+The FN patterns on AST and BPE pointed at the same class of breaks —
+ones that introduced foreign libraries (`import flask`, `import
+colorama`, `import mimesis`). A scorer that just counted "modules in
+this hunk we've never seen in this repo" needed no training, no
+calibration, and no model at all.
+
+**Finding 3 — in series, the two scorers cleared the gate.**
+
+```mermaid
+flowchart LR
+    H(["diff hunk"]) --> S1["Stage 1 — ImportGraphScorer<br/>count foreign modules"]
+    S1 -- "≥ 1 foreign module" --> F1(["🚩 flagged<br/>reason: import"])
+    S1 -- "stdlib only" --> S2["Stage 2 — BPE log-ratio<br/>max surprise vs repo"]
+    S2 -- "score > threshold" --> F2(["🚩 flagged<br/>reason: bpe"])
+    S2 -- "score ≤ threshold" --> OK(["✅ clean"])
+
+    style F1 fill:#f8d7da,stroke:#dc3545
+    style F2 fill:#f8d7da,stroke:#dc3545
+    style OK fill:#d4edda,stroke:#28a745
+```
+
+On the 46-break phase-13 fixture set: **all 46 flagged, 0 false
+positives** across 30 held-out controls and 159 faker calibration
+hunks. The controversial `faker_hunk_0047` (the error-handling hunk
+that had caused faker's FULL OVERLAP verdict in era 3) landed exactly
+at `bpe_score = threshold` and was correctly suppressed.
+
+| experiment | key result | citation |
+|:-----------|:-----------|:---------|
+| 13 AST on FastAPI (in-domain) | `ast_contrastive_max` AUC 0.9742, beats tfidf by +0.27; LOO mean 0.9619 | [ast contrastive FastAPI victory](evidence/ast-contrastive-fastapi-victory.md) |
+| 13 AST on rich | overall AUC 0.2900 — `termcolor` at 0.0000, controls outscore breaks | [ast contrastive rich collapse](evidence/ast-contrastive-rich-collapse.md) |
+| 13 AST on click (matched rerun) | AUC 0.2500, both FAIL conditions met, abandonment upheld | [ast contrastive click abandonment](evidence/ast-contrastive-click-abandonment.md) |
+| 14 ImportGraphScorer on phase-13 fixtures | 67% combined break recall, 0% FP, 100% on faker, `faker_hunk_0047` correctly ignored | [import graph scorer validation](evidence/import-graph-scorer-validation.md) |
+| 14 Sequential Import→BPE | 100% recall on 46 breaks, 0 FP across 30 held-out controls and 159 faker calibration hunks, all three domains STRONG | [sequential import→BPE validation](evidence/sequential-import-bpe-validation.md) |
+| 14 Corrected-controls protocol (5 seeds) | threshold CV 3.9% FastAPI / 4.3% rich, recall 100%, FP 1% | [sequential import→BPE robustness](evidence/sequential-import-bpe-robustness.md) |
+
+### AST contrastive was FastAPI-tuned, not general
+
+The in-domain result
+(AUC 0.9742) was so strong it passed all three Phase 13 Stage-2 gates —
+smoke, leave-one-out over 20 control files (min 0.9315, mean 0.9619),
+and Django wrong-contrast (0.5323, Δ −0.4419) — and we promoted it to
+cross-domain validation. It collapsed immediately: AUC 0.2900 on rich
+([ast contrastive rich collapse](evidence/ast-contrastive-rich-collapse.md))
+and 0.1187 on click, then 0.2500 on click after a methodology-fixed
+rerun with a larger `model_A` and size-matched controls
+([ast contrastive click abandonment](evidence/ast-contrastive-click-abandonment.md)).
+The rerun hardened the verdict: the scorer is
+fragile to corpus size, and on small or lexically-generic repos the
+control hunks score as anomalously as the breaks.
+
+### The import-graph insight
+
+The FN patterns on AST and BPE pointed at
+the same class of breaks — ones that introduced foreign libraries
+(`import flask`, `import colorama`, `import mimesis`). A scorer that
+counted "modules in this hunk we've never seen in this repo" needed no
+training, no calibration, and no model at all. It scored 100% recall on
+faker's 5 breaks, 60–65% on FastAPI and rich, 0% FP across every
+validation set, and — crucially — returned 0 on `faker_hunk_0047`, the
+error-handling hunk whose BPE score had caused faker's FULL OVERLAP
+verdict in era 3
+([import graph scorer validation](evidence/import-graph-scorer-validation.md)).
+
+### Two axes, combined in series, cleared the gate
+
+The `SequentialImportBpeScorer` runs the import check first — a fast,
+high-precision pre-filter — and falls through to BPE for stdlib-only
+breaks. On the 46-break phase-13 fixture set, it flagged all 46 with 0
+false positives across 30 held-out controls and 159 faker calibration
+hunks, with `faker_hunk_0047` correctly suppressed at `bpe_score =
+threshold`
+([sequential import→BPE validation](evidence/sequential-import-bpe-validation.md)).
+Robustness under 5-seed random calibration held at 100% recall on
+all three domains with threshold CV 3.9% (FastAPI) and 4.3% (rich) once
+the fixture-vs-source distribution mismatch was corrected
+([sequential import→BPE robustness](evidence/sequential-import-bpe-robustness.md)).
+
+## What broke the era
+
+Nothing broke — the era ended with a promotion, not a pivot.
+
+The two constraints that had defined the previous three eras (no GPU,
+no production-time training) now lined up with the winning architecture
+for free: Stage 1 is a single AST pass, Stage 2 is BPE surprise against
+a calibration sample of the same repo. The `LanguageAdapter` refactor
+generalised both stages across Python and TypeScript without changing
+the scorer core.
+
+```mermaid
+xychart-beta
+    title "TypeScript bring-up — source flag rate across three shape-diverse corpora"
+    x-axis ["hono (HTTP framework)", "ink (TSX React)", "faker-js (locale-heavy data)"]
+    y-axis "source flag rate (%)" 0 --> 35
+    bar [0.0, 21.4, 4.3]
+    line [30, 30, 30]
+```
+
+Line is the 30% investigation threshold; all three came in under. Hono
+returned 0 source flags across 22 hunks from 5 PRs
+([TypeScript validation on hono](evidence/typescript-validation-hono.md)),
+ink returned 3/14 (21.4%) with every flag on feature-introduced content
+([TypeScript validation on ink](evidence/typescript-validation-ink.md)),
+and faker-js — whose ~75% locale-data corpus would otherwise flood
+calibration — returned 2/46 (4.3%) after the `is_data_dominant` filter
+excluded 2219/2965 locale files (74.8%, passing the 70% gate)
+([TypeScript validation on faker-js](evidence/typescript-validation-faker-js.md)).
+
+## → today
+
+`SequentialImportBpeScorer` is the current production scorer, living at
+`engine/argot/scoring/scorers/sequential_import_bpe.py`; its language
+seam is in `engine/argot/scoring/adapters/`. For where the scorer is
+going next, see the research README's "What's next" section.
