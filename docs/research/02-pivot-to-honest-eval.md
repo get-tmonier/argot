@@ -79,7 +79,9 @@ at exactly 0.500 across every encoder, head, and bucket in 7.1, 7.2, and
 7.3, because ~half the held-out hunks lacked the trigger tokens (`raise`/
 `throw`, quote characters) the mutations needed
 [`docs/research/scoring/phase-7/16-rebaseline.md` §Per-mutation AUC]. Every
-`synthetic_auc_mean` was depressed by ~0.125 for free. The broken mutations
+`synthetic_auc_mean` was depressed for free by the two broken mutations, each
+contributing 0.500 to the four-way mean
+[`docs/research/scoring/phase-7/16-rebaseline.md` §Per-mutation AUC]. The broken mutations
 were flagged for redesign but held frozen through Phase 7 per the no-
 mid-phase-changes rule.
 
