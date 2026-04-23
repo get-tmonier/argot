@@ -7,7 +7,7 @@ predictive architecture, i.e. a model that embeds the surrounding context and
 the changed hunk into the same vector space and learns to predict the target
 from the context. A "stylish" hunk is one the predictor scores easily; an
 out-of-style hunk is one it cannot. The Phase 2 sizing study had shown the
-default JEPA setup was effectively random below ~20k records and only modestly
+default JEPA setup was effectively random below 20k records and only modestly
 useful above it (shuffled AUC 0.637 at 20k, 0.707 at 60k) — see
 [`docs/research/scoring/phases-1-6/sizing-study.md` §Results]. The hypothesis
 across phases 1–6 was that this plateau was a **tuning** problem: the
@@ -23,7 +23,8 @@ and learned dense token encoders — expecting one or two to clear the plateau.
   field into TF-IDF; +0.038 cross-repo at large, no regressions, otherwise tiny.
 - **Embed dim 192 → 256** (Phase 3 #2): +0.013 cross at large, within noise.
 - **Epochs 20 → 200** (Phase 3 #3): +0.213 cross at medium, but **−0.106
-  cross at large** — overfitting; led to an adaptive `epochs = 1.4M / n` rule.
+  cross at large** — overfitting; led to an adaptive `epochs = 1.4M / n` rule
+  [`docs/research/scoring/phases-1-6/05-epochs.md` §Cross-repo AUC].
 - **Char n-grams** (Phase 3 #4, `char_wb` 3–5): the standout — large gains
   on every metric at every bucket, no regressions.
 - **Imports-as-feature & path embedding** (Phase 3 #5–6): largest cross-repo
