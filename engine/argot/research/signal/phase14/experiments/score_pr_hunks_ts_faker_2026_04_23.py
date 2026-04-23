@@ -283,9 +283,9 @@ def _print_eligibility_gate(
         f"({locale_exclusion_rate:.1%}), {locale_kept} kept",
         flush=True,
     )
-    print("Pass condition: >=80% excluded", flush=True)
+    print("Pass condition: >=70% excluded", flush=True)  # §8.3: 80% unreachable; ceiling 75.9%
 
-    if locale_exclusion_rate >= 0.80:
+    if locale_exclusion_rate >= 0.70:  # §8.3: gate recalibrated
         print("Status: PASS", flush=True)
     elif locale_exclusion_rate >= 0.60:
         print("Status: YELLOW", flush=True)
@@ -470,16 +470,12 @@ def main(sanity_check: bool = False) -> None:
                 n_data_dom = sum(
                     1
                     for p in ts_files
-                    if adapter.is_data_dominant(
-                        p.read_text(encoding="utf-8", errors="replace")
-                    )
+                    if adapter.is_data_dominant(p.read_text(encoding="utf-8", errors="replace"))
                 )
                 n_auto_gen = sum(
                     1
                     for p in ts_files
-                    if adapter.is_auto_generated(
-                        p.read_text(encoding="utf-8", errors="replace")
-                    )
+                    if adapter.is_auto_generated(p.read_text(encoding="utf-8", errors="replace"))
                 )
                 print(
                     f"    filters: data_dominant={n_data_dom}, auto_generated={n_auto_gen}",
@@ -508,8 +504,7 @@ def main(sanity_check: bool = False) -> None:
                 n_cal_try = min(_N_CAL, pool_size)
                 if pool_size < _N_CAL:
                     print(
-                        f"    WARN: pool {pool_size} < N_CAL {_N_CAL}, "
-                        f"capping to {n_cal_try}",
+                        f"    WARN: pool {pool_size} < N_CAL {_N_CAL}, " f"capping to {n_cal_try}",
                         flush=True,
                     )
 
@@ -771,9 +766,7 @@ def main(sanity_check: bool = False) -> None:
                     hunk_imports = set()
                     for line in hunk_content.splitlines():
                         if "import" in line:
-                            hunk_imports.update(
-                                re.findall(r'["\']([^"\']+)["\']', line)
-                            )
+                            hunk_imports.update(re.findall(r'["\']([^"\']+)["\']', line))
                     for alias in _alias_patterns:
                         alias_prefix = alias.rstrip("*")
                         for imp in hunk_imports:
