@@ -249,11 +249,11 @@ No training data or model leaves your machine. All stages run entirely locally.
 
 ## Validation
 
-argot's scorer was benchmarked across 6 open-source repos (Python + TypeScript), 150+ real merged PRs, and a handcrafted catalog of 39 paradigm-break fixtures.
+argot's scorer was benchmarked across 6 open-source repos (3 Python, 3 TypeScript), 150+ real merged PRs, and a handcrafted catalog of 39 paradigm-break fixtures. The paradigm-break fixtures are Python-only (Flask routing, Django CBV, `requests` in async, etc.); TypeScript corpora were validated end-to-end through the base-rate experiment on real merged PRs below.
 
-### Controlled break-detection experiment
+### Controlled break-detection experiment (Python corpora)
 
-The cleanest signal: calibrate on repo-native hunks, inject paradigm-break fixtures, measure recall and FP rate on a held-out control set. Run with 5 independent random seeds per corpus. Fixtures are Python-only; TypeScript corpora were validated via real merged PRs (see base-rate experiment below).
+The cleanest signal: calibrate on repo-native hunks, inject paradigm-break fixtures, measure recall and FP rate on a held-out control set. Run with 5 independent random seeds per corpus.
 
 | Corpus | Seeds | Calibration hunks | Recall | FP rate | Threshold CV |
 |---|---|---|---|---|---|
@@ -261,7 +261,7 @@ The cleanest signal: calibrate on repo-native hunks, inject paradigm-break fixtu
 | Rich | 5 | 100 | **100%** | mean 1% (1 FP at seed 2) | 3.8% — STABLE |
 | faker (Python) | 1 | 139 | **100%** | 0% | — |
 
-All single FP events were at a margin of < 0.06 above threshold — within calibration noise. Gate criteria: recall ≥ 100%, FP rate ≤ 5%, threshold CV < 5%. **All three corpora passed all three gates.**
+All single FP events were at a margin of < 0.06 above threshold — within calibration noise. Gate criteria: recall ≥ 100%, FP rate ≤ 5%, threshold CV < 5%. **All three Python corpora passed all three gates.**
 
 ### Recall by paradigm-break category
 
