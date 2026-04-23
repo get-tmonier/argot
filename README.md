@@ -318,6 +318,8 @@ Unfiltered flag rate on real merged PRs — the realistic noise floor in product
 
 All flags were reviewed manually. Rich's 11% flag rate reflects a PR that added machine-generated Unicode data tables — 21 of those hunks were correctly suppressed by the auto-generated file filter; the remaining flags were on hand-written code that legitimately restructured the import graph. Ink's 21.4% rate is on a small hunk count (14 source hunks across 5 PRs) and remains below the 30% investigation threshold.
 
+> **TypeScript sample size.** Each TS corpus was validated against only 5 recent merged PRs (22/14/46 source hunks respectively). This is a deliberately narrow first-pass bring-up — enough to verify the `LanguageAdapter` seam holds and filters behave on three shape-diverse corpora (HTTP framework, TSX React library, locale-heavy data repo), but not a flag-rate estimate at Python-corpus resolution. Broader TS validation is an open follow-up.
+
 ### Known limits
 
 - **Locale-heavy corpora:** Repos dominated by locale data literals (e.g. faker-js with ~75% of files as `export default` data arrays) would otherwise flood the calibration pool and suppress the BPE threshold. The `is_data_dominant` filter excludes these files before calibration — validated on faker-js, where it excluded 2219/2965 locale files (74.8%) while leaving module aggregators and application code intact (<0.5% false-exclusion rate on non-locale files). For Python corpora, p95 threshold remains the recommended fallback when data-dominance heuristics under-trigger.
