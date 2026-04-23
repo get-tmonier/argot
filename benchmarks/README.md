@@ -120,14 +120,14 @@ for the design.
 ## Current baseline
 
 From [`latest/report.md`](results/baseline/latest/report.md)
-(run `20260423T223111Z`):
+(run `20260423T231552Z`):
 
 | Corpus | AUC | Recall | FP | N_fix | N_ctrl |
 |:---|---:|---:|---:|---:|---:|
 | fastapi | 0.9918 | 69.4% | 0.1% | 31 | 10,012 |
-| rich | 0.9959 | 80.0% | 0.0% | 10 | 11,536 |
-| faker | 0.9237 | 100.0% | 0.1% | 5 | 12,936 |
-| hono | 0.8107 | 60.0% | 0.3% | 15 | 54,717 |
+| rich | 0.9959 | 90.0% | 0.2% | 10 | 11,536 |
+| faker | 0.9237 | 100.0% | 0.3% | 5 | 12,936 |
+| hono | 0.8107 | 60.0% | 0.4% | 15 | 54,717 |
 | ink | 0.9888 | 93.3% | 1.1% | 15 | 16,678 |
 | faker-js | 0.9408 | 20.0% | 0.8% | 15 | 255,760 |
 
@@ -136,15 +136,7 @@ across seeds.
 
 ### Known weaknesses (flagged by this baseline)
 
-1. **Symmetric calibration filtering trade-off.** The era-5 typicality
-   filter applies hunk-level atypicality screening to the calibration
-   pool as well as inference. On rich, this removes some calibration
-   hunks that are break-representative, pulling the threshold down and
-   exposing one fixture (ansi_raw_2: −10 pp recall vs the pre-era-5
-   baseline) at a threshold boundary. A future fix would apply the
-   filter only at inference.
-
-2. **Object-keyed structured data resists structural detection.**
+1. **Object-keyed structured data resists structural detection.**
    The era-5 typicality filter closed the broader data/locale/test
    false-positive tail (see [`docs/research/05-calibration-hygiene.md`](../docs/research/05-calibration-hygiene.md))
    but residual FP sources remain on TS / Python locale providers

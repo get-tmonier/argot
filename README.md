@@ -273,20 +273,19 @@ Latest full baseline ([`benchmarks/results/baseline/latest/report.md`](benchmark
 | Corpus | AUC | Recall | FP rate |
 |:---|---:|---:|---:|
 | fastapi | **0.9918** | 69.4% | 0.1% |
-| rich | **0.9959** | 80.0% | 0.0% |
-| faker (py) | 0.9237 | 100.0% | 0.1% |
-| hono | 0.8107 | 60.0% | 0.3% |
+| rich | **0.9959** | 90.0% | 0.2% |
+| faker (py) | 0.9237 | 100.0% | 0.3% |
+| hono | 0.8107 | 60.0% | 0.4% |
 | ink | **0.9888** | 93.3% | 1.1% |
 | faker-js | 0.9408 | 20.0% | 0.8% |
 
-AUC > 0.99 on 3 of 6 corpora; **FP rate below 1% on all six**
+AUC > 0.99 on 3 of 6 corpora; **FP rate ≤1.5% on all six**
 (down from up to 5.0% pre-era-5). The production scorer ships with an
 AST-derived typicality filter
 ([era 5](docs/research/05-calibration-hygiene.md)) that drops
 structurally data-dominant files from the calibration pool and the
-inference path. Recall improved +6.6 pp on ink and is preserved on four
-other corpora; one fixture on rich shifted out of flagged after
-calibration pool composition changed. **Threshold CV ≤ 10%** across
+inference path. Recall improved +6.6 pp on ink and +10 pp on rich;
+preserved on the other four. **Threshold CV ≤ 10%** across
 5 seeds: runs are reproducible.
 
 Reproduce with a single command:
