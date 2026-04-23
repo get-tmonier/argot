@@ -28,9 +28,6 @@ check ref="HEAD~1..HEAD" model=".argot/model.pkl":
 fetch-training-data:
     uv run --package argot-engine python -m argot.fetch
 
-poc-validate dataset=".argot/training.jsonl":
-    uv run --package argot-engine python -m argot.validate --dataset {{dataset}}
-
 # --- individual checks ---
 
 lint:
