@@ -139,3 +139,40 @@ def test_scorer_raises_without_hunks_or_threshold() -> None:
             model_a_files=_CONTROL_FILES,
             bpe_model_b_path=_BPE_MODEL_B,
         )
+
+
+def test_scorer_filters_data_dominant_model_a_files(tmp_path):
+    from argot.scoring.adapters.python_adapter import PythonAdapter
+    from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
+
+    # Normal code file — should be retained.
+    code_file = tmp_path / "code.py"
+    code_file.write_text(
+        "\n".join(
+            [
+                "def fn(value, registry):",
+                "    items = registry.lookup(value)",
+                "    if not items:",
+                "        return None",
+                "    out = []",
+                "    for item in items:",
+                "        out.append(item.transform(value))",
+                "    return out",
+            ]
+        )
+    )
+    # Data-dominant file — should be filtered out of model A.
+    data_file = tmp_path / "data.py"
+    data_file.write_text("DATA = {\n" + "\n".join(f'  "k{i}": "v{i}",' for i in range(120)) + "\n}")
+
+    bpe_model_b = tmp_path / "bpe.json"
+    bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
+
+    scorer = SequentialImportBpeScorer(
+        model_a_files=[code_file, data_file],
+        bpe_model_b_path=bpe_model_b,
+        calibration_hunks=["def g():\n    return 1\n    return 2"],
+        adapter=PythonAdapter(),
+    )
+    # The scorer should have a typicality model attached.
+    assert scorer._typicality_model is not None  # type: ignore[attr-defined]

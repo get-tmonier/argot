@@ -21,6 +21,7 @@ from typing import Any, Literal
 
 from argot.scoring.adapters.language_adapter import LanguageAdapter
 from argot.scoring.adapters.registry import adapter_for_files
+from argot.scoring.filters.typicality import TypicalityModel, language_for_adapter
 from argot.scoring.scorers.import_graph import ImportGraphScorer
 
 _EPSILON = 1e-7
@@ -102,7 +103,7 @@ def _compute_threshold(cal_scores: list[float], threshold_percentile: float | No
 
 
 ScoredHunk = dict[str, Any]
-Reason = Literal["import", "bpe", "none", "auto_generated"]
+Reason = Literal["import", "bpe", "none", "auto_generated", "atypical", "atypical_file"]
 
 
 class SequentialImportBpeScorer:
@@ -117,9 +118,12 @@ class SequentialImportBpeScorer:
         threshold_percentile: None → max(cal_scores). A value in (0, 100] → that
             percentile of cal_scores via linear interpolation. Default None preserves
             the existing max behaviour.
-        exclude_data_dominant: Exclude data-dominant files (e.g., locale string tables) from
-            model A's training corpus. Default True — no-op on corpora without such files
-            (FastAPI, Rich). Set False to reproduce pre-fix9 behaviour.
+        enable_typicality_filter: Use TypicalityModel.is_atypical_file() to drop
+            data-dominant files from model A before training.  Default True.
+            Supersedes the legacy ``exclude_data_dominant`` flag.
+        exclude_data_dominant: Legacy fallback filter using LanguageAdapter.is_data_dominant().
+            Only active when ``enable_typicality_filter=False``.  Deprecated; prefer
+            ``enable_typicality_filter``.
         _tokenizer: Optional pre-loaded tokenizer; loads UnixCoder if None (for DI in tests).
     """
 
@@ -134,6 +138,7 @@ class SequentialImportBpeScorer:
         repo_root: Path | None = None,
         threshold_percentile: float | None = None,
         exclude_data_dominant: bool = True,
+        enable_typicality_filter: bool = True,
         _tokenizer: Any = None,
     ) -> None:
         if calibration_hunks is None and bpe_threshold is None:
@@ -145,8 +150,32 @@ class SequentialImportBpeScorer:
             adapter if adapter is not None else adapter_for_files([str(p) for p in model_a_list])
         )
 
-        if exclude_data_dominant:
+        # Typicality model — stateless, language-parameterized.
+        self._typicality_model: TypicalityModel | None = None
+        if enable_typicality_filter:
+            self._typicality_model = TypicalityModel(
+                language=language_for_adapter(self._adapter)
+            )
+
+        if self._typicality_model is not None:
             filtered: list[Path] = []
+            for p in model_a_list:
+                try:
+                    src = p.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    filtered.append(p)
+                    continue
+                if not self._typicality_model.is_atypical_file(src)[0]:
+                    filtered.append(p)
+            if not filtered:
+                raise ValueError(
+                    f"Typicality filter removed all {len(model_a_list)} model A file(s); "
+                    "cannot train on an empty corpus. "
+                    "Pass enable_typicality_filter=False to skip filtering."
+                )
+            model_a_list = filtered
+        elif exclude_data_dominant:
+            filtered = []
             for p in model_a_list:
                 try:
                     src = p.read_text(encoding="utf-8", errors="replace")
@@ -158,8 +187,7 @@ class SequentialImportBpeScorer:
             if not filtered:
                 raise ValueError(
                     f"exclude_data_dominant=True removed all {len(model_a_list)} model A file(s); "
-                    "cannot train on an empty corpus. "
-                    "Pass exclude_data_dominant=False to skip filtering."
+                    "cannot train on an empty corpus."
                 )
             model_a_list = filtered
 
