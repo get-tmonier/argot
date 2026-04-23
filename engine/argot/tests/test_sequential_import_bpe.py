@@ -176,3 +176,36 @@ def test_scorer_filters_data_dominant_model_a_files(tmp_path):
     )
     # The scorer should have a typicality model attached.
     assert scorer._typicality_model is not None  # type: ignore[attr-defined]
+
+
+def test_scorer_filters_atypical_calibration_hunks(tmp_path):
+    from argot.scoring.adapters.python_adapter import PythonAdapter
+    from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
+
+    code_file = tmp_path / "code.py"
+    code_file.write_text(
+        "def fn(x):\n"
+        "    if x > 0:\n"
+        "        return x + 1\n"
+        "    return x - 1\n"
+    )
+    bpe_model_b = tmp_path / "bpe.json"
+    bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
+
+    normal_hunk = (
+        "def other(x, registry):\n"
+        "    items = registry.lookup(x)\n"
+        "    if items:\n"
+        "        return items[0]\n"
+        "    return None\n"
+    )
+    data_hunk = "DATA = {\n" + "\n".join(f'  "k{i}": "v{i}",' for i in range(80)) + "\n}"
+
+    scorer = SequentialImportBpeScorer(
+        model_a_files=[code_file],
+        bpe_model_b_path=bpe_model_b,
+        calibration_hunks=[normal_hunk, data_hunk],
+        adapter=PythonAdapter(),
+    )
+    # Only the normal hunk should appear in cal_scores — data_hunk was filtered.
+    assert len(scorer.cal_scores) == 1

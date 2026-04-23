@@ -227,7 +227,11 @@ class SequentialImportBpeScorer:
             self.cal_scores: list[float] = []
             self.n_calibration: int = 0
         else:
-            cal_list = calibration_hunks or []
+            cal_list = list(calibration_hunks or [])
+            if self._typicality_model is not None:
+                cal_list = [
+                    h for h in cal_list if not self._typicality_model.is_atypical(h)[0]
+                ]
             cal_scores = [
                 self._bpe_score(_blank_prose_lines(h, self._adapter.prose_line_ranges(h)))
                 for h in cal_list
