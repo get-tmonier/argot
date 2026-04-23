@@ -127,6 +127,21 @@ just verify      # full check suite
 
 argot has four commands. Run them in order the first time, then just `check` on every commit.
 
+```mermaid
+flowchart LR
+    subgraph once["⚙️ one-time setup"]
+        direction LR
+        GH[(git history)] --> E[argot extract]
+        E --> T[argot train]
+        T --> C[argot calibrate]
+    end
+    subgraph loop["🔄 every commit"]
+        direction LR
+        CHK[argot check] --> OUT["ranked table\n+ exit 1 if flagged"]
+    end
+    once --> loop
+```
+
 ### 1. Extract
 
 Walks the repo's git history and writes a training dataset:
@@ -201,6 +216,17 @@ The threshold is set automatically by `argot calibrate`. Override it with `--thr
 
 4. **Check** — runs the two-stage scorer on the target diff:
 
+```mermaid
+flowchart TD
+    H(["diff hunk"]) --> AG{"auto-generated?"}
+    AG -- yes --> SKIP(["⏭  skip"])
+    AG -- no --> S1["Stage 1 — import graph\nextract hunk imports\nflag if any are foreign to this repo"]
+    S1 -- "foreign module found" --> F1(["🚩 flagged  reason: import"])
+    S1 -- "all imports native" --> S2["Stage 2 — BPE log-ratio\ntokenize with UnixCoder BPE\nscore = max log P_B / P_A over tokens"]
+    S2 -- "score > threshold" --> F2(["🚩 flagged  reason: bpe"])
+    S2 -- "score ≤ threshold" --> OK(["✅ clean"])
+```
+
    **Stage 1 — import graph:** for each hunk, extracts its import statements and checks whether any imported module is absent from the repo's own first-party import set. A single foreign import immediately flags the hunk (`reason: "import"`).
 
    **Stage 2 — BPE log-ratio:** tokenizes the hunk with the [UnixCoder](https://huggingface.co/microsoft/unixcoder-base) BPE tokenizer (pre-trained on 9M+ code files across 9 languages — only the vocabulary is used, not the neural network) and computes a max-surprise score over the hunk's tokens:
@@ -240,34 +266,43 @@ All single FP events were at a margin of < 0.06 above threshold — within calib
 
 ### Recall by paradigm-break category
 
-31 categories × 4 host PRs = 124 injected hunk pairs. Scored through Stage 2 only (import detection disabled), to isolate BPE signal.
+31 categories × 4 host PRs = 124 injected hunk pairs. Scored through Stage 2 only (import detection disabled), to isolate BPE signal. **Overall recall: 95.2%** (118/124).
 
-| Category | Examples | Catch rate |
-|---|---|---|
-| Framework swap | Flask routing, Django CBV, aiohttp handler, Tornado handler | 100% |
-| Async violations | `requests` blocking event loop, sync file I/O in async | 100% |
-| Validation style | Manual dict guards, Cerberus, Voluptuous, assert validation | 75–100% |
-| Serialization | Manual JSON dict, msgpack, orjson | 100% |
-| Exception handling | Bare `except:`, exception swallow, traceback in response | 100% |
-| Background tasks | `threading.Queue`, `atexit`, `multiprocessing` | 100% |
-| Dependency injection | Manual class instantiation vs `Depends(...)` | 100% |
+```mermaid
+xychart-beta
+    title "Stage-2 recall by category (FastAPI, 124 hunk pairs)"
+    x-axis ["Framework swap", "Async violations", "Serialization", "Exceptions", "Bg tasks", "Dep. injection", "Validation", "Lang idioms"]
+    y-axis "recall %" 0 --> 110
+    bar [100, 100, 100, 100, 100, 100, 87.5, 100]
+```
 
-8 language-idiom fixtures (walrus operator, match/case, dataclasses, f-strings, async adoption, generator expressions, type annotations, union syntax) were caught at **100% recall** on both FastAPI and Rich.
+> Two fixtures in the Validation category (Voluptuous and imperative route loop) scored below threshold on some host PRs with narrow margins. All other categories: 100%.
 
-**Overall Stage-2 recall: 95.2%** (118/124 pairs; two fixtures — Voluptuous validation and an imperative route loop — scored below threshold on some hosts with narrow margins).
+| Category | Examples |
+|---|---|
+| Framework swap | Flask routing, Django CBV, aiohttp handler, Tornado handler |
+| Async violations | `requests` blocking event loop, sync file I/O in async |
+| Validation | Manual dict guards, Cerberus, Voluptuous, assert validation |
+| Serialization | Manual JSON dict, msgpack, orjson |
+| Exception handling | Bare `except:`, exception swallow, traceback in response |
+| Background tasks | `threading.Queue`, `atexit`, `multiprocessing` |
+| Dependency injection | Manual class instantiation vs `Depends(...)` |
+| Language idioms | walrus, match/case, dataclasses, f-strings, async, union syntax |
 
 ### Threshold sensitivity (recall–FP operating curve)
 
-Measured on FastAPI across 35 real merged PRs (clean test set, all flags treated as FP):
+Measured on FastAPI across 35 real merged PRs. Bars = FP rate on real PRs, line = recall on catalog breaks.
 
-| Threshold strategy | Recall (catalog breaks) | Hunk flag rate on real PRs |
-|---|---|---|
-| `max` (production) | 93.5% | 1.5% |
-| p99 | 96.8% | 2.3% |
-| p95 | 100.0% | 4.4% |
-| p90 | 100.0% | 7.1% |
+```mermaid
+xychart-beta
+    title "Operating curve — recall vs FP rate (FastAPI, 35 PRs)"
+    x-axis ["max  (prod)", "p99", "p95", "p90"]
+    y-axis "%" 0 --> 105
+    bar [1.5, 2.3, 4.4, 7.1]
+    line [93.5, 96.8, 100, 100]
+```
 
-Production uses `max(cal_scores)` — the most conservative choice. Moving to p95 recovers the 6.5% recall gap at a 3× FP-rate cost.
+Production uses `max(cal_scores)` — the most conservative point: **1.5% FP rate, 93.5% recall**. Moving to p95 reaches 100% recall at a 3× FP-rate cost (4.4%).
 
 ### Base-rate experiment (false-positive rate on real PRs)
 
