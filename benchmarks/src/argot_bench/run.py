@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from itertools import islice
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, cast
-
-if TYPE_CHECKING:
-    from argot_bench.typicality import TypicalityFeatures, TypicalityModel
+from typing import Literal, cast
 
 from argot_bench.clone import ensure_clone, ensure_sha_checked_out
 from argot_bench.extract import ensure_extracted
@@ -39,7 +36,7 @@ class RunConfig:
     seeds: list[int] = field(default_factory=lambda: [0, 1, 2, 3, 4])
     quick: bool = False
     fresh: bool = False
-    typicality_filter: bool = False
+    typicality_filter: bool = True
     sample_controls: int | None = None
 
 
@@ -111,9 +108,6 @@ def _score_real_hunks(
     scorer: BenchScorer,
     hunks: Iterable[dict[str, object]],
     repo_dir: Path,
-    *,
-    typicality_model: TypicalityModel | None = None,
-    filter_stats: dict[str, int] | None = None,
 ) -> list[dict[str, object]]:
     """Score real-PR hunks from an argot-extract dataset record.
 
@@ -121,18 +115,14 @@ def _score_real_hunks(
     hunk_end_line)` bounds. The scorer expects the full file source and
     1-indexed inclusive line bounds, so we read the file from the checked-out
     repo and convert the indexing here.
-    """
-    _path_excl_fn: Callable[[Path, Path, frozenset[str]], bool] | None = None
-    _exclude_dirs: frozenset[str] = frozenset()
-    if typicality_model is not None:
-        from argot.scoring.calibration.random_hunk_sampler import (
-            _DEFAULT_EXCLUDE_DIRS,
-            _is_excluded,
-        )
-        _path_excl_fn = _is_excluded
-        _exclude_dirs = _DEFAULT_EXCLUDE_DIRS
 
-    file_level_cache: dict[str, tuple[bool, TypicalityFeatures]] = {}
+    Hunks whose file falls under an excluded directory (test/, docs/, etc.) are
+    returned with reason='excluded_path' without invoking the scorer.
+    Atypical hunks and data-dominant files produce reason='atypical' or
+    'atypical_file' from the scorer itself.
+    """
+    from argot.scoring.calibration.random_hunk_sampler import DEFAULT_EXCLUDE_DIRS, is_excluded_path
+
     out: list[dict[str, object]] = []
     for h in hunks:
         file_path_rel = h.get("file_path")
@@ -141,11 +131,7 @@ def _score_real_hunks(
         if not (isinstance(file_path_rel, str) and isinstance(hs, int) and isinstance(he, int)):
             continue
         file_abs = repo_dir / file_path_rel
-        if _path_excl_fn is not None and _path_excl_fn(file_abs, repo_dir, _exclude_dirs):
-            if filter_stats is not None:
-                filter_stats["controls_path_excluded"] = (
-                    filter_stats.get("controls_path_excluded", 0) + 1
-                )
+        if is_excluded_path(file_abs, repo_dir, DEFAULT_EXCLUDE_DIRS):
             out.append(
                 {
                     "file_path": file_path_rel,
@@ -164,52 +150,6 @@ def _score_real_hunks(
             continue
         lines = file_source.splitlines()
         hunk_content = "\n".join(lines[hs:he])
-        if typicality_model is not None:
-            is_atypical, distance, features = typicality_model.is_atypical(hunk_content)
-            if is_atypical:
-                if filter_stats is not None:
-                    filter_stats["controls_filtered"] = (
-                        filter_stats.get("controls_filtered", 0) + 1
-                    )
-                out.append(
-                    {
-                        "file_path": file_path_rel,
-                        "hunk_start_line": hs,
-                        "hunk_end_line": he,
-                        "bpe_score": 0.0,
-                        "import_score": 0.0,
-                        "flagged": False,
-                        "reason": "atypical",
-                        "typicality_distance": distance,
-                        "typicality_features": list(features),
-                    }
-                )
-                continue
-            # File-level fallback: hunk passed, but check whether the containing
-            # file is data-dominant overall (catches partial-array hunks whose
-            # fragment is too small to exceed the hunk-level gate alone).
-            if file_path_rel not in file_level_cache:
-                fa, ff = typicality_model.is_atypical_file(file_source)
-                file_level_cache[file_path_rel] = (fa, ff)
-            file_atypical, file_features = file_level_cache[file_path_rel]
-            if file_atypical:
-                if filter_stats is not None:
-                    filter_stats["controls_atypical_file"] = (
-                        filter_stats.get("controls_atypical_file", 0) + 1
-                    )
-                out.append(
-                    {
-                        "file_path": file_path_rel,
-                        "hunk_start_line": hs,
-                        "hunk_end_line": he,
-                        "bpe_score": 0.0,
-                        "import_score": 0.0,
-                        "flagged": False,
-                        "reason": "atypical_file",
-                        "file_typicality_features": list(file_features),
-                    }
-                )
-                continue
         r = scorer.score_hunk(
             hunk_content,
             file_source=file_source,
@@ -257,36 +197,6 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
 
     repo = ensure_clone(cfg.data_dir, cfg.corpus, cfg.url)
 
-    typicality_model: TypicalityModel | None = None
-    filter_stats: dict[str, int] = {
-        "pool_size": 0,
-        "pool_filtered": 0,
-        "controls_filtered": 0,
-        "controls_path_excluded": 0,
-        "controls_atypical_file": 0,
-    }
-    if cfg.typicality_filter:
-        from argot.scoring.adapters.language_adapter import LanguageAdapter
-        from argot.scoring.adapters.python_adapter import PythonAdapter
-        from argot.scoring.calibration.random_hunk_sampler import collect_candidates
-
-        from argot_bench.typicality import TypicalityModel
-
-        adapter_for_fit: LanguageAdapter
-        if cfg.language == "python":
-            adapter_for_fit = PythonAdapter()
-        else:
-            from argot.scoring.adapters.typescript import TypeScriptAdapter
-
-            adapter_for_fit = TypeScriptAdapter()
-        pool = collect_candidates(repo, adapter=adapter_for_fit)
-        typicality_model = TypicalityModel(language=cfg.language)
-        typicality_model.fit(pool)
-        filter_stats["pool_size"] = len(pool)
-        filter_stats["pool_filtered"] = sum(
-            1 for h in pool if typicality_model.is_atypical(h)[0]
-        )
-
     fixture_results: list[dict[str, object]] = []
     real_pr_results: list[dict[str, object]] = []
     thresholds: list[float] = []
@@ -305,7 +215,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             n_cal=cfg.n_cal,
             seed=seed,
             language=cfg.language,
-            typicality_model=typicality_model,
+            enable_typicality_filter=cfg.typicality_filter,
         )
         thresholds.append(scorer.threshold)
         cal_score_signatures.append({f"{i}:{s:.4f}" for i, s in enumerate(scorer.cal_scores)})
@@ -320,9 +230,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
                 hunks_input = _reservoir_sample(hunks_stream, cfg.sample_controls, seed)
             else:
                 hunks_input = hunks_stream
-            real_pr_results = _score_real_hunks(
-                scorer, hunks_input, repo, typicality_model=typicality_model, filter_stats=filter_stats
-            )
+            real_pr_results = _score_real_hunks(scorer, hunks_input, repo)
 
     # For each injection-host PR beyond the primary, score real hunks (not in quick)
     if not cfg.quick:
@@ -337,7 +245,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
                 n_cal=cfg.n_cal,
                 seed=cfg.seeds[0],
                 language=cfg.language,
-                typicality_model=typicality_model,
+                enable_typicality_filter=cfg.typicality_filter,
             )
             hunks_stream2: Iterable[dict[str, object]] = _real_pr_hunks(dataset)
             hunks_input2: Iterable[dict[str, object]]
@@ -345,17 +253,9 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
                 hunks_input2 = _reservoir_sample(hunks_stream2, cfg.sample_controls, cfg.seeds[0])
             else:
                 hunks_input2 = hunks_stream2
-            real_pr_results.extend(
-                _score_real_hunks(
-                    scorer2,
-                    hunks_input2,
-                    repo,
-                    typicality_model=typicality_model,
-                    filter_stats=filter_stats,
-                )
-            )
+            real_pr_results.extend(_score_real_hunks(scorer2, hunks_input2, repo))
 
-    _excluded_reasons = {"atypical", "excluded_path", "atypical_file"}
+    _excluded_reasons = {"atypical", "atypical_file", "excluded_path", "auto_generated"}
     break_scores = [cast(float, r["bpe_score"]) for r in fixture_results]
     ctrl_scores = [
         cast(float, r["bpe_score"])
@@ -379,7 +279,6 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
         "n_fixtures": len(fixture_results),
         "n_real_pr_hunks": len(real_pr_results),
         "typicality_filter": cfg.typicality_filter,
-        "typicality_stats": filter_stats,
         "sample_controls": cfg.sample_controls,
     }
 

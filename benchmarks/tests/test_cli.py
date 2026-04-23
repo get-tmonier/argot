@@ -30,11 +30,11 @@ def test_list_corpora_subcommand():
 
 def test_cli_accepts_typicality_filter_flag():
     parser = build_parser()
-    ns = parser.parse_args(["--typicality-filter", "on", "--quick"])
-    assert ns.typicality_filter == "on"
+    ns = parser.parse_args(["--no-typicality-filter", "--quick"])
+    assert ns.no_typicality_filter is True
 
-    ns_off = parser.parse_args([])
-    assert ns_off.typicality_filter == "off"
+    ns_default = parser.parse_args([])
+    assert ns_default.no_typicality_filter is False
 
 
 def test_cli_seeds_flag():
@@ -65,8 +65,7 @@ def test_cli_run_one_subcommand_parses(tmp_path: Path) -> None:
             str(tmp_path),
             "--quick",
             "--fresh",
-            "--typicality-filter",
-            "on",
+            "--no-typicality-filter",
             "--seeds",
             "2",
             "--sample-controls",
@@ -78,7 +77,7 @@ def test_cli_run_one_subcommand_parses(tmp_path: Path) -> None:
     assert ns.out_dir == tmp_path
     assert ns.quick is True
     assert ns.fresh is True
-    assert ns.typicality_filter == "on"
+    assert ns.no_typicality_filter is True
     assert ns.seeds == 2
     assert ns.sample_controls == 500
 

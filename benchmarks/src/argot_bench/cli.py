@@ -32,10 +32,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--data-dir", type=Path, default=_DEFAULT_DATA)
     p.add_argument("--results-dir", type=Path, default=_DEFAULT_RESULTS)
     p.add_argument(
-        "--typicality-filter",
-        choices=["on", "off"],
-        default="off",
-        help="Apply the AST-derived typicality filter to calibration pool and control scoring.",
+        "--no-typicality-filter",
+        action="store_true",
+        default=False,
+        help="Disable the prod typicality filter for A/B comparison (filter is on by default).",
     )
     p.add_argument(
         "--seeds",
@@ -66,7 +66,7 @@ def build_parser() -> argparse.ArgumentParser:
     one.add_argument("--quick", action="store_true")
     one.add_argument("--fresh", action="store_true")
     one.add_argument("--data-dir", type=Path, default=_DEFAULT_DATA)
-    one.add_argument("--typicality-filter", choices=["on", "off"], default="off")
+    one.add_argument("--no-typicality-filter", action="store_true", default=False)
     one.add_argument("--seeds", type=int, default=None)
     one.add_argument("--sample-controls", type=int, default=None)
 
@@ -129,7 +129,7 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
         data_dir=args.data_dir,
         quick=args.quick,
         fresh=args.fresh,
-        typicality_filter=(args.typicality_filter == "on"),
+        typicality_filter=not args.no_typicality_filter,
         seeds=seeds,
         sample_controls=args.sample_controls,
     )
@@ -155,9 +155,9 @@ def _run(args: argparse.Namespace) -> int:
         str(out_dir),
         "--data-dir",
         str(args.data_dir),
-        "--typicality-filter",
-        args.typicality_filter,
     ]
+    if args.no_typicality_filter:
+        base_cmd.append("--no-typicality-filter")
     if args.quick:
         base_cmd.append("--quick")
     if args.fresh:
