@@ -59,4 +59,5 @@ docs/superpowers/
 
 # benchmark harness
 benchmarks/data/
-benchmarks/results/
+benchmarks/results/*
+!benchmarks/results/baseline/
