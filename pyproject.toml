@@ -1,10 +1,10 @@
 [tool.uv.workspace]
-members = ["engine"]
+members = ["engine", "benchmarks"]
 
 [tool.mypy]
 strict = true
 python_version = "3.13"
-exclude = ["engine/argot/acceptance", "argot/acceptance"]
+exclude = ["engine/argot/acceptance", "argot/acceptance", "benchmarks"]
 
 [[tool.mypy.overrides]]
 module = "pygit2"
