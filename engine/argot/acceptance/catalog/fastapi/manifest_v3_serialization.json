@@ -1,0 +1,37 @@
+{
+  "fixtures": [
+    {
+      "name": "paradigm_break_manual_dict_response",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_manual_dict_response.py",
+      "hunk_start_line": 45,
+      "hunk_end_line": 116,
+      "is_break": true,
+      "category": "serialization",
+      "set": "v3",
+      "rationale": "Break axis: explicit field-by-field dict construction with manual float(), bool(), and .isoformat() coercions at every endpoint instead of response_model=. Canonical pattern: docs_src/response_model/tutorial001_py310.py:17-27 shows response_model=list[Item] and response_model=Item on every route with no manual coercions; corpus has 163 response_model= sites. OOV evidence: explicit float()/bool()/.isoformat() coercions at endpoint scope appear 0 times in the FastAPI corpus — type coercion is handled entirely by Pydantic in the idiomatic pattern. Single axis of deviation: absence of response_model= plus presence of per-field coercion idiom."
+    },
+    {
+      "name": "paradigm_break_msgpack_response",
+      "scope": "default",
+      "file": "fixtures/default/paradigm_break_msgpack_response.py",
+      "hunk_start_line": 43,
+      "hunk_end_line": 92,
+      "is_break": true,
+      "category": "serialization",
+      "set": "v3",
+      "rationale": "Break axis: msgpack.packb() binary serialization with Response(media_type='application/x-msgpack') at every endpoint instead of JSON/response_model=. Canonical pattern: docs_src/response_model/tutorial001_py310.py:17-27 uses response_model= for automatic JSON; corpus has 163 response_model= sites and 0 msgpack import sites. OOV evidence: msgpack is entirely absent from the FastAPI corpus (0 import sites) — all msgpack.* identifiers are OOV. Single axis of deviation: entire serialization pipeline replaced by binary msgpack, bypassing FastAPI's JSON stack."
+    },
+    {
+      "name": "control_response_model_list",
+      "scope": "default",
+      "file": "fixtures/default/control_response_model_list.py",
+      "hunk_start_line": 56,
+      "hunk_end_line": 95,
+      "is_break": false,
+      "category": "serialization",
+      "set": "v3",
+      "rationale": "Control: response_model=list[ItemOut] on the collection GET endpoint and response_model=ItemOut on single-item GET/POST, with response_model_exclude_unset=True on PATCH. Near-verbatim adaptation of docs_src/response_model/tutorial001_py310.py (lines 1-27) extended with CRUD operations. Corpus evidence: 163 response_model= sites confirm this as the dominant FastAPI serialization pattern. No manual type coercions, no Response(content=...) construction, no third-party serialization libraries. Demonstrates the list-variant of the response_model= axis to pair against manual_dict_response and msgpack_response breaks."
+    }
+  ]
+}

@@ -1,0 +1,187 @@
+{
+  "source_repo": "https://github.com/Textualize/rich",
+  "source_tag": "v15.0.0 (commit 46cebbb)",
+  "note": "Rich terminal rendering validation — 10 breaks (5 categories x 2) + 10 controls (5 hold-out files x 2).",
+  "fixtures": [
+    {
+      "name": "control_console_capture",
+      "file": "fixtures/control_console_1.py",
+      "hunk_start_line": 317,
+      "hunk_end_line": 340,
+      "is_break": false,
+      "rationale": "Capture context manager __init__/__enter__/__exit__/get — canonical rich Console capture idiom",
+      "category": "control_console"
+    },
+    {
+      "name": "control_console_init",
+      "file": "fixtures/control_console_2.py",
+      "hunk_start_line": 618,
+      "hunk_end_line": 641,
+      "is_break": false,
+      "rationale": "Console.__init__ signature with color_system, force_terminal, theme params — canonical rich Console construction",
+      "category": "control_console"
+    },
+    {
+      "name": "control_table_add_column_body",
+      "file": "fixtures/control_table_1.py",
+      "hunk_start_line": 402,
+      "hunk_end_line": 421,
+      "is_break": false,
+      "rationale": "Table.add_column Column construction body — canonical rich Table.add_column idiom",
+      "category": "control_table"
+    },
+    {
+      "name": "control_table_rich_console",
+      "file": "fixtures/control_table_2.py",
+      "hunk_start_line": 474,
+      "hunk_end_line": 497,
+      "is_break": false,
+      "rationale": "Table.__rich_console__ start through render_annotation — canonical rich renderable protocol",
+      "category": "control_table"
+    },
+    {
+      "name": "control_live_enter_exit",
+      "file": "fixtures/control_live_1.py",
+      "hunk_start_line": 182,
+      "hunk_end_line": 203,
+      "is_break": false,
+      "rationale": "Live.__enter__/__exit__/_enable_redirect_io — canonical rich Live context manager usage",
+      "category": "control_live"
+    },
+    {
+      "name": "control_live_renderable",
+      "file": "fixtures/control_live_2.py",
+      "hunk_start_line": 213,
+      "hunk_end_line": 228,
+      "is_break": false,
+      "rationale": "Live.renderable property with alt-screen + live stack logic — canonical rich Live display",
+      "category": "control_live"
+    },
+    {
+      "name": "control_text_init",
+      "file": "fixtures/control_text_1.py",
+      "hunk_start_line": 143,
+      "hunk_end_line": 165,
+      "is_break": false,
+      "rationale": "Text.__init__ with style/justify/overflow/spans params — canonical rich Text construction",
+      "category": "control_text"
+    },
+    {
+      "name": "control_text_styled",
+      "file": "fixtures/control_text_2.py",
+      "hunk_start_line": 330,
+      "hunk_end_line": 354,
+      "is_break": false,
+      "rationale": "Text.styled classmethod — canonical rich Text.stylize usage",
+      "category": "control_text"
+    },
+    {
+      "name": "control_panel_init_body",
+      "file": "fixtures/control_panel_1.py",
+      "hunk_start_line": 56,
+      "hunk_end_line": 71,
+      "is_break": false,
+      "rationale": "Panel.__init__ body assignments (renderable, box, title, border_style) — canonical rich Panel construction",
+      "category": "control_panel"
+    },
+    {
+      "name": "control_panel_rich_console",
+      "file": "fixtures/control_panel_2.py",
+      "hunk_start_line": 140,
+      "hunk_end_line": 163,
+      "is_break": false,
+      "rationale": "Panel.__rich_console__ start with Padding.unpack, border_style, box.substitute — canonical rich Panel rendering",
+      "category": "control_panel"
+    },
+    {
+      "name": "break_ansi_raw_1",
+      "file": "fixtures/break_ansi_raw_1.py",
+      "hunk_start_line": 18,
+      "hunk_end_line": 43,
+      "is_break": true,
+      "rationale": "Manual ANSI escape code styling (\\033[31m etc.) with print() in a rich-looking file",
+      "category": "ansi_raw"
+    },
+    {
+      "name": "break_ansi_raw_2",
+      "file": "fixtures/break_ansi_raw_2.py",
+      "hunk_start_line": 14,
+      "hunk_end_line": 38,
+      "is_break": true,
+      "rationale": "Manual ANSI color code dict and progress bar using sys.stdout.write in a rich-looking file",
+      "category": "ansi_raw"
+    },
+    {
+      "name": "break_colorama_1",
+      "file": "fixtures/break_colorama_1.py",
+      "hunk_start_line": 19,
+      "hunk_end_line": 44,
+      "is_break": true,
+      "rationale": "colorama.init() + Fore/Back/Style paradigm for colored table output in a rich-looking file",
+      "category": "colorama"
+    },
+    {
+      "name": "break_colorama_2",
+      "file": "fixtures/break_colorama_2.py",
+      "hunk_start_line": 16,
+      "hunk_end_line": 41,
+      "is_break": true,
+      "rationale": "colorama spinner and level-based log rendering with Fore/Back/Style in a rich-looking file",
+      "category": "colorama"
+    },
+    {
+      "name": "break_termcolor_1",
+      "file": "fixtures/break_termcolor_1.py",
+      "hunk_start_line": 18,
+      "hunk_end_line": 43,
+      "is_break": true,
+      "rationale": "termcolor.colored/cprint for banner, diff, and status line rendering in a rich-looking file",
+      "category": "termcolor"
+    },
+    {
+      "name": "break_termcolor_2",
+      "file": "fixtures/break_termcolor_2.py",
+      "hunk_start_line": 16,
+      "hunk_end_line": 37,
+      "is_break": true,
+      "rationale": "termcolor.colored recursive dict-tree printer in a rich-looking file",
+      "category": "termcolor"
+    },
+    {
+      "name": "break_curses_1",
+      "file": "fixtures/break_curses_1.py",
+      "hunk_start_line": 18,
+      "hunk_end_line": 43,
+      "is_break": true,
+      "rationale": "curses.initscr/start_color/addstr/color_pair dashboard rendering in a rich-looking file",
+      "category": "curses"
+    },
+    {
+      "name": "break_curses_2",
+      "file": "fixtures/break_curses_2.py",
+      "hunk_start_line": 16,
+      "hunk_end_line": 41,
+      "is_break": true,
+      "rationale": "curses navigable menu with KEY_UP/KEY_DOWN and color_pair highlight in a rich-looking file",
+      "category": "curses"
+    },
+    {
+      "name": "break_print_manual_1",
+      "file": "fixtures/break_print_manual_1.py",
+      "hunk_start_line": 19,
+      "hunk_end_line": 40,
+      "is_break": true,
+      "rationale": "Plain print() with manual ljust/rjust for tabular output in a rich-looking file",
+      "category": "print_manual"
+    },
+    {
+      "name": "break_print_manual_2",
+      "file": "fixtures/break_print_manual_2.py",
+      "hunk_start_line": 19,
+      "hunk_end_line": 42,
+      "is_break": true,
+      "rationale": "Plain print() with manual center/ljust/rjust for key-value report box in a rich-looking file",
+      "category": "print_manual"
+    }
+  ]
+}

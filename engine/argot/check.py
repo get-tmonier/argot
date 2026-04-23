@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from collections.abc import Iterator
 from pathlib import Path
@@ -14,6 +15,7 @@ from argot.git_walk import SUPPORTED_EXTENSIONS, _extension, walk_commits
 from argot.jepa.encoder import TokenEncoder
 from argot.jepa.model import JEPAArgot
 from argot.jepa.predictor import ArgotPredictor
+from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
 from argot.tokenize import language_for_path, tokenize_lines
 
 _FILE_COL_WIDTH = 55
@@ -70,13 +72,13 @@ def _workdir_patches(
         yield file_path, full_path.read_bytes(), hunks
 
 
-def _score_patches(
+def _score_patches_jepa(
     patches: Iterator[tuple[str, bytes, list[pygit2.DiffHunk]]],
     vectorizer: Any,
     model: JEPAArgot,
     label: str,
 ) -> tuple[list[tuple[float, str, int, str]], int]:
-    """Score hunk patches; returns (results, total_hunk_count)."""
+    """Score hunk patches with JEPA; returns (results, total_hunk_count)."""
     context_lines = 50
     results: list[tuple[float, str, int, str]] = []
     hunk_count = 0
@@ -118,53 +120,165 @@ def _score_patches(
     return results, hunk_count
 
 
+def _load_phase14_scorer(argot_dir: Path) -> SequentialImportBpeScorer:
+    """Load Phase 14 scorer from .argot/ artifacts."""
+    model_a_txt = argot_dir / "model_a.txt"
+    model_b_json = argot_dir / "model_b.json"
+    config_json = argot_dir / "scorer-config.json"
+
+    for p, msg in [
+        (model_a_txt, "run argot-train first"),
+        (model_b_json, "run argot-train first"),
+        (config_json, "run argot-calibrate first"),
+    ]:
+        if not p.exists():
+            print(f"error: {p} not found — {msg}", file=sys.stderr)
+            sys.exit(2)
+
+    model_a_files = [Path(line) for line in model_a_txt.read_text().splitlines() if line.strip()]
+    config: dict[str, object] = json.loads(config_json.read_text())
+    threshold = float(config["threshold"])  # type: ignore[arg-type]
+
+    return SequentialImportBpeScorer(
+        model_a_files=model_a_files,
+        bpe_model_b_path=model_b_json,
+        bpe_threshold=threshold,
+    )
+
+
+def _score_patches_phase14(
+    patches: Iterator[tuple[str, bytes, list[pygit2.DiffHunk]]],
+    scorer: SequentialImportBpeScorer,
+    label: str,
+) -> tuple[list[tuple[float, str, int, str]], int]:
+    """Score hunk patches with Phase 14 scorer."""
+    results: list[tuple[float, str, int, str]] = []
+    hunk_count = 0
+
+    for file_path, post_blob, hunks in patches:
+        try:
+            file_source = post_blob.decode("utf-8", errors="replace")
+        except Exception:
+            continue
+        file_lines = file_source.splitlines()
+
+        for hunk in hunks:
+            hunk_count += 1
+            hunk_start = hunk.new_start - 1
+            hunk_end = hunk_start + hunk.new_lines
+            if hunk_start < 0 or hunk_end > len(file_lines):
+                continue
+
+            hunk_content = "\n".join(file_lines[hunk_start:hunk_end])
+            scored = scorer.score_hunk(
+                hunk_content,
+                file_source=file_source,
+                hunk_start_line=hunk_start + 1,
+                hunk_end_line=hunk_end,
+            )
+            score = float(scored["bpe_score"])
+            results.append((score, file_path, hunk.new_start, label))
+
+    return results, hunk_count
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Check code surprise with argot JEPA model")
+    parser = argparse.ArgumentParser(description="Check code with argot scorer")
     parser.add_argument("repo_path")
     parser.add_argument("ref", nargs="?", default="")
-    parser.add_argument("--model", default=".argot/model.pkl")
-    parser.add_argument("--threshold", type=float, default=0.5)
+    parser.add_argument(
+        "--model",
+        default=".argot/model.pkl",
+        help="(legacy) path to JEPA model.pkl",
+    )
+    parser.add_argument("--threshold", type=float, default=None)
+    parser.add_argument(
+        "--argot-dir",
+        default=".argot",
+        help="Directory containing argot artifacts",
+    )
+    parser.add_argument(
+        "--jepa",
+        action="store_true",
+        help="Use legacy JEPA scorer instead of Phase 14",
+    )
     args = parser.parse_args()
 
-    model_path = Path(args.model)
-    if not model_path.exists():
-        print(f"error: model not found at {model_path}", file=sys.stderr)
-        sys.exit(2)
+    argot_dir = Path(args.argot_dir)
 
-    bundle = joblib.load(model_path)
-    vectorizer = bundle["vectorizer"]
-    embed_dim: int = bundle["embed_dim"]
-    input_dim: int = bundle["input_dim"]
+    # Auto-detect scorer: fall back to JEPA when Phase 14 artifacts are absent
+    use_jepa = args.jepa or (
+        not (argot_dir / "scorer-config.json").exists() and Path(args.model).exists()
+    )
 
-    encoder = TokenEncoder(input_dim, embed_dim)
-    encoder.load_state_dict(bundle["encoder_state"])
-    predictor = ArgotPredictor(embed_dim=embed_dim)
-    predictor.load_state_dict(bundle["predictor_state"])
-    model = JEPAArgot(encoder, predictor)
-    model.eval()
+    if use_jepa:
+        # Legacy JEPA path
+        model_path = Path(args.model)
+        if not model_path.exists():
+            print(f"error: model not found at {model_path}", file=sys.stderr)
+            sys.exit(2)
 
-    if args.ref == "":
-        patches: Iterator[tuple[str, bytes, list[pygit2.DiffHunk]]] = _workdir_patches(
-            args.repo_path
-        )
-        context_label = "workdir"
-        commit_info = "working tree"
+        bundle = joblib.load(model_path)
+        vectorizer = bundle["vectorizer"]
+        embed_dim: int = bundle["embed_dim"]
+        input_dim: int = bundle["input_dim"]
+
+        encoder = TokenEncoder(input_dim, embed_dim)
+        encoder.load_state_dict(bundle["encoder_state"])
+        predictor = ArgotPredictor(embed_dim=embed_dim)
+        predictor.load_state_dict(bundle["predictor_state"])
+        jepa_model = JEPAArgot(encoder, predictor)
+        jepa_model.eval()
+
+        threshold = args.threshold if args.threshold is not None else 0.5
+
+        if args.ref == "":
+            patches: Iterator[tuple[str, bytes, list[pygit2.DiffHunk]]] = _workdir_patches(
+                args.repo_path
+            )
+            context_label = "workdir"
+            commit_info = "working tree"
+        else:
+            repo = pygit2.Repository(args.repo_path)
+            shas = _resolve_shas(repo, args.ref)
+            if not shas:
+                print("No commits found in range", file=sys.stderr)
+                sys.exit(0)
+
+            def _committed_patches_jepa() -> Iterator[tuple[str, bytes, list[pygit2.DiffHunk]]]:
+                for _commit, file_path, post_blob, hunks in walk_commits(args.repo_path, shas):
+                    yield file_path, post_blob, hunks
+
+            patches = _committed_patches_jepa()
+            context_label = args.ref
+            commit_info = f"{len(shas)} commit(s)"
+
+        results, hunk_count = _score_patches_jepa(patches, vectorizer, jepa_model, context_label)
     else:
-        repo = pygit2.Repository(args.repo_path)
-        shas = _resolve_shas(repo, args.ref)
-        if not shas:
-            print("No commits found in range", file=sys.stderr)
-            sys.exit(0)
+        # Phase 14 default path
+        scorer = _load_phase14_scorer(argot_dir)
+        threshold = args.threshold if args.threshold is not None else scorer.bpe_threshold
 
-        def _committed_patches() -> Iterator[tuple[str, bytes, list[pygit2.DiffHunk]]]:
-            for _commit, file_path, post_blob, hunks in walk_commits(args.repo_path, shas):
-                yield file_path, post_blob, hunks
+        if args.ref == "":
+            patches = _workdir_patches(args.repo_path)
+            context_label = "workdir"
+            commit_info = "working tree"
+        else:
+            repo = pygit2.Repository(args.repo_path)
+            shas = _resolve_shas(repo, args.ref)
+            if not shas:
+                print("No commits found in range", file=sys.stderr)
+                sys.exit(0)
 
-        patches = _committed_patches()
-        context_label = args.ref
-        commit_info = f"{len(shas)} commit(s)"
+            def _committed_patches_p14() -> Iterator[tuple[str, bytes, list[pygit2.DiffHunk]]]:
+                for _commit, file_path, post_blob, hunks in walk_commits(args.repo_path, shas):
+                    yield file_path, post_blob, hunks
 
-    results, hunk_count = _score_patches(patches, vectorizer, model, context_label)
+            patches = _committed_patches_p14()
+            context_label = args.ref
+            commit_info = f"{len(shas)} commit(s)"
+
+        results, hunk_count = _score_patches_phase14(patches, scorer, context_label)
 
     if not results:
         if hunk_count == 0:
@@ -177,14 +291,13 @@ def main() -> None:
                 print("Try a wider range, e.g.: argot check HEAD~20..HEAD")
         else:
             print(
-                f"All {hunk_count} hunk(s) scored below threshold {args.threshold:.2f}"
-                " — looks clean."
+                f"All {hunk_count} hunk(s) scored below threshold {threshold:.2f}" " — looks clean."
             )
         sys.exit(0)
 
     results.sort(key=lambda r: r[0], reverse=True)
 
-    t = args.threshold
+    t = threshold
     col_w = _FILE_COL_WIDTH
     print(f"{'SURPRISE':>9}  {'TAG':<10}  {'FILE':<{col_w}}  {'LINE':>5}  REF")
     for score, fp, line, ref in results:
@@ -198,7 +311,7 @@ def main() -> None:
             tag = "foreign"
         print(f"{score:>9.4f}  {tag:<10}  {_trunc(fp):<{col_w}}  {line:>5}  {ref}")
 
-    if any(s > args.threshold for s, *_ in results):
+    if any(s > threshold for s, *_ in results):
         sys.exit(1)
 
 

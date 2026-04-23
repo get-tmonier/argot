@@ -46,7 +46,7 @@ format-fix:
     bun run format && uv run ruff format engine
 
 typecheck:
-    bun run typecheck && uv run mypy engine
+    bun run typecheck && uv run mypy engine --exclude "engine/argot/acceptance"
 
 boundaries:
     bun run boundaries

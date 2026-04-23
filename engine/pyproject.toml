@@ -11,12 +11,15 @@ dependencies = [
     "tree-sitter-typescript==0.23.2",
     "tree-sitter-javascript==0.23.1",
     "tree-sitter-python==0.23.6",
+    "numpy>=1.26.0",
+    "transformers>=4.40.0",
 ]
 
 [project.scripts]
 argot-extract = "argot.extract:main"
 argot-train = "argot.train:main"
 argot-check = "argot.check:main"
+argot-calibrate = "argot.scoring.calibration:main"
 argot-fetch = "argot.fetch:main"
 argot-validate = "argot.validate:main"
 argot-explain = "argot.explain:main"
@@ -34,6 +37,7 @@ dev = [
 [tool.mypy]
 strict = true
 python_version = "3.13"
+exclude = "acceptance/catalog"
 
 [[tool.mypy.overrides]]
 module = "pygit2"
@@ -53,6 +57,7 @@ ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 100
+exclude = ["argot/acceptance/catalog"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM"]

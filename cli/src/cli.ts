@@ -3,6 +3,7 @@ import { BunRuntime, BunServices } from '@effect/platform-bun';
 import { Console, Effect } from 'effect';
 import { extractCommand } from '#shell/infrastructure/adapters/in/commands/extract.command.ts';
 import { trainCommand } from '#shell/infrastructure/adapters/in/commands/train.command.ts';
+import { calibrateCommand } from '#shell/infrastructure/adapters/in/commands/calibrate.command.ts';
 import { checkCommand } from '#shell/infrastructure/adapters/in/commands/check.command.ts';
 import { explainCommand } from '#shell/infrastructure/adapters/in/commands/explain.command.ts';
 import { updateCommand } from '#shell/infrastructure/adapters/in/commands/update.command.ts';
@@ -16,19 +17,21 @@ const app = Command.make('argot', {}, () =>
   Console.log(`argot v${version}
 
 COMMANDS
-  extract   Extract dataset from the current git repository
-  train     Train a style model on the extracted dataset
-  check     Check code against the trained style model
-  explain   Explain style anomalies in detail
-  status    Show current repository's argot state
-  list      List all registered repositories
-  update    Update the argot CLI
+  extract    Extract dataset from the current git repository
+  train      Collect model-A source files and BPE reference
+  calibrate  Calibrate scorer threshold and write scorer-config.json
+  check      Check code against the trained style model
+  explain    Explain style anomalies in detail
+  status     Show current repository's argot state
+  list       List all registered repositories
+  update     Update the argot CLI
 
 Run \`argot <command> --help\` for more information.`),
 ).pipe(
   Command.withSubcommands([
     extractCommand,
     trainCommand,
+    calibrateCommand,
     checkCommand,
     explainCommand,
     statusCommand,
