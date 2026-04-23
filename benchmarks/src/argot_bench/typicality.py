@@ -16,12 +16,14 @@ from collections.abc import Iterator
 from typing import Literal, NamedTuple
 
 import tree_sitter_python as tspython
+import tree_sitter_typescript as tstypescript
 from tree_sitter import Language, Node
 from tree_sitter import Parser as TsParser
 
 Language_ = Literal["python", "typescript"]
 
 _PY_LANGUAGE = Language(tspython.language())
+_TS_LANGUAGE = Language(tstypescript.language_typescript())
 
 # Node types per language. Values are tree-sitter grammar node-type strings.
 _PY_LITERAL_NODE_TYPES: frozenset[str] = frozenset(
@@ -48,6 +50,39 @@ _PY_CONTROL_NODE_TYPES: frozenset[str] = frozenset(
         "class_definition",
         "with_statement",
         "raise_statement",
+    }
+)
+
+_TS_LITERAL_NODE_TYPES: frozenset[str] = frozenset(
+    {
+        "string",
+        "template_string",
+        "number",
+        "true",
+        "false",
+        "null",
+        "undefined",
+        "regex",
+    }
+)
+
+_TS_CONTROL_NODE_TYPES: frozenset[str] = frozenset(
+    {
+        "if_statement",
+        "for_statement",
+        "for_in_statement",
+        "for_of_statement",
+        "while_statement",
+        "do_statement",
+        "try_statement",
+        "return_statement",
+        "function_declaration",
+        "function_expression",
+        "arrow_function",
+        "class_declaration",
+        "method_definition",
+        "throw_statement",
+        "switch_statement",
     }
 )
 
@@ -79,33 +114,28 @@ def _walk_all_nodes(root: Node, atomic_types: frozenset[str] = frozenset()) -> I
             stack.extend(reversed(node.children))
 
 
-def _is_leaf_equivalent(node: Node) -> bool:
-    """True for named nodes treated as atomic leaves for ratio computation.
-
-    Covers genuinely childless named nodes *and* string nodes whose children
-    are purely structural (string_start / string_content / string_end) — the
-    tree-sitter Python grammar wraps string literals in child nodes that are
-    implementation detail, not semantic children.
-    """
+def _is_leaf_equivalent_generic(node: Node, literal_types: frozenset[str]) -> bool:
+    """True for named nodes treated as atomic leaves for ratio computation."""
     if not node.is_named:
         return False
     if not node.children:
         return True
-    # string / concatenated_string are atomic literals even with children
-    if node.type in _PY_LITERAL_NODE_TYPES:
-        return True
-    return False
+    return node.type in literal_types
 
 
-def _compute_python(source: str) -> TypicalityFeatures:
+def _compute_generic(
+    source: str,
+    lang: Language,
+    literal_types: frozenset[str],
+    control_types: frozenset[str],
+) -> TypicalityFeatures:
     if not source.strip():
         return _NEUTRAL
     try:
-        parser = TsParser(_PY_LANGUAGE)
+        parser = TsParser(lang)
         tree = parser.parse(source.encode("utf-8"))
     except Exception:
         return _NEUTRAL
-    # tree-sitter always returns a module root; use has_error to detect parse failures
     if tree.root_node.has_error and all(
         c.type == "ERROR" for c in tree.root_node.children if c.is_named
     ):
@@ -117,16 +147,14 @@ def _compute_python(source: str) -> TypicalityFeatures:
     control_nodes = 0
     token_counts: Counter[str] = Counter()
 
-    for node in _walk_all_nodes(tree.root_node, _PY_LITERAL_NODE_TYPES):
+    for node in _walk_all_nodes(tree.root_node, literal_types):
         if node.is_named:
             node_type_counts[node.type] += 1
-            if node.type in _PY_CONTROL_NODE_TYPES:
+            if node.type in control_types:
                 control_nodes += 1
-        # Leaves are nodes with no children (or atomic literals like strings);
-        # count only named ones to exclude punctuation tokens like "(" ")" "," etc.
-        if _is_leaf_equivalent(node):
+        if _is_leaf_equivalent_generic(node, literal_types):
             leaves_total += 1
-            if node.type in _PY_LITERAL_NODE_TYPES:
+            if node.type in literal_types:
                 leaves_literal += 1
             token_text = node.text.decode("utf-8", errors="replace") if node.text else ""
             token_counts[token_text] += 1
@@ -144,6 +172,14 @@ def _compute_python(source: str) -> TypicalityFeatures:
         ast_type_entropy=ast_type_entropy,
         unique_token_ratio=unique_token_ratio,
     )
+
+
+def _compute_python(source: str) -> TypicalityFeatures:
+    return _compute_generic(source, _PY_LANGUAGE, _PY_LITERAL_NODE_TYPES, _PY_CONTROL_NODE_TYPES)
+
+
+def _compute_typescript(source: str) -> TypicalityFeatures:
+    return _compute_generic(source, _TS_LANGUAGE, _TS_LITERAL_NODE_TYPES, _TS_CONTROL_NODE_TYPES)
 
 
 def _entropy(counts: Counter[str]) -> float:
@@ -167,4 +203,6 @@ def compute_features(source: str, language: Language_) -> TypicalityFeatures:
     """
     if language == "python":
         return _compute_python(source)
-    raise NotImplementedError(f"TypeScript support lands in Task 3 (got language={language})")
+    if language == "typescript":
+        return _compute_typescript(source)
+    raise ValueError(f"unsupported language: {language}")

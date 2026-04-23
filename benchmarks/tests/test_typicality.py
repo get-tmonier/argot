@@ -84,3 +84,50 @@ def test_python_entropy_positive_for_diverse_code():
     f = compute_features(source, "python")
     assert f.ast_type_entropy > 0.0, f
     assert 0.0 < f.unique_token_ratio <= 1.0, f
+
+
+def test_typescript_data_heavy_has_high_literal_ratio():
+    from argot_bench.typicality import compute_features
+
+    source = """
+export const TITLES = [
+  "The Great Gatsby",
+  "Moby Dick",
+  "War and Peace",
+  "Crime and Punishment",
+  "Anna Karenina",
+  "The Brothers Karamazov",
+];
+""".strip()
+    f = compute_features(source, "typescript")
+    assert f.literal_leaf_ratio > 0.85, f
+    assert f.control_node_density == 0.0, f
+
+
+def test_typescript_normal_code_has_moderate_literal_ratio():
+    from argot_bench.typicality import compute_features
+
+    source = """
+function parse(request: Request, registry: Registry): Handler | null {
+    const handlers = registry.lookup(request.path);
+    if (handlers.length === 0) {
+        throw new Error(request.path);
+    }
+    for (const h of handlers) {
+        if (h.matches(request)) {
+            return h.handle(request);
+        }
+    }
+    return null;
+}
+""".strip()
+    f = compute_features(source, "typescript")
+    assert 0.1 <= f.literal_leaf_ratio <= 0.6, f
+    assert f.control_node_density > 5.0, f
+
+
+def test_typescript_parse_error_returns_zero_features():
+    from argot_bench.typicality import TypicalityFeatures, compute_features
+
+    source = "function ((("
+    assert compute_features(source, "typescript") == TypicalityFeatures(0.0, 0.0, 0.0, 0.0)
