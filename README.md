@@ -325,6 +325,17 @@ All flags were reviewed manually. Rich's 11% flag rate reflects a PR that added 
 - **Locale-heavy corpora:** Repos dominated by locale data literals (e.g. faker-js with ~75% of files as `export default` data arrays) would otherwise flood the calibration pool and suppress the BPE threshold. The `is_data_dominant` filter excludes these files before calibration — validated on faker-js, where it excluded 2219/2965 locale files (74.8%) while leaving module aggregators and application code intact (<0.5% false-exclusion rate on non-locale files). For Python corpora, p95 threshold remains the recommended fallback when data-dominance heuristics under-trigger.
 - **Stage 1 file-level import contamination:** Stage 1 can fire on unchanged import lines in the surrounding file when the full file source is not passed. The `check` command always passes `file_source`, so this is not observable in normal use.
 
+### Reproduce the benchmark numbers
+
+```bash
+just bench             # full 6-corpus run (~1.5h first time, ~20min cached)
+just bench-quick       # ~8 min — 1 PR + 1 fixture per category per corpus
+just verify-bench      # lint + mypy + unit tests for the harness itself
+```
+
+Results land in `benchmarks/results/<timestamp>/` — `report.md` plus one
+JSON per corpus with every raw score.
+
 ## Limitations
 
 - Needs enough source code to calibrate: the sampler looks for top-level functions/classes (≥ 5 body lines) in the current tree. Validated corpora had calibration pools of 112–494 hunks; repos with fewer than ~100 sampleable units will hit the pool-cap branch and may produce a noisier threshold.

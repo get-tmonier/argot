@@ -28,6 +28,11 @@ python_version = "3.13"
 strict = false
 check_untyped_defs = true
 warn_unused_ignores = true
+mypy_path = "../engine"
+
+[[tool.mypy.overrides]]
+module = ["yaml", "sklearn.*"]
+ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 120

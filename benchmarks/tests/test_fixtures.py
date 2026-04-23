@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from argot_bench.fixtures import Catalog, load_catalog, scan_all_catalogs
+from argot_bench.fixtures import load_catalog, scan_all_catalogs
 
 CATALOGS_DIR = Path(__file__).parent.parent / "catalogs"
 
