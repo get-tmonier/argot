@@ -120,29 +120,29 @@ for the design.
 ## Current baseline
 
 From [`latest/report.md`](results/baseline/latest/report.md)
-(run `20260423T215802Z`):
+(run `20260423T223111Z`):
 
 | Corpus | AUC | Recall | FP | N_fix | N_ctrl |
 |:---|---:|---:|---:|---:|---:|
-| fastapi | 0.9920 | 73.1% | 0.1% | 31 | 10,012 |
-| rich | 0.9968 | 80.0% | 0.0% | 10 | 11,536 |
-| faker | 0.9973 | 100.0% | 0.0% | 5 | 12,936 |
+| fastapi | 0.9918 | 69.4% | 0.1% | 31 | 10,012 |
+| rich | 0.9959 | 80.0% | 0.0% | 10 | 11,536 |
+| faker | 0.9237 | 100.0% | 0.1% | 5 | 12,936 |
 | hono | 0.8107 | 60.0% | 0.3% | 15 | 54,717 |
-| ink | 0.9893 | 86.7% | 0.2% | 15 | 16,678 |
-| faker-js | 0.9651 | 13.3% | 0.0% | 15 | 255,760 |
+| ink | 0.9888 | 93.3% | 1.1% | 15 | 16,678 |
+| faker-js | 0.9408 | 20.0% | 0.8% | 15 | 255,760 |
 
-Threshold CV is 0% on every corpus — runs are fully deterministic
+Threshold CV ≤ 10% across all corpora (0%–9.7%): runs are reproducible
 across seeds.
 
 ### Known weaknesses (flagged by this baseline)
 
 1. **Symmetric calibration filtering trade-off.** The era-5 typicality
    filter applies hunk-level atypicality screening to the calibration
-   pool as well as inference. On rich and faker-js, this removes some
-   calibration hunks that are break-representative, pulling the threshold
-   down and exposing a small set of break fixtures (rich: −10 pp recall,
-   faker-js: −6.7 pp vs the pre-era-5 baseline). A future fix would
-   apply the filter only at inference.
+   pool as well as inference. On rich, this removes some calibration
+   hunks that are break-representative, pulling the threshold down and
+   exposing one fixture (ansi_raw_2: −10 pp recall vs the pre-era-5
+   baseline) at a threshold boundary. A future fix would apply the
+   filter only at inference.
 
 2. **Object-keyed structured data resists structural detection.**
    The era-5 typicality filter closed the broader data/locale/test

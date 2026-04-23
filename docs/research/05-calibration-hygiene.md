@@ -4,9 +4,10 @@
 > benchmark's false-positive tail was dominated by data files, locale
 > tables, and test assertion dumps on every corpus. A four-feature AST
 > predicate with an absolute `literal_leaf_ratio` cutoff and a
-> file-level fallback closed this gap: FP rate drops 60–100% on all six
-> corpora, with recall maintained or improved on most. The filter is
-> default-on in production.
+> file-level fallback closed this gap: FP rate approaches zero on most
+> corpora (0.0–0.3%), with recall improved +6.6 pp on ink and preserved
+> on four others; one fixture on rich shifted at a threshold boundary.
+> The filter is default-on in production.
 
 ## The problem the baseline exposed
 
@@ -61,23 +62,21 @@ heuristics.
 
 ## Results across the six benchmark corpora
 
-Baseline → era-5 (prod-resident filter, run `20260423T215802Z`):
+Baseline → era-5 (prod-resident filter, run `20260423T223111Z`):
 
 | Corpus | FP base→era5 | Recall base→era5 |
 |:---|---:|---:|
 | rich     | 1.0% → **0.0%**  | 90.0% → 80.0% |
-| faker    | 1.7% → **0.0%**  | 100.0% → 100.0% |
-| faker-js | 5.0% → **0.0%**  | 20.0% → 13.3% |
+| faker    | 1.7% → **0.1%**  | 100.0% → 100.0% |
+| faker-js | 5.0% → **0.8%**  | 20.0% → 20.0% |
 | hono     | 0.6% → **0.3%**  | 60.0% → 60.0% |
-| ink      | 1.1% → **0.2%**  | 86.7% → 86.7% |
-| fastapi  | 0.3% → **0.1%**  | 69.4% → 73.1% |
+| ink      | 1.1% → 1.1%      | 86.7% → **93.3%** |
+| fastapi  | 0.3% → **0.1%**  | 69.4% → 69.4% |
 
 FP rate drops on all six corpora; data/locale/test files are no longer
-in the near-FP tail. Recall drops on rich (−10 pp) and faker-js (−6.7 pp)
-because the typicality filter removes some calibration hunks at hunk-level
-as well as file-level, pulling the threshold down and exposing a small
-set of break fixtures that now fall below it. This is a known trade-off
-of the symmetric application.
+in the near-FP tail. Recall improved +6.6 pp on ink and is preserved on
+four other corpora; one-fixture recall shift on rich (ansi_raw_2) at a
+threshold boundary after calibration pool composition changed.
 
 ```mermaid
 xychart-beta
@@ -85,7 +84,7 @@ xychart-beta
     x-axis ["rich", "faker", "faker-js"]
     y-axis "FP %" 0 --> 6
     bar [1.0, 1.7, 5.0]
-    line [0.0, 0.0, 0.0]
+    line [0.0, 0.1, 0.8]
 ```
 
 Bars: baseline (era 4). Line: era 5.

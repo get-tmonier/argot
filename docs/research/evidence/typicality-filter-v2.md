@@ -2,6 +2,12 @@
 
 ## Setup
 
+> **Numbers in this doc are from a 5-seed full-bench run
+> (timestamp 20260423T223111Z). Earlier iteration runs used
+> `--seeds 1 --sample-controls 2000` for fast dev-loop turnover;
+> those numbers are not reproducible under the production
+> 5-seed configuration and should not be cited.**
+
 Four AST-derived features via tree-sitter (no ML model):
 `literal_leaf_ratio`, `control_node_density`, `ast_type_entropy`,
 `unique_token_ratio`, plus `named_leaf_count`.
@@ -26,7 +32,7 @@ short-circuit (`reason="atypical"` / `"atypical_file"` / `"excluded_path"`).
 All three excluded from the fp_rate denominator.
 
 Baseline: `benchmarks/results/baseline/latest/report.md`
-(run `20260423T155121Z`). v2 run: `20260423T210257Z`.
+(run `20260423T155121Z`). v2 run: `20260423T223111Z`.
 Break-fixture audit: **0 / 91 across all six corpora** before full run.
 
 ## Research arc
@@ -56,15 +62,15 @@ for the gate but whose file is globally data-dominant.
 
 | Corpus | AUC base→v2 | Recall base→v2 | FP base→v2 | Controls filtered |
 |:---|---:|---:|---:|---:|
-| fastapi  | 0.9915→0.9918 | 69.4%→**78.7%** | 0.3%→0.4% | 15 hunk + 0 file + 6522 path |
-| rich     | 0.9933→0.9959 | 90.0%→90.0%   | 1.0%→**0.2%** | 342 hunk + 68 file + 2398 path |
-| faker    | 0.9295→0.9237 | 100%→100%     | 1.7%→**0.4%** | 2085 hunk + 1380 file + 3778 path |
-| hono     | 0.7853→0.8122 | 60.0%→60.0%   | 0.6%→**0.4%** | 80 hunk + 0 file + 22717 path |
-| ink      | 0.9881→0.9891 | 86.7%→**93.3%** | 1.1%→0.9% | 46 hunk + 0 file + 9417 path |
-| faker-js | 0.8568→0.9427 | 20.0%→20.0%   | 5.0%→**0.8%** | 15910 hunk + 3780 file + 191040 path |
+| fastapi  | 0.9915→0.9918 | 69.4%→69.4%   | 0.3%→**0.1%** | 15 hunk + 0 file + 6522 path |
+| rich     | 0.9933→0.9959 | 90.0%→**80.0%**  | 1.0%→**0.0%** | 342 hunk + 68 file + 2398 path |
+| faker    | 0.9295→0.9237 | 100%→100%     | 1.7%→**0.1%** | 2085 hunk + 1380 file + 3778 path |
+| hono     | 0.7853→0.8107 | 60.0%→60.0%   | 0.6%→**0.3%** | 80 hunk + 0 file + 22717 path |
+| ink      | 0.9881→0.9888 | 86.7%→**93.3%** | 1.1%→1.1% | 46 hunk + 0 file + 9417 path |
+| faker-js | 0.8568→0.9408 | 20.0%→20.0%   | 5.0%→**0.8%** | 15910 hunk + 3780 file + 191040 path |
 
-Recall on all corpora at or above baseline (fastapi +9.3 pp,
-ink +6.6 pp — threshold shifted down after pool outliers filtered).
+Recall improved +6.6 pp on ink; flat on fastapi / faker / hono / faker-js;
+one-fixture regression on rich (ansi_raw_2 at a threshold boundary).
 
 ### Per-corpus top-5: baseline → v2
 
@@ -93,4 +99,4 @@ The filter achieved its primary objective on 4/6 corpora: rich, hono, and ink to
 
 The two partial results — faker and faker-js locale residuals at ratio ≈0.73–0.80 — are instances of the same documented limit. They are not new failure modes and do not warrant a v2 iteration. fastapi's top-5 (JS tutorial file, ratio 0.117, high control-flow density) is a BPE scorer FP unrelated to typicality.
 
-Recall improved or held on all six corpora. No fixture regressions.
+Recall improved +6.6 pp on ink; unchanged on fastapi, faker, hono, and faker-js; one-fixture regression on rich (ansi_raw_2 at a threshold boundary) — net break-fixture count unchanged. 0 / 91 new categories of recall failure.
