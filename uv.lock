@@ -35,7 +35,7 @@ wheels = [
 
 [[package]]
 name = "argot-engine"
-version = "0.2.13"
+version = "0.2.14"
 source = { editable = "engine" }
 dependencies = [
     { name = "numpy" },
