@@ -233,3 +233,48 @@ def compute_features(source: str, language: Language_) -> TypicalityFeatures:
     if language == "typescript":
         return _compute_typescript(source)
     raise ValueError(f"unsupported language: {language}")
+
+
+class TypicalityModel:
+    """Stateless typicality predicate — absolute thresholds + file-level fallback.
+
+    Applied symmetrically at calibration (drop atypical hunks from the
+    sampling pool) and inference (short-circuit atypical hunks before BPE
+    scoring).  See ``docs/research/05-calibration-hygiene.md`` for the
+    design rationale.
+    """
+
+    def __init__(self, language: Language_) -> None:
+        self.language: Language_ = language
+
+    def is_atypical(self, hunk: str) -> tuple[bool, TypicalityFeatures]:
+        """Hunk-level check: returns ``(True, features)`` if structurally data-dominant."""
+        features = compute_features(hunk, self.language)
+        if features == _NEUTRAL:
+            return False, features
+        is_atyp = (
+            features.named_leaf_count >= _NAMED_LEAF_COUNT_GATE
+            and features.literal_leaf_ratio > _LITERAL_RATIO_CUTOFF
+        )
+        return is_atyp, features
+
+    def is_atypical_file(self, file_source: str) -> tuple[bool, TypicalityFeatures]:
+        """File-level check: stricter thresholds, used when hunk-level doesn't fire."""
+        features = compute_features(file_source, self.language)
+        if features == _NEUTRAL:
+            return False, features
+        is_atyp = (
+            features.named_leaf_count >= _FILE_LEVEL_MIN_LEAVES
+            and features.literal_leaf_ratio > _FILE_LEVEL_MIN_RATIO
+        )
+        return is_atyp, features
+
+
+def language_for_adapter(adapter: object) -> Language_:
+    """Derive a language string from a LanguageAdapter instance via file extensions."""
+    exts = getattr(adapter, "file_extensions", frozenset())
+    if ".py" in exts:
+        return "python"
+    if ".ts" in exts or ".tsx" in exts:
+        return "typescript"
+    raise ValueError(f"cannot infer language from adapter extensions: {exts!r}")

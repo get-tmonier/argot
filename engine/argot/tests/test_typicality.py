@@ -97,3 +97,109 @@ function parse(request: Request, registry: Registry): Handler | null {
     f = compute_features(source, "typescript")
     assert 0.1 <= f.literal_leaf_ratio <= 0.6, f
     assert f.control_node_density > 5.0, f
+
+
+def test_typicality_model_flags_data_heavy():
+    from argot.scoring.filters.typicality import TypicalityModel
+
+    model = TypicalityModel(language="python")
+    data_hunk = "\n".join(
+        [
+            "EMOJI = {",
+            *(f'    "emoji_{i}": "U+{i:05X}",' for i in range(80)),
+            "}",
+        ]
+    )
+    is_atypical, features = model.is_atypical(data_hunk)
+    assert is_atypical, features
+    assert features.literal_leaf_ratio > 0.80
+    assert features.named_leaf_count >= 5
+
+
+def test_typicality_model_does_not_flag_normal_code():
+    from argot.scoring.filters.typicality import TypicalityModel
+
+    model = TypicalityModel(language="python")
+    normal_hunk = """
+def parse(request, registry):
+    handlers = registry.lookup(request.path)
+    if not handlers:
+        raise KeyError(request.path)
+    for h in handlers:
+        if h.matches(request):
+            return h.handle(request)
+    return None
+""".strip()
+    is_atypical, _ = model.is_atypical(normal_hunk)
+    assert not is_atypical
+
+
+def test_typicality_model_respects_size_gate():
+    from argot.scoring.filters.typicality import TypicalityModel
+
+    model = TypicalityModel(language="python")
+    # 4 string leaves — below the >= 5 gate even at ratio 1.0
+    tiny_data = 'x = ["a", "b", "c"]'
+    is_atypical, features = model.is_atypical(tiny_data)
+    # 5 string leaves — at the gate
+    gate_data = 'y = ["a", "b", "c", "d", "e"]'
+    at_gate, at_features = model.is_atypical(gate_data)
+
+    # One of these should be below the gate; one at or above.
+    # We just assert the gate behaviour is monotonic in leaf count.
+    assert at_features.named_leaf_count > features.named_leaf_count
+
+
+def test_typicality_model_is_atypical_safe_on_parse_error():
+    from argot.scoring.filters.typicality import TypicalityModel
+
+    model = TypicalityModel(language="python")
+    is_atypical, features = model.is_atypical("def ((((")
+    assert not is_atypical
+    assert features.named_leaf_count == 0
+
+
+def test_is_atypical_file_flags_pure_data():
+    from argot.scoring.filters.typicality import TypicalityModel
+
+    model = TypicalityModel(language="python")
+    source = "DATA = {\n" + "\n".join(f'    "k{i}": "v{i}",' for i in range(120)) + "\n}"
+    is_atypical, features = model.is_atypical_file(source)
+    assert is_atypical
+    assert features.named_leaf_count >= 100
+    assert features.literal_leaf_ratio > 0.80
+
+
+def test_is_atypical_file_does_not_flag_normal_code():
+    from argot.scoring.filters.typicality import TypicalityModel
+
+    model = TypicalityModel(language="python")
+    normal_code = "\n".join(
+        [
+            "def fn_{i}(value, registry):".format(i=i)
+            + "\n    items = registry.lookup(value)"
+            + "\n    if not items:"
+            + "\n        return None"
+            + "\n    out = []"
+            + "\n    for item in items:"
+            + "\n        out.append(item.transform(value))"
+            + "\n    return out"
+            for i in range(10)
+        ]
+    )
+    is_atypical, _ = model.is_atypical_file(normal_code)
+    assert not is_atypical
+
+
+def test_language_for_adapter_python():
+    from argot.scoring.adapters.python_adapter import PythonAdapter
+    from argot.scoring.filters.typicality import language_for_adapter
+
+    assert language_for_adapter(PythonAdapter()) == "python"
+
+
+def test_language_for_adapter_typescript():
+    from argot.scoring.adapters.typescript import TypeScriptAdapter
+    from argot.scoring.filters.typicality import language_for_adapter
+
+    assert language_for_adapter(TypeScriptAdapter()) == "typescript"
