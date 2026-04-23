@@ -33,7 +33,7 @@ def test_run_corpus_stub_returns_corpus_report(tmp_path: Path, monkeypatch):
 
             return ScoreResult(import_score=0.0, bpe_score=3.0, flagged=True, reason="bpe")
 
-    def fake_build(repo, *, n_cal, seed, language, bpe_model_b=None):
+    def fake_build(repo, *, n_cal, seed, language, bpe_model_b=None, typicality_model=None):
         return FakeBenchScorer()
 
     monkeypatch.setattr(run_mod, "ensure_clone", fake_clone)
@@ -144,3 +144,71 @@ def test_score_real_hunks_skips_missing_files(tmp_path: Path):
     record = {"file_path": "nope.py", "hunk_start_line": 0, "hunk_end_line": 1}
     results = _score_real_hunks(NoopScorer(), [record], tmp_path)  # type: ignore[arg-type]
     assert results == []
+
+
+def test_run_config_accepts_typicality_filter_field():
+    from argot_bench.run import RunConfig
+
+    cfg = RunConfig(
+        corpus="x",
+        url="u",
+        language="python",
+        prs=[(1, "a" * 40)],
+        catalog_dir=Path("/tmp"),
+        data_dir=Path("/tmp"),
+        typicality_filter=True,
+    )
+    assert cfg.typicality_filter is True
+
+    cfg_default = RunConfig(
+        corpus="x",
+        url="u",
+        language="python",
+        prs=[(1, "a" * 40)],
+        catalog_dir=Path("/tmp"),
+        data_dir=Path("/tmp"),
+    )
+    assert cfg_default.typicality_filter is False
+
+
+class _FlagAllAtypical:
+    """Stub TypicalityModel that flags every hunk."""
+
+    def is_atypical(self, hunk: str):  # noqa: ARG002
+        from argot_bench.typicality import TypicalityFeatures
+
+        return True, 99.0, TypicalityFeatures(0.95, 0.0, 0.1, 0.1)
+
+
+def test_score_real_hunks_short_circuits_atypical_hunks(tmp_path: Path):
+    """When a typicality_model flags a hunk, the scorer is not invoked and
+    the result carries reason='atypical' + distance + features."""
+    repo = tmp_path / "repo"
+    (repo / "pkg").mkdir(parents=True)
+    (repo / "pkg" / "mod.py").write_text("def f():\n    return 1\n")
+
+    class AssertNotCalledScorer:
+        def score_hunk(self, *_a: object, **_kw: object) -> ScoreResult:
+            raise AssertionError("scorer must not be invoked for atypical hunks")
+
+    record = {
+        "file_path": "pkg/mod.py",
+        "hunk_start_line": 0,
+        "hunk_end_line": 2,
+    }
+    stats: dict[str, int] = {"controls_filtered": 0}
+    results = _score_real_hunks(
+        AssertNotCalledScorer(),  # type: ignore[arg-type]
+        [record],
+        repo,
+        typicality_model=_FlagAllAtypical(),  # type: ignore[arg-type]
+        filter_stats=stats,
+    )
+
+    assert len(results) == 1
+    r = results[0]
+    assert r["flagged"] is False
+    assert r["reason"] == "atypical"
+    assert r["typicality_distance"] == 99.0
+    assert r["typicality_features"] == [0.95, 0.0, 0.1, 0.1]
+    assert stats["controls_filtered"] == 1
