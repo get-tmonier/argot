@@ -373,51 +373,6 @@ def _check_tsconfig_paths() -> list[str]:
     return alias_patterns
 
 
-def _compute_stability(
-    probe_scorers: list[SequentialImportBpeScorer],
-    pr_hunks: list[dict[str, Any]],
-    merge_sha: str,
-) -> tuple[float, float]:
-    """Compute rel_var and Jaccard across 3 probe scorers."""
-    import numpy as np  # noqa: PLC0415
-
-    thresholds = [ps.bpe_threshold for ps in probe_scorers]
-    mean_t = float(np.mean(thresholds))
-    rel_var = (
-        (float(np.max(thresholds)) - float(np.min(thresholds))) / mean_t if mean_t > 0 else 0.0
-    )
-
-    # Compute flag sets for Jaccard
-    flag_sets: list[set[tuple[str, int]]] = []
-    for ps in probe_scorers:
-        flags: set[tuple[str, int]] = set()
-        for hunk in pr_hunks:
-            file_content = _git_show(_FAKER_REPO, merge_sha, hunk["file"])
-            if file_content is None:
-                continue
-            lines = file_content.splitlines()
-            lo = max(0, hunk["start_line"] - 1)
-            hi = min(len(lines), hunk["end_line"])
-            hunk_content = "\n".join(lines[lo:hi])
-            if not hunk_content.strip():
-                continue
-            scored = ps.score_hunk(
-                hunk_content,
-                file_source=file_content,
-                hunk_start_line=hunk["start_line"],
-                hunk_end_line=hunk["end_line"],
-            )
-            if scored["flagged"]:
-                flags.add((hunk["file"], hunk["start_line"]))
-        flag_sets.append(flags)
-
-    union = flag_sets[0] | flag_sets[1] | flag_sets[2]
-    intersection = flag_sets[0] & flag_sets[1] & flag_sets[2]
-    jaccard = len(intersection) / len(union) if union else 1.0
-
-    return rel_var, jaccard
-
-
 def _run_probe_scorers(
     candidates: list[str],
     n_cal: int,
@@ -701,7 +656,7 @@ def main(sanity_check: bool = False) -> None:
                             rel_var2 <= _STABILITY_REL_VAR_THRESHOLD
                             and jaccard2 >= _STABILITY_JACCARD_THRESHOLD
                         ):
-                            stability_status = "FAIL_ESCALATED_TO_500"
+                            stability_status = "PASS_AT_500"
                             n_cal_used = n_cal_500
                             probe_thresholds_final = probe_thresholds_500
                             rel_var = rel_var2
@@ -844,7 +799,6 @@ def main(sanity_check: bool = False) -> None:
                         "reason": scored.get("reason"),
                         "bpe_threshold": _cal_threshold,
                         "pool_size": _pool_size,
-                        "n_cal": _n_cal_used,
                         "n_cal_used": _n_cal_used,
                         "stability_probe_thresholds": _probe_thresholds_final,
                         "stability_rel_var": _stability_rel_var,
