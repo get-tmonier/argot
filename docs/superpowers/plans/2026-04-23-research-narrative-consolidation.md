@@ -727,6 +727,93 @@ EOF
 
 ---
 
+---
+
+## Task 7 (amendment, 2026-04-23): write in-repo evidence docs + rewrite citations
+
+Per spec amendment. After the four era docs shipped, readers flagged that tag-path citations aren't clickable and the source filenames (`16-rebaseline.md`, etc.) are opaque. Resolution: write 25 fresh evidence docs under `docs/research/evidence/` with semantic names; rewrite era doc citations to point at these in-repo peers.
+
+### Evidence doc template
+
+Each evidence doc is 200–400 words, three sections, no transition:
+
+```markdown
+# <Descriptive title — what the reader will find here>
+
+## Setup
+<1–2 short paragraphs: corpus, model, what was compared. Enough that a reader understands the experiment without leaving the page.>
+
+## Results
+<Table or terse number list. Numbers preserved from the tag source — do not round, do not re-derive.>
+
+## Interpretation
+<1–2 sentences: what this meant for the era's narrative. Connect to the era doc that cites it — but do not duplicate the era doc's prose.>
+
+---
+
+*Source on tag `research/phase-14-pre-cleanup`: `<original path>` (or `research/phase-14-import-graph` for phase-14 experiment JSONs). Re-written here for clarity, not copied.*
+```
+
+The trailer line gives the receipts reader a way back to the raw log without cluttering the prose.
+
+### Citation rewrite format
+
+In era docs, replace:
+
+```markdown
+`sequential_import_bpe_phase13_validation_2026-04-22.md` §7]
+```
+
+with natural-prose markdown link:
+
+```markdown
+[sequential import→bpe validation](evidence/sequential-import-bpe-validation.md)
+```
+
+Section anchors drop — evidence docs are short enough that no sub-section linking is needed.
+
+### Per-era evidence mapping
+
+**Era 1 — 7 docs** (source → new name):
+- `phases-1-6/sizing-study.md` → `jepa-sizing-plateau.md`
+- `phases-1-6/05-epochs.md` → `jepa-epochs-overfitting.md`
+- `phases-1-6/06-char-ngrams.md` → `jepa-char-ngrams-sweep.md`
+- `phases-1-6/08-path-embed.md` → `jepa-path-embed-repo-id-signal.md`
+- `phases-1-6/09-combined.md` → `jepa-combined-wins-did-not-compound.md`
+- `phases-1-6/11-token-embeddings.md` → `jepa-token-embeddings-collapse.md`
+- `phases-1-6/13-bpe-tokenisation.md` → `jepa-bpe-tokenisation-sweep.md`
+
+**Era 2 — 4 docs** (+ 2 framings inlined):
+- `phase-7/16-rebaseline.md` → `jepa-rebaseline-honest-corpus.md`
+- `phase-7/17-density-heads.md` → `density-heads-on-bpe.md`
+- `phase-7/18-pretrained-jepa.md` → `pretrained-encoder-coderankembed.md`
+- `phase-8/spot-check.md` → `paradigm-break-spot-check.md`
+- **Inline into era 2 hypothesis** (no evidence doc): `DESIGN-phase-7.md` success criteria, `phase-7/corpus.md` new corpus definition
+
+**Era 3 — 7 docs**:
+- `signal/jepa_detection_limits.md` → `jepa-detection-limits-diagnosis.md`
+- `signal/phase10_corpus_analysis_2026-04-21.md` → `fastapi-corpus-audit.md`
+- `signal/phase10_structural_context_2026-04-21.md` → `ast-structural-context-blend.md`
+- `signal/phase11_context_variants_2026-04-21.md` → `ast-context-window-sweep.md`
+- `signal/phase12/b_mlm_and_existing_2026-04-21.md` → `mlm-surprise-bakeoff.md`
+- `signal/phase12/final_2026-04-21.md` → `tfidf-anomaly-victory.md`
+- `signal/phase12/e_blend_2026-04-21.md` → `simplex-blend-refuses-to-mix.md`
+
+**Era 4 — 7 docs**:
+- `signal/phase13/b_mlm_and_existing_2026-04-21.md` → `ast-contrastive-fastapi-victory.md`
+- `signal/phase13/experiments/ast_contrastive_rich_2026-04-21.md` → `ast-contrastive-rich-collapse.md`
+- `signal/phase13/stage3_tier3_click_matched_2026-04-21.md` → `ast-contrastive-click-abandonment.md`
+- `signal/phase14/experiments/import_graph_phase13_validation_2026-04-22.md` → `import-graph-scorer-validation.md`
+- `signal/phase14/experiments/sequential_import_bpe_phase13_validation_2026-04-22.md` → `sequential-import-bpe-validation.md`
+- `signal/phase14/experiments/sequential_corrected_controls_postfix_v2_2026-04-22.md` → `sequential-import-bpe-robustness.md`
+- `signal/phase14/experiments/ts_validation_hono_2026-04-22.md` → `typescript-validation-hono.md`
+
+### Execution: one subagent per era, sequential
+
+Each subagent gets the era doc path, the mapping, the template, and the citation rewrite format. They commit their era's evidence batch + era doc rewrite as one commit. I dispatch era N+1 only after era N lands cleanly.
+
+---
+
 ## Failure protocols (from spec — applied during execution)
 
 - **Primary source for a headline figure is missing or ambiguous.** Drop the figure. Do not hedge. Rewrite the sentence if the narrative still works without the number; else drop the claim.

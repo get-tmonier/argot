@@ -10,10 +10,35 @@ Downstream goal (explicitly out of this spec): enable a future PR that merges th
 
 ## Non-goals
 
-- Porting existing phase docs to `main`. They stay reachable via the tag.
+- Porting existing phase docs verbatim to `main`. Detailed research-log text stays reachable via the tag. **See amendment below** — cited evidence *is* written into `main` as freshly-authored peer docs under `docs/research/evidence/`.
 - Regenerating corpora or re-running experiments. Spot-checks use existing artifacts only.
 - Touching research code on `main`. Docs-only change.
 - Writing a blog post. Blog is downstream of this work, not part of it.
+
+## Amendment (2026-04-23): evidence docs live in-repo
+
+The original design cited source docs via tag paths — e.g. `` [`docs/research/scoring/phase-7/16-rebaseline.md` §Primary metric] ``. Readers flagged that these paths are not clickable (the files don't exist in the working tree on `main`) and the filenames themselves (`16-rebaseline.md`, `phases-1-6/`, etc.) carry no semantic meaning.
+
+Resolution: every cited source becomes a freshly-written peer doc under `docs/research/evidence/`, with a descriptive name that tells the reader what finding is inside. Era docs link to these in-repo peers instead of tag paths. Raw research-log docs remain on the tag for deep receipts; this just lifts the evidence we load-bear on.
+
+**Layout:**
+
+```
+docs/research/
+  README.md
+  01-jepa-era.md
+  02-pivot-to-honest-eval.md
+  03-bpe-signal-hunt.md
+  04-import-graph-breakthrough.md
+  evidence/
+    <25 semantically-named evidence docs>
+```
+
+**Per evidence doc:** 200–400 words, three sections — `## Setup`, `## Results`, `## Interpretation`. No transitions (those stay in era docs). Numbers preserved from the tag source; the prose is rewritten for clarity, not copied.
+
+**Citation format in era docs:** natural-prose markdown link, e.g. `[jepa rebaseline on the honest corpus](evidence/jepa-rebaseline-honest-corpus.md)`. Section anchors dropped — evidence docs are short enough that the whole doc is the answer.
+
+**Scope: 25 evidence docs** (2 framing-only sources — `DESIGN-phase-7.md` success criteria and `phase-7/corpus.md` — get inlined into era 2's hypothesis prose instead of becoming their own evidence docs).
 
 ## Output structure
 
