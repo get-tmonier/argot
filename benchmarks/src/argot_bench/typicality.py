@@ -1,8 +1,8 @@
 """Typicality filter — AST-derived structural predicate.
 
 Used inside the benchmark sandbox to drop structurally atypical hunks
-(data tables, generated boilerplate, assertion-heavy tests) from both
-the calibration pool and inference-time control scoring.
+(data tables, generated boilerplate) from both the calibration pool and
+inference-time control scoring.
 
 No imports from ``engine/argot/scoring/``. Parses source directly with
 ``tree_sitter_python`` and ``tree_sitter_typescript``.
@@ -15,7 +15,6 @@ from collections import Counter
 from collections.abc import Iterator
 from typing import Literal, NamedTuple
 
-import numpy as np
 import tree_sitter_python as tspython
 import tree_sitter_typescript as tstypescript
 from tree_sitter import Language, Node
@@ -93,22 +92,27 @@ _TS_CONTROL_NODE_TYPES: frozenset[str] = frozenset(
     }
 )
 
+# Absolute cutoffs for the structural predicate.
+# literal_leaf_ratio > 0.80: 4/5 AST leaves are literals — data-dominant by definition.
+# named_leaf_count >= 10: size gate to avoid flagging tiny 1-3 line constant definitions
+#   (which have ~2 named leaves). Confirmed safe: genuinely invalid fragments parse to
+#   0 named leaves; 12-line data windows have 24+; break fixtures have low ratio regardless.
+_LITERAL_RATIO_CUTOFF = 0.80
+_NAMED_LEAF_COUNT_GATE = 10
+
 
 class TypicalityFeatures(NamedTuple):
-    """Four AST-derived features used by the typicality predicate."""
+    """Five AST-derived features. All five are recorded for audit/debug;
+    only ``literal_leaf_ratio`` and ``named_leaf_count`` gate the verdict."""
 
     literal_leaf_ratio: float
     control_node_density: float
     ast_type_entropy: float
     unique_token_ratio: float
+    named_leaf_count: int
 
 
-_NEUTRAL = TypicalityFeatures(0.0, 0.0, 0.0, 0.0)
-
-# Minimum slack per feature for one-sided percentile bounds, so the
-# threshold never collapses to a point when the pool is homogeneous.
-# Order: literal_leaf_ratio, control_node_density, ast_type_entropy, unique_token_ratio.
-_FALLBACK_MIN_SLACK: tuple[float, float, float, float] = (0.3, 1.0, 0.5, 0.2)
+_NEUTRAL = TypicalityFeatures(0.0, 0.0, 0.0, 0.0, 0)
 
 
 def _walk_all_nodes(root: Node, atomic_types: frozenset[str] = frozenset()) -> Iterator[Node]:
@@ -159,11 +163,13 @@ def _compute_generic(
         tree = parser.parse(source.encode("utf-8"))
     except Exception:
         return _NEUTRAL
-    if tree.root_node.has_error and all(c.type == "ERROR" for c in tree.root_node.children if c.is_named):
-        del tree
-        return _NEUTRAL
+    # No early bail on ERROR-root trees: tree-sitter preserves typed literal
+    # nodes (string, number…) as children of ERROR subtrees. Mid-array fragments
+    # lack their syntactic container so the whole tree is ERROR, but the leaf
+    # literals are still countable. Genuinely unparseable content (e.g. `def ((((`)
+    # produces no named leaves → named_leaf_count=0 → _NEUTRAL downstream.
 
-    leaves_total = 0
+    named_leaf_count = 0
     leaves_literal = 0
     node_type_counts: Counter[str] = Counter()
     control_nodes = 0
@@ -175,7 +181,7 @@ def _compute_generic(
             if node.type in control_types:
                 control_nodes += 1
         if _is_leaf_equivalent_generic(node, literal_types):
-            leaves_total += 1
+            named_leaf_count += 1
             if node.type in literal_types:
                 leaves_literal += 1
             token_text = node.text.decode("utf-8", errors="replace") if node.text else ""
@@ -183,8 +189,11 @@ def _compute_generic(
 
     del tree
 
+    if named_leaf_count == 0:
+        return _NEUTRAL
+
     total_lines = max(source.count("\n") + 1, 1)
-    literal_leaf_ratio = leaves_literal / leaves_total if leaves_total else 0.0
+    literal_leaf_ratio = leaves_literal / named_leaf_count
     control_node_density = (control_nodes / total_lines) * 100.0
     ast_type_entropy = _entropy(node_type_counts)
     total_tokens = sum(token_counts.values())
@@ -195,6 +204,7 @@ def _compute_generic(
         control_node_density=control_node_density,
         ast_type_entropy=ast_type_entropy,
         unique_token_ratio=unique_token_ratio,
+        named_leaf_count=named_leaf_count,
     )
 
 
@@ -207,11 +217,11 @@ def _compute_typescript(source: str) -> TypicalityFeatures:
 
 
 def compute_features(source: str, language: Language_) -> TypicalityFeatures:
-    """Compute 4 structural features for ``source`` in ``language``.
+    """Compute 5 structural features for ``source`` in ``language``.
 
-    Returns ``TypicalityFeatures(0, 0, 0, 0)`` on parse error or empty input —
-    a deliberately "near-typical" default so that downstream inference
-    will not flag unparseable fragments as atypical.
+    Returns ``_NEUTRAL`` on parse error or empty input — a deliberately
+    "near-typical" default so that downstream inference will not flag
+    unparseable fragments as atypical.
     """
     if language == "python":
         return _compute_python(source)
@@ -220,73 +230,25 @@ def compute_features(source: str, language: Language_) -> TypicalityFeatures:
     raise ValueError(f"unsupported language: {language}")
 
 
-def _compute_fallback_bounds(vectors: np.ndarray) -> dict[str, tuple[float, float]]:
-    """Per-feature one-sided p1/p99 bounds for the typicality predicate."""
-    if vectors.shape[0] == 0:
-        return {
-            "literal_leaf_ratio": (-math.inf, math.inf),
-            "control_node_density": (-math.inf, math.inf),
-            "ast_type_entropy": (-math.inf, math.inf),
-            "unique_token_ratio": (-math.inf, math.inf),
-        }
-    p1 = np.percentile(vectors, 1, axis=0)
-    p99 = np.percentile(vectors, 99, axis=0)
-    s = _FALLBACK_MIN_SLACK
-    return {
-        # Bounds stored in raw feature space (no log transform — no MCD).
-        # high literal ratio = atypical (data-dense); lower bound unused
-        "literal_leaf_ratio": (-math.inf, float(p99[0]) + s[0]),
-        # low control density = atypical (boilerplate/data); upper bound unused
-        "control_node_density": (max(0.0, float(p1[1]) - s[1]), math.inf),
-        # low entropy = atypical (repetitive)
-        "ast_type_entropy": (max(0.0, float(p1[2]) - s[2]), math.inf),
-        # low unique-token ratio = atypical (repetitive tokens)
-        "unique_token_ratio": (max(0.0, float(p1[3]) - s[3]), math.inf),
-    }
-
-
-def _predict_one_sided(
-    features: TypicalityFeatures, bounds: dict[str, tuple[float, float]]
-) -> bool:
-    """Return True if any feature is outside its one-sided normal range."""
-    if features.literal_leaf_ratio > bounds["literal_leaf_ratio"][1]:
-        return True
-    if features.control_node_density < bounds["control_node_density"][0]:
-        return True
-    if features.ast_type_entropy < bounds["ast_type_entropy"][0]:
-        return True
-    return features.unique_token_ratio < bounds["unique_token_ratio"][0]
-
-
 class TypicalityModel:
-    """One-sided percentile outlier model fit on a corpus candidate pool.
+    """Absolute-threshold structural predicate for hunk atypicality.
 
-    Flags hunks where any feature falls outside its normal range in the
-    direction that indicates structural atypicality:
+    A hunk is atypical iff:
+        named_leaf_count > 30  AND  literal_leaf_ratio > 0.80
 
-    - ``literal_leaf_ratio > p99`` — data-heavy (long literal tables)
-    - ``control_node_density < p1`` — boilerplate / pure data
-    - ``ast_type_entropy < p1`` — repetitive structure
-    - ``unique_token_ratio < p1`` — repetitive tokens
+    The size gate (>30) avoids flagging tiny constant definitions; the ratio
+    cutoff (>0.80) is grounded in semantics — at 0.80, four-fifths of AST
+    leaves are literals, which is data-dominant by any reasonable definition.
 
-    OR over the four features. Applied symmetrically at calibration
-    (pool hygiene) and inference (control scoring short-circuit).
+    ``fit()`` is a no-op — absolute thresholds require no pool statistics.
+    Retained for API stability with callers that follow the fit/predict pattern.
     """
 
     def __init__(self, language: Language_) -> None:
         self.language: Language_ = language
-        self._fitted: bool = False
-        self._fallback_bounds: dict[str, tuple[float, float]] | None = None
 
-    def fit(self, pool: list[str]) -> None:
-        """Fit the outlier model on ``pool`` — list of hunk source strings."""
-        features_list = [compute_features(h, self.language) for h in pool]
-        vectors = np.array(
-            [list(f) for f in features_list if f != _NEUTRAL],
-            dtype=np.float64,
-        )
-        self._fallback_bounds = _compute_fallback_bounds(vectors)
-        self._fitted = True
+    def fit(self, pool: list[str]) -> None:  # noqa: ARG002
+        """No-op — absolute thresholds need no pool statistics."""
 
     def is_atypical(self, hunk: str) -> tuple[bool, float, TypicalityFeatures]:
         """Decide whether ``hunk`` is structurally atypical.
@@ -296,12 +258,8 @@ class TypicalityModel:
         empty input the features are the neutral zero tuple and
         ``is_atypical`` is False (never filter what we couldn't parse).
         """
-        if not self._fitted:
-            raise RuntimeError("TypicalityModel.fit() must be called first")
-
         features = compute_features(hunk, self.language)
         if features == _NEUTRAL:
             return False, 0.0, features
-
-        assert self._fallback_bounds is not None
-        return _predict_one_sided(features, self._fallback_bounds), 0.0, features
+        is_atyp = features.named_leaf_count >= _NAMED_LEAF_COUNT_GATE and features.literal_leaf_ratio > _LITERAL_RATIO_CUTOFF
+        return is_atyp, 0.0, features

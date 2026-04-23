@@ -177,7 +177,7 @@ class _FlagAllAtypical:
     def is_atypical(self, hunk: str):  # noqa: ARG002
         from argot_bench.typicality import TypicalityFeatures
 
-        return True, 99.0, TypicalityFeatures(0.95, 0.0, 0.1, 0.1)
+        return True, 99.0, TypicalityFeatures(0.95, 0.0, 0.1, 0.1, 200)
 
 
 def test_score_real_hunks_short_circuits_atypical_hunks(tmp_path: Path):
@@ -210,7 +210,7 @@ def test_score_real_hunks_short_circuits_atypical_hunks(tmp_path: Path):
     assert r["flagged"] is False
     assert r["reason"] == "atypical"
     assert r["typicality_distance"] == 99.0
-    assert r["typicality_features"] == [0.95, 0.0, 0.1, 0.1]
+    assert r["typicality_features"] == [0.95, 0.0, 0.1, 0.1, 200]
     assert stats["controls_filtered"] == 1
 
 
@@ -318,3 +318,74 @@ def test_reservoir_sample_shorter_than_n():
     out = _reservoir_sample(iter(src), 50, seed=0)
     assert len(out) == 10
     assert {x["i"] for x in out} == set(range(10))
+
+
+def test_score_real_hunks_short_circuits_path_excluded(tmp_path: Path):
+    """A hunk whose file is in a test directory returns reason='excluded_path' without
+    invoking the scorer or the typicality model."""
+    repo = tmp_path / "repo"
+    test_dir = repo / "test"
+    test_dir.mkdir(parents=True)
+    (test_dir / "foo.test.tsx").write_text("describe('x', () => { it('y', () => {}); });\n")
+
+    class NeverCalledScorer:
+        def score_hunk(self, *_a: object, **_kw: object) -> ScoreResult:
+            raise AssertionError("scorer must not be called for excluded paths")
+
+    class NeverCalledTypicality:
+        def is_atypical(self, _hunk: str):
+            raise AssertionError("typicality model must not be called for excluded paths")
+
+    record = {
+        "file_path": "test/foo.test.tsx",
+        "hunk_start_line": 0,
+        "hunk_end_line": 1,
+    }
+    stats: dict[str, int] = {"controls_path_excluded": 0}
+    results = _score_real_hunks(
+        NeverCalledScorer(),  # type: ignore[arg-type]
+        [record],
+        repo,
+        typicality_model=NeverCalledTypicality(),  # type: ignore[arg-type]
+        filter_stats=stats,
+    )
+
+    assert len(results) == 1
+    r = results[0]
+    assert r["reason"] == "excluded_path"
+    assert r["flagged"] is False
+    assert stats["controls_path_excluded"] == 1
+
+
+def test_filter_stats_counts_path_exclusions(tmp_path: Path):
+    """filter_stats['controls_path_excluded'] is incremented for each excluded-path hunk."""
+    repo = tmp_path / "repo"
+    tests_dir = repo / "tests"
+    tests_dir.mkdir(parents=True)
+    (tests_dir / "a.py").write_text("pass\n")
+    (tests_dir / "b.py").write_text("pass\n")
+
+    class NeverCalledScorer:
+        def score_hunk(self, *_a: object, **_kw: object) -> ScoreResult:
+            raise AssertionError("scorer must not be called for excluded paths")
+
+    class NeverCalledTypicality:
+        def is_atypical(self, _hunk: str):
+            raise AssertionError("typicality model must not be called for excluded paths")
+
+    records = [
+        {"file_path": "tests/a.py", "hunk_start_line": 0, "hunk_end_line": 1},
+        {"file_path": "tests/b.py", "hunk_start_line": 0, "hunk_end_line": 1},
+    ]
+    stats: dict[str, int] = {"controls_path_excluded": 0}
+    results = _score_real_hunks(
+        NeverCalledScorer(),  # type: ignore[arg-type]
+        records,
+        repo,
+        typicality_model=NeverCalledTypicality(),  # type: ignore[arg-type]
+        filter_stats=stats,
+    )
+
+    assert len(results) == 2
+    assert all(r["reason"] == "excluded_path" for r in results)
+    assert stats["controls_path_excluded"] == 2

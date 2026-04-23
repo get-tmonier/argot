@@ -94,7 +94,7 @@ class _AllAtypicalModel:
     def is_atypical(self, hunk: str):  # noqa: ARG002
         from argot_bench.typicality import TypicalityFeatures
 
-        return True, 42.0, TypicalityFeatures(0.0, 0.0, 0.0, 0.0)
+        return True, 42.0, TypicalityFeatures(0.0, 0.0, 0.0, 0.0, 0)
 
 
 class _NoneAtypicalModel:
@@ -103,7 +103,7 @@ class _NoneAtypicalModel:
     def is_atypical(self, hunk: str):  # noqa: ARG002
         from argot_bench.typicality import TypicalityFeatures
 
-        return False, 0.0, TypicalityFeatures(0.5, 5.0, 2.0, 0.5)
+        return False, 0.0, TypicalityFeatures(0.5, 5.0, 2.0, 0.5, 15)
 
 
 def test_build_scorer_filter_all_atypical_raises(tmp_path: Path):
