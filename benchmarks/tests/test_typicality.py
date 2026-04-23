@@ -236,15 +236,77 @@ def test_typicality_model_is_atypical_safe_on_parse_error():
     assert features is not None  # features will be the neutral zero tuple
 
 
-def test_typicality_model_respects_size_gate():
-    """A 1-2 line constant definition with ratio 1.0 but named_leaf_count < 10 is NOT flagged."""
+def _large_data_file_python(n_entries: int = 200) -> str:
+    """Generate a Python file that is data-dominant at file level (>= 100 leaves, ratio > 0.80)."""
+    lines = ["DATA = {"]
+    for i in range(n_entries):
+        lines.append(f'    "key_{i}": "value_{i}",')
+    lines.append("}")
+    return "\n".join(lines)
+
+
+def test_is_atypical_file_flags_large_data_file():
+    """A file with 200+ literal entries is flagged at file level."""
     from argot_bench.typicality import TypicalityModel
 
-    # 2-entry dict: high ratio but only ~4 named leaves (well below gate of 10)
-    tiny_data_hunk = 'X = {"a": 1, "b": 2}'
+    model = TypicalityModel(language="python")
+    source = _large_data_file_python(n_entries=200)
+    is_atyp, features = model.is_atypical_file(source)
+    assert features.named_leaf_count >= 100, f"leaf count too low: {features}"
+    assert features.literal_leaf_ratio > 0.80, f"ratio too low: {features}"
+    assert is_atyp, f"large data file not flagged: {features}"
+
+
+def test_is_atypical_file_does_not_flag_code_file():
+    """A real code file with control flow is not flagged at file level."""
+    from argot_bench.typicality import TypicalityModel
+
+    model = TypicalityModel(language="python")
+    # Replicate a substantial code file with many functions and branches
+    lines = []
+    for i in range(20):
+        lines += [
+            f"def fn_{i}(value, registry):",
+            "    items = registry.lookup(value)",
+            "    if not items:",
+            "        return None",
+            "    out = []",
+            "    for item in items:",
+            "        out.append(item.transform(value))",
+            "    return out",
+            "",
+        ]
+    source = "\n".join(lines)
+    is_atyp, features = model.is_atypical_file(source)
+    assert not is_atyp, f"code file wrongly flagged: {features}"
+
+
+def test_is_atypical_file_returns_false_for_empty():
+    """Empty source returns (False, NEUTRAL) — never filter what we couldn't parse."""
+    from argot_bench.typicality import TypicalityFeatures, TypicalityModel
+
+    model = TypicalityModel(language="python")
+    is_atyp, features = model.is_atypical_file("")
+    assert not is_atyp
+    assert features == TypicalityFeatures(0.0, 0.0, 0.0, 0.0, 0)
+
+
+def test_typicality_model_respects_size_gate():
+    """Gate boundary: pure-literal list with < 5 leaves NOT flagged; >= 5 leaves IS flagged."""
+    from argot_bench.typicality import TypicalityModel
+
     model = TypicalityModel(language="python")
     model.fit([])  # fit is a no-op
 
-    is_atypical, _, features = model.is_atypical(tiny_data_hunk)
-    assert features.named_leaf_count < 10, f"unexpectedly large: {features}"
-    assert not is_atypical, f"small hunk wrongly flagged: {features}"
+    # 3-element string list: 3 named leaves (string literals only), ratio 1.0 — below gate 5
+    below_gate = '["a", "b", "c"]'
+    is_atypical_below, _, features_below = model.is_atypical(below_gate)
+    assert features_below.named_leaf_count < 5, f"unexpectedly large: {features_below}"
+    assert not is_atypical_below, f"sub-gate hunk wrongly flagged: {features_below}"
+
+    # 5-element string list: 5 named leaves, ratio 1.0 — at gate, must fire
+    above_gate = '["a", "b", "c", "d", "e"]'
+    is_atypical_above, _, features_above = model.is_atypical(above_gate)
+    assert features_above.named_leaf_count >= 5, f"unexpectedly small: {features_above}"
+    assert features_above.literal_leaf_ratio > 0.80, f"ratio too low: {features_above}"
+    assert is_atypical_above, f"at-gate hunk not flagged: {features_above}"

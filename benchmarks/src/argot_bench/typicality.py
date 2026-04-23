@@ -94,11 +94,16 @@ _TS_CONTROL_NODE_TYPES: frozenset[str] = frozenset(
 
 # Absolute cutoffs for the structural predicate.
 # literal_leaf_ratio > 0.80: 4/5 AST leaves are literals — data-dominant by definition.
-# named_leaf_count >= 10: size gate to avoid flagging tiny 1-3 line constant definitions
-#   (which have ~2 named leaves). Confirmed safe: genuinely invalid fragments parse to
-#   0 named leaves; 12-line data windows have 24+; break fixtures have low ratio regardless.
+# named_leaf_count >= 5: size gate to avoid flagging tiny 1-2 entry constant definitions
+#   (~2 named leaves). Lowered from 10 to catch 6-9 leaf small-fragment data hunks
+#   (faker-js locale files). Break fixtures have low ratio regardless of size.
 _LITERAL_RATIO_CUTOFF = 0.80
-_NAMED_LEAF_COUNT_GATE = 10
+_NAMED_LEAF_COUNT_GATE = 5
+
+# File-level fallback thresholds — applied when a hunk is typical at hunk-level
+# but the containing file is data-dominant overall.
+_FILE_LEVEL_MIN_LEAVES: int = 100
+_FILE_LEVEL_MIN_RATIO: float = 0.80
 
 
 class TypicalityFeatures(NamedTuple):
@@ -234,10 +239,10 @@ class TypicalityModel:
     """Absolute-threshold structural predicate for hunk atypicality.
 
     A hunk is atypical iff:
-        named_leaf_count > 30  AND  literal_leaf_ratio > 0.80
+        named_leaf_count >= 5  AND  literal_leaf_ratio > 0.80
 
-    The size gate (>30) avoids flagging tiny constant definitions; the ratio
-    cutoff (>0.80) is grounded in semantics — at 0.80, four-fifths of AST
+    The size gate (>=5) avoids flagging 1-2 entry constant definitions; the
+    ratio cutoff (>0.80) is grounded in semantics — at 0.80, four-fifths of AST
     leaves are literals, which is data-dominant by any reasonable definition.
 
     ``fit()`` is a no-op — absolute thresholds require no pool statistics.
@@ -263,3 +268,19 @@ class TypicalityModel:
             return False, 0.0, features
         is_atyp = features.named_leaf_count >= _NAMED_LEAF_COUNT_GATE and features.literal_leaf_ratio > _LITERAL_RATIO_CUTOFF
         return is_atyp, 0.0, features
+
+    def is_atypical_file(self, file_source: str) -> tuple[bool, TypicalityFeatures]:
+        """Decide whether the entire file is data-dominant.
+
+        Uses higher thresholds than the hunk-level predicate to avoid false
+        positives on real code files that happen to have local literal clusters.
+        Returns ``(is_atypical, features)``.
+        """
+        features = compute_features(file_source, self.language)
+        if features == _NEUTRAL:
+            return False, features
+        is_atyp = (
+            features.named_leaf_count >= _FILE_LEVEL_MIN_LEAVES
+            and features.literal_leaf_ratio > _FILE_LEVEL_MIN_RATIO
+        )
+        return is_atyp, features
