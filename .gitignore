@@ -53,3 +53,6 @@ __pycache__/
 .history/
 
 npm/native/
+
+# superpowers working docs (plans/specs — not versioned)
+docs/superpowers/

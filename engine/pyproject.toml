@@ -18,7 +18,6 @@ argot-extract = "argot.extract:main"
 argot-train = "argot.train:main"
 argot-check = "argot.check:main"
 argot-calibrate = "argot.scoring.calibration:main"
-argot-fetch = "argot.fetch:main"
 
 [tool.uv]
 package = true

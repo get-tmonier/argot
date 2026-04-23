@@ -25,9 +25,6 @@ train dataset=".argot/dataset.jsonl" model=".argot/model.pkl":
 check ref="HEAD~1..HEAD" model=".argot/model.pkl":
     uv run --package argot-engine python -m argot.check . {{ref}} --model {{model}}
 
-fetch-training-data:
-    uv run --package argot-engine python -m argot.fetch
-
 # --- individual checks ---
 
 lint:
