@@ -26,6 +26,12 @@ Language_ = Literal["python", "typescript"]
 _PY_LANGUAGE = Language(tspython.language())
 _TS_LANGUAGE = Language(tstypescript.language_typescript())
 
+# Module-level parsers — instantiated once and reused across all calls.
+# Creating a TsParser per hunk causes linear memory growth (~30 GB on 150k+ hunks)
+# because native byte buffers don't always get reclaimed between calls.
+_PY_PARSER = TsParser(_PY_LANGUAGE)
+_TS_PARSER = TsParser(_TS_LANGUAGE)
+
 # Node types per language. Values are tree-sitter grammar node-type strings.
 _PY_LITERAL_NODE_TYPES: frozenset[str] = frozenset(
     {
@@ -143,18 +149,18 @@ def _is_leaf_equivalent_generic(node: Node, literal_types: frozenset[str]) -> bo
 
 def _compute_generic(
     source: str,
-    lang: Language,
+    parser: TsParser,
     literal_types: frozenset[str],
     control_types: frozenset[str],
 ) -> TypicalityFeatures:
     if not source.strip():
         return _NEUTRAL
     try:
-        parser = TsParser(lang)
         tree = parser.parse(source.encode("utf-8"))
     except Exception:
         return _NEUTRAL
     if tree.root_node.has_error and all(c.type == "ERROR" for c in tree.root_node.children if c.is_named):
+        del tree
         return _NEUTRAL
 
     leaves_total = 0
@@ -175,6 +181,8 @@ def _compute_generic(
             token_text = node.text.decode("utf-8", errors="replace") if node.text else ""
             token_counts[token_text] += 1
 
+    del tree
+
     total_lines = max(source.count("\n") + 1, 1)
     literal_leaf_ratio = leaves_literal / leaves_total if leaves_total else 0.0
     control_node_density = (control_nodes / total_lines) * 100.0
@@ -191,11 +199,11 @@ def _compute_generic(
 
 
 def _compute_python(source: str) -> TypicalityFeatures:
-    return _compute_generic(source, _PY_LANGUAGE, _PY_LITERAL_NODE_TYPES, _PY_CONTROL_NODE_TYPES)
+    return _compute_generic(source, _PY_PARSER, _PY_LITERAL_NODE_TYPES, _PY_CONTROL_NODE_TYPES)
 
 
 def _compute_typescript(source: str) -> TypicalityFeatures:
-    return _compute_generic(source, _TS_LANGUAGE, _TS_LITERAL_NODE_TYPES, _TS_CONTROL_NODE_TYPES)
+    return _compute_generic(source, _TS_PARSER, _TS_LITERAL_NODE_TYPES, _TS_CONTROL_NODE_TYPES)
 
 
 def compute_features(source: str, language: Language_) -> TypicalityFeatures:
