@@ -1,0 +1,72 @@
+corpus: rich
+language: python
+categories:
+- ansi_raw
+- colorama
+- curses
+- print_manual
+- termcolor
+injection_hosts:
+- pr: 0
+  sha: 46cebbb032f920eb096efbaf23cdc6fe9dd541f7
+fixtures:
+- id: ansi_raw_1
+  file: breaks/break_ansi_raw_1.py
+  category: ansi_raw
+  hunk_start_line: 18
+  hunk_end_line: 43
+  rationale: Manual ANSI escape code styling (\033[31m etc.) with print() in a rich-looking file
+- id: ansi_raw_2
+  file: breaks/break_ansi_raw_2.py
+  category: ansi_raw
+  hunk_start_line: 14
+  hunk_end_line: 38
+  rationale: Manual ANSI color code dict and progress bar using sys.stdout.write in a rich-looking file
+- id: colorama_1
+  file: breaks/break_colorama_1.py
+  category: colorama
+  hunk_start_line: 19
+  hunk_end_line: 44
+  rationale: colorama.init() + Fore/Back/Style paradigm for colored table output in a rich-looking file
+- id: colorama_2
+  file: breaks/break_colorama_2.py
+  category: colorama
+  hunk_start_line: 16
+  hunk_end_line: 41
+  rationale: colorama spinner and level-based log rendering with Fore/Back/Style in a rich-looking file
+- id: curses_1
+  file: breaks/break_curses_1.py
+  category: curses
+  hunk_start_line: 18
+  hunk_end_line: 43
+  rationale: curses.initscr/start_color/addstr/color_pair dashboard rendering in a rich-looking file
+- id: curses_2
+  file: breaks/break_curses_2.py
+  category: curses
+  hunk_start_line: 16
+  hunk_end_line: 41
+  rationale: curses navigable menu with KEY_UP/KEY_DOWN and color_pair highlight in a rich-looking file
+- id: print_manual_1
+  file: breaks/break_print_manual_1.py
+  category: print_manual
+  hunk_start_line: 19
+  hunk_end_line: 40
+  rationale: Plain print() with manual ljust/rjust for tabular output in a rich-looking file
+- id: print_manual_2
+  file: breaks/break_print_manual_2.py
+  category: print_manual
+  hunk_start_line: 19
+  hunk_end_line: 42
+  rationale: Plain print() with manual center/ljust/rjust for key-value report box in a rich-looking file
+- id: termcolor_1
+  file: breaks/break_termcolor_1.py
+  category: termcolor
+  hunk_start_line: 18
+  hunk_end_line: 43
+  rationale: termcolor.colored/cprint for banner, diff, and status line rendering in a rich-looking file
+- id: termcolor_2
+  file: breaks/break_termcolor_2.py
+  category: termcolor
+  hunk_start_line: 16
+  hunk_end_line: 37
+  rationale: termcolor.colored recursive dict-tree printer in a rich-looking file

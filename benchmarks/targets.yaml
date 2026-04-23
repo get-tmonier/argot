@@ -1,9 +1,6 @@
-# Generated from inventory #4 — see refactor-notes.md on pre-work/inventory branch
-#
-# Python repos (fastapi, rich, faker) were validated against dynamic corpora built
-# from many PR pre-merge snapshots sourced from JSONL files (see inventory #4 notes).
-# Each has a single entry representing the HEAD SHA at research time (2026-04-22/23).
-# For TypeScript repos, per-PR merge SHAs are pinned from the scoring scripts.
+# Pinned corpora for reproducing argot's validation numbers.
+# Python corpora: single HEAD SHA — validation walks git history from there.
+# TS corpora: 5 PRs each — pre-merge snapshots.
 
 targets:
   - name: fastapi

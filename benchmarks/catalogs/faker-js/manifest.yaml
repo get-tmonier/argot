@@ -1,0 +1,103 @@
+corpus: faker-js
+language: typescript
+categories:
+  - foreign_rng
+  - runtime_fetch
+  - threading
+  - http_sink
+  - error_flip
+injection_hosts:
+  - { pr: 3798, sha: 6c2a0abd3092c8afb2bca67544a16e85a13b6b61 }
+  - { pr: 3796, sha: d17c0f1fe2ea95666b668c1e87ef4a1505a19538 }
+  - { pr: 3820, sha: a7825a71ce1dd6b0728848ab73da8134f518e689 }
+fixtures:
+  - id: faker_js_foreign_rng_1
+    file: breaks/break_foreign_rng_1.ts
+    category: foreign_rng
+    hunk_start_line: 3
+    hunk_end_line: 8
+    rationale: "Math.random instead of faker-js internal RNG"
+  - id: faker_js_foreign_rng_2
+    file: breaks/break_foreign_rng_2.ts
+    category: foreign_rng
+    hunk_start_line: 4
+    hunk_end_line: 9
+    rationale: "crypto.randomBytes inside a word generator bypasses the seeded RNG"
+  - id: faker_js_foreign_rng_3
+    file: breaks/break_foreign_rng_3.ts
+    category: foreign_rng
+    hunk_start_line: 5
+    hunk_end_line: 9
+    rationale: "Math.random index pick inside a person-name provider"
+  - id: faker_js_runtime_fetch_1
+    file: breaks/break_runtime_fetch_1.ts
+    category: runtime_fetch
+    hunk_start_line: 3
+    hunk_end_line: 8
+    rationale: "Runtime fetch from a locale data file"
+  - id: faker_js_runtime_fetch_2
+    file: breaks/break_runtime_fetch_2.ts
+    category: runtime_fetch
+    hunk_start_line: 3
+    hunk_end_line: 11
+    rationale: "ImageProvider.url() issues a live network fetch"
+  - id: faker_js_runtime_fetch_3
+    file: breaks/break_runtime_fetch_3.ts
+    category: runtime_fetch
+    hunk_start_line: 3
+    hunk_end_line: 12
+    rationale: "CompanyProvider.name() fetches from a remote name-service"
+  - id: faker_js_threading_1
+    file: breaks/break_threading_1.ts
+    category: threading
+    hunk_start_line: 3
+    hunk_end_line: 9
+    rationale: "Spawning a Worker from a locale module"
+  - id: faker_js_threading_2
+    file: breaks/break_threading_2.ts
+    category: threading
+    hunk_start_line: 1
+    hunk_end_line: 10
+    rationale: "Module-level Worker pool inside a pure data file"
+  - id: faker_js_threading_3
+    file: breaks/break_threading_3.ts
+    category: threading
+    hunk_start_line: 3
+    hunk_end_line: 10
+    rationale: "Generator implementation delegates to a Worker via postMessage"
+  - id: faker_js_http_sink_1
+    file: breaks/break_http_sink_1.ts
+    category: http_sink
+    hunk_start_line: 4
+    hunk_end_line: 13
+    rationale: "Provider method posts telemetry to an HTTP endpoint via axios"
+  - id: faker_js_http_sink_2
+    file: breaks/break_http_sink_2.ts
+    category: http_sink
+    hunk_start_line: 3
+    hunk_end_line: 11
+    rationale: "Generator pipes every generated value to a remote log sink via fetch"
+  - id: faker_js_http_sink_3
+    file: breaks/break_http_sink_3.ts
+    category: http_sink
+    hunk_start_line: 3
+    hunk_end_line: 9
+    rationale: "navigator.sendBeacon reporting inside a faker provider"
+  - id: faker_js_error_flip_1
+    file: breaks/break_error_flip_1.ts
+    category: error_flip
+    hunk_start_line: 3
+    hunk_end_line: 11
+    rationale: "Provider throws mid-generation instead of returning a fake value"
+  - id: faker_js_error_flip_2
+    file: breaks/break_error_flip_2.ts
+    category: error_flip
+    hunk_start_line: 3
+    hunk_end_line: 8
+    rationale: "Locale data accessor throws on missing entries instead of falling back"
+  - id: faker_js_error_flip_3
+    file: breaks/break_error_flip_3.ts
+    category: error_flip
+    hunk_start_line: 3
+    hunk_end_line: 9
+    rationale: "seed() override throws, breaking the determinism contract"

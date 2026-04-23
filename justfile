@@ -97,3 +97,19 @@ release VERSION:
     git tag "v{{VERSION}}"
     git push origin main "v{{VERSION}}"
     echo "Released v{{VERSION}} — CI will build binaries and publish to PyPI"
+
+# Benchmark harness
+
+bench:
+    uv run --directory benchmarks argot-bench
+
+bench-quick:
+    uv run --directory benchmarks argot-bench --quick
+
+bench-corpus CORPUS:
+    uv run --directory benchmarks argot-bench --corpus={{CORPUS}}
+
+verify-bench:
+    uv run --directory benchmarks ruff check src tests
+    uv run --directory benchmarks mypy src
+    uv run --directory benchmarks pytest -q
