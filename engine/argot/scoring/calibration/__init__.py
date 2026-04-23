@@ -8,7 +8,8 @@ from pathlib import Path
 
 import pygit2
 
-from argot.scoring.calibration.random_hunk_sampler import sample_hunks
+from argot.scoring.adapters.registry import adapter_for_files
+from argot.scoring.calibration.random_hunk_sampler import collect_candidates, sample_hunks
 from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
 
 _CONFIG_VERSION = 1
@@ -72,9 +73,10 @@ def main() -> None:
         sys.exit(2)
 
     n_cal = args.n_cal
-    all_py = [p for p in model_a_files if p.suffix == ".py"]
+    adapter = adapter_for_files([str(p) for p in model_a_files])
     source_dir = repo_path
-    cal_hunks = sample_hunks(source_dir, min(n_cal, max(1, len(all_py) * 5)), args.seed)
+    candidates = collect_candidates(source_dir, adapter=adapter)
+    cal_hunks = sample_hunks(source_dir, min(n_cal, len(candidates)), args.seed, adapter=adapter)
 
     print(f"Sampled {len(cal_hunks)} calibration hunks from {source_dir}")
 
