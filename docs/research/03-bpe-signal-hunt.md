@@ -1,4 +1,4 @@
-# The BPE signal hunt (phases 10–12)
+# The token-frequency signal hunt (phases 10–12)
 
 ## The hypothesis we were testing
 
