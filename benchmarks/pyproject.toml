@@ -47,3 +47,4 @@ select = ["E", "F", "W", "I", "UP"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["integration: tests that spawn real subprocesses or hit the network"]
