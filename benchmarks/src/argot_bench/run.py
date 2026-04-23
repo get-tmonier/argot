@@ -85,18 +85,37 @@ def _score_fixtures(
     return out
 
 
-def _score_real_hunks(scorer: BenchScorer, hunks: list[dict[str, object]]) -> list[dict[str, object]]:
+def _score_real_hunks(
+    scorer: BenchScorer,
+    hunks: list[dict[str, object]],
+    repo_dir: Path,
+) -> list[dict[str, object]]:
+    """Score real-PR hunks from an argot-extract dataset record.
+
+    Extract records carry `file_path` + 0-indexed half-open `[hunk_start_line,
+    hunk_end_line)` bounds. The scorer expects the full file source and
+    1-indexed inclusive line bounds, so we read the file from the checked-out
+    repo and convert the indexing here.
+    """
     out: list[dict[str, object]] = []
     for h in hunks:
-        hunk_content = str(h.get("hunk", ""))
-        file_source = h.get("file_source")
+        file_path_rel = h.get("file_path")
         hs = h.get("hunk_start_line")
         he = h.get("hunk_end_line")
+        if not (isinstance(file_path_rel, str) and isinstance(hs, int) and isinstance(he, int)):
+            continue
+        file_abs = repo_dir / file_path_rel
+        try:
+            file_source = file_abs.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        lines = file_source.splitlines()
+        hunk_content = "\n".join(lines[hs:he])
         r = scorer.score_hunk(
             hunk_content,
-            file_source=str(file_source) if file_source else None,
-            hunk_start_line=int(hs) if isinstance(hs, int) else None,
-            hunk_end_line=int(he) if isinstance(he, int) else None,
+            file_source=file_source,
+            hunk_start_line=hs + 1,
+            hunk_end_line=he,
         )
         out.append(
             {
@@ -159,7 +178,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
         if seed == cfg.seeds[0]:
             fixture_results = _score_fixtures(scorer, cfg.catalog_dir, break_fixtures)
             hunks = _real_pr_hunks(dataset, max_hunks=None if not cfg.quick else 50)
-            real_pr_results = _score_real_hunks(scorer, hunks)
+            real_pr_results = _score_real_hunks(scorer, hunks, repo)
 
     # For each injection-host PR beyond the primary, score real hunks (not in quick)
     if not cfg.quick:
@@ -176,7 +195,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
                 language=cfg.language,
             )
             hunks = _real_pr_hunks(dataset)
-            real_pr_results.extend(_score_real_hunks(scorer2, hunks))
+            real_pr_results.extend(_score_real_hunks(scorer2, hunks, repo))
 
     break_scores = [cast(float, r["bpe_score"]) for r in fixture_results]
     ctrl_scores = [cast(float, r["bpe_score"]) for r in real_pr_results]

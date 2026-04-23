@@ -1,6 +1,7 @@
 from pathlib import Path
 
-from argot_bench.run import RunConfig, run_corpus
+from argot_bench.run import RunConfig, _score_real_hunks, run_corpus
+from argot_bench.score import ScoreResult
 
 
 def test_run_corpus_stub_returns_corpus_report(tmp_path: Path, monkeypatch):
@@ -78,3 +79,68 @@ def test_run_corpus_stub_returns_corpus_report(tmp_path: Path, monkeypatch):
     assert report.corpus == "fastapi"
     assert "auc_catalog" in report.metrics
     assert "recall_by_category" in report.metrics
+
+
+def test_score_real_hunks_reads_file_and_converts_to_1_indexed(tmp_path: Path):
+    """Regression: extract JSONL uses file_path + 0-indexed half-open line bounds.
+
+    A prior version read non-existent keys `hunk` / `file_source` and every
+    control scored 0.0 — giving trivial AUC=1.0 against non-zero break scores.
+    This test pins the correct dataset schema and the 0→1-indexed conversion.
+    """
+    repo = tmp_path / "repo"
+    (repo / "pkg").mkdir(parents=True)
+    (repo / "pkg" / "mod.py").write_text(
+        "import os\n"  # line 0 (0-indexed)
+        "import sys\n"  # line 1
+        "\n"  # line 2
+        "def f():\n"  # line 3
+        "    return 1\n"  # line 4
+        "\n"  # line 5
+    )
+
+    captured: dict[str, object] = {}
+
+    class CapturingScorer:
+        def score_hunk(
+            self,
+            hunk_content: str,
+            *,
+            file_source: str | None,
+            hunk_start_line: int | None,
+            hunk_end_line: int | None,
+        ) -> ScoreResult:
+            captured["hunk_content"] = hunk_content
+            captured["file_source"] = file_source
+            captured["hunk_start_line"] = hunk_start_line
+            captured["hunk_end_line"] = hunk_end_line
+            return ScoreResult(import_score=0.0, bpe_score=1.23, flagged=False, reason="none")
+
+    # Extract record shape: 0-indexed half-open [start, end). Covers lines 3..4
+    # (0-indexed) = lines 4..5 (1-indexed inclusive) = the def + return.
+    hunk_record = {
+        "file_path": "pkg/mod.py",
+        "hunk_start_line": 3,
+        "hunk_end_line": 5,
+        "hunk_tokens": [],
+    }
+
+    results = _score_real_hunks(CapturingScorer(), [hunk_record], repo)  # type: ignore[arg-type]
+
+    assert len(results) == 1
+    assert results[0]["bpe_score"] == 1.23
+    assert captured["hunk_content"] == "def f():\n    return 1"
+    assert captured["hunk_start_line"] == 4  # 1-indexed
+    assert captured["hunk_end_line"] == 5  # 1-indexed inclusive
+    fs = captured["file_source"]
+    assert isinstance(fs, str) and "import os" in fs and "return 1" in fs
+
+
+def test_score_real_hunks_skips_missing_files(tmp_path: Path):
+    class NoopScorer:
+        def score_hunk(self, *_a: object, **_kw: object) -> ScoreResult:
+            raise AssertionError("should not be called for missing file")
+
+    record = {"file_path": "nope.py", "hunk_start_line": 0, "hunk_end_line": 1}
+    results = _score_real_hunks(NoopScorer(), [record], tmp_path)  # type: ignore[arg-type]
+    assert results == []
