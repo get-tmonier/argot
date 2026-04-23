@@ -325,7 +325,7 @@ All flags were reviewed manually. Rich's 11% flag rate reflects a PR that added 
 
 ## Limitations
 
-- Needs meaningful history (~200+ commits). Below that the scorer has too little signal.
+- Needs enough source code to calibrate: the sampler looks for top-level functions/classes (≥ 5 body lines) in the current tree. Validated corpora had calibration pools of 112–494 hunks; repos with fewer than ~100 sampleable units will hit the pool-cap branch and may produce a noisier threshold.
 - Best on codebases with a consistent hand. Highly polyglot repos or repos with many contributors and no enforced style are harder to model.
 - Cold start on brand-new files: less context to score against.
 - Signal is noisier on very small hunks (< 5 lines).
