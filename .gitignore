@@ -56,3 +56,7 @@ npm/native/
 
 # superpowers working docs (plans/specs — not versioned)
 docs/superpowers/
+
+# benchmark harness
+benchmarks/data/
+benchmarks/results/
