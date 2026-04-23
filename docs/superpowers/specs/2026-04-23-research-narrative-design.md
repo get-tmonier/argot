@@ -95,9 +95,9 @@ Per era, identify the **headline figures** — the ~3–5 numbers the narrative 
 - "N-grams gave +Y AUC vs BoW baseline"
 - "Import-graph stage alone scores Z% of foreign hunks"
 
-For each headline figure: trace to the primary source (result JSON, experiment script output, or a docstring / assertion in the `.py` file). Quote the source path inline:
+For each headline figure: trace to the primary source (result JSON, experiment script output, or a docstring / assertion in the `.py` file). Quote the source path inline using the **full path from repo root as it exists on the tag** (readers resolve via `git show research/phase-14-pre-cleanup:<path>`):
 
-> JEPA plateaued at AUC 0.57 on fastapi ([`phase-7/16-rebaseline.md` §Results]).
+> JEPA plateaued at AUC 0.57 on fastapi ([`docs/research/scoring/phase-7/16-rebaseline.md` §Results]).
 
 If a figure can't be verified because the primary source is ambiguous or missing:
 
