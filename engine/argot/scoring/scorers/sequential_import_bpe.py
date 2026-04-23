@@ -118,12 +118,11 @@ class SequentialImportBpeScorer:
         threshold_percentile: None → max(cal_scores). A value in (0, 100] → that
             percentile of cal_scores via linear interpolation. Default None preserves
             the existing max behaviour.
-        enable_typicality_filter: Use TypicalityModel.is_atypical_file() to drop
-            data-dominant files from model A before training.  Default True.
-            Supersedes the legacy ``exclude_data_dominant`` flag.
-        exclude_data_dominant: Legacy fallback filter using LanguageAdapter.is_data_dominant().
-            Only active when ``enable_typicality_filter=False``.  Deprecated; prefer
-            ``enable_typicality_filter``.
+        enable_typicality_filter: Build a TypicalityModel for calibration pool filtering
+            and inference short-circuit (hunk- and file-level).  Default True.
+            Does NOT affect model-A filtering; model A always uses ``exclude_data_dominant``.
+        exclude_data_dominant: Filter model-A files using LanguageAdapter.is_data_dominant().
+            Unchanged from era 4; typicality does not replace this.
         _tokenizer: Optional pre-loaded tokenizer; loads UnixCoder if None (for DI in tests).
     """
 
@@ -155,25 +154,8 @@ class SequentialImportBpeScorer:
         if enable_typicality_filter:
             self._typicality_model = TypicalityModel(language=language_for_adapter(self._adapter))
 
-        if self._typicality_model is not None:
+        if exclude_data_dominant:
             filtered: list[Path] = []
-            for p in model_a_list:
-                try:
-                    src = p.read_text(encoding="utf-8", errors="replace")
-                except OSError:
-                    filtered.append(p)
-                    continue
-                if not self._typicality_model.is_atypical_file(src)[0]:
-                    filtered.append(p)
-            if not filtered:
-                raise ValueError(
-                    f"Typicality filter removed all {len(model_a_list)} model A file(s); "
-                    "cannot train on an empty corpus. "
-                    "Pass enable_typicality_filter=False to skip filtering."
-                )
-            model_a_list = filtered
-        elif exclude_data_dominant:
-            filtered = []
             for p in model_a_list:
                 try:
                     src = p.read_text(encoding="utf-8", errors="replace")
@@ -184,8 +166,8 @@ class SequentialImportBpeScorer:
                     filtered.append(p)
             if not filtered:
                 raise ValueError(
-                    f"exclude_data_dominant=True removed all {len(model_a_list)} model A file(s); "
-                    "cannot train on an empty corpus."
+                    f"exclude_data_dominant=True removed all {len(model_a_list)} "
+                    "model A file(s); cannot train on an empty corpus."
                 )
             model_a_list = filtered
 

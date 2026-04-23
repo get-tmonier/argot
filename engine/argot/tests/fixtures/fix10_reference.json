@@ -70,9 +70,9 @@
     "rich/break_curses_2": 7.668379040086203,
     "rich/break_print_manual_1": 7.347760448693386,
     "rich/break_print_manual_2": 6.729681876256576,
-    "faker/break_mimesis_alt_1": 4.0356059642473969,
+    "faker/break_mimesis_alt_1": 3.236871533934144,
     "faker/break_threading_provider_1": 7.339132885635042,
     "faker/break_sqlalchemy_sink_1": 6.956828655756679,
-    "faker/break_numpy_random_1": 7.5099679634319365,
+    "faker/break_numpy_random_1": 4.593258125805839,
     "faker/break_requests_source_1": 7.380159938259968
 }
