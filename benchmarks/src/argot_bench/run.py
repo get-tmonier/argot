@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from itertools import islice
 from pathlib import Path
@@ -122,6 +122,16 @@ def _score_real_hunks(
     1-indexed inclusive line bounds, so we read the file from the checked-out
     repo and convert the indexing here.
     """
+    _path_excl_fn: Callable[[Path, Path, frozenset[str]], bool] | None = None
+    _exclude_dirs: frozenset[str] = frozenset()
+    if typicality_model is not None:
+        from argot.scoring.calibration.random_hunk_sampler import (
+            _DEFAULT_EXCLUDE_DIRS,
+            _is_excluded,
+        )
+        _path_excl_fn = _is_excluded
+        _exclude_dirs = _DEFAULT_EXCLUDE_DIRS
+
     out: list[dict[str, object]] = []
     for h in hunks:
         file_path_rel = h.get("file_path")
@@ -130,6 +140,23 @@ def _score_real_hunks(
         if not (isinstance(file_path_rel, str) and isinstance(hs, int) and isinstance(he, int)):
             continue
         file_abs = repo_dir / file_path_rel
+        if _path_excl_fn is not None and _path_excl_fn(file_abs, repo_dir, _exclude_dirs):
+            if filter_stats is not None:
+                filter_stats["controls_path_excluded"] = (
+                    filter_stats.get("controls_path_excluded", 0) + 1
+                )
+            out.append(
+                {
+                    "file_path": file_path_rel,
+                    "hunk_start_line": hs,
+                    "hunk_end_line": he,
+                    "bpe_score": 0.0,
+                    "import_score": 0.0,
+                    "flagged": False,
+                    "reason": "excluded_path",
+                }
+            )
+            continue
         try:
             file_source = file_abs.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
@@ -205,7 +232,12 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
     repo = ensure_clone(cfg.data_dir, cfg.corpus, cfg.url)
 
     typicality_model: TypicalityModel | None = None
-    filter_stats: dict[str, int] = {"pool_size": 0, "pool_filtered": 0, "controls_filtered": 0}
+    filter_stats: dict[str, int] = {
+        "pool_size": 0,
+        "pool_filtered": 0,
+        "controls_filtered": 0,
+        "controls_path_excluded": 0,
+    }
     if cfg.typicality_filter:
         from argot.scoring.adapters.language_adapter import LanguageAdapter
         from argot.scoring.adapters.python_adapter import PythonAdapter
@@ -296,9 +328,12 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
                 )
             )
 
+    _excluded_reasons = {"atypical", "excluded_path"}
     break_scores = [cast(float, r["bpe_score"]) for r in fixture_results]
     ctrl_scores = [
-        cast(float, r["bpe_score"]) for r in real_pr_results if r.get("reason") != "atypical"
+        cast(float, r["bpe_score"])
+        for r in real_pr_results
+        if r.get("reason") not in _excluded_reasons
     ]
 
     threshold_mean = sum(thresholds) / len(thresholds) if thresholds else 0.0
@@ -306,7 +341,9 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
     metrics = {
         "auc_catalog": auc_catalog(break_scores, ctrl_scores),
         "recall_by_category": recall_by_category(fixture_results),
-        "fp_rate_real_pr": fp_rate([r for r in real_pr_results if r.get("reason") != "atypical"]),
+        "fp_rate_real_pr": fp_rate(
+            [r for r in real_pr_results if r.get("reason") not in _excluded_reasons]
+        ),
         "threshold_cv": threshold_cv(thresholds),
         "threshold_mean": threshold_mean,
         "thresholds": thresholds,
