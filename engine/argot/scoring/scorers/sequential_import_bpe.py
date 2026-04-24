@@ -22,6 +22,7 @@ from typing import Any, Literal
 from argot.scoring.adapters.language_adapter import LanguageAdapter
 from argot.scoring.adapters.registry import adapter_for_files
 from argot.scoring.filters.typicality import TypicalityModel, language_for_adapter
+from argot.scoring.scorers.call_receiver import CallReceiverScorer
 from argot.scoring.scorers.import_graph import ImportGraphScorer
 
 _EPSILON = 1e-7
@@ -103,7 +104,9 @@ def _compute_threshold(cal_scores: list[float], threshold_percentile: float | No
 
 
 ScoredHunk = dict[str, Any]
-Reason = Literal["import", "bpe", "none", "auto_generated", "atypical", "atypical_file"]
+Reason = Literal[
+    "import", "call_receiver", "bpe", "none", "auto_generated", "atypical", "atypical_file"
+]
 
 
 class SequentialImportBpeScorer:
@@ -138,6 +141,8 @@ class SequentialImportBpeScorer:
         threshold_percentile: float | None = None,
         exclude_data_dominant: bool = True,
         enable_typicality_filter: bool = True,
+        call_receiver_alpha: float = 1.0,
+        call_receiver_cap: int = 5,
         _tokenizer: Any = None,
     ) -> None:
         if calibration_hunks is None and bpe_threshold is None:
@@ -174,6 +179,17 @@ class SequentialImportBpeScorer:
         # Stage 1: import-graph scorer (uses same adapter)
         self._import_scorer = ImportGraphScorer(adapter=self._adapter, repo_root=repo_root)
         self._import_scorer.fit(model_a_list)
+
+        # Stage 1.5: call-receiver soft-penalty scorer
+        self._call_receiver: CallReceiverScorer | None = None
+        if call_receiver_alpha > 0.0:
+            self._call_receiver = CallReceiverScorer(
+                model_a_list,
+                language=language_for_adapter(self._adapter),
+                alpha=call_receiver_alpha,
+                cap=call_receiver_cap,
+                adapter=self._adapter,
+            )
 
         # BPE tokenizer
         if _tokenizer is None:
@@ -323,14 +339,36 @@ class SequentialImportBpeScorer:
 
         bpe_score: float = self._bpe_score(bpe_input)
 
-        reason: Reason
         if import_score >= 1.0:
-            reason = "import"
-        elif bpe_score > self.bpe_threshold:
-            reason = "bpe"
-        else:
-            reason = "none"
+            return {
+                "import_score": import_score,
+                "bpe_score": bpe_score,
+                "flagged": True,
+                "reason": "import",
+            }
 
+        # Stage 1.5: call-receiver soft penalty
+        if self._call_receiver is not None:
+            n_unattested = self._call_receiver.count_unattested(hunk_content)
+            adjusted_bpe = bpe_score + self._call_receiver.alpha * min(
+                n_unattested, self._call_receiver.cap
+            )
+            if adjusted_bpe > self.bpe_threshold:
+                cr_reason: Reason = "call_receiver" if bpe_score <= self.bpe_threshold else "bpe"
+                return {
+                    "import_score": import_score,
+                    "bpe_score": bpe_score,
+                    "flagged": True,
+                    "reason": cr_reason,
+                }
+            return {
+                "import_score": import_score,
+                "bpe_score": bpe_score,
+                "flagged": False,
+                "reason": "none",
+            }
+
+        reason: Reason = "bpe" if bpe_score > self.bpe_threshold else "none"
         return {
             "import_score": import_score,
             "bpe_score": bpe_score,

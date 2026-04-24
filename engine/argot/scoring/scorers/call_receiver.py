@@ -1,29 +1,26 @@
-"""Call-receiver scorer (era 6, research phase).
+"""Call-receiver scorer — Stage 1.5 (production port of era-6 research scorer).
 
-Presence-based Stage 1.5 predicate: flags hunks that introduce
-call-expression receivers (full dotted callee strings) absent from the
-repo's own call sites. Lives inside the benchmark sandbox; production
-scorer in ``engine/argot/scoring/`` is untouched on this branch.
+Presence-based scorer: tracks distinct call-expression callees in the
+model-A corpus and counts unattested callees in a hunk.  Used by
+SequentialImportBpeScorer to apply a soft additive BPE penalty:
 
-See docs/superpowers/specs/2026-04-24-era6-call-receiver.md for design.
+    adjusted_bpe = raw_bpe + alpha * min(count_unattested(hunk), cap)
+
+Reuses module-level parsers from filters.typicality to avoid the linear
+memory growth that occurs when TsParser is instantiated per-hunk.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Literal, Protocol
 
-import tree_sitter_python as tspython
-import tree_sitter_typescript as tstypescript
-from tree_sitter import Language as TsLanguage
 from tree_sitter import Node
-from tree_sitter import Parser as TsParser
 
-_PY_LANGUAGE = TsLanguage(tspython.language())
-_TS_LANGUAGE = TsLanguage(tstypescript.language_typescript())
-_PY_PARSER = TsParser(_PY_LANGUAGE)
-_TS_PARSER = TsParser(_TS_LANGUAGE)
+from argot.scoring.filters.typicality import _PY_PARSER, _TS_PARSER
+
+Language = Literal["python", "typescript"]
 
 _PY_CALL_TYPES: frozenset[str] = frozenset({"call"})
 _PY_MEMBER_TYPES: frozenset[str] = frozenset({"attribute"})
@@ -33,14 +30,12 @@ _TS_CALL_TYPES: frozenset[str] = frozenset({"call_expression", "new_expression"}
 _TS_MEMBER_TYPES: frozenset[str] = frozenset({"member_expression"})
 _TS_IDENTIFIER_TYPES: frozenset[str] = frozenset({"identifier", "type_identifier"})
 
-Language = Literal["python", "typescript"]
-
 
 class _DataDominantAdapter(Protocol):
     def is_data_dominant(self, source: str, threshold: float = 0.65) -> bool: ...
 
 
-def _walk_nodes(root: Node):  # noqa: ANN201
+def _walk_nodes(root: Node) -> Iterator[Node]:
     stack: list[Node] = [root]
     while stack:
         node = stack.pop()
@@ -90,20 +85,19 @@ def _extract_typescript_callee(call_node: Node) -> str | None:
 
 
 def _has_root_error(source: str, language: Language) -> bool:
-    """Return True if the top-level parse tree has any ERROR children.
+    """Return True if any direct child of the parse tree root is an ERROR node.
 
-    Hunk slices extracted out of their file context (e.g. lines from inside a
-    triple-quoted docstring, or method-shorthand bodies without their enclosing
-    object literal) produce ERROR nodes at the root.  Callee extraction from
-    such fragments is unreliable and should be skipped.
+    Hunk slices extracted out of file context (docstring bodies, method-shorthand
+    definitions without their enclosing object literal) produce root-level ERROR
+    nodes.  Callee extraction from such fragments is unreliable and should be
+    skipped to avoid false positives.
     """
     parser = _PY_PARSER if language == "python" else _TS_PARSER
     try:
         tree = parser.parse(source.encode("utf-8"))
-    except Exception:
+    except Exception:  # noqa: BLE001
         return True
-    root = tree.root_node
-    has_error = any(child.type == "ERROR" for child in root.children)
+    has_error = any(child.type == "ERROR" for child in tree.root_node.children)
     del tree
     return has_error
 
@@ -111,10 +105,10 @@ def _has_root_error(source: str, language: Language) -> bool:
 def extract_callees(source: str, language: Language) -> list[str | None]:
     """Return dotted-callee signatures for every call-expression in *source*.
 
-    Each call-expression maps to either a dotted string (``"Math.random"``,
-    ``"app.route"``, ``"fetch"``) or ``None`` when the callee bottoms out
-    at a non-identifier (another call, subscript, parenthesized expression).
-    ``None`` entries are counted for auditing but excluded from set membership.
+    Each call-expression maps to a dotted string (``"Math.random"``, ``"app.route"``,
+    ``"fetch"``) or ``None`` when the callee bottoms out at a non-identifier node
+    (another call, subscript, parenthesised expression).  ``None`` entries are
+    included for auditing but excluded from set membership.
 
     Returns ``[]`` on parse error or empty source.
     """
@@ -129,34 +123,26 @@ def extract_callees(source: str, language: Language) -> list[str | None]:
         call_types = _TS_CALL_TYPES
         extractor = _extract_typescript_callee
     else:
-        raise ValueError(f"unsupported language: {language}")
+        raise ValueError(f"unsupported language: {language!r}")
 
     try:
         tree = parser.parse(source.encode("utf-8"))
-    except Exception:
+    except Exception:  # noqa: BLE001
         return []
-    root = tree.root_node
     out: list[str | None] = []
-    for node in _walk_nodes(root):
+    for node in _walk_nodes(tree.root_node):
         if node.type in call_types:
             out.append(extractor(node))
     del tree
     return out
 
 
-@dataclass(frozen=True)
-class CallReceiverResult:
-    """Result of scoring a hunk's call-expression receivers against the attested set."""
-
-    unattested: tuple[str, ...]
-    flagged: bool
-
-
 class CallReceiverScorer:
-    """Stage-1.5 presence-based scorer.
+    """Stage-1.5 call-receiver scorer.
 
     Fit: scan *model_a_files*, union all non-None callees into a frozenset.
-    Score: extract callees from a hunk, flag if ``len(unattested) >= k``.
+    Score: count distinct unattested callees in a hunk (0 if parse fragment).
+    Used by SequentialImportBpeScorer to compute adjusted_bpe.
     """
 
     def __init__(
@@ -164,15 +150,15 @@ class CallReceiverScorer:
         model_a_files: list[Path],
         *,
         language: Language,
-        k: int = 1,
+        alpha: float = 1.0,
+        cap: int = 5,
         adapter: _DataDominantAdapter | None = None,
     ) -> None:
         if not model_a_files:
             raise ValueError("model_a_files must be non-empty")
-        if k < 1:
-            raise ValueError(f"k must be >= 1, got {k}")
         self._language: Language = language
-        self._k: int = k
+        self.alpha: float = alpha
+        self.cap: int = cap
         attested: set[str] = set()
         skipped: int = 0
         for path in model_a_files:
@@ -190,10 +176,6 @@ class CallReceiverScorer:
         self.n_skipped_data_dominant: int = skipped
 
     def _get_distinct_unattested(self, hunk_content: str) -> list[str]:
-        # Hunk slices that are out-of-context fragments (e.g. docstring bodies,
-        # method-shorthand definitions stripped from their enclosing object) produce
-        # root-level ERROR nodes.  Callee extraction from such fragments is
-        # unreliable, so we treat them as having zero unattested callees.
         if _has_root_error(hunk_content, self._language):
             return []
         callees = extract_callees(hunk_content, self._language)
@@ -205,15 +187,9 @@ class CallReceiverScorer:
                 deduped.append(c)
         return deduped
 
-    def score_hunk(self, hunk_content: str) -> CallReceiverResult:
-        unattested_tuple = tuple(self._get_distinct_unattested(hunk_content))
-        flagged = len(unattested_tuple) >= self._k
-        return CallReceiverResult(unattested=unattested_tuple, flagged=flagged)
-
     def count_unattested(self, hunk_content: str) -> int:
         """Return count of distinct unattested callees in *hunk_content*.
 
-        Same extraction rule as score_hunk, but returns just the count.
-        Used by BenchScorer for the soft-penalty formula.
+        Returns 0 if the hunk has root-level ERROR nodes (parse fragment).
         """
         return len(self._get_distinct_unattested(hunk_content))

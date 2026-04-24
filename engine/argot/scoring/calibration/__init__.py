@@ -80,10 +80,14 @@ def main() -> None:
 
     print(f"Sampled {len(cal_hunks)} calibration hunks from {source_dir}")
 
+    call_receiver_alpha: float = 1.0
+    call_receiver_cap: int = 5
     scorer = SequentialImportBpeScorer(
         model_a_files=model_a_files,
         bpe_model_b_path=model_b_path,
         calibration_hunks=cal_hunks,
+        call_receiver_alpha=call_receiver_alpha,
+        call_receiver_cap=call_receiver_cap,
     )
 
     try:
@@ -95,6 +99,8 @@ def main() -> None:
     config: dict[str, object] = {
         "version": _CONFIG_VERSION,
         "threshold": scorer.bpe_threshold,
+        "call_receiver_alpha": call_receiver_alpha,
+        "call_receiver_cap": call_receiver_cap,
         "calibration": {
             "n_cal": len(cal_hunks),
             "seed": args.seed,

@@ -241,3 +241,51 @@ The scorer itself was correct from the start — the signal it measures
 (unattested call receivers) does catch the foreign-receiver breaks we
 targeted. What needed fixing was the input contract: don't feed a
 fragment to a parser and trust the output.
+
+## Production port (PR 2)
+
+### Port scope
+
+Files changed:
+
+**Created:**
+- `engine/argot/scoring/scorers/call_receiver.py` — `extract_callees`, `_has_root_error`, `CallReceiverScorer` (with `alpha`/`cap` params replacing the research `k` param)
+- `engine/argot/tests/test_call_receiver.py` — unit tests (28 tests: extractors, scorer fit, count_unattested, root-error guard, data-dominant skipping)
+
+**Modified:**
+- `engine/argot/scoring/adapters/language_adapter.py` — `extract_callees(source: str) -> list[str]` added to protocol
+- `engine/argot/scoring/adapters/python_adapter.py` — `extract_callees` implemented (delegates to scorer module)
+- `engine/argot/scoring/adapters/typescript.py` — same
+- `engine/argot/scoring/scorers/sequential_import_bpe.py` — Stage 1.5 integration; `call_receiver_alpha=1.0`, `call_receiver_cap=5` constructor params; `"call_receiver"` added to `Reason` type
+- `engine/argot/tests/test_sequential_import_bpe.py` — 5 precedence tests added (alpha=0 disables, alpha>0 builds scorer, import > call_receiver, no flag when attested, call_receiver tips threshold)
+- `engine/argot/scoring/calibration/__init__.py` — writes `call_receiver_alpha`/`cap` to scorer-config.json
+- `engine/argot/check.py` — reads alpha/cap from config; defaults to 1.0/5 for existing configs without these fields
+
+**Deleted:**
+- `benchmarks/src/argot_bench/call_receiver.py` — research module, superseded by engine implementation
+- `benchmarks/tests/test_call_receiver.py` — bench-side tests, superseded by engine tests
+
+**Bench adapter cleanup:**
+- `benchmarks/src/argot_bench/score.py` — `BenchScorer` simplified to thin pass-through; alpha/cap routed into `SequentialImportBpeScorer`; old stub-based formula tests removed from `benchmarks/tests/test_score.py`
+
+### Bench parity verification
+
+Full 5-seed bench run (`uv run argot-bench --call-receiver-alpha 1.0`) vs era-6 baseline (`20260424T074736Z`):
+
+| Corpus   | Target recall | Actual | Target FP | Actual | Drift |
+|----------|-------------:|-------:|----------:|-------:|-------|
+| fastapi  |  91.7%        | 91.7%  | 0.1%      | 0.1%   | 0.0 pp |
+| rich     | 100.0%        | 100.0% | 0.5%      | 0.5%   | 0.0 pp |
+| faker    | 100.0%        | 100.0% | 0.4%      | 0.4%   | 0.0 pp |
+| hono     |  60.0%        | 60.0%  | 0.4%      | 0.4%   | 0.0 pp |
+| ink      | 100.0%        | 100.0% | 1.1%      | 1.1%   | 0.0 pp |
+| faker-js |  33.3%        | 33.3%  | 0.8%      | 0.8%   | 0.0 pp |
+
+All 6 corpora match exactly — 0.0 pp drift on all numbers. The port reproduces the research results byte-for-byte.
+
+### Observations from port
+
+- **Parser reuse confirmed:** `_PY_PARSER` and `_TS_PARSER` imported directly from `filters.typicality` — no new instances created, the 30 GB per-hunk memory issue avoided.
+- **API delta:** Research `CallReceiverScorer` took `k` (presence gate threshold); production takes `alpha` and `cap` (soft-penalty config). The `score_hunk` method is removed — only `count_unattested` is exposed, since threshold-comparison logic lives in `SequentialImportBpeScorer.score_hunk`.
+- **Existing configs:** `check.py` defaults alpha=1.0, cap=5 for configs without those fields. Existing `.argot/scorer-config.json` files automatically enable Stage 1.5 on `argot check` after upgrading — intentional, matches the era-6 shipping config.
+- **Zero numerical drift:** The production path computes identical decisions to the research wrapper path at alpha=1.0. The `_has_root_error` guard, the attested-set construction (using the same `exclude_data_dominant` filtered file list), and the soft-penalty formula all round-trip exactly.
