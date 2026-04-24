@@ -84,6 +84,9 @@ def _extract_typescript_callee(call_node: Node) -> str | None:
     if callee.type in _TS_IDENTIFIER_TYPES:
         parts.insert(0, _text(callee))
         return ".".join(parts)
+    if callee.type in _TS_CALL_TYPES:
+        parts.insert(0, "<call>")
+        return ".".join(parts)
     return None
 
 
