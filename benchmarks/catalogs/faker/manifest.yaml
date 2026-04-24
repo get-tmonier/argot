@@ -16,6 +16,7 @@ fixtures:
   hunk_start_line: 19
   hunk_end_line: 46
   rationale: mimesis Person/Address/Finance with Gender enum — competing fake-data
+  difficulty: easy
     library paradigm in a faker-looking file
 - id: threading_provider_1
   file: breaks/break_threading_provider_1.py
@@ -23,6 +24,7 @@ fixtures:
   hunk_start_line: 19
   hunk_end_line: 53
   rationale: threading.Thread + Lock + Event parallel fake-data generator class in
+  difficulty: easy
     a faker-looking file
 - id: sqlalchemy_sink_1
   file: breaks/break_sqlalchemy_sink_1.py
@@ -30,6 +32,7 @@ fixtures:
   hunk_start_line: 17
   hunk_end_line: 49
   rationale: SQLAlchemy ORM model + session.add/commit to persist fakes — DB-sink
+  difficulty: easy
     paradigm in a faker-looking file
 - id: numpy_random_1
   file: breaks/break_numpy_random_1.py
@@ -37,6 +40,7 @@ fixtures:
   hunk_start_line: 19
   hunk_end_line: 46
   rationale: numpy.random Generator/default_rng for name and age generation instead
+  difficulty: easy
     of faker internals in a faker-looking file
 - id: requests_source_1
   file: breaks/break_requests_source_1.py
@@ -44,6 +48,7 @@ fixtures:
   hunk_start_line: 17
   hunk_end_line: 47
   rationale: requests.get() fetching real user data from HTTP APIs instead of local
+  difficulty: easy
     fake generation in a faker-looking file
 - id: mimesis_alt_2
   file: breaks/break_mimesis_alt_2.py

@@ -90,6 +90,17 @@ def test_fixture_difficulty_loaded_from_yaml(tmp_path: Path):
     assert cat.fixtures[0].difficulty == "medium"
 
 
+def test_all_existing_fixtures_have_difficulty_label():
+    """Every fixture in every catalog must have a non-None difficulty label."""
+    cats = scan_all_catalogs(CATALOGS_DIR)
+    missing = []
+    for cat in cats:
+        for fx in cat.fixtures:
+            if fx.difficulty is None:
+                missing.append(f"{cat.corpus}:{fx.id}")
+    assert not missing, f"Fixtures missing difficulty label: {missing}"
+
+
 def test_fixture_difficulty_optional_in_yaml(tmp_path: Path):
     catalog_dir = tmp_path / "mycorpus"
     catalog_dir.mkdir()

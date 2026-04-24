@@ -17,87 +17,102 @@ fixtures:
     hunk_start_line: 5
     hunk_end_line: 15
     rationale: "ES6 class component in a hooks-only ink codebase"
+    difficulty: medium
   - id: ink_class_components_2
     file: breaks/break_class_components_2.tsx
     category: class_components
     hunk_start_line: 8
     hunk_end_line: 18
     rationale: "`extends Component` class with this.props / this.state in an ink file"
+    difficulty: medium
   - id: ink_class_components_3
     file: breaks/break_class_components_3.tsx
     category: class_components
     hunk_start_line: 8
     hunk_end_line: 21
     rationale: "Class component with explicit constructor(props) in an ink file"
+    difficulty: medium
   - id: ink_lifecycle_1
     file: breaks/break_lifecycle_1.tsx
     category: lifecycle
     hunk_start_line: 10
     hunk_end_line: 12
     rationale: "componentDidMount + this.setState instead of useEffect"
+    difficulty: medium
   - id: ink_lifecycle_2
     file: breaks/break_lifecycle_2.tsx
     category: lifecycle
     hunk_start_line: 11
     hunk_end_line: 15
     rationale: "Legacy componentWillReceiveProps lifecycle"
+    difficulty: medium
   - id: ink_lifecycle_3
     file: breaks/break_lifecycle_3.tsx
     category: lifecycle
     hunk_start_line: 11
     hunk_end_line: 16
     rationale: "componentWillUnmount cleanup instead of useEffect return fn"
+    difficulty: medium
   - id: ink_dom_access_1
     file: breaks/break_dom_access_1.tsx
     category: dom_access
     hunk_start_line: 6
     hunk_end_line: 7
     rationale: "document.getElementById + window.addEventListener in a terminal UI"
+    difficulty: hard
   - id: ink_dom_access_2
     file: breaks/break_dom_access_2.tsx
     category: dom_access
     hunk_start_line: 8
     hunk_end_line: 8
     rationale: "window.location.href navigation inside a useInput handler"
+    difficulty: medium
   - id: ink_dom_access_3
     file: breaks/break_dom_access_3.tsx
     category: dom_access
     hunk_start_line: 9
     hunk_end_line: 10
     rationale: "localStorage.getItem in an ink useEffect"
+    difficulty: medium
   - id: ink_jquery_1
     file: breaks/break_jquery_1.tsx
     category: jquery
     hunk_start_line: 7
     hunk_end_line: 9
     rationale: "jQuery $('.item').on('click', ...) inside a functional component"
+    difficulty: medium
   - id: ink_jquery_2
     file: breaks/break_jquery_2.tsx
     category: jquery
     hunk_start_line: 8
     hunk_end_line: 12
     rationale: "jQuery .show()/.hide() DOM manipulation from a hook"
+    difficulty: medium
   - id: ink_jquery_3
     file: breaks/break_jquery_3.tsx
     category: jquery
     hunk_start_line: 10
     hunk_end_line: 14
     rationale: "$.ajax inside a useEffect where fetch/undici would be idiomatic"
+    difficulty: medium
   - id: ink_error_flip_1
     file: breaks/break_error_flip_1.tsx
     category: error_flip
     hunk_start_line: 8
     hunk_end_line: 11
     rationale: "throw new Error inside render via IIFE"
+    difficulty: medium
   - id: ink_error_flip_2
     file: breaks/break_error_flip_2.tsx
     category: error_flip
     hunk_start_line: 10
     hunk_end_line: 13
     rationale: "throw inside a map callback in the render return"
+    difficulty: medium
   - id: ink_error_flip_3
     file: breaks/break_error_flip_3.tsx
     category: error_flip
     hunk_start_line: 8
     hunk_end_line: 15
     rationale: "try/finally with throw but no catch inside render"
+    difficulty: medium
