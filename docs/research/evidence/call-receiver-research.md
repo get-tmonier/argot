@@ -181,3 +181,103 @@ test-file FP problem specifically.
 3. **Higher k (k=3) is a last resort** if the above fail — but
    may sacrifice recall on single-callee breaks. Not pre-declared
    for era 6.
+
+---
+
+## Soft penalty variant (pivot)
+
+### Setup
+
+Formula: `adjusted_bpe = raw_bpe + alpha * min(n_unattested, C)` where
+`n_unattested` is the count of distinct unattested callees in the hunk
+(same extraction rule as k-based approach), `C = 5` (cap), and
+`alpha ∈ {0.5, 1.0}` (pre-declared sweep; 0.3 not needed as Gate 1
+failed, not Gate 3, so fallback went to 1.0).
+
+Flag condition: `adjusted_bpe > bpe_threshold` (threshold unchanged from
+era-5 calibration — invariant because calibration hunks have n_unattested=0).
+
+Reason attribution: `"call_receiver"` if `raw_bpe ≤ bpe_threshold` (penalty
+tipped it); `"bpe"` if `raw_bpe > bpe_threshold` (BPE alone sufficient).
+
+Timestamps: primary (alpha=0.5) `20260424T071700Z`; fallback (alpha=1.0)
+`20260424T072403Z`.
+
+**Shipping config: neither.** alpha=0.5 fails Gate 1 (recall 77.1%).
+alpha=1.0 fails Gate 3 (rich 2.8%, ink 2.2% FP). Era 6 does not ship.
+
+### Results — alpha = 0.5 (primary)
+
+| Corpus | Recall era-5→α0.5 | FP era-5→α0.5 | Δ recall |
+|:---|---:|---:|---:|
+| fastapi  | 69.4%→92.6% | 0.1%→0.2%  | +23.2pp |
+| rich     | 90.0%→90.0% | 0.2%→0.6%  | 0pp |
+| faker    | 100.0%→100.0% | 0.3%→0.3% | 0pp |
+| hono     | 60.0%→60.0% | 0.4%→0.6%  | 0pp |
+| ink      | 93.3%→93.3% | 1.1%→1.5%  | 0pp |
+| faker-js | 20.0%→26.7% | 0.8%→0.9%  | +6.7pp |
+
+**Gate evaluation (alpha=0.5):**
+
+| # | Gate | Threshold | Observed | Verdict |
+|---|---|---|---|---|
+| 1 | Avg recall 6 corpora | ≥ 80.0% | 77.1% | **FAIL** |
+| 2 | No corpus regression > 2pp | ≥ −2 pp | min +0pp (rich, faker, hono, ink) | PASS |
+| 3 | All corpora FP ≤ 1.5% | ≤ 1.5% | max 1.5% (ink) | PASS |
+| 4 | Category regressions from 100% | 0 / 91 | 0 | PASS |
+
+alpha=0.5 fails Gate 1 → per decision tree, run alpha=1.0 fallback.
+
+### Results — alpha = 1.0 (fallback)
+
+| Corpus | Recall era-5→α1.0 | FP era-5→α1.0 | Δ recall |
+|:---|---:|---:|---:|
+| fastapi  | 69.4%→94.4% | 0.1%→0.3%  | +25.0pp |
+| rich     | 90.0%→100.0% | 0.2%→2.8% | +10.0pp |
+| faker    | 100.0%→100.0% | 0.3%→0.6% | 0pp |
+| hono     | 60.0%→60.0% | 0.4%→0.8%  | 0pp |
+| ink      | 93.3%→100.0% | 1.1%→2.2%  | +6.7pp |
+| faker-js | 20.0%→33.3% | 0.8%→1.3%  | +13.3pp |
+
+**Gate evaluation (alpha=1.0):**
+
+| # | Gate | Threshold | Observed | Verdict |
+|---|---|---|---|---|
+| 1 | Avg recall 6 corpora | ≥ 80.0% | 81.3% | PASS |
+| 2 | No corpus regression > 2pp | ≥ −2 pp | min +0pp (faker, hono) | PASS |
+| 3 | All corpora FP ≤ 1.5% | ≤ 1.5% | rich 2.8%, ink 2.2% | **FAIL** |
+| 4 | Category regressions from 100% | 0 / 91 | 0 | PASS |
+
+alpha=1.0 fails Gate 3. Both pre-declared configs fail. Era 6 does not ship.
+
+### Shipping config
+
+Era 6 does not ship. Neither alpha=0.5 nor alpha=1.0 clears all four gates.
+
+### Interpretation
+
+The soft-penalty pivot was designed to solve the test-file FP problem that
+blocked k=1 and k=2: instead of flagging unconditionally on the first
+unattested callee, a fractional penalty (alpha * n) would leave most
+single-unattested-callee control hunks below threshold. At alpha=0.5, this
+works well for FP — Gate 3 clears with room to spare (max 1.5% at ink,
+versus 13.6% at k=1). But the penalty is also too small to push the low-BPE
+foreign-callee breaks (hono framework-swap at BPE 1.484, faker-js
+foreign_rng at BPE 0.52) over threshold. The result: hono stays at 60%
+recall (era-5 baseline) and faker-js recovers only modestly to 26.7%,
+dragging the average to 77.1% — below the 80.0% floor.
+
+At alpha=1.0, recall climbs meaningfully (fastapi 94.4%, ink 100%, rich
+100%, faker-js 33.3%, avg 81.3%) and Gate 1 clears. But the larger penalty
+triggers on test-file calls again: rich rises to 2.8% FP and ink to 2.2%,
+both breaching the 1.5% Gate 3 ceiling. This is the same structural blocker
+as k=2: test hunks with 2+ framework-method calls (Jest matchers, React
+lifecycle methods) accumulate enough penalty to cross threshold.
+
+The root cause is unchanged across all era-6 variants: the attested set is
+built from model-A source files, but control hunks are drawn from the full
+repo including test files. Test files use framework methods (Jest, React
+Testing Library, pytest) that never appear in production source. Until the
+attested set includes test-file callees, any alpha that catches low-BPE
+foreign breaks will also penalize legitimate test code. Era 7 must solve
+this asymmetry before the call-receiver concept can ship.
