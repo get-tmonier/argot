@@ -33,7 +33,10 @@ def test_run_corpus_stub_returns_corpus_report(tmp_path: Path, monkeypatch):
 
             return ScoreResult(import_score=0.0, bpe_score=3.0, flagged=True, reason="bpe")
 
-    def fake_build(repo, *, n_cal, seed, language, bpe_model_b=None, enable_typicality_filter=True):
+    def fake_build(
+        repo, *, n_cal, seed, language, bpe_model_b=None,
+        enable_typicality_filter=True, call_receiver_alpha=0.0, call_receiver_cap=5,
+    ):
         return FakeBenchScorer()
 
     monkeypatch.setattr(run_mod, "ensure_clone", fake_clone)
@@ -144,6 +147,36 @@ def test_score_real_hunks_skips_missing_files(tmp_path: Path):
     record = {"file_path": "nope.py", "hunk_start_line": 0, "hunk_end_line": 1}
     results = _score_real_hunks(NoopScorer(), [record], tmp_path)  # type: ignore[arg-type]
     assert results == []
+
+
+def test_run_config_has_call_receiver_alpha_cap_fields():
+    from pathlib import Path
+
+    from argot_bench.run import RunConfig
+
+    cfg = RunConfig(
+        corpus="fastapi",
+        url="https://example.com/fastapi",
+        language="python",
+        prs=[(1, "abc")],
+        catalog_dir=Path("/tmp"),
+        data_dir=Path("/tmp"),
+        call_receiver_alpha=0.5,
+        call_receiver_cap=3,
+    )
+    assert cfg.call_receiver_alpha == 0.5
+    assert cfg.call_receiver_cap == 3
+
+    cfg_default = RunConfig(
+        corpus="fastapi",
+        url="https://example.com/fastapi",
+        language="python",
+        prs=[(1, "abc")],
+        catalog_dir=Path("/tmp"),
+        data_dir=Path("/tmp"),
+    )
+    assert cfg_default.call_receiver_alpha == 0.0
+    assert cfg_default.call_receiver_cap == 5
 
 
 def test_run_config_accepts_typicality_filter_field():
@@ -329,3 +362,29 @@ def test_filter_stats_counts_path_exclusions(tmp_path: Path):
     )
     assert len(results) == 2
     assert all(r["reason"] == "excluded_path" for r in results)
+
+
+def test_end_to_end_call_receiver_alpha_builds_active_scorer(tmp_path: Path):
+    """build_scorer with alpha=0.5 produces a scorer with call_receiver stage enabled."""
+    from argot_bench.score import BenchScorer, build_scorer
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "mod.py").write_text(
+        "import logging\n"
+        "logger = logging.getLogger()\n"
+        "def a():\n"
+        "    logger.info('x')\n"
+        "    logger.debug('y')\n"
+        "    logger.warning('z')\n"
+        "    logger.error('w')\n"
+        "    return 0\n"
+    )
+
+    scorer = build_scorer(
+        repo, n_cal=1, seed=0, language="python", call_receiver_alpha=0.5
+    )
+    assert isinstance(scorer, BenchScorer)
+    # call_receiver stage is wired in (not disabled)
+    assert scorer._call_receiver is not None  # type: ignore[attr-defined]
+    assert scorer._alpha == 0.5  # type: ignore[attr-defined]

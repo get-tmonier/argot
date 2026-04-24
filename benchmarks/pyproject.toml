@@ -41,6 +41,7 @@ ignore_missing_imports = true
 [tool.ruff]
 line-length = 120
 target-version = "py313"
+exclude = ["catalogs"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP"]

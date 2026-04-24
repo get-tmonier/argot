@@ -88,3 +88,17 @@ def test_calibration_stability_jaccard_and_rel_var():
     # Jaccard pair-average: intersection 3 / union 5 = 0.6 for each pair
     assert abs(result["jaccard"] - 0.6) < 1e-9
     assert abs(result["rel_var"] - (0.00666667 / 2.5)) < 1e-4
+
+
+def test_metrics_stage_attribution_counts_call_receiver():
+    from argot_bench.metrics import stage_attribution
+
+    results = [
+        {"reason": "import"},
+        {"reason": "call_receiver"},
+        {"reason": "call_receiver"},
+        {"reason": "bpe"},
+        {"reason": "none"},
+    ]
+    sa = stage_attribution(results)
+    assert sa.get("call_receiver") == 2

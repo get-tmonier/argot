@@ -2,7 +2,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -176,6 +176,22 @@ def test_cli_orchestrator_aggregates_json(tmp_path: Path) -> None:
     content = report.read_text()
     assert "rich" in content
     assert "faker-js" in content
+
+
+def test_cli_accepts_call_receiver_alpha_flag():
+    from argot_bench.cli import build_parser
+
+    parser = build_parser()
+    ns = parser.parse_args(["--call-receiver-alpha", "0.5"])
+    assert ns.call_receiver_alpha == 0.5
+
+    ns2 = parser.parse_args(["--call-receiver-alpha", "0.3", "--call-receiver-cap", "3"])
+    assert ns2.call_receiver_alpha == 0.3
+    assert ns2.call_receiver_cap == 3
+
+    ns3 = parser.parse_args([])
+    assert ns3.call_receiver_alpha == 0.0  # default off
+    assert ns3.call_receiver_cap == 5  # default cap
 
 
 @pytest.mark.integration

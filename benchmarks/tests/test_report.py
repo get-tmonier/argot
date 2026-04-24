@@ -160,3 +160,18 @@ def test_render_report_md_stage_attribution_has_percentages():
     # 8/9 = 88.9%, 1/9 = 11.1%
     assert "88.9%" in md
     assert "11.1%" in md
+
+
+def test_stage_attribution_includes_call_receiver():
+    from argot_bench.report import CorpusReport, _render_stage_attribution
+
+    r = CorpusReport(
+        corpus="fastapi",
+        language="python",
+        metrics={"stage_attribution": {"import": 5, "call_receiver": 3, "bpe": 2, "none": 1}},
+    )
+    lines = _render_stage_attribution(r)
+    joined = "\n".join(lines)
+    assert "`call_receiver`: 3" in joined
+    assert "`import`: 5" in joined
+    assert "`bpe`: 2" in joined

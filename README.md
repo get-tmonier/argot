@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>Like ESLint, but for the unwritten rules.</strong><br/>
-  <em>A two-stage scorer learns your repo's import patterns and token distribution — argot flags what diverges.</em>
+  <em>A three-stage scorer learns your repo's import patterns, call-site callees, and token distribution — argot flags what diverges.</em>
 </p>
 
 <p align="center">
@@ -20,7 +20,7 @@
   No GPU · No cloud · No telemetry · Runs in seconds after a one-time calibration
 </p>
 
-$$\text{score}(\text{hunk}) = \max_{t \;\in\; \text{tokens}(\text{hunk})} \log \frac{P_{\text{generic}}(t)}{P_{\text{repo}}(t)}$$
+$$\text{score}(\text{hunk}) \;=\; \underbrace{\max_{t \;\in\; \text{tokens}(\text{hunk})} \log \frac{P_{\text{generic}}(t)}{P_{\text{repo}}(t)}}_{\text{BPE surprise}} \;+\; \underbrace{\alpha \cdot \min\!\bigl(|\text{callees}(\text{hunk}) \setminus \text{attested}(\text{repo})|,\; C\bigr)}_{\text{call-receiver penalty}}$$
 
 ---
 
@@ -216,7 +216,7 @@ The threshold is set automatically by `argot calibrate`. Override it with `--thr
 
 3. **Calibrate** — samples up to 500 representative top-level functions and classes from the repo (the typicality filter pre-excludes atypical candidates), scores them through the full two-stage scorer, and sets the BPE threshold to the max score over those normal hunks. Writes `.argot/scorer-config.json`.
 
-4. **Check** — runs the two-stage scorer on the target diff:
+4. **Check** — runs the three-stage scorer on the target diff:
 
 ```mermaid
 flowchart TD
@@ -224,16 +224,17 @@ flowchart TD
     TYP -- yes --> SKIP(["⏭  skip<br/>reason: atypical / atypical_file"])
     TYP -- no --> S1["Stage 1 — import graph\nextract hunk imports\nflag if any are foreign to this repo"]
     S1 -- "foreign module found" --> F1(["🚩 flagged  reason: import"])
-    S1 -- "all imports native" --> S2["Stage 2 — BPE log-ratio\ntokenize with UnixCoder BPE\nscore = max log P_B / P_A over tokens"]
-    S2 -- "score > threshold" --> F2(["🚩 flagged  reason: bpe"])
-    S2 -- "score ≤ threshold" --> OK(["✅ clean"])
+    S1 -- "all imports native" --> S2["Stage 2 — BPE log-ratio + call-receiver penalty\nadjusted = bpe + α · min(n_unattested, 5)"]
+    S2 -- "penalty tipped it" --> F15(["🚩 flagged  reason: call_receiver"])
+    S2 -- "bpe alone > threshold" --> F2(["🚩 flagged  reason: bpe"])
+    S2 -- "adjusted ≤ threshold" --> OK(["✅ clean"])
 ```
 
-   **Pre-scorer — typicality filter:** an AST-derived predicate short-circuits hunks whose content is structurally data-dominant (`literal_leaf_ratio > 0.80` with a named-leaf size gate) or whose enclosing file is globally data-dominant (file-level fallback). Replaces the legacy auto-generated heuristics at calibration and inference. See [era 5](docs/research/05-calibration-hygiene.md) for the design.
+   **Pre-scorer — typicality filter:** an AST-derived predicate short-circuits hunks whose content is structurally data-dominant (`literal_leaf_ratio > 0.80` with a named-leaf size gate) or whose enclosing file is globally data-dominant (file-level fallback). Replaces the legacy auto-generated heuristics at calibration and inference.
 
    **Stage 1 — import graph:** for each hunk, extracts its import statements and checks whether any imported module is absent from the repo's own first-party import set. A single foreign import immediately flags the hunk (`reason: "import"`).
 
-   **Stage 2 — BPE log-ratio:** tokenizes the hunk with the [UnixCoder](https://huggingface.co/microsoft/unixcoder-base) BPE tokenizer (pre-trained on 9M+ code files across 9 languages — only the vocabulary is used, not the neural network) and computes a max-surprise score over the hunk's tokens:
+   **Stage 2 — BPE log-ratio with call-receiver penalty:** tokenizes the hunk with the [UnixCoder](https://huggingface.co/microsoft/unixcoder-base) BPE tokenizer (pre-trained on 9M+ code files across 9 languages — only the vocabulary is used, not the neural network) and computes a max-surprise score over the hunk's tokens. The score is then adjusted by a presence-based penalty over call-expression receivers: `adjusted = bpe + α · min(n_unattested, 5)` where `n_unattested` is the count of distinct dotted callees in the hunk that never appear in the repo's own call sites. α = 1.0 in the shipping config. A parse-fragment guard abstains when the hunk slice doesn't parse cleanly.
 
 $$P_A(t) = \frac{\text{count}_A(t)}{\text{total}_A} + \varepsilon \qquad P_B(t) = \frac{\text{count}_B(t)}{\text{total}_B} + \varepsilon$$
 
@@ -243,18 +244,21 @@ $$\text{score}(\text{hunk}) = \max_{t \;\in\; \text{tokens}(\text{hunk})} \text{
 
    A high score means at least one token in the hunk is far more common in generic open-source code than in *this* repo — a reliable signal of foreign style. Model A is built by counting BPE tokens across the repo's non-test source files (CPU-only, takes seconds). Model B is a pre-built reference distribution bundled with argot — no download, no training loop. Prose lines (comments, docstrings) are blanked before scoring to avoid natural-language noise inflating the signal.
 
-   A hunk is flagged if either stage fires. Both scores are always computed and included in the output for diagnostics.
+   The call-receiver penalty adds a fractional contribution for each distinct dotted callee the repo has never called. Calibration hunks have zero unattested callees by construction (their callees are drawn from the same repo that built the attested set), so the threshold set during calibration is invariant under α.
 
-Language-specific logic (import extraction, prose masking, sampleable-range enumeration) is fully encapsulated in `LanguageAdapter` implementations; the typicality filter is language-parameterized via a shared module rather than per-adapter methods. Python and TypeScript are supported out of the box.
+   A hunk is flagged if Stage 1 fires (foreign import) or Stage 2's adjusted score exceeds the calibration threshold. Reason attribution: `call_receiver` when the penalty pushed a below-threshold BPE over the line, `bpe` when raw BPE already crossed it. Scores and reasons are always included in the output for diagnostics.
+
+Language-specific logic (import extraction, callee extraction, prose masking, sampleable-range enumeration) is fully encapsulated in `LanguageAdapter` implementations; the typicality filter is language-parameterized via a shared module rather than per-adapter methods. Python and TypeScript are supported out of the box.
 
 No training data or model leaves your machine. All stages run entirely locally.
 
-> **How we got here.** This two-stage design wasn't the first attempt — it's
-> the one that cleared the gate after a GPU-hungry neural scorer, three dead
-> ends, and 14 phases of experiments. See
-> [`docs/research/`](docs/research/README.md) for the four-era narrative
+> **How we got here.** This three-stage design wasn't the first attempt —
+> it's the one that cleared the gates after a GPU-hungry neural scorer,
+> three dead ends, and 15+ phases of experiments. See
+> [`docs/research/`](docs/research/README.md) for the full narrative
 > (JEPA ensembles → honest eval → token-frequency signal hunt →
-> import-graph breakthrough) with 27 evidence docs.
+> import-graph breakthrough → typicality filter → call-receiver scorer)
+> with 29 evidence docs.
 
 ## Validation
 
@@ -272,21 +276,21 @@ Latest full baseline ([`benchmarks/results/baseline/latest/report.md`](benchmark
 
 | Corpus | AUC | Recall | FP rate |
 |:---|---:|---:|---:|
-| fastapi | **0.9918** | 69.4% | 0.1% |
-| rich | **0.9959** | 90.0% | 0.2% |
-| faker (py) | 0.9237 | 100.0% | 0.3% |
+| fastapi | **0.9918** | **91.7%** | 0.1% |
+| rich | **0.9959** | **100.0%** | 0.5% |
+| faker (py) | 0.9237 | 100.0% | 0.4% |
 | hono | 0.8107 | 60.0% | 0.4% |
-| ink | **0.9888** | 93.3% | 1.1% |
-| faker-js | 0.9408 | 20.0% | 0.8% |
+| ink | **0.9888** | **100.0%** | 1.1% |
+| faker-js | 0.9408 | **33.3%** | 0.8% |
 
-AUC > 0.99 on 3 of 6 corpora; **FP rate ≤1.5% on all six**
-(down from up to 5.0% pre-era-5). The production scorer ships with an
-AST-derived typicality filter
-([era 5](docs/research/05-calibration-hygiene.md)) that drops
-structurally data-dominant files from the calibration pool and the
-inference path. Recall improved +6.6 pp on ink and +10 pp on rich;
-preserved on the other four. **Threshold CV ≤ 10%** across
-5 seeds: runs are reproducible.
+Average recall **80.8%**; **FP rate ≤1.1% on all six corpora**. AUC
+unchanged — the latest scorer revision added recall without changing
+ranking signal. The production scorer ships with the AST-derived
+typicality filter that drops structurally data-dominant files from the
+calibration pool and inference path, plus the Stage 1.5 call-receiver
+penalty over dotted callee signatures. Zero category regressions
+across the 91-fixture catalog. **Threshold CV ≤ 10%** across 5 seeds:
+runs are reproducible.
 
 Reproduce with a single command:
 

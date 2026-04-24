@@ -4,6 +4,7 @@ import argparse
 import json
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -55,6 +56,28 @@ def build_parser() -> argparse.ArgumentParser:
             "Sampled runs are NOT suitable as baselines."
         ),
     )
+    p.add_argument(
+        "--call-receiver-alpha",
+        type=float,
+        default=0.0,
+        metavar="FLOAT",
+        help="Stage 1.5 soft-penalty weight. 0.0=off (default); 0.5=primary; 0.3/1.0=fallbacks.",
+    )
+    p.add_argument(
+        "--call-receiver-cap",
+        type=int,
+        default=5,
+        metavar="INT",
+        help="Cap on unattested callees counted in penalty (default 5).",
+    )
+    p.add_argument(
+        "--jobs",
+        "-j",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Parallel corpus workers. 0 = one per corpus (default).",
+    )
 
     sub.add_parser("list-corpora", help="Print the 6 corpora in targets.yaml")
     rep = sub.add_parser("report", help="Regenerate report.md from existing JSON")
@@ -69,6 +92,20 @@ def build_parser() -> argparse.ArgumentParser:
     one.add_argument("--no-typicality-filter", action="store_true", default=False)
     one.add_argument("--seeds", type=int, default=None)
     one.add_argument("--sample-controls", type=int, default=None)
+    one.add_argument(
+        "--call-receiver-alpha",
+        type=float,
+        default=0.0,
+        metavar="FLOAT",
+        help="Stage 1.5 soft-penalty weight. 0.0=off (default).",
+    )
+    one.add_argument(
+        "--call-receiver-cap",
+        type=int,
+        default=5,
+        metavar="INT",
+        help="Cap on unattested callees counted in penalty (default 5).",
+    )
 
     return p
 
@@ -132,6 +169,8 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
         typicality_filter=not args.no_typicality_filter,
         seeds=seeds,
         sample_controls=args.sample_controls,
+        call_receiver_alpha=args.call_receiver_alpha,
+        call_receiver_cap=args.call_receiver_cap,
     )
     args.out_dir.mkdir(parents=True, exist_ok=True)
     r = run_corpus(cfg)
@@ -166,16 +205,33 @@ def _run(args: argparse.Namespace) -> int:
         base_cmd.extend(["--seeds", str(args.seeds)])
     if args.sample_controls is not None:
         base_cmd.extend(["--sample-controls", str(args.sample_controls)])
+    if args.call_receiver_alpha != 0.0:
+        base_cmd.extend(["--call-receiver-alpha", str(args.call_receiver_alpha)])
+    if args.call_receiver_cap != 5:
+        base_cmd.extend(["--call-receiver-cap", str(args.call_receiver_cap)])
 
-    for t in selected:
-        print(f"[{t.name}] spawning subprocess...")
-        proc = subprocess.run(base_cmd + [t.name], check=False)
-        if proc.returncode != 0:
-            print(
-                f"[{t.name}] subprocess failed with exit {proc.returncode}",
-                file=sys.stderr,
-            )
-            return proc.returncode
+    def _run_corpus_subprocess(t: Target) -> tuple[str, int, str]:
+        proc = subprocess.run(
+            base_cmd + [t.name], check=False, capture_output=True, text=True
+        )
+        return t.name, proc.returncode, proc.stdout + proc.stderr
+
+    workers = args.jobs if args.jobs > 0 else len(selected)
+    print(f"running {len(selected)} corpus/corpora with {workers} parallel worker(s)...")
+    failed = False
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(_run_corpus_subprocess, t): t for t in selected}
+        for future in as_completed(futures):
+            name, rc, output = future.result()
+            for line in output.splitlines():
+                print(f"[{name}] {line}")
+            if rc != 0:
+                print(f"[{name}] FAILED (exit {rc})", file=sys.stderr)
+                failed = True
+            else:
+                print(f"[{name}] done")
+    if failed:
+        return 1
 
     reports: list[CorpusReport] = []
     for t in selected:
