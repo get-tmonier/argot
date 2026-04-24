@@ -170,20 +170,13 @@ Gates 1, 2, and 4 pass for both k=1 and k=2. Only Gate 3 blocks.
 Era 6 lays the full research groundwork; era 7 should target the
 test-file FP problem specifically.
 
-## Era 7 recommendations
-
-1. **Extend attested set to include test files.** If test-file
-   callees are attested, test hunks will not fire. Implementation:
-   in `CallReceiverScorer.__init__`, accept a separate
-   `test_files: list[Path]` and union their callees into `attested`
-   (without applying the data-dominant filter, since test files are
-   code, not data).
-2. **Alternatively, classify hunk source and skip test hunks.**
-   Check whether the file being scored matches `*test*`, `*spec*`,
-   `*__tests__*` path patterns and short-circuit Stage 1.5.
-3. **Higher k (k=3) is a last resort** if the above fail — but
-   may sacrifice recall on single-callee breaks. Not pre-declared
-   for era 6.
+> **Retrospective note (post-shipping).** The "test files" hypothesis in
+> the paragraph above turned out to be wrong — `is_excluded_path`
+> already filters test hunks before they reach the FP denominator. The
+> actual root cause (tree-sitter parsing hunk fragments without their
+> syntactic container) was not visible until the Investigation phase
+> below. See [call-receiver-parse-fragment.md](call-receiver-parse-fragment.md)
+> for the landed story.
 
 ---
 
