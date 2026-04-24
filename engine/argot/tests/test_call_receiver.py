@@ -209,10 +209,10 @@ def test_typescript_call_root_multi_hop_chain() -> None:
     # Each chained call's callee has a call_expression as its object root.
     source = "Router().route('/users/:id').get(getHandler).post(postHandler).delete(delHandler);"
     result = [c for c in extract_callees(source, "typescript") if c is not None]
-    assert "Router" in result         # inner Router()
-    assert "<call>.route" in result   # Router().route(...)
-    assert "<call>.get" in result     # <result>.get(...)
-    assert "<call>.post" in result    # <result>.post(...)
+    assert "Router" in result  # inner Router()
+    assert "<call>.route" in result  # Router().route(...)
+    assert "<call>.get" in result  # <result>.get(...)
+    assert "<call>.post" in result  # <result>.post(...)
     assert "<call>.delete" in result  # <result>.delete(...)
 
 
