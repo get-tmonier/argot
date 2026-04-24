@@ -143,7 +143,22 @@ class CallReceiverScorer:
         language: Language,
         k: int = 1,
     ) -> None:
-        raise NotImplementedError
+        if not model_a_files:
+            raise ValueError("model_a_files must be non-empty")
+        if k < 1:
+            raise ValueError(f"k must be >= 1, got {k}")
+        self._language: Language = language
+        self._k: int = k
+        attested: set[str] = set()
+        for path in model_a_files:
+            try:
+                src = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            for callee in extract_callees(src, language):
+                if callee is not None:
+                    attested.add(callee)
+        self.attested: frozenset[str] = frozenset(attested)
 
     def score_hunk(self, hunk_content: str) -> CallReceiverResult:
         raise NotImplementedError

@@ -191,3 +191,24 @@ export default app;
     assert "fetch" in result
     assert "c.header" in result
     assert "c.json" in result
+
+
+def test_scorer_fit_builds_attested_set(tmp_path):
+    from argot_bench.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.py"
+    f.write_text("import logging\nlogger = logging.getLogger()\nlogger.info('x')\n")
+
+    scorer = CallReceiverScorer([f], language="python", k=1)
+    assert "logging.getLogger" in scorer.attested
+    assert "logger.info" in scorer.attested
+
+
+def test_scorer_fit_empty_file_list_raises():
+    from argot_bench.call_receiver import CallReceiverScorer
+
+    try:
+        CallReceiverScorer([], language="python", k=1)
+    except ValueError:
+        return
+    raise AssertionError("expected ValueError for empty model_a_files")
