@@ -287,3 +287,43 @@ def test_scorer_k2_same_callee_twice_does_not_flag(tmp_path):
     result = scorer.score_hunk("Math.random()\nMath.random()")
     assert result.flagged is False
     assert result.unattested == ("Math.random",)
+
+
+def test_scorer_fit_skips_data_dominant_files(tmp_path):
+    from argot_bench.call_receiver import CallReceiverScorer
+
+    code = tmp_path / "code.py"
+    code.write_text("import logging\nlogger = logging.getLogger()\nlogger.info('x')\n")
+
+    locale = tmp_path / "locale.py"
+    locale.write_text(
+        "CITIES = [\n" + ",\n".join([f"    'city_{i}'" for i in range(200)]) + ",\n]\n"
+    )
+
+    scorer = CallReceiverScorer([code, locale], language="python", k=1)
+    assert "logging.getLogger" in scorer.attested
+
+
+def test_scorer_fit_skips_data_dominant_files_with_filter(tmp_path):
+    from argot.scoring.adapters.python_adapter import PythonAdapter
+
+    from argot_bench.call_receiver import CallReceiverScorer
+
+    code = tmp_path / "code.py"
+    code.write_text("import logging\nlogger = logging.getLogger()\nlogger.info('x')\n")
+
+    locale = tmp_path / "locale.py"
+    locale.write_text(
+        "CITIES = [\n" + ",\n".join([f"    'city_{i}'" for i in range(200)]) + ",\n]\n"
+    )
+
+    adapter = PythonAdapter()
+    assert adapter.is_data_dominant(locale.read_text())
+
+    scorer = CallReceiverScorer(
+        [code, locale],
+        language="python",
+        k=1,
+        adapter=adapter,
+    )
+    assert "logging.getLogger" in scorer.attested

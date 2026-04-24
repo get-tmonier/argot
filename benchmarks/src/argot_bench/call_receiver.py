@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Protocol
 
 import tree_sitter_python as tspython
 import tree_sitter_typescript as tstypescript
@@ -34,6 +34,10 @@ _TS_MEMBER_TYPES: frozenset[str] = frozenset({"member_expression"})
 _TS_IDENTIFIER_TYPES: frozenset[str] = frozenset({"identifier", "type_identifier"})
 
 Language = Literal["python", "typescript"]
+
+
+class _DataDominantAdapter(Protocol):
+    def is_data_dominant(self, source: str, threshold: float = 0.65) -> bool: ...
 
 
 def _walk_nodes(root: Node):  # noqa: ANN201
@@ -142,6 +146,7 @@ class CallReceiverScorer:
         *,
         language: Language,
         k: int = 1,
+        adapter: _DataDominantAdapter | None = None,
     ) -> None:
         if not model_a_files:
             raise ValueError("model_a_files must be non-empty")
@@ -150,15 +155,20 @@ class CallReceiverScorer:
         self._language: Language = language
         self._k: int = k
         attested: set[str] = set()
+        skipped: int = 0
         for path in model_a_files:
             try:
                 src = path.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 continue
+            if adapter is not None and adapter.is_data_dominant(src):
+                skipped += 1
+                continue
             for callee in extract_callees(src, language):
                 if callee is not None:
                     attested.add(callee)
         self.attested: frozenset[str] = frozenset(attested)
+        self.n_skipped_data_dominant: int = skipped
 
     def score_hunk(self, hunk_content: str) -> CallReceiverResult:
         callees = extract_callees(hunk_content, self._language)
