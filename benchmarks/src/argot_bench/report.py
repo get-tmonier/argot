@@ -305,7 +305,7 @@ def _render_stage_attribution(r: CorpusReport) -> list[str]:
         return []
     total = sum(int(v) for v in sa.values())
     lines = ["### Stage attribution", ""]
-    for k in ("import", "bpe", "none", "auto_generated"):
+    for k in ("import", "call_receiver", "bpe", "none", "auto_generated"):
         if k in sa:
             n = int(sa[k])
             pct = (n / total * 100) if total else 0.0
