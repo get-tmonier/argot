@@ -141,7 +141,7 @@ class SequentialImportBpeScorer:
         threshold_percentile: float | None = None,
         exclude_data_dominant: bool = True,
         enable_typicality_filter: bool = True,
-        call_receiver_alpha: float = 3.0,
+        call_receiver_alpha: float = 2.0,
         call_receiver_cap: int = 5,
         _tokenizer: Any = None,
     ) -> None:

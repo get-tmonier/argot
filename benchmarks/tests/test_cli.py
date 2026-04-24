@@ -190,7 +190,7 @@ def test_cli_accepts_call_receiver_alpha_flag():
     assert ns2.call_receiver_cap == 3
 
     ns3 = parser.parse_args([])
-    assert ns3.call_receiver_alpha == 3.0  # shipping default
+    assert ns3.call_receiver_alpha == 2.0  # shipping default
     assert ns3.call_receiver_cap == 5  # default cap
 
 
