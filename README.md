@@ -280,11 +280,11 @@ Latest full baseline ([`benchmarks/results/baseline/latest/report.md`](benchmark
 | fastapi | **0.9880** | **91.7%** | 0.8% |
 | rich | 0.9780 | 95.0% | 0.4% |
 | faker (py) | 0.9537 | 95.0% | 0.9% |
-| hono | 0.8312 | 65.0% | 0.4% |
-| ink | **0.9899** | **100.0%** | 1.1% |
+| hono | 0.8312 | 71.7% | 0.4% |
+| ink | **0.9899** | **86.7%** | 0.4% |
 | faker-js | 0.9463 | 43.3% | 0.8% |
 
-Average recall **81.7%**; **FP rate ≤ 1.1% on all six corpora**. The
+Average recall **80.57%**; **FP rate ≤ 0.9% on all six corpora**. The
 recall figures reflect the difficulty-stratified fixture set (115 fixtures
 with easy/medium/hard/uncaught bands across all six corpora); easy and medium
 fixtures are caught at ≥80% on five of six corpora. The production scorer

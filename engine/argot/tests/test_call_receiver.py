@@ -70,15 +70,48 @@ def test_python_bare_decorator_is_not_a_call() -> None:
     assert result == []
 
 
-def test_python_complex_chain_returns_none() -> None:
+def test_python_subscript_root_still_none() -> None:
     from argot.scoring.scorers.call_receiver import extract_callees
 
-    # foo()() → outer call's callee is another call → None for outer
-    source = "foo()()\narr[0]()"
+    # arr[0]() → subscript root, not a call or identifier → None (unchanged)
+    source = "arr[0]()"
     result = extract_callees(source, "python")
-    non_none = [c for c in result if c is not None]
-    assert "foo" in non_none
-    assert None in result
+    assert result == [None]
+
+
+def test_python_call_root_single_hop_is_canonical() -> None:
+    from argot.scoring.scorers.call_receiver import extract_callees
+
+    # foo()() → outer call's callee is foo() (a call node) → "<call>"
+    # inner call foo() → "foo"
+    source = "foo()()"
+    result = [c for c in extract_callees(source, "python") if c is not None]
+    assert "foo" in result
+    assert "<call>" in result
+
+
+def test_python_call_root_multi_hop_is_canonical() -> None:
+    from argot.scoring.scorers.call_receiver import extract_callees
+
+    # foo().bar() → outer callee is foo().bar (member of call) → "<call>.bar"
+    # inner call foo() → "foo"
+    source = "foo().bar()"
+    result = [c for c in extract_callees(source, "python") if c is not None]
+    assert "foo" in result
+    assert "<call>.bar" in result
+
+
+def test_python_call_root_does_not_affect_identifier_rooted_chains() -> None:
+    from argot.scoring.scorers.call_receiver import extract_callees
+
+    # Regression: plain identifier-rooted chains must still extract unchanged
+    source = "obj.method()\na.b.c()\nMath.floor(x)"
+    result = [c for c in extract_callees(source, "python") if c is not None]
+    assert "obj.method" in result
+    assert "a.b.c" in result
+    assert "Math.floor" in result
+    assert "<call>" not in result
+    assert "<call>.method" not in result
 
 
 def test_python_smoke_realistic_source() -> None:
@@ -137,14 +170,63 @@ def test_typescript_new_expression() -> None:
     assert "express.Router" in result
 
 
-def test_typescript_complex_chain_returns_none() -> None:
+def test_typescript_subscript_root_still_none() -> None:
     from argot.scoring.scorers.call_receiver import extract_callees
 
-    source = "Router().route('/x').get(h);\narr[0]();"
+    # arr[0]() → subscript root → None (unchanged)
+    source = "arr[0]();"
     result = extract_callees(source, "typescript")
-    non_none = [c for c in result if c is not None]
-    assert "Router" in non_none
     assert None in result
+    assert "<call>" not in [c for c in result if c is not None]
+
+
+def test_typescript_call_root_single_hop_is_canonical() -> None:
+    from argot.scoring.scorers.call_receiver import extract_callees
+
+    # Router()() → outer callee is Router() (call_expression) → "<call>"
+    # inner call Router() → "Router"
+    source = "Router()();"
+    result = [c for c in extract_callees(source, "typescript") if c is not None]
+    assert "Router" in result
+    assert "<call>" in result
+
+
+def test_typescript_call_root_route_chain() -> None:
+    from argot.scoring.scorers.call_receiver import extract_callees
+
+    # Router().route('/x') → callee is Router().route (member of call) → "<call>.route"
+    # inner Router() → "Router"
+    source = "Router().route('/users/:id');"
+    result = [c for c in extract_callees(source, "typescript") if c is not None]
+    assert "Router" in result
+    assert "<call>.route" in result
+
+
+def test_typescript_call_root_multi_hop_chain() -> None:
+    from argot.scoring.scorers.call_receiver import extract_callees
+
+    # Full Express routing chain: Router().route(path).get(h).post(h).delete(h)
+    # Each chained call's callee has a call_expression as its object root.
+    source = "Router().route('/users/:id').get(getHandler).post(postHandler).delete(delHandler);"
+    result = [c for c in extract_callees(source, "typescript") if c is not None]
+    assert "Router" in result  # inner Router()
+    assert "<call>.route" in result  # Router().route(...)
+    assert "<call>.get" in result  # <result>.get(...)
+    assert "<call>.post" in result  # <result>.post(...)
+    assert "<call>.delete" in result  # <result>.delete(...)
+
+
+def test_typescript_call_root_does_not_affect_identifier_rooted_chains() -> None:
+    from argot.scoring.scorers.call_receiver import extract_callees
+
+    # Regression: plain identifier-rooted chains must extract unchanged
+    source = "Math.random(); axios.post('/x'); crypto.randomBytes(16);"
+    result = [c for c in extract_callees(source, "typescript") if c is not None]
+    assert "Math.random" in result
+    assert "axios.post" in result
+    assert "crypto.randomBytes" in result
+    assert "<call>" not in result
+    assert "<call>.random" not in result
 
 
 def test_typescript_empty_and_parse_error() -> None:

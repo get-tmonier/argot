@@ -149,7 +149,7 @@ false positives.
 ## Current baseline
 
 From [`latest/report.md`](results/baseline/latest/report.md)
-(run `20260424T135502Z`, 115 fixtures, 5 PR snapshots per corpus,
+(run `20260424T144605Z`, 115 fixtures, 5 PR snapshots per corpus,
 difficulty-labelled, call_receiver_alpha=1.0 — shipping scorer default):
 
 | Corpus | AUC | Recall | FP | N_fix | N_ctrl |
@@ -157,11 +157,11 @@ difficulty-labelled, call_receiver_alpha=1.0 — shipping scorer default):
 | fastapi | 0.9880 | 91.7% | 0.8% | 32 | 79,623 |
 | rich | 0.9780 | 95.0% | 0.4% | 16 | 68,598 |
 | faker | 0.9537 | 95.0% | 0.9% | 16 | 75,996 |
-| hono | 0.8312 | 65.0% | 0.4% | 17 | 54,717 |
-| ink | 0.9899 | 100.0% | 1.1% | 17 | 16,678 |
+| hono | 0.8312 | 71.7% | 0.4% | 17 | 54,717 |
+| ink | 0.9899 | 86.7% | 0.4% | 17 | 16,678 |
 | faker-js | 0.9463 | 43.3% | 0.8% | 17 | 255,760 |
 
-Average recall 81.7%; all corpora FP ≤ 1.1%. Easy and medium fixtures are
+Average recall 80.57%; all corpora FP ≤ 0.9%. Easy and medium fixtures are
 caught at ≥80% on five of six corpora; hard fixtures depend on Stage 1.5.
 Threshold CV ≤ 10% across all corpora: runs are reproducible across seeds.
 

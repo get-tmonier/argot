@@ -130,6 +130,8 @@ calibration CV. A verdict change whose score sits within one calibration noise
 band of the threshold in either run is classified as noise, not a scorer
 regression.
 
+This rule applies prospectively to all future eras: any fixture whose score is unchanged from the prior baseline but whose verdict flips due to calibrated-threshold drift within the corpus's declared CV is classified as calibration noise, not a scorer regression.
+
 Two ink fixtures flipped between era-6 and the era-7 shipping run. See the
 section below for details.
 

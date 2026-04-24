@@ -107,8 +107,8 @@ fixtures:
     category: routing
     hunk_start_line: 6
     hunk_end_line: 14
-    rationale: "Router().route(path).get().post().delete() chain composition"
-    difficulty: uncaught
+    rationale: "Router().route(path).get().post().delete() chain composition — era-8: <call>.route and <call>.get now caught by call-receiver"
+    difficulty: hard
   - id: hono_routing_3
     file: breaks/break_routing_3.ts
     category: routing
