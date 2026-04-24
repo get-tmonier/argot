@@ -258,6 +258,17 @@ fixtures:
     FastAPI cannot manage lifecycle or substitute for testing. 0 corpus sites use
     this pattern vs 428 Depends() sites.'
   difficulty: hard
+- id: dependency_injection_3
+  file: breaks/paradigm_break_injector_di.py
+  category: dependency_injection
+  hunk_start_line: 26
+  hunk_end_line: 59
+  rationale: >-
+    injector library (injector.Injector, @inject, Module, singleton) for dependency
+    injection instead of FastAPI's Depends() — foreign import in hunk. injector appears
+    at 0 fastapi corpus sites vs 428 Depends() sites. Single axis: external DI
+    framework import in hunk.
+  difficulty: easy
 - id: downstream_http_3
   file: breaks/paradigm_break_aiohttp_no_context.py
   category: downstream_http
