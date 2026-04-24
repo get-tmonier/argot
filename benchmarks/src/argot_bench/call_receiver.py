@@ -89,6 +89,25 @@ def _extract_typescript_callee(call_node: Node) -> str | None:
     return None
 
 
+def _has_root_error(source: str, language: Language) -> bool:
+    """Return True if the top-level parse tree has any ERROR children.
+
+    Hunk slices extracted out of their file context (e.g. lines from inside a
+    triple-quoted docstring, or method-shorthand bodies without their enclosing
+    object literal) produce ERROR nodes at the root.  Callee extraction from
+    such fragments is unreliable and should be skipped.
+    """
+    parser = _PY_PARSER if language == "python" else _TS_PARSER
+    try:
+        tree = parser.parse(source.encode("utf-8"))
+    except Exception:
+        return True
+    root = tree.root_node
+    has_error = any(child.type == "ERROR" for child in root.children)
+    del tree
+    return has_error
+
+
 def extract_callees(source: str, language: Language) -> list[str | None]:
     """Return dotted-callee signatures for every call-expression in *source*.
 
@@ -171,6 +190,12 @@ class CallReceiverScorer:
         self.n_skipped_data_dominant: int = skipped
 
     def _get_distinct_unattested(self, hunk_content: str) -> list[str]:
+        # Hunk slices that are out-of-context fragments (e.g. docstring bodies,
+        # method-shorthand definitions stripped from their enclosing object) produce
+        # root-level ERROR nodes.  Callee extraction from such fragments is
+        # unreliable, so we treat them as having zero unattested callees.
+        if _has_root_error(hunk_content, self._language):
+            return []
         callees = extract_callees(hunk_content, self._language)
         seen: set[str] = set()
         deduped: list[str] = []

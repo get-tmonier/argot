@@ -20,8 +20,11 @@ Fit: union of all non-None callees across model-A files (after
 Score: flag if count of distinct unattested callees in hunk >= k.
 Primary config k=1; fallback k=2 (pre-declared).
 
-**Shipping config: neither.** k=1 and k=2 both fail Gate 3 (FP ≤
-1.5%). Era 6 does not ship.
+**Shipping config: alpha=1.0, cap=5, with parse-fragment guard.**
+k=1, k=2, alpha=0.5, and alpha=1.0 (without fix) all fail gates. After
+diagnosing the root cause (see investigation phase below) and applying a
+targeted fix, alpha=1.0 with the guard passes all four gates.
+Timestamp 20260424T074736Z.
 
 Baseline: `benchmarks/results/baseline/latest/report.md` (era 5,
 run 20260423T231552Z).
@@ -281,3 +284,141 @@ Testing Library, pytest) that never appear in production source. Until the
 attested set includes test-file callees, any alpha that catches low-BPE
 foreign breaks will also penalize legitimate test code. Era 7 must solve
 this asymmetry before the call-receiver concept can ship.
+
+---
+
+## Investigation phase (post-alpha-sweep)
+
+> Timestamp: 20260424T074736Z. No new bench until root cause verified.
+> Previous evidence blamed "test files" without verifying — incorrect.
+> `is_excluded_path` already removes test hunks from the FP denominator.
+
+### Phase 1: FP path-category breakdown
+
+Script: one-off `/tmp/investigate_fps.py` (not committed).
+Data source: `benchmarks/results/20260424T072403Z/` (alpha=1.0 run).
+
+#### rich — call_receiver FPs (225 of 244 total control FPs)
+
+| Path segment | Count | Sample files |
+|:------------|------:|:-------------|
+| `rich/`     |   225 | rich/traceback.py (35), rich/table.py (30), rich/console.py (25), rich/panel.py (22), … |
+
+All 225 call_receiver FPs are from **core library source files** (`rich/*.py`).
+No test files, no docs, no examples.
+
+#### rich — top unattested callees (re-derived via scorer replay)
+
+```
+theme                  23    locals_max_string      22
+console                21    title                  21
+detect.height          21    locals_max_depth       18
+cells                  18    width                  16
+fonts.Defaults.padding 16    to                     16
+```
+
+These are **not function names** — they are Google-style docstring parameter
+descriptions: `param_name (type): description`. Tree-sitter, receiving the
+hunk slice in isolation (outside its enclosing triple-quote), parses
+`param_name(type)` as a `call` expression with `param_name` as the callee.
+
+#### ink — call_receiver FPs (83 of 160 total control FPs)
+
+| Path segment | Count | Sample files |
+|:------------|------:|:-------------|
+| `src/`      |    83 | src/reconciler.ts (most), src/ink.tsx, src/render.ts |
+
+All 83 call_receiver FPs from **core ink source files**.
+
+#### ink — top unattested callees
+
+```
+removeChildFromContainer  18    commitUpdate            14
+commitTextUpdate          12    prepareScopeUpdate       9
+getInstanceFromScope       9    removeChild              8
+setCurrentUpdatePriority   8    …
+```
+
+These are React reconciler host-config **method shorthand definitions**
+(`commitTextUpdate(node, _oldText, newText) { … }`). Extracted out of the
+enclosing `createReconciler({…})` object literal, tree-sitter parses each
+method shorthand as a `call_expression` followed by a block statement.
+
+### Root cause
+
+Both patterns share the same failure mode: **tree-sitter receives a hunk
+slice that is an out-of-context fragment**.
+
+When the benchmark extracts `lines[hs:he]` from the current file and passes
+that substring to `extract_callees`, tree-sitter parses it as standalone
+Python/TypeScript. If those lines are inside a triple-quoted docstring (rich)
+or inside an object literal (ink reconciler), the resulting parse tree has
+root-level ERROR nodes — and the false "call expressions" inside the fragment
+produce callee strings that never appear in the attested set.
+
+**Key indicator**: in both cases, tree-sitter reports root-level ERROR nodes
+when parsing the hunk content in isolation:
+
+| Corpus | call_receiver FPs | Have root ERROR nodes | Fraction |
+|:-------|------------------:|----------------------:|---------:|
+| rich   |               225 |                   202 |     89.8% |
+| ink    |                83 |                    71 |     85.5% |
+
+### Classification
+
+**Targeted parsing artifact** (closest to Case A): FPs are concentrated in a
+specific hunk-content type — fragments that parse with root-level ERROR nodes —
+not in a path category, not in "new helper" sensitivity. The fix is a content
+guard in the bench harness, not a path-filter change.
+
+### Fix applied
+
+`benchmarks/src/argot_bench/call_receiver.py`:
+
+1. Added `_has_root_error(source, language) → bool`: parses the hunk and
+   returns True if any direct child of the root node is an ERROR node.
+2. In `_get_distinct_unattested`: return `[]` immediately if
+   `_has_root_error(hunk_content, language)`. This treats parse-fragment
+   hunks as having zero unattested callees → zero soft penalty → no
+   call_receiver flag.
+3. Break fixtures are complete code sections; they parse cleanly and are
+   unaffected.
+
+Projected impact (verified via scorer replay on alpha=1.0 JSON):
+
+| Corpus | FP before fix | FP projected | Passes Gate 3 (≤1.5%)? |
+|:-------|-------------:|--------------:|:-----------------------|
+| rich   |         2.8% |         0.36% | ✓                      |
+| ink    |         2.2% |         0.49% | ✓                      |
+
+### Bench results: alpha=1.0 + parse-fragment guard (20260424T074736Z)
+
+Full 5-seed, all 6 corpora, no sample-controls.
+
+| Corpus | Lang | AUC | Recall | FP | Gap | N_fix | N_ctrl | Thr |
+|:---|:---|---:|---:|---:|---:|---:|---:|---:|
+| fastapi | python | 0.9918 | 91.7% | 0.1% | -4.371 | 31 | 10012 | 5.278 |
+| rich | python | 0.9959 | 100.0% | 0.5% | -2.017 | 10 | 11536 | 4.164 |
+| faker | python | 0.9237 | 100.0% | 0.4% | -4.946 | 5 | 12936 | 5.211 |
+| hono | typescript | 0.8107 | 60.0% | 0.4% | -7.471 | 15 | 54717 | 4.277 |
+| ink | typescript | 0.9888 | 100.0% | 1.1% | -4.633 | 15 | 16678 | 4.743 |
+| faker-js | typescript | 0.9408 | 33.3% | 0.8% | -7.066 | 15 | 255760 | 4.773 |
+
+#### Gate evaluation
+
+| # | Gate | Threshold | Observed | Verdict |
+|---|---|---|---|---|
+| 1 | Avg recall 6 corpora | ≥ 80.0% | 80.8% | **PASS** |
+| 2 | No corpus regression > 2pp | ≥ −2 pp | min +0.0pp (faker, hono) | **PASS** |
+| 3 | All corpora FP ≤ 1.5% | ≤ 1.5% | max 1.08% (ink) | **PASS** |
+| 4 | Category regressions from era-5 100% | 0 | 0 | **PASS** |
+
+**Shipping config: alpha=1.0, cap=5, `_has_root_error` guard.**
+All four gates pass. Era 6 ships.
+
+#### Notes on recall changes vs alpha=1.0 (no fix)
+
+- fastapi 94.4% → 91.7%: `validation_2` (voluptuous) was caught by
+  call_receiver only when its hunk had parse errors. This fixture was NOT
+  caught in era-5 baseline (75.0% validation era-5). Gate 4 does not fire.
+- All other corpora: recall unchanged vs prior alpha=1.0 run.
