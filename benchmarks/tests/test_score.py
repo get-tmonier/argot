@@ -63,3 +63,27 @@ def test_build_scorer_calibrates_on_repo_hunks(tmp_path: Path, monkeypatch):
     assert "flagged" in vars(result) or hasattr(result, "flagged")
 
 
+def test_score_result_accepts_call_receiver_reason():
+    from argot_bench.score import ScoreResult
+
+    r = ScoreResult(
+        import_score=0.0,
+        bpe_score=0.0,
+        flagged=True,
+        reason="call_receiver",
+        call_receiver_unattested=("Math.random",),
+    )
+    assert r.reason == "call_receiver"
+    assert r.call_receiver_unattested == ("Math.random",)
+
+
+def test_score_result_default_call_receiver_unattested_is_empty():
+    from argot_bench.score import ScoreResult
+
+    r = ScoreResult(
+        import_score=1.0,
+        bpe_score=3.2,
+        flagged=True,
+        reason="import",
+    )
+    assert r.call_receiver_unattested == ()

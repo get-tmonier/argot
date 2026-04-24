@@ -16,7 +16,16 @@ from argot.scoring.calibration.random_hunk_sampler import sample_hunks
 from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
 
 Language = Literal["python", "typescript"]
-Reason = Literal["import", "bpe", "none", "auto_generated", "atypical", "atypical_file"]
+Reason = Literal[
+    "import",
+    "call_receiver",
+    "bpe",
+    "none",
+    "auto_generated",
+    "atypical",
+    "atypical_file",
+    "excluded_path",
+]
 
 # engine/argot/scoring/bpe/generic_tokens_bpe.json
 # score.py → argot_bench → src → benchmarks → <repo root>
@@ -38,6 +47,7 @@ class ScoreResult:
     bpe_score: float
     flagged: bool
     reason: Reason
+    call_receiver_unattested: tuple[str, ...] = ()
 
 
 class BenchScorer:
