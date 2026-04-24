@@ -30,7 +30,7 @@ Reason = Literal[
 ]
 
 # engine/argot/scoring/bpe/generic_tokens_bpe.json
-# score.py → argot_bench → src → benchmarks → <repo root>
+# score.py -> argot_bench -> src -> benchmarks -> <repo root>
 _BPE_MODEL_B = (
     Path(__file__).resolve().parent.parent.parent.parent
     / "engine"
@@ -38,6 +38,10 @@ _BPE_MODEL_B = (
     / "scoring"
     / "bpe"
     / "generic_tokens_bpe.json"
+)
+
+_TERMINAL_REASONS: frozenset[str] = frozenset(
+    {"atypical", "atypical_file", "excluded_path", "auto_generated"}
 )
 
 
@@ -64,9 +68,13 @@ class BenchScorer:
         inner: SequentialImportBpeScorer,
         *,
         call_receiver: CallReceiverScorer | None = None,
+        alpha: float = 0.0,
+        cap: int = 5,
     ) -> None:
         self._inner = inner
         self._call_receiver = call_receiver
+        self._alpha = alpha
+        self._cap = cap
 
     @property
     def threshold(self) -> float:
@@ -98,24 +106,33 @@ class BenchScorer:
         )
 
         # Typicality short-circuit reasons are terminal.
-        if base.reason in ("atypical", "atypical_file", "excluded_path", "auto_generated"):
+        if base.reason in _TERMINAL_REASONS:
             return base
 
         # Import stage already fired — takes precedence over call_receiver.
         if base.reason == "import":
             return base
 
-        # Stage 1.5: call-receiver (only when import didn't fire).
-        if self._call_receiver is not None:
-            cr = self._call_receiver.score_hunk(hunk_content)
-            if cr.flagged:
+        # Stage 1.5: soft penalty (only when call_receiver is wired and alpha > 0).
+        if self._call_receiver is not None and self._alpha > 0.0:
+            n = self._call_receiver.count_unattested(hunk_content)
+            adjusted_bpe = base.bpe_score + self._alpha * min(n, self._cap)
+            if adjusted_bpe > self._inner.bpe_threshold:
+                reason: Reason = (
+                    "call_receiver" if base.bpe_score <= self._inner.bpe_threshold else "bpe"
+                )
                 return ScoreResult(
                     import_score=base.import_score,
                     bpe_score=base.bpe_score,
                     flagged=True,
-                    reason="call_receiver",
-                    call_receiver_unattested=cr.unattested,
+                    reason=reason,
                 )
+            return ScoreResult(
+                import_score=base.import_score,
+                bpe_score=base.bpe_score,
+                flagged=False,
+                reason="none",
+            )
 
         return base
 
@@ -144,7 +161,8 @@ def build_scorer(
     language: Language,
     bpe_model_b: Path | None = None,
     enable_typicality_filter: bool = True,
-    call_receiver_k: int = 0,
+    call_receiver_alpha: float = 0.0,
+    call_receiver_cap: int = 5,
 ) -> BenchScorer:
     """Build a BenchScorer calibrated on n_cal sampled hunks from repo_dir.
 
@@ -156,6 +174,8 @@ def build_scorer(
         bpe_model_b: Optional override for the generic BPE reference model path.
         enable_typicality_filter: Pass True (default) to let the prod scorer filter
             atypical model-A files and calibration hunks internally.
+        call_receiver_alpha: Soft-penalty weight. 0.0 disables Stage 1.5 entirely.
+        call_receiver_cap: Max unattested callees counted in the penalty (default 5).
 
     Raises:
         ValueError: if repo_dir has no source files, or insufficient qualifying hunks.
@@ -176,9 +196,9 @@ def build_scorer(
         enable_typicality_filter=enable_typicality_filter,
     )
     call_receiver = None
-    if call_receiver_k >= 1:
+    if call_receiver_alpha > 0.0:
         call_receiver = CallReceiverScorer(
-            files, language=language, k=call_receiver_k, adapter=adapter
+            files, language=language, k=1, adapter=adapter
         )
 
-    return BenchScorer(inner, call_receiver=call_receiver)
+    return BenchScorer(inner, call_receiver=call_receiver, alpha=call_receiver_alpha, cap=call_receiver_cap)

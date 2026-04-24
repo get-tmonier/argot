@@ -218,7 +218,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             seed=seed,
             language=cfg.language,
             enable_typicality_filter=cfg.typicality_filter,
-            call_receiver_k=cfg.call_receiver_k,
+            call_receiver_alpha=0.5 if cfg.call_receiver_k >= 1 else 0.0,
         )
         thresholds.append(scorer.threshold)
         cal_score_signatures.append({f"{i}:{s:.4f}" for i, s in enumerate(scorer.cal_scores)})
@@ -249,7 +249,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
                 seed=cfg.seeds[0],
                 language=cfg.language,
                 enable_typicality_filter=cfg.typicality_filter,
-                call_receiver_k=cfg.call_receiver_k,
+                call_receiver_alpha=0.5 if cfg.call_receiver_k >= 1 else 0.0,
             )
             hunks_stream2: Iterable[dict[str, object]] = _real_pr_hunks(dataset)
             hunks_input2: Iterable[dict[str, object]]
