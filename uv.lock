@@ -66,7 +66,7 @@ requires-dist = [
 
 [[package]]
 name = "argot-engine"
-version = "0.2.24"
+version = "0.2.25"
 source = { editable = "engine" }
 dependencies = [
     { name = "numpy" },
