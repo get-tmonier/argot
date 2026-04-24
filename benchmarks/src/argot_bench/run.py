@@ -97,6 +97,7 @@ def _score_fixtures(
                 "hunk_start_line": fx.hunk_start_line,
                 "hunk_end_line": fx.hunk_end_line,
                 "rationale": fx.rationale,
+                "difficulty": fx.difficulty,
                 "import_score": r.import_score,
                 "bpe_score": r.bpe_score,
                 "flagged": r.flagged,

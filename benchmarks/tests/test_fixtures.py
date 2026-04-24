@@ -40,3 +40,62 @@ def test_every_fixture_category_is_declared(corpus: str):
         assert f.category in declared, (
             f"{corpus}:{f.id} uses undeclared category {f.category!r}"
         )
+
+
+def test_fixture_difficulty_defaults_to_none():
+    from argot_bench.fixtures import Fixture
+    fx = Fixture(id="x", file="f.py", category="c",
+                 hunk_start_line=1, hunk_end_line=5)
+    assert fx.difficulty is None
+
+
+def test_fixture_difficulty_loaded_from_yaml(tmp_path: Path):
+    catalog_dir = tmp_path / "mycorpus"
+    catalog_dir.mkdir()
+    breaks_dir = catalog_dir / "breaks"
+    breaks_dir.mkdir()
+    fx_file = breaks_dir / "break_test.py"
+    fx_file.write_text("\n".join(["# line"] * 10))
+    manifest = catalog_dir / "manifest.yaml"
+    manifest.write_text(
+        "corpus: mycorpus\n"
+        "language: python\n"
+        "categories:\n  - cat_a\n"
+        "injection_hosts: []\n"
+        "fixtures:\n"
+        "  - id: test_1\n"
+        "    file: breaks/break_test.py\n"
+        "    category: cat_a\n"
+        "    hunk_start_line: 1\n"
+        "    hunk_end_line: 5\n"
+        "    rationale: 'test'\n"
+        "    difficulty: medium\n"
+    )
+    from argot_bench.fixtures import load_catalog
+    cat = load_catalog(catalog_dir)
+    assert cat.fixtures[0].difficulty == "medium"
+
+
+def test_fixture_difficulty_optional_in_yaml(tmp_path: Path):
+    catalog_dir = tmp_path / "mycorpus"
+    catalog_dir.mkdir()
+    breaks_dir = catalog_dir / "breaks"
+    breaks_dir.mkdir()
+    fx_file = breaks_dir / "break_test.py"
+    fx_file.write_text("\n".join(["# line"] * 10))
+    manifest = catalog_dir / "manifest.yaml"
+    manifest.write_text(
+        "corpus: mycorpus\n"
+        "language: python\n"
+        "categories:\n  - cat_a\n"
+        "injection_hosts: []\n"
+        "fixtures:\n"
+        "  - id: test_1\n"
+        "    file: breaks/break_test.py\n"
+        "    category: cat_a\n"
+        "    hunk_start_line: 1\n"
+        "    hunk_end_line: 5\n"
+    )
+    from argot_bench.fixtures import load_catalog
+    cat = load_catalog(catalog_dir)
+    assert cat.fixtures[0].difficulty is None
