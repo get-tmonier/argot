@@ -156,3 +156,11 @@ fixtures:
     aiohttp.ClientSession for async HTTP source — session.get/raise_for_status/json
     are foreign receiver patterns. aiohttp.ClientSession at 0 faker corpus sites.
     Single axis: async session receiver methods replacing sync requests.
+
+- id: synthetic_formula_1
+  file: breaks/break_synthetic_formula_1.py
+  category: numpy_random
+  hunk_start_line: 18
+  hunk_end_line: 29
+  rationale: "string-formula synthesis (f-string concat) instead of faker.email()/faker.name(); no foreign import in hunk; era-6 limit: call_receiver has no target, BPE tokens (f-string, str, int format) are nominal in the Python corpus"
+  difficulty: uncaught

@@ -1,17 +1,17 @@
 # argot-bench report
 
-Generated: 2026-04-24T12:22:43.121833+00:00
+Generated: 2026-04-24T14:05:58.233294+00:00
 
 ## Headline
 
 | Corpus | Lang | AUC | Recall | FP | Gap | N_fix | N_ctrl | Thr |
 |:---|:---|---:|---:|---:|---:|---:|---:|---:|
 | fastapi | python | 0.9880 | 91.7% | 0.8% | -4.371 | 32 | 79623 | 5.278 |
-| rich | python | 0.9935 | 100.0% | 0.4% | -2.116 | 15 | 68598 | 4.164 |
-| faker | python | 0.9530 | 100.0% | 0.9% | -4.946 | 15 | 75996 | 5.211 |
-| hono | typescript | 0.8107 | 60.0% | 0.4% | -7.471 | 15 | 54717 | 4.277 |
-| ink | typescript | 0.9888 | 86.7% | 0.4% | -4.633 | 15 | 16678 | 4.826 |
-| faker-js | typescript | 0.9408 | 33.3% | 0.8% | -7.066 | 15 | 255760 | 4.773 |
+| rich | python | 0.9780 | 95.0% | 0.4% | -3.040 | 16 | 68598 | 4.164 |
+| faker | python | 0.9537 | 95.0% | 0.9% | -4.946 | 16 | 75996 | 5.211 |
+| hono | typescript | 0.8312 | 65.0% | 0.4% | -7.471 | 17 | 54717 | 4.277 |
+| ink | typescript | 0.9899 | 100.0% | 1.1% | -4.633 | 17 | 16678 | 4.743 |
+| faker-js | typescript | 0.9463 | 43.3% | 0.8% | -7.066 | 17 | 255760 | 4.773 |
 
 _Gap = min(break) − max(control). Positive = clean separation; negative = overlap._
 
@@ -144,22 +144,22 @@ _Threshold is 5.2778; top control scores 7.3506._
 
 ### Summary
 
-- **AUC (catalog vs real-PR controls):** 0.9935
-- **Recall (mean across categories):** 100.0%
+- **AUC (catalog vs real-PR controls):** 0.9780
+- **Recall (mean across categories):** 95.0%
 - **FP rate on real PR hunks:** 0.4% (187/68598)
 - **Threshold (mean across seeds):** 4.1642 (CV: 9.5%)
 - **Calibration stability:** rel_var=0.037304, jaccard=0.0382
-- **Separation gap (min break − max control):** -2.1165 (overlap)
-- **Sample sizes:** 15 fixtures · 68598 real-PR controls
+- **Separation gap (min break − max control):** -3.0401 (overlap)
+- **Sample sizes:** 16 fixtures · 68598 real-PR controls
 
 ### Score distribution
 
 | | n | min | p25 | median | p75 | p90 | max |
 |:---|---:|---:|---:|---:|---:|---:|---:|
-| Break (catalog) | 15 | 2.530 | 4.836 | 5.966 | 6.473 | 6.730 | 7.668 |
+| Break (catalog) | 16 | 1.607 | 4.215 | 5.934 | 6.345 | 6.730 | 7.668 |
 | Control (real PR) | 68598 | -1.286 | 0.000 | 0.945 | 1.488 | 2.097 | 4.647 |
 
-Threshold **4.1642** — 2/15 breaks fall below it (misses), 33/68598 controls fall at/above (false positives).
+Threshold **4.1642** — 3/16 breaks fall below it (misses), 33/68598 controls fall at/above (false positives).
 
 ### Recall by category
 
@@ -168,7 +168,7 @@ xychart-beta
     title "rich — recall by category"
     x-axis ["ansi_raw", "colorama", "curses", "print_manual", "termcolor"]
     y-axis "recall %" 0 --> 110
-    bar [100.0, 100.0, 100.0, 100.0, 100.0]
+    bar [100.0, 100.0, 100.0, 75.0, 100.0]
 ```
 
 ### Per-category detail
@@ -178,13 +178,13 @@ xychart-beta
 | ansi_raw | 100.0% | 3/3 | 4.068 | 2.530 | 5.457 | ansi_raw_1, ansi_raw_2, ansi_raw_3 |
 | colorama | 100.0% | 3/3 | 6.180 | 5.845 | 6.730 | colorama_1, colorama_2, colorama_3 |
 | curses | 100.0% | 3/3 | 6.637 | 6.027 | 7.668 | curses_1, curses_2, curses_3 |
-| print_manual | 100.0% | 3/3 | 4.525 | 2.630 | 6.730 | print_manual_1, print_manual_2, print_manual_3 |
+| print_manual | 75.0% | 3/4 | 3.795 | 1.607 | 6.730 | print_manual_1, print_manual_2, print_manual_3, dict_render_1 |
 | termcolor | 100.0% | 3/3 | 6.261 | 5.902 | 6.730 | termcolor_1, termcolor_2, termcolor_3 |
 
 ### Per-fixture results
 
 <details>
-<summary>15 fixtures (click to expand)</summary>
+<summary>16 fixtures (click to expand)</summary>
 
 | ID | Category | BPE | Flagged | Reason | File | Lines | Rationale |
 |:---|:---|---:|:---:|:---|:---|:---|:---|
@@ -197,6 +197,7 @@ xychart-beta
 | curses_1 | curses | 6.217 | ✓ | import | breaks/break_curses_1.py | 18–43 | curses.initscr/start_color/addstr/color_pair dashboard rendering in a rich-looking file |
 | curses_2 | curses | 7.668 | ✓ | import | breaks/break_curses_2.py | 16–41 | curses navigable menu with KEY_UP/KEY_DOWN and color_pair highlight in a rich-looking file |
 | curses_3 | curses | 6.027 | ✓ | bpe | breaks/break_curses_3.py | 15–30 | curses.textpad.Textbox interactive form — curses and curses.textpad imported at file top, outside hunk. curses.textpad.Textbox, newwin, i… |
+| dict_render_1 | print_manual | 1.607 | ✗ | none | breaks/break_dict_render_1.py | 18–23 | plain print() loop in place of rich Table/Panel; no foreign import in hunk; era-5 limit: print/for/list tokens are ubiquitous in Python c… |
 | print_manual_1 | print_manual | 2.630 | ✓ | call_receiver | breaks/break_print_manual_1.py | 19–40 | Plain print() with manual ljust/rjust for tabular output in a rich-looking file |
 | print_manual_2 | print_manual | 6.730 | ✓ | bpe | breaks/break_print_manual_2.py | 19–42 | Plain print() with manual center/ljust/rjust for key-value report box in a rich-looking file |
 | print_manual_3 | print_manual | 4.215 | ✓ | import | breaks/break_print_manual_3.py | 13–21 | tabulate library for table rendering imported inside hunk. Canonical: plain print() with ljust/rjust at break sites; tabulate at 0 rich c… |
@@ -205,6 +206,13 @@ xychart-beta
 | termcolor_3 | termcolor | 5.902 | ✓ | bpe | breaks/break_termcolor_3.py | 15–36 | termcolor.colored with on_color and attrs (blink) in structured log emitter and progress bar — termcolor imported at file top, outside hu… |
 
 </details>
+
+### Missed fixtures (1)
+
+Breaks that didn't trip the scorer (threshold 4.1642):
+
+- **dict_render_1** (`print_manual`) — score 1.6069, 2.5574 below threshold, reason: `none`
+  - _Rationale:_ plain print() loop in place of rich Table/Panel; no foreign import in hunk; era-5 limit: print/for/list tokens are ubiquitous in Python corpus, BPE score stays below threshold; call_receiver has no target
 
 ### Top 5 real-PR controls (closest to false positives)
 
@@ -220,9 +228,10 @@ _Threshold is 4.1642; top control scores 4.6469._
 
 ### Stage attribution
 
-- `import`: 8 (53.3%)
-- `call_receiver`: 1 (6.7%)
-- `bpe`: 6 (40.0%)
+- `import`: 8 (50.0%)
+- `call_receiver`: 1 (6.2%)
+- `bpe`: 6 (37.5%)
+- `none`: 1 (6.2%)
 
 ### Recall by difficulty
 
@@ -231,27 +240,28 @@ _Threshold is 4.1642; top control scores 4.6469._
 | easy | 100.0% | 8/8 | Stage 1 import catch — foreign module in hunk |
 | medium | 100.0% | 5/5 | Stage 2 BPE catch — token-level novelty, no foreign import |
 | hard | 100.0% | 2/2 | Stage 1.5 call-receiver catch — receiver novelty |
+| uncaught | 0.0% | 0/1 | Scorer currently misses — known gap |
 
 ## faker (python)
 
 ### Summary
 
-- **AUC (catalog vs real-PR controls):** 0.9530
-- **Recall (mean across categories):** 100.0%
+- **AUC (catalog vs real-PR controls):** 0.9537
+- **Recall (mean across categories):** 95.0%
 - **FP rate on real PR hunks:** 0.9% (297/75996)
 - **Threshold (mean across seeds):** 5.2111 (CV: 3.7%)
 - **Calibration stability:** rel_var=0.006984, jaccard=0.0665
 - **Separation gap (min break − max control):** -4.9459 (overlap)
-- **Sample sizes:** 15 fixtures · 75996 real-PR controls
+- **Sample sizes:** 16 fixtures · 75996 real-PR controls
 
 ### Score distribution
 
 | | n | min | p25 | median | p75 | p90 | max |
 |:---|---:|---:|---:|---:|---:|---:|---:|
-| Break (catalog) | 15 | 1.843 | 4.851 | 5.786 | 6.943 | 7.300 | 7.380 |
+| Break (catalog) | 16 | 1.843 | 4.588 | 5.757 | 6.936 | 7.291 | 7.380 |
 | Control (real PR) | 75996 | -1.321 | 0.000 | 0.000 | 1.518 | 2.300 | 6.789 |
 
-Threshold **5.2111** — 5/15 breaks fall below it (misses), 163/75996 controls fall at/above (false positives).
+Threshold **5.2111** — 6/16 breaks fall below it (misses), 163/75996 controls fall at/above (false positives).
 
 ### Recall by category
 
@@ -260,7 +270,7 @@ xychart-beta
     title "faker — recall by category"
     x-axis ["mimesis_alt", "numpy_random", "requests_source", "sqlalchemy_sink", "threading_provider"]
     y-axis "recall %" 0 --> 110
-    bar [100.0, 100.0, 100.0, 100.0, 100.0]
+    bar [100.0, 75.0, 100.0, 100.0, 100.0]
 ```
 
 ### Per-category detail
@@ -268,7 +278,7 @@ xychart-beta
 | Category | Recall | Hits | Mean break score | Min | Max | Fixtures |
 |:---|---:|---:|---:|---:|---:|:---|
 | mimesis_alt | 100.0% | 3/3 | 3.201 | 1.843 | 5.729 | mimesis_alt_1, mimesis_alt_2, mimesis_alt_3 |
-| numpy_random | 100.0% | 3/3 | 5.228 | 4.593 | 5.786 | numpy_random_1, numpy_random_2, numpy_random_3 |
+| numpy_random | 75.0% | 3/4 | 4.874 | 3.813 | 5.786 | numpy_random_1, numpy_random_2, numpy_random_3, synthetic_formula_1 |
 | requests_source | 100.0% | 3/3 | 7.073 | 6.596 | 7.380 | requests_source_1, requests_source_2, requests_source_3 |
 | sqlalchemy_sink | 100.0% | 3/3 | 5.545 | 4.571 | 6.957 | sqlalchemy_sink_1, sqlalchemy_sink_2, sqlalchemy_sink_3 |
 | threading_provider | 100.0% | 3/3 | 6.776 | 6.059 | 7.339 | threading_provider_1, threading_provider_2, threading_provider_3 |
@@ -276,7 +286,7 @@ xychart-beta
 ### Per-fixture results
 
 <details>
-<summary>15 fixtures (click to expand)</summary>
+<summary>16 fixtures (click to expand)</summary>
 
 | ID | Category | BPE | Flagged | Reason | File | Lines | Rationale |
 |:---|:---|---:|:---:|:---|:---|:---|:---|
@@ -286,6 +296,7 @@ xychart-beta
 | numpy_random_1 | numpy_random | 4.593 | ✓ | import | breaks/break_numpy_random_1.py | 19–46 | numpy.random Generator/default_rng for name and age generation instead of faker internals in a faker-looking file |
 | numpy_random_2 | numpy_random | 5.786 | ✓ | bpe | breaks/break_numpy_random_2.py | 15–28 | scipy.stats distributions (truncnorm, pareto) for realistic data generation — scipy.stats imported outside hunk. Canonical: numpy.random … |
 | numpy_random_3 | numpy_random | 5.304 | ✓ | call_receiver | breaks/break_numpy_random_3.py | 15–32 | numpy rng.choice and rng.shuffle called on a default_rng instance — receiver methods foreign to faker corpus. rng.integers is known but r… |
+| synthetic_formula_1 | numpy_random | 3.813 | ✗ | none | breaks/break_synthetic_formula_1.py | 18–29 | string-formula synthesis (f-string concat) instead of faker.email()/faker.name(); no foreign import in hunk; era-6 limit: call_receiver h… |
 | requests_source_1 | requests_source | 7.380 | ✓ | import | breaks/break_requests_source_1.py | 17–47 | requests.get() fetching real user data from HTTP APIs instead of local fake generation in a faker-looking file |
 | requests_source_2 | requests_source | 7.242 | ✓ | bpe | breaks/break_requests_source_2.py | 15–25 | httpx.Client for HTTP source — httpx imported outside hunk. Canonical: requests.get at faker corpus sites; httpx.Client at 0 sites. |
 | requests_source_3 | requests_source | 6.596 | ✓ | bpe | breaks/break_requests_source_3.py | 16–31 | aiohttp.ClientSession for async HTTP source — session.get/raise_for_status/json are foreign receiver patterns. aiohttp.ClientSession at 0… |
@@ -297,6 +308,13 @@ xychart-beta
 | threading_provider_3 | threading_provider | 6.929 | ✓ | bpe | breaks/break_threading_provider_3.py | 15–29 | multiprocessing.Queue.put/get_nowait and Process.start/join — receiver methods on Queue and Process objects are foreign to faker corpus. … |
 
 </details>
+
+### Missed fixtures (1)
+
+Breaks that didn't trip the scorer (threshold 5.2111):
+
+- **synthetic_formula_1** (`numpy_random`) — score 3.8133, 1.3977 below threshold, reason: `none`
+  - _Rationale:_ string-formula synthesis (f-string concat) instead of faker.email()/faker.name(); no foreign import in hunk; era-6 limit: call_receiver has no target, BPE tokens (f-string, str, int format) are nominal in the Python corpus
 
 ### Top 5 real-PR controls (closest to false positives)
 
@@ -312,9 +330,10 @@ _Threshold is 5.2111; top control scores 6.7890._
 
 ### Stage attribution
 
-- `import`: 5 (33.3%)
-- `call_receiver`: 4 (26.7%)
-- `bpe`: 6 (40.0%)
+- `import`: 5 (31.2%)
+- `call_receiver`: 4 (25.0%)
+- `bpe`: 6 (37.5%)
+- `none`: 1 (6.2%)
 
 ### Recall by difficulty
 
@@ -323,27 +342,28 @@ _Threshold is 5.2111; top control scores 6.7890._
 | easy | 100.0% | 5/5 | Stage 1 import catch — foreign module in hunk |
 | medium | 100.0% | 5/5 | Stage 2 BPE catch — token-level novelty, no foreign import |
 | hard | 100.0% | 5/5 | Stage 1.5 call-receiver catch — receiver novelty |
+| uncaught | 0.0% | 0/1 | Scorer currently misses — known gap |
 
 ## hono (typescript)
 
 ### Summary
 
-- **AUC (catalog vs real-PR controls):** 0.8107
-- **Recall (mean across categories):** 60.0%
+- **AUC (catalog vs real-PR controls):** 0.8312
+- **Recall (mean across categories):** 65.0%
 - **FP rate on real PR hunks:** 0.4% (137/54717)
 - **Threshold (mean across seeds):** 4.2768 (CV: 3.0%)
 - **Calibration stability:** rel_var=0.003804, jaccard=0.0161
 - **Separation gap (min break − max control):** -7.4712 (overlap)
-- **Sample sizes:** 15 fixtures · 54717 real-PR controls
+- **Sample sizes:** 17 fixtures · 54717 real-PR controls
 
 ### Score distribution
 
 | | n | min | p25 | median | p75 | p90 | max |
 |:---|---:|---:|---:|---:|---:|---:|---:|
-| Break (catalog) | 15 | -1.736 | 1.334 | 4.713 | 5.778 | 6.341 | 6.406 |
+| Break (catalog) | 17 | -1.736 | 1.484 | 4.713 | 5.744 | 6.325 | 6.406 |
 | Control (real PR) | 54717 | -7.061 | 0.000 | 0.000 | 1.038 | 1.782 | 5.735 |
 
-Threshold **4.2768** — 6/15 breaks fall below it (misses), 157/54717 controls fall at/above (false positives).
+Threshold **4.2768** — 7/17 breaks fall below it (misses), 157/54717 controls fall at/above (false positives).
 
 ### Recall by category
 
@@ -352,7 +372,7 @@ xychart-beta
     title "hono — recall by category"
     x-axis ["async_blocking", "framework_swap", "middleware", "routing", "validation"]
     y-axis "recall %" 0 --> 110
-    bar [100.0, 66.7, 33.3, 33.3, 66.7]
+    bar [100.0, 75.0, 50.0, 33.3, 66.7]
 ```
 
 ### Per-category detail
@@ -360,15 +380,15 @@ xychart-beta
 | Category | Recall | Hits | Mean break score | Min | Max | Fixtures |
 |:---|---:|---:|---:|---:|---:|:---|
 | async_blocking | 100.0% | 3/3 | 5.988 | 5.744 | 6.406 | hono_async_blocking_1, hono_async_blocking_2, hono_async_blocking_3 |
-| framework_swap | 66.7% | 2/3 | 4.356 | 1.484 | 6.373 | hono_framework_swap_1, hono_framework_swap_2, hono_framework_swap_3 |
-| middleware | 33.3% | 1/3 | 1.226 | -1.736 | 5.304 | hono_middleware_1, hono_middleware_2, hono_middleware_3 |
+| framework_swap | 75.0% | 3/4 | 4.053 | 1.484 | 6.373 | hono_framework_swap_1, hono_framework_swap_2, hono_framework_swap_3, hono_framework_swap_4 |
+| middleware | 50.0% | 2/4 | 2.098 | -1.736 | 5.304 | hono_middleware_1, hono_middleware_2, hono_middleware_3, hono_middleware_4 |
 | routing | 33.3% | 1/3 | 2.238 | 0.819 | 4.713 | hono_routing_1, hono_routing_2, hono_routing_3 |
 | validation | 66.7% | 2/3 | 4.357 | 2.231 | 6.294 | hono_validation_1, hono_validation_2, hono_validation_3 |
 
 ### Per-fixture results
 
 <details>
-<summary>15 fixtures (click to expand)</summary>
+<summary>17 fixtures (click to expand)</summary>
 
 | ID | Category | BPE | Flagged | Reason | File | Lines | Rationale |
 |:---|:---|---:|:---:|:---|:---|:---|:---|
@@ -378,9 +398,11 @@ xychart-beta
 | hono_framework_swap_1 | framework_swap | 1.484 | ✗ | none | breaks/break_framework_swap_1.ts | 5–12 | Express Router() idiom with (req, res) handlers mounted into a Hono app |
 | hono_framework_swap_2 | framework_swap | 5.211 | ✓ | bpe | breaks/break_framework_swap_2.ts | 6–10 | Express (req: Request, res: Response) callback signature instead of Hono's Context |
 | hono_framework_swap_3 | framework_swap | 6.373 | ✓ | bpe | breaks/break_framework_swap_3.ts | 7–10 | Express body-parser + cors middleware chain wired via app.use |
+| hono_framework_swap_4 | framework_swap | 3.145 | ✓ | import | breaks/break_framework_swap_4.ts | 1–15 | import express at line 1 — standalone Express Router module in a Hono project; 'express' appears 0 times in non-break hono corpus files v… |
 | hono_middleware_1 | middleware | 5.304 | ✓ | bpe | breaks/break_middleware_1.ts | 5–12 | Express (req, res, next) middleware signature in app.use |
 | hono_middleware_2 | middleware | 0.110 | ✗ | none | breaks/break_middleware_2.ts | 9–14 | Express 4-arg (err, req, res, next) error-handler signature |
 | hono_middleware_3 | middleware | -1.736 | ✗ | none | breaks/break_middleware_3.ts | 10–11 | Calling next() synchronously instead of Hono's await next() |
+| hono_middleware_4 | middleware | 4.713 | ✓ | import | breaks/break_middleware_4.ts | 1–21 | import Koa + @koa/router at line 1 — Koa ctx.body middleware pattern in a Hono project; Koa absent from all hono corpus PRs (0 grep hits) |
 | hono_routing_1 | routing | 4.713 | ✓ | bpe | breaks/break_routing_1.ts | 6–12 | express.Router() mounted under app.use('/api', router) |
 | hono_routing_2 | routing | 1.183 | ✗ | none | breaks/break_routing_2.ts | 6–14 | Router().route(path).get().post().delete() chain composition |
 | hono_routing_3 | routing | 0.819 | ✗ | none | breaks/break_routing_3.ts | 7–14 | Express-shaped app.all('*', (req, res)) wildcard catch-all |
@@ -421,13 +443,15 @@ _Threshold is 4.2768; top control scores 5.7353._
 
 ### Stage attribution
 
-- `bpe`: 9 (60.0%)
-- `none`: 6 (40.0%)
+- `import`: 2 (11.8%)
+- `bpe`: 9 (52.9%)
+- `none`: 6 (35.3%)
 
 ### Recall by difficulty
 
 | Difficulty | Recall | Hits | Definition |
 |:---|---:|---:|:---|
+| easy | 100.0% | 2/2 | Stage 1 import catch — foreign module in hunk |
 | medium | 100.0% | 9/9 | Stage 2 BPE catch — token-level novelty, no foreign import |
 | uncaught | 0.0% | 0/6 | Scorer currently misses — known gap |
 
@@ -435,22 +459,22 @@ _Threshold is 4.2768; top control scores 5.7353._
 
 ### Summary
 
-- **AUC (catalog vs real-PR controls):** 0.9888
-- **Recall (mean across categories):** 86.7%
-- **FP rate on real PR hunks:** 0.4% (27/16678)
-- **Threshold (mean across seeds):** 4.8256 (CV: 6.9%)
-- **Calibration stability:** rel_var=0.023265, jaccard=0.0943
+- **AUC (catalog vs real-PR controls):** 0.9899
+- **Recall (mean across categories):** 100.0%
+- **FP rate on real PR hunks:** 1.1% (78/16678)
+- **Threshold (mean across seeds):** 4.7429 (CV: 10.6%)
+- **Calibration stability:** rel_var=0.052844, jaccard=0.0929
 - **Separation gap (min break − max control):** -4.6327 (overlap)
-- **Sample sizes:** 15 fixtures · 16678 real-PR controls
+- **Sample sizes:** 17 fixtures · 16678 real-PR controls
 
 ### Score distribution
 
 | | n | min | p25 | median | p75 | p90 | max |
 |:---|---:|---:|---:|---:|---:|---:|---:|
-| Break (catalog) | 15 | 2.105 | 5.428 | 6.310 | 8.833 | 8.833 | 8.833 |
+| Break (catalog) | 17 | 2.105 | 5.428 | 6.310 | 8.833 | 8.833 | 8.833 |
 | Control (real PR) | 16678 | -3.575 | 0.000 | 0.000 | 0.359 | 1.530 | 6.738 |
 
-Threshold **4.8256** — 2/15 breaks fall below it (misses), 29/16678 controls fall at/above (false positives).
+Threshold **4.7429** — 2/17 breaks fall below it (misses), 37/16678 controls fall at/above (false positives).
 
 ### Recall by category
 
@@ -459,31 +483,32 @@ xychart-beta
     title "ink — recall by category"
     x-axis ["class_components", "dom_access", "error_flip", "jquery", "lifecycle"]
     y-axis "recall %" 0 --> 110
-    bar [100.0, 33.3, 100.0, 100.0, 100.0]
+    bar [100.0, 100.0, 100.0, 100.0, 100.0]
 ```
 
 ### Per-category detail
 
 | Category | Recall | Hits | Mean break score | Min | Max | Fixtures |
 |:---|---:|---:|---:|---:|---:|:---|
-| class_components | 100.0% | 3/3 | 8.833 | 8.833 | 8.833 | ink_class_components_1, ink_class_components_2, ink_class_components_3 |
-| dom_access | 33.3% | 1/3 | 4.210 | 2.105 | 6.310 | ink_dom_access_1, ink_dom_access_2, ink_dom_access_3 |
+| class_components | 100.0% | 4/4 | 8.833 | 8.833 | 8.833 | ink_class_components_1, ink_class_components_2, ink_class_components_3, ink_class_components_4 |
+| dom_access | 100.0% | 3/3 | 4.210 | 2.105 | 6.310 | ink_dom_access_1, ink_dom_access_2, ink_dom_access_3 |
 | error_flip | 100.0% | 3/3 | 8.833 | 8.833 | 8.833 | ink_error_flip_1, ink_error_flip_2, ink_error_flip_3 |
-| jquery | 100.0% | 3/3 | 6.404 | 5.428 | 8.357 | ink_jquery_1, ink_jquery_2, ink_jquery_3 |
+| jquery | 100.0% | 4/4 | 6.160 | 5.428 | 8.357 | ink_jquery_1, ink_jquery_2, ink_jquery_3, ink_jquery_4 |
 | lifecycle | 100.0% | 3/3 | 5.428 | 5.428 | 5.428 | ink_lifecycle_1, ink_lifecycle_2, ink_lifecycle_3 |
 
 ### Per-fixture results
 
 <details>
-<summary>15 fixtures (click to expand)</summary>
+<summary>17 fixtures (click to expand)</summary>
 
 | ID | Category | BPE | Flagged | Reason | File | Lines | Rationale |
 |:---|:---|---:|:---:|:---|:---|:---|:---|
 | ink_class_components_1 | class_components | 8.833 | ✓ | bpe | breaks/break_class_components_1.tsx | 5–15 | ES6 class component in a hooks-only ink codebase |
 | ink_class_components_2 | class_components | 8.833 | ✓ | bpe | breaks/break_class_components_2.tsx | 8–18 | `extends Component` class with this.props / this.state in an ink file |
 | ink_class_components_3 | class_components | 8.833 | ✓ | bpe | breaks/break_class_components_3.tsx | 8–21 | Class component with explicit constructor(props) in an ink file |
-| ink_dom_access_1 | dom_access | 2.105 | ✗ | none | breaks/break_dom_access_1.tsx | 6–7 | document.getElementById + window.addEventListener in a terminal UI |
-| ink_dom_access_2 | dom_access | 4.215 | ✗ | none | breaks/break_dom_access_2.tsx | 8–8 | window.location.href navigation inside a useInput handler |
+| ink_class_components_4 | class_components | 8.833 | ✓ | bpe | breaks/break_class_components_4.tsx | 1–26 | import React, { Component } from 'react' at line 1 — class-based component in a hooks-only ink codebase; Component import absent from all… |
+| ink_dom_access_1 | dom_access | 2.105 | ✓ | call_receiver | breaks/break_dom_access_1.tsx | 6–7 | document.getElementById + window.addEventListener in a terminal UI |
+| ink_dom_access_2 | dom_access | 4.215 | ✓ | bpe | breaks/break_dom_access_2.tsx | 8–8 | window.location.href navigation inside a useInput handler |
 | ink_dom_access_3 | dom_access | 6.310 | ✓ | bpe | breaks/break_dom_access_3.tsx | 9–10 | localStorage.getItem in an ink useEffect |
 | ink_error_flip_1 | error_flip | 8.833 | ✓ | bpe | breaks/break_error_flip_1.tsx | 8–11 | throw new Error inside render via IIFE |
 | ink_error_flip_2 | error_flip | 8.833 | ✓ | bpe | breaks/break_error_flip_2.tsx | 10–13 | throw inside a map callback in the render return |
@@ -491,20 +516,12 @@ xychart-beta
 | ink_jquery_1 | jquery | 5.428 | ✓ | bpe | breaks/break_jquery_1.tsx | 7–9 | jQuery $('.item').on('click', ...) inside a functional component |
 | ink_jquery_2 | jquery | 5.428 | ✓ | bpe | breaks/break_jquery_2.tsx | 8–12 | jQuery .show()/.hide() DOM manipulation from a hook |
 | ink_jquery_3 | jquery | 8.357 | ✓ | bpe | breaks/break_jquery_3.tsx | 10–14 | $.ajax inside a useEffect where fetch/undici would be idiomatic |
+| ink_jquery_4 | jquery | 5.428 | ✓ | import | breaks/break_jquery_4.tsx | 1–12 | import $ from 'jquery' at line 1 in an ink terminal component; jquery absent from all 3 ink corpus PRs (0 grep hits); import scorer fires… |
 | ink_lifecycle_1 | lifecycle | 5.428 | ✓ | bpe | breaks/break_lifecycle_1.tsx | 10–12 | componentDidMount + this.setState instead of useEffect |
 | ink_lifecycle_2 | lifecycle | 5.428 | ✓ | bpe | breaks/break_lifecycle_2.tsx | 11–15 | Legacy componentWillReceiveProps lifecycle |
 | ink_lifecycle_3 | lifecycle | 5.428 | ✓ | bpe | breaks/break_lifecycle_3.tsx | 11–16 | componentWillUnmount cleanup instead of useEffect return fn |
 
 </details>
-
-### Missed fixtures (2)
-
-Breaks that didn't trip the scorer (threshold 4.8256):
-
-- **ink_dom_access_2** (`dom_access`) — score 4.2150, 0.6107 below threshold, reason: `none`
-  - _Rationale:_ window.location.href navigation inside a useInput handler
-- **ink_dom_access_1** (`dom_access`) — score 2.1049, 2.7207 below threshold, reason: `none`
-  - _Rationale:_ document.getElementById + window.addEventListener in a terminal UI
 
 ### Top 5 real-PR controls (closest to false positives)
 
@@ -516,40 +533,42 @@ Breaks that didn't trip the scorer (threshold 4.8256):
 | 4 | 6.738 | ✓ | bpe | xo.config.ts | 14–20 |
 | 5 | 6.738 | ✓ | bpe | xo.config.ts | 38–49 |
 
-_Threshold is 4.8256; top control scores 6.7376._
+_Threshold is 4.7429; top control scores 6.7376._
 
 ### Stage attribution
 
-- `bpe`: 13 (86.7%)
-- `none`: 2 (13.3%)
+- `import`: 1 (5.9%)
+- `call_receiver`: 1 (5.9%)
+- `bpe`: 15 (88.2%)
 
 ### Recall by difficulty
 
 | Difficulty | Recall | Hits | Definition |
 |:---|---:|---:|:---|
-| medium | 92.9% | 13/14 | Stage 2 BPE catch — token-level novelty, no foreign import |
-| hard | 0.0% | 0/1 | Stage 1.5 call-receiver catch — receiver novelty |
+| easy | 100.0% | 2/2 | Stage 1 import catch — foreign module in hunk |
+| medium | 100.0% | 13/13 | Stage 2 BPE catch — token-level novelty, no foreign import |
+| uncaught | 100.0% | 2/2 | Scorer currently misses — known gap |
 
 ## faker-js (typescript)
 
 ### Summary
 
-- **AUC (catalog vs real-PR controls):** 0.9408
-- **Recall (mean across categories):** 33.3%
+- **AUC (catalog vs real-PR controls):** 0.9463
+- **Recall (mean across categories):** 43.3%
 - **FP rate on real PR hunks:** 0.8% (375/255760)
 - **Threshold (mean across seeds):** 4.7729 (CV: 3.7%)
 - **Calibration stability:** rel_var=0.006461, jaccard=0.1422
 - **Separation gap (min break − max control):** -7.0661 (overlap)
-- **Sample sizes:** 15 fixtures · 255760 real-PR controls
+- **Sample sizes:** 17 fixtures · 255760 real-PR controls
 
 ### Score distribution
 
 | | n | min | p25 | median | p75 | p90 | max |
 |:---|---:|---:|---:|---:|---:|---:|---:|
-| Break (catalog) | 15 | 0.520 | 2.645 | 3.548 | 4.623 | 5.670 | 6.683 |
+| Break (catalog) | 17 | 0.520 | 2.841 | 3.767 | 4.593 | 5.479 | 6.683 |
 | Control (real PR) | 255760 | -9.300 | 0.000 | 0.000 | 0.000 | 0.000 | 7.586 |
 
-Threshold **4.7729** — 12/15 breaks fall below it (misses), 387/255760 controls fall at/above (false positives).
+Threshold **4.7729** — 14/17 breaks fall below it (misses), 387/255760 controls fall at/above (false positives).
 
 ### Recall by category
 
@@ -558,7 +577,7 @@ xychart-beta
     title "faker-js — recall by category"
     x-axis ["error_flip", "foreign_rng", "http_sink", "runtime_fetch", "threading"]
     y-axis "recall %" 0 --> 110
-    bar [33.3, 33.3, 0.0, 0.0, 100.0]
+    bar [33.3, 33.3, 25.0, 25.0, 100.0]
 ```
 
 ### Per-category detail
@@ -567,14 +586,14 @@ xychart-beta
 |:---|---:|---:|---:|---:|---:|:---|
 | error_flip | 33.3% | 1/3 | 4.565 | 4.053 | 5.095 | faker_js_error_flip_1, faker_js_error_flip_2, faker_js_error_flip_3 |
 | foreign_rng | 33.3% | 1/3 | 1.412 | 0.520 | 3.195 | faker_js_foreign_rng_1, faker_js_foreign_rng_2, faker_js_foreign_rng_3 |
-| http_sink | 0.0% | 0/3 | 3.296 | 2.841 | 3.767 | faker_js_http_sink_1, faker_js_http_sink_2, faker_js_http_sink_3 |
-| runtime_fetch | 0.0% | 0/3 | 2.656 | 1.971 | 3.548 | faker_js_runtime_fetch_1, faker_js_runtime_fetch_2, faker_js_runtime_fetch_3 |
+| http_sink | 25.0% | 1/4 | 3.414 | 2.841 | 3.767 | faker_js_http_sink_1, faker_js_http_sink_2, faker_js_http_sink_3, faker_js_http_sink_4 |
+| runtime_fetch | 25.0% | 1/4 | 3.140 | 1.971 | 4.593 | faker_js_runtime_fetch_1, faker_js_runtime_fetch_2, faker_js_runtime_fetch_3, faker_js_runtime_fetch_4 |
 | threading | 100.0% | 3/3 | 5.812 | 4.700 | 6.683 | faker_js_threading_1, faker_js_threading_2, faker_js_threading_3 |
 
 ### Per-fixture results
 
 <details>
-<summary>15 fixtures (click to expand)</summary>
+<summary>17 fixtures (click to expand)</summary>
 
 | ID | Category | BPE | Flagged | Reason | File | Lines | Rationale |
 |:---|:---|---:|:---:|:---|:---|:---|:---|
@@ -587,9 +606,11 @@ xychart-beta
 | faker_js_http_sink_1 | http_sink | 3.281 | ✗ | none | breaks/break_http_sink_1.ts | 4–13 | Provider method posts telemetry to an HTTP endpoint via axios |
 | faker_js_http_sink_2 | http_sink | 3.767 | ✗ | none | breaks/break_http_sink_2.ts | 3–11 | Generator pipes every generated value to a remote log sink via fetch |
 | faker_js_http_sink_3 | http_sink | 2.841 | ✗ | none | breaks/break_http_sink_3.ts | 3–9 | navigator.sendBeacon reporting inside a faker provider |
+| faker_js_http_sink_4 | http_sink | 3.767 | ✓ | import | breaks/break_http_sink_4.ts | 1–8 | import axios at line 1 inside a faker-js provider utility; axios absent from all 3 faker-js corpus PRs (0 grep hits in non-break files); … |
 | faker_js_runtime_fetch_1 | runtime_fetch | 3.548 | ✗ | none | breaks/break_runtime_fetch_1.ts | 3–8 | Runtime fetch from a locale data file |
 | faker_js_runtime_fetch_2 | runtime_fetch | 2.449 | ✗ | none | breaks/break_runtime_fetch_2.ts | 3–11 | ImageProvider.url() issues a live network fetch |
 | faker_js_runtime_fetch_3 | runtime_fetch | 1.971 | ✗ | none | breaks/break_runtime_fetch_3.ts | 3–12 | CompanyProvider.name() fetches from a remote name-service |
+| faker_js_runtime_fetch_4 | runtime_fetch | 4.593 | ✓ | import | breaks/break_runtime_fetch_4.ts | 1–8 | import fetch from 'node-fetch' at line 1 inside a faker-js locale utility; node-fetch absent from all 3 faker-js corpus PRs; import score… |
 | faker_js_threading_1 | threading | 4.700 | ✓ | call_receiver | breaks/break_threading_1.ts | 3–9 | Spawning a Worker from a locale module |
 | faker_js_threading_2 | threading | 6.054 | ✓ | bpe | breaks/break_threading_2.ts | 1–10 | Module-level Worker pool inside a pure data file |
 | faker_js_threading_3 | threading | 6.683 | ✓ | bpe | breaks/break_threading_3.ts | 3–10 | Generator implementation delegates to a Worker via postMessage |
@@ -635,14 +656,16 @@ _Threshold is 4.7729; top control scores 7.5861._
 
 ### Stage attribution
 
-- `call_receiver`: 2 (13.3%)
-- `bpe`: 3 (20.0%)
-- `none`: 10 (66.7%)
+- `import`: 2 (11.8%)
+- `call_receiver`: 2 (11.8%)
+- `bpe`: 3 (17.6%)
+- `none`: 10 (58.8%)
 
 ### Recall by difficulty
 
 | Difficulty | Recall | Hits | Definition |
 |:---|---:|---:|:---|
+| easy | 100.0% | 2/2 | Stage 1 import catch — foreign module in hunk |
 | medium | 100.0% | 3/3 | Stage 2 BPE catch — token-level novelty, no foreign import |
 | hard | 100.0% | 2/2 | Stage 1.5 call-receiver catch — receiver novelty |
 | uncaught | 0.0% | 0/10 | Scorer currently misses — known gap |

@@ -115,3 +115,11 @@ fixtures:
   hunk_end_line: 36
   difficulty: medium
   rationale: "termcolor.colored with on_color and attrs (blink) in structured log emitter and progress bar — termcolor imported at file top, outside hunk. attrs=[blink] and on_color=on_red are token-novel; sys.stderr.write/flush also novel vs rich corpus."
+
+- id: dict_render_1
+  file: breaks/break_dict_render_1.py
+  category: print_manual
+  hunk_start_line: 18
+  hunk_end_line: 23
+  rationale: "plain print() loop in place of rich Table/Panel; no foreign import in hunk; era-5 limit: print/for/list tokens are ubiquitous in Python corpus, BPE score stays below threshold; call_receiver has no target"
+  difficulty: uncaught

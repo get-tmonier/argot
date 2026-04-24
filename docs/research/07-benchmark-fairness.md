@@ -190,6 +190,68 @@ calibrates high, missing breaks close to the noise floor.
 | G-5 | All 107 fixtures have non-None difficulty label | ✓ |
 | G-6 | `recall_by_difficulty` present in every corpus report | ✓ |
 
+## Band-coverage additions (Tier 2)
+
+After the canonical T1 baseline was established, two gap-fill passes added
+band coverage where it was missing:
+
+### T2.a — easy fixtures for TS corpora
+
+All three TypeScript corpora had zero `easy` fixtures. Six new fixtures were
+added (2 per corpus) with `hunk_start_line=1` covering the foreign import:
+
+| Fixture | Corpus | Import |
+|:---|:---|:---|
+| hono_framework_swap_4 | hono | `import express from 'express'` |
+| hono_middleware_4 | hono | `import Koa from 'koa'` |
+| ink_jquery_4 | ink | `import $ from 'jquery'` |
+| ink_class_components_4 | ink | `import React, { Component } from 'react'` |
+| faker_js_http_sink_4 | faker-js | `import axios from 'axios'` |
+| faker_js_runtime_fetch_4 | faker-js | `import fetch from 'node-fetch'` |
+
+All six verified with reason=import in pre-commit bench runs.
+
+### T2.b — uncaught fixtures for gap corpora
+
+rich and faker had zero `uncaught` fixtures. One new fixture per corpus
+documents a documented scoring limit:
+
+| Fixture | Corpus | Break pattern | Scorer limit |
+|:---|:---|:---|:---|
+| dict_render_1 | rich | plain `print()` loop instead of `rich.Table` | Era-5: BPE tokens (print/for/list) are ubiquitous — score stays below threshold |
+| synthetic_formula_1 | faker | f-string synthesis instead of `faker.email()` | Era-6: no call_receiver target; f-string tokens are nominal |
+
+Both verified with reason=none (score below threshold) in pre-commit bench runs.
+
+### T2.c — final baseline
+
+Run `20260424T135502Z` (5 seeds, all corpora, shipping scorer alpha=1.0). Updated
+fixture counts: **115 total** (107 T1 + 6 T2.a easy + 2 T2.b uncaught).
+
+```
+| Corpus    | Lang | AUC    | Recall | FP   | N_fix | N_ctrl  |
+|-----------|------|--------|--------|------|-------|---------|
+| fastapi   | py   | 0.9880 | 91.7%  | 0.8% | 32    | 79,623  |
+| rich      | py   | 0.9780 | 95.0%  | 0.4% | 16    | 68,598  |
+| faker     | py   | 0.9537 | 83.3%  | 0.9% | 16    | 75,996  |
+| hono      | ts   | 0.8312 | 65.0%  | 0.4% | 17    | 54,717  |
+| ink       | ts   | 0.9899 | 100.0% | 1.1% | 17    | 16,678  |
+| faker-js  | ts   | 0.9463 | 43.3%  | 0.8% | 17    | 255,760 |
+```
+
+Avg recall: **79.7%** (Gate 6 threshold 78% ✓). FP unchanged.
+
+### Updated gate summary
+
+| Gate | Requirement | Status |
+|:---|:---|:---|
+| G-1 | 91/91 old-fixture verdicts consistent (amended) | ✓ (91 exact, 0 regressions) |
+| G-2 | All FP ≤ 1.5% | ✓ (max 1.1%) |
+| G-3 | ≥15 fixtures, ≥5 categories, ≥3/category per corpus | ✓ |
+| G-4 | Every corpus has ≥1 easy fixture | ✓ |
+| G-5 | Every corpus has ≥1 uncaught fixture | ✓ |
+| G-6 | Avg recall ≥ 78% | ✓ (79.7%) |
+
 ## What's next
 
 Era 7 provides the difficulty-stratified baseline needed to develop and
@@ -198,6 +260,6 @@ improvements) and the uncaught band (new stages). The recall_by_difficulty
 metric makes it possible to verify that improvements to hard fixtures don't
 regress easy or medium fixtures.
 
-The faker-js medium-band gap (3/15 recall) is a separate investigation: the
+The faker-js medium-band gap (3/17 recall) is a separate investigation: the
 BPE threshold calibration on a 256K-hunk corpus is noisier than other corpora,
 and the fixtures may need to be rescaled to larger hunk windows.

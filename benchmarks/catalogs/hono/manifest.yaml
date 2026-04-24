@@ -116,3 +116,17 @@ fixtures:
     hunk_end_line: 14
     rationale: "Express-shaped app.all('*', (req, res)) wildcard catch-all"
     difficulty: uncaught
+  - id: hono_framework_swap_4
+    file: breaks/break_framework_swap_4.ts
+    category: framework_swap
+    hunk_start_line: 1
+    hunk_end_line: 15
+    rationale: "import express at line 1 — standalone Express Router module in a Hono project; 'express' appears 0 times in non-break hono corpus files vs 3 times across existing break fixtures"
+    difficulty: easy
+  - id: hono_middleware_4
+    file: breaks/break_middleware_4.ts
+    category: middleware
+    hunk_start_line: 1
+    hunk_end_line: 21
+    rationale: "import Koa + @koa/router at line 1 — Koa ctx.body middleware pattern in a Hono project; Koa absent from all hono corpus PRs (0 grep hits)"
+    difficulty: easy

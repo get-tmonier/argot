@@ -116,3 +116,17 @@ fixtures:
     hunk_end_line: 9
     rationale: "seed() override throws, breaking the determinism contract"
     difficulty: uncaught
+  - id: faker_js_http_sink_4
+    file: breaks/break_http_sink_4.ts
+    category: http_sink
+    hunk_start_line: 1
+    hunk_end_line: 8
+    rationale: "import axios at line 1 inside a faker-js provider utility; axios absent from all 3 faker-js corpus PRs (0 grep hits in non-break files); import scorer fires immediately"
+    difficulty: easy
+  - id: faker_js_runtime_fetch_4
+    file: breaks/break_runtime_fetch_4.ts
+    category: runtime_fetch
+    hunk_start_line: 1
+    hunk_end_line: 8
+    rationale: "import fetch from 'node-fetch' at line 1 inside a faker-js locale utility; node-fetch absent from all 3 faker-js corpus PRs; import scorer fires immediately"
+    difficulty: easy

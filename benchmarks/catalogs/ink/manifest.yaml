@@ -116,3 +116,17 @@ fixtures:
     hunk_end_line: 15
     rationale: "try/finally with throw but no catch inside render"
     difficulty: medium
+  - id: ink_jquery_4
+    file: breaks/break_jquery_4.tsx
+    category: jquery
+    hunk_start_line: 1
+    hunk_end_line: 12
+    rationale: "import $ from 'jquery' at line 1 in an ink terminal component; jquery absent from all 3 ink corpus PRs (0 grep hits); import scorer fires immediately"
+    difficulty: easy
+  - id: ink_class_components_4
+    file: breaks/break_class_components_4.tsx
+    category: class_components
+    hunk_start_line: 1
+    hunk_end_line: 26
+    rationale: "import React, { Component } from 'react' at line 1 — class-based component in a hooks-only ink codebase; Component import absent from all 3 ink corpus PRs"
+    difficulty: easy
