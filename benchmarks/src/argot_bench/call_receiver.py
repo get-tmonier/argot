@@ -161,4 +161,13 @@ class CallReceiverScorer:
         self.attested: frozenset[str] = frozenset(attested)
 
     def score_hunk(self, hunk_content: str) -> CallReceiverResult:
-        raise NotImplementedError
+        callees = extract_callees(hunk_content, self._language)
+        seen: set[str] = set()
+        deduped: list[str] = []
+        for c in callees:
+            if c is not None and c not in self.attested and c not in seen:
+                seen.add(c)
+                deduped.append(c)
+        unattested_tuple = tuple(deduped)
+        flagged = len(unattested_tuple) >= self._k
+        return CallReceiverResult(unattested=unattested_tuple, flagged=flagged)

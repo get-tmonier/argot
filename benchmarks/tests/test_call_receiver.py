@@ -212,3 +212,39 @@ def test_scorer_fit_empty_file_list_raises():
     except ValueError:
         return
     raise AssertionError("expected ValueError for empty model_a_files")
+
+
+def test_scorer_k1_flags_single_unattested(tmp_path):
+    from argot_bench.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.py"
+    f.write_text("import logging\nlogger = logging.getLogger()\nlogger.info('x')\n")
+    scorer = CallReceiverScorer([f], language="python", k=1)
+
+    result = scorer.score_hunk("x = Math.random()")
+    assert result.flagged is True
+    assert "Math.random" in result.unattested
+
+
+def test_scorer_k1_all_attested_does_not_flag(tmp_path):
+    from argot_bench.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.py"
+    f.write_text("logger.info('x')\nlogger.debug('y')\n")
+    scorer = CallReceiverScorer([f], language="python", k=1)
+
+    result = scorer.score_hunk("logger.info('hello')\nlogger.debug('world')")
+    assert result.flagged is False
+    assert result.unattested == ()
+
+
+def test_scorer_empty_hunk_does_not_flag(tmp_path):
+    from argot_bench.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.py"
+    f.write_text("logger.info('x')\n")
+    scorer = CallReceiverScorer([f], language="python", k=1)
+
+    for hunk in ("", "x = 1", "# only a comment"):
+        result = scorer.score_hunk(hunk)
+        assert result.flagged is False, f"unexpectedly flagged: {hunk!r}"
