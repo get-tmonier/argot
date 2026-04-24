@@ -170,7 +170,7 @@ class CallReceiverScorer:
         self.attested: frozenset[str] = frozenset(attested)
         self.n_skipped_data_dominant: int = skipped
 
-    def score_hunk(self, hunk_content: str) -> CallReceiverResult:
+    def _get_distinct_unattested(self, hunk_content: str) -> list[str]:
         callees = extract_callees(hunk_content, self._language)
         seen: set[str] = set()
         deduped: list[str] = []
@@ -178,7 +178,10 @@ class CallReceiverScorer:
             if c is not None and c not in self.attested and c not in seen:
                 seen.add(c)
                 deduped.append(c)
-        unattested_tuple = tuple(deduped)
+        return deduped
+
+    def score_hunk(self, hunk_content: str) -> CallReceiverResult:
+        unattested_tuple = tuple(self._get_distinct_unattested(hunk_content))
         flagged = len(unattested_tuple) >= self._k
         return CallReceiverResult(unattested=unattested_tuple, flagged=flagged)
 
@@ -188,11 +191,4 @@ class CallReceiverScorer:
         Same extraction rule as score_hunk, but returns just the count.
         Used by BenchScorer for the soft-penalty formula.
         """
-        callees = extract_callees(hunk_content, self._language)
-        seen: set[str] = set()
-        count = 0
-        for c in callees:
-            if c is not None and c not in self.attested and c not in seen:
-                seen.add(c)
-                count += 1
-        return count
+        return len(self._get_distinct_unattested(hunk_content))
