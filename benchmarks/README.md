@@ -117,6 +117,33 @@ for the design.
   the bulk of the break mass sits above the bulk of the control mass.
   Acceptable, but sensitive to calibration drift.
 
+## Metric definitions
+
+### avg_recall
+
+Arithmetic mean of per-corpus recall, where:
+
+    per-corpus recall = flagged_fixtures / total_fixtures
+
+Corpora are weighted equally — faker's 15 fixtures count the same as fastapi's 31.
+
+### recall_by_difficulty
+
+Per-difficulty-band recall, newly added in era 7:
+
+    recall_band = flagged_in_band / total_in_band
+
+Bands: `easy` (Stage 1 import catch), `medium` (Stage 2 BPE catch),
+`hard` (Stage 1.5 call-receiver catch), `uncaught` (scorer currently misses).
+
+### FP rate
+
+    FP rate = flagged_controls / eligible_controls
+
+"Eligible" excludes hunks with reason in `{atypical, atypical_file, excluded_path,
+auto_generated}` — these are short-circuited before the scorer and are not true
+false positives.
+
 ## Current baseline
 
 From [`latest/report.md`](results/baseline/latest/report.md)

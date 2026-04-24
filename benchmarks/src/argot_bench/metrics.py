@@ -1,3 +1,28 @@
+"""Metric helpers for argot-bench.
+
+Metric definitions
+------------------
+avg_recall
+    Arithmetic mean of per-corpus recall values, where per-corpus recall is
+    defined as: flagged_fixtures / total_fixtures (within that corpus).
+    Corpora are weighted equally regardless of fixture count — a corpus with
+    5 fixtures counts the same as one with 31.
+
+recall_by_difficulty
+    Per-difficulty-band recall. Fixtures are grouped by their ``difficulty``
+    field (easy / medium / hard / uncaught). Within each band:
+        recall = flagged_fixtures_in_band / total_fixtures_in_band
+    Fixtures with difficulty=None are excluded.
+
+fp_rate (FP rate)
+    False positive rate on real-PR control hunks:
+        FP rate = flagged_controls / eligible_controls
+    where "eligible" excludes hunks with reason in
+    {atypical, atypical_file, excluded_path, auto_generated}.
+    These are short-circuited before the scorer runs and are not true
+    false positives.
+"""
+
 from __future__ import annotations
 
 import math
