@@ -62,6 +62,9 @@ def _extract_python_callee(call_node: Node) -> str | None:
     if callee.type in _PY_IDENTIFIER_TYPES:
         parts.insert(0, _text(callee))
         return ".".join(parts)
+    if callee.type in _PY_CALL_TYPES:
+        parts.insert(0, "<call>")
+        return ".".join(parts)
     return None
 
 
@@ -106,9 +109,10 @@ def extract_callees(source: str, language: Language) -> list[str | None]:
     """Return dotted-callee signatures for every call-expression in *source*.
 
     Each call-expression maps to a dotted string (``"Math.random"``, ``"app.route"``,
-    ``"fetch"``) or ``None`` when the callee bottoms out at a non-identifier node
-    (another call, subscript, parenthesised expression).  ``None`` entries are
-    included for auditing but excluded from set membership.
+    ``"fetch"``), a canonical ``"<call>.X"`` string when the callee chain root is itself
+    a call expression (e.g., ``Router().route('/x')`` → ``"<call>.route"``), or ``None``
+    when the callee bottoms out at a subscript or parenthesised expression.  ``None``
+    entries are included for auditing but excluded from set membership.
 
     Returns ``[]`` on parse error or empty source.
     """
