@@ -149,19 +149,19 @@ false positives.
 ## Current baseline
 
 From [`latest/report.md`](results/baseline/latest/report.md)
-(run `20260424T144605Z`, 115 fixtures, 5 PR snapshots per corpus,
-difficulty-labelled, call_receiver_alpha=1.0 — shipping scorer default):
+(run `20260424T163221Z`, 115 fixtures, 5 PR snapshots per corpus,
+difficulty-labelled, call_receiver_alpha=2.0 — shipping scorer default):
 
 | Corpus | AUC | Recall | FP | N_fix | N_ctrl |
 |:---|---:|---:|---:|---:|---:|
 | fastapi | 0.9880 | 91.7% | 0.8% | 32 | 79,623 |
-| rich | 0.9780 | 95.0% | 0.4% | 16 | 68,598 |
-| faker | 0.9537 | 95.0% | 0.9% | 16 | 75,996 |
-| hono | 0.8312 | 71.7% | 0.4% | 17 | 54,717 |
-| ink | 0.9899 | 86.7% | 0.4% | 17 | 16,678 |
-| faker-js | 0.9463 | 43.3% | 0.8% | 17 | 255,760 |
+| rich | 0.9780 | 95.0% | 0.8% | 16 | 68,598 |
+| faker | 0.9537 | 95.0% | 1.2% | 16 | 75,996 |
+| hono | 0.8312 | 78.3% | 0.5% | 17 | 54,717 |
+| ink | 0.9899 | 93.3% | 0.4% | 17 | 16,678 |
+| faker-js | 0.9463 | 53.3% | 1.0% | 17 | 255,760 |
 
-Average recall 80.57%; all corpora FP ≤ 0.9%. Easy and medium fixtures are
+Average recall 84.4%; all corpora FP ≤ 1.2%. Easy and medium fixtures are
 caught at ≥80% on five of six corpora; hard fixtures depend on Stage 1.5.
 Threshold CV ≤ 10% across all corpora: runs are reproducible across seeds.
 
@@ -174,29 +174,22 @@ Threshold CV ≤ 10% across all corpora: runs are reproducible across seeds.
    property/class/method identifiers dilute `literal_leaf_ratio`
    below the 0.80 cutoff.
 
-2. **Complex-chain callees.** The call-receiver scorer
-   ([`docs/research/06-call-receiver.md`](../docs/research/06-call-receiver.md))
-   skips callees whose innermost object is itself a call or subscript
-   (e.g., `Router().route(path).get()`). hono routing_2 / routing_3 are
-   invisible to Stage 1.5 for this reason and remain BPE-only gated.
+2. **Single-callee foreign-receiver breaks below threshold.** faker-js
+   `foreign_rng_1` and `_3` have a single `Math.random()` call each; the
+   soft penalty at α=2.0 (contribution 2.0) is still below the gap between
+   their BPE scores (0.52) and the threshold (4.77). Catching these would
+   require a frequency-weighted variant of the scorer.
 
-3. **Single-callee foreign-receiver breaks.** faker-js `foreign_rng_1`
-   and `_3` have a single `Math.random()` call each; the soft penalty
-   at α=1.0 (contribution 1.0) is below the gap between their BPE
-   scores (0.52) and the threshold (4.77). Catching these would require
-   a frequency-weighted variant of the scorer.
-
-4. **Semantic breaks with no foreign callee at all.** hono
+3. **Semantic breaks with no foreign callee at all.** hono
    `middleware_3` calls `next()` synchronously instead of `await next()`
    — no foreign callee to flag, no token novelty, no import diff. The
    scorer is structurally blind to this class.
 
-5. **Threshold-borderline ink dom_access fixtures.** ink `dom_access_1`
-   (document.getElementById) and `dom_access_2` (window.location.href)
-   score within ink's ±10.6% calibration noise band and are labelled
-   `uncaught`. They flip verdicts between independent 5-seed runs; a
-   tighter ink calibration (larger n_cal or p95 threshold) is needed
-   before they can be reliably caught.
+4. **Threshold-borderline ink dom_access_2.** ink `dom_access_2`
+   (window.location.href) scores 4.215, just below ink's threshold of
+   4.826 (within the ±6.9% calibration noise band). A tighter ink
+   calibration (larger n_cal or p95 threshold) would be needed to catch it
+   reliably.
 
 ## Reading a report
 
@@ -214,6 +207,76 @@ The generated `report.md` has, per corpus:
 - **Top 5 real-PR controls** — the hunks closest to flagging but not
   flagged; useful for investigating near-FPs.
 - **Stage attribution** — import vs bpe vs none, with percentages.
+
+## Era history
+
+Each era represents a research increment that cleared all pre-registered gates
+and was promoted as the canonical baseline. Only eras that shipped are listed.
+
+### Era 8 — complex-chain callee canonicalization (20260424T144605Z, α=1.0)
+
+Extended the call-receiver extractor to canonicalize call-rooted member chains
+(`Router().route(path).get(h)`) as `<call>.route` / `<call>.get` instead of
+silently dropping them. One fixture moved uncaught→hard: `hono_routing_2`.
+
+| Corpus | AUC | Recall | FP | N_fix | N_ctrl |
+|:---|---:|---:|---:|---:|---:|
+| fastapi | 0.9880 | 91.7% | 0.8% | 32 | 79,623 |
+| rich | 0.9780 | 95.0% | 0.4% | 16 | 68,598 |
+| faker | 0.9537 | 95.0% | 0.9% | 16 | 75,996 |
+| hono | 0.8312 | 71.7% | 0.4% | 17 | 54,717 |
+| ink | 0.9899 | 86.7% | 0.4% | 17 | 16,678 |
+| faker-js | 0.9463 | 43.3% | 0.8% | 17 | 255,760 |
+
+Avg recall 80.57%. Fixtures relabelled: `hono_routing_2` uncaught→hard.
+
+```mermaid
+xychart-beta
+    title "Era 8 recall by corpus"
+    x-axis ["fastapi", "rich", "faker", "hono", "ink", "faker-js"]
+    y-axis "recall %" 0 --> 110
+    bar [91.7, 95.0, 95.0, 71.7, 86.7, 43.3]
+```
+
+See [`docs/research/08-complex-chain-callee.md`](../docs/research/08-complex-chain-callee.md).
+
+### Era 9 — alpha=2.0 sweep (20260424T163221Z, α=2.0)
+
+Raised `call_receiver_alpha` from 1.0 to 2.0. Primary α=3.0 failed Gate 3
+(faker FP 1.6% > 1.5%); fallback α=2.0 cleared all 6 gates. Four fixtures
+moved uncaught→hard: `faker_js_http_sink_1`, `faker_js_http_sink_3`,
+`hono_routing_3`, `ink_dom_access_1`.
+
+| Corpus | AUC | Recall | FP | N_fix | N_ctrl |
+|:---|---:|---:|---:|---:|---:|
+| fastapi | 0.9880 | 91.7% | 0.8% | 32 | 79,623 |
+| rich | 0.9780 | 95.0% | 0.8% | 16 | 68,598 |
+| faker | 0.9537 | 95.0% | 1.2% | 16 | 75,996 |
+| hono | 0.8312 | 78.3% | 0.5% | 17 | 54,717 |
+| ink | 0.9899 | 93.3% | 0.4% | 17 | 16,678 |
+| faker-js | 0.9463 | 53.3% | 1.0% | 17 | 255,760 |
+
+Avg recall 84.4% (+3.8 pp vs era-8).
+
+```mermaid
+xychart-beta
+    title "Era 9 recall by corpus"
+    x-axis ["fastapi", "rich", "faker", "hono", "ink", "faker-js"]
+    y-axis "recall %" 0 --> 110
+    bar [91.7, 95.0, 95.0, 78.3, 93.3, 53.3]
+```
+
+Era-8 vs era-9 delta:
+
+```mermaid
+xychart-beta
+    title "Era 9 gains vs era 8 (pp)"
+    x-axis ["fastapi", "rich", "faker", "hono", "ink", "faker-js"]
+    y-axis "recall gain pp" -5 --> 15
+    bar [0, 0, 0, 6.6, 6.6, 10.0]
+```
+
+See [`docs/research/09-alpha-sweep.md`](../docs/research/09-alpha-sweep.md).
 
 ## Updating the baseline
 

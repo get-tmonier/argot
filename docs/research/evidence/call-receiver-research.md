@@ -415,3 +415,53 @@ All four gates pass. Era 6 ships.
   call_receiver only when its hunk had parse errors. This fixture was NOT
   caught in era-5 baseline (75.0% validation era-5). Gate 4 does not fire.
 - All other corpora: recall unchanged vs prior alpha=1.0 run.
+
+---
+
+## Era 9 — alpha=2.0 sweep (20260424T163221Z)
+
+### Setup
+
+Hypothesis: faker-js `http_sink_1` (BPE 3.281, 1 unattested callee) and
+`http_sink_3` (BPE 2.841, 1 unattested callee) cross threshold at α≥2
+(adj 5.281 and 4.841 vs threshold 4.773). Primary α=3.0; fallback α=2.0.
+
+α=3.0 run failed Gate 3: faker FP 1.6% > 1.5%. Per pre-registered decision
+tree, fallback α=2.0 was run. Full 5-seed bench, all 6 corpora.
+
+**Shipping config: alpha=2.0, cap=5.**
+
+### Results (alpha=2.0)
+
+| Corpus | Lang | AUC | Recall | FP | Gap | N_fix | N_ctrl | Thr |
+|:---|:---|---:|---:|---:|---:|---:|---:|---:|
+| fastapi | python | 0.9880 | 91.7% | 0.8% | -4.371 | 32 | 79623 | 5.278 |
+| rich | python | 0.9780 | 95.0% | 0.8% | -3.040 | 16 | 68598 | 4.164 |
+| faker | python | 0.9537 | 95.0% | 1.2% | -4.946 | 16 | 75996 | 5.211 |
+| hono | typescript | 0.8312 | 78.3% | 0.5% | -7.471 | 17 | 54717 | 4.277 |
+| ink | typescript | 0.9899 | 93.3% | 0.4% | -4.633 | 17 | 16678 | 4.826 |
+| faker-js | typescript | 0.9463 | 53.3% | 1.0% | -7.066 | 17 | 255760 | 4.773 |
+
+Avg recall: 84.4% (+3.8 pp vs era-8 baseline of 80.57%).
+
+### Gate evaluation
+
+| # | Gate | Threshold | Observed | Verdict |
+|---|---|---|---|---|
+| 1 | Avg recall ≥ 83.5% | 83.5% | 84.4% | **PASS** |
+| 2 | No corpus regression > 1 fixture | — | all improved | **PASS** |
+| 3 | All corpora FP ≤ 1.5% | 1.5% | max 1.2% (faker) | **PASS** |
+| 4 | 0 category regressions from 100% | 0 | 0 | **PASS** |
+| 5 | faker-js ≥ 9/17 | 9/17 | 9/17 | **PASS** |
+| 6 | hono ≥ 12/17 | 12/17 | 13/17 | **PASS** |
+
+All 6 gates pass. Era 9 ships.
+
+### Fixtures moved
+
+| Fixture | Old label | New label |
+|---|---|---|
+| faker_js_http_sink_1 | uncaught | hard |
+| faker_js_http_sink_3 | uncaught | hard |
+| hono_routing_3 | uncaught | hard |
+| ink_dom_access_1 | uncaught | hard |
