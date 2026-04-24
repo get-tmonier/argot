@@ -66,6 +66,25 @@ def _extract_python_callee(call_node: Node) -> str | None:
     return None
 
 
+def _extract_typescript_callee(call_node: Node) -> str | None:
+    field_name = "constructor" if call_node.type == "new_expression" else "function"
+    callee = call_node.child_by_field_name(field_name)
+    if callee is None:
+        return None
+    parts: list[str] = []
+    while callee.type in _TS_MEMBER_TYPES:
+        prop = callee.child_by_field_name("property")
+        obj = callee.child_by_field_name("object")
+        if prop is None or obj is None:
+            return None
+        parts.insert(0, _text(prop))
+        callee = obj
+    if callee.type in _TS_IDENTIFIER_TYPES:
+        parts.insert(0, _text(callee))
+        return ".".join(parts)
+    return None
+
+
 def extract_callees(source: str, language: Language) -> list[str | None]:
     """Return dotted-callee signatures for every call-expression in *source*.
 
@@ -82,8 +101,12 @@ def extract_callees(source: str, language: Language) -> list[str | None]:
         parser = _PY_PARSER
         call_types = _PY_CALL_TYPES
         extractor = _extract_python_callee
+    elif language == "typescript":
+        parser = _TS_PARSER
+        call_types = _TS_CALL_TYPES
+        extractor = _extract_typescript_callee
     else:
-        raise NotImplementedError("typescript extractor not wired yet")
+        raise ValueError(f"unsupported language: {language}")
 
     try:
         tree = parser.parse(source.encode("utf-8"))

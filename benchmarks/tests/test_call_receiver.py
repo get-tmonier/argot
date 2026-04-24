@@ -8,14 +8,14 @@ def test_module_exports():
     assert isinstance(CallReceiverScorer, type)
 
 
-def test_extract_callees_typescript_raises_not_implemented():
+def test_extract_callees_unknown_language_raises_value_error():
     from argot_bench.call_receiver import extract_callees
 
     try:
-        extract_callees("fetch()", "typescript")
-    except NotImplementedError:
+        extract_callees("fetch()", "ruby")  # type: ignore[arg-type]
+    except ValueError:
         return
-    raise AssertionError("expected NotImplementedError")
+    raise AssertionError("expected ValueError")
 
 
 def test_python_plain_identifier_calls():
@@ -93,3 +93,50 @@ def test_python_complex_chain_returns_none():
     non_none = [c for c in result if c is not None]
     assert "foo" in non_none
     assert None in result
+
+
+def test_typescript_plain_identifier_calls():
+    from argot_bench.call_receiver import extract_callees
+
+    source = "fetch(url);\nconsole.log('x');\nsetTimeout(fn, 1);"
+    result = [c for c in extract_callees(source, "typescript") if c is not None]
+    assert "fetch" in result
+    assert "console.log" in result
+    assert "setTimeout" in result
+
+
+def test_typescript_dotted_member_expression():
+    from argot_bench.call_receiver import extract_callees
+
+    source = "Math.random(); axios.post('/x'); crypto.randomBytes(16);"
+    result = [c for c in extract_callees(source, "typescript") if c is not None]
+    assert "Math.random" in result
+    assert "axios.post" in result
+    assert "crypto.randomBytes" in result
+
+
+def test_typescript_new_expression():
+    from argot_bench.call_receiver import extract_callees
+
+    source = "const w = new Worker(src); const r = new express.Router();"
+    result = [c for c in extract_callees(source, "typescript") if c is not None]
+    assert "Worker" in result
+    assert "express.Router" in result
+
+
+def test_typescript_complex_chain_returns_none():
+    from argot_bench.call_receiver import extract_callees
+
+    source = "Router().route('/x').get(h);\narr[0]();"
+    result = extract_callees(source, "typescript")
+    non_none = [c for c in result if c is not None]
+    assert "Router" in non_none
+    assert None in result
+
+
+def test_typescript_empty_and_parse_error():
+    from argot_bench.call_receiver import extract_callees
+
+    assert extract_callees("", "typescript") == []
+    result = extract_callees("const x = ???", "typescript")
+    assert all(r is None or isinstance(r, str) for r in result)
