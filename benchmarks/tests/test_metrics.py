@@ -90,6 +90,36 @@ def test_calibration_stability_jaccard_and_rel_var():
     assert abs(result["rel_var"] - (0.00666667 / 2.5)) < 1e-4
 
 
+def test_recall_by_difficulty_groups_correctly():
+    results = [
+        {"difficulty": "easy", "flagged": True},
+        {"difficulty": "easy", "flagged": True},
+        {"difficulty": "easy", "flagged": False},
+        {"difficulty": "medium", "flagged": True},
+        {"difficulty": "medium", "flagged": False},
+        {"difficulty": "hard", "flagged": True},
+        {"difficulty": "uncaught", "flagged": False},
+        {"difficulty": None, "flagged": True},
+    ]
+    from argot_bench.metrics import recall_by_difficulty
+    r = recall_by_difficulty(results)
+    assert abs(r["easy"] - 2/3) < 1e-9
+    assert r["medium"] == 0.5
+    assert r["hard"] == 1.0
+    assert r["uncaught"] == 0.0
+    assert None not in r
+
+
+def test_recall_by_difficulty_empty_returns_empty():
+    from argot_bench.metrics import recall_by_difficulty
+    assert recall_by_difficulty([]) == {}
+
+
+def test_recall_by_difficulty_skips_none_difficulty():
+    from argot_bench.metrics import recall_by_difficulty
+    assert recall_by_difficulty([{"difficulty": None, "flagged": True}]) == {}
+
+
 def test_metrics_stage_attribution_counts_call_receiver():
     from argot_bench.metrics import stage_attribution
 

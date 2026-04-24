@@ -17,6 +17,23 @@ def auc_catalog(break_scores: Sequence[float], control_scores: Sequence[float]) 
     return float(roc_auc_score(y_true, y_score))
 
 
+def recall_by_difficulty(results: Iterable[Mapping[str, Any]]) -> dict[str, float]:
+    """Fraction of fixtures flagged, grouped by difficulty label.
+
+    Fixtures with difficulty=None are excluded (unlabeled).
+    """
+    totals: Counter[str] = Counter()
+    flagged: Counter[str] = Counter()
+    for r in results:
+        d = r.get("difficulty")
+        if d is None:
+            continue
+        totals[str(d)] += 1
+        if r["flagged"]:
+            flagged[str(d)] += 1
+    return {band: flagged[band] / totals[band] for band in sorted(totals)}
+
+
 def recall_by_category(results: Iterable[Mapping[str, Any]]) -> dict[str, float]:
     """Fraction of breaks flagged, grouped by category."""
     totals: Counter[str] = Counter()
