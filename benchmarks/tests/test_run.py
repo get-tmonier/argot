@@ -356,3 +356,30 @@ def test_filter_stats_counts_path_exclusions(tmp_path: Path):
     )
     assert len(results) == 2
     assert all(r["reason"] == "excluded_path" for r in results)
+
+
+def test_end_to_end_call_receiver_k1_flags_math_random(tmp_path: Path):
+    """Mini-repo + one hunk; Stage 1.5 at k=1 flags an unattested callee."""
+    from argot_bench.score import build_scorer
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "mod.py").write_text(
+        "import logging\n"
+        "logger = logging.getLogger()\n"
+        "def a():\n"
+        "    logger.info('x')\n"
+        "    logger.debug('y')\n"
+        "    logger.warning('z')\n"
+        "    logger.error('w')\n"
+        "    return 0\n"
+    )
+
+    scorer = build_scorer(
+        repo, n_cal=1, seed=0, language="python", call_receiver_k=1
+    )
+
+    result = scorer.score_hunk("x = Math.random()")
+    assert result.flagged is True
+    assert result.reason == "call_receiver"
+    assert "Math.random" in result.call_receiver_unattested
