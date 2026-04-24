@@ -15,8 +15,6 @@ from argot.scoring.adapters.python_adapter import PythonAdapter
 from argot.scoring.calibration.random_hunk_sampler import sample_hunks
 from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
 
-from argot_bench.call_receiver import CallReceiverScorer
-
 Language = Literal["python", "typescript"]
 Reason = Literal[
     "import",
@@ -40,10 +38,6 @@ _BPE_MODEL_B = (
     / "generic_tokens_bpe.json"
 )
 
-_TERMINAL_REASONS: frozenset[str] = frozenset(
-    {"atypical", "atypical_file", "excluded_path", "auto_generated"}
-)
-
 
 @dataclass(frozen=True)
 class ScoreResult:
@@ -60,21 +54,12 @@ class BenchScorer:
     """Thin wrapper so the harness has one stable adapter surface.
 
     When SequentialImportBpeScorer's constructor or return type changes,
-    only this file changes.
+    only this file changes.  Stage 1.5 (call-receiver) is now handled
+    natively by the inner scorer.
     """
 
-    def __init__(
-        self,
-        inner: SequentialImportBpeScorer,
-        *,
-        call_receiver: CallReceiverScorer | None = None,
-        alpha: float = 0.0,
-        cap: int = 5,
-    ) -> None:
+    def __init__(self, inner: SequentialImportBpeScorer) -> None:
         self._inner = inner
-        self._call_receiver = call_receiver
-        self._alpha = alpha
-        self._cap = cap
 
     @property
     def threshold(self) -> float:
@@ -98,49 +83,17 @@ class BenchScorer:
             hunk_start_line=hunk_start_line,
             hunk_end_line=hunk_end_line,
         )
-        base = ScoreResult(
+        return ScoreResult(
             import_score=float(raw["import_score"]),
             bpe_score=float(raw["bpe_score"]),
             flagged=bool(raw["flagged"]),
-            reason=raw["reason"],
+            reason=raw["reason"],  # type: ignore[arg-type]
         )
-
-        # Typicality short-circuit reasons are terminal.
-        if base.reason in _TERMINAL_REASONS:
-            return base
-
-        # Import stage already fired — takes precedence over call_receiver.
-        if base.reason == "import":
-            return base
-
-        # Stage 1.5: soft penalty (only when call_receiver is wired and alpha > 0).
-        if self._call_receiver is not None and self._alpha > 0.0:
-            n = self._call_receiver.count_unattested(hunk_content)
-            adjusted_bpe = base.bpe_score + self._alpha * min(n, self._cap)
-            if adjusted_bpe > self._inner.bpe_threshold:
-                reason: Reason = (
-                    "call_receiver" if base.bpe_score <= self._inner.bpe_threshold else "bpe"
-                )
-                return ScoreResult(
-                    import_score=base.import_score,
-                    bpe_score=base.bpe_score,
-                    flagged=True,
-                    reason=reason,
-                )
-            return ScoreResult(
-                import_score=base.import_score,
-                bpe_score=base.bpe_score,
-                flagged=False,
-                reason="none",
-            )
-
-        return base
 
 
 def _resolve_adapter(language: Language) -> LanguageAdapter:
     if language == "python":
         return PythonAdapter()
-    # Lazy-import TypeScript adapter so Python-only runs don't pay its import cost.
     from argot.scoring.adapters.typescript import TypeScriptAdapter
 
     return TypeScriptAdapter()
@@ -161,7 +114,7 @@ def build_scorer(
     language: Language,
     bpe_model_b: Path | None = None,
     enable_typicality_filter: bool = True,
-    call_receiver_alpha: float = 0.0,
+    call_receiver_alpha: float = 1.0,
     call_receiver_cap: int = 5,
 ) -> BenchScorer:
     """Build a BenchScorer calibrated on n_cal sampled hunks from repo_dir.
@@ -175,6 +128,7 @@ def build_scorer(
         enable_typicality_filter: Pass True (default) to let the prod scorer filter
             atypical model-A files and calibration hunks internally.
         call_receiver_alpha: Soft-penalty weight. 0.0 disables Stage 1.5 entirely.
+            Default 1.0 (shipping config).
         call_receiver_cap: Max unattested callees counted in the penalty (default 5).
 
     Raises:
@@ -194,11 +148,7 @@ def build_scorer(
         adapter=adapter,
         repo_root=repo_dir,
         enable_typicality_filter=enable_typicality_filter,
+        call_receiver_alpha=call_receiver_alpha,
+        call_receiver_cap=call_receiver_cap,
     )
-    call_receiver = None
-    if call_receiver_alpha > 0.0:
-        call_receiver = CallReceiverScorer(
-            files, language=language, k=1, adapter=adapter
-        )
-
-    return BenchScorer(inner, call_receiver=call_receiver, alpha=call_receiver_alpha, cap=call_receiver_cap)
+    return BenchScorer(inner)
