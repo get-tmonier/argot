@@ -57,12 +57,18 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
-        "--call-receiver-k",
+        "--call-receiver-alpha",
+        type=float,
+        default=0.0,
+        metavar="FLOAT",
+        help="Stage 1.5 soft-penalty weight. 0.0=off (default); 0.5=primary; 0.3/1.0=fallbacks.",
+    )
+    p.add_argument(
+        "--call-receiver-cap",
         type=int,
-        choices=[0, 1, 2],
-        default=0,
-        metavar="{0,1,2}",
-        help="Stage 1.5 call-receiver scorer. 0=off (default); 1=primary; 2=fallback.",
+        default=5,
+        metavar="INT",
+        help="Cap on unattested callees counted in penalty (default 5).",
     )
     p.add_argument(
         "--jobs",
@@ -87,12 +93,18 @@ def build_parser() -> argparse.ArgumentParser:
     one.add_argument("--seeds", type=int, default=None)
     one.add_argument("--sample-controls", type=int, default=None)
     one.add_argument(
-        "--call-receiver-k",
+        "--call-receiver-alpha",
+        type=float,
+        default=0.0,
+        metavar="FLOAT",
+        help="Stage 1.5 soft-penalty weight. 0.0=off (default).",
+    )
+    one.add_argument(
+        "--call-receiver-cap",
         type=int,
-        choices=[0, 1, 2],
-        default=0,
-        metavar="{0,1,2}",
-        help="Stage 1.5 call-receiver scorer. 0=off (default); 1=primary; 2=fallback.",
+        default=5,
+        metavar="INT",
+        help="Cap on unattested callees counted in penalty (default 5).",
     )
 
     return p
@@ -157,7 +169,8 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
         typicality_filter=not args.no_typicality_filter,
         seeds=seeds,
         sample_controls=args.sample_controls,
-        call_receiver_k=args.call_receiver_k,
+        call_receiver_alpha=args.call_receiver_alpha,
+        call_receiver_cap=args.call_receiver_cap,
     )
     args.out_dir.mkdir(parents=True, exist_ok=True)
     r = run_corpus(cfg)
@@ -192,8 +205,10 @@ def _run(args: argparse.Namespace) -> int:
         base_cmd.extend(["--seeds", str(args.seeds)])
     if args.sample_controls is not None:
         base_cmd.extend(["--sample-controls", str(args.sample_controls)])
-    if args.call_receiver_k != 0:
-        base_cmd.extend(["--call-receiver-k", str(args.call_receiver_k)])
+    if args.call_receiver_alpha != 0.0:
+        base_cmd.extend(["--call-receiver-alpha", str(args.call_receiver_alpha)])
+    if args.call_receiver_cap != 5:
+        base_cmd.extend(["--call-receiver-cap", str(args.call_receiver_cap)])
 
     def _run_corpus_subprocess(t: Target) -> tuple[str, int, str]:
         proc = subprocess.run(

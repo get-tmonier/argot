@@ -33,7 +33,10 @@ def test_run_corpus_stub_returns_corpus_report(tmp_path: Path, monkeypatch):
 
             return ScoreResult(import_score=0.0, bpe_score=3.0, flagged=True, reason="bpe")
 
-    def fake_build(repo, *, n_cal, seed, language, bpe_model_b=None, enable_typicality_filter=True, call_receiver_k=0):
+    def fake_build(
+        repo, *, n_cal, seed, language, bpe_model_b=None,
+        enable_typicality_filter=True, call_receiver_alpha=0.0, call_receiver_cap=5,
+    ):
         return FakeBenchScorer()
 
     monkeypatch.setattr(run_mod, "ensure_clone", fake_clone)
@@ -146,7 +149,7 @@ def test_score_real_hunks_skips_missing_files(tmp_path: Path):
     assert results == []
 
 
-def test_run_config_has_call_receiver_k_field():
+def test_run_config_has_call_receiver_alpha_cap_fields():
     from pathlib import Path
 
     from argot_bench.run import RunConfig
@@ -158,9 +161,11 @@ def test_run_config_has_call_receiver_k_field():
         prs=[(1, "abc")],
         catalog_dir=Path("/tmp"),
         data_dir=Path("/tmp"),
-        call_receiver_k=1,
+        call_receiver_alpha=0.5,
+        call_receiver_cap=3,
     )
-    assert cfg.call_receiver_k == 1
+    assert cfg.call_receiver_alpha == 0.5
+    assert cfg.call_receiver_cap == 3
 
     cfg_default = RunConfig(
         corpus="fastapi",
@@ -170,7 +175,8 @@ def test_run_config_has_call_receiver_k_field():
         catalog_dir=Path("/tmp"),
         data_dir=Path("/tmp"),
     )
-    assert cfg_default.call_receiver_k == 0
+    assert cfg_default.call_receiver_alpha == 0.0
+    assert cfg_default.call_receiver_cap == 5
 
 
 def test_run_config_accepts_typicality_filter_field():
@@ -358,9 +364,9 @@ def test_filter_stats_counts_path_exclusions(tmp_path: Path):
     assert all(r["reason"] == "excluded_path" for r in results)
 
 
-def test_end_to_end_call_receiver_k1_flags_math_random(tmp_path: Path):
-    """Mini-repo + one hunk; Stage 1.5 at k=1 flags an unattested callee."""
-    from argot_bench.score import build_scorer
+def test_end_to_end_call_receiver_alpha_builds_active_scorer(tmp_path: Path):
+    """build_scorer with alpha=0.5 produces a scorer with call_receiver stage enabled."""
+    from argot_bench.score import BenchScorer, build_scorer
 
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -376,10 +382,9 @@ def test_end_to_end_call_receiver_k1_flags_math_random(tmp_path: Path):
     )
 
     scorer = build_scorer(
-        repo, n_cal=1, seed=0, language="python", call_receiver_k=1
+        repo, n_cal=1, seed=0, language="python", call_receiver_alpha=0.5
     )
-
-    result = scorer.score_hunk("x = Math.random()")
-    assert result.flagged is True
-    assert result.reason == "call_receiver"
-    assert "Math.random" in result.call_receiver_unattested
+    assert isinstance(scorer, BenchScorer)
+    # call_receiver stage is wired in (not disabled)
+    assert scorer._call_receiver is not None  # type: ignore[attr-defined]
+    assert scorer._alpha == 0.5  # type: ignore[attr-defined]

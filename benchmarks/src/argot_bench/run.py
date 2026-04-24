@@ -38,7 +38,8 @@ class RunConfig:
     fresh: bool = False
     typicality_filter: bool = True
     sample_controls: int | None = None
-    call_receiver_k: int = 0
+    call_receiver_alpha: float = 0.0
+    call_receiver_cap: int = 5
 
 
 def _read_hunk_pair(catalog_dir: Path, fixture: Fixture) -> tuple[str, str]:
@@ -190,7 +191,8 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             fresh=cfg.fresh,
             typicality_filter=cfg.typicality_filter,
             sample_controls=cfg.sample_controls,
-            call_receiver_k=cfg.call_receiver_k,
+            call_receiver_alpha=cfg.call_receiver_alpha,
+            call_receiver_cap=cfg.call_receiver_cap,
         )
         by_cat: dict[str, Fixture] = {}
         for fx in break_fixtures:
@@ -218,7 +220,8 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             seed=seed,
             language=cfg.language,
             enable_typicality_filter=cfg.typicality_filter,
-            call_receiver_alpha=0.5 if cfg.call_receiver_k >= 1 else 0.0,
+            call_receiver_alpha=cfg.call_receiver_alpha,
+            call_receiver_cap=cfg.call_receiver_cap,
         )
         thresholds.append(scorer.threshold)
         cal_score_signatures.append({f"{i}:{s:.4f}" for i, s in enumerate(scorer.cal_scores)})
@@ -249,7 +252,8 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
                 seed=cfg.seeds[0],
                 language=cfg.language,
                 enable_typicality_filter=cfg.typicality_filter,
-                call_receiver_alpha=0.5 if cfg.call_receiver_k >= 1 else 0.0,
+                call_receiver_alpha=cfg.call_receiver_alpha,
+                call_receiver_cap=cfg.call_receiver_cap,
             )
             hunks_stream2: Iterable[dict[str, object]] = _real_pr_hunks(dataset)
             hunks_input2: Iterable[dict[str, object]]
