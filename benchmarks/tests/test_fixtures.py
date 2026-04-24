@@ -138,3 +138,36 @@ def test_faker_each_category_has_three_fixtures():
         by_cat[fx.category] = by_cat.get(fx.category, 0) + 1
     for cat_name, count in by_cat.items():
         assert count >= 3, f"faker category {cat_name!r} has only {count} fixtures (need >=3)"
+
+
+def test_era7_structural_requirements():
+    """Gate 3: every corpus >= 15 fixtures, >= 5 categories, >= 3 per category."""
+    cats = scan_all_catalogs(CATALOGS_DIR)
+    failures = []
+    for cat in cats:
+        n_fix = len(cat.fixtures)
+        n_cats = len(cat.categories)
+        if n_fix < 15:
+            failures.append(f"{cat.corpus}: {n_fix} fixtures (need >=15)")
+        if n_cats < 5:
+            failures.append(f"{cat.corpus}: {n_cats} categories (need >=5)")
+        by_cat: dict[str, int] = {}
+        for fx in cat.fixtures:
+            by_cat[fx.category] = by_cat.get(fx.category, 0) + 1
+        for cat_name, count in by_cat.items():
+            if count < 3:
+                failures.append(
+                    f"{cat.corpus}/{cat_name}: {count} fixtures (need >=3)"
+                )
+    assert not failures, "\n".join(failures)
+
+
+def test_era7_difficulty_coverage_all_fixtures():
+    """Gate 4: every fixture (old + new) has a difficulty label."""
+    cats = scan_all_catalogs(CATALOGS_DIR)
+    missing = []
+    for cat in cats:
+        for fx in cat.fixtures:
+            if fx.difficulty is None:
+                missing.append(f"{cat.corpus}:{fx.id}")
+    assert not missing, f"Fixtures missing difficulty label: {missing}"
