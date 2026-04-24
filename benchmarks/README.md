@@ -47,19 +47,21 @@ often collapses PRs into a single squash commit).
 
 ## Fixture catalogs
 
-Each corpus has 5–10 break categories with 1–5 fixtures per category,
-rationales grounded in corpus evidence, and line-precise hunk bounds.
+Each corpus has exactly 15 fixtures (fastapi: 32) across 5–9 break
+categories with ≥3 fixtures per category, rationales grounded in corpus
+evidence, and line-precise hunk bounds. Every fixture carries a difficulty
+label (easy/medium/hard/uncaught).
 See `benchmarks/catalogs/<corpus>/manifest.yaml`.
 
 | Corpus | Categories | Fixtures |
 |---|---|---|
-| fastapi | 9 | 31 |
-| rich | 5 | 10 |
-| faker | 5 | 5 |
+| fastapi | 9 | 32 |
+| rich | 5 | 15 |
+| faker | 5 | 15 |
 | hono | 5 | 15 |
 | ink | 5 | 15 |
 | faker-js | 5 | 15 |
-| **total** | **34** | **91** |
+| **total** | **34** | **107** |
 
 Example categories: `framework_swap` (Django CBV in a FastAPI app),
 `async_blocking` (`time.sleep` inside an async def), `serialization`
@@ -147,20 +149,22 @@ false positives.
 ## Current baseline
 
 From [`latest/report.md`](results/baseline/latest/report.md)
-(run `20260424T074736Z`, shipping config: call-receiver Stage 1.5 at α=1.0,
-cap=5, with parse-fragment guard):
+(run `20260424T113422Z`, era-7 benchmark: 107 fixtures, 5 PR snapshots
+per corpus, difficulty-labelled; bench default call_receiver_alpha=0.0):
 
 | Corpus | AUC | Recall | FP | N_fix | N_ctrl |
 |:---|---:|---:|---:|---:|---:|
-| fastapi | 0.9918 | 91.7% | 0.1% | 31 | 10,012 |
-| rich | 0.9959 | 100.0% | 0.5% | 10 | 11,536 |
-| faker | 0.9237 | 100.0% | 0.4% | 5 | 12,936 |
+| fastapi | 0.9880 | 71.3% | 0.8% | 32 | 79,623 |
+| rich | 0.9935 | 93.3% | 0.1% | 15 | 68,598 |
+| faker | 0.9530 | 73.3% | 0.7% | 15 | 75,996 |
 | hono | 0.8107 | 60.0% | 0.4% | 15 | 54,717 |
-| ink | 0.9888 | 100.0% | 1.1% | 15 | 16,678 |
-| faker-js | 0.9408 | 33.3% | 0.8% | 15 | 255,760 |
+| ink | 0.9888 | 86.7% | 0.4% | 15 | 16,678 |
+| faker-js | 0.9408 | 20.0% | 0.8% | 15 | 255,760 |
 
-Average recall 80.8%; all corpora FP ≤ 1.1%. Threshold CV ≤ 10% across
-all corpora (0%–9.7%): runs are reproducible across seeds.
+Average recall 67.4%; all corpora FP ≤ 0.8%. The lower recall vs era-6
+reflects the harder era-7 fixture set (medium/hard/uncaught bands); easy
+and medium fixtures are caught at ≥80% on five of six corpora. Threshold
+CV ≤ 10% across all corpora: runs are reproducible across seeds.
 
 ### Known weaknesses (flagged by this baseline)
 
