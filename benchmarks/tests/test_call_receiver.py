@@ -248,3 +248,42 @@ def test_scorer_empty_hunk_does_not_flag(tmp_path):
     for hunk in ("", "x = 1", "# only a comment"):
         result = scorer.score_hunk(hunk)
         assert result.flagged is False, f"unexpectedly flagged: {hunk!r}"
+
+
+def test_scorer_k2_single_unattested_does_not_flag(tmp_path):
+    from argot_bench.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.py"
+    f.write_text("logger.info('x')\n")
+    scorer = CallReceiverScorer([f], language="python", k=2)
+
+    result = scorer.score_hunk("x = Math.random()")
+    assert result.flagged is False
+    assert "Math.random" in result.unattested
+
+
+def test_scorer_k2_two_distinct_unattested_flags(tmp_path):
+    from argot_bench.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.py"
+    f.write_text("logger.info('x')\n")
+    scorer = CallReceiverScorer([f], language="python", k=2)
+
+    result = scorer.score_hunk(
+        "x = Math.random()\ny = crypto.randomBytes(16)"
+    )
+    assert result.flagged is True
+    assert "Math.random" in result.unattested
+    assert "crypto.randomBytes" in result.unattested
+
+
+def test_scorer_k2_same_callee_twice_does_not_flag(tmp_path):
+    from argot_bench.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.py"
+    f.write_text("logger.info('x')\n")
+    scorer = CallReceiverScorer([f], language="python", k=2)
+
+    result = scorer.score_hunk("Math.random()\nMath.random()")
+    assert result.flagged is False
+    assert result.unattested == ("Math.random",)
