@@ -20,7 +20,7 @@
   No GPU · No cloud · No telemetry · Runs in seconds after a one-time calibration
 </p>
 
-$$\text{score}(\text{hunk}) \;=\; \underbrace{\max_{t \;\in\; \text{tokens}(\text{hunk})} \log \frac{P_{\text{generic}}(t)}{P_{\text{repo}}(t)}}_{\text{BPE surprise}} \;+\; \underbrace{\alpha \cdot \min\!\bigl(|\text{callees}(\text{hunk}) \setminus \text{attested}(\text{repo})|,\; C\bigr)}_{\text{call-receiver penalty}}$$
+$$\text{score}(\text{hunk}) \;=\; \underbrace{\max_{t \;\in\; \text{tokens}(\text{hunk})} \log \frac{P_{\text{generic}}(t)}{P_{\text{repo}}(t)}}_{\text{BPE surprise}} \;+\; \underbrace{\alpha \cdot \min\!\bigl(|\text{callees}(\text{hunk}) \setminus \text{attested}(\text{repo})|,\; C\bigr)}_{\text{call-receiver penalty}\;(\alpha=2.0,\;C=5)}$$
 
 ---
 
@@ -234,7 +234,7 @@ flowchart TD
 
    **Stage 1 — import graph:** for each hunk, extracts its import statements and checks whether any imported module is absent from the repo's own first-party import set. A single foreign import immediately flags the hunk (`reason: "import"`).
 
-   **Stage 2 — BPE log-ratio with call-receiver penalty:** tokenizes the hunk with the [UnixCoder](https://huggingface.co/microsoft/unixcoder-base) BPE tokenizer (pre-trained on 9M+ code files across 9 languages — only the vocabulary is used, not the neural network) and computes a max-surprise score over the hunk's tokens. The score is then adjusted by a presence-based penalty over call-expression receivers: `adjusted = bpe + α · min(n_unattested, 5)` where `n_unattested` is the count of distinct dotted callees in the hunk that never appear in the repo's own call sites. α = 1.0 in the shipping config. A parse-fragment guard abstains when the hunk slice doesn't parse cleanly.
+   **Stage 2 — BPE log-ratio with call-receiver penalty:** tokenizes the hunk with the [UnixCoder](https://huggingface.co/microsoft/unixcoder-base) BPE tokenizer (pre-trained on 9M+ code files across 9 languages — only the vocabulary is used, not the neural network) and computes a max-surprise score over the hunk's tokens. The score is then adjusted by a presence-based penalty over call-expression receivers: `adjusted = bpe + α · min(n_unattested, 5)` where `n_unattested` is the count of distinct dotted callees in the hunk that never appear in the repo's own call sites. **α = 2.0** in the shipping config. A parse-fragment guard abstains when the hunk slice doesn't parse cleanly.
 
 $$P_A(t) = \frac{\text{count}_A(t)}{\text{total}_A} + \varepsilon \qquad P_B(t) = \frac{\text{count}_B(t)}{\text{total}_B} + \varepsilon$$
 
@@ -257,7 +257,8 @@ No training data or model leaves your machine. All stages run entirely locally.
 > three dead ends, and 15+ phases of experiments. See
 > [`docs/research/`](docs/research/README.md) for the full narrative
 > (JEPA ensembles → honest eval → token-frequency signal hunt →
-> import-graph breakthrough → typicality filter → call-receiver scorer)
+> import-graph breakthrough → typicality filter → call-receiver scorer →
+> complex-chain canonicalization → alpha tuning)
 > with 29 evidence docs.
 
 ## Validation
