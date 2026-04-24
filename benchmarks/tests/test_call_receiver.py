@@ -327,3 +327,48 @@ def test_scorer_fit_skips_data_dominant_files_with_filter(tmp_path):
         adapter=adapter,
     )
     assert "logging.getLogger" in scorer.attested
+
+
+def test_count_unattested_zero_for_all_attested(tmp_path):
+    from argot_bench.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.py"
+    f.write_text("logger.info('x')\nlogger.debug('y')\n")
+    scorer = CallReceiverScorer([f], language="python", k=1)
+
+    assert scorer.count_unattested("logger.info('hello')") == 0
+
+
+def test_count_unattested_counts_distinct_unattested(tmp_path):
+    from argot_bench.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.py"
+    f.write_text("logger.info('x')\n")
+    scorer = CallReceiverScorer([f], language="python", k=1)
+
+    # Math.random and crypto.randomBytes are both unattested — count = 2
+    n = scorer.count_unattested("Math.random()\ncrypto.randomBytes(16)")
+    assert n == 2
+
+
+def test_count_unattested_deduplicates(tmp_path):
+    from argot_bench.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.py"
+    f.write_text("logger.info('x')\n")
+    scorer = CallReceiverScorer([f], language="python", k=1)
+
+    # Math.random appears twice — still counts as 1 distinct unattested callee
+    n = scorer.count_unattested("Math.random()\nMath.random()")
+    assert n == 1
+
+
+def test_count_unattested_empty_hunk(tmp_path):
+    from argot_bench.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.py"
+    f.write_text("logger.info('x')\n")
+    scorer = CallReceiverScorer([f], language="python", k=1)
+
+    assert scorer.count_unattested("") == 0
+    assert scorer.count_unattested("x = 1") == 0

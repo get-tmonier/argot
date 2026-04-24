@@ -181,3 +181,18 @@ class CallReceiverScorer:
         unattested_tuple = tuple(deduped)
         flagged = len(unattested_tuple) >= self._k
         return CallReceiverResult(unattested=unattested_tuple, flagged=flagged)
+
+    def count_unattested(self, hunk_content: str) -> int:
+        """Return count of distinct unattested callees in *hunk_content*.
+
+        Same extraction rule as score_hunk, but returns just the count.
+        Used by BenchScorer for the soft-penalty formula.
+        """
+        callees = extract_callees(hunk_content, self._language)
+        seen: set[str] = set()
+        count = 0
+        for c in callees:
+            if c is not None and c not in self.attested and c not in seen:
+                seen.add(c)
+                count += 1
+        return count
