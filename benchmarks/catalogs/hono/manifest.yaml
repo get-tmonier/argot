@@ -115,7 +115,7 @@ fixtures:
     hunk_start_line: 7
     hunk_end_line: 14
     rationale: "Express-shaped app.all('*', (req, res)) wildcard catch-all"
-    difficulty: uncaught
+    difficulty: hard
   - id: hono_framework_swap_4
     file: breaks/break_framework_swap_4.ts
     category: framework_swap
