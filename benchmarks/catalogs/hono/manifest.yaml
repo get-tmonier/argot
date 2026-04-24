@@ -17,87 +17,116 @@ fixtures:
     hunk_start_line: 5
     hunk_end_line: 12
     rationale: "Express Router() idiom with (req, res) handlers mounted into a Hono app"
+    difficulty: uncaught
   - id: hono_framework_swap_2
     file: breaks/break_framework_swap_2.ts
     category: framework_swap
     hunk_start_line: 6
     hunk_end_line: 10
     rationale: "Express (req: Request, res: Response) callback signature instead of Hono's Context"
+    difficulty: medium
   - id: hono_framework_swap_3
     file: breaks/break_framework_swap_3.ts
     category: framework_swap
     hunk_start_line: 7
     hunk_end_line: 10
     rationale: "Express body-parser + cors middleware chain wired via app.use"
+    difficulty: medium
   - id: hono_async_blocking_1
     file: breaks/break_async_blocking_1.ts
     category: async_blocking
     hunk_start_line: 9
     hunk_end_line: 12
     rationale: "fs.readFileSync blocking I/O inside a Hono request handler"
+    difficulty: medium
   - id: hono_async_blocking_2
     file: breaks/break_async_blocking_2.ts
     category: async_blocking
     hunk_start_line: 8
     hunk_end_line: 14
     rationale: "fs.readFileSync and fs.statSync inside a streaming endpoint"
+    difficulty: medium
   - id: hono_async_blocking_3
     file: breaks/break_async_blocking_3.ts
     category: async_blocking
     hunk_start_line: 7
     hunk_end_line: 10
     rationale: "child_process.execSync blocks the event loop per request"
+    difficulty: medium
   - id: hono_validation_1
     file: breaks/break_validation_1.ts
     category: validation
     hunk_start_line: 7
     hunk_end_line: 13
     rationale: "Hand-rolled email/password guards instead of a zod/valibot schema"
+    difficulty: medium
   - id: hono_validation_2
     file: breaks/break_validation_2.ts
     category: validation
     hunk_start_line: 7
     hunk_end_line: 13
     rationale: "Manual typeof + length guards where a zod schema would fit"
+    difficulty: uncaught
   - id: hono_validation_3
     file: breaks/break_validation_3.ts
     category: validation
     hunk_start_line: 10
     hunk_end_line: 16
     rationale: "Regex-literal phone/zip validation instead of a validator library"
+    difficulty: medium
   - id: hono_middleware_1
     file: breaks/break_middleware_1.ts
     category: middleware
     hunk_start_line: 5
     hunk_end_line: 12
     rationale: "Express (req, res, next) middleware signature in app.use"
+    difficulty: medium
   - id: hono_middleware_2
     file: breaks/break_middleware_2.ts
     category: middleware
     hunk_start_line: 9
     hunk_end_line: 14
     rationale: "Express 4-arg (err, req, res, next) error-handler signature"
+    difficulty: uncaught
   - id: hono_middleware_3
     file: breaks/break_middleware_3.ts
     category: middleware
     hunk_start_line: 10
     hunk_end_line: 11
     rationale: "Calling next() synchronously instead of Hono's await next()"
+    difficulty: uncaught
   - id: hono_routing_1
     file: breaks/break_routing_1.ts
     category: routing
     hunk_start_line: 6
     hunk_end_line: 12
     rationale: "express.Router() mounted under app.use('/api', router)"
+    difficulty: medium
   - id: hono_routing_2
     file: breaks/break_routing_2.ts
     category: routing
     hunk_start_line: 6
     hunk_end_line: 14
     rationale: "Router().route(path).get().post().delete() chain composition"
+    difficulty: uncaught
   - id: hono_routing_3
     file: breaks/break_routing_3.ts
     category: routing
     hunk_start_line: 7
     hunk_end_line: 14
     rationale: "Express-shaped app.all('*', (req, res)) wildcard catch-all"
+    difficulty: uncaught
+  - id: hono_framework_swap_4
+    file: breaks/break_framework_swap_4.ts
+    category: framework_swap
+    hunk_start_line: 1
+    hunk_end_line: 15
+    rationale: "import express at line 1 — standalone Express Router module in a Hono project; 'express' appears 0 times in non-break hono corpus files vs 3 times across existing break fixtures"
+    difficulty: easy
+  - id: hono_middleware_4
+    file: breaks/break_middleware_4.ts
+    category: middleware
+    hunk_start_line: 1
+    hunk_end_line: 21
+    rationale: "import Koa + @koa/router at line 1 — Koa ctx.body middleware pattern in a Hono project; Koa absent from all hono corpus PRs (0 grep hits)"
+    difficulty: easy

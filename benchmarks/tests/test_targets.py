@@ -18,12 +18,19 @@ def test_every_target_has_at_least_one_pr():
             assert len(pr.sha) == 40, f"{t.name} PR {pr.pr} SHA not full-length"
 
 
-def test_python_targets_have_single_head_sha():
-    path = Path(__file__).parent.parent / "targets.yaml"
-    by_name = {t.name: t for t in load_targets(path)}
-    for name in ("fastapi", "rich", "faker"):
-        assert len(by_name[name].prs) == 1
-        assert by_name[name].prs[0].pr == 0
+def test_all_corpora_have_five_prs():
+    """Gate 6: every corpus has exactly 5 PR entries."""
+    from pathlib import Path
+
+    from argot_bench.targets import load_targets
+
+    targets_yaml = Path(__file__).parent.parent / "targets.yaml"
+    targets = load_targets(targets_yaml)
+    for t in targets:
+        pr_entries = [p for p in t.prs if p.pr != 0]
+        assert len(pr_entries) == 5, (
+            f"{t.name} has {len(pr_entries)} PRs, expected 5"
+        )
 
 
 def test_target_record_fields():

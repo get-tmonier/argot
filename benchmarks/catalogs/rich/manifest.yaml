@@ -16,57 +16,110 @@ fixtures:
   hunk_start_line: 18
   hunk_end_line: 43
   rationale: Manual ANSI escape code styling (\033[31m etc.) with print() in a rich-looking file
+  difficulty: medium
 - id: ansi_raw_2
   file: breaks/break_ansi_raw_2.py
   category: ansi_raw
   hunk_start_line: 14
   hunk_end_line: 38
   rationale: Manual ANSI color code dict and progress bar using sys.stdout.write in a rich-looking file
+  difficulty: medium
 - id: colorama_1
   file: breaks/break_colorama_1.py
   category: colorama
   hunk_start_line: 19
   hunk_end_line: 44
   rationale: colorama.init() + Fore/Back/Style paradigm for colored table output in a rich-looking file
+  difficulty: easy
 - id: colorama_2
   file: breaks/break_colorama_2.py
   category: colorama
   hunk_start_line: 16
   hunk_end_line: 41
   rationale: colorama spinner and level-based log rendering with Fore/Back/Style in a rich-looking file
+  difficulty: easy
 - id: curses_1
   file: breaks/break_curses_1.py
   category: curses
   hunk_start_line: 18
   hunk_end_line: 43
   rationale: curses.initscr/start_color/addstr/color_pair dashboard rendering in a rich-looking file
+  difficulty: easy
 - id: curses_2
   file: breaks/break_curses_2.py
   category: curses
   hunk_start_line: 16
   hunk_end_line: 41
   rationale: curses navigable menu with KEY_UP/KEY_DOWN and color_pair highlight in a rich-looking file
+  difficulty: easy
 - id: print_manual_1
   file: breaks/break_print_manual_1.py
   category: print_manual
   hunk_start_line: 19
   hunk_end_line: 40
   rationale: Plain print() with manual ljust/rjust for tabular output in a rich-looking file
+  difficulty: hard
 - id: print_manual_2
   file: breaks/break_print_manual_2.py
   category: print_manual
   hunk_start_line: 19
   hunk_end_line: 42
   rationale: Plain print() with manual center/ljust/rjust for key-value report box in a rich-looking file
+  difficulty: medium
 - id: termcolor_1
   file: breaks/break_termcolor_1.py
   category: termcolor
   hunk_start_line: 18
   hunk_end_line: 43
   rationale: termcolor.colored/cprint for banner, diff, and status line rendering in a rich-looking file
+  difficulty: easy
 - id: termcolor_2
   file: breaks/break_termcolor_2.py
   category: termcolor
   hunk_start_line: 16
   hunk_end_line: 37
   rationale: termcolor.colored recursive dict-tree printer in a rich-looking file
+  difficulty: easy
+- id: ansi_raw_3
+  file: breaks/break_ansi_raw_3.py
+  category: ansi_raw
+  hunk_start_line: 13
+  hunk_end_line: 21
+  difficulty: easy
+  rationale: "blessed.Terminal for dashboard rendering — competing terminal UI library imported inside hunk. Canonical: rich.console.Console at >200 corpus sites; blessed.Terminal at 0 sites. Single axis: foreign terminal library import in hunk."
+- id: colorama_3
+  file: breaks/break_colorama_3.py
+  category: colorama
+  hunk_start_line: 14
+  hunk_end_line: 39
+  difficulty: hard
+  rationale: "Fore.CYAN + Style.BRIGHT + Back.BLUE + Style.RESET_ALL receiver chain in complex table renderer — colorama imported at file top, outside hunk. Novel receiver usage: Back.BLUE and Style.BRIGHT composition absent from rich corpus internals."
+- id: curses_3
+  file: breaks/break_curses_3.py
+  category: curses
+  hunk_start_line: 15
+  hunk_end_line: 30
+  difficulty: medium
+  rationale: "curses.textpad.Textbox interactive form — curses and curses.textpad imported at file top, outside hunk. curses.textpad.Textbox, newwin, instr patterns are token-novel vs rich corpus. Single axis: BPE novelty of interactive textpad patterns."
+- id: print_manual_3
+  file: breaks/break_print_manual_3.py
+  category: print_manual
+  hunk_start_line: 13
+  hunk_end_line: 21
+  difficulty: easy
+  rationale: "tabulate library for table rendering imported inside hunk. Canonical: plain print() with ljust/rjust at break sites; tabulate at 0 rich corpus sites. Single axis: foreign import in hunk."
+- id: termcolor_3
+  file: breaks/break_termcolor_3.py
+  category: termcolor
+  hunk_start_line: 15
+  hunk_end_line: 36
+  difficulty: medium
+  rationale: "termcolor.colored with on_color and attrs (blink) in structured log emitter and progress bar — termcolor imported at file top, outside hunk. attrs=[blink] and on_color=on_red are token-novel; sys.stderr.write/flush also novel vs rich corpus."
+
+- id: dict_render_1
+  file: breaks/break_dict_render_1.py
+  category: print_manual
+  hunk_start_line: 18
+  hunk_end_line: 23
+  rationale: "plain print() loop in place of rich Table/Panel; no foreign import in hunk; era-5 limit: print/for/list tokens are ubiquitous in Python corpus, BPE score stays below threshold; call_receiver has no target"
+  difficulty: uncaught

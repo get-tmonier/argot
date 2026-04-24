@@ -385,6 +385,6 @@ def test_end_to_end_call_receiver_alpha_builds_active_scorer(tmp_path: Path):
         repo, n_cal=1, seed=0, language="python", call_receiver_alpha=0.5
     )
     assert isinstance(scorer, BenchScorer)
-    # call_receiver stage is wired in (not disabled)
-    assert scorer._call_receiver is not None  # type: ignore[attr-defined]
-    assert scorer._alpha == 0.5  # type: ignore[attr-defined]
+    # call_receiver stage is wired into the inner scorer (not disabled)
+    assert scorer._inner._call_receiver is not None  # type: ignore[attr-defined]
+    assert scorer._inner._call_receiver.alpha == 0.5  # type: ignore[attr-defined]

@@ -15,6 +15,7 @@ from argot_bench.metrics import (
     calibration_stability,
     fp_rate,
     recall_by_category,
+    recall_by_difficulty,
     stage_attribution,
     threshold_cv,
 )
@@ -97,6 +98,7 @@ def _score_fixtures(
                 "hunk_start_line": fx.hunk_start_line,
                 "hunk_end_line": fx.hunk_end_line,
                 "rationale": fx.rationale,
+                "difficulty": fx.difficulty,
                 "import_score": r.import_score,
                 "bpe_score": r.bpe_score,
                 "flagged": r.flagged,
@@ -276,6 +278,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
     metrics = {
         "auc_catalog": auc_catalog(break_scores, ctrl_scores),
         "recall_by_category": recall_by_category(fixture_results),
+        "recall_by_difficulty": recall_by_difficulty(fixture_results),
         "fp_rate_real_pr": fp_rate(
             [r for r in real_pr_results if r.get("reason") not in _excluded_reasons]
         ),

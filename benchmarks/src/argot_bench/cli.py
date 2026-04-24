@@ -59,9 +59,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--call-receiver-alpha",
         type=float,
-        default=0.0,
+        default=1.0,
         metavar="FLOAT",
-        help="Stage 1.5 soft-penalty weight. 0.0=off (default); 0.5=primary; 0.3/1.0=fallbacks.",
+        help="Stage 1.5 soft-penalty weight. 1.0=shipping default; 0.0=off; 0.5=primary; 0.3=fallback.",
     )
     p.add_argument(
         "--call-receiver-cap",
@@ -95,9 +95,9 @@ def build_parser() -> argparse.ArgumentParser:
     one.add_argument(
         "--call-receiver-alpha",
         type=float,
-        default=0.0,
+        default=1.0,
         metavar="FLOAT",
-        help="Stage 1.5 soft-penalty weight. 0.0=off (default).",
+        help="Stage 1.5 soft-penalty weight. 1.0=shipping default; 0.0=off.",
     )
     one.add_argument(
         "--call-receiver-cap",
@@ -205,7 +205,7 @@ def _run(args: argparse.Namespace) -> int:
         base_cmd.extend(["--seeds", str(args.seeds)])
     if args.sample_controls is not None:
         base_cmd.extend(["--sample-controls", str(args.sample_controls)])
-    if args.call_receiver_alpha != 0.0:
+    if args.call_receiver_alpha != 1.0:
         base_cmd.extend(["--call-receiver-alpha", str(args.call_receiver_alpha)])
     if args.call_receiver_cap != 5:
         base_cmd.extend(["--call-receiver-cap", str(args.call_receiver_cap)])

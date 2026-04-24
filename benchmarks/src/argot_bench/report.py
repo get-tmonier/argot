@@ -314,6 +314,44 @@ def _render_stage_attribution(r: CorpusReport) -> list[str]:
     return lines
 
 
+def _render_difficulty_breakdown(r: CorpusReport) -> list[str]:
+    rbd = r.metrics.get("recall_by_difficulty", {})
+    breaks, _ = _split_raw(r.raw_scores)
+    if not rbd and not breaks:
+        return []
+    totals: dict[str, int] = {}
+    hits: dict[str, int] = {}
+    for b in breaks:
+        d = str(b.get("difficulty") or "")
+        if not d:
+            continue
+        totals[d] = totals.get(d, 0) + 1
+        if b.get("flagged"):
+            hits[d] = hits.get(d, 0) + 1
+    if not totals:
+        return []
+    lines = ["### Recall by difficulty", ""]
+    lines.append("| Difficulty | Recall | Hits | Definition |")
+    lines.append("|:---|---:|---:|:---|")
+    defs = {
+        "easy": "Stage 1 import catch — foreign module in hunk",
+        "medium": "Stage 2 BPE catch — token-level novelty, no foreign import",
+        "hard": "Stage 1.5 call-receiver catch — receiver novelty",
+        "uncaught": "Scorer currently misses — known gap",
+    }
+    for band in ("easy", "medium", "hard", "uncaught"):
+        if band not in totals:
+            continue
+        recall_val = rbd.get(band, 0.0)
+        h = hits.get(band, 0)
+        t = totals.get(band, 0)
+        lines.append(
+            f"| {band} | {_fmt_pct(recall_val)} | {h}/{t} | {defs[band]} |"
+        )
+    lines.append("")
+    return lines
+
+
 def render_report_md(reports: list[CorpusReport]) -> str:
     lines: list[str] = [
         "# argot-bench report",
@@ -334,5 +372,6 @@ def render_report_md(reports: list[CorpusReport]) -> str:
         lines.extend(_render_missed_fixtures(r))
         lines.extend(_render_top_controls(r))
         lines.extend(_render_stage_attribution(r))
+        lines.extend(_render_difficulty_breakdown(r))
 
     return "\n".join(lines)

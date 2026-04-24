@@ -15,33 +15,152 @@ fixtures:
   category: mimesis_alt
   hunk_start_line: 19
   hunk_end_line: 46
-  rationale: mimesis Person/Address/Finance with Gender enum — competing fake-data
+  difficulty: easy
+  rationale: >-
+    mimesis Person/Address/Finance with Gender enum — competing fake-data
     library paradigm in a faker-looking file
 - id: threading_provider_1
   file: breaks/break_threading_provider_1.py
   category: threading_provider
   hunk_start_line: 19
   hunk_end_line: 53
-  rationale: threading.Thread + Lock + Event parallel fake-data generator class in
+  difficulty: easy
+  rationale: >-
+    threading.Thread + Lock + Event parallel fake-data generator class in
     a faker-looking file
 - id: sqlalchemy_sink_1
   file: breaks/break_sqlalchemy_sink_1.py
   category: sqlalchemy_sink
   hunk_start_line: 17
   hunk_end_line: 49
-  rationale: SQLAlchemy ORM model + session.add/commit to persist fakes — DB-sink
+  difficulty: easy
+  rationale: >-
+    SQLAlchemy ORM model + session.add/commit to persist fakes — DB-sink
     paradigm in a faker-looking file
 - id: numpy_random_1
   file: breaks/break_numpy_random_1.py
   category: numpy_random
   hunk_start_line: 19
   hunk_end_line: 46
-  rationale: numpy.random Generator/default_rng for name and age generation instead
+  difficulty: easy
+  rationale: >-
+    numpy.random Generator/default_rng for name and age generation instead
     of faker internals in a faker-looking file
 - id: requests_source_1
   file: breaks/break_requests_source_1.py
   category: requests_source
   hunk_start_line: 17
   hunk_end_line: 47
-  rationale: requests.get() fetching real user data from HTTP APIs instead of local
+  difficulty: easy
+  rationale: >-
+    requests.get() fetching real user data from HTTP APIs instead of local
     fake generation in a faker-looking file
+- id: mimesis_alt_2
+  file: breaks/break_mimesis_alt_2.py
+  category: mimesis_alt
+  hunk_start_line: 16
+  hunk_end_line: 33
+  difficulty: medium
+  rationale: >-
+    polyfactory.ModelFactory with Pydantic BaseModel for type-safe factory generation
+    — import outside hunk (file top), break is ModelFactory subclass and build_batch
+    pattern. Canonical: Faker() + fake.name() etc.; ModelFactory appears at 0 faker
+    corpus sites.
+- id: mimesis_alt_3
+  file: breaks/break_mimesis_alt_3.py
+  category: mimesis_alt
+  hunk_start_line: 14
+  hunk_end_line: 26
+  difficulty: hard
+  rationale: >-
+    Faker() calling rare financial provider methods (aba, bban, iban, swift,
+    cryptocurrency_code) — no foreign import, BPE familiar, but these methods appear
+    at 0 call sites in the faker corpus itself. Single axis: rarely-called financial
+    callee methods.
+- id: threading_provider_2
+  file: breaks/break_threading_provider_2.py
+  category: threading_provider
+  hunk_start_line: 15
+  hunk_end_line: 22
+  difficulty: medium
+  rationale: >-
+    concurrent.futures.ProcessPoolExecutor for parallel fake generation — import
+    outside hunk. Canonical: threading.Thread at faker corpus sites;
+    ProcessPoolExecutor at 0 sites.
+- id: threading_provider_3
+  file: breaks/break_threading_provider_3.py
+  category: threading_provider
+  hunk_start_line: 15
+  hunk_end_line: 29
+  difficulty: hard
+  rationale: >-
+    multiprocessing.Queue.put/get_nowait and Process.start/join — receiver methods
+    on Queue and Process objects are foreign to faker corpus. Canonical:
+    threading.Thread; multiprocessing.Queue receiver chain at 0 faker corpus sites.
+- id: sqlalchemy_sink_2
+  file: breaks/break_sqlalchemy_sink_2.py
+  category: sqlalchemy_sink
+  hunk_start_line: 16
+  hunk_end_line: 28
+  difficulty: medium
+  rationale: >-
+    csv.DictWriter + io.StringIO export sink — csv and io imported outside hunk.
+    Canonical: SQLAlchemy session at break sites; csv.DictWriter at 0 faker corpus
+    sites.
+- id: sqlalchemy_sink_3
+  file: breaks/break_sqlalchemy_sink_3.py
+  category: sqlalchemy_sink
+  hunk_start_line: 15
+  hunk_end_line: 30
+  difficulty: hard
+  rationale: >-
+    SQLAlchemy Session.bulk_save_objects + Session.flush + Session.expire_all —
+    these receiver methods on a Session object are foreign to faker corpus (0 sites).
+    Single axis: bulk_save_objects/flush/expire_all never called in faker internals.
+- id: numpy_random_2
+  file: breaks/break_numpy_random_2.py
+  category: numpy_random
+  hunk_start_line: 15
+  hunk_end_line: 28
+  difficulty: medium
+  rationale: >-
+    scipy.stats distributions (truncnorm, pareto) for realistic data generation —
+    scipy.stats imported outside hunk. Canonical: numpy.random at faker corpus sites;
+    scipy.stats at 0 sites.
+- id: numpy_random_3
+  file: breaks/break_numpy_random_3.py
+  category: numpy_random
+  hunk_start_line: 15
+  hunk_end_line: 32
+  difficulty: hard
+  rationale: >-
+    numpy rng.choice and rng.shuffle called on a default_rng instance — receiver
+    methods foreign to faker corpus. rng.integers is known but rng.choice/rng.shuffle
+    appear at 0 faker call sites. Single axis: rarely-called rng receiver methods.
+- id: requests_source_2
+  file: breaks/break_requests_source_2.py
+  category: requests_source
+  hunk_start_line: 15
+  hunk_end_line: 25
+  difficulty: medium
+  rationale: >-
+    httpx.Client for HTTP source — httpx imported outside hunk. Canonical:
+    requests.get at faker corpus sites; httpx.Client at 0 sites.
+- id: requests_source_3
+  file: breaks/break_requests_source_3.py
+  category: requests_source
+  hunk_start_line: 16
+  hunk_end_line: 31
+  difficulty: hard
+  rationale: >-
+    aiohttp.ClientSession for async HTTP source — session.get/raise_for_status/json
+    are foreign receiver patterns. aiohttp.ClientSession at 0 faker corpus sites.
+    Single axis: async session receiver methods replacing sync requests.
+
+- id: synthetic_formula_1
+  file: breaks/break_synthetic_formula_1.py
+  category: numpy_random
+  hunk_start_line: 18
+  hunk_end_line: 29
+  rationale: "string-formula synthesis (f-string concat) instead of faker.email()/faker.name(); no foreign import in hunk; era-6 limit: call_receiver has no target, BPE tokens (f-string, str, int format) are nominal in the Python corpus"
+  difficulty: uncaught

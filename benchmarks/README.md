@@ -47,19 +47,21 @@ often collapses PRs into a single squash commit).
 
 ## Fixture catalogs
 
-Each corpus has 5–10 break categories with 1–5 fixtures per category,
-rationales grounded in corpus evidence, and line-precise hunk bounds.
+Each corpus has 15–32 fixtures across 5–9 break categories with ≥3 fixtures
+per category (except newly-added single-fixture uncaught bands), rationales
+grounded in corpus evidence, and line-precise hunk bounds. Every fixture
+carries a difficulty label (easy/medium/hard/uncaught).
 See `benchmarks/catalogs/<corpus>/manifest.yaml`.
 
 | Corpus | Categories | Fixtures |
 |---|---|---|
-| fastapi | 9 | 31 |
-| rich | 5 | 10 |
-| faker | 5 | 5 |
-| hono | 5 | 15 |
-| ink | 5 | 15 |
-| faker-js | 5 | 15 |
-| **total** | **34** | **91** |
+| fastapi | 9 | 32 |
+| rich | 5 | 16 |
+| faker | 5 | 16 |
+| hono | 5 | 17 |
+| ink | 5 | 17 |
+| faker-js | 5 | 17 |
+| **total** | **34** | **115** |
 
 Example categories: `framework_swap` (Django CBV in a FastAPI app),
 `async_blocking` (`time.sleep` inside an async def), `serialization`
@@ -117,23 +119,51 @@ for the design.
   the bulk of the break mass sits above the bulk of the control mass.
   Acceptable, but sensitive to calibration drift.
 
+## Metric definitions
+
+### avg_recall
+
+Arithmetic mean of per-corpus recall, where:
+
+    per-corpus recall = flagged_fixtures / total_fixtures
+
+Corpora are weighted equally — faker's 15 fixtures count the same as fastapi's 31.
+
+### recall_by_difficulty
+
+Per-difficulty-band recall, newly added in era 7:
+
+    recall_band = flagged_in_band / total_in_band
+
+Bands: `easy` (Stage 1 import catch), `medium` (Stage 2 BPE catch),
+`hard` (Stage 1.5 call-receiver catch), `uncaught` (scorer currently misses).
+
+### FP rate
+
+    FP rate = flagged_controls / eligible_controls
+
+"Eligible" excludes hunks with reason in `{atypical, atypical_file, excluded_path,
+auto_generated}` — these are short-circuited before the scorer and are not true
+false positives.
+
 ## Current baseline
 
 From [`latest/report.md`](results/baseline/latest/report.md)
-(run `20260424T074736Z`, shipping config: call-receiver Stage 1.5 at α=1.0,
-cap=5, with parse-fragment guard):
+(run `20260424T135502Z`, 115 fixtures, 5 PR snapshots per corpus,
+difficulty-labelled, call_receiver_alpha=1.0 — shipping scorer default):
 
 | Corpus | AUC | Recall | FP | N_fix | N_ctrl |
 |:---|---:|---:|---:|---:|---:|
-| fastapi | 0.9918 | 91.7% | 0.1% | 31 | 10,012 |
-| rich | 0.9959 | 100.0% | 0.5% | 10 | 11,536 |
-| faker | 0.9237 | 100.0% | 0.4% | 5 | 12,936 |
-| hono | 0.8107 | 60.0% | 0.4% | 15 | 54,717 |
-| ink | 0.9888 | 100.0% | 1.1% | 15 | 16,678 |
-| faker-js | 0.9408 | 33.3% | 0.8% | 15 | 255,760 |
+| fastapi | 0.9880 | 91.7% | 0.8% | 32 | 79,623 |
+| rich | 0.9780 | 95.0% | 0.4% | 16 | 68,598 |
+| faker | 0.9537 | 95.0% | 0.9% | 16 | 75,996 |
+| hono | 0.8312 | 65.0% | 0.4% | 17 | 54,717 |
+| ink | 0.9899 | 100.0% | 1.1% | 17 | 16,678 |
+| faker-js | 0.9463 | 43.3% | 0.8% | 17 | 255,760 |
 
-Average recall 80.8%; all corpora FP ≤ 1.1%. Threshold CV ≤ 10% across
-all corpora (0%–9.7%): runs are reproducible across seeds.
+Average recall 81.7%; all corpora FP ≤ 1.1%. Easy and medium fixtures are
+caught at ≥80% on five of six corpora; hard fixtures depend on Stage 1.5.
+Threshold CV ≤ 10% across all corpora: runs are reproducible across seeds.
 
 ### Known weaknesses (flagged by this baseline)
 
@@ -160,6 +190,13 @@ all corpora (0%–9.7%): runs are reproducible across seeds.
    `middleware_3` calls `next()` synchronously instead of `await next()`
    — no foreign callee to flag, no token novelty, no import diff. The
    scorer is structurally blind to this class.
+
+5. **Threshold-borderline ink dom_access fixtures.** ink `dom_access_1`
+   (document.getElementById) and `dom_access_2` (window.location.href)
+   score within ink's ±10.6% calibration noise band and are labelled
+   `uncaught`. They flip verdicts between independent 5-seed runs; a
+   tighter ink calibration (larger n_cal or p95 threshold) is needed
+   before they can be reliably caught.
 
 ## Reading a report
 

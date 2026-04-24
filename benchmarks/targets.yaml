@@ -1,25 +1,58 @@
 # Pinned corpora for reproducing argot's validation numbers.
-# Python corpora: single HEAD SHA — validation walks git history from there.
-# TS corpora: 5 PRs each — pre-merge snapshots.
+# All corpora: pr:0 is the primary HEAD SHA (controls + fixture injection host),
+# followed by 5 pre-merge PR snapshots.
 
 targets:
   - name: fastapi
     url: https://github.com/tiangolo/fastapi
     language: python
     prs:
+      # Primary: HEAD at era-6 baseline. Controls + fixture injection host.
       - { pr: 0, sha: 88021c3dc016d02fe609397cb034648262c270e8 }
+      # PR #15030 — Adds Server-Sent Events (SSE), touches routing.py, responses.py, openapi/utils.py
+      - { pr: 15030, sha: 22381558446c5d1ac376680a6581dd63b3a04119 }
+      # PR #14898 — Updates internal types for Python 3.10+, 20 files
+      - { pr: 14898, sha: 3da206c06df1283518a54b18f27bed33f2d22612 }
+      # PR #13920 — Adds PEP 695 TypeAliasType support, dependencies/utils.py
+      - { pr: 13920, sha: 97145588f5442aa7c3830173813d5d1a2c893521 }
+      # PR #14932 — Typing syntax upgrade across 77 files (scripts/, docs_src/, tests/)
+      - { pr: 14932, sha: faee822574d3c202123f48eb09b9bd207385335b }
+      # PR #15280 — Adds @app.vibe() to applications.py and tests
+      - { pr: 15280, sha: 70580da818722cce68b7a88928d67bd0f64f42c5 }
 
   - name: rich
     url: https://github.com/Textualize/rich
     language: python
     prs:
+      # Primary: HEAD at era-6 baseline. Controls + fixture injection host.
       - { pr: 0, sha: 46cebbb032f920eb096efbaf23cdc6fe9dd541f7 }
+      # PR #4076 — Fixes ANSI newline handling, rich/ansi.py + tests
+      - { pr: 4076, sha: 48293cde887c4f25a7bca022131b56495f370a88 }
+      # PR #4075 — Fixes empty-end rendering, rich/console.py + tests
+      - { pr: 4075, sha: eccb5945ddb8487d655d2ab54f3443d072ef4247 }
+      # PR #4070 — Lazy traceback logging, touches 5 core files
+      - { pr: 4070, sha: 6729c6f6c4ee24a13a94d825cb7ce66b52206db2 }
+      # PR #4006 — Fix grapheme-stuck bug, rich/cells.py (core string rendering)
+      - { pr: 4006, sha: 905b397deb6b5ed59dfd80fa499c90e215f309c8 }
+      # PR #3782 — Syntax padding, rich/syntax.py + tests
+      - { pr: 3782, sha: 3d7c0141a2490348f8e0189178d55258e1773ad3 }
 
   - name: faker
     url: https://github.com/joke2k/faker
     language: python
     prs:
+      # Primary: HEAD at era-6 baseline. Controls + fixture injection host.
       - { pr: 0, sha: e7d5cf2ee9c90058b56d393e40a91dc58506e4f7 }
+      # PR #2340 — Fix deepcopy proxy rebinding, faker/proxy.py (core)
+      - { pr: 2340, sha: 01cb8d0f90fac0799f90e1295e8d4ab67c4fc070 }
+      # PR #2302 — Fix pyfloat TypeError, faker/providers/python/__init__.py
+      - { pr: 2302, sha: 4d2906df950d07feaa3c29838fccdec1f77b9609 }
+      # PR #2193 — Adds zh_CN credit card provider (new file)
+      - { pr: 2193, sha: d349ccc8284b519ffea0682e1e10378a34905000 }
+      # PR #2310 — Italian identity documents, providers/passport + ssn
+      - { pr: 2310, sha: 0f010e1a0b1bfa9d51757057f7008c5ca63fffe5 }
+      # PR #2267 — Fix bank DRY violation, providers/bank/__init__.py + locales
+      - { pr: 2267, sha: fa0915aaa944ab0c59dfd85858d4649e4e2db35b }
 
   - name: hono
     url: https://github.com/honojs/hono

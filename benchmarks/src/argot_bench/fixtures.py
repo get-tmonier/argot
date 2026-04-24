@@ -23,6 +23,7 @@ class Fixture:
     hunk_start_line: int
     hunk_end_line: int
     rationale: str = ""
+    difficulty: Literal["easy", "medium", "hard", "uncaught"] | None = None
 
 
 @dataclass(frozen=True)
@@ -52,6 +53,7 @@ def load_catalog(dir_path: Path) -> Catalog:
                 hunk_start_line=int(f["hunk_start_line"]),
                 hunk_end_line=int(f["hunk_end_line"]),
                 rationale=f.get("rationale", ""),
+                difficulty=f.get("difficulty"),
             )
             for f in raw.get("fixtures", [])
         ],

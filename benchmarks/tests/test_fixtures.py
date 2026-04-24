@@ -40,3 +40,134 @@ def test_every_fixture_category_is_declared(corpus: str):
         assert f.category in declared, (
             f"{corpus}:{f.id} uses undeclared category {f.category!r}"
         )
+
+
+def test_fixture_difficulty_defaults_to_none():
+    from argot_bench.fixtures import Fixture
+    fx = Fixture(id="x", file="f.py", category="c",
+                 hunk_start_line=1, hunk_end_line=5)
+    assert fx.difficulty is None
+
+
+def test_rich_has_fifteen_fixtures():
+    cat = load_catalog(CATALOGS_DIR / "rich")
+    assert len(cat.fixtures) == 15, f"Expected 15, got {len(cat.fixtures)}"
+
+
+def test_rich_each_category_has_three_fixtures():
+    cat = load_catalog(CATALOGS_DIR / "rich")
+    by_cat: dict[str, int] = {}
+    for fx in cat.fixtures:
+        by_cat[fx.category] = by_cat.get(fx.category, 0) + 1
+    for cat_name, count in by_cat.items():
+        assert count >= 3, f"rich category {cat_name!r} has only {count} fixtures (need >=3)"
+
+
+def test_fixture_difficulty_loaded_from_yaml(tmp_path: Path):
+    catalog_dir = tmp_path / "mycorpus"
+    catalog_dir.mkdir()
+    breaks_dir = catalog_dir / "breaks"
+    breaks_dir.mkdir()
+    fx_file = breaks_dir / "break_test.py"
+    fx_file.write_text("\n".join(["# line"] * 10))
+    manifest = catalog_dir / "manifest.yaml"
+    manifest.write_text(
+        "corpus: mycorpus\n"
+        "language: python\n"
+        "categories:\n  - cat_a\n"
+        "injection_hosts: []\n"
+        "fixtures:\n"
+        "  - id: test_1\n"
+        "    file: breaks/break_test.py\n"
+        "    category: cat_a\n"
+        "    hunk_start_line: 1\n"
+        "    hunk_end_line: 5\n"
+        "    rationale: 'test'\n"
+        "    difficulty: medium\n"
+    )
+    from argot_bench.fixtures import load_catalog
+    cat = load_catalog(catalog_dir)
+    assert cat.fixtures[0].difficulty == "medium"
+
+
+def test_all_existing_fixtures_have_difficulty_label():
+    """Every fixture in every catalog must have a non-None difficulty label."""
+    cats = scan_all_catalogs(CATALOGS_DIR)
+    missing = []
+    for cat in cats:
+        for fx in cat.fixtures:
+            if fx.difficulty is None:
+                missing.append(f"{cat.corpus}:{fx.id}")
+    assert not missing, f"Fixtures missing difficulty label: {missing}"
+
+
+def test_fixture_difficulty_optional_in_yaml(tmp_path: Path):
+    catalog_dir = tmp_path / "mycorpus"
+    catalog_dir.mkdir()
+    breaks_dir = catalog_dir / "breaks"
+    breaks_dir.mkdir()
+    fx_file = breaks_dir / "break_test.py"
+    fx_file.write_text("\n".join(["# line"] * 10))
+    manifest = catalog_dir / "manifest.yaml"
+    manifest.write_text(
+        "corpus: mycorpus\n"
+        "language: python\n"
+        "categories:\n  - cat_a\n"
+        "injection_hosts: []\n"
+        "fixtures:\n"
+        "  - id: test_1\n"
+        "    file: breaks/break_test.py\n"
+        "    category: cat_a\n"
+        "    hunk_start_line: 1\n"
+        "    hunk_end_line: 5\n"
+    )
+    from argot_bench.fixtures import load_catalog
+    cat = load_catalog(catalog_dir)
+    assert cat.fixtures[0].difficulty is None
+
+
+def test_faker_has_fifteen_fixtures():
+    cat = load_catalog(CATALOGS_DIR / "faker")
+    assert len(cat.fixtures) == 15, f"Expected 15, got {len(cat.fixtures)}"
+
+
+def test_faker_each_category_has_three_fixtures():
+    cat = load_catalog(CATALOGS_DIR / "faker")
+    by_cat: dict[str, int] = {}
+    for fx in cat.fixtures:
+        by_cat[fx.category] = by_cat.get(fx.category, 0) + 1
+    for cat_name, count in by_cat.items():
+        assert count >= 3, f"faker category {cat_name!r} has only {count} fixtures (need >=3)"
+
+
+def test_era7_structural_requirements():
+    """Gate 3: every corpus >= 15 fixtures, >= 5 categories, >= 3 per category."""
+    cats = scan_all_catalogs(CATALOGS_DIR)
+    failures = []
+    for cat in cats:
+        n_fix = len(cat.fixtures)
+        n_cats = len(cat.categories)
+        if n_fix < 15:
+            failures.append(f"{cat.corpus}: {n_fix} fixtures (need >=15)")
+        if n_cats < 5:
+            failures.append(f"{cat.corpus}: {n_cats} categories (need >=5)")
+        by_cat: dict[str, int] = {}
+        for fx in cat.fixtures:
+            by_cat[fx.category] = by_cat.get(fx.category, 0) + 1
+        for cat_name, count in by_cat.items():
+            if count < 3:
+                failures.append(
+                    f"{cat.corpus}/{cat_name}: {count} fixtures (need >=3)"
+                )
+    assert not failures, "\n".join(failures)
+
+
+def test_era7_difficulty_coverage_all_fixtures():
+    """Gate 4: every fixture (old + new) has a difficulty label."""
+    cats = scan_all_catalogs(CATALOGS_DIR)
+    missing = []
+    for cat in cats:
+        for fx in cat.fixtures:
+            if fx.difficulty is None:
+                missing.append(f"{cat.corpus}:{fx.id}")
+    assert not missing, f"Fixtures missing difficulty label: {missing}"

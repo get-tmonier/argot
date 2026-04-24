@@ -1,3 +1,28 @@
+"""Metric helpers for argot-bench.
+
+Metric definitions
+------------------
+avg_recall
+    Arithmetic mean of per-corpus recall values, where per-corpus recall is
+    defined as: flagged_fixtures / total_fixtures (within that corpus).
+    Corpora are weighted equally regardless of fixture count — a corpus with
+    5 fixtures counts the same as one with 31.
+
+recall_by_difficulty
+    Per-difficulty-band recall. Fixtures are grouped by their ``difficulty``
+    field (easy / medium / hard / uncaught). Within each band:
+        recall = flagged_fixtures_in_band / total_fixtures_in_band
+    Fixtures with difficulty=None are excluded.
+
+fp_rate (FP rate)
+    False positive rate on real-PR control hunks:
+        FP rate = flagged_controls / eligible_controls
+    where "eligible" excludes hunks with reason in
+    {atypical, atypical_file, excluded_path, auto_generated}.
+    These are short-circuited before the scorer runs and are not true
+    false positives.
+"""
+
 from __future__ import annotations
 
 import math
@@ -15,6 +40,23 @@ def auc_catalog(break_scores: Sequence[float], control_scores: Sequence[float]) 
     y_true = [1] * len(break_scores) + [0] * len(control_scores)
     y_score = list(break_scores) + list(control_scores)
     return float(roc_auc_score(y_true, y_score))
+
+
+def recall_by_difficulty(results: Iterable[Mapping[str, Any]]) -> dict[str, float]:
+    """Fraction of fixtures flagged, grouped by difficulty label.
+
+    Fixtures with difficulty=None are excluded (unlabeled).
+    """
+    totals: Counter[str] = Counter()
+    flagged: Counter[str] = Counter()
+    for r in results:
+        d = r.get("difficulty")
+        if d is None:
+            continue
+        totals[str(d)] += 1
+        if r["flagged"]:
+            flagged[str(d)] += 1
+    return {band: flagged[band] / totals[band] for band in sorted(totals)}
 
 
 def recall_by_category(results: Iterable[Mapping[str, Any]]) -> dict[str, float]:

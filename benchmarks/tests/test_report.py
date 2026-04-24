@@ -162,6 +162,43 @@ def test_render_report_md_stage_attribution_has_percentages():
     assert "11.1%" in md
 
 
+def test_render_difficulty_breakdown_present():
+    from argot_bench.report import CorpusReport, render_report_md
+    report = CorpusReport(
+        corpus="testcorp",
+        language="python",
+        metrics={
+            "recall_by_category": {"cat_a": 1.0},
+            "recall_by_difficulty": {"easy": 1.0, "medium": 0.5},
+            "fp_rate_real_pr": 0.0,
+            "threshold_mean": 5.0,
+            "threshold_cv": 0.0,
+            "calibration_stability": {"rel_var": 0.0, "jaccard": 1.0},
+            "stage_attribution": {"import": 2, "bpe": 1},
+            "n_fixtures": 3,
+            "n_real_pr_hunks": 10,
+            "typicality_filter": True,
+            "sample_controls": None,
+        },
+        raw_scores=[
+            {"category": "cat_a", "difficulty": "easy", "flagged": True,
+             "bpe_score": 5.0, "id": "t1", "file": "f.py",
+             "hunk_start_line": 1, "hunk_end_line": 5, "rationale": ""},
+            {"category": "cat_a", "difficulty": "medium", "flagged": True,
+             "bpe_score": 5.0, "id": "t2", "file": "f.py",
+             "hunk_start_line": 1, "hunk_end_line": 5, "rationale": ""},
+            {"category": "cat_a", "difficulty": "medium", "flagged": False,
+             "bpe_score": 2.0, "id": "t3", "file": "f.py",
+             "hunk_start_line": 1, "hunk_end_line": 5, "rationale": ""},
+        ],
+    )
+    md = render_report_md([report])
+    assert "### Recall by difficulty" in md
+    assert "easy" in md
+    assert "medium" in md
+    assert "50.0%" in md
+
+
 def test_stage_attribution_includes_call_receiver():
     from argot_bench.report import CorpusReport, _render_stage_attribution
 
