@@ -87,7 +87,7 @@ class BenchScorer:
             import_score=float(raw["import_score"]),
             bpe_score=float(raw["bpe_score"]),
             flagged=bool(raw["flagged"]),
-            reason=raw["reason"],  # type: ignore[arg-type]
+            reason=raw["reason"],
         )
 
 
