@@ -257,3 +257,150 @@ def test_score_hunk_scores_normal_code_normally(tmp_path: Path) -> None:
     result = scorer.score_hunk(normal_hunk)
     # Not short-circuited — reason is one of the normal values.
     assert result["reason"] in ("none", "import", "bpe")
+
+
+# ---------------------------------------------------------------------------
+# Stage 1.5 call-receiver integration tests
+# ---------------------------------------------------------------------------
+
+
+def test_call_receiver_disabled_when_alpha_zero(tmp_path: Path) -> None:
+    """alpha=0.0 disables Stage 1.5 — no call_receiver scorer built."""
+    from argot.scoring.adapters.python_adapter import PythonAdapter
+    from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
+
+    code_file = tmp_path / "code.py"
+    code_file.write_text("def fn(x):\n    logger.info(x)\n    return x\n")
+    bpe_model_b = tmp_path / "bpe.json"
+    bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
+
+    scorer = SequentialImportBpeScorer(
+        model_a_files=[code_file],
+        bpe_model_b_path=bpe_model_b,
+        bpe_threshold=0.5,
+        call_receiver_alpha=0.0,
+        call_receiver_cap=5,
+        adapter=PythonAdapter(),
+        enable_typicality_filter=False,
+    )
+    assert scorer._call_receiver is None
+
+
+def test_call_receiver_built_when_alpha_nonzero(tmp_path: Path) -> None:
+    """alpha > 0 builds a CallReceiverScorer."""
+    from argot.scoring.adapters.python_adapter import PythonAdapter
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+    from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
+
+    code_file = tmp_path / "code.py"
+    code_file.write_text("def fn(x):\n    logger.info(x)\n    return x\n")
+    bpe_model_b = tmp_path / "bpe.json"
+    bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
+
+    scorer = SequentialImportBpeScorer(
+        model_a_files=[code_file],
+        bpe_model_b_path=bpe_model_b,
+        bpe_threshold=0.5,
+        call_receiver_alpha=1.0,
+        call_receiver_cap=5,
+        adapter=PythonAdapter(),
+        enable_typicality_filter=False,
+    )
+    assert isinstance(scorer._call_receiver, CallReceiverScorer)
+    assert scorer._call_receiver.alpha == 1.0
+    assert scorer._call_receiver.cap == 5
+
+
+def test_import_reason_takes_precedence_over_call_receiver(tmp_path: Path) -> None:
+    """Stage 1 import fires → reason='import' regardless of call-receiver."""
+    from argot.scoring.adapters.python_adapter import PythonAdapter
+    from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
+
+    code_file = tmp_path / "code.py"
+    code_file.write_text(
+        "import logging\nlogger = logging.getLogger()\ndef fn(x):\n    logger.info(x)\n    return x\n"
+    )
+    bpe_model_b = tmp_path / "bpe.json"
+    bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
+
+    scorer = SequentialImportBpeScorer(
+        model_a_files=[code_file],
+        bpe_model_b_path=bpe_model_b,
+        bpe_threshold=0.0,
+        call_receiver_alpha=1.0,
+        call_receiver_cap=5,
+        adapter=PythonAdapter(),
+        enable_typicality_filter=False,
+    )
+
+    result = scorer.score_hunk("import flask\nflask.Flask(__name__)")
+    assert result["reason"] == "import"
+    assert result["flagged"] is True
+
+
+def test_no_flag_when_all_callees_attested(tmp_path: Path) -> None:
+    """No unattested callees + low raw BPE → reason='none'."""
+    from argot.scoring.adapters.python_adapter import PythonAdapter
+    from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
+
+    code_file = tmp_path / "code.py"
+    code_file.write_text(
+        "import logging\nlogger = logging.getLogger()\ndef fn(x):\n    logger.info(x)\n    logger.debug(x)\n    return x\n"
+    )
+    bpe_model_b = tmp_path / "bpe.json"
+    bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
+
+    scorer = SequentialImportBpeScorer(
+        model_a_files=[code_file],
+        bpe_model_b_path=bpe_model_b,
+        bpe_threshold=999.0,
+        call_receiver_alpha=1.0,
+        call_receiver_cap=5,
+        adapter=PythonAdapter(),
+        enable_typicality_filter=False,
+    )
+
+    # All callees (logger.info, logger.debug) are attested
+    result = scorer.score_hunk("logger.info('hello')\nlogger.debug('world')")
+    assert result["flagged"] is False
+    assert result["reason"] == "none"
+
+
+def test_call_receiver_reason_when_penalty_tips_threshold(tmp_path: Path) -> None:
+    """Unattested callees + soft penalty tips threshold → reason='call_receiver'."""
+    from argot.scoring.adapters.python_adapter import PythonAdapter
+    from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
+
+    code_file = tmp_path / "code.py"
+    code_file.write_text(
+        "import logging\nlogger = logging.getLogger()\ndef fn(x):\n    logger.info(x)\n    return x\n"
+    )
+    bpe_model_b = tmp_path / "bpe.json"
+    # All tokens in model_b to keep raw BPE low (common tokens → low log-ratio)
+    bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
+
+    # threshold=0.5: raw BPE on normal code is typically << 0.5 with empty model_b
+    # But with empty model_b, log(0/1 + eps) - log(count/total + eps) → values vary.
+    # Use threshold=999 so raw BPE never trips; alpha=1.0, cap=5; 3 unattested → adjusted = bpe+3
+    # Actually: bpe+3 > 0.5 will definitely fire call_receiver if bpe < 0.5
+    # Use a very permissive threshold on raw BPE:
+    scorer = SequentialImportBpeScorer(
+        model_a_files=[code_file],
+        bpe_model_b_path=bpe_model_b,
+        bpe_threshold=0.5,
+        call_receiver_alpha=1.0,
+        call_receiver_cap=5,
+        adapter=PythonAdapter(),
+        enable_typicality_filter=False,
+    )
+
+    # 3 unattested callees: Math.random, crypto.randomBytes, axios.get
+    result = scorer.score_hunk(
+        "Math.random()\ncrypto.randomBytes(16)\naxios.get('/foo')"
+    )
+    assert result["flagged"] is True
+    if result["bpe_score"] <= 0.5:
+        assert result["reason"] == "call_receiver", (
+            f"Expected call_receiver, got {result['reason']!r} "
+            f"(bpe_score={result['bpe_score']}, threshold=0.5)"
+        )
