@@ -83,11 +83,15 @@ def _load_phase14_scorer(argot_dir: Path) -> SequentialImportBpeScorer:
     model_a_files = [Path(line) for line in model_a_txt.read_text().splitlines() if line.strip()]
     config: dict[str, object] = json.loads(config_json.read_text())
     threshold = float(config["threshold"])  # type: ignore[arg-type]
+    call_receiver_alpha = float(config.get("call_receiver_alpha", 1.0))  # type: ignore[arg-type]
+    call_receiver_cap = int(config.get("call_receiver_cap", 5))  # type: ignore[call-overload]
 
     return SequentialImportBpeScorer(
         model_a_files=model_a_files,
         bpe_model_b_path=model_b_json,
         bpe_threshold=threshold,
+        call_receiver_alpha=call_receiver_alpha,
+        call_receiver_cap=call_receiver_cap,
     )
 
 
