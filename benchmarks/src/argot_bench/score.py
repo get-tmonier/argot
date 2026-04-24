@@ -14,6 +14,7 @@ from argot.scoring.adapters.language_adapter import LanguageAdapter
 from argot.scoring.adapters.python_adapter import PythonAdapter
 from argot.scoring.calibration.random_hunk_sampler import sample_hunks
 from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
+from argot_bench.call_receiver import CallReceiverScorer
 
 Language = Literal["python", "typescript"]
 Reason = Literal[
@@ -57,8 +58,14 @@ class BenchScorer:
     only this file changes.
     """
 
-    def __init__(self, inner: SequentialImportBpeScorer) -> None:
+    def __init__(
+        self,
+        inner: SequentialImportBpeScorer,
+        *,
+        call_receiver: CallReceiverScorer | None = None,
+    ) -> None:
         self._inner = inner
+        self._call_receiver = call_receiver
 
     @property
     def threshold(self) -> float:
@@ -82,12 +89,34 @@ class BenchScorer:
             hunk_start_line=hunk_start_line,
             hunk_end_line=hunk_end_line,
         )
-        return ScoreResult(
+        base = ScoreResult(
             import_score=float(raw["import_score"]),
             bpe_score=float(raw["bpe_score"]),
             flagged=bool(raw["flagged"]),
             reason=raw["reason"],
         )
+
+        # Typicality short-circuit reasons are terminal.
+        if base.reason in ("atypical", "atypical_file", "excluded_path", "auto_generated"):
+            return base
+
+        # Import stage already fired — takes precedence over call_receiver.
+        if base.reason == "import":
+            return base
+
+        # Stage 1.5: call-receiver (only when import didn't fire).
+        if self._call_receiver is not None:
+            cr = self._call_receiver.score_hunk(hunk_content)
+            if cr.flagged:
+                return ScoreResult(
+                    import_score=base.import_score,
+                    bpe_score=base.bpe_score,
+                    flagged=True,
+                    reason="call_receiver",
+                    call_receiver_unattested=cr.unattested,
+                )
+
+        return base
 
 
 def _resolve_adapter(language: Language) -> LanguageAdapter:
@@ -114,6 +143,7 @@ def build_scorer(
     language: Language,
     bpe_model_b: Path | None = None,
     enable_typicality_filter: bool = True,
+    call_receiver_k: int = 0,
 ) -> BenchScorer:
     """Build a BenchScorer calibrated on n_cal sampled hunks from repo_dir.
 
@@ -144,4 +174,10 @@ def build_scorer(
         repo_root=repo_dir,
         enable_typicality_filter=enable_typicality_filter,
     )
-    return BenchScorer(inner)
+    call_receiver = None
+    if call_receiver_k >= 1:
+        call_receiver = CallReceiverScorer(
+            files, language=language, k=call_receiver_k, adapter=adapter
+        )
+
+    return BenchScorer(inner, call_receiver=call_receiver)
