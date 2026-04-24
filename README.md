@@ -273,18 +273,18 @@ a backdrop of **167k+ real PR hunks** from the same repos as negative
 controls.
 
 Latest full baseline ([`benchmarks/results/baseline/latest/report.md`](benchmarks/results/baseline/latest/report.md))
-(era 7 — 107 fixtures, 5 PR snapshots per corpus, difficulty-labelled):
+(107 fixtures, 5 PR snapshots per corpus, difficulty-labelled):
 
 | Corpus | AUC | Recall | FP rate |
 |:---|---:|---:|---:|
-| fastapi | **0.9880** | 71.3% | 0.8% |
-| rich | **0.9935** | **93.3%** | 0.1% |
-| faker (py) | 0.9530 | 73.3% | 0.7% |
+| fastapi | **0.9880** | **91.7%** | 0.8% |
+| rich | **0.9935** | **100.0%** | 0.4% |
+| faker (py) | 0.9530 | **100.0%** | 0.9% |
 | hono | 0.8107 | 60.0% | 0.4% |
 | ink | **0.9888** | 86.7% | 0.4% |
-| faker-js | 0.9408 | 20.0% | 0.8% |
+| faker-js | 0.9408 | 33.3% | 0.8% |
 
-Average recall **67.4%**; **FP rate ≤ 0.8% on all six corpora**. The
+Average recall **78.6%**; **FP rate ≤ 0.9% on all six corpora**. The
 recall figures reflect the harder era-7 fixture set (15 fixtures per corpus
 with easy/medium/hard/uncaught difficulty bands); easy and medium fixtures
 are caught at ≥80% on five of six corpora. The production scorer ships with

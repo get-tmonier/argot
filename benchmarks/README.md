@@ -149,22 +149,21 @@ false positives.
 ## Current baseline
 
 From [`latest/report.md`](results/baseline/latest/report.md)
-(run `20260424T113422Z`, era-7 benchmark: 107 fixtures, 5 PR snapshots
-per corpus, difficulty-labelled; bench default call_receiver_alpha=0.0):
+(run `20260424T121153Z`, 107 fixtures, 5 PR snapshots per corpus,
+difficulty-labelled, call_receiver_alpha=1.0 — shipping scorer default):
 
 | Corpus | AUC | Recall | FP | N_fix | N_ctrl |
 |:---|---:|---:|---:|---:|---:|
-| fastapi | 0.9880 | 71.3% | 0.8% | 32 | 79,623 |
-| rich | 0.9935 | 93.3% | 0.1% | 15 | 68,598 |
-| faker | 0.9530 | 73.3% | 0.7% | 15 | 75,996 |
+| fastapi | 0.9880 | 91.7% | 0.8% | 32 | 79,623 |
+| rich | 0.9935 | 100.0% | 0.4% | 15 | 68,598 |
+| faker | 0.9530 | 100.0% | 0.9% | 15 | 75,996 |
 | hono | 0.8107 | 60.0% | 0.4% | 15 | 54,717 |
 | ink | 0.9888 | 86.7% | 0.4% | 15 | 16,678 |
-| faker-js | 0.9408 | 20.0% | 0.8% | 15 | 255,760 |
+| faker-js | 0.9408 | 33.3% | 0.8% | 15 | 255,760 |
 
-Average recall 67.4%; all corpora FP ≤ 0.8%. The lower recall vs era-6
-reflects the harder era-7 fixture set (medium/hard/uncaught bands); easy
-and medium fixtures are caught at ≥80% on five of six corpora. Threshold
-CV ≤ 10% across all corpora: runs are reproducible across seeds.
+Average recall 78.6%; all corpora FP ≤ 0.9%. Easy and medium fixtures are
+caught at ≥80% on five of six corpora; hard fixtures depend on Stage 1.5.
+Threshold CV ≤ 10% across all corpora: runs are reproducible across seeds.
 
 ### Known weaknesses (flagged by this baseline)
 
@@ -191,6 +190,13 @@ CV ≤ 10% across all corpora: runs are reproducible across seeds.
    `middleware_3` calls `next()` synchronously instead of `await next()`
    — no foreign callee to flag, no token novelty, no import diff. The
    scorer is structurally blind to this class.
+
+5. **Threshold-borderline ink dom_access fixtures.** ink `dom_access_1`
+   (document.getElementById) and `dom_access_2` (window.location.href)
+   score within ink's ±10.6% calibration noise band and are labelled
+   `uncaught`. They flip verdicts between independent 5-seed runs; a
+   tighter ink calibration (larger n_cal or p95 threshold) is needed
+   before they can be reliably caught.
 
 ## Reading a report
 
