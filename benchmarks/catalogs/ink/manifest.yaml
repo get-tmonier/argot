@@ -59,7 +59,7 @@ fixtures:
     hunk_start_line: 6
     hunk_end_line: 7
     rationale: "document.getElementById + window.addEventListener in a terminal UI"
-    difficulty: uncaught
+    difficulty: hard
   - id: ink_dom_access_2
     file: breaks/break_dom_access_2.tsx
     category: dom_access

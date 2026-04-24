@@ -80,7 +80,7 @@ fixtures:
     hunk_start_line: 4
     hunk_end_line: 13
     rationale: "Provider method posts telemetry to an HTTP endpoint via axios"
-    difficulty: uncaught
+    difficulty: hard
   - id: faker_js_http_sink_2
     file: breaks/break_http_sink_2.ts
     category: http_sink
@@ -94,7 +94,7 @@ fixtures:
     hunk_start_line: 3
     hunk_end_line: 9
     rationale: "navigator.sendBeacon reporting inside a faker provider"
-    difficulty: uncaught
+    difficulty: hard
   - id: faker_js_error_flip_1
     file: breaks/break_error_flip_1.ts
     category: error_flip
