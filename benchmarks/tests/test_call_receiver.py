@@ -140,3 +140,54 @@ def test_typescript_empty_and_parse_error():
     assert extract_callees("", "typescript") == []
     result = extract_callees("const x = ???", "typescript")
     assert all(r is None or isinstance(r, str) for r in result)
+
+
+def test_python_smoke_realistic_source():
+    from argot_bench.call_receiver import extract_callees
+
+    source = '''\
+import logging
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class Foo:
+    def bar(self, x: int) -> int:
+        logger.info("x=%s", x)
+        result = self._compute(x)
+        return result
+
+    def _compute(self, x: int) -> int:
+        return math.floor(x ** 0.5)
+'''
+    result = {c for c in extract_callees(source, "python") if c is not None}
+    assert "logging.getLogger" in result
+    assert "logger.info" in result
+    assert "self._compute" in result
+    assert "math.floor" in result
+
+
+def test_typescript_smoke_realistic_source():
+    from argot_bench.call_receiver import extract_callees
+
+    source = '''\
+import { Hono } from "hono";
+
+const app = new Hono();
+
+app.get("/", async (c) => {
+  const data = await fetch("https://example.com").then((r) => r.json());
+  c.header("Content-Type", "application/json");
+  return c.json(data);
+});
+
+export default app;
+'''
+    result = {c for c in extract_callees(source, "typescript") if c is not None}
+    assert "Hono" in result     # new Hono()
+    assert "app.get" in result
+    assert "fetch" in result
+    assert "c.header" in result
+    assert "c.json" in result
