@@ -18,28 +18,26 @@ calibration threshold.
 The path here was not direct.
 
 ```mermaid
-flowchart LR
-    E1["<b>Era 1 — JEPA</b><br/>neural scorer,<br/>6 sweeps<br/>(phases 1–6)"]
-    E2["<b>Era 2 — Honest eval</b><br/>3 architectures<br/>all fail 0.85 gate<br/>(phases 7–9)"]
-    E3["<b>Era 3 — BPE</b><br/>tfidf beats JEPA<br/>stalls at 0.6968<br/>(phases 10–12)"]
-    E4["<b>Era 4 — Import-graph</b><br/>100% recall<br/>0 FP, PROMOTED<br/>(phases 13–14)"]
+flowchart TD
+    E1["<b>Era 1 — JEPA</b><br/>neural scorer, 6 sweeps<br/>(phases 1–6)"]
+    E2["<b>Era 2 — Honest eval</b><br/>3 architectures, all fail 0.85 gate<br/>(phases 7–9)"]
+    E3["<b>Era 3 — BPE</b><br/>tfidf beats JEPA, stalls at 0.6968<br/>(phases 10–12)"]
+    E4["<b>Era 4 — Import-graph</b><br/>100% recall, 0 FP, PROMOTED<br/>(phases 13–14)"]
+    E5["<b>Era 5 — Calibration hygiene</b><br/>typicality filter; FP ≤1.1% on all 6 corpora;<br/>peak −84% on faker-js (phases 15+)"]
+    E6["<b>Era 6 — Call receiver</b><br/>Stage 1.5 soft penalty;<br/>avg recall 72.1% → 80.8%, FP ≤1.1% on all 6"]
 
-    E1 -->|"eval was measuring<br/>language detection"| E2
-    E2 -->|"no training signal<br/>targets mutations"| E3
-    E3 -->|"token frequency hit<br/>its ceiling"| E4
-    E4 -->|"FP tail on data/locale<br/>files needed a pre-filter"| E5
+    E1 -->|"eval was measuring language detection"| E2
+    E2 -->|"no training signal on targeted mutations"| E3
+    E3 -->|"token frequency hit its ceiling"| E4
+    E4 -->|"FP tail on data/locale files needed a pre-filter"| E5
+    E5 -->|"context-dependent breaks still slip past BPE"| E6
 
-    E5["<b>Era 5 — Calibration hygiene</b><br/>typicality filter<br/>FP ≤1.1% on all 6 corpora;<br/>peak −84% on faker-js<br/>(phases 15+)"]
-
-    E5 -->|"context-dependent breaks<br/>still slip past BPE"| E6
-    E6["<b>Era 6 — Call receiver</b><br/>Stage 1.5 soft penalty;<br/>avg recall 72.1%→80.8%<br/>FP ≤1.1% on all 6"]
-
-    style E4 fill:#d4edda,stroke:#28a745,stroke-width:2px
-    style E5 fill:#d4edda,stroke:#28a745,stroke-width:2px
-    style E6 fill:#d4edda,stroke:#28a745,stroke-width:2px
     style E1 fill:#f8d7da,stroke:#dc3545
     style E2 fill:#f8d7da,stroke:#dc3545
     style E3 fill:#fff3cd,stroke:#ffc107
+    style E4 fill:#d4edda,stroke:#28a745,stroke-width:2px
+    style E5 fill:#d4edda,stroke:#28a745,stroke-width:2px
+    style E6 fill:#d4edda,stroke:#28a745,stroke-width:2px
 ```
 
 ## Timeline
