@@ -84,7 +84,7 @@ def test_python_complex_chain_returns_none() -> None:
 def test_python_smoke_realistic_source() -> None:
     from argot.scoring.scorers.call_receiver import extract_callees
 
-    source = '''\
+    source = """\
 import logging
 from typing import Any
 
@@ -100,7 +100,7 @@ class Foo:
 
     def _compute(self, x: int) -> int:
         return math.floor(x ** 0.5)
-'''
+"""
     result = {c for c in extract_callees(source, "python") if c is not None}
     assert "logging.getLogger" in result
     assert "logger.info" in result
@@ -158,7 +158,7 @@ def test_typescript_empty_and_parse_error() -> None:
 def test_typescript_smoke_realistic_source() -> None:
     from argot.scoring.scorers.call_receiver import extract_callees
 
-    source = '''\
+    source = """\
 import { Hono } from "hono";
 
 const app = new Hono();
@@ -170,7 +170,7 @@ app.get("/", async (c) => {
 });
 
 export default app;
-'''
+"""
     result = {c for c in extract_callees(source, "typescript") if c is not None}
     assert "Hono" in result
     assert "app.get" in result

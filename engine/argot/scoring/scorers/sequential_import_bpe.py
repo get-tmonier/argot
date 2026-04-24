@@ -104,7 +104,9 @@ def _compute_threshold(cal_scores: list[float], threshold_percentile: float | No
 
 
 ScoredHunk = dict[str, Any]
-Reason = Literal["import", "call_receiver", "bpe", "none", "auto_generated", "atypical", "atypical_file"]
+Reason = Literal[
+    "import", "call_receiver", "bpe", "none", "auto_generated", "atypical", "atypical_file"
+]
 
 
 class SequentialImportBpeScorer:
@@ -352,9 +354,7 @@ class SequentialImportBpeScorer:
                 n_unattested, self._call_receiver.cap
             )
             if adjusted_bpe > self.bpe_threshold:
-                cr_reason: Reason = (
-                    "call_receiver" if bpe_score <= self.bpe_threshold else "bpe"
-                )
+                cr_reason: Reason = "call_receiver" if bpe_score <= self.bpe_threshold else "bpe"
                 return {
                     "import_score": import_score,
                     "bpe_score": bpe_score,

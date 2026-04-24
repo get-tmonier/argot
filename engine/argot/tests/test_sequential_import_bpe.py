@@ -318,7 +318,8 @@ def test_import_reason_takes_precedence_over_call_receiver(tmp_path: Path) -> No
 
     code_file = tmp_path / "code.py"
     code_file.write_text(
-        "import logging\nlogger = logging.getLogger()\ndef fn(x):\n    logger.info(x)\n    return x\n"
+        "import logging\nlogger = logging.getLogger()\n"
+        "def fn(x):\n    logger.info(x)\n    return x\n"
     )
     bpe_model_b = tmp_path / "bpe.json"
     bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
@@ -345,7 +346,8 @@ def test_no_flag_when_all_callees_attested(tmp_path: Path) -> None:
 
     code_file = tmp_path / "code.py"
     code_file.write_text(
-        "import logging\nlogger = logging.getLogger()\ndef fn(x):\n    logger.info(x)\n    logger.debug(x)\n    return x\n"
+        "import logging\nlogger = logging.getLogger()\n"
+        "def fn(x):\n    logger.info(x)\n    logger.debug(x)\n    return x\n"
     )
     bpe_model_b = tmp_path / "bpe.json"
     bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
@@ -373,7 +375,8 @@ def test_call_receiver_reason_when_penalty_tips_threshold(tmp_path: Path) -> Non
 
     code_file = tmp_path / "code.py"
     code_file.write_text(
-        "import logging\nlogger = logging.getLogger()\ndef fn(x):\n    logger.info(x)\n    return x\n"
+        "import logging\nlogger = logging.getLogger()\n"
+        "def fn(x):\n    logger.info(x)\n    return x\n"
     )
     bpe_model_b = tmp_path / "bpe.json"
     # All tokens in model_b to keep raw BPE low (common tokens → low log-ratio)
@@ -395,9 +398,7 @@ def test_call_receiver_reason_when_penalty_tips_threshold(tmp_path: Path) -> Non
     )
 
     # 3 unattested callees: Math.random, crypto.randomBytes, axios.get
-    result = scorer.score_hunk(
-        "Math.random()\ncrypto.randomBytes(16)\naxios.get('/foo')"
-    )
+    result = scorer.score_hunk("Math.random()\ncrypto.randomBytes(16)\naxios.get('/foo')")
     assert result["flagged"] is True
     if result["bpe_score"] <= 0.5:
         assert result["reason"] == "call_receiver", (
