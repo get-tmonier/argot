@@ -191,3 +191,105 @@ def test_has_root_error_fragment_is_true() -> None:
     # A triple-quoted docstring body without its opening ''' → ERROR at root
     fragment = "    :param x: int — the count\n    :returns: float"
     assert _has_root_error(fragment, "python") is True
+
+
+# ---------------------------------------------------------------------------
+# CallReceiverScorer tests
+# ---------------------------------------------------------------------------
+
+
+def test_scorer_fit_builds_attested_set(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.py"
+    f.write_text("import logging\nlogger = logging.getLogger()\nlogger.info('x')\n")
+    scorer = CallReceiverScorer([f], language="python")
+    assert "logging.getLogger" in scorer.attested
+    assert "logger.info" in scorer.attested
+
+
+def test_scorer_fit_empty_file_list_raises() -> None:
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    try:
+        CallReceiverScorer([], language="python")
+    except ValueError:
+        return
+    raise AssertionError("expected ValueError for empty model_a_files")
+
+
+def test_scorer_default_alpha_cap(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """alpha=1.0 and cap=5 are the shipping defaults."""
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.py"
+    f.write_text("logger.info('x')\n")
+    scorer = CallReceiverScorer([f], language="python")
+    assert scorer.alpha == 1.0
+    assert scorer.cap == 5
+
+
+def test_count_unattested_zero_for_all_attested(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.py"
+    f.write_text("logger.info('x')\nlogger.debug('y')\n")
+    scorer = CallReceiverScorer([f], language="python")
+    assert scorer.count_unattested("logger.info('hello')") == 0
+
+
+def test_count_unattested_counts_distinct(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.py"
+    f.write_text("logger.info('x')\n")
+    scorer = CallReceiverScorer([f], language="python")
+    n = scorer.count_unattested("Math.random()\ncrypto.randomBytes(16)")
+    assert n == 2
+
+
+def test_count_unattested_deduplicates(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.py"
+    f.write_text("logger.info('x')\n")
+    scorer = CallReceiverScorer([f], language="python")
+    # Same callee twice → still only 1 distinct unattested
+    assert scorer.count_unattested("Math.random()\nMath.random()") == 1
+
+
+def test_count_unattested_empty_hunk(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.py"
+    f.write_text("logger.info('x')\n")
+    scorer = CallReceiverScorer([f], language="python")
+    assert scorer.count_unattested("") == 0
+    assert scorer.count_unattested("x = 1") == 0
+
+
+def test_count_unattested_zero_for_root_error_fragment(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Root-ERROR fragments must return 0 (parse-fragment guard)."""
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.py"
+    f.write_text("logger.info('x')\n")
+    scorer = CallReceiverScorer([f], language="python")
+    fragment = "    :param x: int — the count\n    :returns: float"
+    assert scorer.count_unattested(fragment) == 0
+
+
+def test_scorer_fit_skips_data_dominant_files(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from argot.scoring.adapters.python_adapter import PythonAdapter
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    code = tmp_path / "code.py"
+    code.write_text("import logging\nlogger = logging.getLogger()\nlogger.info('x')\n")
+    locale = tmp_path / "locale.py"
+    locale.write_text(
+        "CITIES = [\n" + ",\n".join([f"    'city_{i}'" for i in range(200)]) + ",\n]\n"
+    )
+    adapter = PythonAdapter()
+    scorer = CallReceiverScorer([code, locale], language="python", adapter=adapter)
+    assert "logging.getLogger" in scorer.attested
+    assert scorer.n_skipped_data_dominant == 1
