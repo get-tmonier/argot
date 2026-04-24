@@ -59,3 +59,8 @@ class PythonAdapter:
 
     def prose_line_ranges(self, source: str) -> frozenset[int]:
         return self._parser.prose_line_ranges(source)
+
+    def extract_callees(self, source: str) -> list[str]:
+        from argot.scoring.scorers.call_receiver import extract_callees as _extract
+
+        return [c for c in _extract(source, "python") if c is not None]

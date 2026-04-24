@@ -84,3 +84,12 @@ class LanguageAdapter(Protocol):
         inflate the score.  On parse error return an empty frozenset.
         """
         ...
+
+    def extract_callees(self, source: str) -> list[str]:
+        """Return non-None dotted-callee strings for every call-expression in *source*.
+
+        Delegates to ``argot.scoring.scorers.call_receiver.extract_callees`` for
+        the language-specific parse.  Returns ``[]`` on parse error or empty source.
+        None entries (complex chains) are filtered before returning.
+        """
+        ...
