@@ -1,9 +1,9 @@
 # argot research
 
 > **How a GPU-hungry neural scorer became a ~220-line statistical pipeline.**
-> Six eras, three dead ends, two breakthroughs and a parsing-artifact
-> mystery — 15+ phases of experiments condensed into six short narratives
-> and 29 evidence docs.
+> Seven eras, three dead ends, two breakthroughs, a parsing-artifact
+> mystery, and a benchmark fairness audit — 15+ phases of experiments
+> condensed into seven short narratives and 29+ evidence docs.
 
 ## What argot does today
 
@@ -25,12 +25,14 @@ flowchart TD
     E4["<b>Era 4 — Import-graph</b><br/>100% recall, 0 FP, PROMOTED<br/>(phases 13–14)"]
     E5["<b>Era 5 — Calibration hygiene</b><br/>typicality filter; FP ≤1.1% on all 6 corpora;<br/>peak −84% on faker-js (phases 15+)"]
     E6["<b>Era 6 — Call receiver</b><br/>Stage 1.5 soft penalty;<br/>avg recall 72.1% → 80.8%, FP ≤1.1% on all 6"]
+    E7["<b>Era 7 — Benchmark fairness</b><br/>Fixture parity · PR parity · Difficulty labels<br/>(91 → 107 fixtures, 3 asymmetries fixed)"]
 
     E1 -->|"eval was measuring language detection"| E2
     E2 -->|"no training signal on targeted mutations"| E3
     E3 -->|"token frequency hit its ceiling"| E4
     E4 -->|"FP tail on data/locale files needed a pre-filter"| E5
     E5 -->|"context-dependent breaks still slip past BPE"| E6
+    E6 -->|"structural asymmetries in benchmark obscured cross-corpus signal"| E7
 
     style E1 fill:#f8d7da,stroke:#dc3545
     style E2 fill:#f8d7da,stroke:#dc3545
@@ -38,6 +40,7 @@ flowchart TD
     style E4 fill:#d4edda,stroke:#28a745,stroke-width:2px
     style E5 fill:#d4edda,stroke:#28a745,stroke-width:2px
     style E6 fill:#d4edda,stroke:#28a745,stroke-width:2px
+    style E7 fill:#d4edda,stroke:#28a745,stroke-width:2px
 ```
 
 ## Timeline
@@ -50,6 +53,7 @@ flowchart TD
 | **Import-graph breakthrough** | 13–14 | `SequentialImportBpeScorer` flagged 46/46 breaks with 0 FP across 189 calibration+control hunks; TS bring-up clean on hono (0/22), ink (3/14 all INTENTIONAL), and faker-js (2/46 after 74.8% locale-data filter) | [04-import-graph-breakthrough.md](04-import-graph-breakthrough.md) |
 | **Calibration hygiene** | 15+ | AST-derived typicality predicate brought FP rate ≤1.1% on all 6 corpora; peak reduction on faker-js (5.0% → 0.8%). Ink recall improved +6.6 pp and rich fully recovered to 90% as side effects of calibration-pool cleanup. | [05-calibration-hygiene.md](05-calibration-hygiene.md) |
 | **Call-receiver scorer** | 16+ | Stage 1.5 presence signal over call-expression receivers, shipped as a soft additive penalty to BPE (`adjusted = bpe + α · min(n_unattested, 5)`, α=1.0). Four bench configurations (k=1, k=2, α=0.5, α=1.0) failed gates before a data-driven investigation revealed most new FPs were a tree-sitter artifact on out-of-context hunk slices, not a scorer issue. A six-line root-ERROR guard unlocked the gate: avg recall 72.1% → 80.8%, FP ≤ 1.1% on all six corpora, 0/91 category regressions. | [06-call-receiver.md](06-call-receiver.md) |
+| **Benchmark fairness** | — | Zero scorer changes. Fixture catalog expanded 91 → 107 (faker 5→15, rich 10→15, fastapi 31→32). PR sampling harmonized to 5 pre-merge snapshots per corpus. All 107 fixtures labeled easy/medium/hard/uncaught. recall_by_difficulty metric added. | [07-benchmark-fairness.md](07-benchmark-fairness.md) |
 
 ## The arc across six eras
 
@@ -63,10 +67,10 @@ exactly", below 1.0 means "came in under".
 ```mermaid
 xychart-beta
     title "Gate clearance per era (1.0 = cleared exactly)"
-    x-axis ["Era 1", "Era 2", "Era 3", "Era 4", "Era 5", "Era 6"]
+    x-axis ["Era 1", "Era 2", "Era 3", "Era 4", "Era 5", "Era 6", "Era 7"]
     y-axis "fraction of gate" 0 --> 1.1
-    bar [0.89, 0.68, 0.87, 1.00, 1.00, 1.00]
-    line [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    bar [0.89, 0.68, 0.87, 1.00, 1.00, 1.00, 1.00]
+    line [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
 ```
 
 | Era | Best result | Gate | Clearance |
@@ -77,6 +81,7 @@ xychart-beta
 | 4 (import-graph) | recall 1.0 | 1.0 | 1.00 |
 | 5 (calibration hygiene) | 6/6 corpora at FP ≤1.5% | 6/6 | 1.00 |
 | 6 (call-receiver) | avg recall 80.8%, FP ≤1.1%, 0 regressions | 4/4 gates | 1.00 |
+| 7 (benchmark fairness) | 7/7 gates cleared | 7/7 | 1.00 |
 
 Eras 1–3 came in short on their own gates. Era 4 cleared
 exactly. Era 5 cleared its gate (FP ≤1.5% on all six corpora)
@@ -197,6 +202,9 @@ era docs are the story; the evidence docs are the receipts.
 
 ## What's next
 
+Era 7 fixed the benchmark's three structural asymmetries. The production scorer
+is unchanged — era 7 is discipline, not signal.
+
 The era-6 scorer lives at `engine/argot/scoring/scorers/call_receiver.py`
 (after the production port) and runs as Stage 1.5 in
 `SequentialImportBpeScorer`. Remaining research items:
@@ -218,3 +226,6 @@ The era-6 scorer lives at `engine/argot/scoring/scorers/call_receiver.py`
   flag; the scorer is structurally blind to it.
 - **Keyword-compatible reframings** (era-4 weakness #3) — Flask-style
   `@app.route` in a FastAPI corpus still scores below the threshold.
+- **Difficulty-aware scorer development** — with all 107 fixtures labeled,
+  future eras can target specific difficulty bands (the 40+ `uncaught` fixtures
+  are the clearest gap).
