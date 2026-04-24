@@ -70,3 +70,38 @@ fixtures:
   hunk_start_line: 16
   hunk_end_line: 37
   rationale: termcolor.colored recursive dict-tree printer in a rich-looking file
+- id: ansi_raw_3
+  file: breaks/break_ansi_raw_3.py
+  category: ansi_raw
+  hunk_start_line: 13
+  hunk_end_line: 21
+  difficulty: easy
+  rationale: "blessed.Terminal for dashboard rendering — competing terminal UI library imported inside hunk. Canonical: rich.console.Console at >200 corpus sites; blessed.Terminal at 0 sites. Single axis: foreign terminal library import in hunk."
+- id: colorama_3
+  file: breaks/break_colorama_3.py
+  category: colorama
+  hunk_start_line: 14
+  hunk_end_line: 39
+  difficulty: hard
+  rationale: "Fore.CYAN + Style.BRIGHT + Back.BLUE + Style.RESET_ALL receiver chain in complex table renderer — colorama imported at file top, outside hunk. Novel receiver usage: Back.BLUE and Style.BRIGHT composition absent from rich corpus internals."
+- id: curses_3
+  file: breaks/break_curses_3.py
+  category: curses
+  hunk_start_line: 15
+  hunk_end_line: 30
+  difficulty: medium
+  rationale: "curses.textpad.Textbox interactive form — curses and curses.textpad imported at file top, outside hunk. curses.textpad.Textbox, newwin, instr patterns are token-novel vs rich corpus. Single axis: BPE novelty of interactive textpad patterns."
+- id: print_manual_3
+  file: breaks/break_print_manual_3.py
+  category: print_manual
+  hunk_start_line: 13
+  hunk_end_line: 21
+  difficulty: easy
+  rationale: "tabulate library for table rendering imported inside hunk. Canonical: plain print() with ljust/rjust at break sites; tabulate at 0 rich corpus sites. Single axis: foreign import in hunk."
+- id: termcolor_3
+  file: breaks/break_termcolor_3.py
+  category: termcolor
+  hunk_start_line: 15
+  hunk_end_line: 36
+  difficulty: medium
+  rationale: "termcolor.colored with on_color and attrs (blink) in structured log emitter and progress bar — termcolor imported at file top, outside hunk. attrs=[blink] and on_color=on_red are token-novel; sys.stderr.write/flush also novel vs rich corpus."

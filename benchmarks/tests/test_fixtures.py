@@ -49,6 +49,20 @@ def test_fixture_difficulty_defaults_to_none():
     assert fx.difficulty is None
 
 
+def test_rich_has_fifteen_fixtures():
+    cat = load_catalog(CATALOGS_DIR / "rich")
+    assert len(cat.fixtures) == 15, f"Expected 15, got {len(cat.fixtures)}"
+
+
+def test_rich_each_category_has_three_fixtures():
+    cat = load_catalog(CATALOGS_DIR / "rich")
+    by_cat: dict[str, int] = {}
+    for fx in cat.fixtures:
+        by_cat[fx.category] = by_cat.get(fx.category, 0) + 1
+    for cat_name, count in by_cat.items():
+        assert count >= 3, f"rich category {cat_name!r} has only {count} fixtures (need >=3)"
+
+
 def test_fixture_difficulty_loaded_from_yaml(tmp_path: Path):
     catalog_dir = tmp_path / "mycorpus"
     catalog_dir.mkdir()
@@ -99,3 +113,17 @@ def test_fixture_difficulty_optional_in_yaml(tmp_path: Path):
     from argot_bench.fixtures import load_catalog
     cat = load_catalog(catalog_dir)
     assert cat.fixtures[0].difficulty is None
+
+
+def test_faker_has_fifteen_fixtures():
+    cat = load_catalog(CATALOGS_DIR / "faker")
+    assert len(cat.fixtures) == 15, f"Expected 15, got {len(cat.fixtures)}"
+
+
+def test_faker_each_category_has_three_fixtures():
+    cat = load_catalog(CATALOGS_DIR / "faker")
+    by_cat: dict[str, int] = {}
+    for fx in cat.fixtures:
+        by_cat[fx.category] = by_cat.get(fx.category, 0) + 1
+    for cat_name, count in by_cat.items():
+        assert count >= 3, f"faker category {cat_name!r} has only {count} fixtures (need >=3)"
