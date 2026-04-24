@@ -33,7 +33,7 @@ def test_run_corpus_stub_returns_corpus_report(tmp_path: Path, monkeypatch):
 
             return ScoreResult(import_score=0.0, bpe_score=3.0, flagged=True, reason="bpe")
 
-    def fake_build(repo, *, n_cal, seed, language, bpe_model_b=None, enable_typicality_filter=True):
+    def fake_build(repo, *, n_cal, seed, language, bpe_model_b=None, enable_typicality_filter=True, call_receiver_k=0):
         return FakeBenchScorer()
 
     monkeypatch.setattr(run_mod, "ensure_clone", fake_clone)
@@ -144,6 +144,33 @@ def test_score_real_hunks_skips_missing_files(tmp_path: Path):
     record = {"file_path": "nope.py", "hunk_start_line": 0, "hunk_end_line": 1}
     results = _score_real_hunks(NoopScorer(), [record], tmp_path)  # type: ignore[arg-type]
     assert results == []
+
+
+def test_run_config_has_call_receiver_k_field():
+    from pathlib import Path
+
+    from argot_bench.run import RunConfig
+
+    cfg = RunConfig(
+        corpus="fastapi",
+        url="https://example.com/fastapi",
+        language="python",
+        prs=[(1, "abc")],
+        catalog_dir=Path("/tmp"),
+        data_dir=Path("/tmp"),
+        call_receiver_k=1,
+    )
+    assert cfg.call_receiver_k == 1
+
+    cfg_default = RunConfig(
+        corpus="fastapi",
+        url="https://example.com/fastapi",
+        language="python",
+        prs=[(1, "abc")],
+        catalog_dir=Path("/tmp"),
+        data_dir=Path("/tmp"),
+    )
+    assert cfg_default.call_receiver_k == 0
 
 
 def test_run_config_accepts_typicality_filter_field():

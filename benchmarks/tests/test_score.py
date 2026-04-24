@@ -128,7 +128,13 @@ def test_bench_scorer_call_receiver_k0_disables_stage(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()
     (repo / "mod.py").write_text(
-        "def a():\n    logger.info('x')\n    logger.info('y')\n    logger.info('z')\n    logger.info('w')\n    logger.info('v')\n    return None\n"
+        "def a():\n"
+        "    logger.info('x')\n"
+        "    logger.info('y')\n"
+        "    logger.info('z')\n"
+        "    logger.info('w')\n"
+        "    logger.info('v')\n"
+        "    return None\n"
     )
 
     scorer = build_scorer(

@@ -14,6 +14,7 @@ from argot.scoring.adapters.language_adapter import LanguageAdapter
 from argot.scoring.adapters.python_adapter import PythonAdapter
 from argot.scoring.calibration.random_hunk_sampler import sample_hunks
 from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
+
 from argot_bench.call_receiver import CallReceiverScorer
 
 Language = Literal["python", "typescript"]

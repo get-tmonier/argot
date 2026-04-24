@@ -55,6 +55,14 @@ def build_parser() -> argparse.ArgumentParser:
             "Sampled runs are NOT suitable as baselines."
         ),
     )
+    p.add_argument(
+        "--call-receiver-k",
+        type=int,
+        choices=[0, 1, 2],
+        default=0,
+        metavar="{0,1,2}",
+        help="Stage 1.5 call-receiver scorer. 0=off (default); 1=primary; 2=fallback.",
+    )
 
     sub.add_parser("list-corpora", help="Print the 6 corpora in targets.yaml")
     rep = sub.add_parser("report", help="Regenerate report.md from existing JSON")
@@ -69,6 +77,14 @@ def build_parser() -> argparse.ArgumentParser:
     one.add_argument("--no-typicality-filter", action="store_true", default=False)
     one.add_argument("--seeds", type=int, default=None)
     one.add_argument("--sample-controls", type=int, default=None)
+    one.add_argument(
+        "--call-receiver-k",
+        type=int,
+        choices=[0, 1, 2],
+        default=0,
+        metavar="{0,1,2}",
+        help="Stage 1.5 call-receiver scorer. 0=off (default); 1=primary; 2=fallback.",
+    )
 
     return p
 
@@ -132,6 +148,7 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
         typicality_filter=not args.no_typicality_filter,
         seeds=seeds,
         sample_controls=args.sample_controls,
+        call_receiver_k=args.call_receiver_k,
     )
     args.out_dir.mkdir(parents=True, exist_ok=True)
     r = run_corpus(cfg)
@@ -166,6 +183,8 @@ def _run(args: argparse.Namespace) -> int:
         base_cmd.extend(["--seeds", str(args.seeds)])
     if args.sample_controls is not None:
         base_cmd.extend(["--sample-controls", str(args.sample_controls)])
+    if args.call_receiver_k != 0:
+        base_cmd.extend(["--call-receiver-k", str(args.call_receiver_k)])
 
     for t in selected:
         print(f"[{t.name}] spawning subprocess...")

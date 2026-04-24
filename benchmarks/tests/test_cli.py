@@ -178,6 +178,20 @@ def test_cli_orchestrator_aggregates_json(tmp_path: Path) -> None:
     assert "faker-js" in content
 
 
+def test_cli_accepts_call_receiver_k_flag():
+    from argot_bench.cli import build_parser
+
+    parser = build_parser()
+    ns = parser.parse_args(["--call-receiver-k", "1"])
+    assert ns.call_receiver_k == 1
+
+    ns2 = parser.parse_args(["--call-receiver-k", "2"])
+    assert ns2.call_receiver_k == 2
+
+    ns3 = parser.parse_args([])
+    assert ns3.call_receiver_k == 0  # default off
+
+
 @pytest.mark.integration
 def test_run_one_subprocess_writes_json(tmp_path: Path) -> None:
     """Spawns a real subprocess; skipped if argot-bench is not importable."""
