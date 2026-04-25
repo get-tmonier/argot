@@ -86,3 +86,28 @@ def test_bench_threshold_n_seeds_shipping_default() -> None:
     assert "threshold_n_seeds" in sig.parameters, "build_scorer missing threshold_n_seeds param"
     score_default = sig.parameters["threshold_n_seeds"].default
     assert score_default == 7, f"build_scorer threshold_n_seeds default should be 7 (era-10 shipping config), got {score_default}"
+
+
+def test_bench_root_bonus_default() -> None:
+    """RunConfig, build_scorer, and SequentialImportBpeScorer must all default call_receiver_root_bonus=2.0."""
+    from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
+    from argot_bench.run import RunConfig
+    from argot_bench.score import build_scorer
+
+    fields = {f.name: f for f in dataclasses.fields(RunConfig)}
+    assert "call_receiver_root_bonus" in fields, "RunConfig missing call_receiver_root_bonus field"
+    run_default = fields["call_receiver_root_bonus"].default
+
+    sig = inspect.signature(build_scorer)
+    assert "call_receiver_root_bonus" in sig.parameters, "build_scorer missing call_receiver_root_bonus param"
+    score_default = sig.parameters["call_receiver_root_bonus"].default
+
+    scorer_sig = inspect.signature(SequentialImportBpeScorer.__init__)
+    assert "call_receiver_root_bonus" in scorer_sig.parameters, (
+        "SequentialImportBpeScorer missing call_receiver_root_bonus param"
+    )
+    scorer_default = scorer_sig.parameters["call_receiver_root_bonus"].default
+
+    assert run_default == score_default == scorer_default == 2.0, (
+        f"root_bonus defaults drifted: run={run_default}, score={score_default}, scorer={scorer_default}"
+    )
