@@ -85,18 +85,34 @@ def _is_meaningful_token(token_str: str) -> bool:
     return len(token_str) >= 3 and any(c.isalnum() for c in token_str)
 
 
-def _compute_threshold(cal_scores: list[float], threshold_percentile: float | None) -> float:
+def _compute_threshold(
+    cal_scores: list[float],
+    threshold_percentile: float | None,
+    threshold_iqr_k: float | None = None,
+) -> float:
     """Compute BPE threshold from calibration scores.
 
-    threshold_percentile=None → max(cal_scores).
-    threshold_percentile in (0, 100] → that percentile via linear interpolation.
+    Priority: IQR-margin > percentile > max.
+    threshold_iqr_k not None → p75 + k * IQR (IQR = p75 - p25), linear interpolation.
+    threshold_percentile not None → that percentile via linear interpolation.
+    Both None → max(cal_scores).
     """
     if not cal_scores:
         return 0.0
+    sorted_vals = sorted(cal_scores)
+    n = len(sorted_vals)
+    if threshold_iqr_k is not None:
+        idx25 = 0.25 * (n - 1)
+        lo25 = int(idx25)
+        hi25 = min(lo25 + 1, n - 1)
+        p25 = sorted_vals[lo25] + (idx25 - lo25) * (sorted_vals[hi25] - sorted_vals[lo25])
+        idx75 = 0.75 * (n - 1)
+        lo75 = int(idx75)
+        hi75 = min(lo75 + 1, n - 1)
+        p75 = sorted_vals[lo75] + (idx75 - lo75) * (sorted_vals[hi75] - sorted_vals[lo75])
+        return p75 + threshold_iqr_k * (p75 - p25)
     if threshold_percentile is None:
         return max(cal_scores)
-    n = len(cal_scores)
-    sorted_vals = sorted(cal_scores)
     idx = (threshold_percentile / 100.0) * (n - 1)
     lo = int(idx)
     hi = min(lo + 1, n - 1)
@@ -121,6 +137,8 @@ class SequentialImportBpeScorer:
         threshold_percentile: None → max(cal_scores). A value in (0, 100] → that
             percentile of cal_scores via linear interpolation. Default None preserves
             the existing max behaviour.
+        threshold_iqr_k: When not None, overrides threshold_percentile; sets threshold to
+            p75 + k * IQR (IQR = p75 - p25). Default None.
         enable_typicality_filter: Build a TypicalityModel for calibration pool filtering
             and inference short-circuit (hunk- and file-level).  Default True.
             Does NOT affect model-A filtering; model A always uses ``exclude_data_dominant``.
@@ -139,6 +157,7 @@ class SequentialImportBpeScorer:
         adapter: LanguageAdapter | None = None,
         repo_root: Path | None = None,
         threshold_percentile: float | None = None,
+        threshold_iqr_k: float | None = None,
         exclude_data_dominant: bool = True,
         enable_typicality_filter: bool = True,
         call_receiver_alpha: float = 2.0,
@@ -231,7 +250,7 @@ class SequentialImportBpeScorer:
                 for h in cal_list
             ]
             self.cal_scores = cal_scores
-            self.bpe_threshold = _compute_threshold(cal_scores, threshold_percentile)
+            self.bpe_threshold = _compute_threshold(cal_scores, threshold_percentile, threshold_iqr_k)
             self.n_calibration = len(cal_scores)
 
     def _bpe_score(self, hunk_source: str) -> float:
