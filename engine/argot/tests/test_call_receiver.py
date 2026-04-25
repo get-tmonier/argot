@@ -447,3 +447,97 @@ def test_weighted_contribution_zero_for_root_error_fragment(tmp_path) -> None:  
     fragment = "    :param x: int — the count\n    :returns: float"
     result = scorer.weighted_contribution(fragment, alpha=2.0, root_bonus=2.0, cap=5.0)
     assert result == pytest.approx(0.0)
+
+
+# ---------------------------------------------------------------------------
+# attested_counts / callee_weight / weighted_contribution_log tests
+# ---------------------------------------------------------------------------
+
+
+def test_attested_counts_populated(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.ts"
+    f.write_text("Math.floor(x);\nMath.floor(y);\nconsole.log('x');")
+    scorer = CallReceiverScorer([f], language="typescript")
+    assert scorer.attested_counts["Math.floor"] == 2
+    assert scorer.attested_counts["console.log"] == 1
+    assert scorer.total_count == 3
+
+
+def test_callee_weight_unattested_returns_max_weight() -> None:
+    from argot.scoring.scorers.call_receiver import callee_weight
+
+    # Large corpus: -log(epsilon/denom) >> max_weight → capped at max_weight
+    counts: dict[str, int] = {"Math.floor": 1000}
+    total = 1000
+    w = callee_weight("Math.random", counts, total, max_weight=5.0)
+    assert w == pytest.approx(5.0)
+
+
+def test_callee_weight_common_attested_is_small() -> None:
+    from argot.scoring.scorers.call_receiver import callee_weight
+
+    counts: dict[str, int] = {"Math.floor": 1000}
+    total = 1000
+    w = callee_weight("Math.floor", counts, total, max_weight=5.0)
+    assert 0.0 < w < 1.0
+
+
+def test_callee_weight_rare_attested_is_moderate() -> None:
+    from argot.scoring.scorers.call_receiver import callee_weight
+
+    counts: dict[str, int] = {"rare.func": 1, "common.func": 1000}
+    total = 1001
+    w_rare = callee_weight("rare.func", counts, total, max_weight=5.0)
+    w_common = callee_weight("common.func", counts, total, max_weight=5.0)
+    assert w_rare > w_common
+
+
+def test_weighted_contribution_log_unattested_gets_max_weight(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.ts"
+    # Large corpus ensures -log(epsilon/denom) >> max_weight → weight capped at max_weight
+    f.write_text("".join(f"Math.floor(x{i});\n" for i in range(500)))
+    scorer = CallReceiverScorer([f], language="typescript")
+    result = scorer.weighted_contribution_log("Math.random();", max_weight=5.0, cap=8.0)
+    assert result == pytest.approx(5.0)
+
+
+def test_weighted_contribution_log_cap_limits_sum(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.ts"
+    # Large corpus: two unattested callees each get max_weight=5.0, sum=10.0 → capped at 8.0
+    f.write_text("".join(f"Math.floor(x{i});\n" for i in range(500)))
+    scorer = CallReceiverScorer([f], language="typescript")
+    result = scorer.weighted_contribution_log(
+        "Math.random();\nMath.trunc(x);", max_weight=5.0, cap=8.0
+    )
+    assert result == pytest.approx(8.0)
+
+
+def test_weighted_contribution_log_zero_for_root_error_fragment(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.py"
+    f.write_text("logger.info('x')\n")
+    scorer = CallReceiverScorer([f], language="python")
+    fragment = "    :param x: int — the count\n    :returns: float"
+    result = scorer.weighted_contribution_log(fragment, max_weight=5.0, cap=8.0)
+    assert result == pytest.approx(0.0)
+
+
+def test_weighted_contribution_log_deduplicates_callees(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.ts"
+    f.write_text("Math.floor(x);")
+    scorer = CallReceiverScorer([f], language="typescript")
+    # Same unattested callee twice — should be counted once
+    result_single = scorer.weighted_contribution_log("Math.random();", max_weight=5.0, cap=8.0)
+    result_double = scorer.weighted_contribution_log(
+        "Math.random();\nMath.random();", max_weight=5.0, cap=8.0
+    )
+    assert result_single == pytest.approx(result_double)

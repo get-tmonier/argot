@@ -42,6 +42,8 @@ class RunConfig:
     call_receiver_alpha: float = 2.0
     call_receiver_cap: int = 5
     call_receiver_root_bonus: float = 2.0
+    call_receiver_max_weight: float = 0.0
+    call_receiver_log_cap: float = 8.0
     threshold_percentile: float | None = None
     threshold_iqr_k: float | None = None
     threshold_n_seeds: int = 7
@@ -200,6 +202,8 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             call_receiver_alpha=cfg.call_receiver_alpha,
             call_receiver_cap=cfg.call_receiver_cap,
             call_receiver_root_bonus=cfg.call_receiver_root_bonus,
+            call_receiver_max_weight=cfg.call_receiver_max_weight,
+            call_receiver_log_cap=cfg.call_receiver_log_cap,
             threshold_percentile=cfg.threshold_percentile,
             threshold_iqr_k=cfg.threshold_iqr_k,
             threshold_n_seeds=cfg.threshold_n_seeds,
@@ -233,6 +237,8 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             call_receiver_alpha=cfg.call_receiver_alpha,
             call_receiver_cap=cfg.call_receiver_cap,
             call_receiver_root_bonus=cfg.call_receiver_root_bonus,
+            call_receiver_max_weight=cfg.call_receiver_max_weight,
+            call_receiver_log_cap=cfg.call_receiver_log_cap,
             threshold_percentile=cfg.threshold_percentile,
             threshold_iqr_k=cfg.threshold_iqr_k,
             threshold_n_seeds=cfg.threshold_n_seeds,
@@ -269,6 +275,8 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
                 call_receiver_alpha=cfg.call_receiver_alpha,
                 call_receiver_cap=cfg.call_receiver_cap,
                 call_receiver_root_bonus=cfg.call_receiver_root_bonus,
+                call_receiver_max_weight=cfg.call_receiver_max_weight,
+                call_receiver_log_cap=cfg.call_receiver_log_cap,
                 threshold_percentile=cfg.threshold_percentile,
                 threshold_iqr_k=cfg.threshold_iqr_k,
                 threshold_n_seeds=cfg.threshold_n_seeds,

@@ -78,6 +78,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="Root-conditional bonus weight for attested-root unattested callees. Default 2.0 (era-10 Phase-2 shipping).",
     )
     p.add_argument(
+        "--call-receiver-max-weight",
+        type=float,
+        default=0.0,
+        metavar="FLOAT",
+        help="Log-frequency max per-callee weight. 0.0=disabled (era-9 flat-alpha); >0 activates 10ε log-rarity variant.",
+    )
+    p.add_argument(
+        "--call-receiver-log-cap",
+        type=float,
+        default=8.0,
+        metavar="FLOAT",
+        help="Cap on total log-frequency contribution (used when --call-receiver-max-weight > 0). Default 8.0.",
+    )
+    p.add_argument(
         "--n-cal",
         type=int,
         default=100,
@@ -152,6 +166,20 @@ def build_parser() -> argparse.ArgumentParser:
         default=2.0,
         metavar="FLOAT",
         help="Root-conditional bonus weight. Default 2.0.",
+    )
+    one.add_argument(
+        "--call-receiver-max-weight",
+        type=float,
+        default=0.0,
+        metavar="FLOAT",
+        help="Log-frequency max per-callee weight. 0.0=disabled; >0 activates 10ε log-rarity variant.",
+    )
+    one.add_argument(
+        "--call-receiver-log-cap",
+        type=float,
+        default=8.0,
+        metavar="FLOAT",
+        help="Cap on total log-frequency contribution (default 8.0).",
     )
     one.add_argument(
         "--n-cal",
@@ -247,6 +275,8 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
         call_receiver_alpha=args.call_receiver_alpha,
         call_receiver_cap=args.call_receiver_cap,
         call_receiver_root_bonus=args.call_receiver_root_bonus,
+        call_receiver_max_weight=args.call_receiver_max_weight,
+        call_receiver_log_cap=args.call_receiver_log_cap,
         n_cal=args.n_cal,
         threshold_percentile=args.threshold_percentile,
         threshold_iqr_k=args.threshold_iqr_k,
@@ -291,6 +321,10 @@ def _run(args: argparse.Namespace) -> int:
         base_cmd.extend(["--call-receiver-cap", str(args.call_receiver_cap)])
     if args.call_receiver_root_bonus != 2.0:
         base_cmd.extend(["--call-receiver-root-bonus", str(args.call_receiver_root_bonus)])
+    if args.call_receiver_max_weight != 0.0:
+        base_cmd.extend(["--call-receiver-max-weight", str(args.call_receiver_max_weight)])
+    if args.call_receiver_log_cap != 8.0:
+        base_cmd.extend(["--call-receiver-log-cap", str(args.call_receiver_log_cap)])
     if args.n_cal != 100:
         base_cmd.extend(["--n-cal", str(args.n_cal)])
     if args.threshold_percentile != 100.0:

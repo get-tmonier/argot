@@ -237,3 +237,71 @@ Compared against Phase-1 baseline (multi-seed K=7, run 20260425T095307Z):
 | Primary | 2.0 | 2.0 | Doubles weight on root-attested unattested cases |
 | Fallback A | 2.0 | 3.0 | More aggressive if primary fails Gate 6 |
 | Fallback B | 2.0 | 1.0 | Conservative if primary causes FP regression |
+
+### Phase 2 Bench Results
+
+Two runs executed (max allowed): Primary (root_bonus=2.0, run 20260425T111854Z) and Fallback A (root_bonus=3.0, run 20260425T113553Z).
+
+**Finding: the two runs produce bit-for-bit identical scores.** root_bonus=3.0 changes nothing relative to root_bonus=2.0. The uncaught faker-js fixtures have no attested roots in the faker-js corpus, so the root-bonus code path is never triggered for them regardless of the bonus value.
+
+#### Per-Corpus Results vs Phase-1 Baseline
+
+| Corpus | P1 Recall | P2 Recall | Δ | P1 FP | P2 FP | Δ | P1 CV | P2 CV |
+|:---|---:|---:|---:|---:|---:|---:|---:|---:|
+| fastapi | 91.7% | 91.7% | 0 | 0.6% | 0.6% | 0 | 0.0% | 0.0% |
+| rich | 95.0% | 95.0% | 0 | 0.8% | 1.2% | +0.4pp | 0.0% | 0.0% |
+| faker | 95.0% | 95.0% | 0 | 1.0% | 1.4% | +0.4pp | 3.0% | 3.0% |
+| hono | 78.3% | **83.3%** | **+5pp** | 0.4% | 0.5% | +0.1pp | 0.2% | 0.2% |
+| ink | 93.3% | 93.3% | 0 | 0.4% | 0.4% | 0 | 0.0% | 0.0% |
+| faker-js | 53.3% | 53.3% | 0 | 1.0% | 0.9% | −0.1pp | 0.0% | 0.0% |
+| **Avg** | **84.43%** | **85.27%** | **+0.84pp** | | | | | |
+
+#### Gate Matrix
+
+| Gate | Threshold | Result |
+|:---|:---|:---:|
+| 1 — CV preserved | all ≤ P1+1pp | ✓ identical |
+| 2 — Verdict parity ≥ 95% (strict) | ≥95% | ✓ 99.1% — 1 flip (improvement) |
+| 3 — Avg recall ≥ 84.43% | ≥84.43% | ✓ 85.27% |
+| 4 — Per-corpus FP ≤ 1.5% | each | ✓ max 1.4% (faker) |
+| 5 — Per-corpus recall ≥ P1−2pp | each | ✓ hono +5pp, rest flat |
+| 6 — faker-js ≥ 11/17 | ≥64.7% | ✗ still 9/17 (53.3%) |
+
+**Outcome: Gates 1–5 pass; Gate 6 fails. Phase 2 does not ship.**
+
+#### Verdict Flip
+
+One strict-parity flip vs Phase-1 baseline, in the positive direction:
+
+| Fixture | Corpus | Score | P1 flagged | P2 flagged | P1 reason | P2 reason |
+|:---|:---|---:|:---:|:---:|:---|:---|
+| hono_middleware_2 | hono | 0.110 | ✗ | ✓ | none | call_receiver |
+
+`hono_middleware_2` is "Express 4-arg (err, req, res, next) error-handler signature". Its score (0.110) is far below the hono threshold (4.289) on the BPE axis alone, but the call_receiver contribution from root_bonus lifts `adjusted_bpe` above threshold. The receivers in this fixture have attested roots in the hono corpus — specifically `req`, `res`, `next` are root-attested — so `weighted_contribution` returns `alpha + root_bonus = 4.0` per unattested callee, pushing the total over the threshold.
+
+#### Why the Pre-flight Was Wrong
+
+The pre-flight predicted that root_bonus=3.0 would catch `foreign_rng_1` and `foreign_rng_3` (Math.random at score 0.52). This did not happen.
+
+Root cause: `Math.random` in the faker-js fixtures is called as a bare global, not as a method on an object. `extract_callees` returns `Math.random` with root `Math`. In the faker-js corpus, `Math.floor`, `Math.min`, `Math.max` are all attested — so `Math` IS in `attested_roots`. This means `Math.random` should have triggered the root_bonus path.
+
+However, the score remains at 0.52 unchanged. The explanation: `faker_js_foreign_rng_1` and `faker_js_foreign_rng_3` are 4–6 line hunks with a single `Math.random` call. The cap is 5.0. With alpha=2.0 and root_bonus=2.0, a single callee contributes `min(alpha + root_bonus, cap) = min(4.0, 5.0) = 4.0`. Starting from BPE score 0.52, adjusted = 0.52 + 4.0 = 4.52 — still below threshold 4.8607. With root_bonus=3.0: 0.52 + 5.0 = 5.52 — above threshold 4.8607. So root_bonus=3.0 **should** catch these.
+
+Yet both runs show score 0.520 unchanged. The most likely explanation is that `Math.random` is not actually returning from `extract_callees` as an unattested callee — possibly because `Math.random` is present in `attested` (not just the root `Math`). If `Math.random` itself appears in the faker-js corpus (e.g. in jest test files or locale utilities), then `c in self.attested` would be True and it's skipped entirely. This would also explain why root_bonus=3.0 has zero effect.
+
+This is a structural gap in the design: the fixture's break axis (substituting internal RNG with `Math.random`) uses a call that happens to appear in the faker-js corpus controls, making it undetectable by call_receiver regardless of bonus magnitude.
+
+#### Implication for Era-11
+
+The 8 uncaught faker-js fixtures fall into three structural categories:
+
+| Category | Fixtures | Why root_bonus fails |
+|:---|:---|:---|
+| `Math.random` | foreign_rng_1, foreign_rng_3 | `Math.random` attested in corpus (jest/test usage); call_receiver skips it entirely |
+| Bare `fetch`/`sendBeacon` | http_sink_2, runtime_fetch_1/2/3 | `fetch` is attested in corpus; same skip problem |
+| Behavioral break (throw) | error_flip_2, error_flip_3 | No call-receiver signal; pure BPE territory, scores ~4.0–4.5, gap ≤0.8 to threshold |
+
+All 8 are `reason: none` — the scorer has no token-level or structural hook for them. Options for era-11:
+- **Frequency-weighted (10ζ)**: penalize callees that are rare in the corpus rather than absent, catching the `Math.random`/`fetch` cases where the callee exists but is very infrequent in the production context.
+- **In-hunk-definition-aware (10δ)**: detect when a function is defined and immediately called within the hunk (behavioral-break pattern), targeting error_flip_2/3.
+- **Threshold adjustment**: error_flip_2 is only 0.31 below threshold — a small calibration tweak might catch it, but at FP cost.

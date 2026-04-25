@@ -12,6 +12,7 @@ memory growth that occurs when TsParser is instantiated per-hunk.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Literal, Protocol
@@ -144,6 +145,25 @@ def extract_callees(source: str, language: Language) -> list[str | None]:
     return out
 
 
+def callee_weight(
+    c: str,
+    attested_counts: dict[str, int],
+    total_count: int,
+    max_weight: float,
+) -> float:
+    """Per-callee penalty contribution, ∈ [0, max_weight].
+
+    Unattested callees: max_weight (full penalty).
+    Attested callees: smoothed -log(P(c)), capped at max_weight.
+    Common attested callees get small weight; rare attested get moderate weight.
+    """
+    epsilon = 1.0
+    vocab_size = len(attested_counts)
+    denom = total_count + epsilon * (vocab_size + 1)
+    p = (attested_counts[c] + epsilon) / denom if c in attested_counts else epsilon / denom
+    return min(-math.log(p), max_weight)
+
+
 class CallReceiverScorer:
     """Stage-1.5 call-receiver scorer.
 
@@ -166,7 +186,7 @@ class CallReceiverScorer:
         self._language: Language = language
         self.alpha: float = alpha
         self.cap: int = cap
-        attested: set[str] = set()
+        attested_counts: dict[str, int] = {}
         skipped: int = 0
         for path in model_a_files:
             try:
@@ -178,8 +198,10 @@ class CallReceiverScorer:
                 continue
             for callee in extract_callees(src, language):
                 if callee is not None:
-                    attested.add(callee)
-        self.attested: frozenset[str] = frozenset(attested)
+                    attested_counts[callee] = attested_counts.get(callee, 0) + 1
+        self.attested_counts: dict[str, int] = attested_counts
+        self.total_count: int = sum(attested_counts.values())
+        self.attested: frozenset[str] = frozenset(attested_counts.keys())
         self.attested_roots: frozenset[str] = frozenset(c.split(".", 1)[0] for c in self.attested)
         self.n_skipped_data_dominant: int = skipped
 
@@ -227,4 +249,30 @@ class CallReceiverScorer:
                 weights.append(alpha + root_bonus)
             else:
                 weights.append(alpha)
+        return min(sum(weights), cap)
+
+    def weighted_contribution_log(
+        self,
+        hunk_content: str,
+        *,
+        max_weight: float,
+        cap: float,
+    ) -> float:
+        """Return log-frequency-weighted penalty; 0.0 on parse fragment.
+
+        Each callee contributes callee_weight(c) — unattested callees receive max_weight
+        (full penalty); attested callees receive smoothed -log(P(c)), capped at max_weight.
+        """
+        if _has_root_error(hunk_content, self._language):
+            return 0.0
+        callees = extract_callees(hunk_content, self._language)
+        seen: set[str] = set()
+        weights: list[float] = []
+        for c in callees:
+            if c is None or c in seen:
+                continue
+            seen.add(c)
+            w = callee_weight(c, self.attested_counts, self.total_count, max_weight)
+            if w > 0:
+                weights.append(w)
         return min(sum(weights), cap)

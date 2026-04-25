@@ -163,6 +163,8 @@ class SequentialImportBpeScorer:
         call_receiver_alpha: float = 2.0,
         call_receiver_cap: int = 5,
         call_receiver_root_bonus: float = 2.0,
+        call_receiver_max_weight: float = 0.0,
+        call_receiver_log_cap: float = 8.0,
         _tokenizer: Any = None,
     ) -> None:
         if calibration_hunks is None and bpe_threshold is None:
@@ -211,6 +213,8 @@ class SequentialImportBpeScorer:
                 adapter=self._adapter,
             )
         self._call_receiver_root_bonus: float = call_receiver_root_bonus
+        self._call_receiver_max_weight: float = call_receiver_max_weight
+        self._call_receiver_log_cap: float = call_receiver_log_cap
 
         # BPE tokenizer
         if _tokenizer is None:
@@ -372,12 +376,19 @@ class SequentialImportBpeScorer:
 
         # Stage 1.5: call-receiver soft penalty
         if self._call_receiver is not None:
-            contribution = self._call_receiver.weighted_contribution(
-                hunk_content,
-                alpha=self._call_receiver.alpha,
-                root_bonus=self._call_receiver_root_bonus,
-                cap=float(self._call_receiver.cap),
-            )
+            if self._call_receiver_max_weight > 0.0:
+                contribution = self._call_receiver.weighted_contribution_log(
+                    hunk_content,
+                    max_weight=self._call_receiver_max_weight,
+                    cap=self._call_receiver_log_cap,
+                )
+            else:
+                contribution = self._call_receiver.weighted_contribution(
+                    hunk_content,
+                    alpha=self._call_receiver.alpha,
+                    root_bonus=self._call_receiver_root_bonus,
+                    cap=float(self._call_receiver.cap),
+                )
             adjusted_bpe = bpe_score + contribution
             if adjusted_bpe > self.bpe_threshold:
                 cr_reason: Reason = "call_receiver" if bpe_score <= self.bpe_threshold else "bpe"
