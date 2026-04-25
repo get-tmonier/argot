@@ -71,6 +71,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Cap on unattested callees counted in penalty (default 5).",
     )
     p.add_argument(
+        "--call-receiver-root-bonus",
+        type=float,
+        default=2.0,
+        metavar="FLOAT",
+        help="Root-conditional bonus weight for attested-root unattested callees. Default 2.0 (era-10 Phase-2 shipping).",
+    )
+    p.add_argument(
         "--n-cal",
         type=int,
         default=100,
@@ -138,6 +145,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=5,
         metavar="INT",
         help="Cap on unattested callees counted in penalty (default 5).",
+    )
+    one.add_argument(
+        "--call-receiver-root-bonus",
+        type=float,
+        default=2.0,
+        metavar="FLOAT",
+        help="Root-conditional bonus weight. Default 2.0.",
     )
     one.add_argument(
         "--n-cal",
@@ -232,6 +246,7 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
         sample_controls=args.sample_controls,
         call_receiver_alpha=args.call_receiver_alpha,
         call_receiver_cap=args.call_receiver_cap,
+        call_receiver_root_bonus=args.call_receiver_root_bonus,
         n_cal=args.n_cal,
         threshold_percentile=args.threshold_percentile,
         threshold_iqr_k=args.threshold_iqr_k,
@@ -274,6 +289,8 @@ def _run(args: argparse.Namespace) -> int:
         base_cmd.extend(["--call-receiver-alpha", str(args.call_receiver_alpha)])
     if args.call_receiver_cap != 5:
         base_cmd.extend(["--call-receiver-cap", str(args.call_receiver_cap)])
+    if args.call_receiver_root_bonus != 2.0:
+        base_cmd.extend(["--call-receiver-root-bonus", str(args.call_receiver_root_bonus)])
     if args.n_cal != 100:
         base_cmd.extend(["--n-cal", str(args.n_cal)])
     if args.threshold_percentile != 100.0:

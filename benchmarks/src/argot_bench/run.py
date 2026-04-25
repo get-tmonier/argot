@@ -41,6 +41,7 @@ class RunConfig:
     sample_controls: int | None = None
     call_receiver_alpha: float = 2.0
     call_receiver_cap: int = 5
+    call_receiver_root_bonus: float = 2.0
     threshold_percentile: float | None = None
     threshold_iqr_k: float | None = None
     threshold_n_seeds: int = 7
@@ -198,6 +199,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             sample_controls=cfg.sample_controls,
             call_receiver_alpha=cfg.call_receiver_alpha,
             call_receiver_cap=cfg.call_receiver_cap,
+            call_receiver_root_bonus=cfg.call_receiver_root_bonus,
             threshold_percentile=cfg.threshold_percentile,
             threshold_iqr_k=cfg.threshold_iqr_k,
             threshold_n_seeds=cfg.threshold_n_seeds,
@@ -230,6 +232,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             enable_typicality_filter=cfg.typicality_filter,
             call_receiver_alpha=cfg.call_receiver_alpha,
             call_receiver_cap=cfg.call_receiver_cap,
+            call_receiver_root_bonus=cfg.call_receiver_root_bonus,
             threshold_percentile=cfg.threshold_percentile,
             threshold_iqr_k=cfg.threshold_iqr_k,
             threshold_n_seeds=cfg.threshold_n_seeds,
@@ -265,6 +268,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
                 enable_typicality_filter=cfg.typicality_filter,
                 call_receiver_alpha=cfg.call_receiver_alpha,
                 call_receiver_cap=cfg.call_receiver_cap,
+                call_receiver_root_bonus=cfg.call_receiver_root_bonus,
                 threshold_percentile=cfg.threshold_percentile,
                 threshold_iqr_k=cfg.threshold_iqr_k,
                 threshold_n_seeds=cfg.threshold_n_seeds,
