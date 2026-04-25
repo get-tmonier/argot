@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
 from datetime import UTC
 from pathlib import Path
@@ -9,7 +10,7 @@ import pytest
 
 from argot.scoring.adapters.registry import adapter_for_files
 from argot.scoring.adapters.typescript import TypeScriptAdapter
-from argot.scoring.calibration import load_config
+from argot.scoring.calibration import load_config, main
 from argot.scoring.calibration.random_hunk_sampler import collect_candidates, sample_hunks
 from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
 
@@ -271,9 +272,6 @@ def test_collect_candidates_filters_data_dominant_file(tmp_path: Path) -> None:
 
 def test_calibration_cli_threshold_iqr_k(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """--threshold-iqr-k flag is accepted and produces a valid threshold."""
-    import sys
-    from argot.scoring.calibration import main
-
     model_a_path = tmp_path / "model_a.txt"
     model_a_path.write_text(
         "\n".join(str(p) for p in _CONTROL_FILES)
