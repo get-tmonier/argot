@@ -39,7 +39,7 @@ class RunConfig:
     fresh: bool = False
     typicality_filter: bool = True
     sample_controls: int | None = None
-    call_receiver_alpha: float = 0.0
+    call_receiver_alpha: float = 2.0
     call_receiver_cap: int = 5
 
 

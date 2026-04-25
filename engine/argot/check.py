@@ -83,7 +83,9 @@ def _load_phase14_scorer(argot_dir: Path) -> SequentialImportBpeScorer:
     model_a_files = [Path(line) for line in model_a_txt.read_text().splitlines() if line.strip()]
     config: dict[str, object] = json.loads(config_json.read_text())
     threshold = float(config["threshold"])  # type: ignore[arg-type]
-    call_receiver_alpha = float(config.get("call_receiver_alpha", 1.0))  # type: ignore[arg-type]
+    # Configs written before era 9 don't have this field;
+    # 2.0 is the current shipping default (era-9 research).
+    call_receiver_alpha = float(config.get("call_receiver_alpha", 2.0))  # type: ignore[arg-type]
     call_receiver_cap = int(config.get("call_receiver_cap", 5))  # type: ignore[call-overload]
 
     return SequentialImportBpeScorer(

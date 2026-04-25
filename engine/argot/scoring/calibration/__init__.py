@@ -80,7 +80,7 @@ def main() -> None:
 
     print(f"Sampled {len(cal_hunks)} calibration hunks from {source_dir}")
 
-    call_receiver_alpha: float = 1.0
+    call_receiver_alpha: float = 2.0
     call_receiver_cap: int = 5
     scorer = SequentialImportBpeScorer(
         model_a_files=model_a_files,
