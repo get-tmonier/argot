@@ -273,24 +273,26 @@ def test_collect_candidates_filters_data_dominant_file(tmp_path: Path) -> None:
 def test_calibration_cli_threshold_iqr_k(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """--threshold-iqr-k flag is accepted and produces a valid threshold."""
     model_a_path = tmp_path / "model_a.txt"
-    model_a_path.write_text(
-        "\n".join(str(p) for p in _CONTROL_FILES)
-    )
-    (tmp_path / "model_b.json").write_text(
-        (_BPE_MODEL_B).read_text()
-    )
+    model_a_path.write_text("\n".join(str(p) for p in _CONTROL_FILES))
+    (tmp_path / "model_b.json").write_text((_BPE_MODEL_B).read_text())
     out = tmp_path / "scorer-config.json"
     monkeypatch.setattr(
         sys,
         "argv",
         [
             "argot-calibrate",
-            "--repo", str(_FASTAPI_FIXTURES),
-            "--model-a", str(model_a_path),
-            "--model-b", str(tmp_path / "model_b.json"),
-            "--output", str(out),
-            "--n-cal", "5",
-            "--threshold-iqr-k", "2.5",
+            "--repo",
+            str(_FASTAPI_FIXTURES),
+            "--model-a",
+            str(model_a_path),
+            "--model-b",
+            str(tmp_path / "model_b.json"),
+            "--output",
+            str(out),
+            "--n-cal",
+            "5",
+            "--threshold-iqr-k",
+            "2.5",
         ],
     )
     main()

@@ -416,7 +416,7 @@ def test_compute_threshold_iqr_basic() -> None:
     # p75 index = 0.75 * 9 = 6.75 → lo=6, hi=7 → 7 + 0.75*(8-7) = 7.75
     # IQR = 7.75 - 3.25 = 4.5
     # threshold = 7.75 + 2.5 * 4.5 = 7.75 + 11.25 = 19.0
-    result = _compute_threshold(scores, threshold_percentile=None, threshold_iqr_k=2.5)
+    result = _compute_threshold(scores, threshold_percentile=None, threshold_iqr_k=2.5)  # type: ignore[arg-type]
     assert result == pytest.approx(19.0, abs=1e-9)
 
 
@@ -434,7 +434,7 @@ def test_compute_threshold_iqr_overrides_percentile() -> None:
 
     # When threshold_iqr_k is set, threshold_percentile is ignored
     scores = list(range(1, 11))
-    iqr_result = _compute_threshold(scores, threshold_percentile=95.0, threshold_iqr_k=2.5)
+    iqr_result = _compute_threshold(scores, threshold_percentile=95.0, threshold_iqr_k=2.5)  # type: ignore[arg-type]
     assert iqr_result == pytest.approx(19.0, abs=1e-9)
 
 
@@ -443,6 +443,6 @@ def test_compute_threshold_iqr_k_zero() -> None:
 
     # k=0 → threshold = p75 exactly
     scores = list(range(1, 11))
-    result = _compute_threshold(scores, threshold_percentile=None, threshold_iqr_k=0.0)
+    result = _compute_threshold(scores, threshold_percentile=None, threshold_iqr_k=0.0)  # type: ignore[arg-type]
     # p75 index = 6.75 → 7 + 0.75*(8-7) = 7.75
     assert result == pytest.approx(7.75, abs=1e-9)

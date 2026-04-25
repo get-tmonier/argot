@@ -156,7 +156,7 @@ class SequentialImportBpeScorer:
         bpe_threshold: float | None = None,
         adapter: LanguageAdapter | None = None,
         repo_root: Path | None = None,
-        threshold_percentile: float | None = None,
+        threshold_percentile: float | None = 95.0,
         threshold_iqr_k: float | None = None,
         exclude_data_dominant: bool = True,
         enable_typicality_filter: bool = True,
@@ -250,7 +250,9 @@ class SequentialImportBpeScorer:
                 for h in cal_list
             ]
             self.cal_scores = cal_scores
-            self.bpe_threshold = _compute_threshold(cal_scores, threshold_percentile, threshold_iqr_k)
+            self.bpe_threshold = _compute_threshold(
+                cal_scores, threshold_percentile, threshold_iqr_k
+            )
             self.n_calibration = len(cal_scores)
 
     def _bpe_score(self, hunk_source: str) -> float:

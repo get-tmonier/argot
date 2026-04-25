@@ -54,3 +54,22 @@ def test_bench_threshold_percentile_defaults_match_production() -> None:
         f"threshold_percentile defaults drifted: run={run_default}, "
         f"score={score_default}, scorer={scorer_default}. Update all to 95.0."
     )
+
+
+def test_bench_threshold_iqr_k_defaults_none() -> None:
+    """RunConfig.threshold_iqr_k and build_scorer threshold_iqr_k must both default to None."""
+    import dataclasses
+    import inspect
+
+    from argot_bench.run import RunConfig
+    from argot_bench.score import build_scorer
+
+    fields = {f.name: f for f in dataclasses.fields(RunConfig)}
+    assert "threshold_iqr_k" in fields, "RunConfig missing threshold_iqr_k field"
+    run_default = fields["threshold_iqr_k"].default
+    assert run_default is None, f"RunConfig.threshold_iqr_k default should be None, got {run_default}"
+
+    sig = inspect.signature(build_scorer)
+    assert "threshold_iqr_k" in sig.parameters, "build_scorer missing threshold_iqr_k param"
+    score_default = sig.parameters["threshold_iqr_k"].default
+    assert score_default is None, f"build_scorer threshold_iqr_k default should be None, got {score_default}"

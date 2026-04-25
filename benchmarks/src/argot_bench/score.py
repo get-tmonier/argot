@@ -117,6 +117,7 @@ def build_scorer(
     call_receiver_alpha: float = 2.0,
     call_receiver_cap: int = 5,
     threshold_percentile: float | None = 95.0,
+    threshold_iqr_k: float | None = None,
 ) -> BenchScorer:
     """Build a BenchScorer calibrated on n_cal sampled hunks from repo_dir.
 
@@ -154,5 +155,6 @@ def build_scorer(
         call_receiver_alpha=call_receiver_alpha,
         call_receiver_cap=call_receiver_cap,
         threshold_percentile=threshold_percentile,
+        threshold_iqr_k=threshold_iqr_k,
     )
     return BenchScorer(inner)

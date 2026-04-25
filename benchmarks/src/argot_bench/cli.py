@@ -88,6 +88,16 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
+        "--threshold-iqr-k",
+        type=float,
+        default=None,
+        metavar="K",
+        help=(
+            "IQR-margin multiplier: threshold = p75 + k * IQR. "
+            "Overrides --threshold-percentile when set. Default None (use percentile/max)."
+        ),
+    )
+    p.add_argument(
         "--jobs",
         "-j",
         type=int,
@@ -136,6 +146,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=95.0,
         metavar="PCT",
         help="BPE threshold percentile (default 95.0, era-10 p95).",
+    )
+    one.add_argument(
+        "--threshold-iqr-k",
+        type=float,
+        default=None,
+        metavar="K",
+        help="IQR-margin multiplier (default None).",
     )
 
     return p
@@ -204,6 +221,7 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
         call_receiver_cap=args.call_receiver_cap,
         n_cal=args.n_cal,
         threshold_percentile=args.threshold_percentile,
+        threshold_iqr_k=args.threshold_iqr_k,
     )
     args.out_dir.mkdir(parents=True, exist_ok=True)
     r = run_corpus(cfg)
@@ -246,6 +264,8 @@ def _run(args: argparse.Namespace) -> int:
         base_cmd.extend(["--n-cal", str(args.n_cal)])
     if args.threshold_percentile != 95.0:
         base_cmd.extend(["--threshold-percentile", str(args.threshold_percentile)])
+    if args.threshold_iqr_k is not None:
+        base_cmd.extend(["--threshold-iqr-k", str(args.threshold_iqr_k)])
 
     def _run_corpus_subprocess(t: Target) -> tuple[str, int, str]:
         proc = subprocess.run(
