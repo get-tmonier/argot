@@ -284,6 +284,48 @@ def test_collect_candidates_filters_data_dominant_file(tmp_path: Path) -> None:
     assert not any("DATA" in h for h in candidates)
 
 
+def test_calibrate_multi_seed_equals_median_of_individual() -> None:
+    """calibrate_multi_seed returns exact median of K individually-computed thresholds."""
+    import statistics
+
+    from argot.scoring.adapters.python_adapter import PythonAdapter
+    from argot.scoring.calibration import calibrate_multi_seed
+
+    adapter = PythonAdapter()
+    n_cal = 5
+    base_seed = 10
+    n_seeds = 3
+    threshold_percentile: float | None = None  # max formula
+
+    # Compute individual thresholds for comparison
+    individual = []
+    for k in range(n_seeds):
+        hunks = sample_hunks(_FASTAPI_FIXTURES, n_cal, base_seed + k)
+        s = SequentialImportBpeScorer(
+            model_a_files=_CONTROL_FILES,
+            bpe_model_b_path=_BPE_MODEL_B,
+            calibration_hunks=hunks,
+            threshold_percentile=threshold_percentile,
+        )
+        individual.append(s.bpe_threshold)
+
+    expected = statistics.median(individual)
+
+    result = calibrate_multi_seed(
+        base_seed=base_seed,
+        n_seeds=n_seeds,
+        n_cal=n_cal,
+        repo_dir=_FASTAPI_FIXTURES,
+        model_a_files=list(_CONTROL_FILES),
+        adapter=adapter,
+        bpe_model_b_path=_BPE_MODEL_B,
+        threshold_percentile=threshold_percentile,
+        call_receiver_alpha=2.0,
+        call_receiver_cap=5,
+    )
+    assert result == pytest.approx(expected, abs=1e-10)
+
+
 def test_calibration_cli_threshold_iqr_k(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """--threshold-iqr-k flag is accepted and produces a valid threshold."""
     model_a_path = tmp_path / "model_a.txt"
