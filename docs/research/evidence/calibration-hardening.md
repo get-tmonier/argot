@@ -183,3 +183,57 @@ Era 10 ships the multi-seed median threshold as the new default calibration conf
 5. **Consistency tests**: `test_defaults_consistent.py` and `test_bench_alpha_defaults.py` extended to lock `threshold_percentile`, `n_cal`, and `threshold_iqr_k` defaults across all layers, preventing future silent drift.
 
 Default config: n_cal=100, threshold_percentile=None (max), threshold_n_seeds=7.
+
+## Phase 2: Root-Conditional Weighting
+
+### Hypothesis
+
+Era-9's call-receiver assigns a flat α=2.0 weight per unattested callee regardless of
+whether the callee's root is attested. This conflates two cases:
+
+- **Foreign method on known root** (`Math.random` when `Math.floor`/`Math.min` are attested):
+  strong "weird combination on familiar object" signal.
+- **Unknown root entirely** (`new_helper`): possibly legitimate codebase evolution.
+
+The intervention adds `root_bonus` to the weight when the callee's root IS attested but the
+full callee is not.
+
+### Pre-flight Faker-JS Analysis
+
+Phase-1 baseline threshold for faker-js: **4.8607**. 8 uncaught fixtures:
+
+| Fixture | Score | Key callee | Root attested? | bonus=2.0 adjusted | bonus=3.0 adjusted | Predicted |
+|:---|---:|:---|:---|---:|---:|:---|
+| foreign_rng_1 | 0.520 | `Math.random` | Yes (Math.floor/min in corpus) | 4.520 MISS | 5.520 CATCH | Fallback A only |
+| foreign_rng_3 | 0.520 | `Math.random` | Yes | 4.520 MISS | 5.520 CATCH | Fallback A only |
+| http_sink_2 | 3.767 | `fetch` | `fetch` in attested_callees → weight=0 | unchanged | unchanged | Not helped |
+| runtime_fetch_1 | 3.548 | `fetch` | same | unchanged | unchanged | Not helped |
+| runtime_fetch_2 | 2.449 | `fetch` | same | unchanged | unchanged | Not helped |
+| runtime_fetch_3 | 1.971 | `fetch` | same | unchanged | unchanged | Not helped |
+| error_flip_2 | 4.546 | (throw behavior) | n/a | unchanged | unchanged | Not helped |
+| error_flip_3 | 4.053 | (throw behavior) | n/a | unchanged | unchanged | Not helped |
+
+**Pre-flight prediction**: Primary (root_bonus=2.0) catches 0 new fixtures → Gate 6 FAIL.
+Fallback A (root_bonus=3.0) should catch foreign_rng_1 and foreign_rng_3 (+2 fixtures),
+reaching 11/17 = 64.7% if no FP regressions on hono/ink.
+
+### Pre-registered Ship Gates (Phase 2)
+
+Compared against Phase-1 baseline (multi-seed K=7, run 20260425T095307Z):
+
+| # | Gate | Threshold |
+|---|:---|:---|
+| 1 | Calibration CV preserved | all corpora ≤ Phase-1 + 1pp absolute |
+| 2 | Verdict preservation on 91 era-9 fixtures | ≥ 95% |
+| 3 | Avg recall ≥ Phase-1 baseline | 84.43% (no regression) |
+| 4 | Per-corpus FP ≤ 1.5% | each |
+| 5 | Per-corpus recall ≥ Phase-1 baseline − 2pp | each |
+| 6 | faker-js gains ≥ 2 fixtures | from 53.3% to ≥ 64.7% (= 11/17) |
+
+### Sweep Config
+
+| Config | alpha | root_bonus | Description |
+|:---|---:|---:|:---|
+| Primary | 2.0 | 2.0 | Doubles weight on root-attested unattested cases |
+| Fallback A | 2.0 | 3.0 | More aggressive if primary fails Gate 6 |
+| Fallback B | 2.0 | 1.0 | Conservative if primary causes FP regression |

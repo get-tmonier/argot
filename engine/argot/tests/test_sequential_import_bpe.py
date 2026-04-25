@@ -458,6 +458,7 @@ def test_call_receiver_root_bonus_param_stored() -> None:
 def test_call_receiver_root_bonus_custom_accepted() -> None:
     """SequentialImportBpeScorer accepts a custom call_receiver_root_bonus without error."""
     from pathlib import Path
+
     from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
 
     bpe_b = Path(__file__).parent.parent / "scoring" / "bpe" / "generic_tokens_bpe.json"
