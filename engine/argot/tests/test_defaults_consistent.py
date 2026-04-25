@@ -57,9 +57,10 @@ def test_call_receiver_alpha_defaults_match_across_layers() -> None:
     )
 
 
-def test_threshold_percentile_default_is_p95() -> None:
-    """Scorer and calibration CLI must both default threshold_percentile=95.0 (era-10).
+def test_threshold_percentile_default_is_max_formula() -> None:
+    """Scorer and calibration CLI must both default to the max formula (era-10 shipping config).
 
+    The scorer uses None (= max(cal_scores)); the CLI uses 100.0 (= p100 = max).
     Enforces consistent defaults across SequentialImportBpeScorer and CLI entry-point.
     """
     sig = inspect.signature(SequentialImportBpeScorer.__init__)
@@ -91,7 +92,13 @@ def test_threshold_percentile_default_is_p95() -> None:
     )
     calib_pct = calib_pct_list[0]
 
-    assert scorer_pct == calib_pct == 95.0, (
-        f"threshold_percentile defaults drifted: scorer={scorer_pct}, "
-        f"calibrate CLI={calib_pct}. Update all together."
+    # Scorer uses None (max formula); CLI uses 100.0 (p100 = max). Both represent the same
+    # era-10 shipping config: max(cal_scores) as the threshold.
+    assert scorer_pct is None, (
+        f"SequentialImportBpeScorer.threshold_percentile default should be None (max formula, "
+        f"era-10 shipping), got {scorer_pct!r}."
+    )
+    assert calib_pct == 100.0, (
+        f"calibration CLI --threshold-percentile default should be 100.0 (max formula, "
+        f"era-10 shipping), got {calib_pct!r}."
     )

@@ -33,7 +33,7 @@ class RunConfig:
     prs: list[tuple[int, str]]  # (pr_num, sha)
     catalog_dir: Path
     data_dir: Path
-    n_cal: int = 300
+    n_cal: int = 100
     seeds: list[int] = field(default_factory=lambda: [0, 1, 2, 3, 4])
     quick: bool = False
     fresh: bool = False
@@ -41,9 +41,9 @@ class RunConfig:
     sample_controls: int | None = None
     call_receiver_alpha: float = 2.0
     call_receiver_cap: int = 5
-    threshold_percentile: float | None = 95.0
+    threshold_percentile: float | None = None
     threshold_iqr_k: float | None = None
-    threshold_n_seeds: int = 1
+    threshold_n_seeds: int = 7
 
 
 def _read_hunk_pair(catalog_dir: Path, fixture: Fixture) -> tuple[str, str]:

@@ -156,7 +156,7 @@ class SequentialImportBpeScorer:
         bpe_threshold: float | None = None,
         adapter: LanguageAdapter | None = None,
         repo_root: Path | None = None,
-        threshold_percentile: float | None = 95.0,
+        threshold_percentile: float | None = None,
         threshold_iqr_k: float | None = None,
         exclude_data_dominant: bool = True,
         enable_typicality_filter: bool = True,

@@ -101,11 +101,10 @@ def main() -> None:
     parser.add_argument(
         "--threshold-percentile",
         type=float,
-        default=95.0,
+        default=100.0,
         help=(
-            "Percentile of calibration scores to use as BPE threshold (default 95.0 = p95). "
-            "More robust than max to single high-scoring calibration outliers. "
-            "Pass 100 to restore legacy max-of-calibration behaviour."
+            "Percentile of calibration scores to use as BPE threshold. "
+            "Default 100.0 (max, era-10 shipping config). Pass 95.0 for p95 outlier-robust mode."
         ),
     )
     parser.add_argument(
@@ -120,11 +119,11 @@ def main() -> None:
     parser.add_argument(
         "--threshold-n-seeds",
         type=int,
-        default=1,
+        default=7,
         help=(
             "Number of independent calibration seeds for multi-seed median threshold. "
             "K independent calibrations are run (seeds: seed, seed+1, ..., seed+K-1); "
-            "the median threshold is used. Default 1 (= single-seed, era-9 behavior)."
+            "the median threshold is used. Default 7 (= multi-seed, era-10 shipping config)."
         ),
     )
     parser.add_argument(
