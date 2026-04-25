@@ -33,7 +33,7 @@ class RunConfig:
     prs: list[tuple[int, str]]  # (pr_num, sha)
     catalog_dir: Path
     data_dir: Path
-    n_cal: int = 100
+    n_cal: int = 300
     seeds: list[int] = field(default_factory=lambda: [0, 1, 2, 3, 4])
     quick: bool = False
     fresh: bool = False
@@ -41,6 +41,7 @@ class RunConfig:
     sample_controls: int | None = None
     call_receiver_alpha: float = 2.0
     call_receiver_cap: int = 5
+    threshold_percentile: float | None = 95.0
 
 
 def _read_hunk_pair(catalog_dir: Path, fixture: Fixture) -> tuple[str, str]:
@@ -195,6 +196,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             sample_controls=cfg.sample_controls,
             call_receiver_alpha=cfg.call_receiver_alpha,
             call_receiver_cap=cfg.call_receiver_cap,
+            threshold_percentile=cfg.threshold_percentile,
         )
         by_cat: dict[str, Fixture] = {}
         for fx in break_fixtures:
@@ -224,6 +226,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             enable_typicality_filter=cfg.typicality_filter,
             call_receiver_alpha=cfg.call_receiver_alpha,
             call_receiver_cap=cfg.call_receiver_cap,
+            threshold_percentile=cfg.threshold_percentile,
         )
         thresholds.append(scorer.threshold)
         cal_score_signatures.append({f"{i}:{s:.4f}" for i, s in enumerate(scorer.cal_scores)})
@@ -256,6 +259,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
                 enable_typicality_filter=cfg.typicality_filter,
                 call_receiver_alpha=cfg.call_receiver_alpha,
                 call_receiver_cap=cfg.call_receiver_cap,
+                threshold_percentile=cfg.threshold_percentile,
             )
             hunks_stream2: Iterable[dict[str, object]] = _real_pr_hunks(dataset)
             hunks_input2: Iterable[dict[str, object]]

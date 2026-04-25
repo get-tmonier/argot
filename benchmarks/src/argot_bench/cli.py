@@ -71,6 +71,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="Cap on unattested callees counted in penalty (default 5).",
     )
     p.add_argument(
+        "--n-cal",
+        type=int,
+        default=300,
+        metavar="N",
+        help="Number of calibration hunks per seed (default 300, era-10 baseline).",
+    )
+    p.add_argument(
+        "--threshold-percentile",
+        type=float,
+        default=95.0,
+        metavar="PCT",
+        help=(
+            "BPE threshold percentile. 95.0=p95 (era-10 default, robust to outliers); "
+            "use 100 to restore legacy max behaviour."
+        ),
+    )
+    p.add_argument(
         "--jobs",
         "-j",
         type=int,
@@ -105,6 +122,20 @@ def build_parser() -> argparse.ArgumentParser:
         default=5,
         metavar="INT",
         help="Cap on unattested callees counted in penalty (default 5).",
+    )
+    one.add_argument(
+        "--n-cal",
+        type=int,
+        default=300,
+        metavar="N",
+        help="Number of calibration hunks per seed (default 300).",
+    )
+    one.add_argument(
+        "--threshold-percentile",
+        type=float,
+        default=95.0,
+        metavar="PCT",
+        help="BPE threshold percentile (default 95.0, era-10 p95).",
     )
 
     return p
@@ -171,6 +202,8 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
         sample_controls=args.sample_controls,
         call_receiver_alpha=args.call_receiver_alpha,
         call_receiver_cap=args.call_receiver_cap,
+        n_cal=args.n_cal,
+        threshold_percentile=args.threshold_percentile,
     )
     args.out_dir.mkdir(parents=True, exist_ok=True)
     r = run_corpus(cfg)
@@ -209,6 +242,10 @@ def _run(args: argparse.Namespace) -> int:
         base_cmd.extend(["--call-receiver-alpha", str(args.call_receiver_alpha)])
     if args.call_receiver_cap != 5:
         base_cmd.extend(["--call-receiver-cap", str(args.call_receiver_cap)])
+    if args.n_cal != 300:
+        base_cmd.extend(["--n-cal", str(args.n_cal)])
+    if args.threshold_percentile != 95.0:
+        base_cmd.extend(["--threshold-percentile", str(args.threshold_percentile)])
 
     def _run_corpus_subprocess(t: Target) -> tuple[str, int, str]:
         proc = subprocess.run(

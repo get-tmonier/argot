@@ -116,6 +116,7 @@ def build_scorer(
     enable_typicality_filter: bool = True,
     call_receiver_alpha: float = 2.0,
     call_receiver_cap: int = 5,
+    threshold_percentile: float | None = 95.0,
 ) -> BenchScorer:
     """Build a BenchScorer calibrated on n_cal sampled hunks from repo_dir.
 
@@ -130,6 +131,8 @@ def build_scorer(
         call_receiver_alpha: Soft-penalty weight. 0.0 disables Stage 1.5 entirely.
             Default 2.0 (era-9 shipping config).
         call_receiver_cap: Max unattested callees counted in the penalty (default 5).
+        threshold_percentile: BPE threshold percentile. 95.0 = p95 (era-10 default,
+            robust to outliers); None = max(cal_scores) (legacy).
 
     Raises:
         ValueError: if repo_dir has no source files, or insufficient qualifying hunks.
@@ -150,5 +153,6 @@ def build_scorer(
         enable_typicality_filter=enable_typicality_filter,
         call_receiver_alpha=call_receiver_alpha,
         call_receiver_cap=call_receiver_cap,
+        threshold_percentile=threshold_percentile,
     )
     return BenchScorer(inner)

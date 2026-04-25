@@ -36,6 +36,7 @@ def test_run_corpus_stub_returns_corpus_report(tmp_path: Path, monkeypatch):
     def fake_build(
         repo, *, n_cal, seed, language, bpe_model_b=None,
         enable_typicality_filter=True, call_receiver_alpha=0.0, call_receiver_cap=5,
+        threshold_percentile=None,
     ):
         return FakeBenchScorer()
 
@@ -175,7 +176,7 @@ def test_run_config_has_call_receiver_alpha_cap_fields():
         catalog_dir=Path("/tmp"),
         data_dir=Path("/tmp"),
     )
-    assert cfg_default.call_receiver_alpha == 0.0
+    assert cfg_default.call_receiver_alpha == 2.0
     assert cfg_default.call_receiver_cap == 5
 
 
