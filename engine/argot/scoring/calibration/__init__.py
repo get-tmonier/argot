@@ -41,6 +41,7 @@ def calibrate_multi_seed(
     threshold_iqr_k: float | None = None,
     call_receiver_alpha: float = 2.0,
     call_receiver_cap: int = 5,
+    call_receiver_root_bonus: float = 2.0,
     enable_typicality_filter: bool = True,
 ) -> float:
     """Run K independent calibrations; return median threshold.
@@ -65,6 +66,7 @@ def calibrate_multi_seed(
         threshold_iqr_k=threshold_iqr_k,
         call_receiver_alpha=call_receiver_alpha,
         call_receiver_cap=call_receiver_cap,
+        call_receiver_root_bonus=call_receiver_root_bonus,
         enable_typicality_filter=enable_typicality_filter,
     )
     shared_tokenizer = first_scorer._tokenizer
@@ -83,6 +85,7 @@ def calibrate_multi_seed(
             threshold_iqr_k=threshold_iqr_k,
             call_receiver_alpha=call_receiver_alpha,
             call_receiver_cap=call_receiver_cap,
+            call_receiver_root_bonus=call_receiver_root_bonus,
             enable_typicality_filter=enable_typicality_filter,
             _tokenizer=shared_tokenizer,
         )
@@ -173,6 +176,7 @@ def main() -> None:
 
     call_receiver_alpha: float = 2.0
     call_receiver_cap: int = 5
+    call_receiver_root_bonus: float = 2.0
 
     if args.threshold_n_seeds > 1:
         print(
@@ -192,6 +196,7 @@ def main() -> None:
             threshold_iqr_k=args.threshold_iqr_k,
             call_receiver_alpha=call_receiver_alpha,
             call_receiver_cap=call_receiver_cap,
+            call_receiver_root_bonus=call_receiver_root_bonus,
         )
         scorer = SequentialImportBpeScorer(
             model_a_files=model_a_files,
@@ -199,6 +204,7 @@ def main() -> None:
             bpe_threshold=threshold,
             call_receiver_alpha=call_receiver_alpha,
             call_receiver_cap=call_receiver_cap,
+            call_receiver_root_bonus=call_receiver_root_bonus,
         )
         n_cal_used = effective_n_cal
     else:
@@ -210,6 +216,7 @@ def main() -> None:
             calibration_hunks=cal_hunks,
             call_receiver_alpha=call_receiver_alpha,
             call_receiver_cap=call_receiver_cap,
+            call_receiver_root_bonus=call_receiver_root_bonus,
             threshold_percentile=args.threshold_percentile,
             threshold_iqr_k=args.threshold_iqr_k,
         )
@@ -226,6 +233,7 @@ def main() -> None:
         "threshold": scorer.bpe_threshold,
         "call_receiver_alpha": call_receiver_alpha,
         "call_receiver_cap": call_receiver_cap,
+        "call_receiver_root_bonus": call_receiver_root_bonus,
         "calibration": {
             "n_cal": n_cal_used,
             "seed": args.seed,
