@@ -44,6 +44,15 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--threshold-iqr-k",
+        type=float,
+        default=None,
+        help=(
+            "IQR-margin multiplier k: threshold = p75(cal_scores) + k * IQR. "
+            "Overrides --threshold-percentile when set. Default None (use percentile/max)."
+        ),
+    )
+    parser.add_argument(
         "--model-a",
         default=".argot/model_a.txt",
         help="File listing model-A source paths (produced by argot-train)",
@@ -99,6 +108,7 @@ def main() -> None:
         call_receiver_alpha=call_receiver_alpha,
         call_receiver_cap=call_receiver_cap,
         threshold_percentile=args.threshold_percentile,
+        threshold_iqr_k=args.threshold_iqr_k,
     )
 
     try:

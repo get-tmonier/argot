@@ -267,3 +267,36 @@ def test_collect_candidates_filters_data_dominant_file(tmp_path: Path) -> None:
     # Should include fn from normal.py but not DATA from data.py.
     assert any("def fn" in h for h in candidates)
     assert not any("DATA" in h for h in candidates)
+
+
+def test_calibration_cli_threshold_iqr_k(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """--threshold-iqr-k flag is accepted and produces a valid threshold."""
+    import sys
+    from argot.scoring.calibration import main
+
+    model_a_path = tmp_path / "model_a.txt"
+    model_a_path.write_text(
+        "\n".join(str(p) for p in _CONTROL_FILES)
+    )
+    (tmp_path / "model_b.json").write_text(
+        (_BPE_MODEL_B).read_text()
+    )
+    out = tmp_path / "scorer-config.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "argot-calibrate",
+            "--repo", str(_FASTAPI_FIXTURES),
+            "--model-a", str(model_a_path),
+            "--model-b", str(tmp_path / "model_b.json"),
+            "--output", str(out),
+            "--n-cal", "5",
+            "--threshold-iqr-k", "2.5",
+        ],
+    )
+    main()
+    assert out.exists()
+    cfg = json.loads(out.read_text())
+    assert "threshold" in cfg
+    assert isinstance(cfg["threshold"], float)
