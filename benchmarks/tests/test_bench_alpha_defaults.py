@@ -70,3 +70,19 @@ def test_bench_threshold_iqr_k_defaults_none() -> None:
     assert "threshold_iqr_k" in sig.parameters, "build_scorer missing threshold_iqr_k param"
     score_default = sig.parameters["threshold_iqr_k"].default
     assert score_default is None, f"build_scorer threshold_iqr_k default should be None, got {score_default}"
+
+
+def test_bench_threshold_n_seeds_defaults_one() -> None:
+    """RunConfig.threshold_n_seeds and build_scorer threshold_n_seeds must both default to 1."""
+    from argot_bench.run import RunConfig
+    from argot_bench.score import build_scorer
+
+    fields = {f.name: f for f in dataclasses.fields(RunConfig)}
+    assert "threshold_n_seeds" in fields, "RunConfig missing threshold_n_seeds field"
+    run_default = fields["threshold_n_seeds"].default
+    assert run_default == 1, f"RunConfig.threshold_n_seeds default should be 1, got {run_default}"
+
+    sig = inspect.signature(build_scorer)
+    assert "threshold_n_seeds" in sig.parameters, "build_scorer missing threshold_n_seeds param"
+    score_default = sig.parameters["threshold_n_seeds"].default
+    assert score_default == 1, f"build_scorer threshold_n_seeds default should be 1, got {score_default}"

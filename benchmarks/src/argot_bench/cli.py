@@ -98,6 +98,17 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
+        "--threshold-n-seeds",
+        type=int,
+        default=1,
+        metavar="K",
+        help=(
+            "Multi-seed median threshold: run K independent calibrations "
+            "(seeds: outer_seed, outer_seed+1, ..., outer_seed+K-1) and use the median. "
+            "Default 1 (= single-seed, era-9 behavior)."
+        ),
+    )
+    p.add_argument(
         "--jobs",
         "-j",
         type=int,
@@ -153,6 +164,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="K",
         help="IQR-margin multiplier (default None).",
+    )
+    one.add_argument(
+        "--threshold-n-seeds",
+        type=int,
+        default=1,
+        metavar="K",
+        help="Multi-seed median threshold K (default 1 = single-seed).",
     )
 
     return p
@@ -222,6 +240,7 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
         n_cal=args.n_cal,
         threshold_percentile=args.threshold_percentile,
         threshold_iqr_k=args.threshold_iqr_k,
+        threshold_n_seeds=args.threshold_n_seeds,
     )
     args.out_dir.mkdir(parents=True, exist_ok=True)
     r = run_corpus(cfg)
@@ -266,6 +285,8 @@ def _run(args: argparse.Namespace) -> int:
         base_cmd.extend(["--threshold-percentile", str(args.threshold_percentile)])
     if args.threshold_iqr_k is not None:
         base_cmd.extend(["--threshold-iqr-k", str(args.threshold_iqr_k)])
+    if args.threshold_n_seeds != 1:
+        base_cmd.extend(["--threshold-n-seeds", str(args.threshold_n_seeds)])
 
     def _run_corpus_subprocess(t: Target) -> tuple[str, int, str]:
         proc = subprocess.run(

@@ -43,6 +43,7 @@ class RunConfig:
     call_receiver_cap: int = 5
     threshold_percentile: float | None = 95.0
     threshold_iqr_k: float | None = None
+    threshold_n_seeds: int = 1
 
 
 def _read_hunk_pair(catalog_dir: Path, fixture: Fixture) -> tuple[str, str]:
@@ -199,6 +200,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             call_receiver_cap=cfg.call_receiver_cap,
             threshold_percentile=cfg.threshold_percentile,
             threshold_iqr_k=cfg.threshold_iqr_k,
+            threshold_n_seeds=cfg.threshold_n_seeds,
         )
         by_cat: dict[str, Fixture] = {}
         for fx in break_fixtures:
@@ -230,6 +232,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             call_receiver_cap=cfg.call_receiver_cap,
             threshold_percentile=cfg.threshold_percentile,
             threshold_iqr_k=cfg.threshold_iqr_k,
+            threshold_n_seeds=cfg.threshold_n_seeds,
         )
         thresholds.append(scorer.threshold)
         cal_score_signatures.append({f"{i}:{s:.4f}" for i, s in enumerate(scorer.cal_scores)})
@@ -264,6 +267,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
                 call_receiver_cap=cfg.call_receiver_cap,
                 threshold_percentile=cfg.threshold_percentile,
                 threshold_iqr_k=cfg.threshold_iqr_k,
+                threshold_n_seeds=cfg.threshold_n_seeds,
             )
             hunks_stream2: Iterable[dict[str, object]] = _real_pr_hunks(dataset)
             hunks_input2: Iterable[dict[str, object]]
