@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 
 def test_module_exports() -> None:
     from argot.scoring.scorers.call_receiver import CallReceiverScorer, extract_callees
@@ -390,7 +392,6 @@ def test_attested_roots_computed_from_callees(tmp_path) -> None:  # type: ignore
 
 
 def test_weighted_contribution_attested_callee_zero_weight(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    import pytest
     from argot.scoring.scorers.call_receiver import CallReceiverScorer
 
     f = tmp_path / "a.ts"
@@ -401,7 +402,6 @@ def test_weighted_contribution_attested_callee_zero_weight(tmp_path) -> None:  #
 
 
 def test_weighted_contribution_attested_root_higher_penalty(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    import pytest
     from argot.scoring.scorers.call_receiver import CallReceiverScorer
 
     f = tmp_path / "a.ts"
@@ -413,7 +413,6 @@ def test_weighted_contribution_attested_root_higher_penalty(tmp_path) -> None:  
 
 
 def test_weighted_contribution_unattested_root_base_penalty(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    import pytest
     from argot.scoring.scorers.call_receiver import CallReceiverScorer
 
     f = tmp_path / "a.ts"
@@ -427,7 +426,6 @@ def test_weighted_contribution_unattested_root_base_penalty(tmp_path) -> None:  
 
 
 def test_weighted_contribution_cap_limits_sum(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    import pytest
     from argot.scoring.scorers.call_receiver import CallReceiverScorer
 
     f = tmp_path / "a.ts"
@@ -441,11 +439,11 @@ def test_weighted_contribution_cap_limits_sum(tmp_path) -> None:  # type: ignore
 
 
 def test_weighted_contribution_zero_for_root_error_fragment(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    import pytest
     from argot.scoring.scorers.call_receiver import CallReceiverScorer
 
     f = tmp_path / "a.py"
     f.write_text("logger.info('x')\n")
     scorer = CallReceiverScorer([f], language="python")
     fragment = "    :param x: int — the count\n    :returns: float"
-    assert scorer.weighted_contribution(fragment, alpha=2.0, root_bonus=2.0, cap=5.0) == pytest.approx(0.0)
+    result = scorer.weighted_contribution(fragment, alpha=2.0, root_bonus=2.0, cap=5.0)
+    assert result == pytest.approx(0.0)
