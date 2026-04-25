@@ -1,11 +1,12 @@
 # Era 10 — Calibration Hardening
 
-> **TL;DR.** Reduce ink's calibration coefficient of variation from ~7–10% to
-> below 4% by tripling the calibration sample size (n_cal: 100 → 300) and
-> switching from max-based to percentile-based threshold estimation (max →
-> p95 with linear interpolation). Both changes are calibration-only; no scorer
-> behavior or extractor changes. The amended parity rule introduced in Era 7
-> retires if ink threshold CV drops below 4%.
+> **TL;DR.** Era 10 tested four calibration estimator configurations to reduce
+> ink's threshold CV from ~7–10% below 4%: p95+300, max+300, p95+100, and
+> IQR-margin (p75 + k×IQR). All four fail at least one pre-registered gate.
+> The era ships as a **four-config negative result** with infrastructure
+> improvements (CLI flags, thin-pool fallback, consistency tests) and a
+> detailed root-cause analysis pointing toward multi-sample aggregation for
+> Era 11. Defaults revert to era-9 values (n_cal=100, max estimator).
 
 ## Problem
 
@@ -66,19 +67,57 @@ predictions.
 
 ## Results
 
-_[To be filled after bench run completes]_
+No config clears all six gates. Full data in `docs/research/evidence/calibration-hardening.md`.
+
+**Gate summary (Primary = p95+300, A = max+300, B = p95+100, IQR = p75+2.5×IQR+100):**
+
+| Gate | Threshold | Primary | A | B | IQR |
+|:---|:---|:---:|:---:|:---:|:---:|
+| 1 — ink CV | <4% | ✓ 0.0% | ✓ 0.0% | ✓ 0.0% | ✗ 12.3% |
+| 2 — all CV | <5% | ✓ | ✓ | ✗ | ✗ |
+| 3 — verdicts | ≥95% | ✗ 91.3% | ✗ 93.9% | ✗ 88.7% | ✓ ~97.4% |
+| 4 — avg recall | ≥83.43% | ✓ 87.5% | ✗ 83.3% | ✓ 87.8% | ✗ 81.4% |
+| 5 — FP | ≤1.5% | ✗ | ✓ | ✗ | ✓ |
+| 6 — recall >2pp | per corpus | ✓ | ✗ hono | ✓ | ✗ hono/ink/faker-js |
+
+The failure pattern is consistent: any single-draw quantile estimator (max, p75, p95) with
+n_cal=100 inherits seed-to-seed instability from small calibration pools. Increasing n_cal
+reduces CV (Gates 1–2) but introduces upward bias for corpora like hono (Gate 6). IQR
+was expected to tighten CV via margin scaling; instead p75 instability plus the IQR
+multiplier made it strictly worse for small-pool corpora (ink, hono, faker-js).
 
 ## Gate Clearance
 
-_[To be filled after bench run completes]_
+No gate cleared. Era 10 ships as a negative result.
 
-## Amended Parity Rule Retirement
+## Amended Parity Rule
 
-If Gate 1 clears — ink threshold CV drops below 4% across all seeds — the
-amended parity rule introduced in Era 7 retires. Future eras can use strict
-per-fixture parity gates without seed-0 fallbacks. Fixtures will be held to
-exact verdict consistency across re-runs, as in all other corpora.
+Gate 1 did not clear for all configurations (IQR fails at 12.3% for ink). The amended
+parity rule from Era 7 remains in force.
 
-## Issue Closed
+## Shipped Deliverables
 
-This era targets GitHub issue #27 — "Reduce ink calibration CV below 4%."
+Despite the negative result, era 10 ships:
+
+1. **Thin-pool fallback** (`random_hunk_sampler.py`): `sample_hunks` caps at pool size and emits `UserWarning` instead of raising when n > pool.
+2. **CLI flags**: `--n-cal` and `--threshold-percentile` added to bench CLI; `--threshold-iqr-k` added for IQR configs.
+3. **Calibration CLI flags**: `--threshold-percentile` and `--threshold-iqr-k` added to `argot-calibrate`.
+4. **Consistency tests**: `threshold_percentile`, `n_cal`, and `threshold_iqr_k` defaults locked across all layers via `test_defaults_consistent.py` and `test_bench_alpha_defaults.py`.
+
+Defaults remain at era-9 values: n_cal=100, threshold_percentile=None (max).
+
+## Era-11 Forward
+
+The single-quantile approach is exhausted across four structurally different configs.
+Candidates for Era 11 require a paradigm shift:
+
+- **Multi-sample aggregation**: calibrate on k independent subsamples, average thresholds — reduces variance by √k without a larger pool.
+- **Explicit bias correction**: fit expected max(n) as a function of n; correct for upward bias, allowing n_cal=300 with unbiased max.
+- **Per-corpus learned threshold percentile**: learn the percentile achieving a target FP rate on a held-out control set.
+- **Calibration-aware parity testing**: accept ~7% CV as intrinsic noise; adjust parity methodology to tolerate it (alternative framing).
+
+## Issue Status
+
+GitHub issue #27 — "Reduce ink calibration CV below 4%" — remains open. Era 10 provides a
+complete characterization of why single-quantile estimators cannot simultaneously satisfy
+all gates for this corpus set.
