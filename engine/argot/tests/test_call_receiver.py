@@ -375,3 +375,77 @@ def test_scorer_fit_skips_data_dominant_files(tmp_path) -> None:  # type: ignore
     scorer = CallReceiverScorer([code, locale], language="python", adapter=adapter)
     assert "logging.getLogger" in scorer.attested
     assert scorer.n_skipped_data_dominant == 1
+
+
+def test_attested_roots_computed_from_callees(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.ts"
+    f.write_text("Math.floor(x);\nMath.min(a, b);\nconsole.log('x');")
+    scorer = CallReceiverScorer([f], language="typescript")
+    assert "Math" in scorer.attested_roots
+    assert "console" in scorer.attested_roots
+    assert "Math.floor" in scorer.attested
+    assert "Math.random" not in scorer.attested
+
+
+def test_weighted_contribution_attested_callee_zero_weight(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    import pytest
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.ts"
+    f.write_text("Math.floor(x);")
+    scorer = CallReceiverScorer([f], language="typescript")
+    result = scorer.weighted_contribution("Math.floor(y);", alpha=2.0, root_bonus=2.0, cap=5.0)
+    assert result == pytest.approx(0.0)
+
+
+def test_weighted_contribution_attested_root_higher_penalty(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    import pytest
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.ts"
+    f.write_text("Math.floor(x);")
+    scorer = CallReceiverScorer([f], language="typescript")
+    # Math.random: root "Math" is attested → weight = alpha + root_bonus = 2.0 + 2.0 = 4.0
+    result = scorer.weighted_contribution("Math.random();", alpha=2.0, root_bonus=2.0, cap=5.0)
+    assert result == pytest.approx(4.0)
+
+
+def test_weighted_contribution_unattested_root_base_penalty(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    import pytest
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.ts"
+    f.write_text("Math.floor(x);")
+    scorer = CallReceiverScorer([f], language="typescript")
+    # unknownLib.doSomething: root "unknownLib" is NOT attested → weight = alpha = 2.0
+    result = scorer.weighted_contribution(
+        "unknownLib.doSomething();", alpha=2.0, root_bonus=2.0, cap=5.0
+    )
+    assert result == pytest.approx(2.0)
+
+
+def test_weighted_contribution_cap_limits_sum(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    import pytest
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.ts"
+    f.write_text("Math.floor(x);")
+    scorer = CallReceiverScorer([f], language="typescript")
+    # Two unattested callees on attested roots: each 4.0, sum=8.0, capped at 5.0
+    result = scorer.weighted_contribution(
+        "Math.random();\nMath.trunc(x);", alpha=2.0, root_bonus=2.0, cap=5.0
+    )
+    assert result == pytest.approx(5.0)
+
+
+def test_weighted_contribution_zero_for_root_error_fragment(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    import pytest
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.py"
+    f.write_text("logger.info('x')\n")
+    scorer = CallReceiverScorer([f], language="python")
+    fragment = "    :param x: int — the count\n    :returns: float"
+    assert scorer.weighted_contribution(fragment, alpha=2.0, root_bonus=2.0, cap=5.0) == pytest.approx(0.0)
