@@ -180,6 +180,9 @@ class CallReceiverScorer:
                 if callee is not None:
                     attested.add(callee)
         self.attested: frozenset[str] = frozenset(attested)
+        self.attested_roots: frozenset[str] = frozenset(
+            c.split(".", 1)[0] for c in self.attested
+        )
         self.n_skipped_data_dominant: int = skipped
 
     def _get_distinct_unattested(self, hunk_content: str) -> list[str]:
@@ -200,3 +203,39 @@ class CallReceiverScorer:
         Returns 0 if the hunk has root-level ERROR nodes (parse fragment).
         """
         return len(self._get_distinct_unattested(hunk_content))
+
+    def weighted_contribution(
+        self,
+        hunk_content: str,
+        *,
+        alpha: float = 2.0,
+        root_bonus: float = 2.0,
+        cap: float = 5.0,
+    ) -> float:
+        """Return a weighted penalty for unattested callees in *hunk_content*.
+
+        Per-callee weighting:
+        - attested callee → weight 0.0 (skipped)
+        - unattested callee with attested root → weight ``alpha + root_bonus``
+        - unattested callee with unattested root → weight ``alpha``
+
+        Returns ``min(sum_of_weights, cap)``.  Returns 0.0 if the hunk has
+        root-level ERROR nodes (parse fragment).
+        """
+        callees = extract_callees(hunk_content, self._language)
+        if _has_root_error(hunk_content, self._language):
+            return 0.0
+        weights: list[float] = []
+        seen: set[str] = set()
+        for c in callees:
+            if c is None or c in seen:
+                continue
+            seen.add(c)
+            if c in self.attested:
+                continue
+            root = c.split(".", 1)[0]
+            if root in self.attested_roots:
+                weights.append(alpha + root_bonus)
+            else:
+                weights.append(alpha)
+        return min(sum(weights), cap)
