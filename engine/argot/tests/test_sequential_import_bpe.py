@@ -435,8 +435,7 @@ def test_compute_threshold_iqr_overrides_percentile() -> None:
     # When threshold_iqr_k is set, threshold_percentile is ignored
     scores = list(range(1, 11))
     iqr_result = _compute_threshold(scores, threshold_percentile=95.0, threshold_iqr_k=2.5)
-    pct_result = _compute_threshold(scores, threshold_percentile=95.0, threshold_iqr_k=None)
-    assert iqr_result != pct_result  # IQR branch produces different value than p95
+    assert iqr_result == pytest.approx(19.0, abs=1e-9)
 
 
 def test_compute_threshold_iqr_k_zero() -> None:
