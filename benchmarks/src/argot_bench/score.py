@@ -114,7 +114,7 @@ def build_scorer(
     language: Language,
     bpe_model_b: Path | None = None,
     enable_typicality_filter: bool = True,
-    call_receiver_alpha: float = 1.0,
+    call_receiver_alpha: float = 2.0,
     call_receiver_cap: int = 5,
 ) -> BenchScorer:
     """Build a BenchScorer calibrated on n_cal sampled hunks from repo_dir.
@@ -128,7 +128,7 @@ def build_scorer(
         enable_typicality_filter: Pass True (default) to let the prod scorer filter
             atypical model-A files and calibration hunks internally.
         call_receiver_alpha: Soft-penalty weight. 0.0 disables Stage 1.5 entirely.
-            Default 1.0 (shipping config).
+            Default 2.0 (era-9 shipping config).
         call_receiver_cap: Max unattested callees counted in the penalty (default 5).
 
     Raises:
