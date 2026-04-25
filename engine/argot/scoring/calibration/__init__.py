@@ -43,7 +43,7 @@ def calibrate_multi_seed(
     call_receiver_cap: int = 5,
     call_receiver_root_bonus: float = 2.0,
     call_receiver_max_weight: float = 0.0,
-    call_receiver_log_cap: float = 8.0,
+    call_receiver_min_callees: int = 1,
     enable_typicality_filter: bool = True,
 ) -> float:
     """Run K independent calibrations; return median threshold.
@@ -70,7 +70,7 @@ def calibrate_multi_seed(
         call_receiver_cap=call_receiver_cap,
         call_receiver_root_bonus=call_receiver_root_bonus,
         call_receiver_max_weight=call_receiver_max_weight,
-        call_receiver_log_cap=call_receiver_log_cap,
+        call_receiver_min_callees=call_receiver_min_callees,
         enable_typicality_filter=enable_typicality_filter,
     )
     shared_tokenizer = first_scorer._tokenizer
@@ -91,7 +91,7 @@ def calibrate_multi_seed(
             call_receiver_cap=call_receiver_cap,
             call_receiver_root_bonus=call_receiver_root_bonus,
             call_receiver_max_weight=call_receiver_max_weight,
-            call_receiver_log_cap=call_receiver_log_cap,
+            call_receiver_min_callees=call_receiver_min_callees,
             enable_typicality_filter=enable_typicality_filter,
             _tokenizer=shared_tokenizer,
         )
@@ -184,7 +184,7 @@ def main() -> None:
     call_receiver_cap: int = 5
     call_receiver_root_bonus: float = 2.0
     call_receiver_max_weight: float = 0.0
-    call_receiver_log_cap: float = 8.0
+    call_receiver_min_callees: int = 1
 
     if args.threshold_n_seeds > 1:
         print(
@@ -206,7 +206,7 @@ def main() -> None:
             call_receiver_cap=call_receiver_cap,
             call_receiver_root_bonus=call_receiver_root_bonus,
             call_receiver_max_weight=call_receiver_max_weight,
-            call_receiver_log_cap=call_receiver_log_cap,
+            call_receiver_min_callees=call_receiver_min_callees,
         )
         scorer = SequentialImportBpeScorer(
             model_a_files=model_a_files,
@@ -216,7 +216,7 @@ def main() -> None:
             call_receiver_cap=call_receiver_cap,
             call_receiver_root_bonus=call_receiver_root_bonus,
             call_receiver_max_weight=call_receiver_max_weight,
-            call_receiver_log_cap=call_receiver_log_cap,
+            call_receiver_min_callees=call_receiver_min_callees,
         )
         n_cal_used = effective_n_cal
     else:
@@ -230,7 +230,7 @@ def main() -> None:
             call_receiver_cap=call_receiver_cap,
             call_receiver_root_bonus=call_receiver_root_bonus,
             call_receiver_max_weight=call_receiver_max_weight,
-            call_receiver_log_cap=call_receiver_log_cap,
+            call_receiver_min_callees=call_receiver_min_callees,
             threshold_percentile=args.threshold_percentile,
             threshold_iqr_k=args.threshold_iqr_k,
         )
@@ -249,7 +249,7 @@ def main() -> None:
         "call_receiver_cap": call_receiver_cap,
         "call_receiver_root_bonus": call_receiver_root_bonus,
         "call_receiver_max_weight": call_receiver_max_weight,
-        "call_receiver_log_cap": call_receiver_log_cap,
+        "call_receiver_min_callees": call_receiver_min_callees,
         "calibration": {
             "n_cal": n_cal_used,
             "seed": args.seed,

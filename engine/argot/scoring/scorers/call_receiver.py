@@ -251,6 +251,30 @@ class CallReceiverScorer:
                 weights.append(alpha)
         return min(sum(weights), cap)
 
+    def fraction_weighted_contribution(
+        self,
+        hunk_content: str,
+        *,
+        max_weight: float,
+        min_callees: int = 1,
+    ) -> float:
+        """Return per-hunk contribution proportional to fraction of unattested callees.
+
+        Returns 0 if the hunk has root-level ERROR nodes, no callees, no unattested
+        callees, or fewer than min_callees unique callees.
+        """
+        if _has_root_error(hunk_content, self._language):
+            return 0.0
+        callees = extract_callees(hunk_content, self._language)
+        unique_callees = {c for c in callees if c is not None}
+        n_total = len(unique_callees)
+        if n_total < min_callees:
+            return 0.0
+        n_unattested = sum(1 for c in unique_callees if c not in self.attested)
+        if n_unattested == 0:
+            return 0.0
+        return max_weight * (n_unattested / n_total)
+
     def weighted_contribution_log(
         self,
         hunk_content: str,
@@ -262,6 +286,7 @@ class CallReceiverScorer:
 
         Each callee contributes callee_weight(c) — unattested callees receive max_weight
         (full penalty); attested callees receive smoothed -log(P(c)), capped at max_weight.
+        Parked as private API — superseded by fraction_weighted_contribution in era-10 v2.
         """
         if _has_root_error(hunk_content, self._language):
             return 0.0

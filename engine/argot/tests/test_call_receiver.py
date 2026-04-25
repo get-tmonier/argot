@@ -541,3 +541,105 @@ def test_weighted_contribution_log_deduplicates_callees(tmp_path) -> None:  # ty
         "Math.random();\nMath.random();", max_weight=5.0, cap=8.0
     )
     assert result_single == pytest.approx(result_double)
+
+
+# ---------------------------------------------------------------------------
+# fraction_weighted_contribution tests (era-10 Phase 3 v2)
+# ---------------------------------------------------------------------------
+
+
+def test_fraction_weighted_all_unattested_returns_max_weight(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Single unattested callee → fraction=1.0 → max_weight."""
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.ts"
+    f.write_text("console.log('x');")
+    scorer = CallReceiverScorer([f], language="typescript")
+    result = scorer.fraction_weighted_contribution("Math.random();", max_weight=5.0)
+    assert result == pytest.approx(5.0)
+
+
+def test_fraction_weighted_half_unattested(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """One attested + one unattested → fraction=0.5 → max_weight * 0.5."""
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.ts"
+    f.write_text("console.log('x');")
+    scorer = CallReceiverScorer([f], language="typescript")
+    result = scorer.fraction_weighted_contribution(
+        "console.log('y');\nMath.random();", max_weight=5.0
+    )
+    assert result == pytest.approx(2.5)
+
+
+def test_fraction_weighted_all_attested_returns_zero(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """All callees attested → fraction=0 → 0.0."""
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.ts"
+    f.write_text("console.log('x');\nMath.floor(y);")
+    scorer = CallReceiverScorer([f], language="typescript")
+    result = scorer.fraction_weighted_contribution(
+        "console.log('y');\nMath.floor(z);", max_weight=5.0
+    )
+    assert result == pytest.approx(0.0)
+
+
+def test_fraction_weighted_no_callees_returns_zero(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.ts"
+    f.write_text("console.log('x');")
+    scorer = CallReceiverScorer([f], language="typescript")
+    result = scorer.fraction_weighted_contribution("const x = 1;", max_weight=5.0)
+    assert result == pytest.approx(0.0)
+
+
+def test_fraction_weighted_min_callees_filters_single_callee(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """With min_callees=2, a single-callee hunk returns 0."""
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.ts"
+    f.write_text("console.log('x');")
+    scorer = CallReceiverScorer([f], language="typescript")
+    result = scorer.fraction_weighted_contribution("Math.random();", max_weight=5.0, min_callees=2)
+    assert result == pytest.approx(0.0)
+
+
+def test_fraction_weighted_min_callees_passes_two_callees(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """With min_callees=2, a two-callee hunk is scored normally."""
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.ts"
+    f.write_text("console.log('x');")
+    scorer = CallReceiverScorer([f], language="typescript")
+    # Two unattested callees → fraction=1.0 → max_weight
+    result = scorer.fraction_weighted_contribution(
+        "Math.random();\nMath.floor(x);", max_weight=5.0, min_callees=2
+    )
+    assert result == pytest.approx(5.0)
+
+
+def test_fraction_weighted_zero_for_root_error_fragment(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.py"
+    f.write_text("logger.info('x')\n")
+    scorer = CallReceiverScorer([f], language="python")
+    fragment = "    :param x: int — the count\n    :returns: float"
+    result = scorer.fraction_weighted_contribution(fragment, max_weight=5.0)
+    assert result == pytest.approx(0.0)
+
+
+def test_fraction_weighted_deduplicates_callees(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Same callee repeated twice is counted once for both n_total and n_unattested."""
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.ts"
+    f.write_text("console.log('x');")
+    scorer = CallReceiverScorer([f], language="typescript")
+    result_single = scorer.fraction_weighted_contribution("Math.random();", max_weight=5.0)
+    result_double = scorer.fraction_weighted_contribution(
+        "Math.random();\nMath.random();", max_weight=5.0
+    )
+    assert result_single == pytest.approx(result_double)

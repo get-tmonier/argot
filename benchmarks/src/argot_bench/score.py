@@ -119,7 +119,7 @@ def build_scorer(
     call_receiver_cap: int = 5,
     call_receiver_root_bonus: float = 2.0,
     call_receiver_max_weight: float = 0.0,
-    call_receiver_log_cap: float = 8.0,
+    call_receiver_min_callees: int = 1,
     threshold_percentile: float | None = None,
     threshold_iqr_k: float | None = None,
     threshold_n_seeds: int = 7,
@@ -163,7 +163,7 @@ def build_scorer(
             call_receiver_cap=call_receiver_cap,
             call_receiver_root_bonus=call_receiver_root_bonus,
             call_receiver_max_weight=call_receiver_max_weight,
-            call_receiver_log_cap=call_receiver_log_cap,
+            call_receiver_min_callees=call_receiver_min_callees,
             enable_typicality_filter=enable_typicality_filter,
         )
         inner = SequentialImportBpeScorer(
@@ -177,7 +177,7 @@ def build_scorer(
             call_receiver_cap=call_receiver_cap,
             call_receiver_root_bonus=call_receiver_root_bonus,
             call_receiver_max_weight=call_receiver_max_weight,
-            call_receiver_log_cap=call_receiver_log_cap,
+            call_receiver_min_callees=call_receiver_min_callees,
             threshold_percentile=threshold_percentile,
             threshold_iqr_k=threshold_iqr_k,
         )
@@ -194,7 +194,7 @@ def build_scorer(
             call_receiver_cap=call_receiver_cap,
             call_receiver_root_bonus=call_receiver_root_bonus,
             call_receiver_max_weight=call_receiver_max_weight,
-            call_receiver_log_cap=call_receiver_log_cap,
+            call_receiver_min_callees=call_receiver_min_callees,
             threshold_percentile=threshold_percentile,
             threshold_iqr_k=threshold_iqr_k,
         )

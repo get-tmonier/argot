@@ -164,7 +164,7 @@ class SequentialImportBpeScorer:
         call_receiver_cap: int = 5,
         call_receiver_root_bonus: float = 2.0,
         call_receiver_max_weight: float = 0.0,
-        call_receiver_log_cap: float = 8.0,
+        call_receiver_min_callees: int = 1,
         _tokenizer: Any = None,
     ) -> None:
         if calibration_hunks is None and bpe_threshold is None:
@@ -214,7 +214,7 @@ class SequentialImportBpeScorer:
             )
         self._call_receiver_root_bonus: float = call_receiver_root_bonus
         self._call_receiver_max_weight: float = call_receiver_max_weight
-        self._call_receiver_log_cap: float = call_receiver_log_cap
+        self._call_receiver_min_callees: int = call_receiver_min_callees
 
         # BPE tokenizer
         if _tokenizer is None:
@@ -377,10 +377,10 @@ class SequentialImportBpeScorer:
         # Stage 1.5: call-receiver soft penalty
         if self._call_receiver is not None:
             if self._call_receiver_max_weight > 0.0:
-                contribution = self._call_receiver.weighted_contribution_log(
+                contribution = self._call_receiver.fraction_weighted_contribution(
                     hunk_content,
                     max_weight=self._call_receiver_max_weight,
-                    cap=self._call_receiver_log_cap,
+                    min_callees=self._call_receiver_min_callees,
                 )
             else:
                 contribution = self._call_receiver.weighted_contribution(

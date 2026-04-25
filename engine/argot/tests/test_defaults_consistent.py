@@ -87,6 +87,36 @@ def test_call_receiver_max_weight_default_is_zero_across_layers() -> None:
     )
 
 
+def test_call_receiver_min_callees_default_is_one_across_layers() -> None:
+    """call_receiver_min_callees must default to 1 everywhere (era-10 Phase-3 v2)."""
+    sig = inspect.signature(SequentialImportBpeScorer.__init__)
+    scorer_mc = sig.parameters["call_receiver_min_callees"].default
+
+    calib_src = (_ENGINE_ROOT / "scoring" / "calibration" / "__init__.py").read_text()
+    calib_tree = ast.parse(calib_src)
+    calib_matches = [
+        int(node.value.value)
+        for node in ast.walk(calib_tree)
+        if (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == "call_receiver_min_callees"
+            and node.value is not None
+            and isinstance(node.value, ast.Constant)
+        )
+    ]
+    assert len(calib_matches) == 1, (
+        f"Expected 1 call_receiver_min_callees in calibration/__init__.py, "
+        f"found {len(calib_matches)}"
+    )
+    calib_mc = calib_matches[0]
+
+    assert scorer_mc == calib_mc == 1, (
+        f"call_receiver_min_callees defaults drifted: scorer={scorer_mc}, calibrate={calib_mc}. "
+        "Update all together."
+    )
+
+
 def test_threshold_percentile_default_is_max_formula() -> None:
     """Scorer and calibration CLI must both default to the max formula (era-10 shipping config).
 
