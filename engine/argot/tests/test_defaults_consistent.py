@@ -55,3 +55,50 @@ def test_call_receiver_alpha_defaults_match_across_layers() -> None:
         f"Alpha defaults drifted: scorer={scorer_alpha}, calibrate={calib_alpha}, "
         f"check_fallback={check_fallback}. Update all together."
     )
+
+
+def test_threshold_percentile_default_is_max_formula() -> None:
+    """Scorer and calibration CLI must both default to the max formula (era-10 shipping config).
+
+    The scorer uses None (= max(cal_scores)); the CLI uses 100.0 (= p100 = max).
+    Enforces consistent defaults across SequentialImportBpeScorer and CLI entry-point.
+    """
+    sig = inspect.signature(SequentialImportBpeScorer.__init__)
+    scorer_pct = sig.parameters["threshold_percentile"].default
+
+    calib_src = (_ENGINE_ROOT / "scoring" / "calibration" / "__init__.py").read_text()
+    calib_tree = ast.parse(calib_src)
+
+    # Extract the 'default' keyword value from the --threshold-percentile add_argument call
+    calib_pct_list: list[float] = []
+    for node in ast.walk(calib_tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "add_argument"
+        ):
+            has_flag = any(
+                isinstance(a, ast.Constant) and "--threshold-percentile" in str(a.value)
+                for a in node.args
+            )
+            if has_flag:
+                for kw in node.keywords:
+                    if kw.arg == "default" and isinstance(kw.value, ast.Constant):
+                        calib_pct_list.append(float(kw.value.value))
+
+    assert len(calib_pct_list) == 1, (
+        f"Expected 1 --threshold-percentile default in calibration/__init__.py, "
+        f"found {len(calib_pct_list)}"
+    )
+    calib_pct = calib_pct_list[0]
+
+    # Scorer uses None (max formula); CLI uses 100.0 (p100 = max). Both represent the same
+    # era-10 shipping config: max(cal_scores) as the threshold.
+    assert scorer_pct is None, (
+        f"SequentialImportBpeScorer.threshold_percentile default should be None (max formula, "
+        f"era-10 shipping), got {scorer_pct!r}."
+    )
+    assert calib_pct == 100.0, (
+        f"calibration CLI --threshold-percentile default should be 100.0 (max formula, "
+        f"era-10 shipping), got {calib_pct!r}."
+    )

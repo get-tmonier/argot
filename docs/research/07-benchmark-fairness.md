@@ -132,6 +132,13 @@ regression.
 
 This rule applies prospectively to all future eras: any fixture whose score is unchanged from the prior baseline but whose verdict flips due to calibrated-threshold drift within the corpus's declared CV is classified as calibration noise, not a scorer regression.
 
+> **⚠️ RETIRED as of Era 10.** The amended parity rule is no longer in force.
+> Era 10 shipped multi-seed median threshold (K=7), which reduced ink's
+> calibration CV from 6.9% to 0.0% and all other corpora to ≤3%. With
+> threshold variance eliminated, strict 91/91 verdict parity is restored as
+> the standing rule for Era 11 and beyond. No "within 1×CV of threshold"
+> exemptions apply. Future eras must pre-register strict parity.
+
 Two ink fixtures flipped between era-6 and the era-7 shipping run. See the
 section below for details.
 

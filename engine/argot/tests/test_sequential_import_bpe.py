@@ -405,3 +405,44 @@ def test_call_receiver_reason_when_penalty_tips_threshold(tmp_path: Path) -> Non
             f"Expected call_receiver, got {result['reason']!r} "
             f"(bpe_score={result['bpe_score']}, threshold=0.5)"
         )
+
+
+def test_compute_threshold_iqr_basic() -> None:
+    from argot.scoring.scorers.sequential_import_bpe import _compute_threshold
+
+    # 10 evenly-spaced values: 1..10
+    scores = list(range(1, 11))
+    # p25 index = 0.25 * 9 = 2.25 → lo=2, hi=3 → 3 + 0.25*(4-3) = 3.25
+    # p75 index = 0.75 * 9 = 6.75 → lo=6, hi=7 → 7 + 0.75*(8-7) = 7.75
+    # IQR = 7.75 - 3.25 = 4.5
+    # threshold = 7.75 + 2.5 * 4.5 = 7.75 + 11.25 = 19.0
+    result = _compute_threshold(scores, threshold_percentile=None, threshold_iqr_k=2.5)  # type: ignore[arg-type]
+    assert result == pytest.approx(19.0, abs=1e-9)
+
+
+def test_compute_threshold_iqr_tight_distribution() -> None:
+    from argot.scoring.scorers.sequential_import_bpe import _compute_threshold
+
+    # Tight distribution: all values equal → IQR=0 → threshold = p75 + 0 = same value
+    scores = [5.0] * 20
+    result = _compute_threshold(scores, threshold_percentile=None, threshold_iqr_k=2.5)
+    assert result == pytest.approx(5.0, abs=1e-9)
+
+
+def test_compute_threshold_iqr_overrides_percentile() -> None:
+    from argot.scoring.scorers.sequential_import_bpe import _compute_threshold
+
+    # When threshold_iqr_k is set, threshold_percentile is ignored
+    scores = list(range(1, 11))
+    iqr_result = _compute_threshold(scores, threshold_percentile=95.0, threshold_iqr_k=2.5)  # type: ignore[arg-type]
+    assert iqr_result == pytest.approx(19.0, abs=1e-9)
+
+
+def test_compute_threshold_iqr_k_zero() -> None:
+    from argot.scoring.scorers.sequential_import_bpe import _compute_threshold
+
+    # k=0 → threshold = p75 exactly
+    scores = list(range(1, 11))
+    result = _compute_threshold(scores, threshold_percentile=None, threshold_iqr_k=0.0)  # type: ignore[arg-type]
+    # p75 index = 6.75 → 7 + 0.75*(8-7) = 7.75
+    assert result == pytest.approx(7.75, abs=1e-9)

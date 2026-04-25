@@ -12,6 +12,7 @@ from typing import Literal
 
 from argot.scoring.adapters.language_adapter import LanguageAdapter
 from argot.scoring.adapters.python_adapter import PythonAdapter
+from argot.scoring.calibration import calibrate_multi_seed
 from argot.scoring.calibration.random_hunk_sampler import sample_hunks
 from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
 
@@ -116,6 +117,9 @@ def build_scorer(
     enable_typicality_filter: bool = True,
     call_receiver_alpha: float = 2.0,
     call_receiver_cap: int = 5,
+    threshold_percentile: float | None = None,
+    threshold_iqr_k: float | None = None,
+    threshold_n_seeds: int = 7,
 ) -> BenchScorer:
     """Build a BenchScorer calibrated on n_cal sampled hunks from repo_dir.
 
@@ -130,6 +134,8 @@ def build_scorer(
         call_receiver_alpha: Soft-penalty weight. 0.0 disables Stage 1.5 entirely.
             Default 2.0 (era-9 shipping config).
         call_receiver_cap: Max unattested callees counted in the penalty (default 5).
+        threshold_percentile: BPE threshold percentile. None = max(cal_scores) (era-10
+            shipping config); 95.0 = p95 (robust to outliers).
 
     Raises:
         ValueError: if repo_dir has no source files, or insufficient qualifying hunks.
@@ -139,16 +145,45 @@ def build_scorer(
     if not files:
         raise ValueError(f"No {language} source files found in {repo_dir}")
 
-    cal_hunks = sample_hunks(repo_dir, n_cal, seed, adapter=adapter)
-
-    inner = SequentialImportBpeScorer(
-        model_a_files=files,
-        bpe_model_b_path=bpe_model_b or _BPE_MODEL_B,
-        calibration_hunks=cal_hunks,
-        adapter=adapter,
-        repo_root=repo_dir,
-        enable_typicality_filter=enable_typicality_filter,
-        call_receiver_alpha=call_receiver_alpha,
-        call_receiver_cap=call_receiver_cap,
-    )
+    if threshold_n_seeds > 1:
+        median_threshold = calibrate_multi_seed(
+            base_seed=seed,
+            n_seeds=threshold_n_seeds,
+            n_cal=n_cal,
+            repo_dir=repo_dir,
+            model_a_files=files,
+            adapter=adapter,
+            bpe_model_b_path=bpe_model_b or _BPE_MODEL_B,
+            threshold_percentile=threshold_percentile,
+            threshold_iqr_k=threshold_iqr_k,
+            call_receiver_alpha=call_receiver_alpha,
+            call_receiver_cap=call_receiver_cap,
+            enable_typicality_filter=enable_typicality_filter,
+        )
+        inner = SequentialImportBpeScorer(
+            model_a_files=files,
+            bpe_model_b_path=bpe_model_b or _BPE_MODEL_B,
+            bpe_threshold=median_threshold,
+            adapter=adapter,
+            repo_root=repo_dir,
+            enable_typicality_filter=enable_typicality_filter,
+            call_receiver_alpha=call_receiver_alpha,
+            call_receiver_cap=call_receiver_cap,
+            threshold_percentile=threshold_percentile,
+            threshold_iqr_k=threshold_iqr_k,
+        )
+    else:
+        cal_hunks = sample_hunks(repo_dir, n_cal, seed, adapter=adapter)
+        inner = SequentialImportBpeScorer(
+            model_a_files=files,
+            bpe_model_b_path=bpe_model_b or _BPE_MODEL_B,
+            calibration_hunks=cal_hunks,
+            adapter=adapter,
+            repo_root=repo_dir,
+            enable_typicality_filter=enable_typicality_filter,
+            call_receiver_alpha=call_receiver_alpha,
+            call_receiver_cap=call_receiver_cap,
+            threshold_percentile=threshold_percentile,
+            threshold_iqr_k=threshold_iqr_k,
+        )
     return BenchScorer(inner)

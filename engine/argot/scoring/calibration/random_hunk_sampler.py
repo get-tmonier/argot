@@ -124,10 +124,10 @@ def sample_hunks(
     exclude_data_dominant: bool = True,
     adapter: "LanguageAdapter | None" = None,  # noqa: UP037
 ) -> list[str]:
-    """Sample n hunk strings from source_dir using a fixed numpy RNG seed.
+    """Sample up to n hunk strings from source_dir using a fixed numpy RNG seed.
 
-    Raises:
-        ValueError: if fewer than n qualifying hunks exist in source_dir.
+    If fewer than n qualifying hunks exist, caps at the available pool size and
+    emits a UserWarning. Raises ValueError only when the pool is completely empty.
     """
     candidates = collect_candidates(
         source_dir,
@@ -136,11 +136,21 @@ def sample_hunks(
         exclude_data_dominant=exclude_data_dominant,
         adapter=adapter,
     )
-    if len(candidates) < n:
+    if len(candidates) == 0:
         raise ValueError(
-            f"Only {len(candidates)} qualifying hunks found in {source_dir!r}, "
+            f"Only 0 qualifying hunks found in {source_dir!r}, "
             f"cannot sample n={n}. Reduce n or expand source_dir."
         )
+    if len(candidates) < n:
+        import warnings
+
+        warnings.warn(
+            f"Only {len(candidates)} qualifying hunks in {source_dir!r}; "
+            f"capping from n={n} to {len(candidates)}.",
+            UserWarning,
+            stacklevel=2,
+        )
+        n = len(candidates)
     rng = np.random.default_rng(seed)
     indices = rng.choice(len(candidates), size=n, replace=False)
     return [candidates[int(i)] for i in sorted(indices)]

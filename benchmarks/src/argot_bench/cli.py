@@ -71,6 +71,39 @@ def build_parser() -> argparse.ArgumentParser:
         help="Cap on unattested callees counted in penalty (default 5).",
     )
     p.add_argument(
+        "--n-cal",
+        type=int,
+        default=100,
+        metavar="N",
+        help="Number of calibration hunks per seed (default 100, era-10 shipping config).",
+    )
+    p.add_argument(
+        "--threshold-percentile",
+        type=float,
+        default=100.0,
+        metavar="PCT",
+        help="BPE threshold percentile. 100.0=max (era-10 shipping); 95.0=p95 (robust to outliers).",
+    )
+    p.add_argument(
+        "--threshold-iqr-k",
+        type=float,
+        default=None,
+        metavar="K",
+        help=(
+            "IQR-margin multiplier: threshold = p75 + k * IQR. "
+            "Overrides --threshold-percentile when set. Default None (use percentile/max)."
+        ),
+    )
+    p.add_argument(
+        "--threshold-n-seeds",
+        type=int,
+        default=7,
+        metavar="K",
+        help=(
+            "Multi-seed median threshold K (default 7, era-10 shipping; 1=single-seed/era-9)."
+        ),
+    )
+    p.add_argument(
         "--jobs",
         "-j",
         type=int,
@@ -105,6 +138,34 @@ def build_parser() -> argparse.ArgumentParser:
         default=5,
         metavar="INT",
         help="Cap on unattested callees counted in penalty (default 5).",
+    )
+    one.add_argument(
+        "--n-cal",
+        type=int,
+        default=100,
+        metavar="N",
+        help="Number of calibration hunks per seed (default 100, era-10 shipping config).",
+    )
+    one.add_argument(
+        "--threshold-percentile",
+        type=float,
+        default=100.0,
+        metavar="PCT",
+        help="BPE threshold percentile. 100.0=max (era-10 shipping); 95.0=p95 (robust to outliers).",
+    )
+    one.add_argument(
+        "--threshold-iqr-k",
+        type=float,
+        default=None,
+        metavar="K",
+        help="IQR-margin multiplier (default None).",
+    )
+    one.add_argument(
+        "--threshold-n-seeds",
+        type=int,
+        default=7,
+        metavar="K",
+        help="Multi-seed median threshold K (default 7, era-10 shipping; 1=single-seed/era-9).",
     )
 
     return p
@@ -171,6 +232,10 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
         sample_controls=args.sample_controls,
         call_receiver_alpha=args.call_receiver_alpha,
         call_receiver_cap=args.call_receiver_cap,
+        n_cal=args.n_cal,
+        threshold_percentile=args.threshold_percentile,
+        threshold_iqr_k=args.threshold_iqr_k,
+        threshold_n_seeds=args.threshold_n_seeds,
     )
     args.out_dir.mkdir(parents=True, exist_ok=True)
     r = run_corpus(cfg)
@@ -209,6 +274,14 @@ def _run(args: argparse.Namespace) -> int:
         base_cmd.extend(["--call-receiver-alpha", str(args.call_receiver_alpha)])
     if args.call_receiver_cap != 5:
         base_cmd.extend(["--call-receiver-cap", str(args.call_receiver_cap)])
+    if args.n_cal != 100:
+        base_cmd.extend(["--n-cal", str(args.n_cal)])
+    if args.threshold_percentile != 100.0:
+        base_cmd.extend(["--threshold-percentile", str(args.threshold_percentile)])
+    if args.threshold_iqr_k is not None:
+        base_cmd.extend(["--threshold-iqr-k", str(args.threshold_iqr_k)])
+    if args.threshold_n_seeds != 7:
+        base_cmd.extend(["--threshold-n-seeds", str(args.threshold_n_seeds)])
 
     def _run_corpus_subprocess(t: Target) -> tuple[str, int, str]:
         proc = subprocess.run(
