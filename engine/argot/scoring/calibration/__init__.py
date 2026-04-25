@@ -34,6 +34,16 @@ def main() -> None:
     parser.add_argument("--n-cal", type=int, default=500, help="Number of calibration hunks")
     parser.add_argument("--seed", type=int, default=0, help="RNG seed for hunk sampling")
     parser.add_argument(
+        "--threshold-percentile",
+        type=float,
+        default=95.0,
+        help=(
+            "Percentile of calibration scores to use as BPE threshold (default 95.0 = p95). "
+            "More robust than max to single high-scoring calibration outliers. "
+            "Pass 100 to restore legacy max-of-calibration behaviour."
+        ),
+    )
+    parser.add_argument(
         "--model-a",
         default=".argot/model_a.txt",
         help="File listing model-A source paths (produced by argot-train)",
@@ -88,6 +98,7 @@ def main() -> None:
         calibration_hunks=cal_hunks,
         call_receiver_alpha=call_receiver_alpha,
         call_receiver_cap=call_receiver_cap,
+        threshold_percentile=args.threshold_percentile,
     )
 
     try:
