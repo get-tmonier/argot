@@ -135,8 +135,8 @@ class SequentialImportBpeScorer:
             BPE threshold is set to max(bpe_score(h) for h in calibration_hunks) when
             threshold_percentile is None, or to that percentile otherwise.
         threshold_percentile: None → max(cal_scores). A value in (0, 100] → that
-            percentile of cal_scores via linear interpolation. Default None preserves
-            the existing max behaviour.
+            percentile of cal_scores via linear interpolation. Default 95.0 (p95) —
+            more robust than max to single high-scoring calibration outliers.
         threshold_iqr_k: When not None, overrides threshold_percentile; sets threshold to
             p75 + k * IQR (IQR = p75 - p25). Default None.
         enable_typicality_filter: Build a TypicalityModel for calibration pool filtering

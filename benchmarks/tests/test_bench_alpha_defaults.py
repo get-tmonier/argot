@@ -58,9 +58,6 @@ def test_bench_threshold_percentile_defaults_match_production() -> None:
 
 def test_bench_threshold_iqr_k_defaults_none() -> None:
     """RunConfig.threshold_iqr_k and build_scorer threshold_iqr_k must both default to None."""
-    import dataclasses
-    import inspect
-
     from argot_bench.run import RunConfig
     from argot_bench.score import build_scorer
 

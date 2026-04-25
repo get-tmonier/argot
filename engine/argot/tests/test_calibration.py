@@ -54,6 +54,20 @@ def test_empty_corpus_raises() -> None:
         sample_hunks(Path(tmp), n=1, seed=0)
 
 
+def test_thin_pool_caps_gracefully() -> None:
+    """sample_hunks caps at available pool size when n > pool and emits a warning."""
+    import warnings
+
+    candidates_available = len(collect_candidates(_FASTAPI_FIXTURES))
+    # Request more than the pool — should cap, not raise
+    oversized_n = candidates_available + 50
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        hunks = sample_hunks(_FASTAPI_FIXTURES, oversized_n, seed=0)
+    assert len(hunks) == candidates_available
+    assert any("capping" in str(warning.message).lower() for warning in w)
+
+
 def test_scorer_config_json_roundtrip(tmp_path: Path) -> None:
     """Write scorer-config.json then read it back with load_config."""
     scorer = _scorer_with_cal(seed=7)
