@@ -296,11 +296,67 @@ an Express receiver — is absent from the Hono corpus. Two unattested
 callees × α=2.0 = +4.0 adjustment cleared the 4.277 threshold from a
 raw BPE of only 0.819.
 
+## Era-9 → era-10: what changed in detail
+
+Era 10 ships in two phases. Phase 1 eliminates calibration variance by running K=7
+independent inner calibrations per outer seed and taking the median threshold.
+Phase 2 adds a root-conditional bonus to the call-receiver penalty, catching the
+`{foreign method, known root}` pattern. Phase 3 explored per-callee frequency
+weighting and documented two structural bounds (v1: saturation at vocab ~5000;
+v2: zero contribution on attested callees).
+
+### Recall
+
+```mermaid
+xychart-beta
+    title "Recall (%) per corpus — era-9 (bars) vs era-10 (line)"
+    x-axis ["fastapi", "rich", "faker", "hono", "ink", "faker-js"]
+    y-axis "recall (%)" 0 --> 110
+    bar [91.7, 95.0, 95.0, 78.3, 93.3, 53.3]
+    line [91.7, 95.0, 95.0, 83.3, 93.3, 53.3]
+```
+
+### False-positive rate
+
+```mermaid
+xychart-beta
+    title "FP rate (%) per corpus — era-9 (bars) vs era-10 (line)"
+    x-axis ["fastapi", "rich", "faker", "hono", "ink", "faker-js"]
+    y-axis "FP rate (%)" 0 --> 2
+    bar [0.8, 0.8, 1.2, 0.5, 0.4, 1.0]
+    line [0.6, 1.2, 1.4, 0.5, 0.4, 0.9]
+```
+
+FP shifted slightly on most corpora — all stay inside the 1.5% gate.
+The increase on rich and faker traces directly to root_bonus lifting the
+call-receiver contribution on hunks that were already close to threshold;
+the decrease on fastapi and faker-js reflects threshold stabilisation from
+the K=7 multi-seed median.
+
+### Summary table
+
+| Corpus | FP (era 9 → 10) | Recall (era 9 → 10) | Fixtures gained |
+|:---|---:|---:|:---|
+| fastapi  | 0.8% → 0.6% | 91.7% → 91.7% | — |
+| rich     | 0.8% → 1.2% | 95.0% → 95.0% | — |
+| faker    | 1.2% → 1.4% | 95.0% → 95.0% | — |
+| hono     | 0.5% → 0.5% | 78.3% → **83.3%** | hono_middleware_2 |
+| ink      | 0.4% → 0.4% | 93.3% → 93.3% | — |
+| faker-js | 1.0% → 0.9% | 53.3% → 53.3% | — |
+
+Average recall 84.43% → 85.27%. All 5 standard quality gates cleared.
+Threshold CV: max 6.9% (ink, era-9) → max 3.0% (faker, era-10). Era-7 amended parity rule retired.
+
+Fixture relabelled: `hono_middleware_2` uncaught→hard. Express 4-arg
+error-handler signature (`req, res, next` are root-attested in hono corpus;
+`res.send` unattested → `alpha + root_bonus = 4.0` contribution clears the 4.289 threshold
+from a raw BPE of 0.110).
+
 ## Evidence
 
 Each era doc cites peer docs under `docs/research/evidence/`. Those are
 freshly written, 200–400 word summaries of the experiments the narrative
-load-bears on — 29 in total after era 6, covering every cited result. The
+load-bears on — 33 in total, covering every cited result. The
 era docs are the story; the evidence docs are the receipts.
 
 ## What's next
