@@ -20,7 +20,9 @@
   No GPU · No cloud · No telemetry · Runs in seconds after a one-time calibration
 </p>
 
-$$\text{score}(\text{hunk}) \;=\; \underbrace{\max_{t \;\in\; \text{tokens}(\text{hunk})} \log \frac{P_{\text{generic}}(t)}{P_{\text{repo}}(t)}}_{\text{BPE surprise}} \;+\; \underbrace{\alpha \cdot \min\!\bigl(|\text{callees}(\text{hunk}) \setminus \text{attested}(\text{repo})|,\; C\bigr)}_{\text{call-receiver penalty}\;(\alpha=2.0,\;C=5)}$$
+$$\text{score}(\text{hunk}) \;=\; \underbrace{\max_{t \;\in\; \text{tokens}(\text{hunk})} \log \frac{P_{\text{generic}}(t)}{P_{\text{repo}}(t)}}_{\text{BPE surprise}} \;+\; \underbrace{\sum_{c \;\in\; \text{unattested}} w(c)}_{\text{call-receiver penalty}}$$
+
+$$w(c) = \begin{cases} \alpha + r & \text{if root}(c) \in \text{attested} \\ \alpha & \text{otherwise} \end{cases} \qquad (\alpha=2.0,\; r=2.0)$$
 
 ---
 
@@ -224,7 +226,7 @@ flowchart TD
     TYP -- yes --> SKIP(["⏭  skip<br/>reason: atypical / atypical_file"])
     TYP -- no --> S1["Stage 1 — import graph\nextract hunk imports\nflag if any are foreign to this repo"]
     S1 -- "foreign module found" --> F1(["🚩 flagged  reason: import"])
-    S1 -- "all imports native" --> S2["Stage 2 — BPE log-ratio + call-receiver penalty\nadjusted = bpe + α · min(n_unattested, 5)"]
+    S1 -- "all imports native" --> S2["Stage 2 — BPE log-ratio + call-receiver penalty\nadjusted = bpe + Σ w(c) for c in unattested callees\nw(c) = α+r if root attested, α otherwise  (α=2.0, r=2.0)"]
     S2 -- "penalty tipped it" --> F15(["🚩 flagged  reason: call_receiver"])
     S2 -- "bpe alone > threshold" --> F2(["🚩 flagged  reason: bpe"])
     S2 -- "adjusted ≤ threshold" --> OK(["✅ clean"])
@@ -234,7 +236,7 @@ flowchart TD
 
    **Stage 1 — import graph:** for each hunk, extracts its import statements and checks whether any imported module is absent from the repo's own first-party import set. A single foreign import immediately flags the hunk (`reason: "import"`).
 
-   **Stage 2 — BPE log-ratio with call-receiver penalty:** tokenizes the hunk with the [UnixCoder](https://huggingface.co/microsoft/unixcoder-base) BPE tokenizer (pre-trained on 9M+ code files across 9 languages — only the vocabulary is used, not the neural network) and computes a max-surprise score over the hunk's tokens. The score is then adjusted by a presence-based penalty over call-expression receivers: `adjusted = bpe + α · min(n_unattested, 5)` where `n_unattested` is the count of distinct dotted callees in the hunk that never appear in the repo's own call sites. **α = 2.0** in the shipping config. A parse-fragment guard abstains when the hunk slice doesn't parse cleanly.
+   **Stage 2 — BPE log-ratio with call-receiver penalty:** tokenizes the hunk with the [UnixCoder](https://huggingface.co/microsoft/unixcoder-base) BPE tokenizer (pre-trained on 9M+ code files across 9 languages — only the vocabulary is used, not the neural network) and computes a max-surprise score over the hunk's tokens. The score is then adjusted by a root-conditional penalty over call-expression receivers: `adjusted = bpe + Σ w(c)` for each unattested callee `c`, where `w(c) = α + r` if the callee's root is attested in the repo (e.g. `req.send` when `req.get` is known) and `w(c) = α` otherwise. **α = 2.0, r = 2.0** in the shipping config. A parse-fragment guard abstains when the hunk slice doesn't parse cleanly.
 
 $$P_A(t) = \frac{\text{count}_A(t)}{\text{total}_A} + \varepsilon \qquad P_B(t) = \frac{\text{count}_B(t)}{\text{total}_B} + \varepsilon$$
 
@@ -258,39 +260,39 @@ No training data or model leaves your machine. All stages run entirely locally.
 > [`docs/research/`](docs/research/README.md) for the full narrative
 > (JEPA ensembles → honest eval → token-frequency signal hunt →
 > import-graph breakthrough → typicality filter → call-receiver scorer →
-> complex-chain canonicalization → alpha tuning)
-> with 29 evidence docs.
+> complex-chain canonicalization → alpha tuning → calibration hardening)
+> with 33 evidence docs.
 
 ## Validation
 
 argot ships with a reproducible benchmark harness
 ([`benchmarks/`](benchmarks/)) that runs the production scorer against
 six pinned open-source repos — fastapi, rich, faker (Python) and hono,
-ink, faker-js (TypeScript) — using a hand-crafted catalog of **91
+ink, faker-js (TypeScript) — using a hand-crafted catalog of **116
 paradigm-break fixtures** across **34 categories** (Flask routing in a
 FastAPI app, `requests` in async code, Django CBV, `Math.random` inside
 a deterministic faker-js provider, etc.). Each break is scored against
-a backdrop of **167k+ real PR hunks** from the same repos as negative
+a backdrop of **494k+ real PR hunks** from the same repos as negative
 controls.
 
 Latest full baseline ([`benchmarks/results/baseline/latest/report.md`](benchmarks/results/baseline/latest/report.md))
-(115 fixtures, 5 PR snapshots per corpus, difficulty-labelled):
+(116 fixtures, 5 PR snapshots per corpus, difficulty-labelled):
 
 | Corpus | AUC | Recall | FP rate |
 |:---|---:|---:|---:|
-| fastapi | **0.9880** | **91.7%** | 0.8% |
-| rich | 0.9780 | 95.0% | 0.8% |
-| faker (py) | 0.9537 | 95.0% | 1.2% |
-| hono | 0.8312 | 78.3% | 0.5% |
+| fastapi | **0.9880** | **91.7%** | 0.6% |
+| rich | 0.9780 | 95.0% | 1.2% |
+| faker (py) | 0.9537 | 95.0% | 1.4% |
+| hono | 0.8312 | **83.3%** | 0.5% |
 | ink | **0.9899** | **93.3%** | 0.4% |
-| faker-js | 0.9463 | 53.3% | 1.0% |
+| faker-js | 0.9463 | 53.3% | 0.9% |
 
-Average recall **84.4%**; **FP rate ≤ 1.2% on all six corpora**. The
-recall figures reflect the difficulty-stratified fixture set (115 fixtures
+Average recall **85.3%**; **FP rate ≤ 1.4% on all six corpora**. The
+recall figures reflect the difficulty-stratified fixture set (116 fixtures
 with easy/medium/hard/uncaught bands across all six corpora); easy and medium
 fixtures are caught at ≥80% on five of six corpora. The production scorer
 ships with the AST-derived typicality filter plus the Stage 1.5
-call-receiver penalty (α=2.0). **Threshold CV ≤ 10%** across 5 seeds: runs are
+call-receiver penalty (α=2.0, root_bonus=2.0). **Threshold CV ≤ 3%** across 5 seeds: runs are
 reproducible.
 
 Reproduce with a single command:
