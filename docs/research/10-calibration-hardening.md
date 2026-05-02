@@ -1,10 +1,13 @@
 # Era 10 — Calibration Hardening
 
-> **TL;DR.** Era 10 ships as a **positive result**. After exhausting four
-> single-statistic estimator configurations, the fifth config — multi-seed
-> median threshold with K=7 — reduces threshold CV from 7–10% to ≤3% across
-> all corpora while preserving era-9 verdict coverage exactly. All 6
-> pre-registered gates pass. The amended parity rule from Era 7 is retired.
+> **TL;DR.** Era 10 ships in two phases. Phase 1 (multi-seed median threshold, K=7)
+> reduces threshold CV from 7–10% to ≤3% across all corpora while preserving era-9
+> verdict coverage exactly — all 6 pre-registered gates pass, and the amended parity
+> rule from Era 7 is retired. Phase 2 (root-conditional call-receiver weighting) adds
+> +5pp recall on hono by catching the `{attested-root, unattested-callee}` pattern, with
+> all 5 standard quality gates passing. Phase 3 (per-callee frequency weighting) is a
+> bounded negative result: two formulations explored, both failed at structural limits
+> documented below. Era 11 begins from the Phase 2 baseline.
 
 ## Problem
 
@@ -26,7 +29,9 @@ high-scoring calibration hunk per seed shifts the threshold for that entire seed
 With n_cal=100 from a small corpus, the max value varies substantially across
 seeds — this is the direct source of the CV problem.
 
-## Design Space Exploration
+## Phase 1: Multi-Seed Median Threshold
+
+### Design Space Exploration
 
 Before arriving at the shipping config, four single-statistic estimator
 configurations were tested and rejected. This section summarizes the exploration.
@@ -47,7 +52,7 @@ strictly worse, amplifying p75 instability rather than dampening it.
 
 Full evidence in `docs/research/evidence/calibration-hardening.md`.
 
-## Key Insight: Breaking the Single-Draw Assumption
+### Key Insight: Breaking the Single-Draw Assumption
 
 All four failed configs tried a different point statistic (max, p75, p95, IQR) on
 **a single sample**. The hidden assumption was that the right statistic, applied
@@ -66,7 +71,7 @@ reduction is ~0.38× (1/√7). This is why the threshold lands close to era-9 by
 construction — median of max(100) ≈ max(100) in expectation for stable
 distributions.
 
-## Interventions
+### Interventions
 
 | Intervention | Old value (era-9) | New value |
 |:---|:---|:---|
@@ -76,10 +81,9 @@ distributions.
 
 The only change is `threshold_n_seeds=7`: each outer seed now runs 7 independent
 inner calibrations and takes the median of the 7 resulting thresholds. No scorer
-behavior, alpha values, or extractor logic changed. `call_receiver_alpha=2.0`,
-complex-chain canonicalization, and all extractors remain unchanged from Era 9.
+behavior, alpha values, or extractor logic changed.
 
-## Results
+### Phase 1 Results
 
 All 6 pre-registered gates pass.
 
@@ -93,59 +97,175 @@ All 6 pre-registered gates pass.
 | faker-js | 53.3% | 0.95% | 0.0% | 4.8607 |
 | **Avg** | **84.43%** | — | **max 3.0%** | — |
 
-Per-seed threshold stability (outer seeds 0–4, each with 7-seed internal median):
+Verdict preservation vs era-9 is approximately 100%: all six corpus recalls match
+era-9 exactly, meaning no fixture changed its detection outcome.
 
-| Corpus | Seeds [0–4] | CV |
-|:---|:---|---:|
-| fastapi | [5.2585, 5.2585, 5.2585, 5.2585, 5.2585] | 0.0% |
-| rich | [3.8424, 3.8424, 3.8424, 3.8424, 3.8424] | 0.0% |
-| faker | [5.0663, 5.0663, 5.3845, 5.3845, 5.3845] | 3.0% |
-| hono | [4.2707, 4.2937, 4.2937, 4.2937, 4.2937] | 0.2% |
-| ink | [4.9932, 4.9932, 4.9932, 4.9932, 4.9932] | 0.0% |
-| faker-js | [4.8607, 4.8607, 4.8607, 4.8607, 4.8607] | 0.0% |
-
-Faker's 3.0% CV reflects a small calibration pool where 2 of 5 outer seeds land
-on a different inner median. This is within gate limits and not a concern.
-
-## Gate Clearance
-
-| # | Gate | Threshold | Result |
-|:---|:---|:---|:---|
-| 1 | ink CV | < 4% | 0.0% ✓ |
-| 2 | All corpora CV | < 5% | max 3.0% (faker) ✓ |
-| 3 | Verdict preservation vs era-9 | ≥ 95% | ≈ 100% (exact recall match) ✓ |
-| 4 | Avg recall regression | ≤ 1pp vs 84.43% | 0.0pp ✓ |
-| 5 | Per-corpus FP | ≤ 1.5% | max 1.04% ✓ |
-| 6 | Per-corpus recall regression | ≤ 2pp | 0.0pp all corpora ✓ |
-
-All six gates pass. Verdict preservation is approximately 100%: all six corpus
-recalls match era-9 exactly, meaning no fixture changed its detection outcome.
-
-## Amended Parity Rule — Retired
+### Amended Parity Rule — Retired
 
 Gate 1 clears at 0.0% for ink (down from 6.9% in era-9). The amended parity rule
 from Era 7 — which allowed any prior era's seed-0 result for parity comparisons
-due to ink instability — is now **retired**. Strict per-run parity is restored.
+due to ink instability — is now **RETIRED**. Strict per-run parity is restored.
 
-## Issue Status
-
-GitHub issue #27 — "Reduce ink calibration CV below 4%" — **closed as resolved**.
-ink CV dropped from 6.9% to 0.0%; rich CV dropped from 9.5% to 0.0%.
-
-## Shipped Deliverables
-
-Era 10 ships the multi-seed median threshold as the new default, plus the
-infrastructure built during the four-config exploration phase (all of which
-remains in the codebase):
+### Phase 1 Shipped Deliverables
 
 1. **Multi-seed median threshold** (`calibration/__init__.py`): `threshold_n_seeds=7`
-   is the new default. Each calibration run performs 7 independent inner
-   calibrations and takes the median threshold.
+   is the new default.
 2. **Thin-pool fallback** (`random_hunk_sampler.py`): `sample_hunks` caps at pool
    size and emits `UserWarning` instead of raising when n > pool.
 3. **CLI flags**: `--n-cal`, `--threshold-percentile`, and `--threshold-iqr-k`
-   added to bench CLI and `argot-calibrate`. Enables future A/B configs without
-   code changes.
+   added to bench CLI and `argot-calibrate`.
 4. **Consistency tests**: `threshold_percentile`, `n_cal`, and `threshold_iqr_k`
-   defaults locked across all layers via `test_defaults_consistent.py` and
-   `test_bench_alpha_defaults.py`.
+   defaults locked across all layers.
+
+## Phase 2: Root-Conditional Call-Receiver Weighting
+
+### Hypothesis
+
+Era-9's call-receiver assigns a flat α=2.0 weight per unattested callee regardless
+of whether the callee's root is attested. Phase 2 adds `root_bonus` to the weight
+when the callee's root IS attested but the full callee is not.
+
+- **Foreign method on known root** (`hono_middleware_2`: `req.send` where `req` is attested):
+  strong "weird combination on familiar object" signal. `weighted_contribution` returns
+  `alpha + root_bonus = 4.0`.
+- **Unknown root entirely** (`new_helper`): possibly legitimate codebase evolution.
+  Standard alpha=2.0 applies.
+
+Default: `call_receiver_root_bonus=2.0`.
+
+### Pre-flight Analysis
+
+Pre-bench analysis predicted the config could not catch the primary faker-js
+cluster (foreign_rng_1/3, fetch-based fixtures, error_flip fixtures) because those
+callees are globally attested in the faker-js corpus — the scorer skips them
+entirely. See Phase 3 for the definitive probe of these cases.
+
+Predicted catch: `hono_middleware_2` (Express 4-arg error-handler signature), which
+has attested roots (`req`, `res`, `next`) but calls receivers unattested in the
+hono corpus.
+
+### Phase 2 Results
+
+Run against Phase-1 baseline (run 20260425T111854Z vs baseline 20260425T095307Z).
+
+| Corpus | P1 Recall | P2 Recall | Δ | P1 FP | P2 FP | Δ |
+|:---|---:|---:|---:|---:|---:|---:|
+| fastapi | 91.7% | 91.7% | 0 | 0.6% | 0.6% | 0 |
+| rich | 95.0% | 95.0% | 0 | 0.8% | 1.2% | +0.4pp |
+| faker | 95.0% | 95.0% | 0 | 1.0% | 1.4% | +0.4pp |
+| hono | 78.3% | **83.3%** | **+5pp** | 0.4% | 0.5% | +0.1pp |
+| ink | 93.3% | 93.3% | 0 | 0.4% | 0.4% | 0 |
+| faker-js | 53.3% | 53.3% | 0 | 1.0% | 0.9% | −0.1pp |
+| **Avg** | **84.43%** | **85.27%** | **+0.84pp** | | | |
+
+All 5 standard quality gates pass. hono gained one fixture (`hono_middleware_2`).
+
+### Phase 2 Gate Matrix
+
+| Gate | Threshold | Result |
+|:---|:---|:---:|
+| 1 — CV preserved | all ≤ P1+1pp | ✓ |
+| 2 — Verdict parity ≥ 95% | ≥95% | ✓ 99.1% |
+| 3 — Avg recall | ≥84.43% | ✓ 85.27% |
+| 4 — Per-corpus FP | ≤1.5% | ✓ max 1.4% |
+| 5 — Per-corpus recall | ≥P1−2pp | ✓ hono +5pp |
+
+Phase 2 ships. Avg recall: **84.43% → 85.27%** (+0.84pp).
+
+### Why Faker-JS Was Not Helped
+
+The 8 uncaught faker-js fixtures use `Math.random`, `fetch`, and `Promise.resolve` —
+all globally attested in the faker-js corpus (in jest test files and locale
+utilities). The scorer's attested-set lookup returns True for these callees, so
+`weighted_contribution` contributes 0 before root_bonus is even evaluated. Root_bonus
+cannot help when the callee itself is attested.
+
+This is the defining structural constraint era-10 could not cross: the faker-js
+break is **contextual** (X called in a file where X doesn't belong) not **categorical**
+(X foreign to the repo). Era-11 targets this axis directly.
+
+### Phase 2 Shipped Deliverables
+
+1. **`CallReceiverScorer.attested_roots`**: set of callee roots seen in corpus.
+2. **`CallReceiverScorer.weighted_contribution`**: replaces flat `min(n_unattested, k)×α`
+   with per-callee `alpha + root_bonus` for root-attested cases.
+3. **`call_receiver_root_bonus=2.0`**: plumbed through calibration, bench, and CLI layers.
+4. **Consistency tests**: root_bonus default locked across all layers.
+
+## Phase 3: Per-Callee Frequency Weighting (Negative Results)
+
+Phase 3 pursued per-callee frequency weighting as a direct probe of the faker-js
+cluster. Two formulations reached their structural limits and neither ships.
+
+### Phase 3 v1: Per-Callee Log-Rarity Weighting
+
+**Hypothesis**: weight each unattested callee by −log P(c) where P(c) = callee frequency
+in corpus. Rare callees contribute more; common callees contribute less.
+
+**Config**: `max_weight=5.0`, `cap=8.0`, `alpha=2.0`. Run 20260425T120434Z.
+
+**Outcome**: Gate 4 (FP ≤ 1.5%) failed on all 6 corpora with FP rates 24–30% on
+Python corpora. Average recall improved to ~95.8% (faker-js 17/17), but FP is
+catastrophic.
+
+**Failure mechanism**: with attested vocabulary ~5000, probability p(c) ≈ 0.0002 for
+every callee. −log(p) ≈ 8.5 saturates max_weight=5.0 for every callee regardless of
+frequency. The formula degraded to "every callee contributes max_weight," identical to
+era-9 alpha=5.0 with no cap.
+
+**Documented bound**: per-callee log-rarity fails at vocabulary sizes ≥ ~500. No
+parameter adjustment fixes this; the log-scale discrimination collapses when all
+items have similarly low empirical probability.
+
+### Phase 3 v2: Fraction-of-Unattested Weighting
+
+**Hypothesis**: instead of per-callee weights, weight each hunk by the fraction of its
+callees that are unattested: `contribution = max_weight × (n_unattested / n_total)`.
+
+**Config**: `max_weight=5.0`, `min_callees=1`, `alpha=2.0`. Run 20260425T124221Z.
+
+**Outcome**: Gates 3 and 5 failed. Average recall dropped to 81.90% (−2.53pp vs
+baseline 84.43%). Hono fell from 78.3% to 65.0% (−13.3pp). Three Phase-1
+call_receiver catches became misses.
+
+**Failure mechanism**: fraction formula returns 0.0 when all callees in a hunk are
+attested (`n_unattested == 0`). Phase 2's root_bonus fires on `{unattested callee,
+attested root}` patterns — e.g., `hono/routing_2` has `app.all` (unattested) with
+root `app` (attested). Fraction formula with this hunk: if the hunk has many
+callees including some attested, the fraction is small, contributing less than
+root_bonus would. The formula does not replicate root_bonus semantics and actively
+regresses existing catches.
+
+**Documented bound**: fraction-of-unattested is not a superset of root_bonus. Using it
+as a replacement regresses `{unattested callee, attested root}` catches. Using it
+additively on top of root_bonus was not tested — but the faker-js cluster (target
+callees all attested) would still show fraction=0, yielding no gain.
+
+No fallbacks run: both pre-registered fallbacks (min_callees=2, max_weight=4.0)
+share the fraction=0 structural defect.
+
+### Phase 3 Design Space — Closed
+
+| Version | Approach | Gate failure | Root cause |
+|:---|:---|:---|:---|
+| v1 | Per-callee log-rarity | FP 24–30% | Vocab saturation: p(c)→0 for all, −log(p) hits cap |
+| v2 | Fraction-of-unattested | Recall −2.53pp | fraction=0 for attested-callee hunks → weaker than root_bonus |
+
+Both bounds are structural. Era-11 must use a different signal source: file-cluster-
+conditional attestation, where "attested" means "seen in files of this kind" rather
+than "seen anywhere in the repo."
+
+## Issue Status
+
+GitHub issue #27 — "Reduce ink calibration CV below 4%" — **closed as resolved** by
+Phase 1. ink CV: 6.9% → 0.0%.
+
+## Era-10 Baseline
+
+| Metric | Era-9 | Era-10 (Phase 2 ship) |
+|:---|---:|---:|
+| Avg recall | 84.43% | 85.27% |
+| Max FP | 1.0% | 1.4% |
+| Max CV | 6.9% | 3.0% |
+| Fixtures | 115 | 116 (hono_middleware_2) |
+| Amended parity rule | active | **RETIRED** |

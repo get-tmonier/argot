@@ -446,3 +446,28 @@ def test_compute_threshold_iqr_k_zero() -> None:
     result = _compute_threshold(scores, threshold_percentile=None, threshold_iqr_k=0.0)  # type: ignore[arg-type]
     # p75 index = 6.75 → 7 + 0.75*(8-7) = 7.75
     assert result == pytest.approx(7.75, abs=1e-9)
+
+
+def test_call_receiver_root_bonus_param_stored() -> None:
+    """SequentialImportBpeScorer stores call_receiver_root_bonus."""
+    scorer = _make_scorer(bpe_threshold=99.0)
+    assert hasattr(scorer, "_call_receiver_root_bonus")
+    assert scorer._call_receiver_root_bonus == 2.0  # shipping default
+
+
+def test_call_receiver_root_bonus_custom_accepted() -> None:
+    """SequentialImportBpeScorer accepts a custom call_receiver_root_bonus without error."""
+    from pathlib import Path
+
+    from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
+
+    bpe_b = Path(__file__).parent.parent / "scoring" / "bpe" / "generic_tokens_bpe.json"
+    scorer = SequentialImportBpeScorer(
+        model_a_files=_CONTROL_FILES,
+        bpe_model_b_path=bpe_b,
+        bpe_threshold=99.0,
+        call_receiver_alpha=2.0,
+        call_receiver_root_bonus=3.0,
+        call_receiver_cap=5,
+    )
+    assert scorer._call_receiver_root_bonus == 3.0

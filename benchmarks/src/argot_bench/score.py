@@ -117,6 +117,7 @@ def build_scorer(
     enable_typicality_filter: bool = True,
     call_receiver_alpha: float = 2.0,
     call_receiver_cap: int = 5,
+    call_receiver_root_bonus: float = 2.0,
     threshold_percentile: float | None = None,
     threshold_iqr_k: float | None = None,
     threshold_n_seeds: int = 7,
@@ -158,6 +159,7 @@ def build_scorer(
             threshold_iqr_k=threshold_iqr_k,
             call_receiver_alpha=call_receiver_alpha,
             call_receiver_cap=call_receiver_cap,
+            call_receiver_root_bonus=call_receiver_root_bonus,
             enable_typicality_filter=enable_typicality_filter,
         )
         inner = SequentialImportBpeScorer(
@@ -169,6 +171,7 @@ def build_scorer(
             enable_typicality_filter=enable_typicality_filter,
             call_receiver_alpha=call_receiver_alpha,
             call_receiver_cap=call_receiver_cap,
+            call_receiver_root_bonus=call_receiver_root_bonus,
             threshold_percentile=threshold_percentile,
             threshold_iqr_k=threshold_iqr_k,
         )
@@ -183,6 +186,7 @@ def build_scorer(
             enable_typicality_filter=enable_typicality_filter,
             call_receiver_alpha=call_receiver_alpha,
             call_receiver_cap=call_receiver_cap,
+            call_receiver_root_bonus=call_receiver_root_bonus,
             threshold_percentile=threshold_percentile,
             threshold_iqr_k=threshold_iqr_k,
         )
