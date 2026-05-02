@@ -1,17 +1,17 @@
 # argot-bench report
 
-Generated: 2026-04-25T10:05:25.008199+00:00
+Generated: 2026-05-02T23:03:30.147236+00:00
 
 ## Headline
 
 | Corpus | Lang | AUC | Recall | FP | Gap | N_fix | N_ctrl | Thr |
 |:---|:---|---:|---:|---:|---:|---:|---:|---:|
 | fastapi | python | 0.9880 | 91.7% | 0.6% | -4.371 | 32 | 79623 | 5.258 |
-| rich | python | 0.9780 | 95.0% | 0.8% | -3.040 | 16 | 68598 | 3.842 |
-| faker | python | 0.9537 | 95.0% | 1.0% | -4.946 | 16 | 75996 | 5.257 |
-| hono | typescript | 0.8312 | 78.3% | 0.4% | -7.471 | 17 | 54717 | 4.289 |
+| rich | python | 0.9780 | 95.0% | 1.2% | -3.040 | 16 | 68598 | 3.842 |
+| faker | python | 0.9537 | 95.0% | 1.4% | -4.946 | 16 | 75996 | 5.257 |
+| hono | typescript | 0.8312 | 83.3% | 0.5% | -7.471 | 17 | 54717 | 4.289 |
 | ink | typescript | 0.9899 | 93.3% | 0.4% | -4.633 | 17 | 16678 | 4.993 |
-| faker-js | typescript | 0.9463 | 53.3% | 1.0% | -7.066 | 17 | 255760 | 4.861 |
+| faker-js | typescript | 0.9463 | 53.3% | 0.9% | -7.066 | 17 | 255760 | 4.861 |
 
 _Gap = min(break) − max(control). Positive = clean separation; negative = overlap._
 
@@ -21,7 +21,7 @@ _Gap = min(break) − max(control). Positive = clean separation; negative = over
 
 - **AUC (catalog vs real-PR controls):** 0.9880
 - **Recall (mean across categories):** 91.7%
-- **FP rate on real PR hunks:** 0.6% (170/79623)
+- **FP rate on real PR hunks:** 0.6% (173/79623)
 - **Threshold (mean across seeds):** 5.2585 (CV: 0.0%)
 - **Calibration stability:** rel_var=0.000000, jaccard=1.0000
 - **Separation gap (min break − max control):** -4.3710 (overlap)
@@ -146,7 +146,7 @@ _Threshold is 5.2585; top control scores 7.3506._
 
 - **AUC (catalog vs real-PR controls):** 0.9780
 - **Recall (mean across categories):** 95.0%
-- **FP rate on real PR hunks:** 0.8% (425/68598)
+- **FP rate on real PR hunks:** 1.2% (638/68598)
 - **Threshold (mean across seeds):** 3.8424 (CV: 0.0%)
 - **Calibration stability:** rel_var=0.000000, jaccard=1.0000
 - **Separation gap (min break − max control):** -3.0401 (overlap)
@@ -248,7 +248,7 @@ _Threshold is 3.8424; top control scores 4.6469._
 
 - **AUC (catalog vs real-PR controls):** 0.9537
 - **Recall (mean across categories):** 95.0%
-- **FP rate on real PR hunks:** 1.0% (351/75996)
+- **FP rate on real PR hunks:** 1.4% (488/75996)
 - **Threshold (mean across seeds):** 5.2572 (CV: 3.0%)
 - **Calibration stability:** rel_var=0.004621, jaccard=1.0000
 - **Separation gap (min break − max control):** -4.9459 (overlap)
@@ -349,8 +349,8 @@ _Threshold is 5.2572; top control scores 6.7890._
 ### Summary
 
 - **AUC (catalog vs real-PR controls):** 0.8312
-- **Recall (mean across categories):** 78.3%
-- **FP rate on real PR hunks:** 0.4% (138/54717)
+- **Recall (mean across categories):** 83.3%
+- **FP rate on real PR hunks:** 0.5% (148/54717)
 - **Threshold (mean across seeds):** 4.2891 (CV: 0.2%)
 - **Calibration stability:** rel_var=0.000020, jaccard=1.0000
 - **Separation gap (min break − max control):** -7.4712 (overlap)
@@ -372,7 +372,7 @@ xychart-beta
     title "hono — recall by category"
     x-axis ["async_blocking", "framework_swap", "middleware", "routing", "validation"]
     y-axis "recall %" 0 --> 110
-    bar [100.0, 75.0, 50.0, 100.0, 66.7]
+    bar [100.0, 75.0, 75.0, 100.0, 66.7]
 ```
 
 ### Per-category detail
@@ -381,7 +381,7 @@ xychart-beta
 |:---|---:|---:|---:|---:|---:|:---|
 | async_blocking | 100.0% | 3/3 | 5.988 | 5.744 | 6.406 | hono_async_blocking_1, hono_async_blocking_2, hono_async_blocking_3 |
 | framework_swap | 75.0% | 3/4 | 4.053 | 1.484 | 6.373 | hono_framework_swap_1, hono_framework_swap_2, hono_framework_swap_3, hono_framework_swap_4 |
-| middleware | 50.0% | 2/4 | 2.098 | -1.736 | 5.304 | hono_middleware_1, hono_middleware_2, hono_middleware_3, hono_middleware_4 |
+| middleware | 75.0% | 3/4 | 2.098 | -1.736 | 5.304 | hono_middleware_1, hono_middleware_2, hono_middleware_3, hono_middleware_4 |
 | routing | 100.0% | 3/3 | 2.238 | 0.819 | 4.713 | hono_routing_1, hono_routing_2, hono_routing_3 |
 | validation | 66.7% | 2/3 | 4.357 | 2.231 | 6.294 | hono_validation_1, hono_validation_2, hono_validation_3 |
 
@@ -400,7 +400,7 @@ xychart-beta
 | hono_framework_swap_3 | framework_swap | 6.373 | ✓ | bpe | breaks/break_framework_swap_3.ts | 7–10 | Express body-parser + cors middleware chain wired via app.use |
 | hono_framework_swap_4 | framework_swap | 3.145 | ✓ | import | breaks/break_framework_swap_4.ts | 1–15 | import express at line 1 — standalone Express Router module in a Hono project; 'express' appears 0 times in non-break hono corpus files v… |
 | hono_middleware_1 | middleware | 5.304 | ✓ | bpe | breaks/break_middleware_1.ts | 5–12 | Express (req, res, next) middleware signature in app.use |
-| hono_middleware_2 | middleware | 0.110 | ✗ | none | breaks/break_middleware_2.ts | 9–14 | Express 4-arg (err, req, res, next) error-handler signature |
+| hono_middleware_2 | middleware | 0.110 | ✓ | call_receiver | breaks/break_middleware_2.ts | 9–14 | Express 4-arg (err, req, res, next) error-handler signature |
 | hono_middleware_3 | middleware | -1.736 | ✗ | none | breaks/break_middleware_3.ts | 10–11 | Calling next() synchronously instead of Hono's await next() |
 | hono_middleware_4 | middleware | 4.713 | ✓ | import | breaks/break_middleware_4.ts | 1–21 | import Koa + @koa/router at line 1 — Koa ctx.body middleware pattern in a Hono project; Koa absent from all hono corpus PRs (0 grep hits) |
 | hono_routing_1 | routing | 4.713 | ✓ | bpe | breaks/break_routing_1.ts | 6–12 | express.Router() mounted under app.use('/api', router) |
@@ -412,7 +412,7 @@ xychart-beta
 
 </details>
 
-### Missed fixtures (4)
+### Missed fixtures (3)
 
 Breaks that didn't trip the scorer (threshold 4.2891):
 
@@ -420,8 +420,6 @@ Breaks that didn't trip the scorer (threshold 4.2891):
   - _Rationale:_ Manual typeof + length guards where a zod schema would fit
 - **hono_framework_swap_1** (`framework_swap`) — score 1.4841, 2.8049 below threshold, reason: `none`
   - _Rationale:_ Express Router() idiom with (req, res) handlers mounted into a Hono app
-- **hono_middleware_2** (`middleware`) — score 0.1104, 4.1786 below threshold, reason: `none`
-  - _Rationale:_ Express 4-arg (err, req, res, next) error-handler signature
 - **hono_middleware_3** (`middleware`) — score -1.7359, 6.0249 below threshold, reason: `none`
   - _Rationale:_ Calling next() synchronously instead of Hono's await next()
 
@@ -440,9 +438,9 @@ _Threshold is 4.2891; top control scores 5.7353._
 ### Stage attribution
 
 - `import`: 2 (11.8%)
-- `call_receiver`: 2 (11.8%)
+- `call_receiver`: 3 (17.6%)
 - `bpe`: 9 (52.9%)
-- `none`: 4 (23.5%)
+- `none`: 3 (17.6%)
 
 ### Recall by difficulty
 
@@ -451,7 +449,7 @@ _Threshold is 4.2891; top control scores 5.7353._
 | easy | 100.0% | 2/2 | Stage 1 import catch — foreign module in hunk |
 | medium | 100.0% | 9/9 | Stage 2 BPE catch — token-level novelty, no foreign import |
 | hard | 100.0% | 2/2 | Stage 1.5 call-receiver catch — receiver novelty |
-| uncaught | 0.0% | 0/4 | Scorer currently misses — known gap |
+| uncaught | 25.0% | 1/4 | Scorer currently misses — known gap |
 
 ## ink (typescript)
 
@@ -459,7 +457,7 @@ _Threshold is 4.2891; top control scores 5.7353._
 
 - **AUC (catalog vs real-PR controls):** 0.9899
 - **Recall (mean across categories):** 93.3%
-- **FP rate on real PR hunks:** 0.4% (32/16678)
+- **FP rate on real PR hunks:** 0.4% (29/16678)
 - **Threshold (mean across seeds):** 4.9932 (CV: 0.0%)
 - **Calibration stability:** rel_var=0.000000, jaccard=1.0000
 - **Separation gap (min break − max control):** -4.6327 (overlap)
@@ -562,7 +560,7 @@ _Threshold is 4.9932; top control scores 6.7376._
 
 - **AUC (catalog vs real-PR controls):** 0.9463
 - **Recall (mean across categories):** 53.3%
-- **FP rate on real PR hunks:** 1.0% (428/255760)
+- **FP rate on real PR hunks:** 0.9% (391/255760)
 - **Threshold (mean across seeds):** 4.8607 (CV: 0.0%)
 - **Calibration stability:** rel_var=0.000000, jaccard=1.0000
 - **Separation gap (min break − max control):** -7.0661 (overlap)
