@@ -28,6 +28,7 @@ flowchart TD
     E7["<b>Era 7 — Benchmark fairness</b><br/>Fixture parity · PR parity · Difficulty labels<br/>(91 → 107 → 115 fixtures, 3 asymmetries fixed)"]
     E8["<b>Era 8 — Complex-chain callees</b><br/>call-root canonicalization (`&lt;call&gt;.route`);<br/>hono 65% → 71.7%; avg recall 80.57%"]
     E9["<b>Era 9 — Alpha sweep</b><br/>α=1.0 → 2.0; faker-js +10pp, hono +6.6pp, ink +6.6pp;<br/>avg recall 80.57% → 84.4%; 4 fixtures uncaught→hard"]
+    E10["<b>Era 10 — Calibration hardening</b><br/>K=7 median threshold (CV 6.9%→0%); root_bonus +5pp hono;<br/>Phase 3 per-callee weighting: 2 structural bounds documented;<br/>avg recall 84.4% → 85.27%; amended parity rule RETIRED"]
 
     E1 -->|"eval was measuring language detection"| E2
     E2 -->|"no training signal on targeted mutations"| E3
@@ -37,6 +38,7 @@ flowchart TD
     E6 -->|"structural asymmetries in benchmark obscured cross-corpus signal"| E7
     E7 -->|"complex-chain callees silently dropped as None"| E8
     E8 -->|"low-BPE single-callee breaks below α=1.0 penalty threshold"| E9
+    E9 -->|"threshold variance masked contextual breaks; faker-js callees globally attested"| E10
 
     style E1 fill:#f8d7da,stroke:#dc3545
     style E2 fill:#f8d7da,stroke:#dc3545
@@ -47,6 +49,7 @@ flowchart TD
     style E7 fill:#d4edda,stroke:#28a745,stroke-width:2px
     style E8 fill:#d4edda,stroke:#28a745,stroke-width:2px
     style E9 fill:#d4edda,stroke:#28a745,stroke-width:2px
+    style E10 fill:#d4edda,stroke:#28a745,stroke-width:2px
 ```
 
 ## Timeline
@@ -62,8 +65,9 @@ flowchart TD
 | **Benchmark fairness** | — | Zero scorer changes. Fixture catalog expanded 91 → 107 (faker 5→15, rich 10→15, fastapi 31→32). PR sampling harmonized to 5 pre-merge snapshots per corpus. All 107 fixtures labeled easy/medium/hard/uncaught. recall_by_difficulty metric added. | [07-benchmark-fairness.md](07-benchmark-fairness.md) |
 | **Complex-chain callees** | — | Added `<call>` placeholder canonicalization for call-rooted member chains. `hono_routing_2` moved uncaught→hard. Hono recall 65.0% → 71.7%; avg recall 80.57%. Fixture catalog expanded 107 → 115 (8 easy fixtures across ink + hono + faker-js). | [08-complex-chain-callee.md](08-complex-chain-callee.md) |
 | **Alpha sweep** | — | Raised `call_receiver_alpha` from 1.0 to 2.0 after primary α=3.0 failed Gate 3 (faker FP 1.6%). Four fixtures moved uncaught→hard. Faker-js +10.0 pp, hono +6.6 pp, ink +6.6 pp. Avg recall 80.57% → 84.4%; all 6 gates pass. | [09-alpha-sweep.md](09-alpha-sweep.md) |
+| **Calibration hardening** | — | Phase 1: multi-seed median (K=7) drops ink CV from 6.9% to 0.0%, retired amended parity rule. Phase 2: root-conditional weighting catches `hono_middleware_2` (+5pp hono), ships as scoring improvement. Phase 3 (per-callee frequency weighting): two formulations at structural bounds — v1 saturates at vocab ~5000, v2 zeros on attested callees. Avg recall 84.4% → 85.27%; 116 fixtures. | [10-calibration-hardening.md](10-calibration-hardening.md) |
 
-## The arc across nine eras
+## The arc across ten eras
 
 Each era had a pre-registered success gate in its own metric
 (shuffled AUC for eras 1–3, recall for era 4, "FP ≤1.5% on all
@@ -75,10 +79,10 @@ exactly", below 1.0 means "came in under".
 ```mermaid
 xychart-beta
     title "Gate clearance per era (1.0 = cleared exactly)"
-    x-axis ["Era 1", "Era 2", "Era 3", "Era 4", "Era 5", "Era 6", "Era 7", "Era 8", "Era 9"]
+    x-axis ["Era 1", "Era 2", "Era 3", "Era 4", "Era 5", "Era 6", "Era 7", "Era 8", "Era 9", "Era 10"]
     y-axis "fraction of gate" 0 --> 1.1
-    bar [0.89, 0.68, 0.87, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00]
-    line [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    bar [0.89, 0.68, 0.87, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00]
+    line [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
 ```
 
 | Era | Best result | Gate | Clearance |
@@ -92,6 +96,7 @@ xychart-beta
 | 7 (benchmark fairness) | 7/7 gates cleared | 7/7 | 1.00 |
 | 8 (complex-chain callees) | avg recall 80.57%, hono +6.7 pp | 5/5 gates | 1.00 |
 | 9 (alpha sweep) | avg recall 84.4%, 6/6 gates, 4 fixtures uncaught→hard | 6/6 gates | 1.00 |
+| 10 (calibration hardening) | avg recall 85.27%, CV ≤3%, amended parity rule retired | 5/5 gates | 1.00 |
 
 Eras 1–3 came in short on their own gates. Era 4 cleared
 exactly. Era 5 cleared its gate (FP ≤1.5% on all six corpora)
@@ -300,27 +305,15 @@ era docs are the story; the evidence docs are the receipts.
 
 ## What's next
 
-The current production scorer (`call_receiver_alpha=2.0`, parse-fragment guard,
-115 fixtures, avg recall 84.4%) is the era-9 baseline. Remaining gaps from the
-benchmark:
+The current production scorer (`call_receiver_root_bonus=2.0`, parse-fragment guard,
+116 fixtures, avg recall 85.27%) is the era-10 baseline.
 
-- **Single-callee foreign-receiver breaks below threshold** — faker-js
-  `foreign_rng_1` and `_3` each have one `Math.random()` call; at α=2.0
-  the adjusted score (0.52 + 2 = 2.52) is still far below the 4.77 threshold.
-  `Math.random` is a global, not a dotted callee, so its short token form is
-  not rare enough in the BPE reference. A frequency-weighted variant could
-  close this.
-- **Semantic breaks with no foreign callee at all** — hono `middleware_3`
-  (sync `next()` vs `await next()`) and `middleware_2` (4-arg error handler
-  signature) have no receiver to flag; the scorer is structurally blind to
-  signature-shape changes.
-- **Threshold-borderline ink dom_access_2** — `window.location.href` scores
-  4.215, just below ink's 4.826 threshold (within the ±6.9% calibration
-  noise band). Tighter calibration or a p95 threshold might reliably catch it.
-- **Object-keyed structured data** (documented limit in era 5) — a 5th
-  typicality feature treating TS `property_identifier` nodes in `pair`
-  position as literal-equivalent would close the faker-js locale-file
-  BPE-FP residual.
-- **Difficulty-aware scorer development** — with all 115 fixtures labeled,
-  future eras can target specific difficulty bands (the 34 remaining `uncaught`
-  fixtures are the clearest gap).
+**Era 11 hypothesis space — see [era-11-hypotheses.md](era-11-hypotheses.md)**
+
+The remaining gap is dominated by faker-js's 8 uncaught fixtures (`foreign_rng`,
+`http_sink`, `runtime_fetch`, `error_flip`). These fixtures share a structural
+property: their break callees (`Math.random`, `fetch`, `Promise.resolve`) are
+globally attested in the faker-js corpus. No call-receiver weighting variant can
+catch them. Era 11 targets file-cluster-conditional attestation as the primary
+hypothesis — scoring hunks against the attested set of their file's cluster rather
+than the global corpus attested set.
