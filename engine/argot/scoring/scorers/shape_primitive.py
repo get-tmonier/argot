@@ -1,15 +1,12 @@
-"""Phase-4 shape-primitive interface.
+"""Shape-primitive interface.
 
-Era-13 §Phase 4 introduces a family of additive AST-shape primitives
-(4a return/raise ratio, 4b call-scope distribution, 4c receiver-namespace
-JSD, 4d fall-through-guard count). Each primitive rides alongside
-``CallReceiverScorer.weighted_contribution_for_file`` as an additive
-penalty term. This module defines the swappable interface they all share.
+Defines the swappable interface for additive AST-shape primitives that
+ride alongside ``CallReceiverScorer.weighted_contribution_for_file`` as
+additional per-cluster scalar penalty terms.
 
-Design constraints (era-13 §Phase 4 design principles, lines 263-292,
-binding):
+Design constraints (binding):
 
-- One primitive per sub-phase. Each primitive computes a single scalar
+- One scalar per primitive. Each primitive computes a single
   contribution; composition happens at the registry level (clipped to
   ``cluster_bonus`` per the existing weighted_contribution_for_file
   contract).
@@ -23,19 +20,17 @@ binding):
 - Domain-blind. No primitive may reference framework names, function
   names, decorator names, or string literals.
 - Per-cluster baseline only. Every primitive compares the hunk against
-  its OWN cluster's distribution, never against a global baseline. This
-  is the cross-domain-collapse hedge from era 2.
+  its OWN cluster's distribution, never against a global baseline.
 - Cluster-size floor. A primitive's per-cluster baseline is trusted only
   when ``cluster_size >= self.min_cluster_size`` (default 10). Below the
   floor, the primitive abstains (returns 0.0 contribution).
 
 A primitive that fires on a calibration hunk inflates the per-corpus
-threshold (the same way ``cluster_bonus`` fires inflate it under
-era-11). The calibration metadata path in
-``SequentialImportBpeScorer.__init__`` automatically routes primitive
-contributions through the threshold computation, so symmetric firing
-on cal+fixture cancels. Asymmetric firing (target hunk fires, cal
-hunks don't) is the catch mechanism.
+threshold (the same way ``cluster_bonus`` fires inflate it). The
+calibration metadata path in ``SequentialImportBpeScorer.__init__``
+automatically routes primitive contributions through the threshold
+computation, so symmetric firing on cal+fixture cancels. Asymmetric
+firing (target hunk fires, cal hunks don't) is the catch mechanism.
 """
 
 from __future__ import annotations
@@ -46,13 +41,14 @@ from typing import Generic, Literal, Protocol, TypeVar
 
 Language = Literal["python", "typescript"]
 
-# The baseline payload shape is primitive-defined: 4a stores
-# (mean, std), 4c stores a reference histogram, etc.
+# The baseline payload shape is primitive-defined; e.g. a return/raise
+# ratio primitive stores (mean, std), a JSD primitive stores a reference
+# histogram, etc.
 B = TypeVar("B")
 
 
 class ShapePrimitive(Protocol, Generic[B]):
-    """Per-cluster scalar AST-shape primitive (Phase 4 swappable interface).
+    """Per-cluster scalar AST-shape primitive.
 
     Lifecycle:
       1. ``fit_cluster_baseline(cluster_files, language) -> B | None``
@@ -72,7 +68,7 @@ class ShapePrimitive(Protocol, Generic[B]):
     """
 
     name: str
-    """Unique identifier (e.g. ``phase4a_except_return_raise_ratio``).
+    """Unique identifier (e.g. ``except_return_raise_ratio``).
     Used in scorer-config.json and in the rare-counter stderr lines."""
 
     min_cluster_size: int

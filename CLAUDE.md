@@ -29,7 +29,7 @@ dependencies.ts     # root Layer composition
 
 **Engine** (`engine/argot/`) is a Python subprocess. The CLI's `BunEngineRunner` adapter spawns `uv run argot-engine extract`. It outputs JSONL to `.argot/dataset.jsonl`. The full pipeline is: `argot-extract` → `argot-train` → `argot-calibrate` → `argot-check`.
 
-`engine/argot/` must not import from experimental research branches; production code lives under `engine/argot/scoring/`.
+`engine/argot/` must not import from experimental research branches; production code lives under `engine/argot/scoring/`. Production symbols (classes, files, functions) must be named after domain concepts — never after research artefacts (`era`, `phase`, `PhaseNa…`, etc.); those labels belong in bench/research code only.
 
 ## Key conventions
 

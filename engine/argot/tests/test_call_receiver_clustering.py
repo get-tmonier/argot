@@ -1152,12 +1152,14 @@ def test_cluster_callee_counts_dict_populated(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Era-13 Phase 2 — size-conditional rare attestation (cluster_size_min)
+# Size-conditional rare attestation (cluster_size_min)
 # ---------------------------------------------------------------------------
 
 
-def test_cluster_size_min_default_zero_preserves_phase10(tmp_path: Path) -> None:
-    """Default cluster_size_min=0 must NOT change scoring vs Phase 10."""
+def test_cluster_size_min_default_zero_preserves_unfloored_behaviour(
+    tmp_path: Path,
+) -> None:
+    """Default cluster_size_min=0 must NOT change scoring vs the unfloored rule."""
     from argot.scoring.scorers.call_receiver import CallReceiverScorer
 
     files, build = _make_rare_attestation_corpus(tmp_path)
@@ -1204,8 +1206,8 @@ def test_cluster_size_min_suppresses_rare_branch_in_small_cluster(
     # Confirm the build cluster is below the floor.
     build_cluster = s.file_to_cluster[build]
     assert s.cluster_sizes[build_cluster] < 2
-    # rareCallee IS in cluster_attested for this cluster (count=1) — under
-    # Phase 10 rare-threshold=2 the branch fires (+5.0). Under Phase 2
+    # rareCallee IS in cluster_attested for this cluster (count=1).
+    # Without the size floor, rare-threshold=2 fires (+5.0). With
     # cluster_size_min=2 the branch is suppressed (cluster too small to
     # trust the rare-count signal) → 0.0.
     score = s.weighted_contribution_for_file(

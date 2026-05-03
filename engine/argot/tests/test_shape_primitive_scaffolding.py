@@ -1,4 +1,4 @@
-"""Tests for the Phase-4 shape-primitive scaffolding.
+"""Tests for the shape-primitive scaffolding.
 
 Verifies:
 - Empty primitive list is a true no-op (bit-identical scoring vs no list).
@@ -74,8 +74,8 @@ class _ConstantPrimitive:
 
 
 def _make_corpus(tmp_path: Path) -> list[Path]:
-    """Build a 6-file 2-cluster corpus identical to the existing
-    Phase-10 fixtures."""
+    """Build a 6-file 2-cluster corpus matching the existing
+    cluster-rare-attestation test fixtures."""
     files = []
     for i in range(3):
         f = tmp_path / f"math_{i}.ts"
@@ -89,7 +89,7 @@ def _make_corpus(tmp_path: Path) -> list[Path]:
 
 
 # ---------------------------------------------------------------------------
-# Empty-list no-op invariant (G3 by construction)
+# Empty-list no-op invariant (caught-fixtures preserved by construction)
 # ---------------------------------------------------------------------------
 
 

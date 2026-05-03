@@ -112,7 +112,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=0,
         metavar="N",
         help=(
-            "Era-13 Phase 2 size-conditional rare attestation: the "
+            "Size-conditional rare attestation: the "
             "rare-threshold rule only fires on clusters with >= N files. "
             "Default 0 (disabled, no floor). Try 20 to suppress small-cluster "
             "noise where 1-of-24 conflates with normal callee variance."
@@ -124,8 +124,8 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         metavar="CSV",
         help=(
-            "Era-13 Phase 4: comma-separated names of additive AST-shape "
-            "primitives to enable (e.g. phase4a,phase4b). Empty (default) "
+            "Comma-separated names of additive AST-shape "
+            "primitives to enable. Empty (default) "
             "disables all primitives. Names must be registered via "
             "argot.scoring.scorers.shape_primitive_registry."
         ),
@@ -240,7 +240,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=0,
         metavar="N",
         help=(
-            "Era-13 Phase 2 size-conditional rare attestation floor: "
+            "Size-conditional rare attestation floor: "
             "rare rule only fires on clusters with >= N files. "
             "Default 0 (disabled, no floor)."
         ),
@@ -251,7 +251,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         metavar="CSV",
         help=(
-            "Era-13 Phase 4: comma-separated names of AST-shape primitives "
+            "Comma-separated names of AST-shape primitives "
             "to enable. Default '' (all disabled)."
         ),
     )

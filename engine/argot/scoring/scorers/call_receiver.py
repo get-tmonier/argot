@@ -302,16 +302,15 @@ class CallReceiverScorer:
         # on clusters with at least this many files. In small clusters
         # ("1 of 24") rare counts conflate with "uncommon callee" and the rule
         # fires symmetrically on calibration hunks too, defeating its purpose.
-        # Era-13 Phase 2 introduces this floor to decouple "genuinely
-        # anomalous in a large cluster" from "small-sample noise". 0 (default)
-        # preserves pre-Phase-2 behaviour (no floor).
+        # The size floor decouples "genuinely anomalous in a large cluster"
+        # from "small-sample noise". 0 (default) disables the floor.
         self.cluster_size_min: int = cluster_size_min
 
-        # Phase 4 swappable shape primitives (era-13 §Phase 4). Each
-        # primitive computes a per-cluster baseline at fit time and an
-        # additive scalar contribution per hunk at score time. Empty
-        # list (default) is a true no-op — the dispatch in
-        # weighted_contribution_for_file adds 0.0 to the existing sum.
+        # Swappable AST-shape primitives. Each primitive computes a
+        # per-cluster baseline at fit time and an additive scalar
+        # contribution per hunk at score time. Empty list (default) is
+        # a true no-op — the dispatch in weighted_contribution_for_file
+        # adds 0.0 to the existing sum.
         self.shape_primitives: list[ShapePrimitive[Any]] = list(shape_primitives or [])
 
         attested: set[str] = set()
@@ -527,7 +526,7 @@ class CallReceiverScorer:
                 self.rare_branch_fire_count += 1
                 weights.append(cluster_bonus)
 
-        # Phase 4 shape-primitive dispatch. Each primitive contributes
+        # Shape-primitive dispatch. Each primitive contributes
         # an additive scalar; the final clip at ``cap`` continues to
         # bound the total contribution to cluster_bonus. Empty
         # primitive list (default) is a true no-op.

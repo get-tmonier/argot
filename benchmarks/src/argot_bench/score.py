@@ -17,6 +17,10 @@ from argot.scoring.calibration.random_hunk_sampler import sample_hunks
 from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
 from argot.scoring.scorers.shape_primitive_registry import build_shape_primitives
 
+# Side-effect import: registers shape primitives so they are addressable
+# from --enable-shape-primitives via their canonical names.
+import argot.scoring.scorers.shape_primitive_registrations  # noqa: F401, E402
+
 Language = Literal["python", "typescript"]
 Reason = Literal[
     "import",

@@ -1,15 +1,11 @@
-"""Phase-4 shape-primitive factory registry.
+"""Shape-primitive factory registry.
 
 Maps primitive names (as passed on the bench / scorer-config command
 line) to factory callables that return concrete ``ShapePrimitive``
-instances. Each Phase 4 sub-phase (4a, 4b, 4c, 4d) registers its
-primitive here when it lands.
+instances. New primitives register here when they land:
 
-The registry is the only place the bench / production CLI knows
-about specific primitives. Phase 4 teammates add a single line each:
-
-    from argot.scoring.scorers.phase4a import Phase4aReturnRaiseRatio
-    register_shape_primitive("phase4a", Phase4aReturnRaiseRatio)
+    from argot.scoring.scorers.except_return_raise_ratio import ExceptReturnRaiseRatio
+    register_shape_primitive("except_return_raise_ratio", ExceptReturnRaiseRatio)
 
 Callers translate a list of names → instances via
 ``build_shape_primitives``. Unknown names raise ``KeyError`` so a
@@ -25,7 +21,8 @@ from argot.scoring.scorers.shape_primitive import ShapePrimitive
 
 ShapePrimitiveFactory = Callable[[], ShapePrimitive[Any]]
 
-# Populated by Phase 4 sub-phase modules at import time.
+# Populated by primitive modules at import time (via
+# ``shape_primitive_registrations``).
 _REGISTRY: dict[str, ShapePrimitiveFactory] = {}
 
 
