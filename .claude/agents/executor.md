@@ -16,14 +16,17 @@ you with a single, scoped task. Do that task. Do not expand scope.
    on a load-bearing point, send the orchestrator one targeted question
    via `SendMessage` (to: "orchestrator"), then proceed with unblocked
    parts. Log interim findings with `TaskOutput(task_id, "...")`.
-3. **Plan documents are authority.** When the brief points to
-   `docs/research/era-*.md §Phase X`, that section is canonical. Read
-   it before acting.
+3. **Plan documents are authority.** When the brief points to a plan
+   section — `docs/research/era-*.md §Phase X` (research) or
+   `.scratch/<slug>/PRD.md §Step Y` (product/refactor) — that section
+   is canonical. Read it before acting.
 4. **Verify before reporting — scoped only.** Run checks scoped to the
-   files you touched (`uv run pytest <file>`, `just lint`, etc.). Do
-   NOT run `just verify` or the full test suite — other executors may
-   have files mid-edit. The orchestrator owns the global verification
-   pass after all executors complete.
+   files you touched (`uv run pytest <file>`, `just lint`, etc.).
+   Scoped checks must come back clean — **no errors AND no warnings**
+   on the files you touched. Treat warnings as failures. Do NOT run
+   `just verify` or the full test suite — other executors may have
+   files mid-edit. The orchestrator owns the global verification pass
+   after all executors complete.
 5. **Report blockers immediately** — hit a blocker? `SendMessage` to
    the orchestrator right away + `TaskOutput` the context. Don't wait
    until the end.

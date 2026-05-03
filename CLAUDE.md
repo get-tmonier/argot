@@ -2,6 +2,10 @@
 
 Voice linter that learns a repo's voice from git history. CLI in TypeScript/Bun; data pipeline in Python/UV.
 
+## Guiding principle
+
+**In doubt, optimise for code that's easy to change.** The Pragmatic Programmer / craftsmanship lens: the right design is the one a future contributor (human or agent) can extend, refactor, or revert without archaeology. When two options look equally correct, pick the one with the smaller blast radius and clearer seams. Don't add abstractions before the second use case shows up; don't keep dead code "just in case"; don't suppress a check when the underlying code is the real fix. Strict tooling (mypy, no-any, ruff, dependency-cruiser) exists to surface change-cost early — work with it, not around it.
+
 ## Task runner
 
 Always use `just` — it's the canonical interface for all dev commands.
@@ -57,6 +61,14 @@ The codebase is strict by design (mypy strict, no-any, ruff). When a check fails
 - Diagnose the exact root cause before fixing
 - Prefer targeted fixes (`# type: ignore[specific-code]` on one line) over global config changes
 - Never add broad suppressions (`ignore_missing_imports = true` globally, etc.) to make errors go away
+
+No abusive lint shortcuts in production code (`engine/argot/` outside scripts, `cli/src/`):
+- No file- or module-wide disables: `# ruff: noqa`, `# mypy: ignore-errors`, `/* eslint-disable */`, `// oxlint-disable-file`, `// @ts-nocheck`, etc.
+- No blanket per-line disables either: `# noqa` without a rule code, `// oxlint-disable-next-line` without a rule name. Always cite the specific rule.
+- Targeted single-line ignores with a specific rule code (`# type: ignore[arg-type]`, `// oxlint-disable-next-line no-explicit-any`) are fine when the lint is genuinely wrong about a specific case — explain why in a one-line comment.
+- Exception: `benchmarks/` and `engine/argot/scripts/` may use file-level disables. They're throwaway research code where signal-over-cleanliness is the right tradeoff.
+
+We aim for clean architecture and clean code; lint-suppression debt compounds and is the wrong knob to turn when a check fails. The right knob is the underlying code.
 
 ## Toolchain (managed by mise)
 
