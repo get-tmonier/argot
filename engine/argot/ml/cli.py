@@ -127,12 +127,16 @@ def build_production_scorer(
     call_receiver_n_clusters: int = 8,
     call_receiver_cluster_seed: int = 0,
     call_receiver_cluster_bonus: float = 5.0,
+    call_receiver_force_jaccard_routing: bool = True,
     threshold_percentile: float | None = 100.0,
 ) -> SequentialImportBpeScorer:
     """Build the production-config scorer (era-11 ship: K=8, CB=5.0).
 
     Defaults match ``argot_bench.score.build_scorer`` so the feature
-    extractor sees byte-identical scoring.
+    extractor sees byte-identical scoring, EXCEPT
+    ``call_receiver_force_jaccard_routing`` defaults to True here so
+    catalog fixtures and real-PR controls take the same routing path
+    (eliminates the era-14 Phase 3.5 leakage shortcut).
     """
     adapter = _adapter_for_language(language)
     files = _source_files(repo_dir, adapter)
@@ -172,6 +176,7 @@ def build_production_scorer(
         call_receiver_n_clusters=call_receiver_n_clusters,
         call_receiver_cluster_seed=call_receiver_cluster_seed,
         call_receiver_cluster_bonus=call_receiver_cluster_bonus,
+        call_receiver_force_jaccard_routing=call_receiver_force_jaccard_routing,
         threshold_percentile=threshold_percentile,
         threshold_iqr_k=None,
     )
@@ -563,14 +568,24 @@ def _run_corpus(args: argparse.Namespace, corpus_name: str) -> int:
         )
 
     out_path = args.out
-    if args.all:
-        out_path = args.out / f"{corpus_name}.jsonl"
     n = _write_jsonl(_all_rows(), out_path)
     print(f"[{corpus_name}] wrote {n} feature rows to {out_path}")
     return 0
 
 
 def _run_all(args: argparse.Namespace) -> int:
+    """Run every corpus listed in ``targets.yaml`` — each in a fresh subprocess.
+
+    Era-14 Phase 1 fix (RAM hygiene): the in-process loop accumulated the
+    BPE tokenizer + scorer state across corpora, pushing peak RSS to ~22 GB
+    on the full 6-corpus run. Spawning a subprocess per corpus keeps peak
+    RSS bounded to a single corpus's footprint; process teardown frees all
+    transformer / tokenizer / sklearn state deterministically. The
+    re-import overhead per corpus (~5-10s) is small relative to extraction
+    time per corpus (minutes).
+    """
+    import subprocess
+
     try:
         from argot_bench.targets import load_targets
     except ImportError as e:
@@ -582,7 +597,33 @@ def _run_all(args: argparse.Namespace) -> int:
     args.out.mkdir(parents=True, exist_ok=True)
     rc = 0
     for t in targets:
-        rc |= _run_corpus(args, t.name)
+        out_path = args.out / f"{t.name}.jsonl"
+        cmd = [
+            sys.executable,
+            "-m",
+            "argot.ml.cli",
+            "--corpus",
+            t.name,
+            "--out",
+            str(out_path),
+            "--n-controls-per-corpus",
+            str(args.n_controls_per_corpus),
+            "--seed",
+            str(args.seed),
+            "--n-cal",
+            str(args.n_cal),
+            "--threshold-n-seeds",
+            str(args.threshold_n_seeds),
+        ]
+        print(f"[--all] spawning subprocess for corpus={t.name}", flush=True)
+        proc = subprocess.run(cmd, check=False)
+        if proc.returncode != 0:
+            print(
+                f"[--all] corpus {t.name} failed (rc={proc.returncode})",
+                file=sys.stderr,
+                flush=True,
+            )
+            rc |= proc.returncode
     return rc
 
 

@@ -32,7 +32,6 @@ from argot.scoring.scorers.call_receiver import (
 from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
 
 Language = Literal["python", "typescript"]
-ClusterMethod = Literal["static_corpus", "fallback_jaccard", "none"]
 
 # Top-N node types kept in ast_node_type_counts (full distribution would blow
 # up the JSONL size and most tail buckets are noise for the downstream model).
@@ -225,43 +224,31 @@ def _jaccard(a: frozenset[str], b: frozenset[str]) -> float:
 
 def _resolve_cluster(
     call_receiver: CallReceiverScorer,
-    file_path: Path | None,
+    file_path: Path | None,  # noqa: ARG001 — kept for signature stability with prior callers
     file_source: str | None,
-    language: Language,
-) -> tuple[int | None, ClusterMethod, float]:
-    """Mirror :meth:`CallReceiverScorer._nearest_cluster_for_source` for feature emission.
+    language: Language,  # noqa: ARG001 — kept for signature stability with prior callers
+) -> tuple[int | None, float]:
+    """Resolve cluster for ML feature emission via unified Jaccard routing.
 
-    Returns ``(cluster_id, method, jaccard_to_centroid)`` where:
-      * static_corpus → ``cluster_id`` is the static map value, jaccard=1.0
-      * fallback_jaccard → ``cluster_id`` is the best-Jaccard cluster id
-      * none → no clusters built / no signal
+    Era-14 Phase 1 fix: always uses the Jaccard fallback path regardless of
+    whether ``file_path`` is in ``call_receiver.file_to_cluster``. This
+    eliminates the routing-leak between catalog fixtures (paths NOT in
+    model_a_files → previously fallback) and real-PR controls (paths IN
+    model_a_files → previously static lookup), which was a near-perfect
+    proxy for ``is_break`` (AUC 0.95).
+
+    Returns ``(cluster_id, jaccard_to_centroid)``. Both are ``None`` / ``0.0``
+    when no clusters were built, file_source is None, or the file's callee
+    bag is empty.
     """
-    if file_path is not None and file_path in call_receiver.file_to_cluster:
-        return call_receiver.file_to_cluster[file_path], "static_corpus", 1.0
-
     if not call_receiver.cluster_attested:
-        return None, "none", 0.0
-
+        return None, 0.0
     if file_source is None:
-        return None, "none", 0.0
-
-    bag = _file_callee_bag(file_source, language)
-    if not bag:
-        return None, "none", 0.0
-
-    best_cid: int | None = None
-    best_j: float = -1.0
-    for cid in sorted(call_receiver.cluster_attested.keys()):
-        attested = call_receiver.cluster_attested[cid]
-        union = bag | attested
-        j = 0.0 if not union else len(bag & attested) / len(union)
-        if j > best_j:
-            best_j = j
-            best_cid = cid
-
-    if best_cid is None:
-        return None, "none", 0.0
-    return best_cid, "fallback_jaccard", best_j
+        return None, 0.0
+    result = call_receiver.nearest_cluster_for_source(file_source)
+    if result is None:
+        return None, 0.0
+    return result
 
 
 def _call_receiver_features(
@@ -285,7 +272,6 @@ def _call_receiver_features(
             "n_attested_root_only": 0,
             "n_cluster_absent_callees": 0,
             "cluster_id": None,
-            "cluster_assignment_method": "none",
             "cluster_jaccard_to_centroid": 0.0,
         }
 
@@ -303,7 +289,11 @@ def _call_receiver_features(
         1 for c in distinct if c not in cr.attested and c.split(".", 1)[0] in cr.attested_roots
     )
 
-    cluster_id, method, jaccard = _resolve_cluster(cr, file_path, file_source, language)
+    # Era-14 Phase 1 fix: unified Jaccard routing — always compute via
+    # cluster_attested + file_source, never short-circuit to static lookup.
+    # This makes catalog fixtures and real-PR controls take the same path,
+    # eliminating the cluster_assignment_method routing-leak shortcut.
+    cluster_id, jaccard = _resolve_cluster(cr, file_path, file_source, language)
     cluster_set = cr.cluster_attested.get(cluster_id) if cluster_id is not None else None
     if cluster_set is None:
         n_cluster_absent = 0
@@ -316,7 +306,6 @@ def _call_receiver_features(
         "n_attested_root_only": n_root_only,
         "n_cluster_absent_callees": n_cluster_absent,
         "cluster_id": cluster_id,
-        "cluster_assignment_method": method,
         "cluster_jaccard_to_centroid": jaccard,
     }
 

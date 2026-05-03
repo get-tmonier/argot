@@ -129,8 +129,10 @@ def test_compute_features_for_known_fixture(tmp_path: Path) -> None:
     assert isinstance(feats["n_unattested_callees"], int)
     assert isinstance(feats["n_attested_root_only"], int)
     assert isinstance(feats["n_cluster_absent_callees"], int)
-    assert feats["cluster_assignment_method"] in {"static_corpus", "fallback_jaccard", "none"}
+    # Era-14 Phase 1 fix: cluster_assignment_method removed (unified routing).
+    assert "cluster_assignment_method" not in feats
     assert isinstance(feats["cluster_jaccard_to_centroid"], float)
+    assert 0.0 <= feats["cluster_jaccard_to_centroid"] <= 1.0
 
     # Hunk vs file context
     assert isinstance(feats["hunk_callee_bag_size"], int)
@@ -198,42 +200,55 @@ def test_hunk_callee_bag_jaccard_correct() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_cluster_assignment_method_distinguishes_corpus_vs_fallback(tmp_path: Path) -> None:
+def test_resolve_cluster_uses_jaccard_for_corpus_files(tmp_path: Path) -> None:
+    """Era-14 Phase 1 fix: corpus files use Jaccard routing (no static shortcut).
+
+    Even when ``file_path`` is in ``cr.file_to_cluster``, ``_resolve_cluster``
+    must compute ``cluster_jaccard_to_centroid`` from ``file_source`` so the
+    feature is meaningful and structurally identical to the value emitted for
+    catalog fixtures (which were never in ``file_to_cluster`` and were the
+    leakage shortcut in Phase 3.5).
+    """
     files = _make_python_corpus(tmp_path)
     inner = _make_scorer(files, n_clusters=2)
     cr = inner._call_receiver
     assert cr is not None
     assert cr.cluster_attested  # clusters were built
 
-    # Static path: file from model_a corpus
-    cid_static, method_static, jacc_static = _resolve_cluster(
-        cr, files[0], file_source=None, language="python"
+    # Corpus file: now routes via Jaccard, NOT a constant 1.0.
+    file_source = files[0].read_text()
+    cid_corpus, jacc_corpus = _resolve_cluster(
+        cr, files[0], file_source=file_source, language="python"
     )
-    assert method_static == "static_corpus"
-    assert cid_static is not None
-    assert jacc_static == pytest.approx(1.0)
+    assert cid_corpus is not None
+    assert 0.0 < jacc_corpus <= 1.0  # real Jaccard, not the constant 1.0 shortcut
 
-    # Fallback path: file not in corpus, but provide source
+    # Foreign file: same code path, also routes via Jaccard.
     foreign_path = tmp_path / "foreign.py"
     foreign_source = "import math\n\ndef g(x):\n    return math.sqrt(x)\n"
-    cid_fb, method_fb, jacc_fb = _resolve_cluster(
+    cid_fb, jacc_fb = _resolve_cluster(
         cr, foreign_path, file_source=foreign_source, language="python"
     )
-    assert method_fb == "fallback_jaccard"
     assert cid_fb is not None
-    assert 0.0 <= jacc_fb <= 1.0
+    assert 0.0 < jacc_fb <= 1.0
+
+    # Without file_source we cannot route — both paths return None.
+    cid_no_src, jacc_no_src = _resolve_cluster(
+        cr, files[0], file_source=None, language="python"
+    )
+    assert cid_no_src is None
+    assert jacc_no_src == pytest.approx(0.0)
 
 
-def test_cluster_assignment_method_none_when_no_clusters(tmp_path: Path) -> None:
+def test_resolve_cluster_none_when_no_clusters(tmp_path: Path) -> None:
     files = _make_python_corpus(tmp_path)
     inner = _make_scorer(files, n_clusters=1)  # no clusters built
     cr = inner._call_receiver
     assert cr is not None
     assert cr.cluster_attested == {}
 
-    cid, method, jacc = _resolve_cluster(cr, files[0], file_source="x = 1", language="python")
+    cid, jacc = _resolve_cluster(cr, files[0], file_source="x = 1", language="python")
     assert cid is None
-    assert method == "none"
     assert jacc == pytest.approx(0.0)
 
 
@@ -485,6 +500,77 @@ def test_cli_smoke(tmp_path: Path) -> None:
     assert "import_score" in fr["features"]
     assert "bpe_score" in fr["features"]
     assert "ast_node_type_counts" in fr["features"]
+    # Era-14 Phase 1 fix: no row may carry cluster_assignment_method anymore.
+    for row in rows:
+        assert "cluster_assignment_method" not in row["features"]
+
+
+# ---------------------------------------------------------------------------
+# (e2) RAM hygiene — subprocess-per-corpus smoke
+# ---------------------------------------------------------------------------
+
+
+def test_subprocess_per_corpus_isolation(tmp_path: Path) -> None:
+    """Era-14 Phase 1 fix (RAM hygiene): running two corpus extractions in
+    sequence as separate subprocesses must leave each output independent and
+    well-formed.
+
+    This is the structural smoke-test for ``--all``: we cannot easily invoke
+    ``--all`` without ``argot_bench`` + repo clones in CI, but the
+    subprocess-per-corpus contract is exactly that each ``--manifest`` run
+    is self-contained and tears down its tokenizer/scorer state on exit.
+    """
+    # Two distinct synthetic corpora — different tmp subdirs.
+    corpus_a = tmp_path / "corpusA"
+    corpus_a.mkdir()
+    corpus_b = tmp_path / "corpusB"
+    corpus_b.mkdir()
+    repo_a, manifest_a, dataset_a, catalog_a = _write_synthetic_corpus(corpus_a)
+    repo_b, manifest_b, dataset_b, catalog_b = _write_synthetic_corpus(corpus_b)
+
+    out_a = tmp_path / "a.jsonl"
+    out_b = tmp_path / "b.jsonl"
+
+    def _run(manifest: Path, repo: Path, dataset: Path, cat: Path, out: Path) -> int:
+        proc = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "argot.ml.cli",
+                "--manifest",
+                str(manifest),
+                "--repo-dir",
+                str(repo),
+                "--dataset",
+                str(dataset),
+                "--catalog-dir",
+                str(cat),
+                "--out",
+                str(out),
+                "--n-controls-per-corpus",
+                "5",
+                "--threshold-n-seeds",
+                "1",
+                "--n-cal",
+                "5",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert proc.returncode == 0, f"stdout={proc.stdout} stderr={proc.stderr}"
+        return proc.returncode
+
+    _run(manifest_a, repo_a, dataset_a, catalog_a, out_a)
+    _run(manifest_b, repo_b, dataset_b, catalog_b, out_b)
+
+    rows_a = [json.loads(line) for line in out_a.read_text().splitlines() if line.strip()]
+    rows_b = [json.loads(line) for line in out_b.read_text().splitlines() if line.strip()]
+    assert len(rows_a) >= 1 and len(rows_b) >= 1
+    # Each run produced its own well-formed outputs (subprocess isolation).
+    for row in [*rows_a, *rows_b]:
+        assert "features" in row
+        assert "cluster_assignment_method" not in row["features"]
 
 
 # ---------------------------------------------------------------------------

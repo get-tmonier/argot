@@ -166,6 +166,7 @@ class SequentialImportBpeScorer:
         call_receiver_n_clusters: int = 8,
         call_receiver_cluster_seed: int = 0,
         call_receiver_cluster_bonus: float = 5.0,
+        call_receiver_force_jaccard_routing: bool = False,
         calibration_hunks_with_metadata: list[tuple[str, Path, str]] | None = None,
         _tokenizer: Any = None,
     ) -> None:
@@ -222,6 +223,7 @@ class SequentialImportBpeScorer:
                 adapter=self._adapter,
                 n_clusters=call_receiver_n_clusters,
                 cluster_seed=call_receiver_cluster_seed,
+                force_jaccard_routing=call_receiver_force_jaccard_routing,
             )
         self._call_receiver_root_bonus: float = call_receiver_root_bonus
         self._call_receiver_cluster_bonus: float = call_receiver_cluster_bonus

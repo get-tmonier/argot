@@ -372,6 +372,121 @@ def test_empty_source_bag_no_cluster_bonus(tmp_path: Path) -> None:
     assert result == pytest.approx(0.0)
 
 
+def test_force_jaccard_routing_routes_known_file_via_jaccard(tmp_path: Path) -> None:
+    """Era-14 Phase 1 fix: with force_jaccard_routing=True, even files in
+    file_to_cluster route through Jaccard (using file_source), so catalog
+    fixtures and corpus files take the same code path.
+
+    Verifies that the same KNOWN file produces different cluster_set behavior
+    depending on the misleading file_source supplied — proving the static
+    lookup is bypassed in force-jaccard mode.
+    """
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    math_files, io_files = _make_two_cluster_corpus(tmp_path)
+    scorer = CallReceiverScorer(
+        math_files + io_files,
+        language="typescript",
+        n_clusters=2,
+        cluster_seed=0,
+        force_jaccard_routing=True,
+    )
+
+    # Sanity: math and io land in different clusters; Math.floor only in math.
+    math_cluster = scorer.file_to_cluster[math_files[0]]
+    io_cluster = scorer.file_to_cluster[io_files[0]]
+    if math_cluster == io_cluster:
+        pytest.skip("KMeans merged clusters")
+    if "Math.floor" in scorer.cluster_attested[io_cluster]:
+        pytest.skip("Math.floor leaked into io cluster")
+
+    known_math_file = math_files[0]
+    assert known_math_file in scorer.file_to_cluster
+
+    # Static-routing semantics WOULD give cluster_bonus=0 for this hunk
+    # (Math.floor is in known_math_file's static cluster). With
+    # force_jaccard_routing=True + an io-flavored file_source, Jaccard
+    # nearest cluster becomes io → Math.floor is absent there → cluster_bonus
+    # FIRES.  This proves the static lookup is bypassed.
+    fetch_flavored_source = "fetch(url); Promise.resolve(x); console.log('hi');"
+    result_forced = scorer.weighted_contribution_for_file(
+        "Math.floor()",
+        known_math_file,
+        alpha=2.0,
+        root_bonus=2.0,
+        cluster_bonus=1.5,
+        cap=10.0,
+        file_source=fetch_flavored_source,
+    )
+    assert result_forced == pytest.approx(1.5)
+
+    # And without file_source, force-jaccard mode has no signal → no bonus.
+    result_no_src = scorer.weighted_contribution_for_file(
+        "Math.floor()",
+        known_math_file,
+        alpha=2.0,
+        root_bonus=2.0,
+        cluster_bonus=1.5,
+        cap=10.0,
+        file_source=None,
+    )
+    assert result_no_src == pytest.approx(0.0)
+
+
+def test_force_jaccard_routing_default_false(tmp_path: Path) -> None:
+    """force_jaccard_routing defaults to False; production scoring unaffected."""
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.ts"
+    f.write_text("Math.floor(x);")
+    scorer = CallReceiverScorer([f], language="typescript", n_clusters=2, cluster_seed=0)
+    assert scorer.force_jaccard_routing is False
+
+
+def test_nearest_cluster_for_source_public_api(tmp_path: Path) -> None:
+    """Public nearest_cluster_for_source returns (cluster_id, jaccard) tuple."""
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    math_files, io_files = _make_two_cluster_corpus(tmp_path)
+    scorer = CallReceiverScorer(
+        math_files + io_files, language="typescript", n_clusters=2, cluster_seed=0
+    )
+    math_cluster = scorer.file_to_cluster[math_files[0]]
+    io_cluster = scorer.file_to_cluster[io_files[0]]
+    if math_cluster == io_cluster:
+        pytest.skip("KMeans merged clusters")
+
+    res_math = scorer.nearest_cluster_for_source(
+        "Math.floor(); Math.random(); Math.min(a, b);"
+    )
+    assert res_math is not None
+    cid_m, jacc_m = res_math
+    assert cid_m == math_cluster
+    assert 0.0 < jacc_m <= 1.0
+
+    res_io = scorer.nearest_cluster_for_source(
+        "fetch(url); Promise.resolve(x); console.log('hi');"
+    )
+    assert res_io is not None
+    cid_io, jacc_io = res_io
+    assert cid_io == io_cluster
+    assert 0.0 < jacc_io <= 1.0
+
+    # Empty / no-call source → None
+    assert scorer.nearest_cluster_for_source("const x = 1;") is None
+    assert scorer.nearest_cluster_for_source("") is None
+
+
+def test_nearest_cluster_for_source_no_clusters(tmp_path: Path) -> None:
+    """nearest_cluster_for_source returns None when n_clusters=1 (no clusters built)."""
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.ts"
+    f.write_text("Math.floor(x);")
+    scorer = CallReceiverScorer([f], language="typescript", n_clusters=1)
+    assert scorer.nearest_cluster_for_source("Math.floor();") is None
+
+
 def test_known_file_path_unaffected_by_source(tmp_path: Path) -> None:
     """Files in file_to_cluster use their static cluster id regardless of file_source."""
     from argot.scoring.scorers.call_receiver import CallReceiverScorer

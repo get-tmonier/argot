@@ -248,12 +248,20 @@ class CallReceiverScorer:
         adapter: _DataDominantAdapter | None = None,
         n_clusters: int = 1,
         cluster_seed: int = 0,
+        force_jaccard_routing: bool = False,
     ) -> None:
         if not model_a_files:
             raise ValueError("model_a_files must be non-empty")
         self._language: Language = language
         self.alpha: float = alpha
         self.cap: int = cap
+        # When True, weighted_contribution_for_file ALWAYS routes via the Jaccard
+        # fallback path (using file_source) regardless of whether file_path is in
+        # file_to_cluster. This eliminates the routing-leak between catalog
+        # fixtures (unknown paths → fallback) and real-PR controls (known paths
+        # → static lookup) for ML feature extraction. Default False preserves
+        # production scoring's static-lookup fast path.
+        self.force_jaccard_routing: bool = force_jaccard_routing
 
         attested: set[str] = set()
         skipped: int = 0
@@ -382,9 +390,17 @@ class CallReceiverScorer:
         weights: list[float] = []
         seen: set[str] = set()
 
-        cluster_id = self.file_to_cluster.get(file_path)
-        if cluster_id is None and file_source is not None and self.cluster_attested:
-            cluster_id = self._nearest_cluster_for_source(file_source)
+        if self.force_jaccard_routing:
+            # ML-feature mode: always use Jaccard fallback path so catalog
+            # fixtures and real-PR controls take the same code path.
+            if file_source is not None and self.cluster_attested:
+                cluster_id = self._nearest_cluster_for_source(file_source)
+            else:
+                cluster_id = None
+        else:
+            cluster_id = self.file_to_cluster.get(file_path)
+            if cluster_id is None and file_source is not None and self.cluster_attested:
+                cluster_id = self._nearest_cluster_for_source(file_source)
         cluster_set = self.cluster_attested.get(cluster_id) if cluster_id is not None else None
 
         for c in callees:
@@ -409,6 +425,25 @@ class CallReceiverScorer:
         Returns None when the file's callee bag is empty (no signal to match).
         Ties on Jaccard are broken by smallest cluster id (deterministic).
         """
+        result = self.nearest_cluster_for_source(file_source)
+        return None if result is None else result[0]
+
+    def nearest_cluster_for_source(self, file_source: str) -> tuple[int, float] | None:
+        """Public Jaccard-nearest cluster lookup for an arbitrary file source.
+
+        Returns ``(cluster_id, jaccard_to_centroid)`` where ``jaccard_to_centroid``
+        is the Jaccard similarity between the file's callee bag and the chosen
+        cluster's attested set. Returns ``None`` when no clusters were built
+        (n_clusters=1) or the file's callee bag is empty.
+
+        Used by the era-14 ML feature extractor to compute uniform
+        ``cluster_id`` and ``cluster_jaccard_to_centroid`` features for every
+        hunk regardless of whether the file is in ``file_to_cluster``.
+
+        Ties on Jaccard are broken by smallest cluster id (deterministic).
+        """
+        if not self.cluster_attested:
+            return None
         bag: frozenset[str] = frozenset(
             c for c in extract_callees(file_source, self._language) if c is not None
         )
@@ -424,4 +459,6 @@ class CallReceiverScorer:
             if jaccard > best_jaccard:
                 best_jaccard = jaccard
                 best_cid = cid
-        return best_cid
+        if best_cid is None:
+            return None
+        return best_cid, best_jaccard
