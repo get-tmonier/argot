@@ -1,132 +1,169 @@
 corpus: faker-js
 language: typescript
 categories:
-  - foreign_rng
-  - runtime_fetch
-  - threading
-  - http_sink
-  - error_flip
+- foreign_rng
+- runtime_fetch
+- threading
+- http_sink
+- error_flip
 injection_hosts:
-  - { pr: 3798, sha: 6c2a0abd3092c8afb2bca67544a16e85a13b6b61 }
-  - { pr: 3796, sha: d17c0f1fe2ea95666b668c1e87ef4a1505a19538 }
-  - { pr: 3820, sha: a7825a71ce1dd6b0728848ab73da8134f518e689 }
+- pr: 3798
+  sha: 6c2a0abd3092c8afb2bca67544a16e85a13b6b61
+- pr: 3796
+  sha: d17c0f1fe2ea95666b668c1e87ef4a1505a19538
+- pr: 3820
+  sha: a7825a71ce1dd6b0728848ab73da8134f518e689
 fixtures:
-  - id: faker_js_foreign_rng_1
-    file: breaks/break_foreign_rng_1.ts
-    category: foreign_rng
-    hunk_start_line: 3
-    hunk_end_line: 8
-    rationale: "Math.random instead of faker-js internal RNG"
-    difficulty: uncaught
-  - id: faker_js_foreign_rng_2
-    file: breaks/break_foreign_rng_2.ts
-    category: foreign_rng
-    hunk_start_line: 4
-    hunk_end_line: 9
-    rationale: "crypto.randomBytes inside a word generator bypasses the seeded RNG"
-    difficulty: hard
-  - id: faker_js_foreign_rng_3
-    file: breaks/break_foreign_rng_3.ts
-    category: foreign_rng
-    hunk_start_line: 5
-    hunk_end_line: 9
-    rationale: "Math.random index pick inside a person-name provider"
-    difficulty: uncaught
-  - id: faker_js_runtime_fetch_1
-    file: breaks/break_runtime_fetch_1.ts
-    category: runtime_fetch
-    hunk_start_line: 3
-    hunk_end_line: 8
-    rationale: "Runtime fetch from a locale data file"
-    difficulty: uncaught
-  - id: faker_js_runtime_fetch_2
-    file: breaks/break_runtime_fetch_2.ts
-    category: runtime_fetch
-    hunk_start_line: 3
-    hunk_end_line: 11
-    rationale: "ImageProvider.url() issues a live network fetch"
-    difficulty: uncaught
-  - id: faker_js_runtime_fetch_3
-    file: breaks/break_runtime_fetch_3.ts
-    category: runtime_fetch
-    hunk_start_line: 3
-    hunk_end_line: 12
-    rationale: "CompanyProvider.name() fetches from a remote name-service"
-    difficulty: uncaught
-  - id: faker_js_threading_1
-    file: breaks/break_threading_1.ts
-    category: threading
-    hunk_start_line: 3
-    hunk_end_line: 9
-    rationale: "Spawning a Worker from a locale module"
-    difficulty: hard
-  - id: faker_js_threading_2
-    file: breaks/break_threading_2.ts
-    category: threading
-    hunk_start_line: 1
-    hunk_end_line: 10
-    rationale: "Module-level Worker pool inside a pure data file"
-    difficulty: medium
-  - id: faker_js_threading_3
-    file: breaks/break_threading_3.ts
-    category: threading
-    hunk_start_line: 3
-    hunk_end_line: 10
-    rationale: "Generator implementation delegates to a Worker via postMessage"
-    difficulty: medium
-  - id: faker_js_http_sink_1
-    file: breaks/break_http_sink_1.ts
-    category: http_sink
-    hunk_start_line: 4
-    hunk_end_line: 13
-    rationale: "Provider method posts telemetry to an HTTP endpoint via axios"
-    difficulty: hard
-  - id: faker_js_http_sink_2
-    file: breaks/break_http_sink_2.ts
-    category: http_sink
-    hunk_start_line: 3
-    hunk_end_line: 11
-    rationale: "Generator pipes every generated value to a remote log sink via fetch"
-    difficulty: uncaught
-  - id: faker_js_http_sink_3
-    file: breaks/break_http_sink_3.ts
-    category: http_sink
-    hunk_start_line: 3
-    hunk_end_line: 9
-    rationale: "navigator.sendBeacon reporting inside a faker provider"
-    difficulty: hard
-  - id: faker_js_error_flip_1
-    file: breaks/break_error_flip_1.ts
-    category: error_flip
-    hunk_start_line: 3
-    hunk_end_line: 11
-    rationale: "Provider throws mid-generation instead of returning a fake value"
-    difficulty: medium
-  - id: faker_js_error_flip_2
-    file: breaks/break_error_flip_2.ts
-    category: error_flip
-    hunk_start_line: 3
-    hunk_end_line: 8
-    rationale: "Locale data accessor throws on missing entries instead of falling back"
-    difficulty: uncaught
-  - id: faker_js_error_flip_3
-    file: breaks/break_error_flip_3.ts
-    category: error_flip
-    hunk_start_line: 3
-    hunk_end_line: 9
-    rationale: "seed() override throws, breaking the determinism contract"
-    difficulty: uncaught
-  - id: faker_js_http_sink_4
-    file: breaks/break_http_sink_4.ts
-    category: http_sink
-    hunk_start_line: 1
-    hunk_end_line: 8
-    rationale: "import axios at line 1 inside a faker-js provider utility; axios absent from all 3 faker-js corpus PRs (0 grep hits in non-break files); import scorer fires immediately"
-    difficulty: easy
-  - id: faker_js_runtime_fetch_4
-    file: breaks/break_runtime_fetch_4.ts
-    category: runtime_fetch
-    hunk_start_line: 1
-    hunk_end_line: 8
-    rationale: "import fetch from 'node-fetch' at line 1 inside a faker-js locale utility; node-fetch absent from all 3 faker-js corpus PRs; import scorer fires immediately"
-    difficulty: easy
+- id: faker_js_foreign_rng_1
+  file: breaks/break_foreign_rng_1.ts
+  category: foreign_rng
+  hunk_start_line: 3
+  hunk_end_line: 8
+  rationale: Math.random instead of faker-js internal RNG
+  difficulty: uncaught
+  host_file: src/modules/string/index.ts
+  host_inject_at_line: 954
+- id: faker_js_foreign_rng_2
+  file: breaks/break_foreign_rng_2.ts
+  category: foreign_rng
+  hunk_start_line: 4
+  hunk_end_line: 9
+  rationale: crypto.randomBytes inside a word generator bypasses the seeded RNG
+  difficulty: hard
+  host_file: src/modules/word/index.ts
+  host_inject_at_line: 643
+- id: faker_js_foreign_rng_3
+  file: breaks/break_foreign_rng_3.ts
+  category: foreign_rng
+  hunk_start_line: 5
+  hunk_end_line: 9
+  rationale: Math.random index pick inside a person-name provider
+  difficulty: uncaught
+  host_file: src/modules/person/index.ts
+  host_inject_at_line: 421
+- id: faker_js_runtime_fetch_1
+  file: breaks/break_runtime_fetch_1.ts
+  category: runtime_fetch
+  hunk_start_line: 3
+  hunk_end_line: 8
+  rationale: Runtime fetch from a locale data file
+  difficulty: uncaught
+  host_file: src/internal/locale-proxy.ts
+  host_inject_at_line: 159
+- id: faker_js_runtime_fetch_2
+  file: breaks/break_runtime_fetch_2.ts
+  category: runtime_fetch
+  hunk_start_line: 3
+  hunk_end_line: 11
+  rationale: ImageProvider.url() issues a live network fetch
+  difficulty: uncaught
+  host_file: src/modules/image/index.ts
+  host_inject_at_line: 350
+- id: faker_js_runtime_fetch_3
+  file: breaks/break_runtime_fetch_3.ts
+  category: runtime_fetch
+  hunk_start_line: 3
+  hunk_end_line: 12
+  rationale: CompanyProvider.name() fetches from a remote name-service
+  difficulty: uncaught
+  host_file: src/modules/company/index.ts
+  host_inject_at_line: 140
+- id: faker_js_threading_1
+  file: breaks/break_threading_1.ts
+  category: threading
+  hunk_start_line: 3
+  hunk_end_line: 9
+  rationale: Spawning a Worker from a locale module
+  difficulty: hard
+  host_file: src/modules/lorem/index.ts
+  host_inject_at_line: 380
+- id: faker_js_threading_2
+  file: breaks/break_threading_2.ts
+  category: threading
+  hunk_start_line: 1
+  hunk_end_line: 10
+  rationale: Module-level Worker pool inside a pure data file
+  difficulty: medium
+  host_file: src/modules/datatype/index.ts
+  host_inject_at_line: 61
+- id: faker_js_threading_3
+  file: breaks/break_threading_3.ts
+  category: threading
+  hunk_start_line: 3
+  hunk_end_line: 10
+  rationale: Generator implementation delegates to a Worker via postMessage
+  difficulty: medium
+  host_file: src/modules/string/uuid.ts
+  host_inject_at_line: 43
+- id: faker_js_http_sink_1
+  file: breaks/break_http_sink_1.ts
+  category: http_sink
+  hunk_start_line: 4
+  hunk_end_line: 13
+  rationale: Provider method posts telemetry to an HTTP endpoint via axios
+  difficulty: hard
+  host_file: src/modules/number/index.ts
+  host_inject_at_line: 574
+- id: faker_js_http_sink_2
+  file: breaks/break_http_sink_2.ts
+  category: http_sink
+  hunk_start_line: 3
+  hunk_end_line: 11
+  rationale: Generator pipes every generated value to a remote log sink via fetch
+  difficulty: uncaught
+  host_file: src/modules/git/index.ts
+  host_inject_at_line: 221
+- id: faker_js_http_sink_3
+  file: breaks/break_http_sink_3.ts
+  category: http_sink
+  hunk_start_line: 3
+  hunk_end_line: 9
+  rationale: navigator.sendBeacon reporting inside a faker provider
+  difficulty: hard
+  host_file: src/modules/internet/index.ts
+  host_inject_at_line: 1059
+- id: faker_js_error_flip_1
+  file: breaks/break_error_flip_1.ts
+  category: error_flip
+  hunk_start_line: 3
+  hunk_end_line: 11
+  rationale: Provider throws mid-generation instead of returning a fake value
+  difficulty: medium
+  host_file: src/modules/location/index.ts
+  host_inject_at_line: 697
+- id: faker_js_error_flip_2
+  file: breaks/break_error_flip_2.ts
+  category: error_flip
+  hunk_start_line: 3
+  hunk_end_line: 8
+  rationale: Locale data accessor throws on missing entries instead of falling back
+  difficulty: uncaught
+  host_file: src/internal/locale-proxy.ts
+  host_inject_at_line: 159
+- id: faker_js_error_flip_3
+  file: breaks/break_error_flip_3.ts
+  category: error_flip
+  hunk_start_line: 3
+  hunk_end_line: 9
+  rationale: seed() override throws, breaking the determinism contract
+  difficulty: uncaught
+  host_file: src/modules/airline/index.ts
+  host_inject_at_line: 277
+- id: faker_js_http_sink_4
+  file: breaks/break_http_sink_4.ts
+  category: http_sink
+  hunk_start_line: 1
+  hunk_end_line: 8
+  rationale: import axios at line 1 inside a faker-js provider utility; axios absent from all 3 faker-js corpus PRs (0 grep hits in non-break files); import scorer fires immediately
+  difficulty: easy
+  host_file: src/internal/base64.ts
+  host_inject_at_line: 66
+- id: faker_js_runtime_fetch_4
+  file: breaks/break_runtime_fetch_4.ts
+  category: runtime_fetch
+  hunk_start_line: 1
+  hunk_end_line: 8
+  rationale: import fetch from 'node-fetch' at line 1 inside a faker-js locale utility; node-fetch absent from all 3 faker-js corpus PRs; import scorer fires immediately
+  difficulty: easy
+  host_file: src/utils/merge-locales.ts
+  host_inject_at_line: 36

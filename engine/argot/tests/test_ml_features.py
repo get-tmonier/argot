@@ -8,10 +8,12 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
+from argot.ml.cli import stream_sample_controls
 from argot.ml.features import (
     _ast_features,
     _hunk_callee_bag,
@@ -1103,3 +1105,251 @@ def test_cli_smoke_mixed_host_file(tmp_path: Path) -> None:
         assert "import_score" in r["features"]
         assert "bpe_score" in r["features"]
         assert "hunk_file_callee_jaccard" in r["features"]
+
+
+# ---------------------------------------------------------------------------
+# (g) Era-14 streaming control sampler — RAM-bounded top-N + reservoir.
+# ---------------------------------------------------------------------------
+
+
+def _fake_candidate(score: float, idx: int) -> tuple[dict[str, object], dict[str, object]]:
+    """Build a synthetic ``(record, features)`` pair with a known adjusted_bpe."""
+    record: dict[str, object] = {"id": idx, "file_path": f"f{idx}.py"}
+    features: dict[str, object] = {"adjusted_bpe": score, "marker": idx}
+    return record, features
+
+
+def test_stream_sample_controls_returns_top_n_by_adjusted_bpe() -> None:
+    """Top-N section of the output is exactly the N highest adjusted_bpe scores."""
+    # Stream 100 candidates with monotonic scores 0.0 .. 99.0 in a shuffled order.
+    n_top = 10
+    scores = list(range(100))
+    # Deterministic shuffle (fixed permutation, not seeded by sampler).
+    perm = [37, 12, 88, 5, 99, 41, 23, 64, 0, 76, 2, 91] + [
+        s for s in scores if s not in {37, 12, 88, 5, 99, 41, 23, 64, 0, 76, 2, 91}
+    ]
+    candidates = (_fake_candidate(float(s), s) for s in perm)
+
+    out = stream_sample_controls(candidates, n_top=n_top, seed=0)
+
+    # Top-N is the prefix of the output. Pull out the top-N and check scores.
+    top = out[:n_top]
+    top_scores = sorted([float(f["adjusted_bpe"]) for (_r, f) in top], reverse=True)
+    expected = sorted(scores, reverse=True)[:n_top]
+    assert top_scores == [float(s) for s in expected]
+    # Top-N output ordering: descending by adjusted_bpe.
+    emitted_top_scores = [float(f["adjusted_bpe"]) for (_r, f) in top]
+    assert emitted_top_scores == sorted(emitted_top_scores, reverse=True)
+
+
+def test_stream_sample_controls_reservoir_size() -> None:
+    """Reservoir extras count is exactly N//2 when top-N and reservoir cannot overlap.
+
+    Construct a stream where the top-N items have scores strictly greater than
+    every other item, AND the top-N items appear at the *front* of the stream
+    (so the reservoir, which sees items in stream order with diminishing
+    probability of replacement, is statistically unlikely to keep them — and
+    even if it did, dedup would shrink the extras count, which the assertion
+    below would catch).
+
+    Easier: split the stream into two disjoint id ranges by score so any
+    overlap is impossible.
+    """
+    n_top = 20
+    n_reservoir = n_top // 2  # 10
+    # First 10000 candidates have score 0.0 (low); last 20 candidates have
+    # score 1000+ (the top-N). Top-N is disjoint from anything the reservoir
+    # might pick because the reservoir only ever sees the low-score range
+    # excepting the final 20 items — but we structure so the reservoir's
+    # picks come from the low-score prefix where ids never overlap with the
+    # high-score tail.
+    low = [_fake_candidate(0.0, i) for i in range(10000)]
+    high = [_fake_candidate(1000.0 + i, 100000 + i) for i in range(n_top)]
+    stream = low + high
+
+    out = stream_sample_controls(iter(stream), n_top=n_top, seed=42)
+
+    # Total is exactly n_top + n_reservoir — no overlap possible by construction.
+    assert len(out) == n_top + n_reservoir
+    extras = out[n_top:]
+    assert len(extras) == n_reservoir
+    # Top-N entries all came from the high-score block.
+    top = out[:n_top]
+    for record, _f in top:
+        assert int(record["id"]) >= 100000
+    # Reservoir extras all came from the low-score block.
+    for record, _f in extras:
+        assert int(record["id"]) < 10000
+
+
+def test_stream_sample_controls_reservoir_short_stream() -> None:
+    """Stream shorter than N//2 → reservoir is just the whole stream prefix."""
+    n_top = 40
+    # Only 5 candidates; n_top//2 = 20, so reservoir gets all 5 — but they all
+    # also fit in the top-N, so dedup reduces the extras to 0.
+    candidates = (_fake_candidate(float(i), i) for i in range(5))
+    out = stream_sample_controls(candidates, n_top=n_top, seed=0)
+    assert len(out) == 5  # all 5 in top-N, reservoir fully overlaps
+
+
+def test_stream_sample_controls_dedup() -> None:
+    """When top-N and reservoir overlap, the union is deduplicated by record id."""
+    n_top = 5
+    # 8 candidates: stream is small enough that the reservoir (n_top//2 = 2)
+    # is likely to contain items already in the top-N (which is the top 5 of 8).
+    candidates = [_fake_candidate(float(i), i) for i in range(8)]
+    out = stream_sample_controls(iter(candidates), n_top=n_top, seed=0)
+
+    # All output records are unique by id().
+    ids = [id(r) for (r, _f) in out]
+    assert len(ids) == len(set(ids))
+    # Top-N portion contains the 5 highest scores (3,4,5,6,7).
+    top = out[:n_top]
+    top_scores = sorted([float(f["adjusted_bpe"]) for (_r, f) in top], reverse=True)
+    assert top_scores == [7.0, 6.0, 5.0, 4.0, 3.0]
+
+
+def test_stream_sample_controls_memory_bounded() -> None:
+    """Sampler holds ≤ ~1.5*N candidates at any time, regardless of stream length.
+
+    We wrap the iterator in a counter that records the number of *live*
+    candidate tuples produced but not yet released (i.e. tracked by a weakref-
+    like counter via a sentinel object). Easier: count alive sentinel objects
+    in a set, and verify the sampler's internal heap+reservoir together never
+    hold more than n_top + n_top//2 distinct sentinel objects in their feats
+    dicts.
+
+    We instead track that during streaming, the sampler never accumulates a
+    growing list of candidates by counting how many records remain referenced
+    by the sampler at iteration end (proxied via stream length-independence).
+    """
+    import gc
+
+    n_top = 10
+    n_reservoir = n_top // 2
+    cap_expected = n_top + n_reservoir  # 15
+
+    # Build a generator that yields 10000 unique candidates. Each record gets a
+    # distinct sentinel object whose id we can count.
+    sentinels: list[object] = []
+
+    def gen() -> Iterator[tuple[dict[str, object], dict[str, object]]]:
+        for i in range(10000):
+            sentinel = object()
+            sentinels.append(sentinel)
+            record: dict[str, object] = {"id": i, "sentinel": sentinel}
+            features: dict[str, object] = {"adjusted_bpe": float(i % 1000), "marker": i}
+            yield record, features
+
+    out = stream_sample_controls(gen(), n_top=n_top, seed=7)
+
+    # Output bounded by cap_expected.
+    assert len(out) <= cap_expected
+    assert len(out) >= n_top  # should fill top-N
+
+    # After collection, only the sampled records (and their sentinels) should
+    # be reachable from `out`. Force a GC and count how many sentinel objects
+    # are referenced by `out` records.
+    gc.collect()
+    sampled_sentinels = {id(r["sentinel"]) for (r, _f) in out}
+    assert len(sampled_sentinels) == len(out)
+    # The sampler retained at most cap_expected records — proven by output.
+    # (We can't easily inspect peak intermediate state, but the algorithm's
+    # invariants — heap≤n_top, reservoir≤n_reservoir — imply the bound.)
+
+
+class _AliveCounter:
+    """Counts live instances via ``__del__`` — proxy for record-dict lifetime.
+
+    Each instance is embedded inside a record dict the sampler is fed.  When
+    the sampler discards a record, its dict + counter become unreachable and
+    CPython's reference-count GC reclaims them deterministically (no need for
+    a full mark-and-sweep cycle).  This lets us bound the number of records
+    the sampler holds simultaneously.
+    """
+
+    __slots__ = ("counter",)
+
+    def __init__(self, counter: list[int]) -> None:
+        self.counter = counter
+        counter[0] += 1
+        if counter[0] > counter[1]:
+            counter[1] = counter[0]
+
+    def __del__(self) -> None:  # pragma: no cover — refcount reclaim
+        self.counter[0] -= 1
+
+
+def test_stream_sample_controls_memory_bounded_peak() -> None:
+    """Peak live records held by the sampler stays ≤ n_top + n_reservoir + slack.
+
+    Embeds an :class:`_AliveCounter` inside each record dict and relies on
+    CPython's deterministic refcount GC: once the sampler stops referencing a
+    record (because a higher-scored item evicted it from the heap, or the
+    reservoir replaced its slot), the record dict + counter are reclaimed
+    immediately, decrementing the live count.
+    """
+    import gc
+
+    n_top = 10
+    n_reservoir = n_top // 2
+    # Slack accounts for: (a) the iterator frame's local `record`/`feats`
+    # bindings still alive at the comparison point, (b) heap/reservoir update
+    # transients, (c) any cycle-collected stragglers. 5 is generous.
+    slack = 5
+    cap = n_top + n_reservoir + slack
+
+    # counter[0] = live count, counter[1] = peak.
+    counter: list[int] = [0, 0]
+
+    def gen() -> Iterator[tuple[dict[str, object], dict[str, object]]]:
+        for i in range(10000):
+            tracker = _AliveCounter(counter)
+            record: dict[str, object] = {"id": i, "_tracker": tracker}
+            features: dict[str, object] = {"adjusted_bpe": float(i % 997), "marker": i}
+            yield record, features
+
+    out = stream_sample_controls(gen(), n_top=n_top, seed=0)
+    gc.collect()
+
+    assert len(out) <= n_top + n_reservoir
+    assert counter[1] <= cap, (
+        f"sampler held {counter[1]} records live at peak; expected ≤ {cap} "
+        f"(n_top={n_top}, n_reservoir={n_reservoir})"
+    )
+
+
+def test_stream_sample_controls_deterministic() -> None:
+    """Same seed → identical output (top-N + reservoir + ordering)."""
+    candidates_a = [_fake_candidate(float((i * 37) % 100), i) for i in range(500)]
+    candidates_b = [_fake_candidate(float((i * 37) % 100), i) for i in range(500)]
+
+    out_a = stream_sample_controls(iter(candidates_a), n_top=20, seed=12345)
+    out_b = stream_sample_controls(iter(candidates_b), n_top=20, seed=12345)
+
+    # Same sequence of records (compared by 'id' field, not Python id()).
+    ids_a = [r["id"] for (r, _f) in out_a]
+    ids_b = [r["id"] for (r, _f) in out_b]
+    assert ids_a == ids_b
+
+    # Different seed → different reservoir (top-N is deterministic regardless).
+    out_c = stream_sample_controls(iter(candidates_a), n_top=20, seed=99999)
+    ids_c = [r["id"] for (r, _f) in out_c]
+    # Top-N portion (first 20) is identical because it depends only on scores.
+    assert ids_a[:20] == ids_c[:20]
+    # Reservoir portion (after first 20) differs between seeds with very high
+    # probability on a 500-item stream sampling 10 extras.
+    assert ids_a[20:] != ids_c[20:]
+
+
+def test_stream_sample_controls_empty_stream() -> None:
+    """Empty input → empty output, no crash."""
+    out = stream_sample_controls(iter([]), n_top=10, seed=0)
+    assert out == []
+
+
+def test_stream_sample_controls_zero_n_top() -> None:
+    """n_top=0 → empty output regardless of stream length."""
+    candidates = (_fake_candidate(float(i), i) for i in range(50))
+    out = stream_sample_controls(candidates, n_top=0, seed=0)
+    assert out == []

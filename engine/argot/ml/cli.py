@@ -277,14 +277,13 @@ def _iter_fixture_rows(
 # ---------------------------------------------------------------------------
 
 
-def _read_dataset(dataset_path: Path) -> list[dict[str, Any]]:
-    out: list[dict[str, Any]] = []
+def _iter_dataset(dataset_path: Path) -> Iterator[dict[str, Any]]:
+    """Stream JSONL records one at a time — never materializes the full file."""
     with dataset_path.open("r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line:
-                out.append(cast(dict[str, Any], json.loads(line)))
-    return out
+                yield cast(dict[str, Any], json.loads(line))
 
 
 def _hunk_content_from_record(
@@ -313,39 +312,95 @@ def _hunk_content_from_record(
     return file_path_rel, file_source, hunk_content
 
 
-def _stratified_sample_controls(
-    candidates: list[tuple[dict[str, Any], dict[str, Any]]],
-    n: int,
+def stream_sample_controls(
+    candidates: Iterator[tuple[dict[str, Any], dict[str, Any]]],
+    n_top: int,
     seed: int,
 ) -> list[tuple[dict[str, Any], dict[str, Any]]]:
-    """Pick ``n`` top-by-adjusted_bpe + ``n // 2`` random controls.
+    """Stream candidates; return top-N by adjusted_bpe + N//2 reservoir extras.
 
-    ``candidates`` is a list of ``(record, features)`` pairs.  Returns the
-    union (deduplicated by record identity) — total size between ``n`` and
-    ``n + n // 2``.
+    Era-14 RAM fix: replaces the previous ``_stratified_sample_controls``
+    helper which materialized the entire candidate list (256k×few-KB on
+    faker-js → >20 GB RSS, OOM).
+
+    Two single-pass samples are maintained side by side as the iterator is
+    drained:
+
+    * **Top-N by ``adjusted_bpe``** — a min-heap of size ``n_top``. Each
+      incoming candidate is pushed when the heap is not yet full, otherwise
+      compared to the current min and swapped in if larger.
+    * **N//2 reservoir** — Algorithm R (Vitter): keep the first ``n_top//2``
+      items; for item ``k`` (1-indexed, ``k > n_top//2``) replace a random
+      reservoir slot with probability ``(n_top//2) / k``.
+
+    Memory footprint: ``O(n_top + n_top//2)`` candidates simultaneously,
+    independent of stream length. Discarded candidates' feature dicts are
+    eligible for GC immediately.
+
+    Output ordering: top-N first (sorted by ``adjusted_bpe`` descending),
+    then reservoir extras (sorted by stream index for determinism).
+    Deduplicated by ``id(record)`` — overlap between top-N and reservoir is
+    common when the stream is short.
     """
+    import heapq
+
     import numpy as np
 
-    if not candidates:
+    if n_top <= 0:
         return []
-    sorted_by_score = sorted(
-        candidates,
-        key=lambda c: c[1].get("adjusted_bpe", 0.0),
-        reverse=True,
-    )
-    top = sorted_by_score[:n]
-    seen_ids = {id(c[0]) for c in top}
 
-    remaining = [c for c in candidates if id(c[0]) not in seen_ids]
     rng = np.random.default_rng(seed)
-    n_random = n // 2
-    random_sample: list[tuple[dict[str, Any], dict[str, Any]]] = []
-    if remaining and n_random > 0:
-        raw_idx = rng.choice(len(remaining), size=min(n_random, len(remaining)), replace=False)
-        # Sort indices for determinism in output ordering
-        sorted_idx: list[int] = sorted(int(i) for i in raw_idx)
-        random_sample = [remaining[i] for i in sorted_idx]
-    return top + random_sample
+    n_reservoir = n_top // 2
+
+    # Min-heap entries: (adjusted_bpe, tie_breaker, record, features)
+    # tie_breaker is the stream index — guarantees a total ordering even
+    # when adjusted_bpe ties, and gives deterministic eviction behaviour.
+    heap: list[tuple[float, int, dict[str, Any], dict[str, Any]]] = []
+
+    # Reservoir entries: (stream_index, record, features). Stream index is
+    # retained so we can sort the reservoir output deterministically.
+    reservoir: list[tuple[int, dict[str, Any], dict[str, Any]]] = []
+
+    for stream_idx, (record, feats) in enumerate(candidates):
+        score = float(feats.get("adjusted_bpe", 0.0))
+
+        # --- top-N min-heap update ---
+        if len(heap) < n_top:
+            heapq.heappush(heap, (score, stream_idx, record, feats))
+        else:
+            # Cheaper than push+pop; only mutate if strictly better.
+            if score > heap[0][0]:
+                heapq.heapreplace(heap, (score, stream_idx, record, feats))
+
+        # --- N//2 reservoir update (Algorithm R) ---
+        if n_reservoir > 0:
+            if len(reservoir) < n_reservoir:
+                reservoir.append((stream_idx, record, feats))
+            else:
+                # k = stream_idx + 1 (1-indexed item count).
+                # Probability of keeping current item = n_reservoir / k.
+                j = int(rng.integers(0, stream_idx + 1))
+                if j < n_reservoir:
+                    reservoir[j] = (stream_idx, record, feats)
+
+    # --- assemble output ---
+    # Top-N sorted by adjusted_bpe descending (heap is min-first; a sort
+    # gives the canonical output ordering callers expect).
+    top_sorted = sorted(heap, key=lambda x: x[0], reverse=True)
+    top_pairs = [(rec, fts) for (_score, _idx, rec, fts) in top_sorted]
+
+    # Reservoir sorted by original stream index for deterministic output.
+    reservoir_sorted = sorted(reservoir, key=lambda x: x[0])
+
+    # Dedupe by record identity — top and reservoir may overlap on short streams.
+    seen_ids = {id(rec) for rec in (pair[0] for pair in top_pairs)}
+    extras: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    for _idx, rec, fts in reservoir_sorted:
+        if id(rec) not in seen_ids:
+            extras.append((rec, fts))
+            seen_ids.add(id(rec))
+
+    return top_pairs + extras
 
 
 def _iter_control_rows(
@@ -362,32 +417,37 @@ def _iter_control_rows(
 
     Excluded reasons (atypical, etc.) are dropped because the era-14 ML
     stage only fires when stages 1-3 do not short-circuit.
+
+    Era-14 RAM fix: candidates are streamed through ``stream_sample_controls``
+    (top-N min-heap + N/2 reservoir) instead of being materialized.  Memory
+    is bounded to ~``n_controls + n_controls//2`` records regardless of
+    dataset size.  The dataset JSONL is also read line-by-line (see
+    :func:`_iter_dataset`) so the raw record list is never held either.
     """
     excluded_reasons = {"atypical", "atypical_file", "auto_generated"}
-    records = _read_dataset(dataset_path)
 
-    candidates: list[tuple[dict[str, Any], dict[str, Any]]] = []
-    for record in records:
-        ctx = _hunk_content_from_record(record, repo_dir)
-        if ctx is None:
-            continue
-        file_path_rel, file_source, hunk_content = ctx
-        hs = int(record["hunk_start_line"])
-        he = int(record["hunk_end_line"])
-        feats = compute_features(
-            inner,
-            hunk_content,
-            file_source=file_source,
-            file_path=repo_dir / file_path_rel,
-            hunk_start_line=hs + 1,  # extract dataset is 0-indexed half-open
-            hunk_end_line=he,
-            language=language,
-        )
-        if feats["scorer_reason"] in excluded_reasons:
-            continue
-        candidates.append((record, feats))
+    def _candidate_stream() -> Iterator[tuple[dict[str, Any], dict[str, Any]]]:
+        for record in _iter_dataset(dataset_path):
+            ctx = _hunk_content_from_record(record, repo_dir)
+            if ctx is None:
+                continue
+            file_path_rel, file_source, hunk_content = ctx
+            hs = int(record["hunk_start_line"])
+            he = int(record["hunk_end_line"])
+            feats = compute_features(
+                inner,
+                hunk_content,
+                file_source=file_source,
+                file_path=repo_dir / file_path_rel,
+                hunk_start_line=hs + 1,  # extract dataset is 0-indexed half-open
+                hunk_end_line=he,
+                language=language,
+            )
+            if feats["scorer_reason"] in excluded_reasons:
+                continue
+            yield record, feats
 
-    sampled = _stratified_sample_controls(candidates, n_controls, seed)
+    sampled = stream_sample_controls(_candidate_stream(), n_controls, seed)
     for record, feats in sampled:
         file_path_rel = str(record["file_path"])
         hs = int(record["hunk_start_line"])
