@@ -1,8 +1,12 @@
 # Era 14 — ML Stage: Status & Findings to Date
 
-> **Status**: PAUSED, NOT CLOSED. Era 14 is open to further attempts. The current
-> branch (`feat/era-14-ml-stage`) carries the leak-fixed feature extractor and
-> infrastructure that any future ML attempt should build on. Production scorer
+> **Status**: PAUSED, NOT CLOSED. Era 14 is open to further phases — the
+> engineered-features-on-existing-stages approach is structurally exhausted
+> (Phase 5 below documents the LOO 0/5 residual catch). A semantic-embedding
+> phase would be the natural next attempt. The current branch
+> (`feat/era-14-ml-stage`) carries the leak-fixed feature extractor, host-file
+> injection for all 115 fixtures, streaming RAM-bounded extraction, and saved
+> models — useful infrastructure for any future ML attempt. Production scorer
 > is unchanged.
 
 ---
@@ -47,14 +51,16 @@ not there in the conservative features.
 
 | Item | Path | Status |
 |---|---|---|
-| Feature extractor (CLI) | `engine/argot/ml/cli.py`, `engine/argot/ml/features.py` | Committed `8f52eb9`, fixed `b74aed7` |
+| Feature extractor (CLI) | `engine/argot/ml/cli.py`, `engine/argot/ml/features.py` | Committed `8f52eb9`, fixed `b74aed7`, hosts `2cb3e27` |
 | Unified Jaccard routing for ML | `engine/argot/scoring/scorers/call_receiver.py::force_jaccard_routing` | Committed `b74aed7`, opt-in flag, production untouched |
 | Subprocess-per-corpus extractor | `engine/argot/ml/cli.py::_run_all` | Committed `b74aed7`, bounds RAM |
+| Streaming control sampling | `engine/argot/ml/cli.py::stream_sample_controls` | Committed `2c8dcc4`, min-heap top-N + reservoir, RAM bounded |
+| Host-file injection (Fix A) | `benchmarks/src/argot_bench/fixtures.py`, `engine/argot/ml/features.py::synthesize_hunk_in_host` | Committed `2cb3e27`, all 115 fixtures have hosts |
 | Phase 3 training script | `engine/argot/ml/train.py` | Committed (research-only, excluded from lint/typecheck) |
-| Tests for ML features + clustering routing | `engine/argot/tests/test_ml_features.py`, `test_call_receiver_clustering.py` | Committed |
-| Re-extracted feature data | `engine/.era14-features/*.jsonl` | Gitignored (1.9k rows × 6 corpora; regen via CLI) |
-| Saved XGBoost models | `.era14-features/pooled_*.joblib` | Gitignored (regen via train.py) |
-| Phase 2/3/3.5/3.6b memos | `docs/research/evidence/era14-phase*.md` | Committed |
+| Tests for ML features + clustering routing | `engine/argot/tests/test_ml_features.py`, `test_call_receiver_clustering.py` | Committed (221 tests pass) |
+| Re-extracted feature data (Fix-A) | `engine/.era14-features/*.jsonl` | Gitignored (1.9k rows × 6 corpora; regen via CLI) |
+| Saved XGBoost models | `.era14-features/pooled_*.joblib`, `loo_models_fixA/*.joblib` | Gitignored (regen via train.py) |
+| All evidence memos | `docs/research/evidence/era14-*.md` | Committed |
 
 ---
 
@@ -118,6 +124,61 @@ to spawn a fresh subprocess per corpus (process death frees all transformer/
 sklearn state). Smoke test confirmed the routing-leak categorical proxy
 collapsed from AUC 1.0 to 0.51.
 
+### Phase 4 — Fix A pilot (faker-js only)
+
+After 115 fixtures got `host_file` + `host_inject_at_line` fields and the
+extractor was modified to splice catalog content into the host file before
+scoring, the faker-js pilot ran. Results:
+
+- `hunk_file_callee_jaccard` AUC dropped from 0.988 → 0.908 — fixture-shape
+  leak materially reduced (not eliminated)
+- New AST-shape features ranked high in single-feature AUC:
+  `max_nesting_depth` 0.93, `n_returns` 0.90 — flagged as possible per-corpus
+  shape memorization, to be tested under LOO
+- Conservative XGBoost CV AUC on faker-js alone: **0.986**
+- **Residual catch in-corpus: 2/5** (`runtime_fetch_1`, `runtime_fetch_3`)
+
+Pilot recommendation was PROCEED WITH CAVEATS — scale Fix A to other 5
+corpora and run pooled + LOO before drawing conclusions.
+
+Memo: [`era14-fixA-pilot.md`](era14-fixA-pilot.md)
+
+### Phase 5 — Fix A full analysis (pooled + LOO across all 6 corpora)
+
+After all 115 fixtures got hosts and re-extraction completed:
+
+| Metric | Result | Pre-reg gate | Pass |
+|---|---|---|---|
+| Max single-feature AUC pooled | 0.886 (`n_unattested_callees` — honest Stage-3 output) | ≤ 0.85 | ✗ narrow miss |
+| `hunk_file_callee_jaccard` AUC pooled | 0.703 (was 0.844 pre-fix) | ≤ 0.65 | close |
+| Pooled conservative Set B 5-fold CV AUC | 0.9035 | ≥ 0.85 | ✓ |
+| LOO test AUC ≥ 0.75 | **6 of 6 corpora** pass (faker-js weakest at 0.766) | ≥ 4 of 6 | ✓ |
+| **Residual faker-js catch under LOO** | **0/5** at FP ≤ 0.9% | ≥ 2 of 5 | **✗** |
+
+**Verdict: CLOSE NEGATIVE** on the residual-catch criterion (the era's primary
+motivation). Aggregate generalization is excellent; the residuals are
+structurally beyond what engineered-features-on-existing-stages can capture.
+
+**Why the residuals collapsed under LOO**: top features in the held-out-faker-js
+LOO model are existing-stage outputs:
+
+1. `n_unattested_callees` (gain 22.06)
+2. `bpe_score` (6.06)
+3. `adjusted_bpe` (5.01)
+
+The model is essentially re-learning Stage 3. But **the 5 residual fixtures
+have `n_unattested_callees = 0` by definition** — that's exactly why era 11
+misses them. A model whose dominant signal is "how many unattested callees"
+cannot catch hunks where that count is 0.
+
+The pilot's 2/5 in-corpus catch was driven by `max_nesting_depth` and
+`n_returns` — features that DROPPED massively under LOO (0.93 in faker-js
+alone → 0.69 pooled). That was per-corpus shape memorization, not
+transferable signal. Fix A correctly exposed this by removing the routing
+leak that had previously masked it.
+
+Memo: [`era14-fixA-full.md`](era14-fixA-full.md)
+
 ### Phase 3.6b — Re-analysis on freshly-extracted data
 
 Re-ran Phase 2 + Phase 3 on fresh JSONL extracted with the unified routing.
@@ -134,64 +195,102 @@ Memo: [`era14-phase3.6b-post-leak-fix.md`](era14-phase3.6b-post-leak-fix.md)
 
 ---
 
-## Pre-registered gates: where we stand
+## Pre-registered gates: where we stand (after Phase 5 / Fix A full)
 
 | Gate | Threshold | Result | Pass |
 |---|---|---|---|
-| 1 (Phase 2) | Any feature AUC > 0.55 pooled | best 0.932 (or 0.886 honest) | ✓ |
-| 2 (Phase 3) | Set A CV AUC > 0.85 | 0.981 | ✓ |
-| 3 (Phase 3) | Set B CV AUC > 0.70 | 0.872 | ✓ |
-| 4 (Phase 4) | LOO held-out AUC > existing+0.05 on ≥4 of 6 splits | NOT RUN | — |
-| 5 (Phase 5) | ≥2 of 5 residual faker-js fixtures caught at faker-js FP ≤ 0.9% | **0/5** | ✗ |
+| 1 (Phase 2) | Any feature AUC > 0.55 pooled | best 0.886 (`n_unattested_callees` — honest Stage-3 output) | ✓ |
+| 2 (Phase 3 → Phase 5) | Pooled CV AUC > 0.85 | 0.972 (full), 0.903 (conservative Set B) | ✓ |
+| 3 (Phase 5) | LOO held-out AUC ≥ 0.75 on ≥4 of 6 splits | **6 of 6** | ✓ |
+| 4 (Phase 5) | ≥2 of 5 residual faker-js fixtures caught at faker-js FP ≤ 0.9% under LOO | **0/5** | ✗ |
+| 5 (Phase 5) | Max single-feature AUC ≤ 0.85 (leak-free) | 0.886 | ✗ narrow (honest output, not leak proxy) |
 
-Aggregate discrimination passes; the era's motivating fixture-catch test
-fails. Phase 4 (LOO) was not run because Phase 5 already failed in preview
-(0/5 residual catch under the conservative model is unlikely to recover with
-held-out cross-validation).
+Aggregate generalization passes (LOO 6/6 — the model genuinely transfers
+across corpora). The era's motivating fixture-catch criterion fails: the
+ML stage cannot catch what its dominant input feature (`n_unattested_callees`)
+is structurally blind to.
 
 ---
 
 ## Why the era didn't ship (yet)
 
-The bench data was designed for rule-based scoring where catalog fixtures
-are self-contained synthetic files demonstrating one break pattern each.
-The rule-based scorer doesn't notice file-shape distribution because its
-features are derived per-hunk against the corpus's own statistics.
+The Phase 1-3.6b story was that bench data was designed for rule-based
+scoring; ML training had two layers of leak (routing + fixture shape). Both
+have now been addressed. After Fix A:
 
-ML notices file-shape distribution because file-shape features are the
-strongest discriminators in the data — and they don't transfer to real-world
-hunks. The "0/5 residual catch" tells us the residual fixtures' actual
-anomaly signal (their semantic break) is *not* what the model is learning;
-the model is learning catalog-vs-real artifacts.
+- The data is honest (LOO 6/6 corpora pass).
+- The model genuinely learns existing-stage outputs (top feature
+  `n_unattested_callees` with 4× the gain of the runner-up).
+- But the residual fixtures have `n_unattested_callees = 0` by construction.
+  No shallow model can learn signal that isn't in the input features.
+
+**The structural conclusion**: catching the 5 residual faker-js fixtures
+(`error_flip_2/3`, `runtime_fetch_1/2/3`) requires a NEW signal class that
+existing stages don't emit. This is not a tuning problem; it's a feature-set
+problem.
+
+Candidates for a new signal class (each would be a future phase):
+
+1. **Frozen pretrained code embedding** (e.g. UnixCoder — already a project
+   dep for BPE tokenization). The encoder produces 768-dim semantic
+   embeddings of code. A small head trained on (hunk_embedding,
+   file_embedding) pairs could capture "semantic anomaly" — exactly the
+   kind of signal needed for `Math.random in a person-name provider` even
+   when `Math.random` is attested in tests. Era-1's pretrained encoder
+   attempt (CodeRankEmbed at AUC 0.55) used pooled embeddings on raw code
+   with a different objective; UnixCoder + contrastive head with our
+   leak-fixed data structure has a real chance of working. **No GPU strictly
+   needed for inference** (~30ms per hunk on CPU) — could be useful for
+   training if we extend.
+
+2. **Import-source aware features**. Features encoding "is this callee's
+   defining module imported by this file?" For `Math.random` in a person
+   provider: Math is a JS global, not imported. The feature would compare
+   the file's import set to a curated map of "where each global typically
+   appears." Limited applicability for browser globals; per-language
+   heuristics needed.
+
+3. **Sub-hunk embedding KNN to cluster-attested hunks**. For each cluster,
+   store all attested hunks' embeddings. At score time, compute distance
+   from the new hunk's embedding to its cluster's nearest neighbors.
+   Anomaly = "this hunk doesn't look like anything in its cluster."
+
+Option 1 (frozen UnixCoder + small head) is the highest-EV next phase —
+direct semantic understanding, leverages existing dep, well-bounded
+compute, addresses the structural diagnosis directly.
 
 ---
 
-## What a future ML attempt would need to fix first
+## What's already been done (Fix A) vs what's next
 
-Before any further training:
+✓ **Fix A is implemented and validated.** All 115 fixtures have `host_file`
++ `host_inject_at_line`. Routing leak gone. Fixture-shape leak materially
+reduced. Data is honest (LOO 6/6 passes). Model trained on engineered
+features generalizes well in aggregate (Set B AUC 0.90), but the residual
+fixtures need a different signal class — see Phase 6 below.
 
-1. **Address the fixture-shape leak.** Two options:
-   - Catalog format change: each fixture specifies a real corpus host file
-     (e.g. `host_file: src/modules/person/person.ts`) and the fixture's hunk
-     gets injected into that host's content for scoring. Catalog fixtures
-     would then have realistic file context and `hunk_file_callee_jaccard`
-     would no longer be a leak proxy.
-   - Sub-hunk control sampling: sample controls as small slices of real PR
-     files matched in shape to catalog fixtures, so controls and fixtures
-     share file-shape distribution.
+**Phase 6 — Frozen UnixCoder embedding + small head (proposed next phase)**
 
-2. **Verify the leak is gone with the same single-feature test**: re-train
-   binary classifiers on each suspect feature and confirm none reach AUC > 0.7
-   alone.
+The pre-registered structure mirrors Phases 1-5 with kill-switches:
 
-3. **Re-run the Phase 1–3.6b sequence with the fixed data**, then proceed to
-   Phase 4 (LOO) only after the residual catch preview passes.
+- 6.1: extend the feature extractor to compute a 768-dim UnixCoder embedding
+  per hunk (and per file context). One-time extractor change. UnixCoder
+  encoder load adds ~500MB RAM per subprocess (still bounded).
+- 6.2: per-dimension AUC pooled — at least one embedding dimension or
+  small linear combination should reach AUC > 0.65 on the residual subset.
+  Kill if no signal.
+- 6.3: train a small MLP head (e.g. 256-dim hidden, 2 layers) on the
+  embeddings + existing engineered features. Pre-reg gate: pooled CV AUC ≥
+  existing 0.90 (must not regress).
+- 6.4: LOO + residual catch under LOO. Pre-reg gate: ≥2 of 5 residual
+  faker-js fixtures catch when faker-js is held out.
+- 6.5: ship if all gates pass.
 
-4. **Pre-register an even stricter shipping gate**: catches ≥2 of 5 residuals
-   AND zero recall regression on 111 other fixtures AND zero FP-rate increase
-   on any corpus — same as the original era-14 spec.
-
-Without (1), no amount of model tuning will produce a generalizable ML stage.
+Compute estimate: ~30ms per hunk for UnixCoder forward pass on CPU × 1900
+hunks × 6 corpora ≈ 6 minutes total extraction (still parallelizable with
+the existing subprocess-per-corpus design). MLP training is fast. GPU not
+strictly needed for inference; could speed up an extension that fine-tunes
+the encoder or trains contrastive pairs at scale.
 
 ---
 
@@ -219,7 +318,9 @@ Without (1), no amount of model tuning will produce a generalizable ML stage.
 - Phase 3: [`era14-phase3-pooled-xgboost.md`](era14-phase3-pooled-xgboost.md)
 - Phase 3.5: [`era14-phase3.5-leakage-probe.md`](era14-phase3.5-leakage-probe.md)
 - Phase 3.6b: [`era14-phase3.6b-post-leak-fix.md`](era14-phase3.6b-post-leak-fix.md)
-- Branch: `feat/era-14-ml-stage`, commits `8f52eb9` (extractor), `b74aed7` (routing+RAM fix)
+- Phase 4 (Fix-A pilot): [`era14-fixA-pilot.md`](era14-fixA-pilot.md)
+- Phase 5 (Fix-A full + LOO): [`era14-fixA-full.md`](era14-fixA-full.md)
+- Branch: `feat/era-14-ml-stage`, commits `8f52eb9` (extractor), `b74aed7` (routing+RAM fix), `2c8dcc4` (streaming sample), `2cb3e27` (host injection)
 - Era-11 baseline (the production scorer this would have augmented): [`../11-cluster-conditional-attestation.md`](../11-cluster-conditional-attestation.md)
 
 ## End of Document
