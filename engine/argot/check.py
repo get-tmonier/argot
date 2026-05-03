@@ -67,20 +67,22 @@ def _workdir_patches(
 
 def _load_phase14_scorer(argot_dir: Path) -> SequentialImportBpeScorer:
     """Load Phase 14 scorer from .argot/ artifacts."""
-    model_a_txt = argot_dir / "model_a.txt"
-    model_b_json = argot_dir / "model_b.json"
+    repo_corpus_txt = argot_dir / "model_a.txt"
+    generic_baseline_json = argot_dir / "model_b.json"
     config_json = argot_dir / "scorer-config.json"
 
     for p, msg in [
-        (model_a_txt, "run argot-train first"),
-        (model_b_json, "run argot-train first"),
+        (repo_corpus_txt, "run argot-train first"),
+        (generic_baseline_json, "run argot-train first"),
         (config_json, "run argot-calibrate first"),
     ]:
         if not p.exists():
             print(f"error: {p} not found — {msg}", file=sys.stderr)
             sys.exit(2)
 
-    model_a_files = [Path(line) for line in model_a_txt.read_text().splitlines() if line.strip()]
+    repo_corpus_files = [
+        Path(line) for line in repo_corpus_txt.read_text().splitlines() if line.strip()
+    ]
     config: dict[str, object] = json.loads(config_json.read_text())
     threshold = float(config["threshold"])  # type: ignore[arg-type]
     # Configs written before era 9 don't have these fields; use current shipping defaults.
@@ -95,8 +97,8 @@ def _load_phase14_scorer(argot_dir: Path) -> SequentialImportBpeScorer:
     )
 
     return SequentialImportBpeScorer(
-        model_a_files=model_a_files,
-        bpe_model_b_path=model_b_json,
+        repo_corpus_files=repo_corpus_files,
+        bpe_generic_baseline_path=generic_baseline_json,
         bpe_threshold=threshold,
         call_receiver_alpha=call_receiver_alpha,
         call_receiver_cap=call_receiver_cap,

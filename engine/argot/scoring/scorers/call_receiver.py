@@ -251,9 +251,9 @@ def _build_clusters(
 
 
 class CallReceiverScorer:
-    """Stage-1.5 call-receiver scorer.
+    """BPE scorer call-receiver component.
 
-    Fit: scan *model_a_files*, union all non-None callees into a frozenset.
+    Fit: scan *repo_corpus_files*, union all non-None callees into a frozenset.
     Score: count distinct unattested callees in a hunk (0 if parse fragment).
     Used by SequentialImportBpeScorer to compute adjusted_bpe.
 
@@ -265,7 +265,7 @@ class CallReceiverScorer:
 
     def __init__(
         self,
-        model_a_files: list[Path],
+        repo_corpus_files: list[Path],
         *,
         language: Language,
         alpha: float = 1.0,
@@ -276,8 +276,8 @@ class CallReceiverScorer:
         force_jaccard_routing: bool = False,
         cluster_rare_threshold: int = 0,
     ) -> None:
-        if not model_a_files:
-            raise ValueError("model_a_files must be non-empty")
+        if not repo_corpus_files:
+            raise ValueError("repo_corpus_files must be non-empty")
         self._language: Language = language
         self.alpha: float = alpha
         self.cap: int = cap
@@ -301,7 +301,7 @@ class CallReceiverScorer:
         # (path, callee_bag) pairs for cluster building — collected iff n_clusters > 1
         file_bags: list[tuple[Path, frozenset[str]]] = []
 
-        for path in model_a_files:
+        for path in repo_corpus_files:
             try:
                 src = path.read_text(encoding="utf-8", errors="replace")
             except OSError:

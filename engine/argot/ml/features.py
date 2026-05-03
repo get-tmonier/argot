@@ -338,8 +338,8 @@ def _resolve_cluster(
     Routing-leak fix: always uses the Jaccard fallback path regardless of
     whether ``file_path`` is in ``call_receiver.file_to_cluster``. This
     eliminates the routing-leak between catalog fixtures (paths NOT in
-    model_a_files → previously fallback) and real-PR controls (paths IN
-    model_a_files → previously static lookup), which was a near-perfect
+    repo_corpus_files → previously fallback) and real-PR controls (paths IN
+    repo_corpus_files → previously static lookup), which was a near-perfect
     proxy for ``is_break`` (AUC 0.95).
 
     Returns ``(cluster_id, jaccard_to_centroid)``. Both are ``None`` / ``0.0``

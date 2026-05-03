@@ -16,15 +16,15 @@ from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScore
 
 _CATALOG = Path(__file__).parent.parent / "acceptance" / "catalog"
 _FASTAPI_FIXTURES = _CATALOG / "fastapi" / "fixtures" / "default"
-_BPE_MODEL_B = Path(__file__).parent.parent / "scoring" / "bpe" / "generic_tokens_bpe.json"
+_BPE_GENERIC_BASELINE = Path(__file__).parent.parent / "scoring" / "bpe" / "generic_tokens_bpe.json"
 _CONTROL_FILES = sorted(_FASTAPI_FIXTURES.glob("control_*.py"))
 
 
 def _scorer_with_cal(seed: int, n: int = 5) -> SequentialImportBpeScorer:
     hunks = sample_hunks(_FASTAPI_FIXTURES, n, seed)
     return SequentialImportBpeScorer(
-        model_a_files=_CONTROL_FILES,
-        bpe_model_b_path=_BPE_MODEL_B,
+        repo_corpus_files=_CONTROL_FILES,
+        bpe_generic_baseline_path=_BPE_GENERIC_BASELINE,
         calibration_hunks=hunks,
     )
 
@@ -116,8 +116,8 @@ def test_n_calibration_matches_hunks() -> None:
     """Scorer n_calibration equals the number of calibration hunks passed."""
     hunks = sample_hunks(_FASTAPI_FIXTURES, 8, seed=3)
     scorer = SequentialImportBpeScorer(
-        model_a_files=_CONTROL_FILES,
-        bpe_model_b_path=_BPE_MODEL_B,
+        repo_corpus_files=_CONTROL_FILES,
+        bpe_generic_baseline_path=_BPE_GENERIC_BASELINE,
         calibration_hunks=hunks,
     )
     assert scorer.n_calibration == 8
@@ -302,8 +302,8 @@ def test_calibrate_multi_seed_equals_median_of_individual() -> None:
     for k in range(n_seeds):
         hunks = sample_hunks(_FASTAPI_FIXTURES, n_cal, base_seed + k)
         s = SequentialImportBpeScorer(
-            model_a_files=_CONTROL_FILES,
-            bpe_model_b_path=_BPE_MODEL_B,
+            repo_corpus_files=_CONTROL_FILES,
+            bpe_generic_baseline_path=_BPE_GENERIC_BASELINE,
             calibration_hunks=hunks,
             threshold_percentile=threshold_percentile,
         )
@@ -318,9 +318,9 @@ def test_calibrate_multi_seed_equals_median_of_individual() -> None:
         n_seeds=n_seeds,
         n_cal=n_cal,
         repo_dir=_FASTAPI_FIXTURES,
-        model_a_files=list(_CONTROL_FILES),
+        repo_corpus_files=list(_CONTROL_FILES),
         adapter=adapter,
-        bpe_model_b_path=_BPE_MODEL_B,
+        bpe_generic_baseline_path=_BPE_GENERIC_BASELINE,
         threshold_percentile=threshold_percentile,
         call_receiver_alpha=2.0,
         call_receiver_cap=5,
@@ -334,7 +334,7 @@ def test_calibration_cli_threshold_iqr_k(tmp_path: Path, monkeypatch: pytest.Mon
     """--threshold-iqr-k flag is accepted and produces a valid threshold."""
     model_a_path = tmp_path / "model_a.txt"
     model_a_path.write_text("\n".join(str(p) for p in _CONTROL_FILES))
-    (tmp_path / "model_b.json").write_text((_BPE_MODEL_B).read_text())
+    (tmp_path / "model_b.json").write_text((_BPE_GENERIC_BASELINE).read_text())
     out = tmp_path / "scorer-config.json"
     monkeypatch.setattr(
         sys,

@@ -2,10 +2,10 @@ import { spawn } from 'node:child_process';
 import { Effect, Layer } from 'effect';
 import { engineCmd } from '#engine-cmd.ts';
 import { handleUvStderr } from '#spawn-with-progress.ts';
-import { StyleChecker } from '#modules/check-style/application/ports/out/style-checker.port.ts';
-import { CheckExitNonZero, CheckSpawnFailed } from '#modules/check-style/domain/errors.ts';
+import { VoiceChecker } from '#modules/check-voice/application/ports/out/voice-checker.port.ts';
+import { CheckExitNonZero, CheckSpawnFailed } from '#modules/check-voice/domain/errors.ts';
 
-export const BunStyleCheckerLive = Layer.effect(StyleChecker)(
+export const BunVoiceCheckerLive = Layer.effect(VoiceChecker)(
   Effect.succeed({
     runCheck: ({
       repoPath,

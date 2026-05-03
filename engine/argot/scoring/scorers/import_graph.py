@@ -88,10 +88,10 @@ class ImportGraphScorer:
         self._repo_modules: frozenset[str] = frozenset()
         self._repo_modules_prefixes: frozenset[str] = frozenset()
 
-    def fit(self, model_a_files: Iterable[Path]) -> None:
-        """Parse every file in model_A and collect the set of top-level modules."""
+    def fit(self, repo_corpus_files: Iterable[Path]) -> None:
+        """Parse every file in the repo corpus and collect the set of top-level modules."""
         seen: set[str] = set()
-        for path in model_a_files:
+        for path in repo_corpus_files:
             try:
                 source = path.read_text(encoding="utf-8", errors="replace")
             except OSError:

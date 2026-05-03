@@ -47,18 +47,18 @@ def _collect_source_files(repo_path: Path) -> list[Path]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Collect model-A source files and BPE reference for argot scoring"
+        description="Collect repo corpus source files and BPE generic baseline for argot scoring"
     )
     parser.add_argument("--repo", default=".", help="Path to the target repository")
     parser.add_argument(
         "--model-a-out",
         default=".argot/model_a.txt",
-        help="Output file listing model-A source paths",
+        help="Output file listing repo corpus source paths",
     )
     parser.add_argument(
         "--model-b-out",
         default=".argot/model_b.json",
-        help="Output path for the BPE reference JSON",
+        help="Output path for the BPE generic baseline JSON",
     )
     args = parser.parse_args()
 
@@ -67,22 +67,22 @@ def main() -> None:
         print(f"error: not a git repository: {repo_path}", file=sys.stderr)
         sys.exit(2)
 
-    model_a_out = Path(args.model_a_out)
-    model_b_out = Path(args.model_b_out)
-    model_a_out.parent.mkdir(parents=True, exist_ok=True)
-    model_b_out.parent.mkdir(parents=True, exist_ok=True)
+    repo_corpus_out = Path(args.model_a_out)
+    generic_baseline_out = Path(args.model_b_out)
+    repo_corpus_out.parent.mkdir(parents=True, exist_ok=True)
+    generic_baseline_out.parent.mkdir(parents=True, exist_ok=True)
 
     files = _collect_source_files(repo_path)
     if not files:
         print("error: no source files found in repository", file=sys.stderr)
         sys.exit(2)
 
-    model_a_out.write_text("\n".join(str(p) for p in files))
-    print(f"model_a: {len(files)} source files → {model_a_out}")
+    repo_corpus_out.write_text("\n".join(str(p) for p in files))
+    print(f"repo corpus: {len(files)} source files → {repo_corpus_out}")
 
     bpe_ref = Path(__file__).parent / "scoring" / "bpe" / "generic_tokens_bpe.json"
-    shutil.copy(bpe_ref, model_b_out)
-    print(f"model_b: {model_b_out}")
+    shutil.copy(bpe_ref, generic_baseline_out)
+    print(f"generic baseline: {generic_baseline_out}")
 
 
 if __name__ == "__main__":

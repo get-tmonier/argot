@@ -66,7 +66,7 @@ from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScore
 
 Language = Literal["python", "typescript"]
 
-_BPE_MODEL_B = (
+_BPE_GENERIC_BASELINE = (
     Path(__file__).resolve().parent.parent / "scoring" / "bpe" / "generic_tokens_bpe.json"
 )
 
@@ -124,7 +124,7 @@ def build_production_scorer(
     n_cal: int = 100,
     seed: int = 0,
     threshold_n_seeds: int = 7,
-    bpe_model_b: Path | None = None,
+    bpe_generic_baseline: Path | None = None,
     enable_typicality_filter: bool = True,
     call_receiver_alpha: float = 2.0,
     call_receiver_cap: int = 5,
@@ -155,9 +155,9 @@ def build_production_scorer(
         n_seeds=threshold_n_seeds,
         n_cal=n_cal,
         repo_dir=repo_dir,
-        model_a_files=files,
+        repo_corpus_files=files,
         adapter=adapter,
-        bpe_model_b_path=bpe_model_b or _BPE_MODEL_B,
+        bpe_generic_baseline_path=bpe_generic_baseline or _BPE_GENERIC_BASELINE,
         threshold_percentile=threshold_percentile,
         threshold_iqr_k=None,
         call_receiver_alpha=call_receiver_alpha,
@@ -169,8 +169,8 @@ def build_production_scorer(
         enable_typicality_filter=enable_typicality_filter,
     )
     return SequentialImportBpeScorer(
-        model_a_files=files,
-        bpe_model_b_path=bpe_model_b or _BPE_MODEL_B,
+        repo_corpus_files=files,
+        bpe_generic_baseline_path=bpe_generic_baseline or _BPE_GENERIC_BASELINE,
         bpe_threshold=median_threshold,
         adapter=adapter,
         repo_root=repo_dir,
