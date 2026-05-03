@@ -67,7 +67,7 @@ Cluster-rare diagnostic detail (callee/cluster counts from
 |:---|:---|
 | **G1 · Recall** | Fixture-count recall ≥ **94.0%** (108/115). Stretch: **96.5%** (111/115). |
 | **G2 · Per-corpus FP** | All 6 corpora ≤ era-11 amended ceiling **2.5%**. |
-| **G3 · No regression** | Zero of the 105 currently-caught fixtures regress to uncaught. |
+| **G3 · No regression** | Zero of the 105 currently-caught fixtures regress to uncaught. Phase-specific clauses: **G3.a** (Phase 2): structurally free — percentile change only lowers threshold; rare-bonus only adds. No re-score needed. **G3.b** (Phase 4): each sub-phase must re-score all 105 caught fixtures with the sub-phase enabled; zero may fall under the new threshold. A sub-phase that catches its target but loses ≥ 1 caught fixture fails its gate. **G3.c** (Phase 1 / Phase 3 fixes): any asymmetry fix that changes scoring math must verify the same re-score on the 105. |
 | **G4 · Faker-js floor** | Faker-js recall ≥ **88%** (15/17). |
 | **G5 · Threshold stability** | Max per-corpus threshold CV ≤ 3% (era-10 standard). |
 | **G6 · No hardcoded domain knowledge** | All Phase 10 + AST queries derive from corpus statistics. |
@@ -205,13 +205,19 @@ If no triple passes both, document the bound and ship
 **Risk:** percentile thresholding is a calibration-policy change with
 broader FP impact. Must verify all 6 corpora, not just fjs.
 
-### Phase 3 — Bench symmetry audit (1–2 days)
+### Phase 3 — Bench symmetry audit (½ day, runs in parallel with Phase 1)
 
 Era 12's routing bug existed because catalog and real-PR scoring used
 different code paths to resolve `file_path`. The lesson is sharp:
 *asymmetric scoring paths are where leaks live*. Sweep the rest of the
-bench harness for siblings of that pathology before believing any
-remaining residual is genuinely unflaggable.
+bench harness for siblings of that pathology before any sweep results
+become meaningful.
+
+Read-only audit; no dependency on Phase 1 or Phase 2. **Runs in
+parallel with Phase 1 on day 1.** Any asymmetry found that affects
+calibration or scoring of any of the 10 residuals must be fixed
+**before** Phase 2's sweep — otherwise the sweep is computed against
+an unfixed substrate.
 
 **Inventory of paths to compare:**
 
@@ -226,11 +232,18 @@ remaining residual is genuinely unflaggable.
 4. `is_atypical_file` short-circuit: does it fire asymmetrically on
    synthesized vs real content for any other corpus?
 
-**Output:** an audit memo, plus fixes for any asymmetry found. Each
-fix re-bench and measure.
+**Pre-registered falsification gates:**
 
-**Expected EV:** unknown — could be 0 catches, could be another +2-3
-catches like era 12. Cheap insurance.
+- Audit complete → produce list of paths compared and a symmetry
+  verdict (symmetric / asymmetric / not-applicable) for each.
+- Asymmetry on any path that touches calibration or scoring of one of
+  the 10 residuals → **mandatory fix before Phase 2 starts**.
+- Asymmetry on a path that doesn't touch a residual → ship the fix as
+  a separate small PR (defensive, not gated by bench results).
+- Zero asymmetries → Phase 3 closes with "audit clean".
+
+**Output:** a single combined "bench-harness audit memo" covering
+both Phase 1's plumbing trace and Phase 3's symmetry findings.
 
 ### Phase 4 — AST-shape / control-flow features (1–2 weeks)
 
@@ -244,47 +257,113 @@ No callee-set or embedding rule will catch these.
 
 Cheap, rule-based, no hardcoded domain knowledge.
 
-**Sub-phases (run all per "no early-stopping"):**
+**Design principles for AST-shape rules** (binding, not aspirational —
+these define what is shippable):
 
-| 4.1 | Tree-sitter query catalogue: extract per-hunk control-flow primitives — return/throw counts, try/catch shapes, conditional-fallback presence, async/await density, exception-handler arities. Statistics-only, no hardcoding. |
-|---|---|
-| 4.2 | Build per-cluster distributions of those primitives at fit time, alongside `cluster_attested`. |
-| 4.3 | Per-hunk anomaly score: KL divergence (or χ²) of hunk's primitive distribution vs cluster's typical. |
-| 4.4 | Calibrate per-corpus FP threshold; bench against all 115 fixtures. Check FP stability + threshold CV. |
-| 4.5 | If 4.4 clears gates: ship as Stage 1.6 (additive penalty alongside call-receiver `cluster_bonus`). If not: document the bound and the cross-domain AUC pattern. |
+- **One primitive per sub-phase.** Each sub-phase implements a single
+  scalar (or low-dimensional) feature with its own per-cluster
+  baseline and per-corpus FP gate. Composition happens at the scoring
+  layer, not inside the primitive.
+- **Swappable.** Adding/removing a sub-phase must be a drop-in: same
+  `extract(hunk, cluster) -> float` interface, same per-cluster
+  baseline mechanism, same calibration plumbing. Sub-phases must not
+  depend on each other.
+- **Language-agnostic primitive definitions.** Primitives are defined
+  on tree-sitter generic node kinds (`function_definition`,
+  `call_expression`, `try_statement`, `return_statement`, etc.) — not
+  on Python- or TypeScript-specific syntax. One primitive
+  implementation runs on both languages via the existing per-language
+  tree-sitter grammars; per-language grammar tables are the only
+  language-specific surface.
+- **Domain-blind (G6 binding).** No primitive may reference framework
+  names, function names, decorator names, or string literals.
+  "Return-from-except ratio" is allowed; "return-from-except where
+  the call was `JSONResponse`" is not.
+- **Per-cluster baseline only.** Every primitive compares the hunk
+  against its *own cluster's* distribution, never against a global
+  baseline. This is the cross-domain-collapse hedge from era 2.
+- **Cluster-size floor.** A primitive's per-cluster baseline is
+  trusted only when the cluster has ≥ `min_cluster_size_for_shape`
+  files (default 10). Below the floor, the primitive abstains
+  (returns 0 contribution).
+- **No cross-fixture tuning.** Each sub-phase's primitive and
+  threshold are pre-registered before bench runs against the
+  fixtures. Tuning a primitive *until* it catches a specific fixture
+  is the failure mode that produced era-2 collapse and is forbidden.
 
-**Pre-registered question:** does the AST-shape penalty catch ≥ 2 of
-the 4 non-rare residuals at FP ≤ era-12 levels + 0.3pp on each corpus?
+**Sub-phases (per-fixture-class, swappable, run all per
+"no early-stopping"):**
+
+| Sub-phase | Primitive (language-agnostic) | Targets | Per-cluster baseline | FP gate |
+|:---|:---|:---|:---|:---|
+| **4a · except-block return/raise ratio** | scalar: `return_statement` count vs `raise_statement` / `throw_statement` count inside `try_statement` blocks | `exception_handling_4`; `error_flip_2` (backup) | mean ± std of ratio across cluster files | catches `exception_handling_4` at fastapi cost ≤ Phase 4 budget remainder |
+| **4b · call-scope distribution** | scalar: fraction of `call_expression` nodes at module-scope vs nested inside `function_definition` | `runtime_fetch_1` | mean fraction across cluster files | catches `runtime_fetch_1` at faker-js cost ≤ remainder |
+| **4c · receiver-namespace coverage divergence** | scalar: Jensen-Shannon distance of hunk's distribution over distinct callee namespace prefixes vs cluster's | `ink_dom_access_2` (primary); `hono_middleware_3` (backup) | namespace histogram across cluster files | catches ≥ 1 of {ink_dom, hono_middleware} at corpus cost ≤ remainder |
+| **4d · fall-through-guard presence** | scalar: count of `if`-statement guards before `return_statement` in `function_definition`s | `hono_middleware_3` (primary); fragile residuals | mean count across cluster functions | catches `hono_middleware_3` at hono cost ≤ remainder |
+
+For all four sub-phases the per-cluster baseline is computed at fit
+time (alongside `cluster_attested` and `cluster_callee_counts`),
+abstains when `cluster_size < min_cluster_size_for_shape`, and
+contributes a tail-z penalty (clipped at `cluster_bonus`) only on
+clusters where the baseline is trusted.
+
+**Pre-registered questions** (one per sub-phase, falsifiable
+independently):
+
+- **4a:** does the except-block ratio catch `exception_handling_4` at
+  fastapi FP cost ≤ 0.93pp?
+- **4b:** does the call-scope distribution catch `runtime_fetch_1`
+  at faker-js FP cost ≤ 0.79pp?
+- **4c:** does the namespace divergence catch ≥ 1 of
+  {`ink_dom_access_2`, `hono_middleware_3`} at corpus FP cost ≤
+  remainder?
+- **4d:** does the fall-through-guard primitive catch
+  `hono_middleware_3` (if 4c missed it) at hono FP cost ≤ remainder?
+
+A sub-phase that fires without catching its target ships nothing
+(its primitive is wrong-shaped). A sub-phase that catches its target
+and stays under FP gate ships as an additive penalty.
 
 **Risk:** control-flow signals worked on isolated corpora in earlier
 eras but collapsed cross-domain (era 2 — AST-structural signals were
-FastAPI-tuned and collapsed on rich, click). The cluster-conditional
-framing (compare hunk to *its cluster's* control-flow distribution,
-not a global typical) is the hedge against re-running into that
-failure mode.
+FastAPI-tuned and collapsed on rich, click). The hedges:
+(i) per-cluster baseline (each primitive compared against its own
+cluster, not a global typical); (ii) cluster-size floor (no
+small-sample baselines); (iii) one-primitive-per-sub-phase (no
+feature-bag overfitting); (iv) language-agnostic primitives
+(no per-language tuning surface).
 
-**Honest EV:** 30–50%. Higher if Phase 1+2 already deliver the
-cluster-rare residuals (then Phase 4 only has to clear the remaining
-3–4 control-flow ones).
+**Honest EV:** 30–50% per sub-phase, ~70% probability that ≥ 1 of 4
+sub-phases lands. Higher if Phase 1+2 already deliver the cluster-
+rare residuals (Phase 4 then has to clear only 4 fixtures, not 5+).
 
-### Phase 5 — Synthetic mutation generation + negative-shape detection (DEFERRED)
+### Phase 5 — Push past the architectural ceiling (DEFERRED)
 
-Two deferred directions, both unlocked by the same infrastructure:
+Phases 1–4 max out at 99.1% recall (114/115). Closing the last 0.9%
+requires either a new signal class or an order-of-magnitude expansion
+in supervised data. Two independent directions, deferred until a
+shipping decision is made on Phases 1–4:
 
-1. **Synthetic mutation at scale.** Combine `synthesize_hunk_in_host`
-   with an AST-mutation generator → 10k+ synthetic break/control pairs
-   at the data-generating distribution of real PRs. With that volume,
-   supervised classifiers stop overfitting to "is this a catalog file."
-2. **Negative-shape detection.** `synthetic_formula_1` is the only
-   residual whose anomaly is "callees that should be present aren't."
-   No callee-distribution or control-flow rule fires. The signal would
-   need to compare the hunk's callee set to the cluster's *expected*
-   callee distribution and flag underuse, not just rare presence. This
-   is a different signal class from anything currently in the scorer.
+**5a · Negative-shape detection** (targets `synthetic_formula_1`).
+The fixture's anomaly is *absence* of cluster-typical callees, not
+presence of rare ones. A negative-shape primitive would compare the
+hunk's callee set to the cluster's *expected* callee distribution and
+flag under-coverage, not rare presence. Same design constraints as
+Phase 4 (one primitive, swappable, language-agnostic, domain-blind,
+per-cluster baseline). Independently shippable as Phase 4e if/when
+the design is settled.
 
-Run if Phases 1–4 clear stretch G1 (≥ 96.5%) but the user wants the
-remaining 1–2 residuals (architectural ceiling 99.1%, true ceiling
-100% requires the negative-shape direction).
+**5b · Synthetic mutation at scale** (targets future residuals, not
+current ones). Combine `synthesize_hunk_in_host` with an AST-mutation
+generator → 10k+ synthetic break/control pairs at the data-generating
+distribution of real PRs. With that volume, supervised classifiers
+stop overfitting to "is this a catalog file." Substantial work; this
+is a research direction for era 14+, not an era-13 phase.
+
+Trigger conditions:
+- Phases 1–4 leave the stretch G1 unmet AND a new architectural
+  direction is justified → 5a.
+- Era 14+ research direction → 5b.
 
 ## What we will NOT do
 
@@ -295,16 +374,17 @@ remaining 1–2 residuals (architectural ceiling 99.1%, true ceiling
 | Additional MLM / per-token surprise variants | Phase 8.x exhausted this. Per-token MLM is essentially random on stripped code. |
 | Hardcoded framework literals (`{"axios", "fetch", "hono", ...}`) | Project rule. Phase 9 was caught by this rule and is non-shippable. |
 | Per-corpus path-pattern hardcoding (`src/locales/* → strict`) | Same project rule. Banned since era 1. |
+| Hand-tuning a Phase 4 primitive *until* it catches a specific fixture | Era-2 collapse failure mode. Primitives + thresholds are pre-registered before the bench runs against fixtures; a sub-phase that doesn't catch its target on first run gets discarded, not iterated. |
+| Per-language code paths inside Phase 4 primitives | Each primitive is one implementation defined on tree-sitter generic node kinds. Per-language tree-sitter grammars are the only language-specific surface. |
 
 ## Execution order
 
-| Day | Phase | Output |
+| Day | Phases (parallel within row) | Output |
 |---:|:---|:---|
-| 1   | Phase 1 plumbing audit | bug-or-not verdict; if bug, fix + re-bench |
-| 2–3 | Phase 2 percentile sweep (only if Phase 1 was clean) | shipped (percentile, rare-threshold) pair or documented bound |
-| 4–5 | Phase 3 symmetry audit | audit memo + any fixes found |
-| Week 2 | Phase 4 AST-shape | shipped Stage 1.6 or documented bound |
-| Final  | Cumulative re-bench across 6 corpora; ship best config that clears G1–G6 | era-13 evidence doc + narrative |
+| 1   | Phase 1 plumbing audit · Phase 3 symmetry audit | combined audit memo; any asymmetry that touches calibration / scoring of a residual is fixed before Phase 2 |
+| 2–3 | Phase 2 size-conditional sweep (always runs after Phase 1) | shipped (S_min, R, percentile) triple, or documented bound |
+| Week 2 | Phase 4 sub-phases 4a / 4b / 4c / 4d (fully independent — can run in parallel; "no early-stopping" — run all even if early ones land) | each sub-phase ships an additive penalty if its gate clears, or documents why it didn't |
+| Final  | Cumulative re-bench across 6 corpora; ship best composition that clears G1–G6 | era-13 evidence doc + narrative |
 
 ## Headline targets
 
@@ -329,7 +409,8 @@ era-13 dispatch.
 
 Era-13 dispatch is a single short prompt: "Read
 `docs/research/era-13-hypotheses.md` and execute Phase 1 (Phase 10
-plumbing audit) per the specification there. Report findings before
-proceeding to Phase 2."
+plumbing audit) and Phase 3 (bench symmetry audit) **in parallel**
+per the specifications there. Produce the combined audit memo. Apply
+any mandatory fixes, then proceed to Phase 2."
 
 ## End of Document
