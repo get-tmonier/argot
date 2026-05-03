@@ -87,9 +87,9 @@ def _load_phase14_scorer(argot_dir: Path) -> SequentialImportBpeScorer:
     call_receiver_alpha = float(config.get("call_receiver_alpha", 2.0))  # type: ignore[arg-type]
     call_receiver_cap = int(config.get("call_receiver_cap", 5))  # type: ignore[call-overload]
     call_receiver_root_bonus = float(config.get("call_receiver_root_bonus", 2.0))  # type: ignore[arg-type]
-    call_receiver_n_clusters = int(config.get("call_receiver_n_clusters", 1))  # type: ignore[call-overload]
+    call_receiver_n_clusters = int(config.get("call_receiver_n_clusters", 8))  # type: ignore[call-overload]
     call_receiver_cluster_seed = int(config.get("call_receiver_cluster_seed", 0))  # type: ignore[call-overload]
-    call_receiver_cluster_bonus = float(config.get("call_receiver_cluster_bonus", 0.0))  # type: ignore[arg-type]
+    call_receiver_cluster_bonus = float(config.get("call_receiver_cluster_bonus", 5.0))  # type: ignore[arg-type]
 
     return SequentialImportBpeScorer(
         model_a_files=model_a_files,

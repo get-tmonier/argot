@@ -98,6 +98,36 @@ def test_bench_threshold_n_seeds_shipping_default() -> None:
     )
 
 
+def test_bench_cluster_defaults_match_production() -> None:
+    """RunConfig, build_scorer, SequentialImportBpeScorer all default to era-11 shipping
+    config: n_clusters=8 and cluster_bonus=5.0."""
+    from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
+
+    from argot_bench.run import RunConfig
+    from argot_bench.score import build_scorer
+
+    fields = {f.name: f for f in dataclasses.fields(RunConfig)}
+    run_n_clusters = fields["call_receiver_n_clusters"].default
+    run_cluster_bonus = fields["call_receiver_cluster_bonus"].default
+
+    sig = inspect.signature(build_scorer)
+    score_n_clusters = sig.parameters["call_receiver_n_clusters"].default
+    score_cluster_bonus = sig.parameters["call_receiver_cluster_bonus"].default
+
+    scorer_sig = inspect.signature(SequentialImportBpeScorer.__init__)
+    scorer_n_clusters = scorer_sig.parameters["call_receiver_n_clusters"].default
+    scorer_cluster_bonus = scorer_sig.parameters["call_receiver_cluster_bonus"].default
+
+    assert run_n_clusters == score_n_clusters == scorer_n_clusters == 8, (
+        f"n_clusters defaults drifted: run={run_n_clusters}, "
+        f"score={score_n_clusters}, scorer={scorer_n_clusters} (expected 8)"
+    )
+    assert run_cluster_bonus == score_cluster_bonus == scorer_cluster_bonus == 5.0, (
+        f"cluster_bonus defaults drifted: run={run_cluster_bonus}, "
+        f"score={score_cluster_bonus}, scorer={scorer_cluster_bonus} (expected 5.0)"
+    )
+
+
 def test_bench_root_bonus_default() -> None:
     """RunConfig, build_scorer, SequentialImportBpeScorer all default call_receiver_root_bonus=2.0."""
     from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer

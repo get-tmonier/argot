@@ -415,7 +415,7 @@ def test_known_file_path_unaffected_by_source(tmp_path: Path) -> None:
 
 
 def test_cluster_params_defaults_consistent_across_layers() -> None:
-    """n_clusters=1 and cluster_bonus=0.0 defaults match across all layers."""
+    """n_clusters=8 and cluster_bonus=5.0 defaults (era-11 shipping) match across all layers."""
     import ast
     import inspect
     from pathlib import Path
@@ -423,8 +423,8 @@ def test_cluster_params_defaults_consistent_across_layers() -> None:
     from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
 
     sig = inspect.signature(SequentialImportBpeScorer.__init__)
-    assert sig.parameters["call_receiver_n_clusters"].default == 1
-    assert sig.parameters["call_receiver_cluster_bonus"].default == pytest.approx(0.0)
+    assert sig.parameters["call_receiver_n_clusters"].default == 8
+    assert sig.parameters["call_receiver_cluster_bonus"].default == pytest.approx(5.0)
 
     engine_root = Path(__file__).parent.parent
 
@@ -450,13 +450,13 @@ def test_cluster_params_defaults_consistent_across_layers() -> None:
         f"Expected 1 call_receiver_n_clusters in calibration/__init__.py, "
         f"found {len(n_clusters_vals)}"
     )
-    assert n_clusters_vals[0] == 1
+    assert n_clusters_vals[0] == 8
 
     assert len(cluster_bonus_vals) == 1, (
         f"Expected 1 call_receiver_cluster_bonus in calibration/__init__.py, "
         f"found {len(cluster_bonus_vals)}"
     )
-    assert cluster_bonus_vals[0] == pytest.approx(0.0)
+    assert cluster_bonus_vals[0] == pytest.approx(5.0)
 
 
 def test_cli_cluster_defaults_match_run_config() -> None:
@@ -466,10 +466,10 @@ def test_cli_cluster_defaults_match_run_config() -> None:
 
     from argot_bench.run import RunConfig  # type: ignore[import-untyped]
 
-    # RunConfig defaults
-    assert RunConfig.__dataclass_fields__["call_receiver_n_clusters"].default == 1
+    # RunConfig defaults (era-11 shipping)
+    assert RunConfig.__dataclass_fields__["call_receiver_n_clusters"].default == 8
     cluster_bonus_default = RunConfig.__dataclass_fields__["call_receiver_cluster_bonus"].default
-    assert cluster_bonus_default == pytest.approx(0.0)
+    assert cluster_bonus_default == pytest.approx(5.0)
 
     # Bench CLI defaults
     bench_root = Path(__file__).resolve().parent.parent.parent.parent / "benchmarks"
@@ -504,15 +504,15 @@ def test_cli_cluster_defaults_match_run_config() -> None:
         len(cli_cluster_defaults) >= 1
     ), "Expected at least one --call-receiver-clusters default in cli.py"
     assert all(
-        v == 1 for v in cli_cluster_defaults
-    ), f"CLI cluster defaults: {cli_cluster_defaults}"
+        v == 8 for v in cli_cluster_defaults
+    ), f"CLI cluster defaults (era-11 shipping): {cli_cluster_defaults}"
 
     assert (
         len(cli_bonus_defaults) >= 1
     ), "Expected at least one --call-receiver-cluster-bonus default in cli.py"
     assert all(
-        v == pytest.approx(0.0) for v in cli_bonus_defaults
-    ), f"CLI bonus defaults: {cli_bonus_defaults}"
+        v == pytest.approx(5.0) for v in cli_bonus_defaults
+    ), f"CLI bonus defaults (era-11 shipping): {cli_bonus_defaults}"
 
 
 # ---------------------------------------------------------------------------

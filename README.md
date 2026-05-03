@@ -20,9 +20,11 @@
   No GPU · No cloud · No telemetry · Runs in seconds after a one-time calibration
 </p>
 
-$$\text{score}(\text{hunk}) \;=\; \underbrace{\max_{t \;\in\; \text{tokens}(\text{hunk})} \log \frac{P_{\text{generic}}(t)}{P_{\text{repo}}(t)}}_{\text{BPE surprise}} \;+\; \underbrace{\sum_{c \;\in\; \text{unattested}} w(c)}_{\text{call-receiver penalty}}$$
+$$\text{score}(\text{hunk}) \;=\; \underbrace{\max_{t \;\in\; \text{tokens}(\text{hunk})} \log \frac{P_{\text{generic}}(t)}{P_{\text{repo}}(t)}}_{\text{BPE surprise}} \;+\; \underbrace{\min\!\Big(\sum_{c \;\in\; \text{distinct callees}} w(c),\; \text{cap}\Big)}_{\text{call-receiver penalty}}$$
 
-$$w(c) = \begin{cases} \alpha + r & \text{if root}(c) \in \text{attested} \\ \alpha & \text{otherwise} \end{cases} \qquad (\alpha=2.0,\; r=2.0)$$
+$$w(c) = \begin{cases} \alpha + r & \text{if } c \notin \text{attested},\ \text{root}(c) \in \text{attested} \\ \alpha & \text{if } c \notin \text{attested} \\ \beta & \text{if } c \in \text{attested},\ c \notin \text{cluster\_attested}(\text{file}) \\ 0 & \text{otherwise} \end{cases} \qquad (\alpha=2.0,\; r=2.0,\; \beta=5.0,\; \text{cap}=5.0)$$
+
+Files are clustered by callee-bag MinHash similarity into 8 clusters at fit time; a callee that's globally attested but absent from its file's cluster contributes β.
 
 ---
 
@@ -226,7 +228,7 @@ flowchart TD
     TYP -- yes --> SKIP(["⏭  skip<br/>reason: atypical / atypical_file"])
     TYP -- no --> S1["Stage 1 — import graph\nextract hunk imports\nflag if any are foreign to this repo"]
     S1 -- "foreign module found" --> F1(["🚩 flagged  reason: import"])
-    S1 -- "all imports native" --> S2["Stage 2 — BPE log-ratio + call-receiver penalty\nadjusted = bpe + Σ w(c) for c in unattested callees\nw(c) = α+r if root attested, α otherwise  (α=2.0, r=2.0)"]
+    S1 -- "all imports native" --> S2["Stage 2 — BPE log-ratio + call-receiver penalty\nadjusted = bpe + min(Σ w(c), cap)\nw(c) = α+r if root attested · α if globally unattested\nβ if globally attested but absent from file's cluster\n(α=2.0, r=2.0, β=5.0, cap=5.0, K=8)"]
     S2 -- "penalty tipped it" --> F15(["🚩 flagged  reason: call_receiver"])
     S2 -- "bpe alone > threshold" --> F2(["🚩 flagged  reason: bpe"])
     S2 -- "adjusted ≤ threshold" --> OK(["✅ clean"])
@@ -236,7 +238,9 @@ flowchart TD
 
    **Stage 1 — import graph:** for each hunk, extracts its import statements and checks whether any imported module is absent from the repo's own first-party import set. A single foreign import immediately flags the hunk (`reason: "import"`).
 
-   **Stage 2 — BPE log-ratio with call-receiver penalty:** tokenizes the hunk with the [UnixCoder](https://huggingface.co/microsoft/unixcoder-base) BPE tokenizer (pre-trained on 9M+ code files across 9 languages — only the vocabulary is used, not the neural network) and computes a max-surprise score over the hunk's tokens. The score is then adjusted by a root-conditional penalty over call-expression receivers: `adjusted = bpe + Σ w(c)` for each unattested callee `c`, where `w(c) = α + r` if the callee's root is attested in the repo (e.g. `req.send` when `req.get` is known) and `w(c) = α` otherwise. **α = 2.0, r = 2.0** in the shipping config. A parse-fragment guard abstains when the hunk slice doesn't parse cleanly.
+   **Stage 2 — BPE log-ratio with call-receiver penalty:** tokenizes the hunk with the [UnixCoder](https://huggingface.co/microsoft/unixcoder-base) BPE tokenizer (pre-trained on 9M+ code files across 9 languages — only the vocabulary is used, not the neural network) and computes a max-surprise score over the hunk's tokens. The score is then adjusted by a per-callee penalty: `adjusted = bpe + min(Σ w(c), cap)` summed over each distinct callee `c`. The weight `w(c)` is `α + r` when the callee is globally unattested but its root is attested (e.g. `req.send` when `req.get` is known), `α` when the callee root is also unattested, and `β` when the callee is globally attested but absent from the attested set of its file's cluster. **α = 2.0, r = 2.0, β = 5.0, cap = 5.0** in the shipping config. The cluster-conditional term targets context-dependent breaks where a known callee shows up in a file kind it never belongs to (e.g. `Math.random` in a deterministic faker-js provider, even though `Math.random` exists elsewhere in the repo's tests). A parse-fragment guard abstains when the hunk slice doesn't parse cleanly.
+
+   **File clustering for the cluster-conditional term:** at fit time, every non-data-dominant source file is reduced to its callee bag (set of dotted call expressions extracted via tree-sitter), encoded as a 128-perm MinHash signature, and clustered into K=8 groups via KMeans on the signatures. Each cluster's attested set is the union of its files' callees. At score time, the hunk's file is mapped to its cluster (or to the Jaccard-nearest cluster if the file isn't in the trained corpus). The clustering is derived purely from callee statistics — no path patterns, no per-corpus heuristics.
 
 $$P_A(t) = \frac{\text{count}_A(t)}{\text{total}_A} + \varepsilon \qquad P_B(t) = \frac{\text{count}_B(t)}{\text{total}_B} + \varepsilon$$
 
@@ -246,7 +250,7 @@ $$\text{score}(\text{hunk}) = \max_{t \;\in\; \text{tokens}(\text{hunk})} \text{
 
    A high score means at least one token in the hunk is far more common in generic open-source code than in *this* repo — a reliable signal of foreign style. Model A is built by counting BPE tokens across the repo's non-test source files (CPU-only, takes seconds). Model B is a pre-built reference distribution bundled with argot — no download, no training loop. Prose lines (comments, docstrings) are blanked before scoring to avoid natural-language noise inflating the signal.
 
-   The call-receiver penalty adds a fractional contribution for each distinct dotted callee the repo has never called. Calibration hunks have zero unattested callees by construction (their callees are drawn from the same repo that built the attested set), so the threshold set during calibration is invariant under α.
+   The call-receiver penalty adds a fractional contribution for each distinct dotted callee that's either repo-novel or absent from its file's cluster. Calibration hunks come from files in the trained corpus, so by construction their callees are subsets of their cluster's attested set — calibration scores are invariant under both α and β. The threshold is set against raw BPE alone; the penalty exists to push genuinely anomalous hunks past the threshold at score time.
 
    A hunk is flagged if Stage 1 fires (foreign import) or Stage 2's adjusted score exceeds the calibration threshold. Reason attribution: `call_receiver` when the penalty pushed a below-threshold BPE over the line, `bpe` when raw BPE already crossed it. Scores and reasons are always included in the output for diagnostics.
 
@@ -260,8 +264,9 @@ No training data or model leaves your machine. All stages run entirely locally.
 > [`docs/research/`](docs/research/README.md) for the full narrative
 > (JEPA ensembles → honest eval → token-frequency signal hunt →
 > import-graph breakthrough → typicality filter → call-receiver scorer →
-> complex-chain canonicalization → alpha tuning → calibration hardening)
-> with 33 evidence docs.
+> complex-chain canonicalization → alpha tuning → calibration hardening →
+> cluster-conditional attestation)
+> with 34 evidence docs.
 
 ## Validation
 
@@ -276,24 +281,26 @@ a backdrop of **494k+ real PR hunks** from the same repos as negative
 controls.
 
 Latest full baseline ([`benchmarks/results/baseline/latest/report.md`](benchmarks/results/baseline/latest/report.md))
-(116 fixtures, 5 PR snapshots per corpus, difficulty-labelled):
+(116 fixtures, 5 PR snapshots per corpus, difficulty-labelled, era-11 shipping config):
 
 | Corpus | AUC | Recall | FP rate |
 |:---|---:|---:|---:|
 | fastapi | **0.9880** | **91.7%** | 0.6% |
-| rich | 0.9780 | 95.0% | 1.2% |
-| faker (py) | 0.9537 | 95.0% | 1.4% |
-| hono | 0.8312 | **83.3%** | 0.5% |
-| ink | **0.9899** | **93.3%** | 0.4% |
-| faker-js | 0.9463 | 53.3% | 0.9% |
+| rich | 0.9780 | **100.0%** | 1.2% |
+| faker (py) | 0.9537 | 95.0% | 2.0% |
+| hono | 0.8312 | **88.3%** | 0.5% |
+| ink | **0.9899** | **93.3%** | 0.5% |
+| faker-js | 0.9463 | **71.7%** | 0.9% |
 
-Average recall **85.3%**; **FP rate ≤ 1.4% on all six corpora**. The
-recall figures reflect the difficulty-stratified fixture set (116 fixtures
+Average recall **89.97%**; **FP rate ≤ 1.2% on five of six corpora** with
+faker (Python) at 2.0% — a documented structural cost of cluster-conditional
+attestation on locale-partitioned corpora ([era 11 narrative](docs/research/11-cluster-conditional-attestation.md)).
+The recall figures reflect the difficulty-stratified fixture set (116 fixtures
 with easy/medium/hard/uncaught bands across all six corpora); easy and medium
-fixtures are caught at ≥80% on five of six corpora. The production scorer
+fixtures are caught at ≥80% on all six corpora. The production scorer
 ships with the AST-derived typicality filter plus the Stage 1.5
-call-receiver penalty (α=2.0, root_bonus=2.0). **Threshold CV ≤ 3%** across 5 seeds: runs are
-reproducible.
+call-receiver penalty (α=2.0, root_bonus=2.0, cluster_bonus=5.0, K=8).
+**Threshold CV ≤ 3%** across 5 seeds: runs are reproducible.
 
 Reproduce with a single command:
 

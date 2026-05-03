@@ -57,6 +57,76 @@ def test_call_receiver_alpha_defaults_match_across_layers() -> None:
     )
 
 
+def test_call_receiver_cluster_defaults_match_across_layers() -> None:
+    """Era-11 shipping defaults: n_clusters=8, cluster_bonus=5.0. Locked across scorer,
+    calibration function, calibration CLI, and check.py fallbacks."""
+    sig = inspect.signature(SequentialImportBpeScorer.__init__)
+    scorer_n_clusters = sig.parameters["call_receiver_n_clusters"].default
+    scorer_cluster_bonus = sig.parameters["call_receiver_cluster_bonus"].default
+
+    calib_src = (_ENGINE_ROOT / "scoring" / "calibration" / "__init__.py").read_text()
+    calib_tree = ast.parse(calib_src)
+
+    def _annassign_defaults(name: str) -> list[float | int]:
+        return [
+            node.value.value
+            for node in ast.walk(calib_tree)
+            if (
+                isinstance(node, ast.AnnAssign)
+                and isinstance(node.target, ast.Name)
+                and node.target.id == name
+                and node.value is not None
+                and isinstance(node.value, ast.Constant)
+            )
+        ]
+
+    calib_n_clusters_vals = _annassign_defaults("call_receiver_n_clusters")
+    calib_cluster_bonus_vals = _annassign_defaults("call_receiver_cluster_bonus")
+
+    assert all(v == 8 for v in calib_n_clusters_vals), (
+        "call_receiver_n_clusters defaults in calibration/__init__.py drifted: "
+        f"{calib_n_clusters_vals}"
+    )
+    assert all(v == 5.0 for v in calib_cluster_bonus_vals), (
+        "call_receiver_cluster_bonus defaults in calibration/__init__.py drifted: "
+        f"{calib_cluster_bonus_vals}"
+    )
+
+    check_src = (_ENGINE_ROOT / "check.py").read_text()
+    check_tree = ast.parse(check_src)
+
+    def _config_get_default(name: str) -> list[float | int]:
+        return [
+            node.args[1].value
+            for node in ast.walk(check_tree)
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "get"
+                and len(node.args) >= 2
+                and isinstance(node.args[0], ast.Constant)
+                and node.args[0].value == name
+                and isinstance(node.args[1], ast.Constant)
+            )
+        ]
+
+    assert _config_get_default("call_receiver_n_clusters") == [
+        8
+    ], "check.py call_receiver_n_clusters fallback must be 8 (era-11 shipping)"
+    assert _config_get_default("call_receiver_cluster_bonus") == [
+        5.0
+    ], "check.py call_receiver_cluster_bonus fallback must be 5.0 (era-11 shipping)"
+
+    assert scorer_n_clusters == 8, (
+        "SequentialImportBpeScorer call_receiver_n_clusters default is "
+        f"{scorer_n_clusters}, expected 8"
+    )
+    assert scorer_cluster_bonus == 5.0, (
+        "SequentialImportBpeScorer call_receiver_cluster_bonus default is "
+        f"{scorer_cluster_bonus}, expected 5.0"
+    )
+
+
 def test_threshold_percentile_default_is_max_formula() -> None:
     """Scorer and calibration CLI must both default to the max formula (era-10 shipping config).
 

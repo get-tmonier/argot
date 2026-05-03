@@ -159,4 +159,27 @@ Era-11 dispatch is a single short prompt: "Read
 `docs/research/era-11-hypotheses.md` and implement Hypothesis A per the
 specification there."
 
+## Era 11 closure
+
+**Hypothesis A shipped** at K=8, cluster_bonus=5.0, cap=5.0. See
+[11-cluster-conditional-attestation.md](11-cluster-conditional-attestation.md).
+
+Headline: avg recall 85.27% → 89.97% (+4.70pp). 5 new catches across faker-js, hono,
+rich. Zero recall regressions. Gate 3 amended to ≤2.5% per-corpus FP after faker
+landed at 2.0% — root cause documented (per-locale provider files calling base-class
+helpers).
+
+**Documented bounds (negative results):**
+- Phase 5 — calibration-aware threshold: NO-OP. Calibration hunks come from
+  `model_a_files`, whose own callees are ⊆ their cluster's attested set by
+  construction → cluster_bonus = 0 at calibration time. Production controls trigger
+  cluster_bonus via the fallback Jaccard path (PR-newly-added files or
+  path-normalization mismatches), which calibration cannot replicate.
+
+**Hypothesis B (per-file NN cohort) NOT pursued.** K-plateau analysis (K=8/16/32
+identical) suggests the limiting factor is *what* counts as "attested in cluster,"
+not granularity. Per-file NN would likely show the same per-locale FP pattern. May
+revisit in a future era if a different corpus shows the failure mode argot can't
+handle with hypothesis A.
+
 ## End of Document

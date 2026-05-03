@@ -80,16 +80,19 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--call-receiver-clusters",
         type=int,
-        default=1,
+        default=8,
         metavar="K",
-        help="Number of file clusters for cluster-conditional attestation. 1=off (default).",
+        help="Number of file clusters for cluster-conditional attestation. Default 8 (era-11 shipping). 1=off.",
     )
     p.add_argument(
         "--call-receiver-cluster-bonus",
         type=float,
-        default=0.0,
+        default=5.0,
         metavar="FLOAT",
-        help="Penalty for globally-attested callees absent from the file's cluster. Default 0.0 (off).",
+        help=(
+            "Penalty for globally-attested callees absent from the file's cluster. "
+            "Default 5.0 (era-11 shipping). 0.0=off."
+        ),
     )
     p.add_argument(
         "--n-cal",
@@ -170,16 +173,19 @@ def build_parser() -> argparse.ArgumentParser:
     one.add_argument(
         "--call-receiver-clusters",
         type=int,
-        default=1,
+        default=8,
         metavar="K",
-        help="Number of file clusters for cluster-conditional attestation. 1=off (default).",
+        help="Number of file clusters for cluster-conditional attestation. Default 8 (era-11 shipping). 1=off.",
     )
     one.add_argument(
         "--call-receiver-cluster-bonus",
         type=float,
-        default=0.0,
+        default=5.0,
         metavar="FLOAT",
-        help="Penalty weight for globally-attested callees absent from the file's cluster attested set. Default 0.0.",
+        help=(
+            "Penalty weight for globally-attested callees absent from the file's "
+            "cluster attested set. Default 5.0 (era-11 shipping). 0.0=off."
+        ),
     )
     one.add_argument(
         "--n-cal",
@@ -321,9 +327,9 @@ def _run(args: argparse.Namespace) -> int:
         base_cmd.extend(["--call-receiver-cap", str(args.call_receiver_cap)])
     if args.call_receiver_root_bonus != 2.0:
         base_cmd.extend(["--call-receiver-root-bonus", str(args.call_receiver_root_bonus)])
-    if args.call_receiver_clusters != 1:
+    if args.call_receiver_clusters != 8:
         base_cmd.extend(["--call-receiver-clusters", str(args.call_receiver_clusters)])
-    if args.call_receiver_cluster_bonus != 0.0:
+    if args.call_receiver_cluster_bonus != 5.0:
         base_cmd.extend(["--call-receiver-cluster-bonus", str(args.call_receiver_cluster_bonus)])
     if args.n_cal != 100:
         base_cmd.extend(["--n-cal", str(args.n_cal)])

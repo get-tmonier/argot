@@ -46,9 +46,9 @@ def calibrate_multi_seed(
     call_receiver_alpha: float = 2.0,
     call_receiver_cap: int = 5,
     call_receiver_root_bonus: float = 2.0,
-    call_receiver_n_clusters: int = 1,
+    call_receiver_n_clusters: int = 8,
     call_receiver_cluster_seed: int = 0,
-    call_receiver_cluster_bonus: float = 0.0,
+    call_receiver_cluster_bonus: float = 5.0,
     enable_typicality_filter: bool = True,
 ) -> float:
     """Run K independent calibrations; return median threshold.
@@ -203,9 +203,9 @@ def main() -> None:
     call_receiver_alpha: float = 2.0
     call_receiver_cap: int = 5
     call_receiver_root_bonus: float = 2.0
-    call_receiver_n_clusters: int = 1
+    call_receiver_n_clusters: int = 8
     call_receiver_cluster_seed: int = 0
-    call_receiver_cluster_bonus: float = 0.0
+    call_receiver_cluster_bonus: float = 5.0
 
     if args.threshold_n_seeds > 1:
         print(

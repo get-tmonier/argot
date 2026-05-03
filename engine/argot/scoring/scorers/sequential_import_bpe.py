@@ -163,9 +163,9 @@ class SequentialImportBpeScorer:
         call_receiver_alpha: float = 2.0,
         call_receiver_cap: int = 5,
         call_receiver_root_bonus: float = 2.0,
-        call_receiver_n_clusters: int = 1,
+        call_receiver_n_clusters: int = 8,
         call_receiver_cluster_seed: int = 0,
-        call_receiver_cluster_bonus: float = 0.0,
+        call_receiver_cluster_bonus: float = 5.0,
         calibration_hunks_with_metadata: list[tuple[str, Path, str]] | None = None,
         _tokenizer: Any = None,
     ) -> None:
