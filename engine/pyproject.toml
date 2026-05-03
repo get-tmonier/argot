@@ -22,6 +22,7 @@ argot-extract = "argot.extract:main"
 argot-train = "argot.train:main"
 argot-check = "argot.check:main"
 argot-calibrate = "argot.scoring.calibration:main"
+argot-extract-features = "argot.ml.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["argot"]
