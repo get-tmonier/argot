@@ -1,7 +1,7 @@
 """Parity test: SequentialImportBpeScorer on fix10 fixtures within ±0.02 of reference.
 
 Tests the bpe_score field from score_hunk() against fix10_reference.json.
-Each domain uses the same model_A and calibration setup used to generate the reference.
+Each domain uses the same repo corpus and calibration setup used to generate the reference.
 
 Content extraction per domain:
 - fastapi: full fixture file (small standalone files; max-ratio token may appear anywhere)
@@ -19,7 +19,7 @@ import pytest
 from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
 
 _CATALOG = Path(__file__).parent.parent / "acceptance" / "catalog"
-_BPE_MODEL_B = Path(__file__).parent.parent / "scoring" / "bpe" / "generic_tokens_bpe.json"
+_BPE_GENERIC_BASELINE = Path(__file__).parent.parent / "scoring" / "bpe" / "generic_tokens_bpe.json"
 _REFERENCE = Path(__file__).parent / "fixtures" / "fix10_reference.json"
 
 _TOLERANCE = 0.02  # ±0.02 absolute tolerance
@@ -40,9 +40,9 @@ def _read_hunk(path: Path, start: int, end: int) -> str:
 
 
 def _fastapi_scorer() -> tuple[SequentialImportBpeScorer, _FullFileFixtureMap]:
-    """Build fastapi scorer using control files as model_A."""
+    """Build fastapi scorer using control files as repo corpus."""
     fixtures_dir = _CATALOG / "fastapi" / "fixtures" / "default"
-    model_a_files = sorted(fixtures_dir.glob("control_*.py"))
+    repo_corpus_files = sorted(fixtures_dir.glob("control_*.py"))
     manifest = json.loads((_CATALOG / "fastapi" / "manifest.json").read_text())
     fixture_map: _FullFileFixtureMap = {
         entry["name"]: fixtures_dir / Path(entry["file"]).name for entry in manifest["fixtures"]
@@ -50,19 +50,19 @@ def _fastapi_scorer() -> tuple[SequentialImportBpeScorer, _FullFileFixtureMap]:
     # Calibration: 20 hunks from the control files (matches reference: n_cal=20, seed=0)
     from argot.scoring.calibration.random_hunk_sampler import sample_hunks
 
-    cal_hunks = sample_hunks(fixtures_dir, min(20, len(model_a_files)), seed=0)
+    cal_hunks = sample_hunks(fixtures_dir, min(20, len(repo_corpus_files)), seed=0)
     scorer = SequentialImportBpeScorer(
-        model_a_files=model_a_files,
-        bpe_model_b_path=_BPE_MODEL_B,
+        repo_corpus_files=repo_corpus_files,
+        bpe_generic_baseline_path=_BPE_GENERIC_BASELINE,
         calibration_hunks=cal_hunks,
     )
     return scorer, fixture_map
 
 
 def _rich_scorer() -> tuple[SequentialImportBpeScorer, _HunkFixtureMap]:
-    """Build rich scorer using rich/sources/model_a/ as model_A."""
-    model_a_dir = _CATALOG / "rich" / "sources" / "model_a"
-    model_a_files = sorted(model_a_dir.glob("*.py"))
+    """Build rich scorer using rich/sources/model_a/ as repo corpus."""
+    repo_corpus_dir = _CATALOG / "rich" / "sources" / "model_a"
+    repo_corpus_files = sorted(repo_corpus_dir.glob("*.py"))
     fixtures_dir = _CATALOG / "rich" / "fixtures"
     manifest = json.loads((_CATALOG / "rich" / "manifest.json").read_text())
     # Large source files: extract only the manifest-specified hunk range
@@ -76,20 +76,20 @@ def _rich_scorer() -> tuple[SequentialImportBpeScorer, _HunkFixtureMap]:
     }
     from argot.scoring.calibration.random_hunk_sampler import sample_hunks
 
-    n_cal = min(10, len(model_a_files) * 3)
-    cal_hunks = sample_hunks(model_a_dir, max(1, n_cal), seed=0)
+    n_cal = min(10, len(repo_corpus_files) * 3)
+    cal_hunks = sample_hunks(repo_corpus_dir, max(1, n_cal), seed=0)
     scorer = SequentialImportBpeScorer(
-        model_a_files=model_a_files,
-        bpe_model_b_path=_BPE_MODEL_B,
+        repo_corpus_files=repo_corpus_files,
+        bpe_generic_baseline_path=_BPE_GENERIC_BASELINE,
         calibration_hunks=cal_hunks,
     )
     return scorer, fixture_map
 
 
 def _faker_scorer() -> tuple[SequentialImportBpeScorer, _HunkFixtureMap]:
-    """Build faker scorer using faker/sources/model_a/ as model_A."""
-    model_a_dir = _CATALOG / "faker" / "sources" / "model_a"
-    model_a_files = sorted(model_a_dir.glob("*.py"))
+    """Build faker scorer using faker/sources/model_a/ as repo corpus."""
+    repo_corpus_dir = _CATALOG / "faker" / "sources" / "model_a"
+    repo_corpus_files = sorted(repo_corpus_dir.glob("*.py"))
     fixtures_dir = _CATALOG / "faker" / "fixtures"
     manifest = json.loads((_CATALOG / "faker" / "breaks_manifest.json").read_text())
     fixture_map: _HunkFixtureMap = {
@@ -102,11 +102,11 @@ def _faker_scorer() -> tuple[SequentialImportBpeScorer, _HunkFixtureMap]:
     }
     from argot.scoring.calibration.random_hunk_sampler import sample_hunks
 
-    n_cal = min(159, max(1, len(model_a_files)))
-    cal_hunks = sample_hunks(model_a_dir, n_cal, seed=0)
+    n_cal = min(159, max(1, len(repo_corpus_files)))
+    cal_hunks = sample_hunks(repo_corpus_dir, n_cal, seed=0)
     scorer = SequentialImportBpeScorer(
-        model_a_files=model_a_files,
-        bpe_model_b_path=_BPE_MODEL_B,
+        repo_corpus_files=repo_corpus_files,
+        bpe_generic_baseline_path=_BPE_GENERIC_BASELINE,
         calibration_hunks=cal_hunks,
     )
     return scorer, fixture_map

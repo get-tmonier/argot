@@ -79,13 +79,13 @@ def test_collect_returns_empty_for_no_source_files(tmp_path: Path) -> None:
     assert _collect_source_files(tmp_path) == []
 
 
-def test_main_writes_model_a_and_model_b(tmp_path: Path) -> None:
+def test_main_writes_repo_corpus_and_generic_baseline(tmp_path: Path) -> None:
     _init_repo(tmp_path)
     (tmp_path / "main.py").write_text("x = 1\n")
     (tmp_path / "util.ts").write_text("export {};\n")
 
-    model_a = tmp_path / "out" / "model_a.txt"
-    model_b = tmp_path / "out" / "model_b.json"
+    repo_corpus = tmp_path / "out" / "model_a.txt"
+    generic_baseline = tmp_path / "out" / "model_b.json"
 
     result = subprocess.run(
         [
@@ -95,17 +95,17 @@ def test_main_writes_model_a_and_model_b(tmp_path: Path) -> None:
             "--repo",
             str(tmp_path),
             "--model-a-out",
-            str(model_a),
+            str(repo_corpus),
             "--model-b-out",
-            str(model_b),
+            str(generic_baseline),
         ],
         capture_output=True,
         text=True,
     )
     assert result.returncode == 0, result.stderr
-    assert model_a.exists()
-    assert model_b.exists()
-    paths = model_a.read_text().splitlines()
+    assert repo_corpus.exists()
+    assert generic_baseline.exists()
+    paths = repo_corpus.read_text().splitlines()
     assert any("main.py" in p for p in paths)
     assert any("util.ts" in p for p in paths)
 

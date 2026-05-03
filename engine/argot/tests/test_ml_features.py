@@ -27,7 +27,7 @@ from argot.ml.features import (
 from argot.scoring.adapters.python_adapter import PythonAdapter
 from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
 
-_BPE_MODEL_B = Path(__file__).parent.parent / "scoring" / "bpe" / "generic_tokens_bpe.json"
+_BPE_GENERIC_BASELINE = Path(__file__).parent.parent / "scoring" / "bpe" / "generic_tokens_bpe.json"
 
 
 # ---------------------------------------------------------------------------
@@ -71,8 +71,8 @@ def _make_scorer(
     bpe_threshold: float = 99.0,
 ) -> SequentialImportBpeScorer:
     return SequentialImportBpeScorer(
-        model_a_files=files,
-        bpe_model_b_path=_BPE_MODEL_B,
+        repo_corpus_files=files,
+        bpe_generic_baseline_path=_BPE_GENERIC_BASELINE,
         bpe_threshold=bpe_threshold,
         adapter=PythonAdapter(),
         call_receiver_alpha=2.0,

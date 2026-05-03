@@ -1,9 +1,9 @@
 # engine/argot/research/signal/phase14/scorers/sequential_import_bpe_scorer.py
 """Sequential import-graph → BPE-tfidf scorer.
 
-Stage 1: ImportGraphScorer — if score ≥ 1, flag immediately (foreign module found).
-Stage 2: BPE-tfidf — for hunks where Stage 1 returned 0, flag if BPE score exceeds
-         per-repo threshold (= max BPE score over calibration hunks).
+Import checker: ImportGraphScorer — if score ≥ 1, flag immediately (foreign module found).
+BPE scorer: BPE-tfidf — for hunks where the import checker returned 0, flag if BPE score
+            exceeds per-repo threshold (= max BPE score over calibration hunks).
 
 Both scores are always computed so callers can use the full trace for diagnostics.
 """
@@ -126,11 +126,11 @@ Reason = Literal[
 
 
 class SequentialImportBpeScorer:
-    """Two-stage scorer: import-graph fast path, then BPE-tfidf residual.
+    """Two-stage scorer: import checker fast path, then BPE scorer residual.
 
     Args:
-        model_a_files: Source files of the repo being analysed (model_A corpus).
-        bpe_model_b_path: Path to generic_tokens_bpe.json (model_B reference).
+        repo_corpus_files: Source files of the repo being analysed (repo corpus).
+        bpe_generic_baseline_path: Path to generic_tokens_bpe.json (generic baseline reference).
         calibration_hunks: Representative normal hunks from the target repo.
             BPE threshold is set to max(bpe_score(h) for h in calibration_hunks) when
             threshold_percentile is None, or to that percentile otherwise.
@@ -141,16 +141,17 @@ class SequentialImportBpeScorer:
             p75 + k * IQR (IQR = p75 - p25). Default None.
         enable_typicality_filter: Build a TypicalityModel for calibration pool filtering
             and inference short-circuit (hunk- and file-level).  Default True.
-            Does NOT affect model-A filtering; model A always uses ``exclude_data_dominant``.
-        exclude_data_dominant: Filter model-A files using LanguageAdapter.is_data_dominant().
+            Does NOT affect repo corpus filtering; repo corpus always uses
+            ``exclude_data_dominant``.
+        exclude_data_dominant: Filter repo corpus files using LanguageAdapter.is_data_dominant().
             Operates independently of the typicality filter.
         _tokenizer: Optional pre-loaded tokenizer; loads UnixCoder if None (for DI in tests).
     """
 
     def __init__(
         self,
-        model_a_files: Iterable[Path],
-        bpe_model_b_path: Path,
+        repo_corpus_files: Iterable[Path],
+        bpe_generic_baseline_path: Path,
         calibration_hunks: list[str] | None = None,
         *,
         bpe_threshold: float | None = None,
@@ -180,11 +181,13 @@ class SequentialImportBpeScorer:
                 "Either calibration_hunks, calibration_hunks_with_metadata, or "
                 "bpe_threshold must be provided"
             )
-        model_a_list = list(model_a_files)
+        repo_corpus_list = list(repo_corpus_files)
 
         # Resolve language adapter from file extensions (or use provided adapter)
         self._adapter: LanguageAdapter = (
-            adapter if adapter is not None else adapter_for_files([str(p) for p in model_a_list])
+            adapter
+            if adapter is not None
+            else adapter_for_files([str(p) for p in repo_corpus_list])
         )
 
         # Typicality model — stateless, language-parameterized.
@@ -194,7 +197,7 @@ class SequentialImportBpeScorer:
 
         if exclude_data_dominant:
             filtered: list[Path] = []
-            for p in model_a_list:
+            for p in repo_corpus_list:
                 try:
                     src = p.read_text(encoding="utf-8", errors="replace")
                 except OSError:
@@ -204,20 +207,20 @@ class SequentialImportBpeScorer:
                     filtered.append(p)
             if not filtered:
                 raise ValueError(
-                    f"exclude_data_dominant=True removed all {len(model_a_list)} "
-                    "model A file(s); cannot train on an empty corpus."
+                    f"exclude_data_dominant=True removed all {len(repo_corpus_list)} "
+                    "repo corpus file(s); cannot train on an empty corpus."
                 )
-            model_a_list = filtered
+            repo_corpus_list = filtered
 
-        # Stage 1: import-graph scorer (uses same adapter)
+        # Import checker: import-graph scorer (uses same adapter)
         self._import_scorer = ImportGraphScorer(adapter=self._adapter, repo_root=repo_root)
-        self._import_scorer.fit(model_a_list)
+        self._import_scorer.fit(repo_corpus_list)
 
-        # Stage 1.5: call-receiver soft-penalty scorer
+        # BPE scorer: call-receiver soft-penalty scorer
         self._call_receiver: CallReceiverScorer | None = None
         if call_receiver_alpha > 0.0:
             self._call_receiver = CallReceiverScorer(
-                model_a_list,
+                repo_corpus_list,
                 language=language_for_adapter(self._adapter),
                 alpha=call_receiver_alpha,
                 cap=call_receiver_cap,
@@ -245,22 +248,22 @@ class SequentialImportBpeScorer:
         vocab: dict[str, int] = _tokenizer.get_vocab()
         self._id_to_token: dict[int, str] = {v: k for k, v in vocab.items()}
 
-        # BPE model B (generic reference corpus)
-        raw: dict[str, Any] = json.loads(bpe_model_b_path.read_text(encoding="utf-8"))
-        self._model_b: dict[int, int] = {int(k): v for k, v in raw["token_counts"].items()}
-        self._total_b: int = raw["total_tokens"]
+        # BPE generic baseline (broad open-source corpus reference)
+        raw: dict[str, Any] = json.loads(bpe_generic_baseline_path.read_text(encoding="utf-8"))
+        self._generic_baseline: dict[int, int] = {int(k): v for k, v in raw["token_counts"].items()}
+        self._total_generic: int = raw["total_tokens"]
 
-        # BPE model A (per-repo corpus)
+        # BPE repo corpus
         counts: Counter[int] = Counter()
-        for path in model_a_list:
+        for path in repo_corpus_list:
             try:
                 source = path.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 continue
             ids: list[int] = _tokenizer.encode(source, add_special_tokens=False)
             counts.update(ids)
-        self._model_a: dict[int, int] = dict(counts)
-        self._total_a: int = sum(counts.values()) or 1  # avoid division by zero
+        self._repo_corpus: dict[int, int] = dict(counts)
+        self._total_repo: int = sum(counts.values()) or 1  # avoid division by zero
 
         if bpe_threshold is not None:
             # Use pre-computed threshold (e.g. loaded from scorer-config.json)
@@ -323,8 +326,8 @@ class SequentialImportBpeScorer:
         if not filtered:
             return 0.0
         scores = [
-            math.log(self._model_b.get(i, 0) / self._total_b + _EPSILON)
-            - math.log(self._model_a.get(i, 0) / self._total_a + _EPSILON)
+            math.log(self._generic_baseline.get(i, 0) / self._total_generic + _EPSILON)
+            - math.log(self._repo_corpus.get(i, 0) / self._total_repo + _EPSILON)
             for i in filtered
         ]
         return max(scores)
@@ -343,11 +346,11 @@ class SequentialImportBpeScorer:
         Args:
             hunk_content: The raw hunk diff / function body to score.
             file_source: Optional full source of the file containing the hunk.
-                When provided, Stage 1 fires only on imports added in the hunk
+                When provided, the import checker fires only on imports added in the hunk
                 itself (not the file's header imports).  A pure string or comment
-                edit in an import-heavy file will not trigger Stage 1 because the
-                hunk has no import statements of its own.
-                Stage 2 always scores ``hunk_content`` only, regardless of
+                edit in an import-heavy file will not trigger the import checker because
+                the hunk has no import statements of its own.
+                The BPE scorer always scores ``hunk_content`` only, regardless of
                 file_source, to avoid token-position false positives from a
                 large file prefix.
             hunk_start_line: 1-indexed line number of the first line of the hunk
@@ -359,19 +362,19 @@ class SequentialImportBpeScorer:
                 masking.
 
         When *file_source*, *hunk_start_line*, and *hunk_end_line* are all
-        provided, Stage 2 blanks any prose lines (docstrings, comments) that
+        provided, the BPE scorer blanks any prose lines (docstrings, comments) that
         fall within the hunk range before BPE scoring, mirroring the symmetric
         treatment applied to calibration hunks.
 
         file_path: Optional resolved path to the file containing the hunk. When
-            provided, Stage 1.5 uses weighted_contribution_for_file() which can
+            provided, the BPE scorer uses weighted_contribution_for_file() which can
             apply an additive cluster_bonus for globally-attested callees absent
             from the file's cluster attested set. Has no effect when n_clusters=1
             (cluster-conditional scoring disabled).
 
         Returns a dict with keys:
-          - import_score (float): number of foreign modules (Stage 1 output)
-          - bpe_score (float): max log-likelihood ratio (Stage 2 output, always computed)
+          - import_score (float): number of foreign modules (import checker output)
+          - bpe_score (float): max log-likelihood ratio (BPE scorer output, always computed)
           - flagged (bool): True if either stage fires
           - reason ("import" | "bpe" | "none"): which stage fired first
         """
@@ -403,16 +406,16 @@ class SequentialImportBpeScorer:
             }
 
         if file_source is not None:
-            # Stage 1 — hunk-only: only imports added in the hunk can introduce a
+            # Import checker — hunk-only: only imports added in the hunk can introduce a
             # foreign module.  A pure string/comment edit in an import-heavy file
-            # has no hunk imports and cannot trigger Stage 1.
+            # has no hunk imports and cannot trigger the import checker.
             hunk_imports = self._adapter.extract_imports(hunk_content)
             foreign = {spec for spec in hunk_imports if self._import_scorer.is_foreign(spec)}
             import_score: float = float(len(foreign))
         else:
             import_score = self._import_scorer.score_hunk(hunk_content)
 
-        # Stage 2: optionally blank prose lines before BPE scoring
+        # BPE scorer: optionally blank prose lines before BPE scoring
         bpe_input = hunk_content
         if file_source is not None and hunk_start_line is not None and hunk_end_line is not None:
             file_prose = self._adapter.prose_line_ranges(file_source)
@@ -435,7 +438,7 @@ class SequentialImportBpeScorer:
                 "reason": "import",
             }
 
-        # Stage 1.5: call-receiver soft penalty
+        # BPE scorer: call-receiver soft penalty
         if self._call_receiver is not None:
             if file_path is not None:
                 contribution = self._call_receiver.weighted_contribution_for_file(

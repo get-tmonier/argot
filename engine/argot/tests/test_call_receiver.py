@@ -299,7 +299,7 @@ def test_scorer_fit_empty_file_list_raises() -> None:
         CallReceiverScorer([], language="python")
     except ValueError:
         return
-    raise AssertionError("expected ValueError for empty model_a_files")
+    raise AssertionError("expected ValueError for empty repo_corpus_files")
 
 
 def test_scorer_default_alpha_cap(tmp_path) -> None:  # type: ignore[no-untyped-def]

@@ -291,7 +291,7 @@ def test_unknown_file_path_with_source_falls_back_to_nearest_cluster(tmp_path: P
         pytest.skip("Math.floor leaked into io cluster — cannot test fallback discrimination")
     assert "Math.floor" in scorer.cluster_attested[math_cluster]
 
-    unknown = tmp_path / "unknown.ts"  # NOT in model_a_files
+    unknown = tmp_path / "unknown.ts"  # NOT in repo_corpus_files
     assert unknown not in scorer.file_to_cluster
 
     # Fetch-flavored unknown file → Jaccard nearest is io cluster → Math.floor
@@ -631,7 +631,9 @@ def test_cli_cluster_defaults_match_run_config() -> None:
 # ---------------------------------------------------------------------------
 
 
-_BPE_MODEL_B_PATH = Path(__file__).parent.parent / "scoring" / "bpe" / "generic_tokens_bpe.json"
+_BPE_GENERIC_BASELINE_PATH = (
+    Path(__file__).parent.parent / "scoring" / "bpe" / "generic_tokens_bpe.json"
+)
 
 
 def _build_two_cluster_repo(tmp_path: Path, n_per_cluster: int = 8) -> Path:
@@ -643,11 +645,11 @@ def _build_two_cluster_repo(tmp_path: Path, n_per_cluster: int = 8) -> Path:
     by construction, so any callee in ``f``'s source is always in ``f``'s
     cluster set.  The only way cluster_bonus can fire on a SAMPLED hunk is via
     the fallback path: ``f`` is NOT in ``file_to_cluster`` (e.g. because the
-    repo dir is broader than ``model_a_files``), and the Jaccard fallback maps
+    repo dir is broader than ``repo_corpus_files``), and the Jaccard fallback maps
     ``f`` to a cluster whose attested set is missing some of ``f``'s callees.
 
     To produce that situation we create a third "fallback" subdir whose files
-    are NOT included in model_a_files (the scorer's fit corpus), but ARE
+    are NOT included in repo_corpus_files (the scorer's fit corpus), but ARE
     included in the calibration hunk pool (sampled from repo root).  Each
     fallback file is io-flavored at the FILE level (so Jaccard maps it to the
     io cluster) but contains a sampleable function that calls Math.* callees
@@ -682,13 +684,13 @@ def _build_two_cluster_repo(tmp_path: Path, n_per_cluster: int = 8) -> Path:
         "  Promise.all([]);\n"
     )
 
-    # Pure math files (in model_a_files): only math callees → math cluster.
+    # Pure math files (in repo_corpus_files): only math callees → math cluster.
     for i in range(n_per_cluster):
         f = src_dir / f"math_{i}.ts"
         f.write_text(
             f"export function pure_math_{i}(x: number) {{\n" f"{math_callees}" "  return x;\n" "}\n"
         )
-    # Pure io files (in model_a_files): only io callees → io cluster.
+    # Pure io files (in repo_corpus_files): only io callees → io cluster.
     for i in range(n_per_cluster):
         f = src_dir / f"io_{i}.ts"
         f.write_text(
@@ -698,7 +700,7 @@ def _build_two_cluster_repo(tmp_path: Path, n_per_cluster: int = 8) -> Path:
             "}\n"
         )
 
-    # Fallback subdir (NOT in model_a_files): io-flavored files whose hunks
+    # Fallback subdir (NOT in repo_corpus_files): io-flavored files whose hunks
     # call Math.* callees.  Sampled hunks from these files trigger the
     # fallback path → Jaccard-nearest is io cluster → cluster_bonus fires
     # on the Math.* callees (globally attested via math/ files but absent
@@ -745,15 +747,15 @@ def _build_scorer(
     )
 
     adapter = TypeScriptAdapter()
-    # model_a_files EXCLUDES the fallback/ subdir so hunks sampled from
+    # repo_corpus_files EXCLUDES the fallback/ subdir so hunks sampled from
     # fallback/ trigger the era-11 Phase 1 file_source fallback path → that
     # is where cluster_bonus actually fires on calibration hunks.
     files = sorted(p for p in repo.rglob("*.ts") if "fallback" not in p.parts)
     if metadata:
         meta = sample_hunks_with_metadata(repo, n=8, seed=0, adapter=adapter)
         return SequentialImportBpeScorer(
-            model_a_files=files,
-            bpe_model_b_path=_BPE_MODEL_B_PATH,
+            repo_corpus_files=files,
+            bpe_generic_baseline_path=_BPE_GENERIC_BASELINE_PATH,
             calibration_hunks=[h for h, _, _ in meta],
             calibration_hunks_with_metadata=meta,
             adapter=adapter,
@@ -768,8 +770,8 @@ def _build_scorer(
         )
     hunks = sample_hunks(repo, n=8, seed=0, adapter=adapter)
     return SequentialImportBpeScorer(
-        model_a_files=files,
-        bpe_model_b_path=_BPE_MODEL_B_PATH,
+        repo_corpus_files=files,
+        bpe_generic_baseline_path=_BPE_GENERIC_BASELINE_PATH,
         calibration_hunks=hunks,
         adapter=adapter,
         threshold_percentile=threshold_percentile,
@@ -825,7 +827,7 @@ def test_alpha_root_bonus_zero_in_calibration(tmp_path: Path) -> None:
 
     repo = _build_two_cluster_repo(tmp_path)
     adapter = TypeScriptAdapter()
-    # Mirror _build_scorer: model_a_files exclude the fallback subdir so that
+    # Mirror _build_scorer: repo_corpus_files exclude the fallback subdir so that
     # the io cluster's attested set is io-only (Math.* absent).
     files = sorted(p for p in repo.rglob("*.ts") if "fallback" not in p.parts)
 
@@ -886,8 +888,8 @@ def test_alpha_root_bonus_zero_in_calibration(tmp_path: Path) -> None:
 
     meta = sample_hunks_with_metadata(repo, n=8, seed=0, adapter=adapter)
     scorer = SequentialImportBpeScorer(
-        model_a_files=files,
-        bpe_model_b_path=_BPE_MODEL_B_PATH,
+        repo_corpus_files=files,
+        bpe_generic_baseline_path=_BPE_GENERIC_BASELINE_PATH,
         calibration_hunks=[h for h, _, _ in meta],
         calibration_hunks_with_metadata=meta,
         adapter=adapter,
@@ -930,7 +932,7 @@ def test_metadata_calibration_filters_typicality(tmp_path: Path) -> None:
 
     repo = _build_two_cluster_repo(tmp_path)
     adapter = TypeScriptAdapter()
-    # Match _build_scorer: model_a_files exclude fallback so cluster_bonus can fire.
+    # Match _build_scorer: repo_corpus_files exclude fallback so cluster_bonus can fire.
     files = sorted(p for p in repo.rglob("*.ts") if "fallback" not in p.parts)
     meta = sample_hunks_with_metadata(repo, n=8, seed=0, adapter=adapter)
 
@@ -954,8 +956,8 @@ def test_metadata_calibration_filters_typicality(tmp_path: Path) -> None:
     meta_with_atypical: list[tuple[str, Path, str]] = [*meta, (atypical_hunk, fp, src)]
 
     scorer = SequentialImportBpeScorer(
-        model_a_files=files,
-        bpe_model_b_path=_BPE_MODEL_B_PATH,
+        repo_corpus_files=files,
+        bpe_generic_baseline_path=_BPE_GENERIC_BASELINE_PATH,
         calibration_hunks=[h for h, _, _ in meta_with_atypical],
         calibration_hunks_with_metadata=meta_with_atypical,
         adapter=adapter,

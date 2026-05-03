@@ -1,6 +1,6 @@
 # argot
 
-Style linter that learns a repo's voice from git history. CLI in TypeScript/Bun; data pipeline in Python/UV.
+Voice linter that learns a repo's voice from git history. CLI in TypeScript/Bun; data pipeline in Python/UV.
 
 ## Task runner
 
@@ -58,3 +58,16 @@ The codebase is strict by design (mypy strict, no-any, ruff). When a check fails
 
 Linting/checking: `oxlint` · `oxfmt` · `tsgo` (native TS checker) · `dependency-cruiser` · `knip` · `ruff` · `mypy`
 
+## Agent skills
+
+### Issue tracker
+
+Issues live as local markdown files under `.scratch/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Four-role vocabulary for solo maintainer (no `needs-info`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Multi-context layout; `docs/research/` serves as ADR. See `docs/agents/domain.md`.

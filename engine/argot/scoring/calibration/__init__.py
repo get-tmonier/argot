@@ -38,9 +38,9 @@ def calibrate_multi_seed(
     n_seeds: int,
     n_cal: int,
     repo_dir: Path,
-    model_a_files: list[Path],
+    repo_corpus_files: list[Path],
     adapter: LanguageAdapter,
-    bpe_model_b_path: Path,
+    bpe_generic_baseline_path: Path,
     threshold_percentile: float | None = 95.0,
     threshold_iqr_k: float | None = None,
     call_receiver_alpha: float = 2.0,
@@ -77,8 +77,8 @@ def calibrate_multi_seed(
     # Build first scorer — lets the tokenizer load once
     first_hunks, first_meta = _sample(base_seed)
     first_scorer = SequentialImportBpeScorer(
-        model_a_files=model_a_files,
-        bpe_model_b_path=bpe_model_b_path,
+        repo_corpus_files=repo_corpus_files,
+        bpe_generic_baseline_path=bpe_generic_baseline_path,
         calibration_hunks=first_hunks,
         calibration_hunks_with_metadata=first_meta,
         adapter=adapter,
@@ -101,8 +101,8 @@ def calibrate_multi_seed(
         seed = base_seed + k
         hunks, meta = _sample(seed)
         scorer = SequentialImportBpeScorer(
-            model_a_files=model_a_files,
-            bpe_model_b_path=bpe_model_b_path,
+            repo_corpus_files=repo_corpus_files,
+            bpe_generic_baseline_path=bpe_generic_baseline_path,
             calibration_hunks=hunks,
             calibration_hunks_with_metadata=meta,
             adapter=adapter,
@@ -161,12 +161,12 @@ def main() -> None:
     parser.add_argument(
         "--model-a",
         default=".argot/model_a.txt",
-        help="File listing model-A source paths (produced by argot-train)",
+        help="File listing repo corpus source paths (produced by argot-train)",
     )
     parser.add_argument(
         "--model-b",
         default=".argot/model_b.json",
-        help="Path to BPE reference JSON (produced by argot-train)",
+        help="Path to BPE generic baseline JSON (produced by argot-train)",
     )
     parser.add_argument(
         "--output",
@@ -176,29 +176,31 @@ def main() -> None:
     args = parser.parse_args()
 
     repo_path = Path(args.repo).resolve()
-    model_a_path = Path(args.model_a)
-    model_b_path = Path(args.model_b)
+    repo_corpus_path = Path(args.model_a)
+    generic_baseline_path = Path(args.model_b)
 
-    if not model_a_path.exists():
+    if not repo_corpus_path.exists():
         print(
-            f"error: model_a file not found at {model_a_path} — run argot-train first",
+            f"error: repo corpus file not found at {repo_corpus_path} — run argot-train first",
             file=sys.stderr,
         )
         sys.exit(2)
-    if not model_b_path.exists():
+    if not generic_baseline_path.exists():
         print(
-            f"error: model_b not found at {model_b_path} — run argot-train first",
+            f"error: generic baseline not found at {generic_baseline_path} — run argot-train first",
             file=sys.stderr,
         )
         sys.exit(2)
 
-    model_a_files = [Path(line) for line in model_a_path.read_text().splitlines() if line.strip()]
-    if not model_a_files:
+    repo_corpus_files = [
+        Path(line) for line in repo_corpus_path.read_text().splitlines() if line.strip()
+    ]
+    if not repo_corpus_files:
         print("error: model_a.txt is empty", file=sys.stderr)
         sys.exit(2)
 
     n_cal = args.n_cal
-    adapter = adapter_for_files([str(p) for p in model_a_files])
+    adapter = adapter_for_files([str(p) for p in repo_corpus_files])
     source_dir = repo_path
     candidates = collect_candidates(source_dir, adapter=adapter)
     effective_n_cal = min(n_cal, len(candidates))
@@ -221,9 +223,9 @@ def main() -> None:
             n_seeds=args.threshold_n_seeds,
             n_cal=effective_n_cal,
             repo_dir=source_dir,
-            model_a_files=model_a_files,
+            repo_corpus_files=repo_corpus_files,
             adapter=adapter,
-            bpe_model_b_path=model_b_path,
+            bpe_generic_baseline_path=generic_baseline_path,
             threshold_percentile=args.threshold_percentile,
             threshold_iqr_k=args.threshold_iqr_k,
             call_receiver_alpha=call_receiver_alpha,
@@ -234,8 +236,8 @@ def main() -> None:
             call_receiver_cluster_bonus=call_receiver_cluster_bonus,
         )
         scorer = SequentialImportBpeScorer(
-            model_a_files=model_a_files,
-            bpe_model_b_path=model_b_path,
+            repo_corpus_files=repo_corpus_files,
+            bpe_generic_baseline_path=generic_baseline_path,
             bpe_threshold=threshold,
             call_receiver_alpha=call_receiver_alpha,
             call_receiver_cap=call_receiver_cap,
@@ -249,8 +251,8 @@ def main() -> None:
         cal_hunks = sample_hunks(source_dir, effective_n_cal, args.seed, adapter=adapter)
         print(f"Sampled {len(cal_hunks)} calibration hunks from {source_dir}")
         scorer = SequentialImportBpeScorer(
-            model_a_files=model_a_files,
-            bpe_model_b_path=model_b_path,
+            repo_corpus_files=repo_corpus_files,
+            bpe_generic_baseline_path=generic_baseline_path,
             calibration_hunks=cal_hunks,
             call_receiver_alpha=call_receiver_alpha,
             call_receiver_cap=call_receiver_cap,

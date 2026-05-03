@@ -1,7 +1,7 @@
 import { Argument, Command } from 'effect/unstable/cli';
 import { Console, Effect } from 'effect';
 import { RepoContext } from '#modules/repo-context/dependencies.ts';
-import { runCheckStyle } from '#modules/check-style/application/use-cases/check-style.use-case.ts';
+import { runCheckVoice } from '#modules/check-voice/application/use-cases/check-voice.use-case.ts';
 
 export const checkCommand = Command.make(
   'check',
@@ -20,7 +20,7 @@ export const checkCommand = Command.make(
       yield* Console.log(
         `argot · ${ctx.name} (${ctx.gitRoot}) · threshold ${ctx.preferences.threshold}`,
       );
-      const hasViolations = yield* runCheckStyle({
+      const hasViolations = yield* runCheckVoice({
         repoPath: ctx.gitRoot,
         ref,
         argotDir: ctx.argotDir,

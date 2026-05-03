@@ -7,12 +7,12 @@ from argot.scoring.adapters.python_adapter import PythonAdapter
 
 _CATALOG = Path(__file__).parent.parent / "acceptance" / "catalog"
 _FASTAPI_FIXTURES = _CATALOG / "fastapi" / "fixtures" / "default"
-_RICH_MODEL_A = _CATALOG / "rich" / "sources" / "model_a"
-_FAKER_MODEL_A = _CATALOG / "faker" / "sources" / "model_a"
+_RICH_REPO_CORPUS = _CATALOG / "rich" / "sources" / "model_a"
+_FAKER_REPO_CORPUS = _CATALOG / "faker" / "sources" / "model_a"
 
 _CONTROL_FILES = sorted(_FASTAPI_FIXTURES.glob("control_*.py"))[:3]
-_RICH_FILES = sorted(_RICH_MODEL_A.glob("*.py"))[:3]
-_FAKER_FILES = sorted(_FAKER_MODEL_A.glob("*.py"))[:3]
+_RICH_FILES = sorted(_RICH_REPO_CORPUS.glob("*.py"))[:3]
+_FAKER_FILES = sorted(_FAKER_REPO_CORPUS.glob("*.py"))[:3]
 
 
 def _read(p: Path) -> str:
@@ -38,7 +38,7 @@ def test_enumerate_sampleable_ranges_on_fastapi_fixtures() -> None:
             assert start < end, f"{f.name}: start {start} >= end {end}"
 
 
-def test_enumerate_sampleable_ranges_on_rich_model_a() -> None:
+def test_enumerate_sampleable_ranges_on_rich_repo_corpus() -> None:
     adapter = PythonAdapter()
     for f in _RICH_FILES:
         src = _read(f)
@@ -46,7 +46,7 @@ def test_enumerate_sampleable_ranges_on_rich_model_a() -> None:
         assert isinstance(ranges, list)
 
 
-def test_enumerate_sampleable_ranges_on_faker_model_a() -> None:
+def test_enumerate_sampleable_ranges_on_faker_repo_corpus() -> None:
     adapter = PythonAdapter()
     for f in _FAKER_FILES:
         src = _read(f)

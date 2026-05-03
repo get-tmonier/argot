@@ -1,8 +1,8 @@
 import { Context } from 'effect';
 import type { Effect } from 'effect';
-import type { CheckError } from '#modules/check-style/domain/errors.ts';
+import type { CheckError } from '#modules/check-voice/domain/errors.ts';
 
-interface StyleCheckerShape {
+interface VoiceCheckerShape {
   readonly runCheck: (args: {
     repoPath: string;
     ref: string;
@@ -11,6 +11,6 @@ interface StyleCheckerShape {
   }) => Effect.Effect<boolean, CheckError>;
 }
 
-export class StyleChecker extends Context.Service<StyleChecker, StyleCheckerShape>()(
-  '@argot/StyleChecker',
+export class VoiceChecker extends Context.Service<VoiceChecker, VoiceCheckerShape>()(
+  '@argot/VoiceChecker',
 ) {}

@@ -30,7 +30,7 @@ Reason = Literal[
 
 # engine/argot/scoring/bpe/generic_tokens_bpe.json
 # score.py -> argot_bench -> src -> benchmarks -> <repo root>
-_BPE_MODEL_B = (
+_BPE_GENERIC_BASELINE = (
     Path(__file__).resolve().parent.parent.parent.parent
     / "engine"
     / "argot"
@@ -158,9 +158,9 @@ def build_scorer(
             n_seeds=threshold_n_seeds,
             n_cal=n_cal,
             repo_dir=repo_dir,
-            model_a_files=files,
+            repo_corpus_files=files,
             adapter=adapter,
-            bpe_model_b_path=bpe_model_b or _BPE_MODEL_B,
+            bpe_generic_baseline_path=bpe_model_b or _BPE_GENERIC_BASELINE,
             threshold_percentile=threshold_percentile,
             threshold_iqr_k=threshold_iqr_k,
             call_receiver_alpha=call_receiver_alpha,
@@ -173,8 +173,8 @@ def build_scorer(
             enable_typicality_filter=enable_typicality_filter,
         )
         inner = SequentialImportBpeScorer(
-            model_a_files=files,
-            bpe_model_b_path=bpe_model_b or _BPE_MODEL_B,
+            repo_corpus_files=files,
+            bpe_generic_baseline_path=bpe_model_b or _BPE_GENERIC_BASELINE,
             bpe_threshold=median_threshold,
             adapter=adapter,
             repo_root=repo_dir,
@@ -192,8 +192,8 @@ def build_scorer(
     else:
         cal_hunks = sample_hunks(repo_dir, n_cal, seed, adapter=adapter)
         inner = SequentialImportBpeScorer(
-            model_a_files=files,
-            bpe_model_b_path=bpe_model_b or _BPE_MODEL_B,
+            repo_corpus_files=files,
+            bpe_generic_baseline_path=bpe_model_b or _BPE_GENERIC_BASELINE,
             calibration_hunks=cal_hunks,
             adapter=adapter,
             repo_root=repo_dir,

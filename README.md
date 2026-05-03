@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  Style linter that builds a statistical model of your codebase's voice from its own git history,<br/>
+  Voice linter that builds a statistical model of your codebase's voice from its own git history,<br/>
   then flags hunks whose token distribution diverges from the learned norm.<br/>
   No GPU · No cloud · No telemetry · Runs in seconds after a one-time calibration
 </p>
@@ -41,7 +41,7 @@ It does *not* replace ESLint, ruff, or type checkers. It catches what they can't
 
 ### Concrete examples
 
-Validated against the FastAPI corpus (50 real PRs, 1,452 hunks). All three examples below were caught at **95%+ recall** by Stage 2 alone — with no import-level hints.
+Validated against the FastAPI corpus (50 real PRs, 1,452 hunks). All three examples below were caught at **95%+ recall** by the BPE scorer alone — with no import-level hints.
 
 **Foreign framework routing** (`reason: import`, score 5.77)
 ```python
@@ -53,7 +53,7 @@ app = Flask(__name__)
 def users() -> object:
     return jsonify(list(_users.values()))
 ```
-FastAPI routes use `@router.get` / `@router.post` with Pydantic-typed parameters. Flask's `@app.route(methods=[...])` + `request` proxy is a fully foreign vocabulary — Stage 1 catches the `flask` import immediately.
+FastAPI routes use `@router.get` / `@router.post` with Pydantic-typed parameters. Flask's `@app.route(methods=[...])` + `request` proxy is a fully foreign vocabulary — the import checker catches the `flask` import immediately.
 
 **Sync blocking in an async codebase** (`reason: bpe`, score 7.33)
 ```python
@@ -66,7 +66,7 @@ async def proxy():
     resp = requests.get("https://upstream/api")  # blocks all concurrent requests
     return resp.json()
 ```
-No foreign import — `requests` is a standard library. But its token pattern (`requests.get`, `requests.Session`, `cert=`, `timeout=`) is rare in the FastAPI corpus. Stage 2 catches this with 100% recall across all host PRs.
+No foreign import — `requests` is a standard library. But its token pattern (`requests.get`, `requests.Session`, `cert=`, `timeout=`) is rare in the FastAPI corpus. The BPE scorer catches this with 100% recall across all host PRs.
 
 **Wrong validation style** (`reason: bpe`, score 5.82)
 ```python
@@ -107,7 +107,7 @@ npm install -g @tmonier/argot
 ```sh
 cd your-repo
 argot extract      # parse git history → .argot/dataset.jsonl
-argot train        # collect model-A source files and BPE reference → .argot/model_a.txt, .argot/model_b.json
+argot train        # collect repo corpus source files and generic baseline → .argot/model_a.txt, .argot/model_b.json
 argot calibrate    # sample calibration hunks, set threshold → .argot/scorer-config.json
 argot check        # score uncommitted changes (or pass a ref/range)
 ```
@@ -161,13 +161,13 @@ Output: `.argot/dataset.jsonl` — one record per hunk, with tokenized context a
 
 ### 2. Train
 
-Collects the repo's source files as model A and copies the generic BPE reference as model B:
+Collects the repo's source files as the repo corpus and copies the generic BPE reference as the generic baseline:
 
 ```bash
 argot train
 ```
 
-Output: `.argot/model_a.txt` (list of source file paths) and `.argot/model_b.json` (generic token reference). Only needs to be re-run when the codebase changes significantly.
+Output: `.argot/model_a.txt` (list of repo corpus source file paths) and `.argot/model_b.json` (generic baseline token reference). Only needs to be re-run when the codebase changes significantly.
 
 ### 3. Calibrate
 
@@ -216,7 +216,7 @@ The threshold is set automatically by `argot calibrate`. Override it with `--thr
 
 1. **Extract** — walks `git log`, extracts commit diffs, tokenizes each hunk and its surrounding context using a language-aware [tree-sitter](https://tree-sitter.github.io/tree-sitter/) tokenizer. Tree-sitter is an incremental, error-tolerant parser that works on partial and syntactically invalid fragments (essential for mid-block hunk slices) and provides a single uniform interface for every supported language.
 
-2. **Train** — collects the repo's non-test source files into model A (the repo's own token distribution) and copies the bundled generic BPE reference (model B, a broad open-source corpus baseline). Data-dominant files (data tables, locale dumps, generated code) are excluded by the `is_data_dominant` structural predicate so they don't pollute the token distribution.
+2. **Train** — collects the repo's non-test source files into the repo corpus (the repo's own token distribution) and copies the bundled generic BPE reference (generic baseline, a broad open-source corpus baseline). Data-dominant files (data tables, locale dumps, generated code) are excluded by the `is_data_dominant` structural predicate so they don't pollute the token distribution.
 
 3. **Calibrate** — samples up to 500 representative top-level functions and classes from the repo (the typicality filter pre-excludes atypical candidates), scores them through the full two-stage scorer, and sets the BPE threshold to the max score over those normal hunks. Writes `.argot/scorer-config.json`.
 
@@ -226,9 +226,9 @@ The threshold is set automatically by `argot calibrate`. Override it with `--thr
 flowchart TD
     H(["diff hunk"]) --> TYP{"typicality filter<br/>atypical hunk or file?"}
     TYP -- yes --> SKIP(["⏭  skip<br/>reason: atypical / atypical_file"])
-    TYP -- no --> S1["Stage 1 — import graph\nextract hunk imports\nflag if any are foreign to this repo"]
+    TYP -- no --> S1["Import checker — import graph\nextract hunk imports\nflag if any are foreign to this repo"]
     S1 -- "foreign module found" --> F1(["🚩 flagged  reason: import"])
-    S1 -- "all imports native" --> S2["Stage 2 — BPE log-ratio + call-receiver penalty\nadjusted = bpe + min(Σ w(c), cap)\nw(c) = α+r if root attested · α if globally unattested\nβ if globally attested but absent from file's cluster\n(α=2.0, r=2.0, β=5.0, cap=5.0, K=8)"]
+    S1 -- "all imports attested" --> S2["BPE scorer — BPE log-ratio + call-receiver penalty\nadjusted = bpe + min(Σ w(c), cap)\nw(c) = α+r if root attested · α if globally unattested\nβ if globally attested but absent from file's cluster\n(α=2.0, r=2.0, β=5.0, cap=5.0, K=8)"]
     S2 -- "penalty tipped it" --> F15(["🚩 flagged  reason: call_receiver"])
     S2 -- "bpe alone > threshold" --> F2(["🚩 flagged  reason: bpe"])
     S2 -- "adjusted ≤ threshold" --> OK(["✅ clean"])
@@ -236,9 +236,9 @@ flowchart TD
 
    **Pre-scorer — typicality filter:** an AST-derived predicate short-circuits hunks whose content is structurally data-dominant (`literal_leaf_ratio > 0.80` with a named-leaf size gate) or whose enclosing file is globally data-dominant (file-level fallback). Replaces the legacy auto-generated heuristics at calibration and inference.
 
-   **Stage 1 — import graph:** for each hunk, extracts its import statements and checks whether any imported module is absent from the repo's own first-party import set. A single foreign import immediately flags the hunk (`reason: "import"`).
+   **Import checker — import graph:** for each hunk, extracts its import statements and checks whether any imported module is absent from the repo's own first-party import set. A single foreign import immediately flags the hunk (`reason: "import"`).
 
-   **Stage 2 — BPE log-ratio with call-receiver penalty:** tokenizes the hunk with the [UnixCoder](https://huggingface.co/microsoft/unixcoder-base) BPE tokenizer (pre-trained on 9M+ code files across 9 languages — only the vocabulary is used, not the neural network) and computes a max-surprise score over the hunk's tokens. The score is then adjusted by a per-callee penalty: `adjusted = bpe + min(Σ w(c), cap)` summed over each distinct callee `c`. The weight `w(c)` is `α + r` when the callee is globally unattested but its root is attested (e.g. `req.send` when `req.get` is known), `α` when the callee root is also unattested, and `β` when the callee is globally attested but absent from the attested set of its file's cluster. **α = 2.0, r = 2.0, β = 5.0, cap = 5.0** in the shipping config. The cluster-conditional term targets context-dependent breaks where a known callee shows up in a file kind it never belongs to (e.g. `Math.random` in a deterministic faker-js provider, even though `Math.random` exists elsewhere in the repo's tests). A parse-fragment guard abstains when the hunk slice doesn't parse cleanly.
+   **BPE scorer — BPE log-ratio with call-receiver penalty:** tokenizes the hunk with the [UnixCoder](https://huggingface.co/microsoft/unixcoder-base) BPE tokenizer (pre-trained on 9M+ code files across 9 languages — only the vocabulary is used, not the neural network) and computes a max-surprise score over the hunk's tokens. The score is then adjusted by a per-callee penalty: `adjusted = bpe + min(Σ w(c), cap)` summed over each distinct callee `c`. The weight `w(c)` is `α + r` when the callee is globally unattested but its root is attested (e.g. `req.send` when `req.get` is known), `α` when the callee root is also unattested, and `β` when the callee is globally attested but absent from the attested set of its file's cluster. **α = 2.0, r = 2.0, β = 5.0, cap = 5.0** in the shipping config. The cluster-conditional term targets context-dependent breaks where a known callee shows up in a file kind it never belongs to (e.g. `Math.random` in a deterministic faker-js provider, even though `Math.random` exists elsewhere in the repo's tests). A parse-fragment guard abstains when the hunk slice doesn't parse cleanly.
 
    **File clustering for the cluster-conditional term:** at fit time, every non-data-dominant source file is reduced to its callee bag (set of dotted call expressions extracted via tree-sitter), encoded as a 128-perm MinHash signature, and clustered into K=8 groups via KMeans on the signatures. Each cluster's attested set is the union of its files' callees. At score time, the hunk's file is mapped to its cluster (or to the Jaccard-nearest cluster if the file isn't in the trained corpus). The clustering is derived purely from callee statistics — no path patterns, no per-corpus heuristics.
 
@@ -248,11 +248,11 @@ $$\text{surprise}(t) = \log P_B(t) - \log P_A(t)$$
 
 $$\text{score}(\text{hunk}) = \max_{t \;\in\; \text{tokens}(\text{hunk})} \text{surprise}(t)$$
 
-   A high score means at least one token in the hunk is far more common in generic open-source code than in *this* repo — a reliable signal of foreign style. Model A is built by counting BPE tokens across the repo's non-test source files (CPU-only, takes seconds). Model B is a pre-built reference distribution bundled with argot — no download, no training loop. Prose lines (comments, docstrings) are blanked before scoring to avoid natural-language noise inflating the signal.
+   A high score means at least one token in the hunk is far more common in generic open-source code than in *this* repo — a reliable signal of foreign style. The repo corpus is built by counting BPE tokens across the repo's non-test source files (CPU-only, takes seconds). The generic baseline is a pre-built reference distribution bundled with argot — no download, no training loop. Prose lines (comments, docstrings) are blanked before scoring to avoid natural-language noise inflating the signal.
 
    The call-receiver penalty adds a fractional contribution for each distinct dotted callee that's either repo-novel or absent from its file's cluster. Calibration hunks come from files in the trained corpus, so by construction their callees are subsets of their cluster's attested set — calibration scores are invariant under both α and β. The threshold is set against raw BPE alone; the penalty exists to push genuinely anomalous hunks past the threshold at score time.
 
-   A hunk is flagged if Stage 1 fires (foreign import) or Stage 2's adjusted score exceeds the calibration threshold. Reason attribution: `call_receiver` when the penalty pushed a below-threshold BPE over the line, `bpe` when raw BPE already crossed it. Scores and reasons are always included in the output for diagnostics.
+   A hunk is flagged if the import checker fires (foreign import) or the BPE scorer's adjusted score exceeds the calibration threshold. Reason attribution: `call_receiver` when the penalty pushed a below-threshold BPE over the line, `bpe` when raw BPE already crossed it. Scores and reasons are always included in the output for diagnostics.
 
 Language-specific logic (import extraction, callee extraction, prose masking, sampleable-range enumeration) is fully encapsulated in `LanguageAdapter` implementations; the typicality filter is language-parameterized via a shared module rather than per-adapter methods. Python and TypeScript are supported out of the box.
 
@@ -296,7 +296,7 @@ Per-category mean recall **91.5%**; total fixture catches **105/115
 (91.3%)**; **FP rate ≤ 1.2% on five of six corpora** with faker (Python)
 at 1.96% — a documented structural cost of cluster-conditional attestation
 on locale-partitioned corpora. The production scorer ships with the
-AST-derived typicality filter plus the Stage 1.5 call-receiver penalty
+AST-derived typicality filter plus the BPE scorer call-receiver penalty
 (α=2.0, root_bonus=2.0, cluster_bonus=5.0, K=8 MinHash clusters).
 **Threshold CV = 0%** across 5 seeds: runs are reproducible.
 
@@ -348,7 +348,7 @@ lefthook install      # wire pre-commit hooks
 just verify           # lint + format + typecheck + boundaries + knip + test
 just test             # bun test (cli) + pytest (engine)
 just extract .        # extract training data from this repo
-just train            # collect model-A files and BPE reference
+just train            # collect repo corpus files and generic baseline
 just check            # score HEAD~1..HEAD
 just build            # compile dist/argot standalone binary
 ```
@@ -373,12 +373,12 @@ argot/
 │       │   ├── calibration/  # random hunk sampler + calibrate entry point
 │       │   ├── adapters/ # LanguageAdapter protocol + Python/TypeScript impls
 │       │   ├── filters/  # typicality predicate (AST-derived, hunk + file level)
-│       │   ├── bpe/      # bundled generic BPE reference (model B)
+│       │   ├── bpe/      # bundled generic BPE reference (generic baseline)
 │       │   └── parsers/  # tree-sitter parse helpers
 │       ├── git_walk.py   # pygit2 repo walker
 │       ├── tokenize.py   # tree-sitter tokenizer
 │       ├── extract.py    # extract → JSONL
-│       ├── train.py      # collect model-A files + copy BPE reference
+│       ├── train.py      # collect repo corpus files + copy generic baseline
 │       ├── check.py      # two-stage scoring entry point
 │       ├── stats.py      # shared statistical helpers
 │       └── dataset.py    # record schema

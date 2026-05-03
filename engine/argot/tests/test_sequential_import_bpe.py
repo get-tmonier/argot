@@ -9,28 +9,28 @@ from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScore
 
 _CATALOG = Path(__file__).parent.parent / "acceptance" / "catalog"
 _FASTAPI_FIXTURES = _CATALOG / "fastapi" / "fixtures" / "default"
-_BPE_MODEL_B = Path(__file__).parent.parent / "scoring" / "bpe" / "generic_tokens_bpe.json"
+_BPE_GENERIC_BASELINE = Path(__file__).parent.parent / "scoring" / "bpe" / "generic_tokens_bpe.json"
 
-# Tiny inline model_a for unit tests (one real FastAPI file + two synthetics)
+# Tiny inline repo corpus for unit tests (one real FastAPI file + two synthetics)
 _CONTROL_FILES = sorted(_FASTAPI_FIXTURES.glob("control_*.py"))[:5]
 
 
 def _make_scorer(
-    model_a_files: list[Path] | None = None,
+    repo_corpus_files: list[Path] | None = None,
     calibration_hunks: list[str] | None = None,
     bpe_threshold: float | None = None,
 ) -> SequentialImportBpeScorer:
-    files = model_a_files or _CONTROL_FILES
+    files = repo_corpus_files or _CONTROL_FILES
     return SequentialImportBpeScorer(
-        model_a_files=files,
-        bpe_model_b_path=_BPE_MODEL_B,
+        repo_corpus_files=files,
+        bpe_generic_baseline_path=_BPE_GENERIC_BASELINE,
         calibration_hunks=calibration_hunks,
         bpe_threshold=bpe_threshold if bpe_threshold is not None else None,
     )
 
 
 def test_stage1_flags_foreign_import() -> None:
-    """Stage 1 fires when hunk introduces a module absent from model_A."""
+    """Stage 1 fires when hunk introduces a module absent from the repo corpus."""
     scorer = _make_scorer(bpe_threshold=99.0)  # disable stage 2
     hunk = "import flask\nfrom flask import Flask, request\napp = Flask(__name__)\n"
     result = scorer.score_hunk(hunk)
@@ -40,7 +40,7 @@ def test_stage1_flags_foreign_import() -> None:
 
 
 def test_stage1_clean_on_known_import() -> None:
-    """Stage 1 does not fire for modules already seen in model_A."""
+    """Stage 1 does not fire for modules already seen in the repo corpus."""
     scorer = _make_scorer(bpe_threshold=99.0)
     # fastapi is a known import in the FastAPI corpus
     hunk = "from fastapi import APIRouter\nrouter = APIRouter()\n"
@@ -136,12 +136,12 @@ def test_scorer_raises_without_hunks_or_threshold() -> None:
     """Scorer raises ValueError if neither calibration_hunks nor bpe_threshold is given."""
     with pytest.raises(ValueError, match="calibration_hunks.*bpe_threshold"):
         SequentialImportBpeScorer(
-            model_a_files=_CONTROL_FILES,
-            bpe_model_b_path=_BPE_MODEL_B,
+            repo_corpus_files=_CONTROL_FILES,
+            bpe_generic_baseline_path=_BPE_GENERIC_BASELINE,
         )
 
 
-def test_scorer_filters_data_dominant_model_a_files(tmp_path: Path) -> None:
+def test_scorer_filters_data_dominant_repo_corpus_files(tmp_path: Path) -> None:
     from argot.scoring.adapters.python_adapter import PythonAdapter
     from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
 
@@ -161,7 +161,7 @@ def test_scorer_filters_data_dominant_model_a_files(tmp_path: Path) -> None:
             ]
         )
     )
-    # Data-dominant file — should be filtered out of model A.
+    # Data-dominant file — should be filtered out of repo corpus.
     data_file = tmp_path / "data.py"
     data_file.write_text("DATA = {\n" + "\n".join(f'  "k{i}": "v{i}",' for i in range(120)) + "\n}")
 
@@ -169,8 +169,8 @@ def test_scorer_filters_data_dominant_model_a_files(tmp_path: Path) -> None:
     bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
 
     scorer = SequentialImportBpeScorer(
-        model_a_files=[code_file, data_file],
-        bpe_model_b_path=bpe_model_b,
+        repo_corpus_files=[code_file, data_file],
+        bpe_generic_baseline_path=bpe_model_b,
         calibration_hunks=["def g():\n    return 1\n    return 2"],
         adapter=PythonAdapter(),
     )
@@ -199,8 +199,8 @@ def test_scorer_filters_atypical_calibration_hunks(tmp_path: Path) -> None:
     data_hunk = "DATA = {\n" + "\n".join(f'  "k{i}": "v{i}",' for i in range(80)) + "\n}"
 
     scorer = SequentialImportBpeScorer(
-        model_a_files=[code_file],
-        bpe_model_b_path=bpe_model_b,
+        repo_corpus_files=[code_file],
+        bpe_generic_baseline_path=bpe_model_b,
         calibration_hunks=[normal_hunk, data_hunk],
         adapter=PythonAdapter(),
     )
@@ -221,8 +221,8 @@ def _make_scorer_for_score_hunk_tests(tmp_path: Path) -> SequentialImportBpeScor
     cal = "def g(x):\n    if x:\n        return 1\n    return 2\n"
 
     return SequentialImportBpeScorer(
-        model_a_files=[code_file],
-        bpe_model_b_path=bpe_model_b,
+        repo_corpus_files=[code_file],
+        bpe_generic_baseline_path=bpe_model_b,
         calibration_hunks=[cal],
         adapter=PythonAdapter(),
     )
@@ -275,8 +275,8 @@ def test_call_receiver_disabled_when_alpha_zero(tmp_path: Path) -> None:
     bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
 
     scorer = SequentialImportBpeScorer(
-        model_a_files=[code_file],
-        bpe_model_b_path=bpe_model_b,
+        repo_corpus_files=[code_file],
+        bpe_generic_baseline_path=bpe_model_b,
         bpe_threshold=0.5,
         call_receiver_alpha=0.0,
         call_receiver_cap=5,
@@ -298,8 +298,8 @@ def test_call_receiver_built_when_alpha_nonzero(tmp_path: Path) -> None:
     bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
 
     scorer = SequentialImportBpeScorer(
-        model_a_files=[code_file],
-        bpe_model_b_path=bpe_model_b,
+        repo_corpus_files=[code_file],
+        bpe_generic_baseline_path=bpe_model_b,
         bpe_threshold=0.5,
         call_receiver_alpha=1.0,
         call_receiver_cap=5,
@@ -325,8 +325,8 @@ def test_import_reason_takes_precedence_over_call_receiver(tmp_path: Path) -> No
     bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
 
     scorer = SequentialImportBpeScorer(
-        model_a_files=[code_file],
-        bpe_model_b_path=bpe_model_b,
+        repo_corpus_files=[code_file],
+        bpe_generic_baseline_path=bpe_model_b,
         bpe_threshold=0.0,
         call_receiver_alpha=1.0,
         call_receiver_cap=5,
@@ -353,8 +353,8 @@ def test_no_flag_when_all_callees_attested(tmp_path: Path) -> None:
     bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
 
     scorer = SequentialImportBpeScorer(
-        model_a_files=[code_file],
-        bpe_model_b_path=bpe_model_b,
+        repo_corpus_files=[code_file],
+        bpe_generic_baseline_path=bpe_model_b,
         bpe_threshold=999.0,
         call_receiver_alpha=1.0,
         call_receiver_cap=5,
@@ -388,8 +388,8 @@ def test_call_receiver_reason_when_penalty_tips_threshold(tmp_path: Path) -> Non
     # Actually: bpe+3 > 0.5 will definitely fire call_receiver if bpe < 0.5
     # Use a very permissive threshold on raw BPE:
     scorer = SequentialImportBpeScorer(
-        model_a_files=[code_file],
-        bpe_model_b_path=bpe_model_b,
+        repo_corpus_files=[code_file],
+        bpe_generic_baseline_path=bpe_model_b,
         bpe_threshold=0.5,
         call_receiver_alpha=1.0,
         call_receiver_cap=5,
@@ -463,8 +463,8 @@ def test_call_receiver_root_bonus_custom_accepted() -> None:
 
     bpe_b = Path(__file__).parent.parent / "scoring" / "bpe" / "generic_tokens_bpe.json"
     scorer = SequentialImportBpeScorer(
-        model_a_files=_CONTROL_FILES,
-        bpe_model_b_path=bpe_b,
+        repo_corpus_files=_CONTROL_FILES,
+        bpe_generic_baseline_path=bpe_b,
         bpe_threshold=99.0,
         call_receiver_alpha=2.0,
         call_receiver_root_bonus=3.0,
