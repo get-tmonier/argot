@@ -90,6 +90,9 @@ def _load_phase14_scorer(argot_dir: Path) -> SequentialImportBpeScorer:
     call_receiver_n_clusters = int(config.get("call_receiver_n_clusters", 8))  # type: ignore[call-overload]
     call_receiver_cluster_seed = int(config.get("call_receiver_cluster_seed", 0))  # type: ignore[call-overload]
     call_receiver_cluster_bonus = float(config.get("call_receiver_cluster_bonus", 5.0))  # type: ignore[arg-type]
+    call_receiver_cluster_rare_threshold = int(  # type: ignore[call-overload]
+        config.get("call_receiver_cluster_rare_threshold", 0)
+    )
 
     return SequentialImportBpeScorer(
         model_a_files=model_a_files,
@@ -101,6 +104,7 @@ def _load_phase14_scorer(argot_dir: Path) -> SequentialImportBpeScorer:
         call_receiver_n_clusters=call_receiver_n_clusters,
         call_receiver_cluster_seed=call_receiver_cluster_seed,
         call_receiver_cluster_bonus=call_receiver_cluster_bonus,
+        call_receiver_cluster_rare_threshold=call_receiver_cluster_rare_threshold,
     )
 
 

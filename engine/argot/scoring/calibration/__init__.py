@@ -49,6 +49,7 @@ def calibrate_multi_seed(
     call_receiver_n_clusters: int = 8,
     call_receiver_cluster_seed: int = 0,
     call_receiver_cluster_bonus: float = 5.0,
+    call_receiver_cluster_rare_threshold: int = 0,
     enable_typicality_filter: bool = True,
 ) -> float:
     """Run K independent calibrations; return median threshold.
@@ -62,9 +63,9 @@ def calibrate_multi_seed(
     """
     thresholds: list[float] = []
 
-    # Era-11 metadata path: when n_clusters > 1, use the metadata-aware sampler so that
-    # cluster_bonus contributions can be folded into calibration scores.  When
-    # n_clusters == 1 the existing era-10 path is used byte-identically.
+    # When n_clusters > 1, use the metadata-aware sampler so that
+    # cluster_bonus contributions can be folded into calibration scores.
+    # When n_clusters == 1 the simpler hunk-only path is used.
     use_metadata = call_receiver_n_clusters > 1
 
     def _sample(seed: int) -> tuple[list[str] | None, list[tuple[str, Path, str]] | None]:
@@ -89,6 +90,7 @@ def calibrate_multi_seed(
         call_receiver_n_clusters=call_receiver_n_clusters,
         call_receiver_cluster_seed=call_receiver_cluster_seed,
         call_receiver_cluster_bonus=call_receiver_cluster_bonus,
+        call_receiver_cluster_rare_threshold=call_receiver_cluster_rare_threshold,
         enable_typicality_filter=enable_typicality_filter,
     )
     shared_tokenizer = first_scorer._tokenizer
@@ -112,6 +114,7 @@ def calibrate_multi_seed(
             call_receiver_n_clusters=call_receiver_n_clusters,
             call_receiver_cluster_seed=call_receiver_cluster_seed,
             call_receiver_cluster_bonus=call_receiver_cluster_bonus,
+            call_receiver_cluster_rare_threshold=call_receiver_cluster_rare_threshold,
             enable_typicality_filter=enable_typicality_filter,
             _tokenizer=shared_tokenizer,
         )
@@ -133,7 +136,7 @@ def main() -> None:
         default=100.0,
         help=(
             "Percentile of calibration scores to use as BPE threshold. "
-            "Default 100.0 (max, era-10 shipping config). Pass 95.0 for p95 outlier-robust mode."
+            "Default 100.0 (max). Pass 95.0 for p95 outlier-robust mode."
         ),
     )
     parser.add_argument(
@@ -152,7 +155,7 @@ def main() -> None:
         help=(
             "Number of independent calibration seeds for multi-seed median threshold. "
             "K independent calibrations are run (seeds: seed, seed+1, ..., seed+K-1); "
-            "the median threshold is used. Default 7 (= multi-seed, era-10 shipping config)."
+            "the median threshold is used. Default 7."
         ),
     )
     parser.add_argument(

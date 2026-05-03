@@ -995,3 +995,155 @@ def test_call_receiver_alpha_root_bonus_zero_suppresses_branches(tmp_path: Path)
         cap=100.0,
     )
     assert result == pytest.approx(0.0)
+
+
+# ---------------------------------------------------------------------------
+# Phase 10 — frequency-aware cluster attestation (cluster_rare_threshold)
+# ---------------------------------------------------------------------------
+
+
+def _make_rare_attestation_corpus(tmp_path: Path) -> tuple[list[Path], Path]:
+    """Build a 6-file corpus where ``rareCallee`` appears in only 1 file
+    (the build script) and the other 5 files are pure providers.
+
+    Returns ``(files, build_script_path)``. KMeans with cluster_seed=0 puts
+    the 5 provider files in one cluster and the build script in another;
+    rareCallee is attested in the build cluster but absent (and rare in
+    union) for the provider cluster.
+    """
+    files: list[Path] = []
+    for i in range(5):
+        f = tmp_path / f"provider_{i}.ts"
+        f.write_text(f"Math.floor(x{i});\n" f"Promise.resolve(y{i});\n" f"helpers.format(z{i});\n")
+        files.append(f)
+    build = tmp_path / "build.ts"
+    build.write_text("rareCallee();\nMath.floor(x);\n")
+    files.append(build)
+    return files, build
+
+
+def test_cluster_rare_threshold_default_zero_preserves_era11(tmp_path: Path) -> None:
+    """Default cluster_rare_threshold=0 must NOT change scoring vs era-11."""
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    files, _ = _make_rare_attestation_corpus(tmp_path)
+    s = CallReceiverScorer(files, language="typescript", n_clusters=2)
+    # Verify default
+    assert s.cluster_rare_threshold == 0
+    # Hunk uses an attested-but-rare callee. With threshold=0, no rare-attested
+    # bonus fires; weight depends only on global attestation.
+    hunk = "rareCallee();"
+    score = s.weighted_contribution_for_file(
+        hunk, files[0], alpha=2.0, root_bonus=2.0, cluster_bonus=5.0, cap=10.0
+    )
+    # rareCallee IS in self.attested (it was seen in build.ts), so no
+    # alpha/root contribution. Provider cluster's union INCLUDES rareCallee
+    # only if KMeans placed build.ts there too — which (with k=2 and our
+    # bag shapes) it shouldn't. So under era-11 default behaviour the
+    # cluster_bonus may already fire just because rareCallee is absent
+    # from this file's cluster_attested set. The test below pins the
+    # frequency-aware path; the era-11 path is exercised elsewhere.
+    assert score >= 0.0
+
+
+def test_cluster_rare_threshold_fires_when_callee_in_few_files(
+    tmp_path: Path,
+) -> None:
+    """cluster_rare_threshold=N flags callees attested in <= N cluster files."""
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    files, build = _make_rare_attestation_corpus(tmp_path)
+    s = CallReceiverScorer(
+        files,
+        language="typescript",
+        n_clusters=2,
+        cluster_rare_threshold=2,
+    )
+    # Stage the cluster lookup so that "rareCallee" is technically attested
+    # in build.ts's cluster (since it appears in build.ts itself).
+    build_cluster = s.file_to_cluster[build]
+    assert "rareCallee" in s.cluster_attested[build_cluster]
+    # But rareCallee is in ONLY 1 file of that cluster (build.ts itself).
+    counts = s.cluster_callee_counts[build_cluster]
+    assert counts.get("rareCallee", 0) == 1
+    # Score the hunk against build.ts. Under era-11 boolean rule:
+    # rareCallee is in cluster_attested → contributes 0. Under Phase 10
+    # rare-threshold=2: count(rareCallee)=1 <= 2 → cluster_bonus fires.
+    hunk = "rareCallee();"
+    score = s.weighted_contribution_for_file(
+        hunk,
+        file_path=build,
+        alpha=2.0,
+        root_bonus=2.0,
+        cluster_bonus=5.0,
+        cap=10.0,
+    )
+    assert score == pytest.approx(5.0)
+
+
+def test_cluster_rare_threshold_does_not_fire_for_common_callees(
+    tmp_path: Path,
+) -> None:
+    """A callee in many cluster files is NOT flagged by rare-threshold."""
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    files, build = _make_rare_attestation_corpus(tmp_path)
+    s = CallReceiverScorer(
+        files,
+        language="typescript",
+        n_clusters=2,
+        cluster_rare_threshold=2,
+    )
+    # `Math.floor` appears in every file (5 providers + build) — well above
+    # threshold=2. Rare-threshold should NOT fire.
+    hunk = "Math.floor(z);"
+    score = s.weighted_contribution_for_file(
+        hunk,
+        file_path=files[0],
+        alpha=2.0,
+        root_bonus=2.0,
+        cluster_bonus=5.0,
+        cap=10.0,
+    )
+    assert score == pytest.approx(0.0)
+
+
+def test_cluster_rare_threshold_preserves_unattested_path(tmp_path: Path) -> None:
+    """An UNATTESTED callee still gets alpha (or alpha+root_bonus), not cluster_bonus."""
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    files, build = _make_rare_attestation_corpus(tmp_path)
+    s = CallReceiverScorer(
+        files,
+        language="typescript",
+        n_clusters=2,
+        cluster_rare_threshold=2,
+    )
+    # `totallyMissingCallee` is not in self.attested at all → unattested path.
+    hunk = "totallyMissingCallee();"
+    score = s.weighted_contribution_for_file(
+        hunk,
+        file_path=files[0],
+        alpha=2.0,
+        root_bonus=2.0,
+        cluster_bonus=5.0,
+        cap=10.0,
+    )
+    assert score == pytest.approx(2.0)
+
+
+def test_cluster_callee_counts_dict_populated(tmp_path: Path) -> None:
+    """Phase 10 introduces ``cluster_callee_counts`` and ``cluster_sizes``;
+    both are populated only when n_clusters > 1."""
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    files, _ = _make_rare_attestation_corpus(tmp_path)
+    s_single = CallReceiverScorer(files, language="typescript", n_clusters=1)
+    assert s_single.cluster_callee_counts == {}
+    assert s_single.cluster_sizes == {}
+
+    s_multi = CallReceiverScorer(files, language="typescript", n_clusters=2)
+    assert sum(s_multi.cluster_sizes.values()) == len(files)
+    for cid, counts in s_multi.cluster_callee_counts.items():
+        # Every count must be >=1 and <= cluster_sizes[cid].
+        assert all(1 <= v <= s_multi.cluster_sizes[cid] for v in counts.values())

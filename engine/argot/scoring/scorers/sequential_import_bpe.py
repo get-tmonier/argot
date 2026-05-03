@@ -166,6 +166,7 @@ class SequentialImportBpeScorer:
         call_receiver_n_clusters: int = 8,
         call_receiver_cluster_seed: int = 0,
         call_receiver_cluster_bonus: float = 5.0,
+        call_receiver_cluster_rare_threshold: int = 0,
         call_receiver_force_jaccard_routing: bool = False,
         calibration_hunks_with_metadata: list[tuple[str, Path, str]] | None = None,
         _tokenizer: Any = None,
@@ -224,6 +225,7 @@ class SequentialImportBpeScorer:
                 n_clusters=call_receiver_n_clusters,
                 cluster_seed=call_receiver_cluster_seed,
                 force_jaccard_routing=call_receiver_force_jaccard_routing,
+                cluster_rare_threshold=call_receiver_cluster_rare_threshold,
             )
         self._call_receiver_root_bonus: float = call_receiver_root_bonus
         self._call_receiver_cluster_bonus: float = call_receiver_cluster_bonus
@@ -266,11 +268,11 @@ class SequentialImportBpeScorer:
             self.cal_scores: list[float] = []
             self.n_calibration: int = 0
         else:
-            # Era-11 metadata path: when n_clusters>1 AND metadata supplied, fold the
-            # cluster_bonus contribution into calibration scores so the per-corpus
-            # threshold absorbs the new signal.  alpha/root_bonus are kept at 0.0 here
-            # to preserve era-10 calibration semantics — only cluster_bonus is the new
-            # contribution that should shift the threshold.
+            # Cluster-aware calibration path: when n_clusters>1 AND metadata is
+            # supplied, fold the cluster_bonus contribution into calibration
+            # scores so the per-corpus threshold absorbs the cluster-conditional
+            # signal. alpha/root_bonus stay at 0.0 here so only cluster_bonus
+            # shifts the calibration distribution.
             use_metadata_path = (
                 calibration_hunks_with_metadata is not None
                 and call_receiver_n_clusters > 1
@@ -364,8 +366,8 @@ class SequentialImportBpeScorer:
         file_path: Optional resolved path to the file containing the hunk. When
             provided, Stage 1.5 uses weighted_contribution_for_file() which can
             apply an additive cluster_bonus for globally-attested callees absent
-            from the file's cluster attested set (era-11). Has no effect when
-            n_clusters=1 (default / cluster feature off).
+            from the file's cluster attested set. Has no effect when n_clusters=1
+            (cluster-conditional scoring disabled).
 
         Returns a dict with keys:
           - import_score (float): number of foreign modules (Stage 1 output)

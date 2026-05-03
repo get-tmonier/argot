@@ -151,7 +151,7 @@ def collect_candidates_with_metadata(
 ) -> list[tuple[str, Path, str]]:
     """Return all qualifying ``(hunk_text, file_path, file_source)`` tuples.
 
-    Era-11 metadata-aware variant of :func:`collect_candidates`.  Used by the
+    Metadata-aware variant of :func:`collect_candidates`. Used by the
     cluster-conditional calibration path so that calibration hunks can be
     scored with ``CallReceiverScorer.weighted_contribution_for_file`` (which
     needs the originating file path to resolve a cluster id).

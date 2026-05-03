@@ -1,11 +1,59 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from itertools import islice
 from pathlib import Path
 from typing import Literal, cast
+
+_BREAK_META_RE = re.compile(r"^\s*(//|#)\s*Break\s*:")
+
+
+def _strip_break_meta(
+    catalog_content: str, chs: int, che: int
+) -> tuple[str, int, int]:
+    """Strip ``// Break: ...`` / ``# Break: ...`` lines from catalog content.
+
+    Catalog break files conventionally include a one-line meta-comment
+    naming the anomaly (e.g. ``// Break: provider throws mid-generation``).
+    That comment is fixture-design metadata, NOT content the production
+    scorer should ever see — its presence biases prose-blanking under the
+    host-injection path, and (in Phase 9 we showed) it's the dominant
+    surprise signal under MLM scoring even though it's not real code.
+
+    Returns ``(stripped_content, new_hunk_start_line, new_hunk_end_line)``.
+    The returned line range covers the same code lines, shifted to account
+    for the stripped meta-comment(s).
+    """
+    lines = catalog_content.splitlines()
+    new_idx = 0
+    old_to_new: list[int] = []  # 1-indexed; 0 means "dropped"
+    kept: list[str] = []
+    for ln in lines:
+        if _BREAK_META_RE.match(ln):
+            old_to_new.append(0)
+        else:
+            new_idx += 1
+            old_to_new.append(new_idx)
+            kept.append(ln)
+    if chs < 1 or che > len(old_to_new):
+        return catalog_content, chs, che
+    new_chs = next(
+        (old_to_new[k - 1] for k in range(chs, che + 1) if old_to_new[k - 1] != 0),
+        None,
+    )
+    new_che = next(
+        (old_to_new[k - 1] for k in range(che, chs - 1, -1) if old_to_new[k - 1] != 0),
+        None,
+    )
+    if new_chs is None or new_che is None or new_chs > new_che:
+        return catalog_content, chs, che
+    new_content = "\n".join(kept) + (
+        "\n" if catalog_content.endswith("\n") else ""
+    )
+    return new_content, new_chs, new_che
 
 from argot_bench.clone import ensure_clone, ensure_sha_checked_out
 from argot_bench.extract import ensure_extracted
@@ -45,6 +93,7 @@ class RunConfig:
     call_receiver_n_clusters: int = 8
     call_receiver_cluster_seed: int = 0
     call_receiver_cluster_bonus: float = 5.0
+    call_receiver_cluster_rare_threshold: int = 0
     threshold_percentile: float | None = None
     threshold_iqr_k: float | None = None
     threshold_n_seeds: int = 7
@@ -89,15 +138,88 @@ def _score_fixtures(
     fixtures: list[Fixture],
     repo_dir: Path | None = None,
 ) -> list[dict[str, object]]:
+    """Score each catalog fixture against its host context if available.
+
+    Catalog break files live under ``benchmarks/catalogs/<corpus>/breaks/``;
+    they are tiny standalone files whose path does NOT exist in the corpus
+    repo. Passing the catalog path as ``file_path`` to the scorer makes
+    cluster lookup fall back to the Jaccard-nearest-cluster path, which
+    systematically routes a `fetch`-only break to whichever cluster has
+    `fetch` attested — exactly the cluster where ``cluster_bonus`` will NOT
+    fire, defeating era-11's cluster-conditional rule.
+
+    When the manifest provides ``host_file`` + ``host_inject_at_line`` (Phase
+    5 host-injection metadata), splice the catalog hunk into the real host
+    file and score against the synthesized content with the host file's
+    actual path — which IS in ``file_to_cluster`` and resolves to the
+    correct cluster. Falls back to the legacy catalog-path behaviour when
+    host metadata is absent.
+    """
     out: list[dict[str, object]] = []
     for fx in fixtures:
         src, hunk = _read_hunk_pair(catalog_dir, fx)
         file_path = (repo_dir / fx.file) if repo_dir is not None else None
+        scored_src: str | None = src
+        scored_hs: int | None = fx.hunk_start_line
+        scored_he: int | None = fx.hunk_end_line
+        if (
+            repo_dir is not None
+            and fx.host_file is not None
+            and fx.host_inject_at_line is not None
+        ):
+            host_path = repo_dir / fx.host_file
+            try:
+                host_content = host_path.read_text(encoding="utf-8")
+            except OSError:
+                host_content = None
+            if host_content is not None:
+                from argot.ml.features import synthesize_hunk_in_host
+
+                catalog_path = catalog_dir / fx.file
+                try:
+                    catalog_content = catalog_path.read_text(encoding="utf-8")
+                except OSError:
+                    catalog_content = None
+                if catalog_content is not None:
+                    # Strip fixture-design meta-comments (`// Break: ...`)
+                    # before splicing so they don't poison prose-blanking
+                    # or surface as false "anomaly" signal.
+                    cleaned, clean_hs, clean_he = _strip_break_meta(
+                        catalog_content, fx.hunk_start_line, fx.hunk_end_line
+                    )
+                    # Re-extract hunk content from the cleaned catalog so
+                    # the score input matches the catalog hunk after
+                    # comment stripping.
+                    cleaned_lines = cleaned.splitlines()
+                    if 1 <= clean_hs <= clean_he <= len(cleaned_lines):
+                        hunk = "\n".join(cleaned_lines[clean_hs - 1 : clean_he])
+                    file_path = host_path
+                    # Pass file_source=None and hunk line bounds=None.
+                    # All we need from the routing fix is correct cluster
+                    # routing via file_path = host_path (which IS in the
+                    # scorer's file_to_cluster). We deliberately do NOT
+                    # pass the synthesized post-injection text as
+                    # file_source because:
+                    #   (a) prose-blanking on the synthesized file produces
+                    #       garbage results when tree-sitter sees an
+                    #       out-of-place class mid-host-file (ERROR nodes);
+                    #   (b) the typicality_filter on the synthesized file
+                    #       triggers `atypical_file` short-circuits
+                    #       (catalog imports look foreign vs the host's
+                    #       distribution), incorrectly returning
+                    #       `flagged=False reason="atypical_file"` for
+                    #       legitimate breaks.
+                    # With file_source=None, the scorer skips both the
+                    # file-level typicality check and prose-blanking;
+                    # the hunk-only typicality check still runs.
+                    scored_src = None  # type: ignore[assignment]
+                    scored_hs = None  # type: ignore[assignment]
+                    scored_he = None  # type: ignore[assignment]
         r = scorer.score_hunk(
             hunk,
-            file_source=src,
-            hunk_start_line=fx.hunk_start_line,
-            hunk_end_line=fx.hunk_end_line,
+            file_source=scored_src,
+            hunk_start_line=scored_hs,
+            hunk_end_line=scored_he,
             file_path=file_path,
         )
         out.append(
@@ -210,6 +332,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             call_receiver_n_clusters=cfg.call_receiver_n_clusters,
             call_receiver_cluster_seed=cfg.call_receiver_cluster_seed,
             call_receiver_cluster_bonus=cfg.call_receiver_cluster_bonus,
+            call_receiver_cluster_rare_threshold=cfg.call_receiver_cluster_rare_threshold,
             threshold_percentile=cfg.threshold_percentile,
             threshold_iqr_k=cfg.threshold_iqr_k,
             threshold_n_seeds=cfg.threshold_n_seeds,
@@ -246,6 +369,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             call_receiver_n_clusters=cfg.call_receiver_n_clusters,
             call_receiver_cluster_seed=cfg.call_receiver_cluster_seed,
             call_receiver_cluster_bonus=cfg.call_receiver_cluster_bonus,
+            call_receiver_cluster_rare_threshold=cfg.call_receiver_cluster_rare_threshold,
             threshold_percentile=cfg.threshold_percentile,
             threshold_iqr_k=cfg.threshold_iqr_k,
             threshold_n_seeds=cfg.threshold_n_seeds,
@@ -285,6 +409,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
                 call_receiver_n_clusters=cfg.call_receiver_n_clusters,
                 call_receiver_cluster_seed=cfg.call_receiver_cluster_seed,
                 call_receiver_cluster_bonus=cfg.call_receiver_cluster_bonus,
+            call_receiver_cluster_rare_threshold=cfg.call_receiver_cluster_rare_threshold,
                 threshold_percentile=cfg.threshold_percentile,
                 threshold_iqr_k=cfg.threshold_iqr_k,
                 threshold_n_seeds=cfg.threshold_n_seeds,
