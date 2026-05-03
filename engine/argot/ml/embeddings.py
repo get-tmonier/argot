@@ -76,6 +76,33 @@ def _require_torch() -> Any:
     return torch
 
 
+def _model_in_local_cache(model_id: str) -> bool:
+    """Return True if *model_id* weights are already in the HF cache.
+
+    When True, callers should pass ``local_files_only=True`` to
+    ``from_pretrained`` to skip the HF Hub metadata round-trip.  This avoids
+    the unauthenticated rate-limit warnings every CLI invocation otherwise
+    triggers (and the actual rate-limit on shared dev/CI machines).
+
+    The HF cache layout is ``<HF_HOME or ~/.cache/huggingface>/hub/models--<org>--<name>``
+    (slashes in repo IDs become ``--``).  We check for the directory's
+    presence; transformers handles partial-download recovery internally.
+    """
+    import os
+    from pathlib import Path
+
+    hf_home = os.environ.get("HF_HOME") or os.environ.get("TRANSFORMERS_CACHE")
+    if hf_home:
+        base = Path(hf_home).expanduser()
+        # HF_HOME points to the parent of the hub/ subdir; TRANSFORMERS_CACHE
+        # points directly at the hub-equivalent.
+        candidates = [base / "hub", base]
+    else:
+        candidates = [Path.home() / ".cache" / "huggingface" / "hub"]
+    cache_dir_name = "models--" + model_id.replace("/", "--")
+    return any((hub_dir / cache_dir_name).is_dir() for hub_dir in candidates)
+
+
 class UnixCoderEmbedder:
     """Frozen UnixCoder encoder producing 768-dim [CLS] embeddings.
 
@@ -101,8 +128,14 @@ class UnixCoderEmbedder:
         from transformers import AutoModel, AutoTokenizer
 
         self._torch = torch
-        self._tokenizer = AutoTokenizer.from_pretrained(_MODEL_NAME)
-        model = AutoModel.from_pretrained(_MODEL_NAME)
+        # Cache-first loading: if the model is already on disk, skip the HF
+        # Hub metadata round-trip entirely (saves rate-limit budget and the
+        # "unauthenticated requests" warning on every CLI invocation).  First
+        # run downloads + populates the cache; subsequent runs are offline.
+        # Set HF_HUB_OFFLINE=1 to force this behavior unconditionally.
+        local_only = _model_in_local_cache(_MODEL_NAME)
+        self._tokenizer = AutoTokenizer.from_pretrained(_MODEL_NAME, local_files_only=local_only)
+        model = AutoModel.from_pretrained(_MODEL_NAME, local_files_only=local_only)
         model.eval()
         self._model = model
         # CPU-only: explicit device pin to avoid surprise GPU scheduling on

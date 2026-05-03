@@ -232,7 +232,13 @@ class SequentialImportBpeScorer:
         if _tokenizer is None:
             from transformers import AutoTokenizer
 
-            _tokenizer = AutoTokenizer.from_pretrained(_BPE_MODEL_NAME)
+            from argot.ml.embeddings import _model_in_local_cache
+
+            # Cache-first: skip the HF Hub metadata round-trip when the
+            # tokenizer is already on disk.  Saves rate-limit budget across
+            # the many calibration / bench / extraction invocations.
+            local_only = _model_in_local_cache(_BPE_MODEL_NAME)
+            _tokenizer = AutoTokenizer.from_pretrained(_BPE_MODEL_NAME, local_files_only=local_only)
         self._tokenizer = _tokenizer
         vocab: dict[str, int] = _tokenizer.get_vocab()
         self._id_to_token: dict[int, str] = {v: k for k, v in vocab.items()}
