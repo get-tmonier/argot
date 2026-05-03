@@ -20,7 +20,7 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Literal, TypedDict, cast
+from typing import Any, Literal, NotRequired, TypedDict, cast
 
 from tree_sitter import Node
 
@@ -81,7 +81,15 @@ _TS_IDENTIFIER_TYPES: frozenset[str] = frozenset(
 
 
 class FeatureRow(TypedDict):
-    """JSONL row schema. One row per hunk."""
+    """JSONL row schema. One row per hunk.
+
+    All scalar / engineered keys are always present.  The two embedding keys
+    are :class:`typing.NotRequired` and populated only when the extractor is
+    invoked with ``--with-embeddings`` (Era-14 Phase 6.1); they are 768-dim
+    UnixCoder [CLS] vectors for the hunk and a context window respectively.
+    Backward-compat: when omitted, JSONL output is byte-identical to
+    pre-Phase-6.1 behaviour.
+    """
 
     corpus: str
     is_break: bool
@@ -94,6 +102,8 @@ class FeatureRow(TypedDict):
     hunk_length_lines: int
     hunk_length_chars: int
     features: dict[str, Any]
+    hunk_embedding: NotRequired[list[float]]
+    context_embedding: NotRequired[list[float]]
 
 
 def synthesize_hunk_in_host(
@@ -516,14 +526,26 @@ def build_feature_row(
     hunk_end_line: int,
     hunk_content: str,
     features: dict[str, Any],
+    hunk_embedding: list[float] | None = None,
+    context_embedding: list[float] | None = None,
 ) -> FeatureRow:
     """Pack provenance + features into a single JSONL row.
 
     ``file_path_rel`` is the path relative to the repo root (or the catalog
     dir for fixtures); we store the relative form so rows are portable across
     machines.
+
+    ``hunk_embedding`` / ``context_embedding`` are optional Era-14 Phase 6.1
+    additions: 768-dim UnixCoder [CLS] vectors for the hunk and a context
+    window centred on the hunk.  When ``None`` (the default — equivalent to
+    running without ``--with-embeddings``), the keys are **omitted** from the
+    returned dict so the JSONL output is byte-identical to pre-Phase-6.1
+    behaviour.  When provided, they are added as **top-level** fields
+    (deliberately not nested under ``features.*`` to keep the engineered
+    feature dict scalar-only and to make the high-dimensional vectors easy
+    to skip in downstream consumers that only need engineered features).
     """
-    return {
+    row: FeatureRow = {
         "corpus": corpus,
         "is_break": is_break,
         "fixture_id": fixture_id,
@@ -536,3 +558,8 @@ def build_feature_row(
         "hunk_length_chars": len(hunk_content),
         "features": features,
     }
+    if hunk_embedding is not None:
+        row["hunk_embedding"] = hunk_embedding
+    if context_embedding is not None:
+        row["context_embedding"] = context_embedding
+    return row

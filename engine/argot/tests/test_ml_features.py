@@ -383,6 +383,81 @@ def test_build_feature_row_shape() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Era-14 Phase 6.1 — build_feature_row embedding kwargs
+# ---------------------------------------------------------------------------
+
+
+def test_build_feature_row_without_embeddings_unchanged() -> None:
+    """Backward compat: embedding kwargs default None → keys are absent.
+
+    The serialized row must be byte-identical to a pre-Phase-6.1 row built
+    with the same provenance + features.
+    """
+    feats = {"x": 1, "y": "z"}
+    row = build_feature_row(
+        corpus="fastapi",
+        is_break=True,
+        fixture_id="fixture_1",
+        category="routing",
+        difficulty="easy",
+        file_path_rel="a/b.py",
+        hunk_start_line=10,
+        hunk_end_line=20,
+        hunk_content="line1\nline2",
+        features=feats,
+    )
+    assert "hunk_embedding" not in row
+    assert "context_embedding" not in row
+    # JSONL serialization parity (sort_keys=True is what _write_jsonl uses).
+    assert json.dumps(row, sort_keys=True) == json.dumps(
+        {
+            "corpus": "fastapi",
+            "is_break": True,
+            "fixture_id": "fixture_1",
+            "category": "routing",
+            "difficulty": "easy",
+            "file_path": "a/b.py",
+            "hunk_start_line": 10,
+            "hunk_end_line": 20,
+            "hunk_length_lines": 11,
+            "hunk_length_chars": len("line1\nline2"),
+            "features": feats,
+        },
+        sort_keys=True,
+    )
+
+
+def test_build_feature_row_with_embeddings() -> None:
+    """When embedding kwargs are provided, they appear as top-level fields."""
+    feats = {"x": 1}
+    hunk_emb = [0.1] * 768
+    ctx_emb = [0.2] * 768
+    row = build_feature_row(
+        corpus="fastapi",
+        is_break=False,
+        fixture_id=None,
+        category=None,
+        difficulty=None,
+        file_path_rel="a.py",
+        hunk_start_line=1,
+        hunk_end_line=1,
+        hunk_content="x",
+        features=feats,
+        hunk_embedding=hunk_emb,
+        context_embedding=ctx_emb,
+    )
+    assert "hunk_embedding" in row
+    assert "context_embedding" in row
+    assert len(row["hunk_embedding"]) == 768
+    assert len(row["context_embedding"]) == 768
+    assert row["hunk_embedding"][0] == pytest.approx(0.1)
+    assert row["context_embedding"][0] == pytest.approx(0.2)
+    # Embeddings live at top level — NOT nested under features.
+    assert "hunk_embedding" not in row["features"]
+    assert "context_embedding" not in row["features"]
+
+
+# ---------------------------------------------------------------------------
 # (e) CLI smoke
 # ---------------------------------------------------------------------------
 
@@ -504,6 +579,65 @@ def test_cli_smoke(tmp_path: Path) -> None:
     # Era-14 Phase 1 fix: no row may carry cluster_assignment_method anymore.
     for row in rows:
         assert "cluster_assignment_method" not in row["features"]
+    # Era-14 Phase 6.1 backward compat: without --with-embeddings, no row may
+    # carry the optional embedding fields.  This is the byte-identical guard.
+    for row in rows:
+        assert "hunk_embedding" not in row
+        assert "context_embedding" not in row
+
+
+def test_cli_with_embeddings_smoke(tmp_path: Path) -> None:
+    """Era-14 Phase 6.1: --with-embeddings attaches 768-dim vectors to each row.
+
+    Skipped when torch is not installed (the embeddings extra is optional).
+    The subprocess uses the same Python interpreter as the test runner, so
+    if torch is importable here, the subprocess can also load the encoder.
+    """
+    pytest.importorskip("torch")
+
+    repo, manifest, dataset, catalog_dir = _write_synthetic_corpus(tmp_path)
+    out = tmp_path / "features_with_emb.jsonl"
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "argot.ml.cli",
+            "--manifest",
+            str(manifest),
+            "--repo-dir",
+            str(repo),
+            "--dataset",
+            str(dataset),
+            "--catalog-dir",
+            str(catalog_dir),
+            "--out",
+            str(out),
+            "--n-controls-per-corpus",
+            "5",
+            "--threshold-n-seeds",
+            "1",
+            "--n-cal",
+            "5",
+            "--with-embeddings",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0, f"CLI failed: stdout={proc.stdout} stderr={proc.stderr}"
+    assert out.exists()
+
+    rows = [json.loads(line) for line in out.read_text().splitlines() if line.strip()]
+    assert len(rows) >= 1
+    for row in rows:
+        assert "hunk_embedding" in row, row
+        assert "context_embedding" in row, row
+        assert len(row["hunk_embedding"]) == 768
+        assert len(row["context_embedding"]) == 768
+        # Embeddings are top-level — not nested under features.
+        assert "hunk_embedding" not in row["features"]
+        assert "context_embedding" not in row["features"]
 
 
 # ---------------------------------------------------------------------------

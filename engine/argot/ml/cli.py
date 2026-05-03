@@ -45,7 +45,7 @@ import json
 import sys
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from argot.ml.features import (
     FeatureRow,
@@ -53,6 +53,9 @@ from argot.ml.features import (
     compute_features,
     synthesize_hunk_in_host,
 )
+
+if TYPE_CHECKING:
+    from argot.ml.embeddings import UnixCoderEmbedder
 from argot.scoring.adapters.python_adapter import PythonAdapter
 from argot.scoring.calibration.random_hunk_sampler import (
     DEFAULT_EXCLUDE_DIRS,
@@ -184,6 +187,45 @@ def build_production_scorer(
 
 
 # ---------------------------------------------------------------------------
+# Embedder helper (Era-14 Phase 6.1)
+# ---------------------------------------------------------------------------
+
+
+def _maybe_embed(
+    embedder: UnixCoderEmbedder | None,
+    *,
+    hunk_content: str,
+    file_source: str | None,
+    hunk_start_line: int,
+    hunk_end_line: int,
+) -> tuple[list[float] | None, list[float] | None]:
+    """Compute (hunk_embedding, context_embedding) when *embedder* is set.
+
+    Returns ``(None, None)`` when ``embedder is None`` so the caller can
+    pass the result straight through to ``build_feature_row`` and get
+    backward-compatible JSONL.
+
+    Context-window source: when *file_source* is available the embedder
+    embeds a 512-token window centred on the hunk via
+    :meth:`UnixCoderEmbedder.embed_context_window`.  When it is ``None`` (a
+    rare control path), we degrade gracefully and reuse the hunk embedding
+    as the context embedding so the output schema stays uniform.
+    """
+    if embedder is None:
+        return None, None
+    hunk_emb = embedder.embed(hunk_content)
+    if file_source is None:
+        ctx_emb = list(hunk_emb)  # copy so consumers can mutate independently
+    else:
+        ctx_emb = embedder.embed_context_window(
+            file_source,
+            hunk_start_line=hunk_start_line,
+            hunk_end_line=hunk_end_line,
+        )
+    return hunk_emb, ctx_emb
+
+
+# ---------------------------------------------------------------------------
 # Fixture iteration (manifest mode)
 # ---------------------------------------------------------------------------
 
@@ -196,6 +238,7 @@ def _iter_fixture_rows(
     catalog_dir: Path,
     fixtures: list[dict[str, Any]],
     repo_dir: Path | None,
+    embedder: UnixCoderEmbedder | None = None,
 ) -> Iterator[FeatureRow]:
     for fx in fixtures:
         rel = str(fx["file"])
@@ -258,6 +301,13 @@ def _iter_fixture_rows(
             hunk_end_line=scored_he,
             language=language,
         )
+        hunk_emb, ctx_emb = _maybe_embed(
+            embedder,
+            hunk_content=row_hunk,
+            file_source=scored_file_source,
+            hunk_start_line=scored_hs,
+            hunk_end_line=scored_he,
+        )
         yield build_feature_row(
             corpus=corpus,
             is_break=True,
@@ -269,6 +319,8 @@ def _iter_fixture_rows(
             hunk_end_line=scored_he,
             hunk_content=row_hunk,
             features=feats,
+            hunk_embedding=hunk_emb,
+            context_embedding=ctx_emb,
         )
 
 
@@ -412,6 +464,7 @@ def _iter_control_rows(
     repo_dir: Path,
     n_controls: int,
     seed: int,
+    embedder: UnixCoderEmbedder | None = None,
 ) -> Iterator[FeatureRow]:
     """Score all candidate controls then sample N + N/2.
 
@@ -456,6 +509,14 @@ def _iter_control_rows(
         # is to plumb it through the candidate list, which doubles memory)
         ctx = _hunk_content_from_record(record, repo_dir)
         hunk_content = ctx[2] if ctx is not None else ""
+        file_source_for_emb = ctx[1] if ctx is not None else None
+        hunk_emb, ctx_emb = _maybe_embed(
+            embedder,
+            hunk_content=hunk_content,
+            file_source=file_source_for_emb,
+            hunk_start_line=hs + 1,
+            hunk_end_line=he,
+        )
         yield build_feature_row(
             corpus=corpus,
             is_break=False,
@@ -467,6 +528,8 @@ def _iter_control_rows(
             hunk_end_line=he,
             hunk_content=hunk_content,
             features=feats,
+            hunk_embedding=hunk_emb,
+            context_embedding=ctx_emb,
         )
 
 
@@ -558,7 +621,37 @@ def build_parser() -> argparse.ArgumentParser:
         default=7,
         help="Multi-seed median threshold K (default 7).",
     )
+    p.add_argument(
+        "--with-embeddings",
+        action="store_true",
+        help=(
+            "Era-14 Phase 6.1: attach UnixCoder [CLS] embeddings (768-dim) "
+            "for the hunk and a 512-token context window centred on the "
+            "hunk to every emitted JSONL row, as top-level "
+            "`hunk_embedding` / `context_embedding` fields.  Loads the "
+            "encoder once per subprocess (~500 MB resident).  Requires "
+            "the optional 'embeddings' extra (PyTorch); fails with a "
+            "helpful error if torch is missing.  Default off — when the "
+            "flag is absent the JSONL output is byte-identical to the "
+            "pre-Phase-6.1 schema."
+        ),
+    )
     return p
+
+
+def _maybe_build_embedder(with_embeddings: bool) -> UnixCoderEmbedder | None:
+    """Construct a :class:`UnixCoderEmbedder` once if requested, else ``None``.
+
+    Lazy import isolates the torch dependency: code paths that don't ask for
+    embeddings never touch ``argot.ml.embeddings`` and therefore don't try
+    to import torch.
+    """
+    if not with_embeddings:
+        return None
+    from argot.ml.embeddings import UnixCoderEmbedder
+
+    print("loading UnixCoder encoder (one-time, ~500MB)...", flush=True)
+    return UnixCoderEmbedder()
 
 
 def _run_direct(args: argparse.Namespace) -> int:
@@ -581,6 +674,7 @@ def _run_direct(args: argparse.Namespace) -> int:
         n_cal=args.n_cal,
         threshold_n_seeds=args.threshold_n_seeds,
     )
+    embedder = _maybe_build_embedder(args.with_embeddings)
 
     def _all_rows() -> Iterator[FeatureRow]:
         yield from _iter_fixture_rows(
@@ -590,6 +684,7 @@ def _run_direct(args: argparse.Namespace) -> int:
             catalog_dir=catalog_dir,
             fixtures=fixtures,
             repo_dir=args.repo_dir,
+            embedder=embedder,
         )
         if args.dataset is not None:
             yield from _iter_control_rows(
@@ -600,6 +695,7 @@ def _run_direct(args: argparse.Namespace) -> int:
                 repo_dir=args.repo_dir,
                 n_controls=args.n_controls_per_corpus,
                 seed=args.seed,
+                embedder=embedder,
             )
 
     n = _write_jsonl(_all_rows(), args.out)
@@ -652,6 +748,7 @@ def _run_corpus(args: argparse.Namespace, corpus_name: str) -> int:
         n_cal=args.n_cal,
         threshold_n_seeds=args.threshold_n_seeds,
     )
+    embedder = _maybe_build_embedder(args.with_embeddings)
 
     def _all_rows() -> Iterator[FeatureRow]:
         yield from _iter_fixture_rows(
@@ -661,6 +758,7 @@ def _run_corpus(args: argparse.Namespace, corpus_name: str) -> int:
             catalog_dir=catalog_dir,
             fixtures=fixtures,
             repo_dir=repo,
+            embedder=embedder,
         )
         yield from _iter_control_rows(
             inner,
@@ -670,6 +768,7 @@ def _run_corpus(args: argparse.Namespace, corpus_name: str) -> int:
             repo_dir=repo,
             n_controls=args.n_controls_per_corpus,
             seed=args.seed,
+            embedder=embedder,
         )
 
     out_path = args.out
@@ -720,6 +819,8 @@ def _run_all(args: argparse.Namespace) -> int:
             "--threshold-n-seeds",
             str(args.threshold_n_seeds),
         ]
+        if args.with_embeddings:
+            cmd.append("--with-embeddings")
         print(f"[--all] spawning subprocess for corpus={t.name}", flush=True)
         proc = subprocess.run(cmd, check=False)
         if proc.returncode != 0:

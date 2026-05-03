@@ -17,6 +17,15 @@ dependencies = [
     "transformers>=4.40.0",
 ]
 
+[project.optional-dependencies]
+# Era-14 Phase 6.1: UnixCoder semantic embeddings for `argot-extract-features
+# --with-embeddings`.  Adds ~500 MB of model weights at runtime; not required
+# for the production scoring pipeline.  Install via:
+#     uv pip install -e engine[embeddings]
+# or, when installed from PyPI:
+#     pip install argot-engine[embeddings]
+embeddings = ["torch>=2.0"]
+
 [project.scripts]
 argot-extract = "argot.extract:main"
 argot-train = "argot.train:main"
@@ -48,6 +57,15 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "sklearn.*"
+ignore_missing_imports = true
+
+# Era-14 Phase 6.1: torch is an OPTIONAL dep (under the `embeddings` extra).
+# Without it installed the import in argot/ml/embeddings.py is unresolvable
+# at type-check time; ignore the missing stubs so mypy stays green when the
+# extra is not installed.  At runtime, _require_torch() raises a helpful
+# error if torch is genuinely missing.
+[[tool.mypy.overrides]]
+module = "torch"
 ignore_missing_imports = true
 
 [tool.ruff]
