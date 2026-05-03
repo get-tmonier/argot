@@ -163,6 +163,9 @@ class SequentialImportBpeScorer:
         call_receiver_alpha: float = 2.0,
         call_receiver_cap: int = 5,
         call_receiver_root_bonus: float = 2.0,
+        call_receiver_n_clusters: int = 1,
+        call_receiver_cluster_seed: int = 0,
+        call_receiver_cluster_bonus: float = 0.0,
         _tokenizer: Any = None,
     ) -> None:
         if calibration_hunks is None and bpe_threshold is None:
@@ -209,8 +212,11 @@ class SequentialImportBpeScorer:
                 alpha=call_receiver_alpha,
                 cap=call_receiver_cap,
                 adapter=self._adapter,
+                n_clusters=call_receiver_n_clusters,
+                cluster_seed=call_receiver_cluster_seed,
             )
         self._call_receiver_root_bonus: float = call_receiver_root_bonus
+        self._call_receiver_cluster_bonus: float = call_receiver_cluster_bonus
 
         # BPE tokenizer
         if _tokenizer is None:
@@ -278,6 +284,7 @@ class SequentialImportBpeScorer:
         file_source: str | None = None,
         hunk_start_line: int | None = None,
         hunk_end_line: int | None = None,
+        file_path: Path | None = None,
     ) -> ScoredHunk:
         """Score a hunk through both stages.
 
@@ -303,6 +310,12 @@ class SequentialImportBpeScorer:
         provided, Stage 2 blanks any prose lines (docstrings, comments) that
         fall within the hunk range before BPE scoring, mirroring the symmetric
         treatment applied to calibration hunks.
+
+        file_path: Optional resolved path to the file containing the hunk. When
+            provided, Stage 1.5 uses weighted_contribution_for_file() which can
+            apply an additive cluster_bonus for globally-attested callees absent
+            from the file's cluster attested set (era-11). Has no effect when
+            n_clusters=1 (default / cluster feature off).
 
         Returns a dict with keys:
           - import_score (float): number of foreign modules (Stage 1 output)
@@ -372,12 +385,22 @@ class SequentialImportBpeScorer:
 
         # Stage 1.5: call-receiver soft penalty
         if self._call_receiver is not None:
-            contribution = self._call_receiver.weighted_contribution(
-                hunk_content,
-                alpha=self._call_receiver.alpha,
-                root_bonus=self._call_receiver_root_bonus,
-                cap=float(self._call_receiver.cap),
-            )
+            if file_path is not None:
+                contribution = self._call_receiver.weighted_contribution_for_file(
+                    hunk_content,
+                    file_path,
+                    alpha=self._call_receiver.alpha,
+                    root_bonus=self._call_receiver_root_bonus,
+                    cluster_bonus=self._call_receiver_cluster_bonus,
+                    cap=float(self._call_receiver.cap),
+                )
+            else:
+                contribution = self._call_receiver.weighted_contribution(
+                    hunk_content,
+                    alpha=self._call_receiver.alpha,
+                    root_bonus=self._call_receiver_root_bonus,
+                    cap=float(self._call_receiver.cap),
+                )
             adjusted_bpe = bpe_score + contribution
             if adjusted_bpe > self.bpe_threshold:
                 cr_reason: Reason = "call_receiver" if bpe_score <= self.bpe_threshold else "bpe"

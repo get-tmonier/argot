@@ -161,6 +161,6 @@ fixtures:
   file: breaks/break_synthetic_formula_1.py
   category: numpy_random
   hunk_start_line: 18
-  hunk_end_line: 29
+  hunk_end_line: 28
   rationale: "string-formula synthesis (f-string concat) instead of faker.email()/faker.name(); no foreign import in hunk; era-6 limit: call_receiver has no target, BPE tokens (f-string, str, int format) are nominal in the Python corpus"
   difficulty: uncaught

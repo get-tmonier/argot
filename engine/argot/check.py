@@ -83,10 +83,13 @@ def _load_phase14_scorer(argot_dir: Path) -> SequentialImportBpeScorer:
     model_a_files = [Path(line) for line in model_a_txt.read_text().splitlines() if line.strip()]
     config: dict[str, object] = json.loads(config_json.read_text())
     threshold = float(config["threshold"])  # type: ignore[arg-type]
-    # Configs written before era 9 don't have this field;
-    # 2.0 is the current shipping default (era-9 research).
+    # Configs written before era 9 don't have these fields; use current shipping defaults.
     call_receiver_alpha = float(config.get("call_receiver_alpha", 2.0))  # type: ignore[arg-type]
     call_receiver_cap = int(config.get("call_receiver_cap", 5))  # type: ignore[call-overload]
+    call_receiver_root_bonus = float(config.get("call_receiver_root_bonus", 2.0))  # type: ignore[arg-type]
+    call_receiver_n_clusters = int(config.get("call_receiver_n_clusters", 1))  # type: ignore[call-overload]
+    call_receiver_cluster_seed = int(config.get("call_receiver_cluster_seed", 0))  # type: ignore[call-overload]
+    call_receiver_cluster_bonus = float(config.get("call_receiver_cluster_bonus", 0.0))  # type: ignore[arg-type]
 
     return SequentialImportBpeScorer(
         model_a_files=model_a_files,
@@ -94,6 +97,10 @@ def _load_phase14_scorer(argot_dir: Path) -> SequentialImportBpeScorer:
         bpe_threshold=threshold,
         call_receiver_alpha=call_receiver_alpha,
         call_receiver_cap=call_receiver_cap,
+        call_receiver_root_bonus=call_receiver_root_bonus,
+        call_receiver_n_clusters=call_receiver_n_clusters,
+        call_receiver_cluster_seed=call_receiver_cluster_seed,
+        call_receiver_cluster_bonus=call_receiver_cluster_bonus,
     )
 
 

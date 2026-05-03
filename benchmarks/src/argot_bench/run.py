@@ -42,6 +42,9 @@ class RunConfig:
     call_receiver_alpha: float = 2.0
     call_receiver_cap: int = 5
     call_receiver_root_bonus: float = 2.0
+    call_receiver_n_clusters: int = 1
+    call_receiver_cluster_seed: int = 0
+    call_receiver_cluster_bonus: float = 0.0
     threshold_percentile: float | None = None
     threshold_iqr_k: float | None = None
     threshold_n_seeds: int = 7
@@ -84,15 +87,18 @@ def _score_fixtures(
     scorer: BenchScorer,
     catalog_dir: Path,
     fixtures: list[Fixture],
+    repo_dir: Path | None = None,
 ) -> list[dict[str, object]]:
     out: list[dict[str, object]] = []
     for fx in fixtures:
         src, hunk = _read_hunk_pair(catalog_dir, fx)
+        file_path = (repo_dir / fx.file) if repo_dir is not None else None
         r = scorer.score_hunk(
             hunk,
             file_source=src,
             hunk_start_line=fx.hunk_start_line,
             hunk_end_line=fx.hunk_end_line,
+            file_path=file_path,
         )
         out.append(
             {
@@ -163,6 +169,7 @@ def _score_real_hunks(
             file_source=file_source,
             hunk_start_line=hs + 1,
             hunk_end_line=he,
+            file_path=file_abs,
         )
         out.append(
             {
@@ -200,6 +207,9 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             call_receiver_alpha=cfg.call_receiver_alpha,
             call_receiver_cap=cfg.call_receiver_cap,
             call_receiver_root_bonus=cfg.call_receiver_root_bonus,
+            call_receiver_n_clusters=cfg.call_receiver_n_clusters,
+            call_receiver_cluster_seed=cfg.call_receiver_cluster_seed,
+            call_receiver_cluster_bonus=cfg.call_receiver_cluster_bonus,
             threshold_percentile=cfg.threshold_percentile,
             threshold_iqr_k=cfg.threshold_iqr_k,
             threshold_n_seeds=cfg.threshold_n_seeds,
@@ -233,6 +243,9 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             call_receiver_alpha=cfg.call_receiver_alpha,
             call_receiver_cap=cfg.call_receiver_cap,
             call_receiver_root_bonus=cfg.call_receiver_root_bonus,
+            call_receiver_n_clusters=cfg.call_receiver_n_clusters,
+            call_receiver_cluster_seed=cfg.call_receiver_cluster_seed,
+            call_receiver_cluster_bonus=cfg.call_receiver_cluster_bonus,
             threshold_percentile=cfg.threshold_percentile,
             threshold_iqr_k=cfg.threshold_iqr_k,
             threshold_n_seeds=cfg.threshold_n_seeds,
@@ -241,7 +254,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
         cal_score_signatures.append({f"{i}:{s:.4f}" for i, s in enumerate(scorer.cal_scores)})
 
         if seed == cfg.seeds[0]:
-            fixture_results = _score_fixtures(scorer, cfg.catalog_dir, break_fixtures)
+            fixture_results = _score_fixtures(scorer, cfg.catalog_dir, break_fixtures, repo_dir=repo)
             hunks_stream: Iterable[dict[str, object]] = _real_pr_hunks(dataset)
             if cfg.quick:
                 hunks_stream = islice(hunks_stream, 50)
@@ -269,6 +282,9 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
                 call_receiver_alpha=cfg.call_receiver_alpha,
                 call_receiver_cap=cfg.call_receiver_cap,
                 call_receiver_root_bonus=cfg.call_receiver_root_bonus,
+                call_receiver_n_clusters=cfg.call_receiver_n_clusters,
+                call_receiver_cluster_seed=cfg.call_receiver_cluster_seed,
+                call_receiver_cluster_bonus=cfg.call_receiver_cluster_bonus,
                 threshold_percentile=cfg.threshold_percentile,
                 threshold_iqr_k=cfg.threshold_iqr_k,
                 threshold_n_seeds=cfg.threshold_n_seeds,
