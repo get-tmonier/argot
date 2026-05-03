@@ -143,7 +143,7 @@ class SequentialImportBpeScorer:
             and inference short-circuit (hunk- and file-level).  Default True.
             Does NOT affect model-A filtering; model A always uses ``exclude_data_dominant``.
         exclude_data_dominant: Filter model-A files using LanguageAdapter.is_data_dominant().
-            Unchanged from era 4; typicality does not replace this.
+            Operates independently of the typicality filter.
         _tokenizer: Optional pre-loaded tokenizer; loads UnixCoder if None (for DI in tests).
     """
 

@@ -1,12 +1,16 @@
-"""Machine-learning stage helpers (era-12).
+"""Machine-learning helpers — research surface.
 
-This package houses infrastructure for training and serving the era-12 ML
-classifier — a 4th scoring stage that fires only when stages 1-3 of
-SequentialImportBpeScorer return ``flagged=False``.
+This package houses research-only infrastructure for the engineered-
+feature extractor and embedding utilities that the benchmark and the
+research scripts under ``engine/scripts/`` consume.  None of it is
+exercised by the production scoring path.
 
-Phase 1 ships the feature extractor (``features.py``) plus its CLI
-(``cli.py`` → ``argot-extract-features``).  No models are trained from this
-package directly; downstream phases will consume the JSONL produced here.
+The production scorer (``SequentialImportBpeScorer``) is in
+``argot.scoring``.
+
+The module also exports :func:`features.synthesize_hunk_in_host`, used
+by the bench's catalog-fixture routing to splice a catalog hunk into
+its real host file before scoring.
 """
 
 from __future__ import annotations

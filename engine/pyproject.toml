@@ -18,12 +18,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Era-14 Phase 6.1: UnixCoder semantic embeddings for `argot-extract-features
-# --with-embeddings`.  Adds ~500 MB of model weights at runtime; not required
-# for the production scoring pipeline.  Install via:
-#     uv pip install -e engine[embeddings]
-# or, when installed from PyPI:
-#     pip install argot-engine[embeddings]
+# UnixCoder semantic embeddings for the `argot-extract-features
+# --with-embeddings` *research* CLI.  Adds ~500 MB of model weights at
+# runtime; NOT required for the production scoring pipeline (which uses
+# only the BPE tokenizer from `transformers`, no torch).  This extra
+# exists for the benchmark / research harness; production users should
+# never need to install it.
+#     uv pip install -e engine[embeddings]   # editable
+#     pip install argot-engine[embeddings]   # from PyPI
 embeddings = ["torch>=2.0"]
 
 [project.scripts]
@@ -49,7 +51,7 @@ dev = [
 [tool.mypy]
 strict = true
 python_version = "3.13"
-exclude = "acceptance/catalog|argot/ml/train.py|^scripts/"
+exclude = "acceptance/catalog|^scripts/"
 
 [[tool.mypy.overrides]]
 module = "pygit2"
@@ -59,9 +61,9 @@ ignore_missing_imports = true
 module = "sklearn.*"
 ignore_missing_imports = true
 
-# Era-14 Phase 6.1: torch is an OPTIONAL dep (under the `embeddings` extra).
-# Without it installed the import in argot/ml/embeddings.py is unresolvable
-# at type-check time; ignore the missing stubs so mypy stays green when the
+# torch is an OPTIONAL dep under the `embeddings` extra.  Without it
+# installed the import in argot/ml/embeddings.py is unresolvable at
+# type-check time; ignore the missing stubs so mypy stays green when the
 # extra is not installed.  At runtime, _require_torch() raises a helpful
 # error if torch is genuinely missing.
 [[tool.mypy.overrides]]
@@ -70,7 +72,7 @@ ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 100
-exclude = ["argot/acceptance/catalog", "argot/ml/train.py", "scripts"]
+exclude = ["argot/acceptance/catalog", "scripts"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM"]

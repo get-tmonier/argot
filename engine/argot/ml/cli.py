@@ -1,8 +1,10 @@
 """``argot-extract-features`` — emit per-hunk feature vectors as JSONL.
 
-Phase 1 (era-12) infrastructure: runs the production 3-stage scorer
-(``SequentialImportBpeScorer`` with the era-11 ship config) over a corpus
-and writes one JSON row per hunk to ``--out``.
+Research infrastructure: runs the production 3-stage scorer
+(``SequentialImportBpeScorer`` with the shipping config) over a corpus
+and writes one JSON row per hunk to ``--out``. Used by the benchmark
+and the research scripts under ``engine/scripts/``; not part of the
+production scoring path.
 
 Two operating modes
 -------------------
@@ -17,8 +19,7 @@ Two operating modes
     Pass ``--corpus <name>`` and the CLI reads the bench-side
     ``targets.yaml`` + ``catalogs/<name>/manifest.yaml``, clones the repo,
     checks out the primary PR sha, and runs the extract pipeline to
-    produce a controls dataset.  This is the convenient form for the
-    orchestrator.
+    produce a controls dataset.
 
 Sampling strategy for controls
 ------------------------------
@@ -28,14 +29,14 @@ Real-PR control sets are large (255k for faker-js).  We sample
 
 * Top-N highest-scoring controls by ``adjusted_bpe`` — these sit closest
   to the threshold and are the most informative negative-class examples
-  for the era-12 ML stage.
+  for downstream ML investigation.
 * PLUS an additional ``N // 2`` random controls (deterministic seed) for
   negative-class diversity.
 
 Excluded reasons (``atypical``, ``atypical_file``, ``excluded_path``,
-``auto_generated``) are dropped before sampling because the era-12 stage
-only fires when stages 1-3 emit ``flagged=False`` AND the hunk is not
-short-circuited.  Sampling these is wasted budget.
+``auto_generated``) are dropped before sampling because downstream
+classifiers only fire when stages 1-3 emit ``flagged=False`` AND the
+hunk is not short-circuited.  Sampling these is wasted budget.
 """
 
 from __future__ import annotations
@@ -112,7 +113,7 @@ def _source_files(repo_dir: Path, adapter: Any) -> list[Path]:
 
 # ---------------------------------------------------------------------------
 # Scorer construction (mirrors argot_bench.score.build_scorer for the
-# era-11 ship config — K=8, cluster_bonus=5.0)
+# shipping config — K=8, cluster_bonus=5.0)
 # ---------------------------------------------------------------------------
 
 
@@ -134,13 +135,13 @@ def build_production_scorer(
     call_receiver_force_jaccard_routing: bool = True,
     threshold_percentile: float | None = 100.0,
 ) -> SequentialImportBpeScorer:
-    """Build the production-config scorer (era-11 ship: K=8, CB=5.0).
+    """Build the production-config scorer (shipping: K=8, CB=5.0).
 
     Defaults match ``argot_bench.score.build_scorer`` so the feature
     extractor sees byte-identical scoring, EXCEPT
     ``call_receiver_force_jaccard_routing`` defaults to True here so
     catalog fixtures and real-PR controls take the same routing path
-    (eliminates the era-12 Phase 3.5 leakage shortcut).
+    (eliminates the catalog-vs-control routing-leak shortcut).
     """
     adapter = _adapter_for_language(language)
     files = _source_files(repo_dir, adapter)
@@ -187,7 +188,7 @@ def build_production_scorer(
 
 
 # ---------------------------------------------------------------------------
-# Embedder helper (Era-14 Phase 6.1)
+# Embedder helper (UnixCoder embedding extraction)
 # ---------------------------------------------------------------------------
 
 
@@ -248,7 +249,7 @@ def _iter_fixture_rows(
         lines = full.splitlines()
         hunk = "\n".join(lines[hs - 1 : he])
 
-        # Era-14 Fix A: optional host-file injection.
+        # Fix A (host injection): optional host-file injection.
         # When the manifest specifies host_file + host_inject_at_line, the
         # ML feature extractor scores the catalog hunk inside a real corpus
         # file rather than the standalone catalog file.  This eliminates
@@ -371,7 +372,7 @@ def stream_sample_controls(
 ) -> list[tuple[dict[str, Any], dict[str, Any]]]:
     """Stream candidates; return top-N by adjusted_bpe + N//2 reservoir extras.
 
-    Era-14 RAM fix: replaces the previous ``_stratified_sample_controls``
+    Research RAM fix: replaces the previous ``_stratified_sample_controls``
     helper which materialized the entire candidate list (256k×few-KB on
     faker-js → >20 GB RSS, OOM).
 
@@ -468,10 +469,10 @@ def _iter_control_rows(
 ) -> Iterator[FeatureRow]:
     """Score all candidate controls then sample N + N/2.
 
-    Excluded reasons (atypical, etc.) are dropped because the era-12 ML
+    Excluded reasons (atypical, etc.) are dropped because the research ML
     stage only fires when stages 1-3 do not short-circuit.
 
-    Era-14 RAM fix: candidates are streamed through ``stream_sample_controls``
+    Research RAM fix: candidates are streamed through ``stream_sample_controls``
     (top-N min-heap + N/2 reservoir) instead of being materialized.  Memory
     is bounded to ~``n_controls + n_controls//2`` records regardless of
     dataset size.  The dataset JSONL is also read line-by-line (see
@@ -558,7 +559,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="argot-extract-features",
         description=(
-            "Era-14 Phase 1 — emit engineered per-hunk feature vectors as JSONL.\n\n"
+            "Emit engineered per-hunk feature vectors as JSONL (research-only).\n\n"
             "Sampling strategy for controls: top N by adjusted_bpe (closest to threshold) "
             "PLUS N/2 random for diversity.  Excluded reasons (atypical, auto_generated, "
             "excluded_path) are dropped before sampling."
@@ -613,7 +614,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--n-cal",
         type=int,
         default=100,
-        help="Calibration hunks per seed (default 100, era-10 shipping).",
+        help="Calibration hunks per seed (default 100, current shipping).",
     )
     p.add_argument(
         "--threshold-n-seeds",
@@ -625,7 +626,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--with-embeddings",
         action="store_true",
         help=(
-            "Era-14 Phase 6.1: attach UnixCoder [CLS] embeddings (768-dim) "
+            "UnixCoder embedding extraction: attach UnixCoder [CLS] embeddings (768-dim) "
             "for the hunk and a 512-token context window centred on the "
             "hunk to every emitted JSONL row, as top-level "
             "`hunk_embedding` / `context_embedding` fields.  Loads the "
@@ -780,7 +781,7 @@ def _run_corpus(args: argparse.Namespace, corpus_name: str) -> int:
 def _run_all(args: argparse.Namespace) -> int:
     """Run every corpus listed in ``targets.yaml`` — each in a fresh subprocess.
 
-    Era-14 Phase 1 fix (RAM hygiene): the in-process loop accumulated the
+    RAM-hygiene fix: the in-process loop accumulated the
     BPE tokenizer + scorer state across corpora, pushing peak RSS to ~22 GB
     on the full 6-corpus run. Spawning a subprocess per corpus keeps peak
     RSS bounded to a single corpus's footprint; process teardown frees all

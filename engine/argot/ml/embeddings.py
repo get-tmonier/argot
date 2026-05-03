@@ -1,12 +1,9 @@
-"""Era-14 Phase 6.1 — UnixCoder semantic embeddings for hunks + file context.
+"""UnixCoder semantic embeddings for hunks + file context (research-only).
 
-Phase 5 (the engineered-feature ML stage) hit a structural wall: the residual
-faker-js fixtures have ``n_unattested_callees == 0`` by definition, so any
-classifier whose dominant input is callee-based engineered features cannot
-catch them.  Phase 6.1 adds **frozen** UnixCoder semantic embeddings as a
-parallel input channel — the encoder is shared with the existing tokenizer
-(``microsoft/unixcoder-base``) so we only pay the model-loading cost once per
-subprocess.
+A parallel input channel for downstream ML investigation, sitting alongside
+the engineered callee-based features in :mod:`argot.ml.features`. The
+encoder is shared with the existing tokenizer (``microsoft/unixcoder-base``)
+so we only pay the model-loading cost once per subprocess.
 
 Public surface
 --------------

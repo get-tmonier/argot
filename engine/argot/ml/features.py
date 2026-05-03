@@ -1,18 +1,23 @@
-"""Era-14 Phase 1 — engineered per-hunk feature extraction.
+"""Engineered per-hunk feature extraction (research-only).
 
 Runs the production 3-stage scorer (``SequentialImportBpeScorer``) over a
 hunk and emits a feature dictionary suitable for training a downstream ML
-classifier (the 4th scoring stage).
+classifier. Used by the benchmark / research pipeline; not exercised by
+the production scoring path.
 
 Public surface:
     * :class:`FeatureRow`    — typed shape of a single emitted JSONL row.
     * :func:`compute_features` — given a hunk + file context + a built scorer,
-      return the ``features`` dict described in the era-12 Phase 1 spec.
+      return the per-hunk feature dict.
     * :func:`build_feature_row` — packages provenance + ``compute_features``.
+    * :func:`synthesize_hunk_in_host` — splice a catalog hunk into a real
+      host file at a chosen line, returning ``(synthesized_content,
+      new_hunk_start_line, new_hunk_end_line)``. Used by the bench's
+      catalog-fixture scoring routing.
 
-The module deliberately avoids importing anything from
-``argot_bench`` to keep the feature extractor usable from the engine package
-in isolation; ``cli.py`` does the bench-side wiring.
+The module deliberately avoids importing anything from ``argot_bench``
+to keep the helpers usable from the engine package in isolation;
+``cli.py`` does the bench-side wiring.
 """
 
 from __future__ import annotations
@@ -85,7 +90,7 @@ class FeatureRow(TypedDict):
 
     All scalar / engineered keys are always present.  The two embedding keys
     are :class:`typing.NotRequired` and populated only when the extractor is
-    invoked with ``--with-embeddings`` (Era-14 Phase 6.1); they are 768-dim
+    invoked with ``--with-embeddings`` (UnixCoder embedding extraction); they are 768-dim
     UnixCoder [CLS] vectors for the hunk and a context window respectively.
     Backward-compat: when omitted, JSONL output is byte-identical to
     pre-Phase-6.1 behaviour.
@@ -115,7 +120,7 @@ def synthesize_hunk_in_host(
 ) -> tuple[str, int, int]:
     """Splice catalog content into host content at an injection point.
 
-    Era-14 Fix A: catalog break files are tiny single-function standalone
+    Fix A (host injection): catalog break files are tiny single-function standalone
     files, which makes ``hunk_callees ⊆ file_callees`` by construction
     (Jaccard ≈ 1.0).  Real-PR controls live in large multi-function files
     (Jaccard ≈ 0.05).  This shape mismatch was the strongest discriminator
@@ -330,7 +335,7 @@ def _resolve_cluster(
 ) -> tuple[int | None, float]:
     """Resolve cluster for ML feature emission via unified Jaccard routing.
 
-    Era-14 Phase 1 fix: always uses the Jaccard fallback path regardless of
+    Routing-leak fix: always uses the Jaccard fallback path regardless of
     whether ``file_path`` is in ``call_receiver.file_to_cluster``. This
     eliminates the routing-leak between catalog fixtures (paths NOT in
     model_a_files → previously fallback) and real-PR controls (paths IN
@@ -389,7 +394,7 @@ def _call_receiver_features(
         1 for c in distinct if c not in cr.attested and c.split(".", 1)[0] in cr.attested_roots
     )
 
-    # Era-14 Phase 1 fix: unified Jaccard routing — always compute via
+    # Routing-leak fix: unified Jaccard routing — always compute via
     # cluster_attested + file_source, never short-circuit to static lookup.
     # This makes catalog fixtures and real-PR controls take the same path,
     # eliminating the cluster_assignment_method routing-leak shortcut.
@@ -535,7 +540,7 @@ def build_feature_row(
     dir for fixtures); we store the relative form so rows are portable across
     machines.
 
-    ``hunk_embedding`` / ``context_embedding`` are optional Era-14 Phase 6.1
+    ``hunk_embedding`` / ``context_embedding`` are optional UnixCoder embedding extraction
     additions: 768-dim UnixCoder [CLS] vectors for the hunk and a context
     window centred on the hunk.  When ``None`` (the default — equivalent to
     running without ``--with-embeddings``), the keys are **omitted** from the
