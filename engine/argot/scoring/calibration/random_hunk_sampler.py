@@ -69,6 +69,48 @@ def is_excluded_path(path: Path, source_dir: Path, exclude_dirs: frozenset[str])
 _is_excluded = is_excluded_path
 
 
+def _collect_candidates_with_metadata_impl(
+    source_dir: Path,
+    *,
+    exclude_dirs: frozenset[str] | None = None,
+    exclude_data_dominant: bool = True,
+    exclude_atypical: bool = False,
+    adapter: "LanguageAdapter | None" = None,  # noqa: UP037
+) -> list[tuple[str, Path, str]]:
+    """Internal worker: yield (hunk_text, file_path, file_source) tuples.
+
+    Shared implementation behind both ``collect_candidates`` (which strips the
+    metadata) and ``collect_candidates_with_metadata`` (which exposes it).
+    """
+    excl = exclude_dirs if exclude_dirs is not None else DEFAULT_EXCLUDE_DIRS
+    _adapter: LanguageAdapter = adapter if adapter is not None else PythonAdapter()
+
+    typicality_model: TypicalityModel | None = None
+    if exclude_atypical:
+        typicality_model = TypicalityModel(language=language_for_adapter(_adapter))
+
+    out: list[tuple[str, Path, str]] = []
+    for ext in _adapter.file_extensions:
+        for src_file in sorted(source_dir.rglob(f"*{ext}")):
+            if is_excluded_path(src_file, source_dir, excl):
+                continue
+            try:
+                source = src_file.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            if exclude_data_dominant and _adapter.is_data_dominant(source):
+                continue
+            if typicality_model is not None and typicality_model.is_atypical_file(source)[0]:
+                continue
+            lines = source.splitlines()
+            for start, end in _adapter.enumerate_sampleable_ranges(source):
+                if (end - start) < MIN_BODY_LINES:
+                    continue
+                hunk_text = "\n".join(lines[start - 1 : end])
+                out.append((hunk_text, src_file, source))
+    return out
+
+
 def collect_candidates(
     source_dir: Path,
     *,
@@ -86,32 +128,41 @@ def collect_candidates(
     SequentialImportBpeScorer.__init__ for calibration hunks,
     and score_hunk short-circuits atypical hunks at inference.
     """
-    excl = exclude_dirs if exclude_dirs is not None else DEFAULT_EXCLUDE_DIRS
-    _adapter: LanguageAdapter = adapter if adapter is not None else PythonAdapter()
+    return [
+        hunk
+        for hunk, _fp, _src in _collect_candidates_with_metadata_impl(
+            source_dir,
+            exclude_dirs=exclude_dirs,
+            exclude_data_dominant=exclude_data_dominant,
+            exclude_atypical=exclude_atypical,
+            adapter=adapter,
+        )
+    ]
 
-    typicality_model: TypicalityModel | None = None
-    if exclude_atypical:
-        typicality_model = TypicalityModel(language=language_for_adapter(_adapter))
 
-    hunks: list[str] = []
-    for ext in _adapter.file_extensions:
-        for src_file in sorted(source_dir.rglob(f"*{ext}")):
-            if is_excluded_path(src_file, source_dir, excl):
-                continue
-            try:
-                source = src_file.read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                continue
-            if exclude_data_dominant and _adapter.is_data_dominant(source):
-                continue
-            if typicality_model is not None and typicality_model.is_atypical_file(source)[0]:
-                continue
-            lines = source.splitlines()
-            for start, end in _adapter.enumerate_sampleable_ranges(source):
-                if (end - start) < MIN_BODY_LINES:
-                    continue
-                hunks.append("\n".join(lines[start - 1 : end]))
-    return hunks
+def collect_candidates_with_metadata(
+    source_dir: Path,
+    *,
+    exclude_dirs: frozenset[str] | None = None,
+    exclude_data_dominant: bool = True,
+    exclude_atypical: bool = False,
+    exclude_auto_generated: bool = True,  # deprecated: silently no-op
+    adapter: "LanguageAdapter | None" = None,  # noqa: UP037
+) -> list[tuple[str, Path, str]]:
+    """Return all qualifying ``(hunk_text, file_path, file_source)`` tuples.
+
+    Era-11 metadata-aware variant of :func:`collect_candidates`.  Used by the
+    cluster-conditional calibration path so that calibration hunks can be
+    scored with ``CallReceiverScorer.weighted_contribution_for_file`` (which
+    needs the originating file path to resolve a cluster id).
+    """
+    return _collect_candidates_with_metadata_impl(
+        source_dir,
+        exclude_dirs=exclude_dirs,
+        exclude_data_dominant=exclude_data_dominant,
+        exclude_atypical=exclude_atypical,
+        adapter=adapter,
+    )
 
 
 def sample_hunks(
@@ -134,6 +185,50 @@ def sample_hunks(
         exclude_dirs=exclude_dirs,
         exclude_auto_generated=exclude_auto_generated,
         exclude_data_dominant=exclude_data_dominant,
+        adapter=adapter,
+    )
+    if len(candidates) == 0:
+        raise ValueError(
+            f"Only 0 qualifying hunks found in {source_dir!r}, "
+            f"cannot sample n={n}. Reduce n or expand source_dir."
+        )
+    if len(candidates) < n:
+        import warnings
+
+        warnings.warn(
+            f"Only {len(candidates)} qualifying hunks in {source_dir!r}; "
+            f"capping from n={n} to {len(candidates)}.",
+            UserWarning,
+            stacklevel=2,
+        )
+        n = len(candidates)
+    rng = np.random.default_rng(seed)
+    indices = rng.choice(len(candidates), size=n, replace=False)
+    return [candidates[int(i)] for i in sorted(indices)]
+
+
+def sample_hunks_with_metadata(
+    source_dir: Path,
+    n: int,
+    seed: int,
+    *,
+    exclude_dirs: frozenset[str] | None = None,
+    exclude_auto_generated: bool = True,
+    exclude_data_dominant: bool = True,
+    exclude_atypical: bool = False,
+    adapter: "LanguageAdapter | None" = None,  # noqa: UP037
+) -> list[tuple[str, Path, str]]:
+    """Sample up to n ``(hunk_text, file_path, file_source)`` tuples.
+
+    Mirrors :func:`sample_hunks` (same RNG, same cap-with-warning behavior)
+    but returns the metadata needed for cluster-conditional calibration.
+    """
+    candidates = collect_candidates_with_metadata(
+        source_dir,
+        exclude_dirs=exclude_dirs,
+        exclude_auto_generated=exclude_auto_generated,
+        exclude_data_dominant=exclude_data_dominant,
+        exclude_atypical=exclude_atypical,
         adapter=adapter,
     )
     if len(candidates) == 0:

@@ -75,7 +75,24 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=2.0,
         metavar="FLOAT",
-        help="Root-conditional bonus weight for attested-root unattested callees. Default 2.0 (era-10 Phase-2 shipping).",
+        help="Root-conditional bonus weight for attested-root unattested callees. Default 2.0.",
+    )
+    p.add_argument(
+        "--call-receiver-clusters",
+        type=int,
+        default=8,
+        metavar="K",
+        help="Number of file clusters for cluster-conditional attestation. Default 8 (era-11 shipping). 1=off.",
+    )
+    p.add_argument(
+        "--call-receiver-cluster-bonus",
+        type=float,
+        default=5.0,
+        metavar="FLOAT",
+        help=(
+            "Penalty for globally-attested callees absent from the file's cluster. "
+            "Default 5.0 (era-11 shipping). 0.0=off."
+        ),
     )
     p.add_argument(
         "--n-cal",
@@ -152,6 +169,23 @@ def build_parser() -> argparse.ArgumentParser:
         default=2.0,
         metavar="FLOAT",
         help="Root-conditional bonus weight. Default 2.0.",
+    )
+    one.add_argument(
+        "--call-receiver-clusters",
+        type=int,
+        default=8,
+        metavar="K",
+        help="Number of file clusters for cluster-conditional attestation. Default 8 (era-11 shipping). 1=off.",
+    )
+    one.add_argument(
+        "--call-receiver-cluster-bonus",
+        type=float,
+        default=5.0,
+        metavar="FLOAT",
+        help=(
+            "Penalty weight for globally-attested callees absent from the file's "
+            "cluster attested set. Default 5.0 (era-11 shipping). 0.0=off."
+        ),
     )
     one.add_argument(
         "--n-cal",
@@ -247,6 +281,8 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
         call_receiver_alpha=args.call_receiver_alpha,
         call_receiver_cap=args.call_receiver_cap,
         call_receiver_root_bonus=args.call_receiver_root_bonus,
+        call_receiver_n_clusters=args.call_receiver_clusters,
+        call_receiver_cluster_bonus=args.call_receiver_cluster_bonus,
         n_cal=args.n_cal,
         threshold_percentile=args.threshold_percentile,
         threshold_iqr_k=args.threshold_iqr_k,
@@ -291,6 +327,10 @@ def _run(args: argparse.Namespace) -> int:
         base_cmd.extend(["--call-receiver-cap", str(args.call_receiver_cap)])
     if args.call_receiver_root_bonus != 2.0:
         base_cmd.extend(["--call-receiver-root-bonus", str(args.call_receiver_root_bonus)])
+    if args.call_receiver_clusters != 8:
+        base_cmd.extend(["--call-receiver-clusters", str(args.call_receiver_clusters)])
+    if args.call_receiver_cluster_bonus != 5.0:
+        base_cmd.extend(["--call-receiver-cluster-bonus", str(args.call_receiver_cluster_bonus)])
     if args.n_cal != 100:
         base_cmd.extend(["--n-cal", str(args.n_cal)])
     if args.threshold_percentile != 100.0:

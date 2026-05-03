@@ -9,3 +9,7 @@ exclude = ["engine/argot/acceptance", "argot/acceptance", "benchmarks"]
 [[tool.mypy.overrides]]
 module = "pygit2"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "sklearn.*"
+ignore_missing_imports = true

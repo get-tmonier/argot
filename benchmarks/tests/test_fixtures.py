@@ -49,9 +49,9 @@ def test_fixture_difficulty_defaults_to_none():
     assert fx.difficulty is None
 
 
-def test_rich_has_fifteen_fixtures():
+def test_rich_has_sixteen_fixtures():
     cat = load_catalog(CATALOGS_DIR / "rich")
-    assert len(cat.fixtures) == 15, f"Expected 15, got {len(cat.fixtures)}"
+    assert len(cat.fixtures) == 16, f"Expected 16, got {len(cat.fixtures)}"
 
 
 def test_rich_each_category_has_three_fixtures():
@@ -126,9 +126,9 @@ def test_fixture_difficulty_optional_in_yaml(tmp_path: Path):
     assert cat.fixtures[0].difficulty is None
 
 
-def test_faker_has_fifteen_fixtures():
+def test_faker_has_sixteen_fixtures():
     cat = load_catalog(CATALOGS_DIR / "faker")
-    assert len(cat.fixtures) == 15, f"Expected 15, got {len(cat.fixtures)}"
+    assert len(cat.fixtures) == 16, f"Expected 16, got {len(cat.fixtures)}"
 
 
 def test_faker_each_category_has_three_fixtures():

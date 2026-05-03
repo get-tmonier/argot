@@ -77,12 +77,14 @@ class BenchScorer:
         file_source: str | None = None,
         hunk_start_line: int | None = None,
         hunk_end_line: int | None = None,
+        file_path: Path | None = None,
     ) -> ScoreResult:
         raw = self._inner.score_hunk(
             hunk_content,
             file_source=file_source,
             hunk_start_line=hunk_start_line,
             hunk_end_line=hunk_end_line,
+            file_path=file_path,
         )
         return ScoreResult(
             import_score=float(raw["import_score"]),
@@ -118,6 +120,9 @@ def build_scorer(
     call_receiver_alpha: float = 2.0,
     call_receiver_cap: int = 5,
     call_receiver_root_bonus: float = 2.0,
+    call_receiver_n_clusters: int = 8,
+    call_receiver_cluster_seed: int = 0,
+    call_receiver_cluster_bonus: float = 5.0,
     threshold_percentile: float | None = None,
     threshold_iqr_k: float | None = None,
     threshold_n_seeds: int = 7,
@@ -160,6 +165,9 @@ def build_scorer(
             call_receiver_alpha=call_receiver_alpha,
             call_receiver_cap=call_receiver_cap,
             call_receiver_root_bonus=call_receiver_root_bonus,
+            call_receiver_n_clusters=call_receiver_n_clusters,
+            call_receiver_cluster_seed=call_receiver_cluster_seed,
+            call_receiver_cluster_bonus=call_receiver_cluster_bonus,
             enable_typicality_filter=enable_typicality_filter,
         )
         inner = SequentialImportBpeScorer(
@@ -172,6 +180,9 @@ def build_scorer(
             call_receiver_alpha=call_receiver_alpha,
             call_receiver_cap=call_receiver_cap,
             call_receiver_root_bonus=call_receiver_root_bonus,
+            call_receiver_n_clusters=call_receiver_n_clusters,
+            call_receiver_cluster_seed=call_receiver_cluster_seed,
+            call_receiver_cluster_bonus=call_receiver_cluster_bonus,
             threshold_percentile=threshold_percentile,
             threshold_iqr_k=threshold_iqr_k,
         )
@@ -187,6 +198,9 @@ def build_scorer(
             call_receiver_alpha=call_receiver_alpha,
             call_receiver_cap=call_receiver_cap,
             call_receiver_root_bonus=call_receiver_root_bonus,
+            call_receiver_n_clusters=call_receiver_n_clusters,
+            call_receiver_cluster_seed=call_receiver_cluster_seed,
+            call_receiver_cluster_bonus=call_receiver_cluster_bonus,
             threshold_percentile=threshold_percentile,
             threshold_iqr_k=threshold_iqr_k,
         )

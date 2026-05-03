@@ -311,6 +311,8 @@ def test_calibrate_multi_seed_equals_median_of_individual() -> None:
 
     expected = statistics.median(individual)
 
+    # Disable cluster-conditional calibration path (era-11 default) so this test compares
+    # the same scoring path as the individual scorers built above (which do not use clusters).
     result = calibrate_multi_seed(
         base_seed=base_seed,
         n_seeds=n_seeds,
@@ -322,6 +324,8 @@ def test_calibrate_multi_seed_equals_median_of_individual() -> None:
         threshold_percentile=threshold_percentile,
         call_receiver_alpha=2.0,
         call_receiver_cap=5,
+        call_receiver_n_clusters=1,
+        call_receiver_cluster_bonus=0.0,
     )
     assert result == pytest.approx(expected, abs=1e-10)
 

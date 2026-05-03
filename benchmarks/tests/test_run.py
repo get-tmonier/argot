@@ -33,11 +33,7 @@ def test_run_corpus_stub_returns_corpus_report(tmp_path: Path, monkeypatch):
 
             return ScoreResult(import_score=0.0, bpe_score=3.0, flagged=True, reason="bpe")
 
-    def fake_build(
-        repo, *, n_cal, seed, language, bpe_model_b=None,
-        enable_typicality_filter=True, call_receiver_alpha=0.0, call_receiver_cap=5,
-        threshold_percentile=None, threshold_iqr_k=None,
-    ):
+    def fake_build(repo, **_kw):
         return FakeBenchScorer()
 
     monkeypatch.setattr(run_mod, "ensure_clone", fake_clone)
@@ -113,6 +109,7 @@ def test_score_real_hunks_reads_file_and_converts_to_1_indexed(tmp_path: Path):
             file_source: str | None,
             hunk_start_line: int | None,
             hunk_end_line: int | None,
+            file_path: object = None,
         ) -> ScoreResult:
             captured["hunk_content"] = hunk_content
             captured["file_source"] = file_source
