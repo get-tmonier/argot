@@ -456,17 +456,13 @@ def test_nearest_cluster_for_source_public_api(tmp_path: Path) -> None:
     if math_cluster == io_cluster:
         pytest.skip("KMeans merged clusters")
 
-    res_math = scorer.nearest_cluster_for_source(
-        "Math.floor(); Math.random(); Math.min(a, b);"
-    )
+    res_math = scorer.nearest_cluster_for_source("Math.floor(); Math.random(); Math.min(a, b);")
     assert res_math is not None
     cid_m, jacc_m = res_math
     assert cid_m == math_cluster
     assert 0.0 < jacc_m <= 1.0
 
-    res_io = scorer.nearest_cluster_for_source(
-        "fetch(url); Promise.resolve(x); console.log('hi');"
-    )
+    res_io = scorer.nearest_cluster_for_source("fetch(url); Promise.resolve(x); console.log('hi');")
     assert res_io is not None
     cid_io, jacc_io = res_io
     assert cid_io == io_cluster

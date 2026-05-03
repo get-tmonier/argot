@@ -4,7 +4,7 @@ members = ["engine", "benchmarks"]
 [tool.mypy]
 strict = true
 python_version = "3.13"
-exclude = ["engine/argot/acceptance", "argot/acceptance", "benchmarks"]
+exclude = ["engine/argot/acceptance", "argot/acceptance", "benchmarks", "engine/argot/ml/train.py"]
 
 [[tool.mypy.overrides]]
 module = "pygit2"

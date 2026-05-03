@@ -233,9 +233,7 @@ def test_resolve_cluster_uses_jaccard_for_corpus_files(tmp_path: Path) -> None:
     assert 0.0 < jacc_fb <= 1.0
 
     # Without file_source we cannot route — both paths return None.
-    cid_no_src, jacc_no_src = _resolve_cluster(
-        cr, files[0], file_source=None, language="python"
-    )
+    cid_no_src, jacc_no_src = _resolve_cluster(cr, files[0], file_source=None, language="python")
     assert cid_no_src is None
     assert jacc_no_src == pytest.approx(0.0)
 
