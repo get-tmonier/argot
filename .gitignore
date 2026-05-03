@@ -52,6 +52,9 @@ __pycache__/
 # history
 .history/
 
+# orchestration scratch (logs, intermediate memos, work-in-flight notes)
+.scratch/
+
 npm/native/
 
 # superpowers working docs (plans/specs — not versioned)
