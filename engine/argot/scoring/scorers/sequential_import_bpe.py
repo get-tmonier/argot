@@ -166,10 +166,18 @@ class SequentialImportBpeScorer:
         call_receiver_n_clusters: int = 1,
         call_receiver_cluster_seed: int = 0,
         call_receiver_cluster_bonus: float = 0.0,
+        calibration_hunks_with_metadata: list[tuple[str, Path, str]] | None = None,
         _tokenizer: Any = None,
     ) -> None:
-        if calibration_hunks is None and bpe_threshold is None:
-            raise ValueError("Either calibration_hunks or bpe_threshold must be provided")
+        if (
+            calibration_hunks is None
+            and calibration_hunks_with_metadata is None
+            and bpe_threshold is None
+        ):
+            raise ValueError(
+                "Either calibration_hunks, calibration_hunks_with_metadata, or "
+                "bpe_threshold must be provided"
+            )
         model_a_list = list(model_a_files)
 
         # Resolve language adapter from file extensions (or use provided adapter)
@@ -250,13 +258,47 @@ class SequentialImportBpeScorer:
             self.cal_scores: list[float] = []
             self.n_calibration: int = 0
         else:
-            cal_list = list(calibration_hunks or [])
-            if self._typicality_model is not None:
-                cal_list = [h for h in cal_list if not self._typicality_model.is_atypical(h)[0]]
-            cal_scores = [
-                self._bpe_score(_blank_prose_lines(h, self._adapter.prose_line_ranges(h)))
-                for h in cal_list
-            ]
+            # Era-11 metadata path: when n_clusters>1 AND metadata supplied, fold the
+            # cluster_bonus contribution into calibration scores so the per-corpus
+            # threshold absorbs the new signal.  alpha/root_bonus are kept at 0.0 here
+            # to preserve era-10 calibration semantics — only cluster_bonus is the new
+            # contribution that should shift the threshold.
+            use_metadata_path = (
+                calibration_hunks_with_metadata is not None
+                and call_receiver_n_clusters > 1
+                and self._call_receiver is not None
+            )
+            if use_metadata_path:
+                assert calibration_hunks_with_metadata is not None  # for mypy
+                assert self._call_receiver is not None  # for mypy
+                meta_list: list[tuple[str, Path, str]] = list(calibration_hunks_with_metadata)
+                if self._typicality_model is not None:
+                    meta_list = [
+                        t for t in meta_list if not self._typicality_model.is_atypical(t[0])[0]
+                    ]
+                cal_scores: list[float] = []
+                for hunk, fp, src in meta_list:
+                    raw_bpe: float = self._bpe_score(
+                        _blank_prose_lines(hunk, self._adapter.prose_line_ranges(hunk))
+                    )
+                    contrib = self._call_receiver.weighted_contribution_for_file(
+                        hunk,
+                        file_path=fp,
+                        file_source=src,
+                        alpha=0.0,
+                        root_bonus=0.0,
+                        cluster_bonus=call_receiver_cluster_bonus,
+                        cap=float(self._call_receiver.cap),
+                    )
+                    cal_scores.append(raw_bpe + contrib)
+            else:
+                cal_list = list(calibration_hunks or [])
+                if self._typicality_model is not None:
+                    cal_list = [h for h in cal_list if not self._typicality_model.is_atypical(h)[0]]
+                cal_scores = [
+                    self._bpe_score(_blank_prose_lines(h, self._adapter.prose_line_ranges(h)))
+                    for h in cal_list
+                ]
             self.cal_scores = cal_scores
             self.bpe_threshold = _compute_threshold(
                 cal_scores, threshold_percentile, threshold_iqr_k

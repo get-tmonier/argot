@@ -11,7 +11,11 @@ import pygit2
 
 from argot.scoring.adapters.language_adapter import LanguageAdapter
 from argot.scoring.adapters.registry import adapter_for_files
-from argot.scoring.calibration.random_hunk_sampler import collect_candidates, sample_hunks
+from argot.scoring.calibration.random_hunk_sampler import (
+    collect_candidates,
+    sample_hunks,
+    sample_hunks_with_metadata,
+)
 from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
 
 _CONFIG_VERSION = 1
@@ -58,12 +62,24 @@ def calibrate_multi_seed(
     """
     thresholds: list[float] = []
 
+    # Era-11 metadata path: when n_clusters > 1, use the metadata-aware sampler so that
+    # cluster_bonus contributions can be folded into calibration scores.  When
+    # n_clusters == 1 the existing era-10 path is used byte-identically.
+    use_metadata = call_receiver_n_clusters > 1
+
+    def _sample(seed: int) -> tuple[list[str] | None, list[tuple[str, Path, str]] | None]:
+        if use_metadata:
+            meta = sample_hunks_with_metadata(repo_dir, n_cal, seed, adapter=adapter)
+            return [h for h, _, _ in meta], meta
+        return sample_hunks(repo_dir, n_cal, seed, adapter=adapter), None
+
     # Build first scorer — lets the tokenizer load once
-    first_hunks = sample_hunks(repo_dir, n_cal, base_seed, adapter=adapter)
+    first_hunks, first_meta = _sample(base_seed)
     first_scorer = SequentialImportBpeScorer(
         model_a_files=model_a_files,
         bpe_model_b_path=bpe_model_b_path,
         calibration_hunks=first_hunks,
+        calibration_hunks_with_metadata=first_meta,
         adapter=adapter,
         threshold_percentile=threshold_percentile,
         threshold_iqr_k=threshold_iqr_k,
@@ -81,11 +97,12 @@ def calibrate_multi_seed(
     # Build remaining scorers reusing the shared tokenizer
     for k in range(1, n_seeds):
         seed = base_seed + k
-        hunks = sample_hunks(repo_dir, n_cal, seed, adapter=adapter)
+        hunks, meta = _sample(seed)
         scorer = SequentialImportBpeScorer(
             model_a_files=model_a_files,
             bpe_model_b_path=bpe_model_b_path,
             calibration_hunks=hunks,
+            calibration_hunks_with_metadata=meta,
             adapter=adapter,
             threshold_percentile=threshold_percentile,
             threshold_iqr_k=threshold_iqr_k,

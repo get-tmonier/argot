@@ -383,11 +383,7 @@ class CallReceiverScorer:
         seen: set[str] = set()
 
         cluster_id = self.file_to_cluster.get(file_path)
-        if (
-            cluster_id is None
-            and file_source is not None
-            and self.cluster_attested
-        ):
+        if cluster_id is None and file_source is not None and self.cluster_attested:
             cluster_id = self._nearest_cluster_for_source(file_source)
         cluster_set = self.cluster_attested.get(cluster_id) if cluster_id is not None else None
 
@@ -424,10 +420,7 @@ class CallReceiverScorer:
         for cid in sorted(self.cluster_attested.keys()):
             attested = self.cluster_attested[cid]
             union = bag | attested
-            if not union:
-                jaccard = 0.0
-            else:
-                jaccard = len(bag & attested) / len(union)
+            jaccard = 0.0 if not union else len(bag & attested) / len(union)
             if jaccard > best_jaccard:
                 best_jaccard = jaccard
                 best_cid = cid

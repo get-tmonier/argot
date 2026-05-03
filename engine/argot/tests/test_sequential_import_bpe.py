@@ -134,7 +134,7 @@ def test_bpe_threshold_override_skips_calibration() -> None:
 
 def test_scorer_raises_without_hunks_or_threshold() -> None:
     """Scorer raises ValueError if neither calibration_hunks nor bpe_threshold is given."""
-    with pytest.raises(ValueError, match="Either calibration_hunks or bpe_threshold"):
+    with pytest.raises(ValueError, match="calibration_hunks.*bpe_threshold"):
         SequentialImportBpeScorer(
             model_a_files=_CONTROL_FILES,
             bpe_model_b_path=_BPE_MODEL_B,

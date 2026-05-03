@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
+
 # ---------------------------------------------------------------------------
 # Defaults / backward-compatibility
 # ---------------------------------------------------------------------------
@@ -511,3 +513,374 @@ def test_cli_cluster_defaults_match_run_config() -> None:
     assert all(
         v == pytest.approx(0.0) for v in cli_bonus_defaults
     ), f"CLI bonus defaults: {cli_bonus_defaults}"
+
+
+# ---------------------------------------------------------------------------
+# Era-11 Phase 5: cluster-aware calibration
+# ---------------------------------------------------------------------------
+
+
+_BPE_MODEL_B_PATH = Path(__file__).parent.parent / "scoring" / "bpe" / "generic_tokens_bpe.json"
+
+
+def _build_two_cluster_repo(tmp_path: Path, n_per_cluster: int = 8) -> Path:
+    """Build a synthetic 2-cluster TS repo where cluster_bonus fires on calibration hunks.
+
+    Cluster_bonus can only fire on a hunk from file ``f`` (in cluster ``k``) when
+    one of its callees ``c`` is globally attested but absent from cluster ``k``'s
+    attested set.  But ``cluster_attested[k]`` includes ``f``'s own callee bag
+    by construction, so any callee in ``f``'s source is always in ``f``'s
+    cluster set.  The only way cluster_bonus can fire on a SAMPLED hunk is via
+    the fallback path: ``f`` is NOT in ``file_to_cluster`` (e.g. because the
+    repo dir is broader than ``model_a_files``), and the Jaccard fallback maps
+    ``f`` to a cluster whose attested set is missing some of ``f``'s callees.
+
+    To produce that situation we create a third "fallback" subdir whose files
+    are NOT included in model_a_files (the scorer's fit corpus), but ARE
+    included in the calibration hunk pool (sampled from repo root).  Each
+    fallback file is io-flavored at the FILE level (so Jaccard maps it to the
+    io cluster) but contains a sampleable function that calls Math.* callees
+    — those Math.* callees are globally attested via math/ files but absent
+    from the io cluster's attested set → cluster_bonus FIRES.
+    """
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+
+    math_callees = (
+        "  Math.floor(x);\n"
+        "  Math.random();\n"
+        "  Math.min(x, x);\n"
+        "  Math.max(x, x);\n"
+        "  Math.abs(x);\n"
+        "  Math.sqrt(x);\n"
+        "  Math.log(x);\n"
+        "  Math.exp(x);\n"
+        "  Number.isFinite(x);\n"
+        "  Number.parseInt('1');\n"
+    )
+    io_callees = (
+        "  fetch(url);\n"
+        "  Promise.resolve(url);\n"
+        "  console.log('a');\n"
+        "  console.warn('b');\n"
+        "  console.error('c');\n"
+        "  console.info('d');\n"
+        "  JSON.stringify(url);\n"
+        "  JSON.parse(url);\n"
+        "  Promise.reject(url);\n"
+        "  Promise.all([]);\n"
+    )
+
+    # Pure math files (in model_a_files): only math callees → math cluster.
+    for i in range(n_per_cluster):
+        f = src_dir / f"math_{i}.ts"
+        f.write_text(
+            f"export function pure_math_{i}(x: number) {{\n" f"{math_callees}" "  return x;\n" "}\n"
+        )
+    # Pure io files (in model_a_files): only io callees → io cluster.
+    for i in range(n_per_cluster):
+        f = src_dir / f"io_{i}.ts"
+        f.write_text(
+            f"export async function pure_io_{i}(url: string) {{\n"
+            f"{io_callees}"
+            "  return url;\n"
+            "}\n"
+        )
+
+    # Fallback subdir (NOT in model_a_files): io-flavored files whose hunks
+    # call Math.* callees.  Sampled hunks from these files trigger the
+    # fallback path → Jaccard-nearest is io cluster → cluster_bonus fires
+    # on the Math.* callees (globally attested via math/ files but absent
+    # from io cluster's attested set).
+    fb_dir = src_dir / "fallback"
+    fb_dir.mkdir()
+    for i in range(n_per_cluster):
+        f = fb_dir / f"hybrid_{i}.ts"
+        f.write_text(
+            # File-level callee bag is dominated by io callees → Jaccard nearest is io.
+            f"export async function io_helper_{i}(url: string) {{\n"
+            f"{io_callees}"
+            "  return url;\n"
+            "}\n"
+            "\n"
+            # Second sampleable function: calls Math.* (globally attested via
+            # math/ files, but Math.* are absent from io cluster's attested set
+            # because no io file has Math.* in its bag).
+            f"export function math_caller_{i}(x: number) {{\n"
+            "  Math.floor(x);\n"
+            "  Math.random();\n"
+            "  Math.min(x, x);\n"
+            "  Math.abs(x);\n"
+            "  Math.max(x, x);\n"
+            "  return x;\n"
+            "}\n"
+        )
+    return src_dir
+
+
+def _build_scorer(
+    repo: Path,
+    *,
+    n_clusters: int,
+    cluster_bonus: float,
+    metadata: bool,
+    threshold_percentile: float | None = None,
+) -> SequentialImportBpeScorer:
+    """Helper: build a SequentialImportBpeScorer for tests, sharing a tokenizer cache."""
+    from argot.scoring.adapters.typescript import TypeScriptAdapter
+    from argot.scoring.calibration.random_hunk_sampler import (
+        sample_hunks,
+        sample_hunks_with_metadata,
+    )
+
+    adapter = TypeScriptAdapter()
+    # model_a_files EXCLUDES the fallback/ subdir so hunks sampled from
+    # fallback/ trigger the era-11 Phase 1 file_source fallback path → that
+    # is where cluster_bonus actually fires on calibration hunks.
+    files = sorted(p for p in repo.rglob("*.ts") if "fallback" not in p.parts)
+    if metadata:
+        meta = sample_hunks_with_metadata(repo, n=8, seed=0, adapter=adapter)
+        return SequentialImportBpeScorer(
+            model_a_files=files,
+            bpe_model_b_path=_BPE_MODEL_B_PATH,
+            calibration_hunks=[h for h, _, _ in meta],
+            calibration_hunks_with_metadata=meta,
+            adapter=adapter,
+            threshold_percentile=threshold_percentile,
+            call_receiver_alpha=2.0,
+            call_receiver_root_bonus=2.0,
+            call_receiver_cap=5,
+            call_receiver_n_clusters=n_clusters,
+            call_receiver_cluster_seed=0,
+            call_receiver_cluster_bonus=cluster_bonus,
+            enable_typicality_filter=False,  # synthetic corpus may not pass typicality
+        )
+    hunks = sample_hunks(repo, n=8, seed=0, adapter=adapter)
+    return SequentialImportBpeScorer(
+        model_a_files=files,
+        bpe_model_b_path=_BPE_MODEL_B_PATH,
+        calibration_hunks=hunks,
+        adapter=adapter,
+        threshold_percentile=threshold_percentile,
+        call_receiver_alpha=2.0,
+        call_receiver_root_bonus=2.0,
+        call_receiver_cap=5,
+        call_receiver_n_clusters=n_clusters,
+        call_receiver_cluster_seed=0,
+        call_receiver_cluster_bonus=cluster_bonus,
+        enable_typicality_filter=False,
+    )
+
+
+def test_metadata_calibration_raises_threshold_when_cluster_bonus_fires(
+    tmp_path: Path,
+) -> None:
+    """When n_clusters>1 and cluster_bonus>0, calibration threshold > the n_clusters=1 baseline."""
+    repo = _build_two_cluster_repo(tmp_path)
+
+    s_baseline = _build_scorer(repo, n_clusters=1, cluster_bonus=0.0, metadata=False)
+    s_cluster = _build_scorer(repo, n_clusters=2, cluster_bonus=5.0, metadata=True)
+
+    # Sanity: the metadata path actually fired (some calibration hunks got bonus).
+    assert s_cluster.n_calibration > 0
+    # The cluster-aware threshold must rise to absorb cluster_bonus signal.
+    assert s_cluster.bpe_threshold > s_baseline.bpe_threshold + 0.1, (
+        f"cluster threshold {s_cluster.bpe_threshold:.4f} did not rise meaningfully "
+        f"above baseline {s_baseline.bpe_threshold:.4f}"
+    )
+
+
+def test_n_clusters_1_calibration_byte_identical(tmp_path: Path) -> None:
+    """n_clusters=1 path: with vs without metadata-aware sampling → identical threshold."""
+    repo = _build_two_cluster_repo(tmp_path)
+
+    # When n_clusters=1, the metadata kwarg should be ignored (era-10 path).
+    s_no_meta = _build_scorer(repo, n_clusters=1, cluster_bonus=0.0, metadata=False)
+    s_with_meta = _build_scorer(repo, n_clusters=1, cluster_bonus=0.0, metadata=True)
+
+    # Era-10 byte-identical guarantee for n_clusters=1.
+    assert s_no_meta.bpe_threshold == pytest.approx(s_with_meta.bpe_threshold, abs=0.0)
+    assert s_no_meta.cal_scores == s_with_meta.cal_scores
+
+
+def test_alpha_root_bonus_zero_in_calibration(tmp_path: Path) -> None:
+    """Calibration isolates cluster_bonus (alpha=0, root_bonus=0); score-time stays full."""
+    from argot.scoring.adapters.typescript import TypeScriptAdapter
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+    from argot.scoring.scorers.sequential_import_bpe import (
+        SequentialImportBpeScorer,
+        _blank_prose_lines,
+    )
+
+    repo = _build_two_cluster_repo(tmp_path)
+    adapter = TypeScriptAdapter()
+    # Mirror _build_scorer: model_a_files exclude the fallback subdir so that
+    # the io cluster's attested set is io-only (Math.* absent).
+    files = sorted(p for p in repo.rglob("*.ts") if "fallback" not in p.parts)
+
+    # Build a CallReceiverScorer the same way the inner scorer does, to inspect contributions.
+    cr = CallReceiverScorer(
+        files,
+        language="typescript",
+        alpha=2.0,
+        cap=5,
+        adapter=adapter,
+        n_clusters=2,
+        cluster_seed=0,
+    )
+
+    # Construct hunks that exercise the unattested + attested-root branch (era-10 alpha+root_bonus)
+    # AND a globally-attested-but-cluster-absent branch (era-11 cluster_bonus).
+    fp_io = next(p for p in files if p.name.startswith("io_"))
+
+    # Mixed hunk: a globally unattested callee + a globally-attested-cluster-absent callee.
+    # `nonexistent_function()` is unattested → era-10 contributes alpha (2.0).
+    # `Math.floor()` is globally attested but absent from io's cluster → cluster_bonus.
+    mixed_hunk = "nonexistent_function();\nMath.floor(1);"
+
+    # Calibration-flavored call: alpha=0, root_bonus=0 → only cluster_bonus fires.
+    contrib_calibration = cr.weighted_contribution_for_file(
+        mixed_hunk,
+        file_path=fp_io,
+        alpha=0.0,
+        root_bonus=0.0,
+        cluster_bonus=5.0,
+        cap=100.0,
+    )
+    # Score-time call: full weights — alpha + cluster_bonus.
+    contrib_score_time = cr.weighted_contribution_for_file(
+        mixed_hunk,
+        file_path=fp_io,
+        alpha=2.0,
+        root_bonus=2.0,
+        cluster_bonus=5.0,
+        cap=100.0,
+    )
+
+    # Calibration must NOT count alpha for `nonexistent_function`.
+    # If clustering put Math.floor in io's set, both contribs equal alpha-only and we skip;
+    # otherwise calibration = cluster_bonus and score-time > calibration.
+    io_cluster = cr.file_to_cluster[fp_io]
+    if "Math.floor" not in cr.cluster_attested[io_cluster]:
+        # cluster_bonus fires → calibration sees only it.
+        assert contrib_calibration == pytest.approx(5.0)
+        # score-time also adds alpha for the unattested call.
+        assert contrib_score_time == pytest.approx(2.0 + 5.0)
+    else:
+        pytest.skip("KMeans put Math.floor in io cluster; cluster_bonus suppressed")
+
+    # Now end-to-end: build a real scorer with metadata calibration and verify
+    # cal_scores reflect raw_BPE + cluster_bonus only (no alpha).
+    from argot.scoring.calibration.random_hunk_sampler import sample_hunks_with_metadata
+
+    meta = sample_hunks_with_metadata(repo, n=8, seed=0, adapter=adapter)
+    scorer = SequentialImportBpeScorer(
+        model_a_files=files,
+        bpe_model_b_path=_BPE_MODEL_B_PATH,
+        calibration_hunks=[h for h, _, _ in meta],
+        calibration_hunks_with_metadata=meta,
+        adapter=adapter,
+        threshold_percentile=None,
+        call_receiver_alpha=2.0,
+        call_receiver_root_bonus=2.0,
+        call_receiver_cap=5,
+        call_receiver_n_clusters=2,
+        call_receiver_cluster_seed=0,
+        call_receiver_cluster_bonus=5.0,
+        enable_typicality_filter=False,
+    )
+
+    # Manually compute expected cal_scores using alpha=0, root_bonus=0.
+    expected: list[float] = []
+    cr2 = scorer._call_receiver
+    assert cr2 is not None
+    for hunk, fp, src in meta:
+        raw = scorer._bpe_score(_blank_prose_lines(hunk, adapter.prose_line_ranges(hunk)))
+        contrib = cr2.weighted_contribution_for_file(
+            hunk,
+            file_path=fp,
+            file_source=src,
+            alpha=0.0,
+            root_bonus=0.0,
+            cluster_bonus=5.0,
+            cap=float(cr2.cap),
+        )
+        expected.append(raw + contrib)
+
+    assert scorer.cal_scores == pytest.approx(expected)
+
+
+def test_metadata_calibration_filters_typicality(tmp_path: Path) -> None:
+    """Metadata calibration must apply the same hunk-level typicality filter as era-10."""
+    from argot.scoring.adapters.typescript import TypeScriptAdapter
+    from argot.scoring.calibration.random_hunk_sampler import sample_hunks_with_metadata
+    from argot.scoring.filters.typicality import TypicalityModel
+    from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
+
+    repo = _build_two_cluster_repo(tmp_path)
+    adapter = TypeScriptAdapter()
+    # Match _build_scorer: model_a_files exclude fallback so cluster_bonus can fire.
+    files = sorted(p for p in repo.rglob("*.ts") if "fallback" not in p.parts)
+    meta = sample_hunks_with_metadata(repo, n=8, seed=0, adapter=adapter)
+
+    # Inject a synthetic atypical hunk: a string-array literal trips the
+    # literal_leaf_ratio gate (>0.80) with named_leaf_count >= 5.
+    typ = TypicalityModel(language="typescript")
+    atypical_hunk: str | None = None
+    candidates = [
+        'const data = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"];',
+        "const xs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];",
+    ]
+    for c in candidates:
+        if typ.is_atypical(c)[0]:
+            atypical_hunk = c
+            break
+    if atypical_hunk is None:
+        pytest.skip("Could not construct an atypical hunk for this typicality model")
+
+    fp = files[0]
+    src = fp.read_text()
+    meta_with_atypical: list[tuple[str, Path, str]] = [*meta, (atypical_hunk, fp, src)]
+
+    scorer = SequentialImportBpeScorer(
+        model_a_files=files,
+        bpe_model_b_path=_BPE_MODEL_B_PATH,
+        calibration_hunks=[h for h, _, _ in meta_with_atypical],
+        calibration_hunks_with_metadata=meta_with_atypical,
+        adapter=adapter,
+        threshold_percentile=None,
+        call_receiver_alpha=2.0,
+        call_receiver_root_bonus=2.0,
+        call_receiver_cap=5,
+        call_receiver_n_clusters=2,
+        call_receiver_cluster_seed=0,
+        call_receiver_cluster_bonus=1.0,
+        enable_typicality_filter=True,
+    )
+
+    # n_calibration must equal the count of TYPICAL hunks (atypical was filtered).
+    expected_n = sum(1 for h, _, _ in meta_with_atypical if not typ.is_atypical(h)[0])
+    assert scorer.n_calibration == expected_n
+    assert scorer.n_calibration < len(meta_with_atypical)
+
+
+def test_call_receiver_alpha_root_bonus_zero_suppresses_branches(tmp_path: Path) -> None:
+    """Confirm weighted_contribution_for_file with alpha=0, root_bonus=0 contributes 0
+    for unattested/attested-root callees (only cluster_bonus can fire)."""
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    f = tmp_path / "a.ts"
+    f.write_text("Math.floor(x);")
+    scorer = CallReceiverScorer([f], language="typescript", n_clusters=1)
+
+    # Unattested + attested-root combinations — both must contribute 0 with alpha=0.
+    hunk = "Math.random();\nfetch(url);\nentirelyForeign();"
+    result = scorer.weighted_contribution_for_file(
+        hunk,
+        file_path=f,
+        alpha=0.0,
+        root_bonus=0.0,
+        cluster_bonus=0.0,
+        cap=100.0,
+    )
+    assert result == pytest.approx(0.0)
