@@ -1,23 +1,28 @@
 # Era 14 — ML Stage: Status & Findings to Date
 
-> **Status**: CLOSED NEGATIVE — five major ML approaches tested across
-> the embedding-anomaly axis. Phase 7 (Mahalanobis on PCA-whitened
-> embeddings) was the principled refinement of Phase 6.4; it appeared
-> mechanically to catch 4/5 residuals but a leave-one-out diagnostic
-> revealed the catches were a rank-deficiency artifact (30 of 38 cluster
-> covariances had n_ctrl < PCA_dim, with held-out controls scoring
-> 5×–2500× their in-sample d²). The covariance-based methodology
-> conjures separation that is not real signal. The current branch
-> (`feat/era-14-ml-stage`) carries the leak-fixed feature extractor,
-> host-file injection for all 115 fixtures, streaming RAM-bounded
-> extraction, UnixCoder embedding support, cache-first HF loading,
-> and saved models — substantial infrastructure for any future attempt.
-> Production scorer is unchanged.
+> **Status**: CLOSED NEGATIVE — six major ML approaches tested across
+> the embedding-anomaly axis, including the principled clean ablation
+> (Phase 7.1) that isolates PCA-whitening + per-cluster anchoring from
+> Phase 7's broken per-cluster Σ. Phase 7.1 carries 0/5 residuals at a
+> clean LOO sanity check (max ratio 1.56× ≈ (k/(k-1))² for k=5, the
+> expected small-sample mean shift). Combined with Phase 7's LOO
+> finding (per-cluster Σ on k<d controls is rank-deficiency artifact),
+> these two phases close the embedding-anomaly axis honestly: the
+> residuals are typical-looking under any covariance-respecting
+> metric, and Phase 6.4's cosine-axis 1/5 catch (`runtime_fetch_2`)
+> remains the ceiling. The current branch (`feat/era-14-ml-stage`)
+> carries the leak-fixed feature extractor, host-file injection for
+> all 115 fixtures, streaming RAM-bounded extraction, UnixCoder
+> embedding support, cache-first HF loading, and saved models —
+> substantial infrastructure for any future attempt. Production
+> scorer is unchanged.
 >
-> Best honest result: **Phase 6.4 caught 1/5 residuals** (`runtime_fetch_2`)
-> at faker-js FP ≤ 0.9% via unsupervised cluster-centroid cosine
-> distance. SHIP gate (≥2/5) not met by any phase under proper LOO + FP
-> budget. Era 14 closes on Phase 6.4's PARTIAL.
+> Best honest result: **Phase 6.4 caught 1/5 residuals**
+> (`runtime_fetch_2`) at faker-js FP ≤ 0.9% via unsupervised
+> cluster-centroid cosine distance. SHIP gate (≥2/5) not met by any
+> phase under proper LOO + FP budget. Era 14 closes on Phase 6.4's
+> PARTIAL after the principled refinement (Phase 7.1) confirmed the
+> ceiling is not a tuning artifact.
 
 ---
 
@@ -217,6 +222,7 @@ The complete trajectory across all four major approaches:
 | 6.4 | Embeddings unsupervised (cluster centroid) | **1/5** (`runtime_fetch_2`) | within budget | **Best honest result** |
 | 6.4b | Corpus-wide centroid fallback | 0/5 (regressed) | within budget | Threshold inflation killed the 1/5 |
 | 7 | Per-cluster Mahalanobis on PCA-64 whitened (+ corpus-fallback) | 4/5 mechanically; **0/5 honest** | within budget | Rank-deficiency artifact — LOO controls also "catch" |
+| 7.1 | PCA-whitened Euclidean to per-cluster μ_c (corpus-pooled implicit Σ) | **0/5** | within budget | Clean LOO (max ratio 1.56×). Residuals genuinely typical at top 67–80% of fjs controls |
 
 **Final SHIP gate (≥2/5 residuals at FP ≤ 0.9% under LOO): not met by any phase.**
 
@@ -275,17 +281,19 @@ compute, addresses the structural diagnosis directly.
 
 ---
 
-## What's been built (Fix A + Phase 6 + Phase 7) vs what could come next
+## What's been built (Fix A + Phase 6 + Phase 7 + Phase 7.1) vs what could come next
 
-✓ **All five approaches in the obvious design space are tested.** Routing
+✓ **All six approaches in the obvious design space are tested.** Routing
 leak fixed. Fixture-shape leak materially reduced. Engineered features,
 supervised classifier on embeddings, unsupervised cosine-centroid scoring,
-corpus-wide cosine-centroid fallback, and PCA-whitened per-cluster
-Mahalanobis distance all measured. The honest signal exists in the
-embedding space (Phase 6.2 cluster-centroid distance has AUC 0.91 on
-faker-js residuals as a single feature) but it doesn't separate from the
-control distribution at strict FP budgets, and covariance-based metrics
-on small clusters fail a leave-one-out sanity check.
+corpus-wide cosine-centroid fallback, PCA-whitened per-cluster Mahalanobis
+distance, and the clean ablation (PCA-whitened Euclidean to per-cluster
+μ_c) all measured. The honest signal exists in the embedding space
+(Phase 6.2 cluster-centroid distance has AUC 0.91 on faker-js residuals
+as a single feature) but it doesn't separate from the control distribution
+at strict FP budgets — neither in raw cosine space (Phase 6.4: 1/5) nor
+in PCA-whitened Euclidean space (Phase 7.1: 0/5). Covariance-based metrics
+on small clusters fail a LOO sanity check (Phase 7).
 
 **Why each approach didn't ship**:
 
@@ -315,10 +323,19 @@ on small clusters fail a leave-one-out sanity check.
    any held-out point — break or control — gets an inflated d². LOO max
    control d² runs 5×–2500× the in-sample max. The "break detection"
    signal cannot be distinguished from inflation that would also flag
-   held-out controls. Closes the covariance-based-cluster-metric axis:
-   any future Σ-fit-on-k<d-controls scorer would reproduce this artifact
-   unless either k ≥ d (more data than we have per cluster) or Σ shrinks
-   strongly toward whitened identity (which collapses back to Phase 6.4b).
+   held-out controls. Closes the covariance-based-cluster-metric axis.
+
+6. **PCA-whitened Euclidean to per-cluster μ_c** (Phase 7.1): the clean
+   ablation. Replaces broken Σ_cluster with corpus-pooled implicit Σ
+   (via PCA whitening, n=297 ≫ d=64). LOO sanity passes cleanly: 0 of
+   38 clusters flagged, max ratio 1.56× ≈ (k/(k-1))² for k=5 (the
+   theoretical small-sample mean shift). The metric is honest and the
+   honest answer is **0/5 residuals catch** — they sit at the 67th–80th
+   percentile of fjs controls, genuinely typical-looking. The 36×–88×
+   drop from Phase 7 d² to Phase 7.1 d² for the same fixtures is
+   exactly the rank-deficient inflation, removed. PCA-whitening on
+   its own merits is *worse* than Phase 6.4 cosine on residuals
+   (0/5 vs 1/5). Closes the embedding-anomaly axis honestly.
 
 **Future approaches that have NOT been tested in this era** (outside the
 obvious design space, more invasive):
@@ -345,12 +362,17 @@ obvious design space, more invasive):
 
 None of these are quick. Each is roughly an era's worth of research work.
 
-**Operational decision**: Era 14 is closed on the embedding-anomaly axis.
-The infrastructure on this branch is reusable. Production scorer is
-unchanged at the era-11 baseline. The branch is preserved as a research
-record (no PR opened). If a future approach in the unexplored space
-emerges as promising, this branch is the launching point — but pursuing
-further refinements within the tested axis would not be profitable.
+**Operational decision**: Era 14 is closed on the embedding-anomaly
+axis. Phase 7.1's clean ablation — PCA-whitening + per-cluster
+anchoring with no per-cluster covariance — confirmed there is no
+hidden signal that Phase 6.4's cosine metric was missing. The
+residuals are typical-looking under any honest covariance-respecting
+metric. The infrastructure on this branch is reusable. Production
+scorer is unchanged at the era-11 baseline. The branch is preserved
+as a research record (no PR opened). If a future approach in the
+unexplored space — encoder fine-tuning, sub-hunk attention, larger
+encoders, or a fundamentally new signal class — emerges as promising,
+this branch is the launching point.
 
 ---
 
@@ -385,7 +407,8 @@ further refinements within the tested axis would not be profitable.
 - Phase 6.4 (unsupervised centroid scoring): [`era14-phase6.4-centroid-anomaly.md`](era14-phase6.4-centroid-anomaly.md)
 - Phase 6.4b (corpus-wide fallback — regressed): [`era14-phase6.4b-centroid-fallback.md`](era14-phase6.4b-centroid-fallback.md)
 - Phase 7 (Mahalanobis on PCA-64 — rank-deficiency artifact): [`era14-phase7-mahalanobis.md`](era14-phase7-mahalanobis.md)
-- Branch: `feat/era-14-ml-stage`, commits `8f52eb9` (extractor), `b74aed7` (routing+RAM fix), `2c8dcc4` (streaming sample), `2cb3e27` (host injection), `0052ff0` (UnixCoder embedder Phase 6.1), `7225cd4` (HF cache-first loading), `e153e9b` (Phase 6 close memo)
+- Phase 7.1 (PCA-whitened Euclidean to cluster μ — clean ablation, 0/5): [`era14-phase71-whitened-euclidean.md`](era14-phase71-whitened-euclidean.md)
+- Branch: `feat/era-14-ml-stage`, commits `8f52eb9` (extractor), `b74aed7` (routing+RAM fix), `2c8dcc4` (streaming sample), `2cb3e27` (host injection), `0052ff0` (UnixCoder embedder Phase 6.1), `7225cd4` (HF cache-first loading), `e153e9b` (Phase 6 close memo), `5a8c8f2` (Phase 7 close)
 - Era-11 baseline (the production scorer this would have augmented): [`../11-cluster-conditional-attestation.md`](../11-cluster-conditional-attestation.md)
 
 ## End of Document
