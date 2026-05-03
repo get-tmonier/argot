@@ -45,6 +45,12 @@ Write tests alongside any new logic — not 100% coverage, but enough for a fast
 - Core logic correctness (shapes, invariants, non-trivial conditions)
 - Smoke tests for new entry points
 
+For non-trivial production logic (scoring math, threshold decisions, cluster logic), write unit tests that test behaviour, not implementation: assert on outputs for given inputs, not on internal state or call sequences. Tests should survive a refactor that preserves semantics.
+
+## Language and corpus independence
+
+Production code (`engine/argot/scoring/`, `cli/src/`) must be language-agnostic and corpus-agnostic. No hardcoded references to Python, TypeScript, FastAPI, faker-js, or any other specific language or corpus. Those appear only in fixtures, benchmarks, and eval scripts. A scorer that only works on Python repos is not a production scorer.
+
 ## Code quality
 
 The codebase is strict by design (mypy strict, no-any, ruff). When a check fails:

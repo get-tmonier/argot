@@ -60,9 +60,15 @@ you with a single, scoped task. Do that task. Do not expand scope.
 - Production scorers (`engine/argot/scoring/`) run locally; no cloud
   deps, no hardcoded framework literals
   (`feedback_no_cloud_no_hardcoded_domain`). Tests/eval may use them.
+- Production code is language-agnostic and corpus-agnostic. No
+  hardcoded references to Python, TypeScript, FastAPI, faker-js, or
+  any specific language/corpus — those belong in fixtures and bench only.
 - Production symbols (classes, files, functions) must be named after
   domain concepts — never after research artefacts (`era`, `phase`,
   `PhaseNa…`). Those labels belong in bench/research code only.
+- Unit tests for non-trivial scoring logic must test behaviour (outputs
+  for given inputs), not implementation details. Tests must survive a
+  semantics-preserving refactor.
 - Tests alongside new logic (`feedback_tests`).
 - No `git stash/revert/reset` (`feedback_no_stash_revert`); use
   `git show <sha>:path` for old state.
