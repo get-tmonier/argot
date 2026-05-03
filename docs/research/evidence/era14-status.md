@@ -1,18 +1,23 @@
 # Era 14 — ML Stage: Status & Findings to Date
 
-> **Status**: PAUSED — all four major ML approaches tested + closed
-> negative on the residual-catch criterion. Era 14 stays open to
-> fundamentally new approaches (encoder fine-tuning, sub-hunk attention,
-> new signal sources) but the obvious feature/model combinations have
-> been exhausted. The current branch (`feat/era-14-ml-stage`) carries
-> the leak-fixed feature extractor, host-file injection for all 115
-> fixtures, streaming RAM-bounded extraction, UnixCoder embedding support,
-> cache-first HF loading, and saved models — substantial infrastructure
-> for any future attempt. Production scorer is unchanged.
+> **Status**: CLOSED NEGATIVE — five major ML approaches tested across
+> the embedding-anomaly axis. Phase 7 (Mahalanobis on PCA-whitened
+> embeddings) was the principled refinement of Phase 6.4; it appeared
+> mechanically to catch 4/5 residuals but a leave-one-out diagnostic
+> revealed the catches were a rank-deficiency artifact (30 of 38 cluster
+> covariances had n_ctrl < PCA_dim, with held-out controls scoring
+> 5×–2500× their in-sample d²). The covariance-based methodology
+> conjures separation that is not real signal. The current branch
+> (`feat/era-14-ml-stage`) carries the leak-fixed feature extractor,
+> host-file injection for all 115 fixtures, streaming RAM-bounded
+> extraction, UnixCoder embedding support, cache-first HF loading,
+> and saved models — substantial infrastructure for any future attempt.
+> Production scorer is unchanged.
 >
-> Best honest result: **Phase 6.4 caught 1/5 residuals** at faker-js FP
-> ≤ 0.9% via unsupervised cluster-centroid distance scoring. SHIP gate
-> (≥2/5) not met by any phase under proper LOO + FP budget.
+> Best honest result: **Phase 6.4 caught 1/5 residuals** (`runtime_fetch_2`)
+> at faker-js FP ≤ 0.9% via unsupervised cluster-centroid cosine
+> distance. SHIP gate (≥2/5) not met by any phase under proper LOO + FP
+> budget. Era 14 closes on Phase 6.4's PARTIAL.
 
 ---
 
@@ -211,6 +216,7 @@ The complete trajectory across all four major approaches:
 | 6.3 | Embeddings supervised (LR/MLP/kNN) | 0/5 | various | Learned catalog-vs-real, not anomaly |
 | 6.4 | Embeddings unsupervised (cluster centroid) | **1/5** (`runtime_fetch_2`) | within budget | **Best honest result** |
 | 6.4b | Corpus-wide centroid fallback | 0/5 (regressed) | within budget | Threshold inflation killed the 1/5 |
+| 7 | Per-cluster Mahalanobis on PCA-64 whitened (+ corpus-fallback) | 4/5 mechanically; **0/5 honest** | within budget | Rank-deficiency artifact — LOO controls also "catch" |
 
 **Final SHIP gate (≥2/5 residuals at FP ≤ 0.9% under LOO): not met by any phase.**
 
@@ -269,15 +275,17 @@ compute, addresses the structural diagnosis directly.
 
 ---
 
-## What's been built (Fix A + Phase 6) vs what could come next
+## What's been built (Fix A + Phase 6 + Phase 7) vs what could come next
 
-✓ **All four approaches in the obvious design space are tested.** Routing
+✓ **All five approaches in the obvious design space are tested.** Routing
 leak fixed. Fixture-shape leak materially reduced. Engineered features,
-supervised classifier on embeddings, unsupervised centroid scoring, and
-corpus-wide centroid fallback all measured. The honest signal exists in
-the embedding space (Phase 6.2 cluster-centroid distance has AUC 0.91 on
+supervised classifier on embeddings, unsupervised cosine-centroid scoring,
+corpus-wide cosine-centroid fallback, and PCA-whitened per-cluster
+Mahalanobis distance all measured. The honest signal exists in the
+embedding space (Phase 6.2 cluster-centroid distance has AUC 0.91 on
 faker-js residuals as a single feature) but it doesn't separate from the
-control distribution at strict FP budgets.
+control distribution at strict FP budgets, and covariance-based metrics
+on small clusters fail a leave-one-out sanity check.
 
 **Why each approach didn't ship**:
 
@@ -290,14 +298,27 @@ control distribution at strict FP budgets.
    held-out faker-js's catalog patterns because break categories vary
    across corpora.
 
-3. **Unsupervised centroid** (Phase 6.4): catches 1/5 (`runtime_fetch_2`).
+3. **Unsupervised cosine centroid** (Phase 6.4): catches 1/5 (`runtime_fetch_2`).
    The other residuals sit too close to controls in cosine space at the
    strict FP budget. `error_flip_3` is genuinely typical (64th percentile);
    `error_flip_2`'s cluster has only 2 controls (statistically excluded).
 
-4. **Corpus-wide fallback** (Phase 6.4b): adds 173 high-distance
+4. **Corpus-wide cosine fallback** (Phase 6.4b): adds 173 high-distance
    unmappable controls to faker-js's calibration tail, raising the
    threshold past `runtime_fetch_2`'s distance. Strictly worse than 6.4.
+
+5. **PCA-whitened per-cluster Mahalanobis** (Phase 7): mechanically catches
+   4/5 residuals at SHIP-gate-passing FP — but a leave-one-out diagnostic
+   shows 37 of 38 cluster covariance models are rank-deficient (30 have
+   n_ctrl < PCA_dim = 64). After Tikhonov λI regularization, the inverse
+   acts as 1/λ = 100 along the (64 − rank Σ) null-space directions, so
+   any held-out point — break or control — gets an inflated d². LOO max
+   control d² runs 5×–2500× the in-sample max. The "break detection"
+   signal cannot be distinguished from inflation that would also flag
+   held-out controls. Closes the covariance-based-cluster-metric axis:
+   any future Σ-fit-on-k<d-controls scorer would reproduce this artifact
+   unless either k ≥ d (more data than we have per cluster) or Σ shrinks
+   strongly toward whitened identity (which collapses back to Phase 6.4b).
 
 **Future approaches that have NOT been tested in this era** (outside the
 obvious design space, more invasive):
@@ -324,10 +345,12 @@ obvious design space, more invasive):
 
 None of these are quick. Each is roughly an era's worth of research work.
 
-**Operational decision**: Era 14 is paused, not closed. The infrastructure
-on this branch is reusable. Production scorer is unchanged at the era-11
-baseline. If a future approach in the unexplored space emerges as
-promising, this branch is the launching point.
+**Operational decision**: Era 14 is closed on the embedding-anomaly axis.
+The infrastructure on this branch is reusable. Production scorer is
+unchanged at the era-11 baseline. The branch is preserved as a research
+record (no PR opened). If a future approach in the unexplored space
+emerges as promising, this branch is the launching point — but pursuing
+further refinements within the tested axis would not be profitable.
 
 ---
 
@@ -361,7 +384,8 @@ promising, this branch is the launching point.
 - Phase 6.3 (supervised embeddings + LOO): [`era14-phase6.3-loo.md`](era14-phase6.3-loo.md)
 - Phase 6.4 (unsupervised centroid scoring): [`era14-phase6.4-centroid-anomaly.md`](era14-phase6.4-centroid-anomaly.md)
 - Phase 6.4b (corpus-wide fallback — regressed): [`era14-phase6.4b-centroid-fallback.md`](era14-phase6.4b-centroid-fallback.md)
-- Branch: `feat/era-14-ml-stage`, commits `8f52eb9` (extractor), `b74aed7` (routing+RAM fix), `2c8dcc4` (streaming sample), `2cb3e27` (host injection), `0052ff0` (UnixCoder embedder Phase 6.1), `7225cd4` (HF cache-first loading)
+- Phase 7 (Mahalanobis on PCA-64 — rank-deficiency artifact): [`era14-phase7-mahalanobis.md`](era14-phase7-mahalanobis.md)
+- Branch: `feat/era-14-ml-stage`, commits `8f52eb9` (extractor), `b74aed7` (routing+RAM fix), `2c8dcc4` (streaming sample), `2cb3e27` (host injection), `0052ff0` (UnixCoder embedder Phase 6.1), `7225cd4` (HF cache-first loading), `e153e9b` (Phase 6 close memo)
 - Era-11 baseline (the production scorer this would have augmented): [`../11-cluster-conditional-attestation.md`](../11-cluster-conditional-attestation.md)
 
 ## End of Document
