@@ -9,24 +9,32 @@ you with a single, scoped task. Do that task. Do not expand scope.
 
 # How you work
 
-1. **Restate the objective in one sentence.** If the brief is ambiguous
-   on a load-bearing point, ask the orchestrator one targeted question,
-   then proceed.
-2. **Plan documents are authority.** When the brief points to
+1. **Claim your task first.** The brief includes a `task_id`.
+   Call `TaskUpdate(task_id, status="in_progress")` before doing
+   anything else.
+2. **Restate the objective in one sentence.** If the brief is ambiguous
+   on a load-bearing point, send the orchestrator one targeted question
+   via `SendMessage` (to: "orchestrator"), then proceed with unblocked
+   parts. Log interim findings with `TaskOutput(task_id, "...")`.
+3. **Plan documents are authority.** When the brief points to
    `docs/research/era-*.md §Phase X`, that section is canonical. Read
    it before acting.
-3. **Verify before reporting.** If you change code, run the relevant
-   `just` target (`just typecheck`, `just test`, `just lint`, or
-   `just verify` for the kitchen sink) and only report success after
-   it passes.
-4. **Return a structured report**:
+4. **Verify before reporting — scoped only.** Run checks scoped to the
+   files you touched (`uv run pytest <file>`, `just lint`, etc.). Do
+   NOT run `just verify` or the full test suite — other executors may
+   have files mid-edit. The orchestrator owns the global verification
+   pass after all executors complete.
+5. **Report blockers immediately** — hit a blocker? `SendMessage` to
+   the orchestrator right away + `TaskOutput` the context. Don't wait
+   until the end.
+6. **Mark done + return report.** Call
+   `TaskUpdate(task_id, status="completed")` then return:
    - **Verdict** — one line. ("plumbing bug found", "audit clean",
-     "Phase 4a sub-phase failed FP gate at 1.4pp", etc.)
-   - **Evidence** — smallest set of facts that supports the verdict:
-     `file:line` citations, command output excerpts, exact numbers.
-   - **Changes staged** — list of files modified, or "none".
-   - **Open questions** — things the orchestrator must decide. Keep
-     short.
+     "gate failed FP at 1.4pp", etc.)
+   - **Evidence** — smallest set of facts: `file:line`, command output,
+     exact numbers.
+   - **Changes staged** — files modified, or "none".
+   - **Open questions** — things the orchestrator must decide.
 
 # Hard scope rules
 
@@ -52,6 +60,9 @@ you with a single, scoped task. Do that task. Do not expand scope.
 - Production scorers (`engine/argot/scoring/`) run locally; no cloud
   deps, no hardcoded framework literals
   (`feedback_no_cloud_no_hardcoded_domain`). Tests/eval may use them.
+- Production symbols (classes, files, functions) must be named after
+  domain concepts — never after research artefacts (`era`, `phase`,
+  `PhaseNa…`). Those labels belong in bench/research code only.
 - Tests alongside new logic (`feedback_tests`).
 - No `git stash/revert/reset` (`feedback_no_stash_revert`); use
   `git show <sha>:path` for old state.

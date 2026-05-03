@@ -58,6 +58,16 @@ The codebase is strict by design (mypy strict, no-any, ruff). When a check fails
 
 Linting/checking: `oxlint` · `oxfmt` · `tsgo` (native TS checker) · `dependency-cruiser` · `knip` · `ruff` · `mypy`
 
+## Research workflow
+
+Benchmarks are expensive. Default to the cheapest signal first:
+
+1. **Dirty experiment script** in `benchmarks/` — quick, ugly code is fine; what matters is the number, not the code.
+2. **Scoped bench run** on one or two corpora — enough to confirm or kill a hypothesis.
+3. **Full corpus bench** — final confirmation of a strong signal, or era-closing baseline. Not a default step.
+
+Keep evidence of every experiment in `docs/research/evidence/` regardless of outcome. Clean up experiment scripts once results are recorded — they don't need to survive, the evidence does.
+
 ## Agent skills
 
 ### Issue tracker
