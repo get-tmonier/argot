@@ -1,13 +1,18 @@
 # Era 14 — ML Stage: Status & Findings to Date
 
-> **Status**: PAUSED, NOT CLOSED. Era 14 is open to further phases — the
-> engineered-features-on-existing-stages approach is structurally exhausted
-> (Phase 5 below documents the LOO 0/5 residual catch). A semantic-embedding
-> phase would be the natural next attempt. The current branch
-> (`feat/era-14-ml-stage`) carries the leak-fixed feature extractor, host-file
-> injection for all 115 fixtures, streaming RAM-bounded extraction, and saved
-> models — useful infrastructure for any future ML attempt. Production scorer
-> is unchanged.
+> **Status**: PAUSED — all four major ML approaches tested + closed
+> negative on the residual-catch criterion. Era 14 stays open to
+> fundamentally new approaches (encoder fine-tuning, sub-hunk attention,
+> new signal sources) but the obvious feature/model combinations have
+> been exhausted. The current branch (`feat/era-14-ml-stage`) carries
+> the leak-fixed feature extractor, host-file injection for all 115
+> fixtures, streaming RAM-bounded extraction, UnixCoder embedding support,
+> cache-first HF loading, and saved models — substantial infrastructure
+> for any future attempt. Production scorer is unchanged.
+>
+> Best honest result: **Phase 6.4 caught 1/5 residuals** at faker-js FP
+> ≤ 0.9% via unsupervised cluster-centroid distance scoring. SHIP gate
+> (≥2/5) not met by any phase under proper LOO + FP budget.
 
 ---
 
@@ -195,20 +200,23 @@ Memo: [`era14-phase3.6b-post-leak-fix.md`](era14-phase3.6b-post-leak-fix.md)
 
 ---
 
-## Pre-registered gates: where we stand (after Phase 5 / Fix A full)
+## Pre-registered gates: where we stand (after all phases — final)
 
-| Gate | Threshold | Result | Pass |
-|---|---|---|---|
-| 1 (Phase 2) | Any feature AUC > 0.55 pooled | best 0.886 (`n_unattested_callees` — honest Stage-3 output) | ✓ |
-| 2 (Phase 3 → Phase 5) | Pooled CV AUC > 0.85 | 0.972 (full), 0.903 (conservative Set B) | ✓ |
-| 3 (Phase 5) | LOO held-out AUC ≥ 0.75 on ≥4 of 6 splits | **6 of 6** | ✓ |
-| 4 (Phase 5) | ≥2 of 5 residual faker-js fixtures caught at faker-js FP ≤ 0.9% under LOO | **0/5** | ✗ |
-| 5 (Phase 5) | Max single-feature AUC ≤ 0.85 (leak-free) | 0.886 | ✗ narrow (honest output, not leak proxy) |
+The complete trajectory across all four major approaches:
 
-Aggregate generalization passes (LOO 6/6 — the model genuinely transfers
-across corpora). The era's motivating fixture-catch criterion fails: the
-ML stage cannot catch what its dominant input feature (`n_unattested_callees`)
-is structurally blind to.
+| Phase | Approach | Residuals caught (LOO + FP ≤ 0.9%) | Per-corpus FP | Status |
+|---|---|---|---|---|
+| 3-3.5 | Engineered XGBoost (leaky) | 5/5 (illusion) | n/a | Routing leak — closed |
+| 5 | Engineered XGBoost (Fix A, leak-free) | 0/5 | within budget | Structural — `n_unattested_callees=0` for residuals |
+| 6.3 | Embeddings supervised (LR/MLP/kNN) | 0/5 | various | Learned catalog-vs-real, not anomaly |
+| 6.4 | Embeddings unsupervised (cluster centroid) | **1/5** (`runtime_fetch_2`) | within budget | **Best honest result** |
+| 6.4b | Corpus-wide centroid fallback | 0/5 (regressed) | within budget | Threshold inflation killed the 1/5 |
+
+**Final SHIP gate (≥2/5 residuals at FP ≤ 0.9% under LOO): not met by any phase.**
+
+The 5 residual fixtures (`error_flip_2/3`, `runtime_fetch_1/2/3`) are
+structurally beyond what any feature/model combination tested can capture
+within the era-11 FP budget.
 
 ---
 
@@ -261,36 +269,65 @@ compute, addresses the structural diagnosis directly.
 
 ---
 
-## What's already been done (Fix A) vs what's next
+## What's been built (Fix A + Phase 6) vs what could come next
 
-✓ **Fix A is implemented and validated.** All 115 fixtures have `host_file`
-+ `host_inject_at_line`. Routing leak gone. Fixture-shape leak materially
-reduced. Data is honest (LOO 6/6 passes). Model trained on engineered
-features generalizes well in aggregate (Set B AUC 0.90), but the residual
-fixtures need a different signal class — see Phase 6 below.
+✓ **All four approaches in the obvious design space are tested.** Routing
+leak fixed. Fixture-shape leak materially reduced. Engineered features,
+supervised classifier on embeddings, unsupervised centroid scoring, and
+corpus-wide centroid fallback all measured. The honest signal exists in
+the embedding space (Phase 6.2 cluster-centroid distance has AUC 0.91 on
+faker-js residuals as a single feature) but it doesn't separate from the
+control distribution at strict FP budgets.
 
-**Phase 6 — Frozen UnixCoder embedding + small head (proposed next phase)**
+**Why each approach didn't ship**:
 
-The pre-registered structure mirrors Phases 1-5 with kill-switches:
+1. **Engineered XGBoost** (Phase 5): the model's dominant input
+   `n_unattested_callees = 0` for the residuals by definition (that's why
+   era 11 misses them). No signal in the input features.
 
-- 6.1: extend the feature extractor to compute a 768-dim UnixCoder embedding
-  per hunk (and per file context). One-time extractor change. UnixCoder
-  encoder load adds ~500MB RAM per subprocess (still bounded).
-- 6.2: per-dimension AUC pooled — at least one embedding dimension or
-  small linear combination should reach AUC > 0.65 on the residual subset.
-  Kill if no signal.
-- 6.3: train a small MLP head (e.g. 256-dim hidden, 2 layers) on the
-  embeddings + existing engineered features. Pre-reg gate: pooled CV AUC ≥
-  existing 0.90 (must not regress).
-- 6.4: LOO + residual catch under LOO. Pre-reg gate: ≥2 of 5 residual
-  faker-js fixtures catch when faker-js is held out.
-- 6.5: ship if all gates pass.
+2. **Supervised embeddings** (Phase 6.3): pooled AUC 0.999 was
+   catalog-detection learning. Under LOO, the model doesn't recognize
+   held-out faker-js's catalog patterns because break categories vary
+   across corpora.
 
-Compute estimate: ~30ms per hunk for UnixCoder forward pass on CPU × 1900
-hunks × 6 corpora ≈ 6 minutes total extraction (still parallelizable with
-the existing subprocess-per-corpus design). MLP training is fast. GPU not
-strictly needed for inference; could speed up an extension that fine-tunes
-the encoder or trains contrastive pairs at scale.
+3. **Unsupervised centroid** (Phase 6.4): catches 1/5 (`runtime_fetch_2`).
+   The other residuals sit too close to controls in cosine space at the
+   strict FP budget. `error_flip_3` is genuinely typical (64th percentile);
+   `error_flip_2`'s cluster has only 2 controls (statistically excluded).
+
+4. **Corpus-wide fallback** (Phase 6.4b): adds 173 high-distance
+   unmappable controls to faker-js's calibration tail, raising the
+   threshold past `runtime_fetch_2`'s distance. Strictly worse than 6.4.
+
+**Future approaches that have NOT been tested in this era** (outside the
+obvious design space, more invasive):
+
+- **Encoder fine-tuning**: train UnixCoder itself with a contrastive
+  objective on (cluster-positive, cluster-negative) pairs. Brings back
+  full GPU/training complexity that era 1 stumbled on. Would need a much
+  larger labeled set than 115 fixtures — synthetic mutation generation +
+  contrastive pre-training, weeks of work.
+
+- **Sub-hunk attention / token-level scoring**: instead of pooled [CLS]
+  embeddings, score each token's anomaly via attention pooling against
+  the file's typical tokens. Could surface "this specific call_expression
+  is the anomaly inside an otherwise-normal hunk."
+
+- **Multi-stage scoring with cross-feature learning**: jointly learn
+  thresholds across (BPE, call-receiver, embedding-distance) at calibration
+  time rather than per-stage. Would require redesigning the calibration
+  pipeline.
+
+- **Larger encoder** (CodeBERTa, CodeT5+): trade-off encoder size vs
+  semantic discrimination. Untested whether a 2-3x larger encoder would
+  spread `error_flip_3`'s embedding far enough from controls.
+
+None of these are quick. Each is roughly an era's worth of research work.
+
+**Operational decision**: Era 14 is paused, not closed. The infrastructure
+on this branch is reusable. Production scorer is unchanged at the era-11
+baseline. If a future approach in the unexplored space emerges as
+promising, this branch is the launching point.
 
 ---
 
@@ -320,7 +357,11 @@ the encoder or trains contrastive pairs at scale.
 - Phase 3.6b: [`era14-phase3.6b-post-leak-fix.md`](era14-phase3.6b-post-leak-fix.md)
 - Phase 4 (Fix-A pilot): [`era14-fixA-pilot.md`](era14-fixA-pilot.md)
 - Phase 5 (Fix-A full + LOO): [`era14-fixA-full.md`](era14-fixA-full.md)
-- Branch: `feat/era-14-ml-stage`, commits `8f52eb9` (extractor), `b74aed7` (routing+RAM fix), `2c8dcc4` (streaming sample), `2cb3e27` (host injection)
+- Phase 6.2 (embedding probe): [`era14-phase6.2-embedding-probe.md`](era14-phase6.2-embedding-probe.md)
+- Phase 6.3 (supervised embeddings + LOO): [`era14-phase6.3-loo.md`](era14-phase6.3-loo.md)
+- Phase 6.4 (unsupervised centroid scoring): [`era14-phase6.4-centroid-anomaly.md`](era14-phase6.4-centroid-anomaly.md)
+- Phase 6.4b (corpus-wide fallback — regressed): [`era14-phase6.4b-centroid-fallback.md`](era14-phase6.4b-centroid-fallback.md)
+- Branch: `feat/era-14-ml-stage`, commits `8f52eb9` (extractor), `b74aed7` (routing+RAM fix), `2c8dcc4` (streaming sample), `2cb3e27` (host injection), `0052ff0` (UnixCoder embedder Phase 6.1), `7225cd4` (HF cache-first loading)
 - Era-11 baseline (the production scorer this would have augmented): [`../11-cluster-conditional-attestation.md`](../11-cluster-conditional-attestation.md)
 
 ## End of Document

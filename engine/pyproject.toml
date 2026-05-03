@@ -49,7 +49,7 @@ dev = [
 [tool.mypy]
 strict = true
 python_version = "3.13"
-exclude = "acceptance/catalog|argot/ml/train.py"
+exclude = "acceptance/catalog|argot/ml/train.py|^scripts/"
 
 [[tool.mypy.overrides]]
 module = "pygit2"
@@ -70,7 +70,7 @@ ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 100
-exclude = ["argot/acceptance/catalog", "argot/ml/train.py"]
+exclude = ["argot/acceptance/catalog", "argot/ml/train.py", "scripts"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM"]
