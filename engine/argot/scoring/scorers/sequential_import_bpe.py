@@ -24,6 +24,7 @@ from argot.scoring.adapters.registry import adapter_for_files
 from argot.scoring.filters.typicality import TypicalityModel, language_for_adapter
 from argot.scoring.scorers.call_receiver import CallReceiverScorer
 from argot.scoring.scorers.import_graph import ImportGraphScorer
+from argot.scoring.scorers.shape_primitive import ShapePrimitive
 
 _EPSILON = 1e-7
 _BPE_MODEL_NAME = "microsoft/unixcoder-base"
@@ -170,6 +171,7 @@ class SequentialImportBpeScorer:
         call_receiver_cluster_rare_threshold: int = 0,
         call_receiver_cluster_size_min: int = 0,
         call_receiver_force_jaccard_routing: bool = False,
+        call_receiver_shape_primitives: list[ShapePrimitive[Any]] | None = None,
         calibration_hunks_with_metadata: list[tuple[str, Path, str]] | None = None,
         _tokenizer: Any = None,
     ) -> None:
@@ -231,6 +233,7 @@ class SequentialImportBpeScorer:
                 force_jaccard_routing=call_receiver_force_jaccard_routing,
                 cluster_rare_threshold=call_receiver_cluster_rare_threshold,
                 cluster_size_min=call_receiver_cluster_size_min,
+                shape_primitives=call_receiver_shape_primitives,
             )
         self._call_receiver_root_bonus: float = call_receiver_root_bonus
         self._call_receiver_cluster_bonus: float = call_receiver_cluster_bonus

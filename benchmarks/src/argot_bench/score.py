@@ -15,6 +15,7 @@ from argot.scoring.adapters.python_adapter import PythonAdapter
 from argot.scoring.calibration import calibrate_multi_seed
 from argot.scoring.calibration.random_hunk_sampler import sample_hunks
 from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
+from argot.scoring.scorers.shape_primitive_registry import build_shape_primitives
 
 Language = Literal["python", "typescript"]
 Reason = Literal[
@@ -130,6 +131,7 @@ def build_scorer(
     call_receiver_cluster_bonus: float = 5.0,
     call_receiver_cluster_rare_threshold: int = 0,
     call_receiver_cluster_size_min: int = 0,
+    call_receiver_shape_primitive_names: tuple[str, ...] = (),
     threshold_percentile: float | None = None,
     threshold_iqr_k: float | None = None,
     threshold_n_seeds: int = 7,
@@ -177,6 +179,7 @@ def build_scorer(
             call_receiver_cluster_bonus=call_receiver_cluster_bonus,
             call_receiver_cluster_rare_threshold=call_receiver_cluster_rare_threshold,
             call_receiver_cluster_size_min=call_receiver_cluster_size_min,
+            call_receiver_shape_primitive_names=call_receiver_shape_primitive_names,
             enable_typicality_filter=enable_typicality_filter,
         )
         inner = SequentialImportBpeScorer(
@@ -194,6 +197,9 @@ def build_scorer(
             call_receiver_cluster_bonus=call_receiver_cluster_bonus,
             call_receiver_cluster_rare_threshold=call_receiver_cluster_rare_threshold,
             call_receiver_cluster_size_min=call_receiver_cluster_size_min,
+            call_receiver_shape_primitives=build_shape_primitives(
+                list(call_receiver_shape_primitive_names)
+            ),
             threshold_percentile=threshold_percentile,
             threshold_iqr_k=threshold_iqr_k,
         )
@@ -214,6 +220,9 @@ def build_scorer(
             call_receiver_cluster_bonus=call_receiver_cluster_bonus,
             call_receiver_cluster_rare_threshold=call_receiver_cluster_rare_threshold,
             call_receiver_cluster_size_min=call_receiver_cluster_size_min,
+            call_receiver_shape_primitives=build_shape_primitives(
+                list(call_receiver_shape_primitive_names)
+            ),
             threshold_percentile=threshold_percentile,
             threshold_iqr_k=threshold_iqr_k,
         )

@@ -6,6 +6,7 @@ import statistics
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import pygit2
 
@@ -17,6 +18,8 @@ from argot.scoring.calibration.random_hunk_sampler import (
     sample_hunks_with_metadata,
 )
 from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
+from argot.scoring.scorers.shape_primitive import ShapePrimitive
+from argot.scoring.scorers.shape_primitive_registry import build_shape_primitives
 
 _CONFIG_VERSION = 1
 
@@ -51,6 +54,7 @@ def calibrate_multi_seed(
     call_receiver_cluster_bonus: float = 5.0,
     call_receiver_cluster_rare_threshold: int = 0,
     call_receiver_cluster_size_min: int = 0,
+    call_receiver_shape_primitive_names: tuple[str, ...] = (),
     enable_typicality_filter: bool = True,
 ) -> float:
     """Run K independent calibrations; return median threshold.
@@ -63,6 +67,12 @@ def calibrate_multi_seed(
     Optimization: shares the tokenizer across K scorer builds to avoid K model downloads.
     """
     thresholds: list[float] = []
+
+    # Resolve shape-primitive names → factories once so each per-seed
+    # scorer build gets fresh instances (primitives may carry per-cluster
+    # baseline state that's specific to its scorer).
+    def _make_primitives() -> list[ShapePrimitive[Any]]:
+        return build_shape_primitives(list(call_receiver_shape_primitive_names))
 
     # When n_clusters > 1, use the metadata-aware sampler so that
     # cluster_bonus contributions can be folded into calibration scores.
@@ -93,6 +103,7 @@ def calibrate_multi_seed(
         call_receiver_cluster_bonus=call_receiver_cluster_bonus,
         call_receiver_cluster_rare_threshold=call_receiver_cluster_rare_threshold,
         call_receiver_cluster_size_min=call_receiver_cluster_size_min,
+        call_receiver_shape_primitives=_make_primitives(),
         enable_typicality_filter=enable_typicality_filter,
     )
     shared_tokenizer = first_scorer._tokenizer
@@ -125,6 +136,7 @@ def calibrate_multi_seed(
             call_receiver_cluster_bonus=call_receiver_cluster_bonus,
             call_receiver_cluster_rare_threshold=call_receiver_cluster_rare_threshold,
             call_receiver_cluster_size_min=call_receiver_cluster_size_min,
+            call_receiver_shape_primitives=_make_primitives(),
             enable_typicality_filter=enable_typicality_filter,
             _tokenizer=shared_tokenizer,
         )

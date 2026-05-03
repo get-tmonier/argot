@@ -119,6 +119,18 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
+        "--enable-shape-primitives",
+        type=str,
+        default="",
+        metavar="CSV",
+        help=(
+            "Era-13 Phase 4: comma-separated names of additive AST-shape "
+            "primitives to enable (e.g. phase4a,phase4b). Empty (default) "
+            "disables all primitives. Names must be registered via "
+            "argot.scoring.scorers.shape_primitive_registry."
+        ),
+    )
+    p.add_argument(
         "--n-cal",
         type=int,
         default=100,
@@ -234,6 +246,16 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     one.add_argument(
+        "--enable-shape-primitives",
+        type=str,
+        default="",
+        metavar="CSV",
+        help=(
+            "Era-13 Phase 4: comma-separated names of AST-shape primitives "
+            "to enable. Default '' (all disabled)."
+        ),
+    )
+    one.add_argument(
         "--n-cal",
         type=int,
         default=100,
@@ -331,6 +353,9 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
         call_receiver_cluster_bonus=args.call_receiver_cluster_bonus,
         call_receiver_cluster_rare_threshold=args.call_receiver_cluster_rare_threshold,
         call_receiver_cluster_size_min=args.call_receiver_cluster_size_min,
+        call_receiver_shape_primitive_names=tuple(
+            n.strip() for n in args.enable_shape_primitives.split(",") if n.strip()
+        ),
         n_cal=args.n_cal,
         threshold_percentile=args.threshold_percentile,
         threshold_iqr_k=args.threshold_iqr_k,
@@ -391,6 +416,13 @@ def _run(args: argparse.Namespace) -> int:
             [
                 "--call-receiver-cluster-size-min",
                 str(args.call_receiver_cluster_size_min),
+            ]
+        )
+    if args.enable_shape_primitives:
+        base_cmd.extend(
+            [
+                "--enable-shape-primitives",
+                str(args.enable_shape_primitives),
             ]
         )
     if args.n_cal != 100:
