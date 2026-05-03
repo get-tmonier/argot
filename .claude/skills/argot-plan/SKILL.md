@@ -8,12 +8,15 @@ description: Plan a new argot research era. Runs a grill-me interview to surface
 Produces a `docs/research/era-N-hypotheses.md` for the next research era.
 Never writes the plan until the interview is complete and the user has approved the outline.
 
-## Step 1 — Read current state
+## Step 1 — Read the full research record first
 
-Before asking anything, read:
-- `docs/research/README.md` — current baseline numbers and open residuals
-- The latest `docs/research/era-*-hypotheses.md` — what was tried, what failed, what's unsolved
-- `docs/research/evidence/` — skim titles for any relevant recent evidence
+Before asking anything, read **all** of:
+- `docs/research/README.md` — current baseline, timeline, gate clearance history
+- Every `docs/research/NN-*.md` era narrative — headline findings and failure reasons
+- The latest `docs/research/era-*-hypotheses.md` — open residuals, "Do Not Retry" table
+- `docs/research/evidence/` — skim every title; open any that are relevant to the candidate hypotheses
+
+Build a mental "already tried" index. Any approach that appears in a "Do Not Retry" table or an evidence doc marked as failed **must not appear in the new plan** unless there is an explicit, documented reason why the conditions have changed. If you are tempted to propose something that looks like a past experiment, check the evidence doc first and cite why it is different this time.
 
 ## Step 2 — Grill-me interview
 
@@ -22,7 +25,7 @@ Ask one question at a time. For each, give your recommended answer so the user c
 Cover these branches in order, skipping any already answered by the docs:
 
 1. **Unsolved problem** — which residuals / fixture buckets are we targeting? Are we still in the same problem space or pivoting?
-2. **Hypothesis space** — what are the candidate signal classes? Have any been tried and ruled out (check "Do Not Retry" table)?
+2. **Hypothesis space** — what are the candidate signal classes? For each one, confirm it does not appear in any "Do Not Retry" table or failed evidence doc. If it does, explain what has changed. Never propose an approach just because the user hasn't mentioned it was tried — you already read the record.
 3. **Pre-registered gates** — recall target (fixture-count and per-category), per-corpus FP ceiling, regression clause, any corpus-specific floor?
 4. **Phase structure** — how many phases, in what order? Which can run in parallel? Which are precondition gates for later phases?
 5. **Bench cost** — for each phase: dirty script enough, or scoped bench, or full corpus? Default to cheapest signal first.
