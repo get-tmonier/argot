@@ -96,6 +96,96 @@ class FeatureRow(TypedDict):
     features: dict[str, Any]
 
 
+def synthesize_hunk_in_host(
+    catalog_content: str,
+    catalog_hunk_start: int,
+    catalog_hunk_end: int,
+    host_content: str,
+    host_inject_at_line: int,
+) -> tuple[str, int, int]:
+    """Splice catalog content into host content at an injection point.
+
+    Era-14 Fix A: catalog break files are tiny single-function standalone
+    files, which makes ``hunk_callees ⊆ file_callees`` by construction
+    (Jaccard ≈ 1.0).  Real-PR controls live in large multi-function files
+    (Jaccard ≈ 0.05).  This shape mismatch was the strongest discriminator
+    in the data and overwhelmed the actual anomaly signal.  By injecting
+    each catalog file's content into a real corpus host file at a chosen
+    line, the synthesized content shares the data-generating process of
+    the controls — the catalog hunk is now scored as if it had been added
+    inside a realistic file.
+
+    Args:
+        catalog_content: Full source of the catalog break file.
+        catalog_hunk_start: 1-indexed line in *catalog_content* where the
+            hunk begins.
+        catalog_hunk_end: 1-indexed inclusive line in *catalog_content*
+            where the hunk ends.
+        host_content: Full source of the host file from the corpus.
+        host_inject_at_line: 1-indexed line in *host_content* BEFORE which
+            the catalog content is inserted.  ``1`` means "splice at the
+            top, before any host line".  Values larger than the host line
+            count are treated as "append at end" (no error).
+
+    Returns:
+        Tuple ``(synthesized_content, new_hunk_start_line, new_hunk_end_line)``
+        where the line numbers are 1-indexed positions of the catalog hunk
+        within *synthesized_content*.
+
+    Notes on edge cases:
+        * Trailing newline preservation: ``str.splitlines(keepends=True)``
+          is used so a host or catalog file that ends without ``\\n`` does
+          not gain one, and one that ends with ``\\n`` keeps it.
+        * If *catalog_content* is empty the synthesized content equals the
+          host (no lines spliced); the returned line numbers degenerate
+          to ``host_inject_at_line, host_inject_at_line - 1``.
+    """
+    if catalog_hunk_start < 1:
+        raise ValueError(f"catalog_hunk_start must be >= 1 (got {catalog_hunk_start})")
+    if catalog_hunk_end < catalog_hunk_start:
+        raise ValueError(
+            f"catalog_hunk_end ({catalog_hunk_end}) must be >= "
+            f"catalog_hunk_start ({catalog_hunk_start})"
+        )
+    if host_inject_at_line < 1:
+        raise ValueError(f"host_inject_at_line must be >= 1 (got {host_inject_at_line})")
+
+    catalog_lines = catalog_content.splitlines(keepends=True)
+    host_lines = host_content.splitlines(keepends=True)
+
+    # Clamp injection point — "beyond end" → append.
+    inject_idx = min(host_inject_at_line - 1, len(host_lines))
+
+    # Splicing rule: catalog content goes BEFORE host_lines[inject_idx].
+    # If the host line immediately preceding the splice does not end with a
+    # newline, prepend one to the catalog content so the splice is on a fresh
+    # line. Symmetric guard at the catalog/host boundary on the trailing side.
+    prefix = host_lines[:inject_idx]
+    suffix = host_lines[inject_idx:]
+
+    # Ensure prefix ends in a newline before injection (only if there is
+    # something to follow it).
+    if prefix and catalog_lines and not prefix[-1].endswith(("\n", "\r")):
+        prefix = list(prefix)
+        prefix[-1] = prefix[-1] + "\n"
+
+    # Ensure catalog content ends in a newline before host suffix begins
+    # (so the catalog's last line is its own line in the synthesized file).
+    catalog_lines_adj = list(catalog_lines)
+    if catalog_lines_adj and suffix and not catalog_lines_adj[-1].endswith(("\n", "\r")):
+        catalog_lines_adj[-1] = catalog_lines_adj[-1] + "\n"
+
+    synthesized_lines = [*prefix, *catalog_lines_adj, *suffix]
+    synthesized = "".join(synthesized_lines)
+
+    # Catalog line N (1-indexed) sits at: len(prefix) + N in the synthesized
+    # file (1-indexed).  Equivalently: shift by len(prefix).
+    shift = len(prefix)
+    new_start = shift + catalog_hunk_start
+    new_end = shift + catalog_hunk_end
+    return synthesized, new_start, new_end
+
+
 def _parser_for(language: Language) -> Any:
     return _PY_PARSER if language == "python" else _TS_PARSER
 

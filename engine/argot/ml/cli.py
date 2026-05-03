@@ -51,6 +51,7 @@ from argot.ml.features import (
     FeatureRow,
     build_feature_row,
     compute_features,
+    synthesize_hunk_in_host,
 )
 from argot.scoring.adapters.python_adapter import PythonAdapter
 from argot.scoring.calibration.random_hunk_sampler import (
@@ -203,14 +204,58 @@ def _iter_fixture_rows(
         he = int(fx["hunk_end_line"])
         lines = full.splitlines()
         hunk = "\n".join(lines[hs - 1 : he])
-        file_path = (repo_dir / rel) if repo_dir is not None else None
+
+        # Era-14 Fix A: optional host-file injection.
+        # When the manifest specifies host_file + host_inject_at_line, the
+        # ML feature extractor scores the catalog hunk inside a real corpus
+        # file rather than the standalone catalog file.  This eliminates
+        # the catalog fixture-shape leak (jaccard ≈ 1.0 standalone vs ≈ 0.05
+        # for real-PR controls).  Both fields must be present together; the
+        # bench-side validator (argot_bench.fixtures._parse_fixture) already
+        # enforces this — we still re-check here defensively because the
+        # manifest dict may be loaded outside that validator (direct mode).
+        host_file_rel = fx.get("host_file")
+        host_inject_at_line = fx.get("host_inject_at_line")
+        if (host_file_rel is None) != (host_inject_at_line is None):
+            raise ValueError(
+                f"fixture {fx.get('id')!r}: host_file and host_inject_at_line must be "
+                "specified together (both or neither)."
+            )
+
+        if host_file_rel is not None and host_inject_at_line is not None and repo_dir is not None:
+            host_path = repo_dir / str(host_file_rel)
+            host_content = host_path.read_text(encoding="utf-8")
+            synthesized, new_hs, new_he = synthesize_hunk_in_host(
+                catalog_content=full,
+                catalog_hunk_start=hs,
+                catalog_hunk_end=he,
+                host_content=host_content,
+                host_inject_at_line=int(host_inject_at_line),
+            )
+            scored_file_source: str | None = synthesized
+            scored_file_path: Path | None = host_path
+            scored_hs = new_hs
+            scored_he = new_he
+            row_file_path_rel = str(host_file_rel)
+            # Recompute hunk text from the synthesized content so length
+            # stats reflect what was actually scored.
+            syn_lines = synthesized.splitlines()
+            row_hunk = "\n".join(syn_lines[new_hs - 1 : new_he])
+        else:
+            scored_file_source = full
+            scored_file_path = (repo_dir / rel) if repo_dir is not None else None
+            scored_hs = hs
+            scored_he = he
+            row_file_path_rel = rel
+            row_hunk = hunk
+
         feats = compute_features(
             inner,
-            hunk,
-            file_source=full,
-            file_path=file_path,
-            hunk_start_line=hs,
-            hunk_end_line=he,
+            row_hunk,
+            file_source=scored_file_source,
+            file_path=scored_file_path,
+            hunk_start_line=scored_hs,
+            hunk_end_line=scored_he,
             language=language,
         )
         yield build_feature_row(
@@ -219,10 +264,10 @@ def _iter_fixture_rows(
             fixture_id=str(fx["id"]),
             category=str(fx.get("category")) if fx.get("category") is not None else None,
             difficulty=(str(fx.get("difficulty")) if fx.get("difficulty") is not None else None),
-            file_path_rel=rel,
-            hunk_start_line=hs,
-            hunk_end_line=he,
-            hunk_content=hunk,
+            file_path_rel=row_file_path_rel,
+            hunk_start_line=scored_hs,
+            hunk_end_line=scored_he,
+            hunk_content=row_hunk,
             features=feats,
         )
 
