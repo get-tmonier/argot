@@ -1,12 +1,12 @@
-# Era 14 Phase 6.4 — Unsupervised cluster-departure scoring on UnixCoder embeddings
+# Era 12 Phase 6.4 — Unsupervised cluster-departure scoring on UnixCoder embeddings
 
 **Date**: 2026-05-03
-**Branch**: `feat/era-14-ml-stage`
-**Script**: `engine/scripts/era14_phase64_centroid.py`
-**Inputs**: `engine/.era14-features/{fastapi,rich,faker,hono,ink,faker-js}.jsonl` (1891 rows; 115 breaks, 1776 controls)
+**Branch**: `feat/era-12-ml-stage`
+**Script**: `engine/scripts/era12_phase64_centroid.py`
+**Inputs**: `engine/.era12-features/{fastapi,rich,faker,hono,ink,faker-js}.jsonl` (1891 rows; 115 breaks, 1776 controls)
 **Persisted artifacts**:
-- Centroid dict: `engine/.era14-features/centroids_phase6.4.joblib`
-- Raw results JSON: `/tmp/era14_phase64_results.json`
+- Centroid dict: `engine/.era12-features/centroids_phase6.4.joblib`
+- Raw results JSON: `/tmp/era12_phase64_results.json`
 
 ---
 
@@ -188,7 +188,7 @@ The threshold lands awkwardly close to several rank-1 / rank-2 / rank-3 controls
 
 ### Stage-4 as a complement to era-11
 
-Stage 4 adds 7.83 % catalog recall (9 / 115) at sub-baseline-+-0.5pp FP cost. That is a non-zero contribution. On a combined era-11 + stage-4 system it would push average recall from 89.97 % toward roughly 92 % — a real but modest gain. On the residual problem (the only thing era 14 was meant to solve), it gains exactly 1.
+Stage 4 adds 7.83 % catalog recall (9 / 115) at sub-baseline-+-0.5pp FP cost. That is a non-zero contribution. On a combined era-11 + stage-4 system it would push average recall from 89.97 % toward roughly 92 % — a real but modest gain. On the residual problem (the only thing era 12 was meant to solve), it gains exactly 1.
 
 ### Comparison vs Phase 6.2 / 6.3
 
@@ -203,12 +203,12 @@ Phase 6.4 is the most honest number we have: real centroids, real per-corpus cal
 
 ---
 
-## What this implies for era 14
+## What this implies for era 12
 
 The pre-reg verdict is PARTIAL. Three orchestrator options:
 
 1. **Ship anyway as opt-in stage 4.** Adds +9 catalog catches across corpora at sub-0.5-pp FP regression. One residual catch (`runtime_fetch_2`) is something era-11 cannot do. Modest but real.
 2. **Tighten or modify centroid construction.** The biggest leverage point is the `MIN_CLUSTER_CONTROLS = 5` filter excluding `error_flip_2` — its cluster has only 2 controls. Any reformulation that gives this hunk a centroid (e.g. fall back to corpus-wide centroid for low-pop clusters, or pool clusters across files) potentially recovers 1 more catch but introduces a new tunable knob.
-3. **Close era 14.** SHIP gate failed; the embeddings did not deliver the residual catch the era was designed to test. Two passes (Phase 5 conservative XGBoost and Phase 6.3 LOO classifiers) caught 1/5 between them; this pass adds 1 more (different residual). After three swings, the residual problem looks structurally hard rather than under-modeled.
+3. **Close era 12.** SHIP gate failed; the embeddings did not deliver the residual catch the era was designed to test. Two passes (Phase 5 conservative XGBoost and Phase 6.3 LOO classifiers) caught 1/5 between them; this pass adds 1 more (different residual). After three swings, the residual problem looks structurally hard rather than under-modeled.
 
-A modest scope tweak to test before closing: reproduce this analysis with a fallback centroid (corpus-wide mean of controls) for hunks whose cluster has < 5 controls. If that single change moves residual catch to ≥ 2 without breaking the no-regression gate, ship as stage 4. If not, close era 14 with the result documented.
+A modest scope tweak to test before closing: reproduce this analysis with a fallback centroid (corpus-wide mean of controls) for hunks whose cluster has < 5 controls. If that single change moves residual catch to ≥ 2 without breaking the no-regression gate, ship as stage 4. If not, close era 12 with the result documented.

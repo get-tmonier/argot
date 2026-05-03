@@ -1,4 +1,4 @@
-"""Era 14 Phase 8 — PROPER per-token MLM surprise (one-mask-at-a-time).
+"""Era 12 Phase 8 — PROPER per-token MLM surprise (one-mask-at-a-time).
 
 Era 12's MLM-surprise bakeoff (`docs/research/evidence/mlm-surprise-bakeoff.md`)
 ran joint masking — all hunk tokens masked in one forward pass — and got
@@ -57,7 +57,7 @@ Pipeline:
 9. Verdict per aggregation.
 
 Outputs JSON to stdout; saves the artifact to
-`engine/.era14-features/phase8_mlm_surprise.joblib`.
+`engine/.era12-features/phase8_mlm_surprise.joblib`.
 
 Constraints:
 - Frozen encoder, no training, no fine-tuning, no labels touched.
@@ -86,7 +86,7 @@ import numpy as np
 import yaml
 
 ROOT = Path("/Users/damienmeur/projects/argot")
-FEATURE_DIR = ROOT / "engine" / ".era14-features"
+FEATURE_DIR = ROOT / "engine" / ".era12-features"
 BENCH_DATA = ROOT / "benchmarks" / "data"
 BENCH_CATALOGS = ROOT / "benchmarks" / "catalogs"
 CORPORA = ["fastapi", "rich", "faker", "hono", "ink", "faker-js"]

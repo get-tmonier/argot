@@ -1,4 +1,4 @@
-"""Era 14 Phase 10 — measure cluster-frequency of residuals' callees.
+"""Era 12 Phase 10 — measure cluster-frequency of residuals' callees.
 
 Premise (option 1 from the post-Phase-9 discussion): era 11's current rule
 treats a callee as ``attested`` if it appears in ANY file of the hunk's
@@ -31,7 +31,7 @@ from typing import Any
 import yaml
 
 ROOT = Path("/Users/damienmeur/projects/argot")
-FEATURE_DIR = ROOT / "engine" / ".era14-features"
+FEATURE_DIR = ROOT / "engine" / ".era12-features"
 BENCH_DATA = ROOT / "benchmarks" / "data"
 BENCH_CATALOGS = ROOT / "benchmarks" / "catalogs"
 CORPORA = ["fastapi", "rich", "faker", "hono", "ink", "faker-js"]

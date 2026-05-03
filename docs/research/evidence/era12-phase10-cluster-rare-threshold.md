@@ -1,7 +1,7 @@
-# Era 14 Phase 10 — Cluster-rare attestation (deferred)
+# Era 12 Phase 10 — Cluster-rare attestation (deferred)
 
 **Date**: 2026-05-03
-**Branch**: `feat/era-14-ml-stage`
+**Branch**: `feat/era-12-ml-stage`
 **Status**: plumbed + unit-tested (5 tests), bench-inert under current
 calibration. Default `cluster_rare_threshold = 0` (off). Future work.
 
@@ -34,7 +34,7 @@ interaction.
 
 ## Motivation
 
-After the routing fix (see [`era14-routing-fix.md`](era14-routing-fix.md))
+After the routing fix (see [`era12-routing-fix.md`](era12-routing-fix.md))
 recovered most of era 11's "missing" residuals on faker-js, four
 fixtures stayed uncaught with the same diagnostic shape:
 

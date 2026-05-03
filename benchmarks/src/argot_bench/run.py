@@ -8,6 +8,24 @@ from itertools import islice
 from pathlib import Path
 from typing import Literal, cast
 
+from argot_bench.clone import ensure_clone, ensure_sha_checked_out
+from argot_bench.extract import ensure_extracted
+from argot_bench.fixtures import Fixture, load_catalog, read_hunk
+from argot_bench.metrics import (
+    auc_catalog,
+    calibration_stability,
+    fp_rate,
+    recall_by_category,
+    recall_by_difficulty,
+    stage_attribution,
+    threshold_cv,
+)
+from argot_bench.report import CorpusReport
+from argot_bench.score import BenchScorer, build_scorer
+
+Language = Literal["python", "typescript"]
+
+
 _BREAK_META_RE = re.compile(r"^\s*(//|#)\s*Break\s*:")
 
 
@@ -20,8 +38,8 @@ def _strip_break_meta(
     naming the anomaly (e.g. ``// Break: provider throws mid-generation``).
     That comment is fixture-design metadata, NOT content the production
     scorer should ever see — its presence biases prose-blanking under the
-    host-injection path, and (in Phase 9 we showed) it's the dominant
-    surprise signal under MLM scoring even though it's not real code.
+    host-injection path and is the dominant surprise signal under MLM
+    scoring (per the ML investigation that uncovered the routing bug).
 
     Returns ``(stripped_content, new_hunk_start_line, new_hunk_end_line)``.
     The returned line range covers the same code lines, shifted to account
@@ -54,23 +72,6 @@ def _strip_break_meta(
         "\n" if catalog_content.endswith("\n") else ""
     )
     return new_content, new_chs, new_che
-
-from argot_bench.clone import ensure_clone, ensure_sha_checked_out
-from argot_bench.extract import ensure_extracted
-from argot_bench.fixtures import Fixture, load_catalog, read_hunk
-from argot_bench.metrics import (
-    auc_catalog,
-    calibration_stability,
-    fp_rate,
-    recall_by_category,
-    recall_by_difficulty,
-    stage_attribution,
-    threshold_cv,
-)
-from argot_bench.report import CorpusReport
-from argot_bench.score import BenchScorer, build_scorer
-
-Language = Literal["python", "typescript"]
 
 
 @dataclass(frozen=True)
@@ -173,7 +174,6 @@ def _score_fixtures(
             except OSError:
                 host_content = None
             if host_content is not None:
-                from argot.ml.features import synthesize_hunk_in_host
 
                 catalog_path = catalog_dir / fx.file
                 try:
@@ -212,9 +212,9 @@ def _score_fixtures(
                     # With file_source=None, the scorer skips both the
                     # file-level typicality check and prose-blanking;
                     # the hunk-only typicality check still runs.
-                    scored_src = None  # type: ignore[assignment]
-                    scored_hs = None  # type: ignore[assignment]
-                    scored_he = None  # type: ignore[assignment]
+                    scored_src = None
+                    scored_hs = None
+                    scored_he = None
         r = scorer.score_hunk(
             hunk,
             file_source=scored_src,

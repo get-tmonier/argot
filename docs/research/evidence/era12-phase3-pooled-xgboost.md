@@ -1,10 +1,10 @@
-# Era 14 — Phase 3: Pooled XGBoost training (KILL-SWITCH #2)
+# Era 12 — Phase 3: Pooled XGBoost training (KILL-SWITCH #2)
 
 **Date**: 2026-05-03
 **Branch**: `docs/era-10-root-readme` (training/analysis only)
-**Inputs**: `engine/.era14-features/{fastapi,rich,faker,hono,ink,faker-js}.jsonl`
+**Inputs**: `engine/.era12-features/{fastapi,rich,faker,hono,ink,faker-js}.jsonl`
 **Code**: `engine/argot/ml/train.py`
-**Artifacts**: `.era14-features/{pooled_setA.joblib, pooled_setB.joblib, feature_list.json}`
+**Artifacts**: `.era12-features/{pooled_setA.joblib, pooled_setB.joblib, feature_list.json}`
 **Method**: `xgboost.XGBClassifier`, pre-registered hyperparameters, 5-fold stratified CV.
 
 ---
@@ -16,7 +16,7 @@
 | A (full pooled) | 1,915 | 115 | 1,800 | **0.9991 ± 0.0009** | > 0.85 | PASS |
 | B (Stage-4 regime) | 1,453 | 12 | 1,441 | **0.9998 ± 0.0005** | > 0.70 | PASS |
 
-**KILL-SWITCH verdict: PASS — era 14 advances to Phase 4 (leave-one-corpus-out).**
+**KILL-SWITCH verdict: PASS — era 12 advances to Phase 4 (leave-one-corpus-out).**
 
 Caveat: Set B has only 12 positive rows (5 of which are the faker-js residuals). The CV AUC is precise but the *generalisation* signal is weak — Phase 4 is the actual stress test. The 5/5 catch on residuals at faker-js FP ≤ 0.9% is encouraging but not proof of cross-corpus transfer.
 
@@ -82,7 +82,7 @@ ast_identifier  ast_string  ast_property_identifier  ast_string_fragment  ast_pa
 
 Booleans coerced to 0/1. Categorical `cluster_id` left as integer (XGBoost handles it as ordinal — fine for tree splits).
 
-Manifest saved to `.era14-features/feature_list.json`.
+Manifest saved to `.era12-features/feature_list.json`.
 
 ---
 
@@ -125,7 +125,7 @@ Pre-registered Phase 3 gates:
 | Set A 5-fold CV AUC           |    > 0.85 |   0.9991 |   YES |
 | Set B 5-fold CV AUC           |    > 0.70 |   0.9998 |   YES |
 
-**Verdict: PASS.** Era 14 advances to Phase 4 (LOO).
+**Verdict: PASS.** Era 12 advances to Phase 4 (LOO).
 
 **Caveat — please read before celebrating:** Set B has 12 positives total. A pooled CV with that few positives reliably tests "can the model fit the training data" — it does not test cross-corpus generalisation. Phase 4 (LOO) will pull all positives from one corpus out of training; with `rich` and `ink` having only 0–1 positives in Set B, several LOO folds will be measurement-degenerate. Plan for this in Phase 4 design.
 
@@ -204,9 +204,9 @@ This is much better than the asked-for ≥2/5 — but it's an *in-sample* (no LO
 
 ## Outputs
 
-- This memo: `docs/research/evidence/era14-phase3-pooled-xgboost.md`
-- Trained models: `.era14-features/pooled_setA.joblib`, `.era14-features/pooled_setB.joblib`
-- Feature manifest: `.era14-features/feature_list.json`
+- This memo: `docs/research/evidence/era12-phase3-pooled-xgboost.md`
+- Trained models: `.era12-features/pooled_setA.joblib`, `.era12-features/pooled_setB.joblib`
+- Feature manifest: `.era12-features/feature_list.json`
 - Training script: `engine/argot/ml/train.py` (run via `uv run python -m argot.ml.train` from the engine venv; requires `xgboost` + system `libomp` — added to the local venv only, not the project pyproject)
 - Optional CLI (`argot-train-stage4`) **not implemented** — kept the surface minimal to leave Phase 6 productionisation choices open for the orchestrator.
 

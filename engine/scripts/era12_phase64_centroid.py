@@ -1,12 +1,11 @@
-"""Era 14 Phase 8c — Phase 6.4 cluster-centroid cosine, but on CONTEXT embeddings.
+"""Era 12 Phase 6.4 — UNSUPERVISED cluster-departure scoring on UnixCoder embeddings.
 
-Same logic as Phase 6.4 with one swap: use the JSONL row's `context_embedding`
-(768-d, 512-token window centred on the hunk = the hunk + surrounding file
-content) instead of `hunk_embedding`. The hypothesis from Phase 8.1's win is
-that file-context view sees the residuals as anomalous in a way the hunk-only
-view does not.
+Builds per-(corpus, cluster_id) centroids from CONTROL hunks only (no catalog leak),
+scores every hunk by cosine distance to its cluster centroid, calibrates per-corpus
+thresholds at the era-11 baseline FP rate, then evaluates fixture catch.
 
-Saves to .era14-features/centroids_phase8c_context.joblib.
+Outputs JSON results to stdout for the memo writer to consume, and saves the
+centroid dict to .era12-features/centroids_phase6.4.joblib.
 """
 
 from __future__ import annotations
@@ -19,7 +18,7 @@ import joblib
 import numpy as np
 
 ROOT = Path("/Users/damienmeur/projects/argot")
-FEATURE_DIR = ROOT / "engine" / ".era14-features"
+FEATURE_DIR = ROOT / "engine" / ".era12-features"
 CORPORA = ["fastapi", "rich", "faker", "hono", "ink", "faker-js"]
 
 # Era-11 baseline FP rates per corpus (percent of CONTROLS flagged).
@@ -52,7 +51,7 @@ def load_all() -> dict:
                 rows.append(d)
     n = len(rows)
     is_break = np.array([bool(r["is_break"]) for r in rows])
-    hunk = np.array([r["context_embedding"] for r in rows], dtype=np.float32)
+    hunk = np.array([r["hunk_embedding"] for r in rows], dtype=np.float32)
     corpus = np.array([r["corpus"] for r in rows])
     fixture_id = np.array([r.get("fixture_id") or "" for r in rows])
     cluster = np.array(
@@ -430,14 +429,14 @@ def main() -> None:
     t7 = task7_verdict(t4, t5)
 
     # Save centroids for downstream use.
-    centroids_path = FEATURE_DIR / "centroids_phase8c_context.joblib"
+    centroids_path = FEATURE_DIR / "centroids_phase6.4.joblib"
     joblib.dump(
         {
             "centroids": centroids,
             "min_cluster_controls": MIN_CLUSTER_CONTROLS,
             "fp_target": FP_TARGET,
             "thresholds": {c: t3[c]["threshold"] for c in CORPORA},
-            "method": "L2-normed mean of CONTROL context_embedding per (corpus, cluster_id); "
+            "method": "L2-normed mean of CONTROL hunk_embedding per (corpus, cluster_id); "
             "score = 1 - cosine(hunk_n, centroid_n)",
         },
         centroids_path,

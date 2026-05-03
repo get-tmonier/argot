@@ -1,11 +1,11 @@
-# Era 14 — Fix-A pilot on faker-js (host-file injection)
+# Era 12 — Fix-A pilot on faker-js (host-file injection)
 
 **Date**: 2026-05-03
 **Branch**: `docs/era-10-root-readme` (analysis-only; no code changes)
-**Inputs**: `engine/.era14-features/faker-js.jsonl` — 315 rows (17 breaks + 298 controls), freshly extracted with Fix-A (`host_file` injection on all 17 catalog fixtures)
-**Reference**: Phase 3.6b memo (`era14-phase3.6b-post-leak-fix.md`)
-**Code**: `/tmp/era14_fixA_pilot.py` (one-shot)
-**Persisted**: `/tmp/era14_fixA_pilot_results.json`
+**Inputs**: `engine/.era12-features/faker-js.jsonl` — 315 rows (17 breaks + 298 controls), freshly extracted with Fix-A (`host_file` injection on all 17 catalog fixtures)
+**Reference**: Phase 3.6b memo (`era12-phase3.6b-post-leak-fix.md`)
+**Code**: `/tmp/era12_fixA_pilot.py` (one-shot)
+**Persisted**: `/tmp/era12_fixA_pilot_results.json`
 **Hyperparameters**: pre-registered Phase-3 XGBoost (`n_estimators=100, max_depth=4, lr=0.1, random_state=0`)
 
 ---
@@ -25,7 +25,7 @@
 
 The pilot validates that host-file injection is **directionally correct** (every leak-suspect feature dropped, residual catch recovered from 0 to 2) but is **not sufficient** as currently implemented — `max_nesting_depth`, `hunk_file_callee_jaccard`, `n_returns`, and `hunk_callees_in_file_fraction` all still discriminate breaks from controls at AUC > 0.88 within faker-js alone.
 
-**Recommendation: PROCEED WITH CAVEATS** to scale Fix-A to the other 5 corpora, in parallel with diagnosing why hunk-shape features still leak. The residual-catch gate (the era-14 motivating test) passes. The leakage that remains is shape-based, not routing-based, and is identical in nature to the gap Phase 3.6b documented — it does not invalidate the catch result, but it puts a ceiling on how far we can trust aggregate AUC numbers.
+**Recommendation: PROCEED WITH CAVEATS** to scale Fix-A to the other 5 corpora, in parallel with diagnosing why hunk-shape features still leak. The residual-catch gate (the era-12 motivating test) passes. The leakage that remains is shape-based, not routing-based, and is identical in nature to the gap Phase 3.6b documented — it does not invalidate the catch result, but it puts a ceiling on how far we can trust aggregate AUC numbers.
 
 ---
 
@@ -166,17 +166,17 @@ Two of the three pre-registered gates resolved cleanly; the third (max single-fe
 
 The recommendation depends on which gate is binding for the era's go/no-go:
 
-**If the era-14 motivating question is "can ML catch the residuals at honest FP rate?"** → the answer is now YES (2/5 with conservative features, well above 1/5). **PROCEED**: scale Fix-A to the other 5 corpora and re-run pooled + LOO with all 6.
+**If the era-12 motivating question is "can ML catch the residuals at honest FP rate?"** → the answer is now YES (2/5 with conservative features, well above 1/5). **PROCEED**: scale Fix-A to the other 5 corpora and re-run pooled + LOO with all 6.
 
-**If the era-14 motivating question is "is the bench data clean enough to train ML on?"** → the answer is STILL NO. Multiple AUC > 0.85 features inside a single corpus indicate the catalog/control distribution mismatch isn't just a routing artefact — it's a structural property of how the catalog fixtures are written (single-function deeply-nested return-bearing files vs flat library exports). Fix-A halves the leak but doesn't close it.
+**If the era-12 motivating question is "is the bench data clean enough to train ML on?"** → the answer is STILL NO. Multiple AUC > 0.85 features inside a single corpus indicate the catalog/control distribution mismatch isn't just a routing artefact — it's a structural property of how the catalog fixtures are written (single-function deeply-nested return-bearing files vs flat library exports). Fix-A halves the leak but doesn't close it.
 
 **Choosing**: I recommend **PROCEED to scale Fix-A**, but with the following adjustments:
 
-1. **Pre-register a stricter residual-catch gate at the LOO step**: Phase 3.6b's pooled cons Set B model caught 0/5; this pilot's in-corpus model catches 2/5. The pooled-with-Fix-A model will sit somewhere in between, likely 1–3/5. The era-14 ship gate should be ≥2/5 caught at FP ≤ 0.9% in the *LOO* setting (held-out faker-js when training on the other 5), not the in-corpus setting. The in-corpus pilot is a feasibility check, not a final answer.
+1. **Pre-register a stricter residual-catch gate at the LOO step**: Phase 3.6b's pooled cons Set B model caught 0/5; this pilot's in-corpus model catches 2/5. The pooled-with-Fix-A model will sit somewhere in between, likely 1–3/5. The era-12 ship gate should be ≥2/5 caught at FP ≤ 0.9% in the *LOO* setting (held-out faker-js when training on the other 5), not the in-corpus setting. The in-corpus pilot is a feasibility check, not a final answer.
 2. **Treat all reported pooled AUC > 0.95 with skepticism** — the leak Task-2 identified is shape-based, not routing-based. Pooled CV will partially-but-not-fully mask it. Track per-corpus held-out AUC (LOO) as the headline number, not pooled CV.
 3. **Open a follow-up issue to address the AST-feature leak** — `max_nesting_depth`, `n_returns`, and `hunk_callee_bag_size` need the catalog format to diversify, or the extractor needs to compute these features post-injection (against the host context). Without one of these fixes, no model can be trusted on aggregate AUC.
 
-If the orchestrator prefers a stricter posture, the alternative is **FIX REMAINING LEAK** before scaling — diversify catalog fixture AST shapes (or compute AST features against host-injected hunks) until `max_nesting_depth` AUC drops below 0.75. This is more rigorous but significantly more work, and the residual-catch result in this pilot suggests the leak isn't blocking the era-14 motivating signal.
+If the orchestrator prefers a stricter posture, the alternative is **FIX REMAINING LEAK** before scaling — diversify catalog fixture AST shapes (or compute AST features against host-injected hunks) until `max_nesting_depth` AUC drops below 0.75. This is more rigorous but significantly more work, and the residual-catch result in this pilot suggests the leak isn't blocking the era-12 motivating signal.
 
 I do **not** recommend **CLOSE ERA 14 NEGATIVE** at this point: the residual catch did improve from 0/5 to 2/5, which is the directional reversal the era was designed to find. The remaining leakage is a quality issue on the bench, not a verdict on whether ML can learn the signal.
 
@@ -184,10 +184,10 @@ I do **not** recommend **CLOSE ERA 14 NEGATIVE** at this point: the residual cat
 
 ## Outputs
 
-- This memo: `docs/research/evidence/era14-fixA-pilot.md`
-- Analysis script (one-shot): `/tmp/era14_fixA_pilot.py`
-- Persisted results JSON: `/tmp/era14_fixA_pilot_results.json`
-- Inputs: `engine/.era14-features/faker-js.jsonl` (315 rows, freshly extracted)
+- This memo: `docs/research/evidence/era12-fixA-pilot.md`
+- Analysis script (one-shot): `/tmp/era12_fixA_pilot.py`
+- Persisted results JSON: `/tmp/era12_fixA_pilot_results.json`
+- Inputs: `engine/.era12-features/faker-js.jsonl` (315 rows, freshly extracted)
 
 ## What I couldn't analyze
 

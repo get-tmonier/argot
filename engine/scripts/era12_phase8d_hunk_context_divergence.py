@@ -1,4 +1,4 @@
-"""Era 14 Phase 8d — hunk-vs-context cosine divergence.
+"""Era 12 Phase 8d — hunk-vs-context cosine divergence.
 
 For each row: score = 1 - cosine(hunk_embedding, context_embedding).
 
@@ -21,7 +21,7 @@ from pathlib import Path
 import numpy as np
 
 ROOT = Path("/Users/damienmeur/projects/argot")
-FEATURE_DIR = ROOT / "engine" / ".era14-features"
+FEATURE_DIR = ROOT / "engine" / ".era12-features"
 CORPORA = ["fastapi", "rich", "faker", "hono", "ink", "faker-js"]
 
 FP_TARGET = {

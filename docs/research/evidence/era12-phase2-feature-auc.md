@@ -1,8 +1,8 @@
-# Era 14 — Phase 2: Per-feature discrimination AUC (KILL-SWITCH)
+# Era 12 — Phase 2: Per-feature discrimination AUC (KILL-SWITCH)
 
 **Date**: 2026-05-03
 **Branch**: `docs/era-10-root-readme` (analysis-only)
-**Inputs**: `engine/.era14-features/{fastapi,rich,faker,hono,ink,faker-js}.jsonl`
+**Inputs**: `engine/.era12-features/{fastapi,rich,faker,hono,ink,faker-js}.jsonl`
 **Total rows**: 1,915 = 115 fixtures + 1,800 controls (300 per corpus)
 **Method**: `sklearn.metrics.roc_auc_score` on raw feature value (no model fit)
 
@@ -65,7 +65,7 @@ Direction column: `+` = higher value → more anomalous (raw AUC); `-` = lower v
   - `n_unattested_callees` (worst 0.682, faker-js)
   - `bpe_score` (worst 0.574, faker-js)
   - `stage2_flagged` (worst 0.560, rich)
-- Era 14 advances to **Phase 3** (XGBoost training).
+- Era 12 advances to **Phase 3** (XGBoost training).
 
 The pattern is clear: every numerator-strong feature is weakest on **faker-js**, which matches era-11/era-12 evidence that faker-js fixtures (especially the 5 residuals) live in distribution territory close to controls.
 
@@ -138,6 +138,6 @@ These two redundancies were not flagged by the strict top-5 gate but matter for 
 
 ## Outputs
 
-- This memo: `docs/research/evidence/era14-phase2-feature-auc.md`
-- Analysis script (one-shot, not committed): `/tmp/era14_phase2_analysis.py`
+- This memo: `docs/research/evidence/era12-phase2-feature-auc.md`
+- Analysis script (one-shot, not committed): `/tmp/era12_phase2_analysis.py`
 - Inputs unmodified.

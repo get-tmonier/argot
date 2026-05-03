@@ -1,4 +1,4 @@
-"""Era 14 Phase 6.2 — UnixCoder embedding KILL-SWITCH probe.
+"""Era 12 Phase 6.2 — UnixCoder embedding KILL-SWITCH probe.
 
 Tests whether UnixCoder semantic embeddings carry signal to predict `is_break`,
 specifically signal that's distinguishable on the 5 residual faker-js fixtures.
@@ -21,7 +21,7 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 
 ROOT = Path("/Users/damienmeur/projects/argot")
-FEATURE_DIR = ROOT / "engine" / ".era14-features"
+FEATURE_DIR = ROOT / "engine" / ".era12-features"
 CORPORA = ["fastapi", "rich", "faker", "hono", "ink", "faker-js"]
 RESIDUALS = {
     "faker_js_error_flip_2",

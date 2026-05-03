@@ -1,4 +1,4 @@
-"""Era 14 Phase 8e — per-token NN distance in file context (single forward pass).
+"""Era 12 Phase 8e — per-token NN distance in file context (single forward pass).
 
 Production-viable variant of Phase 8.1's "per-token with context" insight.
 
@@ -31,7 +31,7 @@ import numpy as np
 import yaml
 
 ROOT = Path("/Users/damienmeur/projects/argot")
-FEATURE_DIR = ROOT / "engine" / ".era14-features"
+FEATURE_DIR = ROOT / "engine" / ".era12-features"
 BENCH_DATA = ROOT / "benchmarks" / "data"
 BENCH_CATALOGS = ROOT / "benchmarks" / "catalogs"
 CORPORA = ["fastapi", "rich", "faker", "hono", "ink", "faker-js"]

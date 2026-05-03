@@ -148,41 +148,57 @@ false positives.
 
 ## Current baseline
 
-From [`latest/report.md`](results/baseline/latest/report.md)
-(run `20260503T011020Z`, 116 fixtures, 5 PR snapshots per corpus,
-difficulty-labelled, era-11 shipping config: K=8, cluster_bonus=5.0):
+From the latest full bench post catalog-routing fix (115 fixtures across
+6 corpora, 5-seed multi-seed calibration, current shipping config: K=8,
+cluster_bonus=5.0):
 
 | Corpus | AUC | Recall | FP | N_fix | N_ctrl |
 |:---|---:|---:|---:|---:|---:|
-| fastapi | 0.9880 | 91.7% | 0.6% | 32 | 79,623 |
-| rich | 0.9780 | **100.0%** | 1.2% | 16 | 68,598 |
-| faker | 0.9537 | 95.0% | **2.0%** | 16 | 75,996 |
-| hono | 0.8312 | **88.3%** | 0.5% | 17 | 54,717 |
-| ink | 0.9899 | 93.3% | 0.5% | 17 | 16,678 |
-| faker-js | 0.9463 | **71.7%** | 0.9% | 17 | 255,760 |
+| fastapi | 0.9946 | **95.4%** | 0.57% | 32 | 79,623 |
+| rich | 0.9964 | **100.0%** | 1.23% | 16 | 68,598 |
+| faker | 0.9537 | 95.0% | 1.96% | 16 | 75,996 |
+| hono | 0.8321 | 88.3% | 0.51% | 17 | 54,717 |
+| ink | 0.9899 | 93.3% | 0.54% | 17 | 16,678 |
+| faker-js | 0.9463 | **76.7%** | 0.91% | 17 | 255,760 |
 
-Average recall **89.97%**; FP ≤ 1.2% on five of six corpora with faker
-(Python) at 2.0% — a documented structural cost of cluster-conditional
-attestation on locale-partitioned corpora (era-11 amended Gate 3 to ≤2.5%
-per-corpus FP). Easy and medium fixtures are caught at ≥80% on all six
-corpora; hard fixtures depend on Stage 1.5. Threshold CV ≤ 3% across all
-corpora: runs are reproducible across seeds.
+Per-category mean recall **91.5%**; total fixture catches **105/115
+(91.3%)**; FP ≤ 1.2% on five of six corpora, with faker (Python) at 1.96%
+(documented structural cost of cluster-conditional attestation on
+locale-partitioned corpora; the historical Gate 3 amendment at ≤2.5%
+per-corpus FP still holds). Easy and medium fixtures are caught at ≥80%
+on all six corpora; hard fixtures depend on Stage 1.5. Threshold CV =
+0% across all corpora: runs are reproducible across seeds.
+
+The recall improvement vs the prior published baseline (avg recall
+89.97%) came from a routing-bug fix in this very harness: catalog
+fixtures were being scored with a phantom `file_path` that defeated
+era-11's cluster-conditional attestation rule. See
+[`docs/research/evidence/era14-routing-fix.md`](../docs/research/evidence/era14-routing-fix.md)
+and [`docs/research/evidence/era14-status.md`](../docs/research/evidence/era14-status.md).
 
 ### Known weaknesses (flagged by this baseline)
 
-1. **Per-locale provider FPs on faker (Python).** 455 of faker's 663 flagged
-   controls are cluster-bonus-driven, concentrated in 48 per-locale provider
+1. **Per-locale provider FPs on faker (Python).** Most of faker's flagged
+   controls are cluster-bonus-driven, concentrated in per-locale provider
    files (`faker/providers/<category>/<locale>/__init__.py`). These files
    call inherited base-provider helpers (`self.numerify`, `self.bothify`,
    `self.random_int`) that ARE attested elsewhere in the corpus but absent
-   from the locale's narrow MinHash cluster's attested set. Era-11 root-cause
-   analysis at [docs/research/evidence/era11-cluster-conditional-attestation.md](../docs/research/evidence/era11-cluster-conditional-attestation.md).
+   from the locale's narrow MinHash cluster's attested set. Cluster-
+   conditional attestation root-cause analysis at
+   [`docs/research/evidence/era11-cluster-conditional-attestation.md`](../docs/research/evidence/era11-cluster-conditional-attestation.md)
+   for the original era-11 framing; cluster-rare-attestation infrastructure
+   is plumbed but bench-inert (see Phase 10 memo
+   [`docs/research/evidence/era14-phase10-cluster-rare-threshold.md`](../docs/research/evidence/era14-phase10-cluster-rare-threshold.md)).
 
-2. **Residual faker-js misses (5 fixtures).** `error_flip_2/3` and
-   `runtime_fetch_1/2/3` have callees (`Error`, `fetch`, `res.json`) that
-   ARE attested in their file's cluster — cluster_bonus correctly evaluates
-   to 0 for them. Catching this class would require a different signal
-   (import-aware cohorts, hunk-context typicality, or an ML stage).
+2. **Remaining uncaught fixtures (10 across 4 corpora).**
+   *Cluster-rare-attested callees that would catch with the Phase 10
+   threshold-inflation issue resolved:* `foreign_rng_1`, `http_sink_2`,
+   `error_flip_2` (faker-js).
+   *Control-flow anomalies (need AST-shape features, not callee-set rules):*
+   `validation_2`, `exception_handling_4` (fastapi), `hono_validation_2`,
+   `hono_middleware_3` (hono), `ink_dom_access_2` (ink).
+   *`runtime_fetch_1` (faker-js)*: callees genuinely cluster-absent; flag
+   is suppressed by some other path — separate diagnostic worth running.
 
 3. **Semantic breaks with no foreign callee at all.** hono
    `middleware_3` calls `next()` synchronously instead of `await next()`

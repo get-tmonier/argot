@@ -7,7 +7,7 @@ classifier (the 4th scoring stage).
 Public surface:
     * :class:`FeatureRow`    — typed shape of a single emitted JSONL row.
     * :func:`compute_features` — given a hunk + file context + a built scorer,
-      return the ``features`` dict described in the era-14 Phase 1 spec.
+      return the ``features`` dict described in the era-12 Phase 1 spec.
     * :func:`build_feature_row` — packages provenance + ``compute_features``.
 
 The module deliberately avoids importing anything from

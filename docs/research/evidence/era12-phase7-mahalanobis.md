@@ -1,12 +1,12 @@
-# Era 14 Phase 7 — PCA-whitened Mahalanobis anomaly scoring on UnixCoder embeddings
+# Era 12 Phase 7 — PCA-whitened Mahalanobis anomaly scoring on UnixCoder embeddings
 
 **Date**: 2026-05-03
-**Branch**: `feat/era-14-ml-stage`
-**Script**: `engine/scripts/era14_phase7_mahalanobis.py`
-**Inputs**: `engine/.era14-features/{fastapi,rich,faker,hono,ink,faker-js}.jsonl` (1891 rows; 115 breaks, 1776 controls)
+**Branch**: `feat/era-12-ml-stage`
+**Script**: `engine/scripts/era12_phase7_mahalanobis.py`
+**Inputs**: `engine/.era12-features/{fastapi,rich,faker,hono,ink,faker-js}.jsonl` (1891 rows; 115 breaks, 1776 controls)
 **Persisted artifacts**:
-- Mahalanobis dict (PCA models + μ + Σ_reg_inv + thresholds): `engine/.era14-features/phase7_mahalanobis.joblib`
-- Raw results JSON: `/tmp/era14_phase7_results.json`
+- Mahalanobis dict (PCA models + μ + Σ_reg_inv + thresholds): `engine/.era12-features/phase7_mahalanobis.joblib`
+- Raw results JSON: `/tmp/era12_phase7_results.json`
 
 ---
 
@@ -26,7 +26,7 @@ Concretely, on faker-js cluster 6 (which catches `runtime_fetch_2`):
 
 The break's d² is not just below the LOO ceiling — it is below several individual LOO control scores. In a properly-validated unbiased Mahalanobis distribution, this break would not be distinguishable from a held-out control.
 
-This closes era 14. The embedding-anomaly axis cannot deliver the residual catch the era was designed to test, under any of the four methodologies tried (Phase 6.2 probe / Phase 6.3 supervised / Phase 6.4 cosine / Phase 7 Mahalanobis). Phase 7 is the cleanest negative because the failure mode is statistical (rank-deficiency in Σ), not ad-hoc tuning. The mechanism is:
+This closes era 12. The embedding-anomaly axis cannot deliver the residual catch the era was designed to test, under any of the four methodologies tried (Phase 6.2 probe / Phase 6.3 supervised / Phase 6.4 cosine / Phase 7 Mahalanobis). Phase 7 is the cleanest negative because the failure mode is statistical (rank-deficiency in Σ), not ad-hoc tuning. The mechanism is:
 
 > Sample covariance estimated on k controls in d-dim space has rank ≤ k − 1. After Tikhonov λI regularization, the inverse acts as 1/λ along the (d − rank) null-space directions. Any point outside the linear span of the training controls — including any held-out control, not just a break — gets an inflated Mahalanobis d². The "break detection" signal is a function of degrees-of-freedom, not embedding-anomaly.
 
@@ -269,7 +269,7 @@ FP rates are similar across all three phases — the FP gate is not where the ar
 
 ---
 
-## Implications for era 14
+## Implications for era 12
 
 After Phase 6.2 → 6.3 → 6.4 → 6.4b → 7, the embedding-anomaly axis has produced one honest residual catch (`runtime_fetch_2` in 6.4) at the cost of small but real FP drift, and a fully artifact-driven 4/5 in Phase 7 that does not survive a LOO check. Across five swings, the residual problem looks structurally hard:
 
@@ -278,7 +278,7 @@ After Phase 6.2 → 6.3 → 6.4 → 6.4b → 7, the embedding-anomaly axis has p
 - `error_flip_3` is at the 64th percentile under cosine. It is genuinely typical-looking.
 - Mahalanobis-with-rank-deficiency conjures separation that is not real signal.
 
-**Close era 14.** The honest residual catch ceiling on this feature axis is 1/5 (Phase 6.4 `runtime_fetch_2`). Either ship Phase 6.4 as opt-in stage-4 for the modest catalog gain (+9 catches), or close the era with the negative result documented and accept that the residual problem is not solvable with single-feature embedding distances at era 11's FP budget.
+**Close era 12.** The honest residual catch ceiling on this feature axis is 1/5 (Phase 6.4 `runtime_fetch_2`). Either ship Phase 6.4 as opt-in stage-4 for the modest catalog gain (+9 catches), or close the era with the negative result documented and accept that the residual problem is not solvable with single-feature embedding distances at era 11's FP budget.
 
 Phase 7's main contribution is **negative knowledge**: it rules out Mahalanobis on per-cluster covariances as a fix, and identifies the rank-deficiency mechanism that any future "tighter cluster-aware metric" attempt would have to confront. Specifically, any covariance-based scoring with Σ fit on k < d controls will reproduce this artifact unless either (a) k ≥ d (requires more data than we have per cluster) or (b) Σ is shrunk strongly toward the corpus-wide whitened identity, which collapses the metric back to the corpus-fallback whitened L² that Phase 6.4b already explored and which loses the one Phase 6.4 catch.
 

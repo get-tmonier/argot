@@ -1,11 +1,11 @@
-# Era 14 — Phase 3.6b: Post-leak-fix re-run of Phase 2 + Phase 3
+# Era 12 — Phase 3.6b: Post-leak-fix re-run of Phase 2 + Phase 3
 
 **Date**: 2026-05-03
-**Branch**: `feat/era-14-ml-stage`
-**Inputs**: `engine/.era14-features/{fastapi,rich,faker,hono,ink,faker-js}.jsonl` (re-extracted after fix `b74aed7`)
+**Branch**: `feat/era-12-ml-stage`
+**Inputs**: `engine/.era12-features/{fastapi,rich,faker,hono,ink,faker-js}.jsonl` (re-extracted after fix `b74aed7`)
 **Total rows**: 1,915 = 115 fixtures + 1,800 controls
-**Code**: `/tmp/era14_phase36b_probe.py` (one-shot, not committed)
-**Artifacts**: `.era14-features/pooled_conservative_postfix.joblib`, `/tmp/era14_phase36b_results.json`, `/tmp/era14_phase36b_run.log`
+**Code**: `/tmp/era12_phase36b_probe.py` (one-shot, not committed)
+**Artifacts**: `.era12-features/pooled_conservative_postfix.joblib`, `/tmp/era12_phase36b_results.json`, `/tmp/era12_phase36b_run.log`
 **Hyperparameters**: pre-registered Phase-3 XGBoost (`n_estimators=100, max_depth=4, lr=0.1, random_state=0`)
 
 ---
@@ -21,7 +21,7 @@
 | Full Set B 5-fold CV AUC | 0.9998 | n/a | **0.9316 ± 0.0638** |
 | Residual catch at faker-js FP ≤ 0.9% (cons Set B) | 5/5 | 3/5 | **0/5** |
 
-**Verdict**: **PARTIAL SIGNAL** (per pre-registered bands). The catalog routing leak is gone — the smoking-gun categorical (`cluster_assignment_method`) was removed by `b74aed7`, and no remaining single feature can fake AUC > 0.95. AUCs hold up impressively (Set A 0.98+, Set B 0.87+), but the residual-fixture catch collapses to **0/5** at FP ≤ 0.9%, even worse than Phase 3.5's 3/5. The model still discriminates the broader population, just not the 5 hard residuals that motivated era 14.
+**Verdict**: **PARTIAL SIGNAL** (per pre-registered bands). The catalog routing leak is gone — the smoking-gun categorical (`cluster_assignment_method`) was removed by `b74aed7`, and no remaining single feature can fake AUC > 0.95. AUCs hold up impressively (Set A 0.98+, Set B 0.87+), but the residual-fixture catch collapses to **0/5** at FP ≤ 0.9%, even worse than Phase 3.5's 3/5. The model still discriminates the broader population, just not the 5 hard residuals that motivated era 12.
 
 The key change post-fix: with unified routing, faker-js controls now share the same feature distribution as the residuals (continuous features near 0–0.2 instead of bimodal), so the residuals no longer stand out from their own corpus's controls.
 
@@ -179,7 +179,7 @@ Post-fix (`b74aed7`), routing is unified. The 5 residuals' cluster jaccard is no
 
 **Verdict: PARTIAL SIGNAL** (orchestrator decision required).
 
-The strict GENUINE SIGNAL criterion fails on residual catch. AUCs are even *higher* than the partial-signal band specifies, but the headline operating-regime test (residual catch at FP ≤ 0.9%) is 0/5. This is the worst kind of result for era 14: aggregate metrics look great, but the specific fixtures the era was designed to recover stay missed.
+The strict GENUINE SIGNAL criterion fails on residual catch. AUCs are even *higher* than the partial-signal band specifies, but the headline operating-regime test (residual catch at FP ≤ 0.9%) is 0/5. This is the worst kind of result for era 12: aggregate metrics look great, but the specific fixtures the era was designed to recover stay missed.
 
 Two interpretations, both valid:
 1. **The model has signal but on the wrong things.** It separates the broad break population from controls (AUC 0.87) but the 5 faker-js residuals are content-similar to faker-js controls — what era-11 already noted. ML doesn't fix this.
@@ -209,12 +209,12 @@ Both touch the extractor (out of scope for this memo). A simpler stop-gap is to 
 
 ## Outputs
 
-- This memo: `docs/research/evidence/era14-phase3.6b-post-leak-fix.md`
-- Conservative post-fix model: `.era14-features/pooled_conservative_postfix.joblib` (`{model_a, model_b, feature_names, cv_auc_a, cv_auc_b}`)
-- Prior models retained: `.era14-features/{pooled_setA, pooled_setB, pooled_conservative}.joblib`
-- Analysis script (one-shot): `/tmp/era14_phase36b_probe.py`
-- Run log: `/tmp/era14_phase36b_run.log`
-- Persisted results JSON: `/tmp/era14_phase36b_results.json`
+- This memo: `docs/research/evidence/era12-phase3.6b-post-leak-fix.md`
+- Conservative post-fix model: `.era12-features/pooled_conservative_postfix.joblib` (`{model_a, model_b, feature_names, cv_auc_a, cv_auc_b}`)
+- Prior models retained: `.era12-features/{pooled_setA, pooled_setB, pooled_conservative}.joblib`
+- Analysis script (one-shot): `/tmp/era12_phase36b_probe.py`
+- Run log: `/tmp/era12_phase36b_run.log`
+- Persisted results JSON: `/tmp/era12_phase36b_results.json`
 
 ## What I couldn't analyze
 

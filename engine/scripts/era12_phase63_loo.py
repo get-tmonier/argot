@@ -1,4 +1,4 @@
-"""Era 14 Phase 6.3 — LOO classifier comparison on UnixCoder embeddings.
+"""Era 12 Phase 6.3 — LOO classifier comparison on UnixCoder embeddings.
 
 Trains LR / MLP / kNN on three feature sets:
   1. embeddings-only (PCA-100 of concat(hunk, ctx))
@@ -37,7 +37,7 @@ from sklearn.preprocessing import StandardScaler
 warnings.filterwarnings("ignore")
 
 ROOT = Path("/Users/damienmeur/projects/argot")
-FEATURE_DIR = ROOT / "engine" / ".era14-features"
+FEATURE_DIR = ROOT / "engine" / ".era12-features"
 ARTIFACTS_DIR = FEATURE_DIR / "loo_best_phase6.3"
 CORPORA = ["fastapi", "rich", "faker", "hono", "ink", "faker-js"]
 RESIDUALS = {

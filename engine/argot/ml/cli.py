@@ -1,6 +1,6 @@
 """``argot-extract-features`` — emit per-hunk feature vectors as JSONL.
 
-Phase 1 (era-14) infrastructure: runs the production 3-stage scorer
+Phase 1 (era-12) infrastructure: runs the production 3-stage scorer
 (``SequentialImportBpeScorer`` with the era-11 ship config) over a corpus
 and writes one JSON row per hunk to ``--out``.
 
@@ -28,12 +28,12 @@ Real-PR control sets are large (255k for faker-js).  We sample
 
 * Top-N highest-scoring controls by ``adjusted_bpe`` — these sit closest
   to the threshold and are the most informative negative-class examples
-  for the era-14 ML stage.
+  for the era-12 ML stage.
 * PLUS an additional ``N // 2`` random controls (deterministic seed) for
   negative-class diversity.
 
 Excluded reasons (``atypical``, ``atypical_file``, ``excluded_path``,
-``auto_generated``) are dropped before sampling because the era-14 stage
+``auto_generated``) are dropped before sampling because the era-12 stage
 only fires when stages 1-3 emit ``flagged=False`` AND the hunk is not
 short-circuited.  Sampling these is wasted budget.
 """
@@ -140,7 +140,7 @@ def build_production_scorer(
     extractor sees byte-identical scoring, EXCEPT
     ``call_receiver_force_jaccard_routing`` defaults to True here so
     catalog fixtures and real-PR controls take the same routing path
-    (eliminates the era-14 Phase 3.5 leakage shortcut).
+    (eliminates the era-12 Phase 3.5 leakage shortcut).
     """
     adapter = _adapter_for_language(language)
     files = _source_files(repo_dir, adapter)
@@ -468,7 +468,7 @@ def _iter_control_rows(
 ) -> Iterator[FeatureRow]:
     """Score all candidate controls then sample N + N/2.
 
-    Excluded reasons (atypical, etc.) are dropped because the era-14 ML
+    Excluded reasons (atypical, etc.) are dropped because the era-12 ML
     stage only fires when stages 1-3 do not short-circuit.
 
     Era-14 RAM fix: candidates are streamed through ``stream_sample_controls``

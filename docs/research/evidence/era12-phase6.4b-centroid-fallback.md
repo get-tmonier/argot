@@ -1,12 +1,12 @@
-# Era 14 Phase 6.4b — Unsupervised centroid scoring with corpus-wide fallback
+# Era 12 Phase 6.4b — Unsupervised centroid scoring with corpus-wide fallback
 
 **Date**: 2026-05-03
-**Branch**: `feat/era-14-ml-stage`
-**Script**: `engine/scripts/era14_phase64b_centroid_fallback.py`
-**Inputs**: `engine/.era14-features/{fastapi,rich,faker,hono,ink,faker-js}.jsonl` (1891 rows; 115 breaks, 1776 controls)
+**Branch**: `feat/era-12-ml-stage`
+**Script**: `engine/scripts/era12_phase64b_centroid_fallback.py`
+**Inputs**: `engine/.era12-features/{fastapi,rich,faker,hono,ink,faker-js}.jsonl` (1891 rows; 115 breaks, 1776 controls)
 **Persisted artifacts**:
-- Centroid dict (cluster + corpus-wide): `engine/.era14-features/centroids_phase6.4b.joblib`
-- Raw results JSON: `/tmp/era14_phase64b_results.json`
+- Centroid dict (cluster + corpus-wide): `engine/.era12-features/centroids_phase6.4b.joblib`
+- Raw results JSON: `/tmp/era12_phase64b_results.json`
 
 ---
 
@@ -154,9 +154,9 @@ The mechanism is the same in both regression cases: the corpus has many unmappab
 
 - The "structurally bounded at 4/5" framing of Phase 6.4 was *technically* accurate (the MIN_CLUSTER_CONTROLS filter did exclude `error_flip_2` from scoring) but practically irrelevant. With proper scoring, `error_flip_2` is at the 63rd percentile of its corpus — not anomalous. Phase 6.2's distance of 0.53 against a 2-control centroid was not measuring anything real; it was small-sample noise pointing in a vaguely correct direction.
 - The fallback's unintended consequence — recalibrating the threshold against 173 newly-scored unmappable controls — was the dominant effect on faker-js. Locale data files in `src/locales/...` are the most distinctive thing in faker-js and they are *not* breaks. Including them in the calibration tail raises the bar for everything else.
-- The signal that exists on the runtime_fetch residuals (top 1.7 %, 4.4 %, 11.7 % of fjs controls) is genuinely there but cannot be separated cleanly from the locale-data tail at a 0.9 %-FP threshold under any centroid scheme tested in era 14.
+- The signal that exists on the runtime_fetch residuals (top 1.7 %, 4.4 %, 11.7 % of fjs controls) is genuinely there but cannot be separated cleanly from the locale-data tail at a 0.9 %-FP threshold under any centroid scheme tested in era 12.
 
-### Implication for era 14
+### Implication for era 12
 
 After Phases 6.2 → 6.3 → 6.4 → 6.4b, the embedding-anomaly stage has converged on a clear ceiling:
 
@@ -170,6 +170,6 @@ After Phases 6.2 → 6.3 → 6.4 → 6.4b, the embedding-anomaly stage has conve
 
 6.4b is the cleanest test of "does giving every hunk a centroid help?" and the answer is *no*: the calibration cost outweighs the coverage gain. The phase 6.4 spec (skip thin clusters) was correct; the missing residual `error_flip_2` is genuinely typical-looking, not under-modeled.
 
-**Recommendation**: close era 14. Phase 6.4 stands as the strongest honest result (1/5 residuals, +9 catalog catches, all FP gates pass). Either ship 6.4 as opt-in stage 4 for the modest catalog gain, or close with the 4-phase residual investigation documented and accept that the residual problem is not solvable with single-feature embedding distances at the FP budget era 11 sets.
+**Recommendation**: close era 12. Phase 6.4 stands as the strongest honest result (1/5 residuals, +9 catalog catches, all FP gates pass). Either ship 6.4 as opt-in stage 4 for the modest catalog gain, or close with the 4-phase residual investigation documented and accept that the residual problem is not solvable with single-feature embedding distances at the FP budget era 11 sets.
 
 Do not pursue further centroid variants — the experiments converge.

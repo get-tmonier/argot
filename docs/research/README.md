@@ -1,9 +1,11 @@
 # argot research
 
 > **How a GPU-hungry neural scorer became a ~220-line statistical pipeline.**
-> Eleven eras, three dead ends, two breakthroughs, a parsing-artifact
-> mystery, a benchmark fairness audit, and one Gate-3 amendment — 15+ phases
-> of experiments condensed into eleven short narratives and 34+ evidence docs.
+> Twelve eras, three dead ends, two breakthroughs, a parsing-artifact
+> mystery, a benchmark fairness audit, one Gate-3 amendment, and an
+> 11-phase ML hunt that closed when the bench was found to have been
+> defeating its own scorer — 25+ phases of experiments condensed into
+> twelve short narratives and 50+ evidence docs.
 
 ## What argot does today
 
@@ -20,41 +22,45 @@ The path here was not direct.
 
 ```mermaid
 flowchart TD
-    E1["<b>Era 1 — JEPA</b><br/>neural scorer, 6 sweeps<br/>(phases 1–6)"]
-    E2["<b>Era 2 — Honest eval</b><br/>3 architectures, all fail 0.85 gate<br/>(phases 7–9)"]
-    E3["<b>Era 3 — BPE</b><br/>tfidf beats JEPA, stalls at 0.6968<br/>(phases 10–12)"]
-    E4["<b>Era 4 — Import-graph</b><br/>100% recall, 0 FP, PROMOTED<br/>(phases 13–14)"]
-    E5["<b>Era 5 — Calibration hygiene</b><br/>typicality filter; FP ≤1.1% on all 6 corpora;<br/>peak −84% on faker-js (phases 15+)"]
-    E6["<b>Era 6 — Call receiver</b><br/>Stage 1.5 soft penalty;<br/>avg recall 72.1% → 80.8%, FP ≤1.1% on all 6"]
-    E7["<b>Era 7 — Benchmark fairness</b><br/>Fixture parity · PR parity · Difficulty labels<br/>(91 → 107 → 115 fixtures, 3 asymmetries fixed)"]
-    E8["<b>Era 8 — Complex-chain callees</b><br/>call-root canonicalization (`&lt;call&gt;.route`);<br/>hono 65% → 71.7%; avg recall 80.57%"]
-    E9["<b>Era 9 — Alpha sweep</b><br/>α=1.0 → 2.0; faker-js +10pp, hono +6.6pp, ink +6.6pp;<br/>avg recall 80.57% → 84.4%; 4 fixtures uncaught→hard"]
-    E10["<b>Era 10 — Calibration hardening</b><br/>K=7 median threshold (CV 6.9%→0%); root_bonus +5pp hono;<br/>Phase 3 per-callee weighting: 2 structural bounds documented;<br/>avg recall 84.4% → 85.27%; amended parity rule RETIRED"]
-    E11["<b>Era 11 — Cluster-conditional attestation</b><br/>K=8 MinHash file clusters; cluster_bonus=5.0 for globally-attested callees<br/>absent from file's cluster; Phase 5 cal-aware threshold: structural bound;<br/>avg recall 85.27% → 89.97%; faker-js +18.4pp; Gate 3 amended (faker FP 2.0%)"]
+    E1["<b>Era 1</b> · JEPA<br/>neural scorer plateau"]
+    E2["<b>Era 2</b> · Honest eval<br/>3 archs miss 0.85 gate"]
+    E3["<b>Era 3</b> · BPE signal hunt<br/>tfidf promoted at 0.70"]
+    E4["<b>Era 4</b> · Import-graph<br/>46/46, 0 FP — first ship"]
+    E5["<b>Era 5</b> · Calibration hygiene<br/>FP ≤1.1% on all 6"]
+    E6["<b>Era 6</b> · Call-receiver<br/>72%→81% avg recall"]
+    E7["<b>Era 7</b> · Bench fairness<br/>asymmetries fixed"]
+    E8["<b>Era 8</b> · Complex-chain<br/>hono 65%→72%"]
+    E9["<b>Era 9</b> · Alpha sweep<br/>+3.8pp avg recall"]
+    E10["<b>Era 10</b> · Calibration hardening<br/>CV 6.9%→0%"]
+    E11["<b>Era 11</b> · Cluster-conditional<br/>+4.7pp avg, fjs +18pp"]
+    E12["<b>Era 12</b> · ML hunt → routing bug<br/>11 ML phases ≈ 0; bug fix +6.1pp"]
 
-    E1 -->|"eval was measuring language detection"| E2
-    E2 -->|"no training signal on targeted mutations"| E3
-    E3 -->|"token frequency hit its ceiling"| E4
-    E4 -->|"FP tail on data/locale files needed a pre-filter"| E5
-    E5 -->|"context-dependent breaks still slip past BPE"| E6
-    E6 -->|"structural asymmetries in benchmark obscured cross-corpus signal"| E7
-    E7 -->|"complex-chain callees silently dropped as None"| E8
-    E8 -->|"low-BPE single-callee breaks below α=1.0 penalty threshold"| E9
-    E9 -->|"threshold variance masked contextual breaks; faker-js callees globally attested"| E10
-    E10 -->|"per-callee weighting saturated; faker-js misses still globally attested"| E11
+    E1 --> E2 --> E3 --> E4 --> E5 --> E6 --> E7 --> E8 --> E9 --> E10 --> E11 --> E12
 
-    style E1 fill:#f8d7da,stroke:#dc3545
-    style E2 fill:#f8d7da,stroke:#dc3545
-    style E3 fill:#fff3cd,stroke:#ffc107
-    style E4 fill:#d4edda,stroke:#28a745,stroke-width:2px
-    style E5 fill:#d4edda,stroke:#28a745,stroke-width:2px
-    style E6 fill:#d4edda,stroke:#28a745,stroke-width:2px
-    style E7 fill:#d4edda,stroke:#28a745,stroke-width:2px
-    style E8 fill:#d4edda,stroke:#28a745,stroke-width:2px
-    style E9 fill:#d4edda,stroke:#28a745,stroke-width:2px
-    style E10 fill:#d4edda,stroke:#28a745,stroke-width:2px
-    style E11 fill:#d4edda,stroke:#28a745,stroke-width:2px
+    classDef failed fill:#e74c3c,stroke:#922b21,color:#fff
+    classDef partial fill:#f39c12,stroke:#a8741b,color:#fff
+    classDef ship fill:#27ae60,stroke:#1d6e3a,color:#fff
+    classDef hygiene fill:#16a085,stroke:#0e6655,color:#fff
+    classDef methodology fill:#1abc9c,stroke:#117a65,color:#fff
+    classDef increment fill:#2ecc71,stroke:#1d8348,color:#fff
+    classDef big fill:#229954,stroke:#0e5028,color:#fff
+    classDef twist fill:#8e44ad,stroke:#5b2c6f,color:#fff
+
+    class E1,E2 failed
+    class E3 partial
+    class E4 ship
+    class E5,E6 hygiene
+    class E7 methodology
+    class E8,E9,E10 increment
+    class E11 big
+    class E12 twist
 ```
+
+*Colour key: red = failed gate, orange = partial promotion, dark green
+= initial breakthrough, teal = methodology / hygiene, mid green =
+incremental scoring win, deep green = big recall jump, purple = mixed
+outcome (era 12 — ML axis closed negative but the era's debugging
+surfaced a routing bug whose fix delivered the actual recall gain).*
 
 ## Timeline
 
@@ -71,6 +77,7 @@ flowchart TD
 | **Alpha sweep** | — | Raised `call_receiver_alpha` from 1.0 to 2.0 after primary α=3.0 failed Gate 3 (faker FP 1.6%). Four fixtures moved uncaught→hard. Faker-js +10.0 pp, hono +6.6 pp, ink +6.6 pp. Avg recall 80.57% → 84.4%; all 6 gates pass. | [09-alpha-sweep.md](09-alpha-sweep.md) |
 | **Calibration hardening** | — | Phase 1: multi-seed median (K=7) drops ink CV from 6.9% to 0.0%, retired amended parity rule. Phase 2: root-conditional weighting catches `hono_middleware_2` (+5pp hono), ships as scoring improvement. Phase 3 (per-callee frequency weighting): two formulations at structural bounds — v1 saturates at vocab ~5000, v2 zeros on attested callees. Avg recall 84.4% → 85.27%; 116 fixtures. | [10-calibration-hardening.md](10-calibration-hardening.md) |
 | **Cluster-conditional attestation** | — | K=8 MinHash file clusters; cluster_bonus=5.0 fires when a globally-attested callee is absent from its file's cluster's attested set. K-sweep at K∈{4,8,16,32}×CB∈{2,3,4,5} establishes K=8 plateau and CB=5 as the only setting that crosses Gate 1 (faker-js missed 8→5). Phase 5 (calibration-aware threshold) was a no-op: calibration hunks come from `model_a_files` whose own callees are ⊆ their cluster's attested set by construction. Faker-js +18.4pp recall, rich +5pp, hono +5pp; faker FP 1.4%→2.0%. Gate 3 amended to ≤2.5% per-corpus FP, justified by +4.70pp avg recall and zero regressions across 115 fixtures. | [11-cluster-conditional-attestation.md](11-cluster-conditional-attestation.md) |
+| **ML stage hunt — and a routing bug** | 9 phases | Era 12 hunted a Stage-4 ML detector for "5 fjs residuals era 11 can't catch." 9 phases of ML investigation (engineered XGBoost; frozen UnixCoder embedding-distance variants — cosine, Mahalanobis, whitened-Euclidean; per-token MLM with/without context; per-token NN; max-z ensembles; rule-based import-source) returned at most 1/5 honest residual catches. While debugging Phase 9, a routing bug surfaced in the bench's catalog scoring path: catalog files were being assigned to whichever cluster contained their distinctive callee — exactly the cluster where cluster_bonus cannot fire. **The bug fix alone — using Phase-5's host-injection helper to splice the catalog hunk into its real host file before scoring — recovered +6 catalog catches across 4 corpora.** Per-category mean recall 89.97% → 91.5%; fixture-count recall 85.2% → 91.3%. Era 11's design was correct all along; the bench was silently defeating it for every catalog fixture. | [12-ml-stage-and-routing-fix.md](12-ml-stage-and-routing-fix.md) |
 
 ## The arc across eleven eras
 
@@ -84,10 +91,10 @@ exactly", below 1.0 means "came in under".
 ```mermaid
 xychart-beta
     title "Gate clearance per era (1.0 = cleared exactly)"
-    x-axis ["Era 1", "Era 2", "Era 3", "Era 4", "Era 5", "Era 6", "Era 7", "Era 8", "Era 9", "Era 10", "Era 11"]
+    x-axis ["Era 1", "Era 2", "Era 3", "Era 4", "Era 5", "Era 6", "Era 7", "Era 8", "Era 9", "Era 10", "Era 11", "Era 12"]
     y-axis "fraction of gate" 0 --> 1.1
-    bar [0.89, 0.68, 0.87, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 0.83]
-    line [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    bar [0.89, 0.68, 0.87, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 0.83, 1.00]
+    line [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
 ```
 
 | Era | Best result | Gate | Clearance |
@@ -103,6 +110,7 @@ xychart-beta
 | 9 (alpha sweep) | avg recall 84.4%, 6/6 gates, 4 fixtures uncaught→hard | 6/6 gates | 1.00 |
 | 10 (calibration hardening) | avg recall 85.27%, CV ≤3%, amended parity rule retired | 5/5 gates | 1.00 |
 | 11 (cluster-conditional) | avg recall 89.97%, faker-js 53.3%→71.7%, 0 regressions | 5/6 gates (3 amended) | 0.83 |
+| 12 (ML stage hunt → routing bug fix) | avg recall 91.5% (per-category), 91.3% (fixtures); +6 catalog catches; 0 regressions | "≥2/5 fjs residuals" — not met by ML; routing fix recovered them anyway | 1.00 |
 
 Eras 1–3 came in short on their own gates. Era 4 cleared
 exactly. Era 5 cleared its gate (FP ≤1.5% on all six corpora)

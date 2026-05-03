@@ -1,11 +1,11 @@
-# Era 14 Phase 6.3 — LOO classifier comparison on UnixCoder embeddings
+# Era 12 Phase 6.3 — LOO classifier comparison on UnixCoder embeddings
 
 **Date**: 2026-05-03
-**Branch**: `feat/era-14-ml-stage`
-**Script**: `engine/scripts/era14_phase63_loo.py`
-**Inputs**: `engine/.era14-features/{fastapi,rich,faker,hono,ink,faker-js}.jsonl` (1891 rows; 115 breaks, 1776 controls)
-**PCA payload (pooled only)**: `engine/.era14-features/pca100_phase6.2.joblib`
-**Artifacts**: `engine/.era14-features/loo_best_phase6.3/{corpus}.joblib + feature_pipeline.joblib`
+**Branch**: `feat/era-12-ml-stage`
+**Script**: `engine/scripts/era12_phase63_loo.py`
+**Inputs**: `engine/.era12-features/{fastapi,rich,faker,hono,ink,faker-js}.jsonl` (1891 rows; 115 breaks, 1776 controls)
+**PCA payload (pooled only)**: `engine/.era12-features/pca100_phase6.2.joblib`
+**Artifacts**: `engine/.era12-features/loo_best_phase6.3/{corpus}.joblib + feature_pipeline.joblib`
 
 ---
 
@@ -191,7 +191,7 @@ This is essentially a **CLOSE NEGATIVE for embeddings**: the per-dim AUC and PCA
 
 Three options:
 
-1. **Don't ship the ML stage as Era-14 finale**. Drop the embedding line of work; stay on engineered features. Era 11 baseline already catches most of what's catchable.
+1. **Don't ship the ML stage as Era-12 finale**. Drop the embedding line of work; stay on engineered features. Era 11 baseline already catches most of what's catchable.
 2. **Ship `engineered × MLP` as a secondary check** (PARTIAL with Gate amendment). It catches 1 residual that the production scorer misses, costs ~1 pp FP on most corpora. Marginal but not nothing.
 3. **Investigate residual fixtures themselves**. The runtime_fetch fixtures may not be detectable from a 1-hunk window; they may require behavior tracing across hunks. Phase 6.2's anomaly signal could be combined with a runtime-cluster-departure feature (anomaly score + production scorer's existing features) as a Stage-4 add-on. This is a separate research line.
 
@@ -211,6 +211,6 @@ Three options:
 
 ## Artifact locations
 
-- Best LOO models (one per held-out corpus): `engine/.era14-features/loo_best_phase6.3/{corpus}.joblib` — these are the `engineered × MLP` models per the best-residual-catch criterion.
-- Feature pipeline (StandardScaler, PCA, z-score stats per holdout): `engine/.era14-features/loo_best_phase6.3/feature_pipeline.joblib`.
-- Raw script output: re-run `uv run python engine/scripts/era14_phase63_loo.py > /tmp/phase63.json 2> /tmp/phase63.log`.
+- Best LOO models (one per held-out corpus): `engine/.era12-features/loo_best_phase6.3/{corpus}.joblib` — these are the `engineered × MLP` models per the best-residual-catch criterion.
+- Feature pipeline (StandardScaler, PCA, z-score stats per holdout): `engine/.era12-features/loo_best_phase6.3/feature_pipeline.joblib`.
+- Raw script output: re-run `uv run python engine/scripts/era12_phase63_loo.py > /tmp/phase63.json 2> /tmp/phase63.log`.

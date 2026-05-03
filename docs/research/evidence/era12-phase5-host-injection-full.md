@@ -1,13 +1,13 @@
-# Era 14 — Fix-A FULL analysis (all 6 corpora, post host-injection)
+# Era 12 — Fix-A FULL analysis (all 6 corpora, post host-injection)
 
 **Date**: 2026-05-03
 **Branch**: `docs/era-10-root-readme` (analysis-only; no code changes)
-**Inputs**: `engine/.era14-features/{fastapi,rich,faker,hono,ink,faker-js}.jsonl` — 1891 rows total (115 breaks + 1776 controls), all six corpora freshly extracted with Fix-A (`host_file` injection on all catalog fixtures).
-**Reference**: pilot memo [`era14-fixA-pilot.md`](era14-fixA-pilot.md), status [`era14-status.md`](era14-status.md)
+**Inputs**: `engine/.era12-features/{fastapi,rich,faker,hono,ink,faker-js}.jsonl` — 1891 rows total (115 breaks + 1776 controls), all six corpora freshly extracted with Fix-A (`host_file` injection on all catalog fixtures).
+**Reference**: pilot memo [`era12-fixA-pilot.md`](era12-fixA-pilot.md), status [`era12-status.md`](era12-status.md)
 **Hyperparameters**: pre-registered Phase-3 XGBoost (`n_estimators=100, max_depth=4, lr=0.1, random_state=0`); no tuning.
-**Code**: `/tmp/era14_fixA_full.py` (one-shot)
-**Persisted**: `/tmp/era14_fixA_full_results.json`
-**Models saved**: `.era14-features/{pooled_full_fixA,pooled_conservative_fixA}.joblib`, `.era14-features/loo_models_fixA/{corpus}.joblib` (6)
+**Code**: `/tmp/era12_fixA_full.py` (one-shot)
+**Persisted**: `/tmp/era12_fixA_full_results.json`
+**Models saved**: `.era12-features/{pooled_full_fixA,pooled_conservative_fixA}.joblib`, `.era12-features/loo_models_fixA/{corpus}.joblib` (6)
 
 ---
 
@@ -125,8 +125,8 @@ Both Set B AUCs **comfortably clear the 0.85 ship gate**. The conservative model
 The Set A conservative model is dominated by `n_unattested_callees` (~29 gain, 4× the next feature) — the same signal Stage 3 already uses. Set B (where the ML stage actually fires) has flatter importances; `max_nesting_depth` is top, but at gain 2.0 it's only ~1.5× the runner-up — no single dominant feature.
 
 **Pooled models saved:**
-- `.era14-features/pooled_full_fixA.joblib` (Set A — full, 26 features)
-- `.era14-features/pooled_conservative_fixA.joblib` (Set A — 16 features)
+- `.era12-features/pooled_full_fixA.joblib` (Set A — full, 26 features)
+- `.era12-features/pooled_conservative_fixA.joblib` (Set A — 16 features)
 
 ---
 
@@ -147,7 +147,7 @@ Conservative feature set; train on 5 corpora's pooled rows (Set A), test on the 
 
 5 of the 6 corpora come in within 0.06 AUC of the pooled CV estimate — strong evidence of cross-corpus generalisation for the bulk of the data. Faker-js is the outlier (test AUC 0.766, ~0.21 below pooled), which makes sense: faker-js holds the era-11 *residual* fixtures, the hardest cases by construction. Even so, 0.766 clears the 0.75 bar.
 
-LOO models saved per held-out corpus under `.era14-features/loo_models_fixA/{corpus}.joblib`.
+LOO models saved per held-out corpus under `.era12-features/loo_models_fixA/{corpus}.joblib`.
 
 ---
 
@@ -199,10 +199,10 @@ The residual catch arm of the CLOSE-NEGATIVE OR-clause has triggered: *"residual
 
 The pre-reg rule is hard: residual=0/5 → CLOSE NEGATIVE. Two arguments for sticking with that ruling rather than relabelling as PARTIAL:
 
-1. **Era 14's motivating question** was exactly "can ML catch the 5 residual faker-js fixtures era 11 misses?" The honest answer here is **no, not under cross-corpus training** — and cross-corpus training is the only setup that doesn't leak. The aggregate AUC story doesn't change that.
-2. **Productionising for "general" break-vs-control discrimination is a different era**, not era 14. The conservative pooled model (Set A AUC 0.97, Set B AUC 0.90, LOO 6/6) might be useful as a generic 4th-stage "this hunk doesn't look like the corpus" signal — but that's a re-scoping, not a ship of era 14 as specified.
+1. **Era 12's motivating question** was exactly "can ML catch the 5 residual faker-js fixtures era 11 misses?" The honest answer here is **no, not under cross-corpus training** — and cross-corpus training is the only setup that doesn't leak. The aggregate AUC story doesn't change that.
+2. **Productionising for "general" break-vs-control discrimination is a different era**, not era 12. The conservative pooled model (Set A AUC 0.97, Set B AUC 0.90, LOO 6/6) might be useful as a generic 4th-stage "this hunk doesn't look like the corpus" signal — but that's a re-scoping, not a ship of era 12 as specified.
 
-**Recommendation: close era 14 negative and document the conservative-model-as-general-discriminator finding as a follow-up era candidate.** The Fix-A work is real and worth keeping in the branch — the data is materially less leaky than 3.6b, and the LOO infrastructure built here is reusable. But the era-14 ship criteria are not met.
+**Recommendation: close era 12 negative and document the conservative-model-as-general-discriminator finding as a follow-up era candidate.** The Fix-A work is real and worth keeping in the branch — the data is materially less leaky than 3.6b, and the LOO infrastructure built here is reusable. But the era-12 ship criteria are not met.
 
 ---
 
@@ -240,7 +240,7 @@ This explains the residual collapse cleanly: the residual fixtures are exactly t
 
 ## What I couldn't analyse (and why)
 
-- **No threshold sweep beyond FP ≤ 0.9%.** The pre-reg gate is a fixed FP rate; reporting catch at looser thresholds (e.g., 5%) would muddy the era-14 ship story. (For the record: at FP ≤ 6%, `error_flip_2` would catch — 1/5.)
+- **No threshold sweep beyond FP ≤ 0.9%.** The pre-reg gate is a fixed FP rate; reporting catch at looser thresholds (e.g., 5%) would muddy the era-12 ship story. (For the record: at FP ≤ 6%, `error_flip_2` would catch — 1/5.)
 - **No per-feature LOO ablation.** Could quantify how much each existing-stage output contributes to the held-out faker-js AUC of 0.766, but this is descriptive and doesn't change the verdict. Worth doing if the orchestrator chooses to re-scope to "general 4th-stage discriminator" follow-up.
 - **No comparison against a "Stage-3-only" baseline.** If `n_unattested_callees` alone (single-feature predictor) scored the held-out faker-js residuals at the same rank as the LOO model, the ML stage adds zero. Quick spot-check from Task 1 numbers: `n_unattested_callees` pooled AUC 0.886 vs LOO faker-js 0.766 — the LOO model is *worse* than the single-feature predictor on faker-js. Strong suggestion that the ML stage is not adding signal on the held-out corpus.
 - **No re-extraction.** Took the JSONLs as given (1891 rows). Confirmed counts match the task spec (115 breaks + 1776 controls).
@@ -249,8 +249,8 @@ This explains the residual collapse cleanly: the residual fixtures are exactly t
 
 ## Outputs
 
-- This memo: `docs/research/evidence/era14-fixA-full.md`
-- Analysis script: `/tmp/era14_fixA_full.py`
-- Persisted results JSON: `/tmp/era14_fixA_full_results.json`
-- Models: `.era14-features/pooled_full_fixA.joblib`, `.era14-features/pooled_conservative_fixA.joblib`, `.era14-features/loo_models_fixA/{fastapi,rich,faker,hono,ink,faker-js}.joblib`
-- Inputs (unchanged): `engine/.era14-features/{corpus}.jsonl` × 6
+- This memo: `docs/research/evidence/era12-fixA-full.md`
+- Analysis script: `/tmp/era12_fixA_full.py`
+- Persisted results JSON: `/tmp/era12_fixA_full_results.json`
+- Models: `.era12-features/pooled_full_fixA.joblib`, `.era12-features/pooled_conservative_fixA.joblib`, `.era12-features/loo_models_fixA/{fastapi,rich,faker,hono,ink,faker-js}.joblib`
+- Inputs (unchanged): `engine/.era12-features/{corpus}.jsonl` × 6

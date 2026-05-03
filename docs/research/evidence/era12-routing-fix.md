@@ -1,7 +1,7 @@
-# Era 14 — Bench routing fix for catalog fixture scoring
+# Era 12 — Bench routing fix for catalog fixture scoring
 
 **Date**: 2026-05-03
-**Branch**: `feat/era-14-ml-stage`
+**Branch**: `feat/era-12-ml-stage`
 **Files**: `benchmarks/src/argot_bench/run.py`, `benchmarks/tests/test_run.py`
 
 ---
@@ -27,7 +27,7 @@ triggering `is_atypical_file` short-circuits) recovers a faker
 regression and lifts recall to **91.3% (+6.1pp)**. All FP rates remain
 within +0.05pp of per-corpus targets.
 
-This is the actual production-impacting result of era 14, despite era
+This is the actual production-impacting result of era 12, despite era
 14's stated goal being a new ML scorer.
 
 ---
@@ -191,7 +191,7 @@ calibration, threshold_n_seeds=7).
 | **TOTAL** | **98/115 (85.2%)** | **104/115 (90.4%)** | **105/115 (91.3%)** | **+7 net (= +6 catches − 0 regressions)** |
 
 Faker-js's gains (+4): `error_flip_3`, `foreign_rng_3`, `runtime_fetch_2`,
-`runtime_fetch_3`. All four were "residuals" the era-14 ML investigation
+`runtime_fetch_3`. All four were "residuals" the era-12 ML investigation
 chased for 11 phases — they were catchable by era 11 with correct
 routing.
 
@@ -222,7 +222,7 @@ Of these, several have callees that are technically attested in their
 host's cluster but in only 1–2 cluster files (e.g. `Math.random` in 1/63
 fjs cluster files; `fetch` in 1/63 of a different fjs cluster). The
 cluster-rare-threshold mechanism (Phase 10) is plumbed for this case but
-currently bench-inert — see [`era14-phase10-cluster-rare-threshold.md`](era14-phase10-cluster-rare-threshold.md).
+currently bench-inert — see [`era12-phase10-cluster-rare-threshold.md`](era12-phase10-cluster-rare-threshold.md).
 
 The remaining `error_flip_*` / `validation_*` / `middleware_*` fixtures
 are control-flow anomalies (throw-where-cluster-typically-returns,
@@ -257,4 +257,4 @@ All 109 benchmarks tests + 237 engine tests pass.
 - `synthesize_hunk_in_host` helper (Phase 5 / Fix A): `engine/argot/ml/features.py:109`
 - Bench routing fix: `benchmarks/src/argot_bench/run.py::_score_fixtures`
 - Tests: `benchmarks/tests/test_run.py`
-- Discovery context: era 14 closure, [`era14-status.md`](era14-status.md)
+- Discovery context: era 12 closure, [`era12-status.md`](era12-status.md)

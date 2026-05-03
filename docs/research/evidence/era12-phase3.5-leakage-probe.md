@@ -1,10 +1,10 @@
-# Era 14 — Phase 3.5: Label-leakage probe (KILL-SWITCH ON PHASE 3)
+# Era 12 — Phase 3.5: Label-leakage probe (KILL-SWITCH ON PHASE 3)
 
 **Date**: 2026-05-03
 **Branch**: `docs/era-10-root-readme` (analysis-only)
-**Inputs**: `engine/.era14-features/{fastapi,rich,faker,hono,ink,faker-js}.jsonl`
-**Code**: `/tmp/era14_phase35_probe.py` (one-shot, not committed)
-**Artifacts**: `.era14-features/{pooled_conservative.joblib, feature_list_conservative.json}`
+**Inputs**: `engine/.era12-features/{fastapi,rich,faker,hono,ink,faker-js}.jsonl`
+**Code**: `/tmp/era12_phase35_probe.py` (one-shot, not committed)
+**Artifacts**: `.era12-features/{pooled_conservative.joblib, feature_list_conservative.json}`
 
 ---
 
@@ -19,7 +19,7 @@
 
 The Phase-3 model was learning a near-perfect routing shortcut: catalog break files are routed through `fallback_jaccard` clustering; real PR controls are routed through `static_corpus`. A model that knows nothing else but "is this a fallback_jaccard row" gets AUC 0.9533 on the labels — that is the upper bound on how much of Phase 3's 0.9991 was real signal.
 
-That said, the conservative model retains AUC 0.8717 on Set B (gate was 0.70), so there *is* some real anomaly signal beneath the leak. Era 14 should proceed to Phase 4 LOO with the conservative feature list, **and** the data pipeline must be redesigned so catalog fixtures share the same routing path as controls before the production scorer is built on top.
+That said, the conservative model retains AUC 0.8717 on Set B (gate was 0.70), so there *is* some real anomaly signal beneath the leak. Era 12 should proceed to Phase 4 LOO with the conservative feature list, **and** the data pipeline must be redesigned so catalog fixtures share the same routing path as controls before the production scorer is built on top.
 
 ---
 
@@ -169,7 +169,7 @@ I'm calling **MOSTLY LEAK, SOME SIGNAL** rather than GENUINE SIGNAL because:
 2. Set B fold variance jumped from σ=0.0005 to σ=0.0971 — the conservative model is unstable on the regime that actually matters.
 3. The 5/5 residual catch claim from Phase 3 evaporates (see Task 4) — only 1 of 5 still scores above all controls.
 
-Era 14 should proceed to Phase 4 (LOO) with the conservative feature list as the primary candidate, but **the data pipeline needs a fix**. Either reroute catalog fixtures through `static_corpus` clustering, or move controls into the same `fallback_jaccard` path, before any model is taken seriously.
+Era 12 should proceed to Phase 4 (LOO) with the conservative feature list as the primary candidate, but **the data pipeline needs a fix**. Either reroute catalog fixtures through `static_corpus` clustering, or move controls into the same `fallback_jaccard` path, before any model is taken seriously.
 
 ---
 
@@ -214,7 +214,7 @@ The 5 `is_break=1` rows on `fallback_jaccard=0` are the ink class-components fix
 ## What needs to change
 
 1. **Unify the routing path before any future training.** Catalog fixtures and real-PR controls must hit `static_corpus` clustering in the same way, OR the production pipeline must accept that "catalog file" is a feature it relies on (which is unacceptable — it doesn't generalise to live PRs).
-2. **Re-extract features after the routing fix** before re-running Phase 3 / Phase 4. The current `engine/.era14-features/*.jsonl` cannot be salvaged for honest training.
+2. **Re-extract features after the routing fix** before re-running Phase 3 / Phase 4. The current `engine/.era12-features/*.jsonl` cannot be salvaged for honest training.
 3. **Phase 4 (LOO) should still run on the conservative feature list** as a probe — if conservative LOO holds together (Set A LOO AUC > 0.7 on every held-out corpus), that's evidence of real residual signal independent of routing. Treat any LOO Set B numbers with the same skepticism this memo applies to Phase 3 Set B.
 4. **Don't ship `adjusted_bpe`-driven scoring as evidence of "ML works".** The Phase-3 #1 feature was a leakage proxy with `is_catalog_file` AUC 0.92. Its discriminative power on real labels is mostly inherited from that routing shortcut.
 
@@ -222,12 +222,12 @@ The 5 `is_break=1` rows on `fallback_jaccard=0` are the ink class-components fix
 
 ## Outputs
 
-- This memo: `docs/research/evidence/era14-phase3.5-leakage-probe.md`
-- Conservative model: `.era14-features/pooled_conservative.joblib` (contains `model_a`, `model_b`, `feature_names`, CV AUC dicts)
-- Conservative feature manifest: `.era14-features/feature_list_conservative.json`
-- Analysis script: `/tmp/era14_phase35_probe.py` (one-shot, not committed)
-- Raw run log: `/tmp/era14_phase35_run.log`
-- Persisted results JSON: `/tmp/era14_phase35_results.json`
+- This memo: `docs/research/evidence/era12-phase3.5-leakage-probe.md`
+- Conservative model: `.era12-features/pooled_conservative.joblib` (contains `model_a`, `model_b`, `feature_names`, CV AUC dicts)
+- Conservative feature manifest: `.era12-features/feature_list_conservative.json`
+- Analysis script: `/tmp/era12_phase35_probe.py` (one-shot, not committed)
+- Raw run log: `/tmp/era12_phase35_run.log`
+- Persisted results JSON: `/tmp/era12_phase35_results.json`
 
 ## What I couldn't analyse
 

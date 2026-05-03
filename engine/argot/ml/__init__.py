@@ -1,6 +1,6 @@
-"""Machine-learning stage helpers (era-14).
+"""Machine-learning stage helpers (era-12).
 
-This package houses infrastructure for training and serving the era-14 ML
+This package houses infrastructure for training and serving the era-12 ML
 classifier — a 4th scoring stage that fires only when stages 1-3 of
 SequentialImportBpeScorer return ``flagged=False``.
 

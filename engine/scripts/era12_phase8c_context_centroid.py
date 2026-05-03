@@ -1,15 +1,12 @@
-"""Era 14 Phase 6.4b — UNSUPERVISED centroid scoring with CORPUS-WIDE fallback.
+"""Era 12 Phase 8c — Phase 6.4 cluster-centroid cosine, but on CONTEXT embeddings.
 
-Methodology refinement on Phase 6.4: when a hunk's (corpus, cluster_id) cluster
-has fewer than MIN_CLUSTER_CONTROLS (=5) controls, OR cluster_id == -1
-(unmappable), fall back to the CORPUS-WIDE centroid (mean of all that
-corpus's CONTROL hunk embeddings, regardless of cluster).
+Same logic as Phase 6.4 with one swap: use the JSONL row's `context_embedding`
+(768-d, 512-token window centred on the hunk = the hunk + surrounding file
+content) instead of `hunk_embedding`. The hypothesis from Phase 8.1's win is
+that file-context view sees the residuals as anomalous in a way the hunk-only
+view does not.
 
-Centroid construction remains UNSUPERVISED — only `is_break == False` rows
-contribute to any centroid (no catalog labels touched).
-
-Outputs JSON to stdout and saves centroids dict to
-.era14-features/centroids_phase6.4b.joblib.
+Saves to .era12-features/centroids_phase8c_context.joblib.
 """
 
 from __future__ import annotations
@@ -22,7 +19,7 @@ import joblib
 import numpy as np
 
 ROOT = Path("/Users/damienmeur/projects/argot")
-FEATURE_DIR = ROOT / "engine" / ".era14-features"
+FEATURE_DIR = ROOT / "engine" / ".era12-features"
 CORPORA = ["fastapi", "rich", "faker", "hono", "ink", "faker-js"]
 
 # Era-11 baseline FP rates per corpus (percent of CONTROLS flagged).
@@ -43,7 +40,7 @@ RESIDUALS = {
     "faker_js_runtime_fetch_3",
 }
 
-MIN_CLUSTER_CONTROLS = 5  # below this → fall back to corpus-wide centroid
+MIN_CLUSTER_CONTROLS = 5  # skip clusters with fewer than this many controls
 
 
 def load_all() -> dict:
@@ -55,7 +52,7 @@ def load_all() -> dict:
                 rows.append(d)
     n = len(rows)
     is_break = np.array([bool(r["is_break"]) for r in rows])
-    hunk = np.array([r["hunk_embedding"] for r in rows], dtype=np.float32)
+    hunk = np.array([r["context_embedding"] for r in rows], dtype=np.float32)
     corpus = np.array([r["corpus"] for r in rows])
     fixture_id = np.array([r.get("fixture_id") or "" for r in rows])
     cluster = np.array(
@@ -82,19 +79,13 @@ def l2_normalize(x: np.ndarray) -> np.ndarray:
     return x / norms
 
 
-def task1_build_centroids(
-    data: dict,
-) -> tuple[dict, dict, dict]:
-    """Build per-(corpus, cluster_id) centroids AND per-corpus fallback centroids.
+def task1_build_centroids(data: dict) -> tuple[dict, dict]:
+    """Build centroids per (corpus, cluster_id) using CONTROL embeddings only.
 
-    Returns (cluster_centroids, corpus_centroids, stats).
-      cluster_centroids[(corpus, cluster_id)] = unit-normed centroid (when ≥5 controls)
-      corpus_centroids[corpus] = unit-normed mean of ALL controls in that corpus
+    Returns (centroids, stats).
+      centroids[(corpus, cluster_id)] = unit-normed centroid vector (768-d)
     """
-    print(
-        "=== TASK 1: build per-(corpus, cluster) centroids + corpus-wide fallbacks ===",
-        file=sys.stderr,
-    )
+    print("=== TASK 1: build per-(corpus, cluster) centroids from controls ===", file=sys.stderr)
     is_break = data["is_break"]
     hunk = data["hunk"]
     corpus = data["corpus"]
@@ -102,79 +93,59 @@ def task1_build_centroids(
 
     hunk_n = l2_normalize(hunk)
 
-    cluster_centroids: dict[tuple[str, int], np.ndarray] = {}
-    corpus_centroids: dict[str, np.ndarray] = {}
+    centroids: dict[tuple[str, int], np.ndarray] = {}
     per_corpus_stats: dict[str, dict] = {}
 
     for c in CORPORA:
         valid_built = 0
-        skipped_low_pop = 0  # NOTE: in 6.4b these still aren't kept as cluster centroids,
-        # but the hunks falling here will use the corpus-wide fallback at scoring time
-        unmappable_clusters_observed = 0
+        skipped_low_pop = 0
+        unmappable = 0  # cluster == -1
 
         c_mask = corpus == c
+        # All cluster ids attested in this corpus among CONTROLS
         ctrl_mask = c_mask & (~is_break)
-
-        # Corpus-wide fallback centroid (always built when corpus has any controls).
-        if ctrl_mask.sum() > 0:
-            cw = hunk_n[ctrl_mask].mean(axis=0)
-            cw = cw / (np.linalg.norm(cw) + 1e-12)
-            corpus_centroids[c] = cw.astype(np.float32)
-
         if ctrl_mask.sum() == 0:
             per_corpus_stats[c] = {
-                "valid_cluster_centroids": 0,
-                "low_pop_clusters": 0,
+                "valid_centroids": 0,
+                "skipped_low_pop": 0,
                 "unmappable_rows_in_corpus": int((c_mask & (cluster == -1)).sum()),
                 "control_rows": 0,
-                "has_corpus_centroid": False,
             }
             continue
 
         unique_clusters = sorted(set(cluster[ctrl_mask].tolist()))
         for cid in unique_clusters:
             if cid < 0:
-                unmappable_clusters_observed += 1
+                unmappable += int(((cluster == cid) & ctrl_mask).sum())
                 continue
             mask = ctrl_mask & (cluster == cid)
             n_controls = int(mask.sum())
             if n_controls < MIN_CLUSTER_CONTROLS:
                 skipped_low_pop += 1
                 continue
+            # mean of unit-normalized hunk embeddings (matches Phase 6.2)
             centroid = hunk_n[mask].mean(axis=0)
+            # Normalize centroid for stable cosine distance.
             centroid = centroid / (np.linalg.norm(centroid) + 1e-12)
-            cluster_centroids[(c, int(cid))] = centroid.astype(np.float32)
+            centroids[(c, int(cid))] = centroid.astype(np.float32)
             valid_built += 1
 
         per_corpus_stats[c] = {
-            "valid_cluster_centroids": valid_built,
-            "low_pop_clusters": skipped_low_pop,
-            "unmappable_clusters_observed": unmappable_clusters_observed,
+            "valid_centroids": valid_built,
+            "skipped_low_pop": skipped_low_pop,
             "unmappable_rows_in_corpus": int((c_mask & (cluster == -1)).sum()),
             "control_rows": int(ctrl_mask.sum()),
-            "has_corpus_centroid": True,
         }
 
-    return cluster_centroids, corpus_centroids, per_corpus_stats
+    return centroids, per_corpus_stats
 
 
-def task2_score_hunks(
-    data: dict,
-    cluster_centroids: dict,
-    corpus_centroids: dict,
-) -> tuple[np.ndarray, np.ndarray, dict]:
-    """Score every hunk by cosine distance to its centroid.
+def task2_score_hunks(data: dict, centroids: dict) -> tuple[np.ndarray, dict]:
+    """Compute cosine distance from each hunk to its (corpus, cluster) centroid.
 
-    Routing rule per row:
-      - If (corpus, cluster_id) has a cluster centroid → use it (path = 'cluster')
-      - Else if corpus has a fallback centroid → use it (path = 'corpus_fallback')
-      - Else NaN (path = 'none') — should not happen if any controls exist
-
-    Returns (dist, path, stats).
-      dist[i] = float, NaN if no centroid available
-      path[i] = string in {'cluster', 'corpus_fallback', 'none'}
+    Returns (dist, scoring_stats). Distance is NaN when no centroid exists for that hunk's cluster.
     """
-    print("=== TASK 2: score per-hunk distance with fallback routing ===", file=sys.stderr)
+    print("=== TASK 2: score per-hunk distance to cluster centroid ===", file=sys.stderr)
     hunk_n = l2_normalize(data["hunk"])
     corpus = data["corpus"]
     cluster = data["cluster"]
@@ -182,23 +153,12 @@ def task2_score_hunks(
     n = data["n"]
 
     dist = np.full(n, np.nan, dtype=np.float32)
-    path = np.full(n, "none", dtype=object)
-
     for i in range(n):
-        c = corpus[i]
-        cid = int(cluster[i])
-        key = (c, cid)
-        if key in cluster_centroids:
-            cen = cluster_centroids[key]
+        key = (corpus[i], int(cluster[i]))
+        if key in centroids:
+            cen = centroids[key]
             sim = float(hunk_n[i] @ cen)
             dist[i] = 1.0 - sim
-            path[i] = "cluster"
-        elif c in corpus_centroids:
-            cen = corpus_centroids[c]
-            sim = float(hunk_n[i] @ cen)
-            dist[i] = 1.0 - sim
-            path[i] = "corpus_fallback"
-        # else: leaves NaN, 'none'
 
     stats = {}
     for c in CORPORA:
@@ -206,34 +166,22 @@ def task2_score_hunks(
         c_break = c_mask & is_break
         c_ctrl = c_mask & (~is_break)
         scored = ~np.isnan(dist)
-        path_cluster = np.array([p == "cluster" for p in path])
-        path_fallback = np.array([p == "corpus_fallback" for p in path])
-
         stats[c] = {
             "total": int(c_mask.sum()),
             "scored": int((c_mask & scored).sum()),
             "excluded": int((c_mask & ~scored).sum()),
-            "via_cluster": int((c_mask & path_cluster).sum()),
-            "via_corpus_fallback": int((c_mask & path_fallback).sum()),
             "breaks_total": int(c_break.sum()),
             "breaks_scored": int((c_break & scored).sum()),
-            "breaks_via_cluster": int((c_break & path_cluster).sum()),
-            "breaks_via_fallback": int((c_break & path_fallback).sum()),
+            "breaks_excluded": int((c_break & ~scored).sum()),
             "controls_total": int(c_ctrl.sum()),
             "controls_scored": int((c_ctrl & scored).sum()),
-            "controls_via_cluster": int((c_ctrl & path_cluster).sum()),
-            "controls_via_fallback": int((c_ctrl & path_fallback).sum()),
+            "controls_excluded": int((c_ctrl & ~scored).sum()),
         }
-    return dist, path, stats
+    return dist, stats
 
 
 def task3_calibrate(data: dict, dist: np.ndarray) -> dict:
-    """For each corpus, threshold = (1 - FP_target/100)-quantile of CONTROL distances.
-
-    The control set now spans BOTH cluster-scored and fallback-scored controls
-    (whichever path each control took), so the threshold is calibrated against
-    the same scoring rule the residuals are tested under.
-    """
+    """For each corpus, set threshold = (1 - FP_target/100)-quantile of CONTROL distances."""
     print("=== TASK 3: calibrate per-corpus thresholds on controls ===", file=sys.stderr)
     is_break = data["is_break"]
     corpus = data["corpus"]
@@ -255,7 +203,9 @@ def task3_calibrate(data: dict, dist: np.ndarray) -> dict:
             }
             continue
         q = 1.0 - (fp_target / 100.0)
+        # numpy default: linear interpolation. We need >threshold => flagged.
         threshold = float(np.quantile(ctrl_dists, q))
+        # Flagged controls: dist > threshold (strict, by convention)
         flagged = int((ctrl_dists > threshold).sum())
         actual_fp_pct = 100.0 * flagged / n_ctrl
         out[c] = {
@@ -268,19 +218,13 @@ def task3_calibrate(data: dict, dist: np.ndarray) -> dict:
     return out
 
 
-def task4_residuals(
-    data: dict,
-    dist: np.ndarray,
-    path: np.ndarray,
-    thresholds: dict,
-) -> dict:
-    """For faker-js residuals: report distance, threshold, percentile rank, route."""
+def task4_residuals(data: dict, dist: np.ndarray, thresholds: dict) -> dict:
+    """For faker-js residuals: report distance, threshold, percentile rank."""
     print("=== TASK 4: residual fixture catch ===", file=sys.stderr)
     fixture_id = data["fixture_id"]
     corpus = data["corpus"]
     is_break = data["is_break"]
     file_path = data["file_path"]
-    cluster = data["cluster"]
 
     fjs_threshold = thresholds["faker-js"]["threshold"]
     fjs_ctrl_mask = (corpus == "faker-js") & (~is_break) & ~np.isnan(dist)
@@ -294,22 +238,24 @@ def task4_residuals(
         if len(idx) == 0:
             residual_results[fid] = {"error": "fixture not found in dataset"}
             continue
+        # Just take the first instance if multiple — fixture_ids should be unique-per-row anyway
         ridx = int(idx[0])
-        d = float(dist[ridx]) if not np.isnan(dist[ridx]) else None
-        if d is None:
+        d = float(dist[ridx])
+        if np.isnan(d):
             residual_results[fid] = {
                 "distance": None,
                 "threshold": fjs_threshold,
                 "crosses_threshold": False,
                 "rank_top_pct": None,
-                "route": str(path[ridx]),
-                "cluster_id": int(cluster[ridx]),
-                "note": "no centroid available even with fallback",
+                "note": "no centroid for this hunk's cluster (excluded)",
                 "file_path": str(file_path[ridx]),
             }
             continue
+        # rank: fraction of fjs controls strictly more anomalous than this residual
+        # top X% means: only X% of controls have larger distance
         n_more_anomalous = int((fjs_ctrl_sorted > d).sum())
         rank_top_pct = 100.0 * n_more_anomalous / n_ctrls if n_ctrls else None
+        # percentile = fraction of controls with dist <= d
         percentile = float((fjs_ctrl_sorted <= d).sum()) / n_ctrls if n_ctrls else None
         residual_results[fid] = {
             "distance": d,
@@ -317,8 +263,6 @@ def task4_residuals(
             "crosses_threshold": d > fjs_threshold if fjs_threshold is not None else False,
             "rank_top_pct": rank_top_pct,
             "percentile_among_controls": percentile,
-            "route": str(path[ridx]),
-            "cluster_id": int(cluster[ridx]),
             "file_path": str(file_path[ridx]),
         }
 
@@ -334,12 +278,8 @@ def task4_residuals(
     }
 
 
-def task5_recall_fp(
-    data: dict,
-    dist: np.ndarray,
-    thresholds: dict,
-) -> dict:
-    """For each corpus: count fixtures crossing threshold and control FP rate."""
+def task5_recall_fp(data: dict, dist: np.ndarray, thresholds: dict) -> dict:
+    """For each corpus: count fixtures crossing threshold (recall) and control FP rate."""
     print("=== TASK 5: recall + FP audit per corpus ===", file=sys.stderr)
     is_break = data["is_break"]
     corpus = data["corpus"]
@@ -398,6 +338,7 @@ def task5_recall_fp(
             "actual_fp_pct": actual_fp_pct,
             "fp_regression_vs_baseline_pp": fp_regression,
         }
+    # Pre-registered no-regression gate: per-corpus FP for THIS stage alone <= baseline + 0.5pp
     gate_pass = all(
         (v["actual_fp_pct"] is None) or (v["actual_fp_pct"] <= FP_TARGET[c] + 0.5)
         for c, v in out.items()
@@ -405,13 +346,8 @@ def task5_recall_fp(
     return {"per_corpus": out, "no_regression_gate_pass": gate_pass}
 
 
-def task6_fjs_diagnostic(
-    data: dict,
-    dist: np.ndarray,
-    path: np.ndarray,
-    thresholds: dict,
-) -> dict:
-    """For faker-js: dump top-20 controls by distance with route info."""
+def task6_fjs_diagnostic(data: dict, dist: np.ndarray, thresholds: dict) -> dict:
+    """For faker-js: dump top-20 controls by embedding_distance (closest to threshold)."""
     print("=== TASK 6: faker-js top control distances diagnostic ===", file=sys.stderr)
     is_break = data["is_break"]
     corpus = data["corpus"]
@@ -431,7 +367,6 @@ def task6_fjs_diagnostic(
                 "rank": rank,
                 "file_path": str(file_path[i]),
                 "cluster_id": int(cluster[i]),
-                "route": str(path[i]),
                 "distance": float(dist[i]),
                 "above_threshold": bool(dist[i] > thr) if thr is not None else False,
             }
@@ -440,10 +375,11 @@ def task6_fjs_diagnostic(
 
 
 def task7_verdict(t4: dict, t5: dict) -> dict:
-    """Apply pre-registered Phase 6.4b verdict logic."""
+    """Apply pre-registered verdict logic."""
     fjs_catches = t4["n_caught"]
     no_regression = t5["no_regression_gate_pass"]
 
+    # Identify any per-corpus regressions
     regressions = []
     for c, v in t5["per_corpus"].items():
         if v["actual_fp_pct"] is not None and v["actual_fp_pct"] > FP_TARGET[c] + 0.5:
@@ -458,9 +394,12 @@ def task7_verdict(t4: dict, t5: dict) -> dict:
 
     if fjs_catches >= 2 and no_regression:
         verdict = "SHIP"
-    elif fjs_catches >= 2 and not no_regression:
+    elif fjs_catches >= 1 and not no_regression:
         verdict = "PARTIAL"
-    elif fjs_catches <= 1:
+    elif fjs_catches >= 1 and no_regression:
+        # ≥1 catch but not 2 — partial under task spec (orchestrator decision)
+        verdict = "PARTIAL"
+    elif fjs_catches == 0:
         verdict = "CLOSE NEGATIVE"
     else:
         verdict = "PARTIAL"
@@ -482,28 +421,24 @@ def main() -> None:
         file=sys.stderr,
     )
 
-    cluster_centroids, corpus_centroids, t1_stats = task1_build_centroids(data)
-    dist, path, t2_stats = task2_score_hunks(data, cluster_centroids, corpus_centroids)
+    centroids, t1_stats = task1_build_centroids(data)
+    dist, t2_stats = task2_score_hunks(data, centroids)
     t3 = task3_calibrate(data, dist)
-    t4 = task4_residuals(data, dist, path, t3)
+    t4 = task4_residuals(data, dist, t3)
     t5 = task5_recall_fp(data, dist, t3)
-    t6 = task6_fjs_diagnostic(data, dist, path, t3)
+    t6 = task6_fjs_diagnostic(data, dist, t3)
     t7 = task7_verdict(t4, t5)
 
-    centroids_path = FEATURE_DIR / "centroids_phase6.4b.joblib"
+    # Save centroids for downstream use.
+    centroids_path = FEATURE_DIR / "centroids_phase8c_context.joblib"
     joblib.dump(
         {
-            "cluster_centroids": cluster_centroids,
-            "corpus_centroids": corpus_centroids,
+            "centroids": centroids,
             "min_cluster_controls": MIN_CLUSTER_CONTROLS,
             "fp_target": FP_TARGET,
             "thresholds": {c: t3[c]["threshold"] for c in CORPORA},
-            "method": (
-                "Per-(corpus, cluster_id) centroid when ≥5 controls; "
-                "else corpus-wide centroid (mean of all that corpus's CONTROL "
-                "hunk_embeddings, including unmappable rows). "
-                "Score = 1 - cosine(hunk_n, centroid_n). UNSUPERVISED."
-            ),
+            "method": "L2-normed mean of CONTROL context_embedding per (corpus, cluster_id); "
+            "score = 1 - cosine(hunk_n, centroid_n)",
         },
         centroids_path,
     )
@@ -517,8 +452,7 @@ def main() -> None:
         "task6_fjs_top20_controls": t6,
         "task7_verdict": t7,
         "centroids_saved_to": str(centroids_path),
-        "n_cluster_centroids": len(cluster_centroids),
-        "n_corpus_centroids": len(corpus_centroids),
+        "n_total_centroids": len(centroids),
     }
     print(json.dumps(out, indent=2, default=str))
 

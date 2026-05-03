@@ -1,34 +1,40 @@
-"""Era 14 Phase 7 — UNSUPERVISED PCA-whitened Mahalanobis anomaly scoring.
+"""Era 12 Phase 7.1 — UNSUPERVISED PCA-whitened squared-Euclidean anomaly scoring.
 
-Principled refinement of Phase 6.4's cosine baseline:
+Clean ablation that tests the Phase 7 design CHOICES that survive the rank-
+deficiency diagnostic:
 
-1. Concatenate `hunk_embedding` (768-d) and `context_embedding` (768-d) into a
-   1536-d feature vector per hunk.
-2. Per corpus: fit a PCA(n_components=64, whiten=True) on the CONCATENATED
+1. **Concatenate** `hunk_embedding` (768-d) and `context_embedding` (768-d) into
+   a 1536-d feature vector per hunk.
+2. Per corpus: fit `PCA(n_components=64, whiten=True)` on the CONCATENATED
    1536-d vectors of CONTROL rows ONLY (`is_break == False`). Project ALL rows
    in that corpus into the corpus's PCA-64 whitened space.
 3. Per (corpus, cluster_id) with `cluster_id != -1` and ≥ MIN_CLUSTER_CONTROLS
-   controls: compute mean μ_c (64-d) and covariance Σ_c (64×64) from those
-   controls in PCA-64 space. Apply Tikhonov regularizer Σ_reg = Σ_c + λI with
-   λ = 0.01; invert.
+   controls: compute mean μ_c (64-d) from those controls in PCA-64 space.
+   **NO per-cluster covariance** — that is the rank-deficient component that
+   broke Phase 7 under LOO.
 4. Score per hunk:
-   - Cluster-routed: d² = (h_pca - μ_c)ᵀ Σ_reg_inv (h_pca - μ_c)
+   - Cluster-routed: d² = ‖z - μ_c‖² (squared Euclidean in PCA-64 whitened space).
    - Corpus-fallback (cluster_id == -1 OR cluster has < MIN controls):
-     d²_fallback = h_pca · h_pca   (squared L2 in whitened PCA space, which
-     equals Mahalanobis to the corpus mean with Σ = I, the identity that
-     whitening produces by construction).
+     d²_fallback = ‖z - μ_corpus‖² where μ_corpus is the mean of all CONTROL
+     z_pca for the corpus. Whitening makes μ_corpus ≈ 0 by construction, so
+     this is approximately z·z, but we compute it explicitly.
 5. Per-corpus threshold = (1 − FP_target/100)-quantile of CONTROL d² values
-   across BOTH routings (so the calibration tail matches the scoring rule).
+   across BOTH routings.
 6. SHIP gate: ≥ 2/5 faker-js residuals catch AND every corpus FP ≤ baseline +
-   0.5 pp.
+   0.5 pp AND LOO sanity check passes (ratio ≤ 5× on > 50 % of clusters).
 
-Unsupervised: PCA is fit on controls only, μ and Σ come from controls only;
-`is_break` labels are NEVER used for any model fitting. A sanity assertion
+**What this is mathematically**: Mahalanobis distance with Σ = corpus-pooled
+covariance (well-conditioned: n ≈ 297 >> d = 64), restricted to its top-64
+eigenvector subspace, anchored at per-cluster μ. The PCA-whitening normalizes
+per-PC variance — the principled selling point of Phase 7 — without estimating
+a per-cluster covariance.
+
+Unsupervised: PCA fits on controls only, μ_c and μ_corpus come from controls
+only; `is_break` labels are NEVER used as input for fitting. A sanity assertion
 in `task1_fit_pca_per_corpus` enforces this.
 
-Outputs JSON to stdout; saves the artifact (per-corpus PCA models + per-
-(corpus, cluster) μ + Σ_reg_inv + thresholds + FP_TARGET + method) to
-`engine/.era14-features/phase7_mahalanobis.joblib`.
+Outputs JSON to stdout; saves the artifact to
+`engine/.era12-features/phase71_whitened_euclidean.joblib`.
 """
 
 from __future__ import annotations
@@ -42,7 +48,7 @@ import numpy as np
 from sklearn.decomposition import PCA
 
 ROOT = Path("/Users/damienmeur/projects/argot")
-FEATURE_DIR = ROOT / "engine" / ".era14-features"
+FEATURE_DIR = ROOT / "engine" / ".era12-features"
 CORPORA = ["fastapi", "rich", "faker", "hono", "ink", "faker-js"]
 
 # Era-11 baseline FP rates per corpus (percent of CONTROLS flagged).
@@ -65,7 +71,6 @@ RESIDUALS = {
 
 MIN_CLUSTER_CONTROLS = 5  # below this → fall back to corpus-wide whitened-space score
 PCA_DIM = 64
-TIKHONOV_LAMBDA = 0.01
 
 # Phase 6.4 cosine distances for residuals (for side-by-side reporting).
 PHASE64_RESIDUAL_COSINE = {
@@ -74,6 +79,15 @@ PHASE64_RESIDUAL_COSINE = {
     "faker_js_runtime_fetch_1": 0.4670,
     "faker_js_runtime_fetch_2": 0.4931,
     "faker_js_runtime_fetch_3": 0.4248,
+}
+
+# Phase 7 d² values for residuals (for side-by-side reporting).
+PHASE7_RESIDUAL_D2 = {
+    "faker_js_error_flip_2": 35.25,
+    "faker_js_error_flip_3": 1532.48,
+    "faker_js_runtime_fetch_1": 2358.61,
+    "faker_js_runtime_fetch_2": 3941.50,
+    "faker_js_runtime_fetch_3": 2181.34,
 }
 
 
@@ -134,8 +148,6 @@ def task1_fit_pca_per_corpus(data: dict) -> tuple[dict, np.ndarray, dict]:
     Returns:
         pca_models: {corpus: PCA model fit on controls only}
         feat_pca:   (n, 64) array — every row projected into ITS corpus's PCA space.
-                    Rows of corpora not in CORPORA would be left zeros, but since
-                    every loaded row IS in some corpus this is fine.
         stats:      {corpus: {n_controls_used, top1_var, top10_var, top64_var}}
     """
     print("=== TASK 1: per-corpus PCA-64 whitened fit (controls only) ===", file=sys.stderr)
@@ -144,9 +156,9 @@ def task1_fit_pca_per_corpus(data: dict) -> tuple[dict, np.ndarray, dict]:
     corpus = data["corpus"]
     n = data["n"]
 
-    # SANITY: assert is_break labels not used. We physically only pass the
-    # subset feat[ctrl_mask] into PCA.fit; this assertion is a tripwire if we
-    # ever refactor incorrectly.
+    # SANITY: assert is_break labels not used as input. We physically only pass
+    # the subset feat[ctrl_mask] into PCA.fit; this assertion is a tripwire if
+    # we ever refactor incorrectly.
     assert feat.shape == (n, 1536), f"unexpected feat shape {feat.shape}"
 
     pca_models: dict[str, PCA] = {}
@@ -158,12 +170,11 @@ def task1_fit_pca_per_corpus(data: dict) -> tuple[dict, np.ndarray, dict]:
         ctrl_mask = c_mask & (~is_break)
         n_ctrl = int(ctrl_mask.sum())
         if n_ctrl < PCA_DIM + 1:
-            # Should not happen — we have 290+ controls per corpus. But guard anyway.
             raise RuntimeError(
                 f"Corpus {c} has only {n_ctrl} controls; cannot fit PCA-{PCA_DIM}"
             )
-        # Sanity: this is the ONLY use of is_break in this function, and only to
-        # MASK-OUT breaks. The labels are not features.
+        # Sanity: this is the ONLY use of is_break in this function, and only
+        # to MASK-OUT breaks. The labels are not features.
         X_ctrl = feat[ctrl_mask]  # (n_ctrl, 1536)
         pca = PCA(n_components=PCA_DIM, whiten=True, random_state=0)
         pca.fit(X_ctrl)
@@ -190,16 +201,19 @@ def task1_fit_pca_per_corpus(data: dict) -> tuple[dict, np.ndarray, dict]:
     return pca_models, feat_pca, stats
 
 
-def task2_fit_cluster_mahalanobis(
+def task2_fit_cluster_means(
     data: dict, feat_pca: np.ndarray
-) -> tuple[dict, dict, dict, dict]:
+) -> tuple[dict, dict, dict]:
     """For each (corpus, cluster_id) with cluster_id != -1 AND ≥ MIN controls:
-    compute μ (64-d), Σ (64x64), Σ_reg = Σ + λI, Σ_reg_inv.
+    compute μ_c (64-d) ONLY. No covariance. No inverse.
 
-    Returns (mus, sigma_invs, per_corpus_stats, singular_warnings)
+    Also compute per-corpus μ_corpus = mean of all CONTROL z_pca for the corpus
+    (used for corpus-fallback scoring).
+
+    Returns (mus, mu_corpus, per_corpus_stats)
     """
     print(
-        "=== TASK 2: per-(corpus, cluster) μ + regularized Σ on PCA-64 controls ===",
+        "=== TASK 2: per-(corpus, cluster) μ + per-corpus μ on PCA-64 controls ===",
         file=sys.stderr,
     )
     is_break = data["is_break"]
@@ -207,22 +221,23 @@ def task2_fit_cluster_mahalanobis(
     cluster = data["cluster"]
 
     mus: dict[tuple[str, int], np.ndarray] = {}
-    sigma_invs: dict[tuple[str, int], np.ndarray] = {}
+    mu_corpus: dict[str, np.ndarray] = {}
     per_corpus_stats: dict[str, dict] = {}
-    singular_warnings: dict[str, list] = {}
 
     for c in CORPORA:
         valid = 0
         skipped_low = 0
-        unmappable_rows = 0
         c_mask = corpus == c
         ctrl_mask = c_mask & (~is_break)
         unique_clusters = sorted(set(cluster[ctrl_mask].tolist()))
-        warns: list[dict] = []
 
+        # Per-corpus μ from ALL controls in this corpus.
+        mu_c_all_ctrl = feat_pca[ctrl_mask].mean(axis=0)
+        mu_corpus[c] = mu_c_all_ctrl.astype(np.float32)
+
+        # Per-cluster μ_c.
         for cid in unique_clusters:
             if cid < 0:
-                unmappable_rows += int(((cluster == cid) & ctrl_mask).sum())
                 continue
             mask = ctrl_mask & (cluster == cid)
             n_ctrl = int(mask.sum())
@@ -231,28 +246,7 @@ def task2_fit_cluster_mahalanobis(
                 continue
             X = feat_pca[mask]  # (n_ctrl, 64)
             mu = X.mean(axis=0)  # (64,)
-            # rowvar=False: each column is a variable.
-            sigma = np.cov(X, rowvar=False)  # (64, 64)
-            sigma_reg = sigma + TIKHONOV_LAMBDA * np.eye(PCA_DIM, dtype=sigma.dtype)
-            try:
-                sigma_inv = np.linalg.inv(sigma_reg)
-            except np.linalg.LinAlgError:
-                sigma_inv = np.linalg.pinv(sigma_reg)
-                warns.append(
-                    {
-                        "corpus": c,
-                        "cluster_id": int(cid),
-                        "n_controls": n_ctrl,
-                        "fallback": "pseudo-inverse",
-                    }
-                )
-                print(
-                    f"  WARN: ({c}, cluster={cid}, n_ctrl={n_ctrl}) singular even after λI; "
-                    f"used pseudo-inverse",
-                    file=sys.stderr,
-                )
             mus[(c, int(cid))] = mu.astype(np.float32)
-            sigma_invs[(c, int(cid))] = sigma_inv.astype(np.float32)
             valid += 1
 
         per_corpus_stats[c] = {
@@ -260,23 +254,22 @@ def task2_fit_cluster_mahalanobis(
             "skipped_low_pop": skipped_low,
             "unmappable_rows_in_corpus": int((c_mask & (cluster == -1)).sum()),
             "control_rows": int(ctrl_mask.sum()),
+            "mu_corpus_norm": float(np.linalg.norm(mu_c_all_ctrl)),
         }
-        if warns:
-            singular_warnings[c] = warns
 
-    return mus, sigma_invs, per_corpus_stats, singular_warnings
+    return mus, mu_corpus, per_corpus_stats
 
 
 def task3_score(
     data: dict,
     feat_pca: np.ndarray,
     mus: dict,
-    sigma_invs: dict,
+    mu_corpus: dict,
 ) -> tuple[np.ndarray, np.ndarray, dict]:
     """Score every row.
 
     Returns:
-        d2:     (n,) squared-Mahalanobis distance, NaN if no model AND no fallback (shouldn't happen).
+        d2:     (n,) squared-Euclidean distance in PCA-64 whitened space.
         route:  (n,) array of strings: "cluster" | "corpus_fallback".
         stats:  per-corpus routing breakdown.
     """
@@ -296,15 +289,13 @@ def task3_score(
         key = (c, cid)
         if cid >= 0 and key in mus:
             mu = mus[key]
-            inv = sigma_invs[key]
             diff = z - mu
-            d2[i] = float(diff @ inv @ diff)
+            d2[i] = float(diff @ diff)
             route[i] = "cluster"
         else:
-            # Whitened-space squared L2 ≡ Mahalanobis-to-corpus-mean with Σ=I.
-            # PCA(whiten=True) centers AND scales so corpus-control mean is 0
-            # and corpus-control covariance is I (by construction).
-            d2[i] = float(z @ z)
+            mu = mu_corpus[c]
+            diff = z - mu
+            d2[i] = float(diff @ diff)
             route[i] = "corpus_fallback"
 
     stats = {}
@@ -412,6 +403,7 @@ def task5_residuals(
             "rank_top_pct_among_fjs_controls": rank_top_pct,
             "percentile_among_fjs_controls": percentile,
             "phase64_cosine_distance": PHASE64_RESIDUAL_COSINE.get(fid),
+            "phase7_d2": PHASE7_RESIDUAL_D2.get(fid),
             "file_path": str(file_path[ridx]),
         }
 
@@ -500,18 +492,17 @@ def task6_recall_fp(data: dict, d2: np.ndarray, thresholds: dict) -> dict:
 def task6b_loo_sanity_check(
     data: dict, feat_pca: np.ndarray
 ) -> dict:
-    """Leave-one-out sanity diagnostic.
+    """Leave-one-out sanity diagnostic for Phase 7.1.
 
     For each cluster-routed (corpus, cluster_id) with ≥ MIN_CLUSTER_CONTROLS
-    controls, hold out one control at a time, refit μ + Σ_reg from the rest,
-    and score the held-out control. If the LOO d² for controls is comparable
-    to (or higher than) breaks' in-sample d², the apparent break-vs-control
-    separation is a rank-deficiency artifact (k < 64 → Σ has rank ≤ k-1 → λI
-    inverse blows up null-space components for any new point).
+    controls, hold out one control at a time, refit μ_c from the remaining
+    controls (PCA itself NOT refit — same global PCA, only μ_c changes), and
+    score the held-out control with the LOO μ_c.
 
-    Reports per-(corpus, cluster_id): in-sample max control d², LOO max/mean
-    control d², and a `looks_like_rank_deficiency_artifact` flag triggered when
-    LOO max d² >> in-sample max d² (ratio > 5x).
+    With corpus-pooled Σ via PCA-whitening (n ≈ 297 >> d = 64), there is no
+    rank-deficient null space. The LOO ratio should be small (1.1×–1.5×) if
+    the metric is honest; ratios > 5× would indicate a remaining μ_c-instability
+    artifact.
     """
     print("=== TASK 6b: LOO sanity check on control d² ===", file=sys.stderr)
     is_break = data["is_break"]
@@ -519,7 +510,8 @@ def task6b_loo_sanity_check(
     cluster = data["cluster"]
 
     diagnostics: list[dict] = []
-    artifact_flagged = 0
+    artifact_flagged = 0  # ratio > 5×
+    mild_flagged = 0      # ratio > 1.5×
     total = 0
 
     for c in CORPORA:
@@ -536,19 +528,9 @@ def task6b_loo_sanity_check(
             idx = np.where(mask)[0]
             X = feat_pca[idx]  # (n_ctrl, 64)
 
-            # In-sample d² for these controls (using μ + Σ from all of them)
+            # In-sample d² for these controls (using μ from all of them)
             mu_all = X.mean(axis=0)
-            sig_all = np.cov(X, rowvar=False)
-            sig_reg_all = sig_all + TIKHONOV_LAMBDA * np.eye(PCA_DIM, dtype=sig_all.dtype)
-            try:
-                inv_all = np.linalg.inv(sig_reg_all)
-            except np.linalg.LinAlgError:
-                inv_all = np.linalg.pinv(sig_reg_all)
-            in_sample = []
-            for r in X:
-                diff = r - mu_all
-                in_sample.append(float(diff @ inv_all @ diff))
-            in_sample_arr = np.array(in_sample)
+            in_sample = np.array([float((r - mu_all) @ (r - mu_all)) for r in X])
 
             # LOO d² (cap at 50 LOO iterations per cluster for speed; full set
             # if smaller)
@@ -557,23 +539,20 @@ def task6b_loo_sanity_check(
             for k in loo_idx_to_run:
                 X_minus = np.delete(X, k, axis=0)
                 mu = X_minus.mean(axis=0)
-                sig = np.cov(X_minus, rowvar=False)
-                sig_reg = sig + TIKHONOV_LAMBDA * np.eye(PCA_DIM, dtype=sig.dtype)
-                try:
-                    inv = np.linalg.inv(sig_reg)
-                except np.linalg.LinAlgError:
-                    inv = np.linalg.pinv(sig_reg)
                 diff = X[k] - mu
-                loo_d2_list.append(float(diff @ inv @ diff))
+                loo_d2_list.append(float(diff @ diff))
             loo_arr = np.array(loo_d2_list)
 
-            in_max = float(in_sample_arr.max())
+            in_max = float(in_sample.max())
             loo_max = float(loo_arr.max())
             ratio = (loo_max / in_max) if in_max > 1e-9 else float("inf")
             artifact = ratio > 5.0
+            mild = ratio > 1.5
             total += 1
             if artifact:
                 artifact_flagged += 1
+            if mild:
+                mild_flagged += 1
             diagnostics.append(
                 {
                     "corpus": c,
@@ -581,26 +560,39 @@ def task6b_loo_sanity_check(
                     "n_controls": n_ctrl,
                     "rank_deficient_n_ctrl_lt_pca_dim": n_ctrl < PCA_DIM,
                     "in_sample_control_d2_max": in_max,
-                    "in_sample_control_d2_mean": float(in_sample_arr.mean()),
+                    "in_sample_control_d2_mean": float(in_sample.mean()),
                     "loo_control_d2_max": loo_max,
                     "loo_control_d2_mean": float(loo_arr.mean()),
                     "loo_to_in_sample_max_ratio": ratio,
                     "looks_like_rank_deficiency_artifact": artifact,
+                    "mild_loo_inflation": mild,
                 }
             )
+
+    ratios = [r["loo_to_in_sample_max_ratio"] for r in diagnostics]
+    max_ratio = max(ratios) if ratios else None
+    mean_ratio = float(np.mean(ratios)) if ratios else None
+    median_ratio = float(np.median(ratios)) if ratios else None
+
+    # SHIP gate condition: ratio ≤ 5× on > 50% of clusters → loo_pass.
+    loo_pass = (total > 0) and (artifact_flagged < 0.5 * total)
+
     return {
         "per_cluster": diagnostics,
         "n_clusters_evaluated": total,
-        "n_clusters_flagged_as_rank_deficiency_artifact": artifact_flagged,
+        "n_clusters_ratio_gt_5x": artifact_flagged,
+        "n_clusters_ratio_gt_1p5x": mild_flagged,
+        "max_loo_to_in_sample_ratio": max_ratio,
+        "mean_loo_to_in_sample_ratio": mean_ratio,
+        "median_loo_to_in_sample_ratio": median_ratio,
+        "loo_sanity_pass": loo_pass,
         "interpretation": (
-            "If LOO max control d² >> in-sample max control d² (ratio > 5×), the "
-            "cluster's apparent break-vs-control separation is being driven by "
-            "rank-deficiency in Σ rather than genuine embedding-anomaly. With n_ctrl "
-            "< PCA_DIM (64), Σ has rank ≤ n_ctrl − 1; λI regularization fills the "
-            "null-space directions with 1/λ = 100, so any held-out point with "
-            "non-trivial null-space component gets an inflated d². Breaks are not "
-            "in the training set for their cluster's Σ, so they get hit by the same "
-            "inflation a held-out control would."
+            "Phase 7.1 uses PCA-whitening (corpus-pooled Σ on n≈297 >> d=64) "
+            "instead of per-cluster Σ on k<d controls, so there is no rank-"
+            "deficient null space. The LOO test here measures only the "
+            "stability of μ_c under hold-one-out — a small-sample mean shift. "
+            "Honest ratios should be 1.1×–1.5×. Ratios > 5× would indicate "
+            "μ_c instability bites at small k_c and the metric is NOT honest."
         ),
     }
 
@@ -608,7 +600,7 @@ def task6b_loo_sanity_check(
 def task7_fjs_diagnostic(
     data: dict, d2: np.ndarray, route: np.ndarray, thresholds: dict
 ) -> dict:
-    """Top-20 faker-js controls by d² (analogous to 6.4 task6)."""
+    """Top-20 faker-js controls by d² (analogous to Phase 7 task7)."""
     print("=== TASK 7: faker-js top-20 controls diagnostic ===", file=sys.stderr)
     is_break = data["is_break"]
     corpus = data["corpus"]
@@ -636,10 +628,11 @@ def task7_fjs_diagnostic(
     return {"top20_fjs_controls_by_d2": top20, "fjs_threshold": thr}
 
 
-def task8_verdict(t5: dict, t6: dict) -> dict:
-    """Apply pre-registered SHIP gate."""
+def task8_verdict(t5: dict, t6: dict, t6b: dict) -> dict:
+    """Apply pre-registered SHIP gate (residual catch + FP regression + LOO sanity)."""
     fjs_catches = t5["n_caught"]
     no_regression = t6["no_regression_gate_pass"]
+    loo_pass = t6b["loo_sanity_pass"]
 
     regressions = []
     for c, v in t6["per_corpus"].items():
@@ -653,14 +646,17 @@ def task8_verdict(t5: dict, t6: dict) -> dict:
                 }
             )
 
-    if fjs_catches >= 2 and no_regression:
+    # SHIP requires all three: ≥ 2 catches AND no FP regression AND LOO sanity.
+    if fjs_catches >= 2 and no_regression and loo_pass:
         verdict = "SHIP"
-    elif fjs_catches >= 1 and no_regression:
+    elif fjs_catches == 0:
+        verdict = "CLOSE NEGATIVE"
+    elif not loo_pass:
+        verdict = "CLOSE NEGATIVE (LOO fails)"
+    elif fjs_catches >= 1 and no_regression and loo_pass:
         verdict = "PARTIAL"
     elif fjs_catches >= 1 and not no_regression:
         verdict = "PARTIAL"
-    elif fjs_catches == 0:
-        verdict = "CLOSE NEGATIVE"
     else:
         verdict = "PARTIAL"
 
@@ -669,7 +665,8 @@ def task8_verdict(t5: dict, t6: dict) -> dict:
         "faker_js_residual_catches": fjs_catches,
         "ship_gate_residual_pass": fjs_catches >= 2,
         "no_regression_gate_pass": no_regression,
-        "ship_gate_overall_pass": fjs_catches >= 2 and no_regression,
+        "loo_sanity_gate_pass": loo_pass,
+        "ship_gate_overall_pass": fjs_catches >= 2 and no_regression and loo_pass,
         "regressions": regressions,
     }
 
@@ -683,33 +680,34 @@ def main() -> None:
     )
 
     pca_models, feat_pca, t1_stats = task1_fit_pca_per_corpus(data)
-    mus, sigma_invs, t2_stats, singular_warnings = task2_fit_cluster_mahalanobis(data, feat_pca)
-    d2, route, t3_stats = task3_score(data, feat_pca, mus, sigma_invs)
+    mus, mu_corpus, t2_stats = task2_fit_cluster_means(data, feat_pca)
+    d2, route, t3_stats = task3_score(data, feat_pca, mus, mu_corpus)
     t4_thresholds = task4_calibrate(data, d2)
     t5 = task5_residuals(data, d2, route, t4_thresholds)
     t6 = task6_recall_fp(data, d2, t4_thresholds)
     t6b = task6b_loo_sanity_check(data, feat_pca)
     t7 = task7_fjs_diagnostic(data, d2, route, t4_thresholds)
-    t8 = task8_verdict(t5, t6)
+    t8 = task8_verdict(t5, t6, t6b)
 
-    artifact_path = FEATURE_DIR / "phase7_mahalanobis.joblib"
+    artifact_path = FEATURE_DIR / "phase71_whitened_euclidean.joblib"
     joblib.dump(
         {
             "pca_models": pca_models,
             "mus": mus,
-            "sigma_invs": sigma_invs,
+            "mu_corpus": mu_corpus,
             "thresholds": {c: t4_thresholds[c]["threshold"] for c in CORPORA},
             "fp_target": FP_TARGET,
             "min_cluster_controls": MIN_CLUSTER_CONTROLS,
-            "tikhonov_lambda": TIKHONOV_LAMBDA,
             "pca_dim": PCA_DIM,
             "method": (
                 "Per-corpus PCA(64, whiten=True) on concat(hunk_emb, ctx_emb) of CONTROLS only; "
-                "per-(corpus, cluster_id) μ + Σ_reg (Σ + λI, λ=0.01) on PCA-64 controls; "
-                "score = (z - μ)ᵀ Σ_reg_inv (z - μ) for cluster-routed; "
-                "score = z·z (whitened-space L2²) for corpus-fallback (cluster_id == -1 OR "
+                "per-(corpus, cluster_id) μ_c on PCA-64 controls (mean only, no covariance); "
+                "per-corpus μ_corpus on PCA-64 controls; "
+                "score = ‖z - μ_c‖² for cluster-routed; "
+                "score = ‖z - μ_corpus‖² for corpus-fallback (cluster_id == -1 OR "
                 "cluster has < MIN_CLUSTER_CONTROLS controls); "
-                "per-corpus threshold = (1 − FP_target/100)-quantile of CONTROL d²."
+                "per-corpus threshold = (1 − FP_target/100)-quantile of CONTROL d². "
+                "Phase 7.1 ablation: removes the rank-deficient per-cluster Σ from Phase 7."
             ),
         },
         artifact_path,
@@ -717,8 +715,7 @@ def main() -> None:
 
     out = {
         "task1_pca_per_corpus": t1_stats,
-        "task2_cluster_mahalanobis_construction": t2_stats,
-        "task2_singular_warnings": singular_warnings,
+        "task2_cluster_mean_construction": t2_stats,
         "task3_routing_stats": t3_stats,
         "task4_thresholds": t4_thresholds,
         "task5_residuals": t5,
@@ -730,7 +727,6 @@ def main() -> None:
         "n_cluster_models": len(mus),
         "config": {
             "pca_dim": PCA_DIM,
-            "tikhonov_lambda": TIKHONOV_LAMBDA,
             "min_cluster_controls": MIN_CLUSTER_CONTROLS,
             "fp_target": FP_TARGET,
         },

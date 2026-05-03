@@ -1,4 +1,4 @@
-"""Era 14 Phase 9 — import-source-aware rule-based anomaly scorer.
+"""Era 12 Phase 9 — import-source-aware rule-based anomaly scorer.
 
 Diagnosed mechanism (Phase 8 series): the faker-js residuals are
 **lexical / import-graph anomalies**, not semantic embedding anomalies.
@@ -37,7 +37,7 @@ import numpy as np
 import yaml
 
 ROOT = Path("/Users/damienmeur/projects/argot")
-FEATURE_DIR = ROOT / "engine" / ".era14-features"
+FEATURE_DIR = ROOT / "engine" / ".era12-features"
 BENCH_DATA = ROOT / "benchmarks" / "data"
 BENCH_CATALOGS = ROOT / "benchmarks" / "catalogs"
 CORPORA = ["fastapi", "rich", "faker", "hono", "ink", "faker-js"]

@@ -1,12 +1,12 @@
-# Era 14 Phase 7.1 — PCA-whitened squared-Euclidean (per-cluster anchored), the clean ablation of Phase 7
+# Era 12 Phase 7.1 — PCA-whitened squared-Euclidean (per-cluster anchored), the clean ablation of Phase 7
 
 **Date**: 2026-05-03
-**Branch**: `feat/era-14-ml-stage`
-**Script**: `engine/scripts/era14_phase71_whitened_euclidean.py`
-**Inputs**: `engine/.era14-features/{fastapi,rich,faker,hono,ink,faker-js}.jsonl` (1891 rows; 115 breaks, 1776 controls)
+**Branch**: `feat/era-12-ml-stage`
+**Script**: `engine/scripts/era12_phase71_whitened_euclidean.py`
+**Inputs**: `engine/.era12-features/{fastapi,rich,faker,hono,ink,faker-js}.jsonl` (1891 rows; 115 breaks, 1776 controls)
 **Persisted artifacts**:
-- Whitened-Euclidean dict (PCA models + per-cluster μ_c + per-corpus μ + thresholds): `engine/.era14-features/phase71_whitened_euclidean.joblib`
-- Raw results JSON: `/tmp/era14_phase71_results.json`
+- Whitened-Euclidean dict (PCA models + per-cluster μ_c + per-corpus μ + thresholds): `engine/.era12-features/phase71_whitened_euclidean.joblib`
+- Raw results JSON: `/tmp/era12_phase71_results.json`
 
 ---
 
@@ -22,7 +22,7 @@ Three findings:
 2. **Zero residuals catch.** All 5 faker-js residuals score d² in 35–45, against fjs threshold 162.79. They sit at the 67th–80th percentile of fjs controls — typical-looking. Phase 7's 4/5 catch was driven entirely by the rank-deficiency artifact; once the artifact is removed, the residuals don't separate from controls.
 3. **Stage-4 recall is 0/115 across all six corpora.** No catalog gain. FP rates pass the no-regression gate (≤ baseline + 0.5 pp on every corpus).
 
-Phase 7.1 is the *honest* version of Phase 7 — and it confirms there is no embedding-anomaly signal at this metric. It also strengthens the era 14 close: the only embedding metric that catches anything (Phase 6.4 cosine, 1/5) cannot be improved by PCA-whitening + per-cluster anchoring.
+Phase 7.1 is the *honest* version of Phase 7 — and it confirms there is no embedding-anomaly signal at this metric. It also strengthens the era 12 close: the only embedding metric that catches anything (Phase 6.4 cosine, 1/5) cannot be improved by PCA-whitening + per-cluster anchoring.
 
 ---
 
@@ -266,18 +266,18 @@ PCA-whitening + per-cluster anchoring is *worse* than 6.4 cosine on the residual
 
 ---
 
-## Implications for era 14
+## Implications for era 12
 
 Phase 7.1 closes the principled refinement of Phase 6.4 → Phase 7 axis with a clean negative:
 
 1. **The Phase 7 mechanical signal was 100 % artifact.** Removing the rank-deficient Σ removes the entire 4/5 catch and the entire 87.83 % catalog recall, leaving 0/5 and 0 %. There was no underlying signal that Σ_cluster was amplifying — Σ_cluster was *generating* the apparent signal by inflating any out-of-training-set point.
 2. **PCA-whitening + per-cluster anchoring is a real loss vs. plain cosine.** The honest comparison is 0/5 (7.1) vs 1/5 (6.4). Likely cause: PCA-64 truncation discards rare-direction variance that cosine in 768-d preserves; whitening then redistributes the remaining variance uniformly, further reducing the chance that a narrow-direction anomaly stands out at the threshold.
-3. **The era-14 ceiling on the embedding-anomaly axis is the Phase 6.4 PARTIAL.** No principled refinement of the embedding axis (whitening, anchoring, covariance estimation, fallback) has improved on 1/5 + 9 catalog catches without introducing rank-deficiency artifacts.
+3. **The era-12 ceiling on the embedding-anomaly axis is the Phase 6.4 PARTIAL.** No principled refinement of the embedding axis (whitening, anchoring, covariance estimation, fallback) has improved on 1/5 + 9 catalog catches without introducing rank-deficiency artifacts.
 4. **No further methodological lever exists on this axis.** The "missing improvement" between 6.4 and 7.1 is not a calibration knob or a coverage gap — it's that the residuals are not anomalous in the metric's geometry once the metric is honestly constructed.
 
-**Recommendation**: confirm era 14 close on the negative result. The honest residual catch ceiling on this feature axis remains 1/5 (Phase 6.4 `runtime_fetch_2`). Either ship Phase 6.4 as opt-in stage-4 for the modest catalog gain, or close the era and accept that the residual problem is not solvable with single-feature embedding distances at era 11's FP budget.
+**Recommendation**: confirm era 12 close on the negative result. The honest residual catch ceiling on this feature axis remains 1/5 (Phase 6.4 `runtime_fetch_2`). Either ship Phase 6.4 as opt-in stage-4 for the modest catalog gain, or close the era and accept that the residual problem is not solvable with single-feature embedding distances at era 11's FP budget.
 
-Phase 7.1's contribution to the era-14 evidence base:
+Phase 7.1's contribution to the era-12 evidence base:
 - It is the **clean ablation** that confirms Phase 7's mechanical signal was rank-deficiency-driven.
 - It is the **honest test of PCA-whitening + per-cluster anchoring on its own merits**, and the answer is "worse than plain cosine."
 - It establishes that no principled refinement of Phase 6.4 → Phase 7 axis improves on 1/5 catch.

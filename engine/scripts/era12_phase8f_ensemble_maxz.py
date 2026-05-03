@@ -1,4 +1,4 @@
-"""Era 14 Phase 8f — MAX-z ensemble over (Phase 6.4, Phase 8d) anomaly scores.
+"""Era 12 Phase 8f — MAX-z ensemble over (Phase 6.4, Phase 8d) anomaly scores.
 
 Combines two complementary unsupervised signals:
   - 6.4 distance: 1 - cos(hunk_n, cluster_centroid_n) per row
@@ -25,7 +25,7 @@ from typing import Any
 import numpy as np
 
 ROOT = Path("/Users/damienmeur/projects/argot")
-FEATURE_DIR = ROOT / "engine" / ".era14-features"
+FEATURE_DIR = ROOT / "engine" / ".era12-features"
 CORPORA = ["fastapi", "rich", "faker", "hono", "ink", "faker-js"]
 
 FP_TARGET = {

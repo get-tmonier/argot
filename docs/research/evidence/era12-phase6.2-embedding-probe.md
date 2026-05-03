@@ -1,12 +1,12 @@
-# Era 14 Phase 6.2 — UnixCoder embedding KILL-SWITCH probe
+# Era 12 Phase 6.2 — UnixCoder embedding KILL-SWITCH probe
 
 **Date**: 2026-05-03
 **Branch**: `docs/era-10-root-readme` (analysis-only; no code changes)
-**Inputs**: `engine/.era14-features/{fastapi,rich,faker,hono,ink,faker-js}.jsonl` — 1891 rows (115 breaks, 1776 controls). Each row has `features.*` (Phase 5 engineered features) plus top-level `hunk_embedding` (768-d UnixCoder) and `context_embedding` (768-d UnixCoder).
-**Reference**: Phase 5 memo [`era14-fixA-full.md`](era14-fixA-full.md), status [`era14-status.md`](era14-status.md)
-**Code**: `engine/scripts/era14_phase62_probe.py` (one-shot)
-**Persisted**: `/tmp/era14_phase62_results.json`
-**Models saved**: `engine/.era14-features/pca100_phase6.2.joblib` (PCA-100 fit on per-corpus z-scored concat(hunk, ctx))
+**Inputs**: `engine/.era12-features/{fastapi,rich,faker,hono,ink,faker-js}.jsonl` — 1891 rows (115 breaks, 1776 controls). Each row has `features.*` (Phase 5 engineered features) plus top-level `hunk_embedding` (768-d UnixCoder) and `context_embedding` (768-d UnixCoder).
+**Reference**: Phase 5 memo [`era12-fixA-full.md`](era12-fixA-full.md), status [`era12-status.md`](era12-status.md)
+**Code**: `engine/scripts/era12_phase62_probe.py` (one-shot)
+**Persisted**: `/tmp/era12_phase62_results.json`
+**Models saved**: `engine/.era12-features/pca100_phase6.2.joblib` (PCA-100 fit on per-corpus z-scored concat(hunk, ctx))
 
 ---
 
@@ -213,4 +213,4 @@ Embeddings are not just rediscovering what engineered features already had — a
 - **PCA-100 model** (`pca100_phase6.2.joblib`) is reusable: per-corpus z-score → PCA → 100-d feature space already validated as linearly separable. Phase 6.3 MLP can either consume PCA-100 directly or re-fit on raw 1536-d.
 - **Cluster-centroid distance** is a free single-scalar feature with faker-js AUC 0.91 and 4/5 residual catch at p90 — at minimum, add it to the engineered feature set for the conservative XGBoost model regardless of whether the MLP head ships.
 - **Bench the right thing**: the Phase 5 mistake to avoid is shipping a pooled-CV winner that collapses under LOO. Phase 6.3 must report (a) pooled CV AUC, (b) LOO test AUC per corpus, and (c) faker-js-LOO residual catch at FP ≤ 0.9% — gate on (c).
-- **Failure mode to watch for**: if Phase 6.3 also produces pooled 0.99 + LOO 0/5, the embeddings are encoding catalog/authoring-style features (not break semantics), and era 14 still closes negative even with this "STRONG SIGNAL" probe result.
+- **Failure mode to watch for**: if Phase 6.3 also produces pooled 0.99 + LOO 0/5, the embeddings are encoding catalog/authoring-style features (not break semantics), and era 12 still closes negative even with this "STRONG SIGNAL" probe result.

@@ -441,8 +441,8 @@ def test_score_fixtures_host_injection_uses_host_path_no_prose_blanking(
     """When fixture has host_file/host_inject_at_line, the scorer is called
     with the host file path (not the catalog path) and prose-blanking is
     skipped (hunk_start_line / hunk_end_line passed as None)."""
-    from argot_bench.run import _score_fixtures
     import argot_bench.fixtures as fx
+    from argot_bench.run import _score_fixtures
 
     catalog_dir = tmp_path / "catalogs" / "demo"
     catalog_dir.mkdir(parents=True)
@@ -484,7 +484,7 @@ def test_score_fixtures_host_injection_uses_host_path_no_prose_blanking(
             captured.append({"hunk": hunk, **kw})
             return ScoreResult(import_score=0.0, bpe_score=1.0, flagged=False, reason="none")
 
-    out = _score_fixtures(CaptureScorer(), catalog_dir, [fixture], repo_dir=repo_dir)
+    _score_fixtures(CaptureScorer(), catalog_dir, [fixture], repo_dir=repo_dir)
     assert len(captured) == 1
     call = captured[0]
     # File path should be the actual host file, not the catalog path.
@@ -505,8 +505,8 @@ def test_score_fixtures_host_injection_uses_host_path_no_prose_blanking(
 def test_score_fixtures_falls_back_when_host_file_missing(tmp_path: Path) -> None:
     """When fixture has no host_file metadata, legacy behaviour is preserved:
     file_path is the catalog path (under repo_dir), prose blanking enabled."""
-    from argot_bench.run import _score_fixtures
     import argot_bench.fixtures as fx
+    from argot_bench.run import _score_fixtures
 
     catalog_dir = tmp_path / "catalogs" / "demo"
     catalog_dir.mkdir(parents=True)

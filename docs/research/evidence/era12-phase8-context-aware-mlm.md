@@ -1,13 +1,13 @@
-# Era 14 Phase 8 — Context-aware frozen-encoder anomaly: six variants, one ceiling
+# Era 12 Phase 8 — Context-aware frozen-encoder anomaly: six variants, one ceiling
 
 **Date**: 2026-05-03
-**Branch**: `feat/era-14-ml-stage`
+**Branch**: `feat/era-12-ml-stage`
 **Scripts**:
-- `engine/scripts/era14_phase8_mlm_surprise.py` — Phase 8 (no context) and Phase 8.1 (with context, `--use-context` default)
-- `engine/scripts/era14_phase8c_context_centroid.py` — Phase 8c
-- `engine/scripts/era14_phase8d_hunk_context_divergence.py` — Phase 8d
-- `engine/scripts/era14_phase8e_token_nn_in_context.py` — Phase 8e
-- `engine/scripts/era14_phase8f_ensemble_maxz.py` — Phase 8f
+- `engine/scripts/era12_phase8_mlm_surprise.py` — Phase 8 (no context) and Phase 8.1 (with context, `--use-context` default)
+- `engine/scripts/era12_phase8c_context_centroid.py` — Phase 8c
+- `engine/scripts/era12_phase8d_hunk_context_divergence.py` — Phase 8d
+- `engine/scripts/era12_phase8e_token_nn_in_context.py` — Phase 8e
+- `engine/scripts/era12_phase8f_ensemble_maxz.py` — Phase 8f
 
 ---
 
@@ -235,11 +235,11 @@ A minimum viable Phase 9: for each hunk, count tokens that are
 - AND not imported in the host file's import set
 
 Calibrate per-corpus FP threshold; apply to the 5 fjs residuals. If
-≥ 2/5 catch at era-11 FP budget, Phase 9 ships and era 14 closes positive.
+≥ 2/5 catch at era-11 FP budget, Phase 9 ships and era 12 closes positive.
 
 The honest expected value is high (60–80%) on `runtime_fetch_*` since all
 three use `fetch`. `error_flip_*` use `throw new Error(...)` which is also
 a global pattern but more common across JS code → lower expected catch on
 those two. So 3/5 is a realistic optimistic target.
 
-Era 14 stays open until Phase 9 is tested.
+Era 12 stays open until Phase 9 is tested.
