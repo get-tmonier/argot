@@ -242,6 +242,172 @@ def test_unknown_file_path_no_cluster_bonus(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Era-11 Phase 1 fix: file_source fallback for unknown file paths
+# ---------------------------------------------------------------------------
+
+
+def _make_two_cluster_corpus(tmp_path: Path) -> tuple[list[Path], list[Path]]:
+    """Build a 2-cluster corpus: math-flavored files and io/fetch-flavored files.
+
+    Returns (math_files, io_files). Math.floor is globally attested but should
+    only appear in the math cluster's attested set.
+    """
+    math_files: list[Path] = []
+    for i in range(3):
+        f = tmp_path / f"math_{i}.ts"
+        f.write_text("Math.floor(x); Math.random(); Math.min(a,b);")
+        math_files.append(f)
+
+    io_files: list[Path] = []
+    for i in range(3):
+        f = tmp_path / f"io_{i}.ts"
+        f.write_text("fetch(url); Promise.resolve(x); console.log('done');")
+        io_files.append(f)
+
+    return math_files, io_files
+
+
+def test_unknown_file_path_with_source_falls_back_to_nearest_cluster(tmp_path: Path) -> None:
+    """Unknown file_path + file_source → fallback assigns to nearest cluster (Jaccard).
+
+    Math.floor is globally attested but absent from the io cluster's attested set.
+    Scoring "Math.floor()" from a fetch-flavored unknown file should fire
+    cluster_bonus; scoring it from a math-flavored unknown file should NOT.
+    """
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    math_files, io_files = _make_two_cluster_corpus(tmp_path)
+    all_files = math_files + io_files
+    scorer = CallReceiverScorer(all_files, language="typescript", n_clusters=2, cluster_seed=0)
+
+    # Sanity: cluster split must put Math.floor in only one cluster (the math one)
+    math_cluster = scorer.file_to_cluster[math_files[0]]
+    io_cluster = scorer.file_to_cluster[io_files[0]]
+    if math_cluster == io_cluster:
+        pytest.skip("KMeans merged clusters — cannot test fallback discrimination")
+    if "Math.floor" in scorer.cluster_attested[io_cluster]:
+        pytest.skip("Math.floor leaked into io cluster — cannot test fallback discrimination")
+    assert "Math.floor" in scorer.cluster_attested[math_cluster]
+
+    unknown = tmp_path / "unknown.ts"  # NOT in model_a_files
+    assert unknown not in scorer.file_to_cluster
+
+    # Fetch-flavored unknown file → Jaccard nearest is io cluster → Math.floor
+    # is NOT in io's attested → cluster_bonus FIRES.
+    fetch_flavored_source = "fetch(url); Promise.resolve(x); console.log('hi');"
+    result_io = scorer.weighted_contribution_for_file(
+        "Math.floor()",
+        unknown,
+        alpha=2.0,
+        root_bonus=2.0,
+        cluster_bonus=1.5,
+        cap=10.0,
+        file_source=fetch_flavored_source,
+    )
+    assert result_io == pytest.approx(1.5)
+
+    # Math-flavored unknown file → Jaccard nearest is math cluster → Math.floor
+    # IS in math's attested → cluster_bonus does NOT fire.
+    math_flavored_source = "Math.floor(); Math.random(); Math.min(a, b);"
+    result_math = scorer.weighted_contribution_for_file(
+        "Math.floor()",
+        unknown,
+        alpha=2.0,
+        root_bonus=2.0,
+        cluster_bonus=1.5,
+        cap=10.0,
+        file_source=math_flavored_source,
+    )
+    assert result_math == pytest.approx(0.0)
+
+
+def test_unknown_file_path_no_source_no_cluster_bonus(tmp_path: Path) -> None:
+    """Unknown file_path + file_source=None → cluster_bonus must NOT fire.
+
+    Era-10 graceful no-op preserved when the caller has no source to feed.
+    """
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    math_files, io_files = _make_two_cluster_corpus(tmp_path)
+    scorer = CallReceiverScorer(
+        math_files + io_files, language="typescript", n_clusters=2, cluster_seed=0
+    )
+    unknown = tmp_path / "unknown.ts"
+
+    result = scorer.weighted_contribution_for_file(
+        "Math.floor()",
+        unknown,
+        alpha=2.0,
+        root_bonus=2.0,
+        cluster_bonus=1.5,
+        cap=10.0,
+        file_source=None,
+    )
+    # Math.floor is globally attested, no cluster resolved → era-10 weight = 0
+    assert result == pytest.approx(0.0)
+
+
+def test_empty_source_bag_no_cluster_bonus(tmp_path: Path) -> None:
+    """file_source with no calls → empty bag → no cluster assignment, no cluster_bonus."""
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    math_files, io_files = _make_two_cluster_corpus(tmp_path)
+    scorer = CallReceiverScorer(
+        math_files + io_files, language="typescript", n_clusters=2, cluster_seed=0
+    )
+    unknown = tmp_path / "unknown.ts"
+
+    result = scorer.weighted_contribution_for_file(
+        "Math.floor()",
+        unknown,
+        alpha=2.0,
+        root_bonus=2.0,
+        cluster_bonus=1.5,
+        cap=10.0,
+        file_source="const x = 1;",  # no call expressions
+    )
+    # Empty bag → no cluster assigned → globally attested Math.floor → 0
+    assert result == pytest.approx(0.0)
+
+
+def test_known_file_path_unaffected_by_source(tmp_path: Path) -> None:
+    """Files in file_to_cluster use their static cluster id regardless of file_source."""
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    math_files, io_files = _make_two_cluster_corpus(tmp_path)
+    scorer = CallReceiverScorer(
+        math_files + io_files, language="typescript", n_clusters=2, cluster_seed=0
+    )
+
+    known = math_files[0]
+    assert known in scorer.file_to_cluster
+
+    hunk = "Math.floor(); fetch(url);"
+
+    # A misleading source argument must NOT override the static cluster mapping.
+    misleading_source = "fetch(url); Promise.resolve(x); console.log('hi');"
+    result_with_source = scorer.weighted_contribution_for_file(
+        hunk,
+        known,
+        alpha=2.0,
+        root_bonus=2.0,
+        cluster_bonus=1.5,
+        cap=10.0,
+        file_source=misleading_source,
+    )
+    result_no_source = scorer.weighted_contribution_for_file(
+        hunk,
+        known,
+        alpha=2.0,
+        root_bonus=2.0,
+        cluster_bonus=1.5,
+        cap=10.0,
+        file_source=None,
+    )
+    assert result_with_source == pytest.approx(result_no_source)
+
+
+# ---------------------------------------------------------------------------
 # Plumbing consistency
 # ---------------------------------------------------------------------------
 

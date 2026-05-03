@@ -393,6 +393,7 @@ class SequentialImportBpeScorer:
                     root_bonus=self._call_receiver_root_bonus,
                     cluster_bonus=self._call_receiver_cluster_bonus,
                     cap=float(self._call_receiver.cap),
+                    file_source=file_source,
                 )
             else:
                 contribution = self._call_receiver.weighted_contribution(

@@ -346,6 +346,7 @@ class CallReceiverScorer:
         root_bonus: float = 2.0,
         cluster_bonus: float = 0.0,
         cap: float = 5.0,
+        file_source: str | None = None,
     ) -> float:
         """Return weighted penalty with optional cluster-conditional bonus.
 
@@ -360,6 +361,20 @@ class CallReceiverScorer:
           - c in attested AND absent from cluster set   → cluster_bonus  (era-11 NEW)
           - c in attested AND present in cluster set    → 0
         Returns min(sum(weights), cap).
+
+        Cluster lookup (era-11 Phase 1 fix):
+          - Static path: ``file_path`` is in ``self.file_to_cluster`` → use that cluster.
+          - Fallback path: ``file_path`` is unknown AND ``file_source`` is provided
+            AND ``self.cluster_attested`` is non-empty → compute the file's callee
+            bag and assign it to the cluster whose attested set has the highest
+            Jaccard similarity (ties broken by smallest cluster id). When the
+            file's bag is empty, no cluster is assigned (era-10 behavior).
+          - When neither path resolves, ``cluster_set`` is ``None`` and
+            ``cluster_bonus`` does not fire (era-10 behavior preserved).
+
+        The fallback assignment is computed on the fly and NOT cached on the
+        scorer, so repeated calls with the same arguments are deterministic but
+        do not mutate the static cluster maps.
         """
         if _has_root_error(hunk_content, self._language):
             return 0.0
@@ -368,6 +383,12 @@ class CallReceiverScorer:
         seen: set[str] = set()
 
         cluster_id = self.file_to_cluster.get(file_path)
+        if (
+            cluster_id is None
+            and file_source is not None
+            and self.cluster_attested
+        ):
+            cluster_id = self._nearest_cluster_for_source(file_source)
         cluster_set = self.cluster_attested.get(cluster_id) if cluster_id is not None else None
 
         for c in callees:
@@ -384,3 +405,30 @@ class CallReceiverScorer:
                 weights.append(cluster_bonus)
 
         return min(sum(weights), cap)
+
+    def _nearest_cluster_for_source(self, file_source: str) -> int | None:
+        """Return the cluster id whose attested set is closest (Jaccard) to
+        the callee bag of *file_source*.
+
+        Returns None when the file's callee bag is empty (no signal to match).
+        Ties on Jaccard are broken by smallest cluster id (deterministic).
+        """
+        bag: frozenset[str] = frozenset(
+            c for c in extract_callees(file_source, self._language) if c is not None
+        )
+        if not bag:
+            return None
+
+        best_cid: int | None = None
+        best_jaccard: float = -1.0
+        for cid in sorted(self.cluster_attested.keys()):
+            attested = self.cluster_attested[cid]
+            union = bag | attested
+            if not union:
+                jaccard = 0.0
+            else:
+                jaccard = len(bag & attested) / len(union)
+            if jaccard > best_jaccard:
+                best_jaccard = jaccard
+                best_cid = cid
+        return best_cid
