@@ -379,6 +379,14 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
 
         if seed == cfg.seeds[0]:
             fixture_results = _score_fixtures(scorer, cfg.catalog_dir, break_fixtures, repo_dir=repo)
+            if cfg.call_receiver_cluster_rare_threshold > 0:
+                import sys
+
+                print(
+                    f"[rare-counter] {cfg.corpus} fixture path seed={seed}: "
+                    f"rare_branch_fire_count={scorer.rare_branch_fire_count}",
+                    file=sys.stderr,
+                )
             hunks_stream: Iterable[dict[str, object]] = _real_pr_hunks(dataset)
             if cfg.quick:
                 hunks_stream = islice(hunks_stream, 50)

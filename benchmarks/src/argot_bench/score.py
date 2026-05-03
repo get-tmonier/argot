@@ -70,6 +70,11 @@ class BenchScorer:
     def cal_scores(self) -> list[float]:
         return list(self._inner.cal_scores)
 
+    @property
+    def rare_branch_fire_count(self) -> int:
+        """Times the cluster-rare branch fired in weighted_contribution_for_file."""
+        return self._inner.rare_branch_fire_count
+
     def score_hunk(
         self,
         hunk_content: str,

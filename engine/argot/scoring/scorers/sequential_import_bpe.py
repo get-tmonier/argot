@@ -318,6 +318,11 @@ class SequentialImportBpeScorer:
             )
             self.n_calibration = len(cal_scores)
 
+    @property
+    def rare_branch_fire_count(self) -> int:
+        """Total times the cluster-rare branch fired (0 when scoring disabled)."""
+        return self._call_receiver.rare_branch_fire_count if self._call_receiver is not None else 0
+
     def _bpe_score(self, hunk_source: str) -> float:
         ids: list[int] = self._tokenizer.encode(hunk_source, add_special_tokens=False)
         filtered = [i for i in ids if _is_meaningful_token(self._id_to_token.get(i, ""))]

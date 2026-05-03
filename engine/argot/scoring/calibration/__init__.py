@@ -95,6 +95,13 @@ def calibrate_multi_seed(
     )
     shared_tokenizer = first_scorer._tokenizer
     thresholds.append(first_scorer.bpe_threshold)
+    if call_receiver_cluster_rare_threshold > 0:
+        print(
+            f"[rare-counter] cal seed={base_seed}: "
+            f"rare_branch_fire_count={first_scorer.rare_branch_fire_count} "
+            f"threshold={first_scorer.bpe_threshold:.4f}",
+            file=sys.stderr,
+        )
 
     # Build remaining scorers reusing the shared tokenizer
     for k in range(1, n_seeds):
@@ -119,6 +126,13 @@ def calibrate_multi_seed(
             _tokenizer=shared_tokenizer,
         )
         thresholds.append(scorer.bpe_threshold)
+        if call_receiver_cluster_rare_threshold > 0:
+            print(
+                f"[rare-counter] cal seed={seed}: "
+                f"rare_branch_fire_count={scorer.rare_branch_fire_count} "
+                f"threshold={scorer.bpe_threshold:.4f}",
+                file=sys.stderr,
+            )
 
     return statistics.median(thresholds)
 

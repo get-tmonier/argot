@@ -323,6 +323,10 @@ class CallReceiverScorer:
         self.cluster_attested: dict[int, frozenset[str]] = {}
         self.cluster_callee_counts: dict[int, dict[str, int]] = {}
         self.cluster_sizes: dict[int, int] = {}
+        # Counts how many times the cluster-rare branch fires in
+        # weighted_contribution_for_file. Observable after calibration and
+        # after fixture scoring to distinguish plumbing bugs from masking.
+        self.rare_branch_fire_count: int = 0
 
         if n_clusters > 1 and file_bags:
             (
@@ -464,6 +468,7 @@ class CallReceiverScorer:
             ):
                 # Cluster-rare attested callee: present in ≤ threshold
                 # cluster files. Treated as effectively cluster-absent.
+                self.rare_branch_fire_count += 1
                 weights.append(cluster_bonus)
 
         return min(sum(weights), cap)
