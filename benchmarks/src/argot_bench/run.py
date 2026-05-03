@@ -95,6 +95,7 @@ class RunConfig:
     call_receiver_cluster_seed: int = 0
     call_receiver_cluster_bonus: float = 5.0
     call_receiver_cluster_rare_threshold: int = 0
+    call_receiver_cluster_size_min: int = 0
     threshold_percentile: float | None = None
     threshold_iqr_k: float | None = None
     threshold_n_seeds: int = 7
@@ -333,6 +334,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             call_receiver_cluster_seed=cfg.call_receiver_cluster_seed,
             call_receiver_cluster_bonus=cfg.call_receiver_cluster_bonus,
             call_receiver_cluster_rare_threshold=cfg.call_receiver_cluster_rare_threshold,
+            call_receiver_cluster_size_min=cfg.call_receiver_cluster_size_min,
             threshold_percentile=cfg.threshold_percentile,
             threshold_iqr_k=cfg.threshold_iqr_k,
             threshold_n_seeds=cfg.threshold_n_seeds,
@@ -370,6 +372,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             call_receiver_cluster_seed=cfg.call_receiver_cluster_seed,
             call_receiver_cluster_bonus=cfg.call_receiver_cluster_bonus,
             call_receiver_cluster_rare_threshold=cfg.call_receiver_cluster_rare_threshold,
+            call_receiver_cluster_size_min=cfg.call_receiver_cluster_size_min,
             threshold_percentile=cfg.threshold_percentile,
             threshold_iqr_k=cfg.threshold_iqr_k,
             threshold_n_seeds=cfg.threshold_n_seeds,
@@ -417,7 +420,8 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
                 call_receiver_n_clusters=cfg.call_receiver_n_clusters,
                 call_receiver_cluster_seed=cfg.call_receiver_cluster_seed,
                 call_receiver_cluster_bonus=cfg.call_receiver_cluster_bonus,
-            call_receiver_cluster_rare_threshold=cfg.call_receiver_cluster_rare_threshold,
+                call_receiver_cluster_rare_threshold=cfg.call_receiver_cluster_rare_threshold,
+                call_receiver_cluster_size_min=cfg.call_receiver_cluster_size_min,
                 threshold_percentile=cfg.threshold_percentile,
                 threshold_iqr_k=cfg.threshold_iqr_k,
                 threshold_n_seeds=cfg.threshold_n_seeds,

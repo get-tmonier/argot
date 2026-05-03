@@ -129,6 +129,7 @@ def build_scorer(
     call_receiver_cluster_seed: int = 0,
     call_receiver_cluster_bonus: float = 5.0,
     call_receiver_cluster_rare_threshold: int = 0,
+    call_receiver_cluster_size_min: int = 0,
     threshold_percentile: float | None = None,
     threshold_iqr_k: float | None = None,
     threshold_n_seeds: int = 7,
@@ -175,6 +176,7 @@ def build_scorer(
             call_receiver_cluster_seed=call_receiver_cluster_seed,
             call_receiver_cluster_bonus=call_receiver_cluster_bonus,
             call_receiver_cluster_rare_threshold=call_receiver_cluster_rare_threshold,
+            call_receiver_cluster_size_min=call_receiver_cluster_size_min,
             enable_typicality_filter=enable_typicality_filter,
         )
         inner = SequentialImportBpeScorer(
@@ -191,6 +193,7 @@ def build_scorer(
             call_receiver_cluster_seed=call_receiver_cluster_seed,
             call_receiver_cluster_bonus=call_receiver_cluster_bonus,
             call_receiver_cluster_rare_threshold=call_receiver_cluster_rare_threshold,
+            call_receiver_cluster_size_min=call_receiver_cluster_size_min,
             threshold_percentile=threshold_percentile,
             threshold_iqr_k=threshold_iqr_k,
         )
@@ -210,6 +213,7 @@ def build_scorer(
             call_receiver_cluster_seed=call_receiver_cluster_seed,
             call_receiver_cluster_bonus=call_receiver_cluster_bonus,
             call_receiver_cluster_rare_threshold=call_receiver_cluster_rare_threshold,
+            call_receiver_cluster_size_min=call_receiver_cluster_size_min,
             threshold_percentile=threshold_percentile,
             threshold_iqr_k=threshold_iqr_k,
         )

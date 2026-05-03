@@ -275,6 +275,7 @@ class CallReceiverScorer:
         cluster_seed: int = 0,
         force_jaccard_routing: bool = False,
         cluster_rare_threshold: int = 0,
+        cluster_size_min: int = 0,
     ) -> None:
         if not repo_corpus_files:
             raise ValueError("repo_corpus_files must be non-empty")
@@ -295,6 +296,14 @@ class CallReceiverScorer:
         # Catches "rare-but-attested" callees like a network primitive that
         # shows up in one build script but never in production modules.
         self.cluster_rare_threshold: int = cluster_rare_threshold
+        # Size-conditional rare attestation. The rare-threshold rule only fires
+        # on clusters with at least this many files. In small clusters
+        # ("1 of 24") rare counts conflate with "uncommon callee" and the rule
+        # fires symmetrically on calibration hunks too, defeating its purpose.
+        # Era-13 Phase 2 introduces this floor to decouple "genuinely
+        # anomalous in a large cluster" from "small-sample noise". 0 (default)
+        # preserves pre-Phase-2 behaviour (no floor).
+        self.cluster_size_min: int = cluster_size_min
 
         attested: set[str] = set()
         skipped: int = 0
@@ -463,11 +472,14 @@ class CallReceiverScorer:
                 weights.append(cluster_bonus)
             elif (
                 self.cluster_rare_threshold > 0
+                and cluster_id is not None
                 and cluster_counts is not None
                 and cluster_counts.get(c, 0) <= self.cluster_rare_threshold
+                and self.cluster_sizes.get(cluster_id, 0) >= self.cluster_size_min
             ):
                 # Cluster-rare attested callee: present in ≤ threshold
-                # cluster files. Treated as effectively cluster-absent.
+                # cluster files within a cluster of size ≥ cluster_size_min.
+                # Treated as effectively cluster-absent.
                 self.rare_branch_fire_count += 1
                 weights.append(cluster_bonus)
 

@@ -107,6 +107,18 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
+        "--call-receiver-cluster-size-min",
+        type=int,
+        default=0,
+        metavar="N",
+        help=(
+            "Era-13 Phase 2 size-conditional rare attestation: the "
+            "rare-threshold rule only fires on clusters with >= N files. "
+            "Default 0 (disabled, no floor). Try 20 to suppress small-cluster "
+            "noise where 1-of-24 conflates with normal callee variance."
+        ),
+    )
+    p.add_argument(
         "--n-cal",
         type=int,
         default=100,
@@ -211,6 +223,17 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     one.add_argument(
+        "--call-receiver-cluster-size-min",
+        type=int,
+        default=0,
+        metavar="N",
+        help=(
+            "Era-13 Phase 2 size-conditional rare attestation floor: "
+            "rare rule only fires on clusters with >= N files. "
+            "Default 0 (disabled, no floor)."
+        ),
+    )
+    one.add_argument(
         "--n-cal",
         type=int,
         default=100,
@@ -307,6 +330,7 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
         call_receiver_n_clusters=args.call_receiver_clusters,
         call_receiver_cluster_bonus=args.call_receiver_cluster_bonus,
         call_receiver_cluster_rare_threshold=args.call_receiver_cluster_rare_threshold,
+        call_receiver_cluster_size_min=args.call_receiver_cluster_size_min,
         n_cal=args.n_cal,
         threshold_percentile=args.threshold_percentile,
         threshold_iqr_k=args.threshold_iqr_k,
@@ -360,6 +384,13 @@ def _run(args: argparse.Namespace) -> int:
             [
                 "--call-receiver-cluster-rare-threshold",
                 str(args.call_receiver_cluster_rare_threshold),
+            ]
+        )
+    if args.call_receiver_cluster_size_min != 0:
+        base_cmd.extend(
+            [
+                "--call-receiver-cluster-size-min",
+                str(args.call_receiver_cluster_size_min),
             ]
         )
     if args.n_cal != 100:
