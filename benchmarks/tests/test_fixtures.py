@@ -171,3 +171,154 @@ def test_era7_difficulty_coverage_all_fixtures():
             if fx.difficulty is None:
                 missing.append(f"{cat.corpus}:{fx.id}")
     assert not missing, f"Fixtures missing difficulty label: {missing}"
+
+
+# ---------------------------------------------------------------------------
+# Era-14 Fix A — host_file injection schema
+# ---------------------------------------------------------------------------
+
+
+def test_fixture_host_fields_default_to_none():
+    """Without host_file/host_inject_at_line set, both default to None."""
+    from argot_bench.fixtures import Fixture
+    fx = Fixture(
+        id="x", file="f.py", category="c",
+        hunk_start_line=1, hunk_end_line=5,
+    )
+    assert fx.host_file is None
+    assert fx.host_inject_at_line is None
+
+
+def test_fixture_loads_host_file_fields(tmp_path: Path):
+    """A YAML manifest with host_file/host_inject_at_line parses correctly."""
+    catalog_dir = tmp_path / "mycorpus"
+    catalog_dir.mkdir()
+    breaks_dir = catalog_dir / "breaks"
+    breaks_dir.mkdir()
+    fx_file = breaks_dir / "break_test.py"
+    fx_file.write_text("\n".join(["# line"] * 10))
+    manifest = catalog_dir / "manifest.yaml"
+    manifest.write_text(
+        "corpus: mycorpus\n"
+        "language: python\n"
+        "categories:\n  - cat_a\n"
+        "injection_hosts: []\n"
+        "fixtures:\n"
+        "  - id: test_1\n"
+        "    file: breaks/break_test.py\n"
+        "    category: cat_a\n"
+        "    hunk_start_line: 1\n"
+        "    hunk_end_line: 5\n"
+        "    rationale: 'test'\n"
+        "    difficulty: medium\n"
+        "    host_file: src/host.py\n"
+        "    host_inject_at_line: 42\n"
+    )
+    cat = load_catalog(catalog_dir)
+    assert cat.fixtures[0].host_file == "src/host.py"
+    assert cat.fixtures[0].host_inject_at_line == 42
+
+
+def test_fixture_validates_host_fields_paired_only_host(tmp_path: Path):
+    """host_file alone (no host_inject_at_line) raises a clear error."""
+    catalog_dir = tmp_path / "mycorpus"
+    catalog_dir.mkdir()
+    breaks_dir = catalog_dir / "breaks"
+    breaks_dir.mkdir()
+    (breaks_dir / "break_test.py").write_text("\n".join(["# line"] * 10))
+    manifest = catalog_dir / "manifest.yaml"
+    manifest.write_text(
+        "corpus: mycorpus\n"
+        "language: python\n"
+        "categories:\n  - cat_a\n"
+        "injection_hosts: []\n"
+        "fixtures:\n"
+        "  - id: test_1\n"
+        "    file: breaks/break_test.py\n"
+        "    category: cat_a\n"
+        "    hunk_start_line: 1\n"
+        "    hunk_end_line: 5\n"
+        "    difficulty: medium\n"
+        "    host_file: src/host.py\n"
+    )
+    with pytest.raises(ValueError, match="host_file and host_inject_at_line"):
+        load_catalog(catalog_dir)
+
+
+def test_fixture_validates_host_fields_paired_only_line(tmp_path: Path):
+    """host_inject_at_line alone (no host_file) raises a clear error."""
+    catalog_dir = tmp_path / "mycorpus"
+    catalog_dir.mkdir()
+    breaks_dir = catalog_dir / "breaks"
+    breaks_dir.mkdir()
+    (breaks_dir / "break_test.py").write_text("\n".join(["# line"] * 10))
+    manifest = catalog_dir / "manifest.yaml"
+    manifest.write_text(
+        "corpus: mycorpus\n"
+        "language: python\n"
+        "categories:\n  - cat_a\n"
+        "injection_hosts: []\n"
+        "fixtures:\n"
+        "  - id: test_1\n"
+        "    file: breaks/break_test.py\n"
+        "    category: cat_a\n"
+        "    hunk_start_line: 1\n"
+        "    hunk_end_line: 5\n"
+        "    difficulty: medium\n"
+        "    host_inject_at_line: 10\n"
+    )
+    with pytest.raises(ValueError, match="host_file and host_inject_at_line"):
+        load_catalog(catalog_dir)
+
+
+def test_fixture_host_inject_at_line_must_be_positive(tmp_path: Path):
+    """host_inject_at_line < 1 raises a clear error."""
+    catalog_dir = tmp_path / "mycorpus"
+    catalog_dir.mkdir()
+    breaks_dir = catalog_dir / "breaks"
+    breaks_dir.mkdir()
+    (breaks_dir / "break_test.py").write_text("\n".join(["# line"] * 10))
+    manifest = catalog_dir / "manifest.yaml"
+    manifest.write_text(
+        "corpus: mycorpus\n"
+        "language: python\n"
+        "categories:\n  - cat_a\n"
+        "injection_hosts: []\n"
+        "fixtures:\n"
+        "  - id: test_1\n"
+        "    file: breaks/break_test.py\n"
+        "    category: cat_a\n"
+        "    hunk_start_line: 1\n"
+        "    hunk_end_line: 5\n"
+        "    difficulty: medium\n"
+        "    host_file: src/host.py\n"
+        "    host_inject_at_line: 0\n"
+    )
+    with pytest.raises(ValueError, match="host_inject_at_line must be >= 1"):
+        load_catalog(catalog_dir)
+
+
+def test_fixture_without_host_fields_loads_unchanged(tmp_path: Path):
+    """A fixture without host_file/host_inject_at_line still loads (backward compat)."""
+    catalog_dir = tmp_path / "mycorpus"
+    catalog_dir.mkdir()
+    breaks_dir = catalog_dir / "breaks"
+    breaks_dir.mkdir()
+    (breaks_dir / "break_test.py").write_text("\n".join(["# line"] * 10))
+    manifest = catalog_dir / "manifest.yaml"
+    manifest.write_text(
+        "corpus: mycorpus\n"
+        "language: python\n"
+        "categories:\n  - cat_a\n"
+        "injection_hosts: []\n"
+        "fixtures:\n"
+        "  - id: test_1\n"
+        "    file: breaks/break_test.py\n"
+        "    category: cat_a\n"
+        "    hunk_start_line: 1\n"
+        "    hunk_end_line: 5\n"
+        "    difficulty: medium\n"
+    )
+    cat = load_catalog(catalog_dir)
+    assert cat.fixtures[0].host_file is None
+    assert cat.fixtures[0].host_inject_at_line is None

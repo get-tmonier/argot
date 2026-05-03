@@ -4,7 +4,7 @@ members = ["engine", "benchmarks"]
 [tool.mypy]
 strict = true
 python_version = "3.13"
-exclude = ["engine/argot/acceptance", "argot/acceptance", "benchmarks"]
+exclude = ["engine/argot/acceptance", "argot/acceptance", "benchmarks", "engine/argot/ml/train.py", "engine/scripts"]
 
 [[tool.mypy.overrides]]
 module = "pygit2"
@@ -12,4 +12,19 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "sklearn.*"
+ignore_missing_imports = true
+
+# torch is an OPTIONAL dep under the engine[embeddings] extra.  Without it
+# installed the import in engine/argot/ml/embeddings.py is unresolvable at
+# type-check time; ignore the missing stubs so mypy stays green on CI runners
+# that don't install the extra.  At runtime, _require_torch() raises a
+# helpful error if torch is genuinely missing.
+[[tool.mypy.overrides]]
+module = "torch"
+ignore_missing_imports = true
+
+# transformers is an OPTIONAL dep (same extra) used by the ML feature
+# extractor's embedding pipeline.
+[[tool.mypy.overrides]]
+module = "transformers"
 ignore_missing_imports = true

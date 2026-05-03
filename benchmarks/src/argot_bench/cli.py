@@ -95,6 +95,18 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
+        "--call-receiver-cluster-rare-threshold",
+        type=int,
+        default=0,
+        metavar="N",
+        help=(
+            "Phase-10 frequency-aware attestation: callees attested in <= N "
+            "cluster files are treated as cluster-absent (cluster_bonus fires). "
+            "Default 0 (disabled, era-11 boolean union). Try 2 to catch rare-"
+            "but-attested callees like a fetch in a single build script."
+        ),
+    )
+    p.add_argument(
         "--n-cal",
         type=int,
         default=100,
@@ -283,6 +295,7 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
         call_receiver_root_bonus=args.call_receiver_root_bonus,
         call_receiver_n_clusters=args.call_receiver_clusters,
         call_receiver_cluster_bonus=args.call_receiver_cluster_bonus,
+        call_receiver_cluster_rare_threshold=args.call_receiver_cluster_rare_threshold,
         n_cal=args.n_cal,
         threshold_percentile=args.threshold_percentile,
         threshold_iqr_k=args.threshold_iqr_k,

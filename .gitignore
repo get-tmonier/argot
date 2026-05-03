@@ -61,3 +61,9 @@ docs/superpowers/
 benchmarks/data/
 benchmarks/results/*
 !benchmarks/results/baseline/
+
+# era-14 ML research artifacts (data + saved models — large, regeneratable
+# via `argot-extract-features` and the training scripts; evidence docs under
+# docs/research/evidence/era14-* are committed)
+.era14-features/
+engine/.era14-features/

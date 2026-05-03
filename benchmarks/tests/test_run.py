@@ -362,6 +362,187 @@ def test_filter_stats_counts_path_exclusions(tmp_path: Path):
     assert all(r["reason"] == "excluded_path" for r in results)
 
 
+def test_strip_break_meta_ts_drops_inside_hunk_remaps_lines() -> None:
+    """`// Break: ...` inside the hunk range is dropped; line numbers remap."""
+    from argot_bench.run import _strip_break_meta
+
+    catalog = (
+        "import { FakerCore } from '../core';\n"  # 1
+        "\n"                                        # 2
+        "// Break: provider throws mid-generation.\n"  # 3 (meta-comment)
+        "export class AddressProvider {\n"          # 4
+        "  zipCode(): string {\n"                   # 5
+        "    throw new Error('x');\n"               # 6
+        "  }\n"                                     # 7
+        "}\n"                                       # 8
+    )
+    cleaned, new_chs, new_che = _strip_break_meta(catalog, 3, 8)
+    # Line 3 dropped; subsequent lines shift up by 1.
+    assert "// Break:" not in cleaned
+    # Original [3, 8] covered the meta-comment + 5 code lines; cleaned hunk is
+    # the same code lines, now at [3, 7].
+    assert (new_chs, new_che) == (3, 7)
+    cleaned_lines = cleaned.splitlines()
+    assert cleaned_lines[new_chs - 1].startswith("export class AddressProvider")
+    assert cleaned_lines[new_che - 1] == "}"
+
+
+def test_strip_break_meta_python_hashed_marker() -> None:
+    """`# Break: ...` is also recognised (Python convention)."""
+    from argot_bench.run import _strip_break_meta
+
+    catalog = (
+        "from foo import bar\n"          # 1
+        "# Break: missing fallback.\n"   # 2
+        "def f():\n"                     # 3
+        "    return bar()\n"             # 4
+    )
+    cleaned, new_chs, new_che = _strip_break_meta(catalog, 2, 4)
+    assert "# Break:" not in cleaned
+    assert (new_chs, new_che) == (2, 3)
+    cleaned_lines = cleaned.splitlines()
+    assert cleaned_lines[new_chs - 1].startswith("def f")
+
+
+def test_strip_break_meta_noop_when_no_marker() -> None:
+    """Catalog without break-meta line is unchanged; range unchanged."""
+    from argot_bench.run import _strip_break_meta
+
+    catalog = "line1\nline2\nline3\n"
+    cleaned, new_chs, new_che = _strip_break_meta(catalog, 1, 3)
+    assert cleaned == catalog
+    assert (new_chs, new_che) == (1, 3)
+
+
+def test_strip_break_meta_marker_outside_range() -> None:
+    """Meta-comment outside [chs, che] is still dropped (always cleaned globally)
+    but the hunk range remaps to keep covering the same code lines."""
+    from argot_bench.run import _strip_break_meta
+
+    catalog = (
+        "// Break: header note.\n"  # 1 (outside hunk, but still stripped)
+        "import x;\n"               # 2
+        "function a() {\n"          # 3
+        "  return 1;\n"             # 4
+        "}\n"                       # 5
+    )
+    cleaned, new_chs, new_che = _strip_break_meta(catalog, 3, 5)
+    assert "// Break:" not in cleaned
+    cleaned_lines = cleaned.splitlines()
+    # Original lines 3-5 became cleaned lines 2-4 because line 1 was dropped.
+    assert (new_chs, new_che) == (2, 4)
+    assert cleaned_lines[new_chs - 1].startswith("function a")
+    assert cleaned_lines[new_che - 1] == "}"
+
+
+def test_score_fixtures_host_injection_uses_host_path_no_prose_blanking(
+    tmp_path: Path,
+) -> None:
+    """When fixture has host_file/host_inject_at_line, the scorer is called
+    with the host file path (not the catalog path) and prose-blanking is
+    skipped (hunk_start_line / hunk_end_line passed as None)."""
+    import argot_bench.fixtures as fx
+    from argot_bench.run import _score_fixtures
+
+    catalog_dir = tmp_path / "catalogs" / "demo"
+    catalog_dir.mkdir(parents=True)
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    # Catalog with `// Break:` line inside the hunk range.
+    catalog_file = catalog_dir / "breaks" / "break_demo.ts"
+    catalog_file.parent.mkdir(parents=True)
+    catalog_file.write_text(
+        "import { FakerCore } from '../core';\n"  # 1
+        "\n"                                       # 2
+        "// Break: demo.\n"                        # 3 (meta comment, stripped)
+        "export class Demo {\n"                    # 4
+        "  go(): string { return 'x'; }\n"         # 5
+        "}\n"                                      # 6
+    )
+    # Host file in the corpus repo at host_inject_at_line=10.
+    host_file = repo_dir / "src" / "module.ts"
+    host_file.parent.mkdir(parents=True)
+    host_file.write_text("\n".join(f"line{i}" for i in range(1, 21)) + "\n")
+
+    fixture = fx.Fixture(
+        id="demo",
+        file="breaks/break_demo.ts",
+        category="cat",
+        hunk_start_line=3,
+        hunk_end_line=6,
+        rationale="r",
+        host_file="src/module.ts",
+        host_inject_at_line=10,
+    )
+
+    captured: list[dict] = []
+
+    class CaptureScorer:
+        threshold = 2.5
+
+        def score_hunk(self, hunk, **kw):
+            captured.append({"hunk": hunk, **kw})
+            return ScoreResult(import_score=0.0, bpe_score=1.0, flagged=False, reason="none")
+
+    _score_fixtures(CaptureScorer(), catalog_dir, [fixture], repo_dir=repo_dir)
+    assert len(captured) == 1
+    call = captured[0]
+    # File path should be the actual host file, not the catalog path.
+    assert call["file_path"] == host_file
+    # Prose blanking AND typicality file-level check are bypassed in the
+    # routing-fix path: line bounds + file_source all passed as None.
+    # The synthesized post-injection file produces garbage from
+    # prose_line_ranges (tree-sitter ERROR nodes) and triggers
+    # atypical_file short-circuits — neither is wanted here.
+    assert call["file_source"] is None
+    assert call["hunk_start_line"] is None
+    assert call["hunk_end_line"] is None
+    # Hunk content was re-extracted from the cleaned catalog (no `// Break:`).
+    assert "// Break:" not in call["hunk"]
+    assert "export class Demo" in call["hunk"]
+
+
+def test_score_fixtures_falls_back_when_host_file_missing(tmp_path: Path) -> None:
+    """When fixture has no host_file metadata, legacy behaviour is preserved:
+    file_path is the catalog path (under repo_dir), prose blanking enabled."""
+    import argot_bench.fixtures as fx
+    from argot_bench.run import _score_fixtures
+
+    catalog_dir = tmp_path / "catalogs" / "demo"
+    catalog_dir.mkdir(parents=True)
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    (catalog_dir / "x.ts").write_text("export const x = 1;\n")
+
+    fixture = fx.Fixture(
+        id="demo",
+        file="x.ts",
+        category="cat",
+        hunk_start_line=1,
+        hunk_end_line=1,
+        rationale="r",
+        host_file=None,
+        host_inject_at_line=None,
+    )
+
+    captured: list[dict] = []
+
+    class CaptureScorer:
+        threshold = 2.5
+
+        def score_hunk(self, hunk, **kw):
+            captured.append({"hunk": hunk, **kw})
+            return ScoreResult(import_score=0.0, bpe_score=1.0, flagged=False, reason="none")
+
+    _score_fixtures(CaptureScorer(), catalog_dir, [fixture], repo_dir=repo_dir)
+    call = captured[0]
+    # Legacy: file_path = repo_dir / catalog file path
+    assert call["file_path"] == repo_dir / "x.ts"
+    # Legacy: hunk line bounds are passed (prose blanking enabled)
+    assert call["hunk_start_line"] == 1
+    assert call["hunk_end_line"] == 1
+
+
 def test_end_to_end_call_receiver_alpha_builds_active_scorer(tmp_path: Path):
     """build_scorer with alpha=0.5 produces a scorer with call_receiver stage enabled."""
     from argot_bench.score import BenchScorer, build_scorer

@@ -1,5 +1,4 @@
-# engine/argot/research/signal/phase14/adapters/language_adapter.py
-"""LanguageAdapter protocol — language-specific seam for the Phase 14 scorer."""
+"""LanguageAdapter protocol — language-specific seam for the production scorer."""
 
 from __future__ import annotations
 

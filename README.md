@@ -22,7 +22,7 @@
 
 $$\text{score}(\text{hunk}) \;=\; \underbrace{\max_{t \;\in\; \text{tokens}(\text{hunk})} \log \frac{P_{\text{generic}}(t)}{P_{\text{repo}}(t)}}_{\text{BPE surprise}} \;+\; \underbrace{\min\!\Big(\sum_{c \;\in\; \text{distinct callees}} w(c),\; \text{cap}\Big)}_{\text{call-receiver penalty}}$$
 
-$$w(c) = \begin{cases} \alpha + r & \text{if } c \notin \text{attested},\ \text{root}(c) \in \text{attested} \\ \alpha & \text{if } c \notin \text{attested} \\ \beta & \text{if } c \in \text{attested},\ c \notin \text{cluster\_attested}(\text{file}) \\ 0 & \text{otherwise} \end{cases} \qquad (\alpha=2.0,\; r=2.0,\; \beta=5.0,\; \text{cap}=5.0)$$
+$$w(c) = \begin{cases} \alpha + r & \text{if } c \notin \text{attested},\ \text{root}(c) \in \text{attested} \\ \alpha & \text{if } c \notin \text{attested} \\ \beta & \text{if } c \in \text{attested},\ c \notin \text{attested}(\text{cluster}(\text{file})) \\ 0 & \text{otherwise} \end{cases} \qquad (\alpha=2.0,\; r=2.0,\; \beta=5.0,\; \text{cap}=5.0)$$
 
 Files are clustered by callee-bag MinHash similarity into 8 clusters at fit time; a callee that's globally attested but absent from its file's cluster contributes β.
 
@@ -280,27 +280,25 @@ a deterministic faker-js provider, etc.). Each break is scored against
 a backdrop of **494k+ real PR hunks** from the same repos as negative
 controls.
 
-Latest full baseline ([`benchmarks/results/baseline/latest/report.md`](benchmarks/results/baseline/latest/report.md))
-(116 fixtures, 5 PR snapshots per corpus, difficulty-labelled, era-11 shipping config):
+Latest full bench (115 catalog fixtures across 6 corpora, 5-seed multi-seed
+calibration, current shipping config):
 
 | Corpus | AUC | Recall | FP rate |
 |:---|---:|---:|---:|
-| fastapi | **0.9880** | **91.7%** | 0.6% |
-| rich | 0.9780 | **100.0%** | 1.2% |
-| faker (py) | 0.9537 | 95.0% | 2.0% |
-| hono | 0.8312 | **88.3%** | 0.5% |
-| ink | **0.9899** | **93.3%** | 0.5% |
-| faker-js | 0.9463 | **71.7%** | 0.9% |
+| fastapi | **0.9946** | **95.4%** | 0.57% |
+| rich | **0.9964** | **100.0%** | 1.23% |
+| faker (py) | 0.9537 | 95.0% | 1.96% |
+| hono | 0.8321 | **88.3%** | 0.51% |
+| ink | **0.9899** | **93.3%** | 0.54% |
+| faker-js | 0.9463 | **76.7%** | 0.91% |
 
-Average recall **89.97%**; **FP rate ≤ 1.2% on five of six corpora** with
-faker (Python) at 2.0% — a documented structural cost of cluster-conditional
-attestation on locale-partitioned corpora ([era 11 narrative](docs/research/11-cluster-conditional-attestation.md)).
-The recall figures reflect the difficulty-stratified fixture set (116 fixtures
-with easy/medium/hard/uncaught bands across all six corpora); easy and medium
-fixtures are caught at ≥80% on all six corpora. The production scorer
-ships with the AST-derived typicality filter plus the Stage 1.5
-call-receiver penalty (α=2.0, root_bonus=2.0, cluster_bonus=5.0, K=8).
-**Threshold CV ≤ 3%** across 5 seeds: runs are reproducible.
+Per-category mean recall **91.5%**; total fixture catches **105/115
+(91.3%)**; **FP rate ≤ 1.2% on five of six corpora** with faker (Python)
+at 1.96% — a documented structural cost of cluster-conditional attestation
+on locale-partitioned corpora. The production scorer ships with the
+AST-derived typicality filter plus the Stage 1.5 call-receiver penalty
+(α=2.0, root_bonus=2.0, cluster_bonus=5.0, K=8 MinHash clusters).
+**Threshold CV = 0%** across 5 seeds: runs are reproducible.
 
 Reproduce with a single command:
 

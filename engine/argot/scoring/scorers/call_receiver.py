@@ -1,4 +1,4 @@
-"""Call-receiver scorer — Stage 1.5 (production port of era-6 research scorer).
+"""Call-receiver scorer — Stage 1.5.
 
 Presence-based scorer: tracks distinct call-expression callees in the
 model-A corpus and counts unattested callees in a hunk.  Used by
@@ -6,10 +6,15 @@ SequentialImportBpeScorer to apply a soft additive BPE penalty:
 
     adjusted_bpe = raw_bpe + alpha * min(count_unattested(hunk), cap)
 
-Era-11 adds cluster-conditional attestation: when n_clusters > 1, files are
-grouped by callee-bag similarity (MinHash + KMeans). Callees globally attested
-but absent from the hunk-file's cluster's attested set contribute cluster_bonus
-as an additive penalty on top of all era-10 logic.
+Cluster-conditional attestation (when ``n_clusters > 1``): files are grouped
+by callee-bag similarity (MinHash + KMeans). Callees globally attested but
+absent from the hunk-file's cluster's attested set contribute ``cluster_bonus``
+as an additive penalty on top of the global-attestation logic.
+
+Optional frequency-aware attestation (``cluster_rare_threshold > 0``): a
+callee technically present in a cluster but in only a few files is treated
+as cluster-absent, so ``cluster_bonus`` fires for "rare-but-present"
+callees too.
 
 Reuses module-level parsers from filters.typicality to avoid the linear
 memory growth that occurs when TsParser is instantiated per-hunk.
@@ -179,12 +184,24 @@ def _build_clusters(
     file_bags: list[tuple[Path, frozenset[str]]],
     n_clusters: int,
     seed: int,
-) -> tuple[dict[Path, int], dict[int, frozenset[str]]]:
+) -> tuple[
+    dict[Path, int],
+    dict[int, frozenset[str]],
+    dict[int, dict[str, int]],
+    dict[int, int],
+]:
     """Cluster files by callee-bag similarity using MinHash signatures + KMeans.
 
     Returns:
         file_to_cluster: maps resolved file path → cluster id (0-indexed).
-        cluster_attested: maps cluster id → union of all callees in cluster files.
+        cluster_attested: maps cluster id → union of all callees in cluster files
+            (boolean attestation set; default behaviour).
+        cluster_callee_counts: maps cluster id → {callee → number of cluster
+            files that contain this callee}. Used by frequency-aware
+            attestation: a callee in <= ``cluster_rare_threshold`` files is
+            treated as cluster-absent for scoring purposes, even though it
+            is technically present in the union.
+        cluster_sizes: maps cluster id → number of files in the cluster.
     """
     import numpy as np
     from sklearn.cluster import KMeans
@@ -216,14 +233,21 @@ def _build_clusters(
     file_to_cluster: dict[Path, int] = {p: int(labels[i]) for i, p in enumerate(paths)}
 
     cluster_attested: dict[int, frozenset[str]] = {}
+    cluster_callee_counts: dict[int, dict[str, int]] = {}
+    cluster_sizes: dict[int, int] = {}
     for cid in range(effective_k):
-        union: set[str] = set()
+        counts: dict[str, int] = {}
+        n_files_in_cluster = 0
         for i, bag in enumerate(bags):
             if labels[i] == cid:
-                union.update(bag)
-        cluster_attested[cid] = frozenset(union)
+                n_files_in_cluster += 1
+                for callee in bag:
+                    counts[callee] = counts.get(callee, 0) + 1
+        cluster_attested[cid] = frozenset(counts.keys())
+        cluster_callee_counts[cid] = counts
+        cluster_sizes[cid] = n_files_in_cluster
 
-    return file_to_cluster, cluster_attested
+    return file_to_cluster, cluster_attested, cluster_callee_counts, cluster_sizes
 
 
 class CallReceiverScorer:
@@ -233,9 +257,10 @@ class CallReceiverScorer:
     Score: count distinct unattested callees in a hunk (0 if parse fragment).
     Used by SequentialImportBpeScorer to compute adjusted_bpe.
 
-    Era-11: when n_clusters > 1, files are clustered by callee-bag similarity.
-    Use weighted_contribution_for_file() to apply the additive cluster_bonus for
-    globally-attested callees absent from the hunk-file's cluster attested set.
+    When n_clusters > 1, files are clustered by callee-bag similarity. Use
+    weighted_contribution_for_file() to apply the additive cluster_bonus for
+    globally-attested callees absent from the hunk-file's cluster attested set
+    (and optionally for cluster-rare callees when cluster_rare_threshold > 0).
     """
 
     def __init__(
@@ -248,12 +273,28 @@ class CallReceiverScorer:
         adapter: _DataDominantAdapter | None = None,
         n_clusters: int = 1,
         cluster_seed: int = 0,
+        force_jaccard_routing: bool = False,
+        cluster_rare_threshold: int = 0,
     ) -> None:
         if not model_a_files:
             raise ValueError("model_a_files must be non-empty")
         self._language: Language = language
         self.alpha: float = alpha
         self.cap: int = cap
+        # When True, weighted_contribution_for_file ALWAYS routes via the Jaccard
+        # fallback path (using file_source) regardless of whether file_path is in
+        # file_to_cluster. This eliminates the routing-leak between catalog
+        # fixtures (unknown paths → fallback) and real-PR controls (known paths
+        # → static lookup) for ML feature extraction. Default False preserves
+        # production scoring's static-lookup fast path.
+        self.force_jaccard_routing: bool = force_jaccard_routing
+        # Frequency-aware cluster attestation. A callee is treated as
+        # cluster-absent (cluster_bonus fires) when it appears in at most
+        # this many files of the hunk's cluster — even though it's technically
+        # present in the union. 0 (default) preserves boolean-union behaviour.
+        # Catches "rare-but-attested" callees like a network primitive that
+        # shows up in one build script but never in production modules.
+        self.cluster_rare_threshold: int = cluster_rare_threshold
 
         attested: set[str] = set()
         skipped: int = 0
@@ -280,11 +321,16 @@ class CallReceiverScorer:
 
         self.file_to_cluster: dict[Path, int] = {}
         self.cluster_attested: dict[int, frozenset[str]] = {}
+        self.cluster_callee_counts: dict[int, dict[str, int]] = {}
+        self.cluster_sizes: dict[int, int] = {}
 
         if n_clusters > 1 and file_bags:
-            self.file_to_cluster, self.cluster_attested = _build_clusters(
-                file_bags, n_clusters, cluster_seed
-            )
+            (
+                self.file_to_cluster,
+                self.cluster_attested,
+                self.cluster_callee_counts,
+                self.cluster_sizes,
+            ) = _build_clusters(file_bags, n_clusters, cluster_seed)
 
     def _get_distinct_unattested(self, hunk_content: str) -> list[str]:
         if _has_root_error(hunk_content, self._language):
@@ -315,9 +361,8 @@ class CallReceiverScorer:
     ) -> float:
         """Return weighted penalty for unattested callees; 0.0 on parse fragment.
 
-        Era-10 behavior: no cluster-conditional logic. Use this when file_path
-        is unavailable. For cluster-conditional scoring, use
-        weighted_contribution_for_file().
+        No cluster-conditional logic — use this when file_path is unavailable.
+        For cluster-conditional scoring, use weighted_contribution_for_file().
         """
         if _has_root_error(hunk_content, self._language):
             return 0.0
@@ -358,19 +403,20 @@ class CallReceiverScorer:
         Scoring per callee c (distinct, after dedup):
           - c not in attested AND root in attested_roots → alpha + root_bonus
           - c not in attested                            → alpha
-          - c in attested AND absent from cluster set   → cluster_bonus  (era-11 NEW)
+          - c in attested AND absent from cluster set   → cluster_bonus
+          - c in attested AND in cluster but ≤ rare-threshold files → cluster_bonus
           - c in attested AND present in cluster set    → 0
         Returns min(sum(weights), cap).
 
-        Cluster lookup (era-11 Phase 1 fix):
+        Cluster lookup:
           - Static path: ``file_path`` is in ``self.file_to_cluster`` → use that cluster.
           - Fallback path: ``file_path`` is unknown AND ``file_source`` is provided
             AND ``self.cluster_attested`` is non-empty → compute the file's callee
             bag and assign it to the cluster whose attested set has the highest
             Jaccard similarity (ties broken by smallest cluster id). When the
-            file's bag is empty, no cluster is assigned (era-10 behavior).
+            file's bag is empty, no cluster is assigned.
           - When neither path resolves, ``cluster_set`` is ``None`` and
-            ``cluster_bonus`` does not fire (era-10 behavior preserved).
+            ``cluster_bonus`` does not fire.
 
         The fallback assignment is computed on the fly and NOT cached on the
         scorer, so repeated calls with the same arguments are deterministic but
@@ -382,10 +428,21 @@ class CallReceiverScorer:
         weights: list[float] = []
         seen: set[str] = set()
 
-        cluster_id = self.file_to_cluster.get(file_path)
-        if cluster_id is None and file_source is not None and self.cluster_attested:
-            cluster_id = self._nearest_cluster_for_source(file_source)
+        if self.force_jaccard_routing:
+            # ML-feature mode: always use Jaccard fallback path so catalog
+            # fixtures and real-PR controls take the same code path.
+            if file_source is not None and self.cluster_attested:
+                cluster_id = self._nearest_cluster_for_source(file_source)
+            else:
+                cluster_id = None
+        else:
+            cluster_id = self.file_to_cluster.get(file_path)
+            if cluster_id is None and file_source is not None and self.cluster_attested:
+                cluster_id = self._nearest_cluster_for_source(file_source)
         cluster_set = self.cluster_attested.get(cluster_id) if cluster_id is not None else None
+        cluster_counts = (
+            self.cluster_callee_counts.get(cluster_id) if cluster_id is not None else None
+        )
 
         for c in callees:
             if c is None or c in seen:
@@ -398,6 +455,15 @@ class CallReceiverScorer:
                 else:
                     weights.append(alpha)
             elif cluster_set is not None and c not in cluster_set:
+                # Cluster-absent attested callee.
+                weights.append(cluster_bonus)
+            elif (
+                self.cluster_rare_threshold > 0
+                and cluster_counts is not None
+                and cluster_counts.get(c, 0) <= self.cluster_rare_threshold
+            ):
+                # Cluster-rare attested callee: present in ≤ threshold
+                # cluster files. Treated as effectively cluster-absent.
                 weights.append(cluster_bonus)
 
         return min(sum(weights), cap)
@@ -409,6 +475,25 @@ class CallReceiverScorer:
         Returns None when the file's callee bag is empty (no signal to match).
         Ties on Jaccard are broken by smallest cluster id (deterministic).
         """
+        result = self.nearest_cluster_for_source(file_source)
+        return None if result is None else result[0]
+
+    def nearest_cluster_for_source(self, file_source: str) -> tuple[int, float] | None:
+        """Public Jaccard-nearest cluster lookup for an arbitrary file source.
+
+        Returns ``(cluster_id, jaccard_to_centroid)`` where ``jaccard_to_centroid``
+        is the Jaccard similarity between the file's callee bag and the chosen
+        cluster's attested set. Returns ``None`` when no clusters were built
+        (n_clusters=1) or the file's callee bag is empty.
+
+        Used by the ML feature extractor to compute uniform
+        ``cluster_id`` and ``cluster_jaccard_to_centroid`` features for every
+        hunk regardless of whether the file is in ``file_to_cluster``.
+
+        Ties on Jaccard are broken by smallest cluster id (deterministic).
+        """
+        if not self.cluster_attested:
+            return None
         bag: frozenset[str] = frozenset(
             c for c in extract_callees(file_source, self._language) if c is not None
         )
@@ -424,4 +509,6 @@ class CallReceiverScorer:
             if jaccard > best_jaccard:
                 best_jaccard = jaccard
                 best_cid = cid
-        return best_cid
+        if best_cid is None:
+            return None
+        return best_cid, best_jaccard
