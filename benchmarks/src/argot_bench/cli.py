@@ -164,6 +164,38 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
+        "--apply-optional-contributions-to-cal",
+        action="store_true",
+        default=False,
+        help=(
+            "Apply cluster_rare and shape-primitive contributions to calibration hunks "
+            "(symmetric mode). Default False (asymmetric cal): cal threshold is computed "
+            "without optional contributions so they don't cancel on the fixture path. "
+            "See docs/agents/calibration-contract.md for the G7 contract."
+        ),
+    )
+    p.add_argument(
+        "--auto-select-asym-cal",
+        action="store_true",
+        default=False,
+        help=(
+            "Per-corpus auto-detect: probe cal-side cluster_rare fire rate at fit time; "
+            "enable asymmetric cal if fire rate < threshold (faker-js style — informative), "
+            "fall back to symmetric cal otherwise (cancellation = baseline behaviour). "
+            "Requires --call-receiver-cluster-rare-threshold > 0 to take effect."
+        ),
+    )
+    p.add_argument(
+        "--asym-fire-rate-threshold",
+        type=float,
+        default=0.05,
+        metavar="FRAC",
+        help=(
+            "Fire-rate cutoff for --auto-select-asym-cal (default 0.05 = 5% of cal hunks "
+            "fire cluster_rare). Below cutoff → asym (informative); at-or-above → sym (cancel)."
+        ),
+    )
+    p.add_argument(
         "--jobs",
         "-j",
         type=int,
@@ -283,6 +315,29 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="K",
         help="Multi-seed median threshold K (default 7, era-10 shipping; 1=single-seed/era-9).",
     )
+    one.add_argument(
+        "--apply-optional-contributions-to-cal",
+        action="store_true",
+        default=False,
+        help=(
+            "Apply cluster_rare and shape-primitive contributions to calibration hunks "
+            "(symmetric mode). Default False (asymmetric cal). "
+            "See docs/agents/calibration-contract.md for the G7 contract."
+        ),
+    )
+    one.add_argument(
+        "--auto-select-asym-cal",
+        action="store_true",
+        default=False,
+        help="Per-corpus auto-detect of asym/sym based on cal fire rate.",
+    )
+    one.add_argument(
+        "--asym-fire-rate-threshold",
+        type=float,
+        default=0.05,
+        metavar="FRAC",
+        help="Fire-rate cutoff for --auto-select-asym-cal (default 0.05).",
+    )
 
     return p
 
@@ -360,6 +415,9 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
         threshold_percentile=args.threshold_percentile,
         threshold_iqr_k=args.threshold_iqr_k,
         threshold_n_seeds=args.threshold_n_seeds,
+        apply_optional_contributions_to_cal=args.apply_optional_contributions_to_cal,
+        auto_select_asym_cal=args.auto_select_asym_cal,
+        asym_fire_rate_threshold=args.asym_fire_rate_threshold,
     )
     args.out_dir.mkdir(parents=True, exist_ok=True)
     r = run_corpus(cfg)
@@ -433,6 +491,12 @@ def _run(args: argparse.Namespace) -> int:
         base_cmd.extend(["--threshold-iqr-k", str(args.threshold_iqr_k)])
     if args.threshold_n_seeds != 7:
         base_cmd.extend(["--threshold-n-seeds", str(args.threshold_n_seeds)])
+    if args.apply_optional_contributions_to_cal:
+        base_cmd.append("--apply-optional-contributions-to-cal")
+    if args.auto_select_asym_cal:
+        base_cmd.append("--auto-select-asym-cal")
+    if args.asym_fire_rate_threshold != 0.05:
+        base_cmd.extend(["--asym-fire-rate-threshold", str(args.asym_fire_rate_threshold)])
 
     def _run_corpus_subprocess(t: Target) -> tuple[str, int, str]:
         proc = subprocess.run(

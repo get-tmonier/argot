@@ -56,6 +56,7 @@ def calibrate_multi_seed(
     call_receiver_cluster_size_min: int = 0,
     call_receiver_shape_primitive_names: tuple[str, ...] = (),
     enable_typicality_filter: bool = True,
+    apply_optional_contributions_to_cal: bool = False,
 ) -> float:
     """Run K independent calibrations; return median threshold.
 
@@ -65,6 +66,32 @@ def calibrate_multi_seed(
     Returns statistics.median(thresholds).
 
     Optimization: shares the tokenizer across K scorer builds to avoid K model downloads.
+
+    G7 calibration contract
+    -----------------------
+    The calibration threshold is a per-cluster bound on what typical code scores under the
+    base scorer plus the era-11 cluster_bonus contribution. That contribution is
+    asymmetric-by-construction: calibration hunks come from model_a files whose callees are a
+    subset of their cluster's attested set, so the cluster-absent-callee branch of
+    weighted_contribution_for_file does not fire on calibration hunks.
+
+    New optional contributions — the cluster_rare_threshold rule (era-13 Phase 10) and
+    ShapePrimitive penalties (era-13 Phase 4) — fire symmetrically on calibration and fixture
+    hunks. Their calibration-side firing inflates the threshold by the same magnitude they add
+    to fixture scores, cancelling their recall contribution entirely. See
+    docs/research/evidence/era13-final.md § cancellation for the empirical evidence.
+
+    Suppressing them on the calibration path (apply_optional_contributions_to_cal=False,
+    the default) is mathematically equivalent to "calibration never accumulates these signals,"
+    not "calibration and fixture use different scorers." The base scorer and the era-11
+    cluster_bonus are identical on both paths. Only the optional contributions are asymmetric.
+
+    When apply_optional_contributions_to_cal=False (default), calibration scorers are built
+    with cluster_rare_threshold=0 and shape_primitives=[], regardless of the values passed to
+    this function. The fixture/scoring path (outside this function) uses the full parameters.
+    Set apply_optional_contributions_to_cal=True only when intentionally reproducing the
+    symmetric (era-13 status quo) calibration behaviour for comparison.
+
     """
     thresholds: list[float] = []
 
@@ -85,6 +112,23 @@ def calibrate_multi_seed(
             return [h for h, _, _ in meta], meta
         return sample_hunks(repo_dir, n_cal, seed, adapter=adapter), None
 
+    _probe_tokenizer = None
+
+    # Cal-side optional contributions: suppressed when flag=False (the default)
+    # so that the threshold reflects only the base scorer + era-11 cluster_bonus.
+    # See G7 contract in this function's docstring.
+    cal_rare_threshold = (
+        call_receiver_cluster_rare_threshold if apply_optional_contributions_to_cal else 0
+    )
+
+    def _cal_primitives() -> list[ShapePrimitive[Any]]:
+        return _make_primitives() if apply_optional_contributions_to_cal else []
+
+    # Asymmetric-cal mode is active when the flag is False and the caller
+    # passed a non-zero rare threshold or non-empty primitive list — the
+    # [rare-counter] line captures this for bench observability.
+    _asym_cal_active = not apply_optional_contributions_to_cal
+
     # Build first scorer — lets the tokenizer load once
     first_hunks, first_meta = _sample(base_seed)
     first_scorer = SequentialImportBpeScorer(
@@ -101,10 +145,11 @@ def calibrate_multi_seed(
         call_receiver_n_clusters=call_receiver_n_clusters,
         call_receiver_cluster_seed=call_receiver_cluster_seed,
         call_receiver_cluster_bonus=call_receiver_cluster_bonus,
-        call_receiver_cluster_rare_threshold=call_receiver_cluster_rare_threshold,
+        call_receiver_cluster_rare_threshold=cal_rare_threshold,
         call_receiver_cluster_size_min=call_receiver_cluster_size_min,
-        call_receiver_shape_primitives=_make_primitives(),
+        call_receiver_shape_primitives=_cal_primitives(),
         enable_typicality_filter=enable_typicality_filter,
+        **({"_tokenizer": _probe_tokenizer} if _probe_tokenizer is not None else {}),
     )
     shared_tokenizer = first_scorer._tokenizer
     thresholds.append(first_scorer.bpe_threshold)
@@ -112,7 +157,8 @@ def calibrate_multi_seed(
         print(
             f"[rare-counter] cal seed={base_seed}: "
             f"rare_branch_fire_count={first_scorer.rare_branch_fire_count} "
-            f"threshold={first_scorer.bpe_threshold:.4f}",
+            f"threshold={first_scorer.bpe_threshold:.4f} "
+            f"asym_cal={_asym_cal_active}",
             file=sys.stderr,
         )
 
@@ -134,9 +180,9 @@ def calibrate_multi_seed(
             call_receiver_n_clusters=call_receiver_n_clusters,
             call_receiver_cluster_seed=call_receiver_cluster_seed,
             call_receiver_cluster_bonus=call_receiver_cluster_bonus,
-            call_receiver_cluster_rare_threshold=call_receiver_cluster_rare_threshold,
+            call_receiver_cluster_rare_threshold=cal_rare_threshold,
             call_receiver_cluster_size_min=call_receiver_cluster_size_min,
-            call_receiver_shape_primitives=_make_primitives(),
+            call_receiver_shape_primitives=_cal_primitives(),
             enable_typicality_filter=enable_typicality_filter,
             _tokenizer=shared_tokenizer,
         )
@@ -145,7 +191,8 @@ def calibrate_multi_seed(
             print(
                 f"[rare-counter] cal seed={seed}: "
                 f"rare_branch_fire_count={scorer.rare_branch_fire_count} "
-                f"threshold={scorer.bpe_threshold:.4f}",
+                f"threshold={scorer.bpe_threshold:.4f} "
+                f"asym_cal={_asym_cal_active}",
                 file=sys.stderr,
             )
 

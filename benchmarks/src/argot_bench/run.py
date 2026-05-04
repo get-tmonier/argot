@@ -100,6 +100,9 @@ class RunConfig:
     threshold_percentile: float | None = None
     threshold_iqr_k: float | None = None
     threshold_n_seeds: int = 7
+    apply_optional_contributions_to_cal: bool = False
+    auto_select_asym_cal: bool = False
+    asym_fire_rate_threshold: float = 0.05
 
 
 def _read_hunk_pair(catalog_dir: Path, fixture: Fixture) -> tuple[str, str]:
@@ -340,6 +343,9 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             threshold_percentile=cfg.threshold_percentile,
             threshold_iqr_k=cfg.threshold_iqr_k,
             threshold_n_seeds=cfg.threshold_n_seeds,
+            apply_optional_contributions_to_cal=cfg.apply_optional_contributions_to_cal,
+            auto_select_asym_cal=cfg.auto_select_asym_cal,
+            asym_fire_rate_threshold=cfg.asym_fire_rate_threshold,
         )
         by_cat: dict[str, Fixture] = {}
         for fx in break_fixtures:
@@ -379,6 +385,10 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             threshold_percentile=cfg.threshold_percentile,
             threshold_iqr_k=cfg.threshold_iqr_k,
             threshold_n_seeds=cfg.threshold_n_seeds,
+            apply_optional_contributions_to_cal=cfg.apply_optional_contributions_to_cal,
+            auto_select_asym_cal=cfg.auto_select_asym_cal,
+            asym_fire_rate_threshold=cfg.asym_fire_rate_threshold,
+            auto_detect_probe_dataset=dataset,
         )
         thresholds.append(scorer.threshold)
         cal_score_signatures.append({f"{i}:{s:.4f}" for i, s in enumerate(scorer.cal_scores)})
@@ -429,6 +439,10 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
                 threshold_percentile=cfg.threshold_percentile,
                 threshold_iqr_k=cfg.threshold_iqr_k,
                 threshold_n_seeds=cfg.threshold_n_seeds,
+                apply_optional_contributions_to_cal=cfg.apply_optional_contributions_to_cal,
+                auto_select_asym_cal=cfg.auto_select_asym_cal,
+                asym_fire_rate_threshold=cfg.asym_fire_rate_threshold,
+                auto_detect_probe_dataset=dataset,
             )
             hunks_stream2: Iterable[dict[str, object]] = _real_pr_hunks(dataset)
             hunks_input2: Iterable[dict[str, object]]

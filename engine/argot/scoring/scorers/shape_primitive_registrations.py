@@ -1,9 +1,9 @@
 """Shape-primitive registrations.
 
-Importing this module registers the four AST-shape primitives
+Importing this module registers the five AST-shape primitives
 (except_return_raise_ratio, call_scope_fraction, namespace_jsd,
-fall_through_guards) under their canonical names with the
-shape-primitive registry, making them addressable from the bench /
+fall_through_guards, typical_call_density) under their canonical names
+with the shape-primitive registry, making them addressable from the bench /
 scorer-config CLI via ``--enable-shape-primitives``.
 
 Each registration is a thin factory that constructs a fresh primitive
@@ -23,8 +23,10 @@ from argot.scoring.scorers.except_return_raise_ratio import ExceptReturnRaiseRat
 from argot.scoring.scorers.fall_through_guards import FallThroughGuards
 from argot.scoring.scorers.namespace_jsd import NamespaceJsd
 from argot.scoring.scorers.shape_primitive_registry import register_shape_primitive
+from argot.scoring.scorers.typical_call_density import TypicalCallDensity
 
 register_shape_primitive("except_return_raise_ratio", ExceptReturnRaiseRatio)
 register_shape_primitive("call_scope_fraction", CallScopeFraction)
 register_shape_primitive("namespace_jsd", NamespaceJsd)
 register_shape_primitive("fall_through_guards", FallThroughGuards)
+register_shape_primitive("typical_call_density", TypicalCallDensity)

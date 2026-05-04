@@ -349,7 +349,13 @@ class CallReceiverScorer:
         # Counts how many times the cluster-rare branch fires in
         # weighted_contribution_for_file. Observable after calibration and
         # after fixture scoring to distinguish plumbing bugs from masking.
+        # Callee-level: each rare callee in each hunk increments by 1.
         self.rare_branch_fire_count: int = 0
+        # Counts how many distinct hunks fired the cluster-rare branch at
+        # least once. Per-hunk fire rate is robust to "many fires per hunk
+        # vs few fires per hunk" — used by build_scorer's auto-detect.
+        self.rare_branch_hunks_fired: int = 0
+        self.hunks_scored: int = 0
         # Per-primitive per-cluster baseline payload, populated only when
         # shape_primitives is non-empty. Outer key: primitive.name. Inner
         # key: cluster_id. Value: primitive-defined baseline payload (4a
@@ -478,11 +484,13 @@ class CallReceiverScorer:
         scorer, so repeated calls with the same arguments are deterministic but
         do not mutate the static cluster maps.
         """
+        self.hunks_scored += 1
         if _has_root_error(hunk_content, self._language):
             return 0.0
         callees = extract_callees(hunk_content, self._language)
         weights: list[float] = []
         seen: set[str] = set()
+        _hunk_fired_rare = False
 
         if self.force_jaccard_routing:
             # ML-feature mode: always use Jaccard fallback path so catalog
@@ -524,6 +532,7 @@ class CallReceiverScorer:
                 # cluster files within a cluster of size ≥ cluster_size_min.
                 # Treated as effectively cluster-absent.
                 self.rare_branch_fire_count += 1
+                _hunk_fired_rare = True
                 weights.append(cluster_bonus)
 
         # Shape-primitive dispatch. Each primitive contributes
@@ -543,6 +552,8 @@ class CallReceiverScorer:
                     self.primitive_fire_count[primitive.name] += 1
                     weights.append(contribution)
 
+        if _hunk_fired_rare:
+            self.rare_branch_hunks_fired += 1
         return min(sum(weights), cap)
 
     def _nearest_cluster_for_source(self, file_source: str) -> int | None:
