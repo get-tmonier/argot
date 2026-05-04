@@ -250,36 +250,54 @@ def test_apply_filters_multiple_only_globs() -> None:
 
 
 _CODE = b"def foo() -> int:\n    return 1\n"
+_TS_CODE = b"export function f(): number { return 1; }\n"
+_TS_EXT = frozenset({".ts", ".tsx"})
+_PY_EXT = frozenset({".py"})
 
 
 def test_is_out_of_scope_test_directory(tmp_path: Path) -> None:
     """Test files mirror the calibration-time exclusion: never lint them."""
-    assert _is_out_of_scope("test/foo.spec.ts", _CODE, tmp_path) is True
-    assert _is_out_of_scope("tests/test_foo.py", _CODE, tmp_path) is True
-    assert _is_out_of_scope("__tests__/x.ts", _CODE, tmp_path) is True
+    assert _is_out_of_scope("test/foo.spec.ts", _TS_CODE, tmp_path, _TS_EXT) is True
+    assert _is_out_of_scope("tests/test_foo.py", _CODE, tmp_path, _PY_EXT) is True
+    assert _is_out_of_scope("__tests__/x.ts", _TS_CODE, tmp_path, _TS_EXT) is True
 
 
 def test_is_out_of_scope_test_filenames(tmp_path: Path) -> None:
     """*.spec.* / *.test.* files are excluded regardless of directory."""
-    assert _is_out_of_scope("src/foo.spec.ts", _CODE, tmp_path) is True
-    assert _is_out_of_scope("src/foo.test.tsx", _CODE, tmp_path) is True
-    assert _is_out_of_scope("src/test_x.py", _CODE, tmp_path) is True
-    assert _is_out_of_scope("conftest.py", _CODE, tmp_path) is True
+    assert _is_out_of_scope("src/foo.spec.ts", _TS_CODE, tmp_path, _TS_EXT) is True
+    assert _is_out_of_scope("src/foo.test.tsx", _TS_CODE, tmp_path, _TS_EXT) is True
+    assert _is_out_of_scope("src/test_x.py", _CODE, tmp_path, _PY_EXT) is True
+    assert _is_out_of_scope("conftest.py", _CODE, tmp_path, _PY_EXT) is True
 
 
 def test_is_out_of_scope_other_excluded_dirs(tmp_path: Path) -> None:
     """docs/, migrations/, examples/, fixtures/ are also out of scope."""
-    assert _is_out_of_scope("docs/index.md", _CODE, tmp_path) is True
-    assert _is_out_of_scope("migrations/0001.py", _CODE, tmp_path) is True
-    assert _is_out_of_scope("examples/demo.ts", _CODE, tmp_path) is True
-    assert _is_out_of_scope("fixtures/sample.json", _CODE, tmp_path) is True
+    assert _is_out_of_scope("docs/index.ts", _TS_CODE, tmp_path, _TS_EXT) is True
+    assert _is_out_of_scope("migrations/0001.py", _CODE, tmp_path, _PY_EXT) is True
+    assert _is_out_of_scope("examples/demo.ts", _TS_CODE, tmp_path, _TS_EXT) is True
+
+
+def test_is_out_of_scope_config_files(tmp_path: Path) -> None:
+    """*.config.* files (vite/vitest/tsup/jest/...) are excluded — config voice
+    is too idiosyncratic for the n-gram model to learn from a handful of files.
+    """
+    assert _is_out_of_scope("tsup.config.ts", _TS_CODE, tmp_path, _TS_EXT) is True
+    assert _is_out_of_scope("vite.config.ts", _TS_CODE, tmp_path, _TS_EXT) is True
+    assert _is_out_of_scope("eslint.config.ts", _TS_CODE, tmp_path, _TS_EXT) is True
+    assert _is_out_of_scope("packages/x/vitest.config.ts", _TS_CODE, tmp_path, _TS_EXT) is True
+
+
+def test_is_out_of_scope_dotfile_rc(tmp_path: Path) -> None:
+    """Hidden rc dotfiles (.eslintrc.js, .prettierrc.json) are excluded."""
+    assert _is_out_of_scope(".eslintrc.js", _TS_CODE, tmp_path, frozenset({".js"})) is True
+    assert _is_out_of_scope(".babelrc.js", _TS_CODE, tmp_path, frozenset({".js"})) is True
 
 
 def test_is_out_of_scope_production_paths(tmp_path: Path) -> None:
     """Production source paths pass through — argot lints these."""
-    assert _is_out_of_scope("src/foo.ts", _CODE, tmp_path) is False
-    assert _is_out_of_scope("engine/argot/check.py", _CODE, tmp_path) is False
-    assert _is_out_of_scope("lib/utils.ts", _CODE, tmp_path) is False
+    assert _is_out_of_scope("src/foo.ts", _TS_CODE, tmp_path, _TS_EXT) is False
+    assert _is_out_of_scope("engine/argot/check.py", _CODE, tmp_path, _PY_EXT) is False
+    assert _is_out_of_scope("lib/utils.ts", _TS_CODE, tmp_path, _TS_EXT) is False
 
 
 def test_is_out_of_scope_data_dominant_typescript(tmp_path: Path) -> None:
@@ -295,7 +313,12 @@ export default [
   '{{person.lastName}} {{person.lastName}} {{company.legal_entity_type}}',
 ];
 """
-    assert _is_out_of_scope("src/locales/es/company/name_pattern.ts", locale_data, tmp_path) is True
+    assert (
+        _is_out_of_scope(
+            "src/locales/es/company/name_pattern.ts", locale_data, tmp_path, _TS_EXT
+        )
+        is True
+    )
 
 
 def test_is_out_of_scope_real_code_passes(tmp_path: Path) -> None:
@@ -305,12 +328,22 @@ export function buildName(prefix: string): string {
   return prefix.toUpperCase();
 }
 """
-    assert _is_out_of_scope("src/lib/name.ts", code, tmp_path) is False
+    assert _is_out_of_scope("src/lib/name.ts", code, tmp_path, _TS_EXT) is False
+
+
+def test_is_out_of_scope_wrong_language(tmp_path: Path) -> None:
+    """A .js file in a TS-calibrated repo is out of language scope.
+
+    Faker calibrates on ``.ts``/``.tsx`` only; checking ``.prettierrc.js``
+    against a TS-trained baseline is a structural FP.
+    """
+    assert _is_out_of_scope("src/foo.js", _TS_CODE, tmp_path, _TS_EXT) is True
+    assert _is_out_of_scope(".prettierrc.js", _TS_CODE, tmp_path, _TS_EXT) is True
 
 
 def test_is_out_of_scope_unsupported_extension(tmp_path: Path) -> None:
     """Unsupported extensions short-circuit out-of-scope (defence-in-depth)."""
-    assert _is_out_of_scope("README.md", b"# hello\n", tmp_path) is True
+    assert _is_out_of_scope("README.md", b"# hello\n", tmp_path, _TS_EXT) is True
 
 
 # ---------------------------------------------------------------------------
