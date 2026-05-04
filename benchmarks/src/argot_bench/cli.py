@@ -97,13 +97,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--call-receiver-cluster-rare-threshold",
         type=int,
-        default=0,
+        default=2,
         metavar="N",
         help=(
             "Phase-10 frequency-aware attestation: callees attested in <= N "
             "cluster files are treated as cluster-absent (cluster_bonus fires). "
-            "Default 0 (disabled, era-11 boolean union). Try 2 to catch rare-"
-            "but-attested callees like a fetch in a single build script."
+            "Default 2 (era-13.5 production setting). Pass 0 to disable "
+            "(pre-13.5 behaviour, baseline recall on faker-js)."
         ),
     )
     p.add_argument(
@@ -176,13 +176,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--auto-select-asym-cal",
-        action="store_true",
-        default=False,
+        action=argparse.BooleanOptionalAction,
+        default=True,
         help=(
             "Per-corpus auto-detect: probe cal-side cluster_rare fire rate at fit time; "
             "enable asymmetric cal if fire rate < threshold (faker-js style — informative), "
             "fall back to symmetric cal otherwise (cancellation = baseline behaviour). "
-            "Requires --call-receiver-cluster-rare-threshold > 0 to take effect."
+            "Default on (era-13.5 production behaviour). Pass --no-auto-select-asym-cal "
+            "to opt out. Requires --call-receiver-cluster-rare-threshold > 0 to take effect."
         ),
     )
     p.add_argument(
@@ -327,9 +328,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     one.add_argument(
         "--auto-select-asym-cal",
-        action="store_true",
-        default=False,
-        help="Per-corpus auto-detect of asym/sym based on cal fire rate.",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Per-corpus auto-detect of asym/sym based on cal fire rate. "
+            "Default on. Pass --no-auto-select-asym-cal to opt out."
+        ),
     )
     one.add_argument(
         "--asym-fire-rate-threshold",

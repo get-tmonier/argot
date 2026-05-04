@@ -337,6 +337,9 @@ def _load_phase14_scorer(argot_dir: Path) -> SequentialImportBpeScorer:
     call_receiver_cluster_rare_threshold = int(  # type: ignore[call-overload]
         config.get("call_receiver_cluster_rare_threshold", 0)
     )
+    call_receiver_cluster_size_min = int(  # type: ignore[call-overload]
+        config.get("call_receiver_cluster_size_min", 0)
+    )
 
     # The evidence_corpus block is required from era-evidence-layer onward.
     # No back-compat for old configs (PRD: pre-prod, regenerate). Surfacing a
@@ -363,6 +366,7 @@ def _load_phase14_scorer(argot_dir: Path) -> SequentialImportBpeScorer:
         call_receiver_cluster_seed=call_receiver_cluster_seed,
         call_receiver_cluster_bonus=call_receiver_cluster_bonus,
         call_receiver_cluster_rare_threshold=call_receiver_cluster_rare_threshold,
+        call_receiver_cluster_size_min=call_receiver_cluster_size_min,
         evidence_corpus=evidence_corpus,
     )
 
