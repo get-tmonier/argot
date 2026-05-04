@@ -341,6 +341,20 @@ def _load_phase14_scorer(argot_dir: Path) -> SequentialImportBpeScorer:
         config.get("call_receiver_cluster_size_min", 0)
     )
 
+    # Restore the fit-time import-module snapshot so the foreign-import gate
+    # reflects what was known at calibration, not what's on disk now. Falls
+    # back to None when missing (older configs) — the scorer then re-derives
+    # the set from current files (legacy behaviour, vulnerable to the bug
+    # this snapshot fixes).
+    import_modules_raw = config.get("import_modules")
+    import_prefixes_raw = config.get("import_module_prefixes")
+    import_modules_snapshot: tuple[frozenset[str], frozenset[str]] | None = None
+    if isinstance(import_modules_raw, list) and isinstance(import_prefixes_raw, list):
+        import_modules_snapshot = (
+            frozenset(str(m) for m in import_modules_raw),
+            frozenset(str(p) for p in import_prefixes_raw),
+        )
+
     # The evidence_corpus block is required from era-evidence-layer onward.
     # No back-compat for old configs (PRD: pre-prod, regenerate). Surfacing a
     # specific error keeps the failure mode obvious for users on old artefacts.
@@ -368,6 +382,7 @@ def _load_phase14_scorer(argot_dir: Path) -> SequentialImportBpeScorer:
         call_receiver_cluster_rare_threshold=call_receiver_cluster_rare_threshold,
         call_receiver_cluster_size_min=call_receiver_cluster_size_min,
         evidence_corpus=evidence_corpus,
+        import_modules_snapshot=import_modules_snapshot,
     )
 
 

@@ -466,6 +466,11 @@ def main() -> None:
     # have to retokenize the whole repo on every run.
     evidence_corpus = build_evidence_corpus(scorer, repo_corpus_files, top_n=args.evidence_top_n)
 
+    # Snapshot the import-graph scorer's foreign-module surface at fit time
+    # so check-time scoring doesn't re-derive it from current file contents
+    # (which would silently absorb any newly-added foreign import on the
+    # first hunk to introduce it).
+    import_scorer = scorer._import_scorer  # noqa: SLF001
     config: dict[str, object] = {
         "version": _CONFIG_VERSION,
         "threshold": scorer.bpe_threshold,
@@ -477,6 +482,8 @@ def main() -> None:
         "call_receiver_cluster_bonus": call_receiver_cluster_bonus,
         "call_receiver_cluster_rare_threshold": cluster_rare_threshold,
         "call_receiver_cluster_size_min": cluster_size_min,
+        "import_modules": sorted(import_scorer._repo_modules),  # noqa: SLF001
+        "import_module_prefixes": sorted(import_scorer._repo_modules_prefixes),  # noqa: SLF001
         "calibration": {
             "n_cal": n_cal_used,
             "seed": args.seed,

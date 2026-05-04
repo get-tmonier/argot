@@ -230,6 +230,7 @@ class SequentialImportBpeScorer:
         call_receiver_shape_primitives: list[ShapePrimitive[Any]] | None = None,
         calibration_hunks_with_metadata: list[tuple[str, Path, str]] | None = None,
         evidence_corpus: EvidenceCorpus | None = None,
+        import_modules_snapshot: tuple[frozenset[str], frozenset[str]] | None = None,
         _tokenizer: Any = None,
     ) -> None:
         if (
@@ -272,9 +273,17 @@ class SequentialImportBpeScorer:
                 )
             repo_corpus_list = filtered
 
-        # Import checker: import-graph scorer (uses same adapter)
+        # Import checker: import-graph scorer (uses same adapter). Prefer a
+        # fit-time snapshot when one is supplied — it pins the foreign-set to
+        # what the model knew at fit, so a hunk that introduces a brand-new
+        # import is still flagged as foreign rather than getting absorbed when
+        # the scorer re-derives modules from current file contents.
         self._import_scorer = ImportGraphScorer(adapter=self._adapter, repo_root=repo_root)
-        self._import_scorer.fit(repo_corpus_list)
+        if import_modules_snapshot is not None:
+            modules, prefixes = import_modules_snapshot
+            self._import_scorer.load_snapshot(modules, prefixes)
+        else:
+            self._import_scorer.fit(repo_corpus_list)
 
         # BPE scorer: call-receiver soft-penalty scorer
         self._call_receiver: CallReceiverScorer | None = None
