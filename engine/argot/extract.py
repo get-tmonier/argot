@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -46,74 +47,92 @@ def main() -> None:
         sys.exit(2)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    # Atomic write: stream to a per-PID tmp file, then rename. Allows multiple
+    # worktrees to share a destination (e.g. via symlink to a cache dir) without
+    # corrupting each other or leaving half-written output on Ctrl-C.
+    tmp_path = out_path.with_name(f"{out_path.name}.tmp.{os.getpid()}")
 
     count = 0
+    limit_reached = False
 
-    with open(out_path, "w") as fh:
-        for commit, file_path, post_blob, hunks in walk_repo(repo_path):
-            lang = language_for_path(file_path)
-            if lang is None:
-                continue
-
-            try:
-                source_lines = post_blob.decode("utf-8", errors="replace").splitlines()
-            except Exception:
-                continue
-
-            parent_sha = str(commit.parents[0].id) if commit.parents else None
-            author_date_iso = commit.author.time
-
-            for hunk in hunks:
-                hunk_start = hunk.new_start - 1  # convert to 0-indexed
-                hunk_end = hunk_start + hunk.new_lines
-
-                if hunk_start < 0 or hunk_end > len(source_lines):
+    try:
+        with open(tmp_path, "w") as fh:
+            for commit, file_path, post_blob, hunks in walk_repo(repo_path):
+                lang = language_for_path(file_path)
+                if lang is None:
                     continue
 
-                ctx_before_lines, hunk_lines, ctx_after_lines = _extract_context(
-                    source_lines, hunk_start, hunk_end
-                )
+                try:
+                    source_lines = post_blob.decode("utf-8", errors="replace").splitlines()
+                except Exception:
+                    continue
 
-                before_start_abs = max(0, hunk_start - CONTEXT_LINES)
-                after_start_abs = hunk_end
+                parent_sha = str(commit.parents[0].id) if commit.parents else None
+                author_date_iso = commit.author.time
 
-                from argot.tokenize import tokenize_lines
+                for hunk in hunks:
+                    hunk_start = hunk.new_start - 1  # convert to 0-indexed
+                    hunk_end = hunk_start + hunk.new_lines
 
-                context_before = tokenize_lines(source_lines, lang, before_start_abs, hunk_start)
-                hunk_tokens = tokenize_lines(source_lines, lang, hunk_start, hunk_end)
-                context_after = tokenize_lines(
-                    source_lines,
-                    lang,
-                    after_start_abs,
-                    min(len(source_lines), after_start_abs + CONTEXT_LINES),
-                )
+                    if hunk_start < 0 or hunk_end > len(source_lines):
+                        continue
 
-                record = HunkRecord(
-                    commit_sha=str(commit.id),
-                    file_path=file_path,
-                    language=lang,
-                    hunk_start_line=hunk_start,
-                    hunk_end_line=hunk_end,
-                    context_before=context_before,
-                    hunk_tokens=hunk_tokens,
-                    context_after=context_after,
-                    parent_sha=parent_sha,
-                    author_date_iso=str(author_date_iso),
-                )
+                    ctx_before_lines, hunk_lines, ctx_after_lines = _extract_context(
+                        source_lines, hunk_start, hunk_end
+                    )
 
-                fh.write(json.dumps(asdict(record)))
-                fh.write("\n")
-                count += 1
+                    before_start_abs = max(0, hunk_start - CONTEXT_LINES)
+                    after_start_abs = hunk_end
 
-                if args.limit is not None and count >= args.limit:
-                    print(f"Reached limit of {args.limit} records", file=sys.stderr)
-                    print(f"Wrote {count} records to {out_path}")
-                    return
+                    from argot.tokenize import tokenize_lines
+
+                    context_before = tokenize_lines(
+                        source_lines, lang, before_start_abs, hunk_start
+                    )
+                    hunk_tokens = tokenize_lines(source_lines, lang, hunk_start, hunk_end)
+                    context_after = tokenize_lines(
+                        source_lines,
+                        lang,
+                        after_start_abs,
+                        min(len(source_lines), after_start_abs + CONTEXT_LINES),
+                    )
+
+                    record = HunkRecord(
+                        commit_sha=str(commit.id),
+                        file_path=file_path,
+                        language=lang,
+                        hunk_start_line=hunk_start,
+                        hunk_end_line=hunk_end,
+                        context_before=context_before,
+                        hunk_tokens=hunk_tokens,
+                        context_after=context_after,
+                        parent_sha=parent_sha,
+                        author_date_iso=str(author_date_iso),
+                    )
+
+                    fh.write(json.dumps(asdict(record)))
+                    fh.write("\n")
+                    count += 1
+
+                    if args.limit is not None and count >= args.limit:
+                        limit_reached = True
+                        break
+
+                if limit_reached:
+                    break
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise
 
     if count == 0:
+        tmp_path.unlink(missing_ok=True)
         print("error: no hunks found — repository may have no history", file=sys.stderr)
         sys.exit(2)
 
+    tmp_path.replace(out_path)
+
+    if limit_reached:
+        print(f"Reached limit of {args.limit} records", file=sys.stderr)
     print(f"Wrote {count} records to {out_path}")
 
 

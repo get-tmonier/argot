@@ -45,6 +45,9 @@ __pycache__/
 .argot/
 **/.argot/
 
+# claude-code worktrees (parallel-agent fan-out)
+.claude/worktrees/
+
 # cache
 .cache/
 .oxlintcache
