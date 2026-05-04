@@ -169,8 +169,14 @@ def _minhash_signature(
 
     Uses universal hash family h(x) = (a*x + b) mod P where P is a Mersenne prime.
     Files with similar callee bags will tend to share more matching signature values.
+
+    Empty bags return an all-zero signature so they cluster together near the origin
+    rather than at the all-maximum corner, keeping KMeans partitions stable when
+    the corpus contains many callee-empty files (e.g. ``.d.ts`` declarations).
     """
     n = len(a_params)
+    if not callee_bag:
+        return [0] * n
     sig = [_MINHASH_PRIME] * n
     for callee in callee_bag:
         h = int.from_bytes(hashlib.md5(callee.encode()).digest()[:8], "little") % _MINHASH_PRIME
