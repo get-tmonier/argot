@@ -382,27 +382,6 @@ def _select_targets(targets: list[Target], filt: list[str] | None) -> list[Targe
     return out
 
 
-def _drop_multi_language(targets: list[Target]) -> list[Target]:
-    """Drop multi-language targets from a bench run.
-
-    The bench scorer resolves a single language adapter per corpus
-    (see ``score._resolve_adapter``); a corpus tagged ``language: multi``
-    cannot be scored end-to-end until the multi-language calibration work
-    lands. Skipping with a clear message keeps mixed targets pinnable
-    in ``targets.yaml`` without tripping the run loop.
-    """
-    out: list[Target] = []
-    for t in targets:
-        if t.language == "multi":
-            print(
-                f"[{t.name}] skipped: language=multi not yet supported by bench "
-                f"(tracked in multi-language-corpus PRD)",
-                file=sys.stderr,
-            )
-            continue
-        out.append(t)
-    return out
-
 
 _ALL_SEEDS = [0, 1, 2, 3, 4]
 
@@ -414,13 +393,6 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
         print(f"unknown corpus: {args.corpus}", file=sys.stderr)
         return 2
     t = by_name[args.corpus]
-    if t.language == "multi":
-        print(
-            f"[{t.name}] skipped: language=multi not yet supported by bench "
-            f"(tracked in multi-language-corpus PRD)",
-            file=sys.stderr,
-        )
-        return 0
     seeds = _ALL_SEEDS[: args.seeds] if args.seeds is not None else _ALL_SEEDS
     cfg = RunConfig(
         corpus=t.name,
@@ -453,14 +425,15 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
         asym_fire_rate_threshold=args.asym_fire_rate_threshold,
     )
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    r = run_corpus(cfg)
-    write_corpus_json(r, args.out_dir / f"{t.name}.json")
+    reports = run_corpus(cfg)
+    for r in reports:
+        write_corpus_json(r, args.out_dir / f"{r.corpus}.json")
     return 0
 
 
 def _run(args: argparse.Namespace) -> int:
     targets = load_targets(_TARGETS_YAML)
-    selected = _drop_multi_language(_select_targets(targets, args.corpus))
+    selected = _select_targets(targets, args.corpus)
     if not selected:
         print("no scorable targets after filtering — nothing to do", file=sys.stderr)
         return 0
@@ -559,19 +532,36 @@ def _run(args: argparse.Namespace) -> int:
 
     reports: list[CorpusReport] = []
     for t in selected:
-        j = out_dir / f"{t.name}.json"
-        if not j.exists():
-            print(f"[{t.name}] missing output {j}", file=sys.stderr)
-            return 1
-        raw = json.loads(j.read_text())
-        reports.append(
-            CorpusReport(
-                corpus=raw["corpus"],
-                language=raw["language"],
-                metrics=raw["metrics"],
-                raw_scores=raw.get("raw_scores", []),
+        if t.language == "multi":
+            # run-one writes one file per language: "{corpus} (python).json", etc.
+            found = sorted(out_dir.glob(f"{t.name}*.json"))
+            if not found:
+                print(f"[{t.name}] missing output files in {out_dir}", file=sys.stderr)
+                return 1
+            for j in found:
+                raw = json.loads(j.read_text())
+                reports.append(
+                    CorpusReport(
+                        corpus=raw["corpus"],
+                        language=raw["language"],
+                        metrics=raw["metrics"],
+                        raw_scores=raw.get("raw_scores", []),
+                    )
+                )
+        else:
+            j = out_dir / f"{t.name}.json"
+            if not j.exists():
+                print(f"[{t.name}] missing output {j}", file=sys.stderr)
+                return 1
+            raw = json.loads(j.read_text())
+            reports.append(
+                CorpusReport(
+                    corpus=raw["corpus"],
+                    language=raw["language"],
+                    metrics=raw["metrics"],
+                    raw_scores=raw.get("raw_scores", []),
+                )
             )
-        )
 
     (out_dir / "report.md").write_text(render_report_md(reports))
     print(f"wrote {out_dir / 'report.md'}")

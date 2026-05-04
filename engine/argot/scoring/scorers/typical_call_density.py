@@ -18,8 +18,8 @@ Ramp: ``min(cluster_bonus_clip, max(0.0, z - 1.0))``.
 
 Callee-frequency convention: top-10 is ranked by per-file presence count
 (how many cluster files contain each callee), not by raw occurrence count.
-This is consistent with ``cluster_callee_counts`` in
-``CallReceiverScorer._build_clusters``.
+This is consistent with ``cluster_callee_counts`` built in
+``CallReceiverScorer.__init__`` from per-file callee bags.
 
 Asymmetric-by-construction: cal hunks come from ``repo_corpus_files`` attached
 to typical functions that call cluster-typical things, so their density sits

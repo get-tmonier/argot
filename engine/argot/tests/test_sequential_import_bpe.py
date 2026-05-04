@@ -549,3 +549,67 @@ def test_call_receiver_root_bonus_custom_accepted() -> None:
         call_receiver_cap=5,
     )
     assert scorer._call_receiver_root_bonus == 3.0
+
+
+# ---------------------------------------------------------------------------
+# Memory regression: streaming scorer stays bounded on large corpora
+# ---------------------------------------------------------------------------
+
+
+class _MockTokenizer:
+    """Minimal BPE tokenizer stub for memory tests — avoids loading UnixCoder."""
+
+    def encode(self, text: str, add_special_tokens: bool = True) -> list[int]:
+        return [hash(w) % 1000 for w in text.split()]
+
+    def get_vocab(self) -> dict[str, int]:
+        return {str(i): i for i in range(1000)}
+
+
+def test_scorer_peak_memory_bounded_on_large_corpus(tmp_path: Path) -> None:
+    """Building a scorer on a 5000-file synthetic corpus keeps peak allocation under 4 GB.
+
+    Verifies the streaming refactor: per-file callee frozensets are never held
+    simultaneously in memory; only the compact MinHash signatures (128 ints per
+    file) accumulate during clustering.  Uses tracemalloc to measure the delta
+    during construction so the test is independent of the tokenizer model size.
+    """
+    import tracemalloc
+
+    from argot.scoring.adapters.python_adapter import PythonAdapter
+    from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
+
+    n_files = 5000
+    # Write synthetic files with realistic callee diversity.
+    for i in range(n_files):
+        (tmp_path / f"m{i:04d}.py").write_text(
+            f"def fn_{i}(x, y):\n"
+            f"    a = x.process_{i % 100}()\n"
+            f"    b = a.value_{i % 50}\n"
+            f"    c = helper.compute(a, b)\n"
+            f"    return c.result\n"
+        )
+
+    files = sorted(tmp_path.glob("*.py"))
+    bpe_b = tmp_path / "bpe.json"
+    bpe_b.write_text('{"token_counts": {}, "total_tokens": 1}')
+
+    tracemalloc.start()
+    try:
+        _scorer = SequentialImportBpeScorer(
+            repo_corpus_files=files,
+            bpe_generic_baseline_path=bpe_b,
+            bpe_threshold=1.0,
+            adapter=PythonAdapter(),
+            call_receiver_n_clusters=8,
+            enable_typicality_filter=False,
+            _tokenizer=_MockTokenizer(),
+        )
+        _current, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    limit = 4 * 1024**3  # 4 GB
+    assert (
+        peak < limit
+    ), f"Peak tracemalloc allocation {peak / 1024**2:.0f} MB exceeds {limit // 1024**2} MB limit"

@@ -21,6 +21,7 @@ from pygments.util import ClassNotFound
 
 from argot.git_walk import SUPPORTED_EXTENSIONS, _extension, _resolve_shas, walk_commits
 from argot.scoring.adapters.registry import get_adapter
+from argot.scoring.calibration import language_for_extension
 from argot.scoring.calibration.random_hunk_sampler import (
     DEFAULT_EXCLUDE_DIRS,
     is_excluded_path,
@@ -32,6 +33,16 @@ from argot.scoring.evidence.formatters import (
 )
 from argot.scoring.evidence.types import Evidence, EvidenceCorpus, SourceSpan
 from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
+
+# Extension → language name for v2 per-hunk dispatch.
+# JS/JSX files route to the TypeScript scorer (same grammar, TypeScript-trained baseline).
+_EXT_TO_LANG: dict[str, str] = {
+    ".py": "python",
+    ".ts": "typescript",
+    ".tsx": "typescript",
+    ".js": "typescript",
+    ".jsx": "typescript",
+}
 
 # ANSI color codes for terminal output.
 _RED = "\x1b[91m"
@@ -111,6 +122,9 @@ class _Hit:
     hunk_content: str
     flagged: bool = False
     evidence: Evidence | None = None
+    # Calibrated threshold for the scorer that produced this hit.
+    # None only in legacy test helpers that pre-date v2 dispatch.
+    threshold: float | None = None
 
 
 # User-facing translations of the scorer's internal `reason` codes. The raw
@@ -312,47 +326,39 @@ def _filter_patches(
             yield batch
 
 
-def _load_phase14_scorer(argot_dir: Path) -> SequentialImportBpeScorer:
-    """Load Phase 14 scorer from .argot/ artifacts."""
-    repo_corpus_txt = argot_dir / "repo-corpus.txt"
-    generic_baseline_json = argot_dir / "generic-baseline.json"
-    config_json = argot_dir / "scorer-config.json"
+def _load_lang_scorer(
+    lang: str,
+    lang_config: dict[str, object],
+    lang_files: list[Path],
+    generic_baseline_json: Path,
+) -> SequentialImportBpeScorer:
+    """Build one SequentialImportBpeScorer from a v2 per-language config block."""
+    from argot.scoring.calibration import _adapter_for_language
 
-    for p, msg in [
-        (repo_corpus_txt, "run `argot fit` first"),
-        (generic_baseline_json, "run `argot fit` first"),
-        (config_json, "run `argot fit` first"),
-    ]:
-        if not p.exists():
-            print(f"error: {p} not found — {msg}", file=sys.stderr)
-            sys.exit(2)
-
-    repo_corpus_files = [
-        Path(line) for line in repo_corpus_txt.read_text().splitlines() if line.strip()
-    ]
-    config: dict[str, object] = json.loads(config_json.read_text())
-    threshold = float(config["threshold"])  # type: ignore[arg-type]
-    # Configs written before era 9 don't have these fields; use current shipping defaults.
-    call_receiver_alpha = float(config.get("call_receiver_alpha", 2.0))  # type: ignore[arg-type]
-    call_receiver_cap = int(config.get("call_receiver_cap", 5))  # type: ignore[call-overload]
-    call_receiver_root_bonus = float(config.get("call_receiver_root_bonus", 2.0))  # type: ignore[arg-type]
-    call_receiver_n_clusters = int(config.get("call_receiver_n_clusters", 8))  # type: ignore[call-overload]
-    call_receiver_cluster_seed = int(config.get("call_receiver_cluster_seed", 0))  # type: ignore[call-overload]
-    call_receiver_cluster_bonus = float(config.get("call_receiver_cluster_bonus", 5.0))  # type: ignore[arg-type]
+    threshold = float(lang_config["threshold"])  # type: ignore[arg-type]
+    call_receiver_alpha = float(lang_config.get("call_receiver_alpha", 2.0))  # type: ignore[arg-type]
+    call_receiver_cap = int(lang_config.get("call_receiver_cap", 5))  # type: ignore[call-overload]
+    call_receiver_root_bonus = float(
+        lang_config.get("call_receiver_root_bonus", 2.0)  # type: ignore[arg-type]
+    )
+    call_receiver_n_clusters = int(  # type: ignore[call-overload]
+        lang_config.get("call_receiver_n_clusters", 8)
+    )
+    call_receiver_cluster_seed = int(  # type: ignore[call-overload]
+        lang_config.get("call_receiver_cluster_seed", 0)
+    )
+    call_receiver_cluster_bonus = float(
+        lang_config.get("call_receiver_cluster_bonus", 5.0)  # type: ignore[arg-type]
+    )
     call_receiver_cluster_rare_threshold = int(  # type: ignore[call-overload]
-        config.get("call_receiver_cluster_rare_threshold", 0)
+        lang_config.get("call_receiver_cluster_rare_threshold", 0)
     )
     call_receiver_cluster_size_min = int(  # type: ignore[call-overload]
-        config.get("call_receiver_cluster_size_min", 0)
+        lang_config.get("call_receiver_cluster_size_min", 0)
     )
 
-    # Restore the fit-time import-module snapshot so the foreign-import gate
-    # reflects what was known at calibration, not what's on disk now. Falls
-    # back to None when missing (older configs) — the scorer then re-derives
-    # the set from current files (legacy behaviour, vulnerable to the bug
-    # this snapshot fixes).
-    import_modules_raw = config.get("import_modules")
-    import_prefixes_raw = config.get("import_module_prefixes")
+    import_modules_raw = lang_config.get("import_modules")
+    import_prefixes_raw = lang_config.get("import_module_prefixes")
     import_modules_snapshot: tuple[frozenset[str], frozenset[str]] | None = None
     if isinstance(import_modules_raw, list) and isinstance(import_prefixes_raw, list):
         import_modules_snapshot = (
@@ -360,24 +366,16 @@ def _load_phase14_scorer(argot_dir: Path) -> SequentialImportBpeScorer:
             frozenset(str(p) for p in import_prefixes_raw),
         )
 
-    # The evidence_corpus block is required from era-evidence-layer onward.
-    # No back-compat for old configs (PRD: pre-prod, regenerate). Surfacing a
-    # specific error keeps the failure mode obvious for users on old artefacts.
-    raw_corpus = config.get("evidence_corpus")
+    raw_corpus = lang_config.get("evidence_corpus")
     if not isinstance(raw_corpus, dict):
-        print(
-            f"error: {config_json} is missing the 'evidence_corpus' block — "
-            "this calibration was produced by an older argot. Re-run "
-            "`argot calibrate` to regenerate it.",
-            file=sys.stderr,
-        )
-        sys.exit(2)
+        raise ValueError(f"language '{lang}' config is missing the 'evidence_corpus' block")
     evidence_corpus = EvidenceCorpus.from_json_dict(raw_corpus)
 
     return SequentialImportBpeScorer(
-        repo_corpus_files=repo_corpus_files,
+        repo_corpus_files=lang_files,
         bpe_generic_baseline_path=generic_baseline_json,
         bpe_threshold=threshold,
+        adapter=_adapter_for_language(lang),
         call_receiver_alpha=call_receiver_alpha,
         call_receiver_cap=call_receiver_cap,
         call_receiver_root_bonus=call_receiver_root_bonus,
@@ -391,21 +389,94 @@ def _load_phase14_scorer(argot_dir: Path) -> SequentialImportBpeScorer:
     )
 
 
-def _score_patches_phase14(
-    patches: Iterator[_PatchBatch],
-    scorer: SequentialImportBpeScorer,
-) -> tuple[list[_Hit], int]:
-    """Score hunk patches with the production scorer.
+def _load_scorers(argot_dir: Path) -> dict[str, SequentialImportBpeScorer]:
+    """Load v2 per-language scorers from .argot/ artifacts.
 
-    Returns (hits, hunk_count). The scorer's reason and the hunk's post-image
-    text are captured on each hit so the renderer can show *why* a hunk scored
-    high (which scorer fired) and *what* the hunk looks like (a few lines of
-    context under each headline).
+    Returns a dict mapping language name (e.g. "python", "typescript") to
+    a ready-to-use SequentialImportBpeScorer for that language.
+
+    Exits with code 2 on missing files or a v1 (pre-v2) config — the caller
+    should treat exit 2 as "user must regenerate artifacts".
+    """
+    repo_corpus_txt = argot_dir / "repo-corpus.txt"
+    generic_baseline_json = argot_dir / "generic-baseline.json"
+    config_json = argot_dir / "scorer-config.json"
+
+    for p, msg in [
+        (repo_corpus_txt, "run `argot fit` first"),
+        (generic_baseline_json, "run `argot fit` first"),
+        (config_json, "run `argot calibrate` first"),
+    ]:
+        if not p.exists():
+            print(f"error: {p} not found — {msg}", file=sys.stderr)
+            sys.exit(2)
+
+    config: dict[str, object] = json.loads(config_json.read_text())
+    if config.get("version") != 2:
+        print(
+            f"error: {config_json} uses config version {config.get('version')!r} — "
+            "regenerate via `argot-calibrate`.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    raw_languages = config.get("languages")
+    if not isinstance(raw_languages, dict):
+        print(f"error: {config_json} is missing the 'languages' block", file=sys.stderr)
+        sys.exit(2)
+
+    repo_corpus_files = [
+        Path(line) for line in repo_corpus_txt.read_text().splitlines() if line.strip()
+    ]
+
+    scorers: dict[str, SequentialImportBpeScorer] = {}
+    for lang, lang_config_raw in raw_languages.items():
+        if not isinstance(lang_config_raw, dict):
+            print(
+                f"error: {config_json} has malformed entry for language '{lang}'",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        lang_files = [p for p in repo_corpus_files if language_for_extension(p.suffix) == lang]
+        try:
+            scorers[lang] = _load_lang_scorer(
+                lang, lang_config_raw, lang_files, generic_baseline_json
+            )
+        except (KeyError, ValueError) as exc:
+            print(f"error: failed to load scorer for '{lang}': {exc}", file=sys.stderr)
+            sys.exit(2)
+
+    return scorers
+
+
+def _score_patches(
+    patches: Iterator[_PatchBatch],
+    scorers: dict[str, SequentialImportBpeScorer],
+) -> tuple[list[_Hit], int]:
+    """Score hunk patches dispatching each file to the matching language scorer.
+
+    Returns (hits, hunk_count). Each hit carries the calibrated threshold from
+    its scorer so severity can be computed per-language at render time.
+
+    Hunks whose file extension maps to no loaded scorer are skipped — this
+    should not occur in practice (``_filter_patches`` already restricts to
+    handled extensions).
     """
     hits: list[_Hit] = []
     hunk_count = 0
 
     for batch in patches:
+        ext = _extension(batch.file_path)
+        lang = _EXT_TO_LANG.get(ext)
+        scorer = scorers.get(lang) if lang is not None else None
+        if scorer is None:
+            # Defence-in-depth: _filter_patches should have excluded this.
+            print(
+                f"[argot] skipping {batch.file_path}: no scorer for extension {ext!r}",
+                file=sys.stderr,
+            )
+            continue
+
         try:
             file_source = batch.content.decode("utf-8", errors="replace")
         except Exception:
@@ -444,6 +515,7 @@ def _score_patches_phase14(
                     hunk_content=hunk_content,
                     flagged=scored.flagged,
                     evidence=scored.evidence,
+                    threshold=scorer.bpe_threshold,
                 )
             )
 
@@ -655,9 +727,15 @@ def _render_results(
     Returns True if any hunk body was truncated — the caller uses this to emit
     the "pass --verbose" hint after the per-file output.
     """
+
+    def _eff_threshold(hit: _Hit) -> float:
+        # Use the per-hit calibrated threshold when available (v2 multi-language);
+        # fall back to the global threshold for backward-compat test helpers.
+        return hit.threshold if hit.threshold is not None else threshold
+
     tier_counts: dict[str, int] = {"foreign": 0, "suspicious": 0, "unusual": 0}
     for hit in hits:
-        tier_counts[_severity(hit.score, threshold)] += 1
+        tier_counts[_severity(hit.score, _eff_threshold(hit))] += 1
 
     total = len(hits)
     severity_color = {"foreign": _RED, "suspicious": _YELLOW, "unusual": _CYAN}
@@ -695,7 +773,7 @@ def _render_results(
         print(header)
 
         for hit in sorted(file_hits[fp], key=lambda h: h.line):
-            sev = _severity(hit.score, threshold)
+            sev = _severity(hit.score, _eff_threshold(hit))
             line_str = (
                 f"L{hit.line}" if hit.line == hit.line_end else f"L{hit.line}-L{hit.line_end}"
             )
@@ -825,8 +903,11 @@ def main() -> None:
         sys.exit(2)
 
     argot_dir = Path(args.argot_dir)
-    scorer = _load_phase14_scorer(argot_dir)
-    threshold = args.threshold if args.threshold is not None else scorer.bpe_threshold
+    scorers = _load_scorers(argot_dir)
+    # threshold_override is the --threshold escape hatch for bench/dev use.
+    # When set it applies uniformly to all language scorers for display gating;
+    # when absent each scorer's own calibrated threshold governs its hits.
+    threshold_override: float | None = args.threshold
 
     # Build patch source and scan description based on mode.
     patches: Iterator[_PatchBatch]
@@ -872,14 +953,20 @@ def main() -> None:
         patches = _chain_workdir_patches(args.repo_path)
         scan_label = "workdir"
 
+    # Compute the union of all extensions handled by the loaded scorers,
+    # including JS/JSX which route to the TypeScript scorer but are not in
+    # the TypeScript adapter's file_extensions (adapter only samples .ts/.tsx).
+    all_extensions: frozenset[str] = frozenset(
+        ext for ext, lang in _EXT_TO_LANG.items() if lang in scorers
+    )
     filtered = _filter_patches(
         patches,
         args.only,
         args.exclude,
         Path(args.repo_path),
-        scorer._adapter.file_extensions,  # noqa: SLF001
+        all_extensions,
     )
-    hits, hunk_count = _score_patches_phase14(filtered, scorer)
+    hits, hunk_count = _score_patches(filtered, scorers)
 
     # Display gate. Default (no ``--threshold`` override): show whatever the
     # scorer actually flagged — any stage that crossed its own threshold (BPE
@@ -890,8 +977,8 @@ def main() -> None:
     # foreign import. Debug override (``--threshold N``) widens the gate to
     # every hit at-or-above N — including ``reason=none`` hunks — so users
     # can see the full distribution at threshold=0.
-    if args.threshold is not None:
-        above_threshold = [h for h in hits if h.score >= threshold]
+    if threshold_override is not None:
+        above_threshold = [h for h in hits if h.score >= threshold_override]
     else:
         above_threshold = [h for h in hits if h.flagged]
 
@@ -902,7 +989,13 @@ def main() -> None:
     visible = [
         h
         for h in above_threshold
-        if _SEVERITY_ORDER.index(_severity(h.score, threshold)) >= min_idx
+        if _SEVERITY_ORDER.index(
+            _severity(
+                h.score,
+                threshold_override if threshold_override is not None else (h.threshold or 0.0),
+            )
+        )
+        >= min_idx
     ]
 
     if not visible:
@@ -918,15 +1011,23 @@ def main() -> None:
                 f"All {len(above_threshold)} hit(s) below severity '{args.min_severity}' "
                 f"— pass a lower --min-severity to see them."
             )
+        elif threshold_override is not None:
+            print(
+                f"All {hunk_count} hunk(s) scored below threshold "
+                f"{threshold_override:.2f} — looks clean."
+            )
         else:
-            print(f"All {hunk_count} hunk(s) scored below threshold {threshold:.2f} — looks clean.")
+            print(f"All {hunk_count} hunk(s) scored below calibrated thresholds — looks clean.")
         sys.exit(0)
 
     use_color = _supports_color()
     hunk_lines = None if args.verbose else args.hunk_lines
     if args.debug_evidence:
         _dump_evidence_debug(visible)
-    any_truncated = _render_results(visible, threshold, use_color, hunk_lines)
+    # Pass threshold_override as the render-level fallback; v2 hits carry their
+    # own per-language threshold so _eff_threshold() ignores this value for them.
+    render_threshold = threshold_override if threshold_override is not None else 0.0
+    any_truncated = _render_results(visible, render_threshold, use_color, hunk_lines)
 
     if any_truncated and not args.verbose:
         # Surface the escape hatch right where the user noticed it was missing.

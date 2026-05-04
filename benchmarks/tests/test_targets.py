@@ -26,12 +26,12 @@ def test_every_target_has_at_least_one_pr():
             assert len(pr.sha) == 40, f"{t.name} PR {pr.pr} SHA not full-length"
 
 
-def test_all_scorable_corpora_have_five_prs():
-    """Gate 6: every single-language corpus has exactly 5 PR entries.
+def test_all_corpora_have_five_prs():
+    """Gate 6: every corpus has exactly 5 pre-merge PR entries.
 
-    Multi-language corpora (e.g. dagster) are pinned without fixtures
-    until the multi-language-corpus PRD lands; they're exempt from the
-    5-PR gate.
+    The primary host (``pr: 0``) is excluded from the count. Multi-
+    language corpora must satisfy this gate too — Dagster ships with
+    five PR snapshots picked across the monorepo halves.
     """
     from pathlib import Path
 
@@ -40,12 +40,8 @@ def test_all_scorable_corpora_have_five_prs():
     targets_yaml = Path(__file__).parent.parent / "targets.yaml"
     targets = load_targets(targets_yaml)
     for t in targets:
-        if t.language == "multi":
-            continue
         pr_entries = [p for p in t.prs if p.pr != 0]
-        assert len(pr_entries) == 5, (
-            f"{t.name} has {len(pr_entries)} PRs, expected 5"
-        )
+        assert len(pr_entries) == 5, f"{t.name} has {len(pr_entries)} PRs, expected 5"
 
 
 def test_target_record_fields():

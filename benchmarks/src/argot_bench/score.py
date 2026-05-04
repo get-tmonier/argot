@@ -129,32 +129,49 @@ def _load_diff_hunks_for_probe(
     Returns (hunk_content, file_abs_path, file_source) tuples. Skips records
     with empty hunks, unreadable files, or out-of-range line bounds.
     Deterministic: same (dataset_path, n, seed) always returns same hunks.
+
+    Memory: streams the JSONL line-by-line and reservoir-samples (Algorithm R)
+    over hunk metadata triplets only — never holds more than ~n records in
+    memory regardless of dataset size. The previous shuffle-then-truncate
+    implementation OOMed on monorepo-scale datasets (Dagster's extract emits
+    >400k records, each carrying the full hunk + 50-line context-before /
+    -after token lists).
     """
     import json as _json
     import random as _random
 
-    records: list[dict[str, object]] = []
+    rng = _random.Random(seed)
+    reservoir: list[tuple[str, int, int]] = []  # (file_path, hunk_start, hunk_end)
+    seen: set[str] = set()
+    i = 0
     with dataset_path.open() as f:
         for line in f:
             line = line.strip()
-            if line:
-                records.append(_json.loads(line))
-    rng = _random.Random(seed)
-    rng.shuffle(records)
+            if not line:
+                continue
+            rec = _json.loads(line)
+            fp = rec.get("file_path")
+            hs = rec.get("hunk_start_line")
+            he = rec.get("hunk_end_line")
+            if not (isinstance(fp, str) and isinstance(hs, int) and isinstance(he, int)):
+                continue
+            key = f"{fp}:{hs}:{he}"
+            if key in seen:
+                continue
+            seen.add(key)
+            triplet = (fp, hs, he)
+            if i < n:
+                reservoir.append(triplet)
+            else:
+                j = rng.randint(0, i)
+                if j < n:
+                    reservoir[j] = triplet
+            i += 1
+
+    # Re-read file contents only for the sampled triplets — the prior
+    # implementation parsed every record's full payload upfront.
     out: list[tuple[str, Path, str]] = []
-    seen: set[str] = set()
-    for rec in records:
-        if len(out) >= n:
-            break
-        fp = rec.get("file_path")
-        hs = rec.get("hunk_start_line")
-        he = rec.get("hunk_end_line")
-        if not (isinstance(fp, str) and isinstance(hs, int) and isinstance(he, int)):
-            continue
-        key = f"{fp}:{hs}:{he}"
-        if key in seen:
-            continue
-        seen.add(key)
+    for fp, hs, he in reservoir:
         file_abs = repo_dir / fp
         try:
             file_source = file_abs.read_text(encoding="utf-8")
@@ -168,6 +185,72 @@ def _load_diff_hunks_for_probe(
             continue
         out.append((hunk_content, file_abs, file_source))
     return out
+
+
+def build_scorers(
+    repo_dir: Path,
+    *,
+    languages: list[Language],
+    n_cal: int,
+    seed: int,
+    bpe_generic_baseline: Path | None = None,
+    enable_typicality_filter: bool = True,
+    call_receiver_alpha: float = 2.0,
+    call_receiver_cap: int = 5,
+    call_receiver_root_bonus: float = 2.0,
+    call_receiver_n_clusters: int = 8,
+    call_receiver_cluster_seed: int = 0,
+    call_receiver_cluster_bonus: float = 5.0,
+    call_receiver_cluster_rare_threshold: int = 0,
+    call_receiver_cluster_size_min: int = 0,
+    call_receiver_shape_primitive_names: tuple[str, ...] = (),
+    threshold_percentile: float | None = None,
+    threshold_iqr_k: float | None = None,
+    threshold_n_seeds: int = 7,
+    apply_optional_contributions_to_cal: bool = False,
+    auto_select_asym_cal: bool = False,
+    asym_fire_rate_threshold: float = 0.05,
+    auto_detect_probe_dataset: Path | None = None,
+) -> dict[Language, BenchScorer]:
+    """Build one BenchScorer per language, each calibrated on repo_dir.
+
+    Convenience wrapper around :func:`build_scorer` for multi-language corpora.
+    Each scorer is independent; they share no state.
+
+    Args:
+        languages: Languages to calibrate for. One scorer is built per entry.
+        All other args: forwarded unchanged to :func:`build_scorer`.
+
+    Returns:
+        Mapping of language → BenchScorer.
+    """
+    return {
+        lang: build_scorer(
+            repo_dir,
+            n_cal=n_cal,
+            seed=seed,
+            language=lang,
+            bpe_generic_baseline=bpe_generic_baseline,
+            enable_typicality_filter=enable_typicality_filter,
+            call_receiver_alpha=call_receiver_alpha,
+            call_receiver_cap=call_receiver_cap,
+            call_receiver_root_bonus=call_receiver_root_bonus,
+            call_receiver_n_clusters=call_receiver_n_clusters,
+            call_receiver_cluster_seed=call_receiver_cluster_seed,
+            call_receiver_cluster_bonus=call_receiver_cluster_bonus,
+            call_receiver_cluster_rare_threshold=call_receiver_cluster_rare_threshold,
+            call_receiver_cluster_size_min=call_receiver_cluster_size_min,
+            call_receiver_shape_primitive_names=call_receiver_shape_primitive_names,
+            threshold_percentile=threshold_percentile,
+            threshold_iqr_k=threshold_iqr_k,
+            threshold_n_seeds=threshold_n_seeds,
+            apply_optional_contributions_to_cal=apply_optional_contributions_to_cal,
+            auto_select_asym_cal=auto_select_asym_cal,
+            asym_fire_rate_threshold=asym_fire_rate_threshold,
+            auto_detect_probe_dataset=auto_detect_probe_dataset,
+        )
+        for lang in languages
+    }
 
 
 def build_scorer(

@@ -85,12 +85,25 @@ targets:
       - { pr: 3809, sha: f45c508c3da0f6faee6a5a5edefce5eca0c90aa8 }
 
   # Multi-language monorepo (Python in `python_modules/`, TypeScript in
-  # `js_modules/`). Pinned for the future per-language calibration work
-  # tracked in the `multi-language-corpus` PRD; the bench skips
-  # `language: multi` entries until that lands. No PR fixtures yet —
-  # those land alongside the validation work.
+  # `js_modules/app-oss/src/`). Per-language calibration validates against
+  # this corpus; see `.scratch/multi-language-bench/PRD.md`. PRs picked
+  # for diversity across the monorepo halves: two touch the JS surface
+  # (#33777 UI markdown, #33745 ui-core kinds tag), three touch the
+  # Python surface (#33740 core config, #33735 dagster-postgres, #33491
+  # dagster-aws).
   - name: dagster
     url: https://github.com/dagster-io/dagster
     language: multi
     prs:
+      # Primary: HEAD on master at PRD authoring. Controls + fixture injection host.
       - { pr: 0, sha: 549b894e4ba03d5836459d58932105b77fafe242 }
+      # PR #33777 — fix(ui): restore CommonMark newline behavior in Markdown renderer (TS)
+      - { pr: 33777, sha: 8281db49d348fd941b87096fed77ee8c06a4acad }
+      # PR #33740 — [core] improves error messages when required config is missing (Py)
+      - { pr: 33740, sha: 149518ca4993c3b824885bb5fedaf3e029bf3fb1 }
+      # PR #33735 — [dagster-postgres] workload identity federation auth (Py)
+      - { pr: 33735, sha: 795e31a38929fec825f1fab623b067704321654b }
+      # PR #33745 — [ui-core] add kinds tag for azure devops (TS)
+      - { pr: 33745, sha: c066caf3248a83e7f656d54967f9b0eb25146aca }
+      # PR #33491 — [dagster-aws] default S3 prefix to empty string (Py)
+      - { pr: 33491, sha: 995e1750bf4f152fefc15015c4a06df0907b1227 }

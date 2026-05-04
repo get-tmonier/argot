@@ -6,8 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from argot_bench.cli import _drop_multi_language, build_parser, main
-from argot_bench.targets import PR, Target
+from argot_bench.cli import build_parser, main
 
 
 def test_parser_defaults():
@@ -205,20 +204,68 @@ def test_run_one_subprocess_writes_json(tmp_path: Path) -> None:
     assert proc.returncode == 2
 
 
-def test_drop_multi_language_filters_multi_targets(capsys: pytest.CaptureFixture[str]) -> None:
-    """Multi-language corpora are skipped from the bench dispatch list.
+def test_multi_corpus_dispatched_to_run_one(tmp_path: Path) -> None:
+    """Multi-language corpora are now scored, not skipped.
 
-    Multi-language scoring is tracked in the multi-language-corpus PRD;
-    until that lands, `language: multi` entries must be filtered before
-    the run loop and surface a clear skip message on stderr.
+    The orchestrator must dispatch ``run-one`` for ``language: multi`` targets
+    and expect multiple JSON files (one per language) in the output directory.
     """
-    targets = [
-        Target(name="fastapi", url="x", language="python", prs=[PR(pr=1, sha="a" * 40)]),
-        Target(name="dagster", url="y", language="multi", prs=[PR(pr=0, sha="b" * 40)]),
-        Target(name="hono", url="z", language="typescript", prs=[PR(pr=2, sha="c" * 40)]),
-    ]
-    kept = _drop_multi_language(targets)
-    assert [t.name for t in kept] == ["fastapi", "hono"]
-    captured = capsys.readouterr()
-    assert "dagster" in captured.err
-    assert "skipped" in captured.err
+    _FAKE_METRICS = {
+        "auc_catalog": 0.75,
+        "recall_by_category": {},
+        "recall_by_difficulty": {},
+        "fp_rate_real_pr": 0.0,
+        "threshold_cv": 0.0,
+        "threshold_mean": 2.5,
+        "thresholds": [2.5],
+        "calibration_stability": {},
+        "stage_attribution": {},
+        "n_fixtures": 0,
+        "n_real_pr_hunks": 0,
+        "typicality_filter": True,
+        "sample_controls": None,
+    }
+
+    def fake_run(cmd: list[str], **_kwargs: object) -> MagicMock:
+        corpus = cmd[-1]
+        out_dir = Path(cmd[cmd.index("--out-dir") + 1])
+        out_dir.mkdir(parents=True, exist_ok=True)
+        # Simulate run-one writing two files for a multi corpus.
+        for lang in ("python", "typescript"):
+            (out_dir / f"{corpus} ({lang}).json").write_text(
+                json.dumps(
+                    {
+                        "corpus": f"{corpus} ({lang})",
+                        "language": lang,
+                        "metrics": _FAKE_METRICS,
+                        "raw_scores": [],
+                    }
+                )
+            )
+        m = MagicMock()
+        m.returncode = 0
+        return m
+
+    with patch("argot_bench.cli.subprocess.run", side_effect=fake_run):
+        with patch("argot_bench.cli.load_targets") as mock_load:
+            from argot_bench.targets import PR, Target
+
+            mock_load.return_value = [
+                Target(
+                    name="dagster",
+                    url="https://github.com/dagster-io/dagster",
+                    language="multi",
+                    prs=[PR(pr=1, sha="a" * 40)],
+                ),
+            ]
+            exit_code = main(["--corpus", "dagster", "--results-dir", str(tmp_path)])
+
+    assert exit_code == 0
+    subdirs = [d for d in tmp_path.iterdir() if d.is_dir()]
+    assert len(subdirs) == 1
+    out_dir = subdirs[0]
+    report_file = out_dir / "report.md"
+    assert report_file.exists()
+    content = report_file.read_text()
+    assert "dagster (python)" in content
+    assert "dagster (typescript)" in content

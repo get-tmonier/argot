@@ -1,7 +1,7 @@
-"""Call-receiver scorer — Stage 1.5.
+"""Call-receiver scorer.
 
 Presence-based scorer: tracks distinct call-expression callees in the
-model-A corpus and counts unattested callees in a hunk.  Used by
+repo corpus and counts unattested callees in a hunk.  Used by
 SequentialImportBpeScorer to apply a soft additive BPE penalty:
 
     adjusted_bpe = raw_bpe + alpha * min(count_unattested(hunk), cap)
@@ -23,7 +23,7 @@ memory growth that occurs when TsParser is instantiated per-hunk.
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
@@ -181,74 +181,60 @@ def _minhash_signature(
     return sig
 
 
-def _build_clusters(
-    file_bags: list[tuple[Path, frozenset[str]]],
-    n_clusters: int,
-    seed: int,
-) -> tuple[
-    dict[Path, int],
-    dict[int, frozenset[str]],
-    dict[int, dict[str, int]],
-    dict[int, int],
-]:
-    """Cluster files by callee-bag similarity using MinHash signatures + KMeans.
+def _generate_minhash_params(seed: int) -> tuple[list[int], list[int]]:
+    """Generate the MinHash universal-hash family parameters deterministically.
 
-    Returns:
-        file_to_cluster: maps resolved file path → cluster id (0-indexed).
-        cluster_attested: maps cluster id → union of all callees in cluster files
-            (boolean attestation set; default behaviour).
-        cluster_callee_counts: maps cluster id → {callee → number of cluster
-            files that contain this callee}. Used by frequency-aware
-            attestation: a callee in <= ``cluster_rare_threshold`` files is
-            treated as cluster-absent for scoring purposes, even though it
-            is technically present in the union.
-        cluster_sizes: maps cluster id → number of files in the cluster.
+    The same seed always produces the same (a_params, b_params) pair so that
+    signatures computed in pass 1 are consistent with the KMeans clustering
+    in :func:`_cluster_by_signatures`.
     """
     import numpy as np
-    from sklearn.cluster import KMeans
 
     rng = np.random.default_rng(seed)
     a_params = [int(x) for x in rng.integers(1, _MINHASH_PRIME, size=_MINHASH_N_PERMS)]
     b_params = [int(x) for x in rng.integers(0, _MINHASH_PRIME, size=_MINHASH_N_PERMS)]
+    return a_params, b_params
 
-    paths = [p for p, _ in file_bags]
-    bags = [bag for _, bag in file_bags]
 
-    # Compute MinHash signatures; empty bags get all-zero signature
-    raw_sigs: list[list[int]] = []
-    for bag in bags:
-        if bag:
-            raw_sigs.append(_minhash_signature(bag, a_params, b_params))
-        else:
-            raw_sigs.append([0] * _MINHASH_N_PERMS)
+def _cluster_by_signatures(
+    file_sigs: list[tuple[Path, list[int]]],
+    n_clusters: int,
+    seed: int,
+) -> tuple[dict[Path, int], dict[int, int]]:
+    """Cluster files by pre-computed MinHash signatures using KMeans.
+
+    Accepts per-file MinHash signatures (128-element lists) rather than full
+    callee bags so that callers can compute and immediately drop each bag —
+    only the compact signature survives into the cluster-assignment phase.
+
+    Returns:
+        file_to_cluster: maps resolved file path → cluster id (0-indexed).
+        cluster_sizes: maps cluster id → number of files in the cluster.
+
+    ``cluster_attested`` and ``cluster_callee_counts`` are NOT returned here;
+    they are computed from the per-file callee bags already in memory inside
+    ``CallReceiverScorer.__init__`` once cluster assignments are known.
+    """
+    import numpy as np
+    from sklearn.cluster import KMeans
+
+    paths = [p for p, _ in file_sigs]
+    raw_sigs = [sig for _, sig in file_sigs]
 
     sigs = np.array(raw_sigs, dtype=np.float64) / _MINHASH_PRIME  # normalize to [0, 1]
 
-    effective_k = min(n_clusters, len(bags))
+    effective_k = min(n_clusters, len(raw_sigs))
     if effective_k <= 1:
-        labels: list[int] = [0] * len(bags)
+        labels: list[int] = [0] * len(raw_sigs)
     else:
         km = KMeans(n_clusters=effective_k, random_state=seed, n_init=10)
         labels = list(km.fit_predict(sigs))
 
     file_to_cluster: dict[Path, int] = {p: int(labels[i]) for i, p in enumerate(paths)}
-
-    cluster_attested: dict[int, frozenset[str]] = {}
-    cluster_callee_counts: dict[int, dict[str, int]] = {}
-    cluster_sizes: dict[int, int] = {}
-    for cid in range(effective_k):
-        counts: dict[str, int] = {}
-        n_files_in_cluster = 0
-        for i, bag in enumerate(bags):
-            if labels[i] == cid:
-                n_files_in_cluster += 1
-                for callee in bag:
-                    counts[callee] = counts.get(callee, 0) + 1
-        cluster_attested[cid] = frozenset(counts.keys())
-        cluster_callee_counts[cid] = counts
-        cluster_sizes[cid] = n_files_in_cluster
-
-    return file_to_cluster, cluster_attested, cluster_callee_counts, cluster_sizes
+    cluster_sizes: dict[int, int] = {
+        cid: sum(1 for lbl in labels if lbl == cid) for cid in range(effective_k)
+    }
+    return file_to_cluster, cluster_sizes
 
 
 class CallReceiverScorer:
@@ -266,7 +252,7 @@ class CallReceiverScorer:
 
     def __init__(
         self,
-        repo_corpus_files: list[Path],
+        repo_corpus_files: Iterable[Path],
         *,
         language: Language,
         alpha: float = 1.0,
@@ -279,8 +265,6 @@ class CallReceiverScorer:
         cluster_size_min: int = 0,
         shape_primitives: list[ShapePrimitive[Any]] | None = None,
     ) -> None:
-        if not repo_corpus_files:
-            raise ValueError("repo_corpus_files must be non-empty")
         self._language: Language = language
         self.alpha: float = alpha
         self.cap: int = cap
@@ -315,12 +299,27 @@ class CallReceiverScorer:
 
         attested: set[str] = set()
         skipped: int = 0
-        # (path, callee_bag) pairs for cluster building — collected iff n_clusters > 1
+
+        # Single pass: build the global attested set, per-file callee bags
+        # (frozensets), and per-file MinHash signatures together.
+        #
+        # Bags are retained until cluster_attested is computed from them, then
+        # explicitly freed.  Peak working-set is bounded by signature storage
+        # O(n_files × 128 ints) plus bag storage O(n_files × avg_distinct_callees)
+        # rather than the cost of a second tree-sitter pass over the full corpus.
+        a_params: list[int] = []
+        b_params: list[int] = []
+        if n_clusters > 1:
+            a_params, b_params = _generate_minhash_params(cluster_seed)
+
+        # Non-skipped, readable file paths in iteration order — used for
+        # shape-primitive fitting when shape_primitives is non-empty.
+        files_list: list[Path] = []
+        # Per-file callee bags; populated only when n_clusters > 1 and freed
+        # immediately after cluster_attested / cluster_callee_counts are built.
         file_bags: list[tuple[Path, frozenset[str]]] = []
-        # (path, source) pairs for shape-primitive baseline fitting.
-        # Only collected when shape_primitives is non-empty AND n_clusters > 1
-        # (clusters are required for per-cluster baselines).
-        primitive_files: list[tuple[Path, str]] = []
+        # Per-file MinHash signatures, collected only when n_clusters > 1.
+        file_sigs: list[tuple[Path, list[int]]] = []
 
         for path in repo_corpus_files:
             try:
@@ -333,10 +332,14 @@ class CallReceiverScorer:
             callees = [c for c in extract_callees(src, language) if c is not None]
             for callee in callees:
                 attested.add(callee)
+            files_list.append(path)
             if n_clusters > 1:
-                file_bags.append((path, frozenset(callees)))
-                if self.shape_primitives:
-                    primitive_files.append((path, src))
+                bag = frozenset(callees)
+                file_bags.append((path, bag))
+                file_sigs.append((path, _minhash_signature(bag, a_params, b_params)))
+
+        if not files_list:
+            raise ValueError("repo_corpus_files must be non-empty")
 
         self.attested: frozenset[str] = frozenset(attested)
         self.attested_roots: frozenset[str] = frozenset(c.split(".", 1)[0] for c in self.attested)
@@ -367,32 +370,58 @@ class CallReceiverScorer:
         # because data shape doesn't match".
         self.primitive_fire_count: dict[str, int] = {p.name: 0 for p in self.shape_primitives}
 
-        if n_clusters > 1 and file_bags:
-            (
-                self.file_to_cluster,
-                self.cluster_attested,
-                self.cluster_callee_counts,
-                self.cluster_sizes,
-            ) = _build_clusters(file_bags, n_clusters, cluster_seed)
+        if n_clusters > 1 and file_sigs:
+            self.file_to_cluster, self.cluster_sizes = _cluster_by_signatures(
+                file_sigs, n_clusters, cluster_seed
+            )
+            del file_sigs  # free signature memory immediately after clustering
 
-        # Fit per-cluster baselines for each shape primitive after
-        # cluster assignments are known. Each primitive sees only the
-        # files in its target cluster, so it can compute a baseline
-        # statistic across that cluster's distribution.
-        if self.shape_primitives and self.file_to_cluster:
-            cluster_files: dict[int, list[tuple[Path, str]]] = {}
-            for path, src in primitive_files:
+            # Build cluster_attested and cluster_callee_counts from the bags
+            # already in memory — no second tree-sitter pass over the corpus.
+            # Per-callee counts use per-file presence convention: each callee
+            # contributes 1 to its cluster count per file that contains it,
+            # regardless of how many times it is called within that file.
+            effective_k = len(self.cluster_sizes)
+            cluster_counts: dict[int, dict[str, int]] = {i: {} for i in range(effective_k)}
+
+            for path, bag in file_bags:
                 cid = self.file_to_cluster.get(path)
                 if cid is None:
                     continue
-                cluster_files.setdefault(cid, []).append((path, src))
-            for primitive in self.shape_primitives:
-                per_cluster: dict[int, object] = {}
-                for cid, files_in in cluster_files.items():
-                    baseline = primitive.fit_cluster_baseline(files_in, language)
-                    if baseline is not None:
-                        per_cluster[cid] = baseline
-                self.primitive_baselines[primitive.name] = per_cluster
+                counts = cluster_counts[cid]
+                for callee in bag:
+                    counts[callee] = counts.get(callee, 0) + 1
+
+            del file_bags  # all frozensets freed; signature-bounded from here on
+
+            self.cluster_attested = {
+                cid: frozenset(counts) for cid, counts in cluster_counts.items()
+            }
+            self.cluster_callee_counts = cluster_counts
+
+            # Shape-primitive baselines require raw source; re-read files only
+            # when at least one primitive is registered.
+            if self.shape_primitives:
+                cluster_prim_files: dict[int, list[tuple[Path, str]]] = {}
+                for path in files_list:
+                    try:
+                        src = path.read_text(encoding="utf-8", errors="replace")
+                    except OSError:
+                        continue
+                    if adapter is not None and adapter.is_data_dominant(src):
+                        continue
+                    cid = self.file_to_cluster.get(path)
+                    if cid is None:
+                        continue
+                    cluster_prim_files.setdefault(cid, []).append((path, src))
+
+                for primitive in self.shape_primitives:
+                    per_cluster: dict[int, object] = {}
+                    for cid, files_in in cluster_prim_files.items():
+                        baseline = primitive.fit_cluster_baseline(files_in, language)
+                        if baseline is not None:
+                            per_cluster[cid] = baseline
+                    self.primitive_baselines[primitive.name] = per_cluster
 
     def _get_distinct_unattested(self, hunk_content: str) -> list[str]:
         if _has_root_error(hunk_content, self._language):
