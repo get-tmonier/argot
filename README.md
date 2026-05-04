@@ -75,6 +75,18 @@ Numbers above are from the live baseline at [`benchmarks/results/baseline/latest
 
 ---
 
+## Motivation
+
+**Code review used to be the place where "we don't do it that way here" got said.** That was sustainable when one human wrote one PR. Today an LLM can produce a hundred PRs in an afternoon — each syntactically perfect, type-correct, lint-clean, and written in the *average voice of every public codebase the model trained on*. Not the voice of yours.
+
+Type checkers, linters, and formatters answer *"is this valid?"* They cannot answer *"is this how this team writes things?"* That second question used to be implicit in human review; now it's the bottleneck.
+
+**argot is a calibrated, local, language-model-free way to ask the second question.** It builds two token-frequency distributions — one from your repo's git history, one from a generic open-source baseline — and flags hunks whose token distribution is sharply more likely under the generic baseline than under your repo. No neural network. No GPU. No cloud. No telemetry. Fits in seconds, runs in milliseconds, ships its threshold per repo.
+
+The mental model is simple: a regex catches what you can write down; a type checker catches what you can prove; argot catches what your team has *implicitly agreed on by repetition*. Naming patterns, error-handling shapes, control-flow idioms, the difference between `response.raise_for_status()` and `if response.status_code >= 400: raise`. The kind of thing a senior reviewer would call out in five seconds and that no static analyser can articulate.
+
+If your team is shipping LLM-assisted code, this is the layer your CI is missing.
+
 ## What it catches
 
 It does *not* replace ESLint, ruff, or type checkers. It catches what they can't: things that are *technically fine but socially wrong* for this project.
@@ -88,44 +100,44 @@ It does *not* replace ESLint, ruff, or type checkers. It catches what they can't
 
 ### Concrete examples
 
-Validated against the FastAPI corpus (50 real PRs, 1,452 hunks). All three examples below were caught at **95%+ recall** by the BPE scorer alone — with no import-level hints.
+The examples below are pulled from argot's FastAPI benchmark catalog. **All three are syntactically valid, fully typed, lint-clean, and pass mypy strict.** Every other tool in your CI is silent on them. argot flags them because their *token shape* is absent from the FastAPI corpus's history. Headline numbers: catalog recall **95.4%**, false-positive rate on real-PR controls **0.6%** (32 fixtures vs 79,623 controls; see [`benchmarks/results/baseline/latest/report.md`](benchmarks/results/baseline/latest/report.md)).
 
-**Foreign framework routing** (`reason: import`, score 5.77)
+**1. Wrong exception type** — _decorators are right, models are right, the `raise` line is the only break_
+
 ```python
-# flagged — Flask vocabulary in a FastAPI codebase
-from flask import Flask, abort, jsonify, request
-app = Flask(__name__)
-
-@app.route("/users", methods=["GET", "POST"])
-def users() -> object:
-    return jsonify(list(_users.values()))
+# flagged — ValueError/KeyError instead of HTTPException
+@router.get("/{user_id}", response_model=UserResponse)
+async def get_user(user_id: int, db = Depends(get_db)) -> dict[str, Any]:
+    user = db.get(user_id)
+    if user is None:
+        raise ValueError(f"User {user_id} not found")  # propagates as 500, not 404
+    return user
 ```
-FastAPI routes use `@router.get` / `@router.post` with Pydantic-typed parameters. Flask's `@app.route(methods=[...])` + `request` proxy is a fully foreign vocabulary — the import checker catches the `flask` import immediately.
+Decorators, `Depends`, `response_model`, `async def`, the typed return — all idiomatic FastAPI. The break is exactly one token sequence: bare `ValueError`/`KeyError`/`RuntimeError` instead of `HTTPException(status_code=...)`. Type checker is happy (return shape is fine). Linters have nothing to say. argot catches it because the FastAPI corpus's exception-raising vocabulary is `HTTPException`, not Python's built-ins.
 
-**Sync blocking in an async codebase** (`reason: bpe`, score 7.33)
+**2. Manual status check vs `raise_for_status()`** — _structural shape, not vocabulary_
+
 ```python
-# flagged — requests.get() blocks the event loop
-import requests
-from fastapi import FastAPI
-
-@app.get("/proxy")
-async def proxy():
-    resp = requests.get("https://upstream/api")  # blocks all concurrent requests
-    return resp.json()
+# flagged — every endpoint repeats the same if-block
+@router.get("/users/{user_id}")
+async def proxy_get_user(user_id: int) -> dict[str, Any]:
+    response = _http_client.get(f"/v1/users/{user_id}")
+    if response.status_code >= 400:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+    return response.json()
 ```
-No foreign import — `requests` is a standard library. But its token pattern (`requests.get`, `requests.Session`, `cert=`, `timeout=`) is rare in the FastAPI corpus. The BPE scorer catches this with 100% recall across all host PRs.
+**Every individual token here exists in the FastAPI corpus** — `httpx.Client`, `response.status_code`, `HTTPException`, `response.json()`. What's missing is the *branching shape*: the FastAPI + httpx corpus uses `response.raise_for_status()` to propagate downstream errors, not a manual `if status_code >= 400: raise`. No linter can encode this preference; argot picks it up automatically because the BPE distribution over 5-token windows captures the structural difference.
 
-**Wrong validation style** (`reason: bpe`, score 5.82)
+**3. Sync blocking in an async codebase** — _correct decorators, wrong concurrency model_
+
 ```python
-# flagged — manual dict validation in a Pydantic codebase
-def create_user(body: dict):
-    if "name" not in body or not isinstance(body["name"], str):
-        raise ValueError("name required")
-    if "email" not in body:
-        raise ValueError("email required")
-    ...
+# flagged — sync def + blocking I/O on a hot path
+@router.get("/users")
+def list_users() -> list[dict[str, Any]]:
+    response = httpx.get(f"{UPSTREAM_URL}/v1/users")  # blocks the worker thread
+    return response.json()
 ```
-FastAPI codebases use Pydantic models for input validation. Manual `isinstance`/`"key" not in body` guards produce token patterns absent from the training corpus.
+`@router.get`, the path, the return type — all idiomatic. The break is `def` instead of `async def`, paired with `httpx.get(...)` (sync API) instead of `await client.get(...)`. Type checker is happy. Linters might warn on `bare except` patterns but not on this. argot picks it up because sync endpoints with blocking I/O are structurally absent from the FastAPI corpus — the entire bench/control set is built around `async def + await`.
 
 ## Installation
 
@@ -157,8 +169,6 @@ argot extract      # walk git history → .argot/dataset.jsonl
 argot fit          # build the repo corpus + generic baseline, then calibrate the threshold
 argot check        # score uncommitted changes (or pass a ref/range)
 ```
-
-> **Migrating from a JEPA-based `.argot/` directory?** Delete `.argot/` and re-run the pipeline above — the artifact layout has changed.
 
 ### Updating
 
