@@ -54,7 +54,7 @@ export const statusCommand = Command.make('status', {}, () =>
       const s = await stat(configPath);
       const threshold = typeof config.threshold === 'number' ? config.threshold.toFixed(2) : '?';
       return `threshold ${threshold} · last calibrated ${formatAge(s.mtime)}`;
-    }).pipe(Effect.orElseSucceed(() => 'not calibrated — run `argot calibrate`'));
+    }).pipe(Effect.orElseSucceed(() => 'not calibrated — run `argot fit`'));
     yield* Console.log(`Calibrated: ${calibratedLine}`);
   }),
 );

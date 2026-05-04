@@ -3,6 +3,7 @@ import { Cause, Console, Effect } from 'effect';
 import { writeFileSync, renameSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { version } from '../../../../../version.ts';
+import { writeUpdateCache } from '../../../../../update-notify.ts';
 
 const REPO = 'get-tmonier/argot';
 
@@ -97,6 +98,9 @@ export const updateCommand = Command.make('update', {}, () =>
     yield* downloadBinary(url, process.execPath);
     yield* Console.log(`Warming engine cache…`);
     yield* warmEngineCache(remoteVersion);
+    // Refresh the update-check cache so the next argot command doesn't
+    // greet the user with "v<remote> available" they just installed.
+    writeUpdateCache(remoteVersion);
     yield* Console.log(
       `Updated to v${remoteVersion} — changelog: https://github.com/${REPO}/releases/tag/v${remoteVersion}`,
     );

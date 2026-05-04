@@ -237,12 +237,12 @@ def main() -> None:
     parser.add_argument(
         "--repo-corpus",
         default=".argot/repo-corpus.txt",
-        help="File listing repo corpus source paths (produced by argot-train)",
+        help="File listing repo corpus source paths (produced by `argot fit`)",
     )
     parser.add_argument(
         "--generic-baseline",
         default=".argot/generic-baseline.json",
-        help="Path to BPE generic baseline JSON (produced by argot-train)",
+        help="Path to BPE generic baseline JSON (produced by `argot fit`)",
     )
     parser.add_argument(
         "--output",
@@ -257,13 +257,13 @@ def main() -> None:
 
     if not repo_corpus_path.exists():
         print(
-            f"error: repo corpus file not found at {repo_corpus_path} — run argot-train first",
+            f"error: repo corpus file not found at {repo_corpus_path} — run `argot fit` first",
             file=sys.stderr,
         )
         sys.exit(2)
     if not generic_baseline_path.exists():
         print(
-            f"error: generic baseline not found at {generic_baseline_path} — run argot-train first",
+            f"error: generic baseline not found at {generic_baseline_path} — run `argot fit` first",
             file=sys.stderr,
         )
         sys.exit(2)
