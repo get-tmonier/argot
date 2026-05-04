@@ -45,10 +45,22 @@ export const checkCommand = Command.make(
         `Only show hits at or above this severity (${MIN_SEVERITIES.join(' | ')}; default unusual)`,
       ),
     ),
+    threshold: Flag.string('threshold').pipe(
+      Flag.optional,
+      Flag.withDescription(
+        'Override the calibrated BPE threshold (debug; pass 0 to see every scored hunk)',
+      ),
+    ),
   },
-  ({ ref, staged, unstaged, commit, only, exclude, verbose, minSeverity }) =>
+  ({ ref, staged, unstaged, commit, only, exclude, verbose, minSeverity, threshold }) =>
     Effect.gen(function* () {
       const commitValue = Option.getOrUndefined(commit);
+      const thresholdRaw = Option.getOrUndefined(threshold);
+      const thresholdValue = thresholdRaw === undefined ? undefined : Number(thresholdRaw);
+      if (thresholdValue !== undefined && Number.isNaN(thresholdValue)) {
+        yield* Console.error(`error: --threshold must be a number (got '${thresholdRaw}')`);
+        process.exit(2);
+      }
       const severity = parseMinSeverity(minSeverity);
       if (severity === null) {
         yield* Console.error(`error: --min-severity must be one of ${MIN_SEVERITIES.join(', ')}`);
@@ -88,6 +100,7 @@ export const checkCommand = Command.make(
         exclude,
         verbose,
         minSeverity: severity,
+        threshold: thresholdValue,
       });
       if (hasViolations) process.exit(1);
     }),

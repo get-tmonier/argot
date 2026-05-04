@@ -21,6 +21,7 @@ export const BunVoiceCheckerLive = Layer.effect(VoiceChecker)(
       exclude,
       verbose,
       minSeverity,
+      threshold,
     }: {
       repoPath: string;
       ref: string;
@@ -32,6 +33,7 @@ export const BunVoiceCheckerLive = Layer.effect(VoiceChecker)(
       exclude: ReadonlyArray<string>;
       verbose: boolean;
       minSeverity: MinSeverity;
+      threshold: number | undefined;
     }) =>
       Effect.callback<boolean, CheckExitNonZero | CheckSpawnFailed>((resume) => {
         const { cmd, args } = engineCmd('argot.check');
@@ -48,6 +50,7 @@ export const BunVoiceCheckerLive = Layer.effect(VoiceChecker)(
         if (verbose) flags.push('--verbose');
         // Default 'unusual' = no filter; only forward when the user changed it.
         if (minSeverity !== 'unusual') flags.push('--min-severity', minSeverity);
+        if (threshold !== undefined) flags.push('--threshold', String(threshold));
 
         let proc: ReturnType<typeof spawn>;
         try {
