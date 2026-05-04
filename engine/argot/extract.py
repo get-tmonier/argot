@@ -10,7 +10,7 @@ from pathlib import Path
 import pygit2
 
 from argot.dataset import HunkRecord
-from argot.git_walk import walk_repo
+from argot.git_walk import _resolve_shas, walk_commits, walk_repo
 from argot.tokenize import language_for_path
 
 CONTEXT_LINES = 50
@@ -33,6 +33,12 @@ def _extract_context(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Extract dataset from git history")
     parser.add_argument("repo_path", help="Path to git repository")
+    parser.add_argument(
+        "ref",
+        nargs="?",
+        default="",
+        help="Optional git ref or range (e.g. abc1234 or a..b). Defaults to full history.",
+    )
     parser.add_argument("--out", default=".argot/dataset.jsonl", help="Output JSONL path")
     parser.add_argument("--limit", type=int, default=None, help="Max number of records to emit")
     args = parser.parse_args()
@@ -41,7 +47,7 @@ def main() -> None:
     out_path = Path(args.out)
 
     try:
-        pygit2.Repository(repo_path)
+        repo = pygit2.Repository(repo_path)
     except pygit2.GitError:
         print(f"error: repository not found at {repo_path!r}", file=sys.stderr)
         sys.exit(2)
@@ -55,9 +61,26 @@ def main() -> None:
     count = 0
     limit_reached = False
 
+    # Choose walk strategy based on the optional ref argument.
+    if args.ref:
+        try:
+            shas = _resolve_shas(repo, args.ref)
+        except (pygit2.GitError, KeyError):
+            shas = set()
+        if not shas:
+            tmp_path.unlink(missing_ok=True)
+            print(
+                f"error: no commits found for ref {args.ref!r} — try a wider range",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        walk = walk_commits(repo_path, shas)
+    else:
+        walk = walk_repo(repo_path)
+
     try:
         with open(tmp_path, "w") as fh:
-            for commit, file_path, post_blob, hunks in walk_repo(repo_path):
+            for commit, file_path, post_blob, hunks in walk:
                 lang = language_for_path(file_path)
                 if lang is None:
                     continue

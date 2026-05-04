@@ -1,13 +1,10 @@
-import type { Preferences } from './settings.ts';
-
 export interface ResolvedContext {
   gitRoot: string;
   name: string;
   argotDir: string;
   datasetPath: string;
-  modelAPath: string;
-  modelBPath: string;
-  preferences: Preferences;
+  repoCorpusPath: string;
+  genericBaselinePath: string;
 }
 
 export interface DatasetInfo {

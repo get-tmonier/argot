@@ -12,9 +12,7 @@ import type {
 } from '#modules/repo-context/domain/repo-context.ts';
 import {
   DEFAULT_GLOBAL_SETTINGS,
-  mergePreferences,
   type GlobalSettings,
-  type LocalSettings,
 } from '#modules/repo-context/domain/settings.ts';
 
 const GLOBAL_SETTINGS_PATH = join(homedir(), '.argot', 'settings.json');
@@ -47,15 +45,6 @@ async function writeGlobalSettingsAsync(settings: GlobalSettings): Promise<void>
   await writeFile(GLOBAL_SETTINGS_PATH, JSON.stringify(settings, null, 2));
 }
 
-async function readLocalSettingsAsync(gitRoot: string): Promise<LocalSettings | null> {
-  try {
-    const content = await readFile(join(gitRoot, '.argot', 'settings.json'), 'utf-8');
-    return JSON.parse(content) as LocalSettings;
-  } catch {
-    return null;
-  }
-}
-
 async function statOrNull(path: string): Promise<{ sizeBytes: number; mtime: Date } | null> {
   try {
     const s = await stat(path);
@@ -72,8 +61,6 @@ export const FsRepoContextLive = Layer.effect(RepoContext)(
         try: async () => {
           const gitRoot = (await getGitRootAsync()) ?? process.cwd();
           const global = await readGlobalSettingsAsync();
-          const local = await readLocalSettingsAsync(gitRoot);
-          const preferences = mergePreferences(global.preferences, local?.preferences);
 
           const now = new Date().toISOString();
           if (!global.repos[gitRoot]) {
@@ -93,9 +80,8 @@ export const FsRepoContextLive = Layer.effect(RepoContext)(
             name: global.repos[gitRoot]!.name,
             argotDir,
             datasetPath: join(argotDir, 'dataset.jsonl'),
-            modelAPath: join(argotDir, 'model_a.txt'),
-            modelBPath: join(argotDir, 'model_b.json'),
-            preferences,
+            repoCorpusPath: join(argotDir, 'repo-corpus.txt'),
+            genericBaselinePath: join(argotDir, 'generic-baseline.json'),
           };
         },
         catch: (e) => new SettingsReadError({ cause: e }),
@@ -113,7 +99,7 @@ export const FsRepoContextLive = Layer.effect(RepoContext)(
               join(path, '.argot', 'dataset.jsonl'),
             );
             const modelInfo: ModelInfo | null = await statOrNull(
-              join(path, '.argot', 'model_a.txt'),
+              join(path, '.argot', 'repo-corpus.txt'),
             );
             results.push({
               path,

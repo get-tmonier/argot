@@ -4,8 +4,8 @@ import type { TrainError } from '#modules/train-model/domain/errors.ts';
 
 export const runTrainModel = (args: {
   repoPath: string;
-  modelAPath: string;
-  modelBPath: string;
+  repoCorpusPath: string;
+  genericBaselinePath: string;
 }): Effect.Effect<void, TrainError, ModelTrainer> =>
   Effect.gen(function* () {
     const modelTrainer = yield* ModelTrainer;

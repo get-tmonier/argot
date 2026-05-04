@@ -6,6 +6,7 @@ interface EngineRunnerShape {
   readonly runExtract: (args: {
     repoPath: string;
     outputPath: string;
+    ref?: string;
   }) => Effect.Effect<void, EngineError>;
 }
 

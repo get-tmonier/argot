@@ -8,6 +8,33 @@ import pygit2
 SUPPORTED_EXTENSIONS = frozenset({".ts", ".tsx", ".js", ".jsx", ".py"})
 
 
+def _resolve_shas(repo: pygit2.Repository, ref: str) -> set[str]:
+    """Parse a git range (A..B or bare ref) into a set of commit SHAs.
+
+    A..B  → commits reachable from B but not from A.
+    bare  → commits reachable from ref but not from ref^
+            (i.e. just that one commit for a SHA, all since that ref for a branch).
+    """
+    if ".." in ref:
+        start_ref, end_ref = ref.split("..", 1)
+    else:
+        start_ref = ref + "^"
+        end_ref = ref
+
+    end_oid = repo.revparse_single(end_ref).id
+    try:
+        start_oid = repo.revparse_single(start_ref).id
+    except (pygit2.GitError, KeyError):
+        start_oid = None
+
+    shas: set[str] = set()
+    for commit in repo.walk(end_oid, pygit2.enums.SortMode.TOPOLOGICAL):
+        if start_oid is not None and commit.id == start_oid:
+            break
+        shas.add(str(commit.id))
+    return shas
+
+
 def _extension(path: str) -> str:
     return Path(path).suffix.lower()
 

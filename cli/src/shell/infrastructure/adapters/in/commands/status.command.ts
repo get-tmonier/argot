@@ -1,6 +1,7 @@
 import { Command } from 'effect/unstable/cli';
 import { Console, Effect } from 'effect';
 import { stat } from 'node:fs/promises';
+import { join } from 'node:path';
 import { RepoContext } from '#modules/repo-context/dependencies.ts';
 
 function formatBytes(bytes: number): string {
@@ -42,15 +43,18 @@ export const statusCommand = Command.make('status', {}, () =>
     yield* Console.log(`Dataset:  ${datasetLine}`);
 
     const modelLine = yield* Effect.tryPromise(async () => {
-      const s = await stat(ctx.modelAPath);
+      const s = await stat(ctx.repoCorpusPath);
       return `trained ${formatAge(s.mtime)} · ${formatBytes(s.size)}`;
     }).pipe(Effect.orElseSucceed(() => 'not trained'));
     yield* Console.log(`Model:    ${modelLine}`);
 
-    const thresholdSource =
-      ctx.preferences.threshold === 0.5 ? '(global default)' : '(local override)';
-    yield* Console.log(
-      `Settings: threshold ${ctx.preferences.threshold} ${thresholdSource} · model ${ctx.preferences.model}`,
-    );
+    const calibratedLine = yield* Effect.tryPromise(async () => {
+      const configPath = join(ctx.argotDir, 'scorer-config.json');
+      const config = (await Bun.file(configPath).json()) as { threshold?: number };
+      const s = await stat(configPath);
+      const threshold = typeof config.threshold === 'number' ? config.threshold.toFixed(2) : '?';
+      return `threshold ${threshold} · last calibrated ${formatAge(s.mtime)}`;
+    }).pipe(Effect.orElseSucceed(() => 'not calibrated — run `argot calibrate`'));
+    yield* Console.log(`Calibrated: ${calibratedLine}`);
   }),
 );

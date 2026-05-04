@@ -176,7 +176,7 @@ def build_scorer(
     n_cal: int,
     seed: int,
     language: Language,
-    bpe_model_b: Path | None = None,
+    bpe_generic_baseline: Path | None = None,
     enable_typicality_filter: bool = True,
     call_receiver_alpha: float = 2.0,
     call_receiver_cap: int = 5,
@@ -202,7 +202,7 @@ def build_scorer(
         n_cal: Number of calibration hunks to sample.
         seed: numpy RNG seed for deterministic sampling.
         language: Source language of the target repo.
-        bpe_model_b: Optional override for the generic BPE reference model path.
+        bpe_generic_baseline: Optional override for the generic BPE reference model path.
         enable_typicality_filter: Pass True (default) to let the prod scorer filter
             atypical model-A files and calibration hunks internally.
         call_receiver_alpha: Soft-penalty weight. 0.0 disables Stage 1.5 entirely.
@@ -247,7 +247,7 @@ def build_scorer(
             probe_meta = sample_hunks_with_metadata(repo_dir, n_cal, seed, adapter=adapter)
         probe = SequentialImportBpeScorer(
             repo_corpus_files=files,
-            bpe_generic_baseline_path=bpe_model_b or _BPE_GENERIC_BASELINE,
+            bpe_generic_baseline_path=bpe_generic_baseline or _BPE_GENERIC_BASELINE,
             calibration_hunks=[h for h, _, _ in probe_meta],
             calibration_hunks_with_metadata=probe_meta,
             adapter=adapter,
@@ -296,7 +296,7 @@ def build_scorer(
             repo_dir=repo_dir,
             repo_corpus_files=files,
             adapter=adapter,
-            bpe_generic_baseline_path=bpe_model_b or _BPE_GENERIC_BASELINE,
+            bpe_generic_baseline_path=bpe_generic_baseline or _BPE_GENERIC_BASELINE,
             threshold_percentile=threshold_percentile,
             threshold_iqr_k=threshold_iqr_k,
             call_receiver_alpha=call_receiver_alpha,
@@ -313,7 +313,7 @@ def build_scorer(
         )
         inner = SequentialImportBpeScorer(
             repo_corpus_files=files,
-            bpe_generic_baseline_path=bpe_model_b or _BPE_GENERIC_BASELINE,
+            bpe_generic_baseline_path=bpe_generic_baseline or _BPE_GENERIC_BASELINE,
             bpe_threshold=median_threshold,
             adapter=adapter,
             repo_root=repo_dir,
@@ -336,7 +336,7 @@ def build_scorer(
         cal_hunks = sample_hunks(repo_dir, n_cal, seed, adapter=adapter)
         inner = SequentialImportBpeScorer(
             repo_corpus_files=files,
-            bpe_generic_baseline_path=bpe_model_b or _BPE_GENERIC_BASELINE,
+            bpe_generic_baseline_path=bpe_generic_baseline or _BPE_GENERIC_BASELINE,
             calibration_hunks=cal_hunks,
             adapter=adapter,
             repo_root=repo_dir,

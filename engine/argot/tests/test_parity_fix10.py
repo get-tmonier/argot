@@ -60,8 +60,8 @@ def _fastapi_scorer() -> tuple[SequentialImportBpeScorer, _FullFileFixtureMap]:
 
 
 def _rich_scorer() -> tuple[SequentialImportBpeScorer, _HunkFixtureMap]:
-    """Build rich scorer using rich/sources/model_a/ as repo corpus."""
-    repo_corpus_dir = _CATALOG / "rich" / "sources" / "model_a"
+    """Build rich scorer using rich/sources/repo_corpus/ as repo corpus."""
+    repo_corpus_dir = _CATALOG / "rich" / "sources" / "repo_corpus"
     repo_corpus_files = sorted(repo_corpus_dir.glob("*.py"))
     fixtures_dir = _CATALOG / "rich" / "fixtures"
     manifest = json.loads((_CATALOG / "rich" / "manifest.json").read_text())
@@ -87,8 +87,8 @@ def _rich_scorer() -> tuple[SequentialImportBpeScorer, _HunkFixtureMap]:
 
 
 def _faker_scorer() -> tuple[SequentialImportBpeScorer, _HunkFixtureMap]:
-    """Build faker scorer using faker/sources/model_a/ as repo corpus."""
-    repo_corpus_dir = _CATALOG / "faker" / "sources" / "model_a"
+    """Build faker scorer using faker/sources/repo_corpus/ as repo corpus."""
+    repo_corpus_dir = _CATALOG / "faker" / "sources" / "repo_corpus"
     repo_corpus_files = sorted(repo_corpus_dir.glob("*.py"))
     fixtures_dir = _CATALOG / "faker" / "fixtures"
     manifest = json.loads((_CATALOG / "faker" / "breaks_manifest.json").read_text())

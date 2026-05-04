@@ -2,7 +2,10 @@ import { spawn } from 'node:child_process';
 import { Effect, Layer } from 'effect';
 import { engineCmd } from '#engine-cmd.ts';
 import { handleUvStderr } from '#spawn-with-progress.ts';
-import { VoiceChecker } from '#modules/check-voice/application/ports/out/voice-checker.port.ts';
+import {
+  VoiceChecker,
+  type MinSeverity,
+} from '#modules/check-voice/application/ports/out/voice-checker.port.ts';
 import { CheckExitNonZero, CheckSpawnFailed } from '#modules/check-voice/domain/errors.ts';
 
 export const BunVoiceCheckerLive = Layer.effect(VoiceChecker)(
@@ -11,22 +14,46 @@ export const BunVoiceCheckerLive = Layer.effect(VoiceChecker)(
       repoPath,
       ref,
       argotDir,
-      threshold,
+      staged,
+      unstaged,
+      commit,
+      only,
+      exclude,
+      verbose,
+      minSeverity,
     }: {
       repoPath: string;
       ref: string;
       argotDir: string;
-      threshold: number;
+      staged: boolean;
+      unstaged: boolean;
+      commit: string | undefined;
+      only: ReadonlyArray<string>;
+      exclude: ReadonlyArray<string>;
+      verbose: boolean;
+      minSeverity: MinSeverity;
     }) =>
       Effect.callback<boolean, CheckExitNonZero | CheckSpawnFailed>((resume) => {
         const { cmd, args } = engineCmd('argot.check');
+
+        // Build positional args: always pass repoPath; only pass ref if non-empty
+        const positionals = ref.length > 0 ? [repoPath, ref] : [repoPath];
+
+        const flags: string[] = ['--argot-dir', argotDir];
+        if (staged) flags.push('--staged');
+        if (unstaged) flags.push('--unstaged');
+        if (commit !== undefined) flags.push('--commit', commit);
+        for (const glob of only) flags.push('--only', glob);
+        for (const glob of exclude) flags.push('--exclude', glob);
+        if (verbose) flags.push('--verbose');
+        // Default 'unusual' = no filter; only forward when the user changed it.
+        if (minSeverity !== 'unusual') flags.push('--min-severity', minSeverity);
+
         let proc: ReturnType<typeof spawn>;
         try {
-          proc = spawn(
-            cmd,
-            [...args, repoPath, ref, '--argot-dir', argotDir, '--threshold', String(threshold)],
-            { stdio: ['ignore', 'inherit', 'pipe'] },
-          );
+          proc = spawn(cmd, [...args, ...positionals, ...flags], {
+            stdio: ['ignore', 'inherit', 'pipe'],
+          });
         } catch (cause: unknown) {
           resume(Effect.fail(new CheckSpawnFailed({ cause })));
           return;

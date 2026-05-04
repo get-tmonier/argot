@@ -84,8 +84,8 @@ def test_main_writes_repo_corpus_and_generic_baseline(tmp_path: Path) -> None:
     (tmp_path / "main.py").write_text("x = 1\n")
     (tmp_path / "util.ts").write_text("export {};\n")
 
-    repo_corpus = tmp_path / "out" / "model_a.txt"
-    generic_baseline = tmp_path / "out" / "model_b.json"
+    repo_corpus = tmp_path / "out" / "repo-corpus.txt"
+    generic_baseline = tmp_path / "out" / "generic-baseline.json"
 
     result = subprocess.run(
         [
@@ -94,9 +94,9 @@ def test_main_writes_repo_corpus_and_generic_baseline(tmp_path: Path) -> None:
             "argot.train",
             "--repo",
             str(tmp_path),
-            "--model-a-out",
+            "--repo-corpus-out",
             str(repo_corpus),
-            "--model-b-out",
+            "--generic-baseline-out",
             str(generic_baseline),
         ],
         capture_output=True,

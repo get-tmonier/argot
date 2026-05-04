@@ -21,7 +21,7 @@ Callee-frequency convention: top-10 is ranked by per-file presence count
 This is consistent with ``cluster_callee_counts`` in
 ``CallReceiverScorer._build_clusters``.
 
-Asymmetric-by-construction: cal hunks come from ``model_a_files`` attached
+Asymmetric-by-construction: cal hunks come from ``repo_corpus_files`` attached
 to typical functions that call cluster-typical things, so their density sits
 at or above the cluster mean.  Only hunks that structurally avoid
 cluster-typical callees (e.g. string-formula synthesis) fire the primitive.

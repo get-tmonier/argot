@@ -15,6 +15,7 @@ dependencies = [
     "tree-sitter-python==0.23.6",
     "numpy>=1.26.0",
     "transformers>=4.40.0",
+    "pygments>=2.18.0",
 ]
 
 [project.optional-dependencies]
@@ -46,6 +47,7 @@ dev = [
     "ruff==0.7.0",
     "mypy==1.11.2",
     "pytest==8.3.3",
+    "types-Pygments>=2.18.0",
 ]
 
 [tool.mypy]

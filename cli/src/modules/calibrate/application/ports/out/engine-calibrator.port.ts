@@ -5,8 +5,8 @@ import type { CalibrateError } from '#modules/calibrate/domain/errors.ts';
 interface EngineCalibratorShape {
   readonly runCalibrate: (args: {
     repoPath: string;
-    modelAPath: string;
-    modelBPath: string;
+    repoCorpusPath: string;
+    genericBaselinePath: string;
     outputPath: string;
     nCal: number;
     seed: number;
