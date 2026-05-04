@@ -443,7 +443,7 @@ argot is **alpha** software. We ship honest benchmarks and a public research log
 - **No introspection / suitability check** — running `fit` then `check` is the only way to find out whether argot will work on your repo ([#51](https://github.com/get-tmonier/argot/issues/51)).
 - **No model artifact versioning or hashing** — `.argot/` is opaque; reproducibility is undocumented ([#62](https://github.com/get-tmonier/argot/issues/62)).
 - **No MCP server for LLM coding agents** — argot's signal would be especially useful as preemptive guidance during code generation, but there's no protocol surface yet ([#56](https://github.com/get-tmonier/argot/issues/56)).
-- **No per-hunk evidence in `check` output** — hits show a friendly reason ("rare token sequence") but not *which* token was rare, leaving the user to guess ([#40](https://github.com/get-tmonier/argot/issues/40)).
+- ~~**No per-hunk evidence in `check` output** — hits show a friendly reason ("rare token sequence") but not *which* token was rare, leaving the user to guess ([#40](https://github.com/get-tmonier/argot/issues/40)).~~ ✅ **Shipped** ([#69](https://github.com/get-tmonier/argot/pull/69)) — each hit now carries a `↳` line naming the responsible tokens with their repo attestation. See the example output above.
 - **No user-facing documentation site** — everything user-relevant lives in this README; no structured tutorials, how-tos, reference, or per-language pages ([#52](https://github.com/get-tmonier/argot/issues/52)).
 
 ### What we need for v1
@@ -458,7 +458,7 @@ The minimum-viable-v1 set we'd want to ship before recommending argot for produc
 | [#57](https://github.com/get-tmonier/argot/issues/57) | Suppression mechanism — adoption blocker without it |
 | [#51](https://github.com/get-tmonier/argot/issues/51) | Repo introspection / suitability check |
 | [#58](https://github.com/get-tmonier/argot/issues/58) | Official CI integration (GitHub Action + pre-commit + SARIF) |
-| [#40](https://github.com/get-tmonier/argot/issues/40) | Per-hunk evidence in `check` output — point at the specific tokens carrying the score |
+| ~~[#40](https://github.com/get-tmonier/argot/issues/40)~~ ✅ | ~~Per-hunk evidence in `check` output — point at the specific tokens carrying the score~~ — shipped via [#69](https://github.com/get-tmonier/argot/pull/69) |
 | [#52](https://github.com/get-tmonier/argot/issues/52) | User-facing documentation site (tutorials, how-tos, reference) |
 
 Browse all open issues, including non-v1 work, at [`github.com/get-tmonier/argot/issues`](https://github.com/get-tmonier/argot/issues).
