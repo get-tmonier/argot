@@ -271,6 +271,18 @@ src/api/router.ts
 tip: pass --verbose (-v) to expand truncated hunks.
 ```
 
+**What argot doesn't lint**
+
+The scorer is calibrated on production code only, so check-time scope mirrors calibration scope — argot stays silent on files the model never saw. Today this is hardcoded; user-configurable defaults will land with `.argotignore` ([#57](https://github.com/get-tmonier/argot/issues/57)). Currently skipped:
+
+- **Tests** — `test/`, `tests/`, `__tests__/` directories; `test_*.py`, `conftest.py`, `*.test.*`, `*.spec.*` filenames
+- **Configs** — `*.config.*` (vite, vitest, tsup, jest, rollup, …) and rc dotfiles (`.eslintrc.js`, `.prettierrc.json`, `.babelrc.cjs`)
+- **Generated / docs / scripts dirs** — `docs/`, `examples/`, `migrations/`, `fixtures/`, `scripts/`, `build/`, `dist/`, `__pycache__/`
+- **Wrong language for this calibration** — e.g. `.js` files in a TypeScript-only fit
+- **Data-dominant files** — modules whose body is ≥80% top-level array / object literals (locale tables, fixture data, generated lookups)
+
+These would otherwise produce structural false positives — argot's n-gram model treats their idiomatic register as foreign and fires on every line. If you want signal on a file in one of these classes, change the calibration scope (extend `engine/argot/scoring/calibration/random_hunk_sampler.py:is_excluded_path`) and re-run `argot fit`.
+
 **Understanding the score**
 
 The surprise score is the BPE log-likelihood ratio for the hunk — how different its token distribution is from the repo's corpus. Low scores mean the hunk matches the repo's patterns; higher values mean it diverges. Severity tiers are relative to the calibrated threshold `t`:
