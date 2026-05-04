@@ -252,11 +252,13 @@ argot check --verbose                # show full hunk contents (no truncation)
 Sample output:
 
 ```
-argot check · 3 hunks above threshold (1 foreign · 2 suspicious)
+argot check · 2 hunks above threshold (1 foreign · 1 suspicious)
 note: argot is a probabilistic style linter — verify before action.
 
 src/utils/http-helpers.ts
   ●  L42-L48      8.21  foreign     · workdir · foreign import (import)
+     ↳ axios — 0 of 47 module specifiers in repo
+       common here: react (320×), express (88×), pg (47×)
   42 │ import axios from 'axios';
   43 │
   44 │ export async function fetchUserData(id: string) {
@@ -266,22 +268,19 @@ src/utils/http-helpers.ts
 
 src/api/router.ts
   ◐  L102        5.89  suspicious  · staged · rare token sequence (bpe)
+     ↳ startedAt (0×), _res (3×), use (88×)
   102 │ router.use((req, _res, next) => { req.startedAt = Date.now(); next(); });
 
 tip: pass --verbose (-v) to expand truncated hunks.
 ```
 
-**What argot doesn't lint**
+The line under each hit (`↳`) is the **per-hunk evidence**. For BPE-fired hits it lists the surprising identifiers with their repo-wide attestation counts — `startedAt (0×)` means the token never appears elsewhere in the repo, while `use (88×)` is familiar; the flag is about the *combination*, not the words. For foreign-import / unfamiliar-callee hits it shows the offending names plus a `common here:` line orienting you to the repo's typical vocabulary in that dimension (the repo's stack, the cluster's typical callees).
 
-The scorer is calibrated on production code only, so check-time scope mirrors calibration scope — argot stays silent on files the model never saw. Today this is hardcoded; user-configurable defaults will land with `.argotignore` ([#57](https://github.com/get-tmonier/argot/issues/57)). Currently skipped:
+**Files argot stays silent on**
 
-- **Tests** — `test/`, `tests/`, `__tests__/` directories; `test_*.py`, `conftest.py`, `*.test.*`, `*.spec.*` filenames
-- **Configs** — `*.config.*` (vite, vitest, tsup, jest, rollup, …) and rc dotfiles (`.eslintrc.js`, `.prettierrc.json`, `.babelrc.cjs`)
-- **Generated / docs / scripts dirs** — `docs/`, `examples/`, `migrations/`, `fixtures/`, `scripts/`, `build/`, `dist/`, `__pycache__/`
-- **Wrong language for this calibration** — e.g. `.js` files in a TypeScript-only fit
-- **Data-dominant files** — modules whose body is ≥80% top-level array / object literals (locale tables, fixture data, generated lookups)
+argot won't flag **data-dominant files** — modules whose body is ≥80% top-level array / object literals (locale tables, fixture arrays, large generated lookups). The n-gram model treats their string-literal payloads as foreign vocabulary, so without this gate the scorer would fire on every line. Detection is heuristic and runs at both fit and check time so the model trains and scores on the same scope.
 
-These would otherwise produce structural false positives — argot's n-gram model treats their idiomatic register as foreign and fires on every line. If you want signal on a file in one of these classes, change the calibration scope (extend `engine/argot/scoring/calibration/random_hunk_sampler.py:is_excluded_path`) and re-run `argot fit`.
+Test files, config files (`*.config.*`, `.eslintrc.*`, `.prettierrc.*`, …), and a handful of conventional dirs (`docs/`, `examples/`, `migrations/`, `scripts/`, `build/`, `dist/`) are also skipped today as a placeholder default — these will move to user-configurable rules with the suppression surface in [#57](https://github.com/get-tmonier/argot/issues/57).
 
 **Understanding the score**
 
