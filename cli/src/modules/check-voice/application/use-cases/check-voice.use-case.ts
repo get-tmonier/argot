@@ -16,6 +16,7 @@ export const runCheckVoice = (args: {
   exclude: ReadonlyArray<string>;
   verbose: boolean;
   minSeverity: MinSeverity;
+  threshold: number | undefined;
 }): Effect.Effect<boolean, CheckError, VoiceChecker> =>
   Effect.gen(function* () {
     const voiceChecker = yield* VoiceChecker;

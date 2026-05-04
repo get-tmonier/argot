@@ -12,6 +12,7 @@ import pygit2
 
 from argot.scoring.adapters.language_adapter import LanguageAdapter
 from argot.scoring.adapters.registry import adapter_for_files
+from argot.scoring.calibration.evidence_builder import build_evidence_corpus
 from argot.scoring.calibration.random_hunk_sampler import (
     collect_candidates,
     sample_hunks,
@@ -22,6 +23,10 @@ from argot.scoring.scorers.shape_primitive import ShapePrimitive
 from argot.scoring.scorers.shape_primitive_registry import build_shape_primitives
 
 _CONFIG_VERSION = 1
+# Top-N sample size baked into the evidence_corpus block. 50 is comfortably
+# above the rendered top-3 + ``(+N more)`` cap and leaves headroom for future
+# UX tweaks without a re-calibration. Configurable on the calibration CLI.
+_DEFAULT_EVIDENCE_TOP_N = 50
 
 
 def load_config(path: Path) -> dict[str, object]:
@@ -249,6 +254,65 @@ def main() -> None:
         default=".argot/scorer-config.json",
         help="Output path for scorer-config.json",
     )
+    parser.add_argument(
+        "--evidence-top-n",
+        type=int,
+        default=_DEFAULT_EVIDENCE_TOP_N,
+        help=(
+            "Number of top entries per dimension to bake into the "
+            "evidence_corpus block of scorer-config.json (default "
+            f"{_DEFAULT_EVIDENCE_TOP_N})."
+        ),
+    )
+    # Era-13.5 asymmetric calibration knobs. Defaults mirror the bench
+    # config that produced the era-13.5 recall numbers (see
+    # benchmarks/README.md §Era 13.5). With auto-detect on, the rare-
+    # branch is enabled per-corpus only when its calibration fire-rate is
+    # below the asym threshold — a corpus where the rule fires often on
+    # ordinary code would FP-flood, so we silently fall back to baseline
+    # there. Pre-13.5 builds shipped with rare=0 and matched bench
+    # baseline; the 13.5 work moved bench recall up but never wired the
+    # production calibrator, leaving prod stuck at the baseline numbers.
+    parser.add_argument(
+        "--call-receiver-cluster-rare-threshold",
+        type=int,
+        default=2,
+        help=(
+            "Rare-branch threshold: a callee present in ≤ N cluster files "
+            "is treated as cluster-absent. 0 disables the rule entirely "
+            "(pre-13.5 baseline). Default 2 (era-13.5 setting)."
+        ),
+    )
+    parser.add_argument(
+        "--call-receiver-cluster-size-min",
+        type=int,
+        default=0,
+        help=(
+            "Minimum cluster size for the rare-branch to fire. 0 disables "
+            "the size floor. Default 0."
+        ),
+    )
+    parser.add_argument(
+        "--auto-select-asym-cal",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Per-corpus auto-detect: probe the calibration distribution's "
+            "rare-branch fire rate; keep the rare rule when it's "
+            "discriminative (fire rate < --asym-fire-rate-threshold), "
+            "disable when noisy. Default on. Pass --no-auto-select-asym-cal "
+            "to opt out."
+        ),
+    )
+    parser.add_argument(
+        "--asym-fire-rate-threshold",
+        type=float,
+        default=0.05,
+        help=(
+            "Auto-detect cutoff: keep rare rule when calibration fire rate "
+            "is below this fraction of cal hunks. Default 0.05 (5%%)."
+        ),
+    )
     args = parser.parse_args()
 
     repo_path = Path(args.repo).resolve()
@@ -288,6 +352,50 @@ def main() -> None:
     call_receiver_cluster_seed: int = 0
     call_receiver_cluster_bonus: float = 5.0
 
+    # Resolve the rare-branch threshold via the auto-detect probe (era-13.5).
+    # The probe builds a single scorer with the rule enabled and measures the
+    # per-hunk fire rate on the same calibration distribution. Below the cutoff
+    # → keep (the rule's catches don't show up on typical code, so it's safe).
+    # At-or-above → disable (the rule fires too symmetrically; keeping it would
+    # cancel out at calibration and FP-flood real PR controls).
+    cluster_rare_threshold = args.call_receiver_cluster_rare_threshold
+    cluster_size_min = args.call_receiver_cluster_size_min
+    if args.auto_select_asym_cal and cluster_rare_threshold > 0 and call_receiver_n_clusters > 1:
+        probe_meta = sample_hunks_with_metadata(
+            source_dir, effective_n_cal, args.seed, adapter=adapter
+        )
+        probe = SequentialImportBpeScorer(
+            repo_corpus_files=repo_corpus_files,
+            bpe_generic_baseline_path=generic_baseline_path,
+            calibration_hunks=[h for h, _, _ in probe_meta],
+            calibration_hunks_with_metadata=probe_meta,
+            adapter=adapter,
+            call_receiver_alpha=call_receiver_alpha,
+            call_receiver_cap=call_receiver_cap,
+            call_receiver_root_bonus=call_receiver_root_bonus,
+            call_receiver_n_clusters=call_receiver_n_clusters,
+            call_receiver_cluster_seed=call_receiver_cluster_seed,
+            call_receiver_cluster_bonus=call_receiver_cluster_bonus,
+            call_receiver_cluster_rare_threshold=cluster_rare_threshold,
+            call_receiver_cluster_size_min=cluster_size_min,
+            threshold_percentile=args.threshold_percentile,
+            threshold_iqr_k=args.threshold_iqr_k,
+        )
+        hunks_seen = max(probe.hunks_scored, 1)
+        fire_rate = probe.rare_branch_hunks_fired / hunks_seen
+        keep_rule = fire_rate < args.asym_fire_rate_threshold
+        print(
+            f"[auto-asym] cluster_rare probe: "
+            f"rare_hunks_fired={probe.rare_branch_hunks_fired}/{hunks_seen} "
+            f"fire_rate={fire_rate:.3f} "
+            f"threshold={args.asym_fire_rate_threshold:.3f} "
+            f"→ {'KEEP rule' if keep_rule else 'DISABLE rule (rare=0)'}",
+            file=sys.stderr,
+        )
+        del probe
+        if not keep_rule:
+            cluster_rare_threshold = 0
+
     if args.threshold_n_seeds > 1:
         print(
             f"Running {args.threshold_n_seeds} independent calibrations "
@@ -310,6 +418,8 @@ def main() -> None:
             call_receiver_n_clusters=call_receiver_n_clusters,
             call_receiver_cluster_seed=call_receiver_cluster_seed,
             call_receiver_cluster_bonus=call_receiver_cluster_bonus,
+            call_receiver_cluster_rare_threshold=cluster_rare_threshold,
+            call_receiver_cluster_size_min=cluster_size_min,
         )
         scorer = SequentialImportBpeScorer(
             repo_corpus_files=repo_corpus_files,
@@ -321,6 +431,8 @@ def main() -> None:
             call_receiver_n_clusters=call_receiver_n_clusters,
             call_receiver_cluster_seed=call_receiver_cluster_seed,
             call_receiver_cluster_bonus=call_receiver_cluster_bonus,
+            call_receiver_cluster_rare_threshold=cluster_rare_threshold,
+            call_receiver_cluster_size_min=cluster_size_min,
         )
         n_cal_used = effective_n_cal
     else:
@@ -336,6 +448,8 @@ def main() -> None:
             call_receiver_n_clusters=call_receiver_n_clusters,
             call_receiver_cluster_seed=call_receiver_cluster_seed,
             call_receiver_cluster_bonus=call_receiver_cluster_bonus,
+            call_receiver_cluster_rare_threshold=cluster_rare_threshold,
+            call_receiver_cluster_size_min=cluster_size_min,
             threshold_percentile=args.threshold_percentile,
             threshold_iqr_k=args.threshold_iqr_k,
         )
@@ -347,6 +461,16 @@ def main() -> None:
     except Exception:
         repo_sha = "unknown"
 
+    # Pre-compute the per-dimension top-N samples that the evidence layer
+    # uses at check time. Persisted alongside the threshold so check doesn't
+    # have to retokenize the whole repo on every run.
+    evidence_corpus = build_evidence_corpus(scorer, repo_corpus_files, top_n=args.evidence_top_n)
+
+    # Snapshot the import-graph scorer's foreign-module surface at fit time
+    # so check-time scoring doesn't re-derive it from current file contents
+    # (which would silently absorb any newly-added foreign import on the
+    # first hunk to introduce it).
+    import_scorer = scorer._import_scorer  # noqa: SLF001
     config: dict[str, object] = {
         "version": _CONFIG_VERSION,
         "threshold": scorer.bpe_threshold,
@@ -356,6 +480,10 @@ def main() -> None:
         "call_receiver_n_clusters": call_receiver_n_clusters,
         "call_receiver_cluster_seed": call_receiver_cluster_seed,
         "call_receiver_cluster_bonus": call_receiver_cluster_bonus,
+        "call_receiver_cluster_rare_threshold": cluster_rare_threshold,
+        "call_receiver_cluster_size_min": cluster_size_min,
+        "import_modules": sorted(import_scorer._repo_modules),  # noqa: SLF001
+        "import_module_prefixes": sorted(import_scorer._repo_modules_prefixes),  # noqa: SLF001
         "calibration": {
             "n_cal": n_cal_used,
             "seed": args.seed,
@@ -363,6 +491,7 @@ def main() -> None:
             "repo_sha": repo_sha,
             "timestamp_utc": datetime.now(tz=UTC).isoformat(),
         },
+        "evidence_corpus": evidence_corpus.to_json_dict(),
     }
 
     out_path = Path(args.output)

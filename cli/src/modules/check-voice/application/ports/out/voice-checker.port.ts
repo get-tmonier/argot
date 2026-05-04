@@ -16,6 +16,7 @@ interface VoiceCheckerShape {
     exclude: ReadonlyArray<string>;
     verbose: boolean;
     minSeverity: MinSeverity;
+    threshold: number | undefined;
   }) => Effect.Effect<boolean, CheckError>;
 }
 

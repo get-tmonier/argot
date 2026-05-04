@@ -96,10 +96,10 @@ class BenchScorer:
             file_path=file_path,
         )
         return ScoreResult(
-            import_score=float(raw["import_score"]),
-            bpe_score=float(raw["bpe_score"]),
-            flagged=bool(raw["flagged"]),
-            reason=raw["reason"],
+            import_score=float(raw.stages.import_score),
+            bpe_score=float(raw.stages.bpe_score),
+            flagged=bool(raw.flagged),
+            reason=raw.reason,
         )
 
 

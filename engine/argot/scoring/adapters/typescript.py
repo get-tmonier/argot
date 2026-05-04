@@ -476,6 +476,101 @@ class TypeScriptAdapter:
 
         return [c for c in _extract(source, "typescript") if c is not None]
 
+    # TypeScript / JavaScript reserved words plus the ``true`` / ``false`` /
+    # ``null`` / ``undefined`` literals and the ``this`` / ``arguments``
+    # implicit identifiers. Filtered out of the repo-wide identifier
+    # vocabulary so ``common here:`` shows the repo's domain identifiers
+    # (``useEffect``, ``Console.log`` …) rather than syntax (``import``,
+    # ``export``, ``const`` …).
+    _NOISE: frozenset[str] = frozenset(
+        {
+            # Reserved words (ES + TS)
+            "abstract",
+            "any",
+            "as",
+            "asserts",
+            "assert",
+            "async",
+            "await",
+            "boolean",
+            "break",
+            "case",
+            "catch",
+            "class",
+            "const",
+            "constructor",
+            "continue",
+            "debugger",
+            "declare",
+            "default",
+            "delete",
+            "do",
+            "else",
+            "enum",
+            "export",
+            "extends",
+            "false",
+            "finally",
+            "for",
+            "from",
+            "function",
+            "get",
+            "global",
+            "if",
+            "implements",
+            "import",
+            "in",
+            "infer",
+            "instanceof",
+            "interface",
+            "is",
+            "keyof",
+            "let",
+            "module",
+            "namespace",
+            "never",
+            "new",
+            "null",
+            "number",
+            "object",
+            "of",
+            "package",
+            "private",
+            "protected",
+            "public",
+            "readonly",
+            "require",
+            "return",
+            "satisfies",
+            "set",
+            "static",
+            "string",
+            "super",
+            "switch",
+            "symbol",
+            "this",
+            "throw",
+            "true",
+            "try",
+            "type",
+            "typeof",
+            "undefined",
+            "unique",
+            "unknown",
+            "var",
+            "void",
+            "while",
+            "with",
+            "yield",
+            # Implicit identifiers in every function
+            "arguments",
+        }
+    )
+
+    @property
+    def identifier_noise(self) -> frozenset[str]:
+        return self._NOISE
+
     def prose_line_ranges(self, source: str, extension: str = ".ts") -> frozenset[int]:
         """Return 1-indexed line numbers covered by comments (line and block).
 

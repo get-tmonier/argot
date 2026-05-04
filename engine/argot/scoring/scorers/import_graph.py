@@ -105,6 +105,25 @@ class ImportGraphScorer:
             self._repo_modules_prefixes = frozenset()
         self._repo_modules = frozenset(seen)
 
+    def load_snapshot(
+        self,
+        modules: Iterable[str],
+        prefixes: Iterable[str],
+    ) -> None:
+        """Restore a fit-time snapshot of the foreign-module surface.
+
+        At check time we want to flag imports the user just added — but
+        :meth:`fit` derives ``_repo_modules`` from current file contents,
+        so a fresh ``import mongoose`` lands in the set immediately and
+        stops being foreign on the very hunk that introduced it. Persisting
+        the fit-time snapshot in ``scorer-config.json`` and restoring it
+        here decouples "what the model knew about at fit time" from
+        "what's on disk now", which is the only honest answer for the
+        check-time foreign-import gate.
+        """
+        self._repo_modules = frozenset(modules)
+        self._repo_modules_prefixes = frozenset(prefixes)
+
     def is_foreign(self, spec: str) -> bool:
         """Return True if *spec* is not a known internal module specifier."""
         return _is_foreign(spec, self._repo_modules, self._repo_modules_prefixes)

@@ -43,6 +43,7 @@ DEFAULT_EXCLUDE_DIRS: frozenset[str] = frozenset(
         "dist",
         "__pycache__",
         ".git",
+        ".history",
         ".tox",
         ".eggs",
     }
@@ -63,7 +64,17 @@ def is_excluded_path(path: Path, source_dir: Path, exclude_dirs: frozenset[str])
     if name.startswith("test_") or name == "conftest.py":
         return True
     # TypeScript/JavaScript test files: foo.test.ts, foo.spec.tsx, etc.
-    return ".test." in name or ".spec." in name
+    if ".test." in name or ".spec." in name:
+        return True
+    # Config files: foo.config.ts (vite/vitest/tsup/jest/rollup/...), and
+    # hidden rc dotfiles (.eslintrc.js, .prettierrc.json, .babelrc.cjs).
+    # These are noise for a voice linter — the n-gram models have too few
+    # samples of any given config style to score them meaningfully, and at
+    # check time they fire as "rare token sequence" purely because the
+    # calibration vocabulary doesn't cover their idiosyncratic shape.
+    if ".config." in name:
+        return True
+    return name.startswith(".") and "rc." in name[1:]
 
 
 _is_excluded = is_excluded_path

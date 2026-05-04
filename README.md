@@ -252,11 +252,13 @@ argot check --verbose                # show full hunk contents (no truncation)
 Sample output:
 
 ```
-argot check · 3 hunks above threshold (1 foreign · 2 suspicious)
+argot check · 2 hunks above threshold (1 foreign · 1 suspicious)
 note: argot is a probabilistic style linter — verify before action.
 
 src/utils/http-helpers.ts
   ●  L42-L48      8.21  foreign     · workdir · foreign import (import)
+     ↳ axios — 0 of 47 module specifiers in repo
+       common here: react (320×), express (88×), pg (47×)
   42 │ import axios from 'axios';
   43 │
   44 │ export async function fetchUserData(id: string) {
@@ -266,10 +268,19 @@ src/utils/http-helpers.ts
 
 src/api/router.ts
   ◐  L102        5.89  suspicious  · staged · rare token sequence (bpe)
+     ↳ startedAt (0×), _res (3×), use (88×)
   102 │ router.use((req, _res, next) => { req.startedAt = Date.now(); next(); });
 
 tip: pass --verbose (-v) to expand truncated hunks.
 ```
+
+The line under each hit (`↳`) is the **per-hunk evidence**. For BPE-fired hits it lists the surprising identifiers with their repo-wide attestation counts — `startedAt (0×)` means the token never appears elsewhere in the repo, while `use (88×)` is familiar; the flag is about the *combination*, not the words. For foreign-import / unfamiliar-callee hits it shows the offending names plus a `common here:` line orienting you to the repo's typical vocabulary in that dimension (the repo's stack, the cluster's typical callees).
+
+**Files argot stays silent on**
+
+argot won't flag **data-dominant files** — modules whose body is ≥80% top-level array / object literals (locale tables, fixture arrays, large generated lookups). The n-gram model treats their string-literal payloads as foreign vocabulary, so without this gate the scorer would fire on every line. Detection is heuristic and runs at both fit and check time so the model trains and scores on the same scope.
+
+Test files, config files (`*.config.*`, `.eslintrc.*`, `.prettierrc.*`, …), and a handful of conventional dirs (`docs/`, `examples/`, `migrations/`, `scripts/`, `build/`, `dist/`) are also skipped today as a placeholder default — these will move to user-configurable rules with the suppression surface in [#57](https://github.com/get-tmonier/argot/issues/57).
 
 **Understanding the score**
 
@@ -432,7 +443,7 @@ argot is **alpha** software. We ship honest benchmarks and a public research log
 - **No introspection / suitability check** — running `fit` then `check` is the only way to find out whether argot will work on your repo ([#51](https://github.com/get-tmonier/argot/issues/51)).
 - **No model artifact versioning or hashing** — `.argot/` is opaque; reproducibility is undocumented ([#62](https://github.com/get-tmonier/argot/issues/62)).
 - **No MCP server for LLM coding agents** — argot's signal would be especially useful as preemptive guidance during code generation, but there's no protocol surface yet ([#56](https://github.com/get-tmonier/argot/issues/56)).
-- **No per-hunk evidence in `check` output** — hits show a friendly reason ("rare token sequence") but not *which* token was rare, leaving the user to guess ([#40](https://github.com/get-tmonier/argot/issues/40)).
+- ~~**No per-hunk evidence in `check` output** — hits show a friendly reason ("rare token sequence") but not *which* token was rare, leaving the user to guess ([#40](https://github.com/get-tmonier/argot/issues/40)).~~ ✅ **Shipped** ([#69](https://github.com/get-tmonier/argot/pull/69)) — each hit now carries a `↳` line naming the responsible tokens with their repo attestation. See the example output above.
 - **No user-facing documentation site** — everything user-relevant lives in this README; no structured tutorials, how-tos, reference, or per-language pages ([#52](https://github.com/get-tmonier/argot/issues/52)).
 
 ### What we need for v1
@@ -447,7 +458,7 @@ The minimum-viable-v1 set we'd want to ship before recommending argot for produc
 | [#57](https://github.com/get-tmonier/argot/issues/57) | Suppression mechanism — adoption blocker without it |
 | [#51](https://github.com/get-tmonier/argot/issues/51) | Repo introspection / suitability check |
 | [#58](https://github.com/get-tmonier/argot/issues/58) | Official CI integration (GitHub Action + pre-commit + SARIF) |
-| [#40](https://github.com/get-tmonier/argot/issues/40) | Per-hunk evidence in `check` output — point at the specific tokens carrying the score |
+| ~~[#40](https://github.com/get-tmonier/argot/issues/40)~~ ✅ | ~~Per-hunk evidence in `check` output — point at the specific tokens carrying the score~~ — shipped via [#69](https://github.com/get-tmonier/argot/pull/69) |
 | [#52](https://github.com/get-tmonier/argot/issues/52) | User-facing documentation site (tutorials, how-tos, reference) |
 
 Browse all open issues, including non-v1 work, at [`github.com/get-tmonier/argot/issues`](https://github.com/get-tmonier/argot/issues).

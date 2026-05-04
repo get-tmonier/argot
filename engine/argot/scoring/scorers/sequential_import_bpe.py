@@ -16,8 +16,9 @@ import math
 import re
 from collections import Counter
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from argot.scoring.adapters.language_adapter import LanguageAdapter
 from argot.scoring.adapters.registry import adapter_for_files
@@ -26,8 +27,20 @@ from argot.scoring.scorers.call_receiver import CallReceiverScorer
 from argot.scoring.scorers.import_graph import ImportGraphScorer
 from argot.scoring.scorers.shape_primitive import ShapePrimitive
 
+if TYPE_CHECKING:
+    from argot.scoring.evidence.types import Evidence, EvidenceCorpus
+
+# Local imports for evidence collectors live inside ``score_hunk`` to keep
+# the static import graph free of evidence-package dependencies — it stays
+# possible to use the scorer in code paths (tests, ML feature extraction)
+# that never touch the evidence layer without paying its import cost.
+
 _EPSILON = 1e-7
 _BPE_MODEL_NAME = "microsoft/unixcoder-base"
+# The import stage's threshold is the constant "≥ 1 foreign module" rule.
+# Surfaced as a named constant so the multi-reason ratio computation in
+# Step 2 has something to divide by without a magic number.
+_IMPORT_THRESHOLD: float = 1.0
 
 # Matches lines starting with "import " or "from " (no leading spaces — top-of-file only)
 _RE_IMPORT_LINE = re.compile(r"^(?:import |from )\S", re.MULTILINE)
@@ -120,10 +133,53 @@ def _compute_threshold(
     return sorted_vals[lo] + (idx - lo) * (sorted_vals[hi] - sorted_vals[lo])
 
 
-ScoredHunk = dict[str, Any]
 Reason = Literal[
     "import", "call_receiver", "bpe", "none", "auto_generated", "atypical", "atypical_file"
 ]
+
+
+@dataclass(frozen=True)
+class StageScores:
+    """Raw per-stage scores from one ``score_hunk`` invocation.
+
+    Always populated alongside ``ScoredHunk`` so diagnostic callers
+    (``ml/features.py``, BPE parity tests, future ``--debug-evidence``
+    output) can inspect every stage's raw contribution without having to
+    call private methods on the scorer. Short-circuit paths (atypical,
+    atypical_file, auto_generated) return zeros: stages did not run.
+    """
+
+    import_score: float
+    bpe_score: float
+    call_receiver_contribution: float
+
+
+@dataclass(frozen=True)
+class ScoredHunk:
+    """One hunk's verdict, the winning reason's headline score, plus diagnostics.
+
+    ``score`` and ``threshold`` belong to the *winning* reason — not always
+    ``bpe_score``. When the import stage fires, ``score`` is the foreign-module
+    count and ``threshold`` is :data:`_IMPORT_THRESHOLD` (1.0); when the BPE
+    or call-receiver stage fires, ``score`` is the adjusted BPE score and
+    ``threshold`` is the calibrated ``bpe_threshold``. For non-flagged or
+    short-circuited hunks the headline values still describe one of the
+    stages (so the dataclass remains rectangular and JSON-serialisable),
+    but the renderer will skip them via ``flagged``.
+
+    ``evidence`` is populated by per-reason collectors in Step 3 of the
+    evidence-layer PRD; it is ``None`` until a collector runs.
+
+    ``stages`` carries the raw per-stage breakdown so multi-reason logic
+    and ML feature extraction can inspect every stage in one pass.
+    """
+
+    score: float
+    threshold: float
+    flagged: bool
+    reason: Reason
+    stages: StageScores
+    evidence: Evidence | None = None
 
 
 class SequentialImportBpeScorer:
@@ -173,6 +229,8 @@ class SequentialImportBpeScorer:
         call_receiver_force_jaccard_routing: bool = False,
         call_receiver_shape_primitives: list[ShapePrimitive[Any]] | None = None,
         calibration_hunks_with_metadata: list[tuple[str, Path, str]] | None = None,
+        evidence_corpus: EvidenceCorpus | None = None,
+        import_modules_snapshot: tuple[frozenset[str], frozenset[str]] | None = None,
         _tokenizer: Any = None,
     ) -> None:
         if (
@@ -215,9 +273,17 @@ class SequentialImportBpeScorer:
                 )
             repo_corpus_list = filtered
 
-        # Import checker: import-graph scorer (uses same adapter)
+        # Import checker: import-graph scorer (uses same adapter). Prefer a
+        # fit-time snapshot when one is supplied — it pins the foreign-set to
+        # what the model knew at fit, so a hunk that introduces a brand-new
+        # import is still flagged as foreign rather than getting absorbed when
+        # the scorer re-derives modules from current file contents.
         self._import_scorer = ImportGraphScorer(adapter=self._adapter, repo_root=repo_root)
-        self._import_scorer.fit(repo_corpus_list)
+        if import_modules_snapshot is not None:
+            modules, prefixes = import_modules_snapshot
+            self._import_scorer.load_snapshot(modules, prefixes)
+        else:
+            self._import_scorer.fit(repo_corpus_list)
 
         # BPE scorer: call-receiver soft-penalty scorer
         self._call_receiver: CallReceiverScorer | None = None
@@ -269,6 +335,12 @@ class SequentialImportBpeScorer:
             counts.update(ids)
         self._repo_corpus: dict[int, int] = dict(counts)
         self._total_repo: int = sum(counts.values()) or 1  # avoid division by zero
+
+        # Pre-computed evidence corpus loaded from calibration JSON; ``None``
+        # in tests / inference paths that don't need evidence rendering. Per-
+        # reason collectors (Step 3) consult this to populate ``common here:``
+        # samples and rarity denominators.
+        self._evidence_corpus: EvidenceCorpus | None = evidence_corpus
 
         if bpe_threshold is not None:
             # Use pre-computed threshold (e.g. loaded from scorer-config.json)
@@ -340,6 +412,21 @@ class SequentialImportBpeScorer:
         """Total hunks scored by the call_receiver (denominator for fire-rate computations)."""
         return self._call_receiver.hunks_scored if self._call_receiver is not None else 0
 
+    def _token_surprise(self, token_id: int) -> float:
+        """Per-token log-likelihood ratio (generic baseline vs. repo corpus).
+
+        The same formula :meth:`_bpe_score` aggregates over the whole hunk —
+        factored out so the BPE evidence collector can rank individual
+        tokens without duplicating the math.
+        """
+        return math.log(
+            self._generic_baseline.get(token_id, 0) / self._total_generic + _EPSILON
+        ) - math.log(self._repo_corpus.get(token_id, 0) / self._total_repo + _EPSILON)
+
+    def _is_meaningful_token_id(self, token_id: int) -> bool:
+        """Token-id form of :func:`_is_meaningful_token` for the collectors."""
+        return _is_meaningful_token(self._id_to_token.get(token_id, ""))
+
     def _bpe_score(self, hunk_source: str) -> float:
         ids: list[int] = self._tokenizer.encode(hunk_source, add_special_tokens=False)
         filtered = [i for i in ids if _is_meaningful_token(self._id_to_token.get(i, ""))]
@@ -347,12 +434,7 @@ class SequentialImportBpeScorer:
             filtered = ids
         if not filtered:
             return 0.0
-        scores = [
-            math.log(self._generic_baseline.get(i, 0) / self._total_generic + _EPSILON)
-            - math.log(self._repo_corpus.get(i, 0) / self._total_repo + _EPSILON)
-            for i in filtered
-        ]
-        return max(scores)
+        return max(self._token_surprise(i) for i in filtered)
 
     def score_hunk(
         self,
@@ -394,48 +476,61 @@ class SequentialImportBpeScorer:
             from the file's cluster attested set. Has no effect when n_clusters=1
             (cluster-conditional scoring disabled).
 
-        Returns a dict with keys:
-          - import_score (float): number of foreign modules (import checker output)
-          - bpe_score (float): max log-likelihood ratio (BPE scorer output, always computed)
-          - flagged (bool): True if either stage fires
-          - reason ("import" | "bpe" | "none"): which stage fired first
+        Returns a :class:`ScoredHunk` whose ``score`` / ``threshold`` belong
+        to the winning reason — :data:`_IMPORT_THRESHOLD` for ``import``,
+        ``self.bpe_threshold`` for ``bpe`` / ``call_receiver``. Raw per-stage
+        scores are always available on ``ScoredHunk.stages`` for ML feature
+        extraction and bench diagnostics; short-circuits return all-zero
+        ``StageScores``.
         """
         # Typicality short-circuits (replaces the legacy auto-generated gate).
         if self._typicality_model is not None:
             is_atyp_hunk, _ = self._typicality_model.is_atypical(hunk_content)
             if is_atyp_hunk:
-                return {
-                    "import_score": 0.0,
-                    "bpe_score": 0.0,
-                    "flagged": False,
-                    "reason": "atypical",
-                }
+                return ScoredHunk(
+                    score=0.0,
+                    threshold=self.bpe_threshold,
+                    flagged=False,
+                    reason="atypical",
+                    stages=StageScores(0.0, 0.0, 0.0),
+                )
             if file_source is not None:
                 is_atyp_file, _ = self._typicality_model.is_atypical_file(file_source)
                 if is_atyp_file:
-                    return {
-                        "import_score": 0.0,
-                        "bpe_score": 0.0,
-                        "flagged": False,
-                        "reason": "atypical_file",
-                    }
+                    return ScoredHunk(
+                        score=0.0,
+                        threshold=self.bpe_threshold,
+                        flagged=False,
+                        reason="atypical_file",
+                        stages=StageScores(0.0, 0.0, 0.0),
+                    )
         elif file_source is not None and self._adapter.is_auto_generated(file_source):
-            return {
-                "import_score": 0.0,
-                "bpe_score": 0.0,
-                "flagged": False,
-                "reason": "auto_generated",
-            }
+            return ScoredHunk(
+                score=0.0,
+                threshold=self.bpe_threshold,
+                flagged=False,
+                reason="auto_generated",
+                stages=StageScores(0.0, 0.0, 0.0),
+            )
 
         if file_source is not None:
             # Import checker — hunk-only: only imports added in the hunk can introduce a
             # foreign module.  A pure string/comment edit in an import-heavy file
             # has no hunk imports and cannot trigger the import checker.
             hunk_imports = self._adapter.extract_imports(hunk_content)
-            foreign = {spec for spec in hunk_imports if self._import_scorer.is_foreign(spec)}
+            foreign: set[str] = {
+                spec for spec in hunk_imports if self._import_scorer.is_foreign(spec)
+            }
             import_score: float = float(len(foreign))
         else:
-            import_score = self._import_scorer.score_hunk(hunk_content)
+            # No file_source → score_hunk over the hunk text. We don't get
+            # the foreign-set "for free" here, so recompute it for evidence.
+            foreign = {
+                spec
+                for spec in self._adapter.extract_imports(hunk_content)
+                if self._import_scorer.is_foreign(spec)
+            }
+            import_score = float(len(foreign))
 
         # BPE scorer: optionally blank prose lines before BPE scoring
         bpe_input = hunk_content
@@ -452,15 +547,11 @@ class SequentialImportBpeScorer:
 
         bpe_score: float = self._bpe_score(bpe_input)
 
-        if import_score >= 1.0:
-            return {
-                "import_score": import_score,
-                "bpe_score": bpe_score,
-                "flagged": True,
-                "reason": "import",
-            }
-
-        # BPE scorer: call-receiver soft penalty
+        # Call-receiver contribution is always computed (when the scorer is
+        # configured) so the diagnostic ``StageScores.call_receiver_contribution``
+        # field is populated regardless of which stage wins. The value is also
+        # used by Step 2's multi-reason ratio resolution.
+        contribution: float = 0.0
         if self._call_receiver is not None:
             if file_path is not None:
                 contribution = self._call_receiver.weighted_contribution_for_file(
@@ -479,26 +570,150 @@ class SequentialImportBpeScorer:
                     root_bonus=self._call_receiver_root_bonus,
                     cap=float(self._call_receiver.cap),
                 )
-            adjusted_bpe = bpe_score + contribution
-            if adjusted_bpe > self.bpe_threshold:
-                cr_reason: Reason = "call_receiver" if bpe_score <= self.bpe_threshold else "bpe"
-                return {
-                    "import_score": import_score,
-                    "bpe_score": bpe_score,
-                    "flagged": True,
-                    "reason": cr_reason,
-                }
-            return {
-                "import_score": import_score,
-                "bpe_score": bpe_score,
-                "flagged": False,
-                "reason": "none",
-            }
 
-        reason: Reason = "bpe" if bpe_score > self.bpe_threshold else "none"
-        return {
-            "import_score": import_score,
-            "bpe_score": bpe_score,
-            "flagged": reason != "none",
-            "reason": reason,
-        }
+        stages = StageScores(
+            import_score=import_score,
+            bpe_score=bpe_score,
+            call_receiver_contribution=contribution,
+        )
+
+        # ------------------------------------------------------------------
+        # Multi-reason resolution (D3): every stage that crosses its own
+        # threshold becomes a candidate; the candidate with the largest
+        # ``score / threshold`` ratio wins, with a fixed precedence
+        # ``call_receiver > import > bpe`` breaking ties for determinism.
+        #
+        # Why ratios and not raw ``max``: ``import_score`` is a count
+        # against a constant 1.0 threshold; ``bpe_score`` is a log-likelihood
+        # ratio against a per-repo calibrated threshold. Comparing the raw
+        # values would let "1 foreign import" always beat "BPE 2.5× over
+        # threshold". Normalising by each stage's own threshold puts every
+        # signal on a common "how loud is this relative to typical" scale.
+        #
+        # ``bpe`` and ``call_receiver`` are deliberately disjoint here:
+        # ``bpe`` fires when the raw score alone crosses threshold, and
+        # ``call_receiver`` fires only when the call-receiver contribution
+        # was the decisive factor (raw bpe ≤ threshold but adjusted > it).
+        # That preserves today's interpretable split between "vocabulary
+        # register tripped" and "unfamiliar callee tipped it".
+        # ------------------------------------------------------------------
+        adjusted_bpe = bpe_score + contribution
+        cr_active = self._call_receiver is not None
+        # Effective BPE-side score for the threshold comparison: use the
+        # adjusted value when the call-receiver layer is enabled (matches
+        # how the previous single-reason path behaved), so a BPE-only
+        # config still gates strictly on raw bpe_score.
+        bpe_side_score = adjusted_bpe if cr_active else bpe_score
+
+        import_fired = import_score >= _IMPORT_THRESHOLD
+        bpe_fired = bpe_score > self.bpe_threshold
+        cr_fired = cr_active and not bpe_fired and bpe_side_score > self.bpe_threshold
+
+        # Guard against a near-zero calibrated threshold producing infinite
+        # ratios — clamp the denominator with a tiny epsilon. The order
+        # between fired stages stays correct; a vanishing threshold just
+        # means every stage looks equally "infinitely loud", which the
+        # tiebreak precedence then resolves deterministically.
+        denom = max(self.bpe_threshold, _EPSILON)
+
+        # (reason, score, threshold, ratio) for each fired stage.
+        candidates: list[tuple[Reason, float, float, float]] = []
+        if import_fired:
+            candidates.append(
+                ("import", import_score, _IMPORT_THRESHOLD, import_score / _IMPORT_THRESHOLD)
+            )
+        if bpe_fired:
+            candidates.append(("bpe", bpe_score, self.bpe_threshold, bpe_score / denom))
+        if cr_fired:
+            candidates.append(
+                ("call_receiver", adjusted_bpe, self.bpe_threshold, adjusted_bpe / denom)
+            )
+
+        if candidates:
+            # Highest ratio wins; tiebreak by a fixed precedence so two
+            # stages reporting the same ratio always resolve the same way.
+            tiebreak = {"call_receiver": 0, "import": 1, "bpe": 2}
+            candidates.sort(key=lambda c: (-c[3], tiebreak[c[0]]))
+            winner = candidates[0]
+            evidence = self._collect_evidence(
+                winner[0],
+                hunk_content=hunk_content,
+                bpe_input=bpe_input,
+                file_path=file_path,
+                file_source=file_source,
+                foreign=foreign,
+            )
+            return ScoredHunk(
+                score=winner[1],
+                threshold=winner[2],
+                flagged=True,
+                reason=winner[0],
+                stages=stages,
+                evidence=evidence,
+            )
+
+        # Nothing fired. Headline score still describes a stage so the
+        # dataclass stays rectangular; the renderer skips the hit via
+        # ``flagged=False``.
+        return ScoredHunk(
+            score=bpe_side_score,
+            threshold=self.bpe_threshold,
+            flagged=False,
+            reason="none",
+            stages=stages,
+        )
+
+    def _collect_evidence(
+        self,
+        winning_reason: Reason,
+        *,
+        hunk_content: str,
+        bpe_input: str,
+        file_path: Path | None,
+        file_source: str | None,
+        foreign: set[str],
+    ) -> Evidence | None:
+        """Dispatch to the per-reason evidence collector after a hunk fires.
+
+        Returns ``None`` when the scorer wasn't constructed with an
+        :class:`EvidenceCorpus` — the renderer then skips the evidence
+        block, matching the unflagged path. Lazy-imports the per-reason
+        modules so callers that never need evidence (tests, ML feature
+        extraction) don't pay for the import.
+        """
+        if self._evidence_corpus is None:
+            return None
+
+        # Imports kept local: see the ``# Local imports for evidence
+        # collectors`` note at module top.
+        from argot.scoring.evidence.bpe import collect_bpe_evidence
+        from argot.scoring.evidence.call_receiver import collect_call_receiver_evidence
+        from argot.scoring.evidence.imports import collect_import_evidence
+
+        if winning_reason == "import":
+            # Preserve the order the imports appear in the hunk for the
+            # rendered ``↳`` line — sets don't preserve order, so re-derive.
+            hunk_imports = list(self._adapter.extract_imports(hunk_content))
+            ordered_foreign = [m for m in hunk_imports if m in foreign]
+            return collect_import_evidence(
+                foreign_specifiers=ordered_foreign,
+                evidence_corpus=self._evidence_corpus,
+            )
+        if winning_reason == "call_receiver":
+            if self._call_receiver is None:  # pragma: no cover — cr_fired guard
+                return None
+            cluster_id = self._call_receiver.cluster_id_for_hunk_file(file_path, file_source)
+            return collect_call_receiver_evidence(
+                unattested_callees=self._call_receiver.distinct_unattested(hunk_content),
+                cluster_id=cluster_id,
+                evidence_corpus=self._evidence_corpus,
+            )
+        if winning_reason == "bpe":
+            return collect_bpe_evidence(
+                hunk_source=bpe_input,
+                tokenizer=self._tokenizer,
+                score_fn=self._token_surprise,
+                is_meaningful=self._is_meaningful_token_id,
+                evidence_corpus=self._evidence_corpus,
+            )
+        return None
