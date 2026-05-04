@@ -28,6 +28,15 @@ class PythonAdapter:
         """Return top-level module names imported in *source* (non-relative only)."""
         return set(self._parser.extract_imports(source))
 
+    def extract_imports_with_spans(self, source: str) -> list[tuple[str, int, int, int]]:
+        """Return ``(spec, line, col_start, col_end)`` per top-level import.
+
+        Used by the import-evidence collector to attach source spans to
+        flagged foreign specifiers in rendered output. Line is 1-indexed;
+        columns are 0-indexed byte offsets within their line.
+        """
+        return list(self._parser.extract_imports_with_spans(source))
+
     def resolve_repo_modules(self, repo_root: Path) -> RepoModules:  # noqa: ARG002
         """Python internal modules are discovered via extract_imports in fit(); return empty."""
         return RepoModules(exact=frozenset(), prefixes=frozenset())

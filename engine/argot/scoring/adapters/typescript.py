@@ -162,6 +162,37 @@ def _extract_require_imports(root: Node) -> set[str]:
     return mods
 
 
+def _extract_require_imports_with_spans(root: Node) -> list[tuple[str, int, int, int]]:
+    """Walk AST for ``require('specifier')`` calls, returning ``(spec, line,
+    col_start, col_end)``.
+
+    The span covers the specifier text itself, not the surrounding quotes —
+    ``require('msgspec')`` underlines ``msgspec`` (positions 9-16),
+    skipping the leading ``'``.
+    """
+    out: list[tuple[str, int, int, int]] = []
+    for node in _walk(root):
+        if node.type != "call_expression":
+            continue
+        fn = node.child_by_field_name("function")
+        args = node.child_by_field_name("arguments")
+        if fn is None or args is None:
+            continue
+        if fn.type != "identifier" or (fn.text or b"").decode("utf-8") != "require":
+            continue
+        for arg in args.children:
+            if arg.type == "string" and arg.text:
+                spec = _strip_quotes(arg.text.decode("utf-8"))
+                if spec and not _is_relative(spec):
+                    line = arg.start_point[0] + 1
+                    # Skip the opening quote so the underline lands on the
+                    # specifier text, not the literal's quote character.
+                    col_start = arg.start_point[1] + 1
+                    col_end = col_start + len(spec.encode("utf-8"))
+                    out.append((spec, line, col_start, col_end))
+    return out
+
+
 def _walk(node: Node) -> Generator[Node, None, None]:
     """Depth-first traversal yielding every node."""
     yield node
@@ -282,6 +313,42 @@ class TypeScriptAdapter:
             return mods
         except Exception:
             return set()
+
+    def extract_imports_with_spans(
+        self, source: str, extension: str = ".ts"
+    ) -> list[tuple[str, int, int, int]]:
+        """Like ``extract_imports`` but each specifier carries its source span.
+
+        Returns ``(specifier, line, col_start, col_end)`` — line 1-indexed,
+        columns 0-indexed byte offsets, end exclusive. The span covers
+        the specifier text, not its surrounding quotes (so the underline
+        lands on the bytes the user is most likely to grep).
+
+        Used by the import-evidence collector for ``msgspec (L7)`` line
+        annotations and ``^^^^^^^`` carets in the rendered output.
+        Order: by line, then column, then name (deterministic for tests).
+        """
+        try:
+            parser, import_q, _ = self._get_parser_and_queries(extension)
+            tree = parser.parse(source.encode("utf-8"))
+            captures: dict[str, list[Node]] = import_q.captures(tree.root_node)  # type: ignore[attr-defined]
+            out: list[tuple[str, int, int, int]] = []
+            for node in captures.get("src", []):
+                if node.text:
+                    spec = _strip_quotes(node.text.decode("utf-8"))
+                    if spec and not _is_relative(spec):
+                        line = node.start_point[0] + 1
+                        # The captured ``src`` node text is the full string
+                        # literal with its quotes; skip the opening quote so
+                        # the underline lands on the specifier itself.
+                        col_start = node.start_point[1] + 1
+                        col_end = col_start + len(spec.encode("utf-8"))
+                        out.append((spec, line, col_start, col_end))
+            out.extend(_extract_require_imports_with_spans(tree.root_node))
+            out.sort(key=lambda t: (t[1], t[2], t[0]))
+            return out
+        except Exception:
+            return []
 
     def resolve_repo_modules(self, repo_root: Path) -> RepoModules:
         """Return package names and tsconfig path alias prefixes for *repo_root*.

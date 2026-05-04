@@ -39,6 +39,19 @@ class LanguageAdapter(Protocol):
         """
         ...
 
+    def extract_imports_with_spans(self, source: str) -> list[tuple[str, int, int, int]]:
+        """Return ``(specifier, line, col_start, col_end)`` for each import.
+
+        Same content as :meth:`extract_imports` but with the source span of
+        each top-level specifier carried alongside, so the import-evidence
+        renderer can annotate flagged foreign specifiers with file lines
+        (``msgspec (L7)``) and underline the offending bytes with eslint-
+        style carets. ``line`` is 1-indexed; ``col_start``/``col_end`` are
+        0-indexed byte offsets in their line, end exclusive. On parse
+        error return ``[]`` — never raise.
+        """
+        ...
+
     def resolve_repo_modules(self, repo_root: Path) -> RepoModules:
         """Return the set of known internal module names for *repo_root*.
 

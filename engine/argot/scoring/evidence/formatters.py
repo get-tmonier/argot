@@ -30,6 +30,7 @@ from argot.scoring.evidence.types import (
     Evidence,
     ImportEvidence,
     RarityStat,
+    SourceSpan,
 )
 
 # Two ANSI codes — kept here rather than imported from ``check.py`` to avoid
@@ -66,6 +67,11 @@ def _names_line(names: list[str], rarity: RarityStat, *, use_color: bool) -> str
     return _NAMES_INDENT + _dim(f"{_GLYPH} {body}", use_color=use_color)
 
 
+def _annotate_with_line(name: str, file_line: int | None) -> str:
+    """Return ``"name (Lnn)"`` when a line is known, else just ``name``."""
+    return f"{name} (L{file_line})" if file_line is not None else name
+
+
 def _common_here_line(entries: list[CommonEntry], *, use_color: bool) -> str:
     """Render the ``common here: ...`` line body. Caller pre-checks the floor."""
     body = format_common_here_line(entries)
@@ -73,9 +79,18 @@ def _common_here_line(entries: list[CommonEntry], *, use_color: bool) -> str:
 
 
 class EvidenceFormatter(Protocol):
-    """Structural interface every per-reason formatter satisfies."""
+    """Structural interface every per-reason formatter satisfies.
 
-    def render(self, evidence: Evidence, *, use_color: bool) -> list[str]: ...
+    ``hunk_start_line`` is the 1-indexed file line at which the hunk
+    body starts. Formatters that annotate flagged elements with file
+    line numbers (currently :class:`ImportEvidenceFormatter`) use it to
+    convert hunk-relative lines stored on the evidence into file lines.
+    Formatters that don't need it can ignore the parameter.
+    """
+
+    def render(
+        self, evidence: Evidence, *, use_color: bool, hunk_start_line: int = 1
+    ) -> list[str]: ...
 
 
 class BpeEvidenceFormatter:
@@ -92,7 +107,13 @@ class BpeEvidenceFormatter:
     and immediately actionable.
     """
 
-    def render(self, evidence: Evidence, *, use_color: bool) -> list[str]:
+    def render(
+        self,
+        evidence: Evidence,
+        *,
+        use_color: bool,
+        hunk_start_line: int = 1,  # noqa: ARG002 — keep protocol-uniform signature
+    ) -> list[str]:
         # Narrow at the boundary so the protocol's wider type doesn't leak
         # into the body — a misroute by the dispatcher fails loudly here.
         if not isinstance(evidence, BpeEvidence):
@@ -108,13 +129,27 @@ class BpeEvidenceFormatter:
 
 
 class ImportEvidenceFormatter:
-    """Render :class:`ImportEvidence` to ≤ 2 lines under an import-fired hit."""
+    """Render :class:`ImportEvidence` to ≤ 2 lines under an import-fired hit.
 
-    def render(self, evidence: Evidence, *, use_color: bool) -> list[str]:
+    Annotates each foreign specifier with its file line when the scorer
+    captured one (``msgspec (L7) — 0 of 120 module specifiers in repo``).
+    """
+
+    def render(
+        self,
+        evidence: Evidence,
+        *,
+        use_color: bool,
+        hunk_start_line: int = 1,
+    ) -> list[str]:
         if not isinstance(evidence, ImportEvidence):
             raise TypeError(f"ImportEvidenceFormatter received {type(evidence).__name__}")
         out: list[str] = []
-        names_line = _names_line(evidence.foreign_specifiers, evidence.rarity, use_color=use_color)
+        annotated_names = [
+            _annotate_with_line(name, _file_line_for(name, evidence, hunk_start_line))
+            for name in evidence.foreign_specifiers
+        ]
+        names_line = _names_line(annotated_names, evidence.rarity, use_color=use_color)
         if names_line is not None:
             out.append(names_line)
         if should_show_common_here(evidence.common_here):
@@ -122,10 +157,30 @@ class ImportEvidenceFormatter:
         return out
 
 
+def _file_line_for(name: str, evidence: ImportEvidence, hunk_start_line: int) -> int | None:
+    """Convert a hunk-relative line for ``name`` to a 1-indexed file line.
+
+    Returns ``None`` when the scorer did not capture a span for this
+    specifier — the formatter then renders the bare name. The +/- 1
+    arithmetic mirrors the rest of argot's display: the first line of
+    the hunk equals ``hunk_start_line`` (not ``hunk_start_line + 1``).
+    """
+    span = evidence.foreign_specifier_spans.get(name)
+    if span is None:
+        return None
+    return hunk_start_line + span.line - 1
+
+
 class CallReceiverEvidenceFormatter:
     """Render :class:`CallReceiverEvidence` to ≤ 2 lines under a CR-fired hit."""
 
-    def render(self, evidence: Evidence, *, use_color: bool) -> list[str]:
+    def render(
+        self,
+        evidence: Evidence,
+        *,
+        use_color: bool,
+        hunk_start_line: int = 1,  # noqa: ARG002 — keep protocol-uniform signature
+    ) -> list[str]:
         if not isinstance(evidence, CallReceiverEvidence):
             raise TypeError(f"CallReceiverEvidenceFormatter received {type(evidence).__name__}")
         out: list[str] = []
@@ -137,7 +192,12 @@ class CallReceiverEvidenceFormatter:
         return out
 
 
-def format_evidence(evidence: Evidence, *, use_color: bool) -> list[str]:
+def format_evidence(
+    evidence: Evidence,
+    *,
+    use_color: bool,
+    hunk_start_line: int = 1,
+) -> list[str]:
     """Single-entrypoint dispatcher for the renderer.
 
     Routes the runtime type to the matching formatter — keeps the
@@ -145,14 +205,58 @@ def format_evidence(evidence: Evidence, *, use_color: bool) -> list[str]:
     Returns ``[]`` for unrecognised payload types so a future evidence
     type slipped in without a formatter degrades to "no evidence shown"
     rather than crashing the renderer.
+
+    ``hunk_start_line`` is forwarded so import evidence can convert its
+    hunk-relative line annotations into file lines.
     """
     if isinstance(evidence, BpeEvidence):
-        return BpeEvidenceFormatter().render(evidence, use_color=use_color)
+        return BpeEvidenceFormatter().render(
+            evidence, use_color=use_color, hunk_start_line=hunk_start_line
+        )
     if isinstance(evidence, ImportEvidence):
-        return ImportEvidenceFormatter().render(evidence, use_color=use_color)
+        return ImportEvidenceFormatter().render(
+            evidence, use_color=use_color, hunk_start_line=hunk_start_line
+        )
     if isinstance(evidence, CallReceiverEvidence):
-        return CallReceiverEvidenceFormatter().render(evidence, use_color=use_color)
+        return CallReceiverEvidenceFormatter().render(
+            evidence, use_color=use_color, hunk_start_line=hunk_start_line
+        )
     return []
+
+
+def evidence_lines_of_interest(evidence: Evidence | None) -> set[int]:
+    """Return hunk-relative line numbers the renderer should keep visible.
+
+    The truncated hunk-body display defaults to the first N lines, which
+    can clip the line where evidence was actually flagged (the original
+    bug: ``msgspec`` evidence with the import on hunk-line 7 invisible
+    behind a 6-line truncation). Returning the lines here lets the
+    truncator peek past its default budget so flagged lines are always
+    shown without forcing ``--verbose``.
+
+    Returns an empty set when no evidence is present or when the
+    evidence type doesn't carry per-span annotations.
+    """
+    if isinstance(evidence, ImportEvidence):
+        return {span.line for span in evidence.foreign_specifier_spans.values() if span.line >= 1}
+    return set()
+
+
+def evidence_caret_spans(evidence: Evidence | None) -> dict[int, list[SourceSpan]]:
+    """Return ``{hunk_line: [SourceSpan, ...]}`` for the eslint-style carets.
+
+    The hunk renderer prints a caret line below each source line that
+    has at least one entry here, with ``^`` characters at every span's
+    column range. Spans on the same line group naturally — the renderer
+    composes them onto a single underline. Empty result → no underlines
+    are drawn (e.g. BPE / call-receiver hits, evidence without spans).
+    """
+    if not isinstance(evidence, ImportEvidence):
+        return {}
+    out: dict[int, list[SourceSpan]] = {}
+    for span in evidence.foreign_specifier_spans.values():
+        out.setdefault(span.line, []).append(span)
+    return out
 
 
 __all__ = [
@@ -160,5 +264,7 @@ __all__ = [
     "CallReceiverEvidenceFormatter",
     "EvidenceFormatter",
     "ImportEvidenceFormatter",
+    "evidence_caret_spans",
+    "evidence_lines_of_interest",
     "format_evidence",
 ]

@@ -25,8 +25,12 @@ from argot.scoring.calibration.random_hunk_sampler import (
     DEFAULT_EXCLUDE_DIRS,
     is_excluded_path,
 )
-from argot.scoring.evidence.formatters import format_evidence
-from argot.scoring.evidence.types import Evidence, EvidenceCorpus
+from argot.scoring.evidence.formatters import (
+    evidence_caret_spans,
+    evidence_lines_of_interest,
+    format_evidence,
+)
+from argot.scoring.evidence.types import Evidence, EvidenceCorpus, SourceSpan
 from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
 
 # ANSI color codes for terminal output.
@@ -489,12 +493,53 @@ def _highlight_lines(content: str, file_path: str, use_color: bool) -> list[str]
     return out
 
 
+def _render_caret_line(
+    raw_line: str,
+    spans: list[SourceSpan],
+    visible_prefix_width: int,
+    use_color: bool,
+) -> str | None:
+    """Build the eslint-style ``^^^^^`` underline for one source line.
+
+    ``raw_line`` is the un-highlighted source text — caret alignment uses
+    its byte offsets so ANSI codes injected by syntax highlighting can't
+    desynchronise the underline. Each span's column range is clamped to
+    the line's actual byte length (parser-reported spans almost always
+    fit, but truncated/edge-case hunks could over-shoot). Overlapping
+    spans on the same line merge naturally — every byte covered by at
+    least one span gets a caret. Returns ``None`` when no span ends up
+    contributing a printable caret, so the caller can suppress an empty
+    underline row.
+    """
+    line_len = len(raw_line.encode("utf-8"))
+    covered = [False] * line_len
+    for sp in spans:
+        start = max(0, sp.col_start)
+        end = min(line_len, sp.col_end)
+        for j in range(start, end):
+            covered[j] = True
+    if not any(covered):
+        return None
+    underline = "".join("^" if c else " " for c in covered).rstrip()
+    if not underline:
+        return None
+    pad = " " * visible_prefix_width
+    if use_color:
+        # Brand-coloured underline keeps the ASCII art legible without
+        # taking the whole row's brightness — the source line stays the
+        # main subject; the caret is secondary marker.
+        underline = f"{_BRAND}{underline}{_RESET}"
+    return f"{pad}{underline}"
+
+
 def _render_hunk_body(
     content: str,
     file_path: str,
     start_line: int,
     max_lines: int | None,
     use_color: bool,
+    must_show_hunk_lines: frozenset[int] = frozenset(),
+    caret_spans_by_line: dict[int, list[SourceSpan]] | None = None,
 ) -> tuple[list[str], int]:
     """Format the hunk body as a numbered, syntax-highlighted code block.
 
@@ -506,6 +551,20 @@ def _render_hunk_body(
     box-drawing gutter so the output stays parseable in NO_COLOR / non-tty
     contexts.
 
+    ``must_show_hunk_lines`` is a set of 1-indexed hunk-relative line numbers
+    that the renderer expands its budget to include. The original truncation
+    bug — flagged ``msgspec`` import on hunk-line 7 invisible behind a 6-line
+    cap — is the case this guards against. The expansion only grows the
+    budget; passing a line outside the hunk is silently ignored. Lines past
+    the new budget still elide via the ``(+N more)`` footer.
+
+    ``caret_spans_by_line`` maps 1-indexed hunk-relative line → spans the
+    renderer should underline. Each entry produces a ``^^^^`` row directly
+    below the source line, eslint-style. Carets are only drawn for lines
+    that survived the truncation cap; spans on elided lines are silently
+    dropped (the smart-peek logic should have already pulled those lines
+    in if they mattered).
+
     Returns (lines, overflow) where ``overflow`` is how many lines were
     elided. Callers use this to decide whether to print the "pass --verbose"
     hint at the end of the run.
@@ -516,15 +575,36 @@ def _render_hunk_body(
     if not raw_lines:
         return [], 0
     highlighted = _highlight_lines(content, file_path, use_color)
-    shown_count = len(raw_lines) if max_lines is None else min(max_lines, len(raw_lines))
+    if max_lines is None:
+        shown_count = len(raw_lines)
+    else:
+        shown_count = min(max_lines, len(raw_lines))
+        # Smart-peek: grow the budget so any flagged hunk-relative line is
+        # in-frame. Bounded by the actual hunk length, so we never claim to
+        # show lines that don't exist.
+        in_range = [ln for ln in must_show_hunk_lines if 1 <= ln <= len(raw_lines)]
+        if in_range:
+            shown_count = min(len(raw_lines), max(shown_count, max(in_range)))
     overflow = len(raw_lines) - shown_count
     gutter = f"{_DIM}│{_RESET}" if use_color else "|"
     width = len(str(start_line + shown_count - 1))
+    # Visible-prefix width for caret alignment: ``"  "`` + line-number digits
+    # + ``" "`` + gutter glyph + ``" "``. The line-number digits are wrapped
+    # in dim ANSI but display as ``width`` columns.
+    caret_pad = 2 + width + 1 + 1 + 1  # "  " + ln + " " + gutter + " "
+    spans_by_line = caret_spans_by_line or {}
     out: list[str] = []
     for i in range(shown_count):
         ln = start_line + i
         ln_str = f"{_DIM}{ln:>{width}}{_RESET}" if use_color else f"{ln:>{width}}"
         out.append(f"  {ln_str} {gutter} {highlighted[i]}")
+        # Hunk-relative line for caret lookup: the i-th rendered line is
+        # hunk-line (i + 1) regardless of ``start_line``.
+        spans_here = spans_by_line.get(i + 1)
+        if spans_here:
+            caret_line = _render_caret_line(raw_lines[i], spans_here, caret_pad, use_color)
+            if caret_line is not None:
+                out.append(caret_line)
     if overflow > 0:
         plural = "s" if overflow != 1 else ""
         marker = f"(+{overflow} more line{plural})"
@@ -637,13 +717,28 @@ def _render_results(
             # between the headline and the hunk body. Layout decisions —
             # indentation, truncation, dim wrapping — all live in
             # :mod:`scoring.evidence.formatters`; this function is only the
-            # dispatcher and printer.
+            # dispatcher and printer. ``hunk_start_line`` is forwarded so
+            # import evidence can render ``msgspec (L7)`` annotations.
             if hit.evidence is not None:
-                for evidence_line in format_evidence(hit.evidence, use_color=use_color):
+                for evidence_line in format_evidence(
+                    hit.evidence, use_color=use_color, hunk_start_line=hit.line
+                ):
                     print(evidence_line)
 
+            # Smart truncation: peek the hunk body so any line flagged by
+            # the evidence is always in-frame, regardless of --hunk-lines.
+            # Caret spans drive the eslint-style ``^^^^`` underlines drawn
+            # directly under the offending bytes — see _render_hunk_body.
+            must_show = frozenset(evidence_lines_of_interest(hit.evidence))
+            caret_spans = evidence_caret_spans(hit.evidence)
             body_lines, overflow = _render_hunk_body(
-                hit.hunk_content, hit.file_path, hit.line, hunk_lines, use_color
+                hit.hunk_content,
+                hit.file_path,
+                hit.line,
+                hunk_lines,
+                use_color,
+                must_show_hunk_lines=must_show,
+                caret_spans_by_line=caret_spans,
             )
             for body_line in body_lines:
                 print(body_line)

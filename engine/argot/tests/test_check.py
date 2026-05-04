@@ -12,12 +12,15 @@ from argot.check import (
     _Hit,
     _is_out_of_scope,
     _modified_patches,
+    _render_caret_line,
+    _render_hunk_body,
     _render_results,
     _severity,
     _staged_patches,
     _untracked_patches,
 )
 from argot.git_walk import _resolve_shas
+from argot.scoring.evidence.types import SourceSpan
 
 # ---------------------------------------------------------------------------
 # Repo helpers
@@ -555,6 +558,87 @@ def test_highlight_lines_no_color_returns_raw_lines() -> None:
     content = "\nline two\nline three"
     raw = content.splitlines()
     assert _highlight_lines(content, "test.ts", use_color=False) == raw
+
+
+def test_render_caret_line_underlines_one_span() -> None:
+    """``^^^^^`` lands on the bytes covered by the span; everything else
+    is whitespace. Carets align by raw byte offset so ANSI codes from
+    syntax highlighting can't shift them.
+    """
+    line = "import msgspec.json"
+    span = SourceSpan(line=1, col_start=7, col_end=14)  # ``msgspec``
+    rendered = _render_caret_line(line, [span], visible_prefix_width=4, use_color=False)
+    assert rendered is not None
+    # 4-char prefix + 7 spaces (cols 0-6) + 7 carets (cols 7-13)
+    assert rendered == "    " + " " * 7 + "^" * 7
+
+
+def test_render_caret_line_merges_overlapping_spans() -> None:
+    """Two spans on the same line union into one underline — every byte
+    covered by either span gets a caret. The renderer never duplicates
+    underlines for the same physical byte.
+    """
+    line = "import a; import b"
+    spans = [
+        SourceSpan(line=1, col_start=7, col_end=8),  # ``a``
+        SourceSpan(line=1, col_start=17, col_end=18),  # ``b``
+    ]
+    rendered = _render_caret_line(line, spans, visible_prefix_width=0, use_color=False)
+    assert rendered is not None
+    # Cols 0-6 spaces, col 7 caret, 8-16 spaces, col 17 caret.
+    assert rendered == " " * 7 + "^" + " " * 9 + "^"
+
+
+def test_render_caret_line_returns_none_when_span_outside() -> None:
+    """A span whose columns sit outside the line (off-by-one bug,
+    truncated line) yields no underline rather than a row of spaces.
+    """
+    line = "short"
+    span = SourceSpan(line=1, col_start=100, col_end=110)
+    assert _render_caret_line(line, [span], visible_prefix_width=0, use_color=False) is None
+
+
+def test_render_hunk_body_smart_peeks_to_evidence_line() -> None:
+    """Default truncation at 6 lines, but a flagged line at hunk-line 8
+    grows the budget so the caret can land on the right row. Originally
+    the user couldn't see ``msgspec`` on line 7 because the cap was 6.
+    """
+    content = "\n".join(f"line{n}" for n in range(1, 13))  # 12 lines
+    body, overflow = _render_hunk_body(
+        content,
+        "x.py",
+        start_line=1,
+        max_lines=6,
+        use_color=False,
+        must_show_hunk_lines=frozenset({8}),
+    )
+    # 8 source lines + the ``(+N more lines)`` footer.
+    assert len(body) == 9
+    assert overflow == 4
+    # The flagged line is in-frame.
+    assert any("line8" in row for row in body)
+
+
+def test_render_hunk_body_emits_caret_under_flagged_line() -> None:
+    """When ``caret_spans_by_line`` covers the third rendered line, the
+    body output has a caret row immediately following that source row,
+    pointing at the right byte range.
+    """
+    content = "import os\nimport sys\nimport msgspec.json\n"
+    spans_by_line = {3: [SourceSpan(line=3, col_start=7, col_end=14)]}
+    body, _overflow = _render_hunk_body(
+        content,
+        "x.py",
+        start_line=10,
+        max_lines=10,
+        use_color=False,
+        caret_spans_by_line=spans_by_line,
+    )
+    # Source line 3 (file line 12) renders, then the caret row right after.
+    msgspec_idx = next(i for i, row in enumerate(body) if "msgspec.json" in row)
+    caret_row = body[msgspec_idx + 1]
+    assert "^" * 7 in caret_row  # exactly len("msgspec") carets
+    assert caret_row.lstrip(" ").startswith("^")
 
 
 def test_render_results_verbose_hunk_starting_with_empty_line(

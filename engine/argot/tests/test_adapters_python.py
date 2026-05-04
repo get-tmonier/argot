@@ -114,6 +114,36 @@ def test_extract_imports_returns_set_of_strings() -> None:
     assert "sys" in imports
 
 
+def test_extract_imports_with_spans_returns_line_and_columns() -> None:
+    """Each import carries a 1-indexed line and 0-indexed byte columns
+    covering the **top-level** specifier — for ``import msgspec.json``
+    the span covers ``msgspec`` only, since that's what the import
+    scorer flags. Order is by line, then column, then name.
+    """
+    adapter = PythonAdapter()
+    src = (
+        "import os\n"  # line 1
+        "from pathlib import Path\n"  # line 2
+        "import msgspec.json\n"  # line 3
+    )
+    spans = adapter.extract_imports_with_spans(src)
+    assert ("os", 1, 7, 9) in spans  # ``import os`` — ``os`` at cols 7-9
+    # ``from pathlib import Path`` — ``pathlib`` is the dotted_name
+    # capture starting at col 5 ("from " is 5 chars). Span covers
+    # ``pathlib`` (7 bytes).
+    assert ("pathlib", 2, 5, 12) in spans
+    # ``import msgspec.json`` — top-level ``msgspec`` only.
+    assert ("msgspec", 3, 7, 14) in spans
+
+
+def test_extract_imports_with_spans_handles_parse_error() -> None:
+    adapter = PythonAdapter()
+    # Mid-block fragment without a wrapping function — tree-sitter still
+    # parses but the contract is "return [] on parse error / empty".
+    spans = adapter.extract_imports_with_spans("not valid (((")
+    assert spans == []
+
+
 def test_prose_line_ranges_returns_frozenset() -> None:
     adapter = PythonAdapter()
     src = "def foo():\n    '''A docstring.'''\n    return 1\n"

@@ -89,6 +89,53 @@ class PythonTreeSitterParser:
         except Exception:
             return frozenset()
 
+    def extract_imports_with_spans(self, src: str) -> list[tuple[str, int, int, int]]:
+        """Like ``extract_imports`` but each specifier carries its source span.
+
+        Returns ``(specifier, line, col_start, col_end)`` tuples — line is
+        1-indexed, columns are 0-indexed byte offsets (start inclusive,
+        end exclusive), the same convention tree-sitter uses internally.
+        ``col_end - col_start`` is the byte length of the **top-level**
+        portion of the specifier — i.e. for ``import msgspec.json`` the
+        span covers ``msgspec`` only, since that's what the import-graph
+        scorer flags as foreign.
+
+        Used by the import-evidence collector so the renderer can both
+        annotate ``msgspec (L7)`` and draw ``^^^^^^^`` carets under the
+        offending bytes. Order: by line, then by name (deterministic for
+        tests). Duplicates are preserved — callers keep the first.
+        """
+        try:
+            tree = self._parser.parse(src.encode("utf-8"))
+            if tree.root_node.has_error:
+                return []
+            out: list[tuple[str, int, int, int]] = []
+            captures: dict[str, list[Node]] = _IMPORT_QUERY.captures(tree.root_node)
+            for node in captures.get("imp", []):
+                if not node.text:
+                    continue
+                top_level = node.text.decode("utf-8").split(".")[0]
+                # tree-sitter rows are 0-indexed; user-facing lines are 1-indexed.
+                line = node.start_point[0] + 1
+                col_start = node.start_point[1]
+                # Cover only the top-level portion (``msgspec`` of ``msgspec.json``).
+                col_end = col_start + len(top_level.encode("utf-8"))
+                out.append((top_level, line, col_start, col_end))
+            future_captures: dict[str, list[Node]] = _FUTURE_IMPORT_QUERY.captures(tree.root_node)
+            for node in future_captures.get("fi", []):
+                line = node.start_point[0] + 1
+                # Underline the whole ``from __future__`` clause's leading token —
+                # tree-sitter gives us the statement; pinning to ``__future__``
+                # itself would require a second query, and the whole leading
+                # ``from __future__`` reads fine when underlined together.
+                col_start = node.start_point[1]
+                col_end = col_start + len(b"__future__")
+                out.append(("__future__", line, col_start, col_end))
+            out.sort(key=lambda t: (t[1], t[2], t[0]))
+            return out
+        except Exception:
+            return []
+
     def prose_line_ranges(self, src: str) -> frozenset[int]:
         try:
             tree = self._parser.parse(src.encode("utf-8"))

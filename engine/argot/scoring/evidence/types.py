@@ -22,8 +22,32 @@ a one-day ``--json`` output mode work without reshaping.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any
+
+
+@dataclass(frozen=True)
+class SourceSpan:
+    """A 1-indexed line + 0-indexed column range inside a hunk's text.
+
+    Carried alongside evidence so the renderer can both annotate names
+    with file lines (``msgspec (L7)``) and underline the offending
+    columns with eslint-style carets:
+
+    ::
+
+        7 │ import msgspec.json
+                   ^^^^^^^
+
+    ``col_start`` is inclusive, ``col_end`` exclusive — the same
+    half-open convention tree-sitter uses for ``start_point`` /
+    ``end_point``. Both columns are byte offsets in the raw source line;
+    callers must not align carets against ANSI-highlighted output.
+    """
+
+    line: int
+    col_start: int
+    col_end: int
 
 
 @dataclass(frozen=True)
@@ -106,11 +130,21 @@ class ImportEvidence:
     hunk that the import scorer marked foreign. Rarity and common-here
     are over the repo's distinct top-level import specifiers — an
     architectural-identity signal, not just vocabulary register.
+
+    ``foreign_specifier_spans`` maps each entry in ``foreign_specifiers``
+    to its :class:`SourceSpan` within the hunk content (line + column
+    range). The renderer uses ``span.line`` for the ``↳ msgspec (L7)``
+    annotation, the line value to keep the offending line in-frame past
+    the truncation cap, and the column range to draw eslint-style
+    ``^^^^^`` carets under the imported name. Specifiers without a known
+    span are simply omitted from this map; the renderer falls back to the
+    unannotated form for those.
     """
 
     foreign_specifiers: list[str]
     rarity: RarityStat
     common_here: list[CommonEntry]
+    foreign_specifier_spans: dict[str, SourceSpan] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -226,4 +260,5 @@ __all__ = [
     "EvidenceCorpusTotals",
     "ImportEvidence",
     "RarityStat",
+    "SourceSpan",
 ]
