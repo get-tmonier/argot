@@ -43,6 +43,7 @@ DEFAULT_EXCLUDE_DIRS: frozenset[str] = frozenset(
         "dist",
         "__pycache__",
         ".git",
+        ".history",
         ".tox",
         ".eggs",
     }
