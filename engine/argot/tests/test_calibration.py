@@ -539,9 +539,10 @@ def test_apply_optional_contributions_false_suppresses_shape_primitives(
 
 def test_calibration_cli_threshold_iqr_k(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """--threshold-iqr-k flag is accepted and produces a valid threshold."""
-    model_a_path = tmp_path / "model_a.txt"
-    model_a_path.write_text("\n".join(str(p) for p in _CONTROL_FILES))
-    (tmp_path / "model_b.json").write_text((_BPE_GENERIC_BASELINE).read_text())
+    repo_corpus_path = tmp_path / "repo-corpus.txt"
+    repo_corpus_path.write_text("\n".join(str(p) for p in _CONTROL_FILES))
+    generic_baseline_path = tmp_path / "generic-baseline.json"
+    generic_baseline_path.write_text((_BPE_GENERIC_BASELINE).read_text())
     out = tmp_path / "scorer-config.json"
     monkeypatch.setattr(
         sys,
@@ -550,10 +551,10 @@ def test_calibration_cli_threshold_iqr_k(tmp_path: Path, monkeypatch: pytest.Mon
             "argot-calibrate",
             "--repo",
             str(_FASTAPI_FIXTURES),
-            "--model-a",
-            str(model_a_path),
-            "--model-b",
-            str(tmp_path / "model_b.json"),
+            "--repo-corpus",
+            str(repo_corpus_path),
+            "--generic-baseline",
+            str(generic_baseline_path),
             "--output",
             str(out),
             "--n-cal",

@@ -103,9 +103,14 @@ Each executor prompt must include:
 - **Commits, branches, PRs.** Only on explicit user request. Never on
   `main` (`feedback_no_commits_on_main`). Never `git stash/revert/reset`
   (`feedback_no_stash_revert`) — use `git show <sha>:path` for old state.
-- **Cleanup.** After synthesis, call `TeamDelete` to close executor
-  panes. Exception: if an executor left a failed `just` output the user
-  might want to inspect, warn before deleting.
+- **Cleanup.** Closing the executor team is a **mandatory final step**
+  of every dispatch cycle — not optional, not "if you remember". The
+  cycle is not closed until you have called `TeamDelete(team_name=...)`.
+  It is the last action of the wrap-up checklist (see below). Exception:
+  if an executor left a failed `just` output the user might want to
+  inspect, warn the user, wait for acknowledgement, then delete.
+  If you are about to report "done" to the user and the team is still
+  alive, you have skipped a step — go back and delete it.
 
 ## 5. Hard rules (CLAUDE.md, binding)
 
@@ -164,6 +169,10 @@ Run this when an era closes (all phases done, gate decision made).
 
 6. **Update `benchmarks/README.md`** — baseline pointer if it moved.
 
+7. **`TeamDelete(team_name=<slug>)`** — close all executor panes. This
+   is mandatory and final; the era is not wrapped until the team is
+   gone. Confirm in your end-of-turn summary that the team was deleted.
+
 Keep narrative consistent across all docs: same numbers, same framing.
 If a chart in one doc would contradict a table in another, fix both.
 
@@ -188,6 +197,10 @@ passed).
 5. **Stage commit on user request** — never commit on `main`
    (`feedback_no_commits_on_main`). Wait for explicit user go.
 
+6. **`TeamDelete(team_name=<slug>)`** — close all executor panes. This
+   is mandatory and final; the cycle is not wrapped until the team is
+   gone. Confirm in your end-of-turn summary that the team was deleted.
+
 # When to STOP and hand back
 
 - A phase's pre-registered gate fails → report the bound, do not
@@ -211,6 +224,9 @@ passed).
 - Resolving contradictions between executor reports silently.
 - Running bench while executors are still in progress.
 - Letting an executor make a ship/no-ship call.
+- Reporting "done" to the user while the executor team is still alive.
+  `TeamDelete` is the closing punctuation of every cycle; if you forgot
+  it, the cycle isn't closed.
 - Adding error handling, fallbacks, or backwards-compat shims for
   scenarios that can't happen.
 - Adding comments that explain WHAT (well-named code does that already)

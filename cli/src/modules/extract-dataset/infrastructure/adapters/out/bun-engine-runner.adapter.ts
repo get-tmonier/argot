@@ -7,12 +7,24 @@ import { EngineExitNonZero, EngineSpawnFailed } from '#modules/extract-dataset/d
 
 export const BunEngineRunnerLive = Layer.effect(EngineRunner)(
   Effect.succeed({
-    runExtract: ({ repoPath, outputPath }: { repoPath: string; outputPath: string }) =>
+    runExtract: ({
+      repoPath,
+      outputPath,
+      ref,
+    }: {
+      repoPath: string;
+      outputPath: string;
+      ref?: string;
+    }) =>
       Effect.callback<void, EngineExitNonZero | EngineSpawnFailed>((resume) => {
         const { cmd, args } = engineCmd('argot.extract');
+
+        // Pass ref as second positional when non-empty
+        const positionals = ref !== undefined && ref.length > 0 ? [repoPath, ref] : [repoPath];
+
         let proc: ReturnType<typeof spawn>;
         try {
-          proc = spawn(cmd, [...args, repoPath, '--out', outputPath], {
+          proc = spawn(cmd, [...args, ...positionals, '--out', outputPath], {
             stdio: ['ignore', 'inherit', 'pipe'],
           });
         } catch (cause: unknown) {

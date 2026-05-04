@@ -9,12 +9,12 @@ export const BunModelTrainerLive = Layer.effect(ModelTrainer)(
   Effect.succeed({
     runTrain: ({
       repoPath,
-      modelAPath,
-      modelBPath,
+      repoCorpusPath,
+      genericBaselinePath,
     }: {
       repoPath: string;
-      modelAPath: string;
-      modelBPath: string;
+      repoCorpusPath: string;
+      genericBaselinePath: string;
     }) =>
       Effect.callback<void, TrainExitNonZero | TrainSpawnFailed>((resume) => {
         const { cmd, args } = engineCmd('argot.train');
@@ -22,7 +22,15 @@ export const BunModelTrainerLive = Layer.effect(ModelTrainer)(
         try {
           proc = spawn(
             cmd,
-            [...args, '--repo', repoPath, '--model-a-out', modelAPath, '--model-b-out', modelBPath],
+            [
+              ...args,
+              '--repo',
+              repoPath,
+              '--repo-corpus-out',
+              repoCorpusPath,
+              '--generic-baseline-out',
+              genericBaselinePath,
+            ],
             { stdio: ['ignore', 'inherit', 'pipe'] },
           );
         } catch (cause: unknown) {

@@ -51,13 +51,13 @@ def main() -> None:
     )
     parser.add_argument("--repo", default=".", help="Path to the target repository")
     parser.add_argument(
-        "--model-a-out",
-        default=".argot/model_a.txt",
+        "--repo-corpus-out",
+        default=".argot/repo-corpus.txt",
         help="Output file listing repo corpus source paths",
     )
     parser.add_argument(
-        "--model-b-out",
-        default=".argot/model_b.json",
+        "--generic-baseline-out",
+        default=".argot/generic-baseline.json",
         help="Output path for the BPE generic baseline JSON",
     )
     args = parser.parse_args()
@@ -67,8 +67,8 @@ def main() -> None:
         print(f"error: not a git repository: {repo_path}", file=sys.stderr)
         sys.exit(2)
 
-    repo_corpus_out = Path(args.model_a_out)
-    generic_baseline_out = Path(args.model_b_out)
+    repo_corpus_out = Path(args.repo_corpus_out)
+    generic_baseline_out = Path(args.generic_baseline_out)
     repo_corpus_out.parent.mkdir(parents=True, exist_ok=True)
     generic_baseline_out.parent.mkdir(parents=True, exist_ok=True)
 

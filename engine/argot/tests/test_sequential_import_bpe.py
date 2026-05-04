@@ -165,12 +165,12 @@ def test_scorer_filters_data_dominant_repo_corpus_files(tmp_path: Path) -> None:
     data_file = tmp_path / "data.py"
     data_file.write_text("DATA = {\n" + "\n".join(f'  "k{i}": "v{i}",' for i in range(120)) + "\n}")
 
-    bpe_model_b = tmp_path / "bpe.json"
-    bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
+    bpe_generic_baseline = tmp_path / "bpe.json"
+    bpe_generic_baseline.write_text('{"token_counts": {}, "total_tokens": 1}')
 
     scorer = SequentialImportBpeScorer(
         repo_corpus_files=[code_file, data_file],
-        bpe_generic_baseline_path=bpe_model_b,
+        bpe_generic_baseline_path=bpe_generic_baseline,
         calibration_hunks=["def g():\n    return 1\n    return 2"],
         adapter=PythonAdapter(),
     )
@@ -186,8 +186,8 @@ def test_scorer_filters_atypical_calibration_hunks(tmp_path: Path) -> None:
     code_file.write_text(
         "def fn(x):\n" "    if x > 0:\n" "        return x + 1\n" "    return x - 1\n"
     )
-    bpe_model_b = tmp_path / "bpe.json"
-    bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
+    bpe_generic_baseline = tmp_path / "bpe.json"
+    bpe_generic_baseline.write_text('{"token_counts": {}, "total_tokens": 1}')
 
     normal_hunk = (
         "def other(x, registry):\n"
@@ -200,7 +200,7 @@ def test_scorer_filters_atypical_calibration_hunks(tmp_path: Path) -> None:
 
     scorer = SequentialImportBpeScorer(
         repo_corpus_files=[code_file],
-        bpe_generic_baseline_path=bpe_model_b,
+        bpe_generic_baseline_path=bpe_generic_baseline,
         calibration_hunks=[normal_hunk, data_hunk],
         adapter=PythonAdapter(),
     )
@@ -216,13 +216,13 @@ def _make_scorer_for_score_hunk_tests(tmp_path: Path) -> SequentialImportBpeScor
     code_file.write_text(
         "def fn(x):\n" "    if x > 0:\n" "        return x + 1\n" "    return x - 1\n"
     )
-    bpe_model_b = tmp_path / "bpe.json"
-    bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
+    bpe_generic_baseline = tmp_path / "bpe.json"
+    bpe_generic_baseline.write_text('{"token_counts": {}, "total_tokens": 1}')
     cal = "def g(x):\n    if x:\n        return 1\n    return 2\n"
 
     return SequentialImportBpeScorer(
         repo_corpus_files=[code_file],
-        bpe_generic_baseline_path=bpe_model_b,
+        bpe_generic_baseline_path=bpe_generic_baseline,
         calibration_hunks=[cal],
         adapter=PythonAdapter(),
     )
@@ -271,12 +271,12 @@ def test_call_receiver_disabled_when_alpha_zero(tmp_path: Path) -> None:
 
     code_file = tmp_path / "code.py"
     code_file.write_text("def fn(x):\n    logger.info(x)\n    return x\n")
-    bpe_model_b = tmp_path / "bpe.json"
-    bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
+    bpe_generic_baseline = tmp_path / "bpe.json"
+    bpe_generic_baseline.write_text('{"token_counts": {}, "total_tokens": 1}')
 
     scorer = SequentialImportBpeScorer(
         repo_corpus_files=[code_file],
-        bpe_generic_baseline_path=bpe_model_b,
+        bpe_generic_baseline_path=bpe_generic_baseline,
         bpe_threshold=0.5,
         call_receiver_alpha=0.0,
         call_receiver_cap=5,
@@ -294,12 +294,12 @@ def test_call_receiver_built_when_alpha_nonzero(tmp_path: Path) -> None:
 
     code_file = tmp_path / "code.py"
     code_file.write_text("def fn(x):\n    logger.info(x)\n    return x\n")
-    bpe_model_b = tmp_path / "bpe.json"
-    bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
+    bpe_generic_baseline = tmp_path / "bpe.json"
+    bpe_generic_baseline.write_text('{"token_counts": {}, "total_tokens": 1}')
 
     scorer = SequentialImportBpeScorer(
         repo_corpus_files=[code_file],
-        bpe_generic_baseline_path=bpe_model_b,
+        bpe_generic_baseline_path=bpe_generic_baseline,
         bpe_threshold=0.5,
         call_receiver_alpha=1.0,
         call_receiver_cap=5,
@@ -321,12 +321,12 @@ def test_import_reason_takes_precedence_over_call_receiver(tmp_path: Path) -> No
         "import logging\nlogger = logging.getLogger()\n"
         "def fn(x):\n    logger.info(x)\n    return x\n"
     )
-    bpe_model_b = tmp_path / "bpe.json"
-    bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
+    bpe_generic_baseline = tmp_path / "bpe.json"
+    bpe_generic_baseline.write_text('{"token_counts": {}, "total_tokens": 1}')
 
     scorer = SequentialImportBpeScorer(
         repo_corpus_files=[code_file],
-        bpe_generic_baseline_path=bpe_model_b,
+        bpe_generic_baseline_path=bpe_generic_baseline,
         bpe_threshold=0.0,
         call_receiver_alpha=1.0,
         call_receiver_cap=5,
@@ -349,12 +349,12 @@ def test_no_flag_when_all_callees_attested(tmp_path: Path) -> None:
         "import logging\nlogger = logging.getLogger()\n"
         "def fn(x):\n    logger.info(x)\n    logger.debug(x)\n    return x\n"
     )
-    bpe_model_b = tmp_path / "bpe.json"
-    bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
+    bpe_generic_baseline = tmp_path / "bpe.json"
+    bpe_generic_baseline.write_text('{"token_counts": {}, "total_tokens": 1}')
 
     scorer = SequentialImportBpeScorer(
         repo_corpus_files=[code_file],
-        bpe_generic_baseline_path=bpe_model_b,
+        bpe_generic_baseline_path=bpe_generic_baseline,
         bpe_threshold=999.0,
         call_receiver_alpha=1.0,
         call_receiver_cap=5,
@@ -378,18 +378,18 @@ def test_call_receiver_reason_when_penalty_tips_threshold(tmp_path: Path) -> Non
         "import logging\nlogger = logging.getLogger()\n"
         "def fn(x):\n    logger.info(x)\n    return x\n"
     )
-    bpe_model_b = tmp_path / "bpe.json"
-    # All tokens in model_b to keep raw BPE low (common tokens → low log-ratio)
-    bpe_model_b.write_text('{"token_counts": {}, "total_tokens": 1}')
+    bpe_generic_baseline = tmp_path / "bpe.json"
+    # All tokens in the generic baseline to keep raw BPE low (common → low log-ratio)
+    bpe_generic_baseline.write_text('{"token_counts": {}, "total_tokens": 1}')
 
-    # threshold=0.5: raw BPE on normal code is typically << 0.5 with empty model_b
-    # But with empty model_b, log(0/1 + eps) - log(count/total + eps) → values vary.
+    # threshold=0.5: raw BPE on normal code is typically << 0.5 with empty baseline.
+    # But with an empty baseline, log(0/1 + eps) - log(count/total + eps) → values vary.
     # Use threshold=999 so raw BPE never trips; alpha=1.0, cap=5; 3 unattested → adjusted = bpe+3
     # Actually: bpe+3 > 0.5 will definitely fire call_receiver if bpe < 0.5
     # Use a very permissive threshold on raw BPE:
     scorer = SequentialImportBpeScorer(
         repo_corpus_files=[code_file],
-        bpe_generic_baseline_path=bpe_model_b,
+        bpe_generic_baseline_path=bpe_generic_baseline,
         bpe_threshold=0.5,
         call_receiver_alpha=1.0,
         call_receiver_cap=5,

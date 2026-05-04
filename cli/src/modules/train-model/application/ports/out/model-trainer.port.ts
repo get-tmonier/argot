@@ -5,8 +5,8 @@ import type { TrainError } from '#modules/train-model/domain/errors.ts';
 interface ModelTrainerShape {
   readonly runTrain: (args: {
     repoPath: string;
-    modelAPath: string;
-    modelBPath: string;
+    repoCorpusPath: string;
+    genericBaselinePath: string;
   }) => Effect.Effect<void, TrainError>;
 }
 

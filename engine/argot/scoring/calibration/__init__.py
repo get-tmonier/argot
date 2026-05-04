@@ -71,7 +71,7 @@ def calibrate_multi_seed(
     -----------------------
     The calibration threshold is a per-cluster bound on what typical code scores under the
     base scorer plus the era-11 cluster_bonus contribution. That contribution is
-    asymmetric-by-construction: calibration hunks come from model_a files whose callees are a
+    asymmetric-by-construction: calibration hunks come from repo-corpus files whose callees are a
     subset of their cluster's attested set, so the cluster-absent-callee branch of
     weighted_contribution_for_file does not fire on calibration hunks.
 
@@ -235,13 +235,13 @@ def main() -> None:
         ),
     )
     parser.add_argument(
-        "--model-a",
-        default=".argot/model_a.txt",
+        "--repo-corpus",
+        default=".argot/repo-corpus.txt",
         help="File listing repo corpus source paths (produced by argot-train)",
     )
     parser.add_argument(
-        "--model-b",
-        default=".argot/model_b.json",
+        "--generic-baseline",
+        default=".argot/generic-baseline.json",
         help="Path to BPE generic baseline JSON (produced by argot-train)",
     )
     parser.add_argument(
@@ -252,8 +252,8 @@ def main() -> None:
     args = parser.parse_args()
 
     repo_path = Path(args.repo).resolve()
-    repo_corpus_path = Path(args.model_a)
-    generic_baseline_path = Path(args.model_b)
+    repo_corpus_path = Path(args.repo_corpus)
+    generic_baseline_path = Path(args.generic_baseline)
 
     if not repo_corpus_path.exists():
         print(
@@ -272,7 +272,7 @@ def main() -> None:
         Path(line) for line in repo_corpus_path.read_text().splitlines() if line.strip()
     ]
     if not repo_corpus_files:
-        print("error: model_a.txt is empty", file=sys.stderr)
+        print(f"error: {repo_corpus_path} is empty", file=sys.stderr)
         sys.exit(2)
 
     n_cal = args.n_cal

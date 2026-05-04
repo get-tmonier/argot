@@ -19,17 +19,17 @@ Present in the repo's own corpus — said of a callee or import that appears in 
 _Avoid_: native, known, seen
 
 **Voice profile**:
-The set of fit artifacts in `.argot/` that encode the repo's learned voice: `dataset.jsonl`, `model_a.txt`, `model_b.json`, `scorer-config.json`.
+The set of fit artifacts in `.argot/` that encode the repo's learned voice: `dataset.jsonl`, `repo-corpus.txt`, `generic-baseline.json`, `scorer-config.json`.
 _Avoid_: model, artifacts, trained state
 
 ### Scoring
 
 **Repo corpus**:
-The repo's own token frequency distribution, built from its non-test source files. One input to the BPE scorer.
+The repo's own token frequency distribution, built from its non-test source files. One input to the BPE scorer. Persisted as `.argot/repo-corpus.txt`.
 _Avoid_: model A, model_a
 
 **Generic baseline**:
-The pre-built open-source token frequency distribution bundled with argot. The other input to the BPE scorer.
+The pre-built open-source token frequency distribution bundled with argot. The other input to the BPE scorer. Persisted as `.argot/generic-baseline.json`.
 _Avoid_: model B, model_b, BPE reference
 
 **Surprise score**:
@@ -69,6 +69,6 @@ _Avoid_: Stage 2, BPE stage
 
 ## Flagged ambiguities
 
-- "model A / model B" — resolved: **repo corpus** and **generic baseline** respectively. `model_a` / `model_b` remain as code identifiers only.
+- "model A / model B" — resolved: **repo corpus** and **generic baseline** respectively. The on-disk filenames (`.argot/repo-corpus.txt`, `.argot/generic-baseline.json`) match the domain language directly; nothing in production code or fixtures still carries the `model_a`/`model_b` identifier.
 - "native" (used once in README for imports) — resolved: **attested** is canonical.
 - "Stage 1 / Stage 2 / Stage 1.5" — resolved: use **typicality filter**, **import checker**, **BPE scorer**. Stage numbers are not domain language.

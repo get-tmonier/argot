@@ -4,8 +4,8 @@ import type { CalibrateError } from '#modules/calibrate/domain/errors.ts';
 
 interface CalibrateOptions {
   readonly repoPath: string;
-  readonly modelAPath: string;
-  readonly modelBPath: string;
+  readonly repoCorpusPath: string;
+  readonly genericBaselinePath: string;
   readonly outputPath: string;
   readonly nCal: number;
   readonly seed: number;
@@ -18,8 +18,8 @@ export const runCalibrate = (
     const calibrator = yield* EngineCalibrator;
     yield* calibrator.runCalibrate({
       repoPath: opts.repoPath,
-      modelAPath: opts.modelAPath,
-      modelBPath: opts.modelBPath,
+      repoCorpusPath: opts.repoCorpusPath,
+      genericBaselinePath: opts.genericBaselinePath,
       outputPath: opts.outputPath,
       nCal: opts.nCal,
       seed: opts.seed,

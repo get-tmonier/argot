@@ -11,7 +11,8 @@
     "#shell/*": "./src/shell/*",
     "#dependencies": "./src/dependencies.ts",
     "#engine-cmd.ts": "./src/engine-cmd.ts",
-    "#spawn-with-progress.ts": "./src/spawn-with-progress.ts"
+    "#spawn-with-progress.ts": "./src/spawn-with-progress.ts",
+    "#branding.ts": "./src/branding.ts"
   },
   "dependencies": {
     "effect": "4.0.0-beta.50",

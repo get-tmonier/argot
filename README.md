@@ -15,6 +15,14 @@
 </p>
 
 <p align="center">
+  <strong>Supported corpora:</strong>&nbsp;
+  <img src="https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=black" alt="JavaScript" />
+  &nbsp;·&nbsp;<a href="#supported-languages">more coming →</a>
+</p>
+
+<p align="center">
   Voice linter that builds a statistical model of your codebase's voice from its own git history,<br/>
   then flags hunks whose token distribution diverges from the learned norm.<br/>
   No GPU · No cloud · No telemetry · Runs in seconds after a one-time calibration
@@ -51,6 +59,34 @@ repos), disable it elsewhere (Zipf-tail noise that would FP-flood).
 
 ---
 
+## Supported languages
+
+argot ships today with calibrated, benchmarked support for:
+
+| Language | Extensions | Validated corpora | Headline result |
+|---|---|---|---|
+| Python | `.py` | FastAPI · rich · faker | recall 95–100% · FP 0.6–2.0% |
+| TypeScript | `.ts` `.tsx` | hono · ink · faker-js | recall 88–93% · FP 0.5–2.0% |
+| JavaScript | `.js` `.jsx` | _(uses the TypeScript adapter; not yet benchmarked on a JS-only corpus)_ | — |
+
+Numbers above are from the live baseline at [`benchmarks/results/baseline/latest/report.md`](benchmarks/results/baseline/latest/report.md). Each corpus contributes a held-out set of expert-labelled "voice breaks" plus tens of thousands of real-PR controls; recall is measured against the breaks, FP against the controls.
+
+**Adding more languages is a roadmap item, not an architectural blocker.** The scoring pipeline is language-agnostic; what's per-language is a tree-sitter adapter (see [tree-sitter parser list](https://github.com/tree-sitter/tree-sitter/wiki/List-of-parsers) — Go, Rust, Java, Ruby, Swift, Kotlin, C#, PHP, and many more all have parsers). Each new language we add ships **after** we've benchmarked it on a real-world corpus and confirmed the scorer's recall + false-positive numbers hold up — we'd rather be slow and honest about coverage than ship "supported" languages that score badly. Have a corpus you'd like to see validated? [Open an issue](https://github.com/get-tmonier/argot/issues/new).
+
+---
+
+## Motivation
+
+**Code review used to be the place where "we don't do it that way here" got said.** That was sustainable when one human wrote one PR. Today an LLM can produce a hundred PRs in an afternoon — each syntactically perfect, type-correct, lint-clean, and written in the *average voice of every public codebase the model trained on*. Not the voice of yours.
+
+Type checkers, linters, and formatters answer *"is this valid?"* They cannot answer *"is this how this team writes things?"* That second question used to be implicit in human review; now it's the bottleneck.
+
+**argot is a calibrated, local, language-model-free way to ask the second question.** It builds two token-frequency distributions — one from your repo's git history, one from a generic open-source baseline — and flags hunks whose token distribution is sharply more likely under the generic baseline than under your repo. No neural network. No GPU. No cloud. No telemetry. Fits in seconds, runs in milliseconds, ships its threshold per repo.
+
+The mental model is simple: a regex catches what you can write down; a type checker catches what you can prove; argot catches what your team has *implicitly agreed on by repetition*. Naming patterns, error-handling shapes, control-flow idioms, the difference between `response.raise_for_status()` and `if response.status_code >= 400: raise`. The kind of thing a senior reviewer would call out in five seconds and that no static analyser can articulate.
+
+If your team is shipping LLM-assisted code, this is the layer your CI is missing.
+
 ## What it catches
 
 It does *not* replace ESLint, ruff, or type checkers. It catches what they can't: things that are *technically fine but socially wrong* for this project.
@@ -64,44 +100,44 @@ It does *not* replace ESLint, ruff, or type checkers. It catches what they can't
 
 ### Concrete examples
 
-Validated against the FastAPI corpus (50 real PRs, 1,452 hunks). All three examples below were caught at **95%+ recall** by the BPE scorer alone — with no import-level hints.
+The examples below are pulled from argot's FastAPI benchmark catalog. **All three are syntactically valid, fully typed, lint-clean, and pass mypy strict.** Every other tool in your CI is silent on them. argot flags them because their *token shape* is absent from the FastAPI corpus's history. Headline numbers: catalog recall **95.4%**, false-positive rate on real-PR controls **0.6%** (32 fixtures vs 79,623 controls; see [`benchmarks/results/baseline/latest/report.md`](benchmarks/results/baseline/latest/report.md)).
 
-**Foreign framework routing** (`reason: import`, score 5.77)
+**1. Wrong exception type** — _decorators are right, models are right, the `raise` line is the only break_
+
 ```python
-# flagged — Flask vocabulary in a FastAPI codebase
-from flask import Flask, abort, jsonify, request
-app = Flask(__name__)
-
-@app.route("/users", methods=["GET", "POST"])
-def users() -> object:
-    return jsonify(list(_users.values()))
+# flagged — ValueError/KeyError instead of HTTPException
+@router.get("/{user_id}", response_model=UserResponse)
+async def get_user(user_id: int, db = Depends(get_db)) -> dict[str, Any]:
+    user = db.get(user_id)
+    if user is None:
+        raise ValueError(f"User {user_id} not found")  # propagates as 500, not 404
+    return user
 ```
-FastAPI routes use `@router.get` / `@router.post` with Pydantic-typed parameters. Flask's `@app.route(methods=[...])` + `request` proxy is a fully foreign vocabulary — the import checker catches the `flask` import immediately.
+Decorators, `Depends`, `response_model`, `async def`, the typed return — all idiomatic FastAPI. The break is exactly one token sequence: bare `ValueError`/`KeyError`/`RuntimeError` instead of `HTTPException(status_code=...)`. Type checker is happy (return shape is fine). Linters have nothing to say. argot catches it because the FastAPI corpus's exception-raising vocabulary is `HTTPException`, not Python's built-ins.
 
-**Sync blocking in an async codebase** (`reason: bpe`, score 7.33)
+**2. Manual status check vs `raise_for_status()`** — _structural shape, not vocabulary_
+
 ```python
-# flagged — requests.get() blocks the event loop
-import requests
-from fastapi import FastAPI
-
-@app.get("/proxy")
-async def proxy():
-    resp = requests.get("https://upstream/api")  # blocks all concurrent requests
-    return resp.json()
+# flagged — every endpoint repeats the same if-block
+@router.get("/users/{user_id}")
+async def proxy_get_user(user_id: int) -> dict[str, Any]:
+    response = _http_client.get(f"/v1/users/{user_id}")
+    if response.status_code >= 400:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+    return response.json()
 ```
-No foreign import — `requests` is a standard library. But its token pattern (`requests.get`, `requests.Session`, `cert=`, `timeout=`) is rare in the FastAPI corpus. The BPE scorer catches this with 100% recall across all host PRs.
+**Every individual token here exists in the FastAPI corpus** — `httpx.Client`, `response.status_code`, `HTTPException`, `response.json()`. What's missing is the *branching shape*: the FastAPI + httpx corpus uses `response.raise_for_status()` to propagate downstream errors, not a manual `if status_code >= 400: raise`. No linter can encode this preference; argot picks it up automatically because the BPE distribution over 5-token windows captures the structural difference.
 
-**Wrong validation style** (`reason: bpe`, score 5.82)
+**3. Sync blocking in an async codebase** — _correct decorators, wrong concurrency model_
+
 ```python
-# flagged — manual dict validation in a Pydantic codebase
-def create_user(body: dict):
-    if "name" not in body or not isinstance(body["name"], str):
-        raise ValueError("name required")
-    if "email" not in body:
-        raise ValueError("email required")
-    ...
+# flagged — sync def + blocking I/O on a hot path
+@router.get("/users")
+def list_users() -> list[dict[str, Any]]:
+    response = httpx.get(f"{UPSTREAM_URL}/v1/users")  # blocks the worker thread
+    return response.json()
 ```
-FastAPI codebases use Pydantic models for input validation. Manual `isinstance`/`"key" not in body` guards produce token patterns absent from the training corpus.
+`@router.get`, the path, the return type — all idiomatic. The break is `def` instead of `async def`, paired with `httpx.get(...)` (sync API) instead of `await client.get(...)`. Type checker is happy. Linters might warn on `bare except` patterns but not on this. argot picks it up because sync endpoints with blocking I/O are structurally absent from the FastAPI corpus — the entire bench/control set is built around `async def + await`.
 
 ## Installation
 
@@ -129,13 +165,10 @@ npm install -g @tmonier/argot
 
 ```sh
 cd your-repo
-argot extract      # parse git history → .argot/dataset.jsonl
-argot train        # collect repo corpus source files and generic baseline → .argot/model_a.txt, .argot/model_b.json
-argot calibrate    # sample calibration hunks, set threshold → .argot/scorer-config.json
+argot extract      # walk git history → .argot/dataset.jsonl
+argot fit          # build the repo corpus + generic baseline, then calibrate the threshold
 argot check        # score uncommitted changes (or pass a ref/range)
 ```
-
-> **Migrating from a JEPA-based `.argot/` directory?** Delete `.argot/` and re-run the pipeline above — the artifact layout has changed.
 
 ### Updating
 
@@ -154,19 +187,18 @@ just verify      # full check suite
 
 ## Workflow
 
-argot has four commands. Run them in order the first time, then just `check` on every commit.
+argot has three commands. Run them in order the first time, then just `check` on every commit.
 
 ```mermaid
 flowchart LR
     subgraph once["⚙️ one-time setup"]
         direction LR
         GH[(git history)] --> E[argot extract]
-        E --> T[argot train]
-        T --> C[argot calibrate]
+        E --> F["argot fit<br/>(train + calibrate)"]
     end
     subgraph loop["🔄 every commit"]
         direction LR
-        CHK[argot check] --> OUT["ranked table\n+ exit 1 if flagged"]
+        CHK[argot check] --> OUT["grouped output<br/>+ exit 1 if flagged"]
     end
     once --> loop
 ```
@@ -176,64 +208,78 @@ flowchart LR
 Walks the repo's git history and writes a training dataset:
 
 ```bash
-argot extract                        # extracts from current directory
-argot extract /path/to/other/repo    # or any other repo
+argot extract                        # full history of the current repo
+argot extract HEAD~50                # history up to and including HEAD~50
+argot extract main..HEAD             # only commits in that range
 ```
 
-Output: `.argot/dataset.jsonl` — one record per hunk, with tokenized context and content.
+Operates on the current repo (cwd is auto-detected via `git rev-parse`). Output: `.argot/dataset.jsonl` — one record per hunk, with tokenized context and content.
 
-### 2. Train
+### 2. Fit
 
-Collects the repo's source files as the repo corpus and copies the generic BPE reference as the generic baseline:
+One-shot voice fitting: collects the repo's source files as the repo corpus, sets up the generic baseline, then samples representative hunks to set the scoring threshold.
 
 ```bash
-argot train
+argot fit
 ```
 
-Output: `.argot/model_a.txt` (list of repo corpus source file paths) and `.argot/model_b.json` (generic baseline token reference). Only needs to be re-run when the codebase changes significantly.
+Output:
+- `.argot/repo-corpus.txt` — list of source file paths in the repo corpus
+- `.argot/generic-baseline.json` — generic baseline token reference
+- `.argot/scorer-config.json` — calibrated scoring threshold
 
-### 3. Calibrate
+Re-run after major refactors. Internally `fit` runs the engine's two underlying phases (build corpus, then calibrate); they remain available for benchmark/research use via the engine entry points (`uv run python -m argot.train` / `argot.scoring.calibration`), but the day-to-day CLI surface is just `fit`.
 
-Samples representative hunks from the repo to determine the scoring threshold, then writes the scorer config:
+### 3. Check
+
+Scores changed hunks against the trained scorer and prints them grouped by file. Exits non-zero if any hunk is above the calibrated threshold.
 
 ```bash
-argot calibrate                      # samples 500 hunks (default), seed 0
-argot calibrate --n-cal 200          # fewer calibration hunks
-argot calibrate --repo /path/to/repo
+argot check                          # uncommitted changes — modified + staged + untracked
+argot check --staged                 # staged changes only
+argot check --unstaged               # unstaged changes only (no staged, no untracked)
+argot check HEAD~5                   # everything from HEAD~5 to current state, including uncommitted
+argot check HEAD~5..HEAD             # commits in that range only
+argot check --commit abc1234         # a single commit
+argot check --only 'src/*'           # restrict to matching files (repeatable)
+argot check --exclude 'test/*'       # drop matching files (repeatable; wins over --only)
+argot check --min-severity foreign   # only show foreign-tier hits
+argot check --verbose                # show full hunk contents (no truncation)
 ```
 
-Output: `.argot/scorer-config.json` with the BPE threshold for the repo. Re-run after major refactors.
-
-### 4. Check
-
-Scores every hunk in a git ref against the trained scorer and prints a ranked table. Exits non-zero if any hunk is above the threshold.
-
-```bash
-argot check                          # check uncommitted changes (default)
-argot check HEAD                     # check the last commit
-argot check HEAD~5..HEAD             # check a range of commits
-argot check --repo /path/to/repo HEAD~5..HEAD
-```
+Sample output:
 
 ```
- SURPRISE  TAG         FILE                          LINE  REF
-   1.1642  foreign     source/utils/http_helpers.ts     1  3d5cd8b6
-   0.7231  suspicious  source/api/router.ts            42  3d5cd8b6
-   0.5800  unusual     source/db/queries.ts            18  3d5cd8b6
+argot check · 3 hunks above threshold (1 foreign · 2 suspicious)
+note: argot is a probabilistic style linter — verify before action.
+
+src/utils/http-helpers.ts
+  ●  L42-L48      8.21  foreign     · workdir · foreign import (import)
+  42 │ import axios from 'axios';
+  43 │
+  44 │ export async function fetchUserData(id: string) {
+  45 │   const res = await axios.get(`/users/${id}`);
+  46 │   return res.data;
+  47 │ }
+
+src/api/router.ts
+  ◐  L102        5.89  suspicious  · staged · rare token sequence (bpe)
+  102 │ router.use((req, _res, next) => { req.startedAt = Date.now(); next(); });
+
+tip: pass --verbose (-v) to expand truncated hunks.
 ```
 
 **Understanding the score**
 
-The surprise score is the BPE log-likelihood ratio for that hunk — how different its token distribution is from the repo's own corpus. A low score means the hunk matches the repo's patterns; higher values mean it diverges.
+The surprise score is the BPE log-likelihood ratio for the hunk — how different its token distribution is from the repo's corpus. Low scores mean the hunk matches the repo's patterns; higher values mean it diverges. Severity tiers are relative to the calibrated threshold `t`:
 
-| Tag | Score range | Meaning |
+| Tier | Range | Meaning |
 |---|---|---|
-| `ok` | ≤ threshold | Fits the repo's style |
-| `unusual` | threshold – threshold+0.3 | Slightly off; worth a glance |
-| `suspicious` | threshold+0.3 – threshold+0.6 | Noticeably diverges; review it |
-| `foreign` | > threshold+0.6 | Sharply inconsistent with the codebase |
+| `unusual` | `t ≤ score < t+0.5` | Borderline — worth a glance, don't trust the call |
+| `suspicious` | `t+0.5 ≤ score < t+1.5` | Likely worth a look |
+| `foreign` | `score ≥ t+1.5` | High-confidence anomaly |
 
-The threshold is set automatically by `argot calibrate`. Override it with `--threshold`.
+`t` is set automatically during `argot fit` and stored in `.argot/scorer-config.json`. Each hit also shows its **source** (`workdir` / `staged` / `untracked` / commit SHA) and the **scorer reason** that fired (`rare token sequence`, `unfamiliar callee`, or `foreign import`).
 
 ## How it works
 
@@ -451,6 +497,26 @@ argot/
 | `lefthook` | Git hook runner |
 | `ruff` | Python linter + formatter |
 | `mypy` | Python type-checker (strict mode) |
+
+## Acknowledgements
+
+argot's scorer is only as honest as the corpora we benchmark it against. We're grateful to the maintainers of the open-source projects below for the hours of human design, refactoring, and review whose patterns now serve as our ground-truth voice signal:
+
+- [**FastAPI**](https://github.com/fastapi/fastapi) — Sebastián Ramírez and contributors (Python · async web framework)
+- [**rich**](https://github.com/Textualize/rich) — Will McGugan and the Textualize team (Python · terminal rendering)
+- [**faker**](https://github.com/joke2k/faker) — Daniele Faraglia and contributors (Python · fake-data generator)
+- [**hono**](https://github.com/honojs/hono) — Yusuke Wada and contributors (TypeScript · edge web framework)
+- [**ink**](https://github.com/vadimdemedes/ink) — Vadim Demedes and contributors (TypeScript · React for CLIs)
+- [**faker-js**](https://github.com/faker-js/faker) — the faker-js team and contributors (TypeScript · fake-data generator)
+
+The benchmark uses each project's history as a positive corpus and a small held-out set of expert-labelled "voice breaks" as the test set. None of these projects are affiliated with or endorse argot — we just stand on their shoulders.
+
+argot's foundation also rests on:
+
+- [**tree-sitter**](https://tree-sitter.github.io/tree-sitter/) — incremental, error-tolerant parsing across languages
+- [**pygit2**](https://www.pygit2.org/) — libgit2 bindings powering the git walker
+- [**HuggingFace tokenizers**](https://github.com/huggingface/tokenizers) — UnixCoder BPE used as the generic baseline
+- [**Effect**](https://effect.website/) — the runtime behind the TypeScript CLI
 
 ## License
 

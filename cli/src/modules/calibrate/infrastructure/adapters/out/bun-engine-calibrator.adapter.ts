@@ -9,15 +9,15 @@ export const BunEngineCalibratorLive = Layer.effect(EngineCalibrator)(
   Effect.succeed({
     runCalibrate: ({
       repoPath,
-      modelAPath,
-      modelBPath,
+      repoCorpusPath,
+      genericBaselinePath,
       outputPath,
       nCal,
       seed,
     }: {
       repoPath: string;
-      modelAPath: string;
-      modelBPath: string;
+      repoCorpusPath: string;
+      genericBaselinePath: string;
       outputPath: string;
       nCal: number;
       seed: number;
@@ -32,10 +32,10 @@ export const BunEngineCalibratorLive = Layer.effect(EngineCalibrator)(
               ...args,
               '--repo',
               repoPath,
-              '--model-a',
-              modelAPath,
-              '--model-b',
-              modelBPath,
+              '--repo-corpus',
+              repoCorpusPath,
+              '--generic-baseline',
+              genericBaselinePath,
               '--output',
               outputPath,
               '--n-cal',

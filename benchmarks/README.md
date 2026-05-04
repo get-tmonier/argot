@@ -322,7 +322,7 @@ gap on faker-js callees (`Math.random`, `fetch`) attested somewhere in the corpu
 K-sweep at K∈{4,8,16,32}×CB∈{2,3,4,5} on faker-js established K=8 plateau and CB=5
 as the only setting that crosses Gate 1 (faker-js missed 8→5). Phase 5
 (calibration-aware threshold) was a documented no-op: calibration hunks come from
-`model_a_files` whose own callees are ⊆ their cluster's attested set.
+`repo_corpus_files` whose own callees are ⊆ their cluster's attested set.
 
 | Corpus | AUC | Recall | FP | N_fix | N_ctrl |
 |:---|---:|---:|---:|---:|---:|

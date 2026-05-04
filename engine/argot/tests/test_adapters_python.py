@@ -7,8 +7,8 @@ from argot.scoring.adapters.python_adapter import PythonAdapter
 
 _CATALOG = Path(__file__).parent.parent / "acceptance" / "catalog"
 _FASTAPI_FIXTURES = _CATALOG / "fastapi" / "fixtures" / "default"
-_RICH_REPO_CORPUS = _CATALOG / "rich" / "sources" / "model_a"
-_FAKER_REPO_CORPUS = _CATALOG / "faker" / "sources" / "model_a"
+_RICH_REPO_CORPUS = _CATALOG / "rich" / "sources" / "repo_corpus"
+_FAKER_REPO_CORPUS = _CATALOG / "faker" / "sources" / "repo_corpus"
 
 _CONTROL_FILES = sorted(_FASTAPI_FIXTURES.glob("control_*.py"))[:3]
 _RICH_FILES = sorted(_RICH_REPO_CORPUS.glob("*.py"))[:3]
