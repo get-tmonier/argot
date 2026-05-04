@@ -28,17 +28,16 @@ _BPE_GENERIC_BASELINE = Path(__file__).parent.parent / "scoring" / "bpe" / "gene
 def _corpus() -> EvidenceCorpus:
     """Tiny synthetic evidence corpus for the integration tests.
 
-    Uses big enough ``identifier_total`` / ``import_total`` to clear the
-    rarity floor so collectors emit the full "0 of N" wording — that
-    keeps the assertion strings stable across formatter floors.
+    Uses big enough ``import_total`` to clear the import rarity floor so
+    collectors emit the full "0 of N" wording — keeps assertion strings
+    stable across formatter floors.
     """
     return EvidenceCorpus(
         imports=[CommonEntry("logging", 3), CommonEntry("os", 1)],
-        identifiers=[CommonEntry("logger", 9), CommonEntry("info", 6)],
+        identifiers={"logger": 9, "info": 6},
         callees_by_cluster={0: [CommonEntry("logger.info", 4)]},
         totals=EvidenceCorpusTotals(
             import_specifiers_attested=100,
-            identifiers_attested=12_000,
             callees_attested_by_cluster={0: 1247},
         ),
     )
@@ -114,11 +113,12 @@ def test_bpe_winner_yields_bpe_evidence(tmp_path: Path) -> None:
     if not result.flagged or result.reason != "bpe":
         pytest.skip("bpe didn't fire on the synthetic hunk; sensitive to baseline")
     assert isinstance(result.evidence, BpeEvidence)
-    # Identifier reconstruction should produce at least one of the call names
+    # Identifier reconstruction should produce at least one of the call names;
+    # surprising_identifiers carries CommonEntry pairs (name + repo count).
+    names = [e.name for e in result.evidence.surprising_identifiers]
     assert any(
-        n in result.evidence.surprising_identifiers
-        for n in ("toStrictEqualOnce", "mockResolvedValueAlpha", "payload")
-    ), result.evidence.surprising_identifiers
+        n in names for n in ("toStrictEqualOnce", "mockResolvedValueAlpha", "payload")
+    ), names
 
 
 def test_call_receiver_winner_yields_cr_evidence(tmp_path: Path) -> None:

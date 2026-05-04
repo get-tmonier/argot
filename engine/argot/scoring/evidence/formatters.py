@@ -16,7 +16,9 @@ from __future__ import annotations
 from typing import Protocol
 
 from argot.scoring.evidence.layout import (
+    TOP_K_NAMES,
     format_common_here_line,
+    format_frequency,
     format_rarity,
     should_show_common_here,
     truncate_with_overflow,
@@ -77,22 +79,32 @@ class EvidenceFormatter(Protocol):
 
 
 class BpeEvidenceFormatter:
-    """Render :class:`BpeEvidence` to ≤ 2 lines under a BPE-fired hit."""
+    """Render :class:`BpeEvidence` to a single ``↳`` line of per-token counts.
+
+    Unlike import / call-receiver evidence, BPE has no slot-comparable
+    secondary line: the global ``common here:`` orientation
+    (``name (3,014×), person (1,210×), de (1,163×)``) wasn't slot-comparable
+    to a flagged hunk's content, and the rarity stat (``0 of 71,811
+    identifiers in repo``) read as a foreign-vocabulary claim even when the
+    flagged tokens were ubiquitous in the codebase. Both lines are dropped
+    in favour of inline counts on the names themselves —
+    ``message (1,800×), opts (240×), proposed (5×)`` is honest, slot-tied,
+    and immediately actionable.
+    """
 
     def render(self, evidence: Evidence, *, use_color: bool) -> list[str]:
         # Narrow at the boundary so the protocol's wider type doesn't leak
         # into the body — a misroute by the dispatcher fails loudly here.
         if not isinstance(evidence, BpeEvidence):
             raise TypeError(f"BpeEvidenceFormatter received {type(evidence).__name__}")
-        out: list[str] = []
-        names_line = _names_line(
-            evidence.surprising_identifiers, evidence.rarity, use_color=use_color
-        )
-        if names_line is not None:
-            out.append(names_line)
-        if should_show_common_here(evidence.common_here):
-            out.append(_common_here_line(evidence.common_here, use_color=use_color))
-        return out
+        if not evidence.surprising_identifiers:
+            return []
+        head = evidence.surprising_identifiers[:TOP_K_NAMES]
+        body = ", ".join(f"{e.name} ({format_frequency(e.count)})" for e in head)
+        overflow = len(evidence.surprising_identifiers) - len(head)
+        if overflow > 0:
+            body = f"{body} (+{overflow} more)"
+        return [_NAMES_INDENT + _dim(f"{_GLYPH} {body}", use_color=use_color)]
 
 
 class ImportEvidenceFormatter:

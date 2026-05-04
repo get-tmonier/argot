@@ -2,9 +2,10 @@
 
 The BPE scorer's verdict is a single max-over-tokens log-likelihood ratio —
 useless for explaining *which* tokens drove it. This collector reconstructs
-the offending identifiers from the surprising token spans so the renderer
-can name them on the ``↳`` line, then attaches the repo-wide identifier
-vocabulary so the user can compare what they wrote to what's typical here.
+the offending identifiers from the surprising token spans and pairs each
+with its repo-wide attestation count so the rendered line is self-explanatory:
+``message (1,800×), opts (240×), proposed (5×)`` immediately tells the reader
+which token is rare and which are familiar.
 """
 
 from __future__ import annotations
@@ -13,18 +14,15 @@ from collections.abc import Callable
 from typing import Any
 
 from argot.scoring.evidence.bpe_reconstruction import surprising_identifiers
-from argot.scoring.evidence.types import BpeEvidence, RarityStat
+from argot.scoring.evidence.types import BpeEvidence, CommonEntry
 from argot.scoring.evidence.types import EvidenceCorpus as _EvidenceCorpus
 
-# Generous caps at the collector layer; the formatter applies the user-
+# Generous cap at the collector layer; the formatter applies the user-
 # visible ``top-3 + (+N more)`` truncation. Sized so the formatter has
 # enough headroom to compute "+N more" overflow correctly without forcing
 # the collector to know the rendering convention.
 _MAX_SURPRISING_PIECES = 8
 _MAX_IDENTIFIERS = 8
-_COMMON_HERE_LIMIT = 10
-_BPE_RARITY_NOUN = "identifiers"
-_BPE_RARITY_WHERE = "repo"
 
 
 def collect_bpe_evidence(
@@ -46,8 +44,14 @@ def collect_bpe_evidence(
     applies before the max — both are passed in so this collector stays
     decoupled from the scorer class and is straightforward to unit-test
     with synthetic inputs.
+
+    Each surprising identifier is paired with its repo-wide attestation
+    count from ``evidence_corpus.identifiers``. Tokens absent from the map
+    render as ``count=0``: a genuinely novel identifier should read as
+    ``proposed (0×)`` rather than be silently dropped — the zero is the
+    signal.
     """
-    identifiers = surprising_identifiers(
+    names = surprising_identifiers(
         hunk_source,
         tokenizer,
         score_fn,
@@ -55,15 +59,9 @@ def collect_bpe_evidence(
         max_identifiers=_MAX_IDENTIFIERS,
         is_meaningful=is_meaningful,
     )
+    counts = evidence_corpus.identifiers
     return BpeEvidence(
-        surprising_identifiers=identifiers,
-        rarity=RarityStat(
-            flagged_count=0,
-            attested_total=evidence_corpus.totals.identifiers_attested,
-            noun=_BPE_RARITY_NOUN,
-            where=_BPE_RARITY_WHERE,
-        ),
-        common_here=list(evidence_corpus.identifiers[:_COMMON_HERE_LIMIT]),
+        surprising_identifiers=[CommonEntry(name=n, count=counts.get(n, 0)) for n in names],
     )
 
 

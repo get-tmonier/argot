@@ -100,12 +100,15 @@ def test_build_evidence_corpus_ranks_imports_by_count(tmp_path: Path) -> None:
 
 
 def test_build_evidence_corpus_caps_top_n(tmp_path: Path) -> None:
-    """``top_n`` strictly bounds the rendered slice."""
+    """``top_n`` strictly bounds the imports list (identifiers are persisted in full)."""
     files = _write_repo(tmp_path)
     scorer = _make_scorer(tmp_path, files)
     corpus = build_evidence_corpus(scorer, files, top_n=2)
     assert len(corpus.imports) <= 2
-    assert len(corpus.identifiers) <= 2
+    # ``identifiers`` is the full repo count map — not bounded by top_n —
+    # because BPE evidence renders per-flagged-token attestation, including
+    # rare tokens that wouldn't fit in any top-N slice.
+    assert isinstance(corpus.identifiers, dict)
 
 
 def test_build_evidence_corpus_per_cluster_callees(tmp_path: Path) -> None:
@@ -129,14 +132,13 @@ def test_evidence_corpus_json_round_trip(tmp_path: Path) -> None:
     """``to_json_dict`` → ``json.dumps`` → ``json.loads`` → ``from_json_dict`` is identity."""
     original = EvidenceCorpus(
         imports=[CommonEntry("react", 320), CommonEntry("express", 88)],
-        identifiers=[CommonEntry("useEffect", 320)],
+        identifiers={"useEffect": 320, "fetch": 180, "render": 120},
         callees_by_cluster={
             0: [CommonEntry("logger.info", 3200)],
             7: [CommonEntry("db.query", 1800), CommonEntry("Result.ok", 900)],
         },
         totals=EvidenceCorpusTotals(
             import_specifiers_attested=47,
-            identifiers_attested=12_400,
             callees_attested_by_cluster={0: 1247, 7: 890},
         ),
     )
@@ -170,8 +172,8 @@ def test_evidence_corpus_top_n_is_deterministic_on_ties(tmp_path: Path) -> None:
     )
     corpus_a = build_evidence_corpus(scorer, files, top_n=5)
     corpus_b = build_evidence_corpus(scorer, list(reversed(files)), top_n=5)
-    # File ordering must not change the rendered identifier ordering.
-    assert [e.name for e in corpus_a.identifiers] == [e.name for e in corpus_b.identifiers]
+    # File ordering must not change the identifier set or counts (full count map).
+    assert corpus_a.identifiers == corpus_b.identifiers
 
 
 def test_calibration_writes_evidence_corpus_block(tmp_path: Path) -> None:
@@ -189,6 +191,8 @@ def test_calibration_writes_evidence_corpus_block(tmp_path: Path) -> None:
     raw = corpus.to_json_dict()
     assert set(raw) == {"imports", "identifiers", "callees_by_cluster", "totals"}
     assert all({"name", "count"} <= set(e) for e in raw["imports"])
+    # ``identifiers`` is serialised as a flat ``{name: count}`` mapping.
+    assert isinstance(raw["identifiers"], dict)
     # Cluster id keys are coerced to str by json.dumps; verify the loader
     # contract roundtrips without explicit pre-coercion.
     re_round = EvidenceCorpus.from_json_dict(json.loads(json.dumps(raw)))
@@ -197,12 +201,13 @@ def test_calibration_writes_evidence_corpus_block(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("top_n", [0, 1, 5])
 def test_build_evidence_corpus_top_n_parameter(tmp_path: Path, top_n: int) -> None:
-    """``top_n=0`` returns empty lists; positive ``top_n`` caps the slice."""
+    """``top_n`` caps imports / per-cluster callees; identifiers remain full count map."""
     files = _write_repo(tmp_path)
     scorer = _make_scorer(tmp_path, files)
     corpus = build_evidence_corpus(scorer, files, top_n=top_n)
     assert len(corpus.imports) <= top_n
-    assert len(corpus.identifiers) <= top_n
+    for entries in corpus.callees_by_cluster.values():
+        assert len(entries) <= top_n
 
 
 def test_identifier_noise_filtered_out(tmp_path: Path) -> None:
@@ -229,7 +234,7 @@ def test_identifier_noise_filtered_out(tmp_path: Path) -> None:
         call_receiver_alpha=0.0,
     )
     corpus = build_evidence_corpus(scorer, [f], top_n=20)
-    names = {e.name for e in corpus.identifiers}
+    names = set(corpus.identifiers)
     # Keywords / implicit names must not appear.
     forbidden = {"import", "if", "is", "return", "def", "None", "self"}
     assert names.isdisjoint(
@@ -261,7 +266,7 @@ def test_identifier_extraction_blanks_prose(tmp_path: Path) -> None:
         call_receiver_alpha=0.0,
     )
     corpus = build_evidence_corpus(scorer, [f], top_n=50)
-    names = {e.name for e in corpus.identifiers}
+    names = set(corpus.identifiers)
     # Prose-only words should be absent.
     assert "foo" not in names
     assert "bar" not in names

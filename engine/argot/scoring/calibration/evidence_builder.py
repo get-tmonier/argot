@@ -104,16 +104,17 @@ def build_evidence_corpus(
     *,
     top_n: int = 50,
 ) -> EvidenceCorpus:
-    """Aggregate per-dimension top-``top_n`` samples from a fitted scorer.
+    """Aggregate per-dimension samples from a fitted scorer.
 
     Pulls callees-by-cluster directly from the call-receiver scorer's
     ``cluster_callee_counts`` (already populated at fit time); recomputes
     imports and identifiers from the repo files because the scorer keeps
     only set-shaped derivatives of those.
 
-    ``top_n`` defaults to 50 — large enough that the rendered ``+N more``
-    overflow lands on a meaningful number while keeping calibration JSON
-    footprint bounded on big repos.
+    ``top_n`` (default 50) bounds the imports and per-cluster callees lists
+    that feed ``common here:`` rendering. Identifiers persist as the full
+    count map: BPE evidence renders per-flagged-token attestation, including
+    rare tokens (``proposed (5×)``) that wouldn't fit a top-N sample.
     """
     files_list = list(repo_corpus_files)
 
@@ -131,13 +132,12 @@ def build_evidence_corpus(
 
     totals = EvidenceCorpusTotals(
         import_specifiers_attested=len(import_counts),
-        identifiers_attested=len(identifier_counts),
         callees_attested_by_cluster=callees_attested_by_cluster,
     )
 
     return EvidenceCorpus(
         imports=_top_n(import_counts, top_n),
-        identifiers=_top_n(identifier_counts, top_n),
+        identifiers=dict(identifier_counts),
         callees_by_cluster=callees_by_cluster,
         totals=totals,
     )

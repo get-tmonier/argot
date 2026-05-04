@@ -77,15 +77,25 @@ class BpeEvidence:
     """Evidence for a BPE-fired hit.
 
     ``surprising_identifiers`` is the BPE-piece-level top-K reconstructed
-    back to whole identifiers via the surrounding source's character class
-    (so ``mongo`` + ``ose`` → ``mongoose``). Rarity and common-here are
-    repo-wide because BPE is a vocabulary-register signal, not a slot-
-    aware one — claiming a slot here would manufacture fake precision.
+    back to whole identifiers (so ``mongo`` + ``ose`` → ``mongoose``), each
+    paired with its repo-wide attestation count. The count makes the line
+    self-explanatory: a reader scanning ``message (1,800×), opts (240×),
+    proposed (5×)`` sees immediately which token is rare and which are
+    familiar — the BPE flag is about the *sequence*, not necessarily about
+    the words themselves.
+
+    No rarity stat and no ``common here:`` line — both were render-time
+    misdirection on real corpora. The identifier-attestation rarity stat
+    ("0 of 71,811 identifiers in repo") was always 0 by definition (we
+    only call ``surprising_identifiers`` what the scorer flagged) and read
+    as if the words were foreign even when most of them appear thousands
+    of times in the repo. The ``common here:`` line surfaced the global
+    top-3 most-frequent identifiers (e.g. ``name, person, de`` on faker)
+    which has nothing to do with the flagged tokens — repo-wide vocabulary
+    statistics are not slot-comparable to a flagged hunk's content.
     """
 
-    surprising_identifiers: list[str]
-    rarity: RarityStat
-    common_here: list[CommonEntry]
+    surprising_identifiers: list[CommonEntry]
 
 
 @dataclass(frozen=True)
@@ -131,31 +141,40 @@ Evidence = BpeEvidence | ImportEvidence | CallReceiverEvidence
 class EvidenceCorpusTotals:
     """Denominators for the rarity stats baked into :class:`EvidenceCorpus`.
 
-    Identifier and import totals are repo-wide (singular ints); callee totals
-    are scoped to each MinHash cluster the call-receiver scorer built, so
-    cluster-conditional rarity statements (``0 of 1,247 callees in this
-    cluster``) can pick the right denominator at score time.
+    Import totals are repo-wide (singular int); callee totals are scoped to
+    each MinHash cluster the call-receiver scorer built, so cluster-conditional
+    rarity statements (``0 of 1,247 callees in this cluster``) can pick the
+    right denominator at score time.
+
+    No identifier total: BPE evidence shifted from a "0 of N identifiers"
+    framing to per-token attestation counts (``proposed (5×)``), so the
+    repo-wide identifier denominator is no longer rendered.
     """
 
     import_specifiers_attested: int
-    identifiers_attested: int
     callees_attested_by_cluster: dict[int, int]
 
 
 @dataclass(frozen=True)
 class EvidenceCorpus:
-    """Pre-computed per-dimension top-N samples persisted in calibration JSON.
+    """Pre-computed per-dimension samples persisted in calibration JSON.
 
     Built once during ``argot calibrate`` from the same repo corpus the
     scorer sees, then loaded at check time by per-reason evidence collectors.
     Pre-computing here (rather than re-deriving at every check) keeps check
-    fast and gives a single source of truth for what "common in this repo"
-    means — both for ``common here:`` rendering and for the rarity denominator
-    floors.
+    fast and gives a single source of truth for repo-wide vocabulary.
 
-    ``callees_by_cluster`` keys are MinHash cluster ids matching the
-    call-receiver scorer's ``cluster_attested`` keys; the call-receiver
-    evidence collector picks the entry for the hunk-file's cluster.
+    ``identifiers`` is the **full** repo identifier count map (not top-N) so
+    the BPE evidence collector can render any flagged identifier's
+    attestation, including rare ones (``proposed (5×)``) that wouldn't fit
+    in a top-N sample. The cost is JSON size — bounded by the number of
+    distinct identifiers in the repo — but a flagged token whose count is
+    missing from the map is exactly the case the user wants to see.
+
+    ``imports`` and ``callees_by_cluster`` keep the top-N shape because the
+    import / call-receiver evidence still uses ``common here:`` orientation
+    lines; the slot-comparable framing reads sensibly there ("repo's stack:
+    react, express, pg" / "this cluster's typical callees: ...").
 
     Designed to round-trip through ``to_json_dict`` → JSON →
     :meth:`from_json_dict` so calibration writers and check-time loaders
@@ -163,7 +182,7 @@ class EvidenceCorpus:
     """
 
     imports: list[CommonEntry]
-    identifiers: list[CommonEntry]
+    identifiers: dict[str, int]
     callees_by_cluster: dict[int, list[CommonEntry]]
     totals: EvidenceCorpusTotals
 
@@ -185,13 +204,12 @@ class EvidenceCorpus:
         totals_raw = raw["totals"]
         return cls(
             imports=[CommonEntry(**e) for e in raw["imports"]],
-            identifiers=[CommonEntry(**e) for e in raw["identifiers"]],
+            identifiers={k: int(v) for k, v in raw["identifiers"].items()},
             callees_by_cluster={
                 int(k): [CommonEntry(**e) for e in v] for k, v in raw["callees_by_cluster"].items()
             },
             totals=EvidenceCorpusTotals(
                 import_specifiers_attested=int(totals_raw["import_specifiers_attested"]),
-                identifiers_attested=int(totals_raw["identifiers_attested"]),
                 callees_attested_by_cluster={
                     int(k): int(v) for k, v in totals_raw["callees_attested_by_cluster"].items()
                 },

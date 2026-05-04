@@ -21,20 +21,18 @@ from argot.scoring.evidence.types import (
 def _corpus(
     *,
     imports: list[CommonEntry] | None = None,
-    identifiers: list[CommonEntry] | None = None,
+    identifiers: dict[str, int] | None = None,
     callees_by_cluster: dict[int, list[CommonEntry]] | None = None,
     import_total: int = 47,
-    identifier_total: int = 12_400,
     callee_totals: dict[int, int] | None = None,
 ) -> EvidenceCorpus:
     return EvidenceCorpus(
         imports=imports or [CommonEntry("react", 320), CommonEntry("express", 88)],
-        identifiers=identifiers or [CommonEntry("useEffect", 320)],
+        identifiers=identifiers if identifiers is not None else {"useEffect": 320},
         callees_by_cluster=callees_by_cluster
         or {0: [CommonEntry("logger.info", 3200), CommonEntry("db.query", 1800)]},
         totals=EvidenceCorpusTotals(
             import_specifiers_attested=import_total,
-            identifiers_attested=identifier_total,
             callees_attested_by_cluster=callee_totals or {0: 1247},
         ),
     )

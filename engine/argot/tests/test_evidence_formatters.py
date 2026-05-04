@@ -42,62 +42,50 @@ def _strip_ansi(s: str) -> str:
 
 
 class TestBpeEvidenceFormatter:
-    def _evidence(
-        self,
-        names: list[str],
-        common_here: list[CommonEntry] | None = None,
-        rarity: RarityStat | None = None,
-    ) -> BpeEvidence:
-        return BpeEvidence(
-            surprising_identifiers=names,
-            rarity=rarity or RarityStat(0, 12_400, "identifiers", "repo"),
-            common_here=common_here
-            or [
-                CommonEntry("useEffect", 320),
-                CommonEntry("fetch", 180),
-                CommonEntry("render", 120),
-            ],
-        )
+    """BPE evidence is a single ``↳`` line of per-token attestation counts.
+
+    No ``common here:`` orientation and no ``0 of N`` rarity denominator —
+    both were render-time misdirection on real corpora. The inline counts
+    let the user see at a glance which flagged token is genuinely rare.
+    """
+
+    @staticmethod
+    def _evidence(entries: list[CommonEntry]) -> BpeEvidence:
+        return BpeEvidence(surprising_identifiers=entries)
 
     def test_full_render(self) -> None:
-        ev = self._evidence(["toStrictEqual", "mockResolvedValue"])
-        lines = [_strip_ansi(s) for s in BpeEvidenceFormatter().render(ev, use_color=False)]
-        assert lines == [
-            "     ↳ toStrictEqual, mockResolvedValue — 0 of 12,400 identifiers in repo",
-            "       common here: useEffect (320×), fetch (180×), render (120×)",
-        ]
-
-    def test_overflow_in_names(self) -> None:
-        ev = self._evidence(["a", "b", "c", "d", "e"])
-        lines = [_strip_ansi(s) for s in BpeEvidenceFormatter().render(ev, use_color=False)]
-        assert lines[0] == "     ↳ a, b, c (+2 more) — 0 of 12,400 identifiers in repo"
-
-    def test_empty_names_suppresses_glyph_line(self) -> None:
-        ev = self._evidence([])
-        lines = [_strip_ansi(s) for s in BpeEvidenceFormatter().render(ev, use_color=False)]
-        # Names line gone, common-here still printed.
-        assert lines == ["       common here: useEffect (320×), fetch (180×), render (120×)"]
-
-    def test_common_here_floor_suppresses(self) -> None:
-        # top-1 count = 2 → below floor of 3 → suppress the line entirely
-        ev = self._evidence(["x"], common_here=[CommonEntry("a", 2), CommonEntry("b", 1)])
-        lines = [_strip_ansi(s) for s in BpeEvidenceFormatter().render(ev, use_color=False)]
-        assert len(lines) == 1
-        assert "common here:" not in lines[0]
-
-    def test_rarity_denominator_floor(self) -> None:
         ev = self._evidence(
-            ["frob"],
-            rarity=RarityStat(0, 12, "identifiers", "repo"),  # below 30 → never seen
-            common_here=[CommonEntry("a", 5), CommonEntry("b", 3)],
+            [CommonEntry("message", 1800), CommonEntry("opts", 240), CommonEntry("proposed", 5)]
         )
         lines = [_strip_ansi(s) for s in BpeEvidenceFormatter().render(ev, use_color=False)]
-        assert "never seen in repo" in lines[0]
+        assert lines == [
+            "     ↳ message (1,800×), opts (240×), proposed (5×)",
+        ]
 
-    def test_color_wraps_each_line(self) -> None:
-        ev = self._evidence(["x"])
+    def test_overflow(self) -> None:
+        ev = self._evidence([CommonEntry(c, 1) for c in "abcde"])
+        lines = [_strip_ansi(s) for s in BpeEvidenceFormatter().render(ev, use_color=False)]
+        assert lines == ["     ↳ a (1×), b (1×), c (1×) (+2 more)"]
+
+    def test_zero_count_renders_honestly(self) -> None:
+        """A genuinely novel identifier (not in repo at all) still appears.
+
+        The collector emits ``count=0`` for tokens absent from
+        ``EvidenceCorpus.identifiers`` — the zero is the signal, not noise.
+        """
+        ev = self._evidence([CommonEntry("frobnicate", 0)])
+        lines = [_strip_ansi(s) for s in BpeEvidenceFormatter().render(ev, use_color=False)]
+        assert lines == ["     ↳ frobnicate (0×)"]
+
+    def test_empty_names_suppresses_line(self) -> None:
+        ev = self._evidence([])
+        lines = BpeEvidenceFormatter().render(self._evidence([]), use_color=False)
+        assert lines == []
+        del ev  # silence unused-var
+
+    def test_color_wraps_line(self) -> None:
+        ev = self._evidence([CommonEntry("x", 5)])
         lines = BpeEvidenceFormatter().render(ev, use_color=True)
-        # Both lines start with the dim escape and end with reset.
         assert all("\x1b[2m" in line and "\x1b[0m" in line for line in lines)
 
     def test_routing_wrong_type_is_loud(self) -> None:
@@ -131,7 +119,7 @@ class TestImportEvidenceFormatter:
     def test_routing_wrong_type_is_loud(self) -> None:
         with pytest.raises(TypeError, match="ImportEvidenceFormatter"):
             ImportEvidenceFormatter().render(
-                BpeEvidence(["x"], RarityStat(0, 100, "identifiers", "repo"), []),
+                BpeEvidence([CommonEntry("x", 1)]),
                 use_color=False,
             )
 
@@ -178,10 +166,10 @@ class TestCallReceiverEvidenceFormatter:
 
 class TestFormatEvidenceDispatcher:
     def test_routes_bpe(self) -> None:
-        ev = BpeEvidence(["x"], RarityStat(0, 100, "identifiers", "repo"), [])
+        ev = BpeEvidence([CommonEntry("x", 5)])
         lines = format_evidence(ev, use_color=False)
-        assert lines  # at least the names line
-        assert "↳ x" in _strip_ansi(lines[0])
+        assert lines
+        assert "↳ x (5×)" in _strip_ansi(lines[0])
 
     def test_routes_import(self) -> None:
         ev = ImportEvidence(["pandas"], RarityStat(0, 47, "module specifiers", "repo"), [])
