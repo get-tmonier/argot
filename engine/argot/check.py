@@ -105,6 +105,7 @@ class _Hit:
     source: str
     reason: str
     hunk_content: str
+    flagged: bool = False
     evidence: Evidence | None = None
 
 
@@ -437,6 +438,7 @@ def _score_patches_phase14(
                     source=batch.source,
                     reason=scored.reason,
                     hunk_content=hunk_content,
+                    flagged=scored.flagged,
                     evidence=scored.evidence,
                 )
             )
@@ -784,7 +786,19 @@ def main() -> None:
     )
     hits, hunk_count = _score_patches_phase14(filtered, scorer)
 
-    above_threshold = [h for h in hits if h.score >= threshold]
+    # Display gate. Default (no ``--threshold`` override): show whatever the
+    # scorer actually flagged — any stage that crossed its own threshold (BPE
+    # log-likelihood, import_score >= 1, or call-receiver bringing the
+    # adjusted BPE over the line). Gating on ``score >= threshold`` alone
+    # silently hides import-fired hits because their headline ``score`` is
+    # the BPE-side score, which can be tiny on a hunk whose only signal is a
+    # foreign import. Debug override (``--threshold N``) widens the gate to
+    # every hit at-or-above N — including ``reason=none`` hunks — so users
+    # can see the full distribution at threshold=0.
+    if args.threshold is not None:
+        above_threshold = [h for h in hits if h.score >= threshold]
+    else:
+        above_threshold = [h for h in hits if h.flagged]
 
     # --min-severity drops weaker tiers from both the rendered output AND the
     # banner counts so the summary reflects what the user actually sees. With
