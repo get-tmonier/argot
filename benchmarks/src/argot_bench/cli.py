@@ -382,6 +382,28 @@ def _select_targets(targets: list[Target], filt: list[str] | None) -> list[Targe
     return out
 
 
+def _drop_multi_language(targets: list[Target]) -> list[Target]:
+    """Drop multi-language targets from a bench run.
+
+    The bench scorer resolves a single language adapter per corpus
+    (see ``score._resolve_adapter``); a corpus tagged ``language: multi``
+    cannot be scored end-to-end until the multi-language calibration work
+    lands. Skipping with a clear message keeps mixed targets pinnable
+    in ``targets.yaml`` without tripping the run loop.
+    """
+    out: list[Target] = []
+    for t in targets:
+        if t.language == "multi":
+            print(
+                f"[{t.name}] skipped: language=multi not yet supported by bench "
+                f"(tracked in multi-language-corpus PRD)",
+                file=sys.stderr,
+            )
+            continue
+        out.append(t)
+    return out
+
+
 _ALL_SEEDS = [0, 1, 2, 3, 4]
 
 
@@ -392,6 +414,13 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
         print(f"unknown corpus: {args.corpus}", file=sys.stderr)
         return 2
     t = by_name[args.corpus]
+    if t.language == "multi":
+        print(
+            f"[{t.name}] skipped: language=multi not yet supported by bench "
+            f"(tracked in multi-language-corpus PRD)",
+            file=sys.stderr,
+        )
+        return 0
     seeds = _ALL_SEEDS[: args.seeds] if args.seeds is not None else _ALL_SEEDS
     cfg = RunConfig(
         corpus=t.name,
@@ -431,7 +460,10 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
 
 def _run(args: argparse.Namespace) -> int:
     targets = load_targets(_TARGETS_YAML)
-    selected = _select_targets(targets, args.corpus)
+    selected = _drop_multi_language(_select_targets(targets, args.corpus))
+    if not selected:
+        print("no scorable targets after filtering — nothing to do", file=sys.stderr)
+        return 0
     ts = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
     out_dir = args.results_dir / ts
     out_dir.mkdir(parents=True, exist_ok=True)

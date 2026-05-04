@@ -83,3 +83,14 @@ targets:
       - { pr: 3820, sha: a7825a71ce1dd6b0728848ab73da8134f518e689 }
       - { pr: 3783, sha: 237e7dc34aafafeef68e667a0140d08a8bfa7fb2 }
       - { pr: 3809, sha: f45c508c3da0f6faee6a5a5edefce5eca0c90aa8 }
+
+  # Multi-language monorepo (Python in `python_modules/`, TypeScript in
+  # `js_modules/`). Pinned for the future per-language calibration work
+  # tracked in the `multi-language-corpus` PRD; the bench skips
+  # `language: multi` entries until that lands. No PR fixtures yet —
+  # those land alongside the validation work.
+  - name: dagster
+    url: https://github.com/dagster-io/dagster
+    language: multi
+    prs:
+      - { pr: 0, sha: 549b894e4ba03d5836459d58932105b77fafe242 }

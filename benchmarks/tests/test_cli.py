@@ -6,7 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from argot_bench.cli import build_parser, main
+from argot_bench.cli import _drop_multi_language, build_parser, main
+from argot_bench.targets import PR, Target
 
 
 def test_parser_defaults():
@@ -202,3 +203,22 @@ def test_run_one_subprocess_writes_json(tmp_path: Path) -> None:
         capture_output=True,
     )
     assert proc.returncode == 2
+
+
+def test_drop_multi_language_filters_multi_targets(capsys: pytest.CaptureFixture[str]) -> None:
+    """Multi-language corpora are skipped from the bench dispatch list.
+
+    Multi-language scoring is tracked in the multi-language-corpus PRD;
+    until that lands, `language: multi` entries must be filtered before
+    the run loop and surface a clear skip message on stderr.
+    """
+    targets = [
+        Target(name="fastapi", url="x", language="python", prs=[PR(pr=1, sha="a" * 40)]),
+        Target(name="dagster", url="y", language="multi", prs=[PR(pr=0, sha="b" * 40)]),
+        Target(name="hono", url="z", language="typescript", prs=[PR(pr=2, sha="c" * 40)]),
+    ]
+    kept = _drop_multi_language(targets)
+    assert [t.name for t in kept] == ["fastapi", "hono"]
+    captured = capsys.readouterr()
+    assert "dagster" in captured.err
+    assert "skipped" in captured.err

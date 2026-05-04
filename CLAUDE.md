@@ -14,8 +14,11 @@ Always use `just` — it's the canonical interface for all dev commands.
 just verify       # full check suite (lint + format + typecheck + boundaries + knip + test)
 just test         # bun test --cwd cli && uv run pytest engine
 just extract .    # run extract pipeline on this repo → .argot/dataset.jsonl
+just dogfood      # run full pipeline against argot itself (or any path) — fast monorepo check
 just install      # bun install + uv sync
 ```
+
+`just dogfood` exercises extract → train → calibrate → check end-to-end and asserts both Python and TypeScript rows landed in `dataset.jsonl` plus a `scorer-config.json` was emitted. It's a **dev loop, not a CI gate** — informational signal that monorepo handling didn't silently break. Drift is the contributor's responsibility; nothing forces it to run.
 
 ## Architecture
 

@@ -73,6 +73,28 @@ def test_collect_excludes_venv_and_build_dirs(tmp_path: Path) -> None:
     assert "keep.py" in found
 
 
+def test_collect_excludes_benchmarks_dir(tmp_path: Path) -> None:
+    """`benchmarks/` is non-production code (same category as `tests/`).
+
+    Excluded by basename so working-tree walks on argot itself don't pull in
+    cloned bench corpora under `benchmarks/data/.repo/`, which would silently
+    inflate the repo corpus and slow calibration.
+    """
+    _init_repo(tmp_path)
+    bench_data = tmp_path / "benchmarks" / "data" / ".repo"
+    bench_data.mkdir(parents=True)
+    (bench_data / "third_party.py").write_text("x = 1\n")
+    bench_src = tmp_path / "benchmarks" / "src"
+    bench_src.mkdir(parents=True)
+    (bench_src / "harness.py").write_text("x = 1\n")
+    (tmp_path / "keep.py").write_text("x = 1\n")
+
+    found = {p.name for p in _collect_source_files(tmp_path)}
+    assert "third_party.py" not in found
+    assert "harness.py" not in found
+    assert "keep.py" in found
+
+
 def test_collect_returns_empty_for_no_source_files(tmp_path: Path) -> None:
     _init_repo(tmp_path)
     (tmp_path / "README.md").write_text("# docs\n")

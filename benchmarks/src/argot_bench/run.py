@@ -22,8 +22,28 @@ from argot_bench.metrics import (
 )
 from argot_bench.report import CorpusReport
 from argot_bench.score import BenchScorer, build_scorer
+from argot_bench.score import Language as ScorableLanguage
 
-Language = Literal["python", "typescript"]
+Language = Literal["python", "typescript", "multi"]
+
+
+def _require_scorable(lang: Language) -> ScorableLanguage:
+    """Narrow a configuration ``Language`` to one the bench scorer can handle.
+
+    The on-disk ``targets.yaml`` literal admits ``multi`` so multi-language
+    corpora can be pinned for the upcoming multi-language-corpus PRD,
+    but ``build_scorer`` resolves a single language adapter and cannot
+    yet score them. The bench dispatcher (``cli._drop_multi_language``)
+    filters those out before they reach ``run_corpus``; this guard is the
+    runtime tripwire that keeps the invariant honest if a future caller
+    forgets to filter.
+    """
+    if lang == "multi":
+        raise ValueError(
+            "run_corpus called with language=multi; multi-language scoring "
+            "is not yet implemented (filter via cli._drop_multi_language)"
+        )
+    return lang
 
 
 _BREAK_META_RE = re.compile(r"^\s*(//|#)\s*Break\s*:")
@@ -359,6 +379,10 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
     thresholds: list[float] = []
     cal_score_signatures: list[set[str]] = []
 
+    # Narrow once: the rest of run_corpus passes this scorable literal to
+    # build_scorer rather than the wider configuration `Language`.
+    scorable_language = _require_scorable(cfg.language)
+
     primary_pr, primary_sha = cfg.prs[0]
 
     for seed in cfg.seeds:
@@ -371,7 +395,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             repo,
             n_cal=cfg.n_cal,
             seed=seed,
-            language=cfg.language,
+            language=scorable_language,
             enable_typicality_filter=cfg.typicality_filter,
             call_receiver_alpha=cfg.call_receiver_alpha,
             call_receiver_cap=cfg.call_receiver_cap,
@@ -425,7 +449,7 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
                 repo,
                 n_cal=cfg.n_cal,
                 seed=cfg.seeds[0],
-                language=cfg.language,
+                language=scorable_language,
                 enable_typicality_filter=cfg.typicality_filter,
                 call_receiver_alpha=cfg.call_receiver_alpha,
                 call_receiver_cap=cfg.call_receiver_cap,
