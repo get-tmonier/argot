@@ -28,6 +28,8 @@
   No GPU · No cloud · No telemetry · Runs in seconds after a one-time calibration
 </p>
 
+> **Status: alpha — not yet recommended for production use.** The scorer is still being tightened, the validated corpus set is library-only, and several adoption-blocking surfaces (suppression, editor integration, CI integration) aren't built yet. See [Known issues & limitations](#known-issues--limitations) for the v1 roadmap.
+
 $$
 \text{score}(\text{hunk})
 \;=\;
@@ -408,12 +410,43 @@ per-category breakdowns, known weaknesses (calibration filtering
 trade-off on two corpora, semantic-break blind spots on TS corpora),
 and how to read a generated report.
 
-## Limitations
+## Known issues & limitations
 
-- Needs enough source code to calibrate: the sampler looks for top-level functions/classes (≥ 5 body lines) in the current tree. Validated corpora had calibration pools of 112–494 hunks; repos with fewer than ~100 sampleable units will hit the pool-cap branch and may produce a noisier threshold.
-- Best on codebases with a consistent hand. Highly polyglot repos or repos with many contributors and no enforced style are harder to model.
-- Cold start on brand-new files: less context to score against.
-- Signal is noisier on very small hunks (< 5 lines).
+argot is **alpha** software. We ship honest benchmarks and a public research log, but several real gaps remain — both in the model itself and in the surfaces around it. We're tracking everything in the open; the [GitHub issue tracker](https://github.com/get-tmonier/argot/issues) is the source of truth.
+
+### Modeling / scoring
+
+- **Needs enough source code to calibrate:** the sampler looks for top-level functions/classes (≥ 5 body lines) in the current tree. Validated corpora had calibration pools of 112–494 hunks; repos with fewer than ~100 sampleable units will hit the pool-cap branch and may produce a noisier threshold.
+- **Best on codebases with a consistent hand.** Highly polyglot repos or repos with many contributors and no enforced style are harder to model.
+- **Single-threshold model on multi-language monorepos.** Mixed Python + TypeScript repos calibrate against a joint distribution today, dominated by whichever language has broader token diversity. Per-language calibration is on the roadmap ([#41](https://github.com/get-tmonier/argot/issues/41)).
+- **Validation corpus is library-only.** All six benchmarked corpora are libraries / frameworks (FastAPI, rich, faker, hono, ink, faker-js). Application code may behave differently and the recall / FP numbers haven't been proven there yet ([#66](https://github.com/get-tmonier/argot/issues/66)).
+- **Residual recall and FP gaps** under active research — currently 108/115 fixtures caught and two corpora at ~2% FP. The current research era pushes FP to ≤ 1% and chases the architectural recall ceiling ([#54](https://github.com/get-tmonier/argot/issues/54)).
+- **Cold start on brand-new files:** less context to score against.
+- **Signal is noisier on very small hunks** (< 5 lines).
+
+### Surface / adoption gaps
+
+- **No suppression mechanism** — there's no `.argotignore`, no inline magic comments, no `argot mute`. One stubborn false positive and the tool can't be silenced ([#57](https://github.com/get-tmonier/argot/issues/57)).
+- **No editor integration** — argot is CLI-only today; no LSP server, no VSCode extension, no inline diagnostics ([#55](https://github.com/get-tmonier/argot/issues/55)).
+- **No CI integration package** — no published GitHub Action, no pre-commit hook, no SARIF output for native PR comments ([#58](https://github.com/get-tmonier/argot/issues/58)).
+- **No introspection / suitability check** — running `fit` then `check` is the only way to find out whether argot will work on your repo ([#51](https://github.com/get-tmonier/argot/issues/51)).
+- **No model artifact versioning or hashing** — `.argot/` is opaque; reproducibility is undocumented ([#62](https://github.com/get-tmonier/argot/issues/62)).
+- **No MCP server for LLM coding agents** — argot's signal would be especially useful as preemptive guidance during code generation, but there's no protocol surface yet ([#56](https://github.com/get-tmonier/argot/issues/56)).
+
+### What we need for v1
+
+The minimum-viable-v1 set we'd want to ship before recommending argot for production use:
+
+| Issue | Why it blocks v1 |
+|---|---|
+| [#54](https://github.com/get-tmonier/argot/issues/54) | Push FP rate to ≤ 1% across all corpora and close the residual recall gap |
+| [#66](https://github.com/get-tmonier/argot/issues/66) | Validate on application corpora, not just libraries |
+| [#41](https://github.com/get-tmonier/argot/issues/41) | Per-language calibration in mixed-language monorepos |
+| [#57](https://github.com/get-tmonier/argot/issues/57) | Suppression mechanism — adoption blocker without it |
+| [#51](https://github.com/get-tmonier/argot/issues/51) | Repo introspection / suitability check |
+| [#58](https://github.com/get-tmonier/argot/issues/58) | Official CI integration (GitHub Action + pre-commit + SARIF) |
+
+Browse all open issues, including non-v1 work, at [`github.com/get-tmonier/argot/issues`](https://github.com/get-tmonier/argot/issues).
 
 ## Stack
 
