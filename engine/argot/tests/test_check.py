@@ -314,9 +314,7 @@ export default [
 ];
 """
     assert (
-        _is_out_of_scope(
-            "src/locales/es/company/name_pattern.ts", locale_data, tmp_path, _TS_EXT
-        )
+        _is_out_of_scope("src/locales/es/company/name_pattern.ts", locale_data, tmp_path, _TS_EXT)
         is True
     )
 

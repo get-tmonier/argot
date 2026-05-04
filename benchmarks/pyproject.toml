@@ -35,7 +35,7 @@ warn_unused_ignores = true
 mypy_path = "../engine"
 
 [[tool.mypy.overrides]]
-module = ["yaml", "sklearn.*", "scipy.*", "tree_sitter", "tree_sitter_python", "tree_sitter_typescript"]
+module = ["torch", "yaml", "sklearn.*", "scipy.*", "tree_sitter", "tree_sitter_python", "tree_sitter_typescript"]
 ignore_missing_imports = true
 
 [tool.ruff]
