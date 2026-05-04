@@ -10,7 +10,7 @@ import { listCommand } from '#shell/infrastructure/adapters/in/commands/list.com
 import { AppLive } from '#dependencies';
 import { brandedArgot } from '#branding.ts';
 import { version } from './version.ts';
-import { updateNotify } from './update-notify.ts';
+import { isUpdateInvocation, updateNotify } from './update-notify.ts';
 
 const app = Command.make('argot', {}, () =>
   Console.log(`${brandedArgot()} v${version}
@@ -37,9 +37,14 @@ Run \`argot <command> --help\` for details on any command.`),
 );
 
 const program = Command.run(app, { version });
-program.pipe(
-  Effect.andThen(() => updateNotify),
-  Effect.provide(AppLive),
-  Effect.provide(BunServices.layer),
-  BunRuntime.runMain,
-);
+
+// Show "update available" warnings BEFORE the user's command runs (so the
+// notice appears at the top of the output, not buried after the result).
+// Skip when the user is running `argot update` itself — the warning would
+// be redundant noise just before an update, and outright misleading just
+// after a successful one.
+const main = isUpdateInvocation(process.argv)
+  ? program
+  : updateNotify.pipe(Effect.andThen(() => program));
+
+main.pipe(Effect.provide(AppLive), Effect.provide(BunServices.layer), BunRuntime.runMain);

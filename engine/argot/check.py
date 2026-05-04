@@ -263,9 +263,9 @@ def _load_phase14_scorer(argot_dir: Path) -> SequentialImportBpeScorer:
     config_json = argot_dir / "scorer-config.json"
 
     for p, msg in [
-        (repo_corpus_txt, "run argot-train first"),
-        (generic_baseline_json, "run argot-train first"),
-        (config_json, "run argot-calibrate first"),
+        (repo_corpus_txt, "run `argot fit` first"),
+        (generic_baseline_json, "run `argot fit` first"),
+        (config_json, "run `argot fit` first"),
     ]:
         if not p.exists():
             print(f"error: {p} not found — {msg}", file=sys.stderr)

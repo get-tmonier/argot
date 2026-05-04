@@ -5,8 +5,9 @@ import { Console, Effect } from 'effect';
 import { version } from './version.ts';
 
 const REPO = 'get-tmonier/argot';
-const CACHE_PATH = join(homedir(), '.cache', 'argot', 'update-check.json');
-const TTL_MS = 60 * 60 * 1000;
+const CACHE_DIR = join(homedir(), '.cache', 'argot');
+const CACHE_PATH = join(CACHE_DIR, 'update-check.json');
+const TTL_MS = 24 * 60 * 60 * 1000;
 
 interface Cache {
   checkedAt: number;
@@ -21,10 +22,10 @@ function readCache(): Cache | null {
   }
 }
 
-function writeCache(cache: Cache): void {
+export function writeUpdateCache(latestVersion: string): void {
   try {
-    mkdirSync(join(homedir(), '.cache', 'argot'), { recursive: true });
-    writeFileSync(CACHE_PATH, JSON.stringify(cache));
+    mkdirSync(CACHE_DIR, { recursive: true });
+    writeFileSync(CACHE_PATH, JSON.stringify({ checkedAt: Date.now(), latestVersion }));
   } catch {
     // ignore write failures
   }
@@ -37,6 +38,33 @@ function isNewer(remote: string): boolean {
       .map(Number)
       .reduce((acc, n, i) => acc + n * Math.pow(1000, 2 - i), 0);
   return toNum(remote.replace(/^v/, '')) > toNum(version.replace(/^v/, ''));
+}
+
+/**
+ * Identify whether the user invoked `argot update` so we can skip the
+ * pre-command notification (showing "v X available — run `argot update`"
+ * just before running update is noise).
+ *
+ * We don't have access to the parsed Effect command tree at this point in
+ * the boot sequence, so we walk argv manually. Global flags that take a
+ * value need to be tracked so the value isn't mistaken for the subcommand
+ * (e.g. `argot --log-level info status` must resolve to `status`, not
+ * `info`).
+ */
+export function isUpdateInvocation(argv: ReadonlyArray<string>): boolean {
+  const valueFlags = new Set(['--log-level', '--completions']);
+  const args = argv.slice(2);
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === undefined) continue;
+    if (valueFlags.has(a)) {
+      i++;
+      continue;
+    }
+    if (a.startsWith('-')) continue;
+    return a === 'update';
+  }
+  return false;
 }
 
 export const updateNotify: Effect.Effect<void> = Effect.gen(function* () {
@@ -59,7 +87,7 @@ export const updateNotify: Effect.Effect<void> = Effect.gen(function* () {
       },
       catch: () => new Error('fetch failed'),
     });
-    writeCache({ checkedAt: now, latestVersion });
+    writeUpdateCache(latestVersion);
   }
 
   if (isNewer(latestVersion)) {
