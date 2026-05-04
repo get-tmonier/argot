@@ -36,3 +36,7 @@ def test_smoke_extract_argot_repo(tmp_path: Path) -> None:
             assert "file_path" in record
             assert "language" in record
             assert record["hunk_start_line"] <= record["hunk_end_line"]
+
+    # Atomic-write contract: no leftover tmp files in the destination dir.
+    leftover = list(tmp_path.glob(f"{out.name}.tmp.*"))
+    assert leftover == [], f"Stale tmp files left behind: {leftover}"

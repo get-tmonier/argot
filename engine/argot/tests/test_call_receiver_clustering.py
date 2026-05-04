@@ -1149,3 +1149,131 @@ def test_cluster_callee_counts_dict_populated(tmp_path: Path) -> None:
     for cid, counts in s_multi.cluster_callee_counts.items():
         # Every count must be >=1 and <= cluster_sizes[cid].
         assert all(1 <= v <= s_multi.cluster_sizes[cid] for v in counts.values())
+
+
+# ---------------------------------------------------------------------------
+# Size-conditional rare attestation (cluster_size_min)
+# ---------------------------------------------------------------------------
+
+
+def test_cluster_size_min_default_zero_preserves_unfloored_behaviour(
+    tmp_path: Path,
+) -> None:
+    """Default cluster_size_min=0 must NOT change scoring vs the unfloored rule."""
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    files, build = _make_rare_attestation_corpus(tmp_path)
+    s = CallReceiverScorer(
+        files,
+        language="typescript",
+        n_clusters=2,
+        cluster_rare_threshold=2,
+    )
+    assert s.cluster_size_min == 0
+    # Same hunk as test_cluster_rare_threshold_fires_when_callee_in_few_files:
+    # under cluster_size_min=0 (default), the rare branch fires regardless
+    # of cluster size — bonus = 5.0.
+    score = s.weighted_contribution_for_file(
+        "rareCallee();",
+        file_path=build,
+        alpha=2.0,
+        root_bonus=2.0,
+        cluster_bonus=5.0,
+        cap=10.0,
+    )
+    assert score == pytest.approx(5.0)
+
+
+def test_cluster_size_min_suppresses_rare_branch_in_small_cluster(
+    tmp_path: Path,
+) -> None:
+    """cluster_size_min=N suppresses the rare branch when cluster_size < N.
+
+    The build.ts cluster has size 1 (just build.ts itself). Setting
+    cluster_size_min=2 should suppress the rare branch on that cluster
+    even though count(rareCallee)=1 ≤ rare_threshold=2.
+    """
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    files, build = _make_rare_attestation_corpus(tmp_path)
+    s = CallReceiverScorer(
+        files,
+        language="typescript",
+        n_clusters=2,
+        cluster_rare_threshold=2,
+        cluster_size_min=2,
+    )
+    # Confirm the build cluster is below the floor.
+    build_cluster = s.file_to_cluster[build]
+    assert s.cluster_sizes[build_cluster] < 2
+    # rareCallee IS in cluster_attested for this cluster (count=1).
+    # Without the size floor, rare-threshold=2 fires (+5.0). With
+    # cluster_size_min=2 the branch is suppressed (cluster too small to
+    # trust the rare-count signal) → 0.0.
+    score = s.weighted_contribution_for_file(
+        "rareCallee();",
+        file_path=build,
+        alpha=2.0,
+        root_bonus=2.0,
+        cluster_bonus=5.0,
+        cap=10.0,
+    )
+    assert score == pytest.approx(0.0)
+    assert s.rare_branch_fire_count == 0
+
+
+def test_cluster_size_min_allows_rare_branch_in_large_cluster(
+    tmp_path: Path,
+) -> None:
+    """cluster_size_min=N allows the rare branch when cluster_size >= N.
+
+    The provider cluster has size 5. Setting cluster_size_min=2 leaves it
+    above the floor, so a rare callee inside that cluster still fires.
+    """
+    from argot.scoring.scorers.call_receiver import CallReceiverScorer
+
+    # Build a corpus where one provider has a uniquely-rare callee inside
+    # the provider cluster.
+    files: list[Path] = []
+    for i in range(5):
+        f = tmp_path / f"provider_{i}.ts"
+        if i == 0:
+            # Only provider_0 uses `oddCallee`; the other 4 don't.
+            f.write_text(
+                "Math.floor(x0);\n"
+                "Promise.resolve(y0);\n"
+                "helpers.format(z0);\n"
+                "oddCallee();\n"
+            )
+        else:
+            f.write_text(
+                f"Math.floor(x{i});\n" f"Promise.resolve(y{i});\n" f"helpers.format(z{i});\n"
+            )
+        files.append(f)
+    # Plus the same build.ts to push KMeans into 2 clusters.
+    build = tmp_path / "build.ts"
+    build.write_text("rareCallee();\nMath.floor(x);\n")
+    files.append(build)
+
+    s = CallReceiverScorer(
+        files,
+        language="typescript",
+        n_clusters=2,
+        cluster_rare_threshold=2,
+        cluster_size_min=2,
+    )
+    provider_cluster = s.file_to_cluster[files[0]]
+    # Confirm the provider cluster is above the floor.
+    assert s.cluster_sizes[provider_cluster] >= 2
+    # `oddCallee` is in only 1 of the 5 provider files (count=1 ≤ 2),
+    # AND the cluster size (5) ≥ min (2) → rare branch SHOULD fire.
+    score = s.weighted_contribution_for_file(
+        "oddCallee();",
+        file_path=files[0],
+        alpha=2.0,
+        root_bonus=2.0,
+        cluster_bonus=5.0,
+        cap=10.0,
+    )
+    assert score == pytest.approx(5.0)
+    assert s.rare_branch_fire_count == 1

@@ -24,6 +24,7 @@ from argot.scoring.adapters.registry import adapter_for_files
 from argot.scoring.filters.typicality import TypicalityModel, language_for_adapter
 from argot.scoring.scorers.call_receiver import CallReceiverScorer
 from argot.scoring.scorers.import_graph import ImportGraphScorer
+from argot.scoring.scorers.shape_primitive import ShapePrimitive
 
 _EPSILON = 1e-7
 _BPE_MODEL_NAME = "microsoft/unixcoder-base"
@@ -168,7 +169,9 @@ class SequentialImportBpeScorer:
         call_receiver_cluster_seed: int = 0,
         call_receiver_cluster_bonus: float = 5.0,
         call_receiver_cluster_rare_threshold: int = 0,
+        call_receiver_cluster_size_min: int = 0,
         call_receiver_force_jaccard_routing: bool = False,
+        call_receiver_shape_primitives: list[ShapePrimitive[Any]] | None = None,
         calibration_hunks_with_metadata: list[tuple[str, Path, str]] | None = None,
         _tokenizer: Any = None,
     ) -> None:
@@ -229,6 +232,8 @@ class SequentialImportBpeScorer:
                 cluster_seed=call_receiver_cluster_seed,
                 force_jaccard_routing=call_receiver_force_jaccard_routing,
                 cluster_rare_threshold=call_receiver_cluster_rare_threshold,
+                cluster_size_min=call_receiver_cluster_size_min,
+                shape_primitives=call_receiver_shape_primitives,
             )
         self._call_receiver_root_bonus: float = call_receiver_root_bonus
         self._call_receiver_cluster_bonus: float = call_receiver_cluster_bonus
@@ -317,6 +322,23 @@ class SequentialImportBpeScorer:
                 cal_scores, threshold_percentile, threshold_iqr_k
             )
             self.n_calibration = len(cal_scores)
+
+    @property
+    def rare_branch_fire_count(self) -> int:
+        """Total times the cluster-rare branch fired (0 when scoring disabled)."""
+        return self._call_receiver.rare_branch_fire_count if self._call_receiver is not None else 0
+
+    @property
+    def rare_branch_hunks_fired(self) -> int:
+        """Distinct hunks that fired the cluster-rare branch (0 when scoring disabled).
+        Per-hunk fire rate is robust to "many fires per hunk vs few fires per hunk".
+        """
+        return self._call_receiver.rare_branch_hunks_fired if self._call_receiver is not None else 0
+
+    @property
+    def hunks_scored(self) -> int:
+        """Total hunks scored by the call_receiver (denominator for fire-rate computations)."""
+        return self._call_receiver.hunks_scored if self._call_receiver is not None else 0
 
     def _bpe_score(self, hunk_source: str) -> float:
         ids: list[int] = self._tokenizer.encode(hunk_source, add_special_tokens=False)

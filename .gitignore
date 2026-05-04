@@ -45,12 +45,18 @@ __pycache__/
 .argot/
 **/.argot/
 
+# claude-code worktrees (parallel-agent fan-out)
+.claude/worktrees/
+
 # cache
 .cache/
 .oxlintcache
 
 # history
 .history/
+
+# orchestration scratch (logs, intermediate memos, work-in-flight notes)
+.scratch/
 
 npm/native/
 

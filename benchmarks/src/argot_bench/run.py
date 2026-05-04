@@ -95,9 +95,14 @@ class RunConfig:
     call_receiver_cluster_seed: int = 0
     call_receiver_cluster_bonus: float = 5.0
     call_receiver_cluster_rare_threshold: int = 0
+    call_receiver_cluster_size_min: int = 0
+    call_receiver_shape_primitive_names: tuple[str, ...] = ()
     threshold_percentile: float | None = None
     threshold_iqr_k: float | None = None
     threshold_n_seeds: int = 7
+    apply_optional_contributions_to_cal: bool = False
+    auto_select_asym_cal: bool = False
+    asym_fire_rate_threshold: float = 0.05
 
 
 def _read_hunk_pair(catalog_dir: Path, fixture: Fixture) -> tuple[str, str]:
@@ -333,9 +338,14 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             call_receiver_cluster_seed=cfg.call_receiver_cluster_seed,
             call_receiver_cluster_bonus=cfg.call_receiver_cluster_bonus,
             call_receiver_cluster_rare_threshold=cfg.call_receiver_cluster_rare_threshold,
+            call_receiver_cluster_size_min=cfg.call_receiver_cluster_size_min,
+            call_receiver_shape_primitive_names=cfg.call_receiver_shape_primitive_names,
             threshold_percentile=cfg.threshold_percentile,
             threshold_iqr_k=cfg.threshold_iqr_k,
             threshold_n_seeds=cfg.threshold_n_seeds,
+            apply_optional_contributions_to_cal=cfg.apply_optional_contributions_to_cal,
+            auto_select_asym_cal=cfg.auto_select_asym_cal,
+            asym_fire_rate_threshold=cfg.asym_fire_rate_threshold,
         )
         by_cat: dict[str, Fixture] = {}
         for fx in break_fixtures:
@@ -370,15 +380,29 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
             call_receiver_cluster_seed=cfg.call_receiver_cluster_seed,
             call_receiver_cluster_bonus=cfg.call_receiver_cluster_bonus,
             call_receiver_cluster_rare_threshold=cfg.call_receiver_cluster_rare_threshold,
+            call_receiver_cluster_size_min=cfg.call_receiver_cluster_size_min,
+            call_receiver_shape_primitive_names=cfg.call_receiver_shape_primitive_names,
             threshold_percentile=cfg.threshold_percentile,
             threshold_iqr_k=cfg.threshold_iqr_k,
             threshold_n_seeds=cfg.threshold_n_seeds,
+            apply_optional_contributions_to_cal=cfg.apply_optional_contributions_to_cal,
+            auto_select_asym_cal=cfg.auto_select_asym_cal,
+            asym_fire_rate_threshold=cfg.asym_fire_rate_threshold,
+            auto_detect_probe_dataset=dataset,
         )
         thresholds.append(scorer.threshold)
         cal_score_signatures.append({f"{i}:{s:.4f}" for i, s in enumerate(scorer.cal_scores)})
 
         if seed == cfg.seeds[0]:
             fixture_results = _score_fixtures(scorer, cfg.catalog_dir, break_fixtures, repo_dir=repo)
+            if cfg.call_receiver_cluster_rare_threshold > 0:
+                import sys
+
+                print(
+                    f"[rare-counter] {cfg.corpus} fixture path seed={seed}: "
+                    f"rare_branch_fire_count={scorer.rare_branch_fire_count}",
+                    file=sys.stderr,
+                )
             hunks_stream: Iterable[dict[str, object]] = _real_pr_hunks(dataset)
             if cfg.quick:
                 hunks_stream = islice(hunks_stream, 50)
@@ -409,10 +433,16 @@ def run_corpus(cfg: RunConfig) -> CorpusReport:
                 call_receiver_n_clusters=cfg.call_receiver_n_clusters,
                 call_receiver_cluster_seed=cfg.call_receiver_cluster_seed,
                 call_receiver_cluster_bonus=cfg.call_receiver_cluster_bonus,
-            call_receiver_cluster_rare_threshold=cfg.call_receiver_cluster_rare_threshold,
+                call_receiver_cluster_rare_threshold=cfg.call_receiver_cluster_rare_threshold,
+                call_receiver_cluster_size_min=cfg.call_receiver_cluster_size_min,
+                call_receiver_shape_primitive_names=cfg.call_receiver_shape_primitive_names,
                 threshold_percentile=cfg.threshold_percentile,
                 threshold_iqr_k=cfg.threshold_iqr_k,
                 threshold_n_seeds=cfg.threshold_n_seeds,
+                apply_optional_contributions_to_cal=cfg.apply_optional_contributions_to_cal,
+                auto_select_asym_cal=cfg.auto_select_asym_cal,
+                asym_fire_rate_threshold=cfg.asym_fire_rate_threshold,
+                auto_detect_probe_dataset=dataset,
             )
             hunks_stream2: Iterable[dict[str, object]] = _real_pr_hunks(dataset)
             hunks_input2: Iterable[dict[str, object]]

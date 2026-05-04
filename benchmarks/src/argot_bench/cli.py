@@ -107,6 +107,30 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
+        "--call-receiver-cluster-size-min",
+        type=int,
+        default=0,
+        metavar="N",
+        help=(
+            "Size-conditional rare attestation: the "
+            "rare-threshold rule only fires on clusters with >= N files. "
+            "Default 0 (disabled, no floor). Try 20 to suppress small-cluster "
+            "noise where 1-of-24 conflates with normal callee variance."
+        ),
+    )
+    p.add_argument(
+        "--enable-shape-primitives",
+        type=str,
+        default="",
+        metavar="CSV",
+        help=(
+            "Comma-separated names of additive AST-shape "
+            "primitives to enable. Empty (default) "
+            "disables all primitives. Names must be registered via "
+            "argot.scoring.scorers.shape_primitive_registry."
+        ),
+    )
+    p.add_argument(
         "--n-cal",
         type=int,
         default=100,
@@ -137,6 +161,38 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="K",
         help=(
             "Multi-seed median threshold K (default 7, era-10 shipping; 1=single-seed/era-9)."
+        ),
+    )
+    p.add_argument(
+        "--apply-optional-contributions-to-cal",
+        action="store_true",
+        default=False,
+        help=(
+            "Apply cluster_rare and shape-primitive contributions to calibration hunks "
+            "(symmetric mode). Default False (asymmetric cal): cal threshold is computed "
+            "without optional contributions so they don't cancel on the fixture path. "
+            "See docs/agents/calibration-contract.md for the G7 contract."
+        ),
+    )
+    p.add_argument(
+        "--auto-select-asym-cal",
+        action="store_true",
+        default=False,
+        help=(
+            "Per-corpus auto-detect: probe cal-side cluster_rare fire rate at fit time; "
+            "enable asymmetric cal if fire rate < threshold (faker-js style — informative), "
+            "fall back to symmetric cal otherwise (cancellation = baseline behaviour). "
+            "Requires --call-receiver-cluster-rare-threshold > 0 to take effect."
+        ),
+    )
+    p.add_argument(
+        "--asym-fire-rate-threshold",
+        type=float,
+        default=0.05,
+        metavar="FRAC",
+        help=(
+            "Fire-rate cutoff for --auto-select-asym-cal (default 0.05 = 5% of cal hunks "
+            "fire cluster_rare). Below cutoff → asym (informative); at-or-above → sym (cancel)."
         ),
     )
     p.add_argument(
@@ -200,6 +256,38 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     one.add_argument(
+        "--call-receiver-cluster-rare-threshold",
+        type=int,
+        default=0,
+        metavar="N",
+        help=(
+            "Phase-10 frequency-aware attestation: callees attested in <= N "
+            "cluster files are treated as cluster-absent (cluster_bonus fires). "
+            "Default 0 (disabled). Try 2 to catch rare-but-attested callees."
+        ),
+    )
+    one.add_argument(
+        "--call-receiver-cluster-size-min",
+        type=int,
+        default=0,
+        metavar="N",
+        help=(
+            "Size-conditional rare attestation floor: "
+            "rare rule only fires on clusters with >= N files. "
+            "Default 0 (disabled, no floor)."
+        ),
+    )
+    one.add_argument(
+        "--enable-shape-primitives",
+        type=str,
+        default="",
+        metavar="CSV",
+        help=(
+            "Comma-separated names of AST-shape primitives "
+            "to enable. Default '' (all disabled)."
+        ),
+    )
+    one.add_argument(
         "--n-cal",
         type=int,
         default=100,
@@ -226,6 +314,29 @@ def build_parser() -> argparse.ArgumentParser:
         default=7,
         metavar="K",
         help="Multi-seed median threshold K (default 7, era-10 shipping; 1=single-seed/era-9).",
+    )
+    one.add_argument(
+        "--apply-optional-contributions-to-cal",
+        action="store_true",
+        default=False,
+        help=(
+            "Apply cluster_rare and shape-primitive contributions to calibration hunks "
+            "(symmetric mode). Default False (asymmetric cal). "
+            "See docs/agents/calibration-contract.md for the G7 contract."
+        ),
+    )
+    one.add_argument(
+        "--auto-select-asym-cal",
+        action="store_true",
+        default=False,
+        help="Per-corpus auto-detect of asym/sym based on cal fire rate.",
+    )
+    one.add_argument(
+        "--asym-fire-rate-threshold",
+        type=float,
+        default=0.05,
+        metavar="FRAC",
+        help="Fire-rate cutoff for --auto-select-asym-cal (default 0.05).",
     )
 
     return p
@@ -296,10 +407,17 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
         call_receiver_n_clusters=args.call_receiver_clusters,
         call_receiver_cluster_bonus=args.call_receiver_cluster_bonus,
         call_receiver_cluster_rare_threshold=args.call_receiver_cluster_rare_threshold,
+        call_receiver_cluster_size_min=args.call_receiver_cluster_size_min,
+        call_receiver_shape_primitive_names=tuple(
+            n.strip() for n in args.enable_shape_primitives.split(",") if n.strip()
+        ),
         n_cal=args.n_cal,
         threshold_percentile=args.threshold_percentile,
         threshold_iqr_k=args.threshold_iqr_k,
         threshold_n_seeds=args.threshold_n_seeds,
+        apply_optional_contributions_to_cal=args.apply_optional_contributions_to_cal,
+        auto_select_asym_cal=args.auto_select_asym_cal,
+        asym_fire_rate_threshold=args.asym_fire_rate_threshold,
     )
     args.out_dir.mkdir(parents=True, exist_ok=True)
     r = run_corpus(cfg)
@@ -344,6 +462,27 @@ def _run(args: argparse.Namespace) -> int:
         base_cmd.extend(["--call-receiver-clusters", str(args.call_receiver_clusters)])
     if args.call_receiver_cluster_bonus != 5.0:
         base_cmd.extend(["--call-receiver-cluster-bonus", str(args.call_receiver_cluster_bonus)])
+    if args.call_receiver_cluster_rare_threshold != 0:
+        base_cmd.extend(
+            [
+                "--call-receiver-cluster-rare-threshold",
+                str(args.call_receiver_cluster_rare_threshold),
+            ]
+        )
+    if args.call_receiver_cluster_size_min != 0:
+        base_cmd.extend(
+            [
+                "--call-receiver-cluster-size-min",
+                str(args.call_receiver_cluster_size_min),
+            ]
+        )
+    if args.enable_shape_primitives:
+        base_cmd.extend(
+            [
+                "--enable-shape-primitives",
+                str(args.enable_shape_primitives),
+            ]
+        )
     if args.n_cal != 100:
         base_cmd.extend(["--n-cal", str(args.n_cal)])
     if args.threshold_percentile != 100.0:
@@ -352,6 +491,12 @@ def _run(args: argparse.Namespace) -> int:
         base_cmd.extend(["--threshold-iqr-k", str(args.threshold_iqr_k)])
     if args.threshold_n_seeds != 7:
         base_cmd.extend(["--threshold-n-seeds", str(args.threshold_n_seeds)])
+    if args.apply_optional_contributions_to_cal:
+        base_cmd.append("--apply-optional-contributions-to-cal")
+    if args.auto_select_asym_cal:
+        base_cmd.append("--auto-select-asym-cal")
+    if args.asym_fire_rate_threshold != 0.05:
+        base_cmd.extend(["--asym-fire-rate-threshold", str(args.asym_fire_rate_threshold)])
 
     def _run_corpus_subprocess(t: Target) -> tuple[str, int, str]:
         proc = subprocess.run(
