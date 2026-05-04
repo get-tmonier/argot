@@ -7,6 +7,23 @@
 > defeating its own scorer — 25+ phases of experiments condensed into
 > twelve short narratives and 50+ evidence docs.
 
+## Layout
+
+This directory holds three kinds of doc:
+
+- **Era narratives** (`01-jepa-era.md` … `12-ml-stage-and-routing-fix.md`,
+  plus `era-*-hypotheses.md`) — chronological story of how the scorer
+  got to where it is. Each era is a self-contained narrative covering
+  motivation, experiments, decisions, and outcome.
+- **Evidence** (`evidence/`) — atomic experiment writeups, one per
+  hypothesis, referenced from the era narratives. Where the actual
+  numbers live.
+- **Decisions** (`decisions/`) — ADR-style writeups for architectural
+  / production choices that don't fit the "era" framing — e.g. how
+  argot's scope is gated, what evidence the user sees, how production
+  inherits research wins. Use these when shipping a non-research change
+  whose rationale will outlive its commit message.
+
 ## What argot does today
 
 argot is a style linter that learns a repo's voice from its git history
