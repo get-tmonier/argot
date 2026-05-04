@@ -20,6 +20,11 @@ from pygments.lexers import TextLexer, get_lexer_for_filename
 from pygments.util import ClassNotFound
 
 from argot.git_walk import SUPPORTED_EXTENSIONS, _extension, _resolve_shas, walk_commits
+from argot.scoring.adapters.registry import get_adapter
+from argot.scoring.calibration.random_hunk_sampler import (
+    DEFAULT_EXCLUDE_DIRS,
+    is_excluded_path,
+)
 from argot.scoring.evidence.formatters import format_evidence
 from argot.scoring.evidence.types import Evidence, EvidenceCorpus
 from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
@@ -251,13 +256,42 @@ def _apply_filters(file_paths: list[str], only: list[str], exclude: list[str]) -
     return result
 
 
+def _is_out_of_scope(file_path: str, content: bytes, repo_root: Path) -> bool:
+    """Mirror the calibration corpus's file-level exclusions at check time.
+
+    Calibration drops two file classes the scorers can't speak about meaningfully:
+
+    1. Directory / filename exclusions via :func:`is_excluded_path` —
+       ``test/``, ``docs/``, ``migrations/``, ``*.spec.*``, ``*.test.*``, etc.
+    2. Data-dominant files via ``adapter.is_data_dominant`` — modules whose
+       body is ≥80% top-level array / object literals (locale tables,
+       fixture data, generated lookup arrays).
+
+    Without the same gates at check time the BPE / call-receiver scorers fire
+    on tokens they were never trained to recognise — test-register words
+    (``expect``, ``describe``, ``actual``) and string-literal payloads in
+    locale data files. Structural false positives. Symmetric scope: argot
+    lints what it learned from.
+    """
+    if is_excluded_path(repo_root / file_path, repo_root, DEFAULT_EXCLUDE_DIRS):
+        return True
+    ext = _extension(file_path)
+    if ext not in SUPPORTED_EXTENSIONS:
+        return True
+    source = content.decode("utf-8", errors="replace")
+    return get_adapter(ext).is_data_dominant(source)
+
+
 def _filter_patches(
     patches: Iterator[_PatchBatch],
     only: list[str],
     exclude: list[str],
+    repo_root: Path,
 ) -> Iterator[_PatchBatch]:
-    """Apply only/exclude file-path glob filters to a patch iterator."""
+    """Apply only/exclude file-path glob filters and scope filter to patches."""
     for batch in patches:
+        if _is_out_of_scope(batch.file_path, batch.content, repo_root):
+            continue
         if _apply_filters([batch.file_path], only, exclude):
             yield batch
 
@@ -711,7 +745,7 @@ def main() -> None:
         patches = _chain_workdir_patches(args.repo_path)
         scan_label = "workdir"
 
-    filtered = _filter_patches(patches, args.only, args.exclude)
+    filtered = _filter_patches(patches, args.only, args.exclude, Path(args.repo_path))
     hits, hunk_count = _score_patches_phase14(filtered, scorer)
 
     above_threshold = [h for h in hits if h.score >= threshold]

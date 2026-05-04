@@ -10,6 +10,7 @@ from argot.check import (
     _apply_filters,
     _highlight_lines,
     _Hit,
+    _is_out_of_scope,
     _modified_patches,
     _render_results,
     _severity,
@@ -241,6 +242,75 @@ def test_apply_filters_multiple_only_globs() -> None:
     paths = ["src/foo.py", "src/bar.ts", "config.json"]
     result = _apply_filters(paths, only=["*.py", "*.ts"], exclude=[])
     assert result == ["src/foo.py", "src/bar.ts"]
+
+
+# ---------------------------------------------------------------------------
+# _is_out_of_scope — symmetric exclusion with calibration
+# ---------------------------------------------------------------------------
+
+
+_CODE = b"def foo() -> int:\n    return 1\n"
+
+
+def test_is_out_of_scope_test_directory(tmp_path: Path) -> None:
+    """Test files mirror the calibration-time exclusion: never lint them."""
+    assert _is_out_of_scope("test/foo.spec.ts", _CODE, tmp_path) is True
+    assert _is_out_of_scope("tests/test_foo.py", _CODE, tmp_path) is True
+    assert _is_out_of_scope("__tests__/x.ts", _CODE, tmp_path) is True
+
+
+def test_is_out_of_scope_test_filenames(tmp_path: Path) -> None:
+    """*.spec.* / *.test.* files are excluded regardless of directory."""
+    assert _is_out_of_scope("src/foo.spec.ts", _CODE, tmp_path) is True
+    assert _is_out_of_scope("src/foo.test.tsx", _CODE, tmp_path) is True
+    assert _is_out_of_scope("src/test_x.py", _CODE, tmp_path) is True
+    assert _is_out_of_scope("conftest.py", _CODE, tmp_path) is True
+
+
+def test_is_out_of_scope_other_excluded_dirs(tmp_path: Path) -> None:
+    """docs/, migrations/, examples/, fixtures/ are also out of scope."""
+    assert _is_out_of_scope("docs/index.md", _CODE, tmp_path) is True
+    assert _is_out_of_scope("migrations/0001.py", _CODE, tmp_path) is True
+    assert _is_out_of_scope("examples/demo.ts", _CODE, tmp_path) is True
+    assert _is_out_of_scope("fixtures/sample.json", _CODE, tmp_path) is True
+
+
+def test_is_out_of_scope_production_paths(tmp_path: Path) -> None:
+    """Production source paths pass through — argot lints these."""
+    assert _is_out_of_scope("src/foo.ts", _CODE, tmp_path) is False
+    assert _is_out_of_scope("engine/argot/check.py", _CODE, tmp_path) is False
+    assert _is_out_of_scope("lib/utils.ts", _CODE, tmp_path) is False
+
+
+def test_is_out_of_scope_data_dominant_typescript(tmp_path: Path) -> None:
+    """Locale-style data files (>=80% top-level array literals) are excluded.
+
+    Mirrors calibration's ``is_data_dominant`` filter — without it, the BPE
+    scorer fires on string-literal payloads it was never trained to model.
+    """
+    locale_data = b"""\
+export default [
+  '{{person.lastName}} y {{person.lastName}}',
+  '{{person.lastName}} {{company.legal_entity_type}}',
+  '{{person.lastName}} {{person.lastName}} {{company.legal_entity_type}}',
+];
+"""
+    assert _is_out_of_scope("src/locales/es/company/name_pattern.ts", locale_data, tmp_path) is True
+
+
+def test_is_out_of_scope_real_code_passes(tmp_path: Path) -> None:
+    """Real code (function declarations, not data literals) is in scope."""
+    code = b"""\
+export function buildName(prefix: string): string {
+  return prefix.toUpperCase();
+}
+"""
+    assert _is_out_of_scope("src/lib/name.ts", code, tmp_path) is False
+
+
+def test_is_out_of_scope_unsupported_extension(tmp_path: Path) -> None:
+    """Unsupported extensions short-circuit out-of-scope (defence-in-depth)."""
+    assert _is_out_of_scope("README.md", b"# hello\n", tmp_path) is True
 
 
 # ---------------------------------------------------------------------------
