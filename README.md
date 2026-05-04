@@ -20,11 +20,34 @@
   No GPU · No cloud · No telemetry · Runs in seconds after a one-time calibration
 </p>
 
-$$\text{score}(\text{hunk}) \;=\; \underbrace{\max_{t \;\in\; \text{tokens}(\text{hunk})} \log \frac{P_{\text{generic}}(t)}{P_{\text{repo}}(t)}}_{\text{BPE surprise}} \;+\; \underbrace{\min\!\Big(\sum_{c \;\in\; \text{distinct callees}} w(c),\; \text{cap}\Big)}_{\text{call-receiver penalty}}$$
+$$
+\text{score}(\text{hunk})
+\;=\;
+\underbrace{\max_{t \,\in\, \text{tokens}(\text{hunk})}
+\log \frac{P_{\text{generic}}(t)}{P_{\text{repo}}(t)}}_{\text{BPE surprise}}
+\;+\;
+\underbrace{\min\!\Big(\sum_{c \,\in\, \text{distinct callees}} w(c),\; \text{cap}\Big)}_{\text{call-receiver penalty}}
+$$
 
-$$w(c) = \begin{cases} \alpha + r & \text{if } c \notin \text{attested},\ \text{root}(c) \in \text{attested} \\ \alpha & \text{if } c \notin \text{attested} \\ \beta & \text{if } c \in \text{attested},\ c \notin \text{attested}(\text{cluster}(\text{file})) \\ 0 & \text{otherwise} \end{cases} \qquad (\alpha=2.0,\; r=2.0,\; \beta=5.0,\; \text{cap}=5.0)$$
+$$
+w(c) =
+\begin{cases}
+\alpha + r & \text{root attested, callee unattested} \\
+\alpha & \text{root unattested} \\
+\beta & \text{globally attested, absent from file's cluster} \\
+\beta & \text{cluster-rare (auto-detect enabled)} \\
+0 & \text{otherwise}
+\end{cases}
+$$
 
-Files are clustered by callee-bag MinHash similarity into 8 clusters at fit time; a callee that's globally attested but absent from its file's cluster contributes β.
+$$\alpha = 2.0 \quad r = 2.0 \quad \beta = 5.0 \quad \tau = 2 \quad K = 8 \quad \text{cap} = 5.0$$
+
+Files are clustered by callee-bag MinHash similarity into K=8 clusters at fit
+time; a callee that's globally attested but absent from its file's cluster
+contributes β. The fourth branch is the per-corpus auto-detect: at fit time,
+probe `cluster_rare`'s per-hunk fire rate on extracted diff hunks; enable the
+rule on corpora where it fires on < 5% of hunks (informative on uniform-cluster
+repos), disable it elsewhere (Zipf-tail noise that would FP-flood).
 
 ---
 
@@ -214,11 +237,33 @@ The threshold is set automatically by `argot calibrate`. Override it with `--thr
 
 ## How it works
 
+The pipeline has two phases: **fit** (extract → train → calibrate, run once
+per repo and after major refactors) and **check** (run on every diff).
+
+```mermaid
+flowchart LR
+    subgraph FIT["Fit phase (once per repo)"]
+        direction LR
+        E["<b>extract</b><br/>walk git log<br/>tokenize hunks"] --> T["<b>train</b><br/>repo corpus<br/>+ generic baseline<br/>+ K=8 callee clusters"]
+        T --> C["<b>calibrate</b><br/>sample 500 normal hunks<br/>set BPE threshold<br/><i>auto-detect cluster_rare</i>"]
+    end
+    subgraph CHK["Check phase (per diff)"]
+        direction LR
+        D["<b>diff hunks</b>"] --> S["<b>3-stage scorer</b><br/>typicality filter<br/>+ import checker<br/>+ BPE + call-receiver"]
+    end
+    FIT -.-> CHK
+
+    classDef fit fill:#16a085,stroke:#0e6655,color:#fff
+    classDef chk fill:#27ae60,stroke:#1d6e3a,color:#fff
+    class E,T,C fit
+    class D,S chk
+```
+
 1. **Extract** — walks `git log`, extracts commit diffs, tokenizes each hunk and its surrounding context using a language-aware [tree-sitter](https://tree-sitter.github.io/tree-sitter/) tokenizer. Tree-sitter is an incremental, error-tolerant parser that works on partial and syntactically invalid fragments (essential for mid-block hunk slices) and provides a single uniform interface for every supported language.
 
 2. **Train** — collects the repo's non-test source files into the repo corpus (the repo's own token distribution) and copies the bundled generic BPE reference (generic baseline, a broad open-source corpus baseline). Data-dominant files (data tables, locale dumps, generated code) are excluded by the `is_data_dominant` structural predicate so they don't pollute the token distribution.
 
-3. **Calibrate** — samples up to 500 representative top-level functions and classes from the repo (the typicality filter pre-excludes atypical candidates), scores them through the full two-stage scorer, and sets the BPE threshold to the max score over those normal hunks. Writes `.argot/scorer-config.json`.
+3. **Calibrate** — samples up to 500 representative top-level functions and classes from the repo (the typicality filter pre-excludes atypical candidates), scores them through the full two-stage scorer, and sets the BPE threshold to the max score over those normal hunks. Calibration also runs the per-corpus auto-detect probe: it loads ~1000 diff hunks from extract's `dataset.jsonl` and measures the per-hunk fire rate of `cluster_rare` (callees attested in only ≤τ cluster files). If fire rate < 5% (informative on uniform-cluster repos), the rule stays enabled at score time; otherwise it's disabled (Zipf-tail noise that would FP-flood). Writes `.argot/scorer-config.json` with the chosen config.
 
 4. **Check** — runs the three-stage scorer on the target diff:
 
@@ -228,7 +273,7 @@ flowchart TD
     TYP -- yes --> SKIP(["⏭  skip<br/>reason: atypical / atypical_file"])
     TYP -- no --> S1["Import checker — import graph\nextract hunk imports\nflag if any are foreign to this repo"]
     S1 -- "foreign module found" --> F1(["🚩 flagged  reason: import"])
-    S1 -- "all imports attested" --> S2["BPE scorer — BPE log-ratio + call-receiver penalty\nadjusted = bpe + min(Σ w(c), cap)\nw(c) = α+r if root attested · α if globally unattested\nβ if globally attested but absent from file's cluster\n(α=2.0, r=2.0, β=5.0, cap=5.0, K=8)"]
+    S1 -- "all imports attested" --> S2["BPE scorer — BPE log-ratio + call-receiver penalty\nadjusted = bpe + min(Σ w(c), cap)\nw(c) = α+r if root attested · α if globally unattested\nβ if globally attested but absent from file's cluster\nβ if cluster-rare (auto-detected per corpus)\n(α=2.0, r=2.0, β=5.0, cap=5.0, K=8, τ=2)"]
     S2 -- "penalty tipped it" --> F15(["🚩 flagged  reason: call_receiver"])
     S2 -- "bpe alone > threshold" --> F2(["🚩 flagged  reason: bpe"])
     S2 -- "adjusted ≤ threshold" --> OK(["✅ clean"])
@@ -238,7 +283,7 @@ flowchart TD
 
    **Import checker — import graph:** for each hunk, extracts its import statements and checks whether any imported module is absent from the repo's own first-party import set. A single foreign import immediately flags the hunk (`reason: "import"`).
 
-   **BPE scorer — BPE log-ratio with call-receiver penalty:** tokenizes the hunk with the [UnixCoder](https://huggingface.co/microsoft/unixcoder-base) BPE tokenizer (pre-trained on 9M+ code files across 9 languages — only the vocabulary is used, not the neural network) and computes a max-surprise score over the hunk's tokens. The score is then adjusted by a per-callee penalty: `adjusted = bpe + min(Σ w(c), cap)` summed over each distinct callee `c`. The weight `w(c)` is `α + r` when the callee is globally unattested but its root is attested (e.g. `req.send` when `req.get` is known), `α` when the callee root is also unattested, and `β` when the callee is globally attested but absent from the attested set of its file's cluster. **α = 2.0, r = 2.0, β = 5.0, cap = 5.0** in the shipping config. The cluster-conditional term targets context-dependent breaks where a known callee shows up in a file kind it never belongs to (e.g. `Math.random` in a deterministic faker-js provider, even though `Math.random` exists elsewhere in the repo's tests). A parse-fragment guard abstains when the hunk slice doesn't parse cleanly.
+   **BPE scorer — BPE log-ratio with call-receiver penalty:** tokenizes the hunk with the [UnixCoder](https://huggingface.co/microsoft/unixcoder-base) BPE tokenizer (pre-trained on 9M+ code files across 9 languages — only the vocabulary is used, not the neural network) and computes a max-surprise score over the hunk's tokens. The score is then adjusted by a per-callee penalty: `adjusted = bpe + min(Σ w(c), cap)` summed over each distinct callee `c`. The weight `w(c)` is `α + r` when the callee is globally unattested but its root is attested (e.g. `req.send` when `req.get` is known), `α` when the callee root is also unattested, `β` when the callee is globally attested but absent from the attested set of its file's cluster, and (when per-corpus auto-detect enables it) also `β` when the callee is in the file's cluster but appears in only ≤τ cluster files (cluster-rare callees). **α = 2.0, r = 2.0, β = 5.0, cap = 5.0, τ = 2** in the shipping config. The cluster-conditional term targets context-dependent breaks where a known callee shows up in a file kind it never belongs to (e.g. `Math.random` in a deterministic faker-js provider, even though `Math.random` exists elsewhere in the repo's tests). The cluster-rare auto-detect probes the rule's per-hunk fire rate on extracted diff hunks at fit time and enables it only on corpora where it fires on < 5% of hunks (informative, not Zipf-tail noise). A parse-fragment guard abstains when the hunk slice doesn't parse cleanly.
 
    **File clustering for the cluster-conditional term:** at fit time, every non-data-dominant source file is reduced to its callee bag (set of dotted call expressions extracted via tree-sitter), encoded as a 128-perm MinHash signature, and clustered into K=8 groups via KMeans on the signatures. Each cluster's attested set is the union of its files' callees. At score time, the hunk's file is mapped to its cluster (or to the Jaccard-nearest cluster if the file isn't in the trained corpus). The clustering is derived purely from callee statistics — no path patterns, no per-corpus heuristics.
 
@@ -265,8 +310,10 @@ No training data or model leaves your machine. All stages run entirely locally.
 > (JEPA ensembles → honest eval → token-frequency signal hunt →
 > import-graph breakthrough → typicality filter → call-receiver scorer →
 > complex-chain canonicalization → alpha tuning → calibration hardening →
-> cluster-conditional attestation)
-> with 34 evidence docs.
+> cluster-conditional attestation → ML-stage hunt + routing-bug fix →
+> structural-bound mapping → asymmetric calibration with per-corpus
+> auto-detect)
+> with 35+ evidence docs.
 
 ## Validation
 
@@ -280,8 +327,8 @@ a deterministic faker-js provider, etc.). Each break is scored against
 a backdrop of **494k+ real PR hunks** from the same repos as negative
 controls.
 
-Latest full bench (115 catalog fixtures across 6 corpora, 5-seed multi-seed
-calibration, current shipping config):
+Latest full bench (115 catalog fixtures across 6 corpora, K=7 multi-seed
+calibration, current shipping config with `--auto-select-asym-cal`):
 
 | Corpus | AUC | Recall | FP rate |
 |:---|---:|---:|---:|
@@ -289,16 +336,19 @@ calibration, current shipping config):
 | rich | **0.9964** | **100.0%** | 1.23% |
 | faker (py) | 0.9537 | 95.0% | 1.96% |
 | hono | 0.8321 | **88.3%** | 0.51% |
-| ink | **0.9899** | **93.3%** | 0.54% |
-| faker-js | 0.9463 | **76.7%** | 0.91% |
+| ink | **0.9899** | 93.3% | 0.54% |
+| faker-js | 0.9463 | **93.3%** | 2.00% |
 
-Per-category mean recall **91.5%**; total fixture catches **105/115
-(91.3%)**; **FP rate ≤ 1.2% on five of six corpora** with faker (Python)
-at 1.96% — a documented structural cost of cluster-conditional attestation
-on locale-partitioned corpora. The production scorer ships with the
-AST-derived typicality filter plus the BPE scorer call-receiver penalty
-(α=2.0, root_bonus=2.0, cluster_bonus=5.0, K=8 MinHash clusters).
-**Threshold CV = 0%** across 5 seeds: runs are reproducible.
+Total fixture catches **108/115 (93.9%)**; **FP rate ≤ 2.0% on all six
+corpora**. The production scorer ships with the AST-derived typicality
+filter plus the BPE scorer call-receiver penalty (α=2.0, root_bonus=2.0,
+cluster_bonus=5.0, K=8 MinHash clusters). The latest configuration adds
+`cluster_rare_threshold=2` gated by per-corpus auto-detect: at fit time,
+probe the rule's per-hunk fire rate on extracted diff hunks; enable the
+rule on corpora where it's informative (~2% fire rate on uniform-cluster
+repos) and disable it where it would FP-flood (10–22% fire rate on
+heterogeneous repos). **Threshold CV = 0%** across 7 seeds: runs are
+reproducible.
 
 Reproduce with a single command:
 

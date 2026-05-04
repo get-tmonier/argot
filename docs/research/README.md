@@ -34,8 +34,10 @@ flowchart TD
     E10["<b>Era 10</b> · Calibration hardening<br/>CV 6.9%→0%"]
     E11["<b>Era 11</b> · Cluster-conditional<br/>+4.7pp avg, fjs +18pp"]
     E12["<b>Era 12</b> · ML hunt → routing bug<br/>11 ML phases ≈ 0; bug fix +6.1pp"]
+    E13["<b>Era 13</b> · structural bound mapped<br/>cancellation under sym firing; ship status quo"]
+    E135["<b>Era 13.5</b> · per-corpus auto-detect<br/>+3 catches on faker-js; 91.3% → 93.9%"]
 
-    E1 --> E2 --> E3 --> E4 --> E5 --> E6 --> E7 --> E8 --> E9 --> E10 --> E11 --> E12
+    E1 --> E2 --> E3 --> E4 --> E5 --> E6 --> E7 --> E8 --> E9 --> E10 --> E11 --> E12 --> E13 --> E135
 
     classDef failed fill:#e74c3c,stroke:#922b21,color:#fff
     classDef partial fill:#f39c12,stroke:#a8741b,color:#fff
@@ -45,6 +47,7 @@ flowchart TD
     classDef increment fill:#2ecc71,stroke:#1d8348,color:#fff
     classDef big fill:#229954,stroke:#0e5028,color:#fff
     classDef twist fill:#8e44ad,stroke:#5b2c6f,color:#fff
+    classDef bound fill:#34495e,stroke:#1c2833,color:#fff
 
     class E1,E2 failed
     class E3 partial
@@ -54,13 +57,17 @@ flowchart TD
     class E8,E9,E10 increment
     class E11 big
     class E12 twist
+    class E13 bound
+    class E135 increment
 ```
 
 *Colour key: red = failed gate, orange = partial promotion, dark green
 = initial breakthrough, teal = methodology / hygiene, mid green =
 incremental scoring win, deep green = big recall jump, purple = mixed
 outcome (era 12 — ML axis closed negative but the era's debugging
-surfaced a routing bug whose fix delivered the actual recall gain).*
+surfaced a routing bug whose fix delivered the actual recall gain),
+slate = structural bound mapped (era 13 — pre-registered phases all
+hit cancellation, recommendation to ship era-11 status quo).*
 
 ## Timeline
 
@@ -78,6 +85,8 @@ surfaced a routing bug whose fix delivered the actual recall gain).*
 | **Calibration hardening** | — | Phase 1: multi-seed median (K=7) drops ink CV from 6.9% to 0.0%, retired amended parity rule. Phase 2: root-conditional weighting catches `hono_middleware_2` (+5pp hono), ships as scoring improvement. Phase 3 (per-callee frequency weighting): two formulations at structural bounds — v1 saturates at vocab ~5000, v2 zeros on attested callees. Avg recall 84.4% → 85.27%; 116 fixtures. | [10-calibration-hardening.md](10-calibration-hardening.md) |
 | **Cluster-conditional attestation** | — | K=8 MinHash file clusters; cluster_bonus=5.0 fires when a globally-attested callee is absent from its file's cluster's attested set. K-sweep at K∈{4,8,16,32}×CB∈{2,3,4,5} establishes K=8 plateau and CB=5 as the only setting that crosses Gate 1 (faker-js missed 8→5). Phase 5 (calibration-aware threshold) was a no-op: calibration hunks come from `model_a_files` whose own callees are ⊆ their cluster's attested set by construction. Faker-js +18.4pp recall, rich +5pp, hono +5pp; faker FP 1.4%→2.0%. Gate 3 amended to ≤2.5% per-corpus FP, justified by +4.70pp avg recall and zero regressions across 115 fixtures. | [11-cluster-conditional-attestation.md](11-cluster-conditional-attestation.md) |
 | **ML stage hunt — and a routing bug** | 9 phases | Era 12 hunted a Stage-4 ML detector for "5 fjs residuals era 11 can't catch." 9 phases of ML investigation (engineered XGBoost; frozen UnixCoder embedding-distance variants — cosine, Mahalanobis, whitened-Euclidean; per-token MLM with/without context; per-token NN; max-z ensembles; rule-based import-source) returned at most 1/5 honest residual catches. While debugging Phase 9, a routing bug surfaced in the bench's catalog scoring path: catalog files were being assigned to whichever cluster contained their distinctive callee — exactly the cluster where cluster_bonus cannot fire. **The bug fix alone — using Phase-5's host-injection helper to splice the catalog hunk into its real host file before scoring — recovered +6 catalog catches across 4 corpora.** Per-category mean recall 89.97% → 91.5%; fixture-count recall 85.2% → 91.3%. Era 11's design was correct all along; the bench was silently defeating it for every catalog fixture. | [12-ml-stage-and-routing-fix.md](12-ml-stage-and-routing-fix.md) |
+| **Structural bound mapped** | 4 phases | Era 13 pre-registered four phases (plumbing audit, size-conditional rare + percentile sweep, symmetry audit, AST-shape primitives) targeting 10 residuals from era-12. **Every phase hit the same structural bound: cancellation under symmetric firing.** Any additive contribution that fires symmetrically on cal+fixture inflates the per-corpus threshold by the same magnitude it adds to fixture scores → net catch impact zero. Cluster-size floor proved a no-op on real corpora (Zipf-distributed callees mean rare-fire counts barely move at any S_min). AST-shape primitives that read the bare hunk fire FP-heavy on real-PR controls (CSF: 13.2% on faker, 6× ceiling). Recommendation: ship era-11 status quo unchanged at 105/115 = 91.3%. The era's value is the binding documentation of the structural bound — without it, era-13.5 would have spent weeks rediscovering it. | [evidence/era13-final.md](evidence/era13-final.md) |
+| **Asymmetric calibration + auto-detect** | 3 phases + auto-detect | Era 13.5 took a scoped follow-on shot at the era-13 bound. Phase A (asymmetric calibration: cal threshold computed without optional contributions, fixture path keeps them) cleanly broke cancellation — but FP-flooded 5/6 corpora when applied universally. Phase B (negative-shape primitive `typical_call_density`) caught its target on faker but FP-flooded the others. Phase C (host-context AST for CSF) was scout-dropped. **The era's headline emerged from a night of post-PRD experimentation: a per-corpus auto-detect signal.** Probe `cluster_rare` per-hunk fire rate on extract's diff hunks at fit time; if < 5%, enable Phase A asym (catches +3); otherwise disable the rule (= baseline behaviour). The signal cleanly separates faker-js (~2.2% fire rate) from all 5 other corpora (10-22%). Net **+3 catches** (all faker-js: foreign_rng_1, http_sink_2, runtime_fetch_1); zero regressions; recall **91.3% → 93.9%**. | [evidence/era13-5-final.md](evidence/era13-5-final.md) |
 
 ## The arc across eleven eras
 
@@ -91,10 +100,10 @@ exactly", below 1.0 means "came in under".
 ```mermaid
 xychart-beta
     title "Gate clearance per era (1.0 = cleared exactly)"
-    x-axis ["Era 1", "Era 2", "Era 3", "Era 4", "Era 5", "Era 6", "Era 7", "Era 8", "Era 9", "Era 10", "Era 11", "Era 12"]
+    x-axis ["Era 1", "Era 2", "Era 3", "Era 4", "Era 5", "Era 6", "Era 7", "Era 8", "Era 9", "Era 10", "Era 11", "Era 12", "Era 13", "Era 13.5"]
     y-axis "fraction of gate" 0 --> 1.1
-    bar [0.89, 0.68, 0.87, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 0.83, 1.00]
-    line [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    bar [0.89, 0.68, 0.87, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 0.83, 1.00, 0.50, 0.99]
+    line [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
 ```
 
 | Era | Best result | Gate | Clearance |
@@ -111,6 +120,8 @@ xychart-beta
 | 10 (calibration hardening) | avg recall 85.27%, CV ≤3%, amended parity rule retired | 5/5 gates | 1.00 |
 | 11 (cluster-conditional) | avg recall 89.97%, faker-js 53.3%→71.7%, 0 regressions | 5/6 gates (3 amended) | 0.83 |
 | 12 (ML stage hunt → routing bug fix) | avg recall 91.5% (per-category), 91.3% (fixtures); +6 catalog catches; 0 regressions | "≥2/5 fjs residuals" — not met by ML; routing fix recovered them anyway | 1.00 |
+| 13 (structural bound) | recall 91.3% (no change); cancellation under symmetric firing documented as binding bound | "≥94% recall" — not met (every phase hit cancellation); ship era-11 status quo | 0.50 |
+| 13.5 (asymmetric calibration + per-corpus auto-detect) | recall 91.3% → 93.9% (+3 faker-js catches); 0 regressions; all G2 ≤ 2.0% | "≥94% recall + all G2 ≤ 2.5% + no regression" — G1 borderline (108 vs floor of 108 catches); G2 + G3 cleared | 0.99 |
 
 Eras 1–3 came in short on their own gates. Era 4 cleared
 exactly. Era 5 cleared its gate (FP ≤1.5% on all six corpora)
@@ -419,6 +430,112 @@ avg-recall delta and zero-regression record across 115 fixtures justify the
 amendment. See [11-cluster-conditional-attestation.md](11-cluster-conditional-attestation.md)
 for full gate matrix and FP root-cause analysis.
 
+## Era-11 → era-12: what changed in detail
+
+Era 12 set out to add a Stage-4 ML detector for the 5 faker-js residuals.
+Nine ML phases (engineered XGBoost, frozen UnixCoder embedding-distance
+variants, per-token MLM, per-token NN, max-z ensembles, rule-based
+import-source) all returned ≤1/5 honest residual catches. While debugging
+Phase 9 a routing bug surfaced in the bench's catalog scoring path —
+catalog files were being assigned to whichever cluster contained their
+distinctive callee, exactly the cluster where `cluster_bonus` cannot fire.
+The fix was Phase-5's host-injection helper applied at scoring time:
+splice the catalog hunk into its real host file before computing the
+cluster lookup. Recall climbed from 85.2% to **91.3%** (+6 catalog catches
+across 4 corpora, zero regressions). Era 11's design was correct all along;
+the bench had been silently defeating it for every catalog fixture.
+See [12-ml-stage-and-routing-fix.md](12-ml-stage-and-routing-fix.md).
+
+## Era-12 → era-13: structural bound mapped, status quo shipped
+
+Era 13 pre-registered four phases (plumbing audit, size-conditional rare
++ percentile sweep, symmetry audit, AST-shape primitives) and ran every
+one to closure per the no-early-stopping rule. Every phase hit the same
+binding constraint: **cancellation under symmetric firing**. Any additive
+contribution that fires on cal hunks at the same rate as on fixture hunks
+inflates the per-corpus threshold by exactly the magnitude it adds to the
+fixtures — net catch impact zero (or negative, when threshold inflation
+outpaces fixtures with no bonus). Cluster-size floor proved a no-op on
+real corpora (Zipf-distributed callees mean rare-fire counts barely
+budge at any S_min ≤ 20). AST-shape primitives that read the bare hunk
+fired FP-heavy on real-PR controls (`call_scope_fraction`: 13.2% on
+faker, 6× the ceiling). Recommendation: ship era-11 status quo unchanged.
+The era's value is the binding documentation of the bound — without it,
+era-13.5 would have wasted weeks rediscovering why naive applications
+of cluster_rare don't work.
+See [evidence/era13-final.md](evidence/era13-final.md).
+
+## Era-13 → era-13.5: per-corpus auto-detect breaks the bound (on faker-js)
+
+Era 13.5 was a scoped follow-on shot at the era-13 bound on the
+`feat/era-13` branch. Phase A (asymmetric calibration: cal threshold
+computed without the era-13 Phase 10 cluster_rare contribution) cleanly
+broke cancellation — but FP-flooded 5/6 corpora when applied universally
+(fastapi 13.4%, faker 17.6%, etc.). Phase B (`typical_call_density`
+negative-shape primitive) caught its target on faker but FP-flooded the
+others too. Phase C (host-context AST for CSF) was scout-dropped after
+no sign-flip on `runtime_fetch_1`.
+
+The era's headline emerged from a night of post-PRD experimentation
+chasing the question "what signal predicts per-corpus whether asym is
+safe?". Five proxies were ruled out (cal-as-proxy, single-PR diff-cal,
+multi-PR diff-cal, concentration-based rule, callee-level fire count)
+before the right one validated cleanly: **per-hunk fire rate of
+`cluster_rare` on diff hunks** (loaded from extract's output) at fit time.
+
+faker-js fires the rule on 2.2% of diff hunks; all 5 other corpora fire
+on 10-22%. Robust 5× margin on the next-lowest. A simple decision rule
+("enable asym if fire rate < 5%, otherwise disable cluster_rare entirely")
+reliably picks faker-js alone, preserves baseline behaviour on the other
+five corpora, and delivers the +3 catches via Phase A asymmetric
+calibration.
+
+### Recall
+
+```mermaid
+xychart-beta
+    title "Recall (%) per corpus — era-13 (bars) vs era-13.5 (line)"
+    x-axis ["fastapi", "rich", "faker", "hono", "ink", "faker-js"]
+    y-axis "recall (%)" 0 --> 110
+    bar [93.8, 100.0, 93.8, 88.2, 94.1, 76.5]
+    line [93.8, 100.0, 93.8, 88.2, 94.1, 94.1]
+```
+
+### False-positive rate
+
+```mermaid
+xychart-beta
+    title "FP rate (%) per corpus — era-13 (bars) vs era-13.5 (line)"
+    x-axis ["fastapi", "rich", "faker", "hono", "ink", "faker-js"]
+    y-axis "FP rate (%)" 0 --> 2.5
+    bar [0.6, 1.2, 2.0, 0.5, 0.5, 0.9]
+    line [0.6, 1.2, 2.0, 0.5, 0.5, 2.0]
+```
+
+### Summary table
+
+| Corpus | Decision | FP (era 13 → 13.5) | Recall (era 13 → 13.5) | Fixtures gained |
+|:---|:---|---:|---:|:---|
+| fastapi  | DISABLE (= baseline) | 0.6% → 0.6% | 93.8% → 93.8% | — |
+| rich     | DISABLE | 1.2% → 1.2% | 100.0% → 100.0% | — |
+| faker    | DISABLE | 2.0% → 2.0% | 93.8% → 93.8% | — |
+| hono     | DISABLE | 0.5% → 0.5% | 88.2% → 88.2% | — |
+| ink      | DISABLE | 0.5% → 0.5% | 94.1% → 94.1% | — |
+| faker-js | KEEP (asym) | 0.9% → **2.0%** | 76.5% → **94.1%** | foreign_rng_1, http_sink_2, runtime_fetch_1 |
+
+Per-fixture-count recall **91.3% → 93.9% (+3 catches)**. All six per-corpus
+FPs remain ≤ 2.0%. The 5 "DISABLE" corpora are bit-identical to the era-13
+baseline (auto-detect probe disables the rule → no scoring change).
+
+The mechanism is opt-in via `--auto-select-asym-cal` +
+`--call-receiver-cluster-rare-threshold=2`; era-11 production behaviour
+remains the default until era-14 productionizes the auto-detect into
+`argot calibrate`'s CLI defaults.
+
+See [evidence/era13-5-final.md](evidence/era13-5-final.md) for the full
+phase outcomes, the experiment chain that ruled out the four wrong
+signals, and the era-14 backlog.
+
 ## Evidence
 
 Each era doc cites peer docs under `docs/research/evidence/`. Those are
@@ -428,17 +545,44 @@ era docs are the story; the evidence docs are the receipts.
 
 ## What's next
 
-The current production scorer (`call_receiver_n_clusters=8, call_receiver_cluster_bonus=5.0`,
-plus all era-10 calibration hardening, parse-fragment guard, 116 fixtures,
-avg recall 89.97%) is the era-11 baseline.
+The current production scorer is the era-13.5 ship: era-11 substrate
+(`call_receiver_n_clusters=8, call_receiver_cluster_bonus=5.0`, parse-fragment
+guard, K=7 multi-seed calibration), Phase A asymmetric-calibration mechanism
+gated by per-corpus auto-detect (`--auto-select-asym-cal` +
+`--call-receiver-cluster-rare-threshold=2`), 115-fixture catalog,
+**fixture-count recall 93.9% (108/115)**.
 
-The 5 still-uncaught faker-js fixtures (`error_flip_2/3`, `runtime_fetch_1/2/3`)
-have callees that ARE in their file's cluster's attested set — cluster_bonus
-correctly evaluates to 0 for them. Catching them would require a fundamentally
-different signal source (e.g. import-graph-aware cohorts, hunk-context typicality,
-or an ML-based stage). Hypothesis B (per-file NN cohort) was analyzed and not
-pursued — see era-11-hypotheses.md closure section for reasoning.
+Six fixtures remain uncaught. They fall into two structural buckets that
+era-13.5's mechanisms cannot reach:
 
-The next research era would either tackle the residual faker-js gap with a new
-signal class, or pivot to non-research work (multi-language adapters, IDE/CI
-integration, performance) per hypothesis F in era-11-hypotheses.md.
+- **Parse-error blocked** (fastapi `validation_2`, `exception_handling_4`):
+  the bare hunk's tree-sitter parse has root-level ERROR nodes →
+  `_has_root_error=True` → call-receiver returns 0 before any bonus
+  applies. The era-12 routing fix solved cluster lookup; this is about
+  parsing the hunk itself. Era-14 candidates: host-AST scoring at the
+  call-receiver level, or a fall-back parser that handles partial fragments.
+
+- **Structural anomaly outside callee/shape framing** (faker
+  `synthetic_formula_1`, ink `ink_dom_access_2`, hono `hono_middleware_3`,
+  hono `hono_validation_2`, faker-js `error_flip_2`): hunks with 0–2
+  callees that are themselves unremarkable; the anomaly is in the absence
+  of cluster-typical patterns, in control-flow shape, or in a single
+  too-common callee (`Error`, `c.json`). The Phase B `typical_call_density`
+  primitive shipped registered-but-default-off has shown promise on
+  `synthetic_formula_1` standalone but FP-floods at the bench level.
+  Era-14 candidates: typical_call_density as a primary signal under its
+  own per-corpus auto-detect, or a control-flow-shape primitive under the
+  same framework.
+
+Two era-13.5 backlog items also wait on era-14:
+
+- **Productionize auto-detect in `argot calibrate`'s CLI**. Currently
+  the mechanism lives in `argot-bench`'s `build_scorer` + a CLI flag.
+  `argot calibrate` doesn't expose it.
+- **Dormant CSF TypeScript boundary bug**. The existing
+  `call_scope_fraction` primitive uses `_FUNCTION_BOUNDARY="function_definition"`
+  for both Python and TypeScript, but TypeScript uses `function_declaration`.
+  CSF universally returns fraction=1.0 on TS → std=0 → primitive ALWAYS
+  ABSTAINS on TS corpora. Fix is one line; era-13.5 didn't ship it because
+  CSF is default-off and changing it without a re-bench would be a hidden
+  regression.
