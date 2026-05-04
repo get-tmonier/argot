@@ -150,7 +150,7 @@ def test_parity_fastapi(
             continue
         src = fixture_map[name].read_text(encoding="utf-8", errors="replace")
         result = scorer.score_hunk(src)
-        got = result["bpe_score"]
+        got = result.stages.bpe_score
         if abs(got - ref_score) > _TOLERANCE:
             failures.append(f"{key}: got {got:.4f}, ref {ref_score:.4f}, Δ={got - ref_score:.4f}")
         checked += 1
@@ -183,7 +183,7 @@ def test_parity_rich(
         path, start, end = fixture_map[name]
         src = _read_hunk(path, start, end)
         result = scorer.score_hunk(src)
-        got = result["bpe_score"]
+        got = result.stages.bpe_score
         if abs(got - ref_score) > _TOLERANCE:
             failures.append(f"{key}: got {got:.4f}, ref {ref_score:.4f}, Δ={got - ref_score:.4f}")
         checked += 1
@@ -216,7 +216,7 @@ def test_parity_faker(
         path, start, end = fixture_map[name]
         src = _read_hunk(path, start, end)
         result = scorer.score_hunk(src)
-        got = result["bpe_score"]
+        got = result.stages.bpe_score
         if abs(got - ref_score) > _TOLERANCE:
             failures.append(f"{key}: got {got:.4f}, ref {ref_score:.4f}, Δ={got - ref_score:.4f}")
         checked += 1

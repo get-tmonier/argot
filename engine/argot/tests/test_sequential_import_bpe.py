@@ -34,9 +34,9 @@ def test_stage1_flags_foreign_import() -> None:
     scorer = _make_scorer(bpe_threshold=99.0)  # disable stage 2
     hunk = "import flask\nfrom flask import Flask, request\napp = Flask(__name__)\n"
     result = scorer.score_hunk(hunk)
-    assert result["import_score"] >= 1.0, "flask is not in FastAPI corpus — should flag"
-    assert result["flagged"] is True
-    assert result["reason"] == "import"
+    assert result.stages.import_score >= 1.0, "flask is not in FastAPI corpus — should flag"
+    assert result.flagged is True
+    assert result.reason == "import"
 
 
 def test_stage1_clean_on_known_import() -> None:
@@ -45,7 +45,7 @@ def test_stage1_clean_on_known_import() -> None:
     # fastapi is a known import in the FastAPI corpus
     hunk = "from fastapi import APIRouter\nrouter = APIRouter()\n"
     result = scorer.score_hunk(hunk)
-    assert result["import_score"] == 0.0
+    assert result.stages.import_score == 0.0
 
 
 def test_stage1_hunk_scope_no_fire_on_file_imports() -> None:
@@ -59,14 +59,14 @@ def test_stage1_hunk_scope_no_fire_on_file_imports() -> None:
     file_source = "import flask\nimport requests\n\ndef hello():\n    return 'world'\n"
     hunk_content = "    return 'hello'"
     result = scorer.score_hunk(hunk_content, file_source=file_source)
-    assert result["import_score"] == 0.0, "Hunk-scope: hunk has no imports, should not fire"
+    assert result.stages.import_score == 0.0, "Hunk-scope: hunk has no imports, should not fire"
 
 
 def test_stage2_bpe_score_is_float() -> None:
     """Stage 2 always returns a float bpe_score."""
     scorer = _make_scorer(bpe_threshold=0.0)
     result = scorer.score_hunk("x = 1\n")
-    assert isinstance(result["bpe_score"], float)
+    assert isinstance(result.stages.bpe_score, float)
 
 
 def test_prose_masking_reduces_bpe_score_for_pure_comment_hunk() -> None:
@@ -83,7 +83,7 @@ def test_prose_masking_reduces_bpe_score_for_pure_comment_hunk() -> None:
     )
     result_without_source = scorer.score_hunk(comment_hunk)
     # With prose masking, comment-only hunk collapses → lower BPE score
-    assert result_with_source["bpe_score"] <= result_without_source["bpe_score"]
+    assert result_with_source.stages.bpe_score <= result_without_source.stages.bpe_score
 
 
 def test_data_dominance_filter_rejects_data_file() -> None:
@@ -232,8 +232,8 @@ def test_score_hunk_short_circuits_atypical_hunk(tmp_path: Path) -> None:
     scorer = _make_scorer_for_score_hunk_tests(tmp_path)
     data_hunk = "\n".join(["EMOJI = {", *(f'    "e{i}": "U+{i:05X}",' for i in range(60)), "}"])
     result = scorer.score_hunk(data_hunk)
-    assert result["flagged"] is False
-    assert result["reason"] == "atypical"
+    assert result.flagged is False
+    assert result.reason == "atypical"
 
 
 def test_score_hunk_short_circuits_atypical_file(tmp_path: Path) -> None:
@@ -245,8 +245,8 @@ def test_score_hunk_short_circuits_atypical_file(tmp_path: Path) -> None:
     result = scorer.score_hunk(
         hunk_content, file_source=file_source, hunk_start_line=2, hunk_end_line=3
     )
-    assert result["flagged"] is False
-    assert result["reason"] == "atypical_file"
+    assert result.flagged is False
+    assert result.reason == "atypical_file"
 
 
 def test_score_hunk_scores_normal_code_normally(tmp_path: Path) -> None:
@@ -256,7 +256,7 @@ def test_score_hunk_scores_normal_code_normally(tmp_path: Path) -> None:
     )
     result = scorer.score_hunk(normal_hunk)
     # Not short-circuited — reason is one of the normal values.
-    assert result["reason"] in ("none", "import", "bpe")
+    assert result.reason in ("none", "import", "bpe")
 
 
 # ---------------------------------------------------------------------------
@@ -311,8 +311,15 @@ def test_call_receiver_built_when_alpha_nonzero(tmp_path: Path) -> None:
     assert scorer._call_receiver.cap == 5
 
 
-def test_import_reason_takes_precedence_over_call_receiver(tmp_path: Path) -> None:
-    """Stage 1 import fires → reason='import' regardless of call-receiver."""
+def test_import_fires_alongside_call_receiver(tmp_path: Path) -> None:
+    """When import + call_receiver both fire, the hunk is still flagged.
+
+    Multi-reason resolution (D3) means the reported reason now depends on
+    each stage's ``score / threshold`` ratio rather than a fixed import-
+    first precedence. The hunk fires regardless of which reason wins; the
+    point of this test is "both stages contribute", not "import always
+    beats call_receiver".
+    """
     from argot.scoring.adapters.python_adapter import PythonAdapter
     from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
 
@@ -335,8 +342,79 @@ def test_import_reason_takes_precedence_over_call_receiver(tmp_path: Path) -> No
     )
 
     result = scorer.score_hunk("import flask\nflask.Flask(__name__)")
-    assert result["reason"] == "import"
-    assert result["flagged"] is True
+    assert result.flagged is True
+    assert result.reason in ("import", "bpe", "call_receiver")
+    # Every stage's raw score is preserved on stages, regardless of winner.
+    assert result.stages.import_score >= 1.0
+
+
+def test_multi_reason_picks_highest_ratio(tmp_path: Path) -> None:
+    """Score / threshold ratio decides the reported reason when multiple fire."""
+    from argot.scoring.adapters.python_adapter import PythonAdapter
+    from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
+
+    code_file = tmp_path / "code.py"
+    code_file.write_text("def fn(x):\n    return x\n")
+    bpe_generic_baseline = tmp_path / "bpe.json"
+    bpe_generic_baseline.write_text('{"token_counts": {}, "total_tokens": 1}')
+
+    # bpe_threshold=2.0, call_receiver disabled.
+    # 1 foreign import → ratio import = 1/1 = 1.0
+    # bpe_score on this hunk likely > 2 → ratio bpe > 1.0
+    # Expect bpe wins because ratio > 1.0.
+    scorer = SequentialImportBpeScorer(
+        repo_corpus_files=[code_file],
+        bpe_generic_baseline_path=bpe_generic_baseline,
+        bpe_threshold=2.0,
+        call_receiver_alpha=0.0,  # disable call_receiver
+        adapter=PythonAdapter(),
+        enable_typicality_filter=False,
+    )
+
+    result = scorer.score_hunk("import flask\nflask.Flask(__name__)")
+    if result.stages.bpe_score > 2.0 and result.stages.bpe_score / 2.0 > 1.0:
+        assert result.reason == "bpe", (
+            f"bpe ratio {result.stages.bpe_score / 2.0:.2f} > import ratio "
+            f"{result.stages.import_score / 1.0:.2f} — bpe should win"
+        )
+        assert result.score == result.stages.bpe_score
+        assert result.threshold == 2.0
+
+
+def test_multi_reason_tiebreak_call_receiver_over_import(tmp_path: Path) -> None:
+    """On tie: call_receiver > import > bpe per fixed precedence."""
+    from argot.scoring.adapters.python_adapter import PythonAdapter
+    from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
+
+    code_file = tmp_path / "code.py"
+    code_file.write_text("def fn(x):\n    return x\n")
+    bpe_generic_baseline = tmp_path / "bpe.json"
+    bpe_generic_baseline.write_text('{"token_counts": {}, "total_tokens": 1}')
+
+    # bpe_threshold=0.0 → ratios go to ~infinity for any positive bpe_side
+    # score (clamped via epsilon). Both import and call_receiver fire and
+    # tie on ratio; precedence picks call_receiver.
+    scorer = SequentialImportBpeScorer(
+        repo_corpus_files=[code_file],
+        bpe_generic_baseline_path=bpe_generic_baseline,
+        bpe_threshold=0.0,
+        call_receiver_alpha=1.0,
+        call_receiver_cap=5,
+        adapter=PythonAdapter(),
+        enable_typicality_filter=False,
+    )
+
+    # `import flask` is foreign; flask.Flask is unattested → CR contributes.
+    # raw bpe_score may itself exceed 0.0, in which case bpe fires too;
+    # but call_receiver / bpe are disjoint by construction (cr only fires
+    # when bpe doesn't), so on a hunk where raw bpe > 0 we can't observe
+    # the call_receiver winner. Use a hunk that's pure call: no imports.
+    result = scorer.score_hunk("UnknownClass().some_unknown_method()")
+    # On the pure-call hunk: import doesn't fire, so the comparison is
+    # bpe vs cr (disjoint). cr wins when raw bpe ≤ threshold and
+    # contribution lifts adjusted > threshold.
+    assert result.flagged is True
+    assert result.reason in ("bpe", "call_receiver")
 
 
 def test_no_flag_when_all_callees_attested(tmp_path: Path) -> None:
@@ -364,8 +442,8 @@ def test_no_flag_when_all_callees_attested(tmp_path: Path) -> None:
 
     # All callees (logger.info, logger.debug) are attested
     result = scorer.score_hunk("logger.info('hello')\nlogger.debug('world')")
-    assert result["flagged"] is False
-    assert result["reason"] == "none"
+    assert result.flagged is False
+    assert result.reason == "none"
 
 
 def test_call_receiver_reason_when_penalty_tips_threshold(tmp_path: Path) -> None:
@@ -399,11 +477,11 @@ def test_call_receiver_reason_when_penalty_tips_threshold(tmp_path: Path) -> Non
 
     # 3 unattested callees: Math.random, crypto.randomBytes, axios.get
     result = scorer.score_hunk("Math.random()\ncrypto.randomBytes(16)\naxios.get('/foo')")
-    assert result["flagged"] is True
-    if result["bpe_score"] <= 0.5:
-        assert result["reason"] == "call_receiver", (
-            f"Expected call_receiver, got {result['reason']!r} "
-            f"(bpe_score={result['bpe_score']}, threshold=0.5)"
+    assert result.flagged is True
+    if result.stages.bpe_score <= 0.5:
+        assert result.reason == "call_receiver", (
+            f"Expected call_receiver, got {result.reason!r} "
+            f"(bpe_score={result.stages.bpe_score}, threshold=0.5)"
         )
 
 

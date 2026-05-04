@@ -12,6 +12,7 @@ import pygit2
 
 from argot.scoring.adapters.language_adapter import LanguageAdapter
 from argot.scoring.adapters.registry import adapter_for_files
+from argot.scoring.calibration.evidence_builder import build_evidence_corpus
 from argot.scoring.calibration.random_hunk_sampler import (
     collect_candidates,
     sample_hunks,
@@ -22,6 +23,10 @@ from argot.scoring.scorers.shape_primitive import ShapePrimitive
 from argot.scoring.scorers.shape_primitive_registry import build_shape_primitives
 
 _CONFIG_VERSION = 1
+# Top-N sample size baked into the evidence_corpus block. 50 is comfortably
+# above the rendered top-3 + ``(+N more)`` cap and leaves headroom for future
+# UX tweaks without a re-calibration. Configurable on the calibration CLI.
+_DEFAULT_EVIDENCE_TOP_N = 50
 
 
 def load_config(path: Path) -> dict[str, object]:
@@ -249,6 +254,16 @@ def main() -> None:
         default=".argot/scorer-config.json",
         help="Output path for scorer-config.json",
     )
+    parser.add_argument(
+        "--evidence-top-n",
+        type=int,
+        default=_DEFAULT_EVIDENCE_TOP_N,
+        help=(
+            "Number of top entries per dimension to bake into the "
+            "evidence_corpus block of scorer-config.json (default "
+            f"{_DEFAULT_EVIDENCE_TOP_N})."
+        ),
+    )
     args = parser.parse_args()
 
     repo_path = Path(args.repo).resolve()
@@ -347,6 +362,11 @@ def main() -> None:
     except Exception:
         repo_sha = "unknown"
 
+    # Pre-compute the per-dimension top-N samples that the evidence layer
+    # uses at check time. Persisted alongside the threshold so check doesn't
+    # have to retokenize the whole repo on every run.
+    evidence_corpus = build_evidence_corpus(scorer, repo_corpus_files, top_n=args.evidence_top_n)
+
     config: dict[str, object] = {
         "version": _CONFIG_VERSION,
         "threshold": scorer.bpe_threshold,
@@ -363,6 +383,7 @@ def main() -> None:
             "repo_sha": repo_sha,
             "timestamp_utc": datetime.now(tz=UTC).isoformat(),
         },
+        "evidence_corpus": evidence_corpus.to_json_dict(),
     }
 
     out_path = Path(args.output)

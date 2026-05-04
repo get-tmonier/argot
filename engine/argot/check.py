@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import fnmatch
 import itertools
 import json
@@ -19,6 +20,8 @@ from pygments.lexers import TextLexer, get_lexer_for_filename
 from pygments.util import ClassNotFound
 
 from argot.git_walk import SUPPORTED_EXTENSIONS, _extension, _resolve_shas, walk_commits
+from argot.scoring.evidence.formatters import format_evidence
+from argot.scoring.evidence.types import Evidence, EvidenceCorpus
 from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
 
 # ANSI color codes for terminal output.
@@ -85,7 +88,9 @@ class _Hit:
     `reason` is the scorer's verdict ("bpe" / "call_receiver" / "import" /
     "none") — what triggered the score. `hunk_content` is the post-image text
     of the hunk, used to render a few lines of context under each hit.
-    `line` and `line_end` bound the hunk in the post-image file.
+    `line` and `line_end` bound the hunk in the post-image file. `evidence`
+    is the per-reason payload built by the scorer's collector (``None`` when
+    the scorer was constructed without an :class:`EvidenceCorpus`).
     """
 
     score: float
@@ -95,6 +100,7 @@ class _Hit:
     source: str
     reason: str
     hunk_content: str
+    evidence: Evidence | None = None
 
 
 # User-facing translations of the scorer's internal `reason` codes. The raw
@@ -287,6 +293,20 @@ def _load_phase14_scorer(argot_dir: Path) -> SequentialImportBpeScorer:
         config.get("call_receiver_cluster_rare_threshold", 0)
     )
 
+    # The evidence_corpus block is required from era-evidence-layer onward.
+    # No back-compat for old configs (PRD: pre-prod, regenerate). Surfacing a
+    # specific error keeps the failure mode obvious for users on old artefacts.
+    raw_corpus = config.get("evidence_corpus")
+    if not isinstance(raw_corpus, dict):
+        print(
+            f"error: {config_json} is missing the 'evidence_corpus' block — "
+            "this calibration was produced by an older argot. Re-run "
+            "`argot calibrate` to regenerate it.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    evidence_corpus = EvidenceCorpus.from_json_dict(raw_corpus)
+
     return SequentialImportBpeScorer(
         repo_corpus_files=repo_corpus_files,
         bpe_generic_baseline_path=generic_baseline_json,
@@ -298,6 +318,7 @@ def _load_phase14_scorer(argot_dir: Path) -> SequentialImportBpeScorer:
         call_receiver_cluster_seed=call_receiver_cluster_seed,
         call_receiver_cluster_bonus=call_receiver_cluster_bonus,
         call_receiver_cluster_rare_threshold=call_receiver_cluster_rare_threshold,
+        evidence_corpus=evidence_corpus,
     )
 
 
@@ -336,17 +357,23 @@ def _score_patches_phase14(
                 hunk_start_line=hunk_start + 1,
                 hunk_end_line=hunk_end,
             )
-            score = float(scored["bpe_score"])
-            reason = str(scored.get("reason", "none"))
+            # Headline ``score`` is the BPE-stage score regardless of which
+            # reason won — the severity tier in :func:`_severity` is tuned to
+            # the BPE log-likelihood scale, and switching to the winner's
+            # native score (e.g. an import_score of 1) would put every import
+            # hit in the lowest severity tier. The winning reason's name and
+            # score still surface via ``scored.reason`` and the per-reason
+            # evidence payload below.
             hits.append(
                 _Hit(
-                    score=score,
+                    score=scored.stages.bpe_score,
                     file_path=batch.file_path,
                     line=hunk.new_start,
                     line_end=hunk.new_start + hunk.new_lines - 1,
                     source=batch.source,
-                    reason=reason,
+                    reason=scored.reason,
                     hunk_content=hunk_content,
+                    evidence=scored.evidence,
                 )
             )
 
@@ -441,6 +468,29 @@ def _render_hunk_body(
     return out, overflow
 
 
+def _dump_evidence_debug(hits: list[_Hit]) -> None:
+    """Emit one JSON line to stderr per hit with the raw evidence payload.
+
+    Maintainer-only output: paste-friendly for bug reports and bench
+    validation. Each line is a self-contained JSON object — the consumer
+    can ``jq`` or ``json.loads`` line-by-line without splitting on the
+    rendered stdout output. Hits without evidence (no calibration corpus
+    loaded, or short-circuited) emit ``null`` evidence so the line count
+    stays predictable.
+    """
+    for hit in hits:
+        record: dict[str, object] = {
+            "file": hit.file_path,
+            "line": hit.line,
+            "line_end": hit.line_end,
+            "source": hit.source,
+            "score": hit.score,
+            "reason": hit.reason,
+            "evidence": dataclasses.asdict(hit.evidence) if hit.evidence is not None else None,
+        }
+        print(json.dumps(record), file=sys.stderr)
+
+
 def _render_results(
     hits: list[_Hit],
     threshold: float,
@@ -517,6 +567,15 @@ def _render_results(
                 glyph = severity_glyph_ascii[sev]
                 print(f"  {glyph}  {line_str:<13} {hit.score:>6.2f}  {sev}  {meta}")
 
+            # Per-reason evidence (names + ``common here:`` orientation) sits
+            # between the headline and the hunk body. Layout decisions —
+            # indentation, truncation, dim wrapping — all live in
+            # :mod:`scoring.evidence.formatters`; this function is only the
+            # dispatcher and printer.
+            if hit.evidence is not None:
+                for evidence_line in format_evidence(hit.evidence, use_color=use_color):
+                    print(evidence_line)
+
             body_lines, overflow = _render_hunk_body(
                 hit.hunk_content, hit.file_path, hit.line, hunk_lines, use_color
             )
@@ -572,7 +631,20 @@ def main() -> None:
         default="unusual",
         help="Only show hits at or above this severity (default unusual = all)",
     )
+    # Maintainer-only debug switch: dumps each hit's evidence dataclass as a
+    # JSON line on stderr so bench validation and bug reports have a
+    # mechanically grep-able record. Hidden from --help (argparse.SUPPRESS)
+    # because end users have no use for it. The ``ARGOT_DEBUG_EVIDENCE=1``
+    # env var works the same way for CI / hooks that can't pass flags.
+    parser.add_argument(
+        "--debug-evidence",
+        action="store_true",
+        default=False,
+        help=argparse.SUPPRESS,
+    )
     args = parser.parse_args()
+    if not args.debug_evidence and os.environ.get("ARGOT_DEBUG_EVIDENCE") == "1":
+        args.debug_evidence = True
 
     # Mutual exclusion validation — fail fast with a clear message.
     if args.staged and args.unstaged:
@@ -673,6 +745,8 @@ def main() -> None:
 
     use_color = _supports_color()
     hunk_lines = None if args.verbose else args.hunk_lines
+    if args.debug_evidence:
+        _dump_evidence_debug(visible)
     any_truncated = _render_results(visible, threshold, use_color, hunk_lines)
 
     if any_truncated and not args.verbose:

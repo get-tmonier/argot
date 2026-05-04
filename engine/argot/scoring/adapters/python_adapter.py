@@ -64,3 +64,56 @@ class PythonAdapter:
         from argot.scoring.scorers.call_receiver import extract_callees as _extract
 
         return [c for c in _extract(source, "python") if c is not None]
+
+    # Python keywords + soft keywords (PEP 617). Includes the four built-in
+    # singletons (`True`, `False`, `None`) and the conventional ``self`` /
+    # ``cls`` first-argument names — they appear in nearly every method and
+    # would dominate ``common here:`` without saying anything informative
+    # about the repo's vocabulary.
+    _NOISE: frozenset[str] = frozenset(
+        {
+            "False",
+            "None",
+            "True",
+            "and",
+            "as",
+            "assert",
+            "async",
+            "await",
+            "break",
+            "class",
+            "continue",
+            "def",
+            "del",
+            "elif",
+            "else",
+            "except",
+            "finally",
+            "for",
+            "from",
+            "global",
+            "if",
+            "import",
+            "in",
+            "is",
+            "lambda",
+            "nonlocal",
+            "not",
+            "or",
+            "pass",
+            "raise",
+            "return",
+            "try",
+            "while",
+            "with",
+            "yield",
+            "match",
+            "case",
+            "self",
+            "cls",
+        }
+    )
+
+    @property
+    def identifier_noise(self) -> frozenset[str]:
+        return self._NOISE

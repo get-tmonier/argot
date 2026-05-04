@@ -25,7 +25,7 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Literal, NotRequired, TypedDict, cast
+from typing import Any, Literal, NotRequired, TypedDict
 
 from tree_sitter import Node
 
@@ -471,36 +471,15 @@ def compute_features(
         file_path=file_path,
     )
 
-    import_score = float(raw["import_score"])
-    bpe_score = float(raw["bpe_score"])
-    flagged = bool(raw["flagged"])
-    reason = cast(str, raw["reason"])
+    import_score = raw.stages.import_score
+    bpe_score = raw.stages.bpe_score
+    flagged = raw.flagged
+    reason = raw.reason
 
-    # adjusted_bpe is what stage 2.5 compares against the threshold; recompute
-    # here so it appears in the feature row regardless of which stage fired.
-    adjusted_bpe: float
-    cr = inner._call_receiver  # noqa: SLF001
-    if cr is not None:
-        if file_path is not None:
-            contribution = cr.weighted_contribution_for_file(
-                hunk_content,
-                file_path,
-                alpha=cr.alpha,
-                root_bonus=inner._call_receiver_root_bonus,  # noqa: SLF001
-                cluster_bonus=inner._call_receiver_cluster_bonus,  # noqa: SLF001
-                cap=float(cr.cap),
-                file_source=file_source,
-            )
-        else:
-            contribution = cr.weighted_contribution(
-                hunk_content,
-                alpha=cr.alpha,
-                root_bonus=inner._call_receiver_root_bonus,  # noqa: SLF001
-                cap=float(cr.cap),
-            )
-        adjusted_bpe = bpe_score + contribution
-    else:
-        adjusted_bpe = bpe_score
+    # adjusted_bpe is what stage 2.5 compares against the threshold; the
+    # call-receiver contribution is already cached on the StageScores
+    # payload so we don't need to re-run weighted_contribution here.
+    adjusted_bpe = bpe_score + raw.stages.call_receiver_contribution
 
     stage1_flagged = flagged and reason == "import"
     stage2_flagged = flagged and reason in ("bpe", "call_receiver")

@@ -406,6 +406,34 @@ class CallReceiverScorer:
                 deduped.append(c)
         return deduped
 
+    def distinct_unattested(self, hunk_content: str) -> list[str]:
+        """Public façade over :meth:`_get_distinct_unattested`.
+
+        Lets the per-reason evidence collector ask for the same unattested
+        list the scoring path computed without reaching into a private name
+        — keeps the cross-module surface explicit for the linter
+        (``noqa: SLF001`` would otherwise pile up at every collector site).
+        """
+        return self._get_distinct_unattested(hunk_content)
+
+    def cluster_id_for_hunk_file(
+        self, file_path: Path | None, file_source: str | None
+    ) -> int | None:
+        """Resolve the cluster id used by ``weighted_contribution_for_file``.
+
+        Mirrors the lookup logic in :meth:`weighted_contribution_for_file`
+        so the call-receiver evidence collector can scope its
+        ``common here:`` and rarity samples to the same cluster the scorer
+        used. Returns ``None`` when neither the static path nor the Jaccard
+        fallback can name a cluster — the collector then falls back to a
+        repo-wide framing rather than printing a wrong cluster's data.
+        """
+        if file_path is not None and file_path in self.file_to_cluster:
+            return self.file_to_cluster[file_path]
+        if file_source is not None and self.cluster_attested:
+            return self._nearest_cluster_for_source(file_source)
+        return None
+
     def count_unattested(self, hunk_content: str) -> int:
         """Return count of distinct unattested callees in *hunk_content*.
 

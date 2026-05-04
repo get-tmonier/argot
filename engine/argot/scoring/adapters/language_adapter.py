@@ -92,3 +92,28 @@ class LanguageAdapter(Protocol):
         None entries (complex chains) are filtered before returning.
         """
         ...
+
+    @property
+    def identifier_noise(self) -> frozenset[str]:
+        """Tokens to drop from the repo-wide identifier vocabulary.
+
+        Used by the calibration evidence builder to keep ``common here:``
+        on the BPE evidence line semantically interesting. Without this
+        filter, regex-extracted identifiers are dominated by language
+        keywords (``import``, ``export``, ``return``, ``const`` …) and
+        boilerplate (``self``, ``this``) that the user already knows;
+        they crowd out the genuinely diagnostic identifiers (the repo's
+        domain vocabulary).
+
+        This is *language-level* knowledge, not framework-level — keywords
+        are part of the language grammar, so naming them here doesn't
+        violate the "no framework-specific literals" rule. It's the same
+        category as ``prose_line_ranges`` (knows the language's comment
+        syntax) or ``extract_imports`` (knows the language's import
+        syntax).
+
+        Implementations override; the default is empty so the protocol
+        stays usable in test stubs without forcing every adapter to
+        define a list.
+        """
+        return frozenset()
