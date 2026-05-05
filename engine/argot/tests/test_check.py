@@ -7,17 +7,22 @@ import pygit2
 import pytest
 
 from argot.check import (
+    _EXT_TO_LANG,
     _apply_filters,
     _highlight_lines,
     _Hit,
     _is_out_of_scope,
+    _load_scorers,
     _modified_patches,
+    _render_caret_line,
+    _render_hunk_body,
     _render_results,
     _severity,
     _staged_patches,
     _untracked_patches,
 )
 from argot.git_walk import _resolve_shas
+from argot.scoring.evidence.types import SourceSpan
 
 # ---------------------------------------------------------------------------
 # Repo helpers
@@ -557,6 +562,87 @@ def test_highlight_lines_no_color_returns_raw_lines() -> None:
     assert _highlight_lines(content, "test.ts", use_color=False) == raw
 
 
+def test_render_caret_line_underlines_one_span() -> None:
+    """``^^^^^`` lands on the bytes covered by the span; everything else
+    is whitespace. Carets align by raw byte offset so ANSI codes from
+    syntax highlighting can't shift them.
+    """
+    line = "import msgspec.json"
+    span = SourceSpan(line=1, col_start=7, col_end=14)  # ``msgspec``
+    rendered = _render_caret_line(line, [span], visible_prefix_width=4, use_color=False)
+    assert rendered is not None
+    # 4-char prefix + 7 spaces (cols 0-6) + 7 carets (cols 7-13)
+    assert rendered == "    " + " " * 7 + "^" * 7
+
+
+def test_render_caret_line_merges_overlapping_spans() -> None:
+    """Two spans on the same line union into one underline — every byte
+    covered by either span gets a caret. The renderer never duplicates
+    underlines for the same physical byte.
+    """
+    line = "import a; import b"
+    spans = [
+        SourceSpan(line=1, col_start=7, col_end=8),  # ``a``
+        SourceSpan(line=1, col_start=17, col_end=18),  # ``b``
+    ]
+    rendered = _render_caret_line(line, spans, visible_prefix_width=0, use_color=False)
+    assert rendered is not None
+    # Cols 0-6 spaces, col 7 caret, 8-16 spaces, col 17 caret.
+    assert rendered == " " * 7 + "^" + " " * 9 + "^"
+
+
+def test_render_caret_line_returns_none_when_span_outside() -> None:
+    """A span whose columns sit outside the line (off-by-one bug,
+    truncated line) yields no underline rather than a row of spaces.
+    """
+    line = "short"
+    span = SourceSpan(line=1, col_start=100, col_end=110)
+    assert _render_caret_line(line, [span], visible_prefix_width=0, use_color=False) is None
+
+
+def test_render_hunk_body_smart_peeks_to_evidence_line() -> None:
+    """Default truncation at 6 lines, but a flagged line at hunk-line 8
+    grows the budget so the caret can land on the right row. Originally
+    the user couldn't see ``msgspec`` on line 7 because the cap was 6.
+    """
+    content = "\n".join(f"line{n}" for n in range(1, 13))  # 12 lines
+    body, overflow = _render_hunk_body(
+        content,
+        "x.py",
+        start_line=1,
+        max_lines=6,
+        use_color=False,
+        must_show_hunk_lines=frozenset({8}),
+    )
+    # 8 source lines + the ``(+N more lines)`` footer.
+    assert len(body) == 9
+    assert overflow == 4
+    # The flagged line is in-frame.
+    assert any("line8" in row for row in body)
+
+
+def test_render_hunk_body_emits_caret_under_flagged_line() -> None:
+    """When ``caret_spans_by_line`` covers the third rendered line, the
+    body output has a caret row immediately following that source row,
+    pointing at the right byte range.
+    """
+    content = "import os\nimport sys\nimport msgspec.json\n"
+    spans_by_line = {3: [SourceSpan(line=3, col_start=7, col_end=14)]}
+    body, _overflow = _render_hunk_body(
+        content,
+        "x.py",
+        start_line=10,
+        max_lines=10,
+        use_color=False,
+        caret_spans_by_line=spans_by_line,
+    )
+    # Source line 3 (file line 12) renders, then the caret row right after.
+    msgspec_idx = next(i for i, row in enumerate(body) if "msgspec.json" in row)
+    caret_row = body[msgspec_idx + 1]
+    assert "^" * 7 in caret_row  # exactly len("msgspec") carets
+    assert caret_row.lstrip(" ").startswith("^")
+
+
 def test_render_results_verbose_hunk_starting_with_empty_line(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -583,3 +669,137 @@ def test_render_results_verbose_hunk_starting_with_empty_line(
     assert "47" in out
     assert "48" in out
     assert "49" in out
+
+
+# ---------------------------------------------------------------------------
+# v2 schema — _EXT_TO_LANG dispatch mapping + _load_scorers v1 rejection
+# ---------------------------------------------------------------------------
+
+
+def test_ext_to_lang_python() -> None:
+    """Python extension maps to 'python'."""
+    assert _EXT_TO_LANG.get(".py") == "python"
+
+
+def test_ext_to_lang_typescript_variants() -> None:
+    """.ts, .tsx, .js, .jsx all map to 'typescript'."""
+    for ext in (".ts", ".tsx", ".js", ".jsx"):
+        assert _EXT_TO_LANG.get(ext) == "typescript", f"Expected 'typescript' for {ext!r}"
+
+
+def test_hit_carries_per_language_threshold() -> None:
+    """_Hit.threshold is used by _render_results for per-language severity."""
+    # Python hit with threshold 4.0, TypeScript hit with threshold 5.0.
+    # Both at score 5.0: python hit is 'foreign' (score >= t+1.5), ts hit is 'unusual'.
+    py_hit = _Hit(
+        score=5.6,
+        file_path="src/main.py",
+        line=1,
+        line_end=1,
+        source="workdir",
+        reason="bpe",
+        hunk_content="",
+        threshold=4.0,
+    )
+    ts_hit = _Hit(
+        score=5.6,
+        file_path="src/app.ts",
+        line=1,
+        line_end=1,
+        source="workdir",
+        reason="bpe",
+        hunk_content="",
+        threshold=5.0,
+    )
+    # py_hit: 5.6 >= 4.0+1.5=5.5 → foreign
+    assert _severity(py_hit.score, py_hit.threshold or 0.0) == "foreign"
+    # ts_hit: 5.6 < 5.0+0.5=5.5 → unusual  (5.6 >= 5.5 actually... let me recalc)
+    # 5.6 >= 5.0+0.5=5.5 → suspicious
+    assert _severity(ts_hit.score, ts_hit.threshold or 0.0) == "suspicious"
+
+
+def _make_minimal_v2_argot_dir(tmp_path: Path, *, lang: str = "python") -> Path:
+    """Write minimal .argot/ artifacts with a v2 scorer-config.json for tests."""
+    import json as _json
+    import shutil
+
+    argot_dir = tmp_path / ".argot"
+    argot_dir.mkdir()
+
+    # repo-corpus.txt: one stub file of the right extension
+    ext = ".py" if lang == "python" else ".ts"
+    stub = tmp_path / f"stub{ext}"
+    stub.write_text("x = 1" if lang == "python" else "const x = 1;")
+    (argot_dir / "repo-corpus.txt").write_text(str(stub))
+
+    # Copy the real generic-baseline.json (required by scorer init)
+    baseline_src = Path(__file__).parent.parent / "scoring" / "bpe" / "generic_tokens_bpe.json"
+    shutil.copy(baseline_src, argot_dir / "generic-baseline.json")
+
+    # Minimal v2 scorer-config.json
+    lang_entry = {
+        "threshold": 4.7,
+        "call_receiver_alpha": 2.0,
+        "call_receiver_cap": 5,
+        "call_receiver_root_bonus": 2.0,
+        "call_receiver_n_clusters": 1,
+        "call_receiver_cluster_seed": 0,
+        "call_receiver_cluster_bonus": 0.0,
+        "call_receiver_cluster_rare_threshold": 0,
+        "call_receiver_cluster_size_min": 0,
+        "import_modules": [],
+        "import_module_prefixes": [],
+        "calibration": {
+            "n_cal": 5,
+            "seed": 0,
+            "n_seeds": 1,
+            "repo_sha": "abc",
+            "timestamp_utc": "2024-01-01T00:00:00+00:00",
+        },
+        "evidence_corpus": {
+            "imports": [],
+            "identifiers": {},
+            "callees_by_cluster": {},
+            "totals": {
+                "import_specifiers_attested": 0,
+                "callees_attested_by_cluster": {},
+            },
+        },
+    }
+    config = {"version": 2, "languages": {lang: lang_entry}}
+    (argot_dir / "scorer-config.json").write_text(_json.dumps(config))
+
+    return argot_dir
+
+
+def test_load_scorers_rejects_v1_config(tmp_path: Path) -> None:
+    """_load_scorers exits with code 2 when scorer-config.json has version 1."""
+    import json as _json
+
+    argot_dir = tmp_path / ".argot"
+    argot_dir.mkdir()
+    (argot_dir / "repo-corpus.txt").write_text("")
+    (argot_dir / "generic-baseline.json").write_text("{}")
+    (argot_dir / "scorer-config.json").write_text(_json.dumps({"version": 1, "threshold": 4.7}))
+    with pytest.raises(SystemExit) as exc_info:
+        _load_scorers(argot_dir)
+    assert exc_info.value.code == 2
+
+
+def test_load_scorers_v2_python(tmp_path: Path) -> None:
+    """_load_scorers returns a dict with a 'python' scorer for a Python-only v2 config."""
+    argot_dir = _make_minimal_v2_argot_dir(tmp_path, lang="python")
+    scorers = _load_scorers(argot_dir)
+    assert "python" in scorers
+    assert len(scorers) == 1
+    assert scorers["python"].bpe_threshold == pytest.approx(4.7)
+
+
+def test_load_scorers_v2_python_scorer_threshold(tmp_path: Path) -> None:
+    """The python scorer loaded from v2 config has the threshold from config.
+
+    Regression guard: dispatch must use the calibrated threshold, not a default.
+    """
+    argot_dir = _make_minimal_v2_argot_dir(tmp_path, lang="python")
+    scorers = _load_scorers(argot_dir)
+    assert scorers["python"].bpe_threshold == pytest.approx(4.7)

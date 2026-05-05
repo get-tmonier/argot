@@ -54,6 +54,21 @@ test:
 smoke:
     just extract . && test -s .argot/dataset.jsonl
 
+# Run the full pipeline against a path (default: argot itself) and assert that
+# the outputs are shaped — both Python and TypeScript rows in dataset.jsonl,
+# scorer-config.json emitted, check exits clean. Dev loop only — informational
+# signal that monorepo handling didn't silently break. Not a CI gate.
+dogfood path=".":
+    just extract {{path}}
+    uv run argot-train --repo {{path}}
+    uv run argot-calibrate --repo {{path}}
+    uv run argot-check {{path}}
+    test -s .argot/dataset.jsonl || (echo "✗ dogfood: .argot/dataset.jsonl is empty or missing" && exit 1)
+    grep -qE '"file_path": "[^"]*\.py"' .argot/dataset.jsonl || (echo "✗ dogfood: no .py rows in dataset.jsonl — Python extraction broken?" && exit 1)
+    grep -qE '"file_path": "[^"]*\.tsx?"' .argot/dataset.jsonl || (echo "✗ dogfood: no .ts/.tsx rows in dataset.jsonl — TypeScript extraction broken?" && exit 1)
+    test -s .argot/scorer-config.json || (echo "✗ dogfood: .argot/scorer-config.json missing — calibrate didn't emit threshold" && exit 1)
+    @echo "✓ dogfood: pipeline ran end-to-end, both .py and .ts rows present, scorer-config emitted"
+
 # --- combined ---
 
 verify: lint format typecheck boundaries knip test

@@ -157,10 +157,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--threshold-n-seeds",
         type=int,
-        default=7,
+        default=3,
         metavar="K",
         help=(
-            "Multi-seed median threshold K (default 7, era-10 shipping; 1=single-seed/era-9)."
+            "Multi-seed median threshold K (default 3, lowered from era-10 shipping config of 7; 1=single-seed)."
         ),
     )
     p.add_argument(
@@ -194,6 +194,17 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Fire-rate cutoff for --auto-select-asym-cal (default 0.05 = 5% of cal hunks "
             "fire cluster_rare). Below cutoff → asym (informative); at-or-above → sym (cancel)."
+        ),
+    )
+    p.add_argument(
+        "--asym-probe-n",
+        type=int,
+        default=1000,
+        metavar="N",
+        help=(
+            "Number of hunks to probe when auto-detecting asym vs sym calibration "
+            "(default 1000, era-13.5 production setting). "
+            "Larger N reduces variance in the fire-rate estimate."
         ),
     )
     p.add_argument(
@@ -259,12 +270,12 @@ def build_parser() -> argparse.ArgumentParser:
     one.add_argument(
         "--call-receiver-cluster-rare-threshold",
         type=int,
-        default=0,
+        default=2,
         metavar="N",
         help=(
             "Phase-10 frequency-aware attestation: callees attested in <= N "
             "cluster files are treated as cluster-absent (cluster_bonus fires). "
-            "Default 0 (disabled). Try 2 to catch rare-but-attested callees."
+            "Default 2 (era-13.5 production setting). Pass 0 to disable."
         ),
     )
     one.add_argument(
@@ -312,9 +323,9 @@ def build_parser() -> argparse.ArgumentParser:
     one.add_argument(
         "--threshold-n-seeds",
         type=int,
-        default=7,
+        default=3,
         metavar="K",
-        help="Multi-seed median threshold K (default 7, era-10 shipping; 1=single-seed/era-9).",
+        help="Multi-seed median threshold K (default 3, lowered from era-10 shipping config of 7; 1=single-seed).",
     )
     one.add_argument(
         "--apply-optional-contributions-to-cal",
@@ -341,6 +352,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=0.05,
         metavar="FRAC",
         help="Fire-rate cutoff for --auto-select-asym-cal (default 0.05).",
+    )
+    one.add_argument(
+        "--asym-probe-n",
+        type=int,
+        default=1000,
+        metavar="N",
+        help=(
+            "Number of hunks to probe for auto-detecting asym vs sym calibration "
+            "(default 1000, era-13.5 production setting)."
+        ),
     )
 
     return p
@@ -382,6 +403,10 @@ def _select_targets(targets: list[Target], filt: list[str] | None) -> list[Targe
     return out
 
 
+
+# Pool of seed values used when the user opts into the calibration-stability
+# metric via ``--seeds N`` on the CLI. The default (no flag) is a single
+# outer seed; see ``RunConfig.seeds`` for the rationale.
 _ALL_SEEDS = [0, 1, 2, 3, 4]
 
 
@@ -392,7 +417,9 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
         print(f"unknown corpus: {args.corpus}", file=sys.stderr)
         return 2
     t = by_name[args.corpus]
-    seeds = _ALL_SEEDS[: args.seeds] if args.seeds is not None else _ALL_SEEDS
+    # No --seeds flag → single outer seed (RunConfig default applies via [0]).
+    # --seeds N → first N values from _ALL_SEEDS for the stability metric.
+    seeds = _ALL_SEEDS[: args.seeds] if args.seeds is not None else [0]
     cfg = RunConfig(
         corpus=t.name,
         url=t.url,
@@ -422,16 +449,21 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
         apply_optional_contributions_to_cal=args.apply_optional_contributions_to_cal,
         auto_select_asym_cal=args.auto_select_asym_cal,
         asym_fire_rate_threshold=args.asym_fire_rate_threshold,
+        asym_probe_n=args.asym_probe_n,
     )
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    r = run_corpus(cfg)
-    write_corpus_json(r, args.out_dir / f"{t.name}.json")
+    reports = run_corpus(cfg)
+    for r in reports:
+        write_corpus_json(r, args.out_dir / f"{r.corpus}.json")
     return 0
 
 
 def _run(args: argparse.Namespace) -> int:
     targets = load_targets(_TARGETS_YAML)
     selected = _select_targets(targets, args.corpus)
+    if not selected:
+        print("no scorable targets after filtering — nothing to do", file=sys.stderr)
+        return 0
     ts = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
     out_dir = args.results_dir / ts
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -466,7 +498,7 @@ def _run(args: argparse.Namespace) -> int:
         base_cmd.extend(["--call-receiver-clusters", str(args.call_receiver_clusters)])
     if args.call_receiver_cluster_bonus != 5.0:
         base_cmd.extend(["--call-receiver-cluster-bonus", str(args.call_receiver_cluster_bonus)])
-    if args.call_receiver_cluster_rare_threshold != 0:
+    if args.call_receiver_cluster_rare_threshold != 2:
         base_cmd.extend(
             [
                 "--call-receiver-cluster-rare-threshold",
@@ -493,7 +525,7 @@ def _run(args: argparse.Namespace) -> int:
         base_cmd.extend(["--threshold-percentile", str(args.threshold_percentile)])
     if args.threshold_iqr_k is not None:
         base_cmd.extend(["--threshold-iqr-k", str(args.threshold_iqr_k)])
-    if args.threshold_n_seeds != 7:
+    if args.threshold_n_seeds != 3:
         base_cmd.extend(["--threshold-n-seeds", str(args.threshold_n_seeds)])
     if args.apply_optional_contributions_to_cal:
         base_cmd.append("--apply-optional-contributions-to-cal")
@@ -501,6 +533,8 @@ def _run(args: argparse.Namespace) -> int:
         base_cmd.append("--auto-select-asym-cal")
     if args.asym_fire_rate_threshold != 0.05:
         base_cmd.extend(["--asym-fire-rate-threshold", str(args.asym_fire_rate_threshold)])
+    if args.asym_probe_n != 1000:
+        base_cmd.extend(["--asym-probe-n", str(args.asym_probe_n)])
 
     def _run_corpus_subprocess(t: Target) -> tuple[str, int, str]:
         proc = subprocess.run(
@@ -527,19 +561,36 @@ def _run(args: argparse.Namespace) -> int:
 
     reports: list[CorpusReport] = []
     for t in selected:
-        j = out_dir / f"{t.name}.json"
-        if not j.exists():
-            print(f"[{t.name}] missing output {j}", file=sys.stderr)
-            return 1
-        raw = json.loads(j.read_text())
-        reports.append(
-            CorpusReport(
-                corpus=raw["corpus"],
-                language=raw["language"],
-                metrics=raw["metrics"],
-                raw_scores=raw.get("raw_scores", []),
+        if t.language == "multi":
+            # run-one writes one file per language: "{corpus} (python).json", etc.
+            found = sorted(out_dir.glob(f"{t.name}*.json"))
+            if not found:
+                print(f"[{t.name}] missing output files in {out_dir}", file=sys.stderr)
+                return 1
+            for j in found:
+                raw = json.loads(j.read_text())
+                reports.append(
+                    CorpusReport(
+                        corpus=raw["corpus"],
+                        language=raw["language"],
+                        metrics=raw["metrics"],
+                        raw_scores=raw.get("raw_scores", []),
+                    )
+                )
+        else:
+            j = out_dir / f"{t.name}.json"
+            if not j.exists():
+                print(f"[{t.name}] missing output {j}", file=sys.stderr)
+                return 1
+            raw = json.loads(j.read_text())
+            reports.append(
+                CorpusReport(
+                    corpus=raw["corpus"],
+                    language=raw["language"],
+                    metrics=raw["metrics"],
+                    raw_scores=raw.get("raw_scores", []),
+                )
             )
-        )
 
     (out_dir / "report.md").write_text(render_report_md(reports))
     print(f"wrote {out_dir / 'report.md'}")

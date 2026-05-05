@@ -10,7 +10,12 @@ import pytest
 
 from argot.scoring.adapters.registry import adapter_for_files
 from argot.scoring.adapters.typescript import TypeScriptAdapter
-from argot.scoring.calibration import load_config, main
+from argot.scoring.calibration import (
+    _partition_corpus_by_language,
+    language_for_extension,
+    load_config,
+    main,
+)
 from argot.scoring.calibration.random_hunk_sampler import collect_candidates, sample_hunks
 from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScorer
 
@@ -68,47 +73,92 @@ def test_thin_pool_caps_gracefully() -> None:
     assert any("capping" in str(warning.message).lower() for warning in w)
 
 
-def test_scorer_config_json_roundtrip(tmp_path: Path) -> None:
-    """Write scorer-config.json then read it back with load_config."""
-    scorer = _scorer_with_cal(seed=7)
-    import pygit2
+def _make_v2_config(scorer: SequentialImportBpeScorer, lang: str = "python") -> dict[str, object]:
+    """Build a minimal valid v2 scorer-config dict for tests."""
+    from datetime import datetime
 
     try:
+        import pygit2
+
         repo = pygit2.Repository(str(Path(__file__).parent.parent.parent.parent))
         repo_sha = str(repo.head.target)
     except Exception:
         repo_sha = "unknown"
 
-    from datetime import datetime
-
-    config = {
-        "version": 1,
+    lang_entry: dict[str, object] = {
         "threshold": scorer.bpe_threshold,
+        "call_receiver_alpha": 2.0,
+        "call_receiver_cap": 5,
+        "call_receiver_root_bonus": 2.0,
+        "call_receiver_n_clusters": 8,
+        "call_receiver_cluster_seed": 0,
+        "call_receiver_cluster_bonus": 5.0,
+        "call_receiver_cluster_rare_threshold": 0,
+        "call_receiver_cluster_size_min": 0,
+        "import_modules": [],
+        "import_module_prefixes": [],
         "calibration": {
             "n_cal": scorer.n_calibration,
             "seed": 7,
+            "n_seeds": 1,
             "repo_sha": repo_sha,
             "timestamp_utc": datetime.now(tz=UTC).isoformat(),
         },
+        # Minimal valid evidence_corpus matching EvidenceCorpus.from_json_dict.
+        "evidence_corpus": {
+            "imports": [],
+            "identifiers": {},
+            "callees_by_cluster": {},
+            "totals": {
+                "import_specifiers_attested": 0,
+                "callees_attested_by_cluster": {},
+            },
+        },
     }
+    return {"version": 2, "languages": {lang: lang_entry}}
+
+
+def test_scorer_config_json_roundtrip(tmp_path: Path) -> None:
+    """Write v2 scorer-config.json then read it back with load_config."""
+    scorer = _scorer_with_cal(seed=7)
+    config = _make_v2_config(scorer, lang="python")
     out = tmp_path / "scorer-config.json"
     out.write_text(json.dumps(config))
 
     loaded = load_config(out)
-    assert loaded["version"] == 1
-    threshold = loaded["threshold"]
-    assert isinstance(threshold, float)
-    assert threshold == pytest.approx(scorer.bpe_threshold, abs=1e-10)
-    cal = loaded["calibration"]
+    assert loaded["version"] == 2
+    langs = loaded["languages"]
+    assert isinstance(langs, dict)
+    assert "python" in langs
+    py_cfg = langs["python"]
+    assert isinstance(py_cfg, dict)
+    assert py_cfg["threshold"] == pytest.approx(scorer.bpe_threshold, abs=1e-10)
+    cal = py_cfg["calibration"]
     assert isinstance(cal, dict)
     assert cal["seed"] == 7
+
+
+def test_load_config_rejects_v1(tmp_path: Path) -> None:
+    """load_config raises ValueError for v1 (flat single-language) configs."""
+    v1_config = tmp_path / "scorer-config.json"
+    v1_config.write_text(json.dumps({"version": 1, "threshold": 4.7}))
+    with pytest.raises(ValueError, match="Regenerate via"):
+        load_config(v1_config)
+
+
+def test_load_config_rejects_versionless(tmp_path: Path) -> None:
+    """load_config raises ValueError for configs missing the version key."""
+    old_config = tmp_path / "scorer-config.json"
+    old_config.write_text(json.dumps({"threshold": 4.7}))
+    with pytest.raises(ValueError, match="Regenerate via"):
+        load_config(old_config)
 
 
 def test_load_config_rejects_unknown_version(tmp_path: Path) -> None:
     """load_config raises ValueError for unknown version numbers."""
     bad_config = tmp_path / "scorer-config.json"
     bad_config.write_text(json.dumps({"version": 99, "threshold": 1.0}))
-    with pytest.raises(ValueError, match="Unsupported scorer-config.json version"):
+    with pytest.raises(ValueError, match="Regenerate via"):
         load_config(bad_config)
 
 
@@ -566,5 +616,129 @@ def test_calibration_cli_threshold_iqr_k(tmp_path: Path, monkeypatch: pytest.Mon
     main()
     assert out.exists()
     cfg = json.loads(out.read_text())
-    assert "threshold" in cfg
-    assert isinstance(cfg["threshold"], float)
+    assert cfg.get("version") == 2
+    langs = cfg.get("languages")
+    assert isinstance(langs, dict)
+    assert len(langs) >= 1
+    # The corpus is all-Python so exactly one entry.
+    assert "python" in langs
+    py_cfg = langs["python"]
+    assert isinstance(py_cfg, dict)
+    assert "threshold" in py_cfg
+    assert isinstance(py_cfg["threshold"], float)
+
+
+# ---------------------------------------------------------------------------
+# v2 schema — language_for_extension + _partition_corpus_by_language
+# ---------------------------------------------------------------------------
+
+
+def test_language_for_extension_known() -> None:
+    """Known extensions map to the expected language names."""
+    assert language_for_extension(".py") == "python"
+    assert language_for_extension(".ts") == "typescript"
+    assert language_for_extension(".tsx") == "typescript"
+    assert language_for_extension(".js") == "typescript"
+    assert language_for_extension(".jsx") == "typescript"
+
+
+def test_language_for_extension_unknown() -> None:
+    """Unknown extensions return None."""
+    assert language_for_extension(".md") is None
+    assert language_for_extension(".json") is None
+    assert language_for_extension("") is None
+
+
+def test_partition_corpus_single_language(tmp_path: Path) -> None:
+    """Single-language corpus produces one entry under its language key."""
+    py_a = tmp_path / "a.py"
+    py_b = tmp_path / "b.py"
+    py_a.write_text("x = 1")
+    py_b.write_text("y = 2")
+    result = _partition_corpus_by_language([py_a, py_b])
+    assert list(result.keys()) == ["python"]
+    assert set(result["python"]) == {py_a, py_b}
+
+
+def test_partition_corpus_multi_language(tmp_path: Path) -> None:
+    """Mixed Py+TS corpus partitions into two entries with the right files."""
+    py_file = tmp_path / "mod.py"
+    ts_file = tmp_path / "comp.ts"
+    tsx_file = tmp_path / "app.tsx"
+    py_file.write_text("x = 1")
+    ts_file.write_text("const x = 1;")
+    tsx_file.write_text("export default () => null;")
+    result = _partition_corpus_by_language([py_file, ts_file, tsx_file])
+    assert set(result.keys()) == {"python", "typescript"}
+    assert result["python"] == [py_file]
+    assert set(result["typescript"]) == {ts_file, tsx_file}
+
+
+def test_partition_corpus_drops_unknown_extensions(tmp_path: Path) -> None:
+    """Files with unsupported extensions are silently dropped."""
+    py_file = tmp_path / "mod.py"
+    json_file = tmp_path / "data.json"
+    py_file.write_text("x = 1")
+    json_file.write_text("{}")
+    result = _partition_corpus_by_language([py_file, json_file])
+    assert list(result.keys()) == ["python"]
+    assert result["python"] == [py_file]
+
+
+def test_calibration_cli_v2_multi_language(
+    tmp_path: Path,
+    ts_source_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """argot-calibrate emits a v2 config with both python and typescript entries
+    when the corpus contains both .py and .ts files.
+    """
+    # Mix Python control files with the TypeScript fixture files.
+    all_files = list(_CONTROL_FILES) + sorted(ts_source_dir.glob("*.ts"))
+    repo_corpus_path = tmp_path / "repo-corpus.txt"
+    repo_corpus_path.write_text("\n".join(str(p) for p in all_files))
+    generic_baseline_path = tmp_path / "generic-baseline.json"
+    generic_baseline_path.write_text((_BPE_GENERIC_BASELINE).read_text())
+    out = tmp_path / "scorer-config.json"
+
+    # Use a mixed source dir: copy the TS files alongside the Python fixtures.
+    mixed_dir = tmp_path / "mixed"
+    mixed_dir.mkdir()
+    for src in _CONTROL_FILES:
+        (mixed_dir / src.name).write_text(src.read_text())
+    for src in sorted(ts_source_dir.glob("*.ts")):
+        (mixed_dir / src.name).write_text(src.read_text())
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "argot-calibrate",
+            "--repo",
+            str(mixed_dir),
+            "--repo-corpus",
+            str(repo_corpus_path),
+            "--generic-baseline",
+            str(generic_baseline_path),
+            "--output",
+            str(out),
+            "--n-cal",
+            "5",
+            "--threshold-n-seeds",
+            "1",
+            "--no-auto-select-asym-cal",
+        ],
+    )
+    main()
+    assert out.exists()
+    cfg = json.loads(out.read_text())
+    assert cfg.get("version") == 2
+    langs = cfg.get("languages")
+    assert isinstance(langs, dict)
+    assert "python" in langs, f"Expected 'python' key in {list(langs.keys())}"
+    assert "typescript" in langs, f"Expected 'typescript' key in {list(langs.keys())}"
+    for lang, entry in langs.items():
+        assert isinstance(entry, dict), f"{lang} entry should be a dict"
+        assert isinstance(entry.get("threshold"), float), f"{lang} missing float threshold"
+        assert "evidence_corpus" in entry, f"{lang} missing evidence_corpus"
+        assert "calibration" in entry, f"{lang} missing calibration block"

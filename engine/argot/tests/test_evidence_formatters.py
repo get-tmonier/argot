@@ -28,6 +28,7 @@ from argot.scoring.evidence.types import (
     CommonEntry,
     ImportEvidence,
     RarityStat,
+    SourceSpan,
 )
 
 
@@ -122,6 +123,48 @@ class TestImportEvidenceFormatter:
                 BpeEvidence([CommonEntry("x", 1)]),
                 use_color=False,
             )
+
+    def test_line_annotation_uses_file_line(self) -> None:
+        """``foreign_specifier_spans`` carries hunk-relative spans; the
+        formatter shifts ``span.line`` by ``hunk_start_line`` so the
+        rendered annotation reads as a file line — the number the user
+        sees in their editor.
+        """
+        ev = ImportEvidence(
+            foreign_specifiers=["msgspec"],
+            rarity=RarityStat(0, 120, "module specifiers", "repo"),
+            common_here=[CommonEntry("typing", 292)],
+            foreign_specifier_spans={"msgspec": SourceSpan(line=7, col_start=7, col_end=14)},
+        )
+        # Hunk starts at file line 1 → annotation = L7 (the file line)
+        lines = [
+            _strip_ansi(s)
+            for s in ImportEvidenceFormatter().render(ev, use_color=False, hunk_start_line=1)
+        ]
+        assert lines[0] == "     ↳ msgspec (L7) — 0 of 120 module specifiers in repo"
+        # Hunk starts at file line 100 → annotation should be L106 (100 + 7 - 1)
+        lines = [
+            _strip_ansi(s)
+            for s in ImportEvidenceFormatter().render(ev, use_color=False, hunk_start_line=100)
+        ]
+        assert lines[0] == "     ↳ msgspec (L106) — 0 of 120 module specifiers in repo"
+
+    def test_line_annotation_omitted_when_unknown(self) -> None:
+        """If the scorer couldn't capture a span for a specifier (parse
+        error, edge case), the formatter falls back to the bare name.
+        """
+        ev = ImportEvidence(
+            foreign_specifiers=["mongoose"],
+            rarity=RarityStat(0, 47, "module specifiers", "repo"),
+            common_here=[],
+            foreign_specifier_spans={},  # no span info
+        )
+        lines = [
+            _strip_ansi(s)
+            for s in ImportEvidenceFormatter().render(ev, use_color=False, hunk_start_line=1)
+        ]
+        assert "mongoose" in lines[0]
+        assert "(L" not in lines[0]
 
 
 # --- Call-receiver --------------------------------------------------------

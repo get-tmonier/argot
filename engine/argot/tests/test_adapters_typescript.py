@@ -87,6 +87,27 @@ def test_extract_imports_returns_set_of_strings_for_ts() -> None:
     assert "ky" in imports
 
 
+def test_extract_imports_with_spans_skips_quote_chars() -> None:
+    """The span covers the specifier text only — quotes are excluded so
+    the eslint-style ``^^^^`` underline lands on the bytes that match
+    what the user would grep for.
+    """
+    adapter = TypeScriptAdapter()
+    src = "import ky from 'ky';\n"  # line 1
+    spans = adapter.extract_imports_with_spans(src)
+    # ``'ky'`` starts at col 15 (the opening quote); the specifier is at
+    # 16..18 — len("ky") = 2 bytes.
+    assert ("ky", 1, 16, 18) in spans
+
+
+def test_extract_imports_with_spans_handles_require() -> None:
+    adapter = TypeScriptAdapter()
+    src = "const ky = require('ky');\n"
+    spans = adapter.extract_imports_with_spans(src)
+    # ``'ky'`` quote starts at col 19, specifier at 20..22.
+    assert ("ky", 1, 20, 22) in spans
+
+
 def test_prose_line_ranges_returns_frozenset_for_ts() -> None:
     adapter = TypeScriptAdapter()
     src = "/** A JSDoc comment. */\nfunction foo() {\n  return 1;\n}\n"

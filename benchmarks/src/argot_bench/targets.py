@@ -6,7 +6,12 @@ from typing import Literal
 
 import yaml
 
-Language = Literal["python", "typescript"]
+# `multi` marks a corpus that contains source from more than one supported
+# language (e.g. a Py + TS monorepo). The bench runner currently skips
+# these — multi-language scoring is tracked in the `multi-language-corpus`
+# PRD; for now `multi` exists so future corpora can be pinned without
+# tripping load-time validation.
+Language = Literal["python", "typescript", "multi"]
 
 
 @dataclass(frozen=True)

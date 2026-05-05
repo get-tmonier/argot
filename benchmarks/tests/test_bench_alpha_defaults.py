@@ -78,23 +78,30 @@ def test_bench_threshold_iqr_k_defaults_none() -> None:
     )
 
 
-def test_bench_threshold_n_seeds_shipping_default() -> None:
-    """RunConfig and build_scorer must both default threshold_n_seeds=7 (era-10 shipping config)."""
+def test_bench_threshold_n_seeds_default() -> None:
+    """RunConfig and build_scorer must agree on the multi-seed median N.
+
+    Lowered from 7 to 3 once the threshold proved well-converged at N=3
+    across the existing 6 corpora — saved 4 scorer constructions per
+    ``build_scorer`` call, which dominates wall time on monorepo-class
+    corpora. Users who want N=7 (era-10 shipping config) opt in via
+    ``--threshold-n-seeds 7``.
+    """
     from argot_bench.run import RunConfig
     from argot_bench.score import build_scorer
 
     fields = {f.name: f for f in dataclasses.fields(RunConfig)}
     assert "threshold_n_seeds" in fields, "RunConfig missing threshold_n_seeds field"
     run_default = fields["threshold_n_seeds"].default
-    assert run_default == 7, (
-        f"RunConfig.threshold_n_seeds default should be 7 (era-10 shipping config), got {run_default}"
+    assert run_default == 3, (
+        f"RunConfig.threshold_n_seeds default should be 3, got {run_default}"
     )
 
     sig = inspect.signature(build_scorer)
     assert "threshold_n_seeds" in sig.parameters, "build_scorer missing threshold_n_seeds param"
     score_default = sig.parameters["threshold_n_seeds"].default
-    assert score_default == 7, (
-        f"build_scorer threshold_n_seeds default should be 7 (era-10 shipping config), got {score_default}"
+    assert score_default == 3, (
+        f"build_scorer threshold_n_seeds default should be 3, got {score_default}"
     )
 
 

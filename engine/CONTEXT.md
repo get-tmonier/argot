@@ -67,6 +67,21 @@ _Avoid_: Stage 2, BPE stage
 > **Dev:** "If a callee is attested globally but never appears in files like this one, should we penalize it?"
 > **Domain expert:** "Yes — that's exactly what clusters are for. A callee can be globally attested but still wrong for this file's context. The cluster tells us which callees are normal *for this kind of file*."
 
+## Scorer fit: streaming iterator
+
+`SequentialImportBpeScorer` (and its inner `CallReceiverScorer`) accepts an
+`Iterable[Path]` for the repo corpus so calibration scales to monorepo-class
+corpora without sampling.  Internally, `CallReceiverScorer.__init__` makes a
+single pass over the file list: it builds the global attested-callee set,
+per-file callee bags (frozensets), and 128-element MinHash signatures together.
+After clustering the signatures with KMeans, `cluster_attested` and
+`cluster_callee_counts` are computed from the bags already in memory — no
+second tree-sitter pass.  The bags are then explicitly freed; peak working-set
+from that point is bounded by signature storage (O(n_files × 128 ints)).  A
+separate file-read pass runs only when shape primitives are registered (an
+optional bench feature), and not for the common production path.  This is what
+allows a ~6 000-file corpus like Dagster to calibrate cleanly inside 4 GB.
+
 ## Flagged ambiguities
 
 - "model A / model B" — resolved: **repo corpus** and **generic baseline** respectively. The on-disk filenames (`.argot/repo-corpus.txt`, `.argot/generic-baseline.json`) match the domain language directly; nothing in production code or fixtures still carries the `model_a`/`model_b` identifier.

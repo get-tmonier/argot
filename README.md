@@ -67,11 +67,14 @@ argot ships today with calibrated, benchmarked support for:
 
 | Language | Extensions | Validated corpora | Headline result |
 |---|---|---|---|
-| Python | `.py` | FastAPI · rich · faker | recall 95–100% · FP 0.6–2.0% |
-| TypeScript | `.ts` `.tsx` | hono · ink · faker-js | recall 88–93% · FP 0.5–2.0% |
+| Python | `.py` | FastAPI · rich · faker | recall 95–100% · FP 0.7–2.1% |
+| TypeScript | `.ts` `.tsx` | hono · ink · faker-js | recall 88–93% · FP 0.4–1.9% |
 | JavaScript | `.js` `.jsx` | _(uses the TypeScript adapter; not yet benchmarked on a JS-only corpus)_ | — |
+| **Monorepo (Py + TS)** | mixed | Dagster (`python_modules/` + `js_modules/`) | py: recall 100% · FP 0.4% · ts: recall 80% · FP 15.2% |
 
 Numbers above are from the live baseline at [`benchmarks/results/baseline/latest/report.md`](benchmarks/results/baseline/latest/report.md). Each corpus contributes a held-out set of expert-labelled "voice breaks" plus tens of thousands of real-PR controls; recall is measured against the breaks, FP against the controls.
+
+**Per-language calibration on monorepos.** Mixed-language repos calibrate one threshold per language (Python and TypeScript are different distributions), and `argot check` dispatches each hunk to its matching scorer by file extension. Single-language repos are unchanged. The Dagster row is the first multi-language reference corpus; the TS half's higher FP rate reflects how distinctive Dagit's UI idioms are (Recoil + Apollo + Next.js) — paradigm-break fixtures for a TS UI codebase have higher overlap with normal recent diffs than for the smaller TS corpora. See [`docs/research/decisions/per-language-calibration.md`](docs/research/decisions/per-language-calibration.md).
 
 **Adding more languages is a roadmap item, not an architectural blocker.** The scoring pipeline is language-agnostic; what's per-language is a tree-sitter adapter (see [tree-sitter parser list](https://github.com/tree-sitter/tree-sitter/wiki/List-of-parsers) — Go, Rust, Java, Ruby, Swift, Kotlin, C#, PHP, and many more all have parsers). Each new language we add ships **after** we've benchmarked it on a real-world corpus and confirmed the scorer's recall + false-positive numbers hold up — we'd rather be slow and honest about coverage than ship "supported" languages that score badly. Have a corpus you'd like to see validated? [Open an issue](https://github.com/get-tmonier/argot/issues/new).
 
@@ -429,7 +432,7 @@ argot is **alpha** software. We ship honest benchmarks and a public research log
 
 - **Needs enough source code to calibrate:** the sampler looks for top-level functions/classes (≥ 5 body lines) in the current tree. Validated corpora had calibration pools of 112–494 hunks; repos with fewer than ~100 sampleable units will hit the pool-cap branch and may produce a noisier threshold.
 - **Best on codebases with a consistent hand.** Highly polyglot repos or repos with many contributors and no enforced style are harder to model.
-- **Single-threshold model on multi-language monorepos.** Mixed Python + TypeScript repos calibrate against a joint distribution today, dominated by whichever language has broader token diversity. Per-language calibration is on the roadmap ([#41](https://github.com/get-tmonier/argot/issues/41)).
+- ~~**Single-threshold model on multi-language monorepos.** Mixed Python + TypeScript repos calibrate against a joint distribution today, dominated by whichever language has broader token diversity. Per-language calibration is on the roadmap ([#41](https://github.com/get-tmonier/argot/issues/41)).~~ ✅ **Shipped** (closes [#41](https://github.com/get-tmonier/argot/issues/41)) — `argot calibrate` now emits one threshold per language present in the repo and `argot check` dispatches each hunk by file extension. Dagster is the reference multi-language corpus; see [`docs/research/decisions/per-language-calibration.md`](docs/research/decisions/per-language-calibration.md).
 - **Validation corpus is library-only.** All six benchmarked corpora are libraries / frameworks (FastAPI, rich, faker, hono, ink, faker-js). Application code may behave differently and the recall / FP numbers haven't been proven there yet ([#66](https://github.com/get-tmonier/argot/issues/66)).
 - **Residual recall and FP gaps** under active research — currently 108/115 fixtures caught and two corpora at ~2% FP. The current research era pushes FP to ≤ 1% and chases the architectural recall ceiling ([#54](https://github.com/get-tmonier/argot/issues/54)).
 - **Cold start on brand-new files:** less context to score against.
@@ -454,7 +457,7 @@ The minimum-viable-v1 set we'd want to ship before recommending argot for produc
 |---|---|
 | [#54](https://github.com/get-tmonier/argot/issues/54) | Push FP rate to ≤ 1% across all corpora and close the residual recall gap |
 | [#66](https://github.com/get-tmonier/argot/issues/66) | Validate on application corpora, not just libraries |
-| [#41](https://github.com/get-tmonier/argot/issues/41) | Per-language calibration in mixed-language monorepos |
+| ~~[#41](https://github.com/get-tmonier/argot/issues/41)~~ ✅ | ~~Per-language calibration in mixed-language monorepos~~ — shipped, closes [#41](https://github.com/get-tmonier/argot/issues/41) |
 | [#57](https://github.com/get-tmonier/argot/issues/57) | Suppression mechanism — adoption blocker without it |
 | [#51](https://github.com/get-tmonier/argot/issues/51) | Repo introspection / suitability check |
 | [#58](https://github.com/get-tmonier/argot/issues/58) | Official CI integration (GitHub Action + pre-commit + SARIF) |
@@ -556,6 +559,7 @@ argot's scorer is only as honest as the corpora we benchmark it against. We're g
 - [**hono**](https://github.com/honojs/hono) — Yusuke Wada and contributors (TypeScript · edge web framework)
 - [**ink**](https://github.com/vadimdemedes/ink) — Vadim Demedes and contributors (TypeScript · React for CLIs)
 - [**faker-js**](https://github.com/faker-js/faker) — the faker-js team and contributors (TypeScript · fake-data generator)
+- [**Dagster**](https://github.com/dagster-io/dagster) — the Dagster Labs team and contributors (Python + TypeScript monorepo · data orchestration platform with Dagit UI)
 
 The benchmark uses each project's history as a positive corpus and a small held-out set of expert-labelled "voice breaks" as the test set. None of these projects are affiliated with or endorse argot — we just stand on their shoulders.
 

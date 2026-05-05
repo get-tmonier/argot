@@ -11,7 +11,7 @@ from typing import Any
 import pygit2
 
 from argot.scoring.adapters.language_adapter import LanguageAdapter
-from argot.scoring.adapters.registry import adapter_for_files
+from argot.scoring.adapters.registry import get_adapter
 from argot.scoring.calibration.evidence_builder import build_evidence_corpus
 from argot.scoring.calibration.random_hunk_sampler import (
     collect_candidates,
@@ -22,20 +22,64 @@ from argot.scoring.scorers.sequential_import_bpe import SequentialImportBpeScore
 from argot.scoring.scorers.shape_primitive import ShapePrimitive
 from argot.scoring.scorers.shape_primitive_registry import build_shape_primitives
 
-_CONFIG_VERSION = 1
+_CONFIG_VERSION = 2
 # Top-N sample size baked into the evidence_corpus block. 50 is comfortably
 # above the rendered top-3 + ``(+N more)`` cap and leaves headroom for future
 # UX tweaks without a re-calibration. Configurable on the calibration CLI.
 _DEFAULT_EVIDENCE_TOP_N = 50
 
+# Extension → language name mapping used for corpus partitioning.
+# Each entry declares that files with that extension are calibrated and
+# scored by the named language's scorer. JS/JSX files are treated as
+# TypeScript for import-graph and scoring purposes.
+_LANG_FOR_EXT: dict[str, str] = {
+    ".py": "python",
+    ".ts": "typescript",
+    ".tsx": "typescript",
+    ".js": "typescript",
+    ".jsx": "typescript",
+}
+
+
+def language_for_extension(ext: str) -> str | None:
+    """Return the language name for a file extension, or None if unsupported."""
+    return _LANG_FOR_EXT.get(ext)
+
+
+def _partition_corpus_by_language(files: list[Path]) -> dict[str, list[Path]]:
+    """Partition corpus file list by language name (skip unknown extensions)."""
+    result: dict[str, list[Path]] = {}
+    for path in files:
+        lang = language_for_extension(path.suffix)
+        if lang is not None:
+            result.setdefault(lang, []).append(path)
+    return result
+
+
+def _adapter_for_language(lang: str) -> LanguageAdapter:
+    """Return the canonical adapter for a language name."""
+    canonical = {
+        "python": ".py",
+        "typescript": ".ts",
+    }
+    ext = canonical.get(lang)
+    if ext is None:
+        raise ValueError(f"Unknown language: {lang!r}")
+    return get_adapter(ext)
+
 
 def load_config(path: Path) -> dict[str, object]:
-    """Load and validate scorer-config.json."""
+    """Load and validate scorer-config.json (v2 required).
+
+    v1 configs (no ``version`` key or ``version: 1``) raise with a clear
+    "regenerate via argot-calibrate" message — no migration code.
+    """
     raw: dict[str, object] = json.loads(path.read_text(encoding="utf-8"))
-    if raw.get("version") != _CONFIG_VERSION:
+    version = raw.get("version")
+    if version != _CONFIG_VERSION:
         raise ValueError(
-            f"Unsupported scorer-config.json version: {raw.get('version')!r} "
-            f"(expected {_CONFIG_VERSION})"
+            f"scorer-config.json has version {version!r} (expected {_CONFIG_VERSION}). "
+            "Regenerate via `argot-calibrate`."
         )
     return raw
 
@@ -339,11 +383,16 @@ def main() -> None:
         print(f"error: {repo_corpus_path} is empty", file=sys.stderr)
         sys.exit(2)
 
+    lang_corpus = _partition_corpus_by_language(repo_corpus_files)
+    if not lang_corpus:
+        print(
+            f"error: no recognised language files in {repo_corpus_path}",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
     n_cal = args.n_cal
-    adapter = adapter_for_files([str(p) for p in repo_corpus_files])
     source_dir = repo_path
-    candidates = collect_candidates(source_dir, adapter=adapter)
-    effective_n_cal = min(n_cal, len(candidates))
 
     call_receiver_alpha: float = 2.0
     call_receiver_cap: int = 5
@@ -352,152 +401,165 @@ def main() -> None:
     call_receiver_cluster_seed: int = 0
     call_receiver_cluster_bonus: float = 5.0
 
-    # Resolve the rare-branch threshold via the auto-detect probe (era-13.5).
-    # The probe builds a single scorer with the rule enabled and measures the
-    # per-hunk fire rate on the same calibration distribution. Below the cutoff
-    # → keep (the rule's catches don't show up on typical code, so it's safe).
-    # At-or-above → disable (the rule fires too symmetrically; keeping it would
-    # cancel out at calibration and FP-flood real PR controls).
-    cluster_rare_threshold = args.call_receiver_cluster_rare_threshold
-    cluster_size_min = args.call_receiver_cluster_size_min
-    if args.auto_select_asym_cal and cluster_rare_threshold > 0 and call_receiver_n_clusters > 1:
-        probe_meta = sample_hunks_with_metadata(
-            source_dir, effective_n_cal, args.seed, adapter=adapter
-        )
-        probe = SequentialImportBpeScorer(
-            repo_corpus_files=repo_corpus_files,
-            bpe_generic_baseline_path=generic_baseline_path,
-            calibration_hunks=[h for h, _, _ in probe_meta],
-            calibration_hunks_with_metadata=probe_meta,
-            adapter=adapter,
-            call_receiver_alpha=call_receiver_alpha,
-            call_receiver_cap=call_receiver_cap,
-            call_receiver_root_bonus=call_receiver_root_bonus,
-            call_receiver_n_clusters=call_receiver_n_clusters,
-            call_receiver_cluster_seed=call_receiver_cluster_seed,
-            call_receiver_cluster_bonus=call_receiver_cluster_bonus,
-            call_receiver_cluster_rare_threshold=cluster_rare_threshold,
-            call_receiver_cluster_size_min=cluster_size_min,
-            threshold_percentile=args.threshold_percentile,
-            threshold_iqr_k=args.threshold_iqr_k,
-        )
-        hunks_seen = max(probe.hunks_scored, 1)
-        fire_rate = probe.rare_branch_hunks_fired / hunks_seen
-        keep_rule = fire_rate < args.asym_fire_rate_threshold
-        print(
-            f"[auto-asym] cluster_rare probe: "
-            f"rare_hunks_fired={probe.rare_branch_hunks_fired}/{hunks_seen} "
-            f"fire_rate={fire_rate:.3f} "
-            f"threshold={args.asym_fire_rate_threshold:.3f} "
-            f"→ {'KEEP rule' if keep_rule else 'DISABLE rule (rare=0)'}",
-            file=sys.stderr,
-        )
-        del probe
-        if not keep_rule:
-            cluster_rare_threshold = 0
-
-    if args.threshold_n_seeds > 1:
-        print(
-            f"Running {args.threshold_n_seeds} independent calibrations "
-            f"(seeds {args.seed}–{args.seed + args.threshold_n_seeds - 1}, "
-            f"n_cal={effective_n_cal} each) from {source_dir}"
-        )
-        threshold = calibrate_multi_seed(
-            base_seed=args.seed,
-            n_seeds=args.threshold_n_seeds,
-            n_cal=effective_n_cal,
-            repo_dir=source_dir,
-            repo_corpus_files=repo_corpus_files,
-            adapter=adapter,
-            bpe_generic_baseline_path=generic_baseline_path,
-            threshold_percentile=args.threshold_percentile,
-            threshold_iqr_k=args.threshold_iqr_k,
-            call_receiver_alpha=call_receiver_alpha,
-            call_receiver_cap=call_receiver_cap,
-            call_receiver_root_bonus=call_receiver_root_bonus,
-            call_receiver_n_clusters=call_receiver_n_clusters,
-            call_receiver_cluster_seed=call_receiver_cluster_seed,
-            call_receiver_cluster_bonus=call_receiver_cluster_bonus,
-            call_receiver_cluster_rare_threshold=cluster_rare_threshold,
-            call_receiver_cluster_size_min=cluster_size_min,
-        )
-        scorer = SequentialImportBpeScorer(
-            repo_corpus_files=repo_corpus_files,
-            bpe_generic_baseline_path=generic_baseline_path,
-            bpe_threshold=threshold,
-            call_receiver_alpha=call_receiver_alpha,
-            call_receiver_cap=call_receiver_cap,
-            call_receiver_root_bonus=call_receiver_root_bonus,
-            call_receiver_n_clusters=call_receiver_n_clusters,
-            call_receiver_cluster_seed=call_receiver_cluster_seed,
-            call_receiver_cluster_bonus=call_receiver_cluster_bonus,
-            call_receiver_cluster_rare_threshold=cluster_rare_threshold,
-            call_receiver_cluster_size_min=cluster_size_min,
-        )
-        n_cal_used = effective_n_cal
-    else:
-        cal_hunks = sample_hunks(source_dir, effective_n_cal, args.seed, adapter=adapter)
-        print(f"Sampled {len(cal_hunks)} calibration hunks from {source_dir}")
-        scorer = SequentialImportBpeScorer(
-            repo_corpus_files=repo_corpus_files,
-            bpe_generic_baseline_path=generic_baseline_path,
-            calibration_hunks=cal_hunks,
-            call_receiver_alpha=call_receiver_alpha,
-            call_receiver_cap=call_receiver_cap,
-            call_receiver_root_bonus=call_receiver_root_bonus,
-            call_receiver_n_clusters=call_receiver_n_clusters,
-            call_receiver_cluster_seed=call_receiver_cluster_seed,
-            call_receiver_cluster_bonus=call_receiver_cluster_bonus,
-            call_receiver_cluster_rare_threshold=cluster_rare_threshold,
-            call_receiver_cluster_size_min=cluster_size_min,
-            threshold_percentile=args.threshold_percentile,
-            threshold_iqr_k=args.threshold_iqr_k,
-        )
-        n_cal_used = scorer.n_calibration
-
     try:
         repo = pygit2.Repository(str(repo_path))
         repo_sha = str(repo.head.target)
     except Exception:
         repo_sha = "unknown"
 
-    # Pre-compute the per-dimension top-N samples that the evidence layer
-    # uses at check time. Persisted alongside the threshold so check doesn't
-    # have to retokenize the whole repo on every run.
-    evidence_corpus = build_evidence_corpus(scorer, repo_corpus_files, top_n=args.evidence_top_n)
+    languages_config: dict[str, object] = {}
 
-    # Snapshot the import-graph scorer's foreign-module surface at fit time
-    # so check-time scoring doesn't re-derive it from current file contents
-    # (which would silently absorb any newly-added foreign import on the
-    # first hunk to introduce it).
-    import_scorer = scorer._import_scorer  # noqa: SLF001
+    for lang in sorted(lang_corpus.keys()):
+        lang_files = lang_corpus[lang]
+        lang_adapter = _adapter_for_language(lang)
+
+        candidates = collect_candidates(source_dir, adapter=lang_adapter)
+        effective_n_cal = min(n_cal, len(candidates))
+
+        # Resolve the rare-branch threshold via the auto-detect probe (era-13.5).
+        # Run per-language so each language gets its own fire-rate estimate.
+        cluster_rare_threshold = args.call_receiver_cluster_rare_threshold
+        cluster_size_min = args.call_receiver_cluster_size_min
+        if (
+            args.auto_select_asym_cal
+            and cluster_rare_threshold > 0
+            and call_receiver_n_clusters > 1
+        ):
+            probe_meta = sample_hunks_with_metadata(
+                source_dir, effective_n_cal, args.seed, adapter=lang_adapter
+            )
+            probe = SequentialImportBpeScorer(
+                repo_corpus_files=lang_files,
+                bpe_generic_baseline_path=generic_baseline_path,
+                calibration_hunks=[h for h, _, _ in probe_meta],
+                calibration_hunks_with_metadata=probe_meta,
+                adapter=lang_adapter,
+                call_receiver_alpha=call_receiver_alpha,
+                call_receiver_cap=call_receiver_cap,
+                call_receiver_root_bonus=call_receiver_root_bonus,
+                call_receiver_n_clusters=call_receiver_n_clusters,
+                call_receiver_cluster_seed=call_receiver_cluster_seed,
+                call_receiver_cluster_bonus=call_receiver_cluster_bonus,
+                call_receiver_cluster_rare_threshold=cluster_rare_threshold,
+                call_receiver_cluster_size_min=cluster_size_min,
+                threshold_percentile=args.threshold_percentile,
+                threshold_iqr_k=args.threshold_iqr_k,
+            )
+            hunks_seen = max(probe.hunks_scored, 1)
+            fire_rate = probe.rare_branch_hunks_fired / hunks_seen
+            keep_rule = fire_rate < args.asym_fire_rate_threshold
+            print(
+                f"[{lang}][auto-asym] cluster_rare probe: "
+                f"rare_hunks_fired={probe.rare_branch_hunks_fired}/{hunks_seen} "
+                f"fire_rate={fire_rate:.3f} "
+                f"threshold={args.asym_fire_rate_threshold:.3f} "
+                f"→ {'KEEP rule' if keep_rule else 'DISABLE rule (rare=0)'}",
+                file=sys.stderr,
+            )
+            del probe
+            if not keep_rule:
+                cluster_rare_threshold = 0
+
+        if args.threshold_n_seeds > 1:
+            print(
+                f"[{lang}] Running {args.threshold_n_seeds} independent calibrations "
+                f"(seeds {args.seed}–{args.seed + args.threshold_n_seeds - 1}, "
+                f"n_cal={effective_n_cal} each) from {source_dir}"
+            )
+            threshold = calibrate_multi_seed(
+                base_seed=args.seed,
+                n_seeds=args.threshold_n_seeds,
+                n_cal=effective_n_cal,
+                repo_dir=source_dir,
+                repo_corpus_files=lang_files,
+                adapter=lang_adapter,
+                bpe_generic_baseline_path=generic_baseline_path,
+                threshold_percentile=args.threshold_percentile,
+                threshold_iqr_k=args.threshold_iqr_k,
+                call_receiver_alpha=call_receiver_alpha,
+                call_receiver_cap=call_receiver_cap,
+                call_receiver_root_bonus=call_receiver_root_bonus,
+                call_receiver_n_clusters=call_receiver_n_clusters,
+                call_receiver_cluster_seed=call_receiver_cluster_seed,
+                call_receiver_cluster_bonus=call_receiver_cluster_bonus,
+                call_receiver_cluster_rare_threshold=cluster_rare_threshold,
+                call_receiver_cluster_size_min=cluster_size_min,
+            )
+            scorer = SequentialImportBpeScorer(
+                repo_corpus_files=lang_files,
+                bpe_generic_baseline_path=generic_baseline_path,
+                bpe_threshold=threshold,
+                adapter=lang_adapter,
+                call_receiver_alpha=call_receiver_alpha,
+                call_receiver_cap=call_receiver_cap,
+                call_receiver_root_bonus=call_receiver_root_bonus,
+                call_receiver_n_clusters=call_receiver_n_clusters,
+                call_receiver_cluster_seed=call_receiver_cluster_seed,
+                call_receiver_cluster_bonus=call_receiver_cluster_bonus,
+                call_receiver_cluster_rare_threshold=cluster_rare_threshold,
+                call_receiver_cluster_size_min=cluster_size_min,
+            )
+            n_cal_used = effective_n_cal
+        else:
+            cal_hunks = sample_hunks(source_dir, effective_n_cal, args.seed, adapter=lang_adapter)
+            print(f"[{lang}] Sampled {len(cal_hunks)} calibration hunks from {source_dir}")
+            scorer = SequentialImportBpeScorer(
+                repo_corpus_files=lang_files,
+                bpe_generic_baseline_path=generic_baseline_path,
+                calibration_hunks=cal_hunks,
+                adapter=lang_adapter,
+                call_receiver_alpha=call_receiver_alpha,
+                call_receiver_cap=call_receiver_cap,
+                call_receiver_root_bonus=call_receiver_root_bonus,
+                call_receiver_n_clusters=call_receiver_n_clusters,
+                call_receiver_cluster_seed=call_receiver_cluster_seed,
+                call_receiver_cluster_bonus=call_receiver_cluster_bonus,
+                call_receiver_cluster_rare_threshold=cluster_rare_threshold,
+                call_receiver_cluster_size_min=cluster_size_min,
+                threshold_percentile=args.threshold_percentile,
+                threshold_iqr_k=args.threshold_iqr_k,
+            )
+            n_cal_used = scorer.n_calibration
+
+        # Pre-compute per-dimension top-N samples for the evidence layer.
+        evidence_corpus = build_evidence_corpus(scorer, lang_files, top_n=args.evidence_top_n)
+
+        # Snapshot the import-graph scorer's foreign-module surface at fit time.
+        import_scorer = scorer._import_scorer  # noqa: SLF001
+        lang_config: dict[str, object] = {
+            "threshold": scorer.bpe_threshold,
+            "call_receiver_alpha": call_receiver_alpha,
+            "call_receiver_cap": call_receiver_cap,
+            "call_receiver_root_bonus": call_receiver_root_bonus,
+            "call_receiver_n_clusters": call_receiver_n_clusters,
+            "call_receiver_cluster_seed": call_receiver_cluster_seed,
+            "call_receiver_cluster_bonus": call_receiver_cluster_bonus,
+            "call_receiver_cluster_rare_threshold": cluster_rare_threshold,
+            "call_receiver_cluster_size_min": cluster_size_min,
+            "import_modules": sorted(import_scorer._repo_modules),  # noqa: SLF001
+            "import_module_prefixes": sorted(import_scorer._repo_modules_prefixes),  # noqa: SLF001
+            "calibration": {
+                "n_cal": n_cal_used,
+                "seed": args.seed,
+                "n_seeds": args.threshold_n_seeds,
+                "repo_sha": repo_sha,
+                "timestamp_utc": datetime.now(tz=UTC).isoformat(),
+            },
+            "evidence_corpus": evidence_corpus.to_json_dict(),
+        }
+        languages_config[lang] = lang_config
+        print(f"[{lang}] threshold: {scorer.bpe_threshold:.4f}")
+
     config: dict[str, object] = {
         "version": _CONFIG_VERSION,
-        "threshold": scorer.bpe_threshold,
-        "call_receiver_alpha": call_receiver_alpha,
-        "call_receiver_cap": call_receiver_cap,
-        "call_receiver_root_bonus": call_receiver_root_bonus,
-        "call_receiver_n_clusters": call_receiver_n_clusters,
-        "call_receiver_cluster_seed": call_receiver_cluster_seed,
-        "call_receiver_cluster_bonus": call_receiver_cluster_bonus,
-        "call_receiver_cluster_rare_threshold": cluster_rare_threshold,
-        "call_receiver_cluster_size_min": cluster_size_min,
-        "import_modules": sorted(import_scorer._repo_modules),  # noqa: SLF001
-        "import_module_prefixes": sorted(import_scorer._repo_modules_prefixes),  # noqa: SLF001
-        "calibration": {
-            "n_cal": n_cal_used,
-            "seed": args.seed,
-            "n_seeds": args.threshold_n_seeds,
-            "repo_sha": repo_sha,
-            "timestamp_utc": datetime.now(tz=UTC).isoformat(),
-        },
-        "evidence_corpus": evidence_corpus.to_json_dict(),
+        "languages": languages_config,
     }
 
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(config, indent=2))
-    print(f"threshold: {scorer.bpe_threshold:.4f} → {out_path}")
+    langs_str = ", ".join(sorted(languages_config.keys()))
+    print(f"scorer-config.json (v2, languages: {langs_str}) → {out_path}")
 
 
 if __name__ == "__main__":

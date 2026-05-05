@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from argot_bench.run import RunConfig, _real_pr_hunks, _reservoir_sample, _score_real_hunks, run_corpus
 from argot_bench.score import ScoreResult
 
@@ -27,6 +29,7 @@ def test_run_corpus_stub_returns_corpus_report(tmp_path: Path, monkeypatch):
     class FakeBenchScorer:
         threshold = 2.5
         cal_scores = [1.0, 2.5]
+        rare_branch_fire_count = 0
 
         def score_hunk(self, *_a, **_kw):
             from argot_bench.score import ScoreResult
@@ -75,7 +78,9 @@ def test_run_corpus_stub_returns_corpus_report(tmp_path: Path, monkeypatch):
         seeds=[0, 1, 2],
         quick=True,
     )
-    report = run_corpus(cfg)
+    reports = run_corpus(cfg)
+    assert len(reports) == 1
+    report = reports[0]
     assert report.corpus == "fastapi"
     assert "auc_catalog" in report.metrics
     assert "recall_by_category" in report.metrics
@@ -225,6 +230,7 @@ def test_run_sample_controls_subsample(tmp_path: Path, monkeypatch):
     class FakeScorer:
         threshold = 2.5
         cal_scores = [1.0]
+        rare_branch_fire_count = 0
 
         def score_hunk(self, *_a, **_kw):
             from argot_bench.score import ScoreResult
@@ -266,8 +272,9 @@ def test_run_sample_controls_subsample(tmp_path: Path, monkeypatch):
         seeds=[0],
         sample_controls=50,
     )
-    report = run_corpus(cfg)
-    real_pr = [r for r in report.raw_scores if r.get("source") == "real_pr"]
+    reports = run_corpus(cfg)
+    assert len(reports) == 1
+    real_pr = [r for r in reports[0].raw_scores if r.get("source") == "real_pr"]
     assert len(real_pr) == 50, f"expected 50 control records, got {len(real_pr)}"
 
 
@@ -567,3 +574,409 @@ def test_end_to_end_call_receiver_alpha_builds_active_scorer(tmp_path: Path):
     # call_receiver stage is wired into the inner scorer (not disabled)
     assert scorer._inner._call_receiver is not None  # type: ignore[attr-defined]
     assert scorer._inner._call_receiver.alpha == 0.5  # type: ignore[attr-defined]
+
+
+def test_run_corpus_single_language_returns_one_report(tmp_path: Path, monkeypatch):
+    """run_corpus with a single-language catalog always returns a one-element list."""
+    import argot_bench.fixtures as fx
+    import argot_bench.run as run_mod
+
+    monkeypatch.setattr(run_mod, "ensure_clone", lambda dd, c, u: dd / c / ".repo")
+    monkeypatch.setattr(run_mod, "ensure_sha_checked_out", lambda *_a: None)
+    monkeypatch.setattr(
+        run_mod, "ensure_extracted",
+        lambda repo, out: (out.parent.mkdir(parents=True, exist_ok=True), out.write_text(""), out)[2],
+    )
+    monkeypatch.setattr(run_mod, "build_scorer", lambda *_a, **_kw: _make_fake_scorer())
+    cat = fx.Catalog(
+        corpus="fastapi",
+        language="python",
+        categories=["cat_a"],
+        injection_hosts=[fx.PRHost(pr=0, sha="a" * 40)],
+        fixtures=[],
+    )
+    monkeypatch.setattr(run_mod, "load_catalog", lambda _p: cat)
+    monkeypatch.setattr(run_mod, "_real_pr_hunks", lambda *_a: iter([]))
+
+    cfg = RunConfig(
+        corpus="fastapi",
+        url="https://example.com/fastapi",
+        language="python",
+        prs=[("pr", "a" * 40)],
+        catalog_dir=tmp_path / "catalogs" / "fastapi",
+        data_dir=tmp_path / "data",
+        n_cal=2,
+        seeds=[0],
+    )
+    reports = run_corpus(cfg)
+    assert len(reports) == 1
+    assert reports[0].corpus == "fastapi"
+    assert reports[0].language == "python"
+
+
+def test_run_corpus_multi_language_returns_two_reports(tmp_path: Path, monkeypatch):
+    """run_corpus with a multi catalog returns one CorpusReport per language present."""
+    import argot_bench.fixtures as fx
+    import argot_bench.run as run_mod
+
+    repo_dir = tmp_path / "data" / "dagster" / ".repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    (repo_dir / "mod.py").write_text("x = 1\n")
+    (repo_dir / "mod.ts").write_text("const x = 1;\n")
+
+    monkeypatch.setattr(run_mod, "ensure_clone", lambda dd, c, u: repo_dir)
+    monkeypatch.setattr(run_mod, "ensure_sha_checked_out", lambda *_a: None)
+    monkeypatch.setattr(
+        run_mod, "ensure_extracted",
+        lambda repo, out: (out.parent.mkdir(parents=True, exist_ok=True), out.write_text(""), out)[2],
+    )
+    # Patch both build_scorer (used in secondary-PR path) and build_scorers (primary path).
+    monkeypatch.setattr(run_mod, "build_scorer", lambda *_a, **_kw: _make_fake_scorer())
+    monkeypatch.setattr(
+        run_mod,
+        "build_scorers",
+        lambda *_a, languages, **_kw: {lang: _make_fake_scorer() for lang in languages},
+    )
+
+    catalog_dir = tmp_path / "catalogs" / "dagster"
+    catalog_dir.mkdir(parents=True)
+    py_dir = catalog_dir / "breaks" / "py"
+    py_dir.mkdir(parents=True)
+    ts_dir = catalog_dir / "breaks" / "ts"
+    ts_dir.mkdir(parents=True)
+    (py_dir / "break_1.py").write_text("# line\n" * 10)
+    (ts_dir / "break_1.ts").write_text("// line\n" * 10)
+
+    cat = fx.Catalog(
+        corpus="dagster",
+        language="multi",
+        categories=["cat_a"],
+        injection_hosts=[fx.PRHost(pr=0, sha="a" * 40)],
+        fixtures=[
+            fx.Fixture(
+                id="py_1",
+                file="breaks/py/break_1.py",
+                category="cat_a",
+                hunk_start_line=1,
+                hunk_end_line=3,
+                language="python",
+            ),
+            fx.Fixture(
+                id="ts_1",
+                file="breaks/ts/break_1.ts",
+                category="cat_a",
+                hunk_start_line=1,
+                hunk_end_line=3,
+                language="typescript",
+            ),
+        ],
+    )
+    monkeypatch.setattr(run_mod, "load_catalog", lambda _p: cat)
+    monkeypatch.setattr(run_mod, "_real_pr_hunks", lambda *_a: iter([]))
+
+    cfg = RunConfig(
+        corpus="dagster",
+        url="https://example.com/dagster",
+        language="multi",
+        prs=[("pr", "a" * 40)],
+        catalog_dir=catalog_dir,
+        data_dir=tmp_path / "data",
+        n_cal=2,
+        seeds=[0],
+    )
+    reports = run_corpus(cfg)
+    assert len(reports) == 2
+    names = {r.corpus for r in reports}
+    assert names == {"dagster (python)", "dagster (typescript)"}
+    langs = {r.language for r in reports}
+    assert langs == {"python", "typescript"}
+    for r in reports:
+        assert "auc_catalog" in r.metrics
+        assert "recall_by_category" in r.metrics
+
+
+def _make_fake_scorer():
+    """Return a minimal FakeBenchScorer for use in monkeypatched tests."""
+    from argot_bench.score import ScoreResult
+
+    class _FakeScorer:
+        threshold = 2.5
+        cal_scores = [1.0, 2.5]
+        rare_branch_fire_count = 0
+
+        def score_hunk(self, *_a, **_kw):
+            return ScoreResult(import_score=0.0, bpe_score=3.0, flagged=True, reason="bpe")
+
+    return _FakeScorer()
+
+
+# ---------------------------------------------------------------------------
+# Streaming partition: per-language reservoirs over an extract stream
+# ---------------------------------------------------------------------------
+
+
+def test_partition_real_pr_hunks_streams_per_language() -> None:
+    """The partition routes records to per-language buckets in a single pass.
+
+    No materialisation of the full record list — the only state held is one
+    bucket per language. Catches the regression where the multi-language
+    bench previously did ``list(_real_pr_hunks(...))`` to filter, OOMing on
+    monorepo-scale corpora.
+    """
+    from argot_bench.run import _partition_real_pr_hunks_by_lang
+
+    records = [
+        {"file_path": f"f{i}.py", "hunk_start_line": 1, "hunk_end_line": 2, "language": "python"}
+        for i in range(10)
+    ] + [
+        {"file_path": f"g{i}.ts", "hunk_start_line": 1, "hunk_end_line": 2, "language": "typescript"}
+        for i in range(7)
+    ]
+    out = _partition_real_pr_hunks_by_lang(
+        iter(records), langs=["python", "typescript"], quick=False, sample_controls=None, seed=0
+    )
+    assert len(out["python"]) == 10
+    assert len(out["typescript"]) == 7
+
+
+def test_partition_real_pr_hunks_quick_caps_per_language() -> None:
+    """Quick mode caps each language at 50 records — total memory is
+    ``50 × n_langs`` regardless of input stream size.
+    """
+    from argot_bench.run import _partition_real_pr_hunks_by_lang
+
+    records = [
+        {"file_path": f"f{i}.py", "hunk_start_line": 1, "hunk_end_line": 2, "language": "python"}
+        for i in range(200)
+    ]
+    out = _partition_real_pr_hunks_by_lang(
+        iter(records), langs=["python", "typescript"], quick=True, sample_controls=None, seed=0
+    )
+    assert len(out["python"]) == 50
+    assert len(out["typescript"]) == 0
+
+
+def test_partition_real_pr_hunks_reservoir_sample() -> None:
+    """When ``sample_controls`` is set, each language gets its own
+    bounded reservoir of that size — never holding more than
+    ``sample_controls`` records of a given language at once.
+    """
+    from argot_bench.run import _partition_real_pr_hunks_by_lang
+
+    records = [
+        {"file_path": f"f{i}.py", "hunk_start_line": 1, "hunk_end_line": 2, "language": "python"}
+        for i in range(1000)
+    ]
+    out = _partition_real_pr_hunks_by_lang(
+        iter(records),
+        langs=["python", "typescript"],
+        quick=False,
+        sample_controls=50,
+        seed=42,
+    )
+    assert len(out["python"]) == 50
+    # Determinism: same seed → same sample
+    out2 = _partition_real_pr_hunks_by_lang(
+        iter(records),
+        langs=["python", "typescript"],
+        quick=False,
+        sample_controls=50,
+        seed=42,
+    )
+    assert out["python"] == out2["python"]
+
+
+def test_real_pr_hunks_drops_token_arrays() -> None:
+    """The projection in :func:`_real_pr_hunks` must strip
+    ``hunk_tokens`` / ``context_before`` / ``context_after``.
+    Those arrays each carry up to 50 lines of token-list payload;
+    keeping them across 400k records on Dagster is what OOMed
+    the bench at 40 GB.
+    """
+    import json
+
+    from argot_bench.run import _real_pr_hunks
+
+    rec = {
+        "file_path": "a.py",
+        "hunk_start_line": 1,
+        "hunk_end_line": 5,
+        "language": "python",
+        "commit_sha": "abc",
+        "hunk_tokens": [{"text": "x"}] * 1000,
+        "context_before": [[{"text": "y"}] * 100] * 50,
+        "context_after": [[{"text": "z"}] * 100] * 50,
+    }
+    p = Path(__file__).parent.parent / "data" / "test_projection.jsonl"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(rec) + "\n")
+    try:
+        records = list(_real_pr_hunks(p))
+        assert len(records) == 1
+        kept = records[0]
+        assert "file_path" in kept
+        assert "hunk_start_line" in kept
+        assert "language" in kept
+        assert "hunk_tokens" not in kept
+        assert "context_before" not in kept
+        assert "context_after" not in kept
+    finally:
+        p.unlink(missing_ok=True)
+
+
+def test_partition_real_pr_hunks_skips_unknown_language() -> None:
+    """Records whose ``language`` field doesn't match any requested
+    language are dropped silently — they're noise from the perspective
+    of a per-language scoring pass and shouldn't pollute either bucket.
+    """
+    from argot_bench.run import _partition_real_pr_hunks_by_lang
+
+    records = [
+        {"file_path": "a.py", "hunk_start_line": 1, "hunk_end_line": 2, "language": "python"},
+        {"file_path": "b.go", "hunk_start_line": 1, "hunk_end_line": 2, "language": "go"},
+        {"file_path": "c.ts", "hunk_start_line": 1, "hunk_end_line": 2, "language": "typescript"},
+        {"file_path": "d.rs", "hunk_start_line": 1, "hunk_end_line": 2},  # missing language
+    ]
+    out = _partition_real_pr_hunks_by_lang(
+        iter(records), langs=["python", "typescript"], quick=False, sample_controls=None, seed=0
+    )
+    assert [r["file_path"] for r in out["python"]] == ["a.py"]
+    assert [r["file_path"] for r in out["typescript"]] == ["c.ts"]
+
+
+def test_partition_real_pr_hunks_quick_dominates_sample_controls() -> None:
+    """When ``quick=True`` the cap is the quick limit (50), not
+    ``sample_controls``. Quick mode is a stronger guarantee than
+    sample_controls and the partition must reflect that — keeping a
+    larger reservoir under quick would defeat the point of --quick.
+    """
+    from argot_bench.run import _partition_real_pr_hunks_by_lang
+
+    records = [
+        {"file_path": f"f{i}.py", "hunk_start_line": 1, "hunk_end_line": 2, "language": "python"}
+        for i in range(200)
+    ]
+    out = _partition_real_pr_hunks_by_lang(
+        iter(records),
+        langs=["python", "typescript"],
+        quick=True,
+        sample_controls=500,  # would have allowed 200 if not for quick
+        seed=0,
+    )
+    assert len(out["python"]) == 50
+
+
+def test_partition_real_pr_hunks_empty_stream_returns_empty_buckets() -> None:
+    """Empty input still yields one bucket per requested language so the
+    caller can iterate without a defensive ``.get(lang, [])``.
+    """
+    from argot_bench.run import _partition_real_pr_hunks_by_lang
+
+    out = _partition_real_pr_hunks_by_lang(
+        iter([]), langs=["python", "typescript"], quick=False, sample_controls=None, seed=0
+    )
+    assert out == {"python": [], "typescript": []}
+
+
+def test_partition_real_pr_hunks_bounded_memory_under_sample_controls() -> None:
+    """The reservoir size must be capped at ``sample_controls`` *during*
+    the streaming pass, not just at the end. Catches a regression where
+    the partition would accumulate then truncate, defeating the memory
+    guarantee on multi-million-record streams.
+    """
+    from argot_bench.run import _partition_real_pr_hunks_by_lang
+
+    # Generator yields a million records lazily — if the partition
+    # materialised them all we'd OOM the test. Bounded reservoir means
+    # peak Python heap stays at ~sample_controls × n_langs.
+    def stream() -> object:
+        for i in range(1_000_000):
+            yield {
+                "file_path": f"f{i}.py",
+                "hunk_start_line": 1,
+                "hunk_end_line": 2,
+                "language": "python" if i % 2 == 0 else "typescript",
+            }
+
+    out = _partition_real_pr_hunks_by_lang(
+        stream(),
+        langs=["python", "typescript"],
+        quick=False,
+        sample_controls=100,
+        seed=0,
+    )
+    assert len(out["python"]) == 100
+    assert len(out["typescript"]) == 100
+
+
+def test_load_diff_hunks_for_probe_streams_jsonl(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The probe must not load the full dataset.jsonl into memory.
+
+    Writes a 5000-record dataset and asks for n=20 samples. Internally
+    the probe does Algorithm R reservoir sampling over metadata quads;
+    the test asserts the output size is bounded and deterministic per
+    seed, plus that the output references valid file paths (so the
+    streaming projection didn't drop the data we need at the consumer).
+
+    _git_show_file is patched to read from disk so the test doesn't
+    require a real git repo.
+    """
+    import json as _json
+
+    import argot_bench.score as _score_mod
+    from argot_bench.score import _load_diff_hunks_for_probe
+
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    # Real files long enough for diverse hunk bounds across records.
+    file_contents: dict[str, str] = {}
+    for i in range(10):
+        content = "\n".join(f"line{j}" for j in range(2000)) + "\n"
+        (repo_dir / f"f{i}.py").write_text(content)
+        file_contents[f"f{i}.py"] = content
+
+    # Patch _git_show_file to serve content from disk without a real git repo.
+    def _fake_git_show(repo: Path, sha: str, fp: str) -> str | None:
+        return file_contents.get(fp)
+
+    monkeypatch.setattr(_score_mod, "_git_show_file", _fake_git_show)
+
+    dataset = tmp_path / "dataset.jsonl"
+    # Generate 5000 records with diverse (file, hs, he) triplets so the
+    # probe's dedup-by-quad doesn't collapse the input to a handful
+    # of rows — without diversity the seed-determinism check would pass
+    # trivially regardless of streaming behaviour.
+    with dataset.open("w") as f:
+        for i in range(5000):
+            file_idx = i % 10
+            hs = (i // 10) % 1000  # cycles 0..999 across records for the same file
+            rec = {
+                "file_path": f"f{file_idx}.py",
+                "hunk_start_line": hs,
+                "hunk_end_line": hs + 3,
+                "commit_sha": f"sha{i % 5}",  # 5 distinct SHAs for cache coverage
+                "language": "python",
+                # Bulky payload that the probe must NOT keep around for
+                # records it doesn't sample.
+                "hunk_tokens": [{"text": f"t{k}"} for k in range(100)],
+                "context_before": [[{"text": f"cb{k}"}] for k in range(50)],
+                "context_after": [[{"text": f"ca{k}"}] for k in range(50)],
+            }
+            f.write(_json.dumps(rec) + "\n")
+
+    out_a = _load_diff_hunks_for_probe(dataset, repo_dir, n=20, seed=42)
+    out_b = _load_diff_hunks_for_probe(dataset, repo_dir, n=20, seed=42)
+    out_c = _load_diff_hunks_for_probe(dataset, repo_dir, n=20, seed=99)
+
+    # Cap honoured — ≤ n results regardless of input size.
+    assert len(out_a) <= 20
+    # Determinism per seed.
+    assert out_a == out_b
+    # Different seeds produce different samples.
+    assert out_a != out_c
+    # Output shape is the (hunk_content, file_abs, file_source) triple
+    # that the auto-detect probe consumer expects.
+    for hunk_content, file_abs, file_source in out_a:
+        assert isinstance(hunk_content, str) and hunk_content
+        assert file_abs.exists()
+        assert isinstance(file_source, str)

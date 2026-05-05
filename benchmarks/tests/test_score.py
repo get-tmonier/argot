@@ -146,3 +146,5 @@ def test_build_scorer_import_stage_takes_precedence_over_call_receiver(tmp_path:
     # specifically, that ``call_receiver`` doesn't take credit when the
     # import stage genuinely fired.
     assert result.reason != "call_receiver"
+
+

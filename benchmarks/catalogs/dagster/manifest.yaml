@@ -1,0 +1,368 @@
+corpus: dagster
+language: multi
+categories:
+  # Python categories
+  - framework_swap
+  - asset_definition
+  - scheduling
+  - validation
+  - exception_handling
+  # TypeScript categories
+  - state_management
+  - data_fetching
+  - routing
+  - styling
+injection_hosts:
+  - pr: 0
+    sha: 549b894e4ba03d5836459d58932105b77fafe242
+fixtures:
+  # ---------------------------------------------------------------------
+  # Python — Dagster vs other-framework paradigms
+  # ---------------------------------------------------------------------
+  - id: dagster_py_framework_swap_1
+    language: python
+    file: breaks/py/paradigm_break_airflow_operator.py
+    category: framework_swap
+    hunk_start_line: 15
+    hunk_end_line: 85
+    rationale: "Dagster uses @op / @job / @asset with typed Output objects and a Definitions registry; Airflow's
+      DAG, PythonOperator, default_args dict, schedule_interval, and XCom (ti.xcom_push / ti.xcom_pull)
+      are absent from the Dagster corpus — the entire wiring vocabulary is foreign"
+    difficulty: easy
+    host_file: python_modules/dagster/dagster/_core/definitions/schedule_definition.py
+    host_inject_at_line: 430
+
+  - id: dagster_py_framework_swap_2
+    language: python
+    file: breaks/py/paradigm_break_prefect_task.py
+    category: framework_swap
+    hunk_start_line: 14
+    hunk_end_line: 53
+    rationale: "Dagster uses @op / @asset with RetryPolicy objects; Prefect's @task(retries=3,
+      retry_delay_seconds=exponential_backoff(...)), @flow, PrefectFuture, and task_runner
+      parameters are entirely absent from the Dagster corpus"
+    difficulty: easy
+    host_file: python_modules/dagster/dagster/_core/definitions/op_definition.py
+    host_inject_at_line: 350
+
+  - id: dagster_py_framework_swap_3
+    language: python
+    file: breaks/py/paradigm_break_luigi_pipeline.py
+    category: framework_swap
+    hunk_start_line: 15
+    hunk_end_line: 79
+    rationale: "Dagster expresses asset dependencies via parameter names or deps=[]; Luigi's class-based
+      Task subclasses with requires() / output() / run() methods, luigi.LocalTarget, luigi.DateParameter,
+      self.input().open(), and luigi.build() are absent from the Dagster corpus"
+    difficulty: medium
+    host_file: python_modules/dagster/dagster/_core/definitions/job_definition.py
+    host_inject_at_line: 600
+
+  - id: dagster_py_asset_definition_1
+    language: python
+    file: breaks/py/paradigm_break_procedural_etl.py
+    category: asset_definition
+    hunk_start_line: 14
+    hunk_end_line: 72
+    rationale: "Dagster models data as @asset-decorated functions with return values persisted by an
+      IOManager; this file uses plain module-level functions that mutate a shared _state dict and call
+      each step explicitly in run_pipeline() — @asset, AssetIn, IOManager, Definitions, and
+      MaterializeResult are absent from the corpus"
+    difficulty: medium
+    host_file: python_modules/dagster/dagster/_core/definitions/definitions_class.py
+    host_inject_at_line: 500
+
+  - id: dagster_py_asset_definition_2
+    language: python
+    file: breaks/py/paradigm_break_class_pipeline.py
+    category: asset_definition
+    hunk_start_line: 13
+    hunk_end_line: 76
+    rationale: "Dagster models data with @asset-decorated pure functions wired by the asset graph;
+      a Pipeline class that stores intermediate data as self.raw_rows / self.clean_rows and calls
+      connect() / extract() / transform() / load() in sequence replaces the entire @asset /
+      Definitions vocabulary absent from the corpus"
+    difficulty: medium
+    host_file: python_modules/dagster/dagster/_core/definitions/definitions_class.py
+    host_inject_at_line: 800
+
+  - id: dagster_py_scheduling_1
+    language: python
+    file: breaks/py/paradigm_break_apscheduler.py
+    category: scheduling
+    hunk_start_line: 15
+    hunk_end_line: 76
+    rationale: "Dagster declares schedules as ScheduleDefinition objects registered in Definitions()
+      with cron_schedule, execution_timezone, and DefaultScheduleStatus managed by the Dagster daemon;
+      APScheduler's BlockingScheduler, scheduler.add_job(), CronTrigger, and replace_existing=True
+      are absent from the Dagster corpus"
+    difficulty: easy
+    host_file: python_modules/dagster/dagster/_core/definitions/schedule_definition.py
+    host_inject_at_line: 650
+
+  - id: dagster_py_scheduling_2
+    language: python
+    file: breaks/py/paradigm_break_cron_schedule.py
+    category: scheduling
+    hunk_start_line: 14
+    hunk_end_line: 75
+    rationale: "Dagster uses ScheduleDefinition with execution_fn yielding RunRequest objects evaluated
+      by the Dagster daemon; croniter for next-fire computation, threading.Event for sleep, and
+      a manual _schedule_loop() with try/except are absent from the Dagster corpus — no RunRequest,
+      cron_schedule field, or job_name appear"
+    difficulty: hard
+    host_file: python_modules/dagster/dagster/_core/definitions/schedule_definition.py
+    host_inject_at_line: 950
+
+  - id: dagster_py_validation_1
+    language: python
+    file: breaks/py/paradigm_break_jsonschema_validation.py
+    category: validation
+    hunk_start_line: 15
+    hunk_end_line: 83
+    rationale: "Dagster validates run config through dagster.Field / dagster.Shape / dagster.Array
+      with DagsterInvalidConfigError on failure; manually building JSON Schema dicts and calling
+      jsonschema.validate() with ValidationError is absent from the Dagster corpus — none of
+      Field, Shape, ConfigSchema, or @config_mapping appear"
+    difficulty: medium
+    host_file: python_modules/dagster/dagster/_core/definitions/job_definition.py
+    host_inject_at_line: 800
+
+  - id: dagster_py_validation_2
+    language: python
+    file: breaks/py/paradigm_break_pydantic_model.py
+    category: validation
+    hunk_start_line: 14
+    hunk_end_line: 68
+    rationale: "Dagster's dagster.Config (a Pydantic superclass) integrates with the event log and
+      MetadataValue; declaring standalone Pydantic v2 BaseModel classes with field_validator /
+      model_validator and calling model_validate() / model_dump() bypasses dagster.Config,
+      MetadataValue, AssetMaterialization.metadata, and DagsterType — all absent from the corpus"
+    difficulty: hard
+    host_file: python_modules/dagster/dagster/_core/definitions/op_definition.py
+    host_inject_at_line: 700
+
+  - id: dagster_py_exception_handling_1
+    language: python
+    file: breaks/py/paradigm_break_broad_except.py
+    category: exception_handling
+    hunk_start_line: 15
+    hunk_end_line: 80
+    rationale: "Dagster handles transient failures via RetryPolicy(max_retries=N, backoff=Backoff.EXPONENTIAL)
+      attached to op definitions; broad except Exception blocks with time.sleep() retry loops and
+      silent empty returns on extract failure replace RetryPolicy, Backoff, Jitter, and @failure_hook
+      — none of which appear in the Dagster corpus"
+    difficulty: medium
+    host_file: python_modules/dagster/dagster/_core/definitions/policy.py
+    host_inject_at_line: 85
+
+  - id: dagster_py_exception_handling_2
+    language: python
+    file: breaks/py/paradigm_break_atexit_handler.py
+    category: exception_handling
+    hunk_start_line: 15
+    hunk_end_line: 70
+    rationale: "Dagster uses @failure_hook / @success_hook decorators receiving HookContext for
+      structured lifecycle responses; atexit.register() callbacks and signal.signal(SIGTERM, ...)
+      handlers that mutate a module-level _pipeline_state dict are absent from the Dagster corpus —
+      @failure_hook, HookContext, op_failure_event, and RetryPolicy do not appear"
+    difficulty: medium
+    host_file: python_modules/dagster/dagster/_core/definitions/sensor_definition.py
+    host_inject_at_line: 500
+
+  - id: dagster_py_asset_definition_3
+    language: python
+    file: breaks/py/paradigm_break_raw_boto3_io.py
+    category: asset_definition
+    hunk_start_line: 15
+    hunk_end_line: 67
+    rationale: "Dagster manages S3 persistence via IOManager / UPathIOManager subclasses implementing
+      handle_output(context, obj) and load_input(context) with S3Resource; constructing a boto3 client
+      directly and calling put_object / get_object with pickle serialisation bypasses IOManager,
+      OutputContext, InputContext, and UPathIOManager — none of which appear in the Dagster corpus"
+    difficulty: medium
+    host_file: python_modules/libraries/dagster-aws/dagster_aws/s3/io_manager.py
+    host_inject_at_line: 100
+
+  # ---------------------------------------------------------------------
+  # TypeScript — Dagit (UI) vs other-framework paradigms
+  # ---------------------------------------------------------------------
+  - id: dagster_ts_framework_swap_1
+    language: typescript
+    file: breaks/ts/break_framework_swap_1.tsx
+    category: framework_swap
+    hunk_start_line: 5
+    hunk_end_line: 51
+    rationale: >-
+      Redux connect() HOC wrapping a class component with componentDidMount lifecycle method,
+      mapStateToProps, and mapDispatchToProps — Dagit uses function components with useRecoilState
+      for shared state and custom domain hooks. The react-redux connect pattern and class components
+      are entirely absent from the codebase.
+    difficulty: medium
+    host_file: js_modules/ui-core/src/assets/AssetEvents.tsx
+    host_inject_at_line: 30
+
+  - id: dagster_ts_framework_swap_2
+    language: typescript
+    file: breaks/ts/break_framework_swap_2.tsx
+    category: framework_swap
+    hunk_start_line: 5
+    hunk_end_line: 44
+    rationale: >-
+      jQuery $.ajax + imperative DOM mutation ($container.empty(), .append(), .on()) inside
+      what should be a React component. Dagit renders all UI through React function components
+      using Box/Icon/Colors from @dagster-io/ui-components; direct DOM manipulation via jQuery
+      selectors has no place in the codebase.
+    difficulty: easy
+    host_file: js_modules/ui-core/src/assets/AssetActionMenu.tsx
+    host_inject_at_line: 25
+
+  - id: dagster_ts_framework_swap_3
+    language: typescript
+    file: breaks/ts/break_framework_swap_3.tsx
+    category: framework_swap
+    hunk_start_line: 5
+    hunk_end_line: 48
+    rationale: >-
+      Vue 3 Composition API — defineComponent, ref, computed, template string with v-if and
+      @click directives — transplanted into a React/TypeScript file. Dagit is entirely React
+      with JSX; Vue-specific APIs (defineComponent, setup(), vue template) are structurally
+      incompatible with the codebase.
+    difficulty: easy
+    host_file: js_modules/ui-core/src/assets/AssetHealthSummary.tsx
+    host_inject_at_line: 50
+
+  - id: dagster_ts_state_management_1
+    language: typescript
+    file: breaks/ts/break_state_management_1.tsx
+    category: state_management
+    hunk_start_line: 5
+    hunk_end_line: 60
+    rationale: >-
+      MobX makeAutoObservable class store + observer() HOC from mobx-react-lite instead of
+      Dagit's Recoil atoms (useRecoilState/useRecoilValue). Dagit wraps the whole app in
+      RecoilRoot; MobX and its observable/observer pattern are not present anywhere in the
+      ui-core or app-oss packages.
+    difficulty: hard
+    host_file: js_modules/ui-core/src/overview/OverviewJobsTable.tsx
+    host_inject_at_line: 20
+
+  - id: dagster_ts_state_management_2
+    language: typescript
+    file: breaks/ts/break_state_management_2.tsx
+    category: state_management
+    hunk_start_line: 5
+    hunk_end_line: 48
+    rationale: >-
+      Redux Toolkit createSlice + configureStore + useDispatch/useSelector for local UI filter
+      state, whereas Dagit uses Recoil atoms and useQueryPersistedState (URL-synced hook) for
+      shared and persistent UI state. @reduxjs/toolkit and react-redux are absent from Dagit's
+      package.json.
+    difficulty: hard
+    host_file: js_modules/ui-core/src/app/AppProvider.tsx
+    host_inject_at_line: 40
+
+  - id: dagster_ts_data_fetching_1
+    language: typescript
+    file: breaks/ts/break_data_fetching_1.tsx
+    category: data_fetching
+    hunk_start_line: 6
+    hunk_end_line: 65
+    rationale: >-
+      Raw fetch() + useEffect + manual {data, loading, error} state triple for REST data
+      instead of Dagit's Apollo useQuery wrapping GraphQL operations. Dagit has no REST
+      fetch-with-useState pattern in its UI layer; every data request goes through Apollo
+      Client and a generated GraphQL query.
+    difficulty: medium
+    host_file: js_modules/ui-core/src/live-data-provider/LiveDataProvider.tsx
+    host_inject_at_line: 35
+
+  - id: dagster_ts_data_fetching_2
+    language: typescript
+    file: breaks/ts/break_data_fetching_2.tsx
+    category: data_fetching
+    hunk_start_line: 6
+    hunk_end_line: 49
+    rationale: >-
+      Axios + setInterval manual polling loop for live asset materialization status instead of
+      Dagit's Apollo Client + LiveDataProvider, which manages refresh cadence via
+      LiveDataPollRateContext (default 2000 ms). The axios package and raw setInterval timers
+      for UI polling are absent from Dagit's codebase.
+    difficulty: hard
+    host_file: js_modules/ui-core/src/assets/AssetEventDetail.tsx
+    host_inject_at_line: 22
+
+  - id: dagster_ts_routing_1
+    language: typescript
+    file: breaks/ts/break_routing_1.tsx
+    category: routing
+    hunk_start_line: 6
+    hunk_end_line: 50
+    rationale: >-
+      React Router v5 Switch + Route with component= prop for page routing instead of Dagit's
+      Next.js pages directory. Dagit is a Next.js app; page-level routing is handled by the
+      file-system pages/ convention and useRouter() from next/router. React Router's Switch and
+      Route component= pattern conflict with the Next.js model.
+    difficulty: medium
+    host_file: js_modules/ui-core/src/overview/OverviewActivityRoot.tsx
+    host_inject_at_line: 20
+
+  - id: dagster_ts_routing_2
+    language: typescript
+    file: breaks/ts/break_routing_2.tsx
+    category: routing
+    hunk_start_line: 6
+    hunk_end_line: 44
+    rationale: >-
+      React Router v5 withRouter HOC injecting history.push into a class component for
+      programmatic navigation. Dagit navigates programmatically using useRouter() from
+      next/router inside function components; withRouter and history.push are React Router
+      patterns with no analog in the Next.js-based codebase.
+    difficulty: medium
+    host_file: js_modules/ui-core/src/nav/PipelineNav.tsx
+    host_inject_at_line: 22
+
+  - id: dagster_ts_styling_1
+    language: typescript
+    file: breaks/ts/break_styling_1.tsx
+    category: styling
+    hunk_start_line: 6
+    hunk_end_line: 48
+    rationale: >-
+      CSS Modules import (*.module.css) + classnames utility for conditional class names instead
+      of Dagit's @dagster-io/ui-components design-system (Box flex props, Colors token functions,
+      Icon primitives). CSS module files and the classnames package are not used anywhere in the
+      ui-core or app-oss packages.
+    difficulty: hard
+    host_file: js_modules/ui-core/src/hooks/useQueryPersistedState.tsx
+    host_inject_at_line: 50
+
+  - id: dagster_ts_styling_2
+    language: typescript
+    file: breaks/ts/break_styling_2.tsx
+    category: styling
+    hunk_start_line: 6
+    hunk_end_line: 50
+    rationale: >-
+      styled-jsx scoped <style jsx>{``}</style> blocks for component-level CSS-in-JSX instead
+      of Dagit's @dagster-io/ui-components Box/Colors system. Though styled-jsx ships with
+      Next.js, Dagit applies no scoped style blocks; visual styling goes exclusively through the
+      @dagster-io/ui-components token system.
+    difficulty: medium
+    host_file: js_modules/ui-core/src/instigation/InstigationTick.tsx
+    host_inject_at_line: 14
+
+  - id: dagster_ts_framework_swap_4
+    language: typescript
+    file: breaks/ts/break_type_paradigm_1.ts
+    category: framework_swap
+    hunk_start_line: 6
+    hunk_end_line: 52
+    rationale: >-
+      JSDoc-annotated JavaScript posing as TypeScript: `any` on every parameter and return type,
+      `var` declarations, and bare `function()` expressions. Dagit enforces strict TypeScript
+      (no-any, no implicit any, all props/state fully typed with explicit interfaces). This
+      pattern would fail oxlint no-explicit-any and tsc strict checks throughout the codebase.
+    difficulty: easy
+    host_file: js_modules/ui-core/src/assets/AssetLink.tsx
+    host_inject_at_line: 13

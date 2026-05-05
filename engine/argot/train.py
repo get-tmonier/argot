@@ -23,6 +23,12 @@ _EXCLUDE_DIRS: frozenset[str] = frozenset(
         "test",
         "tests",
         "__tests__",
+        # `benchmarks` is conventionally non-production code (the same category
+        # as `tests`/`__tests__`), and on argot itself the working-tree walk
+        # would otherwise pull in gitignored bench corpus clones under
+        # `benchmarks/data/.repo/`. Skipping by basename keeps the corpus
+        # focused on real product code.
+        "benchmarks",
     }
 )
 

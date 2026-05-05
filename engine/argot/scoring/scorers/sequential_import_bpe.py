@@ -692,11 +692,29 @@ class SequentialImportBpeScorer:
 
         if winning_reason == "import":
             # Preserve the order the imports appear in the hunk for the
-            # rendered ``↳`` line — sets don't preserve order, so re-derive.
-            hunk_imports = list(self._adapter.extract_imports(hunk_content))
-            ordered_foreign = [m for m in hunk_imports if m in foreign]
+            # rendered ``↳`` line, and capture each foreign specifier's
+            # first-occurrence source span within the hunk so the
+            # evidence formatter can annotate it (``msgspec (L7)``), the
+            # truncation logic can peek to keep that line visible, and
+            # the renderer can draw eslint-style carets under the bytes.
+            from argot.scoring.evidence.types import SourceSpan as _SourceSpan
+
+            imports_with_spans = self._adapter.extract_imports_with_spans(hunk_content)
+            ordered_foreign: list[str] = []
+            seen_foreign: set[str] = set()
+            foreign_spans: dict[str, _SourceSpan] = {}
+            for spec, line, col_start, col_end in imports_with_spans:
+                if spec not in foreign:
+                    continue
+                if spec not in seen_foreign:
+                    ordered_foreign.append(spec)
+                    seen_foreign.add(spec)
+                    foreign_spans[spec] = _SourceSpan(
+                        line=line, col_start=col_start, col_end=col_end
+                    )
             return collect_import_evidence(
                 foreign_specifiers=ordered_foreign,
+                foreign_specifier_spans=foreign_spans,
                 evidence_corpus=self._evidence_corpus,
             )
         if winning_reason == "call_receiver":

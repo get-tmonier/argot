@@ -10,7 +10,7 @@ slot-aware substitution claims.
 from __future__ import annotations
 
 from argot.scoring.evidence.types import EvidenceCorpus as _EvidenceCorpus
-from argot.scoring.evidence.types import ImportEvidence, RarityStat
+from argot.scoring.evidence.types import ImportEvidence, RarityStat, SourceSpan
 
 _COMMON_HERE_LIMIT = 10
 _IMPORT_RARITY_NOUN = "module specifiers"
@@ -20,12 +20,19 @@ _IMPORT_RARITY_WHERE = "repo"
 def collect_import_evidence(
     *,
     foreign_specifiers: list[str],
+    foreign_specifier_spans: dict[str, SourceSpan] | None = None,
     evidence_corpus: _EvidenceCorpus,
 ) -> ImportEvidence:
     """Build the :class:`ImportEvidence` payload for an import-fired hit.
 
     ``foreign_specifiers`` is exactly the set the scorer flagged, in the
     order they appear in the hunk; the formatter caps and renders.
+
+    ``foreign_specifier_spans`` is the ``{spec: SourceSpan}`` map the
+    scorer derived from the parser's span-aware import extractor. When
+    omitted, the rendered evidence falls back to the unannotated form —
+    no ``(L7)`` line annotation and no ``^^^^^`` carets in the hunk
+    body. Used at scoring time, never serialized to disk.
     """
     return ImportEvidence(
         foreign_specifiers=list(foreign_specifiers),
@@ -36,6 +43,7 @@ def collect_import_evidence(
             where=_IMPORT_RARITY_WHERE,
         ),
         common_here=list(evidence_corpus.imports[:_COMMON_HERE_LIMIT]),
+        foreign_specifier_spans=dict(foreign_specifier_spans or {}),
     )
 
 

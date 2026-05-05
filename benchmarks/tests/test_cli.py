@@ -194,6 +194,22 @@ def test_cli_accepts_call_receiver_alpha_flag():
     assert ns3.call_receiver_cap == 5  # default cap
 
 
+def test_cli_era13_5_defaults():
+    """Era-13.5 production defaults: asym cal on, rare-threshold=2, probe=1000."""
+    from argot_bench.cli import build_parser
+
+    parser = build_parser()
+    ns = parser.parse_args([])
+    assert ns.call_receiver_cluster_rare_threshold == 2
+    assert ns.auto_select_asym_cal is True
+    assert ns.asym_probe_n == 1000
+
+    ns_one = parser.parse_args(["run-one", "faker-js", "--out-dir", "/tmp"])
+    assert ns_one.call_receiver_cluster_rare_threshold == 2
+    assert ns_one.auto_select_asym_cal is True
+    assert ns_one.asym_probe_n == 1000
+
+
 @pytest.mark.integration
 def test_run_one_subprocess_writes_json(tmp_path: Path) -> None:
     """Spawns a real subprocess; skipped if argot-bench is not importable."""
@@ -202,3 +218,70 @@ def test_run_one_subprocess_writes_json(tmp_path: Path) -> None:
         capture_output=True,
     )
     assert proc.returncode == 2
+
+
+def test_multi_corpus_dispatched_to_run_one(tmp_path: Path) -> None:
+    """Multi-language corpora are now scored, not skipped.
+
+    The orchestrator must dispatch ``run-one`` for ``language: multi`` targets
+    and expect multiple JSON files (one per language) in the output directory.
+    """
+    _FAKE_METRICS = {
+        "auc_catalog": 0.75,
+        "recall_by_category": {},
+        "recall_by_difficulty": {},
+        "fp_rate_real_pr": 0.0,
+        "threshold_cv": 0.0,
+        "threshold_mean": 2.5,
+        "thresholds": [2.5],
+        "calibration_stability": {},
+        "stage_attribution": {},
+        "n_fixtures": 0,
+        "n_real_pr_hunks": 0,
+        "typicality_filter": True,
+        "sample_controls": None,
+    }
+
+    def fake_run(cmd: list[str], **_kwargs: object) -> MagicMock:
+        corpus = cmd[-1]
+        out_dir = Path(cmd[cmd.index("--out-dir") + 1])
+        out_dir.mkdir(parents=True, exist_ok=True)
+        # Simulate run-one writing two files for a multi corpus.
+        for lang in ("python", "typescript"):
+            (out_dir / f"{corpus} ({lang}).json").write_text(
+                json.dumps(
+                    {
+                        "corpus": f"{corpus} ({lang})",
+                        "language": lang,
+                        "metrics": _FAKE_METRICS,
+                        "raw_scores": [],
+                    }
+                )
+            )
+        m = MagicMock()
+        m.returncode = 0
+        return m
+
+    with patch("argot_bench.cli.subprocess.run", side_effect=fake_run):
+        with patch("argot_bench.cli.load_targets") as mock_load:
+            from argot_bench.targets import PR, Target
+
+            mock_load.return_value = [
+                Target(
+                    name="dagster",
+                    url="https://github.com/dagster-io/dagster",
+                    language="multi",
+                    prs=[PR(pr=1, sha="a" * 40)],
+                ),
+            ]
+            exit_code = main(["--corpus", "dagster", "--results-dir", str(tmp_path)])
+
+    assert exit_code == 0
+    subdirs = [d for d in tmp_path.iterdir() if d.is_dir()]
+    assert len(subdirs) == 1
+    out_dir = subdirs[0]
+    report_file = out_dir / "report.md"
+    assert report_file.exists()
+    content = report_file.read_text()
+    assert "dagster (python)" in content
+    assert "dagster (typescript)" in content
