@@ -432,7 +432,7 @@ argot is **alpha** software. We ship honest benchmarks and a public research log
 
 - **Needs enough source code to calibrate:** the sampler looks for top-level functions/classes (≥ 5 body lines) in the current tree. Validated corpora had calibration pools of 112–494 hunks; repos with fewer than ~100 sampleable units will hit the pool-cap branch and may produce a noisier threshold.
 - **Best on codebases with a consistent hand.** Highly polyglot repos or repos with many contributors and no enforced style are harder to model.
-- **Single-threshold model on multi-language monorepos.** Mixed Python + TypeScript repos calibrate against a joint distribution today, dominated by whichever language has broader token diversity. Per-language calibration is on the roadmap ([#41](https://github.com/get-tmonier/argot/issues/41)).
+- ~~**Single-threshold model on multi-language monorepos.** Mixed Python + TypeScript repos calibrate against a joint distribution today, dominated by whichever language has broader token diversity. Per-language calibration is on the roadmap ([#41](https://github.com/get-tmonier/argot/issues/41)).~~ ✅ **Shipped** (closes [#41](https://github.com/get-tmonier/argot/issues/41)) — `argot calibrate` now emits one threshold per language present in the repo and `argot check` dispatches each hunk by file extension. Dagster is the reference multi-language corpus; see [`docs/research/decisions/per-language-calibration.md`](docs/research/decisions/per-language-calibration.md).
 - **Validation corpus is library-only.** All six benchmarked corpora are libraries / frameworks (FastAPI, rich, faker, hono, ink, faker-js). Application code may behave differently and the recall / FP numbers haven't been proven there yet ([#66](https://github.com/get-tmonier/argot/issues/66)).
 - **Residual recall and FP gaps** under active research — currently 108/115 fixtures caught and two corpora at ~2% FP. The current research era pushes FP to ≤ 1% and chases the architectural recall ceiling ([#54](https://github.com/get-tmonier/argot/issues/54)).
 - **Cold start on brand-new files:** less context to score against.
@@ -457,7 +457,7 @@ The minimum-viable-v1 set we'd want to ship before recommending argot for produc
 |---|---|
 | [#54](https://github.com/get-tmonier/argot/issues/54) | Push FP rate to ≤ 1% across all corpora and close the residual recall gap |
 | [#66](https://github.com/get-tmonier/argot/issues/66) | Validate on application corpora, not just libraries |
-| [#41](https://github.com/get-tmonier/argot/issues/41) | Per-language calibration in mixed-language monorepos |
+| ~~[#41](https://github.com/get-tmonier/argot/issues/41)~~ ✅ | ~~Per-language calibration in mixed-language monorepos~~ — shipped, closes [#41](https://github.com/get-tmonier/argot/issues/41) |
 | [#57](https://github.com/get-tmonier/argot/issues/57) | Suppression mechanism — adoption blocker without it |
 | [#51](https://github.com/get-tmonier/argot/issues/51) | Repo introspection / suitability check |
 | [#58](https://github.com/get-tmonier/argot/issues/58) | Official CI integration (GitHub Action + pre-commit + SARIF) |
