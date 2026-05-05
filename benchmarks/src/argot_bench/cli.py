@@ -197,6 +197,17 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
+        "--asym-probe-n",
+        type=int,
+        default=1000,
+        metavar="N",
+        help=(
+            "Number of hunks to probe when auto-detecting asym vs sym calibration "
+            "(default 1000, era-13.5 production setting). "
+            "Larger N reduces variance in the fire-rate estimate."
+        ),
+    )
+    p.add_argument(
         "--jobs",
         "-j",
         type=int,
@@ -259,12 +270,12 @@ def build_parser() -> argparse.ArgumentParser:
     one.add_argument(
         "--call-receiver-cluster-rare-threshold",
         type=int,
-        default=0,
+        default=2,
         metavar="N",
         help=(
             "Phase-10 frequency-aware attestation: callees attested in <= N "
             "cluster files are treated as cluster-absent (cluster_bonus fires). "
-            "Default 0 (disabled). Try 2 to catch rare-but-attested callees."
+            "Default 2 (era-13.5 production setting). Pass 0 to disable."
         ),
     )
     one.add_argument(
@@ -341,6 +352,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=0.05,
         metavar="FRAC",
         help="Fire-rate cutoff for --auto-select-asym-cal (default 0.05).",
+    )
+    one.add_argument(
+        "--asym-probe-n",
+        type=int,
+        default=1000,
+        metavar="N",
+        help=(
+            "Number of hunks to probe for auto-detecting asym vs sym calibration "
+            "(default 1000, era-13.5 production setting)."
+        ),
     )
 
     return p
@@ -423,6 +444,7 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
         apply_optional_contributions_to_cal=args.apply_optional_contributions_to_cal,
         auto_select_asym_cal=args.auto_select_asym_cal,
         asym_fire_rate_threshold=args.asym_fire_rate_threshold,
+        asym_probe_n=args.asym_probe_n,
     )
     args.out_dir.mkdir(parents=True, exist_ok=True)
     reports = run_corpus(cfg)
@@ -471,7 +493,7 @@ def _run(args: argparse.Namespace) -> int:
         base_cmd.extend(["--call-receiver-clusters", str(args.call_receiver_clusters)])
     if args.call_receiver_cluster_bonus != 5.0:
         base_cmd.extend(["--call-receiver-cluster-bonus", str(args.call_receiver_cluster_bonus)])
-    if args.call_receiver_cluster_rare_threshold != 0:
+    if args.call_receiver_cluster_rare_threshold != 2:
         base_cmd.extend(
             [
                 "--call-receiver-cluster-rare-threshold",
@@ -506,6 +528,8 @@ def _run(args: argparse.Namespace) -> int:
         base_cmd.append("--auto-select-asym-cal")
     if args.asym_fire_rate_threshold != 0.05:
         base_cmd.extend(["--asym-fire-rate-threshold", str(args.asym_fire_rate_threshold)])
+    if args.asym_probe_n != 1000:
+        base_cmd.extend(["--asym-probe-n", str(args.asym_probe_n)])
 
     def _run_corpus_subprocess(t: Target) -> tuple[str, int, str]:
         proc = subprocess.run(

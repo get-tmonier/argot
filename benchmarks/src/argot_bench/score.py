@@ -118,6 +118,25 @@ def _source_files(repo_dir: Path, adapter: LanguageAdapter) -> list[Path]:
     return out
 
 
+def _git_show_file(repo_dir: Path, commit_sha: str, file_path: str) -> str | None:
+    """Return file content at commit_sha:file_path via git show, or None on error."""
+    import subprocess as _subprocess
+
+    try:
+        result = _subprocess.run(
+            ["git", "show", f"{commit_sha}:{file_path}"],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+        )
+        return result.stdout if result.returncode == 0 else None
+    except (OSError, _subprocess.TimeoutExpired):
+        return None
+
+
 def _load_diff_hunks_for_probe(
     dataset_path: Path,
     repo_dir: Path,
@@ -127,21 +146,24 @@ def _load_diff_hunks_for_probe(
     """Sample n diff hunks from extract's dataset.jsonl for the auto-detect probe.
 
     Returns (hunk_content, file_abs_path, file_source) tuples. Skips records
-    with empty hunks, unreadable files, or out-of-range line bounds.
+    with empty hunks or unreadable commits.
     Deterministic: same (dataset_path, n, seed) always returns same hunks.
 
+    File content is read at the extraction commit (commit_sha field) via
+    ``git show``, not from the current checkout. This avoids stale-line-bounds
+    failures that arise when the repo is checked out at a later commit than
+    when the data was extracted.
+
     Memory: streams the JSONL line-by-line and reservoir-samples (Algorithm R)
-    over hunk metadata triplets only — never holds more than ~n records in
-    memory regardless of dataset size. The previous shuffle-then-truncate
-    implementation OOMed on monorepo-scale datasets (Dagster's extract emits
-    >400k records, each carrying the full hunk + 50-line context-before /
-    -after token lists).
+    over hunk metadata only — never holds more than ~n records in memory
+    regardless of dataset size.
     """
     import json as _json
     import random as _random
 
     rng = _random.Random(seed)
-    reservoir: list[tuple[str, int, int]] = []  # (file_path, hunk_start, hunk_end)
+    # Quad: (file_path, hunk_start, hunk_end, commit_sha)
+    reservoir: list[tuple[str, int, int, str]] = []
     seen: set[str] = set()
     i = 0
     with dataset_path.open() as f:
@@ -153,29 +175,38 @@ def _load_diff_hunks_for_probe(
             fp = rec.get("file_path")
             hs = rec.get("hunk_start_line")
             he = rec.get("hunk_end_line")
-            if not (isinstance(fp, str) and isinstance(hs, int) and isinstance(he, int)):
+            sha = rec.get("commit_sha")
+            if not (
+                isinstance(fp, str)
+                and isinstance(hs, int)
+                and isinstance(he, int)
+                and isinstance(sha, str)
+            ):
                 continue
-            key = f"{fp}:{hs}:{he}"
+            key = f"{sha}:{fp}:{hs}:{he}"
             if key in seen:
                 continue
             seen.add(key)
-            triplet = (fp, hs, he)
+            quad = (fp, hs, he, sha)
             if i < n:
-                reservoir.append(triplet)
+                reservoir.append(quad)
             else:
                 j = rng.randint(0, i)
                 if j < n:
-                    reservoir[j] = triplet
+                    reservoir[j] = quad
             i += 1
 
-    # Re-read file contents only for the sampled triplets — the prior
-    # implementation parsed every record's full payload upfront.
+    # Batch git-show calls by (commit_sha, file_path) to avoid redundant
+    # subprocess spawns when multiple hunks come from the same file at the
+    # same commit.
+    file_cache: dict[tuple[str, str], str | None] = {}
     out: list[tuple[str, Path, str]] = []
-    for fp, hs, he in reservoir:
-        file_abs = repo_dir / fp
-        try:
-            file_source = file_abs.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+    for fp, hs, he, sha in reservoir:
+        cache_key = (sha, fp)
+        if cache_key not in file_cache:
+            file_cache[cache_key] = _git_show_file(repo_dir, sha, fp)
+        file_source = file_cache[cache_key]
+        if file_source is None:
             continue
         lines = file_source.splitlines()
         if hs < 0 or he > len(lines) or he <= hs:
@@ -183,6 +214,7 @@ def _load_diff_hunks_for_probe(
         hunk_content = "\n".join(lines[hs:he])
         if not hunk_content.strip():
             continue
+        file_abs = repo_dir / fp
         out.append((hunk_content, file_abs, file_source))
     return out
 
@@ -211,6 +243,7 @@ def build_scorers(
     auto_select_asym_cal: bool = False,
     asym_fire_rate_threshold: float = 0.05,
     auto_detect_probe_dataset: Path | None = None,
+    asym_probe_n: int = 1000,
 ) -> dict[Language, BenchScorer]:
     """Build one BenchScorer per language, each calibrated on repo_dir.
 
@@ -248,6 +281,7 @@ def build_scorers(
             auto_select_asym_cal=auto_select_asym_cal,
             asym_fire_rate_threshold=asym_fire_rate_threshold,
             auto_detect_probe_dataset=auto_detect_probe_dataset,
+            asym_probe_n=asym_probe_n,
         )
         for lang in languages
     }
@@ -277,6 +311,7 @@ def build_scorer(
     auto_select_asym_cal: bool = False,
     asym_fire_rate_threshold: float = 0.05,
     auto_detect_probe_dataset: Path | None = None,
+    asym_probe_n: int = 1000,
 ) -> BenchScorer:
     """Build a BenchScorer calibrated on n_cal sampled hunks from repo_dir.
 
@@ -321,13 +356,13 @@ def build_scorer(
         # may not be picked even on asym-safe corpora like faker-js).
         if auto_detect_probe_dataset is not None and auto_detect_probe_dataset.exists():
             probe_meta = _load_diff_hunks_for_probe(
-                auto_detect_probe_dataset, repo_dir, n_cal, seed,
+                auto_detect_probe_dataset, repo_dir, asym_probe_n, seed,
             )
         else:
             from argot.scoring.calibration.random_hunk_sampler import (
                 sample_hunks_with_metadata,
             )
-            probe_meta = sample_hunks_with_metadata(repo_dir, n_cal, seed, adapter=adapter)
+            probe_meta = sample_hunks_with_metadata(repo_dir, asym_probe_n, seed, adapter=adapter)
         probe = SequentialImportBpeScorer(
             repo_corpus_files=files,
             bpe_generic_baseline_path=bpe_generic_baseline or _BPE_GENERIC_BASELINE,

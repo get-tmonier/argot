@@ -194,6 +194,22 @@ def test_cli_accepts_call_receiver_alpha_flag():
     assert ns3.call_receiver_cap == 5  # default cap
 
 
+def test_cli_era13_5_defaults():
+    """Era-13.5 production defaults: asym cal on, rare-threshold=2, probe=1000."""
+    from argot_bench.cli import build_parser
+
+    parser = build_parser()
+    ns = parser.parse_args([])
+    assert ns.call_receiver_cluster_rare_threshold == 2
+    assert ns.auto_select_asym_cal is True
+    assert ns.asym_probe_n == 1000
+
+    ns_one = parser.parse_args(["run-one", "faker-js", "--out-dir", "/tmp"])
+    assert ns_one.call_receiver_cluster_rare_threshold == 2
+    assert ns_one.auto_select_asym_cal is True
+    assert ns_one.asym_probe_n == 1000
+
+
 @pytest.mark.integration
 def test_run_one_subprocess_writes_json(tmp_path: Path) -> None:
     """Spawns a real subprocess; skipped if argot-bench is not importable."""

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from argot_bench.run import RunConfig, _real_pr_hunks, _reservoir_sample, _score_real_hunks, run_corpus
 from argot_bench.score import ScoreResult
 
@@ -27,6 +28,7 @@ def test_run_corpus_stub_returns_corpus_report(tmp_path: Path, monkeypatch):
     class FakeBenchScorer:
         threshold = 2.5
         cal_scores = [1.0, 2.5]
+        rare_branch_fire_count = 0
 
         def score_hunk(self, *_a, **_kw):
             from argot_bench.score import ScoreResult
@@ -227,6 +229,7 @@ def test_run_sample_controls_subsample(tmp_path: Path, monkeypatch):
     class FakeScorer:
         threshold = 2.5
         cal_scores = [1.0]
+        rare_branch_fire_count = 0
 
         def score_hunk(self, *_a, **_kw):
             from argot_bench.score import ScoreResult
@@ -905,28 +908,41 @@ def test_partition_real_pr_hunks_bounded_memory_under_sample_controls() -> None:
     assert len(out["typescript"]) == 100
 
 
-def test_load_diff_hunks_for_probe_streams_jsonl(tmp_path: Path) -> None:
+def test_load_diff_hunks_for_probe_streams_jsonl(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """The probe must not load the full dataset.jsonl into memory.
 
     Writes a 5000-record dataset and asks for n=20 samples. Internally
-    the probe does Algorithm R reservoir sampling over metadata triplets;
+    the probe does Algorithm R reservoir sampling over metadata quads;
     the test asserts the output size is bounded and deterministic per
     seed, plus that the output references valid file paths (so the
     streaming projection didn't drop the data we need at the consumer).
+
+    _git_show_file is patched to read from disk so the test doesn't
+    require a real git repo.
     """
     import json as _json
 
+    import argot_bench.score as _score_mod
     from argot_bench.score import _load_diff_hunks_for_probe
 
     repo_dir = tmp_path / "repo"
     repo_dir.mkdir()
     # Real files long enough for diverse hunk bounds across records.
+    file_contents: dict[str, str] = {}
     for i in range(10):
-        (repo_dir / f"f{i}.py").write_text("\n".join(f"line{j}" for j in range(2000)) + "\n")
+        content = "\n".join(f"line{j}" for j in range(2000)) + "\n"
+        (repo_dir / f"f{i}.py").write_text(content)
+        file_contents[f"f{i}.py"] = content
+
+    # Patch _git_show_file to serve content from disk without a real git repo.
+    def _fake_git_show(repo: Path, sha: str, fp: str) -> str | None:
+        return file_contents.get(fp)
+
+    monkeypatch.setattr(_score_mod, "_git_show_file", _fake_git_show)
 
     dataset = tmp_path / "dataset.jsonl"
     # Generate 5000 records with diverse (file, hs, he) triplets so the
-    # probe's dedup-by-triplet doesn't collapse the input to a handful
+    # probe's dedup-by-quad doesn't collapse the input to a handful
     # of rows — without diversity the seed-determinism check would pass
     # trivially regardless of streaming behaviour.
     with dataset.open("w") as f:
@@ -937,6 +953,7 @@ def test_load_diff_hunks_for_probe_streams_jsonl(tmp_path: Path) -> None:
                 "file_path": f"f{file_idx}.py",
                 "hunk_start_line": hs,
                 "hunk_end_line": hs + 3,
+                "commit_sha": f"sha{i % 5}",  # 5 distinct SHAs for cache coverage
                 "language": "python",
                 # Bulky payload that the probe must NOT keep around for
                 # records it doesn't sample.

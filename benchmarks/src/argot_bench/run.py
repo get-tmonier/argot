@@ -96,15 +96,16 @@ class RunConfig:
     call_receiver_n_clusters: int = 8
     call_receiver_cluster_seed: int = 0
     call_receiver_cluster_bonus: float = 5.0
-    call_receiver_cluster_rare_threshold: int = 0
+    call_receiver_cluster_rare_threshold: int = 2
     call_receiver_cluster_size_min: int = 0
     call_receiver_shape_primitive_names: tuple[str, ...] = ()
     threshold_percentile: float | None = None
     threshold_iqr_k: float | None = None
     threshold_n_seeds: int = 7
     apply_optional_contributions_to_cal: bool = False
-    auto_select_asym_cal: bool = False
+    auto_select_asym_cal: bool = True
     asym_fire_rate_threshold: float = 0.05
+    asym_probe_n: int = 1000
 
 
 def _read_hunk_pair(catalog_dir: Path, fixture: Fixture) -> tuple[str, str]:
@@ -419,6 +420,7 @@ def _build_scorer_from_cfg(
         auto_select_asym_cal=cfg.auto_select_asym_cal,
         asym_fire_rate_threshold=cfg.asym_fire_rate_threshold,
         auto_detect_probe_dataset=dataset,  # type: ignore[arg-type]
+        asym_probe_n=cfg.asym_probe_n,
     )
 
 
@@ -505,6 +507,7 @@ def run_corpus(cfg: RunConfig) -> list[CorpusReport]:
             apply_optional_contributions_to_cal=cfg.apply_optional_contributions_to_cal,
             auto_select_asym_cal=cfg.auto_select_asym_cal,
             asym_fire_rate_threshold=cfg.asym_fire_rate_threshold,
+            asym_probe_n=cfg.asym_probe_n,
         )
         if cfg.language == "multi":
             # Quick mode for multi: 1 fixture per (language, category)
@@ -662,6 +665,7 @@ def _run_corpus_multi(
             auto_select_asym_cal=cfg.auto_select_asym_cal,
             asym_fire_rate_threshold=cfg.asym_fire_rate_threshold,
             auto_detect_probe_dataset=dataset,
+            asym_probe_n=cfg.asym_probe_n,
         )
         for lang in langs:
             s = scorers[lang]
