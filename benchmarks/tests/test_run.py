@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+
 from argot_bench.run import RunConfig, _real_pr_hunks, _reservoir_sample, _score_real_hunks, run_corpus
 from argot_bench.score import ScoreResult
 

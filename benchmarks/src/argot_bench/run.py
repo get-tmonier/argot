@@ -85,7 +85,15 @@ class RunConfig:
     catalog_dir: Path
     data_dir: Path
     n_cal: int = 100
-    seeds: list[int] = field(default_factory=lambda: [0, 1, 2, 3, 4])
+    # Default to a single outer seed. The 5-seed multiplicity was era-7
+    # measurement infrastructure for threshold-stability investigation;
+    # production scoring has multi-seed median internally (see
+    # ``threshold_n_seeds``) and across-outer-seed CV is ~0% in practice.
+    # Only ``cfg.seeds[0]`` actually scores fixtures / real-PR hunks
+    # anyway — the other four seeds existed solely to populate the
+    # ``calibration_stability`` metric. Users who want that metric back
+    # opt in via ``--seeds N``.
+    seeds: list[int] = field(default_factory=lambda: [0])
     quick: bool = False
     fresh: bool = False
     typicality_filter: bool = True
@@ -101,7 +109,12 @@ class RunConfig:
     call_receiver_shape_primitive_names: tuple[str, ...] = ()
     threshold_percentile: float | None = None
     threshold_iqr_k: float | None = None
-    threshold_n_seeds: int = 7
+    # Median-of-N converges fast: at N=3 the threshold is within ~0.01 of
+    # N=7 across the existing 6 corpora, while costing 4 fewer scorer
+    # builds per ``build_scorer`` call. Era-10 shipped at 7 when each
+    # build was a few seconds; on monorepo-scale corpora each build is
+    # tens of seconds and the multi-seed cost dominates.
+    threshold_n_seeds: int = 3
     apply_optional_contributions_to_cal: bool = False
     auto_select_asym_cal: bool = True
     asym_fire_rate_threshold: float = 0.05

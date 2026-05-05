@@ -157,10 +157,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--threshold-n-seeds",
         type=int,
-        default=7,
+        default=3,
         metavar="K",
         help=(
-            "Multi-seed median threshold K (default 7, era-10 shipping; 1=single-seed/era-9)."
+            "Multi-seed median threshold K (default 3, lowered from era-10 shipping config of 7; 1=single-seed)."
         ),
     )
     p.add_argument(
@@ -323,9 +323,9 @@ def build_parser() -> argparse.ArgumentParser:
     one.add_argument(
         "--threshold-n-seeds",
         type=int,
-        default=7,
+        default=3,
         metavar="K",
-        help="Multi-seed median threshold K (default 7, era-10 shipping; 1=single-seed/era-9).",
+        help="Multi-seed median threshold K (default 3, lowered from era-10 shipping config of 7; 1=single-seed).",
     )
     one.add_argument(
         "--apply-optional-contributions-to-cal",
@@ -404,6 +404,9 @@ def _select_targets(targets: list[Target], filt: list[str] | None) -> list[Targe
 
 
 
+# Pool of seed values used when the user opts into the calibration-stability
+# metric via ``--seeds N`` on the CLI. The default (no flag) is a single
+# outer seed; see ``RunConfig.seeds`` for the rationale.
 _ALL_SEEDS = [0, 1, 2, 3, 4]
 
 
@@ -414,7 +417,9 @@ def _cmd_run_one(args: argparse.Namespace) -> int:
         print(f"unknown corpus: {args.corpus}", file=sys.stderr)
         return 2
     t = by_name[args.corpus]
-    seeds = _ALL_SEEDS[: args.seeds] if args.seeds is not None else _ALL_SEEDS
+    # No --seeds flag → single outer seed (RunConfig default applies via [0]).
+    # --seeds N → first N values from _ALL_SEEDS for the stability metric.
+    seeds = _ALL_SEEDS[: args.seeds] if args.seeds is not None else [0]
     cfg = RunConfig(
         corpus=t.name,
         url=t.url,
@@ -520,7 +525,7 @@ def _run(args: argparse.Namespace) -> int:
         base_cmd.extend(["--threshold-percentile", str(args.threshold_percentile)])
     if args.threshold_iqr_k is not None:
         base_cmd.extend(["--threshold-iqr-k", str(args.threshold_iqr_k)])
-    if args.threshold_n_seeds != 7:
+    if args.threshold_n_seeds != 3:
         base_cmd.extend(["--threshold-n-seeds", str(args.threshold_n_seeds)])
     if args.apply_optional_contributions_to_cal:
         base_cmd.append("--apply-optional-contributions-to-cal")
