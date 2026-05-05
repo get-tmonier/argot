@@ -559,6 +559,7 @@ argot's scorer is only as honest as the corpora we benchmark it against. We're g
 - [**hono**](https://github.com/honojs/hono) — Yusuke Wada and contributors (TypeScript · edge web framework)
 - [**ink**](https://github.com/vadimdemedes/ink) — Vadim Demedes and contributors (TypeScript · React for CLIs)
 - [**faker-js**](https://github.com/faker-js/faker) — the faker-js team and contributors (TypeScript · fake-data generator)
+- [**Dagster**](https://github.com/dagster-io/dagster) — the Dagster Labs team and contributors (Python + TypeScript monorepo · data orchestration platform with Dagit UI)
 
 The benchmark uses each project's history as a positive corpus and a small held-out set of expert-labelled "voice breaks" as the test set. None of these projects are affiliated with or endorse argot — we just stand on their shoulders.
 
