@@ -67,11 +67,14 @@ argot ships today with calibrated, benchmarked support for:
 
 | Language | Extensions | Validated corpora | Headline result |
 |---|---|---|---|
-| Python | `.py` | FastAPI · rich · faker | recall 95–100% · FP 0.6–2.0% |
-| TypeScript | `.ts` `.tsx` | hono · ink · faker-js | recall 88–93% · FP 0.5–2.0% |
+| Python | `.py` | FastAPI · rich · faker | recall 95–100% · FP 0.7–2.1% |
+| TypeScript | `.ts` `.tsx` | hono · ink · faker-js | recall 88–93% · FP 0.4–1.9% |
 | JavaScript | `.js` `.jsx` | _(uses the TypeScript adapter; not yet benchmarked on a JS-only corpus)_ | — |
+| **Monorepo (Py + TS)** | mixed | Dagster (`python_modules/` + `js_modules/`) | py: recall 100% · FP 0.4% · ts: recall 80% · FP 15.2% |
 
 Numbers above are from the live baseline at [`benchmarks/results/baseline/latest/report.md`](benchmarks/results/baseline/latest/report.md). Each corpus contributes a held-out set of expert-labelled "voice breaks" plus tens of thousands of real-PR controls; recall is measured against the breaks, FP against the controls.
+
+**Per-language calibration on monorepos.** Mixed-language repos calibrate one threshold per language (Python and TypeScript are different distributions), and `argot check` dispatches each hunk to its matching scorer by file extension. Single-language repos are unchanged. The Dagster row is the first multi-language reference corpus; the TS half's higher FP rate reflects how distinctive Dagit's UI idioms are (Recoil + Apollo + Next.js) — paradigm-break fixtures for a TS UI codebase have higher overlap with normal recent diffs than for the smaller TS corpora. See [`docs/research/decisions/per-language-calibration.md`](docs/research/decisions/per-language-calibration.md).
 
 **Adding more languages is a roadmap item, not an architectural blocker.** The scoring pipeline is language-agnostic; what's per-language is a tree-sitter adapter (see [tree-sitter parser list](https://github.com/tree-sitter/tree-sitter/wiki/List-of-parsers) — Go, Rust, Java, Ruby, Swift, Kotlin, C#, PHP, and many more all have parsers). Each new language we add ships **after** we've benchmarked it on a real-world corpus and confirmed the scorer's recall + false-positive numbers hold up — we'd rather be slow and honest about coverage than ship "supported" languages that score badly. Have a corpus you'd like to see validated? [Open an issue](https://github.com/get-tmonier/argot/issues/new).
 

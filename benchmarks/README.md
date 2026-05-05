@@ -28,22 +28,26 @@ and next to it under a dated `20260504T053637Z/` folder for historical diffs.
 
 ## Corpora
 
-Six repos pinned to specific SHAs for reproducibility
+Seven repos pinned to specific SHAs for reproducibility
 (see [`targets.yaml`](targets.yaml)):
 
 | Corpus | Language | PRs | Why |
 |---|---|---|---|
-| **fastapi** | python | 1 HEAD + historical walk | Async-first web framework; strong Pydantic/Depends voice |
-| **rich** | python | 1 HEAD + historical walk | Terminal UI library; tight renderer/console vocabulary |
-| **faker** | python | 1 HEAD + historical walk | Deterministic fake-data library; provider-heavy |
+| **fastapi** | python | 5 pre-merge + HEAD host | Async-first web framework; strong Pydantic/Depends voice |
+| **rich** | python | 5 pre-merge + HEAD host | Terminal UI library; tight renderer/console vocabulary |
+| **faker** | python | 5 pre-merge + HEAD host | Deterministic fake-data library; provider-heavy |
 | **hono** | typescript | 5 pre-merge snapshots | Edge-runtime web framework |
 | **ink** | typescript | 5 pre-merge snapshots | React components for CLI UIs |
 | **faker-js** | typescript | 5 pre-merge snapshots | TS port of faker with locale data |
+| **dagster** | **multi** (py + ts) | 5 pre-merge + HEAD host | Reference monorepo for per-language calibration: Python in `python_modules/`, TypeScript in `js_modules/` |
 
-Python corpora have one HEAD SHA; the bench walks history from there.
-TypeScript corpora use 5 pre-merge PR snapshots each to capture
-"hunks in review" rather than merged history (git history on TS repos
-often collapses PRs into a single squash commit).
+Each corpus has 5 pre-merge PR snapshots for "hunks in review" controls
+plus a primary HEAD SHA for the fixture-injection host. **Dagster** is a
+multi-language corpus — its catalog ships per-fixture `language` markers
+so the bench builds two scorers (one per language) and reports two rows
+(`dagster (python)`, `dagster (typescript)`) under one entry. See
+[`docs/research/decisions/per-language-calibration.md`](../docs/research/decisions/per-language-calibration.md)
+for the design rationale.
 
 ## Fixture catalogs
 
@@ -61,7 +65,13 @@ See `benchmarks/catalogs/<corpus>/manifest.yaml`.
 | hono | 5 | 17 |
 | ink | 5 | 17 |
 | faker-js | 5 | 17 |
-| **total** | **34** | **115** |
+| dagster (py + ts) | 9 | 24 (12 py + 12 ts) |
+| **total** | **45** | **139** |
+
+The dagster catalog is split per-fixture: each entry carries an explicit
+`language: python|typescript` field so the multi-language bench routes
+it to the matching scorer. Single-language catalogs omit the field and
+fall back to the catalog's top-level `language`.
 
 Example categories: `framework_swap` (Django CBV in a FastAPI app),
 `async_blocking` (`time.sleep` inside an async def), `serialization`

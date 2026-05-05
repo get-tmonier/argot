@@ -1,0 +1,831 @@
+# argot-bench report
+
+Generated: 2026-05-05T03:03:42.397927+00:00
+
+## Headline
+
+| Corpus | Lang | AUC | Recall | FP | Gap | N_fix | N_ctrl | Thr |
+|:---|:---|---:|---:|---:|---:|---:|---:|---:|
+| fastapi | python | 0.9946 | 95.4% | 0.7% | -4.371 | 32 | 79623 | 5.258 |
+| rich | python | 0.9964 | 100.0% | 1.0% | -2.116 | 16 | 68598 | 4.647 |
+| faker | python | 0.9537 | 95.0% | 2.1% | -4.946 | 16 | 75996 | 5.384 |
+| hono | typescript | 0.8326 | 88.3% | 0.5% | -7.471 | 17 | 54987 | 4.271 |
+| ink | typescript | 0.9905 | 93.3% | 0.4% | -3.990 | 17 | 16678 | 4.993 |
+| faker-js | typescript | 0.9477 | 93.3% | 1.9% | -7.066 | 17 | 256335 | 4.861 |
+| dagster (python) | python | 0.9520 | 100.0% | 0.4% | -3.391 | 12 | 42345 | 4.816 |
+| dagster (typescript) | typescript | 0.9242 | 80.0% | 15.2% | -6.252 | 12 | 14979 | 5.074 |
+
+_Gap = min(break) − max(control). Positive = clean separation; negative = overlap._
+
+## fastapi (python)
+
+### Summary
+
+- **AUC (catalog vs real-PR controls):** 0.9946
+- **Recall (mean across categories):** 95.4%
+- **FP rate on real PR hunks:** 0.7% (226/79623)
+- **Threshold (mean across seeds):** 5.2585 (CV: 0.0%)
+- **Calibration stability:** rel_var=0.000000, jaccard=1.0000
+- **Separation gap (min break − max control):** -4.3710 (overlap)
+- **Sample sizes:** 32 fixtures · 79623 real-PR controls
+
+### Score distribution
+
+| | n | min | p25 | median | p75 | p90 | max |
+|:---|---:|---:|---:|---:|---:|---:|---:|
+| Break (catalog) | 32 | 2.980 | 5.273 | 6.015 | 6.676 | 7.228 | 7.418 |
+| Control (real PR) | 79623 | -1.250 | 0.000 | 0.000 | 0.891 | 2.347 | 7.351 |
+
+Threshold **5.2585** — 8/32 breaks fall below it (misses), 91/79623 controls fall at/above (false positives).
+
+### Recall by category
+
+```mermaid
+xychart-beta
+    title "fastapi — recall by category"
+    x-axis ["async_blocking", "background_tasks", "dependency_injection", "downstream_http", "exception_handling", "framework_swap", "routing", "serialization", "validation"]
+    y-axis "recall %" 0 --> 110
+    bar [100.0, 100.0, 100.0, 100.0, 83.3, 100.0, 100.0, 100.0, 75.0]
+```
+
+### Per-category detail
+
+| Category | Recall | Hits | Mean break score | Min | Max | Fixtures |
+|:---|---:|---:|---:|---:|---:|:---|
+| async_blocking | 100.0% | 3/3 | 6.619 | 5.247 | 7.361 | async_blocking_1, async_blocking_2, async_blocking_3 |
+| background_tasks | 100.0% | 4/4 | 6.731 | 6.553 | 7.239 | background_tasks_1, background_tasks_2, background_tasks_3, background_tasks_4 |
+| dependency_injection | 100.0% | 3/3 | 5.711 | 5.025 | 6.641 | dependency_injection_1, dependency_injection_2, dependency_injection_3 |
+| downstream_http | 100.0% | 3/3 | 5.196 | 3.557 | 6.153 | downstream_http_1, downstream_http_2, downstream_http_3 |
+| exception_handling | 83.3% | 5/6 | 5.435 | 2.980 | 6.852 | exception_handling_1, exception_handling_2, exception_handling_3, exception_handling_4, exception_handling_5, exception_handling_6 |
+| framework_swap | 100.0% | 3/3 | 5.449 | 5.281 | 5.786 | framework_swap_1, framework_swap_2, framework_swap_3 |
+| routing | 100.0% | 3/3 | 5.478 | 3.817 | 7.418 | routing_1, routing_2, routing_3 |
+| serialization | 100.0% | 3/3 | 6.503 | 5.877 | 7.128 | serialization_1, serialization_2, serialization_3 |
+| validation | 75.0% | 3/4 | 5.473 | 3.817 | 6.504 | validation_1, validation_2, validation_3, validation_4 |
+
+### Per-fixture results
+
+<details>
+<summary>32 fixtures (click to expand)</summary>
+
+| ID | Category | BPE | Flagged | Reason | File | Lines | Rationale |
+|:---|:---|---:|:---:|:---|:---|:---|:---|
+| async_blocking_1 | async_blocking | 5.247 | ✓ | call_receiver | breaks/paradigm_break_subtle_sync_endpoint.py | 41–85 | the FastAPI corpus is dominated by async def endpoints; sync def endpoints with blocking I/O (time.sleep, requests.get, blocking DB calls… |
+| async_blocking_2 | async_blocking | 7.361 | ✓ | bpe | breaks/paradigm_break_event_loop_blocking.py | 18–59 | asyncio.get_event_loop().run_until_complete() called inside async def endpoint bodies — incorrect usage that raises RuntimeError inside a… |
+| async_blocking_3 | async_blocking | 7.250 | ✓ | bpe | breaks/paradigm_break_sync_file_io_async.py | 40–86 | OOV axis: blocking open() / Path.read_text() / json.loads() tight-loop calls inside async def endpoint bodies. Corpus evidence: 0 instanc… |
+| background_tasks_1 | background_tasks | 6.581 | ✓ | bpe | breaks/paradigm_break_concurrent_futures_background.py | 55–87 | concurrent.futures executor.submit() called from each endpoint to dispatch deferred work, discarding the returned Future, instead of Fast… |
+| background_tasks_2 | background_tasks | 6.553 | ✓ | bpe | breaks/paradigm_break_multiprocessing_background.py | 45–90 | multiprocessing.Process with daemon=True spawned from each endpoint instead of FastAPI BackgroundTasks.add_task(). multiprocessing.Proces… |
+| background_tasks_3 | background_tasks | 6.553 | ✓ | bpe | breaks/paradigm_break_queue_carryover.py | 54–97 | Canonical pattern: docs_src/background_tasks/tutorial001_py310.py lines 12-15 — background_tasks.add_task() from an injected BackgroundTa… |
+| background_tasks_4 | background_tasks | 7.239 | ✓ | bpe | breaks/paradigm_break_atexit_background.py | 68–100 | Deferred work accumulated in a module-level deque drained by a repeating threading.Timer, with atexit.register() as a flush safety net — … |
+| dependency_injection_1 | dependency_injection | 5.467 | ✓ | bpe | breaks/paradigm_break_manual_generator_drain.py | 51–112 | Endpoints call next(get_db()) manually and manage teardown with try/finally, bypassing FastAPI's Depends() lifecycle. 428 Depends() sites… |
+| dependency_injection_2 | dependency_injection | 5.025 | ✓ | call_receiver | breaks/paradigm_break_class_instance_no_depends.py | 73–120 | Service classes instantiated at module level and passed as plain default argument values (service: EmailService = email_service) instead … |
+| dependency_injection_3 | dependency_injection | 6.641 | ✓ | bpe | breaks/paradigm_break_injector_di.py | 26–59 | injector library (injector.Injector, @inject, Module, singleton) for dependency injection instead of FastAPI's Depends() — foreign import… |
+| downstream_http_1 | downstream_http | 3.557 | ✓ | call_receiver | breaks/paradigm_break_subtle_manual_status_check.py | 29–65 | FastAPI + httpx corpus uses response.raise_for_status() to propagate downstream errors; manually checking `if response.status_code >= 400… |
+| downstream_http_2 | downstream_http | 6.153 | ✓ | bpe | breaks/paradigm_break_sync_requests_in_async.py | 17–73 | synchronous requests.get() / requests.post() with Session() inside async def endpoints blocks the event loop — the correct pattern is htt… |
+| downstream_http_3 | downstream_http | 5.877 | ✓ | bpe | breaks/paradigm_break_aiohttp_no_context.py | 24–61 |  |
+| exception_handling_1 | exception_handling | 6.852 | ✓ | bpe | breaks/paradigm_break_subtle_wrong_exception.py | 49–89 | decorators, Pydantic models, and Depends() are all idiomatic; the break is confined to the raise statements: ValueError, KeyError, and Ru… |
+| exception_handling_2 | exception_handling | 2.980 | ✓ | call_receiver | breaks/paradigm_break_subtle_exception_swallow.py | 51–109 | decorators, Pydantic models, Depends(), HTTPException, and async def are all idiomatic; the break is purely structural: every endpoint bo… |
+| exception_handling_3 | exception_handling | 6.781 | ✓ | bpe | breaks/paradigm_break_bare_except.py | 18–71 | every endpoint body wrapped in bare except: (no exception type) that silently returns empty data — broad exception-swallowing with no HTT… |
+| exception_handling_4 | exception_handling | 3.817 | ✗ | none | breaks/paradigm_break_json_error_response.py | 51–100 | Endpoints return JSONResponse({"error": str(e)}) directly from except blocks instead of raising HTTPException. Canonical pattern: raise H… |
+| exception_handling_5 | exception_handling | 6.852 | ✓ | bpe | breaks/paradigm_break_traceback_in_response.py | 46–100 | Endpoints expose full stack traces via traceback.format_exc() in response bodies on any exception. traceback.format_exc() is absent from … |
+| exception_handling_6 | exception_handling | 5.326 | ✓ | bpe | breaks/paradigm_break_flask_errorhandler.py | 46–84 | Uses Flask's @app.errorhandler(...) decorator for exception registration instead of FastAPI's @app.exception_handler(...). Flask's errorh… |
+| framework_swap_1 | framework_swap | 5.281 | ✓ | bpe | breaks/paradigm_break_django_cbv.py | 30–78 | FastAPI uses function-based endpoints with typed parameter injection; Django class-based views (View subclasses with def get/post methods… |
+| framework_swap_2 | framework_swap | 5.281 | ✓ | bpe | breaks/paradigm_break_aiohttp_handler.py | 29–74 | FastAPI uses declarative method decorators with parameter injection; aiohttp's async def handler(request: web.Request), await request.jso… |
+| framework_swap_3 | framework_swap | 5.786 | ✓ | bpe | breaks/paradigm_break_tornado_handler.py | 19–98 | tornado RequestHandler subclass with GET/POST methods using self.get_argument(), self.write(), self.finish(), and IOLoop — classic tornad… |
+| routing_1 | routing | 5.199 | ✓ | call_receiver | breaks/paradigm_break_flask_routing.py | 28–67 | FastAPI uses @app.get / @router.post method-specific decorators and Pydantic parameter injection; Flask's @app.route(..., methods=[...]),… |
+| routing_2 | routing | 3.817 | ✓ | call_receiver | breaks/paradigm_break_starlette_mount.py | 19–82 | bare Starlette Router with add_route() and url_for() instead of FastAPI's @router.get/@router.post DSL — imperative route registration wi… |
+| routing_3 | routing | 7.418 | ✓ | bpe | breaks/paradigm_break_imperative_route_loop.py | 77–90 |  |
+| serialization_1 | serialization | 5.877 | ✓ | bpe | breaks/paradigm_break_manual_json_response.py | 47–95 | explicit json.dumps() with custom default= for datetime/Decimal at every endpoint, wrapped in Response(content=..., media_type='applicati… |
+| serialization_2 | serialization | 6.504 | ✓ | bpe | breaks/paradigm_break_manual_dict_response.py | 45–106 | Break axis: explicit field-by-field dict construction with manual float(), bool(), and .isoformat() coercions at every endpoint instead o… |
+| serialization_3 | serialization | 7.128 | ✓ | bpe | breaks/paradigm_break_msgpack_response.py | 43–85 | Break axis: msgpack.packb() binary serialization with Response(media_type='application/x-msgpack') at every endpoint instead of JSON/resp… |
+| validation_1 | validation | 6.226 | ✓ | bpe | breaks/paradigm_break_manual_validation.py | 29–84 | FastAPI's idiomatic pattern is Pydantic BaseModel parameter injection for automatic validation; accepting `body: dict = Body(...)` and th… |
+| validation_2 | validation | 3.817 | ✗ | none | breaks/paradigm_break_voluptuous_validation.py | 30–84 | voluptuous Schema called manually inside endpoints for validation instead of Pydantic BaseModel injection — Schema, Required, Optional, A… |
+| validation_3 | validation | 5.347 | ✓ | bpe | breaks/paradigm_break_cerberus_validation.py | 16–69 | cerberus Validator with schema dicts validates plain dict body params instead of Pydantic BaseModel injection — v.errors, validator.valid… |
+| validation_4 | validation | 6.504 | ✓ | bpe | breaks/paradigm_break_assert_validation.py | 31–95 | Endpoints accept `body: dict = Body(...)` and validate fields with bare `assert` statements instead of Pydantic BaseModel injection. The … |
+
+</details>
+
+### Missed fixtures (2)
+
+Breaks that didn't trip the scorer (threshold 5.2585):
+
+- **validation_2** (`validation`) — score 3.8169, 1.4416 below threshold, reason: `none`
+  - _Rationale:_ voluptuous Schema called manually inside endpoints for validation instead of Pydantic BaseModel injection — Schema, Required, Optional, All, Length, Range, Invalid, MultipleInvalid are voluptuous idioms entirely absent from the FastAPI corpus (0 import sites). Single axis: imperative schema-call validation vs declarative Pydantic parameter injection.
+- **exception_handling_4** (`exception_handling`) — score 3.8169, 1.4416 below threshold, reason: `none`
+  - _Rationale:_ Endpoints return JSONResponse({"error": str(e)}) directly from except blocks instead of raising HTTPException. Canonical pattern: raise HTTPException(status_code=..., detail=...) at 78 corpus sites. Single axis: error response constructed and returned at call site vs. raised and dispatched through registered exception handlers. Inline JSONResponse({"error": ...}) at endpoint scope is rare in corpus.
+
+### Top 5 real-PR controls (closest to false positives)
+
+| Rank | BPE | Flagged | Reason | File | Lines |
+|---:|---:|:---:|:---|:---|:---|
+| 1 | 7.351 | ✓ | bpe | docs_src/generate_clients/tutorial004.js | 0–36 |
+| 2 | 7.351 | ✓ | bpe | docs_src/generate_clients/tutorial004.js | 0–29 |
+| 3 | 7.351 | ✓ | bpe | docs_src/generate_clients/tutorial004.js | 0–36 |
+| 4 | 7.351 | ✓ | bpe | docs_src/generate_clients/tutorial004.js | 0–29 |
+| 5 | 7.351 | ✓ | bpe | docs_src/generate_clients/tutorial004.js | 0–36 |
+
+_Threshold is 5.2585; top control scores 7.3506._
+
+### Stage attribution
+
+- `call_receiver`: 6 (18.8%)
+- `bpe`: 24 (75.0%)
+- `none`: 2 (6.2%)
+
+### Recall by difficulty
+
+| Difficulty | Recall | Hits | Definition |
+|:---|---:|---:|:---|
+| easy | 100.0% | 1/1 | Stage 1 import catch — foreign module in hunk |
+| medium | 100.0% | 22/22 | Stage 2 BPE catch — token-level novelty, no foreign import |
+| hard | 100.0% | 6/6 | Stage 1.5 call-receiver catch — receiver novelty |
+| uncaught | 33.3% | 1/3 | Scorer currently misses — known gap |
+
+## rich (python)
+
+### Summary
+
+- **AUC (catalog vs real-PR controls):** 0.9964
+- **Recall (mean across categories):** 100.0%
+- **FP rate on real PR hunks:** 1.0% (526/68598)
+- **Threshold (mean across seeds):** 4.6469 (CV: 0.0%)
+- **Calibration stability:** rel_var=0.000000, jaccard=1.0000
+- **Separation gap (min break − max control):** -2.1165 (overlap)
+- **Sample sizes:** 16 fixtures · 68598 real-PR controls
+
+### Score distribution
+
+| | n | min | p25 | median | p75 | p90 | max |
+|:---|---:|---:|---:|---:|---:|---:|---:|
+| Break (catalog) | 16 | 2.530 | 5.685 | 5.934 | 6.345 | 6.730 | 7.668 |
+| Control (real PR) | 68598 | -1.286 | 0.000 | 0.945 | 1.488 | 2.097 | 4.647 |
+
+Threshold **4.6469** — 2/16 breaks fall below it (misses), 6/68598 controls fall at/above (false positives).
+
+### Recall by category
+
+```mermaid
+xychart-beta
+    title "rich — recall by category"
+    x-axis ["ansi_raw", "colorama", "curses", "print_manual", "termcolor"]
+    y-axis "recall %" 0 --> 110
+    bar [100.0, 100.0, 100.0, 100.0, 100.0]
+```
+
+### Per-category detail
+
+| Category | Recall | Hits | Mean break score | Min | Max | Fixtures |
+|:---|---:|---:|---:|---:|---:|:---|
+| ansi_raw | 100.0% | 3/3 | 4.634 | 2.530 | 5.685 | ansi_raw_1, ansi_raw_2, ansi_raw_3 |
+| colorama | 100.0% | 3/3 | 6.180 | 5.845 | 6.730 | colorama_1, colorama_2, colorama_3 |
+| curses | 100.0% | 3/3 | 6.637 | 6.027 | 7.668 | curses_1, curses_2, curses_3 |
+| print_manual | 100.0% | 4/4 | 5.579 | 4.215 | 6.730 | print_manual_1, print_manual_2, print_manual_3, dict_render_1 |
+| termcolor | 100.0% | 3/3 | 6.261 | 5.902 | 6.730 | termcolor_1, termcolor_2, termcolor_3 |
+
+### Per-fixture results
+
+<details>
+<summary>16 fixtures (click to expand)</summary>
+
+| ID | Category | BPE | Flagged | Reason | File | Lines | Rationale |
+|:---|:---|---:|:---:|:---|:---|:---|:---|
+| ansi_raw_1 | ansi_raw | 5.685 | ✓ | bpe | breaks/break_ansi_raw_1.py | 18–43 | Manual ANSI escape code styling (\033[31m etc.) with print() in a rich-looking file |
+| ansi_raw_2 | ansi_raw | 5.685 | ✓ | bpe | breaks/break_ansi_raw_2.py | 14–38 | Manual ANSI color code dict and progress bar using sys.stdout.write in a rich-looking file |
+| ansi_raw_3 | ansi_raw | 2.530 | ✓ | call_receiver | breaks/break_ansi_raw_3.py | 13–21 | blessed.Terminal for dashboard rendering — competing terminal UI library imported inside hunk. Canonical: rich.console.Console at >200 co… |
+| colorama_1 | colorama | 6.730 | ✓ | bpe | breaks/break_colorama_1.py | 19–44 | colorama.init() + Fore/Back/Style paradigm for colored table output in a rich-looking file |
+| colorama_2 | colorama | 5.966 | ✓ | bpe | breaks/break_colorama_2.py | 16–41 | colorama spinner and level-based log rendering with Fore/Back/Style in a rich-looking file |
+| colorama_3 | colorama | 5.845 | ✓ | bpe | breaks/break_colorama_3.py | 14–39 | Fore.CYAN + Style.BRIGHT + Back.BLUE + Style.RESET_ALL receiver chain in complex table renderer — colorama imported at file top, outside … |
+| curses_1 | curses | 6.217 | ✓ | bpe | breaks/break_curses_1.py | 18–43 | curses.initscr/start_color/addstr/color_pair dashboard rendering in a rich-looking file |
+| curses_2 | curses | 7.668 | ✓ | bpe | breaks/break_curses_2.py | 16–41 | curses navigable menu with KEY_UP/KEY_DOWN and color_pair highlight in a rich-looking file |
+| curses_3 | curses | 6.027 | ✓ | bpe | breaks/break_curses_3.py | 15–30 | curses.textpad.Textbox interactive form — curses and curses.textpad imported at file top, outside hunk. curses.textpad.Textbox, newwin, i… |
+| dict_render_1 | print_manual | 5.685 | ✓ | bpe | breaks/break_dict_render_1.py | 18–23 | plain print() loop in place of rich Table/Panel; no foreign import in hunk; era-5 limit: print/for/list tokens are ubiquitous in Python c… |
+| print_manual_1 | print_manual | 5.685 | ✓ | bpe | breaks/break_print_manual_1.py | 19–40 | Plain print() with manual ljust/rjust for tabular output in a rich-looking file |
+| print_manual_2 | print_manual | 6.730 | ✓ | bpe | breaks/break_print_manual_2.py | 19–42 | Plain print() with manual center/ljust/rjust for key-value report box in a rich-looking file |
+| print_manual_3 | print_manual | 4.215 | ✓ | call_receiver | breaks/break_print_manual_3.py | 13–21 | tabulate library for table rendering imported inside hunk. Canonical: plain print() with ljust/rjust at break sites; tabulate at 0 rich c… |
+| termcolor_1 | termcolor | 6.153 | ✓ | bpe | breaks/break_termcolor_1.py | 18–43 | termcolor.colored/cprint for banner, diff, and status line rendering in a rich-looking file |
+| termcolor_2 | termcolor | 6.730 | ✓ | bpe | breaks/break_termcolor_2.py | 16–37 | termcolor.colored recursive dict-tree printer in a rich-looking file |
+| termcolor_3 | termcolor | 5.902 | ✓ | bpe | breaks/break_termcolor_3.py | 15–36 | termcolor.colored with on_color and attrs (blink) in structured log emitter and progress bar — termcolor imported at file top, outside hu… |
+
+</details>
+
+### Top 5 real-PR controls (closest to false positives)
+
+| Rank | BPE | Flagged | Reason | File | Lines |
+|---:|---:|:---:|:---|:---|:---|
+| 1 | 4.647 | ✗ | none | rich/traceback.py | 341–348 |
+| 2 | 4.647 | ✗ | none | rich/traceback.py | 336–344 |
+| 3 | 4.647 | ✗ | none | rich/traceback.py | 339–346 |
+| 4 | 4.647 | ✗ | none | rich/traceback.py | 335–350 |
+| 5 | 4.647 | ✗ | none | rich/traceback.py | 335–359 |
+
+_Threshold is 4.6469; top control scores 4.6469._
+
+### Stage attribution
+
+- `call_receiver`: 2 (12.5%)
+- `bpe`: 14 (87.5%)
+
+### Recall by difficulty
+
+| Difficulty | Recall | Hits | Definition |
+|:---|---:|---:|:---|
+| easy | 100.0% | 8/8 | Stage 1 import catch — foreign module in hunk |
+| medium | 100.0% | 5/5 | Stage 2 BPE catch — token-level novelty, no foreign import |
+| hard | 100.0% | 2/2 | Stage 1.5 call-receiver catch — receiver novelty |
+| uncaught | 100.0% | 1/1 | Scorer currently misses — known gap |
+
+## faker (python)
+
+### Summary
+
+- **AUC (catalog vs real-PR controls):** 0.9537
+- **Recall (mean across categories):** 95.0%
+- **FP rate on real PR hunks:** 2.1% (716/75996)
+- **Threshold (mean across seeds):** 5.3845 (CV: 0.0%)
+- **Calibration stability:** rel_var=0.000000, jaccard=1.0000
+- **Separation gap (min break − max control):** -4.9459 (overlap)
+- **Sample sizes:** 16 fixtures · 75996 real-PR controls
+
+### Score distribution
+
+| | n | min | p25 | median | p75 | p90 | max |
+|:---|---:|---:|---:|---:|---:|---:|---:|
+| Break (catalog) | 16 | 1.843 | 4.588 | 5.757 | 6.936 | 7.291 | 7.380 |
+| Control (real PR) | 75996 | -1.321 | 0.000 | 0.000 | 1.518 | 2.300 | 6.789 |
+
+Threshold **5.3845** — 7/16 breaks fall below it (misses), 157/75996 controls fall at/above (false positives).
+
+### Recall by category
+
+```mermaid
+xychart-beta
+    title "faker — recall by category"
+    x-axis ["mimesis_alt", "numpy_random", "requests_source", "sqlalchemy_sink", "threading_provider"]
+    y-axis "recall %" 0 --> 110
+    bar [100.0, 75.0, 100.0, 100.0, 100.0]
+```
+
+### Per-category detail
+
+| Category | Recall | Hits | Mean break score | Min | Max | Fixtures |
+|:---|---:|---:|---:|---:|---:|:---|
+| mimesis_alt | 100.0% | 3/3 | 3.201 | 1.843 | 5.729 | mimesis_alt_1, mimesis_alt_2, mimesis_alt_3 |
+| numpy_random | 75.0% | 3/4 | 4.874 | 3.813 | 5.786 | numpy_random_1, numpy_random_2, numpy_random_3, synthetic_formula_1 |
+| requests_source | 100.0% | 3/3 | 7.073 | 6.596 | 7.380 | requests_source_1, requests_source_2, requests_source_3 |
+| sqlalchemy_sink | 100.0% | 3/3 | 5.545 | 4.571 | 6.957 | sqlalchemy_sink_1, sqlalchemy_sink_2, sqlalchemy_sink_3 |
+| threading_provider | 100.0% | 3/3 | 6.776 | 6.059 | 7.339 | threading_provider_1, threading_provider_2, threading_provider_3 |
+
+### Per-fixture results
+
+<details>
+<summary>16 fixtures (click to expand)</summary>
+
+| ID | Category | BPE | Flagged | Reason | File | Lines | Rationale |
+|:---|:---|---:|:---:|:---|:---|:---|:---|
+| mimesis_alt_1 | mimesis_alt | 1.843 | ✓ | call_receiver | breaks/break_mimesis_alt_1.py | 19–46 | mimesis Person/Address/Finance with Gender enum — competing fake-data library paradigm in a faker-looking file |
+| mimesis_alt_2 | mimesis_alt | 5.729 | ✓ | bpe | breaks/break_mimesis_alt_2.py | 16–33 | polyfactory.ModelFactory with Pydantic BaseModel for type-safe factory generation — import outside hunk (file top), break is ModelFactory… |
+| mimesis_alt_3 | mimesis_alt | 2.032 | ✓ | call_receiver | breaks/break_mimesis_alt_3.py | 14–26 | Faker() calling rare financial provider methods (aba, bban, iban, swift, cryptocurrency_code) — no foreign import, BPE familiar, but thes… |
+| numpy_random_1 | numpy_random | 4.593 | ✓ | call_receiver | breaks/break_numpy_random_1.py | 19–46 | numpy.random Generator/default_rng for name and age generation instead of faker internals in a faker-looking file |
+| numpy_random_2 | numpy_random | 5.786 | ✓ | bpe | breaks/break_numpy_random_2.py | 15–28 | scipy.stats distributions (truncnorm, pareto) for realistic data generation — scipy.stats imported outside hunk. Canonical: numpy.random … |
+| numpy_random_3 | numpy_random | 5.304 | ✓ | call_receiver | breaks/break_numpy_random_3.py | 15–32 | numpy rng.choice and rng.shuffle called on a default_rng instance — receiver methods foreign to faker corpus. rng.integers is known but r… |
+| synthetic_formula_1 | numpy_random | 3.813 | ✗ | none | breaks/break_synthetic_formula_1.py | 18–28 | string-formula synthesis (f-string concat) instead of faker.email()/faker.name(); no foreign import in hunk; era-6 limit: call_receiver h… |
+| requests_source_1 | requests_source | 7.380 | ✓ | bpe | breaks/break_requests_source_1.py | 17–47 | requests.get() fetching real user data from HTTP APIs instead of local fake generation in a faker-looking file |
+| requests_source_2 | requests_source | 7.242 | ✓ | bpe | breaks/break_requests_source_2.py | 15–25 | httpx.Client for HTTP source — httpx imported outside hunk. Canonical: requests.get at faker corpus sites; httpx.Client at 0 sites. |
+| requests_source_3 | requests_source | 6.596 | ✓ | bpe | breaks/break_requests_source_3.py | 16–31 | aiohttp.ClientSession for async HTTP source — session.get/raise_for_status/json are foreign receiver patterns. aiohttp.ClientSession at 0… |
+| sqlalchemy_sink_1 | sqlalchemy_sink | 6.957 | ✓ | bpe | breaks/break_sqlalchemy_sink_1.py | 17–49 | SQLAlchemy ORM model + session.add/commit to persist fakes — DB-sink paradigm in a faker-looking file |
+| sqlalchemy_sink_2 | sqlalchemy_sink | 4.571 | ✓ | call_receiver | breaks/break_sqlalchemy_sink_2.py | 16–28 | csv.DictWriter + io.StringIO export sink — csv and io imported outside hunk. Canonical: SQLAlchemy session at break sites; csv.DictWriter… |
+| sqlalchemy_sink_3 | sqlalchemy_sink | 5.109 | ✓ | call_receiver | breaks/break_sqlalchemy_sink_3.py | 15–30 | SQLAlchemy Session.bulk_save_objects + Session.flush + Session.expire_all — these receiver methods on a Session object are foreign to fak… |
+| threading_provider_1 | threading_provider | 7.339 | ✓ | import | breaks/break_threading_provider_1.py | 19–53 | threading.Thread + Lock + Event parallel fake-data generator class in a faker-looking file |
+| threading_provider_2 | threading_provider | 6.059 | ✓ | bpe | breaks/break_threading_provider_2.py | 15–22 | concurrent.futures.ProcessPoolExecutor for parallel fake generation — import outside hunk. Canonical: threading.Thread at faker corpus si… |
+| threading_provider_3 | threading_provider | 6.929 | ✓ | bpe | breaks/break_threading_provider_3.py | 15–29 | multiprocessing.Queue.put/get_nowait and Process.start/join — receiver methods on Queue and Process objects are foreign to faker corpus. … |
+
+</details>
+
+### Missed fixtures (1)
+
+Breaks that didn't trip the scorer (threshold 5.3845):
+
+- **synthetic_formula_1** (`numpy_random`) — score 3.8133, 1.5712 below threshold, reason: `none`
+  - _Rationale:_ string-formula synthesis (f-string concat) instead of faker.email()/faker.name(); no foreign import in hunk; era-6 limit: call_receiver has no target, BPE tokens (f-string, str, int format) are nominal in the Python corpus
+
+### Top 5 real-PR controls (closest to false positives)
+
+| Rank | BPE | Flagged | Reason | File | Lines |
+|---:|---:|:---:|:---|:---|:---|
+| 1 | 6.789 | ✓ | bpe | faker/providers/address/vi_VN/__init__.py | 0–308 |
+| 2 | 6.789 | ✓ | bpe | faker/providers/address/en_MS/__init__.py | 0–490 |
+| 3 | 6.789 | ✓ | bpe | faker/providers/address/en_US/__init__.py | 528–553 |
+| 4 | 6.789 | ✓ | bpe | faker/providers/address/vi_VN/__init__.py | 0–308 |
+| 5 | 6.789 | ✓ | bpe | faker/providers/address/en_MS/__init__.py | 0–490 |
+
+_Threshold is 5.3845; top control scores 6.7890._
+
+### Stage attribution
+
+- `import`: 1 (6.2%)
+- `call_receiver`: 6 (37.5%)
+- `bpe`: 8 (50.0%)
+- `none`: 1 (6.2%)
+
+### Recall by difficulty
+
+| Difficulty | Recall | Hits | Definition |
+|:---|---:|---:|:---|
+| easy | 100.0% | 5/5 | Stage 1 import catch — foreign module in hunk |
+| medium | 100.0% | 5/5 | Stage 2 BPE catch — token-level novelty, no foreign import |
+| hard | 100.0% | 5/5 | Stage 1.5 call-receiver catch — receiver novelty |
+| uncaught | 0.0% | 0/1 | Scorer currently misses — known gap |
+
+## hono (typescript)
+
+### Summary
+
+- **AUC (catalog vs real-PR controls):** 0.8326
+- **Recall (mean across categories):** 88.3%
+- **FP rate on real PR hunks:** 0.5% (164/54987)
+- **Threshold (mean across seeds):** 4.2707 (CV: 0.0%)
+- **Calibration stability:** rel_var=0.000000, jaccard=1.0000
+- **Separation gap (min break − max control):** -7.4712 (overlap)
+- **Sample sizes:** 17 fixtures · 54987 real-PR controls
+
+### Score distribution
+
+| | n | min | p25 | median | p75 | p90 | max |
+|:---|---:|---:|---:|---:|---:|---:|---:|
+| Break (catalog) | 17 | -1.736 | 1.484 | 4.713 | 5.744 | 6.325 | 6.406 |
+| Control (real PR) | 54987 | -7.061 | 0.000 | 0.000 | 1.020 | 1.780 | 5.735 |
+
+Threshold **4.2707** — 7/17 breaks fall below it (misses), 162/54987 controls fall at/above (false positives).
+
+### Recall by category
+
+```mermaid
+xychart-beta
+    title "hono — recall by category"
+    x-axis ["async_blocking", "framework_swap", "middleware", "routing", "validation"]
+    y-axis "recall %" 0 --> 110
+    bar [100.0, 100.0, 75.0, 100.0, 66.7]
+```
+
+### Per-category detail
+
+| Category | Recall | Hits | Mean break score | Min | Max | Fixtures |
+|:---|---:|---:|---:|---:|---:|:---|
+| async_blocking | 100.0% | 3/3 | 5.988 | 5.744 | 6.406 | hono_async_blocking_1, hono_async_blocking_2, hono_async_blocking_3 |
+| framework_swap | 100.0% | 4/4 | 4.276 | 1.484 | 6.373 | hono_framework_swap_1, hono_framework_swap_2, hono_framework_swap_3, hono_framework_swap_4 |
+| middleware | 75.0% | 3/4 | 2.098 | -1.736 | 5.304 | hono_middleware_1, hono_middleware_2, hono_middleware_3, hono_middleware_4 |
+| routing | 100.0% | 3/3 | 2.238 | 0.819 | 4.713 | hono_routing_1, hono_routing_2, hono_routing_3 |
+| validation | 66.7% | 2/3 | 4.357 | 2.231 | 6.294 | hono_validation_1, hono_validation_2, hono_validation_3 |
+
+### Per-fixture results
+
+<details>
+<summary>17 fixtures (click to expand)</summary>
+
+| ID | Category | BPE | Flagged | Reason | File | Lines | Rationale |
+|:---|:---|---:|:---:|:---|:---|:---|:---|
+| hono_async_blocking_1 | async_blocking | 5.813 | ✓ | bpe | breaks/break_async_blocking_1.ts | 9–12 | fs.readFileSync blocking I/O inside a Hono request handler |
+| hono_async_blocking_2 | async_blocking | 6.406 | ✓ | bpe | breaks/break_async_blocking_2.ts | 8–14 | fs.readFileSync and fs.statSync inside a streaming endpoint |
+| hono_async_blocking_3 | async_blocking | 5.744 | ✓ | bpe | breaks/break_async_blocking_3.ts | 7–10 | child_process.execSync blocks the event loop per request |
+| hono_framework_swap_1 | framework_swap | 1.484 | ✓ | call_receiver | breaks/break_framework_swap_1.ts | 5–12 | Express Router() idiom with (req, res) handlers mounted into a Hono app |
+| hono_framework_swap_2 | framework_swap | 5.211 | ✓ | bpe | breaks/break_framework_swap_2.ts | 6–10 | Express (req: Request, res: Response) callback signature instead of Hono's Context |
+| hono_framework_swap_3 | framework_swap | 6.373 | ✓ | bpe | breaks/break_framework_swap_3.ts | 7–10 | Express body-parser + cors middleware chain wired via app.use |
+| hono_framework_swap_4 | framework_swap | 4.036 | ✓ | call_receiver | breaks/break_framework_swap_4.ts | 1–15 | import express at line 1 — standalone Express Router module in a Hono project; 'express' appears 0 times in non-break hono corpus files v… |
+| hono_middleware_1 | middleware | 5.304 | ✓ | bpe | breaks/break_middleware_1.ts | 5–12 | Express (req, res, next) middleware signature in app.use |
+| hono_middleware_2 | middleware | 0.110 | ✓ | call_receiver | breaks/break_middleware_2.ts | 9–14 | Express 4-arg (err, req, res, next) error-handler signature |
+| hono_middleware_3 | middleware | -1.736 | ✗ | none | breaks/break_middleware_3.ts | 10–11 | Calling next() synchronously instead of Hono's await next() |
+| hono_middleware_4 | middleware | 4.713 | ✓ | import | breaks/break_middleware_4.ts | 1–21 | import Koa + @koa/router at line 1 — Koa ctx.body middleware pattern in a Hono project; Koa absent from all hono corpus PRs (0 grep hits) |
+| hono_routing_1 | routing | 4.713 | ✓ | bpe | breaks/break_routing_1.ts | 6–12 | express.Router() mounted under app.use('/api', router) |
+| hono_routing_2 | routing | 1.183 | ✓ | call_receiver | breaks/break_routing_2.ts | 6–14 | Router().route(path).get().post().delete() chain composition — era-8: <call>.route and <call>.get now caught by call-receiver |
+| hono_routing_3 | routing | 0.819 | ✓ | call_receiver | breaks/break_routing_3.ts | 7–14 | Express-shaped app.all('*', (req, res)) wildcard catch-all |
+| hono_validation_1 | validation | 6.294 | ✓ | bpe | breaks/break_validation_1.ts | 7–13 | Hand-rolled email/password guards instead of a zod/valibot schema |
+| hono_validation_2 | validation | 2.231 | ✗ | none | breaks/break_validation_2.ts | 7–13 | Manual typeof + length guards where a zod schema would fit |
+| hono_validation_3 | validation | 4.547 | ✓ | bpe | breaks/break_validation_3.ts | 10–16 | Regex-literal phone/zip validation instead of a validator library |
+
+</details>
+
+### Missed fixtures (2)
+
+Breaks that didn't trip the scorer (threshold 4.2707):
+
+- **hono_validation_2** (`validation`) — score 2.2307, 2.0400 below threshold, reason: `none`
+  - _Rationale:_ Manual typeof + length guards where a zod schema would fit
+- **hono_middleware_3** (`middleware`) — score -1.7359, 6.0066 below threshold, reason: `none`
+  - _Rationale:_ Calling next() synchronously instead of Hono's await next()
+
+### Top 5 real-PR controls (closest to false positives)
+
+| Rank | BPE | Flagged | Reason | File | Lines |
+|---:|---:|:---:|:---|:---|:---|
+| 1 | 5.735 | ✓ | bpe | src/helper/css/common.ts | 0–243 |
+| 2 | 5.729 | ✓ | bpe | src/helper/css/common.ts | 0–243 |
+| 3 | 5.724 | ✓ | bpe | src/helper/css/common.ts | 0–243 |
+| 4 | 5.718 | ✓ | bpe | src/helper/css/common.ts | 0–243 |
+| 5 | 5.716 | ✓ | bpe | src/helper/css/common.ts | 0–243 |
+
+_Threshold is 4.2707; top control scores 5.7353._
+
+### Stage attribution
+
+- `import`: 1 (5.9%)
+- `call_receiver`: 5 (29.4%)
+- `bpe`: 9 (52.9%)
+- `none`: 2 (11.8%)
+
+### Recall by difficulty
+
+| Difficulty | Recall | Hits | Definition |
+|:---|---:|---:|:---|
+| easy | 100.0% | 2/2 | Stage 1 import catch — foreign module in hunk |
+| medium | 100.0% | 9/9 | Stage 2 BPE catch — token-level novelty, no foreign import |
+| hard | 100.0% | 2/2 | Stage 1.5 call-receiver catch — receiver novelty |
+| uncaught | 50.0% | 2/4 | Scorer currently misses — known gap |
+
+## ink (typescript)
+
+### Summary
+
+- **AUC (catalog vs real-PR controls):** 0.9905
+- **Recall (mean across categories):** 93.3%
+- **FP rate on real PR hunks:** 0.4% (28/16678)
+- **Threshold (mean across seeds):** 4.9932 (CV: 0.0%)
+- **Calibration stability:** rel_var=0.000000, jaccard=1.0000
+- **Separation gap (min break − max control):** -3.9895 (overlap)
+- **Sample sizes:** 17 fixtures · 16678 real-PR controls
+
+### Score distribution
+
+| | n | min | p25 | median | p75 | p90 | max |
+|:---|---:|---:|---:|---:|---:|---:|---:|
+| Break (catalog) | 17 | 2.105 | 5.428 | 6.310 | 8.833 | 8.833 | 8.833 |
+| Control (real PR) | 16678 | -3.575 | 0.000 | 0.000 | 0.359 | 1.527 | 6.094 |
+
+Threshold **4.9932** — 2/17 breaks fall below it (misses), 16/16678 controls fall at/above (false positives).
+
+### Recall by category
+
+```mermaid
+xychart-beta
+    title "ink — recall by category"
+    x-axis ["class_components", "dom_access", "error_flip", "jquery", "lifecycle"]
+    y-axis "recall %" 0 --> 110
+    bar [100.0, 66.7, 100.0, 100.0, 100.0]
+```
+
+### Per-category detail
+
+| Category | Recall | Hits | Mean break score | Min | Max | Fixtures |
+|:---|---:|---:|---:|---:|---:|:---|
+| class_components | 100.0% | 4/4 | 8.833 | 8.833 | 8.833 | ink_class_components_1, ink_class_components_2, ink_class_components_3, ink_class_components_4 |
+| dom_access | 66.7% | 2/3 | 4.210 | 2.105 | 6.310 | ink_dom_access_1, ink_dom_access_2, ink_dom_access_3 |
+| error_flip | 100.0% | 3/3 | 8.833 | 8.833 | 8.833 | ink_error_flip_1, ink_error_flip_2, ink_error_flip_3 |
+| jquery | 100.0% | 4/4 | 6.160 | 5.428 | 8.357 | ink_jquery_1, ink_jquery_2, ink_jquery_3, ink_jquery_4 |
+| lifecycle | 100.0% | 3/3 | 5.428 | 5.428 | 5.428 | ink_lifecycle_1, ink_lifecycle_2, ink_lifecycle_3 |
+
+### Per-fixture results
+
+<details>
+<summary>17 fixtures (click to expand)</summary>
+
+| ID | Category | BPE | Flagged | Reason | File | Lines | Rationale |
+|:---|:---|---:|:---:|:---|:---|:---|:---|
+| ink_class_components_1 | class_components | 8.833 | ✓ | bpe | breaks/break_class_components_1.tsx | 5–15 | ES6 class component in a hooks-only ink codebase |
+| ink_class_components_2 | class_components | 8.833 | ✓ | bpe | breaks/break_class_components_2.tsx | 8–18 | `extends Component` class with this.props / this.state in an ink file |
+| ink_class_components_3 | class_components | 8.833 | ✓ | bpe | breaks/break_class_components_3.tsx | 8–21 | Class component with explicit constructor(props) in an ink file |
+| ink_class_components_4 | class_components | 8.833 | ✓ | bpe | breaks/break_class_components_4.tsx | 1–26 | import React, { Component } from 'react' at line 1 — class-based component in a hooks-only ink codebase; Component import absent from all… |
+| ink_dom_access_1 | dom_access | 2.105 | ✓ | call_receiver | breaks/break_dom_access_1.tsx | 6–7 | document.getElementById + window.addEventListener in a terminal UI |
+| ink_dom_access_2 | dom_access | 4.215 | ✗ | none | breaks/break_dom_access_2.tsx | 8–8 | window.location.href navigation inside a useInput handler |
+| ink_dom_access_3 | dom_access | 6.310 | ✓ | bpe | breaks/break_dom_access_3.tsx | 9–10 | localStorage.getItem in an ink useEffect |
+| ink_error_flip_1 | error_flip | 8.833 | ✓ | bpe | breaks/break_error_flip_1.tsx | 8–11 | throw new Error inside render via IIFE |
+| ink_error_flip_2 | error_flip | 8.833 | ✓ | bpe | breaks/break_error_flip_2.tsx | 10–13 | throw inside a map callback in the render return |
+| ink_error_flip_3 | error_flip | 8.833 | ✓ | bpe | breaks/break_error_flip_3.tsx | 8–15 | try/finally with throw but no catch inside render |
+| ink_jquery_1 | jquery | 5.428 | ✓ | bpe | breaks/break_jquery_1.tsx | 7–9 | jQuery $('.item').on('click', ...) inside a functional component |
+| ink_jquery_2 | jquery | 5.428 | ✓ | bpe | breaks/break_jquery_2.tsx | 8–12 | jQuery .show()/.hide() DOM manipulation from a hook |
+| ink_jquery_3 | jquery | 8.357 | ✓ | bpe | breaks/break_jquery_3.tsx | 10–14 | $.ajax inside a useEffect where fetch/undici would be idiomatic |
+| ink_jquery_4 | jquery | 5.428 | ✓ | bpe | breaks/break_jquery_4.tsx | 1–12 | import $ from 'jquery' at line 1 in an ink terminal component; jquery absent from all 3 ink corpus PRs (0 grep hits); import scorer fires… |
+| ink_lifecycle_1 | lifecycle | 5.428 | ✓ | bpe | breaks/break_lifecycle_1.tsx | 10–12 | componentDidMount + this.setState instead of useEffect |
+| ink_lifecycle_2 | lifecycle | 5.428 | ✓ | bpe | breaks/break_lifecycle_2.tsx | 11–15 | Legacy componentWillReceiveProps lifecycle |
+| ink_lifecycle_3 | lifecycle | 5.428 | ✓ | bpe | breaks/break_lifecycle_3.tsx | 11–16 | componentWillUnmount cleanup instead of useEffect return fn |
+
+</details>
+
+### Missed fixtures (1)
+
+Breaks that didn't trip the scorer (threshold 4.9932):
+
+- **ink_dom_access_2** (`dom_access`) — score 4.2150, 0.7782 below threshold, reason: `none`
+  - _Rationale:_ window.location.href navigation inside a useInput handler
+
+### Top 5 real-PR controls (closest to false positives)
+
+| Rank | BPE | Flagged | Reason | File | Lines |
+|---:|---:|:---:|:---|:---|:---|
+| 1 | 6.094 | ✓ | bpe | src/devtools-window-polyfill.ts | 1–20 |
+| 2 | 6.094 | ✓ | bpe | src/devtools-window-polyfill.ts | 12–22 |
+| 3 | 6.094 | ✓ | bpe | src/devtools-window-polyfill.ts | 0–70 |
+| 4 | 6.094 | ✓ | bpe | src/devtools-window-polyfill.ts | 1–20 |
+| 5 | 6.094 | ✓ | bpe | src/devtools-window-polyfill.ts | 12–22 |
+
+_Threshold is 4.9932; top control scores 6.0945._
+
+### Stage attribution
+
+- `call_receiver`: 1 (5.9%)
+- `bpe`: 15 (88.2%)
+- `none`: 1 (5.9%)
+
+### Recall by difficulty
+
+| Difficulty | Recall | Hits | Definition |
+|:---|---:|---:|:---|
+| easy | 100.0% | 2/2 | Stage 1 import catch — foreign module in hunk |
+| medium | 100.0% | 13/13 | Stage 2 BPE catch — token-level novelty, no foreign import |
+| hard | 100.0% | 1/1 | Stage 1.5 call-receiver catch — receiver novelty |
+| uncaught | 0.0% | 0/1 | Scorer currently misses — known gap |
+
+## faker-js (typescript)
+
+### Summary
+
+- **AUC (catalog vs real-PR controls):** 0.9477
+- **Recall (mean across categories):** 93.3%
+- **FP rate on real PR hunks:** 1.9% (866/256335)
+- **Threshold (mean across seeds):** 4.8607 (CV: 0.0%)
+- **Calibration stability:** rel_var=0.000000, jaccard=1.0000
+- **Separation gap (min break − max control):** -7.0661 (overlap)
+- **Sample sizes:** 17 fixtures · 256335 real-PR controls
+
+### Score distribution
+
+| | n | min | p25 | median | p75 | p90 | max |
+|:---|---:|---:|---:|---:|---:|---:|---:|
+| Break (catalog) | 17 | 0.520 | 2.841 | 3.767 | 4.593 | 5.479 | 6.683 |
+| Control (real PR) | 256335 | -9.300 | 0.000 | 0.000 | 0.000 | 0.000 | 7.586 |
+
+Threshold **4.8607** — 14/17 breaks fall below it (misses), 356/256335 controls fall at/above (false positives).
+
+### Recall by category
+
+```mermaid
+xychart-beta
+    title "faker-js — recall by category"
+    x-axis ["error_flip", "foreign_rng", "http_sink", "runtime_fetch", "threading"]
+    y-axis "recall %" 0 --> 110
+    bar [66.7, 100.0, 100.0, 100.0, 100.0]
+```
+
+### Per-category detail
+
+| Category | Recall | Hits | Mean break score | Min | Max | Fixtures |
+|:---|---:|---:|---:|---:|---:|:---|
+| error_flip | 66.7% | 2/3 | 4.565 | 4.053 | 5.095 | faker_js_error_flip_1, faker_js_error_flip_2, faker_js_error_flip_3 |
+| foreign_rng | 100.0% | 3/3 | 1.412 | 0.520 | 3.195 | faker_js_foreign_rng_1, faker_js_foreign_rng_2, faker_js_foreign_rng_3 |
+| http_sink | 100.0% | 4/4 | 3.414 | 2.841 | 3.767 | faker_js_http_sink_1, faker_js_http_sink_2, faker_js_http_sink_3, faker_js_http_sink_4 |
+| runtime_fetch | 100.0% | 4/4 | 3.140 | 1.971 | 4.593 | faker_js_runtime_fetch_1, faker_js_runtime_fetch_2, faker_js_runtime_fetch_3, faker_js_runtime_fetch_4 |
+| threading | 100.0% | 3/3 | 5.812 | 4.700 | 6.683 | faker_js_threading_1, faker_js_threading_2, faker_js_threading_3 |
+
+### Per-fixture results
+
+<details>
+<summary>17 fixtures (click to expand)</summary>
+
+| ID | Category | BPE | Flagged | Reason | File | Lines | Rationale |
+|:---|:---|---:|:---:|:---|:---|:---|:---|
+| faker_js_error_flip_1 | error_flip | 5.095 | ✓ | bpe | breaks/break_error_flip_1.ts | 3–11 | Provider throws mid-generation instead of returning a fake value |
+| faker_js_error_flip_2 | error_flip | 4.546 | ✗ | none | breaks/break_error_flip_2.ts | 3–8 | Locale data accessor throws on missing entries instead of falling back |
+| faker_js_error_flip_3 | error_flip | 4.053 | ✓ | call_receiver | breaks/break_error_flip_3.ts | 3–9 | seed() override throws, breaking the determinism contract |
+| faker_js_foreign_rng_1 | foreign_rng | 0.520 | ✓ | call_receiver | breaks/break_foreign_rng_1.ts | 3–8 | Math.random instead of faker-js internal RNG |
+| faker_js_foreign_rng_2 | foreign_rng | 3.195 | ✓ | call_receiver | breaks/break_foreign_rng_2.ts | 4–9 | crypto.randomBytes inside a word generator bypasses the seeded RNG |
+| faker_js_foreign_rng_3 | foreign_rng | 0.520 | ✓ | call_receiver | breaks/break_foreign_rng_3.ts | 5–9 | Math.random index pick inside a person-name provider |
+| faker_js_http_sink_1 | http_sink | 3.281 | ✓ | call_receiver | breaks/break_http_sink_1.ts | 4–13 | Provider method posts telemetry to an HTTP endpoint via axios |
+| faker_js_http_sink_2 | http_sink | 3.767 | ✓ | call_receiver | breaks/break_http_sink_2.ts | 3–11 | Generator pipes every generated value to a remote log sink via fetch |
+| faker_js_http_sink_3 | http_sink | 2.841 | ✓ | call_receiver | breaks/break_http_sink_3.ts | 3–9 | navigator.sendBeacon reporting inside a faker provider |
+| faker_js_http_sink_4 | http_sink | 3.767 | ✓ | call_receiver | breaks/break_http_sink_4.ts | 1–8 | import axios at line 1 inside a faker-js provider utility; axios absent from all 3 faker-js corpus PRs (0 grep hits in non-break files); … |
+| faker_js_runtime_fetch_1 | runtime_fetch | 3.548 | ✓ | call_receiver | breaks/break_runtime_fetch_1.ts | 3–8 | Runtime fetch from a locale data file |
+| faker_js_runtime_fetch_2 | runtime_fetch | 2.449 | ✓ | call_receiver | breaks/break_runtime_fetch_2.ts | 3–11 | ImageProvider.url() issues a live network fetch |
+| faker_js_runtime_fetch_3 | runtime_fetch | 1.971 | ✓ | call_receiver | breaks/break_runtime_fetch_3.ts | 3–12 | CompanyProvider.name() fetches from a remote name-service |
+| faker_js_runtime_fetch_4 | runtime_fetch | 4.593 | ✓ | call_receiver | breaks/break_runtime_fetch_4.ts | 1–8 | import fetch from 'node-fetch' at line 1 inside a faker-js locale utility; node-fetch absent from all 3 faker-js corpus PRs; import score… |
+| faker_js_threading_1 | threading | 4.700 | ✓ | call_receiver | breaks/break_threading_1.ts | 3–9 | Spawning a Worker from a locale module |
+| faker_js_threading_2 | threading | 6.054 | ✓ | bpe | breaks/break_threading_2.ts | 1–10 | Module-level Worker pool inside a pure data file |
+| faker_js_threading_3 | threading | 6.683 | ✓ | bpe | breaks/break_threading_3.ts | 3–10 | Generator implementation delegates to a Worker via postMessage |
+
+</details>
+
+### Missed fixtures (1)
+
+Breaks that didn't trip the scorer (threshold 4.8607):
+
+- **faker_js_error_flip_2** (`error_flip`) — score 4.5463, 0.3145 below threshold, reason: `none`
+  - _Rationale:_ Locale data accessor throws on missing entries instead of falling back
+
+### Top 5 real-PR controls (closest to false positives)
+
+| Rank | BPE | Flagged | Reason | File | Lines |
+|---:|---:|:---:|:---|:---|:---|
+| 1 | 7.586 | ✓ | bpe | src/locales/en_US/location/postcode_by_state.ts | 0–54 |
+| 2 | 7.586 | ✓ | bpe | src/locales/en_US/location/postcode_by_state.ts | 0–54 |
+| 3 | 7.586 | ✓ | bpe | src/locales/en_US/location/postcode_by_state.ts | 0–54 |
+| 4 | 7.586 | ✓ | bpe | src/locales/en_US/location/postcode_by_state.ts | 0–54 |
+| 5 | 7.586 | ✓ | bpe | src/locales/en_US/location/postcode_by_state.ts | 0–54 |
+
+_Threshold is 4.8607; top control scores 7.5861._
+
+### Stage attribution
+
+- `call_receiver`: 13 (76.5%)
+- `bpe`: 3 (17.6%)
+- `none`: 1 (5.9%)
+
+### Recall by difficulty
+
+| Difficulty | Recall | Hits | Definition |
+|:---|---:|---:|:---|
+| easy | 100.0% | 2/2 | Stage 1 import catch — foreign module in hunk |
+| medium | 100.0% | 3/3 | Stage 2 BPE catch — token-level novelty, no foreign import |
+| hard | 100.0% | 4/4 | Stage 1.5 call-receiver catch — receiver novelty |
+| uncaught | 87.5% | 7/8 | Scorer currently misses — known gap |
+
+## dagster (python) (python)
+
+### Summary
+
+- **AUC (catalog vs real-PR controls):** 0.9520
+- **Recall (mean across categories):** 100.0%
+- **FP rate on real PR hunks:** 0.4% (126/42345)
+- **Threshold (mean across seeds):** 4.8159 (CV: 0.0%)
+- **Calibration stability:** rel_var=0.000000, jaccard=1.0000
+- **Separation gap (min break − max control):** -3.3911 (overlap)
+- **Sample sizes:** 12 fixtures · 42345 real-PR controls
+
+### Score distribution
+
+| | n | min | p25 | median | p75 | p90 | max |
+|:---|---:|---:|---:|---:|---:|---:|---:|
+| Break (catalog) | 12 | 2.179 | 2.564 | 2.906 | 3.563 | 4.394 | 4.659 |
+| Control (real PR) | 42345 | -2.887 | 0.000 | 0.855 | 1.193 | 1.926 | 5.570 |
+
+Threshold **4.8159** — 12/12 breaks fall below it (misses), 53/42345 controls fall at/above (false positives).
+
+### Recall by category
+
+```mermaid
+xychart-beta
+    title "dagster (python) — recall by category"
+    x-axis ["asset_definition", "exception_handling", "framework_swap", "scheduling", "validation"]
+    y-axis "recall %" 0 --> 110
+    bar [100.0, 100.0, 100.0, 100.0, 100.0]
+```
+
+### Per-category detail
+
+| Category | Recall | Hits | Mean break score | Min | Max | Fixtures |
+|:---|---:|---:|---:|---:|---:|:---|
+| asset_definition | 100.0% | 3/3 | 3.514 | 3.050 | 4.111 | dagster_py_asset_definition_1, dagster_py_asset_definition_2, dagster_py_asset_definition_3 |
+| exception_handling | 100.0% | 2/2 | 3.524 | 2.390 | 4.659 | dagster_py_exception_handling_1, dagster_py_exception_handling_2 |
+| framework_swap | 100.0% | 3/3 | 2.749 | 2.179 | 3.306 | dagster_py_framework_swap_1, dagster_py_framework_swap_2, dagster_py_framework_swap_3 |
+| scheduling | 100.0% | 2/2 | 3.524 | 2.622 | 4.425 | dagster_py_scheduling_1, dagster_py_scheduling_2 |
+| validation | 100.0% | 2/2 | 2.406 | 2.179 | 2.633 | dagster_py_validation_1, dagster_py_validation_2 |
+
+### Per-fixture results
+
+<details>
+<summary>12 fixtures (click to expand)</summary>
+
+| ID | Category | BPE | Flagged | Reason | File | Lines | Rationale |
+|:---|:---|---:|:---:|:---|:---|:---|:---|
+| dagster_py_asset_definition_1 | asset_definition | 3.380 | ✓ | call_receiver | breaks/py/paradigm_break_procedural_etl.py | 14–72 | Dagster models data as @asset-decorated functions with return values persisted by an IOManager; this file uses plain module-level functio… |
+| dagster_py_asset_definition_2 | asset_definition | 3.050 | ✓ | call_receiver | breaks/py/paradigm_break_class_pipeline.py | 13–76 | Dagster models data with @asset-decorated pure functions wired by the asset graph; a Pipeline class that stores intermediate data as self… |
+| dagster_py_asset_definition_3 | asset_definition | 4.111 | ✓ | call_receiver | breaks/py/paradigm_break_raw_boto3_io.py | 15–67 | Dagster manages S3 persistence via IOManager / UPathIOManager subclasses implementing handle_output(context, obj) and load_input(context)… |
+| dagster_py_exception_handling_1 | exception_handling | 2.390 | ✓ | call_receiver | breaks/py/paradigm_break_broad_except.py | 15–80 | Dagster handles transient failures via RetryPolicy(max_retries=N, backoff=Backoff.EXPONENTIAL) attached to op definitions; broad except E… |
+| dagster_py_exception_handling_2 | exception_handling | 4.659 | ✓ | call_receiver | breaks/py/paradigm_break_atexit_handler.py | 15–70 | Dagster uses @failure_hook / @success_hook decorators receiving HookContext for structured lifecycle responses; atexit.register() callbac… |
+| dagster_py_framework_swap_1 | framework_swap | 2.179 | ✓ | call_receiver | breaks/py/paradigm_break_airflow_operator.py | 15–85 | Dagster uses @op / @job / @asset with typed Output objects and a Definitions registry; Airflow's DAG, PythonOperator, default_args dict, … |
+| dagster_py_framework_swap_2 | framework_swap | 3.306 | ✓ | call_receiver | breaks/py/paradigm_break_prefect_task.py | 14–53 | Dagster uses @op / @asset with RetryPolicy objects; Prefect's @task(retries=3, retry_delay_seconds=exponential_backoff(...)), @flow, Pref… |
+| dagster_py_framework_swap_3 | framework_swap | 2.763 | ✓ | call_receiver | breaks/py/paradigm_break_luigi_pipeline.py | 15–79 | Dagster expresses asset dependencies via parameter names or deps=[]; Luigi's class-based Task subclasses with requires() / output() / run… |
+| dagster_py_scheduling_1 | scheduling | 2.622 | ✓ | call_receiver | breaks/py/paradigm_break_apscheduler.py | 15–76 | Dagster declares schedules as ScheduleDefinition objects registered in Definitions() with cron_schedule, execution_timezone, and DefaultS… |
+| dagster_py_scheduling_2 | scheduling | 4.425 | ✓ | call_receiver | breaks/py/paradigm_break_cron_schedule.py | 14–75 | Dagster uses ScheduleDefinition with execution_fn yielding RunRequest objects evaluated by the Dagster daemon; croniter for next-fire com… |
+| dagster_py_validation_1 | validation | 2.179 | ✓ | call_receiver | breaks/py/paradigm_break_jsonschema_validation.py | 15–83 | Dagster validates run config through dagster.Field / dagster.Shape / dagster.Array with DagsterInvalidConfigError on failure; manually bu… |
+| dagster_py_validation_2 | validation | 2.633 | ✓ | call_receiver | breaks/py/paradigm_break_pydantic_model.py | 14–68 | Dagster's dagster.Config (a Pydantic superclass) integrates with the event log and MetadataValue; declaring standalone Pydantic v2 BaseMo… |
+
+</details>
+
+### Top 5 real-PR controls (closest to false positives)
+
+| Rank | BPE | Flagged | Reason | File | Lines |
+|---:|---:|:---:|:---|:---|:---|
+| 1 | 5.570 | ✓ | bpe | python_modules/dagster/dagster/_core/definitions/antlr_asset_selection/generated/AssetSelectionParser.py | 1971–1978 |
+| 2 | 5.567 | ✓ | bpe | python_modules/dagster/dagster/_core/definitions/antlr_asset_selection/generated/AssetSelectionParser.py | 1971–1978 |
+| 3 | 5.566 | ✓ | bpe | python_modules/dagster/dagster/_core/definitions/antlr_asset_selection/generated/AssetSelectionParser.py | 1971–1978 |
+| 4 | 5.566 | ✓ | bpe | python_modules/dagster/dagster/_core/definitions/antlr_asset_selection/generated/AssetSelectionParser.py | 1971–1978 |
+| 5 | 5.559 | ✓ | bpe | python_modules/dagster/dagster/_core/definitions/antlr_asset_selection/generated/AssetSelectionParser.py | 1971–1978 |
+
+_Threshold is 4.8159; top control scores 5.5701._
+
+### Stage attribution
+
+- `call_receiver`: 12 (100.0%)
+
+### Recall by difficulty
+
+| Difficulty | Recall | Hits | Definition |
+|:---|---:|---:|:---|
+| easy | 100.0% | 3/3 | Stage 1 import catch — foreign module in hunk |
+| medium | 100.0% | 7/7 | Stage 2 BPE catch — token-level novelty, no foreign import |
+| hard | 100.0% | 2/2 | Stage 1.5 call-receiver catch — receiver novelty |
+
+## dagster (typescript) (typescript)
+
+### Summary
+
+- **AUC (catalog vs real-PR controls):** 0.9242
+- **Recall (mean across categories):** 80.0%
+- **FP rate on real PR hunks:** 15.2% (1981/14979)
+- **Threshold (mean across seeds):** 5.0737 (CV: 0.0%)
+- **Calibration stability:** rel_var=0.000000, jaccard=1.0000
+- **Separation gap (min break − max control):** -6.2519 (overlap)
+- **Sample sizes:** 12 fixtures · 14979 real-PR controls
+
+### Score distribution
+
+| | n | min | p25 | median | p75 | p90 | max |
+|:---|---:|---:|---:|---:|---:|---:|---:|
+| Break (catalog) | 12 | 1.810 | 4.200 | 5.074 | 5.550 | 5.858 | 6.109 |
+| Control (real PR) | 14979 | -2.054 | 0.737 | 1.586 | 2.342 | 3.259 | 8.062 |
+
+Threshold **5.0737** — 5/12 breaks fall below it (misses), 170/14979 controls fall at/above (false positives).
+
+### Recall by category
+
+```mermaid
+xychart-beta
+    title "dagster (typescript) — recall by category"
+    x-axis ["data_fetching", "framework_swap", "routing", "state_management", "styling"]
+    y-axis "recall %" 0 --> 110
+    bar [100.0, 100.0, 50.0, 100.0, 50.0]
+```
+
+### Per-category detail
+
+| Category | Recall | Hits | Mean break score | Min | Max | Fixtures |
+|:---|---:|---:|---:|---:|---:|:---|
+| data_fetching | 100.0% | 2/2 | 4.381 | 3.314 | 5.448 | dagster_ts_data_fetching_1, dagster_ts_data_fetching_2 |
+| framework_swap | 100.0% | 4/4 | 5.341 | 4.496 | 6.109 | dagster_ts_framework_swap_1, dagster_ts_framework_swap_2, dagster_ts_framework_swap_3, dagster_ts_framework_swap_4 |
+| routing | 50.0% | 1/2 | 3.442 | 1.810 | 5.074 | dagster_ts_routing_1, dagster_ts_routing_2 |
+| state_management | 100.0% | 2/2 | 5.466 | 5.074 | 5.858 | dagster_ts_state_management_1, dagster_ts_state_management_2 |
+| styling | 50.0% | 1/2 | 3.982 | 2.890 | 5.074 | dagster_ts_styling_1, dagster_ts_styling_2 |
+
+### Per-fixture results
+
+<details>
+<summary>12 fixtures (click to expand)</summary>
+
+| ID | Category | BPE | Flagged | Reason | File | Lines | Rationale |
+|:---|:---|---:|:---:|:---|:---|:---|:---|
+| dagster_ts_data_fetching_1 | data_fetching | 5.448 | ✓ | bpe | breaks/ts/break_data_fetching_1.tsx | 6–65 | Raw fetch() + useEffect + manual {data, loading, error} state triple for REST data instead of Dagit's Apollo useQuery wrapping GraphQL op… |
+| dagster_ts_data_fetching_2 | data_fetching | 3.314 | ✓ | call_receiver | breaks/ts/break_data_fetching_2.tsx | 6–49 | Axios + setInterval manual polling loop for live asset materialization status instead of Dagit's Apollo Client + LiveDataProvider, which … |
+| dagster_ts_framework_swap_1 | framework_swap | 5.858 | ✓ | bpe | breaks/ts/break_framework_swap_1.tsx | 5–51 | Redux connect() HOC wrapping a class component with componentDidMount lifecycle method, mapStateToProps, and mapDispatchToProps — Dagit u… |
+| dagster_ts_framework_swap_2 | framework_swap | 4.902 | ✓ | call_receiver | breaks/ts/break_framework_swap_2.tsx | 5–44 | jQuery $.ajax + imperative DOM mutation ($container.empty(), .append(), .on()) inside what should be a React component. Dagit renders all… |
+| dagster_ts_framework_swap_3 | framework_swap | 6.109 | ✓ | bpe | breaks/ts/break_framework_swap_3.tsx | 5–48 | Vue 3 Composition API — defineComponent, ref, computed, template string with v-if and @click directives — transplanted into a React/TypeS… |
+| dagster_ts_framework_swap_4 | framework_swap | 4.496 | ✓ | call_receiver | breaks/ts/break_type_paradigm_1.ts | 6–52 | JSDoc-annotated JavaScript posing as TypeScript: `any` on every parameter and return type, `var` declarations, and bare `function()` expr… |
+| dagster_ts_routing_1 | routing | 1.810 | ✗ | none | breaks/ts/break_routing_1.tsx | 6–50 | React Router v5 Switch + Route with component= prop for page routing instead of Dagit's Next.js pages directory. Dagit is a Next.js app; … |
+| dagster_ts_routing_2 | routing | 5.074 | ✓ | call_receiver | breaks/ts/break_routing_2.tsx | 6–44 | React Router v5 withRouter HOC injecting history.push into a class component for programmatic navigation. Dagit navigates programmaticall… |
+| dagster_ts_state_management_1 | state_management | 5.074 | ✓ | import | breaks/ts/break_state_management_1.tsx | 5–60 | MobX makeAutoObservable class store + observer() HOC from mobx-react-lite instead of Dagit's Recoil atoms (useRecoilState/useRecoilValue)… |
+| dagster_ts_state_management_2 | state_management | 5.858 | ✓ | import | breaks/ts/break_state_management_2.tsx | 5–48 | Redux Toolkit createSlice + configureStore + useDispatch/useSelector for local UI filter state, whereas Dagit uses Recoil atoms and useQu… |
+| dagster_ts_styling_1 | styling | 5.074 | ✓ | import | breaks/ts/break_styling_1.tsx | 6–48 | CSS Modules import (*.module.css) + classnames utility for conditional class names instead of Dagit's @dagster-io/ui-components design-sy… |
+| dagster_ts_styling_2 | styling | 2.890 | ✗ | none | breaks/ts/break_styling_2.tsx | 6–50 | styled-jsx scoped <style jsx>{``}</style> blocks for component-level CSS-in-JSX instead of Dagit's @dagster-io/ui-components Box/Colors s… |
+
+</details>
+
+### Missed fixtures (2)
+
+Breaks that didn't trip the scorer (threshold 5.0737):
+
+- **dagster_ts_styling_2** (`styling`) — score 2.8905, 2.1832 below threshold, reason: `none`
+  - _Rationale:_ styled-jsx scoped <style jsx>{``}</style> blocks for component-level CSS-in-JSX instead of Dagit's @dagster-io/ui-components Box/Colors system. Though styled-jsx ships with Next.js, Dagit applies no scoped style blocks; visual styling goes exclusively through the @dagster-io/ui-components token system.
+- **dagster_ts_routing_1** (`routing`) — score 1.8104, 3.2633 below threshold, reason: `none`
+  - _Rationale:_ React Router v5 Switch + Route with component= prop for page routing instead of Dagit's Next.js pages directory. Dagit is a Next.js app; page-level routing is handled by the file-system pages/ convention and useRouter() from next/router. React Router's Switch and Route component= pattern conflict with the Next.js model.
+
+### Top 5 real-PR controls (closest to false positives)
+
+| Rank | BPE | Flagged | Reason | File | Lines |
+|---:|---:|:---:|:---|:---|:---|
+| 1 | 8.062 | ✓ | bpe | js_modules/ui-core/src/ticks/__fixtures__/EvaluateScheduleDialog.fixtures.tsx | 0–396 |
+| 2 | 8.062 | ✓ | bpe | js_modules/ui-core/src/ticks/__fixtures__/SensorDryRunDialog.fixtures.tsx | 0–446 |
+| 3 | 8.061 | ✓ | bpe | js_modules/ui-core/src/ticks/__fixtures__/EvaluateScheduleDialog.fixtures.tsx | 0–396 |
+| 4 | 8.061 | ✓ | bpe | js_modules/ui-core/src/ticks/__fixtures__/SensorDryRunDialog.fixtures.tsx | 0–446 |
+| 5 | 8.061 | ✓ | bpe | js_modules/ui-core/src/ticks/__fixtures__/EvaluateScheduleDialog.fixtures.tsx | 0–396 |
+
+_Threshold is 5.0737; top control scores 8.0623._
+
+### Stage attribution
+
+- `import`: 3 (25.0%)
+- `call_receiver`: 4 (33.3%)
+- `bpe`: 3 (25.0%)
+- `none`: 2 (16.7%)
+
+### Recall by difficulty
+
+| Difficulty | Recall | Hits | Definition |
+|:---|---:|---:|:---|
+| easy | 100.0% | 3/3 | Stage 1 import catch — foreign module in hunk |
+| medium | 60.0% | 3/5 | Stage 2 BPE catch — token-level novelty, no foreign import |
+| hard | 100.0% | 4/4 | Stage 1.5 call-receiver catch — receiver novelty |

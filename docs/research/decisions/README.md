@@ -23,6 +23,13 @@ the contradicting evidence here rather than silently overriding.
   the bench harness into `argot-calibrate` and made the default. The
   +16.6pp recall win on faker-js is now what end users actually see, not
   a bench-only feature.
+- **[per-language-calibration.md](per-language-calibration.md)** —
+  per-language calibration end-to-end (v2 `scorer-config.json` keyed by
+  language, dispatch by file extension at score time), engine streaming
+  refactor that lets the scorer scale to monorepo-class corpora without
+  sampling, and the bench wall-time tuning (single outer seed,
+  `threshold_n_seeds=3`, per-PR extract `--limit`) that ships alongside.
+  Dagster pinned as the reference multi-language corpus.
 
 ## When to write one
 
