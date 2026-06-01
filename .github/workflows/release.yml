@@ -53,6 +53,12 @@ jobs:
     name: Publish argot-engine to PyPI
     runs-on: ubuntu-latest
     environment: pypi
+    # Trusted Publishing (OIDC): with id-token: write and no UV_PUBLISH_TOKEN,
+    # uv publish exchanges the GitHub OIDC token with PyPI. The trusted
+    # publisher is registered for workflow release.yml + environment pypi.
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -60,8 +66,6 @@ jobs:
 
       - name: Publish
         run: uv build --package argot-engine && uv publish
-        env:
-          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
 
   publish-npm:
     if: github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v')
