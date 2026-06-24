@@ -8,6 +8,13 @@
 </p>
 
 <p align="center">
+  <a href="https://argot.tmonier.com"><strong>argot.tmonier.com</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://argot.tmonier.com/docs/">Documentation</a>
+</p>
+
+<p align="center">
+  <a href="https://argot.tmonier.com"><img src="https://img.shields.io/badge/website-argot.tmonier.com-E67E45" alt="Website" /></a>
   <a href="https://github.com/get-tmonier/argot/actions/workflows/ci.yml"><img src="https://github.com/get-tmonier/argot/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://github.com/get-tmonier/argot/blob/main/LICENSE"><img src="https://img.shields.io/github/license/get-tmonier/argot" alt="License" /></a>
   <img src="https://img.shields.io/badge/bun-1.3.12-F472B6" alt="Bun" />
@@ -447,7 +454,7 @@ argot is **alpha** software. We ship honest benchmarks and a public research log
 - **No model artifact versioning or hashing** — `.argot/` is opaque; reproducibility is undocumented ([#62](https://github.com/get-tmonier/argot/issues/62)).
 - **No MCP server for LLM coding agents** — argot's signal would be especially useful as preemptive guidance during code generation, but there's no protocol surface yet ([#56](https://github.com/get-tmonier/argot/issues/56)).
 - ~~**No per-hunk evidence in `check` output** — hits show a friendly reason ("rare token sequence") but not *which* token was rare, leaving the user to guess ([#40](https://github.com/get-tmonier/argot/issues/40)).~~ ✅ **Shipped** ([#69](https://github.com/get-tmonier/argot/pull/69)) — each hit now carries a `↳` line naming the responsible tokens with their repo attestation. See the example output above.
-- **No user-facing documentation site** — everything user-relevant lives in this README; no structured tutorials, how-tos, reference, or per-language pages ([#52](https://github.com/get-tmonier/argot/issues/52)).
+- ~~**No user-facing documentation site** — everything user-relevant lives in this README; no structured tutorials, how-tos, reference, or per-language pages ([#52](https://github.com/get-tmonier/argot/issues/52)).~~ ✅ **Shipped** — docs site live at [argot.tmonier.com](https://argot.tmonier.com) (getting started, the commands, reading the output, the scoring model, languages, limitations).
 
 ### What we need for v1
 
@@ -462,7 +469,7 @@ The minimum-viable-v1 set we'd want to ship before recommending argot for produc
 | [#51](https://github.com/get-tmonier/argot/issues/51) | Repo introspection / suitability check |
 | [#58](https://github.com/get-tmonier/argot/issues/58) | Official CI integration (GitHub Action + pre-commit + SARIF) |
 | ~~[#40](https://github.com/get-tmonier/argot/issues/40)~~ ✅ | ~~Per-hunk evidence in `check` output — point at the specific tokens carrying the score~~ — shipped via [#69](https://github.com/get-tmonier/argot/pull/69) |
-| [#52](https://github.com/get-tmonier/argot/issues/52) | User-facing documentation site (tutorials, how-tos, reference) |
+| ~~[#52](https://github.com/get-tmonier/argot/issues/52)~~ ✅ | ~~User-facing documentation site (tutorials, how-tos, reference)~~ — shipped at [argot.tmonier.com](https://argot.tmonier.com) |
 
 Browse all open issues, including non-v1 work, at [`github.com/get-tmonier/argot/issues`](https://github.com/get-tmonier/argot/issues).
 

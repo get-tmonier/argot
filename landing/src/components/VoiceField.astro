@@ -1,0 +1,262 @@
+---
+/**
+ * The thesis as the hero's living backdrop: a field of code "tokens" scattered
+ * along the repo's voice (a baseline of dim ember dots), with a handful of
+ * divergent hunks lifting off the line and flaring in the flag colours — amber
+ * (suspicious) and hot orange (foreign). A scan bar sweeps left→right, the way
+ * `argot check` passes over a diff. It sits *behind* the hero copy (dimmed in
+ * the centre by a vignette mask), so it costs no vertical space and no labels.
+ */
+const VW = 1200;
+const VH = 600;
+const baseY = 348;
+
+// Deterministic scatter — stable across builds, no Math.random at runtime.
+const rand = (seed: number): number => {
+  const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+  return x - Math.floor(x);
+};
+
+const COUNT = 74;
+const inVoice = Array.from({ length: COUNT }, (_, i) => {
+  const t = i / (COUNT - 1);
+  const x = 28 + t * (VW - 56) + (rand(i * 1.7) - 0.5) * 12;
+  const off = (rand(i * 2.3) - 0.5) * 2 * (16 + rand(i * 4.1) * 32);
+  const y = baseY + off;
+  const r = 1.5 + rand(i * 3.7) * 1.7;
+  const delay = (t * 1.7 + rand(i * 5.5) * 0.4).toFixed(2);
+  const dur = (3 + rand(i * 6.3) * 3).toFixed(2);
+  return { x: +x.toFixed(1), y: +y.toFixed(1), r: +r.toFixed(2), delay, dur };
+});
+
+const flagged = [
+  { x: 232, lift: 150, sev: 'amber' },
+  { x: 430, lift: 236, sev: 'flag' },
+  { x: 612, lift: 124, sev: 'amber' },
+  { x: 824, lift: 258, sev: 'flag' },
+  { x: 1014, lift: 140, sev: 'amber' },
+].map((f) => ({
+  ...f,
+  y: baseY - f.lift,
+  delay: ((f.x / VW) * 1.7 + 0.55).toFixed(2),
+  color: f.sev === 'flag' ? 'var(--flag)' : 'var(--amber)',
+}));
+---
+
+<div class="vf-bg" aria-hidden="true">
+  <svg
+    class="vf-svg"
+    viewBox={`0 0 ${VW} ${VH}`}
+    preserveAspectRatio="xMidYMid slice"
+    fill="none"
+    role="presentation"
+  >
+    <defs>
+      <radialGradient id="vf-vig" cx="0.5" cy="0.52" r="0.62">
+        <stop offset="0" stop-color="#2b2b2b"></stop>
+        <stop offset="0.5" stop-color="#7a7a7a"></stop>
+        <stop offset="0.92" stop-color="#fff"></stop>
+      </radialGradient>
+      <mask id="vf-mask">
+        <rect width={VW} height={VH} fill="url(#vf-vig)"></rect>
+      </mask>
+    </defs>
+
+    <g mask="url(#vf-mask)">
+      {/* the repo's voice — a faint baseline */}
+      <line
+        class="vf-base"
+        x1="28"
+        y1={baseY}
+        x2={VW - 28}
+        y2={baseY}
+        stroke="var(--ember)"
+        stroke-width="1.5"
+      ></line>
+
+      {/* in-voice tokens — hugging the line */}
+      {
+        inVoice.map((d) => (
+          <circle
+            class="vf-dot"
+            cx={d.x}
+            cy={d.y}
+            r={d.r}
+            style={`--delay:${d.delay}s;--dur:${d.dur}s`}
+          />
+        ))
+      }
+
+      {/* divergent hunks — lifting off the line, flaring in the flag colour */}
+      {
+        flagged.map((f) => (
+          <g style={`--delay:${f.delay}s`} color={f.color}>
+            <line
+              class="vf-lift"
+              x1={f.x}
+              y1={baseY}
+              x2={f.x}
+              y2={f.y}
+              stroke="currentColor"
+              stroke-width="1.5"
+              style={`--lift:${f.lift}`}
+            />
+            <circle class="vf-flare-halo" cx={f.x} cy={f.y} r="9" fill="currentColor" />
+            <circle class="vf-flare" cx={f.x} cy={f.y} r="3.4" fill="currentColor" />
+          </g>
+        ))
+      }
+
+      {/* the scan — argot check's playhead sweeping the diff */}
+      <line class="vf-scanline" x1="0" y1="8" x2="0" y2={VH - 8} stroke="var(--ember-bright)"
+        stroke-width="2"></line>
+    </g>
+  </svg>
+</div>
+
+<style>
+  .vf-bg {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    opacity: 0;
+    animation: vf-reveal 0.9s ease-out forwards;
+  }
+  @keyframes vf-reveal {
+    to {
+      opacity: 1;
+    }
+  }
+  .vf-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .vf-base {
+    opacity: 0.4;
+    stroke-dasharray: 1144;
+    stroke-dashoffset: 1144;
+    animation: vf-draw 1.6s var(--ease-out-expo) forwards;
+  }
+  @keyframes vf-draw {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  .vf-dot {
+    fill: var(--ember);
+    opacity: 0;
+    filter: drop-shadow(0 0 3px color-mix(in srgb, var(--ember) 60%, transparent));
+    animation:
+      vf-dot-in 0.7s ease-out backwards var(--delay),
+      vf-float var(--dur) ease-in-out infinite var(--delay);
+  }
+  @keyframes vf-dot-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 0.5;
+      transform: translateY(0);
+    }
+  }
+  @keyframes vf-float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-4px);
+    }
+  }
+
+  .vf-lift {
+    opacity: 0.5;
+    stroke-dasharray: var(--lift);
+    stroke-dashoffset: var(--lift);
+    animation: vf-draw 0.8s var(--ease-out-expo) forwards var(--delay);
+  }
+  .vf-flare-halo {
+    opacity: 0;
+    filter: blur(7px);
+    animation: vf-flare-in 2.6s ease-in-out infinite calc(var(--delay) + 0.5s);
+  }
+  .vf-flare {
+    opacity: 0;
+    filter: drop-shadow(0 0 6px currentColor);
+    animation: vf-flare-in 2.6s ease-in-out infinite calc(var(--delay) + 0.5s);
+  }
+  @keyframes vf-flare-in {
+    0% {
+      opacity: 0;
+      transform: scale(0.4);
+    }
+    18%,
+    50% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    72% {
+      opacity: 0.45;
+      transform: scale(0.92);
+    }
+    100% {
+      opacity: 0.85;
+      transform: scale(1);
+    }
+  }
+
+  .vf-scanline {
+    opacity: 0;
+    filter: drop-shadow(0 0 5px var(--ember)) drop-shadow(0 0 12px var(--ember));
+    animation: vf-scan 7.5s linear infinite 1.4s;
+  }
+  @keyframes vf-scan {
+    0% {
+      transform: translateX(0);
+      opacity: 0;
+    }
+    12% {
+      opacity: 0.55;
+    }
+    88% {
+      opacity: 0.55;
+    }
+    100% {
+      transform: translateX(1200px);
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .vf-bg {
+      animation: none;
+      opacity: 1;
+    }
+    .vf-base {
+      animation: none;
+      stroke-dashoffset: 0;
+    }
+    .vf-dot {
+      animation: none;
+      opacity: 0.45;
+    }
+    .vf-lift {
+      animation: none;
+      stroke-dashoffset: 0;
+    }
+    .vf-flare,
+    .vf-flare-halo {
+      animation: none;
+      opacity: 0.9;
+    }
+    .vf-scanline {
+      animation: none;
+      opacity: 0;
+    }
+  }
+</style>

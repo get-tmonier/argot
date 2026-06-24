@@ -1,0 +1,53 @@
+---
+import { emphasize } from '#lib/text';
+import type { SiteContent } from '#i18n/types';
+
+interface Props {
+  content: SiteContent;
+}
+const { catches } = Astro.props.content;
+const glyphs = ['⌘', '↯', '⊘', '◐'];
+---
+
+<section
+  id="catches"
+  class="snap-section relative flex min-h-svh items-center overflow-hidden border-y border-line bg-bg-2/40"
+>
+  <div class="catch-glow" aria-hidden="true"></div>
+  <div class="mx-auto w-full max-w-6xl px-5 py-20">
+    <div class="reveal mx-auto max-w-2xl text-center">
+      <p class="mb-3 font-mono text-xs tracking-widest text-ember uppercase">{catches.label}</p>
+      <h2 class="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{catches.title}</h2>
+      <p class="mt-5 leading-relaxed text-ink-dim text-pretty" set:html={emphasize(catches.body)} />
+    </div>
+
+    <div class="mt-10 grid grid-cols-2 gap-3 sm:gap-4 lg:mt-14 lg:grid-cols-4">
+      {
+        catches.items.map((item, i) => (
+          <article
+            class="reveal group relative overflow-hidden rounded-2xl border border-line bg-panel/30 p-4 transition-all duration-300 hover:-translate-y-1 hover:border-line-2 hover:bg-panel/60 sm:p-6"
+            style={`--reveal-delay: ${(i % 4) * 80}ms`}
+          >
+            <div class="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line-2 bg-bg-2 text-base text-ember transition-colors group-hover:border-ember/40 group-hover:text-ember-bright sm:mb-4 sm:h-10 sm:w-10 sm:text-lg">
+              {glyphs[i]}
+            </div>
+            <h3 class="text-sm font-semibold tracking-tight text-ink sm:text-base">{item.title}</h3>
+            <p
+              class="mt-1.5 text-xs leading-relaxed text-ink-dim sm:mt-2 sm:text-sm"
+              set:html={emphasize(item.desc)}
+            />
+          </article>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<style>
+  .catch-glow {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(50rem 24rem at 50% 0%, rgba(230, 126, 69, 0.07), transparent 70%);
+    pointer-events: none;
+  }
+</style>

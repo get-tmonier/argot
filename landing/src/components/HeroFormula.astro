@@ -1,0 +1,105 @@
+---
+/**
+ * The whole model in one line, rendered with KaTeX and "written" on load — a
+ * left-to-right ink reveal with a travelling ember pen, so it reads like it's
+ * being penned by hand. Decorative; the headline carries the message.
+ */
+import katex from 'katex';
+
+const tex = String.raw`\text{score}(\text{hunk}) \;=\; \underbrace{\max_{t}\,\log\frac{P_\text{baseline}(t)}{P_\text{repo}(t)}}_{\text{BPE surprise}} \;+\; \underbrace{\min\!\big(\textstyle\sum_{c} w(c),\, \text{cap}\big)}_{\text{call-receiver penalty}}`;
+
+const html = katex.renderToString(tex, {
+  displayMode: true,
+  throwOnError: false,
+  output: 'html',
+});
+---
+
+<div class="hero-formula" aria-hidden="true">
+  <div class="hf-track">
+    <div class="hf-ink" set:html={html}></div>
+    <span class="hf-pen"></span>
+  </div>
+</div>
+
+<style>
+  .hero-formula {
+    margin-top: 1.4rem;
+    display: flex;
+    justify-content: center;
+  }
+  .hf-track {
+    position: relative;
+    max-width: 100%;
+    padding: 0 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .hf-track::-webkit-scrollbar {
+    display: none;
+  }
+  .hf-ink {
+    color: color-mix(in srgb, var(--ember-bright) 52%, var(--ink-dim));
+    font-size: clamp(0.5rem, 2.3vw, 0.82rem);
+    text-shadow: 0 0 18px color-mix(in srgb, var(--ember) 30%, transparent);
+    clip-path: inset(0 100% 0 0);
+    animation: hf-write 2.6s cubic-bezier(0.62, 0, 0.2, 1) 0.7s forwards;
+  }
+  .hf-ink :global(.katex-display) {
+    margin: 0;
+  }
+  .hf-ink :global(.katex) {
+    font-size: 1.12em;
+  }
+  @keyframes hf-write {
+    to {
+      clip-path: inset(0 0 0 0);
+    }
+  }
+
+  /* the pen: a soft ember nib travelling along the writing edge */
+  .hf-pen {
+    position: absolute;
+    top: 6%;
+    bottom: 6%;
+    left: 0;
+    width: 10px;
+    margin-left: -5px;
+    border-radius: 999px;
+    background: radial-gradient(
+      closest-side,
+      color-mix(in srgb, var(--ember-bright) 85%, transparent),
+      transparent 70%
+    );
+    filter: blur(1px);
+    opacity: 0;
+    animation: hf-pen 2.6s cubic-bezier(0.62, 0, 0.2, 1) 0.7s;
+  }
+  @keyframes hf-pen {
+    0% {
+      left: 0;
+      opacity: 0;
+    }
+    8% {
+      opacity: 0.9;
+    }
+    90% {
+      opacity: 0.9;
+    }
+    100% {
+      left: 100%;
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hf-ink {
+      clip-path: none;
+      animation: none;
+    }
+    .hf-pen {
+      display: none;
+    }
+  }
+</style>

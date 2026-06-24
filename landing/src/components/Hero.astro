@@ -1,0 +1,176 @@
+---
+import HeroFormula from '#components/HeroFormula.astro';
+import Logo from '#components/Logo.astro';
+import VoiceField from '#components/VoiceField.astro';
+import { SITE, localePath } from '#lib/site';
+import { emphasize } from '#lib/text';
+import type { SiteContent } from '#i18n/types';
+
+interface Props {
+  content: SiteContent;
+  locale: 'en' | 'fr';
+}
+const { content, locale } = Astro.props;
+const { hero } = content;
+---
+
+<section class="snap-section relative flex min-h-svh items-center overflow-hidden">
+  <div class="hero-grid" aria-hidden="true"></div>
+  <div class="hero-aurora" aria-hidden="true"></div>
+
+  <!-- the living backdrop: the repo's voice, with divergent hunks flaring -->
+  <VoiceField />
+
+  <div class="reveal relative z-10 mx-auto w-full max-w-3xl px-5 py-10 text-center">
+    <div class="mb-5 inline-flex items-center gap-2.5">
+      <Logo size={36} draw />
+      <span
+        class="rounded-full border border-line-2 bg-panel/70 px-3 py-1 text-xs font-semibold tracking-wide uppercase shadow-[0_0_24px_-6px_var(--ember-bright)] backdrop-blur-sm"
+      >
+        <span class="voice-text-shimmer">{hero.eyebrow}</span>
+      </span>
+    </div>
+
+    <h1 class="text-4xl leading-[1.08] font-bold tracking-tight text-balance sm:text-5xl lg:text-6xl">
+      {hero.titleLead}{' '}
+      <span class="voice-text">{hero.titleGradient}</span>
+    </h1>
+
+    <p
+      class="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-balance text-ink-dim"
+      set:html={emphasize(hero.subtitle)}
+    />
+
+    <div class="mt-7 flex flex-wrap items-center justify-center gap-3">
+      <a
+        href={localePath('/docs/', locale)}
+        class="group inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-ember to-ember-deep px-5 py-3 text-sm font-semibold text-bg shadow-lg shadow-ember/20 transition-transform hover:-translate-y-0.5"
+      >
+        {hero.ctaPrimary}
+        <span class="transition-transform group-hover:translate-x-0.5">→</span>
+      </a>
+      <a
+        href={SITE.github}
+        target="_blank"
+        rel="noopener"
+        class="inline-flex items-center gap-2 rounded-xl border border-line bg-panel/50 px-5 py-3 text-sm font-semibold backdrop-blur-sm transition-colors hover:border-line-2 hover:bg-panel"
+      >
+        ★ {hero.ctaSecondary}
+      </a>
+    </div>
+
+    <div class="mt-5 flex flex-col items-center gap-2">
+      <button
+        type="button"
+        class="copy-install group flex max-w-full items-center gap-3 overflow-x-auto rounded-lg border border-line bg-bg-2/70 px-4 py-2.5 font-mono text-xs whitespace-nowrap backdrop-blur-sm transition-colors hover:border-line-2 sm:text-sm"
+        data-copy={hero.install}
+        aria-label="Copy install command"
+      >
+        <span class="text-ember">$</span>
+        <span class="text-ink-dim">npm i -g <span class="text-ink">@tmonier/argot</span></span>
+        <span class="copy-icon pl-2 text-muted transition-colors group-hover:text-ink">⧉</span>
+      </button>
+      <p class="text-xs text-muted">{hero.installNote}</p>
+    </div>
+
+    <HeroFormula />
+  </div>
+
+  <a href="#demo" class="hero-scroll" aria-label="Scroll to the demo">
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6 9l6 6 6-6"></path>
+    </svg>
+  </a>
+</section>
+
+<style>
+  .hero-grid {
+    position: absolute;
+    inset: -2px;
+    background-image:
+      linear-gradient(to right, var(--line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--line) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: radial-gradient(60rem 40rem at 50% 0%, #000 30%, transparent 75%);
+    opacity: 0.22;
+    pointer-events: none;
+  }
+  .hero-aurora {
+    position: absolute;
+    top: -16rem;
+    left: 50%;
+    width: 70rem;
+    height: 40rem;
+    translate: -50% 0;
+    background: radial-gradient(closest-side, rgba(230, 126, 69, 0.18), transparent 70%);
+    filter: blur(40px);
+    pointer-events: none;
+  }
+
+  /* a discreet "there's more below" cue for the full-screen hero */
+  .hero-scroll {
+    position: absolute;
+    bottom: 1.4rem;
+    left: 50%;
+    translate: -50% 0;
+    color: var(--muted);
+    opacity: 0;
+    animation:
+      hero-scroll-in 0.6s ease 0.9s forwards,
+      hero-bob 2.2s ease-in-out 1.5s infinite;
+    transition: color 0.2s;
+  }
+  .hero-scroll:hover {
+    color: var(--ember-bright);
+  }
+  @keyframes hero-scroll-in {
+    to {
+      opacity: 0.75;
+    }
+  }
+  @keyframes hero-bob {
+    0%,
+    100% {
+      translate: -50% 0;
+    }
+    50% {
+      translate: -50% 6px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hero-scroll {
+      animation: hero-scroll-in 0.4s ease 0.6s forwards;
+    }
+  }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>('.copy-install').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const text = btn.dataset.copy ?? '';
+      try {
+        await navigator.clipboard.writeText(text);
+        const icon = btn.querySelector('.copy-icon');
+        if (icon) {
+          const prev = icon.textContent;
+          icon.textContent = '✓';
+          setTimeout(() => {
+            icon.textContent = prev;
+          }, 1400);
+        }
+      } catch {
+        /* clipboard unavailable */
+      }
+    });
+  });
+</script>

@@ -1,0 +1,108 @@
+---
+interface Props {
+  /** pixel size of the square mark */
+  size?: number;
+  /** play the looping scan (the linter sweeping over the glyph) */
+  draw?: boolean;
+  class?: string;
+}
+const { size = 36, draw = false, class: className = '' } = Astro.props;
+const uid = Math.random().toString(36).slice(2, 8);
+const glyph = { x: 32, y: 46, size: 56 };
+const serif = "Georgia, 'Times New Roman', serif";
+---
+
+<svg
+  width={size}
+  height={size}
+  viewBox="0 0 64 64"
+  fill="none"
+  class={`logo ${className}`}
+  role="img"
+  aria-label="argot"
+  data-draw={draw ? '' : undefined}
+>
+  <defs>
+    <linearGradient id={`grad-${uid}`} x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="var(--ember-bright)"></stop>
+      <stop offset="1" stop-color="var(--ember-deep)"></stop>
+    </linearGradient>
+    <linearGradient id={`scan-${uid}`} x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"></stop>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0.85"></stop>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"></stop>
+    </linearGradient>
+    <clipPath id={`clip-${uid}`}>
+      <text
+        x={glyph.x}
+        y={glyph.y}
+        text-anchor="middle"
+        font-family={serif}
+        font-style="italic"
+        font-weight="900"
+        font-size={glyph.size}>g</text
+      >
+    </clipPath>
+  </defs>
+
+  <text
+    class="glyph"
+    x={glyph.x}
+    y={glyph.y}
+    text-anchor="middle"
+    font-family={serif}
+    font-style="italic"
+    font-weight="900"
+    font-size={glyph.size}
+    fill={`url(#grad-${uid})`}>g</text
+  >
+
+  <g clip-path={`url(#clip-${uid})`}>
+    <rect class="scan" x="0" y="0" width="22" height="64" fill={`url(#scan-${uid})`}></rect>
+  </g>
+</svg>
+
+<style>
+  .logo {
+    overflow: visible;
+  }
+  .glyph {
+    filter: drop-shadow(0 0 7px color-mix(in srgb, var(--ember) 40%, transparent));
+  }
+
+  /* A bright band sweeps the glyph — the linter passing over the diff.
+     Idle by default; loops on the hero mark, and runs once on hover elsewhere. */
+  .scan {
+    transform: translateX(-26px);
+    opacity: 0;
+  }
+  [data-draw] .scan {
+    animation: scan-sweep 2.8s var(--ease-out-expo) infinite;
+  }
+  .logo:hover .scan {
+    animation: scan-sweep 1.1s var(--ease-out-expo);
+  }
+  @keyframes scan-sweep {
+    0% {
+      transform: translateX(-26px);
+      opacity: 0;
+    }
+    15% {
+      opacity: 1;
+    }
+    60% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateX(64px);
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .scan {
+      animation: none !important;
+      opacity: 0;
+    }
+  }
+</style>

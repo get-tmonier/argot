@@ -1,0 +1,14 @@
+---
+import DocsLayout from '#layouts/DocsLayout.astro';
+import { getEntry, render } from 'astro:content';
+
+const doc = await getEntry('docs', 'getting-started');
+if (!doc) {
+  throw new Error('missing docs/getting-started');
+}
+const { Content } = await render(doc);
+---
+
+<DocsLayout title={doc.data.title} description={doc.data.description} currentId="getting-started">
+  <Content />
+</DocsLayout>

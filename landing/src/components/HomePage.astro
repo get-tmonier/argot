@@ -1,0 +1,36 @@
+---
+import Catches from '#components/Catches.astro';
+import Cta from '#components/Cta.astro';
+import Demo from '#components/Demo.astro';
+import Features from '#components/Features.astro';
+import Footer from '#components/Footer.astro';
+import Hero from '#components/Hero.astro';
+import Local from '#components/Local.astro';
+import Nav from '#components/Nav.astro';
+import Base from '#layouts/Base.astro';
+import type { SiteContent } from '#i18n/types';
+
+interface Props {
+  content: SiteContent;
+  locale: 'en' | 'fr';
+}
+const { content, locale } = Astro.props;
+---
+
+<Base title={content.meta.title} description={content.meta.description} locale={locale} snap>
+  <Nav content={content} locale={locale} />
+  <main>
+    <Hero content={content} locale={locale} />
+    <Demo content={content} />
+    <Catches content={content} />
+    <Local content={content} />
+    <Features content={content} />
+    <!-- final screen: the CTA fills the viewport with the footer pinned at the
+         bottom. Deliberately NOT a snap target — the page settles naturally at
+         the document end so the footer is always reachable (no snap-back). -->
+    <div class="flex min-h-svh flex-col">
+      <Cta content={content} locale={locale} />
+      <Footer content={content} locale={locale} />
+    </div>
+  </main>
+</Base>

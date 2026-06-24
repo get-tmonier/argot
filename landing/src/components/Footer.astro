@@ -1,0 +1,63 @@
+---
+import Logo from '#components/Logo.astro';
+import TmonierMark from '#components/TmonierMark.astro';
+import { SITE, localePath } from '#lib/site';
+import type { SiteContent } from '#i18n/types';
+
+interface Props {
+  content: SiteContent;
+  locale: 'en' | 'fr';
+}
+const { content, locale } = Astro.props;
+const { footer } = content;
+const year = 2026;
+---
+
+<footer class="border-t border-line">
+  <div
+    class="mx-auto flex max-w-6xl flex-col items-center gap-5 px-5 py-7 text-sm sm:flex-row sm:flex-wrap sm:justify-between sm:gap-x-6 sm:gap-y-3 sm:py-6"
+  >
+    <div class="flex items-center gap-2.5">
+      <Logo size={22} />
+      <span class="wordmark">ar<span class="g">g</span>ot</span>
+      <span class="hidden text-muted sm:inline">· {footer.tagline}</span>
+    </div>
+
+    <nav
+      class="flex flex-col items-center gap-3 text-center text-ink-dim sm:flex-row sm:flex-wrap sm:gap-x-5 sm:gap-y-2 sm:text-left"
+    >
+      <div class="flex items-center gap-x-5">
+        <a href={localePath('/docs/', locale)} class="transition-colors hover:text-ink">
+          {footer.docs}
+        </a>
+        <a href={SITE.github} target="_blank" rel="noopener" class="transition-colors hover:text-ink"
+          >GitHub</a
+        >
+        <a href={SITE.npm} target="_blank" rel="noopener" class="transition-colors hover:text-ink"
+          >{footer.npm}</a
+        >
+      </div>
+
+      <span class="hidden text-line-2 sm:inline" aria-hidden="true">·</span>
+
+      <a
+        href={SITE.portfolio}
+        target="_blank"
+        rel="noopener"
+        class="group inline-flex items-center gap-1.5 text-muted transition-colors hover:text-[#d4aa3c]"
+      >
+        <TmonierMark size={15} class="opacity-80 transition-opacity group-hover:opacity-100" />
+        {footer.builtBy} ↗
+      </a>
+
+      <span class="hidden text-line-2 sm:inline" aria-hidden="true">·</span>
+
+      <span class="text-muted">
+        © {year}
+        <a href={SITE.portfolio} target="_blank" rel="noopener" class="group">
+          <span class="tmonier-wordmark">Tmonier</span>
+        </a> · MIT
+      </span>
+    </nav>
+  </div>
+</footer>

@@ -1,0 +1,71 @@
+---
+import CodeWindow from '#components/CodeWindow.astro';
+import TerminalCard from '#components/TerminalCard.astro';
+import { emphasize } from '#lib/text';
+import type { SiteContent } from '#i18n/types';
+
+interface Props {
+  content: SiteContent;
+}
+const { demo } = Astro.props.content;
+
+const code = `@router.get("/{user_id}", response_model=UserResponse)
+async def get_user(user_id: int, db=Depends(get_db)) -> UserResponse:
+    user = db.get(user_id)
+    if user is None:
+        raise ValueError(f"User {user_id} not found")
+    return user`;
+---
+
+<section id="demo" class="snap-section relative flex min-h-svh items-center">
+  <div
+    class="mx-auto grid w-full max-w-6xl grid-cols-1 gap-10 px-5 py-24 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:gap-16"
+  >
+    <div class="reveal">
+      <p class="mb-3 font-mono text-xs tracking-widest text-ember uppercase">{demo.label}</p>
+      <h2 class="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{demo.title}</h2>
+      <p class="mt-5 leading-relaxed text-ink-dim text-pretty" set:html={emphasize(demo.body)} />
+
+      <ul class="mt-7 flex flex-col gap-2.5 text-sm">
+        <li class="flex items-center gap-3">
+          <span class="badge ok">mypy</span><span class="text-muted">strict — passes</span>
+        </li>
+        <li class="flex items-center gap-3">
+          <span class="badge ok">ruff</span><span class="text-muted">lint-clean</span>
+        </li>
+        <li class="flex items-center gap-3">
+          <span class="badge flag">argot</span><span class="text-ink-dim">flags one line</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="reveal flex flex-col gap-4" style="--reveal-delay: 120ms">
+      <CodeWindow code={code} lang="python" title={demo.codeTitle} />
+      <TerminalCard />
+      <p class="text-center text-sm text-muted text-pretty" set:html={emphasize(demo.caption)} />
+    </div>
+  </div>
+</section>
+
+<style>
+  .badge {
+    display: inline-flex;
+    min-width: 3.6rem;
+    justify-content: center;
+    border-radius: 6px;
+    border: 1px solid var(--line-2);
+    padding: 0.15rem 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+  .badge.ok {
+    color: var(--jade);
+    border-color: color-mix(in srgb, var(--jade) 35%, var(--line-2));
+  }
+  .badge.flag {
+    color: var(--flag);
+    border-color: color-mix(in srgb, var(--flag) 40%, var(--line-2));
+    background: color-mix(in srgb, var(--flag) 8%, transparent);
+  }
+</style>
