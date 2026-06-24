@@ -6,6 +6,7 @@
 @import '@fontsource/jetbrains-mono/latin-400.css';
 @import '@fontsource/jetbrains-mono/latin-500.css';
 @import '@fontsource/jetbrains-mono/latin-700.css';
+@import '@fontsource/vollkorn-sc/latin-700.css';
 @import 'katex/dist/katex.min.css';
 
 @source './';
@@ -108,6 +109,18 @@ body {
   font-style: italic;
   font-weight: 800;
   color: var(--ember-bright);
+}
+
+/* --- the tmonier brand wordmark — Vollkorn SC, gold, as on tmonier.com --- */
+.tmonier-wordmark {
+  font-family: 'Vollkorn SC', Georgia, serif;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #c49a2b;
+}
+.group:hover .tmonier-wordmark,
+a:hover > .tmonier-wordmark {
+  color: #d4aa3c;
 }
 
 /* --- keyframes --- */
