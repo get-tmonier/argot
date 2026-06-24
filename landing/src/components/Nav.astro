@@ -42,19 +42,13 @@ const base = locale === 'fr' ? '/fr/' : '/';
         href={SITE.portfolio}
         target="_blank"
         rel="noopener"
-        class="group hidden items-center gap-1.5 sm:inline-flex"
+        class="group inline-flex items-center gap-1.5"
         aria-label="Tmonier — the umbrella brand"
       >
         <TmonierMark size={17} class="opacity-90 transition-opacity group-hover:opacity-100" />
         <span class="tmonier-wordmark text-[0.95rem]">Tmonier</span>
       </a>
       <span class="hidden text-line-2 sm:inline" aria-hidden="true">·</span>
-      <a
-        href={localePath('/docs/', locale)}
-        class="px-1 text-sm font-medium text-ink-dim transition-colors hover:text-ink md:hidden"
-      >
-        {nav.docs}
-      </a>
       <a
         href={altPath}
         class="rounded-md border border-line px-2.5 py-1 text-xs font-medium text-ink-dim uppercase transition-colors hover:border-line-2 hover:text-ink"

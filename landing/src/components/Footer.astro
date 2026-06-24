@@ -15,7 +15,7 @@ const year = 2026;
 
 <footer class="border-t border-line">
   <div
-    class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-5 py-6 text-sm"
+    class="mx-auto flex max-w-6xl flex-col items-center gap-5 px-5 py-7 text-sm sm:flex-row sm:flex-wrap sm:justify-between sm:gap-x-6 sm:gap-y-3 sm:py-6"
   >
     <div class="flex items-center gap-2.5">
       <Logo size={22} />
@@ -23,17 +23,23 @@ const year = 2026;
       <span class="hidden text-muted sm:inline">· {footer.tagline}</span>
     </div>
 
-    <nav class="flex flex-wrap items-center gap-x-5 gap-y-2 text-ink-dim">
-      <a href={localePath('/docs/', locale)} class="transition-colors hover:text-ink">
-        {footer.docs}
-      </a>
-      <a href={SITE.github} target="_blank" rel="noopener" class="transition-colors hover:text-ink"
-        >GitHub</a
-      >
-      <a href={SITE.npm} target="_blank" rel="noopener" class="transition-colors hover:text-ink"
-        >{footer.npm}</a
-      >
-      <span class="text-line-2" aria-hidden="true">·</span>
+    <nav
+      class="flex flex-col items-center gap-3 text-center text-ink-dim sm:flex-row sm:flex-wrap sm:gap-x-5 sm:gap-y-2 sm:text-left"
+    >
+      <div class="flex items-center gap-x-5">
+        <a href={localePath('/docs/', locale)} class="transition-colors hover:text-ink">
+          {footer.docs}
+        </a>
+        <a href={SITE.github} target="_blank" rel="noopener" class="transition-colors hover:text-ink"
+          >GitHub</a
+        >
+        <a href={SITE.npm} target="_blank" rel="noopener" class="transition-colors hover:text-ink"
+          >{footer.npm}</a
+        >
+      </div>
+
+      <span class="hidden text-line-2 sm:inline" aria-hidden="true">·</span>
+
       <a
         href={SITE.portfolio}
         target="_blank"
@@ -43,7 +49,9 @@ const year = 2026;
         <TmonierMark size={15} class="opacity-80 transition-opacity group-hover:opacity-100" />
         {footer.builtBy} ↗
       </a>
-      <span class="text-line-2" aria-hidden="true">·</span>
+
+      <span class="hidden text-line-2 sm:inline" aria-hidden="true">·</span>
+
       <span class="text-muted">
         © {year}
         <a href={SITE.portfolio} target="_blank" rel="noopener" class="group">
