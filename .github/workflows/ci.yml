@@ -116,7 +116,7 @@ jobs:
           install: true
 
       - name: Install landing dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Check landing site
         run: bun run check

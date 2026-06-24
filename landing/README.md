@@ -41,9 +41,13 @@ the same divergence-from-the-norm that `argot check` flags.
 Connect the repo and set, in the Pages project:
 
 - **Root directory:** `landing`
-- **Build command:** `bun install && bun run build`
+- **Build command:** `bun install --frozen-lockfile && bun run build`
 - **Build output directory:** `dist`
 - **Custom domain:** `argot.tmonier.com`
+
+`--frozen-lockfile` makes the deploy reproducible: it installs exactly what's pinned in
+`landing/bun.lock` and fails if the lockfile drifts from `package.json`, instead of mutating it
+mid-build (bun's equivalent of `npm ci`).
 
 `public/_headers` ships the security headers and long-cache rules; the sitemap is generated at
 `/sitemap-index.xml`.
