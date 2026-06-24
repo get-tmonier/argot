@@ -1,0 +1,42 @@
+{
+  "name": "@argot/landing",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "imports": {
+    "#components/*": "./src/components/*",
+    "#layouts/*": "./src/layouts/*",
+    "#lib/*": "./src/lib/*",
+    "#i18n/*": "./src/i18n/*",
+    "#styles/*": "./src/styles/*"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "lint": "oxlint src astro.config.mjs",
+    "format": "oxfmt --check src/lib src/i18n src/content.config.ts astro.config.mjs",
+    "format:fix": "oxfmt src/lib src/i18n src/content.config.ts astro.config.mjs",
+    "typecheck": "astro check",
+    "check": "bun run lint && bun run format && bun run typecheck"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "3.7.0",
+    "@fontsource-variable/inter": "5.2.8",
+    "@fontsource/jetbrains-mono": "5.2.8",
+    "astro": "6.0.0-beta.17"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.6",
+    "@tailwindcss/vite": "4.2.1",
+    "katex": "0.16.25",
+    "oxfmt": "0.52.0",
+    "oxlint": "1.67.0",
+    "rehype-katex": "7",
+    "remark-math": "6",
+    "tailwindcss": "4.2.1",
+    "typescript": "5.9.3",
+    "vite": "7.3.5"
+  }
+}

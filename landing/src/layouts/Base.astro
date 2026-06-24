@@ -1,0 +1,104 @@
+---
+import '#styles/global.css';
+import { SITE } from '#lib/site';
+
+interface Props {
+  title: string;
+  description: string;
+  locale?: 'en' | 'fr';
+  /** Enable one-section-per-screen scroll snapping (home page only). */
+  snap?: boolean;
+}
+const { title, description, locale = 'en', snap = false } = Astro.props;
+
+const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+const altLocale = locale === 'fr' ? 'en' : 'fr';
+const altPath =
+  locale === 'fr'
+    ? Astro.url.pathname.replace(/^\/fr\//, '/').replace(/^\/fr$/, '/')
+    : `/fr${Astro.url.pathname === '/' ? '/' : Astro.url.pathname}`;
+const altURL = new URL(altPath, Astro.site);
+const ogURL = new URL('/og.png', Astro.site);
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareSourceCode',
+  name: 'argot',
+  description,
+  codeRepository: SITE.github,
+  url: SITE.domain,
+  programmingLanguage: ['TypeScript', 'Python'],
+  license: 'https://opensource.org/licenses/MIT',
+  author: { '@type': 'Person', name: SITE.author, url: SITE.portfolio },
+};
+---
+
+<!doctype html>
+<html lang={locale} class:list={[snap && 'snap']}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalURL} />
+    <link rel="alternate" hreflang={locale} href={canonicalURL} />
+    <link rel="alternate" hreflang={altLocale} href={altURL} />
+    <link rel="alternate" hreflang="x-default" href={new URL('/', Astro.site)} />
+
+    <meta name="theme-color" content="#0c0a09" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Mark JS-capable so scroll-reveal only hides content when it can reveal it. -->
+    <script is:inline>
+      document.documentElement.classList.add('js');
+    </script>
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="argot" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalURL} />
+    <meta property="og:image" content={ogURL} />
+    <meta property="og:image:secure_url" content={ogURL} />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={title} />
+    <meta property="og:locale" content={locale === 'fr' ? 'fr_FR' : 'en_US'} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogURL} />
+    <meta name="twitter:image:alt" content={title} />
+
+    <script type="application/ld+json" is:inline set:html={JSON.stringify(jsonLd)} />
+  </head>
+  <body>
+    <slot />
+
+    <script>
+      const els = document.querySelectorAll('.reveal');
+      if (
+        els.length &&
+        !window.matchMedia('(prefers-reduced-motion: reduce)').matches &&
+        'IntersectionObserver' in window
+      ) {
+        const io = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              if (entry.isIntersecting) {
+                entry.target.classList.add('is-visible');
+                io.unobserve(entry.target);
+              }
+            }
+          },
+          { rootMargin: '0px 0px -10% 0px', threshold: 0.12 },
+        );
+        for (const el of els) io.observe(el);
+      } else {
+        for (const el of els) el.classList.add('is-visible');
+      }
+    </script>
+  </body>
+</html>

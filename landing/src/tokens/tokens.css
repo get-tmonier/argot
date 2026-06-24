@@ -1,0 +1,30 @@
+/* Design tokens — single source of truth for the argot brand.
+   Warm, near-black surfaces; ember orange as the repo's "voice"; a hotter
+   flag tone for divergence. The three signal colours map to argot's severity
+   tiers: ember (unusual) → amber (suspicious) → flag (foreign). */
+:root {
+  /* surfaces */
+  --bg: #0c0a09;
+  --bg-2: #120f0d;
+  --panel: #1a1512;
+  --panel-2: #221a15;
+  --line: #2a201a;
+  --line-2: #3a2c22;
+
+  /* ink */
+  --ink: #f4ece5;
+  --ink-dim: #c9bbae;
+  --muted: #8c7b6d;
+
+  /* the voice: argot's ember */
+  --ember: #e67e45;
+  --ember-bright: #f59e6b;
+  --ember-deep: #a0411c;
+
+  /* signals (severity tiers + status) */
+  --amber: #f2b04a;
+  --flag: #ff5d3b;
+  --jade: #5fb389;
+
+  --font-serif: Georgia, 'Times New Roman', serif;
+}

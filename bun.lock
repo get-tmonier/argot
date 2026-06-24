@@ -16,7 +16,7 @@
     },
     "cli": {
       "name": "@argot/cli",
-      "version": "0.2.38",
+      "version": "0.2.39",
       "bin": {
         "argot": "./src/cli.ts",
       },

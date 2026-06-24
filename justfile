@@ -9,6 +9,7 @@ help:
 
 install:
     bun install && uv sync
+    cd landing && bun install
 
 build:
     mkdir -p dist
@@ -81,6 +82,17 @@ ci: verify smoke
 
 bump:
     ncu -u && bun install && uv lock --upgrade
+
+# --- landing site (argot.tmonier.com) · standalone project, own deps ---
+
+landing:
+    cd landing && bun install && bun run dev
+
+landing-check:
+    cd landing && bun run check
+
+landing-build:
+    cd landing && bun run build
 
 # --- release ---
 

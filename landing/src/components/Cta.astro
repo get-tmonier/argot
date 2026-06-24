@@ -1,0 +1,50 @@
+---
+import { SITE, localePath } from '#lib/site';
+import type { SiteContent } from '#i18n/types';
+
+interface Props {
+  content: SiteContent;
+  locale: 'en' | 'fr';
+}
+const { content, locale } = Astro.props;
+const { cta } = content;
+---
+
+<section class="snap-section relative flex min-h-svh items-center">
+  <div class="mx-auto w-full max-w-6xl px-5 py-20">
+    <div
+      class="reveal relative overflow-hidden rounded-3xl border border-line bg-panel/40 px-6 py-12 text-center sm:px-12 sm:py-16"
+    >
+    <div class="cta-glow" aria-hidden="true"></div>
+    <h2 class="relative mx-auto max-w-2xl text-3xl font-bold tracking-tight text-balance sm:text-4xl">
+      {cta.title}
+    </h2>
+    <p class="relative mx-auto mt-5 max-w-xl leading-relaxed text-ink-dim text-pretty">{cta.body}</p>
+    <div class="relative mt-9 flex flex-wrap justify-center gap-3">
+      <a
+        href={localePath('/docs/', locale)}
+        class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-ember to-ember-deep px-6 py-3 text-sm font-semibold text-bg shadow-lg shadow-ember/20 transition-transform hover:-translate-y-0.5"
+      >
+        {cta.primary} →
+      </a>
+      <a
+        href={SITE.github}
+        target="_blank"
+        rel="noopener"
+        class="inline-flex items-center gap-2 rounded-xl border border-line bg-bg-2/60 px-6 py-3 text-sm font-semibold transition-colors hover:border-line-2"
+      >
+        {cta.secondary}
+      </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .cta-glow {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(40rem 20rem at 50% 0%, rgba(230, 126, 69, 0.16), transparent 70%);
+    pointer-events: none;
+  }
+</style>

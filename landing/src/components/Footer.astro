@@ -1,0 +1,48 @@
+---
+import Logo from '#components/Logo.astro';
+import { SITE, localePath } from '#lib/site';
+import type { SiteContent } from '#i18n/types';
+
+interface Props {
+  content: SiteContent;
+  locale: 'en' | 'fr';
+}
+const { content, locale } = Astro.props;
+const { footer } = content;
+const year = 2026;
+---
+
+<footer class="border-t border-line">
+  <div
+    class="mx-auto flex max-w-6xl flex-col gap-4 px-5 py-7 sm:flex-row sm:items-center sm:justify-between"
+  >
+    <div class="flex items-center gap-2.5">
+      <Logo size={22} />
+      <span class="wordmark">ar<span class="g">g</span>ot</span>
+      <span class="hidden text-sm text-muted md:inline">· {footer.tagline}</span>
+    </div>
+
+    <nav class="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-ink-dim">
+      <a href={localePath('/docs/', locale)} class="transition-colors hover:text-ink">
+        {footer.docs}
+      </a>
+      <a href={SITE.github} target="_blank" rel="noopener" class="transition-colors hover:text-ink"
+        >GitHub</a
+      >
+      <a href={SITE.npm} target="_blank" rel="noopener" class="transition-colors hover:text-ink"
+        >{footer.npm}</a
+      >
+      <span class="text-line-2" aria-hidden="true">·</span>
+      <a
+        href={SITE.portfolio}
+        target="_blank"
+        rel="noopener"
+        class="text-muted transition-colors hover:text-ember"
+      >
+        {footer.builtBy} ↗
+      </a>
+    </nav>
+  </div>
+
+  <p class="mx-auto max-w-6xl px-5 pb-7 text-xs text-muted">© {year} Tmonier · MIT</p>
+</footer>

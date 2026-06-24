@@ -1,0 +1,8 @@
+# build output
+dist/
+
+# astro generated types/cache
+.astro/
+
+# deps — landing is a standalone project with its own lockfile (committed)
+node_modules/

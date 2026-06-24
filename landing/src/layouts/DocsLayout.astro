@@ -1,0 +1,442 @@
+---
+import Logo from '#components/Logo.astro';
+import Base from '#layouts/Base.astro';
+import { SITE } from '#lib/site';
+import { getCollection } from 'astro:content';
+
+interface Props {
+  title: string;
+  description: string;
+  currentId: string;
+}
+const { title, description, currentId } = Astro.props;
+
+const GROUP_ORDER = ['Start', 'Guide', 'Reference'];
+const all = (await getCollection('docs')).sort((a, b) => a.data.order - b.data.order);
+const href = (id: string): string => (id === 'getting-started' ? '/docs/' : `/docs/${id}/`);
+
+const groups = GROUP_ORDER.map((name) => ({
+  name,
+  items: all.filter((d) => d.data.group === name),
+})).filter((g) => g.items.length > 0);
+
+const flat = groups.flatMap((g) => g.items);
+const idx = flat.findIndex((d) => d.id === currentId);
+const prev = idx > 0 ? flat[idx - 1] : null;
+const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
+---
+
+<Base title={`${title} · argot docs`} description={description} locale="en">
+  <header class="sticky top-0 z-40 border-b border-line bg-bg/80 backdrop-blur-md">
+    <div class="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-5">
+      <a href="/" class="flex items-center gap-2.5" aria-label="argot — home">
+        <Logo size={26} />
+        <span class="wordmark text-lg">ar<span class="g">g</span>ot</span>
+        <span class="rounded-md border border-line px-2 py-0.5 font-mono text-xs text-muted">docs</span>
+      </a>
+      <a
+        href={SITE.github}
+        target="_blank"
+        rel="noopener"
+        class="rounded-md border border-line bg-panel/60 px-3 py-1.5 text-sm transition-colors hover:border-line-2"
+        >GitHub ↗</a
+      >
+    </div>
+  </header>
+
+  <div class="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-5 py-10 lg:grid-cols-[230px_minmax(0,1fr)] lg:py-14">
+    <aside class="lg:sticky lg:top-24 lg:h-max">
+      <details class="docs-nav">
+        <summary class="docs-nav-toggle">
+          <span>Documentation</span>
+          <svg
+            class="chev"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M6 9l6 6 6-6"></path>
+          </svg>
+        </summary>
+        <nav class="docs-nav-body flex flex-col gap-6">
+          {
+            groups.map((group) => (
+              <div>
+                <p class="mb-2 font-mono text-xs tracking-widest text-ember uppercase">{group.name}</p>
+                <ul class="flex flex-col gap-0.5 border-l border-line">
+                  {group.items.map((doc) => (
+                    <li>
+                      <a
+                        href={href(doc.id)}
+                        aria-current={doc.id === currentId ? 'page' : undefined}
+                        class:list={[
+                          '-ml-px block border-l-2 py-1.5 pl-4 text-sm transition-colors',
+                          doc.id === currentId
+                            ? 'border-ember font-medium text-ink'
+                            : 'border-transparent text-ink-dim hover:border-line-2 hover:text-ink',
+                        ]}
+                      >
+                        {doc.data.title}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))
+          }
+        </nav>
+      </details>
+    </aside>
+
+    <article class="doc-prose min-w-0">
+      <h1>{title}</h1>
+      <p class="lead">{description}</p>
+      <slot />
+
+      <nav class="doc-pager">
+        {
+          prev ? (
+            <a href={href(prev.id)} class="pager-link">
+              <span class="pager-dir">← Previous</span>
+              <span class="pager-title">{prev.data.title}</span>
+            </a>
+          ) : (
+            <span />
+          )
+        }
+        {
+          next && (
+            <a href={href(next.id)} class="pager-link pager-next">
+              <span class="pager-dir">Next →</span>
+              <span class="pager-title">{next.data.title}</span>
+            </a>
+          )
+        }
+      </nav>
+    </article>
+  </div>
+</Base>
+
+<style is:global>
+  .doc-prose {
+    line-height: 1.7;
+    color: var(--ink-dim);
+  }
+  .doc-prose > h1 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    margin: 0 0 0.5rem;
+  }
+  .doc-prose .lead {
+    font-size: 1.1rem;
+    color: var(--muted);
+    margin: 0 0 2.5rem;
+  }
+  .doc-prose h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    margin: 2.6rem 0 1rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--line);
+  }
+  .doc-prose h3 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 2rem 0 0.75rem;
+  }
+  .doc-prose p,
+  .doc-prose ul,
+  .doc-prose ol {
+    margin: 1rem 0;
+  }
+  .doc-prose ul,
+  .doc-prose ol {
+    padding-left: 1.25rem;
+  }
+  .doc-prose li {
+    margin: 0.35rem 0;
+  }
+  .doc-prose a {
+    color: var(--ember-bright);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--ember) 40%, transparent);
+    text-underline-offset: 2px;
+    transition: text-decoration-color 0.2s;
+  }
+  .doc-prose a:hover {
+    text-decoration-color: var(--ember);
+  }
+  .doc-prose strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .doc-prose :not(pre) > code {
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+    color: var(--ember-bright);
+    background: color-mix(in srgb, var(--ember) 12%, transparent);
+    padding: 0.15em 0.4em;
+    border-radius: 5px;
+  }
+  .doc-prose pre {
+    margin: 1.4rem 0;
+    padding: 1.1rem 1.25rem;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--panel) 80%, #000) !important;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    line-height: 1.7;
+  }
+  .doc-prose pre code {
+    font-family: var(--font-mono);
+  }
+  .doc-prose blockquote {
+    margin: 1.4rem 0;
+    padding: 0.2rem 0 0.2rem 1.1rem;
+    border-left: 3px solid var(--ember);
+    color: var(--muted);
+  }
+  .doc-prose table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.4rem 0;
+    font-size: 0.9rem;
+  }
+  .doc-prose th,
+  .doc-prose td {
+    border: 1px solid var(--line);
+    padding: 0.6rem 0.85rem;
+    text-align: left;
+  }
+  .doc-prose th {
+    background: var(--panel);
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .doc-prose td code {
+    white-space: nowrap;
+  }
+
+  /* --- architecture diagram --- */
+  .diagram {
+    margin: 1.8rem 0;
+    padding: 1.1rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background:
+      radial-gradient(36rem 12rem at 50% -10%, rgba(230, 126, 69, 0.06), transparent 70%),
+      color-mix(in srgb, var(--panel) 60%, #000);
+    overflow-x: auto;
+  }
+  .diagram svg {
+    display: block;
+    width: 100%;
+    min-width: 620px;
+    height: auto;
+  }
+  .diagram figcaption {
+    margin-top: 0.85rem;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .diagram figcaption code {
+    font-size: 0.86em;
+    color: var(--ember-bright);
+  }
+  .d-phase {
+    fill: var(--ember);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+  }
+  .d-node rect {
+    fill: color-mix(in srgb, var(--panel-2) 80%, transparent);
+    stroke: var(--line-2);
+    stroke-width: 1.5;
+  }
+  .d-node.d-accent rect {
+    stroke: color-mix(in srgb, var(--ember) 45%, var(--line-2));
+    fill: color-mix(in srgb, var(--ember) 7%, var(--panel-2));
+  }
+  .d-node.d-artifact rect {
+    fill: color-mix(in srgb, var(--ember) 6%, transparent);
+    stroke: color-mix(in srgb, var(--ember) 40%, var(--line-2));
+    stroke-dasharray: 5 4;
+  }
+  .d-cmd {
+    fill: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 500;
+    text-anchor: middle;
+  }
+  .d-stage {
+    fill: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 13.5px;
+    font-weight: 600;
+    text-anchor: middle;
+  }
+  .d-file {
+    fill: var(--ember-bright);
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    text-anchor: middle;
+  }
+  .d-sub {
+    fill: var(--muted);
+    font-family: var(--font-sans);
+    font-size: 10.5px;
+    text-anchor: middle;
+  }
+  .d-link {
+    stroke: var(--line-2);
+    stroke-width: 2;
+    fill: none;
+  }
+  .d-flow {
+    stroke: var(--ember);
+    stroke-width: 2;
+    fill: none;
+    stroke-linecap: round;
+    stroke-dasharray: 5 18;
+    opacity: 0.9;
+  }
+  .d-thread {
+    stroke: var(--muted);
+    stroke-width: 1.5;
+    stroke-dasharray: 3 4;
+    fill: none;
+  }
+  .d-thread-label {
+    fill: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 10px;
+  }
+  .d-out rect {
+    stroke-width: 1.5;
+  }
+  .d-out text {
+    text-anchor: middle;
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .d-ok rect {
+    fill: color-mix(in srgb, var(--jade) 9%, transparent);
+    stroke: color-mix(in srgb, var(--jade) 45%, var(--line-2));
+  }
+  .d-ok text {
+    fill: var(--jade);
+  }
+  .d-flag rect {
+    fill: color-mix(in srgb, var(--flag) 9%, transparent);
+    stroke: color-mix(in srgb, var(--flag) 50%, var(--line-2));
+  }
+  .d-flag text {
+    fill: var(--flag);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .d-flow {
+      display: none;
+    }
+  }
+  .doc-pager {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 3.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--line);
+  }
+  .pager-link {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.8rem 1.1rem;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    text-decoration: none !important;
+    transition: border-color 0.2s;
+  }
+  .pager-link:hover {
+    border-color: var(--line-2);
+  }
+  .pager-next {
+    text-align: right;
+  }
+  .pager-dir {
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-family: var(--font-mono);
+  }
+  .pager-title {
+    color: var(--ink);
+    font-weight: 500;
+  }
+  /* Mobile: a tappable toggle; the nav is collapsed by default. */
+  .docs-nav-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.7rem 0.95rem;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--panel) 55%, transparent);
+    color: var(--ink);
+    font-weight: 500;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+  }
+  .docs-nav-toggle::-webkit-details-marker {
+    display: none;
+  }
+  .docs-nav-toggle .chev {
+    color: var(--muted);
+    transition: rotate 0.2s ease;
+  }
+  .docs-nav[open] .docs-nav-toggle .chev {
+    rotate: 180deg;
+  }
+  .docs-nav-body {
+    margin-top: 0.9rem;
+  }
+  /* Desktop: persistent sidebar — hide the toggle, always show the nav. */
+  @media (min-width: 1024px) {
+    .docs-nav-toggle {
+      display: none;
+    }
+    .docs-nav-body {
+      display: flex !important;
+      margin-top: 0;
+    }
+  }
+</style>
+
+<script>
+  // Persistent sidebar on desktop, collapsed disclosure on mobile.
+  const nav = document.querySelector<HTMLDetailsElement>('.docs-nav');
+  if (nav) {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const sync = (): void => {
+      if (mq.matches) nav.open = true;
+    };
+    sync();
+    mq.addEventListener('change', sync);
+  }
+</script>

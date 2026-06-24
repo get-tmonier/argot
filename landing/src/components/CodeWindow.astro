@@ -1,0 +1,71 @@
+---
+import { Code } from 'astro:components';
+
+interface Props {
+  code: string;
+  lang?: 'tsx' | 'ts' | 'python' | 'bash' | 'json';
+  title?: string;
+  class?: string;
+}
+const { code, lang = 'python', title, class: className = '' } = Astro.props;
+---
+
+<div class={`code-window ${className}`}>
+  <div class="titlebar">
+    <span class="dot" style="background: var(--flag)"></span>
+    <span class="dot" style="background: var(--amber)"></span>
+    <span class="dot" style="background: var(--jade)"></span>
+    {title && <span class="title">{title}</span>}
+  </div>
+  <div class="code-body">
+    <Code code={code} lang={lang} theme="vesper" />
+  </div>
+</div>
+
+<style>
+  .code-window {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--panel) 80%, #000);
+    overflow: hidden;
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.03) inset,
+      0 24px 60px -30px rgba(0, 0, 0, 0.8);
+  }
+  .titlebar {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel-2) 60%, transparent);
+  }
+  .dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 999px;
+    opacity: 0.85;
+  }
+  .title {
+    margin-left: 8px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .code-body {
+    overflow-x: auto;
+  }
+  .code-body :global(pre) {
+    margin: 0;
+    padding: clamp(12px, 3vw, 20px);
+    background: transparent !important;
+    /* Scales down on small screens so short snippets never need to scroll. */
+    font-size: clamp(10px, 2.9vw, 13.5px);
+    line-height: 1.7;
+    font-family: var(--font-mono);
+    white-space: pre;
+  }
+  .code-body :global(code) {
+    font-family: var(--font-mono);
+  }
+</style>
