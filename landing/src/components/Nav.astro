@@ -1,5 +1,6 @@
 ---
 import Logo from '#components/Logo.astro';
+import TmonierMark from '#components/TmonierMark.astro';
 import { SITE, localePath } from '#lib/site';
 import type { SiteContent } from '#i18n/types';
 
@@ -37,6 +38,17 @@ const base = locale === 'fr' ? '/fr/' : '/';
     </div>
 
     <div class="flex items-center gap-2">
+      <a
+        href={SITE.portfolio}
+        target="_blank"
+        rel="noopener"
+        class="group hidden items-center gap-1.5 text-sm text-muted transition-colors hover:text-[#d4aa3c] sm:inline-flex"
+        aria-label="tmonier — the umbrella brand"
+      >
+        <TmonierMark size={16} class="opacity-80 transition-opacity group-hover:opacity-100" />
+        <span class="hidden md:inline">tmonier</span>
+      </a>
+      <span class="hidden text-line-2 sm:inline" aria-hidden="true">·</span>
       <a
         href={localePath('/docs/', locale)}
         class="px-1 text-sm font-medium text-ink-dim transition-colors hover:text-ink md:hidden"
