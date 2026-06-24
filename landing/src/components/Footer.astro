@@ -1,5 +1,6 @@
 ---
 import Logo from '#components/Logo.astro';
+import TmonierMark from '#components/TmonierMark.astro';
 import { SITE, localePath } from '#lib/site';
 import type { SiteContent } from '#i18n/types';
 
@@ -37,12 +38,24 @@ const year = 2026;
         href={SITE.portfolio}
         target="_blank"
         rel="noopener"
-        class="text-muted transition-colors hover:text-ember"
+        class="group inline-flex items-center gap-1.5 text-muted transition-colors hover:text-[#d4aa3c]"
       >
+        <TmonierMark size={15} class="opacity-80 transition-opacity group-hover:opacity-100" />
         {footer.builtBy} ↗
       </a>
     </nav>
   </div>
 
-  <p class="mx-auto max-w-6xl px-5 pb-7 text-xs text-muted">© {year} Tmonier · MIT</p>
+  <p class="mx-auto max-w-6xl px-5 pb-7 text-xs text-muted">
+    © {year}
+    <a
+      href={SITE.portfolio}
+      target="_blank"
+      rel="noopener"
+      class="inline-flex items-center gap-1 align-middle transition-colors hover:text-[#d4aa3c]"
+    >
+      <TmonierMark size={12} />
+      tmonier
+    </a> · MIT
+  </p>
 </footer>

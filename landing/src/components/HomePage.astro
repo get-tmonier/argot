@@ -25,7 +25,12 @@ const { content, locale } = Astro.props;
     <Catches content={content} />
     <Local content={content} />
     <Features content={content} />
-    <Cta content={content} locale={locale} />
+    <!-- final screen: the CTA fills the viewport with the footer pinned at the
+         bottom. Deliberately NOT a snap target — the page settles naturally at
+         the document end so the footer is always reachable (no snap-back). -->
+    <div class="flex min-h-svh flex-col">
+      <Cta content={content} locale={locale} />
+      <Footer content={content} locale={locale} />
+    </div>
   </main>
-  <Footer content={content} locale={locale} />
 </Base>

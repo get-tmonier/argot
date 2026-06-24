@@ -1,0 +1,40 @@
+---
+/** The tmonier brand mark — a ship's helm in brass, linking back to the
+ *  umbrella brand (tmonier.com). Self-contained SVG, no shared tokens. */
+interface Props {
+  size?: number;
+  class?: string;
+}
+const { size = 18, class: className = '' } = Astro.props;
+const uid = Math.random().toString(36).slice(2, 8);
+const g = `url(#brass-${uid})`;
+
+const spokes =
+  'M32,24 L32,10 M37.7,26.3 L47.6,16.4 M40,32 L54,32 M37.7,37.7 L47.6,47.6 M32,40 L32,54 M26.3,37.7 L16.4,47.6 M24,32 L10,32 M26.3,26.3 L16.4,16.4';
+const handles =
+  'M32,13 L32,1 M45.4,18.6 L53.9,10.1 M51,32 L63,32 M45.4,45.4 L53.9,53.9 M32,51 L32,63 M18.6,45.4 L10.1,53.9 M13,32 L1,32 M18.6,18.6 L10.1,10.1';
+---
+
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 64 64"
+  width={size}
+  height={size}
+  class={className}
+  aria-hidden="true"
+  overflow="visible"
+>
+  <defs>
+    <linearGradient id={`brass-${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d4aa3c"></stop>
+      <stop offset="45%" stop-color="#c49a2b"></stop>
+      <stop offset="100%" stop-color="#a67c1a"></stop>
+    </linearGradient>
+  </defs>
+  <path d={spokes} fill="none" stroke={g} stroke-width="2" stroke-linecap="round"></path>
+  <circle cx="32" cy="32" r="22" fill="none" stroke={g} stroke-width="3"></circle>
+  <circle cx="32" cy="32" r="12" fill="none" stroke={g} stroke-width="2"></circle>
+  <circle cx="32" cy="32" r="6.5" fill="none" stroke={g} stroke-width="1.5"></circle>
+  <circle cx="32" cy="32" r="3" fill={g}></circle>
+  <path d={handles} fill="none" stroke={g} stroke-width="4" stroke-linecap="round"></path>
+</svg>
