@@ -51,18 +51,7 @@ const flagged = [
     fill="none"
     role="presentation"
   >
-    <defs>
-      <radialGradient id="vf-vig" cx="0.5" cy="0.52" r="0.62">
-        <stop offset="0" stop-color="#2b2b2b"></stop>
-        <stop offset="0.5" stop-color="#7a7a7a"></stop>
-        <stop offset="0.92" stop-color="#fff"></stop>
-      </radialGradient>
-      <mask id="vf-mask">
-        <rect width={VW} height={VH} fill="url(#vf-vig)"></rect>
-      </mask>
-    </defs>
-
-    <g mask="url(#vf-mask)">
+    <g>
       {/* the repo's voice — a faint baseline */}
       <line
         class="vf-base"
@@ -122,6 +111,22 @@ const flagged = [
     pointer-events: none;
     opacity: 0;
     animation: vf-reveal 0.9s ease-out forwards;
+    /* Vignette that dims the centre so the hero copy stays legible. Moved off
+       the SVG <mask> (which forced the whole animated group to re-rasterise
+       every frame) onto a cheap, GPU-composited CSS mask — the single biggest
+       win for mobile. */
+    -webkit-mask-image: radial-gradient(
+      62% 62% at 50% 52%,
+      rgba(0, 0, 0, 0.17) 0%,
+      rgba(0, 0, 0, 0.48) 50%,
+      rgba(0, 0, 0, 1) 92%
+    );
+    mask-image: radial-gradient(
+      62% 62% at 50% 52%,
+      rgba(0, 0, 0, 0.17) 0%,
+      rgba(0, 0, 0, 0.48) 50%,
+      rgba(0, 0, 0, 1) 92%
+    );
   }
   @keyframes vf-reveal {
     to {
@@ -229,6 +234,27 @@ const flagged = [
     100% {
       transform: translateX(1200px);
       opacity: 0;
+    }
+  }
+
+  /* Mobile GPUs choke on per-element SVG filters and 70+ nodes floating forever.
+     Keep the entrance, drop every filter, and let the dots settle to a static
+     steady state — only the scan sweep and flare pulses stay alive (a handful of
+     small, filter-free elements), which mobile handles fine. */
+  @media (max-width: 768px) {
+    .vf-dot {
+      filter: none;
+      animation: vf-dot-in 0.7s ease-out backwards var(--delay);
+    }
+    .vf-flare,
+    .vf-flare-halo {
+      filter: none;
+    }
+    .vf-flare-halo {
+      display: none;
+    }
+    .vf-scanline {
+      filter: none;
     }
   }
 
