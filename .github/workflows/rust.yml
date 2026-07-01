@@ -1,0 +1,48 @@
+name: rust
+
+# Builds + tests the single-binary Rust engine on Linux and macOS. The Linux
+# run doubles as the cross-platform parity gate: the golden/parity suites under
+# crates/argot-core/tests/ compare Rust output to fixtures captured from the
+# Python engine, so a green Linux run proves Rust == Python on Linux (parity was
+# developed/verified on macOS; this confirms it holds on the release platform).
+
+on:
+  push:
+    branches: [feat/rust-rewrite]
+    paths:
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - '.github/workflows/rust.yml'
+  pull_request:
+    paths:
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - '.github/workflows/rust.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: rust-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain (pinned by rust-toolchain.toml)
+        run: rustup show && rustup component add rustfmt clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Format check
+        run: cargo fmt --check
+      - name: Clippy (deny warnings)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Test (incl. Python-parity golden suites)
+        run: cargo test --workspace
