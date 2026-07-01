@@ -1,87 +1,73 @@
-export ARGOT_DEV := "1"
-
-VERSION := `bun -e "console.log(require('./cli/package.json').version)"`
+VERSION := `grep -m1 '^version = ' Cargo.toml | cut -d'"' -f2`
 
 default: help
 
 help:
     @just --list
 
+# Build the release binary + install landing deps.
 install:
-    bun install && uv sync
+    cargo build --release -p argot-cli
     cd landing && bun install
 
+# Build the single `argot` release binary → target/release/argot.
 build:
-    mkdir -p dist
-    cd cli && bun build --compile --target=bun src/cli.ts \
-        --define "ARGOT_VERSION=\"$(VERSION)\"" \
-        --outfile ../dist/argot
+    cargo build --release -p argot-cli
+
+# --- pipeline (single Rust binary) ---
 
 extract path=".":
-    uv run --package argot-engine python -m argot.extract {{path}}
+    cargo run --release -p argot-cli -- extract {{path}}
 
-train dataset=".argot/dataset.jsonl" model=".argot/model.pkl":
-    uv run --package argot-engine python -m argot.train --dataset {{dataset}} --out {{model}}
+train path=".":
+    cargo run --release -p argot-cli -- train --repo {{path}}
 
-check ref="HEAD~1..HEAD" model=".argot/model.pkl":
-    uv run --package argot-engine python -m argot.check . {{ref}} --model {{model}}
+calibrate path=".":
+    cargo run --release -p argot-cli -- calibrate --repo {{path}}
 
-# --- individual checks ---
+# Fit = train + calibrate in one shot.
+fit path=".":
+    cargo run --release -p argot-cli -- fit --repo {{path}}
 
-lint:
-    bun run lint && uv run ruff check engine
+check path="." ref="HEAD~1..HEAD":
+    cargo run --release -p argot-cli -- check {{path}} {{ref}}
 
-lint-fix:
-    bun run lint -- --fix && uv run ruff check --fix engine
+# --- checks ---
 
-format:
-    bun run format && uv run ruff format --check engine
-
-format-fix:
-    bun run format && uv run ruff format engine
-
-typecheck:
-    bun run typecheck && uv run mypy engine --exclude "engine/argot/acceptance"
-
-boundaries:
-    bun run boundaries
-
-knip:
-    bun run knip
-
-test:
-    bun test --cwd cli && uv run pytest engine
-
-smoke:
-    just extract . && test -s .argot/dataset.jsonl
-
-# Run the full pipeline against a path (default: argot itself) and assert that
-# the outputs are shaped — both Python and TypeScript rows in dataset.jsonl,
-# scorer-config.json emitted, check exits clean. Dev loop only — informational
-# signal that monorepo handling didn't silently break. Not a CI gate.
-dogfood path=".":
-    just extract {{path}}
-    uv run argot-train --repo {{path}}
-    uv run argot-calibrate --repo {{path}}
-    uv run argot-check {{path}}
-    test -s .argot/dataset.jsonl || (echo "✗ dogfood: .argot/dataset.jsonl is empty or missing" && exit 1)
-    grep -qE '"file_path": "[^"]*\.py"' .argot/dataset.jsonl || (echo "✗ dogfood: no .py rows in dataset.jsonl — Python extraction broken?" && exit 1)
-    grep -qE '"file_path": "[^"]*\.tsx?"' .argot/dataset.jsonl || (echo "✗ dogfood: no .ts/.tsx rows in dataset.jsonl — TypeScript extraction broken?" && exit 1)
-    test -s .argot/scorer-config.json || (echo "✗ dogfood: .argot/scorer-config.json missing — calibrate didn't emit threshold" && exit 1)
-    @echo "✓ dogfood: pipeline ran end-to-end, both .py and .ts rows present, scorer-config emitted"
-
-# --- combined ---
-
-verify: lint format typecheck boundaries knip test
+# Format check + clippy-as-errors + tests. Canonical CI gate.
+verify:
+    cargo fmt --check
+    cargo clippy --workspace --all-targets -- -D warnings
+    cargo test --workspace
     @echo "✓ all checks passed"
 
-verify-fix: lint-fix format-fix typecheck boundaries knip test
-    @echo "✓ all checks passed (auto-fixes applied)"
+verify-fix:
+    cargo fmt
+    cargo clippy --workspace --all-targets --fix --allow-dirty -- -D warnings
+    cargo test --workspace
+
+test:
+    cargo test --workspace
+
+smoke:
+    cargo run --release -p argot-cli -- extract . && test -s .argot/dataset.jsonl
 
 ci: verify smoke
 
-bump:
-    ncu -u && bun install && uv lock --upgrade
+# Run the full pipeline against a path (default: argot itself) and assert the
+# outputs are shaped — both .py and .ts rows in dataset.jsonl + scorer-config
+# emitted. Dev-loop signal that monorepo handling didn't silently break.
+dogfood path=".":
+    cargo build --release -p argot-cli
+    ./target/release/argot extract {{path}}
+    ./target/release/argot train --repo {{path}}
+    ./target/release/argot calibrate --repo {{path}}
+    ./target/release/argot check {{path}} || true
+    test -s .argot/dataset.jsonl || (echo "✗ dataset.jsonl empty/missing" && exit 1)
+    grep -qE '"file_path": "[^"]*\.py"' .argot/dataset.jsonl || (echo "✗ no .py rows" && exit 1)
+    grep -qE '"file_path": "[^"]*\.tsx?"' .argot/dataset.jsonl || (echo "✗ no .ts rows" && exit 1)
+    test -s .argot/scorer-config.json || (echo "✗ scorer-config.json missing" && exit 1)
+    @echo "✓ dogfood: pipeline ran end-to-end, both .py and .ts rows, scorer-config emitted"
 
 # --- landing site (argot.tmonier.com) · standalone project, own deps ---
 
@@ -95,74 +81,6 @@ landing-build:
     cd landing && bun run build
 
 # --- release ---
-
-publish-engine:
-    cd engine && uv build && uv publish
-
-release VERSION:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if [ "$(git branch --show-current)" != "main" ]; then
-        echo "Error: must be on main branch to release" >&2
-        exit 1
-    fi
-    if [ -n "$(git status --porcelain)" ]; then
-        echo "Error: working tree is dirty" >&2
-        exit 1
-    fi
-    # Bump versions
-    bun -e "
-        const fs = require('fs');
-        const p = JSON.parse(fs.readFileSync('cli/package.json', 'utf8'));
-        p.version = '{{VERSION}}';
-        fs.writeFileSync('cli/package.json', JSON.stringify(p, null, 2) + '\n');
-    "
-    sed -i '' 's/^version = .*/version = "{{VERSION}}"/' engine/pyproject.toml
-    # Commit, tag, push
-    git add cli/package.json engine/pyproject.toml
-    git commit -m "chore: release v{{VERSION}}"
-    git tag "v{{VERSION}}"
-    git push origin main "v{{VERSION}}"
-    echo "Released v{{VERSION}} — CI will build binaries and publish to PyPI"
-
-# Benchmark harness
-
-bench:
-    uv run --directory benchmarks argot-bench
-
-bench-quick:
-    uv run --directory benchmarks argot-bench --quick
-
-bench-corpus CORPUS:
-    uv run --directory benchmarks argot-bench --corpus={{CORPUS}}
-
-verify-bench:
-    uv run --directory benchmarks ruff check src tests
-    uv run --directory benchmarks mypy src
-    uv run --directory benchmarks pytest -q
-
-# --- rust engine (single-binary rewrite: crates/argot-{core,cli}) ---
-
-build-rust:
-    cargo build --release -p argot-cli
-
-# Rust equivalent of `just verify`: format check + clippy-as-errors + tests.
-verify-rust:
-    cargo fmt --check
-    cargo clippy --workspace --all-targets -- -D warnings
-    cargo test --workspace
-
-# Rust equivalent of `just dogfood`: run the full pipeline via the single
-# binary and assert both .py and .ts rows in dataset.jsonl + a scorer-config
-# with both language blocks. Dev-loop signal that monorepo handling works.
-dogfood-rust path=".":
-    cargo build --release -p argot-cli
-    ./target/release/argot extract {{path}}
-    ./target/release/argot train --repo {{path}}
-    ./target/release/argot calibrate --repo {{path}}
-    ./target/release/argot check {{path}} || true
-    test -s .argot/dataset.jsonl || (echo "✗ dataset.jsonl empty/missing" && exit 1)
-    grep -qE '"file_path": "[^"]*\.py"' .argot/dataset.jsonl || (echo "✗ no .py rows" && exit 1)
-    grep -qE '"file_path": "[^"]*\.tsx?"' .argot/dataset.jsonl || (echo "✗ no .ts rows" && exit 1)
-    test -s .argot/scorer-config.json || (echo "✗ scorer-config.json missing" && exit 1)
-    @echo "✓ dogfood-rust: pipeline ran end-to-end, both .py and .ts rows, scorer-config emitted"
+# Releases are cut by tagging `v<x.y.z>`; the `release` workflow (cargo-dist)
+# builds the cross-platform binaries, attaches them to the GitHub Release, and
+# publishes the `@tmonier/argot` npm wrapper that downloads the right binary.

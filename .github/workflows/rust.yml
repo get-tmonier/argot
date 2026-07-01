@@ -37,6 +37,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # extract walks git history; the smoke step needs it
       - name: Install Rust toolchain (pinned by rust-toolchain.toml)
         run: rustup show && rustup component add rustfmt clippy
       - uses: Swatinem/rust-cache@v2
@@ -46,3 +48,7 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Test (incl. Python-parity golden suites)
         run: cargo test --workspace
+      - name: Smoke (extract runs end-to-end)
+        run: |
+          cargo run --release -p argot-cli -- extract .
+          test -s .argot/dataset.jsonl && echo "OK — dataset.jsonl non-empty"

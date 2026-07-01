@@ -9,7 +9,7 @@ edition = "2021"
 # floor to build the tree. The pinned toolchain lives in rust-toolchain.toml.
 rust-version = "1.85"
 license = "MIT"
-repository = "https://github.com/argot-lint/argot"
+repository = "https://github.com/get-tmonier/argot"
 
 # Dependency versions are pinned for parity with the Python engine being
 # replaced:

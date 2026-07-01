@@ -1,6 +1,7 @@
 [tools]
+# Rust toolchain is pinned in rust-toolchain.toml (rustup). The tools below are
+# for the peripheral bits that aren't the engine: `bun` builds the landing site,
+# `just` runs the dev recipes, `lefthook` installs the git hooks.
 bun = "1.3.12"
-python = "3.13"
-uv = "0.11.7"
 just = "1.49.0"
 lefthook = "2.1.6"

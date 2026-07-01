@@ -4,13 +4,13 @@ on:
   push:
     branches: [main]
     paths-ignore:
-      - "cli/package.json"
-      - "engine/pyproject.toml"
-      - "uv.lock"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "npm/package.json"
 
 jobs:
   bump-and-tag:
-    name: Bump minor version and tag
+    name: Bump patch version and tag
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -31,28 +31,24 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: astral-sh/setup-uv@v5
-        if: steps.check.outputs.skip == 'false'
-
-      - name: Bump minor version
+      - name: Bump patch version (Cargo.toml → npm wrapper)
         if: steps.check.outputs.skip == 'false'
         id: bump
         run: |
-          CURRENT=$(node -p "require('./cli/package.json').version")
+          CURRENT=$(grep -m1 '^version = ' Cargo.toml | cut -d'"' -f2)
           MAJOR=$(echo "$CURRENT" | cut -d. -f1)
           MINOR=$(echo "$CURRENT" | cut -d. -f2)
           PATCH=$(echo "$CURRENT" | cut -d. -f3)
           NEW="$MAJOR.$MINOR.$((PATCH + 1))"
           echo "version=$NEW" >> "$GITHUB_OUTPUT"
-
+          sed -i "0,/^version = .*/s//version = \"$NEW\"/" Cargo.toml
           node -e "
             const fs = require('fs');
-            const p = JSON.parse(fs.readFileSync('cli/package.json', 'utf8'));
+            const p = JSON.parse(fs.readFileSync('npm/package.json', 'utf8'));
             p.version = '$NEW';
-            fs.writeFileSync('cli/package.json', JSON.stringify(p, null, 2) + '\n');
+            fs.writeFileSync('npm/package.json', JSON.stringify(p, null, 2) + '\n');
           "
-          sed -i "s/^version = .*/version = \"$NEW\"/" engine/pyproject.toml
-          uv lock
+          cargo update -p argot-core -p argot-cli
 
       - name: Commit, tag and push
         if: steps.check.outputs.skip == 'false'
@@ -60,7 +56,7 @@ jobs:
           VERSION=${{ steps.bump.outputs.version }}
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add cli/package.json engine/pyproject.toml uv.lock
+          git add Cargo.toml Cargo.lock npm/package.json
           git commit -m "chore: release v$VERSION"
           git tag "v$VERSION"
           git push origin main "v$VERSION"
