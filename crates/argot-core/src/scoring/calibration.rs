@@ -255,14 +255,19 @@ fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
     }
 }
 
-fn lang_name(language: Language) -> &'static str {
+/// Canonical config-key name for a scoring language ("python"/"typescript").
+/// Public so `inspect` reports under the same keys `scorer-config.json` uses.
+pub fn language_name(language: Language) -> &'static str {
     match language {
         Language::Python => "python",
         Language::Typescript => "typescript",
     }
 }
 
-fn lang_for_ext(name: &str) -> Option<Language> {
+/// Extension → language routing used to partition the corpus (`.py` → python;
+/// `.ts`/`.tsx`/`.js`/`.jsx` → typescript). Public so `inspect` classifies
+/// files with exactly the calibration routing.
+pub fn language_for_filename(name: &str) -> Option<Language> {
     let ext = match name.rfind('.') {
         Some(i) => &name[i..],
         None => return None,
@@ -398,9 +403,9 @@ pub fn run_calibrate(
     // Partition corpus by language.
     let mut by_lang: BTreeMap<&'static str, (Language, Vec<PathBuf>)> = BTreeMap::new();
     for f in &corpus_files {
-        if let Some(lang) = lang_for_ext(&basename(f)) {
+        if let Some(lang) = language_for_filename(&basename(f)) {
             by_lang
-                .entry(lang_name(lang))
+                .entry(language_name(lang))
                 .or_insert_with(|| (lang, Vec::new()))
                 .1
                 .push(f.clone());

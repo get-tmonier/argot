@@ -164,7 +164,8 @@ fn git_show_file(repo_dir: &Path, commit_sha: &str, file_path: &str) -> Option<S
     Some(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
-/// Sample up to `n` diff hunks from `dataset.jsonl` for the auto-detect probe.
+/// Sample up to `n` diff hunks from `dataset.jsonl` for the auto-detect probe
+/// (also used by research scouts as a real-PR hunk sample).
 /// Returns `(hunk_content, file_abs_path, file_source)` tuples. File content is
 /// read at the extraction commit via `git show` so line bounds never go stale.
 ///
@@ -172,7 +173,7 @@ fn git_show_file(repo_dir: &Path, commit_sha: &str, file_path: &str) -> Option<S
 /// selection here uses the numpy-exact sampler instead. The probe only feeds a
 /// binary keep/disable decision on the fire *rate*, which is insensitive to
 /// which particular hunks are drawn.
-fn load_diff_hunks_for_probe(
+pub fn load_diff_hunks_for_probe(
     dataset_path: &Path,
     repo_dir: &Path,
     n: usize,

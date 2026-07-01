@@ -5,16 +5,10 @@
 //! and real-PR control hunks with the production scorer, and writes per-corpus
 //! JSON + a markdown summary under `--results-dir`.
 
-mod catalog;
-mod metrics;
-mod report;
-mod run;
-mod scorer;
-mod targets;
-
 use anyhow::{Context, Result};
+use argot_bench::scorer::BenchKnobs;
+use argot_bench::{report, run, targets};
 use clap::Parser;
-use scorer::BenchKnobs;
 use std::path::PathBuf;
 use std::process::ExitCode;
 

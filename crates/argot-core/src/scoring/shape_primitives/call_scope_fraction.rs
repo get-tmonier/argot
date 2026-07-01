@@ -1,10 +1,14 @@
 //! Call-scope distribution — port of
 //! `engine/argot/scoring/scorers/call_scope_fraction.py`.
 //!
-//! Fraction of call nodes with no `function_definition` ancestor (module
-//! scope) vs all call nodes. Note: the boundary kind is the literal
-//! `function_definition` for BOTH grammars — TypeScript has no such node, so
-//! its fraction is always 1.0. Two-sided tail-z ramp.
+//! Fraction of call nodes with no enclosing function ancestor (module scope)
+//! vs all call nodes. Two-sided tail-z ramp.
+//!
+//! The scope boundary is grammar-specific: tree-sitter-python uses
+//! `function_definition`, tree-sitter-typescript uses `function_declaration`.
+//! (The original port carried the Python literal for both grammars, so the
+//! fraction was constantly 1.0 on TypeScript and the primitive always
+//! abstained there — fixed in era 14 Phase F.)
 
 use crate::scoring::adapters::Language;
 use crate::scoring::shape_primitive::{Baseline, ShapePrimitive};
@@ -13,9 +17,8 @@ use std::cell::Cell;
 use std::path::PathBuf;
 use tree_sitter::Node;
 
-/// Boundary between module scope and nested scope. Present as a node kind only
-/// in tree-sitter-python; the literal is intentionally used for both grammars.
-const FUNCTION_BOUNDARY: &str = "function_definition";
+/// Boundary kinds between module scope and nested scope, per grammar.
+const FUNCTION_BOUNDARIES: &[&str] = &["function_definition", "function_declaration"];
 
 /// Minimum files with ≥1 call for the baseline to be trusted.
 const MIN_FILES: usize = 3;
@@ -23,7 +26,7 @@ const MIN_FILES: usize = 3;
 fn has_function_ancestor(node: Node) -> bool {
     let mut parent = node.parent();
     while let Some(p) = parent {
-        if p.kind() == FUNCTION_BOUNDARY {
+        if FUNCTION_BOUNDARIES.contains(&p.kind()) {
             return true;
         }
         parent = p.parent();
@@ -106,5 +109,32 @@ impl ShapePrimitive for CallScopeFraction {
         };
         let tail_z = (hunk_frac - *mean) / std.max(1e-6);
         (tail_z.abs() - 1.0).max(0.0).min(self.cluster_bonus_clip())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn python_nested_calls_are_not_module_scope() {
+        let src = "def f():\n    g()\n\nh()\n";
+        let frac = fraction_module_scope(src, Language::Python).unwrap();
+        assert!((frac - 0.5).abs() < 1e-12, "got {frac}");
+    }
+
+    #[test]
+    fn typescript_nested_calls_are_not_module_scope() {
+        // Pre-fix, the Python boundary literal made every TS call look
+        // module-scope (fraction constantly 1.0 → std 0 → permanent abstain).
+        let src = "function f() {\n  g();\n}\nh();\n";
+        let frac = fraction_module_scope(src, Language::Typescript).unwrap();
+        assert!(frac < 1.0, "TS nested call still counted as module scope");
+        assert!((frac - 0.5).abs() < 1e-12, "got {frac}");
+    }
+
+    #[test]
+    fn no_calls_abstains() {
+        assert!(fraction_module_scope("const x = 1;\n", Language::Typescript).is_none());
     }
 }

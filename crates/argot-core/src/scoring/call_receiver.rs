@@ -333,6 +333,27 @@ fn cluster_by_signatures(
     (file_to_cluster, cluster_sizes)
 }
 
+/// Which rule a distinct hunk callee triggered in
+/// [`CallReceiverScorer::weighted_contribution_for_file`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContributionBranch {
+    /// Globally unattested, attested root → `alpha + root_bonus`.
+    UnattestedKnownRoot,
+    /// Globally unattested, unknown root → `alpha`.
+    Unattested,
+    /// Globally attested but absent from the file's cluster → `cluster_bonus`.
+    ClusterAbsent,
+    /// Attested in ≤ rare-threshold cluster files → `cluster_bonus`.
+    ClusterRare,
+}
+
+/// One distinct callee's contribution decision (scout/evidence surface).
+#[derive(Debug, Clone)]
+pub struct ContributionEvent {
+    pub callee: String,
+    pub branch: ContributionBranch,
+}
+
 /// Call-receiver scorer.
 pub struct CallReceiverScorer {
     language: Language,
@@ -347,6 +368,11 @@ pub struct CallReceiverScorer {
     cluster_attested: HashMap<usize, HashSet<String>>,
     cluster_callee_counts: HashMap<usize, HashMap<String, usize>>,
     cluster_sizes: HashMap<usize, usize>,
+    /// Corpus-global document frequency: number of corpus files whose callee
+    /// bag contains each callee (era-14 rarity weighting substrate).
+    callee_file_counts: HashMap<String, usize>,
+    /// Number of (non-data-dominant) corpus files behind `callee_file_counts`.
+    n_corpus_files: usize,
     pub rare_branch_fire_count: usize,
     pub rare_branch_hunks_fired: usize,
     pub hunks_scored: usize,
@@ -373,6 +399,7 @@ impl CallReceiverScorer {
         let mut file_bags: Vec<(PathBuf, HashSet<String>)> = Vec::new();
         let mut file_sigs: Vec<(PathBuf, Vec<i64>)> = Vec::new();
 
+        let mut callee_file_counts: HashMap<String, usize> = HashMap::new();
         for (path, src) in repo_files {
             if adapter.is_data_dominant(src) {
                 skipped += 1;
@@ -383,8 +410,11 @@ impl CallReceiverScorer {
                 attested.insert(c.clone());
             }
             files_list.push(path.clone());
+            let bag: HashSet<String> = callees.into_iter().collect();
+            for callee in &bag {
+                *callee_file_counts.entry(callee.clone()).or_insert(0) += 1;
+            }
             if n_clusters > 1 {
-                let bag: HashSet<String> = callees.into_iter().collect();
                 let sig = minhash_signature(&bag);
                 file_bags.push((path.clone(), bag));
                 file_sigs.push((path.clone(), sig));
@@ -427,6 +457,7 @@ impl CallReceiverScorer {
             }
         }
 
+        let n_corpus_files = files_list.len();
         Ok(Self {
             language,
             alpha,
@@ -440,10 +471,22 @@ impl CallReceiverScorer {
             cluster_attested,
             cluster_callee_counts,
             cluster_sizes,
+            callee_file_counts,
+            n_corpus_files,
             rare_branch_fire_count: 0,
             rare_branch_hunks_fired: 0,
             hunks_scored: 0,
         })
+    }
+
+    /// Corpus files that contain `callee` (document frequency; 0 if unseen).
+    pub fn callee_file_count(&self, callee: &str) -> usize {
+        self.callee_file_counts.get(callee).copied().unwrap_or(0)
+    }
+
+    /// Non-data-dominant corpus file count behind the document frequencies.
+    pub fn n_corpus_files(&self) -> usize {
+        self.n_corpus_files
     }
 
     fn root(callee: &str) -> &str {
@@ -502,21 +545,18 @@ impl CallReceiverScorer {
         weights.min(cap)
     }
 
-    /// Cluster-conditional (`weighted_contribution_for_file`).
-    #[allow(clippy::too_many_arguments)]
-    pub fn weighted_contribution_for_file(
-        &mut self,
+    /// Per-callee contribution decisions for a hunk against its file's
+    /// cluster — the single source of truth behind
+    /// [`Self::weighted_contribution_for_file`], also consumed directly by
+    /// research scouts and evidence tooling. Does not touch the fire counters.
+    pub fn contribution_events_for_file(
+        &self,
         hunk: &str,
         file_path: Option<&Path>,
-        alpha: f64,
-        root_bonus: f64,
-        cluster_bonus: f64,
-        cap: f64,
         file_source: Option<&str>,
-    ) -> f64 {
-        self.hunks_scored += 1;
+    ) -> Vec<ContributionEvent> {
         if has_root_error(hunk, self.language) {
-            return 0.0;
+            return Vec::new();
         }
         let mut cluster_id: Option<usize> =
             file_path.and_then(|p| self.file_to_cluster.get(p).copied());
@@ -530,22 +570,21 @@ impl CallReceiverScorer {
         let cluster_set = cluster_id.and_then(|c| self.cluster_attested.get(&c));
         let cluster_counts = cluster_id.and_then(|c| self.cluster_callee_counts.get(&c));
 
-        let mut weights = 0.0;
+        let mut events = Vec::new();
         let mut seen: HashSet<String> = HashSet::new();
-        let mut hunk_fired_rare = false;
         for c in extract_callees(hunk, self.language).into_iter().flatten() {
             if seen.contains(&c) {
                 continue;
             }
             seen.insert(c.clone());
-            if !self.attested.contains(&c) {
+            let branch = if !self.attested.contains(&c) {
                 if self.attested_roots.contains(Self::root(&c)) {
-                    weights += alpha + root_bonus;
+                    Some(ContributionBranch::UnattestedKnownRoot)
                 } else {
-                    weights += alpha;
+                    Some(ContributionBranch::Unattested)
                 }
             } else if cluster_set.map(|s| !s.contains(&c)).unwrap_or(false) {
-                weights += cluster_bonus;
+                Some(ContributionBranch::ClusterAbsent)
             } else if self.cluster_rare_threshold > 0
                 && cluster_id.is_some()
                 && cluster_counts.is_some()
@@ -558,9 +597,42 @@ impl CallReceiverScorer {
                     .unwrap_or(0)
                     >= self.cluster_size_min
             {
-                self.rare_branch_fire_count += 1;
-                hunk_fired_rare = true;
-                weights += cluster_bonus;
+                Some(ContributionBranch::ClusterRare)
+            } else {
+                None
+            };
+            if let Some(branch) = branch {
+                events.push(ContributionEvent { callee: c, branch });
+            }
+        }
+        events
+    }
+
+    /// Cluster-conditional (`weighted_contribution_for_file`).
+    pub fn weighted_contribution_for_file(
+        &mut self,
+        hunk: &str,
+        file_path: Option<&Path>,
+        alpha: f64,
+        root_bonus: f64,
+        cluster_bonus: f64,
+        cap: f64,
+        file_source: Option<&str>,
+    ) -> f64 {
+        self.hunks_scored += 1;
+        let events = self.contribution_events_for_file(hunk, file_path, file_source);
+        let mut weights = 0.0;
+        let mut hunk_fired_rare = false;
+        for ev in &events {
+            match ev.branch {
+                ContributionBranch::UnattestedKnownRoot => weights += alpha + root_bonus,
+                ContributionBranch::Unattested => weights += alpha,
+                ContributionBranch::ClusterAbsent => weights += cluster_bonus,
+                ContributionBranch::ClusterRare => {
+                    self.rare_branch_fire_count += 1;
+                    hunk_fired_rare = true;
+                    weights += cluster_bonus;
+                }
             }
         }
         if hunk_fired_rare {

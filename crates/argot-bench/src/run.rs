@@ -88,7 +88,7 @@ fn git(repo_dir: &Path, args: &[&str]) -> Result<()> {
 }
 
 /// Clone (or reuse) the corpus repo under `data_dir/<corpus>/.repo`.
-fn ensure_clone(data_dir: &Path, corpus: &str, url: &str) -> Result<PathBuf> {
+pub fn ensure_clone(data_dir: &Path, corpus: &str, url: &str) -> Result<PathBuf> {
     let repo_dir = data_dir.join(corpus).join(".repo");
     if !repo_dir.join(".git").exists() {
         std::fs::create_dir_all(repo_dir.parent().unwrap())?;
@@ -104,7 +104,7 @@ fn ensure_clone(data_dir: &Path, corpus: &str, url: &str) -> Result<PathBuf> {
 }
 
 /// Detached-checkout `sha`, fetching once if the object is missing locally.
-fn ensure_sha_checked_out(repo_dir: &Path, sha: &str) -> Result<()> {
+pub fn ensure_sha_checked_out(repo_dir: &Path, sha: &str) -> Result<()> {
     if git(repo_dir, &["checkout", "--quiet", "--detach", sha]).is_ok() {
         return Ok(());
     }
@@ -113,7 +113,7 @@ fn ensure_sha_checked_out(repo_dir: &Path, sha: &str) -> Result<()> {
 }
 
 /// Run extract on the checkout (or reuse the cached dataset).
-fn ensure_extracted(repo_dir: &Path, out_path: &Path) -> Result<PathBuf> {
+pub fn ensure_extracted(repo_dir: &Path, out_path: &Path) -> Result<PathBuf> {
     if out_path.exists() && out_path.metadata()?.len() > 0 {
         return Ok(out_path.to_path_buf());
     }
@@ -185,10 +185,57 @@ fn strip_break_meta(content: &str, chs: usize, che: usize) -> (String, usize, us
     }
 }
 
-/// Score catalog fixtures. When host-injection metadata is present, the hunk
-/// is scored with `file_path = <host path>` (correct cluster routing) and
-/// `file_source = None` (skip file-level typicality + prose blanking on a
-/// synthesized file); otherwise the legacy catalog-path behaviour applies.
+/// The exact scorer inputs for one catalog fixture. When host-injection
+/// metadata is present, the hunk is scored with `file_path = <host path>`
+/// (correct cluster routing) and `file_source = None` (skip file-level
+/// typicality + prose blanking on a synthesized file); otherwise the legacy
+/// catalog-path behaviour applies. Shared by the bench and research scouts so
+/// both score fixtures identically.
+pub struct FixtureScoringInput {
+    pub hunk: String,
+    pub file_source: Option<String>,
+    pub hunk_start_line: Option<usize>,
+    pub hunk_end_line: Option<usize>,
+    pub file_path: PathBuf,
+}
+
+pub fn fixture_scoring_input(
+    catalog_dir: &Path,
+    fx: &Fixture,
+    repo_dir: &Path,
+) -> Result<FixtureScoringInput> {
+    let (src, mut hunk) = read_hunk(catalog_dir, fx)?;
+    let mut file_path = repo_dir.join(&fx.file);
+    let mut scored_src: Option<String> = Some(src);
+    let mut scored_hs = Some(fx.hunk_start_line);
+    let mut scored_he = Some(fx.hunk_end_line);
+
+    if let (Some(host_file), Some(_)) = (&fx.host_file, fx.host_inject_at_line) {
+        let host_path = repo_dir.join(host_file);
+        if std::fs::read_to_string(&host_path).is_ok() {
+            if let Ok(catalog_content) = std::fs::read_to_string(catalog_dir.join(&fx.file)) {
+                let (cleaned, clean_hs, clean_he) =
+                    strip_break_meta(&catalog_content, fx.hunk_start_line, fx.hunk_end_line);
+                let cleaned_lines: Vec<&str> = cleaned.lines().collect();
+                if clean_hs >= 1 && clean_hs <= clean_he && clean_he <= cleaned_lines.len() {
+                    hunk = cleaned_lines[clean_hs - 1..clean_he].join("\n");
+                }
+                file_path = host_path;
+                scored_src = None;
+                scored_hs = None;
+                scored_he = None;
+            }
+        }
+    }
+    Ok(FixtureScoringInput {
+        hunk,
+        file_source: scored_src,
+        hunk_start_line: scored_hs,
+        hunk_end_line: scored_he,
+        file_path,
+    })
+}
+
 fn score_fixtures(
     bench: &mut BenchScorer,
     catalog_dir: &Path,
@@ -197,36 +244,13 @@ fn score_fixtures(
 ) -> Result<Vec<FixtureResult>> {
     let mut out = Vec::new();
     for fx in fixtures {
-        let (src, mut hunk) = read_hunk(catalog_dir, fx)?;
-        let mut file_path = repo_dir.join(&fx.file);
-        let mut scored_src: Option<String> = Some(src);
-        let mut scored_hs = Some(fx.hunk_start_line);
-        let mut scored_he = Some(fx.hunk_end_line);
-
-        if let (Some(host_file), Some(_)) = (&fx.host_file, fx.host_inject_at_line) {
-            let host_path = repo_dir.join(host_file);
-            if std::fs::read_to_string(&host_path).is_ok() {
-                if let Ok(catalog_content) = std::fs::read_to_string(catalog_dir.join(&fx.file)) {
-                    let (cleaned, clean_hs, clean_he) =
-                        strip_break_meta(&catalog_content, fx.hunk_start_line, fx.hunk_end_line);
-                    let cleaned_lines: Vec<&str> = cleaned.lines().collect();
-                    if clean_hs >= 1 && clean_hs <= clean_he && clean_he <= cleaned_lines.len() {
-                        hunk = cleaned_lines[clean_hs - 1..clean_he].join("\n");
-                    }
-                    file_path = host_path;
-                    scored_src = None;
-                    scored_hs = None;
-                    scored_he = None;
-                }
-            }
-        }
-
+        let input = fixture_scoring_input(catalog_dir, fx, repo_dir)?;
         let r = bench.scorer.score_hunk(
-            &hunk,
-            scored_src.as_deref(),
-            scored_hs,
-            scored_he,
-            Some(&file_path),
+            &input.hunk,
+            input.file_source.as_deref(),
+            input.hunk_start_line,
+            input.hunk_end_line,
+            Some(&input.file_path),
         );
         out.push(FixtureResult {
             id: fx.id.clone(),
