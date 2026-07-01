@@ -94,6 +94,7 @@ fn base_args(repo: &Path) -> CheckArgs {
         verbose: false,
         min_severity: "unusual".to_string(),
         use_color: false,
+        format: argot_core::output::OutputFormat::Human,
     }
 }
 

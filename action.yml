@@ -1,0 +1,164 @@
+# Composite GitHub Action for argot — voice linter that learns a repo's voice
+# from git history. See docs/ci.md for copy-paste workflow examples.
+#
+# What it does:
+#   1. Downloads the prebuilt `argot` binary from this repo's GitHub Releases
+#      (cargo-dist artifacts: argot-{target}.tar.xz).
+#   2. Restores/caches the `.argot/` model directory keyed on the tracked
+#      source files and the argot version; runs `argot fit` on a cache miss.
+#   3. Runs `argot check --format <format>` and writes the document to a file.
+#   4. Optionally uploads the SARIF file to GitHub code scanning.
+#
+# Supported runners: ubuntu (x64) and macOS (arm64) — the targets argot
+# publishes prebuilt binaries for.
+#
+# Note: checking a ref range (the default on pull requests) needs git history.
+# Use `actions/checkout` with `fetch-depth: 0`.
+
+name: "argot"
+description: "Run the argot voice linter and (optionally) upload SARIF results to GitHub code scanning."
+branding:
+  icon: "mic"
+  color: "purple"
+
+inputs:
+  path:
+    description: "Path to the repository to check (working-directory relative)."
+    required: false
+    default: "."
+  argot-version:
+    description: "argot release to install: 'latest' or a version like '0.2.43'."
+    required: false
+    default: "latest"
+  format:
+    description: "Output format for `argot check`: sarif, json, or human."
+    required: false
+    default: "sarif"
+  output-file:
+    description: "File the check results are written to."
+    required: false
+    default: "argot-results.sarif"
+  ref:
+    description: >-
+      Git ref or range to check (e.g. 'origin/main..HEAD'). Empty = automatic:
+      base..HEAD on pull requests, the head commit on pushes.
+    required: false
+    default: ""
+  cache:
+    description: "Cache the fitted .argot/ model directory between runs."
+    required: false
+    default: "true"
+  upload-sarif:
+    description: "Upload the SARIF file to GitHub code scanning (requires format: sarif and `security-events: write`)."
+    required: false
+    default: "true"
+  fail-on-hits:
+    description: "Fail the job when argot finds hunks above the calibrated threshold."
+    required: false
+    default: "true"
+
+outputs:
+  exit-code:
+    description: "Exit code of `argot check` (0 clean, 1 hits found)."
+    value: ${{ steps.check.outputs.exit-code }}
+  results-file:
+    description: "Path to the written results file."
+    value: ${{ steps.check.outputs.results-file }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install argot
+      shell: bash
+      env:
+        ARGOT_VERSION: ${{ inputs.argot-version }}
+      run: |
+        set -euo pipefail
+        case "${RUNNER_OS}-${RUNNER_ARCH}" in
+          Linux-X64)   target="x86_64-unknown-linux-gnu" ;;
+          macOS-ARM64) target="aarch64-apple-darwin" ;;
+          *)
+            echo "::error::argot publishes prebuilt binaries for Linux x64 and macOS arm64 only (got ${RUNNER_OS}-${RUNNER_ARCH})"
+            exit 1
+            ;;
+        esac
+        if [ "$ARGOT_VERSION" = "latest" ]; then
+          url="https://github.com/get-tmonier/argot/releases/latest/download/argot-${target}.tar.xz"
+        else
+          url="https://github.com/get-tmonier/argot/releases/download/v${ARGOT_VERSION#v}/argot-${target}.tar.xz"
+        fi
+        install_dir="${RUNNER_TEMP}/argot-bin"
+        mkdir -p "$install_dir"
+        echo "Downloading $url"
+        curl --proto '=https' --tlsv1.2 -fsSL --retry 3 "$url" -o "${RUNNER_TEMP}/argot.tar.xz"
+        tar -xJf "${RUNNER_TEMP}/argot.tar.xz" -C "$install_dir" --strip-components=1
+        echo "$install_dir" >> "$GITHUB_PATH"
+        "$install_dir/argot" --version
+
+    - name: Cache argot model
+      if: ${{ inputs.cache == 'true' }}
+      id: model-cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ inputs.path }}/.argot
+        key: argot-model-${{ runner.os }}-${{ inputs.argot-version }}-${{ hashFiles('**/*.py', '**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx') }}
+
+    - name: Fit voice model
+      if: ${{ inputs.cache != 'true' || steps.model-cache.outputs.cache-hit != 'true' }}
+      shell: bash
+      env:
+        ARGOT_PATH: ${{ inputs.path }}
+      run: |
+        set -euo pipefail
+        argot fit --repo "$ARGOT_PATH"
+
+    - name: Run argot check
+      id: check
+      shell: bash
+      env:
+        ARGOT_PATH: ${{ inputs.path }}
+        ARGOT_REF: ${{ inputs.ref }}
+        ARGOT_FORMAT: ${{ inputs.format }}
+        ARGOT_OUT: ${{ inputs.output-file }}
+      run: |
+        set -euo pipefail
+        args=()
+        if [ -n "$ARGOT_REF" ]; then
+          args+=("$ARGOT_REF")
+        elif [ -n "${GITHUB_BASE_REF:-}" ]; then
+          # Pull request: check everything on the branch vs the base.
+          args+=("origin/${GITHUB_BASE_REF}..HEAD")
+        else
+          # Push: check the head commit.
+          args+=(--commit HEAD)
+        fi
+        set +e
+        argot check "$ARGOT_PATH" "${args[@]}" --format "$ARGOT_FORMAT" > "$ARGOT_OUT"
+        code=$?
+        set -e
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        echo "results-file=$ARGOT_OUT" >> "$GITHUB_OUTPUT"
+        if [ "$code" -ge 2 ]; then
+          echo "::error::argot check failed (exit $code)"
+          cat "$ARGOT_OUT" || true
+          exit "$code"
+        fi
+        if [ "$code" -eq 1 ]; then
+          echo "argot found hunks above the calibrated threshold (see $ARGOT_OUT)."
+        else
+          echo "argot check clean."
+        fi
+
+    - name: Upload SARIF to code scanning
+      if: ${{ inputs.upload-sarif == 'true' && inputs.format == 'sarif' }}
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ inputs.output-file }}
+        category: argot
+
+    - name: Fail on hits
+      if: ${{ inputs.fail-on-hits == 'true' && steps.check.outputs.exit-code == '1' }}
+      shell: bash
+      run: |
+        echo "::error::argot found hunks above the calibrated threshold — see the uploaded results."
+        exit 1

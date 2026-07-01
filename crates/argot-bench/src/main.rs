@@ -156,8 +156,8 @@ fn real_main() -> Result<ExitCode> {
     let mut reports = Vec::new();
     for target in &selected {
         let started = std::time::Instant::now();
-        let mut rs = run::run_corpus(target, &opts)
-            .with_context(|| format!("corpus {}", target.name))?;
+        let mut rs =
+            run::run_corpus(target, &opts).with_context(|| format!("corpus {}", target.name))?;
         eprintln!(
             "[{}] done in {:.0}s",
             target.name,

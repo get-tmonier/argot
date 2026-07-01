@@ -14,6 +14,7 @@
 use crate::git_walk::{
     open_repo, resolve_shas, walk_commits, HunkSpan, WalkItem, SUPPORTED_EXTENSIONS,
 };
+use crate::output::{render_json, render_sarif, HitRecord, OutputFormat, ReportMeta};
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::LanguageAdapter;
@@ -73,6 +74,8 @@ pub struct CheckArgs {
     pub verbose: bool,
     pub min_severity: String,
     pub use_color: bool,
+    /// Output format. Machine formats (`json`/`sarif`) own stdout exclusively.
+    pub format: OutputFormat,
 }
 
 /// Result of a `check` run — the CLI prints these and exits with `exit_code`.
@@ -984,6 +987,55 @@ fn render_results(hits: &[&Hit], hunk_lines: Option<usize>, out: &mut String) ->
     any_truncated
 }
 
+/// Flatten visible hits into serializable [`HitRecord`]s for the machine
+/// formats. Severity is measured against the per-hit calibrated threshold,
+/// matching the human rendering; evidence lines are the same per-reason lines
+/// the human path prints, with layout indentation stripped.
+fn hit_records(hits: &[&Hit]) -> Vec<HitRecord> {
+    hits.iter()
+        .map(|h| HitRecord {
+            path: h.file_path.clone(),
+            line_start: h.line,
+            line_end: h.line_end,
+            score: h.score,
+            threshold: h.threshold,
+            severity: severity(h.score, h.threshold).to_string(),
+            reason: h.reason.clone(),
+            reason_label: reason_label(&h.reason).to_string(),
+            source: h.source.clone(),
+            evidence: h
+                .evidence
+                .as_ref()
+                .map(|ev| {
+                    format_evidence(ev, false, h.line)
+                        .into_iter()
+                        .map(|l| l.trim().to_string())
+                        .collect()
+                })
+                .unwrap_or_default(),
+        })
+        .collect()
+}
+
+fn report_meta(args: &CheckArgs, scanned: String, hunks_scanned: usize) -> ReportMeta {
+    ReportMeta {
+        // The workspace shares one version across crates, so this matches the
+        // CLI binary's version.
+        tool_version: env!("CARGO_PKG_VERSION").to_string(),
+        repo: args.repo_path.clone(),
+        scanned,
+        hunks_scanned,
+    }
+}
+
+/// Render the complete machine-format document (json/sarif) for stdout.
+fn render_machine(format: OutputFormat, meta: &ReportMeta, records: &[HitRecord]) -> String {
+    match format {
+        OutputFormat::Sarif => render_sarif(meta, records),
+        _ => render_json(meta, records),
+    }
+}
+
 /// Collect patches for the requested mode (`main()` mode dispatch). On a
 /// mode-specific early exit returns the finished outcome.
 fn collect_patches(args: &CheckArgs) -> Result<(Vec<PatchBatch>, String), CheckOutcome> {
@@ -1109,7 +1161,20 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
 
     let (patches, scan_label) = match collect_patches(&args) {
         Ok(v) => v,
-        Err(outcome) => return outcome,
+        Err(outcome) => {
+            // Machine formats own stdout: the only non-error early exit (an
+            // explicit range with no commits, exit 0) still emits a complete,
+            // hit-free document. Hard errors (exit != 0) stay stderr-only.
+            if args.format.is_machine() && outcome.exit_code == 0 {
+                let meta = report_meta(&args, format!("0 commit(s) ({})", args.reference), 0);
+                return CheckOutcome {
+                    stdout: render_machine(args.format, &meta, &[]),
+                    stderr: outcome.stderr,
+                    exit_code: 0,
+                };
+            }
+            return outcome;
+        }
     };
 
     let mut stderr = String::new();
@@ -1147,6 +1212,20 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
             sev_index(severity(h.score, t)) >= min_idx
         })
         .collect();
+
+    // Machine formats: the serialized document is the entire stdout; skip
+    // warnings stay on stderr. Exit semantics match the human path (1 when
+    // any hit is visible, 0 otherwise).
+    if args.format.is_machine() {
+        let records = hit_records(&visible);
+        let meta = report_meta(&args, scan_label, hunk_count);
+        let exit_code = if visible.is_empty() { 0 } else { 1 };
+        return CheckOutcome {
+            stdout: render_machine(args.format, &meta, &records),
+            stderr,
+            exit_code,
+        };
+    }
 
     if visible.is_empty() {
         let mut sorted_exts: Vec<&str> = SUPPORTED_EXTENSIONS.to_vec();

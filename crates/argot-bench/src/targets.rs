@@ -30,8 +30,8 @@ struct TargetsFile {
 pub fn load_targets(path: &Path) -> Result<Vec<Target>> {
     let raw = std::fs::read_to_string(path)
         .with_context(|| format!("cannot read targets file {}", path.display()))?;
-    let parsed: TargetsFile =
-        serde_yaml::from_str(&raw).with_context(|| format!("invalid YAML in {}", path.display()))?;
+    let parsed: TargetsFile = serde_yaml::from_str(&raw)
+        .with_context(|| format!("invalid YAML in {}", path.display()))?;
     for t in &parsed.targets {
         if !matches!(t.language.as_str(), "python" | "typescript" | "multi") {
             anyhow::bail!("target {}: unsupported language {:?}", t.name, t.language);

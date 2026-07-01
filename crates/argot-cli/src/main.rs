@@ -21,6 +21,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use argot_core::check::{run_check, CheckArgs, DEFAULT_HUNK_LINES};
 use argot_core::extract::{write_dataset, ExtractError};
 use argot_core::git_walk::{head_sha, repo_exists};
+use argot_core::output::OutputFormat;
 use argot_core::scoring::adapters::python::PythonAdapter;
 use argot_core::scoring::adapters::typescript::TypeScriptAdapter;
 use argot_core::scoring::adapters::{Language, LanguageAdapter};
@@ -439,6 +440,15 @@ struct CheckCmd {
         value_parser = ["unusual", "suspicious", "foreign"]
     )]
     min_severity: String,
+    /// Output format: human (terminal), json (stable machine-readable), or
+    /// sarif (SARIF 2.1.0 for code-scanning uploads). Machine formats write
+    /// nothing but the document to stdout.
+    #[arg(
+        long,
+        default_value = "human",
+        value_parser = ["human", "json", "sarif"]
+    )]
+    format: String,
 }
 
 fn run_check_cmd(c: CheckCmd) -> ExitCode {
@@ -458,6 +468,9 @@ fn run_check_cmd(c: CheckCmd) -> ExitCode {
         verbose: c.verbose,
         min_severity: c.min_severity,
         use_color,
+        // The value_parser restricts input to the known names, so this is
+        // always Some; default to Human defensively.
+        format: OutputFormat::parse(&c.format).unwrap_or_default(),
     });
     print!("{}", outcome.stdout);
     eprint!("{}", outcome.stderr);

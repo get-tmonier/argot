@@ -14,6 +14,7 @@ pub mod dataset;
 pub mod extract;
 pub mod git_walk;
 pub mod json;
+pub mod output;
 pub mod scoring;
 pub mod stats;
 pub mod text;

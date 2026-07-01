@@ -206,9 +206,7 @@ fn score_fixtures(
         if let (Some(host_file), Some(_)) = (&fx.host_file, fx.host_inject_at_line) {
             let host_path = repo_dir.join(host_file);
             if std::fs::read_to_string(&host_path).is_ok() {
-                if let Ok(catalog_content) =
-                    std::fs::read_to_string(catalog_dir.join(&fx.file))
-                {
+                if let Ok(catalog_content) = std::fs::read_to_string(catalog_dir.join(&fx.file)) {
                     let (cleaned, clean_hs, clean_he) =
                         strip_break_meta(&catalog_content, fx.hunk_start_line, fx.hunk_end_line);
                     let cleaned_lines: Vec<&str> = cleaned.lines().collect();
@@ -370,7 +368,11 @@ pub fn run_corpus(target: &Target, opts: &RunOptions) -> Result<Vec<CorpusReport
     let languages: Vec<Language> = if catalog.language == "multi" {
         let mut langs = Vec::new();
         for cand in ["python", "typescript"] {
-            if catalog.fixtures.iter().any(|f| f.language.as_deref() == Some(cand)) {
+            if catalog
+                .fixtures
+                .iter()
+                .any(|f| f.language.as_deref() == Some(cand))
+            {
                 langs.push(parse_language(cand)?);
             }
         }
@@ -382,7 +384,11 @@ pub fn run_corpus(target: &Target, opts: &RunOptions) -> Result<Vec<CorpusReport
     ensure_sha_checked_out(&repo_dir, &primary.sha)?;
     let dataset = ensure_extracted(
         &repo_dir,
-        &opts.data_dir.join(&target.name).join(&primary.sha).join("dataset.jsonl"),
+        &opts
+            .data_dir
+            .join(&target.name)
+            .join(&primary.sha)
+            .join("dataset.jsonl"),
     )?;
 
     let all_fixtures: Vec<&Fixture> = if opts.quick {
@@ -395,7 +401,9 @@ pub fn run_corpus(target: &Target, opts: &RunOptions) -> Result<Vec<CorpusReport
     for &language in &languages {
         eprintln!(
             "[{}] building {:?} scorer (primary {})",
-            target.name, language, &primary.sha[..8.min(primary.sha.len())]
+            target.name,
+            language,
+            &primary.sha[..8.min(primary.sha.len())]
         );
         let mut bench = build_scorer(&repo_dir, language, Some(&dataset), &knobs)?;
 
@@ -439,11 +447,18 @@ pub fn run_corpus(target: &Target, opts: &RunOptions) -> Result<Vec<CorpusReport
                 ensure_sha_checked_out(&repo_dir, &pin.sha)?;
                 let ds = ensure_extracted(
                     &repo_dir,
-                    &opts.data_dir.join(&target.name).join(&pin.sha).join("dataset.jsonl"),
+                    &opts
+                        .data_dir
+                        .join(&target.name)
+                        .join(&pin.sha)
+                        .join("dataset.jsonl"),
                 )?;
                 eprintln!(
                     "[{}] {:?} controls @ PR #{} ({})",
-                    target.name, language, pin.pr, &pin.sha[..8.min(pin.sha.len())]
+                    target.name,
+                    language,
+                    pin.pr,
+                    &pin.sha[..8.min(pin.sha.len())]
                 );
                 let mut bench2 = build_scorer(&repo_dir, language, Some(&ds), &knobs)?;
                 let records2 = read_control_hunks(&ds)?;
@@ -505,7 +520,9 @@ fn make_report(
 
     let mut recall_by_category: BTreeMap<String, (usize, usize)> = BTreeMap::new();
     for f in &fixture_results {
-        let e = recall_by_category.entry(f.category.clone()).or_insert((0, 0));
+        let e = recall_by_category
+            .entry(f.category.clone())
+            .or_insert((0, 0));
         e.1 += 1;
         if f.flagged {
             e.0 += 1;
@@ -541,6 +558,10 @@ fn make_report(
         recall_by_category,
         stage_attribution,
         fixture_results,
-        control_results: if keep_controls { control_results } else { Vec::new() },
+        control_results: if keep_controls {
+            control_results
+        } else {
+            Vec::new()
+        },
     }
 }

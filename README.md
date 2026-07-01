@@ -304,6 +304,10 @@ The surprise score is the BPE log-likelihood ratio for the hunk — how differen
 
 `t` is set automatically during `argot fit` and stored in `.argot/scorer-config.json`. Each hit also shows its **source** (`workdir` / `staged` / `untracked` / commit SHA) and the **scorer reason** that fired (`rare token sequence`, `unfamiliar callee`, or `foreign import`).
 
+### Running in CI
+
+`argot check` also emits machine-readable output — `--format json` (stable schema) or `--format sarif` (SARIF 2.1.0 for GitHub code scanning). A composite GitHub Action ships at the repo root, and `.pre-commit-hooks.yaml` registers an `argot-check` hook with the pre-commit framework. See [docs/ci.md](docs/ci.md) for copy-paste setups.
+
 ## How it works
 
 The pipeline has two phases: **fit** (extract → train → calibrate, run once
