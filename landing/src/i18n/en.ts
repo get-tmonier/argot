@@ -13,7 +13,7 @@ const en: SiteContent = {
     docs: 'Docs',
   },
   hero: {
-    eyebrow: 'Local · no LLM · no telemetry',
+    eyebrow: 'Local · single Rust binary · no LLM',
     titleLead: 'Lint the rules',
     titleGradient: 'you never wrote down.',
     subtitle:
@@ -21,7 +21,7 @@ const en: SiteContent = {
     ctaPrimary: 'Read the docs',
     ctaSecondary: 'Star on GitHub',
     install: 'npm i -g @tmonier/argot',
-    installNote: 'MIT · macOS & Linux · fits in seconds, scores in milliseconds',
+    installNote: 'MIT · single static binary · macOS & Linux · no runtime deps',
   },
   demo: {
     label: 'The second question',
@@ -81,6 +81,10 @@ const en: SiteContent = {
     label: 'Why argot',
     title: 'Reads like a linter. Thinks like a reviewer.',
     items: [
+      {
+        title: 'One fast Rust binary',
+        desc: 'A single statically-linked binary — no Python, no Node, no runtime to install, no model to download. [[extract 5× faster, check ~23× faster]] than the previous engine, with instant startup and byte-for-byte identical results.',
+      },
       {
         title: 'Drops into CI',
         desc: 'argot check runs on every commit, groups hits by file, and [[exits non-zero]] when something diverges. Wire it in like ESLint.',
