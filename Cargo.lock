@@ -83,7 +83,7 @@ checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
 
 [[package]]
 name = "argot"
-version = "0.2.42"
+version = "0.2.43"
 dependencies = [
  "anyhow",
  "argot-core",
@@ -94,7 +94,7 @@ dependencies = [
 
 [[package]]
 name = "argot-core"
-version = "0.2.42"
+version = "0.2.43"
 dependencies = [
  "anyhow",
  "git2",
