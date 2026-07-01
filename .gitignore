@@ -6,6 +6,10 @@ dist/
 build/
 cli/dist/
 
+# rust
+/target/
+target/
+
 # Next.js (removed)
 # .next/ — not used
 

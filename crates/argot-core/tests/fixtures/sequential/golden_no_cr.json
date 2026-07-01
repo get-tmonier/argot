@@ -1,0 +1,62 @@
+{
+ "bpe_threshold": 5.0,
+ "import_modules": [
+  "math",
+  "collections",
+  "json",
+  "pathlib",
+  "__future__"
+ ],
+ "cases": [
+  {
+   "hunk": "import numpy as np\narr = np.zeros(10)",
+   "score": 9.439979067734669,
+   "threshold": 5.0,
+   "flagged": true,
+   "reason": "bpe",
+   "import_score": 0.0,
+   "bpe_score": 9.439979067734669,
+   "cr_contribution": 0.0
+  },
+  {
+   "hunk": "def helper(a, b):\n    return a + b",
+   "score": 5.122364968504572,
+   "threshold": 5.0,
+   "flagged": true,
+   "reason": "bpe",
+   "import_score": 0.0,
+   "bpe_score": 5.122364968504572,
+   "cr_contribution": 0.0
+  },
+  {
+   "hunk": "zzz_obscure = flibbertigibbet_xyzzy(42)",
+   "score": 5.053797856832482,
+   "threshold": 5.0,
+   "flagged": true,
+   "reason": "bpe",
+   "import_score": 0.0,
+   "bpe_score": 5.053797856832482,
+   "cr_contribution": 0.0
+  },
+  {
+   "hunk": "DATA = [1,2,3,4,5,6,7,8,9,10,11,12]",
+   "score": 0.0,
+   "threshold": 5.0,
+   "flagged": false,
+   "reason": "atypical",
+   "import_score": 0.0,
+   "bpe_score": 0.0,
+   "cr_contribution": 0.0
+  },
+  {
+   "hunk": "from sqlalchemy import Session\nx = 1",
+   "score": 1.0,
+   "threshold": 1.0,
+   "flagged": true,
+   "reason": "import",
+   "import_score": 1.0,
+   "bpe_score": 3.8168714205759535,
+   "cr_contribution": 0.0
+  }
+ ]
+}

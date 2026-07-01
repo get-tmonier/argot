@@ -4,7 +4,8 @@ export const SITE = {
   domain: 'https://argot.tmonier.com',
   github: 'https://github.com/get-tmonier/argot',
   npm: 'https://www.npmjs.com/package/@tmonier/argot',
-  install: 'curl -fsSL https://raw.githubusercontent.com/get-tmonier/argot/main/install.sh | sh',
+  install:
+    "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.sh | sh",
   portfolio: 'https://tmonier.com',
   author: 'Damien Meur',
 } as const;

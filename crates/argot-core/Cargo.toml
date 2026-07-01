@@ -1,0 +1,25 @@
+[package]
+name = "argot-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Voice-linter engine: git walk, tokenization, statistical scorers, calibration (language- and corpus-agnostic)."
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tree-sitter.workspace = true
+tree-sitter-python.workspace = true
+tree-sitter-typescript.workspace = true
+tree-sitter-javascript.workspace = true
+git2.workspace = true
+tokenizers.workspace = true
+md-5.workspace = true
+
+[dev-dependencies]
+serde.workspace = true
+serde_json.workspace = true

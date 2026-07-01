@@ -1,0 +1,44 @@
+{
+ "total_repo": 226,
+ "total_generic": 4498248,
+ "scores": [
+  {
+   "hunk": "def f(x):\n    return x + 1",
+   "score": -0.44385170002978214
+  },
+  {
+   "hunk": "import numpy as np\narr = np.zeros(10)",
+   "score": 9.439979067734669
+  },
+  {
+   "hunk": "x = 1",
+   "score": 11.535520925137364
+  },
+  {
+   "hunk": "class Foo:\n    pass",
+   "score": 8.141320130820954
+  },
+  {
+   "hunk": "result = compute_entropy(distribution_vector)",
+   "score": 7.428854402662916
+  },
+  {
+   "hunk": "return math.log(c / total)",
+   "score": 6.884420651691412
+  },
+  {
+   "hunk": "",
+   "score": 0.0
+  },
+  {
+   "hunk": "zzz_obscure_identifier_xyzzy = 42",
+   "score": 5.258461290883277
+  }
+ ],
+ "surprise": {
+  "317": -0.4840207560299725,
+  "729": -2.8006138931524296,
+  "999999": 0.0,
+  "126": -1.185474491861481
+ }
+}

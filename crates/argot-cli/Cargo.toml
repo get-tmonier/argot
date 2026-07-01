@@ -1,0 +1,19 @@
+[package]
+name = "argot"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "argot — voice linter CLI. Single statically-linked binary replacing the TS/Bun CLI and Python engine."
+
+[[bin]]
+name = "argot"
+path = "src/main.rs"
+
+[dependencies]
+argot-core = { path = "../argot-core" }
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+clap.workspace = true

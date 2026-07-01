@@ -17,8 +17,8 @@
   <a href="https://argot.tmonier.com"><img src="https://img.shields.io/badge/website-argot.tmonier.com-E67E45" alt="Website" /></a>
   <a href="https://github.com/get-tmonier/argot/actions/workflows/ci.yml"><img src="https://github.com/get-tmonier/argot/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://github.com/get-tmonier/argot/blob/main/LICENSE"><img src="https://img.shields.io/github/license/get-tmonier/argot" alt="License" /></a>
-  <img src="https://img.shields.io/badge/bun-1.3.12-F472B6" alt="Bun" />
-  <img src="https://img.shields.io/badge/python-3.13-3776AB" alt="Python" />
+  <img src="https://img.shields.io/badge/rust-single%20static%20binary-DEA584?logo=rust&logoColor=white" alt="Rust" />
+  <img src="https://img.shields.io/badge/runtime%20deps-none-brightgreen" alt="No runtime deps" />
 </p>
 
 <p align="center">
@@ -153,13 +153,13 @@ def list_users() -> list[dict[str, Any]]:
 
 ## Installation
 
+argot is a **single static binary** — no Python, no Node, no runtime to install.
+
 ### curl (recommended)
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/get-tmonier/argot/main/install.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.sh | sh
 ```
-
-Installs the `argot` binary to `~/.local/bin` and installs `uv` if missing.
 
 ### npm
 
@@ -167,11 +167,8 @@ Installs the `argot` binary to `~/.local/bin` and installs `uv` if missing.
 npm install -g @tmonier/argot
 ```
 
-### Prerequisites
-
-| Dependency | Required for | Install |
-|---|---|---|
-| `uv` | All commands (Python engine) | Installed automatically by curl script, or `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
+Both download the prebuilt `argot` binary for your platform (macOS arm64, Linux
+x64). No other dependencies.
 
 ### Getting started
 
@@ -193,9 +190,12 @@ argot update
 ```sh
 git clone https://github.com/get-tmonier/argot
 cd argot
-just install     # bun install + uv sync
-just verify      # full check suite
+just build       # cargo build --release -p argot → target/release/argot
+just verify      # cargo fmt --check + clippy -D warnings + cargo test
 ```
+
+Requires the Rust toolchain (pinned in `rust-toolchain.toml`). The landing site
+(`landing/`) is the only non-Rust piece and has its own `bun` deps.
 
 ## Workflow
 
@@ -240,7 +240,7 @@ Output:
 - `.argot/generic-baseline.json` — generic baseline token reference
 - `.argot/scorer-config.json` — calibrated scoring threshold
 
-Re-run after major refactors. Internally `fit` runs the engine's two underlying phases (build corpus, then calibrate); they remain available for benchmark/research use via the engine entry points (`uv run python -m argot.train` / `argot.scoring.calibration`), but the day-to-day CLI surface is just `fit`.
+Re-run after major refactors. Internally `fit` runs the two underlying phases (build corpus, then calibrate); they're also available as standalone subcommands (`argot train` / `argot calibrate`), but the day-to-day CLI surface is just `fit`.
 
 ### 3. Check
 
@@ -475,7 +475,24 @@ Browse all open issues, including non-v1 work, at [`github.com/get-tmonier/argot
 
 ## Stack
 
-**CLI** TypeScript + Bun · **Engine** Python + tree-sitter + HuggingFace tokenizer (UnixCoder BPE) · **Model** two frequency tables + max log-ratio — no neural network, no GPU
+**Single Rust binary** · tree-sitter parsing · BPE tokenizer (UnixCoder, embedded) · **Model** two frequency tables + max log-ratio — no neural network, no GPU, no runtime dependencies
+
+## Performance
+
+argot was rewritten from a Python engine + TypeScript/Bun CLI into one
+statically-linked Rust binary. The rewrite is **verified byte-for-byte identical**
+to the previous engine — same `dataset.jsonl`, same per-hunk scores, same
+calibrated thresholds, same AUC / recall / false-positive rate on all six
+benchmark corpora (proven on both Linux and macOS) — and materially faster:
+
+| command | Rust | Python | speedup |
+|---|---|---|---|
+| `extract` | 2.95s | 15.2s | **5.2×** |
+| `calibrate` | 2.2s | 7.8s | **3.5×** |
+| `check` | 0.015s | 0.345s | **~23×** |
+
+No Python, no Node, no `uv` — one binary, instant startup, and the generic BPE
+baseline is embedded (no model download).
 
 ---
 
@@ -483,59 +500,48 @@ Browse all open issues, including non-v1 work, at [`github.com/get-tmonier/argot
 
 ### Prerequisites
 
-Install [mise](https://mise.jdx.dev/) then provision the toolchain:
+The Rust toolchain (pinned in `rust-toolchain.toml` — `rustup` reads it
+automatically). Optionally [mise](https://mise.jdx.dev/) for the peripheral tools:
 
 ```bash
-mise install     # bun 1.3.12 · python 3.13 · uv 0.11.7 · just 1.49.0 · lefthook 2.1.6
+mise install     # just 1.49.0 · lefthook 2.1.6 · bun 1.3.12 (landing only)
 ```
 
 ### Setup
 
 ```bash
-just install          # bun install + uv sync
-lefthook install      # wire pre-commit hooks
+just build            # cargo build --release -p argot
+lefthook install      # wire pre-commit hooks (rustfmt + clippy)
 ```
 
 ### Tasks
 
 ```bash
-just verify           # lint + format + typecheck + boundaries + knip + test
-just test             # bun test (cli) + pytest (engine)
+just verify           # cargo fmt --check + clippy -D warnings + cargo test
+just test             # cargo test --workspace
 just extract .        # extract training data from this repo
-just train            # collect repo corpus files and generic baseline
+just fit              # train + calibrate in one shot
 just check            # score HEAD~1..HEAD
-just build            # compile dist/argot standalone binary
+just build            # build the release binary → target/release/argot
 ```
 
 ### Repository layout
 
 ```
 argot/
-├── cli/              # TypeScript CLI (Bun runtime)
-│   └── src/
-│       ├── cli.ts                    # entrypoint, Effect CLI wiring
-│       ├── dependencies.ts           # root Effect Layer composition
-│       ├── modules/<name>/           # vertical slice per feature
-│       │   ├── domain/               # pure types, no deps
-│       │   ├── application/          # use-cases + port interfaces
-│       │   └── infrastructure/       # adapters implementing ports
-│       └── shell/                    # CLI commands (inbound adapters)
-├── engine/           # Python data pipeline (uv workspace)
-│   └── argot/
-│       ├── scoring/      # two-stage scorer
-│       │   ├── scorers/  # SequentialImportBpeScorer + ImportGraphScorer
-│       │   ├── calibration/  # random hunk sampler + calibrate entry point
-│       │   ├── adapters/ # LanguageAdapter protocol + Python/TypeScript impls
-│       │   ├── filters/  # typicality predicate (AST-derived, hunk + file level)
-│       │   ├── bpe/      # bundled generic BPE reference (generic baseline)
-│       │   └── parsers/  # tree-sitter parse helpers
-│       ├── git_walk.py   # pygit2 repo walker
-│       ├── tokenize.py   # tree-sitter tokenizer
-│       ├── extract.py    # extract → JSONL
-│       ├── train.py      # collect repo corpus files + copy generic baseline
-│       ├── check.py      # two-stage scoring entry point
-│       ├── stats.py      # shared statistical helpers
-│       └── dataset.py    # record schema
+├── crates/
+│   ├── argot-core/   # the engine: git walk, tokenize/BPE, scorers,
+│   │   └── src/         calibration, check, evidence. Language/corpus-agnostic.
+│   │       ├── scoring/     # SequentialImportBpeScorer, call-receiver, filters,
+│   │       │                # adapters (python/typescript), calibration, numpy_sampler
+│   │       ├── git_walk.rs  # libgit2 repo walker (vendored, no network)
+│   │       ├── tokenize.rs  # tree-sitter tokenizer
+│   │       ├── extract.rs · train.rs · check.rs · dataset.rs · stats.rs
+│   │       └── data/        # embedded unixcoder tokenizer + generic BPE baseline
+│   └── argot-cli/    # clap CLI → the single `argot` binary
+├── landing/          # marketing site (Astro), argot.tmonier.com
+├── benchmarks/       # preserved eval fixtures (catalogs + targets.yaml)
+├── dist-workspace.toml  # cargo-dist release config
 └── justfile          # task runner (canonical interface)
 ```
 
@@ -543,18 +549,12 @@ argot/
 
 | Tool | Role |
 |---|---|
-| `mise` | Toolchain version manager |
-| `just` | Task runner — single source of truth for all dev commands |
-| `bun` | JS runtime, package manager, test runner |
-| `uv` | Python package manager and virtual env |
-| `oxlint` | Fast TypeScript/JS linter |
-| `oxfmt` | TypeScript formatter |
-| `tsgo` | TypeScript type-checker (native, ~10× faster) |
-| `dependency-cruiser` | Enforces hexagonal layer boundaries |
-| `knip` | Dead code and unused dependency detection |
-| `lefthook` | Git hook runner |
-| `ruff` | Python linter + formatter |
-| `mypy` | Python type-checker (strict mode) |
+| `cargo` | Build, test, run — the single toolchain |
+| `rustfmt` / `clippy` | Format + lint (clippy runs as `-D warnings`) |
+| `just` | Task runner — single source of truth for dev commands |
+| `cargo-dist` | Cross-platform release binaries + installers (`dist-workspace.toml`) |
+| `lefthook` | Git hook runner (rustfmt + clippy pre-commit) |
+| `bun` | Only for the standalone `landing/` site |
 
 ## Acknowledgements
 
@@ -573,9 +573,9 @@ The benchmark uses each project's history as a positive corpus and a small held-
 argot's foundation also rests on:
 
 - [**tree-sitter**](https://tree-sitter.github.io/tree-sitter/) — incremental, error-tolerant parsing across languages
-- [**pygit2**](https://www.pygit2.org/) — libgit2 bindings powering the git walker
+- [**libgit2**](https://libgit2.org/) (via the `git2` crate, vendored) — powers the git walker
 - [**HuggingFace tokenizers**](https://github.com/huggingface/tokenizers) — UnixCoder BPE used as the generic baseline
-- [**Effect**](https://effect.website/) — the runtime behind the TypeScript CLI
+- [**clap**](https://docs.rs/clap/) — the Rust CLI framework
 
 ## License
 

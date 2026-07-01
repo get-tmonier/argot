@@ -1,0 +1,215 @@
+{
+ "samples": {
+  "imports": {
+   "src": "import { readFileSync } from \"node:fs\";\nimport React from \"react\";\nimport { x } from \"./local\";\nimport y from \"../up\";\nimport z from \"@/alias\";\nexport { foo } from \"lodash\";\n",
+   "extract_imports": [
+    "@/alias",
+    "node:fs",
+    "react"
+   ],
+   "imports_with_spans": [
+    [
+     "node:fs",
+     1,
+     30,
+     37
+    ],
+    [
+     "react",
+     2,
+     19,
+     24
+    ],
+    [
+     "@/alias",
+     5,
+     15,
+     22
+    ]
+   ],
+   "prose_line_ranges": [],
+   "is_data_dominant": false,
+   "is_auto_generated": false,
+   "enumerate_sampleable_ranges": [],
+   "extract_callees": []
+  },
+  "prose": {
+   "src": "// a comment\n/* block\n   comment */\nconst x = 1;\n/** jsdoc */\nfunction f() {}\n",
+   "extract_imports": [],
+   "imports_with_spans": [],
+   "prose_line_ranges": [
+    1,
+    2,
+    3,
+    5
+   ],
+   "is_data_dominant": false,
+   "is_auto_generated": false,
+   "enumerate_sampleable_ranges": [
+    [
+     6,
+     6
+    ]
+   ],
+   "extract_callees": []
+  },
+  "data_dominant": {
+   "src": "export const LOCALES = [\"en\",\"fr\",\"de\",\"es\",\"it\",\"pt\",\"nl\",\"pl\",\"ru\",\"ja\"];\n",
+   "extract_imports": [],
+   "imports_with_spans": [],
+   "prose_line_ranges": [],
+   "is_data_dominant": true,
+   "is_auto_generated": false,
+   "enumerate_sampleable_ranges": [],
+   "extract_callees": []
+  },
+  "autogen": {
+   "src": "// This file was automatically generated. Do not edit.\nexport const x = 1;\n",
+   "extract_imports": [],
+   "imports_with_spans": [],
+   "prose_line_ranges": [
+    1
+   ],
+   "is_data_dominant": false,
+   "is_auto_generated": true,
+   "enumerate_sampleable_ranges": [],
+   "extract_callees": []
+  },
+  "sampleable": {
+   "src": "import x from \"y\";\n\nfunction top() {\n  return 1;\n}\n\nexport const arrow = () => {\n  return 2;\n};\n\nclass C {\n  method() {}\n}\n",
+   "extract_imports": [
+    "y"
+   ],
+   "imports_with_spans": [
+    [
+     "y",
+     1,
+     15,
+     16
+    ]
+   ],
+   "prose_line_ranges": [],
+   "is_data_dominant": false,
+   "is_auto_generated": false,
+   "enumerate_sampleable_ranges": [
+    [
+     3,
+     5
+    ],
+    [
+     7,
+     9
+    ],
+    [
+     11,
+     13
+    ]
+   ],
+   "extract_callees": []
+  },
+  "callees": {
+   "src": "foo();\nMath.random();\nnew Foo();\napp.get(\"/x\");\n",
+   "extract_imports": [],
+   "imports_with_spans": [],
+   "prose_line_ranges": [],
+   "is_data_dominant": false,
+   "is_auto_generated": false,
+   "enumerate_sampleable_ranges": [],
+   "extract_callees": [
+    "foo",
+    "Math.random",
+    "Foo",
+    "app.get"
+   ]
+  }
+ },
+ "resolve_repo_modules": {
+  "exact": [
+   "#lib",
+   "@myorg/app"
+  ],
+  "prefixes": [
+   "@/"
+  ]
+ },
+ "identifier_noise": [
+  "abstract",
+  "any",
+  "arguments",
+  "as",
+  "assert",
+  "asserts",
+  "async",
+  "await",
+  "boolean",
+  "break",
+  "case",
+  "catch",
+  "class",
+  "const",
+  "constructor",
+  "continue",
+  "debugger",
+  "declare",
+  "default",
+  "delete",
+  "do",
+  "else",
+  "enum",
+  "export",
+  "extends",
+  "false",
+  "finally",
+  "for",
+  "from",
+  "function",
+  "get",
+  "global",
+  "if",
+  "implements",
+  "import",
+  "in",
+  "infer",
+  "instanceof",
+  "interface",
+  "is",
+  "keyof",
+  "let",
+  "module",
+  "namespace",
+  "never",
+  "new",
+  "null",
+  "number",
+  "object",
+  "of",
+  "package",
+  "private",
+  "protected",
+  "public",
+  "readonly",
+  "require",
+  "return",
+  "satisfies",
+  "set",
+  "static",
+  "string",
+  "super",
+  "switch",
+  "symbol",
+  "this",
+  "throw",
+  "true",
+  "try",
+  "type",
+  "typeof",
+  "undefined",
+  "unique",
+  "unknown",
+  "var",
+  "void",
+  "while",
+  "with",
+  "yield"
+ ]
+}

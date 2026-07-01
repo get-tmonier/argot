@@ -1,0 +1,24 @@
+argot check · 2 hunks above threshold (2 unusual)
+note: argot is a probabilistic style linter — verify before action.
+
+integration.py
+  .  L1-L9          -0.64  unusual  · ef37598 · none
+  1 | from __future__ import annotations
+  2 | import sqlalchemy
+  3 | from sqlalchemy.orm import sessionmaker
+  4 | 
+  5 | 
+  6 | def connect(url):
+      (+3 more lines)
+
+pipeline.py
+  .  L1-L8          -0.62  unusual  · 2033b92 · none
+  1 | from __future__ import annotations
+  2 | from stats import mean
+  3 | from text import normalize
+  4 | 
+  5 | 
+  6 | def summarize(rows):
+      (+2 more lines)
+
+tip: pass --verbose (-v) to expand truncated hunks.

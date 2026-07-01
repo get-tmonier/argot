@@ -1,0 +1,22 @@
+//! Scoring engine — port of `engine/argot/scoring`.
+//!
+//! Mirrors the Python package layout: BPE surprise scoring, the import-graph
+//! and call-receiver sub-scorers, language adapters, typicality/data-dominant
+//! filters, calibration, and evidence. The production composite is
+//! `sequential::SequentialImportBpeScorer`.
+
+pub mod adapters;
+pub mod bpe_scorer;
+pub mod calibration;
+pub mod call_receiver;
+pub mod evidence;
+pub mod filters;
+pub mod import_graph;
+pub mod sequential;
+pub mod shape_primitive;
+pub mod shape_primitives;
+pub mod typicality;
+
+mod minhash_params_seed0;
+pub(crate) mod numpy_sampler;
+pub(crate) mod ts_parse;

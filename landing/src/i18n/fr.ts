@@ -13,7 +13,7 @@ const fr: SiteContent = {
     docs: 'Docs',
   },
   hero: {
-    eyebrow: 'Local · sans LLM · sans télémétrie',
+    eyebrow: 'Local · un seul binaire Rust · sans LLM',
     titleLead: 'Lintez les règles',
     titleGradient: 'que personne n’a écrites.',
     subtitle:
@@ -21,7 +21,7 @@ const fr: SiteContent = {
     ctaPrimary: 'Lire la doc',
     ctaSecondary: 'Star sur GitHub',
     install: 'npm i -g @tmonier/argot',
-    installNote: 'MIT · macOS & Linux · calibré en secondes, scoré en millisecondes',
+    installNote: 'MIT · binaire statique unique · macOS & Linux · zéro dépendance',
   },
   demo: {
     label: 'La deuxième question',
@@ -81,6 +81,10 @@ const fr: SiteContent = {
     label: 'Pourquoi argot',
     title: 'Se lit comme un linter. Pense comme un relecteur.',
     items: [
+      {
+        title: 'Un seul binaire Rust, rapide',
+        desc: 'Un binaire unique lié statiquement — ni Python, ni Node, aucun runtime à installer, aucun modèle à télécharger. [[extract 5× plus rapide, check ~23× plus rapide]] que le moteur précédent, démarrage instantané et résultats identiques au bit près.',
+      },
       {
         title: 'S’intègre à la CI',
         desc: 'argot check tourne à chaque commit, groupe les hits par fichier et [[sort en non-zéro]] dès qu’un passage s’écarte. Câblez-le comme ESLint.',

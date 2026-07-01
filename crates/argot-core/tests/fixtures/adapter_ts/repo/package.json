@@ -1,0 +1,1 @@
+{ "name": "@myorg/app", "version": "1.0.0", "workspaces": ["packages/*"], "dependencies": { "react": "^18" } }

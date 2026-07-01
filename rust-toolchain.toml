@@ -1,0 +1,6 @@
+# Pin the Rust channel for reproducible builds. `stable` resolves to the
+# installed stable toolchain (>= 1.85 required by the git2 → url → ICU4X
+# dependency chain, which targets edition2024).
+[toolchain]
+channel = "stable"
+components = ["clippy", "rustfmt"]

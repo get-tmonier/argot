@@ -1,0 +1,433 @@
+{
+ "name": "except_return_raise_ratio",
+ "min_cluster_size": 10,
+ "cluster_bonus_clip": 5.0,
+ "baseline_kind": "mean_std",
+ "cases": [
+  {
+   "id": "py_returns_in_except_fires",
+   "cluster_files": [
+    [
+     "r_0.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_1.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_2.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_3.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_4.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_5.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_6.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_7.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_8.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "ret.py",
+     "try:\n    risky()\nexcept Exception:\n    return None\n"
+    ]
+   ],
+   "fit_language": "python",
+   "fit_returns_none": false,
+   "expected_baseline": {
+    "mean": 0.1,
+    "std": 0.3
+   },
+   "score_baseline": {
+    "mean": 0.1,
+    "std": 0.3
+   },
+   "hunk": "try:\n    risky()\nexcept Exception:\n    return None\n",
+   "cluster_size": 10,
+   "expected_score": 2.0
+  },
+  {
+   "id": "py_below_min_cluster_size",
+   "cluster_files": [
+    [
+     "r_0.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_1.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_2.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_3.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "ret.py",
+     "try:\n    risky()\nexcept Exception:\n    return None\n"
+    ]
+   ],
+   "fit_language": "python",
+   "fit_returns_none": false,
+   "expected_baseline": {
+    "mean": 0.2,
+    "std": 0.4
+   },
+   "score_baseline": {
+    "mean": 0.2,
+    "std": 0.4
+   },
+   "hunk": "try:\n    risky()\nexcept Exception:\n    return None\n",
+   "cluster_size": 5,
+   "expected_score": 0.0
+  },
+  {
+   "id": "baseline_none",
+   "cluster_files": null,
+   "fit_language": null,
+   "fit_returns_none": null,
+   "expected_baseline": null,
+   "score_baseline": null,
+   "hunk": "try:\n    risky()\nexcept Exception:\n    return None\n",
+   "cluster_size": 20,
+   "expected_score": 0.0
+  },
+  {
+   "id": "py_hunk_no_handler",
+   "cluster_files": [
+    [
+     "r_0.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_1.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_2.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_3.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_4.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_5.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_6.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_7.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_8.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "ret.py",
+     "try:\n    risky()\nexcept Exception:\n    return None\n"
+    ]
+   ],
+   "fit_language": "python",
+   "fit_returns_none": false,
+   "expected_baseline": {
+    "mean": 0.1,
+    "std": 0.3
+   },
+   "score_baseline": {
+    "mean": 0.1,
+    "std": 0.3
+   },
+   "hunk": "x = 1\ny = x + 2\nprint(y)\n",
+   "cluster_size": 10,
+   "expected_score": 0.0
+  },
+  {
+   "id": "py_two_sided_raises_hunk",
+   "cluster_files": [
+    [
+     "ret_0.py",
+     "try:\n    risky()\nexcept Exception:\n    return None\n"
+    ],
+    [
+     "ret_1.py",
+     "try:\n    risky()\nexcept Exception:\n    return None\n"
+    ],
+    [
+     "ret_2.py",
+     "try:\n    risky()\nexcept Exception:\n    return None\n"
+    ],
+    [
+     "ret_3.py",
+     "try:\n    risky()\nexcept Exception:\n    return None\n"
+    ],
+    [
+     "ret_4.py",
+     "try:\n    risky()\nexcept Exception:\n    return None\n"
+    ],
+    [
+     "ret_5.py",
+     "try:\n    risky()\nexcept Exception:\n    return None\n"
+    ],
+    [
+     "ret_6.py",
+     "try:\n    risky()\nexcept Exception:\n    return None\n"
+    ],
+    [
+     "ret_7.py",
+     "try:\n    risky()\nexcept Exception:\n    return None\n"
+    ],
+    [
+     "ret_8.py",
+     "try:\n    risky()\nexcept Exception:\n    return None\n"
+    ],
+    [
+     "r.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ]
+   ],
+   "fit_language": "python",
+   "fit_returns_none": false,
+   "expected_baseline": {
+    "mean": 0.9,
+    "std": 0.3
+   },
+   "score_baseline": {
+    "mean": 0.9,
+    "std": 0.3
+   },
+   "hunk": "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n",
+   "cluster_size": 10,
+   "expected_score": 2.0
+  },
+  {
+   "id": "ts_returns_in_catch_fires",
+   "cluster_files": [
+    [
+     "t_0.ts",
+     "try {\n  risky();\n} catch (e) {\n  throw new Error(\"bad\");\n}\n"
+    ],
+    [
+     "t_1.ts",
+     "try {\n  risky();\n} catch (e) {\n  throw new Error(\"bad\");\n}\n"
+    ],
+    [
+     "t_2.ts",
+     "try {\n  risky();\n} catch (e) {\n  throw new Error(\"bad\");\n}\n"
+    ],
+    [
+     "t_3.ts",
+     "try {\n  risky();\n} catch (e) {\n  throw new Error(\"bad\");\n}\n"
+    ],
+    [
+     "t_4.ts",
+     "try {\n  risky();\n} catch (e) {\n  throw new Error(\"bad\");\n}\n"
+    ],
+    [
+     "t_5.ts",
+     "try {\n  risky();\n} catch (e) {\n  throw new Error(\"bad\");\n}\n"
+    ],
+    [
+     "t_6.ts",
+     "try {\n  risky();\n} catch (e) {\n  throw new Error(\"bad\");\n}\n"
+    ],
+    [
+     "t_7.ts",
+     "try {\n  risky();\n} catch (e) {\n  throw new Error(\"bad\");\n}\n"
+    ],
+    [
+     "ret_0.ts",
+     "try {\n  risky();\n} catch (e) {\n  return null;\n}\n"
+    ],
+    [
+     "ret_1.ts",
+     "try {\n  risky();\n} catch (e) {\n  return null;\n}\n"
+    ]
+   ],
+   "fit_language": "typescript",
+   "fit_returns_none": false,
+   "expected_baseline": {
+    "mean": 0.2,
+    "std": 0.4
+   },
+   "score_baseline": {
+    "mean": 0.2,
+    "std": 0.4
+   },
+   "hunk": "try {\n  risky();\n} catch (e) {\n  return null;\n}\n",
+   "cluster_size": 10,
+   "expected_score": 1.0
+  },
+  {
+   "id": "ts_hunk_no_handler",
+   "cluster_files": [
+    [
+     "t_0.ts",
+     "try {\n  risky();\n} catch (e) {\n  throw new Error(\"bad\");\n}\n"
+    ],
+    [
+     "t_1.ts",
+     "try {\n  risky();\n} catch (e) {\n  throw new Error(\"bad\");\n}\n"
+    ],
+    [
+     "t_2.ts",
+     "try {\n  risky();\n} catch (e) {\n  throw new Error(\"bad\");\n}\n"
+    ],
+    [
+     "t_3.ts",
+     "try {\n  risky();\n} catch (e) {\n  throw new Error(\"bad\");\n}\n"
+    ],
+    [
+     "t_4.ts",
+     "try {\n  risky();\n} catch (e) {\n  throw new Error(\"bad\");\n}\n"
+    ],
+    [
+     "t_5.ts",
+     "try {\n  risky();\n} catch (e) {\n  throw new Error(\"bad\");\n}\n"
+    ],
+    [
+     "t_6.ts",
+     "try {\n  risky();\n} catch (e) {\n  throw new Error(\"bad\");\n}\n"
+    ],
+    [
+     "t_7.ts",
+     "try {\n  risky();\n} catch (e) {\n  throw new Error(\"bad\");\n}\n"
+    ],
+    [
+     "ret_0.ts",
+     "try {\n  risky();\n} catch (e) {\n  return null;\n}\n"
+    ],
+    [
+     "ret_1.ts",
+     "try {\n  risky();\n} catch (e) {\n  return null;\n}\n"
+    ]
+   ],
+   "fit_language": "typescript",
+   "fit_returns_none": false,
+   "expected_baseline": {
+    "mean": 0.2,
+    "std": 0.4
+   },
+   "score_baseline": {
+    "mean": 0.2,
+    "std": 0.4
+   },
+   "hunk": "const x = 1;\nconst y = x + 2;\nconsole.log(y);\n",
+   "cluster_size": 10,
+   "expected_score": 0.0
+  },
+  {
+   "id": "fit_none_too_few",
+   "cluster_files": [
+    [
+     "a.py",
+     "try:\n    risky()\nexcept Exception:\n    return None\n"
+    ],
+    [
+     "b.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "c.py",
+     "x = 1\ny = x + 2\nprint(y)\n"
+    ],
+    [
+     "d.py",
+     "x = 1\ny = x + 2\nprint(y)\n"
+    ]
+   ],
+   "fit_language": "python",
+   "fit_returns_none": true,
+   "expected_baseline": null,
+   "score_baseline": null,
+   "hunk": null,
+   "cluster_size": null,
+   "expected_score": null
+  },
+  {
+   "id": "empty_hunk",
+   "cluster_files": [
+    [
+     "r_0.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_1.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_2.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_3.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_4.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_5.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_6.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_7.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "r_8.py",
+     "try:\n    risky()\nexcept Exception:\n    raise ValueError(\"bad\")\n"
+    ],
+    [
+     "ret.py",
+     "try:\n    risky()\nexcept Exception:\n    return None\n"
+    ]
+   ],
+   "fit_language": "python",
+   "fit_returns_none": false,
+   "expected_baseline": {
+    "mean": 0.1,
+    "std": 0.3
+   },
+   "score_baseline": {
+    "mean": 0.1,
+    "std": 0.3
+   },
+   "hunk": "",
+   "cluster_size": 20,
+   "expected_score": 0.0
+  }
+ ]
+}

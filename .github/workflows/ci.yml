@@ -1,5 +1,9 @@
 name: CI
 
+# The Rust engine is built + tested by `rust.yml` (Linux + macOS, incl. the
+# Python-parity golden suites). This workflow only covers the standalone landing
+# site (argot.tmonier.com); its build + deploy is handled by Cloudflare Pages.
+
 on:
   pull_request:
     branches: ["**"]
@@ -13,14 +17,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Decide what changed so the code jobs (ts/py/smoke) and the landing job only
-  # run when their files are touched. The workflow itself always runs, so jobs
-  # gated off by `if:` report as "skipped" — which satisfies required checks.
   changes:
     name: detect changes
     runs-on: ubuntu-latest
     outputs:
-      code: ${{ steps.filter.outputs.code }}
       landing: ${{ steps.filter.outputs.landing }}
     steps:
       - uses: actions/checkout@v4
@@ -28,77 +28,9 @@ jobs:
         id: filter
         with:
           filters: |
-            code:
-              - 'cli/**'
-              - 'engine/**'
-              - 'npm/**'
-              - 'package.json'
-              - 'bun.lock'
-              - 'pyproject.toml'
-              - 'uv.lock'
-              - 'tsconfig*.json'
-              - '.oxlintrc.json'
-              - '.oxfmtrc.json'
-              - 'knip.config.ts'
-              - '.dependency-cruiser.cjs'
-              - 'lefthook.yml'
-              - '.mise.toml'
-              - 'justfile'
-              - '.github/workflows/ci.yml'
             landing:
               - 'landing/**'
               - '.github/workflows/ci.yml'
-
-  ts:
-    name: TypeScript (lint · typecheck · boundaries · test)
-    needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: jdx/mise-action@v2
-        with:
-          install: true
-
-      - name: Install JS dependencies
-        run: bun install
-
-      - name: Lint
-        run: bun run lint
-
-      - name: Typecheck
-        run: bun run typecheck
-
-      - name: Boundaries
-        run: bun run boundaries
-
-      - name: Test
-        run: bun test
-
-  py:
-    name: Python (ruff · mypy · pytest)
-    needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: jdx/mise-action@v2
-        with:
-          install: true
-
-      - name: Install Python dependencies
-        run: uv sync
-
-      - name: Ruff check
-        run: uv run ruff check engine
-
-      - name: Mypy
-        run: uv run mypy engine
-
-      - name: Pytest
-        run: uv run pytest engine
 
   landing:
     name: Landing (lint · format · astro check)
@@ -110,37 +42,10 @@ jobs:
         working-directory: landing
     steps:
       - uses: actions/checkout@v4
-
       - uses: jdx/mise-action@v2
         with:
           install: true
-
       - name: Install landing dependencies
         run: bun install --frozen-lockfile
-
       - name: Check landing site
         run: bun run check
-        # Build + deploy is handled by Cloudflare Pages; CI only type/lint-checks.
-
-  smoke:
-    name: Smoke test (argot extract)
-    needs: [changes, ts, py]
-    if: ${{ needs.changes.outputs.code == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: jdx/mise-action@v2
-        with:
-          install: true
-
-      - name: Install all dependencies
-        run: bun install && uv sync
-
-      - name: Run extract
-        run: just extract .
-
-      - name: Verify JSONL output
-        run: test -s .argot/dataset.jsonl && echo "OK — dataset.jsonl is non-empty"
