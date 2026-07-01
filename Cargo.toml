@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/argot-core", "crates/argot-cli"]
+members = ["crates/argot-core", "crates/argot-cli", "crates/argot-bench"]
 
 [workspace.package]
 version = "0.2.43"

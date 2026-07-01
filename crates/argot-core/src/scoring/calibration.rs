@@ -59,8 +59,10 @@ fn basename(path: &Path) -> String {
         .unwrap_or_default()
 }
 
-/// Port of `is_excluded_path`.
-fn is_excluded_path(path: &Path, source_dir: &Path) -> bool {
+/// Port of `is_excluded_path`. Public because the benchmark harness applies
+/// the same calibration-scope filter to real-PR control hunks (lock-step:
+/// calibration scope and scoring scope must agree).
+pub fn is_excluded_path(path: &Path, source_dir: &Path) -> bool {
     let rel = match path.strip_prefix(source_dir) {
         Ok(r) => r,
         Err(_) => return true,
@@ -114,15 +116,15 @@ fn rglob_sorted(dir: &Path, ext: &str) -> Vec<PathBuf> {
 }
 
 /// A calibration candidate: hunk text + originating file path + file source.
-struct Candidate {
-    hunk: String,
-    file_path: PathBuf,
-    file_source: String,
+pub struct Candidate {
+    pub hunk: String,
+    pub file_path: PathBuf,
+    pub file_source: String,
 }
 
 /// Port of `collect_candidates_with_metadata` (exclude_data_dominant=True,
 /// exclude_atypical=False).
-fn collect_candidates(source_dir: &Path, adapter: &dyn LanguageAdapter) -> Vec<Candidate> {
+pub fn collect_candidates(source_dir: &Path, adapter: &dyn LanguageAdapter) -> Vec<Candidate> {
     let exts: &[&str] = match adapter.language() {
         Language::Python => &[".py"],
         Language::Typescript => &[".ts", ".tsx"],
@@ -168,7 +170,8 @@ fn collect_candidates(source_dir: &Path, adapter: &dyn LanguageAdapter) -> Vec<C
 /// `sorted(np.random.default_rng(seed).choice(len, n, replace=False))`
 /// (see [`crate::scoring::numpy_sampler`]). Matching numpy's RNG here keeps the
 /// calibrated `max(cal_scores)` threshold identical to the Python engine.
-fn sample_indices(len: usize, n: usize, seed: u64) -> Vec<usize> {
+/// Public so the benchmark harness samples with the same RNG.
+pub fn sample_indices(len: usize, n: usize, seed: u64) -> Vec<usize> {
     crate::scoring::numpy_sampler::choice_sorted(len, n, seed)
 }
 
@@ -282,6 +285,68 @@ fn median(mut v: Vec<f64>) -> f64 {
     } else {
         (v[n / 2 - 1] + v[n / 2]) / 2.0
     }
+}
+
+/// Knobs for [`multi_seed_thresholds`].
+pub struct ThresholdRunConfig {
+    /// Calibration hunks sampled per seed (callers pre-clamp to the candidate
+    /// count).
+    pub n_cal: usize,
+    /// First seed; seeds run `base_seed .. base_seed + n_seeds`.
+    pub base_seed: u64,
+    pub n_seeds: usize,
+    /// Cluster-bonus magnitude applied to calibration-side contributions.
+    pub cluster_bonus: f64,
+    /// Cap on unattested callees counted per hunk.
+    pub cap: f64,
+}
+
+/// Per-seed calibration thresholds: for each seed, `max` over sampled
+/// cal-hunk scores (BPE + cluster contribution at alpha/root_bonus 0).
+///
+/// Shared by the production calibrator ([`run_calibrate`] takes the median)
+/// and the benchmark harness (which also reports threshold CV across seeds) so
+/// both stay in lock-step. Whether optional contributions (cluster-rare,
+/// shape primitives) apply on the calibration side is decided by how the
+/// caller constructs `call_receiver` — the asymmetric-calibration default
+/// builds it with `cluster_rare_threshold = 0`.
+pub fn multi_seed_thresholds(
+    candidates: &[Candidate],
+    bpe: &BpeScorer,
+    call_receiver: &mut CallReceiverScorer,
+    adapter: &dyn LanguageAdapter,
+    typicality: &TypicalityModel,
+    cfg: &ThresholdRunConfig,
+) -> Vec<f64> {
+    let effective_n_cal = cfg.n_cal.min(candidates.len());
+    let mut seed_thresholds = Vec::new();
+    for k in 0..cfg.n_seeds {
+        let seed = cfg.base_seed.wrapping_add(k as u64);
+        let idx = sample_indices(candidates.len(), effective_n_cal, seed);
+        let mut cal_scores = Vec::new();
+        for &i in &idx {
+            let c = &candidates[i];
+            if typicality.is_atypical(&c.hunk).0 {
+                continue;
+            }
+            let prose = adapter.prose_line_ranges(&c.hunk);
+            let raw_bpe = bpe.bpe_score(&blank_prose_lines(&c.hunk, &prose));
+            let contrib = call_receiver.weighted_contribution_for_file(
+                &c.hunk,
+                Some(&c.file_path),
+                0.0,
+                0.0,
+                cfg.cluster_bonus,
+                cfg.cap,
+                Some(&c.file_source),
+            );
+            cal_scores.push(raw_bpe + contrib);
+        }
+        // threshold_percentile default 100 → max.
+        let t = cal_scores.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        seed_thresholds.push(if t.is_finite() { t } else { 0.0 });
+    }
+    seed_thresholds
 }
 
 /// Options for `run_calibrate` (defaults mirror the Python CLI).
@@ -398,35 +463,20 @@ pub fn run_calibrate(
         let effective_n_cal = opts.n_cal.min(candidates.len());
         let typicality = TypicalityModel::new(language);
 
-        // Multi-seed threshold: per seed, max over sampled cal-hunk scores
-        // (bpe + cluster_bonus contribution, alpha/root_bonus 0), median.
-        let mut seed_thresholds = Vec::new();
-        for k in 0..opts.n_seeds {
-            let seed = opts.seed.wrapping_add(k as u64);
-            let idx = sample_indices(candidates.len(), effective_n_cal, seed);
-            let mut cal_scores = Vec::new();
-            for &i in &idx {
-                let c = &candidates[i];
-                if typicality.is_atypical(&c.hunk).0 {
-                    continue;
-                }
-                let prose = adapter.prose_line_ranges(&c.hunk);
-                let raw_bpe = bpe.bpe_score(&blank_prose_lines(&c.hunk, &prose));
-                let contrib = call_receiver.weighted_contribution_for_file(
-                    &c.hunk,
-                    Some(&c.file_path),
-                    0.0,
-                    0.0,
-                    CR_CLUSTER_BONUS,
-                    CR_CAP as f64,
-                    Some(&c.file_source),
-                );
-                cal_scores.push(raw_bpe + contrib);
-            }
-            // threshold_percentile default 100 → max.
-            let t = cal_scores.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-            seed_thresholds.push(if t.is_finite() { t } else { 0.0 });
-        }
+        let seed_thresholds = multi_seed_thresholds(
+            &candidates,
+            &bpe,
+            &mut call_receiver,
+            adapter.as_ref(),
+            &typicality,
+            &ThresholdRunConfig {
+                n_cal: effective_n_cal,
+                base_seed: opts.seed,
+                n_seeds: opts.n_seeds,
+                cluster_bonus: CR_CLUSTER_BONUS,
+                cap: CR_CAP as f64,
+            },
+        );
         let threshold = median(seed_thresholds);
 
         // Evidence corpus.
