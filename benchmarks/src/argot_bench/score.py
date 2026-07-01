@@ -219,6 +219,126 @@ def _load_diff_hunks_for_probe(
     return out
 
 
+class _RustBenchScorer:
+    """Bench adapter backed by the Rust ``argot score`` coprocess.
+
+    Enabled via ``ARGOT_BENCH_RUST=1`` so the *same* harness runs against the
+    Rust engine (one process per language, line-based JSONL IPC). Only
+    ``import_score`` / ``bpe_score`` / ``flagged`` / ``reason`` are exchanged;
+    the corpus is the exact ``_source_files`` list the Python scorer would use,
+    so ``bpe_score`` (the AUC input) is reproduced bit-identically.
+    """
+
+    def __init__(
+        self,
+        repo_dir: Path,
+        files: list[Path],
+        baseline_path: Path,
+        language: Language,
+        n_cal: int,
+        seed: int,
+        n_seeds: int,
+        threshold: float | None = None,
+        cluster_rare_threshold: int = 0,
+    ) -> None:
+        import json as _json
+        import os
+        import subprocess
+        import tempfile
+
+        fd, corpus_path = tempfile.mkstemp(suffix="_argot_corpus.txt")
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(str(p) for p in files))
+        self._corpus_path = corpus_path
+        self._cluster_rare_threshold = cluster_rare_threshold
+        repo_root = Path(__file__).resolve().parents[3]
+        argot_bin = os.environ.get("ARGOT_BIN", str(repo_root / "target" / "release" / "argot"))
+
+        # Threshold: either the caller supplies the Python-calibrated one (to
+        # isolate scoring parity) or we calibrate in RUST (fast — no Python).
+        if threshold is None:
+            fd2, cfg_path = tempfile.mkstemp(suffix="_argot_config.json")
+            os.close(fd2)
+            subprocess.run(
+                [
+                    argot_bin, "calibrate",
+                    "--repo", str(repo_dir),
+                    "--repo-corpus", corpus_path,
+                    "--generic-baseline", str(baseline_path),
+                    "--output", cfg_path,
+                    "--n-cal", str(n_cal),
+                    "--seed", str(seed),
+                    "--threshold-n-seeds", str(n_seeds),
+                ],
+                check=True,
+                capture_output=True,
+            )
+            cfg = _json.load(open(cfg_path))
+            threshold = float(cfg["languages"][language]["threshold"])
+        self._threshold = threshold
+
+        self._proc = subprocess.Popen(
+            [
+                argot_bin, "score",
+                "--repo-corpus", corpus_path,
+                "--generic-baseline", str(baseline_path),
+                "--language", language,
+                "--threshold", repr(float(threshold)),
+                "--cluster-rare-threshold", str(cluster_rare_threshold),
+                "--repo-root", str(repo_dir),
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            bufsize=1,
+        )
+
+    @property
+    def threshold(self) -> float:
+        return self._threshold
+
+    @property
+    def cal_scores(self) -> list[float]:
+        return []
+
+    @property
+    def rare_branch_fire_count(self) -> int:
+        return 0
+
+    def score_hunk(
+        self,
+        hunk_content: str,
+        *,
+        file_source: str | None = None,
+        hunk_start_line: int | None = None,
+        hunk_end_line: int | None = None,
+        file_path: Path | None = None,
+    ) -> ScoreResult:
+        import json as _json
+
+        req = {
+            "hunk_content": hunk_content,
+            "file_source": file_source,
+            "hunk_start_line": hunk_start_line,
+            "hunk_end_line": hunk_end_line,
+            "file_path": str(file_path) if file_path is not None else None,
+        }
+        assert self._proc.stdin is not None and self._proc.stdout is not None
+        self._proc.stdin.write(_json.dumps(req) + "\n")
+        self._proc.stdin.flush()
+        line = self._proc.stdout.readline()
+        if not line:
+            raise RuntimeError("argot score coprocess closed unexpectedly")
+        r = _json.loads(line)
+        return ScoreResult(
+            import_score=float(r["import_score"]),
+            bpe_score=float(r["bpe_score"]),
+            flagged=bool(r["flagged"]),
+            reason=r["reason"],
+        )
+
+
 def build_scorers(
     repo_dir: Path,
     *,
@@ -287,6 +407,83 @@ def build_scorers(
     }
 
 
+def _probe_keep_cluster_rare_rule(
+    repo_dir: Path,
+    files: list[Path],
+    adapter: LanguageAdapter,
+    *,
+    bpe_generic_baseline: Path | None,
+    enable_typicality_filter: bool,
+    call_receiver_alpha: float,
+    call_receiver_cap: int,
+    call_receiver_root_bonus: float,
+    call_receiver_n_clusters: int,
+    call_receiver_cluster_seed: int,
+    call_receiver_cluster_bonus: float,
+    call_receiver_cluster_rare_threshold: int,
+    call_receiver_cluster_size_min: int,
+    call_receiver_shape_primitive_names: tuple[str, ...],
+    threshold_percentile: float | None,
+    threshold_iqr_k: float | None,
+    auto_detect_probe_dataset: Path | None,
+    asym_probe_n: int,
+    asym_fire_rate_threshold: float,
+    seed: int,
+) -> bool:
+    """Auto-select probe: True to KEEP the cluster_rare rule for this corpus.
+
+    Builds a probe scorer with the rule enabled and measures the per-hunk
+    fire-rate over ``asym_probe_n`` diff hunks (from the extracted dataset when
+    available, else random source hunks). Keeps the rule iff the fire-rate is
+    below ``asym_fire_rate_threshold`` — a high rate means the rule would
+    FP-flood real-PR controls on this corpus. Shared by the Python and Rust
+    bench paths so both derive the same per-corpus cluster_rare decision.
+    """
+    if auto_detect_probe_dataset is not None and auto_detect_probe_dataset.exists():
+        probe_meta = _load_diff_hunks_for_probe(
+            auto_detect_probe_dataset, repo_dir, asym_probe_n, seed,
+        )
+    else:
+        from argot.scoring.calibration.random_hunk_sampler import (
+            sample_hunks_with_metadata,
+        )
+        probe_meta = sample_hunks_with_metadata(repo_dir, asym_probe_n, seed, adapter=adapter)
+    probe = SequentialImportBpeScorer(
+        repo_corpus_files=files,
+        bpe_generic_baseline_path=bpe_generic_baseline or _BPE_GENERIC_BASELINE,
+        calibration_hunks=[h for h, _, _ in probe_meta],
+        calibration_hunks_with_metadata=probe_meta,
+        adapter=adapter,
+        enable_typicality_filter=enable_typicality_filter,
+        call_receiver_alpha=call_receiver_alpha,
+        call_receiver_cap=call_receiver_cap,
+        call_receiver_root_bonus=call_receiver_root_bonus,
+        call_receiver_n_clusters=call_receiver_n_clusters,
+        call_receiver_cluster_seed=call_receiver_cluster_seed,
+        call_receiver_cluster_bonus=call_receiver_cluster_bonus,
+        call_receiver_cluster_rare_threshold=call_receiver_cluster_rare_threshold,
+        call_receiver_cluster_size_min=call_receiver_cluster_size_min,
+        call_receiver_shape_primitives=build_shape_primitives(
+            list(call_receiver_shape_primitive_names)
+        ),
+        threshold_percentile=threshold_percentile,
+        threshold_iqr_k=threshold_iqr_k,
+    )
+    hunks_seen = max(probe.hunks_scored, 1)
+    fire_rate = probe.rare_branch_hunks_fired / hunks_seen
+    keep_rule = fire_rate < asym_fire_rate_threshold
+    import sys as _sys
+    print(
+        f"[auto-asym] cluster_rare probe: "
+        f"rare_hunks_fired={probe.rare_branch_hunks_fired}/{hunks_seen} "
+        f"fire_rate={fire_rate:.3f} "
+        f"threshold={asym_fire_rate_threshold:.3f} "
+        f"→ {'KEEP rule (asym, +catches expected)' if keep_rule else 'DISABLE rule (rare=0, baseline)'}",
+        file=_sys.stderr,
+    )
+    return keep_rule
+
+
 def build_scorer(
     repo_dir: Path,
     *,
@@ -337,6 +534,55 @@ def build_scorer(
     if not files:
         raise ValueError(f"No {language} source files found in {repo_dir}")
 
+    # Rust engine seam: ARGOT_BENCH_RUST=1 → fully-Rust path (Rust calibration
+    # + Rust scoring, no Python engine work). Skips the slow Python 7-seed
+    # calibration entirely.
+    import os as _os
+
+    if _os.environ.get("ARGOT_BENCH_RUST"):
+        # Derive the same per-corpus cluster_rare decision the Python path uses
+        # (auto-select probe), then score with the Rust engine using that value.
+        rust_cluster_rare = call_receiver_cluster_rare_threshold
+        if (
+            auto_select_asym_cal
+            and call_receiver_cluster_rare_threshold > 0
+            and call_receiver_n_clusters > 1
+        ):
+            keep_rule = _probe_keep_cluster_rare_rule(
+                repo_dir,
+                files,
+                adapter,
+                bpe_generic_baseline=bpe_generic_baseline,
+                enable_typicality_filter=enable_typicality_filter,
+                call_receiver_alpha=call_receiver_alpha,
+                call_receiver_cap=call_receiver_cap,
+                call_receiver_root_bonus=call_receiver_root_bonus,
+                call_receiver_n_clusters=call_receiver_n_clusters,
+                call_receiver_cluster_seed=call_receiver_cluster_seed,
+                call_receiver_cluster_bonus=call_receiver_cluster_bonus,
+                call_receiver_cluster_rare_threshold=call_receiver_cluster_rare_threshold,
+                call_receiver_cluster_size_min=call_receiver_cluster_size_min,
+                call_receiver_shape_primitive_names=call_receiver_shape_primitive_names,
+                threshold_percentile=threshold_percentile,
+                threshold_iqr_k=threshold_iqr_k,
+                auto_detect_probe_dataset=auto_detect_probe_dataset,
+                asym_probe_n=asym_probe_n,
+                asym_fire_rate_threshold=asym_fire_rate_threshold,
+                seed=seed,
+            )
+            if not keep_rule:
+                rust_cluster_rare = 0
+        return _RustBenchScorer(
+            repo_dir,
+            files,
+            bpe_generic_baseline or _BPE_GENERIC_BASELINE,
+            language,
+            n_cal,
+            seed,
+            threshold_n_seeds,
+            cluster_rare_threshold=rust_cluster_rare,
+        )
+
     # ---- Per-corpus auto-detect (era-13.5) ----
     # If requested, probe the calibration distribution to decide whether the
     # cluster_rare rule is informative on this corpus. Build one probe scorer
@@ -350,25 +596,11 @@ def build_scorer(
         and call_receiver_cluster_rare_threshold > 0
         and call_receiver_n_clusters > 1
     ):
-        # Probe with diff hunks (from extracted dataset) when available — they
-        # match the real-PR control distribution. Fall back to random source
-        # hunks when no dataset is provided (signal will be noisier; the rule
-        # may not be picked even on asym-safe corpora like faker-js).
-        if auto_detect_probe_dataset is not None and auto_detect_probe_dataset.exists():
-            probe_meta = _load_diff_hunks_for_probe(
-                auto_detect_probe_dataset, repo_dir, asym_probe_n, seed,
-            )
-        else:
-            from argot.scoring.calibration.random_hunk_sampler import (
-                sample_hunks_with_metadata,
-            )
-            probe_meta = sample_hunks_with_metadata(repo_dir, asym_probe_n, seed, adapter=adapter)
-        probe = SequentialImportBpeScorer(
-            repo_corpus_files=files,
-            bpe_generic_baseline_path=bpe_generic_baseline or _BPE_GENERIC_BASELINE,
-            calibration_hunks=[h for h, _, _ in probe_meta],
-            calibration_hunks_with_metadata=probe_meta,
-            adapter=adapter,
+        keep_rule = _probe_keep_cluster_rare_rule(
+            repo_dir,
+            files,
+            adapter,
+            bpe_generic_baseline=bpe_generic_baseline,
             enable_typicality_filter=enable_typicality_filter,
             call_receiver_alpha=call_receiver_alpha,
             call_receiver_cap=call_receiver_cap,
@@ -378,28 +610,14 @@ def build_scorer(
             call_receiver_cluster_bonus=call_receiver_cluster_bonus,
             call_receiver_cluster_rare_threshold=call_receiver_cluster_rare_threshold,
             call_receiver_cluster_size_min=call_receiver_cluster_size_min,
-            call_receiver_shape_primitives=build_shape_primitives(
-                list(call_receiver_shape_primitive_names)
-            ),
+            call_receiver_shape_primitive_names=call_receiver_shape_primitive_names,
             threshold_percentile=threshold_percentile,
             threshold_iqr_k=threshold_iqr_k,
+            auto_detect_probe_dataset=auto_detect_probe_dataset,
+            asym_probe_n=asym_probe_n,
+            asym_fire_rate_threshold=asym_fire_rate_threshold,
+            seed=seed,
         )
-        # Per-hunk fire rate (= fraction of cal hunks where the rare rule fires
-        # at least once). Robust to "many fires per hunk vs few fires per hunk"
-        # which is corpus-dependent (Zipf tail length matters).
-        hunks_seen = max(probe.hunks_scored, 1)
-        fire_rate = probe.rare_branch_hunks_fired / hunks_seen
-        keep_rule = fire_rate < asym_fire_rate_threshold
-        import sys as _sys
-        print(
-            f"[auto-asym] cluster_rare probe: "
-            f"rare_hunks_fired={probe.rare_branch_hunks_fired}/{hunks_seen} "
-            f"fire_rate={fire_rate:.3f} "
-            f"threshold={asym_fire_rate_threshold:.3f} "
-            f"→ {'KEEP rule (asym, +catches expected)' if keep_rule else 'DISABLE rule (rare=0, baseline)'}",
-            file=_sys.stderr,
-        )
-        del probe
         if not keep_rule:
             # Disable cluster_rare rule entirely for this corpus.
             # apply_optional_contributions_to_cal stays at its default (False)

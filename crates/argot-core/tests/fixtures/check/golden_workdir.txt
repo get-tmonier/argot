@@ -1,0 +1,14 @@
+argot check · 1 hunk above threshold (1 unusual)
+note: argot is a probabilistic style linter — verify before action.
+
+text.py
+  .  L21-L30         0.17  unusual  · workdir · none
+  21 |     if current:
+  22 |         lines.append(current)
+  23 |     return lines
+  24 | 
+  25 | 
+  26 | def extra_helper(items):
+       (+4 more lines)
+
+tip: pass --verbose (-v) to expand truncated hunks.

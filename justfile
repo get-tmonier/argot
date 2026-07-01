@@ -140,3 +140,29 @@ verify-bench:
     uv run --directory benchmarks ruff check src tests
     uv run --directory benchmarks mypy src
     uv run --directory benchmarks pytest -q
+
+# --- rust engine (single-binary rewrite: crates/argot-{core,cli}) ---
+
+build-rust:
+    cargo build --release -p argot-cli
+
+# Rust equivalent of `just verify`: format check + clippy-as-errors + tests.
+verify-rust:
+    cargo fmt --check
+    cargo clippy --workspace --all-targets -- -D warnings
+    cargo test --workspace
+
+# Rust equivalent of `just dogfood`: run the full pipeline via the single
+# binary and assert both .py and .ts rows in dataset.jsonl + a scorer-config
+# with both language blocks. Dev-loop signal that monorepo handling works.
+dogfood-rust path=".":
+    cargo build --release -p argot-cli
+    ./target/release/argot extract {{path}}
+    ./target/release/argot train --repo {{path}}
+    ./target/release/argot calibrate --repo {{path}}
+    ./target/release/argot check {{path}} || true
+    test -s .argot/dataset.jsonl || (echo "✗ dataset.jsonl empty/missing" && exit 1)
+    grep -qE '"file_path": "[^"]*\.py"' .argot/dataset.jsonl || (echo "✗ no .py rows" && exit 1)
+    grep -qE '"file_path": "[^"]*\.tsx?"' .argot/dataset.jsonl || (echo "✗ no .ts rows" && exit 1)
+    test -s .argot/scorer-config.json || (echo "✗ scorer-config.json missing" && exit 1)
+    @echo "✓ dogfood-rust: pipeline ran end-to-end, both .py and .ts rows, scorer-config emitted"

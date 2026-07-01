@@ -1,0 +1,76 @@
+{
+ "python": {
+  "code": {
+   "src": "def f(x):\n    if x > 0:\n        return x\n    for i in range(x):\n        print(i)\n",
+   "literal_leaf_ratio": 0.1,
+   "named_leaf_count": 10,
+   "control_node_density": 66.66666666666666,
+   "ast_type_entropy": 3.152487689168953,
+   "unique_token_ratio": 0.6,
+   "is_atypical": false,
+   "is_atypical_file": false
+  },
+  "data_table": {
+   "src": "CITIES = [\"a\",\"b\",\"c\",\"d\",\"e\",\"f\",\"g\",\"h\",\"i\",\"j\"]\nNAMES = [\"x\",\"y\",\"z\"]\n",
+   "literal_leaf_ratio": 0.8666666666666667,
+   "named_leaf_count": 15,
+   "control_node_density": 0.0,
+   "ast_type_entropy": 1.9091717851902885,
+   "unique_token_ratio": 1.0,
+   "is_atypical": true,
+   "is_atypical_file": false
+  },
+  "tiny": {
+   "src": "x = 1\n",
+   "literal_leaf_ratio": 0.5,
+   "named_leaf_count": 2,
+   "control_node_density": 0.0,
+   "ast_type_entropy": 2.321928094887362,
+   "unique_token_ratio": 1.0,
+   "is_atypical": false,
+   "is_atypical_file": false
+  },
+  "empty": {
+   "src": "",
+   "literal_leaf_ratio": 0.0,
+   "named_leaf_count": 0,
+   "control_node_density": 0.0,
+   "ast_type_entropy": 0.0,
+   "unique_token_ratio": 0.0,
+   "is_atypical": false,
+   "is_atypical_file": false
+  },
+  "mixed": {
+   "src": "CONFIG = {\"a\": 1, \"b\": 2}\ndef helper():\n    return CONFIG\n",
+   "literal_leaf_ratio": 0.5714285714285714,
+   "named_leaf_count": 7,
+   "control_node_density": 50.0,
+   "ast_type_entropy": 3.4548223999466066,
+   "unique_token_ratio": 0.8571428571428571,
+   "is_atypical": false,
+   "is_atypical_file": false
+  }
+ },
+ "typescript": {
+  "code": {
+   "src": "function f(x: number): number {\n  if (x > 0) return x;\n  return 0;\n}\n",
+   "literal_leaf_ratio": 0.3333333333333333,
+   "named_leaf_count": 6,
+   "control_node_density": 80.0,
+   "ast_type_entropy": 3.5219280948873624,
+   "unique_token_ratio": 0.5,
+   "is_atypical": false,
+   "is_atypical_file": false
+  },
+  "data_table": {
+   "src": "export const LOCALES = [\"en\",\"fr\",\"de\",\"es\",\"it\",\"pt\",\"nl\",\"pl\"];\n",
+   "literal_leaf_ratio": 0.8888888888888888,
+   "named_leaf_count": 9,
+   "control_node_density": 0.0,
+   "ast_type_entropy": 2.0930692077718898,
+   "unique_token_ratio": 1.0,
+   "is_atypical": true,
+   "is_atypical_file": false
+  }
+ }
+}

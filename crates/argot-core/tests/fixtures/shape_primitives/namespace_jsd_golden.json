@@ -1,0 +1,743 @@
+{
+ "name": "namespace_jsd",
+ "min_cluster_size": 10,
+ "cluster_bonus_clip": 5.0,
+ "baseline_kind": "namespace",
+ "cases": [
+  {
+   "id": "ts_divergent_all_oov",
+   "cluster_files": [
+    [
+     "math_0.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_1.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_2.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_3.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_4.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_5.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_6.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_7.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_8.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "date_0.ts",
+     "Date.now();"
+    ]
+   ],
+   "fit_language": "typescript",
+   "fit_returns_none": false,
+   "expected_baseline": {
+    "language": "typescript",
+    "alphabet": [
+     "Date",
+     "Math"
+    ],
+    "distribution": {
+     "Date": 0.1,
+     "Math": 0.9
+    }
+   },
+   "score_baseline": {
+    "language": "typescript",
+    "alphabet": [
+     "Date",
+     "Math"
+    ],
+    "distribution": {
+     "Date": 0.1,
+     "Math": 0.9
+    }
+   },
+   "hunk": "fetch(url); axios.get(path);",
+   "cluster_size": 10,
+   "expected_score": 5.0
+  },
+  {
+   "id": "ts_identical",
+   "cluster_files": [
+    [
+     "math_0.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_1.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_2.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_3.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_4.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_5.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_6.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_7.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_8.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "date_0.ts",
+     "Date.now();"
+    ]
+   ],
+   "fit_language": "typescript",
+   "fit_returns_none": false,
+   "expected_baseline": {
+    "language": "typescript",
+    "alphabet": [
+     "Date",
+     "Math"
+    ],
+    "distribution": {
+     "Date": 0.1,
+     "Math": 0.9
+    }
+   },
+   "score_baseline": {
+    "language": "typescript",
+    "alphabet": [
+     "Date",
+     "Math"
+    ],
+    "distribution": {
+     "Date": 0.1,
+     "Math": 0.9
+    }
+   },
+   "hunk": "Math.floor(a); Math.floor(b); Math.floor(c); Math.floor(d); Math.floor(e); Math.floor(f); Math.floor(g); Math.floor(h); Math.floor(i); Date.now();",
+   "cluster_size": 10,
+   "expected_score": 0.0
+  },
+  {
+   "id": "ts_partial_oov",
+   "cluster_files": [
+    [
+     "math_0.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_1.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_2.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_3.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_4.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_5.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_6.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_7.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_8.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "date_0.ts",
+     "Date.now();"
+    ]
+   ],
+   "fit_language": "typescript",
+   "fit_returns_none": false,
+   "expected_baseline": {
+    "language": "typescript",
+    "alphabet": [
+     "Date",
+     "Math"
+    ],
+    "distribution": {
+     "Date": 0.1,
+     "Math": 0.9
+    }
+   },
+   "score_baseline": {
+    "language": "typescript",
+    "alphabet": [
+     "Date",
+     "Math"
+    ],
+    "distribution": {
+     "Date": 0.1,
+     "Math": 0.9
+    }
+   },
+   "hunk": "Math.floor(x); Math.floor(y); fetch(url);",
+   "cluster_size": 10,
+   "expected_score": 2.3939897336273837
+  },
+  {
+   "id": "ts_below_min_cluster_size",
+   "cluster_files": [
+    [
+     "math_0.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_1.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_2.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_3.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_4.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_5.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_6.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_7.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_8.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "date_0.ts",
+     "Date.now();"
+    ]
+   ],
+   "fit_language": "typescript",
+   "fit_returns_none": false,
+   "expected_baseline": {
+    "language": "typescript",
+    "alphabet": [
+     "Date",
+     "Math"
+    ],
+    "distribution": {
+     "Date": 0.1,
+     "Math": 0.9
+    }
+   },
+   "score_baseline": {
+    "language": "typescript",
+    "alphabet": [
+     "Date",
+     "Math"
+    ],
+    "distribution": {
+     "Date": 0.1,
+     "Math": 0.9
+    }
+   },
+   "hunk": "fetch(url); axios.get(path);",
+   "cluster_size": 5,
+   "expected_score": 0.0
+  },
+  {
+   "id": "baseline_none",
+   "cluster_files": null,
+   "fit_language": null,
+   "fit_returns_none": null,
+   "expected_baseline": null,
+   "score_baseline": null,
+   "hunk": "fetch(url);",
+   "cluster_size": 20,
+   "expected_score": 0.0
+  },
+  {
+   "id": "hunk_zero_callees",
+   "cluster_files": [
+    [
+     "math_0.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_1.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_2.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_3.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_4.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_5.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_6.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_7.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_8.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "date_0.ts",
+     "Date.now();"
+    ]
+   ],
+   "fit_language": "typescript",
+   "fit_returns_none": false,
+   "expected_baseline": {
+    "language": "typescript",
+    "alphabet": [
+     "Date",
+     "Math"
+    ],
+    "distribution": {
+     "Date": 0.1,
+     "Math": 0.9
+    }
+   },
+   "score_baseline": {
+    "language": "typescript",
+    "alphabet": [
+     "Date",
+     "Math"
+    ],
+    "distribution": {
+     "Date": 0.1,
+     "Math": 0.9
+    }
+   },
+   "hunk": "const x = 1; // no calls",
+   "cluster_size": 20,
+   "expected_score": 0.0
+  },
+  {
+   "id": "fit_none_single_namespace",
+   "cluster_files": [
+    [
+     "m0.ts",
+     "Math.floor(x); Math.random();"
+    ],
+    [
+     "m1.ts",
+     "Math.floor(x); Math.random();"
+    ],
+    [
+     "m2.ts",
+     "Math.floor(x); Math.random();"
+    ],
+    [
+     "m3.ts",
+     "Math.floor(x); Math.random();"
+    ],
+    [
+     "m4.ts",
+     "Math.floor(x); Math.random();"
+    ],
+    [
+     "m5.ts",
+     "Math.floor(x); Math.random();"
+    ],
+    [
+     "m6.ts",
+     "Math.floor(x); Math.random();"
+    ],
+    [
+     "m7.ts",
+     "Math.floor(x); Math.random();"
+    ],
+    [
+     "m8.ts",
+     "Math.floor(x); Math.random();"
+    ],
+    [
+     "m9.ts",
+     "Math.floor(x); Math.random();"
+    ]
+   ],
+   "fit_language": "typescript",
+   "fit_returns_none": true,
+   "expected_baseline": null,
+   "score_baseline": null,
+   "hunk": null,
+   "cluster_size": null,
+   "expected_score": null
+  },
+  {
+   "id": "fit_none_sparse",
+   "cluster_files": [
+    [
+     "math_0.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "date_0.ts",
+     "Date.now();"
+    ],
+    [
+     "empty.ts",
+     "// no calls"
+    ]
+   ],
+   "fit_language": "typescript",
+   "fit_returns_none": true,
+   "expected_baseline": null,
+   "score_baseline": null,
+   "hunk": null,
+   "cluster_size": null,
+   "expected_score": null
+  },
+  {
+   "id": "py_divergent_all_oov",
+   "cluster_files": [
+    [
+     "os_0.py",
+     "os.getcwd()"
+    ],
+    [
+     "os_1.py",
+     "os.getcwd()"
+    ],
+    [
+     "os_2.py",
+     "os.getcwd()"
+    ],
+    [
+     "os_3.py",
+     "os.getcwd()"
+    ],
+    [
+     "os_4.py",
+     "os.getcwd()"
+    ],
+    [
+     "os_5.py",
+     "os.getcwd()"
+    ],
+    [
+     "json_0.py",
+     "json.dumps(d)"
+    ],
+    [
+     "json_1.py",
+     "json.dumps(d)"
+    ],
+    [
+     "json_2.py",
+     "json.dumps(d)"
+    ],
+    [
+     "json_3.py",
+     "json.dumps(d)"
+    ]
+   ],
+   "fit_language": "python",
+   "fit_returns_none": false,
+   "expected_baseline": {
+    "language": "python",
+    "alphabet": [
+     "json",
+     "os"
+    ],
+    "distribution": {
+     "json": 0.4,
+     "os": 0.6
+    }
+   },
+   "score_baseline": {
+    "language": "python",
+    "alphabet": [
+     "json",
+     "os"
+    ],
+    "distribution": {
+     "json": 0.4,
+     "os": 0.6
+    }
+   },
+   "hunk": "requests.get(url); yaml.safe_load(s)",
+   "cluster_size": 12,
+   "expected_score": 5.0
+  },
+  {
+   "id": "py_identical",
+   "cluster_files": [
+    [
+     "os_0.py",
+     "os.getcwd()"
+    ],
+    [
+     "os_1.py",
+     "os.getcwd()"
+    ],
+    [
+     "os_2.py",
+     "os.getcwd()"
+    ],
+    [
+     "os_3.py",
+     "os.getcwd()"
+    ],
+    [
+     "os_4.py",
+     "os.getcwd()"
+    ],
+    [
+     "os_5.py",
+     "os.getcwd()"
+    ],
+    [
+     "json_0.py",
+     "json.dumps(d)"
+    ],
+    [
+     "json_1.py",
+     "json.dumps(d)"
+    ],
+    [
+     "json_2.py",
+     "json.dumps(d)"
+    ],
+    [
+     "json_3.py",
+     "json.dumps(d)"
+    ]
+   ],
+   "fit_language": "python",
+   "fit_returns_none": false,
+   "expected_baseline": {
+    "language": "python",
+    "alphabet": [
+     "json",
+     "os"
+    ],
+    "distribution": {
+     "json": 0.4,
+     "os": 0.6
+    }
+   },
+   "score_baseline": {
+    "language": "python",
+    "alphabet": [
+     "json",
+     "os"
+    ],
+    "distribution": {
+     "json": 0.4,
+     "os": 0.6
+    }
+   },
+   "hunk": "os.getcwd();os.getcwd();os.getcwd();os.getcwd();os.getcwd();os.getcwd();json.dumps(a);json.dumps(b);json.dumps(c);json.dumps(e)",
+   "cluster_size": 12,
+   "expected_score": 0.0
+  },
+  {
+   "id": "py_partial_oov",
+   "cluster_files": [
+    [
+     "os_0.py",
+     "os.getcwd()"
+    ],
+    [
+     "os_1.py",
+     "os.getcwd()"
+    ],
+    [
+     "os_2.py",
+     "os.getcwd()"
+    ],
+    [
+     "os_3.py",
+     "os.getcwd()"
+    ],
+    [
+     "os_4.py",
+     "os.getcwd()"
+    ],
+    [
+     "os_5.py",
+     "os.getcwd()"
+    ],
+    [
+     "json_0.py",
+     "json.dumps(d)"
+    ],
+    [
+     "json_1.py",
+     "json.dumps(d)"
+    ],
+    [
+     "json_2.py",
+     "json.dumps(d)"
+    ],
+    [
+     "json_3.py",
+     "json.dumps(d)"
+    ]
+   ],
+   "fit_language": "python",
+   "fit_returns_none": false,
+   "expected_baseline": {
+    "language": "python",
+    "alphabet": [
+     "json",
+     "os"
+    ],
+    "distribution": {
+     "json": 0.4,
+     "os": 0.6
+    }
+   },
+   "score_baseline": {
+    "language": "python",
+    "alphabet": [
+     "json",
+     "os"
+    ],
+    "distribution": {
+     "json": 0.4,
+     "os": 0.6
+    }
+   },
+   "hunk": "os.getcwd(); os.getcwd(); requests.get(url)",
+   "cluster_size": 12,
+   "expected_score": 3.032873116153822
+  },
+  {
+   "id": "empty_hunk",
+   "cluster_files": [
+    [
+     "math_0.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_1.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_2.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_3.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_4.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_5.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_6.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_7.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "math_8.ts",
+     "Math.floor(x);"
+    ],
+    [
+     "date_0.ts",
+     "Date.now();"
+    ]
+   ],
+   "fit_language": "typescript",
+   "fit_returns_none": false,
+   "expected_baseline": {
+    "language": "typescript",
+    "alphabet": [
+     "Date",
+     "Math"
+    ],
+    "distribution": {
+     "Date": 0.1,
+     "Math": 0.9
+    }
+   },
+   "score_baseline": {
+    "language": "typescript",
+    "alphabet": [
+     "Date",
+     "Math"
+    ],
+    "distribution": {
+     "Date": 0.1,
+     "Math": 0.9
+    }
+   },
+   "hunk": "",
+   "cluster_size": 20,
+   "expected_score": 0.0
+  }
+ ]
+}

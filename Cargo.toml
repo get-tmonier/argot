@@ -1,0 +1,44 @@
+[workspace]
+resolver = "2"
+members = ["crates/argot-core", "crates/argot-cli"]
+
+[workspace.package]
+version = "0.2.42"
+edition = "2021"
+# Transitive deps of git2 (url → idna → ICU4X) target edition2024; 1.85 is the
+# floor to build the tree. The pinned toolchain lives in rust-toolchain.toml.
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/argot-lint/argot"
+
+# Dependency versions are pinned for parity with the Python engine being
+# replaced:
+#   - tree-sitter grammars must match the ABI/grammar the Python engine used
+#     (tree_sitter 0.23.2, python 0.23.6, typescript 0.23.2, javascript 0.23.1)
+#     so parse trees — and therefore tokenization — are byte-identical.
+#   - git2 wraps libgit2, the SAME C library pygit2 (1.19.2 → libgit2 1.9.x)
+#     binds. gix (pure-Rust) would risk diff-hunk divergence; git2 gives exact
+#     diff/find_similar parity. This is a deliberate choice over the goal's
+#     "gix preferred" default, justified by the parity gate.
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+thiserror = "2"
+clap = { version = "4", features = ["derive"] }
+tree-sitter = "0.23"
+tree-sitter-python = "0.23"
+tree-sitter-typescript = "0.23"
+tree-sitter-javascript = "0.23"
+git2 = "0.20"
+# Same codebase as the Python `tokenizers` (0.22.2) that transformers wraps;
+# loading the exact serialised `tokenizer.json` gives bit-identical `encode`.
+# onig feature matches the regex engine the Python wheels ship with.
+tokenizers = { version = "0.22", default-features = false, features = ["onig"] }
+# MinHash uses md5(callee) — hashlib.md5 parity.
+md-5 = "0.10"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

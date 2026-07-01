@@ -1,0 +1,35 @@
+{
+ "attested_count": 9,
+ "cases": [
+  {
+   "hunk": "mean(values)",
+   "weighted_contribution": 2.0,
+   "count_unattested": 1
+  },
+  {
+   "hunk": "math.fsum(xs)",
+   "weighted_contribution": 4.0,
+   "count_unattested": 1
+  },
+  {
+   "hunk": "obscure_func(a, b)\nanother_unknown_call()",
+   "weighted_contribution": 4.0,
+   "count_unattested": 2
+  },
+  {
+   "hunk": "Counter()\nsum(counts.values())",
+   "weighted_contribution": 0,
+   "count_unattested": 0
+  },
+  {
+   "hunk": "a.b.c.deeply.nested.call()",
+   "weighted_contribution": 2.0,
+   "count_unattested": 1
+  },
+  {
+   "hunk": "x = 1  # no calls",
+   "weighted_contribution": 0,
+   "count_unattested": 0
+  }
+ ]
+}

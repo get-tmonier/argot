@@ -28,7 +28,17 @@ def ensure_extracted(
     if out_path.exists() and out_path.stat().st_size > 0:
         return out_path
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    cmd = ["uv", "run", "argot-extract", str(repo_dir), "--out", str(out_path)]
+    # Rust engine seam: with ARGOT_BENCH_RUST=1, extract via the Rust binary
+    # (byte-identical to argot-extract, ~5x faster) so a Rust bench run touches
+    # no Python engine code — only the harness orchestration stays Python.
+    import os
+
+    if os.environ.get("ARGOT_BENCH_RUST"):
+        repo_root = Path(__file__).resolve().parents[3]
+        argot_bin = os.environ.get("ARGOT_BIN", str(repo_root / "target" / "release" / "argot"))
+        cmd = [argot_bin, "extract", str(repo_dir), "--out", str(out_path)]
+    else:
+        cmd = ["uv", "run", "argot-extract", str(repo_dir), "--out", str(out_path)]
     if limit is not None:
         cmd.extend(["--limit", str(limit)])
     subprocess.run(cmd, check=True)
