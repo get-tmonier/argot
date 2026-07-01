@@ -2,26 +2,29 @@
 
 ## Before exploring, read these
 
-- **`CONTEXT-MAP.md`** at the repo root — points to one `CONTEXT.md` per context. Read each one relevant to the topic.
+- **`CONTEXT-MAP.md`** at the repo root — the single-binary architecture map (crates/argot-{core,cli}).
+- **`CLAUDE.md`** — Architecture section: the crate/module layout.
 - **`docs/research/`** — serves as ADR for this repo. Read entries that touch the area you're about to work in.
+- **`docs/rust-port/`** — the Rust port's parity record + cutover plan.
 
 If any of these files don't exist, proceed silently. Don't flag their absence upfront.
 
-## Layout (multi-context)
+## Layout
 
 ```
 /
 ├── CONTEXT-MAP.md
-├── docs/research/          ← system-wide decisions (replaces docs/adr/)
-├── cli/
-│   └── CONTEXT.md          ← TypeScript/Bun CLI context
-└── engine/
-    └── CONTEXT.md          ← Python engine context
+├── CLAUDE.md               ← architecture + conventions
+├── docs/research/          ← system-wide decisions (ADR)
+├── docs/rust-port/         ← port parity record
+└── crates/
+    ├── argot-core/         ← engine (library)
+    └── argot-cli/          ← clap CLI → `argot` binary
 ```
 
-## Use the glossary's vocabulary
+## Use consistent vocabulary
 
-When your output names a domain concept, use the term as defined in the relevant `CONTEXT.md`. Don't drift to synonyms the glossary explicitly avoids.
+When your output names a domain concept, use the term as defined in `CONTEXT-MAP.md` / `CLAUDE.md`. Don't drift to synonyms.
 
 ## Flag research conflicts
 

@@ -1,11 +1,19 @@
 # Context Map
 
-## Contexts
+argot is a single Rust binary — no CLI/engine split. The architecture lives in
+one Cargo workspace:
 
-- [CLI](./cli/CONTEXT.md) — TypeScript/Bun layer that exposes the pipeline as commands and orchestrates the engine
-- [Engine](./engine/CONTEXT.md) — Python scoring pipeline that learns a repo's voice and flags diverging hunks
+- **`crates/argot-core`** — the engine (pure library): git walk, tokenize/BPE,
+  scorers, calibration, check, evidence. Language- and corpus-agnostic. Produces
+  and reads the fit artifacts in `.argot/`.
+- **`crates/argot-cli`** — the clap CLI that wires the pipeline into the single
+  `argot` binary (`extract` → `train` → `calibrate` → `check`, or `fit`).
 
-## Relationships
+See the **Architecture** section of `CLAUDE.md` for the module layout, and
+`docs/rust-port/` for the port's parity record.
 
-- **CLI → Engine**: CLI spawns the engine as a subprocess via `BunEngineRunner`; all scoring logic lives in the engine
-- **Shared concept**: **voice profile** — the CLI produces it (pipeline commands), the engine reads and writes the individual fit artifacts inside `.argot/`
+## Shared concept
+
+**voice profile** — the model of a repo's voice, learned from its git history and
+persisted under `.argot/` (`dataset.jsonl`, `scorer-config.json`). The pipeline
+commands produce it; `check` reads it to score new hunks.

@@ -14,26 +14,19 @@ lint-clean, but doesn't sound like anyone on your team wrote it. No model, no cl
 
 ## Install
 
+argot is a **single static binary** — no Python, no Node, nothing else to install.
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/get-tmonier/argot/main/install.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.sh | sh
 ```
 
-The curl installer drops the `argot` binary in `~/.local/bin` and installs [`uv`](https://docs.astral.sh/uv/)
-if it's missing. Prefer a package manager?
+Prefer a package manager?
 
 ```bash
 npm install -g @tmonier/argot
 ```
 
-### Prerequisites
-
-argot's scoring engine is a Python subprocess driven through [`uv`](https://docs.astral.sh/uv/). The
-curl installer adds it automatically; if you install via npm, make sure `uv` is on your `PATH`:
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
+Both download the prebuilt `argot` binary for your platform (macOS arm64, Linux x64).
 Everything runs locally — no API key, no account, nothing leaves your machine.
 
 ## Calibrate, then check

@@ -1,50 +1,50 @@
 # argot
 
-Voice linter that learns a repo's voice from git history. CLI in TypeScript/Bun; data pipeline in Python/UV.
+Voice linter that learns a repo's voice from git history. A single statically-linked Rust binary (`crates/argot-{core,cli}`) — no Python, no Node, no runtime dependencies. (Previously a TS/Bun CLI + Python engine; ported to Rust with verified byte-for-byte parity — see `docs/rust-port/`.)
 
 ## Guiding principle
 
-**In doubt, optimise for code that's easy to change.** The Pragmatic Programmer / craftsmanship lens: the right design is the one a future contributor (human or agent) can extend, refactor, or revert without archaeology. When two options look equally correct, pick the one with the smaller blast radius and clearer seams. Don't add abstractions before the second use case shows up; don't keep dead code "just in case"; don't suppress a check when the underlying code is the real fix. Strict tooling (mypy, no-any, ruff, dependency-cruiser) exists to surface change-cost early — work with it, not around it.
+**In doubt, optimise for code that's easy to change.** The Pragmatic Programmer / craftsmanship lens: the right design is the one a future contributor (human or agent) can extend, refactor, or revert without archaeology. When two options look equally correct, pick the one with the smaller blast radius and clearer seams. Don't add abstractions before the second use case shows up; don't keep dead code "just in case"; don't suppress a check when the underlying code is the real fix. Strict tooling (clippy `-D warnings`, the parity golden suites) exists to surface change-cost early — work with it, not around it.
 
 ## Task runner
 
 Always use `just` — it's the canonical interface for all dev commands.
 
 ```
-just verify       # full check suite (lint + format + typecheck + boundaries + knip + test)
-just test         # bun test --cwd cli && uv run pytest engine
-just extract .    # run extract pipeline on this repo → .argot/dataset.jsonl
+just verify       # cargo fmt --check + clippy -D warnings + cargo test
+just test         # cargo test --workspace
+just extract .    # run extract on this repo → .argot/dataset.jsonl
 just dogfood      # run full pipeline against argot itself (or any path) — fast monorepo check
-just install      # bun install + uv sync
+just build        # cargo build --release -p argot → target/release/argot
 ```
 
 `just dogfood` exercises extract → train → calibrate → check end-to-end and asserts both Python and TypeScript rows landed in `dataset.jsonl` plus a `scorer-config.json` was emitted. It's a **dev loop, not a CI gate** — informational signal that monorepo handling didn't silently break. Drift is the contributor's responsibility; nothing forces it to run.
 
 ## Architecture
 
-**CLI** (`cli/src/`) uses hexagonal architecture, enforced by dependency-cruiser:
+One Cargo workspace, two crates:
 
 ```
-modules/<name>/
-  domain/           # pure types — no imports from other layers
-  application/      # use-cases + outbound port interfaces (ports/out/)
-  infrastructure/   # adapters implementing ports (may do I/O)
-  dependencies.ts   # Effect Layer composition for this module
-shell/              # inbound CLI commands — wires Layers, no module infra imports
-dependencies.ts     # root Layer composition
+crates/
+  argot-core/       # the engine — pure library, does the work
+    scoring/        # scorers (SequentialImportBpeScorer, call_receiver, filters,
+                    #   typicality), adapters (python/typescript), calibration,
+                    #   numpy_sampler (numpy-exact RNG for threshold parity)
+    git_walk.rs · tokenize.rs · extract.rs · train.rs · check.rs · dataset.rs · stats.rs
+    data/           # embedded unixcoder tokenizer + generic BPE baseline (include_bytes!)
+  argot-cli/        # clap CLI → the single `argot` binary (package name: argot)
 ```
 
-**Engine** (`engine/argot/`) is a Python subprocess. The CLI's `BunEngineRunner` adapter spawns `uv run argot-engine extract`. It outputs JSONL to `.argot/dataset.jsonl`. The full pipeline is: `argot-extract` → `argot-train` → `argot-calibrate` → `argot-check`.
+The full pipeline is `extract` → `train` → `calibrate` → `check` (or `fit` = train + calibrate). Everything runs in-process in the one binary — no subprocess, no external files.
 
-`engine/argot/` must not import from experimental research branches; production code lives under `engine/argot/scoring/`. Production symbols (classes, files, functions) must be named after domain concepts — never after research artefacts (`era`, `phase`, `PhaseNa…`, etc.); those labels belong in bench/research code only.
+Production code lives under `crates/argot-core/src/scoring/`. Production symbols (types, files, functions) must be named after domain concepts — never after research artefacts (`era`, `phase`, `PhaseNa…`, etc.); those labels belong in eval/research code only.
 
 ## Key conventions
 
-- All side-effects in CLI go through Effect — `Console.log` not `console.log`
-- Cross-module imports only via `<module>/dependencies.ts`, never into inner layers
-- Path aliases `#modules/*`, `#shell/*`, `#dependencies` — no relative `../..` across layers
-- TypeScript strict + `no-any`; Python mypy strict + ruff (line length 100)
-- Test files: `*.test.ts` (Bun), `test_*.py` (pytest)
+- Language/corpus-agnostic core (see below); errors via `anyhow`/`thiserror`.
+- Dependency versions are pinned for parity with the original Python engine (tree-sitter grammars, `tokenizers` 0.22, libgit2 via `git2`) — see the comments in the root `Cargo.toml`. Don't bump them without re-checking the golden/parity suites.
+- Rust edition 2021, toolchain pinned in `rust-toolchain.toml`. Clippy runs as `-D warnings`; no `#![allow(...)]` blanket suppressions.
+- Test files: unit tests in-module (`#[cfg(test)]`); parity/golden suites in `crates/argot-core/tests/*_parity.rs` (compare Rust output to fixtures captured from the old Python engine).
 
 ## Testing
 
@@ -56,28 +56,22 @@ For non-trivial production logic (scoring math, threshold decisions, cluster log
 
 ## Language and corpus independence
 
-Production code (`engine/argot/scoring/`, `cli/src/`) must be language-agnostic and corpus-agnostic. No hardcoded references to Python, TypeScript, FastAPI, faker-js, or any other specific language or corpus. Those appear only in fixtures, benchmarks, and eval scripts. A scorer that only works on Python repos is not a production scorer.
+Production code (`crates/argot-core/src/scoring/`) must be language-agnostic and corpus-agnostic. No hardcoded references to Python, TypeScript, FastAPI, faker-js, or any other specific language or corpus. Those appear only in fixtures, benchmarks, and eval scripts. A scorer that only works on Python repos is not a production scorer.
 
 ## Code quality
 
-The codebase is strict by design (mypy strict, no-any, ruff). When a check fails:
+The codebase is strict by design (clippy runs as `-D warnings`). When a check fails:
 - Diagnose the exact root cause before fixing
-- Prefer targeted fixes (`# type: ignore[specific-code]` on one line) over global config changes
-- Never add broad suppressions (`ignore_missing_imports = true` globally, etc.) to make errors go away
-
-No abusive lint shortcuts in production code (`engine/argot/` outside scripts, `cli/src/`):
-- No file- or module-wide disables: `# ruff: noqa`, `# mypy: ignore-errors`, `/* eslint-disable */`, `// oxlint-disable-file`, `// @ts-nocheck`, etc.
-- No blanket per-line disables either: `# noqa` without a rule code, `// oxlint-disable-next-line` without a rule name. Always cite the specific rule.
-- Targeted single-line ignores with a specific rule code (`# type: ignore[arg-type]`, `// oxlint-disable-next-line no-explicit-any`) are fine when the lint is genuinely wrong about a specific case — explain why in a one-line comment.
-- Exception: `benchmarks/` and `engine/argot/scripts/` may use file-level disables. They're throwaway research code where signal-over-cleanliness is the right tradeoff.
+- Prefer targeted fixes (`#[allow(clippy::specific_lint)]` on one item, with a one-line reason) over global config changes
+- Never add broad suppressions (crate-level `#![allow(...)]`, blanket `#[allow(warnings)]`) to make errors go away
 
 We aim for clean architecture and clean code; lint-suppression debt compounds and is the wrong knob to turn when a check fails. The right knob is the underlying code.
 
-## Toolchain (managed by mise)
+## Toolchain
 
-`bun 1.3.12` · `python 3.13` · `uv 0.11.7` · `just 1.49.0` · `lefthook 2.1.6`
+Rust toolchain pinned in `rust-toolchain.toml` (via `rustup`). `mise` manages the peripheral tools: `just 1.49.0` · `lefthook 2.1.6` · `bun 1.3.12` (landing site only).
 
-Linting/checking: `oxlint` · `oxfmt` · `tsgo` (native TS checker) · `dependency-cruiser` · `knip` · `ruff` · `mypy`
+Build/lint/test: `cargo` · `rustfmt` · `clippy` (`-D warnings`). Releases: `cargo-dist` (`dist-workspace.toml`).
 
 ## Research workflow
 
