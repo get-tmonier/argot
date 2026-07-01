@@ -1,7 +1,7 @@
 # G7 Calibration Contract
 
 **Status:** binding (era-13.5 gate G7)
-**Code:** `engine/argot/scoring/calibration/__init__.py` — `calibrate_multi_seed`
+**Code:** `crates/argot-core/src/scoring/calibration.rs` — `run_calibrate` (multi-seed median threshold)
 
 ---
 
@@ -117,5 +117,5 @@ passed, making the asymmetric mode observable end-to-end.
 ## References
 
 - `docs/research/evidence/era13-final.md` — era-13 final memo with § cancellation
-- `engine/argot/scoring/calibration/__init__.py` — implementation
-- `engine/argot/tests/test_calibration.py` — unit tests (a/b/c)
+- `crates/argot-core/src/scoring/calibration.rs` — implementation
+- `crates/argot-core/tests/calibration_smoke.rs` — calibration tests

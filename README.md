@@ -240,7 +240,7 @@ Output:
 - `.argot/generic-baseline.json` — generic baseline token reference
 - `.argot/scorer-config.json` — calibrated scoring threshold
 
-Re-run after major refactors. Internally `fit` runs the engine's two underlying phases (build corpus, then calibrate); they remain available for benchmark/research use via the engine entry points (`uv run python -m argot.train` / `argot.scoring.calibration`), but the day-to-day CLI surface is just `fit`.
+Re-run after major refactors. Internally `fit` runs the two underlying phases (build corpus, then calibrate); they're also available as standalone subcommands (`argot train` / `argot calibrate`), but the day-to-day CLI surface is just `fit`.
 
 ### 3. Check
 
