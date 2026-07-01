@@ -7,30 +7,30 @@ help:
 
 # Build the release binary + install landing deps.
 install:
-    cargo build --release -p argot-cli
+    cargo build --release -p argot
     cd landing && bun install
 
 # Build the single `argot` release binary → target/release/argot.
 build:
-    cargo build --release -p argot-cli
+    cargo build --release -p argot
 
 # --- pipeline (single Rust binary) ---
 
 extract path=".":
-    cargo run --release -p argot-cli -- extract {{path}}
+    cargo run --release -p argot -- extract {{path}}
 
 train path=".":
-    cargo run --release -p argot-cli -- train --repo {{path}}
+    cargo run --release -p argot -- train --repo {{path}}
 
 calibrate path=".":
-    cargo run --release -p argot-cli -- calibrate --repo {{path}}
+    cargo run --release -p argot -- calibrate --repo {{path}}
 
 # Fit = train + calibrate in one shot.
 fit path=".":
-    cargo run --release -p argot-cli -- fit --repo {{path}}
+    cargo run --release -p argot -- fit --repo {{path}}
 
 check path="." ref="HEAD~1..HEAD":
-    cargo run --release -p argot-cli -- check {{path}} {{ref}}
+    cargo run --release -p argot -- check {{path}} {{ref}}
 
 # --- checks ---
 
@@ -50,7 +50,7 @@ test:
     cargo test --workspace
 
 smoke:
-    cargo run --release -p argot-cli -- extract . && test -s .argot/dataset.jsonl
+    cargo run --release -p argot -- extract . && test -s .argot/dataset.jsonl
 
 ci: verify smoke
 
@@ -58,7 +58,7 @@ ci: verify smoke
 # outputs are shaped — both .py and .ts rows in dataset.jsonl + scorer-config
 # emitted. Dev-loop signal that monorepo handling didn't silently break.
 dogfood path=".":
-    cargo build --release -p argot-cli
+    cargo build --release -p argot
     ./target/release/argot extract {{path}}
     ./target/release/argot train --repo {{path}}
     ./target/release/argot calibrate --repo {{path}}

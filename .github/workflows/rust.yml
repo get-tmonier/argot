@@ -50,5 +50,5 @@ jobs:
         run: cargo test --workspace
       - name: Smoke (extract runs end-to-end)
         run: |
-          cargo run --release -p argot-cli -- extract .
+          cargo run --release -p argot -- extract .
           test -s .argot/dataset.jsonl && echo "OK — dataset.jsonl non-empty"
