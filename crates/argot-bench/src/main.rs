@@ -94,19 +94,20 @@ struct Cli {
     asym_fire_rate_threshold: f64,
     #[arg(long, default_value_t = 1000)]
     asym_probe_n: usize,
-    /// Era-14 rarity weighting: off | linear-df | gated-df:<min_df> | log-df.
+    /// Rarity weighting for the cluster branches: off | linear-df |
+    /// gated-df:<min_df> | log-df.
     #[arg(long, default_value = "off")]
     rarity_weighting: String,
-    /// Era-14 calibration-hunk source: random | diff.
+    /// Calibration-hunk source: random | diff.
     #[arg(long, default_value = "random")]
     calibration_source: String,
     /// Comma-separated shape-primitive names to enable on the scoring path.
     #[arg(long, default_value = "", value_delimiter = ',')]
     enable_shape_primitives: Vec<String>,
-    /// Disable the parse-error host fallback (era-14 catalog baseline).
+    /// Disable the parse-error host fallback.
     #[arg(long)]
     no_parse_error_fallback: bool,
-    /// Disable the era-15 convention-rarity stage (pre-era-15 catalog baseline).
+    /// Disable the convention-rarity stage.
     #[arg(long)]
     no_conventions: bool,
     /// Convention-rarity bonus magnitude.

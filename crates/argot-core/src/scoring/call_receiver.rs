@@ -161,9 +161,9 @@ fn non_none_callees(source: &str, language: Language) -> Vec<String> {
 /// Callees of every call-expression whose start line falls inside the
 /// 1-indexed inclusive `[start_line, end_line]` region of `source`.
 ///
-/// Era-14 phase D: when a bare hunk's parse has root-level errors, callee
-/// extraction falls back to the hunk's region within its host file's AST —
-/// the host parses cleanly where the fragment did not.
+/// Parse-error host fallback: when a bare hunk's parse has root-level errors,
+/// callee extraction falls back to the hunk's region within its host file's
+/// AST — the host parses cleanly where the fragment did not.
 pub fn callees_in_source_region(
     source: &str,
     language: Language,
@@ -429,7 +429,7 @@ pub struct ContributionEvent {
     pub branch: ContributionBranch,
 }
 
-/// Era-14 rarity weighting for the cluster branches (`ClusterAbsent`,
+/// Rarity weighting for the cluster branches (`ClusterAbsent`,
 /// `ClusterRare`): scales `cluster_bonus` by how globally common the callee is
 /// in the corpus, so locally-rare-but-globally-rare callees (locale
 /// identifiers, Zipf-tail helpers) stop firing full-magnitude bonuses while
@@ -437,7 +437,8 @@ pub struct ContributionEvent {
 /// derived from corpus document frequencies — no domain knowledge.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RarityWeighting {
-    /// Era-13.5 behaviour: full `cluster_bonus` regardless of global rarity.
+    /// Baseline behaviour with the rule off: full `cluster_bonus` regardless
+    /// of global rarity.
     Off,
     /// `weight = df / N` — proportional to document frequency.
     LinearDf,
@@ -498,11 +499,11 @@ pub struct CallReceiverScorer {
     cluster_callee_counts: HashMap<usize, HashMap<String, usize>>,
     cluster_sizes: HashMap<usize, usize>,
     /// Corpus-global document frequency: number of corpus files whose callee
-    /// bag contains each callee (era-14 rarity weighting substrate).
+    /// bag contains each callee (rarity weighting substrate).
     callee_file_counts: HashMap<String, usize>,
     /// Number of (non-data-dominant) corpus files behind `callee_file_counts`.
     n_corpus_files: usize,
-    /// Rarity weighting applied to the cluster branches (era 14 phase A).
+    /// Rarity weighting applied to the cluster branches.
     rarity_weighting: RarityWeighting,
     /// Additive per-cluster AST-shape primitives (empty = true no-op).
     shape_primitives: Vec<Box<dyn ShapePrimitive>>,
@@ -737,7 +738,7 @@ impl CallReceiverScorer {
         })
     }
 
-    /// Set the rarity weighting for the cluster branches (era 14 phase A).
+    /// Set the rarity weighting for the cluster branches.
     pub fn with_rarity_weighting(mut self, weighting: RarityWeighting) -> Self {
         self.rarity_weighting = weighting;
         self
@@ -848,7 +849,7 @@ impl CallReceiverScorer {
     }
 
     /// No cluster logic (`weighted_contribution`). `host_context` is the
-    /// era-14 phase D parse-error fallback — see
+    /// parse-error host fallback — see
     /// [`Self::contribution_events_for_file`].
     pub fn weighted_contribution(
         &self,
@@ -898,8 +899,8 @@ impl CallReceiverScorer {
     ///
     /// `host_context` is `(host_source, hunk_start_line, hunk_end_line)` with
     /// 1-indexed inclusive bounds. It is consulted ONLY when the bare hunk's
-    /// parse has root-level errors (era-14 phase D): callees are then read
-    /// from the hunk's region within the host AST. Hunks that parse cleanly
+    /// parse has root-level errors (parse-error host fallback): callees are then
+    /// read from the hunk's region within the host AST. Hunks that parse cleanly
     /// never touch it, so the fallback is purely additive on the
     /// parse-error path (G4.d invariant).
     pub fn contribution_events_for_file(
@@ -983,7 +984,7 @@ impl CallReceiverScorer {
     }
 
     /// Cluster-conditional (`weighted_contribution_for_file`). `host_context`
-    /// is the era-14 phase D parse-error fallback — see
+    /// is the parse-error host fallback — see
     /// [`Self::contribution_events_for_file`].
     #[allow(clippy::too_many_arguments)]
     pub fn weighted_contribution_for_file(
@@ -1038,7 +1039,7 @@ impl CallReceiverScorer {
         }
         // Shape-primitive dispatch: additive scalars, final cap still bounds
         // the total. Skipped on root-error hunks, matching the Python scorer
-        // (phase D's host fallback feeds callee extraction only).
+        // (the host fallback feeds callee extraction only).
         if !self.shape_primitives.is_empty() && !has_root_error(hunk, self.language) {
             if let Some(cid) = self.cluster_id_for_hunk_file(file_path, file_source) {
                 let cluster_size = self.cluster_sizes.get(&cid).copied().unwrap_or(0);
@@ -1082,7 +1083,7 @@ impl CallReceiverScorer {
 
     /// Jaccard-nearest cluster for an arbitrary file source. Ties → smallest
     /// cluster id. None if no clusters or empty callee bag.
-    /// (tests for the era-14 rarity weighting live at the bottom of this file)
+    /// (tests for the rarity weighting live at the bottom of this file)
     pub fn nearest_cluster_for_source(&self, file_source: &str) -> Option<(usize, f64)> {
         if self.cluster_attested.is_empty() {
             return None;
@@ -1172,7 +1173,7 @@ mod tests {
     #[test]
     fn gated_df_at_one_matches_off_behaviour() {
         // Every globally-attested callee has df >= 1, so GatedDf{min_df: 1}
-        // must reproduce era-13.5 contributions exactly on any hunk.
+        // must reproduce the baseline (rule-off) contributions exactly on any hunk.
         let mut off = toy_scorer(RarityWeighting::Off);
         let mut gated = toy_scorer(RarityWeighting::GatedDf { min_df: 1 });
         for hunk in [
@@ -1261,7 +1262,7 @@ mod tests {
         assert_eq!(callees, vec!["validate_payload", "send_alert"]);
 
         let cr = toy_scorer(RarityWeighting::Off);
-        // Without host context: parse error blocks everything (era-13.5).
+        // Without host context: parse error blocks everything (baseline behaviour).
         assert!(cr
             .contribution_events_for_file(
                 hunk,

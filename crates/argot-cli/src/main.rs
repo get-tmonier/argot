@@ -1,13 +1,8 @@
 //! argot CLI — clap-based entry point.
 //!
-//! Replaces both the TypeScript/Bun shell (`cli/src`) and the Python engine
-//! entry points (`argot-extract`, `argot-train`, `argot-calibrate`,
-//! `argot-check`). One statically-linked binary, no subprocess.
-//!
-//! Subcommands are wired in as the port progresses. The user-facing command
-//! surface is reconciled with the TS CLI in the CLI phase; the engine-level
-//! commands mirror the Python entry points exactly (args, messages, exit
-//! codes) so the benchmark harness and `just` recipes can drive the binary.
+//! One statically-linked binary, no subprocess: the full pipeline
+//! (`extract` → `train` → `calibrate` → `check`, plus the `fit` one-shot and
+//! the suppression commands) runs in-process against `argot-core`.
 
 use clap::{Args, Parser, Subcommand};
 use serde::{Deserialize, Serialize};
@@ -417,8 +412,8 @@ struct CalibrateCmd {
     #[arg(long = "evidence-top-n", default_value_t = 50)]
     evidence_top_n: usize,
     /// Rare-branch threshold for the check-time scorer: a callee attested in
-    /// ≤ N cluster files is treated as cluster-absent. 0 disables (pre-13.5
-    /// baseline). Default 2 (era-13.5 setting).
+    /// ≤ N cluster files is treated as cluster-absent. 0 disables the rule; the
+    /// default of 2 treats callees in one or two cluster files as rare.
     #[arg(long = "call-receiver-cluster-rare-threshold", default_value_t = 2)]
     cluster_rare_threshold: usize,
     /// Minimum cluster size for the rare rule to fire (0 = no floor).
@@ -464,7 +459,7 @@ fn run_calibrate_cmd(c: CalibrateCmd) -> ExitCode {
             }
             let langs: Vec<&str> = thresholds.iter().map(|(l, _)| l.as_str()).collect();
             println!(
-                "scorer-config.json (v3, languages: {}) → {}",
+                "scorer-config.json (languages: {}) → {}",
                 langs.join(", "),
                 c.output.display()
             );
@@ -989,7 +984,7 @@ struct ScoreCmd {
     /// recall/fp comparison.
     #[arg(long, default_value_t = 0.0)]
     threshold: f64,
-    /// Cluster-rare threshold (era-13.5); the bench auto-selects 0 or 2.
+    /// Cluster-rare threshold; the bench auto-selects 0 or 2.
     #[arg(long = "cluster-rare-threshold", default_value_t = 0)]
     cluster_rare_threshold: usize,
     /// Repo root for resolving the repo's own module names (package.json name /

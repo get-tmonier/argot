@@ -226,7 +226,7 @@ impl TypicalityModel {
 
     /// Hunk-level check: `(true, features)` if structurally data-dominant.
     ///
-    /// The v2 file-level fallback (`is_atypical_file`) was retired in era 15:
+    /// The v2 file-level fallback (`is_atypical_file`) was retired:
     /// its population — partial-array hunks below the hunk gate inside
     /// data-heavy files — is covered at row granularity by the scorer's
     /// data-row gate, which no longer silences *code* hunks in those files.

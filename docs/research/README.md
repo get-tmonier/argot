@@ -564,44 +564,25 @@ era docs are the story; the evidence docs are the receipts.
 
 ## What's next
 
-The current production scorer is the era-13.5 ship: era-11 substrate
-(`call_receiver_n_clusters=8, call_receiver_cluster_bonus=5.0`, parse-fragment
-guard, K=7 multi-seed calibration), Phase A asymmetric-calibration mechanism
-gated by per-corpus auto-detect (`--auto-select-asym-cal` +
-`--call-receiver-cluster-rare-threshold=2`), 115-fixture catalog,
-**fixture-count recall 93.9% (108/115)**.
+The per-callee-frequency mechanism family (era 14) was exhausted: six
+pre-registered phases refuted rarity weighting, diff-hunk calibration, and the
+negative-shape primitives against the ≤1%-FP / recall-floor gates — the story is
+in [`evidence/era14-final.md`](evidence/era14-final.md). Two of that era's
+backlog items shipped in the same cycle: the per-corpus auto-detect is now wired
+into `argot calibrate` (it had been pinned at the rule-off baseline in the Rust
+port), and the `call_scope_fraction` TypeScript boundary bug is fixed. The
+follow-on cycle (era 15) closed the harness/production gap — new code is now
+judged against the fit-time model artifact rather than a harness-side scorer —
+added the convention-rarity phrasing stage, and validated four application
+corpora alongside the libraries.
 
-Six fixtures remain uncaught. They fall into two structural buckets that
-era-13.5's mechanisms cannot reach:
+The current scorer catches **160/171 fixtures (93.6%)** through the real
+`argot fit` → `argot check` pipeline. The residual misses (parse-error-blocked
+hunks, structural anomalies with no distinctive callee) are documented with
+their refutations in [`evidence/era15-production-path.md`](evidence/era15-production-path.md).
 
-- **Parse-error blocked** (fastapi `validation_2`, `exception_handling_4`):
-  the bare hunk's tree-sitter parse has root-level ERROR nodes →
-  `_has_root_error=True` → call-receiver returns 0 before any bonus
-  applies. The era-12 routing fix solved cluster lookup; this is about
-  parsing the hunk itself. Era-14 candidates: host-AST scoring at the
-  call-receiver level, or a fall-back parser that handles partial fragments.
-
-- **Structural anomaly outside callee/shape framing** (faker
-  `synthetic_formula_1`, ink `ink_dom_access_2`, hono `hono_middleware_3`,
-  hono `hono_validation_2`, faker-js `error_flip_2`): hunks with 0–2
-  callees that are themselves unremarkable; the anomaly is in the absence
-  of cluster-typical patterns, in control-flow shape, or in a single
-  too-common callee (`Error`, `c.json`). The Phase B `typical_call_density`
-  primitive shipped registered-but-default-off has shown promise on
-  `synthetic_formula_1` standalone but FP-floods at the bench level.
-  Era-14 candidates: typical_call_density as a primary signal under its
-  own per-corpus auto-detect, or a control-flow-shape primitive under the
-  same framework.
-
-Two era-13.5 backlog items also wait on era-14:
-
-- **Productionize auto-detect in `argot calibrate`'s CLI**. Currently
-  the mechanism lives in `argot-bench`'s `build_scorer` + a CLI flag.
-  `argot calibrate` doesn't expose it.
-- **Dormant CSF TypeScript boundary bug**. The existing
-  `call_scope_fraction` primitive uses `_FUNCTION_BOUNDARY="function_definition"`
-  for both Python and TypeScript, but TypeScript uses `function_declaration`.
-  CSF universally returns fraction=1.0 on TS → std=0 → primitive ALWAYS
-  ABSTAINS on TS corpora. Fix is one line; era-13.5 didn't ship it because
-  CSF is default-off and changing it without a re-bench would be a hidden
-  regression.
+The live roadmap has moved from the scorer to the product surface — broader
+language coverage, editor/agent integration, a versioned model artifact, and a
+public benchmark dashboard. Those are tracked as
+[open issues](https://github.com/get-tmonier/argot/issues); this research log
+stays the receipts for every scoring decision behind them.

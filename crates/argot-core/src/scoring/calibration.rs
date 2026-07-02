@@ -43,12 +43,13 @@ const CR_CLUSTER_BONUS: f64 = 5.0;
 /// call-receiver contributes 0 on exactly the hunks check scores. The
 /// calibration side has always applied the fallback (candidates carry their
 /// file region), so enabling it at check time is what makes the two paths
-/// symmetric. Era-14 gated it off based on catalog-mode FP with a forced
-/// cluster-rare rule; in production the rare rule is auto-detected per
-/// corpus, and the era-15 production-path FP controls re-validated it.
+/// symmetric. It was gated off when a forced cluster-rare rule made the
+/// catalog-mode false-positive control regress; in production the rare rule is
+/// auto-detected per corpus, and the production-path FP controls re-validated
+/// this setting.
 const CR_PARSE_ERROR_FALLBACK: bool = true;
 /// Score added when a hunk's rarest present convention clears its calibrated
-/// bar (era 15; same magnitude as the cluster bonus).
+/// bar (same magnitude as the cluster bonus).
 const CONVENTION_BONUS: f64 = 5.0;
 
 fn basename(path: &Path) -> String {
@@ -93,7 +94,7 @@ fn rglob_sorted(dir: &Path, ext: &str) -> Vec<PathBuf> {
 
 /// A calibration candidate: hunk text + originating file path + file source.
 /// Line bounds are 1-indexed inclusive within `file_source` and back the
-/// era-14 phase D parse-error callee fallback.
+/// parse-error host fallback for callee extraction.
 pub struct Candidate {
     pub hunk: String,
     pub file_path: PathBuf,
@@ -364,7 +365,7 @@ pub fn multi_seed_thresholds(
 }
 
 /// Options for `run_calibrate` (defaults mirror the Python CLI, including the
-/// era-13.5 asymmetric-calibration knobs the final Python calibrator shipped).
+/// asymmetric-calibration knobs the final Python calibrator shipped).
 pub struct CalibrateOptions {
     pub n_cal: usize,
     pub seed: u64,
@@ -374,7 +375,7 @@ pub struct CalibrateOptions {
     pub timestamp_utc: String,
     /// Cluster-rare threshold for the CHECK-time scorer: a callee attested in
     /// ≤ N cluster files is treated as cluster-absent. 0 disables the rule
-    /// (pre-13.5 baseline). Calibration itself always runs with the rule off
+    /// (baseline). Calibration itself always runs with the rule off
     /// (asymmetric calibration — see docs/agents/calibration-contract.md).
     pub cluster_rare_threshold: usize,
     /// Minimum cluster size for the rare rule to fire.
@@ -389,7 +390,7 @@ pub struct CalibrateOptions {
 impl Default for CalibrateOptions {
     fn default() -> Self {
         Self {
-            // n_cal=100 × 7 seeds is the configuration every era's bench
+            // n_cal=100 × 7 seeds is the configuration the bench has
             // validated the recall/FP gates against. The production default
             // previously sampled 500, which systematically raises the
             // max-of-sample threshold above the validated one (measured:
@@ -513,7 +514,7 @@ pub fn run_calibrate(
         let effective_n_cal = opts.n_cal.min(candidates.len());
         let typicality = TypicalityModel::new(language);
 
-        // Era-13.5 per-corpus auto-detect: probe the rare rule's fire rate on
+        // Per-corpus auto-detect: probe the rare rule's fire rate on
         // sampled calibration hunks; a rule that fires often on ordinary code
         // would FP-flood at check time, so fall back to baseline (rare=0).
         let mut resolved_rare = opts.cluster_rare_threshold;
