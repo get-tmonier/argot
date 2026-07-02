@@ -102,12 +102,20 @@ fn range_args(repo: &Path) -> CheckArgs {
 fn argotignore_suppresses_hits_and_reports_summary() {
     let repo = prepare_repo("argotignore");
 
-    // Baseline: two hits, no suppression traffic on stderr.
+    // Baseline: two hits; stderr names the model that scored the diff but
+    // carries no suppression traffic.
     let out = run_check(range_args(&repo));
     assert_eq!(out.exit_code, 1);
     assert!(out.stdout.contains("integration.py"));
     assert!(out.stdout.contains("pipeline.py"));
-    assert!(out.stderr.is_empty(), "no suppression → untouched stderr");
+    assert!(
+        out.stderr.contains("[argot] model: "),
+        "check names its model on stderr"
+    );
+    assert!(
+        !out.stderr.contains("suppressed"),
+        "no suppression traffic on the baseline run"
+    );
 
     // Path-level mute via .argotignore.
     std::fs::write(repo.join(".argotignore"), "integration.py\npipeline.py\n").unwrap();

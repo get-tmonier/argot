@@ -20,6 +20,7 @@ use crate::scoring::typicality::TypicalityModel;
 use crate::suppress::PathSuppressions;
 use crate::text::{read_text_lossy, splitlines, splitlines_keepends};
 use anyhow::{bail, Result};
+use md5::{Digest, Md5};
 use serde::Serialize;
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -29,6 +30,68 @@ const MIN_BODY_LINES: usize = 5;
 /// attestation snapshot) and repo-owned import modules. Check refuses other
 /// versions — regenerate via `argot fit`.
 const CONFIG_VERSION: u32 = 3;
+/// Schema version of `.argot/manifest.json` — bumped independently of
+/// `CONFIG_VERSION` so the artifact contract can evolve on its own cadence.
+pub const MANIFEST_VERSION: u32 = 1;
+
+/// Name of the model manifest inside `.argot/`.
+pub const MANIFEST_FILE: &str = "manifest.json";
+
+/// First 12 hex chars of the MD5 of `bytes` — the repo-wide short-hash idiom
+/// (`model_hash`, config hash, etc.).
+pub fn short_hash(bytes: &[u8]) -> String {
+    let digest = Md5::new().chain_update(bytes).finalize();
+    let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
+    hex[..12].to_string()
+}
+
+/// Combine per-language model fingerprints into one stable overall hash. The
+/// input is sorted by language name, so the result is order-independent and
+/// identical for identical models. A single-language repo still gets a distinct
+/// combined hash (not the raw per-language one) so the two can't be confused.
+pub fn combined_model_hash(per_language: &BTreeMap<String, String>) -> String {
+    let mut buf = String::new();
+    for (lang, hash) in per_language {
+        buf.push_str(lang);
+        buf.push(':');
+        buf.push_str(hash);
+        buf.push('\n');
+    }
+    short_hash(buf.as_bytes())
+}
+
+/// The inspectable model artifact (`.argot/manifest.json`): a stable fingerprint
+/// of what argot learned, so two fits of the same corpus+config are provably
+/// identical and a stale or foreign artifact is obvious at a glance.
+#[derive(Serialize)]
+struct Manifest {
+    manifest_version: u32,
+    config_version: u32,
+    /// Combined fingerprint of every language's fit-time model snapshot.
+    model_hash: String,
+    /// Fingerprint of the emitted `scorer-config.json` bytes.
+    scorer_config_hash: String,
+    /// Repo HEAD sha when the model was fitted (`unknown` outside a git repo).
+    fit_commit_sha: String,
+    fit_timestamp: String,
+    corpus: CorpusSummary,
+    languages: Vec<LangSummary>,
+}
+
+#[derive(Serialize)]
+struct CorpusSummary {
+    files: usize,
+    lines: usize,
+}
+
+#[derive(Serialize)]
+struct LangSummary {
+    language: String,
+    threshold: f64,
+    model_hash: String,
+    n_cal: usize,
+    files: usize,
+}
 
 // Production call-receiver constants (match calibration defaults).
 const CR_ALPHA: f64 = 2.0;
@@ -455,6 +518,9 @@ pub fn run_calibrate(
 
     let mut languages: BTreeMap<String, LangConfig> = BTreeMap::new();
     let mut thresholds_out: Vec<(String, f64)> = Vec::new();
+    // Per-language corpus sizes for the manifest (files scored, source lines).
+    let mut per_lang_files: BTreeMap<String, usize> = BTreeMap::new();
+    let mut total_lines: usize = 0;
 
     // Resolved path-suppression set (recommended built-ins + `.argotignore`) —
     // the same set `check` filters against (lock-step principle).
@@ -480,6 +546,8 @@ pub fn run_calibrate(
             &filtered
         };
         let sources: Vec<String> = corpus.iter().map(|(_, s)| s.clone()).collect();
+        per_lang_files.insert(name.to_string(), corpus.len());
+        total_lines += sources.iter().map(|s| s.lines().count()).sum::<usize>();
 
         let bpe = BpeScorer::new(BpeTokenizer::load(), generic_baseline_json, &sources)?;
         // import_modules = corpus imports + repo-owned module names
@@ -677,7 +745,45 @@ pub fn run_calibrate(
         std::fs::create_dir_all(parent).ok();
     }
     let json = serde_json::to_string_pretty(&config)?;
-    std::fs::write(output, json)?;
+    std::fs::write(output, &json)?;
+
+    // Emit the inspectable model manifest alongside the config.
+    let per_lang_model_hash: BTreeMap<String, String> = config
+        .languages
+        .iter()
+        .map(|(lang, lc)| (lang.clone(), lc.model_hash.clone()))
+        .collect();
+    let lang_summaries: Vec<LangSummary> = config
+        .languages
+        .iter()
+        .map(|(lang, lc)| LangSummary {
+            language: lang.clone(),
+            threshold: lc.threshold,
+            model_hash: lc.model_hash.clone(),
+            n_cal: lc.calibration.n_cal,
+            files: per_lang_files.get(lang).copied().unwrap_or(0),
+        })
+        .collect();
+    let manifest = Manifest {
+        manifest_version: MANIFEST_VERSION,
+        config_version: CONFIG_VERSION,
+        model_hash: combined_model_hash(&per_lang_model_hash),
+        scorer_config_hash: short_hash(json.as_bytes()),
+        fit_commit_sha: opts.repo_sha.clone(),
+        fit_timestamp: opts.timestamp_utc.clone(),
+        corpus: CorpusSummary {
+            files: corpus_files.len(),
+            lines: total_lines,
+        },
+        languages: lang_summaries,
+    };
+    if let Some(parent) = output.parent() {
+        let manifest_path = parent.join(MANIFEST_FILE);
+        if let Ok(manifest_json) = serde_json::to_string_pretty(&manifest) {
+            std::fs::write(manifest_path, manifest_json)?;
+        }
+    }
+
     Ok(thresholds_out)
 }
 

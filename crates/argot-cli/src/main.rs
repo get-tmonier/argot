@@ -16,7 +16,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use argot_core::check::{run_check, CheckArgs, DEFAULT_HUNK_LINES};
 use argot_core::extract::{write_dataset, ExtractError};
 use argot_core::git_walk::{head_sha, repo_exists};
-use argot_core::inspect::{format_shares, inspect_repo, InspectReport, ReasonLevel, Verdict};
+use argot_core::inspect::{
+    format_shares, inspect_model, inspect_repo, InspectReport, ModelReport, ReasonLevel, Verdict,
+};
 use argot_core::output::OutputFormat;
 use argot_core::scoring::adapters::python::PythonAdapter;
 use argot_core::scoring::adapters::typescript::TypeScriptAdapter;
@@ -659,6 +661,13 @@ struct InspectCmd {
     /// Path to the repository to inspect.
     #[arg(default_value = ".")]
     path: PathBuf,
+    /// Inspect the fitted model artifact (hashes, provenance, and the typical
+    /// callees per cluster) instead of repo suitability.
+    #[arg(long)]
+    model: bool,
+    /// Typical callees shown per cluster under `--model`.
+    #[arg(long = "top", value_name = "N", default_value_t = 8)]
+    top: usize,
     /// Output format: human (terminal) or json (stable machine-readable).
     #[arg(long, default_value = "human", value_parser = ["human", "json"])]
     format: String,
@@ -668,6 +677,9 @@ struct InspectCmd {
 }
 
 fn run_inspect_cmd(c: InspectCmd) -> ExitCode {
+    if c.model {
+        return run_inspect_model(&c);
+    }
     let report = match inspect_repo(&c.path) {
         Ok(r) => r,
         Err(e) => {
@@ -798,6 +810,110 @@ fn render_inspect_human(report: &InspectReport, use_color: bool) -> String {
             reason.signal,
             reason.message
         );
+    }
+    out
+}
+
+fn run_inspect_model(c: &InspectCmd) -> ExitCode {
+    let report = match inspect_model(&c.path, c.top) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    if wants_json(&c.format, c.json) {
+        match serde_json::to_string_pretty(&report) {
+            Ok(json) => println!("{json}"),
+            Err(e) => {
+                eprintln!("error: {e}");
+                return ExitCode::from(2);
+            }
+        }
+        return ExitCode::SUCCESS;
+    }
+    let use_color = std::env::var_os("NO_COLOR").is_none() && std::io::stdout().is_terminal();
+    print!("{}", render_model_human(&report, use_color));
+    ExitCode::SUCCESS
+}
+
+fn render_model_human(report: &ModelReport, use_color: bool) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    let _ = writeln!(out, "Model artifact for {}", report.path);
+    let _ = writeln!(out);
+
+    match &report.manifest {
+        Some(m) => {
+            let _ = writeln!(
+                out,
+                "  {} {}",
+                paint("model:", ANSI_BOLD, use_color),
+                m.model_hash
+            );
+            let _ = writeln!(out, "  scorer-config: {}", m.scorer_config_hash);
+            let _ = writeln!(
+                out,
+                "  format: manifest v{} · config v{}",
+                m.manifest_version, m.config_version
+            );
+            let _ = writeln!(
+                out,
+                "  fitted at {} · repo sha {}",
+                m.fit_timestamp, m.fit_commit_sha
+            );
+            let _ = writeln!(
+                out,
+                "  corpus: {} files · {} lines",
+                m.corpus_files, m.corpus_lines
+            );
+        }
+        None => {
+            let _ = writeln!(
+                out,
+                "  (no manifest.json — re-run `argot fit` to write one)"
+            );
+        }
+    }
+    let _ = writeln!(out);
+
+    for (lang, lm) in &report.languages {
+        let _ = writeln!(
+            out,
+            "{} — threshold {:.4} · model {} · n_cal {}",
+            paint(lang, ANSI_BOLD, use_color),
+            lm.threshold,
+            lm.model_hash,
+            lm.n_cal
+        );
+        let _ = writeln!(
+            out,
+            "  {} distinct BPE tokens ({} total) · {} attested callees over {} corpus files · {} clusters",
+            lm.distinct_tokens,
+            lm.total_tokens,
+            lm.attested_callees,
+            lm.corpus_files,
+            lm.clusters.len()
+        );
+        for cl in &lm.clusters {
+            let callees: Vec<String> = cl
+                .top_callees
+                .iter()
+                .map(|(name, n)| format!("{name} ({n})"))
+                .collect();
+            let _ = writeln!(
+                out,
+                "    cluster {} ({} files): {}",
+                cl.id,
+                cl.files,
+                if callees.is_empty() {
+                    "—".to_string()
+                } else {
+                    callees.join(", ")
+                }
+            );
+        }
+        let _ = writeln!(out);
     }
     out
 }

@@ -165,6 +165,9 @@ struct Loaded {
     /// Repo SHA the model was fitted at (calibration meta), for the
     /// freshness warning. `None` when the config predates the field.
     fit_sha: Option<String>,
+    /// Combined fingerprint of the fit-time model — the same `model_hash` the
+    /// manifest records. Lets `check` name which model judged the diff.
+    model_hash: String,
 }
 
 /// Extension → language name (`_EXT_TO_LANG`). JS/JSX route to TypeScript.
@@ -494,11 +497,24 @@ fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
         .find(|s| !s.is_empty() && *s != "unknown")
         .map(String::from);
 
+    // Combine the per-language model fingerprints into one overall hash, the
+    // same way the manifest does, so `check` can name the model it scored with.
+    let per_lang_model_hash: std::collections::BTreeMap<String, String> = languages
+        .iter()
+        .filter_map(|(lang, lc)| {
+            lc.get("model_hash")
+                .and_then(Value::as_str)
+                .map(|h| (lang.clone(), h.to_string()))
+        })
+        .collect();
+    let model_hash = crate::scoring::calibration::combined_model_hash(&per_lang_model_hash);
+
     Ok(Loaded {
         scorers,
         filter_adapters,
         language_extensions,
         fit_sha,
+        model_hash,
     })
 }
 
@@ -1063,7 +1079,7 @@ fn hit_records(hits: &[&Hit]) -> Vec<HitRecord> {
         .collect()
 }
 
-fn report_meta(args: &CheckArgs, scanned: String, hunks_scanned: usize) -> ReportMeta {
+fn report_meta(args: &CheckArgs, scanned: String, hunks_scanned: usize, model: &str) -> ReportMeta {
     ReportMeta {
         // The workspace shares one version across crates, so this matches the
         // CLI binary's version.
@@ -1071,6 +1087,7 @@ fn report_meta(args: &CheckArgs, scanned: String, hunks_scanned: usize) -> Repor
         repo: args.repo_path.clone(),
         scanned,
         hunks_scanned,
+        model: model.to_string(),
     }
 }
 
@@ -1219,6 +1236,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         filter_adapters,
         language_extensions,
         fit_sha,
+        model_hash,
     } = match load_scorers(&args.argot_dir) {
         Ok(l) => l,
         Err((msg, code)) => return CheckOutcome::err(msg, code),
@@ -1231,7 +1249,12 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
             // explicit range with no commits, exit 0) still emits a complete,
             // hit-free document. Hard errors (exit != 0) stay stderr-only.
             if args.format.is_machine() && outcome.exit_code == 0 {
-                let meta = report_meta(&args, format!("0 commit(s) ({})", args.reference), 0);
+                let meta = report_meta(
+                    &args,
+                    format!("0 commit(s) ({})", args.reference),
+                    0,
+                    &model_hash,
+                );
                 return CheckOutcome {
                     stdout: render_machine(args.format, &meta, &[]),
                     stderr: outcome.stderr,
@@ -1243,6 +1266,13 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     };
 
     let mut stderr = String::new();
+
+    // Name the model that judged this diff — reproducibility + "is my model the
+    // same as my colleague's?". On stderr (human) so stdout stays byte-parity;
+    // machine formats carry it in the report meta instead.
+    if !args.format.is_machine() {
+        stderr.push_str(&format!("[argot] model: {model_hash}\n"));
+    }
 
     // Freshness: a stale model turns ordinary drift into noise (a month of
     // drift on a busy workspace measured ~14× the hit volume of a fresh
@@ -1372,7 +1402,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     // any hit is visible, 0 otherwise).
     if args.format.is_machine() {
         let records = hit_records(&visible);
-        let meta = report_meta(&args, scan_label, hunk_count);
+        let meta = report_meta(&args, scan_label, hunk_count, &model_hash);
         let exit_code = if visible.is_empty() { 0 } else { 1 };
         return CheckOutcome {
             stdout: render_machine(args.format, &meta, &records),

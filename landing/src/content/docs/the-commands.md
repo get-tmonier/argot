@@ -66,6 +66,27 @@ argot check --verbose               # show full hunk contents (no truncation)
 `--min-severity` is the dial you'll reach for most: start at `foreign` for high-confidence anomalies,
 loosen to `suspicious` once you trust the calibration on your repo.
 
+Every `check` run also names the model that judged the diff — a short `model:` hash on stderr (human)
+or in the `model` field of `--format json`/`sarif`. Same corpus + config always fits the same hash, so
+you can tell at a glance whether your model matches a colleague's.
+
+## inspect
+
+Reports whether the repo is a good fit for argot (corpus composition, calibration health, a
+Ready / Marginal / Not-recommended verdict), and can dump the fitted model artifact:
+
+```bash
+argot inspect                       # suitability verdict for the repo
+argot inspect --format json         # the same, machine-readable
+argot inspect --model               # the fitted model: hashes, provenance, typical callees per cluster
+argot inspect --model --top 12      # show more typical callees per cluster
+```
+
+`argot fit` writes `.argot/manifest.json` — a versioned, hashed record of what argot learned (model
+hash, scorer-config hash, fit commit + timestamp, corpus size). `inspect --model` reads it back and,
+per language, lists the callees each cluster of your codebase leans on — a quick x-ray of the repo's
+voice.
+
 ## update
 
 Upgrade argot in place:
