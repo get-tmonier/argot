@@ -154,3 +154,89 @@ targets:
       - { pr: 1, sha: ee5164290d7dce7526b02aba35ef27eac08c2989 }
       # History snapshot ~800 commits back (2026-02-21).
       - { pr: 2, sha: cad670f19c8d04a3a45b1110876717580cf99834 }
+
+  # --- Language-port corpora (issue #92) ---
+  # Two real corpora per language for the honest temporal-holdout FP bench
+  # (`--mode holdout`; no catalogs — recall for these languages comes from
+  # the curated fixture work, tracked separately). `pr: 0` pins the head the
+  # holdout window is measured back from (clone HEADs at 2026-07-02).
+  - name: gh-cli
+    url: https://github.com/cli/cli
+    language: go
+    prs:
+      - { pr: 0, sha: 5dd78425eea3c6308ee63f7e31c3d3531905a6fc }
+  - name: hugo
+    url: https://github.com/gohugoio/hugo
+    language: go
+    prs:
+      - { pr: 0, sha: a5ec54239312c160b82e303f159c4bdb2e030ab5 }
+  - name: ripgrep
+    url: https://github.com/BurntSushi/ripgrep
+    language: rust
+    prs:
+      - { pr: 0, sha: 48b0c795f4feb37343b2832d991c5c6a3900c08a }
+  - name: bat
+    url: https://github.com/sharkdp/bat
+    language: rust
+    prs:
+      - { pr: 0, sha: 78951393e29bfd2f2a45f4326b9d2bb5e737dd2a }
+  - name: guava
+    url: https://github.com/google/guava
+    language: java
+    prs:
+      - { pr: 0, sha: 5312fedc7b82bb1a83111145ea192d06fd04aa27 }
+  - name: okhttp
+    url: https://github.com/square/okhttp
+    language: java
+    prs:
+      - { pr: 0, sha: 1d2c0fe4844fb7143c37198015539eec2fccbd71 }
+  - name: powershell
+    url: https://github.com/PowerShell/PowerShell
+    language: csharp
+    prs:
+      - { pr: 0, sha: 36cd02b333d7cecb89d5d336c9a798287fe4736b }
+  - name: jellyfin
+    url: https://github.com/jellyfin/jellyfin
+    language: csharp
+    prs:
+      - { pr: 0, sha: 8f3eb3205d61d71638a1c695372cef273e76d2b3 }
+  - name: redis
+    url: https://github.com/redis/redis
+    language: c
+    prs:
+      - { pr: 0, sha: 5b22a09918743ba72952e35e431db23eb3d19605 }
+  - name: curl
+    url: https://github.com/curl/curl
+    language: c
+    prs:
+      - { pr: 0, sha: 84ecfb3ecc793c0087ed9700bdc2a1475ab53ff9 }
+  - name: rocksdb
+    url: https://github.com/facebook/rocksdb
+    language: cpp
+    prs:
+      - { pr: 0, sha: a40466d963a35d469d8b6bbf1c53724eb4f6360b }
+  - name: fmt
+    url: https://github.com/fmtlib/fmt
+    language: cpp
+    prs:
+      - { pr: 0, sha: 77b6ff700be3417e0a3ad9674ca306e40c451b6b }
+  - name: homebrew
+    url: https://github.com/Homebrew/brew
+    language: ruby
+    prs:
+      - { pr: 0, sha: 09f982d033fd50d45e6e1de90af92c8f886f64a8 }
+  - name: rubocop
+    url: https://github.com/rubocop/rubocop
+    language: ruby
+    prs:
+      - { pr: 0, sha: 3c198af997d62182fd92b8c00dbf6c10ecef9eee }
+  - name: laravel
+    url: https://github.com/laravel/framework
+    language: php
+    prs:
+      - { pr: 0, sha: 8ce2bbe12ef2b048405817b130901bc6f5884a4e }
+  - name: composer
+    url: https://github.com/composer/composer
+    language: php
+    prs:
+      - { pr: 0, sha: c6c9144f1b75918cab654e8a15d3dd74c7f4af8d }

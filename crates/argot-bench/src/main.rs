@@ -279,6 +279,23 @@ fn real_main() -> Result<ExitCode> {
         other => anyhow::bail!("unknown mode {other:?} (catalog | production | both | holdout)"),
     };
 
+    // Catalog/production modes need break fixtures; holdout-only targets
+    // (language-port corpora) have none — skip them loudly, don't fail.
+    let selected: Vec<_> = selected
+        .into_iter()
+        .filter(|t| {
+            let has_catalog = opts.catalogs_dir.join(&t.name).is_dir();
+            if !has_catalog {
+                eprintln!(
+                    "[{}] no catalog under {} — holdout-only corpus, skipping",
+                    t.name,
+                    opts.catalogs_dir.display()
+                );
+            }
+            has_catalog
+        })
+        .collect();
+
     // Per-corpus catalog recall (caught, total) for the gap column. Catalog
     // reports are per (corpus, language); the production path checks whole
     // staged diffs, so the gap is compared at corpus granularity.
