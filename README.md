@@ -88,9 +88,9 @@ curl --proto '=https' --tlsv1.2 -LsSf https://github.com/get-tmonier/argot/relea
 npm install -g @tmonier/argot
 ```
 
-Both download the prebuilt binary for your platform. See
-[docs/ci.md](docs/ci.md) and the [install docs](https://argot.tmonier.com/docs/)
-for the full platform matrix and Homebrew.
+Both download the prebuilt binary for your platform — macOS (Apple Silicon +
+Intel) and Linux (x64 + arm64). See [docs/ci.md](docs/ci.md) and the
+[install docs](https://argot.tmonier.com/docs/) for the full platform matrix.
 
 ## Quickstart
 

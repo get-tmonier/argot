@@ -48,8 +48,8 @@ Inputs (all optional):
 
 Outputs: `exit-code` (0 clean, 1 hits) and `results-file`.
 
-Runner support: `ubuntu-*` (x64) and macOS arm64 — the targets argot publishes
-prebuilt binaries for.
+Runner support: Linux (`ubuntu-*` x64 and `ubuntu-*-arm` arm64) and macOS
+(arm64 and Intel x64) — the targets argot publishes prebuilt binaries for.
 
 Example: report hits without failing the build, keeping the annotations:
 

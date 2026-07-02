@@ -26,7 +26,7 @@ Prefer a package manager?
 npm install -g @tmonier/argot
 ```
 
-Both download the prebuilt `argot` binary for your platform (macOS arm64, Linux x64).
+Both download the prebuilt `argot` binary for your platform (macOS arm64/Intel, Linux x64/arm64).
 Everything runs locally — no API key, no account, nothing leaves your machine.
 
 ## Calibrate, then check

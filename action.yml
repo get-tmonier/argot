@@ -9,8 +9,8 @@
 #   3. Runs `argot check --format <format>` and writes the document to a file.
 #   4. Optionally uploads the SARIF file to GitHub code scanning.
 #
-# Supported runners: ubuntu (x64) and macOS (arm64) — the targets argot
-# publishes prebuilt binaries for.
+# Supported runners: Linux (x64/arm64) and macOS (arm64/x64) — the targets
+# argot publishes prebuilt binaries for.
 #
 # Note: checking a ref range (the default on pull requests) needs git history.
 # Use `actions/checkout` with `fetch-depth: 0`.
@@ -76,9 +76,11 @@ runs:
         set -euo pipefail
         case "${RUNNER_OS}-${RUNNER_ARCH}" in
           Linux-X64)   target="x86_64-unknown-linux-gnu" ;;
+          Linux-ARM64) target="aarch64-unknown-linux-gnu" ;;
           macOS-ARM64) target="aarch64-apple-darwin" ;;
+          macOS-X64)   target="x86_64-apple-darwin" ;;
           *)
-            echo "::error::argot publishes prebuilt binaries for Linux x64 and macOS arm64 only (got ${RUNNER_OS}-${RUNNER_ARCH})"
+            echo "::error::argot publishes prebuilt binaries for Linux (x64/arm64) and macOS (arm64/x64); got ${RUNNER_OS}-${RUNNER_ARCH}"
             exit 1
             ;;
         esac
