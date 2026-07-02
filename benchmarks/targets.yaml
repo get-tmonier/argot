@@ -129,6 +129,8 @@ targets:
   - name: wagtail
     url: https://github.com/wagtail/wagtail
     language: python
+    # Sized so the holdout replay clears the 300-hunk sample bar.
+    holdout_window: 250
     prs:
       # Primary: HEAD on main at era-14 authoring (2026-07-02).
       - { pr: 0, sha: 6e0e6d950f6fe68360d68d833fd23b94f172cee7 }
@@ -194,11 +196,15 @@ targets:
   - name: junit5
     url: https://github.com/junit-team/junit5
     language: java
+    # Sized so the holdout replay clears the 300-hunk sample bar.
+    holdout_window: 300
     prs:
       - { pr: 0, sha: 54aa232aa25d4828cdcefb98d372f548741052fe }
   - name: powershell
     url: https://github.com/PowerShell/PowerShell
     language: csharp
+    # Sized so the holdout replay clears the 300-hunk sample bar.
+    holdout_window: 800
     prs:
       - { pr: 0, sha: 36cd02b333d7cecb89d5d336c9a798287fe4736b }
   - name: jellyfin
@@ -224,6 +230,8 @@ targets:
   - name: fmt
     url: https://github.com/fmtlib/fmt
     language: cpp
+    # Sized so the holdout replay clears the 300-hunk sample bar.
+    holdout_window: 500
     prs:
       - { pr: 0, sha: 77b6ff700be3417e0a3ad9674ca306e40c451b6b }
   - name: homebrew
@@ -234,6 +242,8 @@ targets:
   - name: rubocop
     url: https://github.com/rubocop/rubocop
     language: ruby
+    # Sized so the holdout replay clears the 300-hunk sample bar.
+    holdout_window: 250
     prs:
       - { pr: 0, sha: 3c198af997d62182fd92b8c00dbf6c10ecef9eee }
   - name: laravel

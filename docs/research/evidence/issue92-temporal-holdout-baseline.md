@@ -99,7 +99,7 @@ Corpus notes:
 
 The BPE model is a unigram count table, so exact leave-one-file-out is
 "subtract the held-out file's token counts" — no retraining
-(`argot-bench/src/bin/loo_scout.rs`):
+(dirty scout script, deleted after recording per the research workflow):
 
 | | threshold | FP existing | FP new-file | breaks caught (bpe-only) |
 |---|---:|---:|---:|---:|
