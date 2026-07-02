@@ -1,0 +1,23 @@
+[package]
+name = "argot-bench"
+description = "Benchmark harness: recall / false-positive evaluation of the argot scorer over the pinned corpora"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+# Dev tool — never published or shipped in releases (see dist-workspace.toml).
+publish = false
+
+[[bin]]
+name = "argot-bench"
+path = "src/main.rs"
+
+[dependencies]
+argot-core = { path = "../argot-core" }
+anyhow.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+# YAML parsing for benchmarks/targets.yaml + catalog manifests (bench-only dep).
+serde_yaml = "0.9"

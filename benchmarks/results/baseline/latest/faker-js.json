@@ -1,0 +1,211 @@
+{
+  "corpus": "faker-js",
+  "language": "typescript",
+  "n_fixtures": 17,
+  "n_flagged_fixtures": 14,
+  "uncaught": [
+    "faker_js_foreign_rng_2",
+    "faker_js_error_flip_2",
+    "faker_js_error_flip_3"
+  ],
+  "n_controls": 256335,
+  "n_eligible_controls": 40540,
+  "n_false_positives": 2814,
+  "fp_rate": 0.0694129255056734,
+  "auc": 0.9656033256914014,
+  "threshold": 4.860744702339855,
+  "seed_thresholds": [
+    4.860744702339855,
+    4.860744702339855,
+    4.860744702339855,
+    4.421716166880797,
+    4.860744702339855,
+    4.860744702339855,
+    4.860744702339855
+  ],
+  "threshold_cv": 0.032018995733466164,
+  "resolved_rare_threshold": 2,
+  "recall_by_category": {
+    "error_flip": [
+      1,
+      3
+    ],
+    "foreign_rng": [
+      2,
+      3
+    ],
+    "http_sink": [
+      4,
+      4
+    ],
+    "runtime_fetch": [
+      4,
+      4
+    ],
+    "threading": [
+      3,
+      3
+    ]
+  },
+  "stage_attribution": {
+    "bpe": 3,
+    "call_receiver": 11,
+    "none": 3
+  },
+  "fixture_results": [
+    {
+      "id": "faker_js_foreign_rng_1",
+      "category": "foreign_rng",
+      "difficulty": "uncaught",
+      "import_score": 0.0,
+      "bpe_score": 0.5200189502022248,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "faker_js_foreign_rng_2",
+      "category": "foreign_rng",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 3.195454030705367,
+      "flagged": false,
+      "reason": "none"
+    },
+    {
+      "id": "faker_js_foreign_rng_3",
+      "category": "foreign_rng",
+      "difficulty": "uncaught",
+      "import_score": 0.0,
+      "bpe_score": 0.5200189502022248,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "faker_js_runtime_fetch_1",
+      "category": "runtime_fetch",
+      "difficulty": "uncaught",
+      "import_score": 0.0,
+      "bpe_score": 3.5477891478463874,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "faker_js_runtime_fetch_2",
+      "category": "runtime_fetch",
+      "difficulty": "uncaught",
+      "import_score": 0.0,
+      "bpe_score": 2.4487128539747864,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "faker_js_runtime_fetch_3",
+      "category": "runtime_fetch",
+      "difficulty": "uncaught",
+      "import_score": 0.0,
+      "bpe_score": 1.9712168600880613,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "faker_js_threading_1",
+      "category": "threading",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 4.69985562045075,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "faker_js_threading_2",
+      "category": "threading",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 6.053522868162448,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "faker_js_threading_3",
+      "category": "threading",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 6.683471703379444,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "faker_js_http_sink_1",
+      "category": "http_sink",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 3.2809455794047633,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "faker_js_http_sink_2",
+      "category": "http_sink",
+      "difficulty": "uncaught",
+      "import_score": 0.0,
+      "bpe_score": 3.7667351676728096,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "faker_js_http_sink_3",
+      "category": "http_sink",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 2.8413346629649077,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "faker_js_error_flip_1",
+      "category": "error_flip",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.095499622681928,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "faker_js_error_flip_2",
+      "category": "error_flip",
+      "difficulty": "uncaught",
+      "import_score": 0.0,
+      "bpe_score": 4.546261982657191,
+      "flagged": false,
+      "reason": "none"
+    },
+    {
+      "id": "faker_js_error_flip_3",
+      "category": "error_flip",
+      "difficulty": "uncaught",
+      "import_score": 0.0,
+      "bpe_score": 4.05272359926979,
+      "flagged": false,
+      "reason": "none"
+    },
+    {
+      "id": "faker_js_http_sink_4",
+      "category": "http_sink",
+      "difficulty": "easy",
+      "import_score": 1.0,
+      "bpe_score": 3.7667351676728096,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "faker_js_runtime_fetch_4",
+      "category": "runtime_fetch",
+      "difficulty": "easy",
+      "import_score": 1.0,
+      "bpe_score": 4.593258125805839,
+      "flagged": true,
+      "reason": "call_receiver"
+    }
+  ],
+  "control_results": []
+}

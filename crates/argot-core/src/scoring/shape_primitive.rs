@@ -22,7 +22,8 @@
 
 use crate::scoring::adapters::Language;
 use crate::scoring::shape_primitives::{
-    CallScopeFraction, ExceptReturnRaiseRatio, FallThroughGuards, NamespaceJsd, TypicalCallDensity,
+    CallScopeFraction, CalleeDistributionUnderCoverage, ClusterStapleDeficit,
+    ExceptReturnRaiseRatio, FallThroughGuards, NamespaceJsd, TypicalCallDensity,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
@@ -43,10 +44,17 @@ pub enum Baseline {
     /// `call_scope_fraction`, `except_return_raise_ratio`, `fall_through_guards`:
     /// population mean/std of a per-file scalar.
     MeanStd { mean: f64, std: f64 },
-    /// `typical_call_density`: top-10 callee set + population mean/std of
-    /// per-file density.
+    /// `typical_call_density`, `cluster_staple_deficit`: top-10 callee set +
+    /// population mean/std of a per-file scalar.
     Top10MeanStd {
         top10_set: BTreeSet<String>,
+        mean: f64,
+        std: f64,
+    },
+    /// `callee_distribution_under_coverage`: pooled callee distribution +
+    /// population mean/std of per-file one-sided divergence.
+    DistributionMeanStd {
+        distribution: BTreeMap<String, f64>,
         mean: f64,
         std: f64,
     },
@@ -107,7 +115,12 @@ impl ShapePrimitiveRegistry {
         let fall_through: ShapePrimitiveFactory = || Box::new(FallThroughGuards);
         let namespace: ShapePrimitiveFactory = || Box::new(NamespaceJsd);
         let typical: ShapePrimitiveFactory = || Box::new(TypicalCallDensity::default());
+        let staple: ShapePrimitiveFactory = || Box::new(ClusterStapleDeficit::default());
+        let under_cov: ShapePrimitiveFactory =
+            || Box::new(CalleeDistributionUnderCoverage::default());
         r.register("call_scope_fraction", call_scope);
+        r.register("cluster_staple_deficit", staple);
+        r.register("callee_distribution_under_coverage", under_cov);
         r.register("except_return_raise_ratio", except);
         r.register("fall_through_guards", fall_through);
         r.register("namespace_jsd", namespace);
@@ -164,6 +177,8 @@ mod tests {
             reg.known(),
             vec![
                 "call_scope_fraction",
+                "callee_distribution_under_coverage",
+                "cluster_staple_deficit",
                 "except_return_raise_ratio",
                 "fall_through_guards",
                 "namespace_jsd",

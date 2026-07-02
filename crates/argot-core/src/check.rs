@@ -14,12 +14,18 @@
 use crate::git_walk::{
     open_repo, resolve_shas, walk_commits, HunkSpan, WalkItem, SUPPORTED_EXTENSIONS,
 };
+use crate::output::{render_json, render_sarif, HitRecord, OutputFormat, ReportMeta};
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::LanguageAdapter;
 use crate::scoring::evidence::types::{Evidence, EvidenceCorpus, SourceSpan};
 use crate::scoring::evidence::{evidence_caret_spans, evidence_lines_of_interest, format_evidence};
+use crate::scoring::model::LanguageModel;
 use crate::scoring::sequential::{SequentialConfig, SequentialImportBpeScorer};
+use crate::suppress::{
+    fnmatch, hit_hash, load_suppressions_file, parse_inline, write_last_check, LastCheckHit,
+    PathScope, PathSuppressions, SuppressionRule, SUPPRESSIONS_FILE,
+};
 use crate::text::{read_text_lossy, splitlines};
 use git2::{DiffFindOptions, Patch, Status, StatusOptions};
 use serde_json::Value;
@@ -33,30 +39,6 @@ pub const DEFAULT_HUNK_LINES: usize = 6;
 
 /// Severity tier ordering, weakest first (`_SEVERITY_ORDER`).
 const SEVERITY_ORDER: [&str; 3] = ["unusual", "suspicious", "foreign"];
-
-/// Directory / filename exclusions mirrored from the calibration corpus
-/// (`random_hunk_sampler.DEFAULT_EXCLUDE_DIRS`).
-const DEFAULT_EXCLUDE_DIRS: &[&str] = &[
-    "test",
-    "tests",
-    "doc",
-    "docs",
-    "examples",
-    "example",
-    "migrations",
-    "migration",
-    "benchmarks",
-    "benchmark",
-    "fixtures",
-    "scripts",
-    "build",
-    "dist",
-    "__pycache__",
-    ".git",
-    ".history",
-    ".tox",
-    ".eggs",
-];
 
 /// Parsed CLI options for `check` (the CLI layer supplies `use_color`).
 pub struct CheckArgs {
@@ -73,6 +55,11 @@ pub struct CheckArgs {
     pub verbose: bool,
     pub min_severity: String,
     pub use_color: bool,
+    /// Output format. Machine formats (`json`/`sarif`) own stdout exclusively.
+    pub format: OutputFormat,
+    /// Today's date (`YYYY-MM-DD`) for suppression expiry. Core logic never
+    /// calls system time — the CLI passes the real date, tests pass fixed ones.
+    pub today: String,
 }
 
 /// Result of a `check` run — the CLI prints these and exits with `exit_code`.
@@ -100,11 +87,27 @@ struct PatchBatch {
     content: Vec<u8>,
     hunks: Vec<HunkSpan>,
     source: String,
+    /// The file matched a user `.argotignore` pattern: still scored (so the
+    /// suppression is countable), but every hit is dropped from output and
+    /// exit-code consideration.
+    ignored_by_pattern: bool,
+}
+
+/// Which suppression surface muted a hit (`None` = reported normally).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SuppressedBy {
+    ArgotIgnore,
+    Inline,
+    Yaml,
 }
 
 /// One above-threshold hunk plus everything needed to explain it (`_Hit`).
 struct Hit {
-    /// BPE-stage score (`scored.stages.bpe_score`), regardless of winning reason.
+    /// The winning candidate's score (adjusted for contributions), measured
+    /// against the winning candidate's threshold — so severity tiers mean
+    /// the same thing for every reason. A call-receiver hit that crossed on
+    /// a +5 contribution reads as the strong signal it is, not as its raw
+    /// BPE component.
     score: f64,
     file_path: String,
     line: usize,
@@ -117,6 +120,10 @@ struct Hit {
     /// Per-reason evidence for the winning reason (`None` when the scorer had
     /// no `EvidenceCorpus`, or the hunk didn't fire a reason with a collector).
     evidence: Option<Evidence>,
+    /// Content-based hit hash (path + winning reason + normalized hunk).
+    hash: String,
+    /// Set when a suppression surface muted this hit.
+    suppressed_by: Option<SuppressedBy>,
 }
 
 /// Loaded per-language scorers plus the filtering machinery.
@@ -124,6 +131,9 @@ struct Loaded {
     scorers: HashMap<String, SequentialImportBpeScorer>,
     filter_adapters: HashMap<String, Box<dyn LanguageAdapter>>,
     language_extensions: HashSet<String>,
+    /// Repo SHA the model was fitted at (calibration meta), for the
+    /// freshness warning. `None` when the config predates the field.
+    fit_sha: Option<String>,
 }
 
 /// Extension → language name (`_EXT_TO_LANG`). JS/JSX route to TypeScript.
@@ -159,21 +169,6 @@ fn extension(path: &str) -> String {
     }
 }
 
-/// Case-sensitive `language_for_extension(Path(p).suffix)` used for corpus
-/// partitioning (NOT lowercased, matching the Python calibration path).
-fn lang_for_ext_cased(p: &Path) -> Option<&'static str> {
-    let name = p.file_name()?.to_str()?;
-    let suffix = match name.rfind('.') {
-        Some(i) if i > 0 && i < name.len() - 1 => &name[i..],
-        _ => "",
-    };
-    match suffix {
-        ".py" => Some("python"),
-        ".ts" | ".tsx" | ".js" | ".jsx" => Some("typescript"),
-        _ => None,
-    }
-}
-
 fn is_supported_ext(file_path: &str) -> bool {
     SUPPORTED_EXTENSIONS.contains(&extension(file_path).as_str())
 }
@@ -204,109 +199,40 @@ fn reason_label(reason: &str) -> &str {
     }
 }
 
-/// Port of `is_excluded_path`. `file_path` is already relative to the repo root
-/// (git paths are `/`-separated), so the `relative_to` step is a no-op here.
-fn is_excluded_path(file_path: &str) -> bool {
-    let parts: Vec<&str> = file_path.split('/').collect();
-    if parts.len() >= 2 {
-        for part in &parts[..parts.len() - 1] {
-            if DEFAULT_EXCLUDE_DIRS.contains(part)
-                || part.starts_with("test")
-                || *part == "__tests__"
-            {
-                return true;
-            }
-        }
-    }
-    let name = *parts.last().unwrap_or(&file_path);
-    if name.starts_with("test_") || name == "conftest.py" {
-        return true;
-    }
-    if name.contains(".test.") || name.contains(".spec.") {
-        return true;
-    }
-    if name.contains(".config.") {
-        return true;
-    }
-    name.starts_with('.') && name.get(1..).map(|r| r.contains("rc.")).unwrap_or(false)
+/// Scope decision for one patch batch, against the resolved path-suppression
+/// set (recommended built-ins + `.argotignore` — the same set calibration
+/// samples from; lock-step principle).
+enum BatchScope {
+    /// In scope: score and report normally.
+    Score,
+    /// In scope but matched by a user `.argotignore` pattern: score it so the
+    /// suppression is countable, then drop its hits from output.
+    ScoreSuppressed,
+    /// Out of scope (wrong language, recommended exclusion, data-dominant):
+    /// silently dropped, exactly as before suppressions existed.
+    Drop,
 }
 
-/// Port of `_is_out_of_scope`: wrong language, excluded path, or data-dominant.
-fn is_out_of_scope(
+/// Port of `_is_out_of_scope`, split so user-ignored files stay countable:
+/// wrong language / recommended-set path → `Drop` (silent, as always); user
+/// `.argotignore` match → `ScoreSuppressed`. Data-heavy files are NOT dropped
+/// here: data scope is row-granular inside the scorer (a planted code hunk in
+/// a data-dominant file must still be judged; its data-row hunks are skipped
+/// per hunk).
+fn batch_scope(
     file_path: &str,
-    content: &[u8],
     language_extensions: &HashSet<String>,
-    filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
-) -> bool {
+    path_suppressions: &PathSuppressions,
+) -> BatchScope {
     let ext = extension(file_path);
     if !language_extensions.contains(&ext) {
-        return true;
+        return BatchScope::Drop;
     }
-    if is_excluded_path(file_path) {
-        return true;
+    match path_suppressions.classify(file_path) {
+        PathScope::Recommended => BatchScope::Drop,
+        PathScope::UserIgnored => BatchScope::ScoreSuppressed,
+        PathScope::InScope => BatchScope::Score,
     }
-    let source = String::from_utf8_lossy(content);
-    match ext_to_lang(&ext).and_then(|l| filter_adapters.get(l)) {
-        Some(adapter) => adapter.is_data_dominant(&source),
-        None => true,
-    }
-}
-
-/// Shell-style glob match (`fnmatch.fnmatch`), case-sensitive (posix normcase).
-fn fnmatch(name: &str, pat: &str) -> bool {
-    let n: Vec<char> = name.chars().collect();
-    let p: Vec<char> = pat.chars().collect();
-    fn rec(n: &[char], p: &[char]) -> bool {
-        if p.is_empty() {
-            return n.is_empty();
-        }
-        match p[0] {
-            '*' => rec(n, &p[1..]) || (!n.is_empty() && rec(&n[1..], p)),
-            '?' => !n.is_empty() && rec(&n[1..], &p[1..]),
-            '[' => {
-                if n.is_empty() {
-                    return false;
-                }
-                let mut i = 1;
-                let neg = i < p.len() && p[i] == '!';
-                if neg {
-                    i += 1;
-                }
-                let mut set: Vec<char> = Vec::new();
-                let mut ranges: Vec<(char, char)> = Vec::new();
-                let mut first = true;
-                let mut closed = false;
-                let mut j = i;
-                while j < p.len() {
-                    if p[j] == ']' && !first {
-                        closed = true;
-                        j += 1;
-                        break;
-                    }
-                    if j + 2 < p.len() && p[j + 1] == '-' && p[j + 2] != ']' {
-                        ranges.push((p[j], p[j + 2]));
-                        j += 3;
-                    } else {
-                        set.push(p[j]);
-                        j += 1;
-                    }
-                    first = false;
-                }
-                if !closed {
-                    return n[0] == '[' && rec(&n[1..], &p[1..]);
-                }
-                let c = n[0];
-                let mut matched =
-                    set.contains(&c) || ranges.iter().any(|(a, b)| *a <= c && c <= *b);
-                if neg {
-                    matched = !matched;
-                }
-                matched && rec(&n[1..], &p[j..])
-            }
-            ch => !n.is_empty() && n[0] == ch && rec(&n[1..], &p[1..]),
-        }
-    }
-    rec(&n, &p)
 }
 
 /// `--exclude` overrides `--only`; empty `only` means "no restriction"
@@ -338,15 +264,16 @@ fn py_repr(v: &Value) -> String {
     }
 }
 
-/// Load v2 per-language scorers from `.argot/` (`_load_scorers` + helpers).
+/// Load v3 per-language scorers from `.argot/` — entirely from the fit-time
+/// model snapshot in `scorer-config.json`. The live tree is never consulted:
+/// scoring must judge new code against the voice as it was learned, not as
+/// the new code just rewrote it (issue #79).
 /// On failure returns the exact stderr message and exit code.
 fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
-    let repo_corpus_txt = argot_dir.join("repo-corpus.txt");
     let generic_baseline_json = argot_dir.join("generic-baseline.json");
     let config_json = argot_dir.join("scorer-config.json");
 
     for (p, msg) in [
-        (&repo_corpus_txt, "run `argot fit` first"),
         (&generic_baseline_json, "run `argot fit` first"),
         (&config_json, "run `argot calibrate` first"),
     ] {
@@ -359,14 +286,14 @@ fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
     let config: Value =
         serde_json::from_slice(&config_bytes).map_err(|e| (format!("error: {e}\n"), 2))?;
 
-    if config.get("version").and_then(Value::as_i64) != Some(2) {
+    if config.get("version").and_then(Value::as_i64) != Some(3) {
         let vrepr = config
             .get("version")
             .map(py_repr)
             .unwrap_or_else(|| "None".to_string());
         return Err((
             format!(
-                "error: {} uses config version {} — regenerate via `argot-calibrate`.\n",
+                "error: {} uses config version {} — regenerate via `argot fit`.\n",
                 config_json.display(),
                 vrepr
             ),
@@ -386,14 +313,6 @@ fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
             ))
         }
     };
-
-    let corpus_text =
-        fs::read_to_string(&repo_corpus_txt).map_err(|e| (format!("error: {e}\n"), 2))?;
-    let repo_corpus_files: Vec<PathBuf> = splitlines(&corpus_text)
-        .into_iter()
-        .filter(|l| !l.trim().is_empty())
-        .map(PathBuf::from)
-        .collect();
 
     let baseline_bytes =
         fs::read(&generic_baseline_json).map_err(|e| (format!("error: {e}\n"), 2))?;
@@ -462,6 +381,19 @@ fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
                 0,
             ),
             call_receiver_cluster_size_min: get_usize("call_receiver_cluster_size_min", 0),
+            call_receiver_rarity_weighting: crate::scoring::call_receiver::RarityWeighting::Off,
+            call_receiver_shape_primitive_names: Vec::new(),
+            // Real diff hunks routinely start/end mid-construct, so the host
+            // fallback is what lets the call-receiver see check-time hunks at
+            // all; the calibration side always applied it (symmetry).
+            call_receiver_parse_error_host_fallback: lc
+                .get("call_receiver_parse_error_host_fallback")
+                .and_then(Value::as_bool)
+                .unwrap_or(true),
+            // from_model reads the fitted convention model (with calibrated
+            // bars) from the artifact itself.
+            conventions: None,
+            convention_bonus: get_f64("convention_bonus", 5.0),
             import_modules: get_strings("import_modules"),
             import_module_prefixes: get_strings("import_module_prefixes"),
             // Parse the optional `evidence_corpus` block. Unlike the Python
@@ -486,24 +418,32 @@ fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
         };
         let filter_adapter = adapter_for_language(lang).expect("adapter already built above");
 
-        let lang_files: Vec<PathBuf> = repo_corpus_files
-            .iter()
-            .filter(|p| lang_for_ext_cased(p) == Some(lang.as_str()))
-            .cloned()
-            .collect();
-        let repo_files: Vec<(PathBuf, String)> = lang_files
-            .iter()
-            .filter_map(|p| read_text_lossy(p).ok().map(|s| (p.clone(), s)))
-            .collect();
+        let model: LanguageModel = match lc.get("model") {
+            Some(m) => serde_json::from_value(m.clone()).map_err(|e| {
+                (
+                    format!("error: failed to load scorer for '{lang}': model: {e}\n"),
+                    2,
+                )
+            })?,
+            None => {
+                return Err((
+                    format!(
+                        "error: {} has no 'model' block for language '{}' — regenerate via `argot fit`.\n",
+                        config_json.display(),
+                        lang
+                    ),
+                    2,
+                ))
+            }
+        };
 
-        let scorer =
-            SequentialImportBpeScorer::from_config(&repo_files, &baseline_bytes, adapter, cfg)
-                .map_err(|e| {
-                    (
-                        format!("error: failed to load scorer for '{lang}': {e}\n"),
-                        2,
-                    )
-                })?;
+        let scorer = SequentialImportBpeScorer::from_model(&model, &baseline_bytes, adapter, cfg)
+            .map_err(|e| {
+            (
+                format!("error: failed to load scorer for '{lang}': {e}\n"),
+                2,
+            )
+        })?;
         scorers.insert(lang.clone(), scorer);
         filter_adapters.insert(lang.clone(), filter_adapter);
     }
@@ -515,10 +455,19 @@ fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
         }
     }
 
+    let fit_sha = languages
+        .values()
+        .filter_map(|lc| lc.get("calibration"))
+        .filter_map(|c| c.get("repo_sha"))
+        .filter_map(Value::as_str)
+        .find(|s| !s.is_empty() && *s != "unknown")
+        .map(String::from);
+
     Ok(Loaded {
         scorers,
         filter_adapters,
         language_extensions,
+        fit_sha,
     })
 }
 
@@ -532,6 +481,7 @@ fn committed_patches(repo_path: &str, shas: &HashSet<String>) -> anyhow::Result<
             content: item.post_blob,
             hunks: item.hunks,
             source: short,
+            ignored_by_pattern: false,
         });
         Ok(ControlFlow::Continue(()))
     })?;
@@ -595,6 +545,7 @@ fn modified_patches(repo_path: &str) -> anyhow::Result<Vec<PatchBatch>> {
             content,
             hunks,
             source: "workdir".to_string(),
+            ignored_by_pattern: false,
         });
     }
     Ok(out)
@@ -648,6 +599,7 @@ fn staged_patches(repo_path: &str) -> anyhow::Result<Vec<PatchBatch>> {
             content: blob.content().to_vec(),
             hunks,
             source: "staged".to_string(),
+            ignored_by_pattern: false,
         });
     }
     Ok(out)
@@ -694,6 +646,7 @@ fn untracked_patches(repo_path: &str) -> anyhow::Result<Vec<PatchBatch>> {
                 new_lines: line_count as u32,
             }],
             source: "untracked".to_string(),
+            ignored_by_pattern: false,
         });
     }
     Ok(out)
@@ -706,15 +659,20 @@ fn chain_workdir_patches(repo_path: &str) -> anyhow::Result<Vec<PatchBatch>> {
     Ok(out)
 }
 
-/// Score each hunk, dispatching per language (`_score_patches`). Returns
+/// Score each hunk, dispatching per language (`_score_patches`). Applies the
+/// inline-comment and suppressions.yaml surfaces per hit (path-level
+/// `.argotignore` suppression arrives pre-marked on the batch). Returns
 /// `(hits, hunk_count)`.
 fn score_patches(
     patches: Vec<PatchBatch>,
     scorers: &mut HashMap<String, SequentialImportBpeScorer>,
+    filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
+    yaml_rules: &[SuppressionRule],
     stderr: &mut String,
 ) -> (Vec<Hit>, usize) {
     let mut hits: Vec<Hit> = Vec::new();
     let mut hunk_count = 0usize;
+    let mut warned: HashSet<String> = HashSet::new();
 
     for batch in patches {
         let ext = extension(&batch.file_path);
@@ -728,11 +686,23 @@ fn score_patches(
                 continue;
             }
         };
-        let bpe_threshold = scorer.bpe_threshold;
 
         let file_source = String::from_utf8_lossy(&batch.content).into_owned();
         let file_lines = splitlines(&file_source);
         let n_lines = file_lines.len() as i64;
+
+        // Inline suppression comments, parsed from the same content that gets
+        // scored, with the language's own comment token.
+        let inline = ext_to_lang(&ext)
+            .and_then(|l| filter_adapters.get(l))
+            .map(|a| parse_inline(&file_source, a.line_comment_prefix()))
+            .unwrap_or_default();
+        for w in &inline.warnings {
+            let msg = format!("[argot] {}:{}: {}\n", batch.file_path, w.line, w.message);
+            if warned.insert(msg.clone()) {
+                stderr.push_str(&msg);
+            }
+        }
 
         for hunk in &batch.hunks {
             hunk_count += 1;
@@ -744,24 +714,46 @@ fn score_patches(
             let hs = hunk_start as usize;
             let he = hunk_end as usize;
             let hunk_content = file_lines[hs..he].join("\n");
+            // file_path routes the hunk to its fit-time cluster (falling back
+            // to Jaccard-nearest for files the model has never seen) — the
+            // same signal surface calibration hunks scored against, so the
+            // threshold and the check path see one score distribution.
             let scored = scorer.score_hunk(
                 &hunk_content,
                 Some(&file_source),
                 Some(hs + 1),
                 Some(he),
-                None,
+                Some(Path::new(&batch.file_path)),
             );
+            let line = hunk.new_start as usize;
+            let line_end = (hunk.new_start + hunk.new_lines).saturating_sub(1) as usize;
+            let reason = scored.reason.as_str().to_string();
+            let hash = hit_hash(&batch.file_path, &reason, &hunk_content);
+            let suppressed_by = if batch.ignored_by_pattern {
+                Some(SuppressedBy::ArgotIgnore)
+            } else if inline.suppresses(line, line_end, &reason) {
+                Some(SuppressedBy::Inline)
+            } else if yaml_rules
+                .iter()
+                .any(|r| r.matches(&batch.file_path, &reason, &hash))
+            {
+                Some(SuppressedBy::Yaml)
+            } else {
+                None
+            };
             hits.push(Hit {
-                score: scored.stages.bpe_score,
+                score: scored.score,
                 file_path: batch.file_path.clone(),
-                line: hunk.new_start as usize,
-                line_end: (hunk.new_start + hunk.new_lines).saturating_sub(1) as usize,
+                line,
+                line_end,
                 source: batch.source.clone(),
-                reason: scored.reason.as_str().to_string(),
+                reason,
                 flagged: scored.flagged,
-                threshold: bpe_threshold,
+                threshold: scored.threshold,
                 hunk_content,
                 evidence: scored.evidence,
+                hash,
+                suppressed_by,
             });
         }
     }
@@ -942,8 +934,8 @@ fn render_results(hits: &[&Hit], hunk_lines: Option<usize>, out: &mut String) ->
                 _ => ".",
             };
             out.push_str(&format!(
-                "  {}  {:<13} {:>6.2}  {}  {}\n",
-                glyph, line_str, h.score, sev, meta
+                "  {}  {:<13} {:>6.2}  {}  {} [{}]\n",
+                glyph, line_str, h.score, sev, meta, h.hash
             ));
 
             // Per-reason evidence (names + `common here:`) sits between the
@@ -982,6 +974,74 @@ fn render_results(hits: &[&Hit], hunk_lines: Option<usize>, out: &mut String) ->
     }
 
     any_truncated
+}
+
+/// Flatten visible hits into serializable [`HitRecord`]s for the machine
+/// formats. Severity is measured against the per-hit calibrated threshold,
+/// matching the human rendering; evidence lines are the same per-reason lines
+/// the human path prints, with layout indentation stripped.
+fn hit_records(hits: &[&Hit]) -> Vec<HitRecord> {
+    hits.iter()
+        .map(|h| HitRecord {
+            path: h.file_path.clone(),
+            line_start: h.line,
+            line_end: h.line_end,
+            score: h.score,
+            threshold: h.threshold,
+            severity: severity(h.score, h.threshold).to_string(),
+            reason: h.reason.clone(),
+            reason_label: reason_label(&h.reason).to_string(),
+            source: h.source.clone(),
+            hash: h.hash.clone(),
+            evidence: h
+                .evidence
+                .as_ref()
+                .map(|ev| {
+                    format_evidence(ev, false, h.line)
+                        .into_iter()
+                        .map(|l| l.trim().to_string())
+                        .collect()
+                })
+                .unwrap_or_default(),
+        })
+        .collect()
+}
+
+fn report_meta(args: &CheckArgs, scanned: String, hunks_scanned: usize) -> ReportMeta {
+    ReportMeta {
+        // The workspace shares one version across crates, so this matches the
+        // CLI binary's version.
+        tool_version: env!("CARGO_PKG_VERSION").to_string(),
+        repo: args.repo_path.clone(),
+        scanned,
+        hunks_scanned,
+    }
+}
+
+/// Render the complete machine-format document (json/sarif) for stdout.
+fn render_machine(format: OutputFormat, meta: &ReportMeta, records: &[HitRecord]) -> String {
+    match format {
+        OutputFormat::Sarif => render_sarif(meta, records),
+        _ => render_json(meta, records),
+    }
+}
+
+/// Commits between the fit SHA and HEAD to trigger the freshness warning.
+const FRESHNESS_WARN_COMMITS: usize = 10;
+
+/// How many commits HEAD is ahead of the fit SHA (`None` when either end
+/// cannot be resolved — shallow clones, rewritten history, detached states
+/// must never break check).
+fn commits_since_fit(repo_path: &str, fit_sha: &str) -> Option<usize> {
+    let repo = open_repo(repo_path).ok()?;
+    let head = repo.head().ok()?.peel_to_commit().ok()?;
+    let fit_oid = git2::Oid::from_str(fit_sha).ok()?;
+    if head.id() == fit_oid {
+        return Some(0);
+    }
+    repo.find_commit(fit_oid).ok()?;
+    let (ahead, _) = repo.graph_ahead_behind(head.id(), fit_oid).ok()?;
+    Some(ahead)
 }
 
 /// Collect patches for the requested mode (`main()` mode dispatch). On a
@@ -1102,6 +1162,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         mut scorers,
         filter_adapters,
         language_extensions,
+        fit_sha,
     } = match load_scorers(&args.argot_dir) {
         Ok(l) => l,
         Err((msg, code)) => return CheckOutcome::err(msg, code),
@@ -1109,33 +1170,121 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
 
     let (patches, scan_label) = match collect_patches(&args) {
         Ok(v) => v,
-        Err(outcome) => return outcome,
+        Err(outcome) => {
+            // Machine formats own stdout: the only non-error early exit (an
+            // explicit range with no commits, exit 0) still emits a complete,
+            // hit-free document. Hard errors (exit != 0) stay stderr-only.
+            if args.format.is_machine() && outcome.exit_code == 0 {
+                let meta = report_meta(&args, format!("0 commit(s) ({})", args.reference), 0);
+                return CheckOutcome {
+                    stdout: render_machine(args.format, &meta, &[]),
+                    stderr: outcome.stderr,
+                    exit_code: 0,
+                };
+            }
+            return outcome;
+        }
     };
 
     let mut stderr = String::new();
 
-    // Scope + only/exclude filters.
+    // Freshness: a stale model turns ordinary drift into noise (a month of
+    // drift on a busy workspace measured ~14× the hit volume of a fresh
+    // fit). Warn when HEAD has moved substantially since the fit.
+    if let Some(fit_sha) = &fit_sha {
+        if let Some(behind) = commits_since_fit(&args.repo_path, fit_sha) {
+            if behind >= FRESHNESS_WARN_COMMITS {
+                stderr.push_str(&format!(
+                    "[argot] model fitted {behind} commits ago — voice may have drifted; re-run `argot fit`\n"
+                ));
+            }
+        }
+    }
+
+    // Suppression surfaces: the resolved path set (recommended built-ins +
+    // `.argotignore`, the same set calibration samples from) and the
+    // suppressions.yaml rules (expiry measured against `args.today`).
+    let path_suppressions = PathSuppressions::load(Path::new(&args.repo_path));
+    let yaml = load_suppressions_file(&args.argot_dir.join(SUPPRESSIONS_FILE), &args.today);
+    for w in &yaml.warnings {
+        stderr.push_str(&format!("[argot] {w}\n"));
+    }
+
+    // Scope + only/exclude filters. User-ignored files stay scored (marked) so
+    // their suppressed hits are countable.
     let filtered: Vec<PatchBatch> = patches
         .into_iter()
-        .filter(|b| {
-            !is_out_of_scope(
-                &b.file_path,
-                &b.content,
-                &language_extensions,
-                &filter_adapters,
-            ) && passes_filters(&b.file_path, &args.only, &args.exclude)
+        .filter_map(|mut b| {
+            match batch_scope(&b.file_path, &language_extensions, &path_suppressions) {
+                BatchScope::Drop => return None,
+                BatchScope::ScoreSuppressed => b.ignored_by_pattern = true,
+                BatchScope::Score => {}
+            }
+            passes_filters(&b.file_path, &args.only, &args.exclude).then_some(b)
         })
         .collect();
 
-    let (hits, hunk_count) = score_patches(filtered, &mut scorers, &mut stderr);
+    // Changeset-wide local bindings: names any file in this change defines.
+    // A change that calls what it also defines (a new feature naming its own
+    // components) is new code, not foreign voice; only callees neither the
+    // corpus nor the changeset knows keep contributing.
+    let mut changeset_bindings: HashMap<&'static str, HashSet<String>> = HashMap::new();
+    for b in &filtered {
+        let ext = extension(&b.file_path);
+        let Some(lang) = ext_to_lang(&ext) else {
+            continue;
+        };
+        let Some(adapter) = filter_adapters.get(lang) else {
+            continue;
+        };
+        let source = String::from_utf8_lossy(&b.content);
+        changeset_bindings
+            .entry(lang)
+            .or_default()
+            .extend(adapter.callable_definitions(&source));
+    }
+    for (lang, bindings) in changeset_bindings {
+        if let Some(scorer) = scorers.get_mut(lang) {
+            scorer.set_changeset_bindings(bindings);
+        }
+    }
+
+    let (hits, hunk_count) = score_patches(
+        filtered,
+        &mut scorers,
+        &filter_adapters,
+        &yaml.active,
+        &mut stderr,
+    );
 
     // Display gate: --threshold widens to every hit >= N; otherwise show flagged.
     let threshold_override = args.threshold;
-    let above: Vec<&Hit> = if let Some(t) = threshold_override {
+    let above_all: Vec<&Hit> = if let Some(t) = threshold_override {
         hits.iter().filter(|h| h.score >= t).collect()
     } else {
         hits.iter().filter(|h| h.flagged).collect()
     };
+
+    // Suppressed ≠ deleted: drop muted hits from output and exit-code
+    // consideration, but say how many were muted (and by which surface).
+    let (above, suppressed): (Vec<&Hit>, Vec<&Hit>) = above_all
+        .into_iter()
+        .partition(|h| h.suppressed_by.is_none());
+    if !suppressed.is_empty() {
+        let count = |s: SuppressedBy| {
+            suppressed
+                .iter()
+                .filter(|h| h.suppressed_by == Some(s))
+                .count()
+        };
+        stderr.push_str(&format!(
+            "{} hits suppressed ({} by .argotignore, {} inline, {} by suppressions.yaml)\n",
+            suppressed.len(),
+            count(SuppressedBy::ArgotIgnore),
+            count(SuppressedBy::Inline),
+            count(SuppressedBy::Yaml),
+        ));
+    }
 
     // --min-severity drops weaker tiers from both output and banner counts.
     let min_idx = sev_index(&args.min_severity);
@@ -1147,6 +1296,34 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
             sev_index(severity(h.score, t)) >= min_idx
         })
         .collect();
+
+    // Cache the visible hits for `argot mute <hash>` — written on every check
+    // run (best-effort; a read-only tree must not fail the check).
+    let last_check: Vec<LastCheckHit> = visible
+        .iter()
+        .map(|h| LastCheckHit {
+            path: h.file_path.clone(),
+            reason: h.reason.clone(),
+            hash: h.hash.clone(),
+            line_start: h.line,
+            line_end: h.line_end,
+        })
+        .collect();
+    let _ = write_last_check(&args.argot_dir, &last_check);
+
+    // Machine formats: the serialized document is the entire stdout; skip
+    // warnings stay on stderr. Exit semantics match the human path (1 when
+    // any hit is visible, 0 otherwise).
+    if args.format.is_machine() {
+        let records = hit_records(&visible);
+        let meta = report_meta(&args, scan_label, hunk_count);
+        let exit_code = if visible.is_empty() { 0 } else { 1 };
+        return CheckOutcome {
+            stdout: render_machine(args.format, &meta, &records),
+            stderr,
+            exit_code,
+        };
+    }
 
     if visible.is_empty() {
         let mut sorted_exts: Vec<&str> = SUPPORTED_EXTENSIONS.to_vec();
@@ -1191,5 +1368,222 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         stdout,
         stderr,
         exit_code: 1,
+    }
+}
+
+/// Outcome of `argot review-mutes` — mute-rot cleanup over the hash-scoped
+/// suppressions.yaml entries.
+pub struct ReviewOutcome {
+    pub stdout: String,
+    pub stderr: String,
+    pub exit_code: i32,
+}
+
+/// Re-run the check scoring over the files behind the currently-muted
+/// hash-scoped suppressions and report which suppressions no longer fire.
+/// With `prune`, stale hash entries are removed from suppressions.yaml
+/// (the file is rewritten; expired and non-hash entries are kept).
+///
+/// A suppression "still fires" when re-scoring the file's current content
+/// (as one full-file hunk plus each sampleable range — stable, reproducible
+/// hunk boundaries) yields a flagged hit with the entry's hash. Hits muted
+/// from transient diff hunks whose boundaries no longer exist resolve as
+/// "no longer fires" — which is exactly mute-rot.
+pub fn run_review_mutes(
+    repo_path: &str,
+    argot_dir: &Path,
+    today: &str,
+    prune: bool,
+) -> ReviewOutcome {
+    let mut stdout = String::new();
+    let mut stderr = String::new();
+
+    let rules_path = argot_dir.join(SUPPRESSIONS_FILE);
+    let yaml = load_suppressions_file(&rules_path, today);
+    for w in &yaml.warnings {
+        stderr.push_str(&format!("[argot] {w}\n"));
+    }
+    let hash_entries: Vec<&SuppressionRule> =
+        yaml.active.iter().filter(|r| r.hash.is_some()).collect();
+    if hash_entries.is_empty() {
+        stdout.push_str("No hash-scoped suppressions to review.\n");
+        return ReviewOutcome {
+            stdout,
+            stderr,
+            exit_code: 0,
+        };
+    }
+
+    let Loaded { mut scorers, .. } = match load_scorers(argot_dir) {
+        Ok(l) => l,
+        Err((msg, code)) => {
+            return ReviewOutcome {
+                stdout,
+                stderr: msg,
+                exit_code: code,
+            }
+        }
+    };
+
+    stdout.push_str(&format!(
+        "Reviewing {} hash-scoped suppression(s)…\n",
+        hash_entries.len()
+    ));
+    // Hashes that still fire, computed once per distinct file.
+    let mut firing_by_file: HashMap<String, HashSet<String>> = HashMap::new();
+    let mut stale_hashes: Vec<String> = Vec::new();
+    for entry in &hash_entries {
+        let hash = entry.hash.as_deref().expect("filtered on hash presence");
+        let firing = firing_by_file
+            .entry(entry.path.clone())
+            .or_insert_with(|| firing_hashes_for_file(repo_path, &entry.path, &mut scorers));
+        let fires = firing.contains(hash);
+        stdout.push_str(&format!(
+            "  [{hash}]  {}  {}\n",
+            entry.path,
+            if fires {
+                "still fires"
+            } else {
+                "no longer fires"
+            }
+        ));
+        if !fires {
+            stale_hashes.push(hash.to_string());
+        }
+    }
+
+    if stale_hashes.is_empty() {
+        stdout.push_str("All reviewed suppressions still fire — nothing to prune.\n");
+    } else if prune {
+        let mut kept: Vec<SuppressionRule> = Vec::new();
+        for rule in yaml.active.iter().chain(yaml.expired.iter()) {
+            let stale = rule
+                .hash
+                .as_deref()
+                .is_some_and(|h| stale_hashes.iter().any(|s| s == h));
+            if !stale {
+                kept.push(rule.clone());
+            }
+        }
+        let serialized = crate::suppress::rules_file::serialize_rules(&kept);
+        match std::fs::write(&rules_path, serialized) {
+            Ok(()) => stdout.push_str(&format!(
+                "Pruned {} stale suppression(s) from {}.\n",
+                stale_hashes.len(),
+                rules_path.display()
+            )),
+            Err(e) => {
+                stderr.push_str(&format!(
+                    "error: cannot write {}: {e}\n",
+                    rules_path.display()
+                ));
+                return ReviewOutcome {
+                    stdout,
+                    stderr,
+                    exit_code: 2,
+                };
+            }
+        }
+    } else {
+        stdout.push_str(&format!(
+            "{} stale suppression(s) — run `argot review-mutes --prune` to remove them.\n",
+            stale_hashes.len()
+        ));
+    }
+
+    ReviewOutcome {
+        stdout,
+        stderr,
+        exit_code: 0,
+    }
+}
+
+/// Hashes of the flagged hits produced by re-scoring `rel_path`'s current
+/// content: one full-file hunk (how untracked files are checked) plus each
+/// sampleable range (stable boundaries). Missing/out-of-scope files fire
+/// nothing.
+fn firing_hashes_for_file(
+    repo_path: &str,
+    rel_path: &str,
+    scorers: &mut HashMap<String, SequentialImportBpeScorer>,
+) -> HashSet<String> {
+    let mut out = HashSet::new();
+    let ext = extension(rel_path);
+    let Some(lang) = ext_to_lang(&ext) else {
+        return out;
+    };
+    let Some(scorer) = scorers.get_mut(lang) else {
+        return out;
+    };
+    let full = Path::new(repo_path).join(rel_path);
+    let Ok(source) = read_text_lossy(&full) else {
+        return out;
+    };
+    let lines = splitlines(&source);
+    if lines.is_empty() {
+        return out;
+    }
+    let mut ranges = vec![(1usize, lines.len())];
+    if let Some(adapter) = adapter_for_language(lang) {
+        ranges.extend(adapter.enumerate_sampleable_ranges(&source));
+    }
+    for (start, end) in ranges {
+        let s = start.saturating_sub(1);
+        let e = end.min(lines.len());
+        if s >= e {
+            continue;
+        }
+        let hunk = lines[s..e].join("\n");
+        let scored = scorer.score_hunk(
+            &hunk,
+            Some(&source),
+            Some(s + 1),
+            Some(e),
+            Some(Path::new(rel_path)),
+        );
+        if scored.flagged {
+            out.insert(hit_hash(rel_path, scored.reason.as_str(), &hunk));
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn commit_all(repo: &git2::Repository, msg: &str) -> git2::Oid {
+        let mut index = repo.index().unwrap();
+        index
+            .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+            .unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let sig = git2::Signature::now("t", "t@t").unwrap();
+        let parent = repo.head().ok().and_then(|h| h.peel_to_commit().ok());
+        let parents: Vec<&git2::Commit> = parent.iter().collect();
+        repo.commit(Some("HEAD"), &sig, &sig, msg, &tree, &parents)
+            .unwrap()
+    }
+
+    #[test]
+    fn commits_since_fit_counts_head_distance() {
+        let dir = std::env::temp_dir().join(format!("argot_freshness_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let repo = git2::Repository::init(&dir).unwrap();
+        std::fs::write(dir.join("a.py"), "x = 1\n").unwrap();
+        let first = commit_all(&repo, "one");
+        std::fs::write(dir.join("a.py"), "x = 2\n").unwrap();
+        commit_all(&repo, "two");
+
+        let path = dir.to_str().unwrap();
+        assert_eq!(commits_since_fit(path, &first.to_string()), Some(1));
+        let head = repo.head().unwrap().peel_to_commit().unwrap().id();
+        assert_eq!(commits_since_fit(path, &head.to_string()), Some(0));
+        // Unresolvable fit SHA must never break check.
+        assert_eq!(commits_since_fit(path, "fixture"), None);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

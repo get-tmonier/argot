@@ -1,0 +1,154 @@
+{
+  "corpus": "excalidraw",
+  "n_fixtures": 14,
+  "n_caught": 9,
+  "uncaught": [
+    "excalidraw_xhr_network_1",
+    "excalidraw_legacy_lifecycle_1",
+    "excalidraw_callback_pyramid_1",
+    "excalidraw_callback_pyramid_2",
+    "excalidraw_vue_idioms_2"
+  ],
+  "thresholds": {
+    "typescript": 5.969608215330783
+  },
+  "resolved_rare": {
+    "typescript": 0
+  },
+  "fp_commits": 30,
+  "fp_hunks": 252,
+  "fp_hits": 8,
+  "fp_rate": 0.031746031746031744,
+  "fixture_results": [
+    {
+      "id": "excalidraw_jquery_1",
+      "category": "jquery",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 4.623153210071428
+    },
+    {
+      "id": "excalidraw_jquery_2",
+      "category": "jquery",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 4.884029781479157
+    },
+    {
+      "id": "excalidraw_xhr_network_1",
+      "category": "xhr_network",
+      "language": null,
+      "flagged": false,
+      "reasons": [],
+      "max_score": 0.0
+    },
+    {
+      "id": "excalidraw_xhr_network_2",
+      "category": "xhr_network",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 4.248171837880179
+    },
+    {
+      "id": "excalidraw_legacy_lifecycle_1",
+      "category": "legacy_lifecycle",
+      "language": null,
+      "flagged": false,
+      "reasons": [],
+      "max_score": 0.0
+    },
+    {
+      "id": "excalidraw_legacy_lifecycle_2",
+      "category": "legacy_lifecycle",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 3.676022658133979
+    },
+    {
+      "id": "excalidraw_redux_store_1",
+      "category": "redux_store",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 4.358565502072526
+    },
+    {
+      "id": "excalidraw_redux_store_2",
+      "category": "redux_store",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 3.109489387639611
+    },
+    {
+      "id": "excalidraw_moment_dates_1",
+      "category": "moment_dates",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 5.174022793180821
+    },
+    {
+      "id": "excalidraw_moment_dates_2",
+      "category": "moment_dates",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 4.137176073809286
+    },
+    {
+      "id": "excalidraw_callback_pyramid_1",
+      "category": "callback_pyramid",
+      "language": null,
+      "flagged": false,
+      "reasons": [],
+      "max_score": 0.0
+    },
+    {
+      "id": "excalidraw_callback_pyramid_2",
+      "category": "callback_pyramid",
+      "language": null,
+      "flagged": false,
+      "reasons": [],
+      "max_score": 0.0
+    },
+    {
+      "id": "excalidraw_vue_idioms_1",
+      "category": "vue_idioms",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 2.959492082906488
+    },
+    {
+      "id": "excalidraw_vue_idioms_2",
+      "category": "vue_idioms",
+      "language": null,
+      "flagged": false,
+      "reasons": [],
+      "max_score": 0.0
+    }
+  ]
+}

@@ -1,0 +1,188 @@
+{
+  "corpus": "ink",
+  "n_fixtures": 17,
+  "n_caught": 17,
+  "uncaught": [],
+  "thresholds": {
+    "typescript": 4.723631572528786
+  },
+  "resolved_rare": {
+    "typescript": 0
+  },
+  "fp_commits": 30,
+  "fp_hunks": 82,
+  "fp_hits": 1,
+  "fp_rate": 0.012195121951219513,
+  "fixture_results": [
+    {
+      "id": "ink_class_components_1",
+      "category": "class_components",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 12.513468288870405
+    },
+    {
+      "id": "ink_class_components_2",
+      "category": "class_components",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 12.513468288870405
+    },
+    {
+      "id": "ink_class_components_3",
+      "category": "class_components",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 12.513468288870405
+    },
+    {
+      "id": "ink_lifecycle_1",
+      "category": "lifecycle",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 12.513468288870405
+    },
+    {
+      "id": "ink_lifecycle_2",
+      "category": "lifecycle",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 12.513468288870405
+    },
+    {
+      "id": "ink_lifecycle_3",
+      "category": "lifecycle",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 12.513468288870405
+    },
+    {
+      "id": "ink_dom_access_1",
+      "category": "dom_access",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 4.90071078415458
+    },
+    {
+      "id": "ink_dom_access_2",
+      "category": "dom_access",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.928926845982328
+    },
+    {
+      "id": "ink_dom_access_3",
+      "category": "dom_access",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.939750637974097
+    },
+    {
+      "id": "ink_jquery_1",
+      "category": "jquery",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 12.513468288870405
+    },
+    {
+      "id": "ink_jquery_2",
+      "category": "jquery",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.369902559335692
+    },
+    {
+      "id": "ink_jquery_3",
+      "category": "jquery",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 8.356604874849053
+    },
+    {
+      "id": "ink_error_flip_1",
+      "category": "error_flip",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 12.513468288870405
+    },
+    {
+      "id": "ink_error_flip_2",
+      "category": "error_flip",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 12.513468288870405
+    },
+    {
+      "id": "ink_error_flip_3",
+      "category": "error_flip",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 12.513468288870405
+    },
+    {
+      "id": "ink_jquery_4",
+      "category": "jquery",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.369902559335692
+    },
+    {
+      "id": "ink_class_components_4",
+      "category": "class_components",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 12.513468288870405
+    }
+  ]
+}

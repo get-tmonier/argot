@@ -2,7 +2,7 @@ argot check · 1 hunk above threshold (1 foreign)
 note: argot is a probabilistic style linter — verify before action.
 
 integration.py
-  !  L1-L9           8.17  foreign  · ef37598 · rare token sequence (bpe)
+  !  L1-L9           8.17  foreign  · ef37598 · rare token sequence (bpe) [f8061c981e0a]
      ↳ sessionmaker (0×), connect (0×), url (0×) (+2 more)
   1 | from __future__ import annotations
   2 | import sqlalchemy

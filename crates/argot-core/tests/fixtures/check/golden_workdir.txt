@@ -1,8 +1,9 @@
-argot check · 1 hunk above threshold (1 unusual)
+argot check · 1 hunk above threshold (1 foreign)
 note: argot is a probabilistic style linter — verify before action.
 
 text.py
-  .  L21-L30         0.17  unusual  · workdir · none
+  !  L21-L30         9.18  foreign  · workdir · rare token sequence (bpe) [bc9eb3926a76]
+     ↳ extra_helper (0×), items (0×), total (0×) (+1 more)
   21 |     if current:
   22 |         lines.append(current)
   23 |     return lines

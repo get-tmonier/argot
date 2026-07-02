@@ -1,0 +1,188 @@
+{
+  "corpus": "wagtail",
+  "language": "python",
+  "n_fixtures": 14,
+  "n_flagged_fixtures": 14,
+  "uncaught": [],
+  "n_controls": 22435,
+  "n_eligible_controls": 12077,
+  "n_false_positives": 172,
+  "fp_rate": 0.014241947503519085,
+  "auc": 0.9988171139947243,
+  "threshold": 4.6714056047640495,
+  "seed_thresholds": [
+    4.6714056047640495,
+    5.885411632767486,
+    4.900304224772185,
+    4.987819894626613,
+    4.6714056047640495,
+    4.6714056047640495,
+    4.6714056047640495
+  ],
+  "threshold_cv": 0.08355029011293873,
+  "resolved_rare_threshold": 0,
+  "recall_by_category": {
+    "framework_swap": [
+      2,
+      2
+    ],
+    "http_in_model": [
+      2,
+      2
+    ],
+    "print_debug": [
+      2,
+      2
+    ],
+    "raw_sql": [
+      2,
+      2
+    ],
+    "sleep_polling": [
+      2,
+      2
+    ],
+    "subprocess_shell": [
+      2,
+      2
+    ],
+    "threading_concurrency": [
+      2,
+      2
+    ]
+  },
+  "stage_attribution": {
+    "bpe": 9,
+    "call_receiver": 3,
+    "import": 2
+  },
+  "fixture_results": [
+    {
+      "id": "raw_sql_1",
+      "category": "raw_sql",
+      "difficulty": "easy",
+      "import_score": 1.0,
+      "bpe_score": 6.353598679115418,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "raw_sql_2",
+      "category": "raw_sql",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 4.6714056047640495,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "http_in_model_1",
+      "category": "http_in_model",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 7.32897240664437,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "http_in_model_2",
+      "category": "http_in_model",
+      "difficulty": "medium",
+      "import_score": 1.0,
+      "bpe_score": 7.2421532969506845,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "threading_1",
+      "category": "threading_concurrency",
+      "difficulty": "easy",
+      "import_score": 2.0,
+      "bpe_score": 6.552896740780618,
+      "flagged": true,
+      "reason": "import"
+    },
+    {
+      "id": "threading_2",
+      "category": "threading_concurrency",
+      "difficulty": "medium",
+      "import_score": 1.0,
+      "bpe_score": 6.053522868162448,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "framework_swap_1",
+      "category": "framework_swap",
+      "difficulty": "easy",
+      "import_score": 1.0,
+      "bpe_score": 4.6714056047640495,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "framework_swap_2",
+      "category": "framework_swap",
+      "difficulty": "medium",
+      "import_score": 2.0,
+      "bpe_score": 4.6714056047640495,
+      "flagged": true,
+      "reason": "import"
+    },
+    {
+      "id": "print_debug_1",
+      "category": "print_debug",
+      "difficulty": "hard",
+      "import_score": 1.0,
+      "bpe_score": 6.449453980632002,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "print_debug_2",
+      "category": "print_debug",
+      "difficulty": "medium",
+      "import_score": 1.0,
+      "bpe_score": 4.6714056047640495,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "sleep_polling_1",
+      "category": "sleep_polling",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 7.32897240664437,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "sleep_polling_2",
+      "category": "sleep_polling",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.0395016518799896,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "subprocess_1",
+      "category": "subprocess_shell",
+      "difficulty": "medium",
+      "import_score": 1.0,
+      "bpe_score": 7.4034502629795895,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "subprocess_2",
+      "category": "subprocess_shell",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 6.514113380282348,
+      "flagged": true,
+      "reason": "bpe"
+    }
+  ],
+  "control_results": []
+}

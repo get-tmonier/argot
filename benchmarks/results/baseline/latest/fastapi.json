@@ -1,0 +1,357 @@
+{
+  "corpus": "fastapi",
+  "language": "python",
+  "n_fixtures": 32,
+  "n_flagged_fixtures": 32,
+  "uncaught": [],
+  "n_controls": 79476,
+  "n_eligible_controls": 30685,
+  "n_false_positives": 510,
+  "fp_rate": 0.01662049861495845,
+  "auc": 0.9949827888218999,
+  "threshold": 5.258453517608745,
+  "seed_thresholds": [
+    5.258453517608745,
+    5.258453517608745,
+    5.3067440106351516,
+    5.3067440106351516,
+    5.258453517608745,
+    4.060924060790402,
+    4.316338332205005
+  ],
+  "threshold_cv": 0.10009641616083947,
+  "resolved_rare_threshold": 0,
+  "recall_by_category": {
+    "async_blocking": [
+      3,
+      3
+    ],
+    "background_tasks": [
+      4,
+      4
+    ],
+    "dependency_injection": [
+      3,
+      3
+    ],
+    "downstream_http": [
+      3,
+      3
+    ],
+    "exception_handling": [
+      6,
+      6
+    ],
+    "framework_swap": [
+      3,
+      3
+    ],
+    "routing": [
+      3,
+      3
+    ],
+    "serialization": [
+      3,
+      3
+    ],
+    "validation": [
+      4,
+      4
+    ]
+  },
+  "stage_attribution": {
+    "bpe": 24,
+    "call_receiver": 8
+  },
+  "fixture_results": [
+    {
+      "id": "routing_1",
+      "category": "routing",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 5.198884289393854,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "framework_swap_1",
+      "category": "framework_swap",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.2813325451847355,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "framework_swap_2",
+      "category": "framework_swap",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.2813325451847355,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "validation_1",
+      "category": "validation",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 6.225826769097539,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "exception_handling_1",
+      "category": "exception_handling",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 6.852044125857216,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "downstream_http_1",
+      "category": "downstream_http",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 3.5570500312536932,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "async_blocking_1",
+      "category": "async_blocking",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 5.246826464598678,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "exception_handling_2",
+      "category": "exception_handling",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 2.9796558057881644,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "routing_2",
+      "category": "routing",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 3.8168714205759535,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "framework_swap_3",
+      "category": "framework_swap",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.785579982321298,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "validation_2",
+      "category": "validation",
+      "difficulty": "uncaught",
+      "import_score": 0.0,
+      "bpe_score": 3.8168714205759535,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "validation_3",
+      "category": "validation",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.346965844357095,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "serialization_1",
+      "category": "serialization",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.876878380987325,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "exception_handling_3",
+      "category": "exception_handling",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 6.781446593157257,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "async_blocking_2",
+      "category": "async_blocking",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 7.360563813352925,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "downstream_http_2",
+      "category": "downstream_http",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 6.152884840714487,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "background_tasks_1",
+      "category": "background_tasks",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 6.581028006437283,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "async_blocking_3",
+      "category": "async_blocking",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 7.250077898828399,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "background_tasks_2",
+      "category": "background_tasks",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 6.552896740780618,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "background_tasks_3",
+      "category": "background_tasks",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 6.552896740780618,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "background_tasks_4",
+      "category": "background_tasks",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 7.238965788381366,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "dependency_injection_1",
+      "category": "dependency_injection",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.466570850856021,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "dependency_injection_2",
+      "category": "dependency_injection",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 5.024998097559681,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "dependency_injection_3",
+      "category": "dependency_injection",
+      "difficulty": "easy",
+      "import_score": 1.0,
+      "bpe_score": 6.640845538763124,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "downstream_http_3",
+      "category": "downstream_http",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.876878380987325,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "exception_handling_4",
+      "category": "exception_handling",
+      "difficulty": "uncaught",
+      "import_score": 0.0,
+      "bpe_score": 3.8168714205759535,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "exception_handling_5",
+      "category": "exception_handling",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 6.852044125857216,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "exception_handling_6",
+      "category": "exception_handling",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.3255631681139235,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "routing_3",
+      "category": "routing",
+      "difficulty": "uncaught",
+      "import_score": 0.0,
+      "bpe_score": 7.41823647576615,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "serialization_2",
+      "category": "serialization",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 6.504177873015459,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "serialization_3",
+      "category": "serialization",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 7.127636825222119,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "validation_4",
+      "category": "validation",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 6.504177873015459,
+      "flagged": true,
+      "reason": "bpe"
+    }
+  ],
+  "control_results": []
+}

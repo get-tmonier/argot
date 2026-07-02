@@ -1,0 +1,193 @@
+{
+  "corpus": "saleor",
+  "language": "python",
+  "n_fixtures": 14,
+  "n_flagged_fixtures": 11,
+  "uncaught": [
+    "raw_sql_2",
+    "print_debug_1",
+    "sleep_polling_2"
+  ],
+  "n_controls": 29746,
+  "n_eligible_controls": 12712,
+  "n_false_positives": 77,
+  "fp_rate": 0.006057268722466961,
+  "auc": 0.993080216668165,
+  "threshold": 5.438672608846307,
+  "seed_thresholds": [
+    5.260686289524812,
+    5.438672608846307,
+    5.761497710571925,
+    5.30553111440879,
+    5.438672608846307,
+    6.336630253495663,
+    7.771443807038649
+  ],
+  "threshold_cv": 0.1417597815370849,
+  "resolved_rare_threshold": 0,
+  "recall_by_category": {
+    "foreign_http": [
+      2,
+      2
+    ],
+    "framework_swap": [
+      2,
+      2
+    ],
+    "print_debug": [
+      1,
+      2
+    ],
+    "raw_sql": [
+      1,
+      2
+    ],
+    "shell_out": [
+      2,
+      2
+    ],
+    "sleep_polling": [
+      1,
+      2
+    ],
+    "thread_background": [
+      2,
+      2
+    ]
+  },
+  "stage_attribution": {
+    "bpe": 5,
+    "call_receiver": 5,
+    "import": 1,
+    "none": 3
+  },
+  "fixture_results": [
+    {
+      "id": "raw_sql_1",
+      "category": "raw_sql",
+      "difficulty": "medium",
+      "import_score": 1.0,
+      "bpe_score": 5.1432979730117765,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "raw_sql_2",
+      "category": "raw_sql",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 5.1432979730117765,
+      "flagged": false,
+      "reason": "none"
+    },
+    {
+      "id": "foreign_http_1",
+      "category": "foreign_http",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 6.336630253495663,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "foreign_http_2",
+      "category": "foreign_http",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 4.498959417582949,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "thread_background_1",
+      "category": "thread_background",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.494363328597668,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "thread_background_2",
+      "category": "thread_background",
+      "difficulty": "medium",
+      "import_score": 1.0,
+      "bpe_score": 5.095499622681928,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "framework_swap_1",
+      "category": "framework_swap",
+      "difficulty": "easy",
+      "import_score": 1.0,
+      "bpe_score": 4.574649145053478,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "framework_swap_2",
+      "category": "framework_swap",
+      "difficulty": "medium",
+      "import_score": 1.0,
+      "bpe_score": 4.933260536484301,
+      "flagged": true,
+      "reason": "import"
+    },
+    {
+      "id": "print_debug_1",
+      "category": "print_debug",
+      "difficulty": "easy",
+      "import_score": 0.0,
+      "bpe_score": 3.953760129010032,
+      "flagged": false,
+      "reason": "none"
+    },
+    {
+      "id": "print_debug_2",
+      "category": "print_debug",
+      "difficulty": "medium",
+      "import_score": 1.0,
+      "bpe_score": 5.292315467214934,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "sleep_polling_1",
+      "category": "sleep_polling",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 6.393031188484153,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "sleep_polling_2",
+      "category": "sleep_polling",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 4.207718171167093,
+      "flagged": false,
+      "reason": "none"
+    },
+    {
+      "id": "shell_out_1",
+      "category": "shell_out",
+      "difficulty": "easy",
+      "import_score": 0.0,
+      "bpe_score": 6.727021945266758,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "shell_out_2",
+      "category": "shell_out",
+      "difficulty": "medium",
+      "import_score": 1.0,
+      "bpe_score": 6.357460435899906,
+      "flagged": true,
+      "reason": "bpe"
+    }
+  ],
+  "control_results": []
+}

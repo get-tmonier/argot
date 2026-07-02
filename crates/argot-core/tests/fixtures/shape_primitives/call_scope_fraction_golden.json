@@ -380,7 +380,7 @@
    "expected_score": 0.0
   },
   {
-   "id": "ts_boundary_quirk_nested_counts_as_module",
+   "id": "ts_function_declaration_boundary",
    "cluster_files": [
     [
      "f_0.ts",
@@ -426,11 +426,11 @@
    "fit_language": "typescript",
    "fit_returns_none": false,
    "expected_baseline": {
-    "mean": 1.0,
+    "mean": 0.0,
     "std": 0.0
    },
    "score_baseline": {
-    "mean": 1.0,
+    "mean": 0.0,
     "std": 0.0
    },
    "score_language": "typescript",
@@ -439,7 +439,7 @@
    "expected_score": 0.0
   },
   {
-   "id": "ts_toplevel_matches",
+   "id": "ts_toplevel_hunk_vs_nested_cluster_fires",
    "cluster_files": [
     [
      "f_0.ts",
@@ -485,17 +485,17 @@
    "fit_language": "typescript",
    "fit_returns_none": false,
    "expected_baseline": {
-    "mean": 1.0,
+    "mean": 0.0,
     "std": 0.0
    },
    "score_baseline": {
-    "mean": 1.0,
+    "mean": 0.0,
     "std": 0.0
    },
    "score_language": "typescript",
    "hunk": "fetch(x);",
    "cluster_size": 10,
-   "expected_score": 0.0
+   "expected_score": 5.0
   },
   {
    "id": "py_garbage_hunk",

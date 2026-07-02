@@ -179,12 +179,16 @@ impl PythonAdapter {
     }
 
     /// Top-level module names imported in `source` (non-relative only).
+    ///
+    /// Error-tolerant like the TypeScript extractor: git picks hunk
+    /// boundaries, so check-time fragments routinely carry root parse errors
+    /// — tree-sitter still yields the well-formed import statements within,
+    /// and bailing on `has_error` silently disabled the import stage on
+    /// exactly the hunks check scores (measured: saleor framework-swap
+    /// fixtures through the production path).
     pub fn extract_imports(&self, source: &str) -> HashSet<String> {
         let tree = parse(source);
         let root = tree.root_node();
-        if root.has_error() {
-            return HashSet::new();
-        }
         let mut out = HashSet::new();
         for node in descendants(root) {
             match node.kind() {
@@ -214,9 +218,6 @@ impl PythonAdapter {
     pub fn extract_imports_with_spans(&self, source: &str) -> Vec<(String, usize, usize, usize)> {
         let tree = parse(source);
         let root = tree.root_node();
-        if root.has_error() {
-            return Vec::new();
-        }
         let mut out: Vec<(String, usize, usize, usize)> = Vec::new();
         for node in descendants(root) {
             match node.kind() {
@@ -284,6 +285,117 @@ impl PythonAdapter {
     /// True if the file is overwhelmingly static data literals (threshold 0.65).
     pub fn is_data_dominant(&self, source: &str) -> bool {
         data_dominant::is_data_dominant(source, 0.65)
+    }
+
+    /// 1-indexed line numbers covered by data-literal assignment spans.
+    pub fn data_literal_lines(&self, source: &str) -> HashSet<usize> {
+        data_dominant::data_literal_lines(source)
+    }
+
+    /// Names the source binds to callable definitions — `def`, `class`, and
+    /// `name = lambda …` assignments. Feeds local-binding attestation: code
+    /// calling what it defines is not foreign voice.
+    pub fn callable_definitions(&self, source: &str) -> HashSet<String> {
+        let tree = parse(source);
+        let mut out = HashSet::new();
+        for node in descendants(tree.root_node()) {
+            match node.kind() {
+                "function_definition" | "class_definition" => {
+                    if let Some(name) = node.child_by_field_name("name") {
+                        out.insert(node_text(name, source).to_string());
+                    }
+                }
+                "assignment" => {
+                    if let (Some(left), Some(right)) = (
+                        node.child_by_field_name("left"),
+                        node.child_by_field_name("right"),
+                    ) {
+                        if left.kind() == "identifier" && right.kind() == "lambda" {
+                            out.insert(node_text(left, source).to_string());
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+
+    /// Every locally bound value name — assignment targets, function
+    /// parameters, and `for` targets.
+    pub fn value_bindings(&self, source: &str) -> HashSet<String> {
+        let tree = parse(source);
+        let mut out = HashSet::new();
+        let collect_ids = |node: Node, out: &mut HashSet<String>| {
+            if node.kind() == "identifier" {
+                out.insert(node_text(node, source).to_string());
+                return;
+            }
+            for d in descendants(node) {
+                if d.kind() == "identifier" {
+                    out.insert(node_text(d, source).to_string());
+                }
+            }
+        };
+        for node in descendants(tree.root_node()) {
+            match node.kind() {
+                "assignment" | "augmented_assignment" => {
+                    if let Some(left) = node.child_by_field_name("left") {
+                        collect_ids(left, &mut out);
+                    }
+                }
+                "parameters" => {
+                    collect_ids(node, &mut out);
+                }
+                "for_statement" | "for_in_clause" => {
+                    if let Some(left) = node.child_by_field_name("left") {
+                        collect_ids(left, &mut out);
+                    }
+                }
+                // Imports bind names too (whether the module is in-voice is
+                // the import stage's question). `import a.b` binds `a`;
+                // `from m import y as z` binds `z` (else `y`).
+                "import_statement" | "import_from_statement" => {
+                    for name in field_children_of_kind(node, "name", "dotted_name") {
+                        out.insert(top_level(node_text(name, source)).to_string());
+                    }
+                    for name in field_children_of_kind(node, "name", "aliased_import") {
+                        if let Some(alias) = name.child_by_field_name("alias") {
+                            out.insert(node_text(alias, source).to_string());
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+
+    /// Names bound by relative imports (`from .x import y as z` binds `z`;
+    /// `from . import x` binds `x`). Repo-internal neighbours are not
+    /// foreign voice.
+    pub fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
+        let tree = parse(source);
+        let root = tree.root_node();
+        let mut out = HashSet::new();
+        for node in descendants(root) {
+            if node.kind() != "import_from_statement" {
+                continue;
+            }
+            // Relative iff the module_name field is a `relative_import`.
+            if field_children_of_kind(node, "module_name", "relative_import").is_empty() {
+                continue;
+            }
+            for name in field_children_of_kind(node, "name", "dotted_name") {
+                out.insert(top_level(node_text(name, source)).to_string());
+            }
+            for name in field_children_of_kind(node, "name", "aliased_import") {
+                if let Some(alias) = name.child_by_field_name("alias") {
+                    out.insert(node_text(alias, source).to_string());
+                }
+            }
+        }
+        out
     }
 
     /// True if the file header carries an auto-generation marker (head 20 lines).

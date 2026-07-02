@@ -6,6 +6,15 @@ interface Props {
   content: SiteContent;
 }
 const { features } = Astro.props.content;
+const count = features.items.length;
+/** A lone card in the final row reads as a layout bug — center it on the
+ *  3-column layout and let it span the full width on the 2-column one. */
+const orphanClasses = (i: number) => {
+  if (i !== count - 1) return '';
+  const lg = count % 3 === 1 ? ' lg:col-span-1 lg:col-start-2' : '';
+  const sm = count % 2 === 1 ? ' col-span-2' : '';
+  return sm + lg;
+};
 ---
 
 <section id="features" class="snap-section relative flex min-h-svh items-center">
@@ -19,7 +28,7 @@ const { features } = Astro.props.content;
       {
         features.items.map((item, i) => (
           <article
-            class="reveal group relative overflow-hidden rounded-2xl border border-line bg-panel/30 p-4 transition-all duration-300 hover:-translate-y-1 hover:border-line-2 hover:bg-panel/60 sm:p-6"
+            class={`reveal group relative overflow-hidden rounded-2xl border border-line bg-panel/30 p-4 transition-all duration-300 hover:-translate-y-1 hover:border-line-2 hover:bg-panel/60 sm:p-6${orphanClasses(i)}`}
             style={`--reveal-delay: ${(i % 3) * 80}ms`}
           >
             <div class="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line-2 bg-bg-2 font-mono text-xs text-ember sm:mb-4 sm:h-9 sm:w-9 sm:text-sm">

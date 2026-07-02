@@ -25,7 +25,12 @@ struct GoldenSample {
     ast_type_entropy: f64,
     unique_token_ratio: f64,
     is_atypical: bool,
-    is_atypical_file: bool,
+    /// Retained in the golden JSON for provenance; the file-level fallback
+    /// predicate was retired in era 15 (superseded by the scorer's
+    /// row-granular data gate), so it is no longer asserted.
+    #[serde(rename = "is_atypical_file")]
+    #[allow(dead_code)]
+    _is_atypical_file: bool,
 }
 
 fn load_golden() -> HashMap<String, HashMap<String, GoldenSample>> {
@@ -91,11 +96,6 @@ fn typicality_matches_golden() {
                 model.is_atypical(&sample.src).0,
                 sample.is_atypical,
                 "[{label}] is_atypical mismatch"
-            );
-            assert_eq!(
-                model.is_atypical_file(&sample.src).0,
-                sample.is_atypical_file,
-                "[{label}] is_atypical_file mismatch"
             );
         }
     }

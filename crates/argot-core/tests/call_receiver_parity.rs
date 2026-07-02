@@ -123,7 +123,8 @@ fn weighted_contribution_matches_python_golden_n_clusters_1() {
     .unwrap();
 
     for case in &wc.cases {
-        let got = scorer.weighted_contribution(&case.hunk, 2.0, 2.0, 5.0);
+        let got =
+            scorer.weighted_contribution(&case.hunk, 2.0, 2.0, 5.0, None, &Default::default());
         assert!(
             (got - case.weighted_contribution).abs() < 1e-12,
             "wc({:?}) = {got} != {}",

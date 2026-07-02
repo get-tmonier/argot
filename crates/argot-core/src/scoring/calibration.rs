@@ -1,7 +1,8 @@
 //! Calibration — port of `engine/argot/scoring/calibration/`.
 //!
 //! Collects sampleable hunks, calibrates a BPE threshold over multiple seeds,
-//! builds the evidence corpus, and emits `scorer-config.json` (v2).
+//! builds the evidence corpus, and emits `scorer-config.json` (v3, carrying
+//! the fit-time model snapshot).
 //!
 //! Calibration-hunk sampling reproduces numpy's `default_rng(seed).choice(...)`
 //! bit-for-bit (see [`crate::scoring::numpy_sampler`]), so the calibrated
@@ -13,7 +14,10 @@ use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::{Language, LanguageAdapter};
 use crate::scoring::bpe_scorer::BpeScorer;
 use crate::scoring::call_receiver::CallReceiverScorer;
+use crate::scoring::conventions::{fit_convention_frequencies, ConventionScorer};
+use crate::scoring::model::LanguageModel;
 use crate::scoring::typicality::TypicalityModel;
+use crate::suppress::PathSuppressions;
 use crate::text::{read_text_lossy, splitlines, splitlines_keepends};
 use anyhow::{bail, Result};
 use serde::Serialize;
@@ -21,7 +25,10 @@ use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 
 const MIN_BODY_LINES: usize = 5;
-const CONFIG_VERSION: u32 = 2;
+/// v3: adds the per-language `model` block (fit-time BPE stats + callee
+/// attestation snapshot) and repo-owned import modules. Check refuses other
+/// versions — regenerate via `argot fit`.
+const CONFIG_VERSION: u32 = 3;
 
 // Production call-receiver constants (match calibration defaults).
 const CR_ALPHA: f64 = 2.0;
@@ -30,28 +37,19 @@ const CR_ROOT_BONUS: f64 = 2.0;
 const CR_N_CLUSTERS: usize = 8;
 const CR_CLUSTER_SEED: u64 = 0;
 const CR_CLUSTER_BONUS: f64 = 5.0;
-
-const EXCLUDE_DIRS: &[&str] = &[
-    "test",
-    "tests",
-    "doc",
-    "docs",
-    "examples",
-    "example",
-    "migrations",
-    "migration",
-    "benchmarks",
-    "benchmark",
-    "fixtures",
-    "scripts",
-    "build",
-    "dist",
-    "__pycache__",
-    ".git",
-    ".history",
-    ".tox",
-    ".eggs",
-];
+/// Real diff hunks routinely start or end mid-construct (git picks hunk
+/// boundaries, not the parser), so a bare-fragment parse error is the NORM
+/// for check-time hunks, not an edge case — without the host fallback the
+/// call-receiver contributes 0 on exactly the hunks check scores. The
+/// calibration side has always applied the fallback (candidates carry their
+/// file region), so enabling it at check time is what makes the two paths
+/// symmetric. Era-14 gated it off based on catalog-mode FP with a forced
+/// cluster-rare rule; in production the rare rule is auto-detected per
+/// corpus, and the era-15 production-path FP controls re-validated it.
+const CR_PARSE_ERROR_FALLBACK: bool = true;
+/// Score added when a hunk's rarest present convention clears its calibrated
+/// bar (era 15; same magnitude as the cluster bonus).
+const CONVENTION_BONUS: f64 = 5.0;
 
 fn basename(path: &Path) -> String {
     path.file_name()
@@ -59,36 +57,16 @@ fn basename(path: &Path) -> String {
         .unwrap_or_default()
 }
 
-/// Port of `is_excluded_path`.
-fn is_excluded_path(path: &Path, source_dir: &Path) -> bool {
-    let rel = match path.strip_prefix(source_dir) {
-        Ok(r) => r,
-        Err(_) => return true,
-    };
-    let comps: Vec<String> = rel
-        .components()
-        .map(|c| c.as_os_str().to_string_lossy().into_owned())
-        .collect();
-    if comps.is_empty() {
-        return true;
+/// The built-in `argot:recommended` path exclusion (formerly the hardcoded
+/// list here; now [`crate::suppress::recommended_excluded`]). Public because
+/// the benchmark harness applies the same calibration-scope filter to real-PR
+/// control hunks — bench calls resolve to recommended-set-only semantics
+/// (lock-step: calibration scope and scoring scope must agree).
+pub fn is_excluded_path(path: &Path, source_dir: &Path) -> bool {
+    match crate::suppress::rel_string(path, source_dir) {
+        Some(rel) => crate::suppress::recommended_excluded(&rel),
+        None => true,
     }
-    for part in &comps[..comps.len() - 1] {
-        if EXCLUDE_DIRS.contains(&part.as_str()) || part.starts_with("test") || part == "__tests__"
-        {
-            return true;
-        }
-    }
-    let name = &comps[comps.len() - 1];
-    if name.starts_with("test_") || name == "conftest.py" {
-        return true;
-    }
-    if name.contains(".test.") || name.contains(".spec.") {
-        return true;
-    }
-    if name.contains(".config.") {
-        return true;
-    }
-    name.starts_with('.') && name[1..].contains("rc.")
 }
 
 /// Recursively list files under `dir` matching `ext` (e.g. ".py"), sorted.
@@ -114,15 +92,34 @@ fn rglob_sorted(dir: &Path, ext: &str) -> Vec<PathBuf> {
 }
 
 /// A calibration candidate: hunk text + originating file path + file source.
-struct Candidate {
-    hunk: String,
-    file_path: PathBuf,
-    file_source: String,
+/// Line bounds are 1-indexed inclusive within `file_source` and back the
+/// era-14 phase D parse-error callee fallback.
+pub struct Candidate {
+    pub hunk: String,
+    pub file_path: PathBuf,
+    pub file_source: String,
+    pub hunk_start_line: usize,
+    pub hunk_end_line: usize,
 }
 
 /// Port of `collect_candidates_with_metadata` (exclude_data_dominant=True,
-/// exclude_atypical=False).
-fn collect_candidates(source_dir: &Path, adapter: &dyn LanguageAdapter) -> Vec<Candidate> {
+/// exclude_atypical=False), against the built-in recommended path set only —
+/// existing callers (the benchmark harness) keep today's behaviour exactly.
+/// The production calibrator resolves `.argotignore` on top via
+/// [`collect_candidates_with`].
+pub fn collect_candidates(source_dir: &Path, adapter: &dyn LanguageAdapter) -> Vec<Candidate> {
+    collect_candidates_with(source_dir, adapter, &PathSuppressions::recommended())
+}
+
+/// [`collect_candidates`] against a fully resolved path-suppression set
+/// (recommended built-ins + `.argotignore`). Calibration sampling, the
+/// check-time scope filter, and `argot inspect` all consult the same
+/// [`PathSuppressions`] so their scopes stay in lock-step.
+pub fn collect_candidates_with(
+    source_dir: &Path,
+    adapter: &dyn LanguageAdapter,
+    path_suppressions: &PathSuppressions,
+) -> Vec<Candidate> {
     let exts: &[&str] = match adapter.language() {
         Language::Python => &[".py"],
         Language::Typescript => &[".ts", ".tsx"],
@@ -130,7 +127,7 @@ fn collect_candidates(source_dir: &Path, adapter: &dyn LanguageAdapter) -> Vec<C
     let mut out = Vec::new();
     for ext in exts {
         for src_file in rglob_sorted(source_dir, ext) {
-            if is_excluded_path(&src_file, source_dir) {
+            if path_suppressions.is_suppressed_abs(&src_file, source_dir) {
                 continue;
             }
             let source = match read_text_lossy(&src_file) {
@@ -156,6 +153,8 @@ fn collect_candidates(source_dir: &Path, adapter: &dyn LanguageAdapter) -> Vec<C
                     hunk,
                     file_path: src_file.clone(),
                     file_source: source.clone(),
+                    hunk_start_line: s + 1,
+                    hunk_end_line: e,
                 });
             }
         }
@@ -168,7 +167,8 @@ fn collect_candidates(source_dir: &Path, adapter: &dyn LanguageAdapter) -> Vec<C
 /// `sorted(np.random.default_rng(seed).choice(len, n, replace=False))`
 /// (see [`crate::scoring::numpy_sampler`]). Matching numpy's RNG here keeps the
 /// calibrated `max(cal_scores)` threshold identical to the Python engine.
-fn sample_indices(len: usize, n: usize, seed: u64) -> Vec<usize> {
+/// Public so the benchmark harness samples with the same RNG.
+pub fn sample_indices(len: usize, n: usize, seed: u64) -> Vec<usize> {
     crate::scoring::numpy_sampler::choice_sorted(len, n, seed)
 }
 
@@ -233,10 +233,17 @@ struct LangConfig {
     call_receiver_cluster_bonus: f64,
     call_receiver_cluster_rare_threshold: usize,
     call_receiver_cluster_size_min: usize,
+    call_receiver_parse_error_host_fallback: bool,
+    convention_bonus: f64,
     import_modules: Vec<String>,
     import_module_prefixes: Vec<String>,
     calibration: CalibrationMeta,
     evidence_corpus: EvidenceCorpusJson,
+    /// Fingerprint of `model` (deterministic serialization → stable hash).
+    model_hash: String,
+    /// Fit-time model snapshot: BPE token stats + callee attestation +
+    /// cluster partition. Check scores against this, never the live tree.
+    model: LanguageModel,
 }
 
 #[derive(Serialize)]
@@ -252,14 +259,19 @@ fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
     }
 }
 
-fn lang_name(language: Language) -> &'static str {
+/// Canonical config-key name for a scoring language ("python"/"typescript").
+/// Public so `inspect` reports under the same keys `scorer-config.json` uses.
+pub fn language_name(language: Language) -> &'static str {
     match language {
         Language::Python => "python",
         Language::Typescript => "typescript",
     }
 }
 
-fn lang_for_ext(name: &str) -> Option<Language> {
+/// Extension → language routing used to partition the corpus (`.py` → python;
+/// `.ts`/`.tsx`/`.js`/`.jsx` → typescript). Public so `inspect` classifies
+/// files with exactly the calibration routing.
+pub fn language_for_filename(name: &str) -> Option<Language> {
     let ext = match name.rfind('.') {
         Some(i) => &name[i..],
         None => return None,
@@ -284,7 +296,75 @@ fn median(mut v: Vec<f64>) -> f64 {
     }
 }
 
-/// Options for `run_calibrate` (defaults mirror the Python CLI).
+/// Knobs for [`multi_seed_thresholds`].
+pub struct ThresholdRunConfig {
+    /// Calibration hunks sampled per seed (callers pre-clamp to the candidate
+    /// count).
+    pub n_cal: usize,
+    /// First seed; seeds run `base_seed .. base_seed + n_seeds`.
+    pub base_seed: u64,
+    pub n_seeds: usize,
+    /// Cluster-bonus magnitude applied to calibration-side contributions.
+    pub cluster_bonus: f64,
+    /// Cap on unattested callees counted per hunk.
+    pub cap: f64,
+}
+
+/// Per-seed calibration thresholds: for each seed, `max` over sampled
+/// cal-hunk scores (BPE + cluster contribution at alpha/root_bonus 0).
+///
+/// Shared by the production calibrator ([`run_calibrate`] takes the median)
+/// and the benchmark harness (which also reports threshold CV across seeds) so
+/// both stay in lock-step. Whether optional contributions (cluster-rare,
+/// shape primitives) apply on the calibration side is decided by how the
+/// caller constructs `call_receiver` — the asymmetric-calibration default
+/// builds it with `cluster_rare_threshold = 0`.
+pub fn multi_seed_thresholds(
+    candidates: &[Candidate],
+    bpe: &BpeScorer,
+    call_receiver: &mut CallReceiverScorer,
+    adapter: &dyn LanguageAdapter,
+    typicality: &TypicalityModel,
+    cfg: &ThresholdRunConfig,
+) -> Vec<f64> {
+    let effective_n_cal = cfg.n_cal.min(candidates.len());
+    let mut seed_thresholds = Vec::new();
+    for k in 0..cfg.n_seeds {
+        let seed = cfg.base_seed.wrapping_add(k as u64);
+        let idx = sample_indices(candidates.len(), effective_n_cal, seed);
+        let mut cal_scores = Vec::new();
+        for &i in &idx {
+            let c = &candidates[i];
+            if typicality.is_atypical(&c.hunk).0 {
+                continue;
+            }
+            let prose = adapter.prose_line_ranges(&c.hunk);
+            let raw_bpe = bpe.bpe_score(&blank_prose_lines(&c.hunk, &prose));
+            // Cal side scores without local-binding attestation: candidates
+            // are corpus files whose callees are attested anyway, so the
+            // omission only leaves the threshold marginally conservative.
+            let contrib = call_receiver.weighted_contribution_for_file(
+                &c.hunk,
+                Some(&c.file_path),
+                0.0,
+                0.0,
+                cfg.cluster_bonus,
+                cfg.cap,
+                Some(&c.file_source),
+                Some((&c.file_source, c.hunk_start_line, c.hunk_end_line)),
+                &Default::default(),
+            );
+            cal_scores.push(raw_bpe + contrib);
+        }
+        // threshold_percentile default 100 → max.
+        let t = cal_scores.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        seed_thresholds.push(if t.is_finite() { t } else { 0.0 });
+    }
+    seed_thresholds
+}
+
+/// Options for `run_calibrate` (defaults mirror the Python CLI, including the
+/// era-13.5 asymmetric-calibration knobs the final Python calibrator shipped).
 pub struct CalibrateOptions {
     pub n_cal: usize,
     pub seed: u64,
@@ -292,17 +372,39 @@ pub struct CalibrateOptions {
     pub evidence_top_n: usize,
     pub repo_sha: String,
     pub timestamp_utc: String,
+    /// Cluster-rare threshold for the CHECK-time scorer: a callee attested in
+    /// ≤ N cluster files is treated as cluster-absent. 0 disables the rule
+    /// (pre-13.5 baseline). Calibration itself always runs with the rule off
+    /// (asymmetric calibration — see docs/agents/calibration-contract.md).
+    pub cluster_rare_threshold: usize,
+    /// Minimum cluster size for the rare rule to fire.
+    pub cluster_size_min: usize,
+    /// Per-corpus auto-detect: probe the calibration distribution's rare-rule
+    /// fire rate; keep the rule when it is discriminative (fire rate below
+    /// `asym_fire_rate_threshold`), disable it when noisy (would FP-flood).
+    pub auto_select_asym_cal: bool,
+    pub asym_fire_rate_threshold: f64,
 }
 
 impl Default for CalibrateOptions {
     fn default() -> Self {
         Self {
-            n_cal: 500,
+            // n_cal=100 × 7 seeds is the configuration every era's bench
+            // validated the recall/FP gates against. The production default
+            // previously sampled 500, which systematically raises the
+            // max-of-sample threshold above the validated one (measured:
+            // saleor 5.97 vs 5.44, hono 5.87 vs 4.27) and cost real recall
+            // through the production path.
+            n_cal: 100,
             seed: 0,
             n_seeds: 7,
             evidence_top_n: 50,
             repo_sha: "unknown".to_string(),
             timestamp_utc: String::new(),
+            cluster_rare_threshold: 2,
+            cluster_size_min: 0,
+            auto_select_asym_cal: true,
+            asym_fire_rate_threshold: 0.05,
         }
     }
 }
@@ -319,6 +421,11 @@ pub fn run_calibrate(
     output: &Path,
     opts: &CalibrateOptions,
 ) -> Result<Vec<(String, f64)>> {
+    // Canonicalize so candidate paths (rglobbed from here) share the corpus
+    // paths' prefix — cluster routing at calibration time must resolve by
+    // path exactly as check-time routing resolves against the model's
+    // repo-relative keys.
+    let repo_dir = &std::fs::canonicalize(repo_dir).unwrap_or_else(|_| repo_dir.to_path_buf());
     let corpus_txt = read_text_lossy(repo_corpus_path)
         .map_err(|_| anyhow::anyhow!("repo corpus not found: {}", repo_corpus_path.display()))?;
     let corpus_files: Vec<PathBuf> = corpus_txt
@@ -333,9 +440,9 @@ pub fn run_calibrate(
     // Partition corpus by language.
     let mut by_lang: BTreeMap<&'static str, (Language, Vec<PathBuf>)> = BTreeMap::new();
     for f in &corpus_files {
-        if let Some(lang) = lang_for_ext(&basename(f)) {
+        if let Some(lang) = language_for_filename(&basename(f)) {
             by_lang
-                .entry(lang_name(lang))
+                .entry(language_name(lang))
                 .or_insert_with(|| (lang, Vec::new()))
                 .1
                 .push(f.clone());
@@ -347,6 +454,10 @@ pub fn run_calibrate(
 
     let mut languages: BTreeMap<String, LangConfig> = BTreeMap::new();
     let mut thresholds_out: Vec<(String, f64)> = Vec::new();
+
+    // Resolved path-suppression set (recommended built-ins + `.argotignore`) —
+    // the same set `check` filters against (lock-step principle).
+    let path_suppressions = PathSuppressions::load(repo_dir);
 
     for (name, (language, lang_files)) in by_lang {
         let adapter = adapter_for(language);
@@ -370,16 +481,20 @@ pub fn run_calibrate(
         let sources: Vec<String> = corpus.iter().map(|(_, s)| s.clone()).collect();
 
         let bpe = BpeScorer::new(BpeTokenizer::load(), generic_baseline_json, &sources)?;
-        // import_modules = sorted(union of extract_imports over corpus).
-        // calibrate builds the scorer with repo_root=None, so no
-        // resolve_repo_modules (exact/prefix) contribution; prefixes stay empty.
-        let mut repo_modules: HashSet<String> = HashSet::new();
+        // import_modules = corpus imports + repo-owned module names
+        // (package/tsconfig aliases). Folding resolve_repo_modules matches
+        // the bench scorer's import surface: a repo-internal module the
+        // corpus never happened to import is still not a foreign voice.
+        let mut modules: HashSet<String> = HashSet::new();
         for s in &sources {
-            repo_modules.extend(adapter.extract_imports(s));
+            modules.extend(adapter.extract_imports(s));
         }
-        let mut import_modules: Vec<String> = repo_modules.into_iter().collect();
+        let resolved = adapter.resolve_repo_modules(repo_dir);
+        modules.extend(resolved.exact.iter().cloned());
+        let mut import_modules: Vec<String> = modules.into_iter().collect();
         import_modules.sort();
-        let import_module_prefixes: Vec<String> = Vec::new();
+        let mut import_module_prefixes: Vec<String> = resolved.prefixes.into_iter().collect();
+        import_module_prefixes.sort();
         let mut call_receiver = CallReceiverScorer::new(
             corpus,
             language,
@@ -394,25 +509,39 @@ pub fn run_calibrate(
         .map_err(anyhow::Error::msg)?;
 
         // Candidates for sampling.
-        let candidates = collect_candidates(repo_dir, adapter.as_ref());
+        let candidates = collect_candidates_with(repo_dir, adapter.as_ref(), &path_suppressions);
         let effective_n_cal = opts.n_cal.min(candidates.len());
         let typicality = TypicalityModel::new(language);
 
-        // Multi-seed threshold: per seed, max over sampled cal-hunk scores
-        // (bpe + cluster_bonus contribution, alpha/root_bonus 0), median.
-        let mut seed_thresholds = Vec::new();
-        for k in 0..opts.n_seeds {
-            let seed = opts.seed.wrapping_add(k as u64);
-            let idx = sample_indices(candidates.len(), effective_n_cal, seed);
-            let mut cal_scores = Vec::new();
+        // Era-13.5 per-corpus auto-detect: probe the rare rule's fire rate on
+        // sampled calibration hunks; a rule that fires often on ordinary code
+        // would FP-flood at check time, so fall back to baseline (rare=0).
+        let mut resolved_rare = opts.cluster_rare_threshold;
+        if opts.auto_select_asym_cal
+            && resolved_rare > 0
+            && CR_N_CLUSTERS > 1
+            && !candidates.is_empty()
+        {
+            let mut probe_cr = CallReceiverScorer::new(
+                corpus,
+                language,
+                CR_ALPHA,
+                CR_CAP,
+                adapter.as_ref(),
+                CR_N_CLUSTERS,
+                CR_CLUSTER_SEED,
+                resolved_rare,
+                opts.cluster_size_min,
+            )
+            .map_err(anyhow::Error::msg)?;
+            let idx = sample_indices(candidates.len(), effective_n_cal, opts.seed);
+            let mut hunks_scored = 0usize;
             for &i in &idx {
                 let c = &candidates[i];
                 if typicality.is_atypical(&c.hunk).0 {
                     continue;
                 }
-                let prose = adapter.prose_line_ranges(&c.hunk);
-                let raw_bpe = bpe.bpe_score(&blank_prose_lines(&c.hunk, &prose));
-                let contrib = call_receiver.weighted_contribution_for_file(
+                probe_cr.weighted_contribution_for_file(
                     &c.hunk,
                     Some(&c.file_path),
                     0.0,
@@ -420,13 +549,44 @@ pub fn run_calibrate(
                     CR_CLUSTER_BONUS,
                     CR_CAP as f64,
                     Some(&c.file_source),
+                    Some((&c.file_source, c.hunk_start_line, c.hunk_end_line)),
+                    &Default::default(),
                 );
-                cal_scores.push(raw_bpe + contrib);
+                hunks_scored += 1;
             }
-            // threshold_percentile default 100 → max.
-            let t = cal_scores.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-            seed_thresholds.push(if t.is_finite() { t } else { 0.0 });
+            let fire_rate = probe_cr.rare_branch_hunks_fired as f64 / hunks_scored.max(1) as f64;
+            let keep_rule = fire_rate < opts.asym_fire_rate_threshold;
+            eprintln!(
+                "[{name}][auto-asym] cluster_rare probe: rare_hunks_fired={}/{} fire_rate={:.3} threshold={:.3} → {}",
+                probe_cr.rare_branch_hunks_fired,
+                hunks_scored,
+                fire_rate,
+                opts.asym_fire_rate_threshold,
+                if keep_rule {
+                    "KEEP rule"
+                } else {
+                    "DISABLE rule (rare=0)"
+                }
+            );
+            if !keep_rule {
+                resolved_rare = 0;
+            }
         }
+
+        let seed_thresholds = multi_seed_thresholds(
+            &candidates,
+            &bpe,
+            &mut call_receiver,
+            adapter.as_ref(),
+            &typicality,
+            &ThresholdRunConfig {
+                n_cal: effective_n_cal,
+                base_seed: opts.seed,
+                n_seeds: opts.n_seeds,
+                cluster_bonus: CR_CLUSTER_BONUS,
+                cap: CR_CAP as f64,
+            },
+        );
         let threshold = median(seed_thresholds);
 
         // Evidence corpus.
@@ -436,6 +596,46 @@ pub fn run_calibrate(
             &call_receiver,
             opts.evidence_top_n,
         );
+
+        // Convention-rarity model: corpus frequencies plus firing bars set at
+        // the max feature value over the same multi-seed calibration sample
+        // the threshold uses — the stage stays silent on in-voice code, and
+        // per the calibration contract it never feeds the threshold itself.
+        let mut convention_model = fit_convention_frequencies(corpus, language);
+        {
+            // Bars over ALL candidates (not the threshold's n_cal sample):
+            // the bar is a max-gate, so sampling only adds noise — a smaller
+            // sample lowers the bar and fires the stage on ordinary code.
+            // Over the full candidate population the bar is deterministic
+            // and maximally conservative: a convention fires only when rarer
+            // than anything the repo's own sampleable code contains.
+            let conv = ConventionScorer::new(convention_model.clone(), language);
+            let mut syntax_bar = 0.0f64;
+            let mut ident_bar = 0.0f64;
+            for c in &candidates {
+                if typicality.is_atypical(&c.hunk).0 {
+                    continue;
+                }
+                let scores = conv.scores(
+                    &c.hunk,
+                    Some((&c.file_source, c.hunk_start_line, c.hunk_end_line)),
+                );
+                syntax_bar = syntax_bar.max(scores.syntax_surprisal);
+                ident_bar = ident_bar.max(scores.ident_surprisal);
+            }
+            convention_model.syntax_bar = syntax_bar;
+            convention_model.ident_bar = ident_bar;
+        }
+
+        // Fit-time model snapshot: the calibration call-receiver's fitted
+        // state is threshold-parameter-independent (rare/alpha are scoring
+        // knobs, not fitted state), so exporting from it is exact.
+        let model = LanguageModel {
+            bpe: bpe.stats(),
+            call_receiver: call_receiver.export_model(repo_dir),
+            conventions: Some(convention_model),
+        };
+        let model_hash = model.hash();
 
         thresholds_out.push((name.to_string(), threshold));
         languages.insert(
@@ -448,8 +648,10 @@ pub fn run_calibrate(
                 call_receiver_n_clusters: CR_N_CLUSTERS,
                 call_receiver_cluster_seed: CR_CLUSTER_SEED,
                 call_receiver_cluster_bonus: CR_CLUSTER_BONUS,
-                call_receiver_cluster_rare_threshold: 0,
-                call_receiver_cluster_size_min: 0,
+                call_receiver_cluster_rare_threshold: resolved_rare,
+                call_receiver_cluster_size_min: opts.cluster_size_min,
+                call_receiver_parse_error_host_fallback: CR_PARSE_ERROR_FALLBACK,
+                convention_bonus: CONVENTION_BONUS,
                 import_modules,
                 import_module_prefixes,
                 calibration: CalibrationMeta {
@@ -460,6 +662,8 @@ pub fn run_calibrate(
                     timestamp_utc: opts.timestamp_utc.clone(),
                 },
                 evidence_corpus: evidence,
+                model_hash,
+                model,
             },
         );
     }

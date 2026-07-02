@@ -5,6 +5,7 @@
 //! port of `_token_surprise` / `_bpe_score` / `_is_meaningful_token`.
 
 use crate::bpe::BpeTokenizer;
+use crate::scoring::model::BpeStats;
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -74,6 +75,45 @@ impl BpeScorer {
         })
     }
 
+    /// Build from a fit-time [`BpeStats`] snapshot instead of re-tokenizing
+    /// the corpus — the check-time path. The snapshot pins the repo token
+    /// distribution to what it was at fit time, so new code cannot dilute its
+    /// own surprise.
+    pub fn from_stats(
+        tokenizer: BpeTokenizer,
+        generic_baseline_json: &[u8],
+        stats: &BpeStats,
+    ) -> Result<Self> {
+        let mut scorer = Self::new(tokenizer, generic_baseline_json, &[])?;
+        let mut repo_corpus = HashMap::with_capacity(stats.token_counts.len());
+        for (k, v) in &stats.token_counts {
+            let id: u32 = k.parse().context("model bpe token id")?;
+            repo_corpus.insert(id, *v);
+        }
+        scorer.repo_corpus = repo_corpus;
+        scorer.total_repo = if stats.total_tokens == 0 {
+            1.0
+        } else {
+            stats.total_tokens as f64
+        };
+        Ok(scorer)
+    }
+
+    /// Export the fitted repo token distribution as a [`BpeStats`] snapshot.
+    pub fn stats(&self) -> BpeStats {
+        let token_counts = self
+            .repo_corpus
+            .iter()
+            .map(|(id, count)| (id.to_string(), *count))
+            .collect();
+        BpeStats {
+            token_counts,
+            // Persist the raw corpus total; `from_stats` reapplies the
+            // "or 1" guard, so a genuinely empty corpus roundtrips.
+            total_tokens: self.repo_corpus.values().sum(),
+        }
+    }
+
     pub fn total_repo(&self) -> f64 {
         self.total_repo
     }
@@ -118,5 +158,36 @@ impl BpeScorer {
     /// Access the underlying tokenizer (evidence collectors need it).
     pub fn tokenizer(&self) -> &BpeTokenizer {
         &self.tokenizer
+    }
+
+    /// The BPE stage's reachable ceiling for this repo: the maximum surprise
+    /// any single meaningful token can score. A hunk's BPE score is a max
+    /// over its tokens, so no hunk can exceed this — comparing it against the
+    /// calibrated threshold tells whether phrasing detection (as opposed to
+    /// the import tripwire) can fire at all.
+    ///
+    /// The max is taken over the generic baseline's meaningful tokens that
+    /// are absent from the repo corpus (repo-seen tokens only lower the
+    /// surprise), falling back to all meaningful tokens when the corpus has
+    /// seen everything.
+    pub fn max_token_surprise_ceiling(&self) -> f64 {
+        let mut best = f64::NEG_INFINITY;
+        let mut best_any = f64::NEG_INFINITY;
+        for id in self.generic_baseline.keys() {
+            if !self.is_meaningful_token_id(*id) {
+                continue;
+            }
+            let s = self.token_surprise(*id);
+            best_any = best_any.max(s);
+            if !self.repo_corpus.contains_key(id) {
+                best = best.max(s);
+            }
+        }
+        let ceiling = if best.is_finite() { best } else { best_any };
+        if ceiling.is_finite() {
+            ceiling
+        } else {
+            0.0
+        }
     }
 }

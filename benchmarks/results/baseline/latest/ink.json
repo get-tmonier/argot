@@ -1,0 +1,209 @@
+{
+  "corpus": "ink",
+  "language": "typescript",
+  "n_fixtures": 17,
+  "n_flagged_fixtures": 16,
+  "uncaught": [
+    "ink_dom_access_2"
+  ],
+  "n_controls": 16678,
+  "n_eligible_controls": 7185,
+  "n_false_positives": 104,
+  "fp_rate": 0.014474599860821155,
+  "auc": 0.990552212534283,
+  "threshold": 4.9931728260805714,
+  "seed_thresholds": [
+    4.9931728260805714,
+    4.155504070897619,
+    4.9931728260805714,
+    4.9931728260805714,
+    4.9931728260805714,
+    4.9931728260805714,
+    4.9931728260805714
+  ],
+  "threshold_cv": 0.060146229785818586,
+  "resolved_rare_threshold": 0,
+  "recall_by_category": {
+    "class_components": [
+      4,
+      4
+    ],
+    "dom_access": [
+      2,
+      3
+    ],
+    "error_flip": [
+      3,
+      3
+    ],
+    "jquery": [
+      4,
+      4
+    ],
+    "lifecycle": [
+      3,
+      3
+    ]
+  },
+  "stage_attribution": {
+    "bpe": 15,
+    "call_receiver": 1,
+    "none": 1
+  },
+  "fixture_results": [
+    {
+      "id": "ink_class_components_1",
+      "category": "class_components",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 8.83283386299753,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "ink_class_components_2",
+      "category": "class_components",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 8.83283386299753,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "ink_class_components_3",
+      "category": "class_components",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 8.83283386299753,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "ink_lifecycle_1",
+      "category": "lifecycle",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.42764461424083,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "ink_lifecycle_2",
+      "category": "lifecycle",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.42764461424083,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "ink_lifecycle_3",
+      "category": "lifecycle",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.42764461424083,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "ink_dom_access_1",
+      "category": "dom_access",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 2.104945556448424,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "ink_dom_access_2",
+      "category": "dom_access",
+      "difficulty": "uncaught",
+      "import_score": 0.0,
+      "bpe_score": 4.214977345805778,
+      "flagged": false,
+      "reason": "none"
+    },
+    {
+      "id": "ink_dom_access_3",
+      "category": "dom_access",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 6.310104938736828,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "ink_jquery_1",
+      "category": "jquery",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.42764461424083,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "ink_jquery_2",
+      "category": "jquery",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.42764461424083,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "ink_jquery_3",
+      "category": "jquery",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 8.356604874849053,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "ink_error_flip_1",
+      "category": "error_flip",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 8.83283386299753,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "ink_error_flip_2",
+      "category": "error_flip",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 8.83283386299753,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "ink_error_flip_3",
+      "category": "error_flip",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 8.83283386299753,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "ink_jquery_4",
+      "category": "jquery",
+      "difficulty": "easy",
+      "import_score": 1.0,
+      "bpe_score": 5.42764461424083,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "ink_class_components_4",
+      "category": "class_components",
+      "difficulty": "easy",
+      "import_score": 0.0,
+      "bpe_score": 8.83283386299753,
+      "flagged": true,
+      "reason": "bpe"
+    }
+  ],
+  "control_results": []
+}

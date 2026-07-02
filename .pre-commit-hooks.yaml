@@ -1,0 +1,20 @@
+# Hooks for the pre-commit framework (https://pre-commit.com).
+#
+# argot is a prebuilt static binary, not a Python/Node package, so this hook
+# uses `language: system`: pre-commit will NOT install argot for you. The
+# `argot` binary must already be on PATH (curl installer or
+# `npm install -g @tmonier/argot` — see the README), and the repo must be
+# fitted once (`argot extract && argot fit`) before the hook can score
+# anything; an unfitted repo fails with exit 2 and a "run `argot fit`" hint.
+#
+# The hook scores staged changes only (`argot check --staged`), which keeps
+# it fast and scoped to what the commit will actually contain.
+- id: argot-check
+  name: argot check (staged changes)
+  description: Score staged hunks against the repo's fitted voice model.
+  entry: argot check --staged
+  language: system
+  # argot reads the staged diff from git itself; filenames would be redundant.
+  pass_filenames: false
+  # Only fire when files argot can score are staged.
+  types_or: [python, ts, tsx, javascript, jsx]

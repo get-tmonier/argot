@@ -1,0 +1,158 @@
+{
+  "corpus": "saleor",
+  "n_fixtures": 14,
+  "n_caught": 14,
+  "uncaught": [],
+  "thresholds": {
+    "python": 4.945252095377196
+  },
+  "resolved_rare": {
+    "python": 0
+  },
+  "fp_commits": 30,
+  "fp_hunks": 145,
+  "fp_hits": 3,
+  "fp_rate": 0.020689655172413793,
+  "fixture_results": [
+    {
+      "id": "raw_sql_1",
+      "category": "raw_sql",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 4.7360539606617085
+    },
+    {
+      "id": "raw_sql_2",
+      "category": "raw_sql",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 4.77764046499694
+    },
+    {
+      "id": "foreign_http_1",
+      "category": "foreign_http",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 5.968096457435623
+    },
+    {
+      "id": "foreign_http_2",
+      "category": "foreign_http",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 4.7360539606617085
+    },
+    {
+      "id": "thread_background_1",
+      "category": "thread_background",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 5.494363328597668
+    },
+    {
+      "id": "thread_background_2",
+      "category": "thread_background",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 5.095499622681928
+    },
+    {
+      "id": "framework_swap_1",
+      "category": "framework_swap",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 4.7360539606617085
+    },
+    {
+      "id": "framework_swap_2",
+      "category": "framework_swap",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 4.933260536484301
+    },
+    {
+      "id": "print_debug_1",
+      "category": "print_debug",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 4.7360539606617085
+    },
+    {
+      "id": "print_debug_2",
+      "category": "print_debug",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 4.7360539606617085
+    },
+    {
+      "id": "sleep_polling_1",
+      "category": "sleep_polling",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 7.672526488331739
+    },
+    {
+      "id": "sleep_polling_2",
+      "category": "sleep_polling",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 4.7360539606617085
+    },
+    {
+      "id": "shell_out_1",
+      "category": "shell_out",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.727021945266758
+    },
+    {
+      "id": "shell_out_2",
+      "category": "shell_out",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 6.357460435899906
+    }
+  ]
+}

@@ -37,6 +37,16 @@ export interface SiteContent {
     readonly body: string;
     readonly items: readonly Feature[];
   };
+  readonly proof: {
+    readonly label: string;
+    readonly title: string;
+    readonly stats: readonly {
+      readonly value: string;
+      readonly title: string;
+      readonly desc: string;
+    }[];
+    readonly finePrint: string;
+  };
   readonly local: {
     readonly label: string;
     readonly title: string;

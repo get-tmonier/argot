@@ -1,0 +1,193 @@
+{
+  "corpus": "outline",
+  "language": "typescript",
+  "n_fixtures": 14,
+  "n_flagged_fixtures": 10,
+  "uncaught": [
+    "outline_jquery_1",
+    "outline_foreign_http_2",
+    "outline_class_components_1",
+    "outline_class_components_2"
+  ],
+  "n_controls": 29470,
+  "n_eligible_controls": 24482,
+  "n_false_positives": 113,
+  "fp_rate": 0.0046156359774528226,
+  "auc": 0.8794172394879036,
+  "threshold": 5.003544212746723,
+  "seed_thresholds": [
+    3.964494468970976,
+    5.003544212746723,
+    4.838022934811994,
+    5.589546559101411,
+    5.4206729730006,
+    5.4206729730006,
+    4.3910404339388425
+  ],
+  "threshold_cv": 0.11205981766713038,
+  "resolved_rare_threshold": 0,
+  "recall_by_category": {
+    "class_components": [
+      0,
+      2
+    ],
+    "express_idioms": [
+      2,
+      2
+    ],
+    "foreign_http": [
+      1,
+      2
+    ],
+    "jquery": [
+      1,
+      2
+    ],
+    "raw_sql": [
+      2,
+      2
+    ],
+    "redux_boilerplate": [
+      2,
+      2
+    ],
+    "shell_out": [
+      2,
+      2
+    ]
+  },
+  "stage_attribution": {
+    "bpe": 4,
+    "call_receiver": 6,
+    "none": 4
+  },
+  "fixture_results": [
+    {
+      "id": "outline_jquery_1",
+      "category": "jquery",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 2.0372205525060973,
+      "flagged": false,
+      "reason": "none"
+    },
+    {
+      "id": "outline_jquery_2",
+      "category": "jquery",
+      "difficulty": "easy",
+      "import_score": 1.0,
+      "bpe_score": 2.291761829977588,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "outline_redux_boilerplate_1",
+      "category": "redux_boilerplate",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 2.4944805667304486,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "outline_redux_boilerplate_2",
+      "category": "redux_boilerplate",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 2.0161114718091824,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "outline_express_idioms_1",
+      "category": "express_idioms",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 1.4158468770416306,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "outline_express_idioms_2",
+      "category": "express_idioms",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 1.6478268358286776,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "outline_raw_sql_1",
+      "category": "raw_sql",
+      "difficulty": "easy",
+      "import_score": 1.0,
+      "bpe_score": 5.873197951083286,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "outline_raw_sql_2",
+      "category": "raw_sql",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.246826464598678,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "outline_foreign_http_1",
+      "category": "foreign_http",
+      "difficulty": "easy",
+      "import_score": 1.0,
+      "bpe_score": 2.5684437144323287,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "outline_foreign_http_2",
+      "category": "foreign_http",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 1.5495982598299918,
+      "flagged": false,
+      "reason": "none"
+    },
+    {
+      "id": "outline_shell_out_1",
+      "category": "shell_out",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.858003940173219,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "outline_shell_out_2",
+      "category": "shell_out",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 6.80389423463901,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "outline_class_components_1",
+      "category": "class_components",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 2.750512753628886,
+      "flagged": false,
+      "reason": "none"
+    },
+    {
+      "id": "outline_class_components_2",
+      "category": "class_components",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 1.784103267932343,
+      "flagged": false,
+      "reason": "none"
+    }
+  ],
+  "control_results": []
+}

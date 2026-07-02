@@ -1,0 +1,140 @@
+corpus: wagtail
+language: python
+categories:
+- raw_sql
+- http_in_model
+- threading_concurrency
+- framework_swap
+- print_debug
+- sleep_polling
+- subprocess_shell
+injection_hosts:
+- pr: 0
+  sha: 6e0e6d950f6fe68360d68d833fd23b94f172cee7
+fixtures:
+- id: raw_sql_1
+  file: breaks/break_raw_sql_1.py
+  category: raw_sql
+  hunk_start_line: 14
+  hunk_end_line: 51
+  difficulty: easy
+  rationale: "psycopg2.connect + hand-written SQL on wagtailcore_page with commit/rollback replaces PageQuerySet tree queries — psycopg2 and cursor.execute appear at 0 wagtail production sites; the ORM (Page.objects / QuerySet chains) is the universal data-access voice"
+  host_file: wagtail/query.py
+  host_inject_at_line: 655
+- id: raw_sql_2
+  file: breaks/break_raw_sql_2.py
+  category: raw_sql
+  hunk_start_line: 17
+  hunk_end_line: 41
+  difficulty: medium
+  rationale: "django.db connection.cursor() with hand-written SQL strings (GROUP BY, DELETE ... WHERE NOT EXISTS, VACUUM) maintains the reference index — no foreign import in hunk, django.db vocabulary is corpus-familiar, but connection.cursor()/cursor.execute appear at 0 wagtail production sites"
+  host_file: wagtail/models/reference_index.py
+  host_inject_at_line: 94
+- id: http_in_model_1
+  file: breaks/break_http_in_model_1.py
+  category: http_in_model
+  hunk_start_line: 19
+  hunk_end_line: 49
+  difficulty: medium
+  rationale: "requests.post webhook with retry loop and requests.get metadata fetch inside Page model code — requests appears only in 2 dedicated backend modules (frontend_cache/cloudflare, embeds/oembed), never in model/page code; blocking HTTP in a publish flow is foreign to wagtail's signal/task-based side effects"
+  host_file: wagtail/models/pages.py
+  host_inject_at_line: 2629
+- id: http_in_model_2
+  file: breaks/break_http_in_model_2.py
+  category: http_in_model
+  hunk_start_line: 17
+  hunk_end_line: 43
+  difficulty: medium
+  rationale: "httpx.Client fetches oEmbed JSON directly, bypassing the configured finder chain (get_finders/finder.accept/finder.find_embed) — httpx appears at 0 wagtail corpus sites; wagtail's embeds voice is finder dispatch + Embed model caching"
+  host_file: wagtail/embeds/embeds.py
+  host_inject_at_line: 68
+- id: threading_1
+  file: breaks/break_threading_1.py
+  category: threading_concurrency
+  hunk_start_line: 14
+  hunk_end_line: 48
+  difficulty: easy
+  rationale: "threading.Thread worker pool + Lock + Queue class copies pages in parallel — import threading and queue.Queue appear at 0 wagtail production sites; page copy is a plain synchronous action class (CopyPageAction) in the corpus"
+  host_file: wagtail/actions/copy_page.py
+  host_inject_at_line: 31
+- id: threading_2
+  file: breaks/break_threading_2.py
+  category: threading_concurrency
+  hunk_start_line: 18
+  hunk_end_line: 40
+  difficulty: medium
+  rationale: "multiprocessing.Pool.map fans out model-instance copying across processes — multiprocessing appears at 0 wagtail production sites (only one ThreadPoolExecutor exists, in images/models.py); model copying in the corpus is synchronous in-process field extraction"
+  host_file: wagtail/models/copying.py
+  host_inject_at_line: 96
+- id: framework_swap_1
+  file: breaks/break_framework_swap_1.py
+  category: framework_swap
+  hunk_start_line: 14
+  hunk_end_line: 59
+  difficulty: easy
+  rationale: "Flask app with @app.route(methods=[...]), request.args.get, request.get_json, jsonify, abort, and app.run(debug=True) serving admin data — flask appears at 0 wagtail corpus sites; wagtail admin views are Django class-based views + TemplateResponse"
+  host_file: wagtail/admin/views/home.py
+  host_inject_at_line: 352
+- id: framework_swap_2
+  file: breaks/break_framework_swap_2.py
+  category: framework_swap
+  hunk_start_line: 19
+  hunk_end_line: 60
+  difficulty: medium
+  rationale: "FastAPI APIRouter + pydantic BaseModel + Depends + async def endpoints replace wagtail's DRF-style BaseAPIViewSet — fastapi, pydantic, and async def appear at 0 wagtail production sites; the corpus API voice is GenericViewSet subclasses with serializer classes"
+  host_file: wagtail/api/v2/views.py
+  host_inject_at_line: 437
+- id: print_debug_1
+  file: breaks/break_print_debug_1.py
+  category: print_debug
+  hunk_start_line: 24
+  hunk_end_line: 44
+  difficulty: hard
+  rationale: "print() debugging + pdb.set_trace + hand-built json.dumps HttpResponse in an otherwise idiomatic admin edit flow (get_object_or_404, .specific, get_edit_handler, save_revision) — print() appears only in wagtail/bin CLI with noqa T201; views use logger and JsonResponse. Single axis: debug statements amid in-voice Django vocabulary"
+  host_file: wagtail/admin/views/pages/edit.py
+  host_inject_at_line: 52
+- id: print_debug_2
+  file: breaks/break_print_debug_2.py
+  category: print_debug
+  hunk_start_line: 16
+  hunk_end_line: 44
+  difficulty: medium
+  rationale: "signal handlers that print() DEBUG f-strings + sys.stdout.flush + traceback.print_exc instead of the module logger — canonical corpus pattern is logger = logging.getLogger(\"wagtail\") + logger.info (signal_handlers.py:39); print(), sys.stdout, and traceback.print_exc appear only in the wagtail/bin CLI, 0 signal/model production sites"
+  host_file: wagtail/signal_handlers.py
+  host_inject_at_line: 108
+- id: sleep_polling_1
+  file: breaks/break_sleep_polling_1.py
+  category: sleep_polling
+  hunk_start_line: 17
+  hunk_end_line: 40
+  difficulty: hard
+  rationale: "while + time.sleep polling loops with refresh_from_db wait on workflow task state — all ORM vocabulary (filter, count, refresh_from_db, status fields) is in-voice; the break is the blocking poll structure. time.sleep appears at 0 wagtail production sites; workflow progression is event-driven (task_approved / on_action)"
+  host_file: wagtail/models/workflows.py
+  host_inject_at_line: 1163
+- id: sleep_polling_2
+  file: breaks/break_sleep_polling_2.py
+  category: sleep_polling
+  hunk_start_line: 16
+  hunk_end_line: 37
+  difficulty: medium
+  rationale: "time.sleep exponential backoff + CDN propagation polling around purge_batch — wagtail's frontend_cache voice is fire-and-forget batch purge (PurgeBatch.purge) with logger warnings on failure; time.sleep at 0 production sites"
+  host_file: wagtail/contrib/frontend_cache/utils.py
+  host_inject_at_line: 178
+- id: subprocess_1
+  file: breaks/break_subprocess_1.py
+  category: subprocess_shell
+  hunk_start_line: 14
+  hunk_end_line: 38
+  difficulty: medium
+  rationale: "subprocess.run(shell=True) + subprocess.check_output shell out to ImageMagick convert/identify for renditions — import subprocess appears at 0 wagtail production sites; the corpus image voice is the Willow pipeline (image.get_willow_image / rendition models)"
+  host_file: wagtail/images/models.py
+  host_inject_at_line: 1199
+- id: subprocess_2
+  file: breaks/break_subprocess_2.py
+  category: subprocess_shell
+  hunk_start_line: 14
+  hunk_end_line: 33
+  difficulty: medium
+  rationale: "os.system string-interpolated clamscan/mv plus subprocess tar/rm file shuffling on documents — os.system and subprocess appear at 0 wagtail production sites; document files go through Django storage APIs (document.file / FieldFile)"
+  host_file: wagtail/documents/models.py
+  host_inject_at_line: 213

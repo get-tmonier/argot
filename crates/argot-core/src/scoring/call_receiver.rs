@@ -15,9 +15,11 @@
 
 use crate::scoring::adapters::{Language, LanguageAdapter};
 use crate::scoring::minhash_params_seed0::{MINHASH_A_SEED0, MINHASH_B_SEED0};
+use crate::scoring::model::{CallReceiverModel, ClusterModel};
+use crate::scoring::shape_primitive::{Baseline, ShapePrimitive};
 use crate::scoring::ts_parse::parse;
 use md5::{Digest, Md5};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use tree_sitter::Node;
 
@@ -79,6 +81,14 @@ fn extract_typescript_callee(call_node: Node, src: &[u8]) -> Option<String> {
         Some(parts.join("."))
     } else if ts_call_types(callee.kind()) {
         parts.insert(0, "<call>".to_string());
+        Some(parts.join("."))
+    } else if matches!(callee.kind(), "this" | "super") {
+        // `this.method()` / `super.method()` — Python's `self.method` has
+        // always been extracted (self is a plain identifier); TypeScript's
+        // `this` is its own node kind, which the original walk dropped,
+        // leaving class-internal call voice invisible (the legacy-lifecycle
+        // and class-component break families all live in this namespace).
+        parts.insert(0, node_text(callee, src));
         Some(parts.join("."))
     } else {
         None
@@ -146,6 +156,45 @@ fn non_none_callees(source: &str, language: Language) -> Vec<String> {
         .into_iter()
         .flatten()
         .collect()
+}
+
+/// Callees of every call-expression whose start line falls inside the
+/// 1-indexed inclusive `[start_line, end_line]` region of `source`.
+///
+/// Era-14 phase D: when a bare hunk's parse has root-level errors, callee
+/// extraction falls back to the hunk's region within its host file's AST —
+/// the host parses cleanly where the fragment did not.
+pub fn callees_in_source_region(
+    source: &str,
+    language: Language,
+    start_line: usize,
+    end_line: usize,
+) -> Vec<String> {
+    let tree = match parse(source, language) {
+        Some(t) => t,
+        None => return Vec::new(),
+    };
+    let bytes = source.as_bytes();
+    let is_call = match language {
+        Language::Python => py_call_types as fn(&str) -> bool,
+        Language::Typescript => ts_call_types as fn(&str) -> bool,
+    };
+    let extractor = match language {
+        Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::Typescript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
+    };
+    let mut out = Vec::new();
+    walk_preorder(tree.root_node(), |node| {
+        if is_call(node.kind()) {
+            let line = node.start_position().row + 1;
+            if line >= start_line && line <= end_line {
+                if let Some(c) = extractor(node, bytes) {
+                    out.push(c);
+                }
+            }
+        }
+    });
+    out
 }
 
 /// 128-element MinHash signature over a callee bag using the seed-0 universal
@@ -333,6 +382,101 @@ fn cluster_by_signatures(
     (file_to_cluster, cluster_sizes)
 }
 
+/// Names the change binds locally, split by how they attest callees.
+///
+/// * `callables` — function/class definitions, function-valued variables,
+///   import bindings, changeset-wide definitions. Attest bare callees AND
+///   dotted callees via their root (`helpers.run()` with `helpers` imported).
+/// * `values` — every other local value binding (destructured names, plain
+///   consts/vars, parameters). Attest BARE callees only: calling a value you
+///   just bound (a `useState` setter, an injected callback) is neighbourhood
+///   behaviour, but a dotted method on it (`xhr.open`) still carries voice.
+#[derive(Debug, Clone, Default)]
+pub struct LocalBindings {
+    pub callables: HashSet<String>,
+    pub values: HashSet<String>,
+}
+
+impl LocalBindings {
+    /// Whether `callee` is attested by these bindings.
+    fn attests(&self, callee: &str) -> bool {
+        let root = callee.split_once('.').map(|(h, _)| h).unwrap_or(callee);
+        if self.callables.contains(callee) || self.callables.contains(root) {
+            return true;
+        }
+        !callee.contains('.') && self.values.contains(callee)
+    }
+}
+
+/// Which rule a distinct hunk callee triggered in
+/// [`CallReceiverScorer::weighted_contribution_for_file`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContributionBranch {
+    /// Globally unattested, attested root → `alpha + root_bonus`.
+    UnattestedKnownRoot,
+    /// Globally unattested, unknown root → `alpha`.
+    Unattested,
+    /// Globally attested but absent from the file's cluster → `cluster_bonus`.
+    ClusterAbsent,
+    /// Attested in ≤ rare-threshold cluster files → `cluster_bonus`.
+    ClusterRare,
+}
+
+/// One distinct callee's contribution decision (scout/evidence surface).
+#[derive(Debug, Clone)]
+pub struct ContributionEvent {
+    pub callee: String,
+    pub branch: ContributionBranch,
+}
+
+/// Era-14 rarity weighting for the cluster branches (`ClusterAbsent`,
+/// `ClusterRare`): scales `cluster_bonus` by how globally common the callee is
+/// in the corpus, so locally-rare-but-globally-rare callees (locale
+/// identifiers, Zipf-tail helpers) stop firing full-magnitude bonuses while
+/// globally-common callees absent from a cluster keep them. All weights are
+/// derived from corpus document frequencies — no domain knowledge.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RarityWeighting {
+    /// Era-13.5 behaviour: full `cluster_bonus` regardless of global rarity.
+    Off,
+    /// `weight = df / N` — proportional to document frequency.
+    LinearDf,
+    /// `weight = 1 if df ≥ min_df else 0` — hard gate on document frequency.
+    GatedDf { min_df: usize },
+    /// `weight = ln(1 + df) / ln(1 + N)` — logarithmic soft gate.
+    LogDf,
+}
+
+impl RarityWeighting {
+    /// Weight in [0, 1] for a callee seen in `df` of `n_files` corpus files.
+    pub fn weight(&self, df: usize, n_files: usize) -> f64 {
+        match self {
+            RarityWeighting::Off => 1.0,
+            RarityWeighting::LinearDf => {
+                if n_files == 0 {
+                    1.0
+                } else {
+                    df as f64 / n_files as f64
+                }
+            }
+            RarityWeighting::GatedDf { min_df } => {
+                if df >= *min_df {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
+            RarityWeighting::LogDf => {
+                if n_files == 0 {
+                    1.0
+                } else {
+                    (1.0 + df as f64).ln() / (1.0 + n_files as f64).ln()
+                }
+            }
+        }
+    }
+}
+
 /// Call-receiver scorer.
 pub struct CallReceiverScorer {
     language: Language,
@@ -342,11 +486,30 @@ pub struct CallReceiverScorer {
     cluster_size_min: usize,
     attested: HashSet<String>,
     attested_roots: HashSet<String>,
+    /// Last segments of dotted attested callees — the corpus's known method
+    /// vocabulary. A dotted callee is keyed by its receiver's variable name,
+    /// so a fresh receiver makes `widgetTitles.join` look unattested even
+    /// though the corpus calls `.join` constantly; the method segment is
+    /// what carries voice, so corpus-known methods do not alpha-fire.
+    attested_methods: HashSet<String>,
     pub n_skipped_data_dominant: usize,
     file_to_cluster: HashMap<PathBuf, usize>,
     cluster_attested: HashMap<usize, HashSet<String>>,
     cluster_callee_counts: HashMap<usize, HashMap<String, usize>>,
     cluster_sizes: HashMap<usize, usize>,
+    /// Corpus-global document frequency: number of corpus files whose callee
+    /// bag contains each callee (era-14 rarity weighting substrate).
+    callee_file_counts: HashMap<String, usize>,
+    /// Number of (non-data-dominant) corpus files behind `callee_file_counts`.
+    n_corpus_files: usize,
+    /// Rarity weighting applied to the cluster branches (era 14 phase A).
+    rarity_weighting: RarityWeighting,
+    /// Additive per-cluster AST-shape primitives (empty = true no-op).
+    shape_primitives: Vec<Box<dyn ShapePrimitive>>,
+    /// primitive name → cluster id → fitted baseline.
+    primitive_baselines: HashMap<String, HashMap<usize, Baseline>>,
+    /// Per-primitive fire counts (bench observability).
+    pub primitive_fire_count: HashMap<String, usize>,
     pub rare_branch_fire_count: usize,
     pub rare_branch_hunks_fired: usize,
     pub hunks_scored: usize,
@@ -373,6 +536,7 @@ impl CallReceiverScorer {
         let mut file_bags: Vec<(PathBuf, HashSet<String>)> = Vec::new();
         let mut file_sigs: Vec<(PathBuf, Vec<i64>)> = Vec::new();
 
+        let mut callee_file_counts: HashMap<String, usize> = HashMap::new();
         for (path, src) in repo_files {
             if adapter.is_data_dominant(src) {
                 skipped += 1;
@@ -383,8 +547,11 @@ impl CallReceiverScorer {
                 attested.insert(c.clone());
             }
             files_list.push(path.clone());
+            let bag: HashSet<String> = callees.into_iter().collect();
+            for callee in &bag {
+                *callee_file_counts.entry(callee.clone()).or_insert(0) += 1;
+            }
             if n_clusters > 1 {
-                let bag: HashSet<String> = callees.into_iter().collect();
                 let sig = minhash_signature(&bag);
                 file_bags.push((path.clone(), bag));
                 file_sigs.push((path.clone(), sig));
@@ -398,6 +565,10 @@ impl CallReceiverScorer {
         let attested_roots: HashSet<String> = attested
             .iter()
             .map(|c| c.split_once('.').map(|(h, _)| h).unwrap_or(c).to_string())
+            .collect();
+        let attested_methods: HashSet<String> = attested
+            .iter()
+            .filter_map(|c| c.rsplit_once('.').map(|(_, m)| m.to_string()))
             .collect();
 
         let mut file_to_cluster = HashMap::new();
@@ -427,6 +598,7 @@ impl CallReceiverScorer {
             }
         }
 
+        let n_corpus_files = files_list.len();
         Ok(Self {
             language,
             alpha,
@@ -435,19 +607,203 @@ impl CallReceiverScorer {
             cluster_size_min,
             attested,
             attested_roots,
+            attested_methods,
             n_skipped_data_dominant: skipped,
             file_to_cluster,
             cluster_attested,
             cluster_callee_counts,
             cluster_sizes,
+            callee_file_counts,
+            n_corpus_files,
+            rarity_weighting: RarityWeighting::Off,
+            shape_primitives: Vec::new(),
+            primitive_baselines: HashMap::new(),
+            primitive_fire_count: HashMap::new(),
             rare_branch_fire_count: 0,
             rare_branch_hunks_fired: 0,
             hunks_scored: 0,
         })
     }
 
+    /// Export the fitted state as a [`CallReceiverModel`] snapshot. File keys
+    /// are relativized against `repo_root` (paths outside the root keep their
+    /// full string form) so the artifact is repo-relative and matches the
+    /// paths `check` sees from git.
+    pub fn export_model(&self, repo_root: &Path) -> CallReceiverModel {
+        let rel = |p: &Path| {
+            crate::suppress::rel_string(p, repo_root)
+                .unwrap_or_else(|| p.to_string_lossy().into_owned())
+        };
+        let mut clusters: BTreeMap<String, ClusterModel> = BTreeMap::new();
+        let mut cids: Vec<usize> = self.cluster_sizes.keys().copied().collect();
+        cids.sort_unstable();
+        for cid in cids {
+            let mut files: Vec<String> = self
+                .file_to_cluster
+                .iter()
+                .filter(|(_, &c)| c == cid)
+                .map(|(p, _)| rel(p))
+                .collect();
+            files.sort();
+            let callee_counts: BTreeMap<String, usize> = self
+                .cluster_callee_counts
+                .get(&cid)
+                .map(|m| m.iter().map(|(k, v)| (k.clone(), *v)).collect())
+                .unwrap_or_default();
+            clusters.insert(
+                cid.to_string(),
+                ClusterModel {
+                    files,
+                    callee_counts,
+                },
+            );
+        }
+        let mut attested: Vec<String> = self.attested.iter().cloned().collect();
+        attested.sort();
+        CallReceiverModel {
+            attested,
+            n_corpus_files: self.n_corpus_files,
+            clusters,
+        }
+    }
+
+    /// Rebuild a scorer from a fit-time [`CallReceiverModel`] snapshot — the
+    /// check-time path. The snapshot pins attestation and cluster membership
+    /// to fit time, so new code cannot attest its own callees (issue #79).
+    /// Document frequencies are recovered as the per-callee sum across
+    /// clusters (each corpus file belongs to exactly one cluster).
+    pub fn from_model(
+        model: &CallReceiverModel,
+        language: Language,
+        alpha: f64,
+        cap: usize,
+        cluster_rare_threshold: usize,
+        cluster_size_min: usize,
+    ) -> Result<Self, &'static str> {
+        let attested: HashSet<String> = model.attested.iter().cloned().collect();
+        let attested_roots: HashSet<String> = attested
+            .iter()
+            .map(|c| c.split_once('.').map(|(h, _)| h).unwrap_or(c).to_string())
+            .collect();
+        let attested_methods: HashSet<String> = attested
+            .iter()
+            .filter_map(|c| c.rsplit_once('.').map(|(_, m)| m.to_string()))
+            .collect();
+        let mut file_to_cluster = HashMap::new();
+        let mut cluster_attested: HashMap<usize, HashSet<String>> = HashMap::new();
+        let mut cluster_callee_counts: HashMap<usize, HashMap<String, usize>> = HashMap::new();
+        let mut cluster_sizes = HashMap::new();
+        let mut callee_file_counts: HashMap<String, usize> = HashMap::new();
+        for (cid_str, cluster) in &model.clusters {
+            let cid: usize = cid_str.parse().map_err(|_| "invalid cluster id")?;
+            for f in &cluster.files {
+                file_to_cluster.insert(PathBuf::from(f), cid);
+            }
+            cluster_sizes.insert(cid, cluster.files.len());
+            cluster_attested.insert(cid, cluster.callee_counts.keys().cloned().collect());
+            let counts: HashMap<String, usize> = cluster
+                .callee_counts
+                .iter()
+                .map(|(k, v)| (k.clone(), *v))
+                .collect();
+            for (callee, n) in &counts {
+                *callee_file_counts.entry(callee.clone()).or_insert(0) += n;
+            }
+            cluster_callee_counts.insert(cid, counts);
+        }
+        Ok(Self {
+            language,
+            alpha,
+            cap,
+            cluster_rare_threshold,
+            cluster_size_min,
+            attested,
+            attested_roots,
+            attested_methods,
+            n_skipped_data_dominant: 0,
+            file_to_cluster,
+            cluster_attested,
+            cluster_callee_counts,
+            cluster_sizes,
+            callee_file_counts,
+            n_corpus_files: model.n_corpus_files,
+            rarity_weighting: RarityWeighting::Off,
+            shape_primitives: Vec::new(),
+            primitive_baselines: HashMap::new(),
+            primitive_fire_count: HashMap::new(),
+            rare_branch_fire_count: 0,
+            rare_branch_hunks_fired: 0,
+            hunks_scored: 0,
+        })
+    }
+
+    /// Set the rarity weighting for the cluster branches (era 14 phase A).
+    pub fn with_rarity_weighting(mut self, weighting: RarityWeighting) -> Self {
+        self.rarity_weighting = weighting;
+        self
+    }
+
+    /// Attach additive shape primitives and fit their per-cluster baselines
+    /// over the (non-data-dominant, clustered) corpus files. An empty
+    /// primitive list is a true no-op, matching the Python scorer.
+    pub fn with_shape_primitives(
+        mut self,
+        primitives: Vec<Box<dyn ShapePrimitive>>,
+        repo_files: &[(PathBuf, String)],
+        adapter: &dyn LanguageAdapter,
+    ) -> Self {
+        if primitives.is_empty() {
+            return self;
+        }
+        let mut cluster_files: HashMap<usize, Vec<(PathBuf, String)>> = HashMap::new();
+        for (path, src) in repo_files {
+            if adapter.is_data_dominant(src) {
+                continue;
+            }
+            if let Some(&cid) = self.file_to_cluster.get(path) {
+                cluster_files
+                    .entry(cid)
+                    .or_default()
+                    .push((path.clone(), src.clone()));
+            }
+        }
+        for primitive in &primitives {
+            let mut per_cluster: HashMap<usize, Baseline> = HashMap::new();
+            for (cid, files) in &cluster_files {
+                if let Some(b) = primitive.fit_cluster_baseline(files, self.language) {
+                    per_cluster.insert(*cid, b);
+                }
+            }
+            self.primitive_baselines
+                .insert(primitive.name().to_string(), per_cluster);
+            self.primitive_fire_count
+                .insert(primitive.name().to_string(), 0);
+        }
+        self.shape_primitives = primitives;
+        self
+    }
+
+    /// Corpus files that contain `callee` (document frequency; 0 if unseen).
+    pub fn callee_file_count(&self, callee: &str) -> usize {
+        self.callee_file_counts.get(callee).copied().unwrap_or(0)
+    }
+
+    /// Non-data-dominant corpus file count behind the document frequencies.
+    pub fn n_corpus_files(&self) -> usize {
+        self.n_corpus_files
+    }
+
     fn root(callee: &str) -> &str {
         callee.split_once('.').map(|(h, _)| h).unwrap_or(callee)
+    }
+
+    /// Dotted callee whose method segment is corpus-known — the receiver
+    /// variable is fresh but the invoked method is in-voice.
+    fn method_attested(&self, callee: &str) -> bool {
+        callee
+            .rsplit_once('.')
+            .map(|(_, m)| self.attested_methods.contains(m))
+            .unwrap_or(false)
     }
 
     fn distinct_unattested_impl(&self, hunk: &str) -> Vec<String> {
@@ -469,6 +825,19 @@ impl CallReceiverScorer {
         self.distinct_unattested_impl(hunk)
     }
 
+    /// [`Self::distinct_unattested`] minus local bindings — the evidence view
+    /// matching what the contribution actually counted.
+    pub fn distinct_unattested_excluding(
+        &self,
+        hunk: &str,
+        local_bindings: &LocalBindings,
+    ) -> Vec<String> {
+        self.distinct_unattested_impl(hunk)
+            .into_iter()
+            .filter(|c| !local_bindings.attests(c) && !self.method_attested(c))
+            .collect()
+    }
+
     pub fn count_unattested(&self, hunk: &str) -> usize {
         self.distinct_unattested_impl(hunk).len()
     }
@@ -478,19 +847,39 @@ impl CallReceiverScorer {
         &self.cluster_callee_counts
     }
 
-    /// No cluster logic (`weighted_contribution`).
-    pub fn weighted_contribution(&self, hunk: &str, alpha: f64, root_bonus: f64, cap: f64) -> f64 {
-        if has_root_error(hunk, self.language) {
-            return 0.0;
-        }
+    /// No cluster logic (`weighted_contribution`). `host_context` is the
+    /// era-14 phase D parse-error fallback — see
+    /// [`Self::contribution_events_for_file`].
+    pub fn weighted_contribution(
+        &self,
+        hunk: &str,
+        alpha: f64,
+        root_bonus: f64,
+        cap: f64,
+        host_context: Option<(&str, usize, usize)>,
+        local_bindings: &LocalBindings,
+    ) -> f64 {
+        let callees: Vec<String> = if has_root_error(hunk, self.language) {
+            match host_context {
+                Some((host_source, start_line, end_line)) => {
+                    callees_in_source_region(host_source, self.language, start_line, end_line)
+                }
+                None => return 0.0,
+            }
+        } else {
+            non_none_callees(hunk, self.language)
+        };
         let mut weights = 0.0;
         let mut seen: HashSet<String> = HashSet::new();
-        for c in extract_callees(hunk, self.language).into_iter().flatten() {
+        for c in callees {
             if seen.contains(&c) {
                 continue;
             }
             seen.insert(c.clone());
-            if self.attested.contains(&c) {
+            if local_bindings.attests(&c) {
+                continue;
+            }
+            if self.attested.contains(&c) || self.method_attested(&c) {
                 continue;
             }
             if self.attested_roots.contains(Self::root(&c)) {
@@ -502,51 +891,75 @@ impl CallReceiverScorer {
         weights.min(cap)
     }
 
-    /// Cluster-conditional (`weighted_contribution_for_file`).
-    #[allow(clippy::too_many_arguments)]
-    pub fn weighted_contribution_for_file(
-        &mut self,
+    /// Per-callee contribution decisions for a hunk against its file's
+    /// cluster — the single source of truth behind
+    /// [`Self::weighted_contribution_for_file`], also consumed directly by
+    /// research scouts and evidence tooling. Does not touch the fire counters.
+    ///
+    /// `host_context` is `(host_source, hunk_start_line, hunk_end_line)` with
+    /// 1-indexed inclusive bounds. It is consulted ONLY when the bare hunk's
+    /// parse has root-level errors (era-14 phase D): callees are then read
+    /// from the hunk's region within the host AST. Hunks that parse cleanly
+    /// never touch it, so the fallback is purely additive on the
+    /// parse-error path (G4.d invariant).
+    pub fn contribution_events_for_file(
+        &self,
         hunk: &str,
         file_path: Option<&Path>,
-        alpha: f64,
-        root_bonus: f64,
-        cluster_bonus: f64,
-        cap: f64,
-        file_source: Option<&str>,
-    ) -> f64 {
-        self.hunks_scored += 1;
-        if has_root_error(hunk, self.language) {
-            return 0.0;
-        }
-        let mut cluster_id: Option<usize> =
-            file_path.and_then(|p| self.file_to_cluster.get(p).copied());
-        if cluster_id.is_none() {
-            if let Some(src) = file_source {
-                if !self.cluster_attested.is_empty() {
-                    cluster_id = self.nearest_cluster_for_source(src).map(|(c, _)| c);
+        _file_source: Option<&str>,
+        host_context: Option<(&str, usize, usize)>,
+        local_bindings: &LocalBindings,
+    ) -> Vec<ContributionEvent> {
+        let callees: Vec<String> = if has_root_error(hunk, self.language) {
+            match host_context {
+                Some((host_source, start_line, end_line)) => {
+                    callees_in_source_region(host_source, self.language, start_line, end_line)
                 }
+                None => return Vec::new(),
             }
+        } else {
+            non_none_callees(hunk, self.language)
+        };
+        if callees.is_empty() {
+            return Vec::new();
         }
+        // Cluster-conditional branches apply only to files whose cluster
+        // membership was FITTED (path lookup). Jaccard-guessing a cluster for
+        // an unknown file hands its own staples cluster-absent bonuses when
+        // the guess lands wrong (a React file routed into an Effect-heavy
+        // cluster) — measured as the dominant FP driver on new-feature
+        // commits. Unknown files still get the global unattested branches;
+        // `nearest_cluster_for_source` remains for evidence display.
+        let cluster_id: Option<usize> =
+            file_path.and_then(|p| self.file_to_cluster.get(p).copied());
         let cluster_set = cluster_id.and_then(|c| self.cluster_attested.get(&c));
         let cluster_counts = cluster_id.and_then(|c| self.cluster_callee_counts.get(&c));
 
-        let mut weights = 0.0;
+        let mut events = Vec::new();
         let mut seen: HashSet<String> = HashSet::new();
-        let mut hunk_fired_rare = false;
-        for c in extract_callees(hunk, self.language).into_iter().flatten() {
+        for c in callees {
             if seen.contains(&c) {
                 continue;
             }
             seen.insert(c.clone());
-            if !self.attested.contains(&c) {
+            // Local-binding attestation: a callee the change itself defines,
+            // imports from a repo-internal path, or binds as a local value is
+            // new code naming its own neighbourhood, not foreign voice.
+            if local_bindings.attests(&c) {
+                continue;
+            }
+            let branch = if !self.attested.contains(&c) && !self.method_attested(&c) {
                 if self.attested_roots.contains(Self::root(&c)) {
-                    weights += alpha + root_bonus;
+                    Some(ContributionBranch::UnattestedKnownRoot)
                 } else {
-                    weights += alpha;
+                    Some(ContributionBranch::Unattested)
                 }
-            } else if cluster_set.map(|s| !s.contains(&c)).unwrap_or(false) {
-                weights += cluster_bonus;
-            } else if self.cluster_rare_threshold > 0
+            } else if self.attested.contains(&c)
+                && cluster_set.map(|s| !s.contains(&c)).unwrap_or(false)
+            {
+                Some(ContributionBranch::ClusterAbsent)
+            } else if self.attested.contains(&c)
+                && self.cluster_rare_threshold > 0
                 && cluster_id.is_some()
                 && cluster_counts.is_some()
                 && cluster_counts.unwrap().get(&c).copied().unwrap_or(0)
@@ -558,9 +971,89 @@ impl CallReceiverScorer {
                     .unwrap_or(0)
                     >= self.cluster_size_min
             {
-                self.rare_branch_fire_count += 1;
-                hunk_fired_rare = true;
-                weights += cluster_bonus;
+                Some(ContributionBranch::ClusterRare)
+            } else {
+                None
+            };
+            if let Some(branch) = branch {
+                events.push(ContributionEvent { callee: c, branch });
+            }
+        }
+        events
+    }
+
+    /// Cluster-conditional (`weighted_contribution_for_file`). `host_context`
+    /// is the era-14 phase D parse-error fallback — see
+    /// [`Self::contribution_events_for_file`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn weighted_contribution_for_file(
+        &mut self,
+        hunk: &str,
+        file_path: Option<&Path>,
+        alpha: f64,
+        root_bonus: f64,
+        cluster_bonus: f64,
+        cap: f64,
+        file_source: Option<&str>,
+        host_context: Option<(&str, usize, usize)>,
+        local_bindings: &LocalBindings,
+    ) -> f64 {
+        self.hunks_scored += 1;
+        let events = self.contribution_events_for_file(
+            hunk,
+            file_path,
+            file_source,
+            host_context,
+            local_bindings,
+        );
+        if std::env::var_os("ARGOT_DEBUG_EVENTS").is_some() && !events.is_empty() {
+            eprintln!(
+                "[events] file={:?} {:?}",
+                file_path,
+                events
+                    .iter()
+                    .map(|e| format!("{}:{:?}", e.callee, e.branch))
+                    .collect::<Vec<_>>()
+            );
+        }
+        let mut weights = 0.0;
+        let mut hunk_fired_rare = false;
+        for ev in &events {
+            // Rarity weighting scales only the cluster branches; the fire
+            // counters keep counting branch *decisions* so the auto-detect
+            // probe's fire-rate semantics are unchanged by the weighting.
+            let rarity = self
+                .rarity_weighting
+                .weight(self.callee_file_count(&ev.callee), self.n_corpus_files);
+            match ev.branch {
+                ContributionBranch::UnattestedKnownRoot => weights += alpha + root_bonus,
+                ContributionBranch::Unattested => weights += alpha,
+                ContributionBranch::ClusterAbsent => weights += cluster_bonus * rarity,
+                ContributionBranch::ClusterRare => {
+                    self.rare_branch_fire_count += 1;
+                    hunk_fired_rare = true;
+                    weights += cluster_bonus * rarity;
+                }
+            }
+        }
+        // Shape-primitive dispatch: additive scalars, final cap still bounds
+        // the total. Skipped on root-error hunks, matching the Python scorer
+        // (phase D's host fallback feeds callee extraction only).
+        if !self.shape_primitives.is_empty() && !has_root_error(hunk, self.language) {
+            if let Some(cid) = self.cluster_id_for_hunk_file(file_path, file_source) {
+                let cluster_size = self.cluster_sizes.get(&cid).copied().unwrap_or(0);
+                for i in 0..self.shape_primitives.len() {
+                    let name = self.shape_primitives[i].name().to_string();
+                    let baseline = self
+                        .primitive_baselines
+                        .get(&name)
+                        .and_then(|m| m.get(&cid));
+                    let contribution = self.shape_primitives[i].score(hunk, baseline, cluster_size);
+                    if contribution > 0.0 {
+                        *self.primitive_fire_count.entry(name).or_insert(0) += 1;
+                        weights += contribution;
+                    }
+                }
             }
         }
         if hunk_fired_rare {
@@ -589,6 +1082,7 @@ impl CallReceiverScorer {
 
     /// Jaccard-nearest cluster for an arbitrary file source. Ties → smallest
     /// cluster id. None if no clusters or empty callee bag.
+    /// (tests for the era-14 rarity weighting live at the bottom of this file)
     pub fn nearest_cluster_for_source(&self, file_source: &str) -> Option<(usize, f64)> {
         if self.cluster_attested.is_empty() {
             return None;
@@ -618,5 +1112,270 @@ impl CallReceiverScorer {
             }
         }
         best_cid.map(|c| (c, best_jaccard))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::scoring::adapters::python::PythonAdapter;
+
+    #[test]
+    fn rarity_weight_math() {
+        assert_eq!(RarityWeighting::Off.weight(1, 100), 1.0);
+        assert_eq!(RarityWeighting::LinearDf.weight(50, 100), 0.5);
+        assert_eq!(RarityWeighting::LinearDf.weight(0, 0), 1.0);
+        assert_eq!(RarityWeighting::GatedDf { min_df: 3 }.weight(2, 100), 0.0);
+        assert_eq!(RarityWeighting::GatedDf { min_df: 3 }.weight(3, 100), 1.0);
+        let w = RarityWeighting::LogDf.weight(100, 100);
+        assert!(w > 0.99 && w <= 1.0, "log weight near 1 for df=N, got {w}");
+        let w1 = RarityWeighting::LogDf.weight(1, 100);
+        assert!(w1 < 0.2, "log weight small for df=1, got {w1}");
+    }
+
+    fn toy_scorer(weighting: RarityWeighting) -> CallReceiverScorer {
+        let adapter = PythonAdapter::new();
+        // Two stylistically distinct groups so k-means separates them: the
+        // "alpha" files call foo/bar everywhere, the "beta" files call
+        // baz/qux. `shared()` appears in exactly one file (globally rare).
+        let mut files: Vec<(PathBuf, String)> = Vec::new();
+        for i in 0..6 {
+            files.push((
+                PathBuf::from(format!("a{i}.py")),
+                "def f():\n    foo()\n    bar()\n".to_string(),
+            ));
+        }
+        for i in 0..6 {
+            files.push((
+                PathBuf::from(format!("b{i}.py")),
+                "def g():\n    baz()\n    qux()\n".to_string(),
+            ));
+        }
+        files.push((
+            PathBuf::from("rare.py"),
+            "def h():\n    rare_helper()\n".to_string(),
+        ));
+        CallReceiverScorer::new(&files, Language::Python, 2.0, 5, &adapter, 4, 0, 0, 0)
+            .unwrap()
+            .with_rarity_weighting(weighting)
+    }
+
+    #[test]
+    fn df_counts_are_per_file_presence() {
+        let cr = toy_scorer(RarityWeighting::Off);
+        assert_eq!(cr.n_corpus_files(), 13);
+        assert_eq!(cr.callee_file_count("foo"), 6);
+        assert_eq!(cr.callee_file_count("rare_helper"), 1);
+        assert_eq!(cr.callee_file_count("never_seen"), 0);
+    }
+
+    #[test]
+    fn gated_df_at_one_matches_off_behaviour() {
+        // Every globally-attested callee has df >= 1, so GatedDf{min_df: 1}
+        // must reproduce era-13.5 contributions exactly on any hunk.
+        let mut off = toy_scorer(RarityWeighting::Off);
+        let mut gated = toy_scorer(RarityWeighting::GatedDf { min_df: 1 });
+        for hunk in [
+            "rare_helper()\nfoo()\n",
+            "baz()\n",
+            "unknown_callee()\n",
+            "foo()\nbar()\nbaz()\nqux()\n",
+        ] {
+            let a = off.weighted_contribution_for_file(
+                hunk,
+                Some(Path::new("a0.py")),
+                2.0,
+                2.0,
+                5.0,
+                5.0,
+                None,
+                None,
+                &Default::default(),
+            );
+            let b = gated.weighted_contribution_for_file(
+                hunk,
+                Some(Path::new("a0.py")),
+                2.0,
+                2.0,
+                5.0,
+                5.0,
+                None,
+                None,
+                &Default::default(),
+            );
+            assert_eq!(a, b, "hunk {hunk:?}");
+        }
+    }
+
+    #[test]
+    fn linear_df_shrinks_rare_callee_cluster_contribution() {
+        // `rare_helper` is globally attested (df=1) — in a file from the
+        // foo/bar cluster it takes a cluster branch. Under LinearDf its
+        // bonus is scaled by 1/13; alpha branches are untouched.
+        let mut off = toy_scorer(RarityWeighting::Off);
+        let mut lin = toy_scorer(RarityWeighting::LinearDf);
+        let hunk = "rare_helper()\n";
+        let a = off.weighted_contribution_for_file(
+            hunk,
+            Some(Path::new("a0.py")),
+            0.0,
+            0.0,
+            5.0,
+            10.0,
+            None,
+            None,
+            &Default::default(),
+        );
+        let b = lin.weighted_contribution_for_file(
+            hunk,
+            Some(Path::new("a0.py")),
+            0.0,
+            0.0,
+            5.0,
+            10.0,
+            None,
+            None,
+            &Default::default(),
+        );
+        if a > 0.0 {
+            // Cluster branch fired: weighting must shrink it by df/N.
+            let expected = a * (1.0 / 13.0);
+            assert!(
+                (b - expected).abs() < 1e-9,
+                "expected {expected}, got {b} (off={a})"
+            );
+        } else {
+            // Cluster assignment put rare.py with a0.py; nothing fired for
+            // either mode — invariant still holds.
+            assert_eq!(b, 0.0);
+        }
+    }
+
+    #[test]
+    fn parse_error_hunk_falls_back_to_host_region_callees() {
+        // A bare `elif` fragment has root-level parse errors in Python.
+        let hunk = "elif validate_payload(data):\n    send_alert(data)";
+        assert!(has_root_error(hunk, Language::Python));
+        let host = "def handler(data):\n    if data is None:\n        return\n    elif validate_payload(data):\n        send_alert(data)\n";
+        let callees = callees_in_source_region(host, Language::Python, 4, 5);
+        assert_eq!(callees, vec!["validate_payload", "send_alert"]);
+
+        let cr = toy_scorer(RarityWeighting::Off);
+        // Without host context: parse error blocks everything (era-13.5).
+        assert!(cr
+            .contribution_events_for_file(
+                hunk,
+                Some(Path::new("a0.py")),
+                None,
+                None,
+                &Default::default()
+            )
+            .is_empty());
+        // With host context: both (unattested) callees produce events.
+        let events = cr.contribution_events_for_file(
+            hunk,
+            Some(Path::new("a0.py")),
+            None,
+            Some((host, 4, 5)),
+            &Default::default(),
+        );
+        assert_eq!(events.len(), 2);
+        assert!(events
+            .iter()
+            .all(|e| matches!(e.branch, ContributionBranch::Unattested)));
+    }
+
+    #[test]
+    fn model_roundtrip_preserves_contribution_decisions() {
+        // Export → import must reproduce every contribution decision, both
+        // for path-routed hunks (file in a fit-time cluster) and for
+        // source-routed hunks (unknown file → Jaccard-nearest cluster).
+        let original = toy_scorer(RarityWeighting::Off);
+        let model = original.export_model(Path::new(""));
+        assert_eq!(model.n_corpus_files, 13);
+        assert!(model.attested.contains(&"foo".to_string()));
+        let restored =
+            CallReceiverScorer::from_model(&model, Language::Python, 2.0, 5, 0, 0).unwrap();
+
+        let unknown_file_source = "def h():\n    baz()\n    qux()\n";
+        for hunk in [
+            "rare_helper()\nfoo()\n",
+            "unknown_callee()\nbaz()\n",
+            "foo()\nbar()\nbaz()\nqux()\n",
+        ] {
+            let a = original.contribution_events_for_file(
+                hunk,
+                Some(Path::new("a0.py")),
+                None,
+                None,
+                &Default::default(),
+            );
+            let b = restored.contribution_events_for_file(
+                hunk,
+                Some(Path::new("a0.py")),
+                None,
+                None,
+                &Default::default(),
+            );
+            assert_eq!(a.len(), b.len(), "path-routed event count for {hunk:?}");
+            for (x, y) in a.iter().zip(b.iter()) {
+                assert_eq!(x.callee, y.callee);
+                assert_eq!(x.branch, y.branch);
+            }
+            let a = original.contribution_events_for_file(
+                hunk,
+                Some(Path::new("never_seen.py")),
+                Some(unknown_file_source),
+                None,
+                &Default::default(),
+            );
+            let b = restored.contribution_events_for_file(
+                hunk,
+                Some(Path::new("never_seen.py")),
+                Some(unknown_file_source),
+                None,
+                &Default::default(),
+            );
+            assert_eq!(a.len(), b.len(), "source-routed event count for {hunk:?}");
+            for (x, y) in a.iter().zip(b.iter()) {
+                assert_eq!(x.callee, y.callee);
+                assert_eq!(x.branch, y.branch);
+            }
+        }
+
+        // Document frequencies are recovered from the cluster sums.
+        assert_eq!(restored.callee_file_count("foo"), 6);
+        assert_eq!(restored.callee_file_count("rare_helper"), 1);
+        assert_eq!(restored.n_corpus_files(), 13);
+    }
+
+    #[test]
+    fn host_context_is_ignored_when_bare_hunk_parses() {
+        // G4.d invariant: a cleanly-parsing hunk scores identically with and
+        // without host context — the fallback is purely additive on the
+        // parse-error path.
+        let cr = toy_scorer(RarityWeighting::Off);
+        let hunk = "foo()\nbar()\n";
+        // Deliberately contradictory host region (would yield zero callees).
+        let host = "x = 1\ny = 2\n";
+        let without = cr.contribution_events_for_file(
+            hunk,
+            Some(Path::new("a0.py")),
+            None,
+            None,
+            &Default::default(),
+        );
+        let with_host = cr.contribution_events_for_file(
+            hunk,
+            Some(Path::new("a0.py")),
+            None,
+            Some((host, 1, 2)),
+            &Default::default(),
+        );
+        assert_eq!(without.len(), with_host.len());
+        for (a, b) in without.iter().zip(with_host.iter()) {
+            assert_eq!(a.callee, b.callee);
+            assert_eq!(a.branch, b.branch);
+        }
     }
 }

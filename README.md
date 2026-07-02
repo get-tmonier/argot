@@ -74,10 +74,12 @@ argot ships today with calibrated, benchmarked support for:
 
 | Language | Extensions | Validated corpora | Headline result |
 |---|---|---|---|
-| Python | `.py` | FastAPI · rich · faker | recall 95–100% · FP 0.7–2.1% |
-| TypeScript | `.ts` `.tsx` | hono · ink · faker-js | recall 88–93% · FP 0.4–1.9% |
+| Python | `.py` | libraries: FastAPI · rich · faker — applications: Saleor · Wagtail | libraries: recall 94–100% · FP 0.5–1.9% — applications: recall 86–100% · FP ≤ 0.4% |
+| TypeScript | `.ts` `.tsx` | libraries: hono · ink · faker-js — applications: Excalidraw · Outline | libraries: recall 88–94% · FP 0.4–1.7% — applications: recall 64–71% · FP ≤ 0.5% |
 | JavaScript | `.js` `.jsx` | _(uses the TypeScript adapter; not yet benchmarked on a JS-only corpus)_ | — |
-| **Monorepo (Py + TS)** | mixed | Dagster (`python_modules/` + `js_modules/`) | py: recall 100% · FP 0.4% · ts: recall 80% · FP 15.2% |
+| **Monorepo (Py + TS)** | mixed | Dagster (`python_modules/` + `js_modules/`) | py: recall 100% · FP 0.6% · ts: recall 92% · FP 33%* |
+
+\* Application corpora are new in [#66](https://github.com/get-tmonier/argot/issues/66): Python applications clear the same bar as the libraries; the TypeScript applications keep FP ≤ 0.5% but miss on subtle structural breaks (legacy lifecycle methods, Redux shapes) — analysed in [`docs/research/evidence/application-corpora-validation.md`](docs/research/evidence/application-corpora-validation.md). The Dagster TS half's FP reflects how distinctive Dagit's UI idioms are and is tracked as a research follow-up, not a supported claim.
 
 Numbers above are from the live baseline at [`benchmarks/results/baseline/latest/report.md`](benchmarks/results/baseline/latest/report.md). Each corpus contributes a held-out set of expert-labelled "voice breaks" plus tens of thousands of real-PR controls; recall is measured against the breaks, FP against the controls.
 
@@ -304,6 +306,10 @@ The surprise score is the BPE log-likelihood ratio for the hunk — how differen
 
 `t` is set automatically during `argot fit` and stored in `.argot/scorer-config.json`. Each hit also shows its **source** (`workdir` / `staged` / `untracked` / commit SHA) and the **scorer reason** that fired (`rare token sequence`, `unfamiliar callee`, or `foreign import`).
 
+### Running in CI
+
+`argot check` also emits machine-readable output — `--format json` (stable schema) or `--format sarif` (SARIF 2.1.0 for GitHub code scanning). A composite GitHub Action ships at the repo root, and `.pre-commit-hooks.yaml` registers an `argot-check` hook with the pre-commit framework. See [docs/ci.md](docs/ci.md) for copy-paste setups.
+
 ## How it works
 
 The pipeline has two phases: **fit** (extract → train → calibrate, run once
@@ -396,34 +402,46 @@ a deterministic faker-js provider, etc.). Each break is scored against
 a backdrop of **494k+ real PR hunks** from the same repos as negative
 controls.
 
-Latest full bench (115 catalog fixtures across 6 corpora, K=7 multi-seed
-calibration, current shipping config with `--auto-select-asym-cal`):
+Latest full bench, **production-path mode** (171 catalog fixtures across
+6 library + 4 application corpora): every fixture is planted into its
+host file on disk, staged with real git, and judged by the actual
+`argot fit` → `argot check --staged` pipeline — self-attestation
+conditions and all. The false-positive control replays each corpus's
+last 30 real commits through `argot check --commit`.
 
-| Corpus | AUC | Recall | FP rate |
-|:---|---:|---:|---:|
-| fastapi | **0.9946** | **95.4%** | 0.57% |
-| rich | **0.9964** | **100.0%** | 1.23% |
-| faker (py) | 0.9537 | 95.0% | 1.96% |
-| hono | 0.8321 | **88.3%** | 0.51% |
-| ink | **0.9899** | 93.3% | 0.54% |
-| faker-js | 0.9463 | **93.3%** | 2.00% |
+| Corpus | Type | Recall | FP rate (30-commit replay) |
+|:---|:---|---:|---:|
+| fastapi | library | 32/32 (**100%**) | **0.00%** |
+| rich | library | 16/16 (**100%**) | **0.00%** |
+| faker (py) | library | 16/16 (**100%**) | **0.00%** |
+| hono | library | 16/17 (94.1%) | **0.00%** |
+| ink | library | 17/17 (**100%**) | 1.22% |
+| faker-js | library | 14/17 (82.4%) | **0.00%** |
+| saleor | application | 14/14 (**100%**) | 2.07% |
+| wagtail | application | 14/14 (**100%**) | **0.00%** |
+| excalidraw | application | 9/14 (64.3%) | 3.17% |
+| outline | application | 12/14 (85.7%) | 0.48% |
 
-Total fixture catches **108/115 (93.9%)**; **FP rate ≤ 2.0% on all six
-corpora**. The production scorer ships with the AST-derived typicality
-filter plus the BPE scorer call-receiver penalty (α=2.0, root_bonus=2.0,
-cluster_bonus=5.0, K=8 MinHash clusters). The latest configuration adds
-`cluster_rare_threshold=2` gated by per-corpus auto-detect: at fit time,
-probe the rule's per-hunk fire rate on extracted diff hunks; enable the
-rule on corpora where it's informative (~2% fire rate on uniform-cluster
-repos) and disable it where it would FP-flood (10–22% fire rate on
-heterogeneous repos). **Threshold CV = 0%** across 7 seeds: runs are
-reproducible.
+Library fixture catches **111/115 (96.5%)**; application fixture catches
+**49/56 (87.5%)**; overall **160/171 (93.6%)** — through the real check
+pipeline, not a synthetic harness (the previous headline, 153/171, came
+from a harness-side scorer the shipped tool could not reproduce; era 15
+closed that gap and the production path now sees strictly more than the
+old catalog mode on every corpus). The scorer ships with the fit-time
+model artifact (BPE token stats, callee attestation, cluster partition,
+convention-rarity frequencies — new code is judged against the voice as
+learned, never against itself), the AST-derived typicality filter at row
+granularity, the call-receiver penalty (α=2.0, root_bonus=2.0,
+cluster_bonus=5.0, K=8 MinHash clusters) with neighbourhood attestation,
+the convention-rarity stage (syntax-kind + identifier-morphology
+surprisal), and per-corpus auto-detect for the cluster-rare rule. Runs
+are deterministic and reproducible.
 
 Reproduce with a single command:
 
 ```bash
-just bench         # all 6 corpora, ~1.5h first time (~20 min with caches)
-just bench-quick   # ~1 min — one fixture per category on fastapi
+just bench         # all corpora (~40 min with cached datasets)
+just bench-quick   # ~1 min — one fixture per category on ink
 ```
 
 See [`benchmarks/README.md`](benchmarks/README.md) for methodology,
@@ -440,17 +458,18 @@ argot is **alpha** software. We ship honest benchmarks and a public research log
 - **Needs enough source code to calibrate:** the sampler looks for top-level functions/classes (≥ 5 body lines) in the current tree. Validated corpora had calibration pools of 112–494 hunks; repos with fewer than ~100 sampleable units will hit the pool-cap branch and may produce a noisier threshold.
 - **Best on codebases with a consistent hand.** Highly polyglot repos or repos with many contributors and no enforced style are harder to model.
 - ~~**Single-threshold model on multi-language monorepos.** Mixed Python + TypeScript repos calibrate against a joint distribution today, dominated by whichever language has broader token diversity. Per-language calibration is on the roadmap ([#41](https://github.com/get-tmonier/argot/issues/41)).~~ ✅ **Shipped** (closes [#41](https://github.com/get-tmonier/argot/issues/41)) — `argot calibrate` now emits one threshold per language present in the repo and `argot check` dispatches each hunk by file extension. Dagster is the reference multi-language corpus; see [`docs/research/decisions/per-language-calibration.md`](docs/research/decisions/per-language-calibration.md).
-- **Validation corpus is library-only.** All six benchmarked corpora are libraries / frameworks (FastAPI, rich, faker, hono, ink, faker-js). Application code may behave differently and the recall / FP numbers haven't been proven there yet ([#66](https://github.com/get-tmonier/argot/issues/66)).
-- **Residual recall and FP gaps** under active research — currently 108/115 fixtures caught and two corpora at ~2% FP. The current research era pushes FP to ≤ 1% and chases the architectural recall ceiling ([#54](https://github.com/get-tmonier/argot/issues/54)).
+- ~~**Validation corpus is library-only.**~~ ✅ **Validated on applications** (closes [#66](https://github.com/get-tmonier/argot/issues/66)) — four application corpora (Saleor, Wagtail, Excalidraw, Outline) benchmarked and published with lib-vs-app categorization. Python applications clear the library bar; TypeScript applications keep FP ≤ 0.5% but miss subtle structural breaks — see [`docs/research/evidence/application-corpora-validation.md`](docs/research/evidence/application-corpora-validation.md).
+- **Residual recall gaps** — 111/115 library and 49/56 application fixtures caught through the production path. The remaining excalidraw residuals (callback pyramids, vue idioms) map to signal families with documented refutations (era 15 scouted and refuted sub-max thresholding, sustained token-surprise aggregation, and nesting-depth conventions against them) — see [`docs/research/evidence/era15-production-path.md`](docs/research/evidence/era15-production-path.md). Era 14's mechanism refutations remain binding ([`docs/research/evidence/era14-final.md`](docs/research/evidence/era14-final.md)); its parse-error host fallback now ships **on** in production, which is what put fastapi at 32/32.
+- **Voice-novel commits flag proportionally.** Fixing the self-attestation bug (#79) means genuinely new feature areas — new components, new dependency surfaces — score as new voice until the next `argot fit`. A stale model amplifies this (a month of drift measured ~14× the hit volume of a fresh fit), so `check` warns when the fit is ≥ 10 commits old; refits take seconds on the model artifact.
 - **Cold start on brand-new files:** less context to score against.
 - **Signal is noisier on very small hunks** (< 5 lines).
 
 ### Surface / adoption gaps
 
-- **No suppression mechanism** — there's no `.argotignore`, no inline magic comments, no `argot mute`. One stubborn false positive and the tool can't be silenced ([#57](https://github.com/get-tmonier/argot/issues/57)).
+- ~~**No suppression mechanism** — there's no `.argotignore`, no inline magic comments, no `argot mute`.~~ ✅ **Shipped** (closes [#57](https://github.com/get-tmonier/argot/issues/57)) — `.argotignore` (with the built-in `argot:recommended` set), `argot: ignore-next-line` / block comments with mandatory reasons, `.argot/suppressions.yaml` with expiry dates, content-based hit hashes, and `argot mute` / `list-mutes` / `review-mutes`.
 - **No editor integration** — argot is CLI-only today; no LSP server, no VSCode extension, no inline diagnostics ([#55](https://github.com/get-tmonier/argot/issues/55)).
-- **No CI integration package** — no published GitHub Action, no pre-commit hook, no SARIF output for native PR comments ([#58](https://github.com/get-tmonier/argot/issues/58)).
-- **No introspection / suitability check** — running `fit` then `check` is the only way to find out whether argot will work on your repo ([#51](https://github.com/get-tmonier/argot/issues/51)).
+- ~~**No CI integration package**~~ ✅ **Shipped** (closes [#58](https://github.com/get-tmonier/argot/issues/58)) — composite GitHub Action (`uses: get-tmonier/argot@main`), pre-commit hook registration, and `argot check --format sarif|json`; see [`docs/ci.md`](docs/ci.md).
+- ~~**No introspection / suitability check**~~ ✅ **Shipped** (closes [#51](https://github.com/get-tmonier/argot/issues/51)) — `argot inspect [--json]` reports corpus composition, calibration health, and a Ready / Marginal / Not-recommended verdict with cited signals.
 - **No model artifact versioning or hashing** — `.argot/` is opaque; reproducibility is undocumented ([#62](https://github.com/get-tmonier/argot/issues/62)).
 - **No MCP server for LLM coding agents** — argot's signal would be especially useful as preemptive guidance during code generation, but there's no protocol surface yet ([#56](https://github.com/get-tmonier/argot/issues/56)).
 - ~~**No per-hunk evidence in `check` output** — hits show a friendly reason ("rare token sequence") but not *which* token was rare, leaving the user to guess ([#40](https://github.com/get-tmonier/argot/issues/40)).~~ ✅ **Shipped** ([#69](https://github.com/get-tmonier/argot/pull/69)) — each hit now carries a `↳` line naming the responsible tokens with their repo attestation. See the example output above.
@@ -462,12 +481,12 @@ The minimum-viable-v1 set we'd want to ship before recommending argot for produc
 
 | Issue | Why it blocks v1 |
 |---|---|
-| [#54](https://github.com/get-tmonier/argot/issues/54) | Push FP rate to ≤ 1% across all corpora and close the residual recall gap |
-| [#66](https://github.com/get-tmonier/argot/issues/66) | Validate on application corpora, not just libraries |
+| ~~[#54](https://github.com/get-tmonier/argot/issues/54)~~ ✅ | ~~Push FP rate to ≤ 1% across all corpora and close the residual recall gap~~ — era 14 concluded: all four candidate mechanisms refuted with documented structural evidence; auto-detect calibration productionised; see [`era14-final.md`](docs/research/evidence/era14-final.md) |
+| ~~[#66](https://github.com/get-tmonier/argot/issues/66)~~ ✅ | ~~Validate on application corpora, not just libraries~~ — four application corpora benchmarked and published; see [`application-corpora-validation.md`](docs/research/evidence/application-corpora-validation.md) |
 | ~~[#41](https://github.com/get-tmonier/argot/issues/41)~~ ✅ | ~~Per-language calibration in mixed-language monorepos~~ — shipped, closes [#41](https://github.com/get-tmonier/argot/issues/41) |
-| [#57](https://github.com/get-tmonier/argot/issues/57) | Suppression mechanism — adoption blocker without it |
-| [#51](https://github.com/get-tmonier/argot/issues/51) | Repo introspection / suitability check |
-| [#58](https://github.com/get-tmonier/argot/issues/58) | Official CI integration (GitHub Action + pre-commit + SARIF) |
+| ~~[#57](https://github.com/get-tmonier/argot/issues/57)~~ ✅ | ~~Suppression mechanism — adoption blocker without it~~ — shipped: `.argotignore` + inline comments + `argot mute` |
+| ~~[#51](https://github.com/get-tmonier/argot/issues/51)~~ ✅ | ~~Repo introspection / suitability check~~ — shipped: `argot inspect` |
+| ~~[#58](https://github.com/get-tmonier/argot/issues/58)~~ ✅ | ~~Official CI integration (GitHub Action + pre-commit + SARIF)~~ — shipped: `action.yml` + `.pre-commit-hooks.yaml` + `--format sarif` |
 | ~~[#40](https://github.com/get-tmonier/argot/issues/40)~~ ✅ | ~~Per-hunk evidence in `check` output — point at the specific tokens carrying the score~~ — shipped via [#69](https://github.com/get-tmonier/argot/pull/69) |
 | ~~[#52](https://github.com/get-tmonier/argot/issues/52)~~ ✅ | ~~User-facing documentation site (tutorials, how-tos, reference)~~ — shipped at [argot.tmonier.com](https://argot.tmonier.com) |
 
