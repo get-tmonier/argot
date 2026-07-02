@@ -40,6 +40,27 @@ Writes three artifacts under `.argot/`:
 Re-run `fit` after a major refactor. Internally it runs the engine's two underlying phases (build
 corpus, then calibrate); both stay available as engine entry points for benchmark and research use.
 
+### Sliced calibration (per-subdirectory / per-author)
+
+One repo can hold more than one voice — a `frontend/` and a `backend/`, or different contributors.
+`--slice` calibrates an extra threshold for a slice of the repo; at check time a hunk is judged
+against its slice's threshold instead of the whole-repo one.
+
+```bash
+argot fit --slice auto                     # one threshold per top-level directory
+argot fit --slice path:frontend/           # an explicit subdirectory
+argot fit --slice author:alice@example.com # the files an author owns
+```
+
+Slices are additive: the whole-repo threshold still applies to anything outside a slice, and a slice
+with too few calibration candidates is skipped (it would only be noisier). Multiple `--slice` flags
+combine; the first matching slice wins.
+
+> **Privacy (per-author).** An `author:` slice is derived from your local git history and stored as a
+> list of that author's files inside `.argot/scorer-config.json`. If you commit `.argot/`, those file
+> lists (and the author email in the slice name) travel with it — gitignore `.argot/` if that's
+> sensitive. argot never sends anything off the machine.
+
 ## check
 
 Scores changed hunks against the trained scorer, prints them grouped by file, and **exits non-zero**

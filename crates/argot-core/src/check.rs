@@ -157,11 +157,21 @@ struct Hit {
     suppressed_by: Option<SuppressedBy>,
 }
 
+/// One calibrated slice for check-time dispatch: its threshold applies to hunks
+/// whose repo-relative path matches any of `paths`.
+struct SliceEntry {
+    paths: Vec<String>,
+    threshold: f64,
+}
+
 /// Loaded per-language scorers plus the filtering machinery.
 struct Loaded {
     scorers: HashMap<String, SequentialImportBpeScorer>,
     filter_adapters: HashMap<String, Box<dyn LanguageAdapter>>,
     language_extensions: HashSet<String>,
+    /// Per-language slice thresholds (per-subdirectory / per-author voice).
+    /// Empty for an unsliced fit.
+    slices: HashMap<String, Vec<SliceEntry>>,
     /// Repo SHA the model was fitted at (calibration meta), for the
     /// freshness warning. `None` when the config predates the field.
     fit_sha: Option<String>,
@@ -509,12 +519,60 @@ fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
         .collect();
     let model_hash = crate::scoring::calibration::combined_model_hash(&per_lang_model_hash);
 
+    // Per-language slice thresholds (absent for an unsliced fit).
+    let mut slices: HashMap<String, Vec<SliceEntry>> = HashMap::new();
+    for (lang, lc) in languages {
+        let Some(arr) = lc.get("slices").and_then(Value::as_array) else {
+            continue;
+        };
+        let entries: Vec<SliceEntry> = arr
+            .iter()
+            .filter_map(|s| {
+                let threshold = s.get("threshold").and_then(Value::as_f64)?;
+                let paths = s
+                    .get("paths")
+                    .and_then(Value::as_array)
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(Value::as_str)
+                            .map(String::from)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                Some(SliceEntry { paths, threshold })
+            })
+            .collect();
+        if !entries.is_empty() {
+            slices.insert(lang.clone(), entries);
+        }
+    }
+
     Ok(Loaded {
         scorers,
         filter_adapters,
         language_extensions,
         fit_sha,
         model_hash,
+        slices,
+    })
+}
+
+/// The slice threshold that applies to `rel_path` for `lang`, if any (first
+/// matching slice wins — most-specific specs should be listed first at fit).
+fn slice_threshold(
+    slices: &HashMap<String, Vec<SliceEntry>>,
+    lang: &str,
+    rel_path: &str,
+) -> Option<f64> {
+    slices.get(lang)?.iter().find_map(|s| {
+        if s.paths
+            .iter()
+            .any(|p| rel_path == p || rel_path.starts_with(p))
+        {
+            Some(s.threshold)
+        } else {
+            None
+        }
     })
 }
 
@@ -761,6 +819,7 @@ fn score_patches(
     patches: Vec<PatchBatch>,
     scorers: &mut HashMap<String, SequentialImportBpeScorer>,
     filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
+    slices: &HashMap<String, Vec<SliceEntry>>,
     yaml_rules: &[SuppressionRule],
     stderr: &mut String,
 ) -> (Vec<Hit>, usize) {
@@ -822,6 +881,15 @@ fn score_patches(
             let line = hunk.new_start as usize;
             let line_end = (hunk.new_start + hunk.new_lines).saturating_sub(1) as usize;
             let reason = scored.reason.as_str().to_string();
+            // Per-slice dispatch: if the file falls in a calibrated slice, judge
+            // the score against that slice's threshold instead of the whole-repo
+            // one. Foreign-import hits fire regardless of threshold.
+            let (flagged, threshold) = match ext_to_lang(&ext)
+                .and_then(|lang| slice_threshold(slices, lang, &batch.file_path))
+            {
+                Some(t) => (reason == "import" || scored.score >= t, t),
+                None => (scored.flagged, scored.threshold),
+            };
             let hash = hit_hash(&batch.file_path, &reason, &hunk_content);
             let suppressed_by = if batch.ignored_by_pattern {
                 Some(SuppressedBy::ArgotIgnore)
@@ -842,8 +910,8 @@ fn score_patches(
                 line_end,
                 source: batch.source.clone(),
                 reason,
-                flagged: scored.flagged,
-                threshold: scored.threshold,
+                flagged,
+                threshold,
                 hunk_content,
                 evidence: scored.evidence,
                 hash,
@@ -1284,6 +1352,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         language_extensions,
         fit_sha,
         model_hash,
+        slices,
     } = match load_scorers(&args.argot_dir) {
         Ok(l) => l,
         Err((msg, code)) => return CheckOutcome::err(msg, code),
@@ -1386,6 +1455,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         filtered,
         &mut scorers,
         &filter_adapters,
+        &slices,
         &yaml.active,
         &mut stderr,
     );

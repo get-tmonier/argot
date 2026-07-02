@@ -158,6 +158,7 @@ fn rglob_sorted(dir: &Path, ext: &str) -> Vec<PathBuf> {
 /// A calibration candidate: hunk text + originating file path + file source.
 /// Line bounds are 1-indexed inclusive within `file_source` and back the
 /// parse-error host fallback for callee extraction.
+#[derive(Clone)]
 pub struct Candidate {
     pub hunk: String,
     pub file_path: PathBuf,
@@ -305,9 +306,148 @@ struct LangConfig {
     evidence_corpus: EvidenceCorpusJson,
     /// Fingerprint of `model` (deterministic serialization → stable hash).
     model_hash: String,
+    /// Optional per-slice thresholds (per-subdirectory / per-author voice).
+    /// Omitted entirely for an unsliced fit, so those configs are byte-identical
+    /// to before this field existed.
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    slices: Vec<SliceConfig>,
     /// Fit-time model snapshot: BPE token stats + callee attestation +
     /// cluster partition. Check scores against this, never the live tree.
     model: LanguageModel,
+}
+
+/// One calibrated slice: its own threshold applies to hunks whose repo-relative
+/// path matches any of `paths` (a top-level-dir prefix, an explicit glob-free
+/// prefix, or the exact files an author owns).
+#[derive(Serialize, Clone)]
+struct SliceConfig {
+    name: String,
+    paths: Vec<String>,
+    threshold: f64,
+}
+
+/// A slice resolved to the repo-relative path prefixes/files its threshold
+/// covers.
+#[derive(Clone)]
+pub struct ResolvedSlice {
+    pub name: String,
+    pub paths: Vec<String>,
+}
+
+/// True when `rel_path` (repo-relative, `/`-separated) falls in the slice: it
+/// starts with one of the slice's prefixes, or equals one of its files.
+fn slice_matches(rel_path: &str, paths: &[String]) -> bool {
+    paths
+        .iter()
+        .any(|p| rel_path == p || rel_path.starts_with(p))
+}
+
+/// Repo-relative, `/`-separated form of `path` (best-effort: strips the repo
+/// prefix when present, and normalizes Windows separators).
+fn rel_to_repo(path: &Path, repo_dir: &Path) -> String {
+    let rel = path.strip_prefix(repo_dir).unwrap_or(path);
+    rel.to_string_lossy().replace('\\', "/")
+}
+
+/// Resolve raw `--slice` specs (`path:<prefix>`, `author:<email>`, `auto`) into
+/// concrete slices over `corpus_files` (repo-relative paths). Unknown/empty
+/// specs are dropped. `auto` expands to one slice per top-level directory that
+/// holds at least [`SLICE_AUTO_MIN_FILES`] source files.
+pub fn resolve_slices(
+    repo_dir: &Path,
+    corpus_rel_files: &[String],
+    raw: &[String],
+) -> Vec<ResolvedSlice> {
+    let mut out = Vec::new();
+    for spec in raw {
+        let spec = spec.trim();
+        if spec == "auto" {
+            out.extend(auto_slices(corpus_rel_files));
+        } else if let Some(prefix) = spec.strip_prefix("path:") {
+            let prefix = prefix.trim().to_string();
+            if !prefix.is_empty() {
+                out.push(ResolvedSlice {
+                    name: format!("path:{prefix}"),
+                    paths: vec![prefix],
+                });
+            }
+        } else if let Some(email) = spec.strip_prefix("author:") {
+            let email = email.trim();
+            let files = author_files(repo_dir, email);
+            if !files.is_empty() {
+                out.push(ResolvedSlice {
+                    name: format!("author:{email}"),
+                    paths: files,
+                });
+            }
+        }
+    }
+    out
+}
+
+/// A top-level directory needs this many source files to become an auto slice.
+const SLICE_AUTO_MIN_FILES: usize = 10;
+
+/// A slice needs at least this many calibration candidates to get its own
+/// threshold; below it, the whole-repo threshold is more stable.
+const SLICE_MIN_CANDIDATES: usize = 20;
+
+fn auto_slices(corpus_rel_files: &[String]) -> Vec<ResolvedSlice> {
+    let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+    for f in corpus_rel_files {
+        if let Some(idx) = f.find('/') {
+            *counts.entry(f[..idx].to_string()).or_insert(0) += 1;
+        }
+    }
+    counts
+        .into_iter()
+        .filter(|(_, n)| *n >= SLICE_AUTO_MIN_FILES)
+        .map(|(dir, _)| ResolvedSlice {
+            name: format!("path:{dir}/"),
+            paths: vec![format!("{dir}/")],
+        })
+        .collect()
+}
+
+/// Repo-relative files an author has touched (in-process via libgit2, so no
+/// external `git`). Empty when the repo can't be opened or the author has no
+/// commits — the caller then drops the slice.
+fn author_files(repo_dir: &Path, email: &str) -> Vec<String> {
+    let Ok(repo) = git2::Repository::open(repo_dir) else {
+        return Vec::new();
+    };
+    let Ok(mut walk) = repo.revwalk() else {
+        return Vec::new();
+    };
+    if walk.push_head().is_err() {
+        return Vec::new();
+    }
+    let mut files: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for oid in walk.flatten() {
+        let Ok(commit) = repo.find_commit(oid) else {
+            continue;
+        };
+        if commit.author().email() != Some(email) {
+            continue;
+        }
+        if commit.parent_count() != 1 {
+            continue;
+        }
+        let (Ok(tree), Ok(parent)) = (commit.tree(), commit.parent(0)) else {
+            continue;
+        };
+        let Ok(parent_tree) = parent.tree() else {
+            continue;
+        };
+        if let Ok(diff) = repo.diff_tree_to_tree(Some(&parent_tree), Some(&tree), None) {
+            for delta in diff.deltas() {
+                if let Some(p) = delta.new_file().path().and_then(|p| p.to_str()) {
+                    files.insert(p.to_string());
+                }
+            }
+        }
+    }
+    files.into_iter().collect()
 }
 
 #[derive(Serialize)]
@@ -448,6 +588,10 @@ pub struct CalibrateOptions {
     /// `asym_fire_rate_threshold`), disable it when noisy (would FP-flood).
     pub auto_select_asym_cal: bool,
     pub asym_fire_rate_threshold: f64,
+    /// Raw `--slice` specs (`path:<prefix>`, `author:<email>`, `auto`). Each
+    /// resolved slice gets its own calibrated threshold, dispatched by file path
+    /// at check time. Empty = a single whole-repo threshold (today's behaviour).
+    pub slices: Vec<String>,
 }
 
 impl Default for CalibrateOptions {
@@ -469,6 +613,7 @@ impl Default for CalibrateOptions {
             cluster_size_min: 0,
             auto_select_asym_cal: true,
             asym_fire_rate_threshold: 0.05,
+            slices: Vec::new(),
         }
     }
 }
@@ -515,6 +660,14 @@ pub fn run_calibrate(
     if by_lang.is_empty() {
         bail!("no recognized language files in repo corpus");
     }
+
+    // Resolve `--slice` specs to concrete path sets once (cross-language). Each
+    // language then calibrates its own threshold for each slice's candidates.
+    let corpus_rel: Vec<String> = corpus_files
+        .iter()
+        .map(|p| rel_to_repo(p, repo_dir))
+        .collect();
+    let resolved_slices = resolve_slices(repo_dir, &corpus_rel, &opts.slices);
 
     let mut languages: BTreeMap<String, LangConfig> = BTreeMap::new();
     let mut thresholds_out: Vec<(String, f64)> = Vec::new();
@@ -658,6 +811,41 @@ pub fn run_calibrate(
         );
         let threshold = median(seed_thresholds);
 
+        // Per-slice thresholds: re-calibrate over just the candidates whose file
+        // falls in each slice. A slice with too few candidates is skipped — it
+        // would only get a noisier threshold than the whole-repo one.
+        let mut slice_configs: Vec<SliceConfig> = Vec::new();
+        for slice in &resolved_slices {
+            let slice_candidates: Vec<Candidate> = candidates
+                .iter()
+                .filter(|c| slice_matches(&rel_to_repo(&c.file_path, repo_dir), &slice.paths))
+                .cloned()
+                .collect();
+            if slice_candidates.len() < SLICE_MIN_CANDIDATES {
+                continue;
+            }
+            let slice_n_cal = opts.n_cal.min(slice_candidates.len());
+            let slice_seeds = multi_seed_thresholds(
+                &slice_candidates,
+                &bpe,
+                &mut call_receiver,
+                adapter.as_ref(),
+                &typicality,
+                &ThresholdRunConfig {
+                    n_cal: slice_n_cal,
+                    base_seed: opts.seed,
+                    n_seeds: opts.n_seeds,
+                    cluster_bonus: CR_CLUSTER_BONUS,
+                    cap: CR_CAP as f64,
+                },
+            );
+            slice_configs.push(SliceConfig {
+                name: slice.name.clone(),
+                paths: slice.paths.clone(),
+                threshold: median(slice_seeds),
+            });
+        }
+
         // Evidence corpus.
         let evidence = build_evidence_corpus(
             &lang_files,
@@ -732,6 +920,7 @@ pub fn run_calibrate(
                 },
                 evidence_corpus: evidence,
                 model_hash,
+                slices: slice_configs,
                 model,
             },
         );
@@ -872,4 +1061,49 @@ fn extract_identifiers(src: &str) -> Vec<String> {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod slice_tests {
+    use super::*;
+
+    #[test]
+    fn slice_matches_by_prefix_and_exact_file() {
+        let paths = vec!["frontend/".to_string(), "shared/util.ts".to_string()];
+        assert!(slice_matches("frontend/app.ts", &paths));
+        assert!(slice_matches("shared/util.ts", &paths)); // exact file
+        assert!(!slice_matches("backend/api.py", &paths));
+        assert!(!slice_matches("shared/other.ts", &paths));
+    }
+
+    #[test]
+    fn auto_slices_are_top_level_dirs_above_the_floor() {
+        let mut files: Vec<String> = Vec::new();
+        // frontend/ has enough files; docs/ does not.
+        for i in 0..SLICE_AUTO_MIN_FILES {
+            files.push(format!("frontend/f{i}.ts"));
+        }
+        files.push("docs/readme.ts".to_string());
+        files.push("top.ts".to_string()); // no dir → ignored
+        let slices = auto_slices(&files);
+        let names: Vec<&str> = slices.iter().map(|s| s.name.as_str()).collect();
+        assert!(names.contains(&"path:frontend/"));
+        assert!(!names.iter().any(|n| n.contains("docs")));
+    }
+
+    #[test]
+    fn resolve_slices_parses_path_specs_and_ignores_unknown() {
+        let slices = resolve_slices(
+            Path::new("/nonexistent"),
+            &[],
+            &[
+                "path:frontend/".to_string(),
+                "bogus".to_string(),
+                "path:".to_string(), // empty → dropped
+            ],
+        );
+        assert_eq!(slices.len(), 1);
+        assert_eq!(slices[0].name, "path:frontend/");
+        assert_eq!(slices[0].paths, vec!["frontend/".to_string()]);
+    }
 }

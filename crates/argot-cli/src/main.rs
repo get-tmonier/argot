@@ -541,6 +541,10 @@ struct CalibrateCmd {
     /// is below this fraction of cal hunks.
     #[arg(long = "asym-fire-rate-threshold", default_value_t = 0.05)]
     asym_fire_rate_threshold: f64,
+    /// Calibrate an extra threshold per slice (repeatable): `path:<prefix>`,
+    /// `author:<email>`, or `auto`.
+    #[arg(long = "slice", value_name = "SPEC")]
+    slice: Vec<String>,
 }
 
 fn run_calibrate_cmd(c: CalibrateCmd) -> ExitCode {
@@ -566,6 +570,7 @@ fn run_calibrate_cmd(c: CalibrateCmd) -> ExitCode {
         cluster_size_min: c.cluster_size_min,
         auto_select_asym_cal: !c.no_auto_select_asym_cal,
         asym_fire_rate_threshold: c.asym_fire_rate_threshold,
+        slices: c.slice.clone(),
     };
     match run_calibrate(&c.repo, &c.repo_corpus, &generic, &c.output, &opts) {
         Ok(thresholds) => {
@@ -592,6 +597,11 @@ struct FitCmd {
     /// Path to the target repository.
     #[arg(long, default_value = ".")]
     repo: PathBuf,
+    /// Calibrate an extra threshold for a slice of the repo (repeatable):
+    /// `path:<prefix>` (a subdirectory), `author:<email>`, or `auto` (one per
+    /// top-level directory). Hunks in a slice are judged against its threshold.
+    #[arg(long = "slice", value_name = "SPEC")]
+    slice: Vec<String>,
 }
 
 fn run_fit_cmd(c: FitCmd) -> ExitCode {
@@ -618,6 +628,7 @@ fn run_fit_cmd(c: FitCmd) -> ExitCode {
     let opts = CalibrateOptions {
         repo_sha,
         timestamp_utc: iso_now(),
+        slices: c.slice.clone(),
         ..CalibrateOptions::default()
     };
     if let Err(e) = run_calibrate(&c.repo, &repo_corpus, &generic_bytes, &scorer_config, &opts) {
