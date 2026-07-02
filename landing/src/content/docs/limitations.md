@@ -11,13 +11,15 @@ remain — both in the model and in the surfaces around it. The
 
 ## Where it works today
 
-argot's benchmark harness runs the production scorer against ten pinned open-source repos — six
-libraries (fastapi, rich, faker · hono, ink, faker-js) and four applications (Saleor, Wagtail ·
-Excalidraw, Outline) — using a hand-crafted catalog of paradigm-break fixtures scored against
-**hundreds of thousands of real PR hunks** as negative controls. Recent results: libraries 108 of
-115 fixtures caught with FP ≤ 2.0% on all six; applications 45 of 56 caught with FP ≤ 0.5% on all
-four (Python apps clear the library bar; TypeScript apps miss subtle structural breaks — see the
-research log's application-corpora evidence).
+argot's benchmark harness runs against ten pinned open-source repos — six libraries (fastapi,
+rich, faker · hono, ink, faker-js) and four applications (Saleor, Wagtail · Excalidraw, Outline).
+Since research era 15 the headline numbers come from the **production path**: every break fixture
+is planted into its host file on disk, staged with real git, and judged by the actual
+`argot fit` → `argot check --staged` pipeline, with each corpus's last 30 real commits replayed
+as the false-positive control. Recent results: libraries **111 of 115** fixtures caught (five
+corpora at 100%, false positives 0% on five of six); applications **49 of 56** caught (Saleor and
+Wagtail at 100%). The remaining gaps are documented with refutation evidence in the research
+log's era-15 memo.
 
 ## Modeling caveats
 
@@ -25,9 +27,13 @@ research log's application-corpora evidence).
   body lines. Repos with fewer than ~100 sampleable units may get a noisier threshold.
 - **Best on a consistent hand.** Highly polyglot repos, or repos with many contributors and no
   enforced style, are harder to model.
-- **Subtle structural breaks on application code.** Legacy lifecycle methods, Redux-style store
-  shapes and callback pyramids carry little import/callee signal and can score under the threshold
-  on heterogeneous application corpora (excalidraw 9/14, outline 10/14).
+- **Subtle structural breaks on heterogeneous application code.** Callback pyramids and
+  framework-idiom shapes carry little import/callee/convention signal when the host repo's own
+  code legitimately reaches the same shapes (excalidraw 9/14; era 15 scouted and refuted three
+  candidate mechanisms against this class).
+- **Voice-novel commits flag proportionally.** New feature areas score as new voice until the
+  next `argot fit`; a stale model amplifies this, so `check` warns when the fit is ≥ 10 commits
+  old (refits take seconds on the model artifact).
 - **Noisier on very small or brand-new hunks** — less context to score against.
 
 ## Surface gaps
@@ -46,7 +52,7 @@ These are the adoption-blockers we're building toward v1:
 
 | Goal | Status |
 |---|---|
-| Push FP ≤ 1% and close the recall gap | Research era 14 concluded: four mechanisms refuted with documented evidence; FP holds ≤ 2.0% (libraries) / ≤ 0.5% (applications) |
+| Push FP ≤ 1% and close the recall gap | Research era 15: production-path recall 160/171 (93.6%) with FP ≈ 0 on 7 of 10 corpora; residuals documented with refutation evidence |
 | Validate on application corpora | ✅ Done — four application corpora benchmarked and published |
 | Suppression mechanism | ✅ Shipped |
 | Repo suitability check | ✅ Shipped (`argot inspect`) |
