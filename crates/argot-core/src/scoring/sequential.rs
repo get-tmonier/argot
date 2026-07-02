@@ -300,14 +300,11 @@ impl SequentialImportBpeScorer {
         // 4. Call-receiver contribution (always computed when configured).
         // Phase D host context: an explicit one wins; otherwise the file
         // source + hunk bounds serve as the host (real-PR path).
-        let cr_host_context: Option<(&str, usize, usize)> = host_context.or(match (
-            file_source,
-            hunk_start_line,
-            hunk_end_line,
-        ) {
-            (Some(fs), Some(hs), Some(he)) => Some((fs, hs, he)),
-            _ => None,
-        });
+        let cr_host_context: Option<(&str, usize, usize)> =
+            host_context.or(match (file_source, hunk_start_line, hunk_end_line) {
+                (Some(fs), Some(hs), Some(he)) => Some((fs, hs, he)),
+                _ => None,
+            });
         let contribution = if let Some(cr) = &mut self.call_receiver {
             let alpha = cr.alpha;
             let cap = cr.cap as f64;

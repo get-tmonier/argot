@@ -230,7 +230,8 @@ pub fn fixture_scoring_input(
                 // the hunk's region from this spliced AST.
                 let host_lines: Vec<&str> = host_content.lines().collect();
                 let inject_idx = inject_at.saturating_sub(1).min(host_lines.len());
-                let mut spliced: Vec<&str> = Vec::with_capacity(host_lines.len() + cleaned_lines.len());
+                let mut spliced: Vec<&str> =
+                    Vec::with_capacity(host_lines.len() + cleaned_lines.len());
                 spliced.extend_from_slice(&host_lines[..inject_idx]);
                 spliced.extend_from_slice(&cleaned_lines);
                 spliced.extend_from_slice(&host_lines[inject_idx..]);

@@ -260,7 +260,6 @@ pub fn load_diff_hunks_for_probe(
     out
 }
 
-
 /// Era-14 phase B: calibration candidates from real diff hunks in
 /// `dataset.jsonl`. Lock-step scope with control scoring: excluded paths are
 /// dropped, hunks are filtered to the scorer's language, and file content is

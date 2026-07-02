@@ -21,6 +21,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use argot_core::check::{run_check, CheckArgs, DEFAULT_HUNK_LINES};
 use argot_core::extract::{write_dataset, ExtractError};
 use argot_core::git_walk::{head_sha, repo_exists};
+use argot_core::inspect::{format_shares, inspect_repo, InspectReport, ReasonLevel, Verdict};
 use argot_core::output::OutputFormat;
 use argot_core::scoring::adapters::python::PythonAdapter;
 use argot_core::scoring::adapters::typescript::TypeScriptAdapter;
@@ -76,6 +77,8 @@ enum Command {
     Fit(FitCmd),
     /// Check code changes against the calibrated scorers (mirrors `argot-check`).
     Check(CheckCmd),
+    /// Report corpus composition, calibration health, and repo suitability.
+    Inspect(InspectCmd),
     /// Batch-score hunks from stdin (benchmark harness seam). Hidden.
     #[command(hide = true)]
     Score(ScoreCmd),
@@ -246,7 +249,7 @@ fn run_update() -> ExitCode {
 fn print_help_banner() {
     let version = env!("CARGO_PKG_VERSION");
     println!(
-        "argot v{version}\n\nCOMMANDS\n  extract    Walk git history into a training dataset (.argot/dataset.jsonl)\n  fit        Fit the voice model to this repo (= train + calibrate, one-shot)\n  check      Check changes against the fitted voice\n  status     Show current repository's argot state\n  list       List all registered repositories\n  update     Update the argot CLI\n\nTypical first run: argot extract && argot fit && argot check\nRun `argot <command> --help` for details on any command."
+        "argot v{version}\n\nCOMMANDS\n  extract    Walk git history into a training dataset (.argot/dataset.jsonl)\n  fit        Fit the voice model to this repo (= train + calibrate, one-shot)\n  check      Check changes against the fitted voice\n  inspect    Report corpus composition, calibration health, and suitability\n  status     Show current repository's argot state\n  list       List all registered repositories\n  update     Update the argot CLI\n\nTypical first run: argot extract && argot fit && argot check\nRun `argot <command> --help` for details on any command."
     );
 }
 
@@ -475,6 +478,146 @@ fn run_check_cmd(c: CheckCmd) -> ExitCode {
     print!("{}", outcome.stdout);
     eprint!("{}", outcome.stderr);
     ExitCode::from(outcome.exit_code as u8)
+}
+
+#[derive(Args)]
+struct InspectCmd {
+    /// Path to the repository to inspect.
+    #[arg(default_value = ".")]
+    path: PathBuf,
+    /// Emit a stable machine-readable JSON document.
+    #[arg(long)]
+    json: bool,
+}
+
+fn run_inspect_cmd(c: InspectCmd) -> ExitCode {
+    let report = match inspect_repo(&c.path) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    if c.json {
+        match serde_json::to_string_pretty(&report) {
+            Ok(json) => println!("{json}"),
+            Err(e) => {
+                eprintln!("error: {e}");
+                return ExitCode::from(2);
+            }
+        }
+        return ExitCode::SUCCESS;
+    }
+    // Same color policy as `check`: NO_COLOR unset and stdout is a tty.
+    let use_color = std::env::var_os("NO_COLOR").is_none() && std::io::stdout().is_terminal();
+    print!("{}", render_inspect_human(&report, use_color));
+    ExitCode::SUCCESS
+}
+
+const ANSI_RED: &str = "\x1b[31m";
+const ANSI_YELLOW: &str = "\x1b[33m";
+const ANSI_GREEN: &str = "\x1b[32m";
+const ANSI_BOLD: &str = "\x1b[1m";
+const ANSI_RESET: &str = "\x1b[0m";
+
+fn paint(text: &str, color: &str, use_color: bool) -> String {
+    if use_color {
+        format!("{color}{text}{ANSI_RESET}")
+    } else {
+        text.to_string()
+    }
+}
+
+fn render_inspect_human(report: &InspectReport, use_color: bool) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    let _ = writeln!(out, "Inspecting {}", report.path);
+    let _ = writeln!(out);
+
+    // Corpus composition.
+    let c = &report.corpus;
+    let _ = writeln!(out, "Corpus");
+    let _ = writeln!(
+        out,
+        "  {} files scanned · {} supported · {} unsupported extension",
+        c.total_files, c.supported_files, c.unsupported_files
+    );
+    for (lang, stats) in &c.languages {
+        let _ = writeln!(
+            out,
+            "  {lang}: {} files ({:.0}%) · {} included · excluded: {} path, {} auto-generated, {} data-dominant",
+            stats.files,
+            stats.share_of_supported * 100.0,
+            stats.included,
+            stats.excluded_path,
+            stats.auto_generated,
+            stats.data_dominant,
+        );
+        let _ = writeln!(
+            out,
+            "    calibration candidates: {} hunks",
+            stats.candidate_hunks
+        );
+    }
+    if !c.languages.is_empty() {
+        let mixed = if c.meaningfully_mixed {
+            " — meaningfully mixed"
+        } else {
+            ""
+        };
+        let _ = writeln!(out, "  polyglotism: {}{mixed}", format_shares(c));
+    }
+    let _ = writeln!(out);
+
+    // Calibration health (post-fit only).
+    let _ = writeln!(out, "Calibration");
+    match &report.calibration {
+        Some(cal) => {
+            let _ = writeln!(out, "  config: {}", cal.config_path);
+            for (lang, lc) in &cal.languages {
+                let _ = writeln!(
+                    out,
+                    "  {lang}: threshold {:.4} · n_cal {} (candidates now: {}) · {} seeds (base {})",
+                    lc.threshold, lc.n_cal, lc.candidate_hunks_now, lc.n_seeds, lc.seed
+                );
+                let _ = writeln!(
+                    out,
+                    "    calibrated at {} · repo sha {}",
+                    lc.timestamp_utc, lc.repo_sha
+                );
+            }
+        }
+        None => {
+            let _ = writeln!(out, "  not fitted — run `argot fit` to calibrate");
+        }
+    }
+    let _ = writeln!(out);
+
+    // Verdict.
+    let verdict_label = match report.verdict {
+        Verdict::Ready => paint("Ready", ANSI_GREEN, use_color),
+        Verdict::Marginal => paint("Marginal", ANSI_YELLOW, use_color),
+        Verdict::NotRecommended => paint("Not recommended", ANSI_RED, use_color),
+    };
+    let _ = writeln!(
+        out,
+        "{} {verdict_label}",
+        paint("Verdict:", ANSI_BOLD, use_color)
+    );
+    for reason in &report.reasons {
+        let (label, color) = match reason.level {
+            ReasonLevel::Red => ("red", ANSI_RED),
+            ReasonLevel::Yellow => ("yellow", ANSI_YELLOW),
+        };
+        let _ = writeln!(
+            out,
+            "  {} {} — {}",
+            paint(label, color, use_color),
+            reason.signal,
+            reason.message
+        );
+    }
+    out
 }
 
 // --- batch score (benchmark harness seam) ---
@@ -758,6 +901,7 @@ fn main() -> ExitCode {
         Some(Command::Calibrate(c)) => run_calibrate_cmd(c),
         Some(Command::Fit(c)) => run_fit_cmd(c),
         Some(Command::Check(c)) => run_check_cmd(c),
+        Some(Command::Inspect(c)) => run_inspect_cmd(c),
         Some(Command::Score(c)) => run_score_cmd(c),
         Some(Command::Status) => run_status(),
         Some(Command::List) => run_list(),
