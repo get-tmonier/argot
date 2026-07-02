@@ -6,6 +6,8 @@ targets:
   - name: fastapi
     url: https://github.com/tiangolo/fastapi
     language: python
+    # Docs-heavy history: 120 commits yield only ~13 python hunks.
+    holdout_window: 1200
     prs:
       # Primary: HEAD at era-6 baseline. Controls + fixture injection host.
       - { pr: 0, sha: 88021c3dc016d02fe609397cb034648262c270e8 }
@@ -178,6 +180,8 @@ targets:
   - name: bat
     url: https://github.com/sharkdp/bat
     language: rust
+    # 120 commits yield <300 eligible hunks.
+    holdout_window: 250
     prs:
       - { pr: 0, sha: 78951393e29bfd2f2a45f4326b9d2bb5e737dd2a }
   - name: guava

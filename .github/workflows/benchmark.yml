@@ -49,20 +49,21 @@ jobs:
           script: |
             const fs = require('fs');
             const d = JSON.parse(fs.readFileSync('benchmarks/results/quick/dashboard.json', 'utf8'));
+            const fp = s => s ? `${s.rate_pct.toFixed(2)}% (${s.hits}/${s.hunks})` : '—';
             const rows = d.corpora.map(c =>
-              `| ${c.corpus} (${c.language}) | ${c.caught}/${c.fixtures} (${c.recall_pct.toFixed(1)}%) | ${c.fp_rate_pct.toFixed(2)}% |`
+              `| ${c.corpus} (${c.language}) | ${c.caught ?? '—'}/${c.fixtures ?? '—'} (${(c.recall_pct ?? 0).toFixed(1)}%) | ${fp(c.fp_existing)} | ${fp(c.fp_new_file)} |`
             ).join('\n');
             const body = [
               '<!-- argot-benchmark -->',
               '### 📊 argot quick bench',
               '',
-              `Recall ${d.totals.caught}/${d.totals.fixtures} (**${d.totals.recall_pct.toFixed(1)}%**), worst FP ${d.totals.worst_fp_rate_pct.toFixed(2)}% · \`${d.commit}\``,
+              `Recall ${d.totals.caught}/${d.totals.fixtures} (**${d.totals.recall_pct.toFixed(1)}%**) · \`${d.commit}\``,
               '',
-              '| Corpus | Recall | FP rate |',
-              '|---|---:|---:|',
+              '| Corpus | Recall | FP existing (holdout) | FP new-file (holdout) |',
+              '|---|---:|---:|---:|',
               rows,
               '',
-              '_Quick subset (one corpus). The full matrix lives at [argot.tmonier.com/benchmarks](https://argot.tmonier.com/benchmarks)._',
+              '_Quick subset (recall only — holdout FP runs in the full bench). Full matrix: [argot.tmonier.com/benchmarks](https://argot.tmonier.com/benchmarks)._',
             ].join('\n');
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number,

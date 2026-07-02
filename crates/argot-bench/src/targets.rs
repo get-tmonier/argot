@@ -21,6 +21,11 @@ pub struct Target {
     pub language: String,
     #[serde(default)]
     pub prs: Vec<PrPin>,
+    /// Corpus-specific holdout window (first-parent commits behind the pin
+    /// for the fit point). Overrides the CLI default — docs-heavy or
+    /// slow-moving repos need wider windows to reach the sample bar.
+    #[serde(default)]
+    pub holdout_window: Option<usize>,
 }
 
 const TARGET_LANGUAGES: &[&str] = &[

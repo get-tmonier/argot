@@ -267,7 +267,8 @@ pub fn run_corpus_holdout(target: &Target, opts: &HoldoutOptions) -> Result<Hold
     // Detached checkout also fetches once if the pinned object is missing.
     ensure_sha_checked_out(&repo_dir, &head_sha)?;
 
-    let (fit_sha, replay) = plan_holdout(&repo_dir, &head_sha, opts.window)?;
+    let window = target.holdout_window.unwrap_or(opts.window);
+    let (fit_sha, replay) = plan_holdout(&repo_dir, &head_sha, window)?;
     eprintln!(
         "[{}] holdout: fit @ {} (head~{}), replaying {} commits",
         target.name,
@@ -654,6 +655,7 @@ mod tests {
                 pr: 0,
                 sha: head_sha.clone(),
             }],
+            holdout_window: None,
         };
         let opts = HoldoutOptions {
             data_dir: data_dir.clone(),

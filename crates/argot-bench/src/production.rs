@@ -7,9 +7,10 @@
 //! routing). This mode closes that gap by measurement: for every catalog
 //! fixture, the fixture content is spliced into its host file **on disk**,
 //! staged with real git, and judged by `run_check --staged` against a real
-//! `argot fit` artifact — self-attestation conditions and all. The false-
-//! positive control replays the corpus's own recent commits through
-//! `run_check --commit`.
+//! `argot fit` artifact — self-attestation conditions and all. Recall only:
+//! the old false-positive control replayed commits that are ANCESTORS of the
+//! fit SHA (train-on-test; FP ~0 by construction) and was deleted — honest FP
+//! comes from the temporal-holdout mode (issue #92).
 //!
 //! The recall/FP gap between catalog mode and this mode is itself a tracked
 //! metric: it must shrink toward zero as the check path gains the signal
@@ -52,11 +53,6 @@ pub struct ProductionReport {
     pub thresholds: BTreeMap<String, f64>,
     /// Per-language resolved cluster-rare thresholds from the fit artifact.
     pub resolved_rare: BTreeMap<String, u64>,
-    /// FP control: real history commits replayed through `check --commit`.
-    pub fp_commits: usize,
-    pub fp_hunks: usize,
-    pub fp_hits: usize,
-    pub fp_rate: f64,
     pub fixture_results: Vec<ProdFixtureResult>,
 }
 
@@ -149,13 +145,9 @@ pub(crate) fn fit_clone(
     Ok((thresholds, resolved_rare))
 }
 
-/// Run one corpus through the production path. `fp_commits` real history
-/// commits feed the FP control (0 disables it).
-pub fn run_corpus_production(
-    target: &Target,
-    opts: &RunOptions,
-    fp_commits: usize,
-) -> Result<ProductionReport> {
+/// Run one corpus through the production path (recall only — honest FP is
+/// the temporal-holdout mode's job).
+pub fn run_corpus_production(target: &Target, opts: &RunOptions) -> Result<ProductionReport> {
     let catalog_dir = opts.catalogs_dir.join(&target.name);
     let catalog = load_catalog(&catalog_dir)?;
     let repo_dir = ensure_clone(&opts.data_dir, &target.name, &target.url)?;
@@ -231,34 +223,6 @@ pub fn run_corpus_production(
         });
     }
 
-    // --- FP control: replay real history commits through `check --commit`.
-    let mut fp_hunks = 0usize;
-    let mut fp_hits = 0usize;
-    let mut fp_checked = 0usize;
-    if fp_commits > 0 {
-        let shas = git_stdout(
-            &repo_dir,
-            &[
-                "rev-list",
-                "--no-merges",
-                "-n",
-                &fp_commits.to_string(),
-                &primary.sha,
-            ],
-        )?;
-        for sha in shas.lines().filter(|l| !l.trim().is_empty()) {
-            let mut args = check_args(&repo_dir);
-            args.commit = Some(sha.to_string());
-            let outcome = run_check(args);
-            let Ok(doc) = serde_json::from_str::<serde_json::Value>(&outcome.stdout) else {
-                continue;
-            };
-            fp_checked += 1;
-            fp_hunks += doc["hunks_scanned"].as_u64().unwrap_or(0) as usize;
-            fp_hits += doc["hits"].as_array().map(|a| a.len()).unwrap_or(0);
-        }
-    }
-
     let n_fixtures = fixture_results.len();
     let n_caught = fixture_results.iter().filter(|f| f.flagged).count();
     let uncaught: Vec<String> = fixture_results
@@ -273,14 +237,6 @@ pub fn run_corpus_production(
         uncaught,
         thresholds,
         resolved_rare,
-        fp_commits: fp_checked,
-        fp_hunks,
-        fp_hits,
-        fp_rate: if fp_hunks == 0 {
-            0.0
-        } else {
-            fp_hits as f64 / fp_hunks as f64
-        },
         fixture_results,
     })
 }
@@ -309,8 +265,8 @@ pub fn production_summary_markdown(
     let mut out = String::new();
     out.push_str("# argot-bench production-path report\n\n");
     out.push_str(
-        "| Corpus | Recall (production) | Recall (catalog) | Gap | FP rate | FP hits/hunks (commits) | Uncaught |\n\
-         |:---|---:|---:|---:|---:|---:|:---|\n",
+        "| Corpus | Recall (production) | Recall (catalog) | Gap | Uncaught |\n\
+         |:---|---:|---:|---:|:---|\n",
     );
     let mut total_caught = 0usize;
     let mut total_fixtures = 0usize;
@@ -333,17 +289,13 @@ pub fn production_summary_markdown(
             _ => ("—".to_string(), "—".to_string()),
         };
         out.push_str(&format!(
-            "| {} | {}/{} ({:.1}%) | {} | {} | {:.2}% | {}/{} ({}) | {} |\n",
+            "| {} | {}/{} ({:.1}%) | {} | {} | {} |\n",
             r.corpus,
             r.n_caught,
             r.n_fixtures,
             prod_pct,
             cat_cell,
             gap_cell,
-            100.0 * r.fp_rate,
-            r.fp_hits,
-            r.fp_hunks,
-            r.fp_commits,
             if r.uncaught.is_empty() {
                 "—".to_string()
             } else {
