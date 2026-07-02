@@ -142,8 +142,9 @@ def list_users() -> list[dict[str, Any]]:
 Mixed-language monorepos calibrate one threshold per language and dispatch each
 hunk by file extension. Numbers are the latest full benchmark
 (**160/171 fixtures caught, 93.6%**, through the real `argot fit` → `argot check`
-pipeline against 494k+ real-PR control hunks) — the per-corpus breakdown,
-methodology, and known weaknesses live in
+pipeline against 494k+ real-PR control hunks) — live per-corpus results at
+[argot.tmonier.com/benchmarks](https://argot.tmonier.com/benchmarks) (fed from
+CI), with the methodology and known weaknesses in
 [the research log](docs/research/README.md) and
 [benchmarks/README.md](benchmarks/README.md).
 

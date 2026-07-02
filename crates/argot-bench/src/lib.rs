@@ -2,6 +2,7 @@
 //! research scout binaries under `src/bin/`.
 
 pub mod catalog;
+pub mod dashboard;
 pub mod metrics;
 pub mod production;
 pub mod report;
