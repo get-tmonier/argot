@@ -64,9 +64,35 @@ language. After the fix:
 Convention-stage FPs went 4→0 and 24→0; the residual FPs are the `cluster_rare`
 branch (within budget, left for a separate follow-up — its keep/disable
 auto-detect probes whole-declaration candidates rather than historical diff
-hunks). No regression: Java (guava 0.00%) and C# (PowerShell 1.56%) unchanged;
-`just verify` green. Tracked/closed via #90. Fixtures under
+hunks). Tracked/closed via #90. Fixtures under
 [`benchmarks/fixtures/php/`](../../../benchmarks/fixtures/php/).
+
+### Per-shape bars — the windowing alone reduced true positives
+
+False-positive rate is not the only metric. The first cut used a **single scalar**
+ident bar (max over all morphology shapes and windows), and that *reduced the
+convention scorer's own true-positive rate*: on `rich` (a snake_case Python repo),
+60%+ camelCase break hunks that used to fire stopped firing, because the scalar
+bar was driven up by `rich`'s in-voice `SCREAMING_SNAKE` constant windows (bar
+5.07) even though `rich` uses camelCase essentially never (0.07%). Measured
+directly: **0/6** constructed camelCase breaks fired under the scalar-windowed
+bar (the old whole-declaration bar caught 4/6).
+
+Fix: **per-morphology bars** — each shape is judged against the most-skewed
+window the repo's own code contains *for that shape*. `rich`'s camel bar is then
+2.26 (not 5.07), so camelCase breaks fire again while `rich`'s own scream/pascal
+windows don't. Result:
+
+| | convention TP (rich 60%+ camel breaks) | PHP laravel / composer FP | Java | C# | Rust | rich FP |
+|---|---:|---:|---:|---:|---:|---:|
+| whole-declaration (original) | 4/6 | 3.72% / 4.86% | — | — | — | — |
+| scalar-windowed | **0/6** | 1.60% / 1.44% | 0.00% | 1.56% | — | — |
+| **per-shape (shipped)** | **6/6** | **1.60% / 1.44%** | 0.29% | 1.56% | 0.54% | 0.00% |
+
+The per-shape sensitivity costs a little FP where it should (Java 0.00%→0.29%,
+still far under bar) in exchange for restoring the detection the scalar bar lost.
+`calibrate_convention_bars` is shared by production and the bench; `just verify`
+green (Python/TS parity goldens unchanged); config version 3.
 
 ## Reproduction
 
