@@ -116,10 +116,14 @@ fn rglob_sorted(dir: &Path, ext: &str) -> Vec<PathBuf> {
 }
 
 /// A calibration candidate: hunk text + originating file path + file source.
+/// Line bounds are 1-indexed inclusive within `file_source` and back the
+/// era-14 phase D parse-error callee fallback.
 pub struct Candidate {
     pub hunk: String,
     pub file_path: PathBuf,
     pub file_source: String,
+    pub hunk_start_line: usize,
+    pub hunk_end_line: usize,
 }
 
 /// Port of `collect_candidates_with_metadata` (exclude_data_dominant=True,
@@ -158,6 +162,8 @@ pub fn collect_candidates(source_dir: &Path, adapter: &dyn LanguageAdapter) -> V
                     hunk,
                     file_path: src_file.clone(),
                     file_source: source.clone(),
+                    hunk_start_line: s + 1,
+                    hunk_end_line: e,
                 });
             }
         }
@@ -344,6 +350,7 @@ pub fn multi_seed_thresholds(
                 cfg.cluster_bonus,
                 cfg.cap,
                 Some(&c.file_source),
+                Some((&c.file_source, c.hunk_start_line, c.hunk_end_line)),
             );
             cal_scores.push(raw_bpe + contrib);
         }

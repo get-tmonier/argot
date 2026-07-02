@@ -117,7 +117,7 @@ fn main() -> Result<()> {
                     continue;
                 }
                 scored += 1;
-                for ev in cr.contribution_events_for_file(hunk, Some(path), Some(source)) {
+                for ev in cr.contribution_events_for_file(hunk, Some(path), Some(source), None) {
                     cal_events.push(Event {
                         df: cr.callee_file_count(&ev.callee),
                         branch: branch_name(ev.branch),
@@ -137,6 +137,10 @@ fn main() -> Result<()> {
                     &input.hunk,
                     Some(&input.file_path),
                     input.file_source.as_deref(),
+                    input
+                        .host_context
+                        .as_ref()
+                        .map(|(src, hs, he)| (src.as_str(), *hs, *he)),
                 ) {
                     fixture_events.push(Event {
                         df: cr.callee_file_count(&ev.callee),

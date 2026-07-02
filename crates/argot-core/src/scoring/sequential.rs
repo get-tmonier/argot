@@ -221,6 +221,10 @@ impl SequentialImportBpeScorer {
 
     /// Score a hunk through both stages (`score_hunk`). `file_path` is `None`
     /// at check time (non-cluster contribution); the bench passes it.
+    ///
+    /// When `file_source` + line bounds are given, they double as the era-14
+    /// phase D host context: a hunk whose bare parse has root errors gets its
+    /// callees from its region within the file AST instead of contributing 0.
     pub fn score_hunk(
         &mut self,
         hunk_content: &str,
@@ -228,6 +232,32 @@ impl SequentialImportBpeScorer {
         hunk_start_line: Option<usize>,
         hunk_end_line: Option<usize>,
         file_path: Option<&Path>,
+    ) -> ScoredHunk {
+        self.score_hunk_with_host_context(
+            hunk_content,
+            file_source,
+            hunk_start_line,
+            hunk_end_line,
+            file_path,
+            None,
+        )
+    }
+
+    /// [`Self::score_hunk`] with an explicit host context for the phase D
+    /// parse-error callee fallback — used by the benchmark's catalog fixtures,
+    /// where the synthesized hunk-in-host content must NOT be passed as
+    /// `file_source` (it would poison prose-blanking and file-level
+    /// typicality) but should still back callee extraction on parse failure.
+    /// `host_context` is `(host_source, start_line, end_line)`, 1-indexed
+    /// inclusive.
+    pub fn score_hunk_with_host_context(
+        &mut self,
+        hunk_content: &str,
+        file_source: Option<&str>,
+        hunk_start_line: Option<usize>,
+        hunk_end_line: Option<usize>,
+        file_path: Option<&Path>,
+        host_context: Option<(&str, usize, usize)>,
     ) -> ScoredHunk {
         // 1. Typicality / auto-generated short-circuits.
         if let Some(typ) = &self.typicality {
@@ -268,6 +298,16 @@ impl SequentialImportBpeScorer {
         let bpe_score = self.bpe.bpe_score(&bpe_input);
 
         // 4. Call-receiver contribution (always computed when configured).
+        // Phase D host context: an explicit one wins; otherwise the file
+        // source + hunk bounds serve as the host (real-PR path).
+        let cr_host_context: Option<(&str, usize, usize)> = host_context.or(match (
+            file_source,
+            hunk_start_line,
+            hunk_end_line,
+        ) {
+            (Some(fs), Some(hs), Some(he)) => Some((fs, hs, he)),
+            _ => None,
+        });
         let contribution = if let Some(cr) = &mut self.call_receiver {
             let alpha = cr.alpha;
             let cap = cr.cap as f64;
@@ -280,8 +320,15 @@ impl SequentialImportBpeScorer {
                     self.cluster_bonus,
                     cap,
                     file_source,
+                    cr_host_context,
                 ),
-                None => cr.weighted_contribution(hunk_content, alpha, self.root_bonus, cap),
+                None => cr.weighted_contribution(
+                    hunk_content,
+                    alpha,
+                    self.root_bonus,
+                    cap,
+                    cr_host_context,
+                ),
             }
         } else {
             0.0

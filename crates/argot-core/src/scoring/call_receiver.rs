@@ -148,6 +148,45 @@ fn non_none_callees(source: &str, language: Language) -> Vec<String> {
         .collect()
 }
 
+/// Callees of every call-expression whose start line falls inside the
+/// 1-indexed inclusive `[start_line, end_line]` region of `source`.
+///
+/// Era-14 phase D: when a bare hunk's parse has root-level errors, callee
+/// extraction falls back to the hunk's region within its host file's AST —
+/// the host parses cleanly where the fragment did not.
+pub fn callees_in_source_region(
+    source: &str,
+    language: Language,
+    start_line: usize,
+    end_line: usize,
+) -> Vec<String> {
+    let tree = match parse(source, language) {
+        Some(t) => t,
+        None => return Vec::new(),
+    };
+    let bytes = source.as_bytes();
+    let is_call = match language {
+        Language::Python => py_call_types as fn(&str) -> bool,
+        Language::Typescript => ts_call_types as fn(&str) -> bool,
+    };
+    let extractor = match language {
+        Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::Typescript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
+    };
+    let mut out = Vec::new();
+    walk_preorder(tree.root_node(), |node| {
+        if is_call(node.kind()) {
+            let line = node.start_position().row + 1;
+            if line >= start_line && line <= end_line {
+                if let Some(c) = extractor(node, bytes) {
+                    out.push(c);
+                }
+            }
+        }
+    });
+    out
+}
+
 /// 128-element MinHash signature over a callee bag using the seed-0 universal
 /// hash family. Empty bag → all zeros.
 pub fn minhash_signature(bag: &HashSet<String>) -> Vec<i64> {
@@ -578,14 +617,30 @@ impl CallReceiverScorer {
         &self.cluster_callee_counts
     }
 
-    /// No cluster logic (`weighted_contribution`).
-    pub fn weighted_contribution(&self, hunk: &str, alpha: f64, root_bonus: f64, cap: f64) -> f64 {
-        if has_root_error(hunk, self.language) {
-            return 0.0;
-        }
+    /// No cluster logic (`weighted_contribution`). `host_context` is the
+    /// era-14 phase D parse-error fallback — see
+    /// [`Self::contribution_events_for_file`].
+    pub fn weighted_contribution(
+        &self,
+        hunk: &str,
+        alpha: f64,
+        root_bonus: f64,
+        cap: f64,
+        host_context: Option<(&str, usize, usize)>,
+    ) -> f64 {
+        let callees: Vec<String> = if has_root_error(hunk, self.language) {
+            match host_context {
+                Some((host_source, start_line, end_line)) => {
+                    callees_in_source_region(host_source, self.language, start_line, end_line)
+                }
+                None => return 0.0,
+            }
+        } else {
+            non_none_callees(hunk, self.language)
+        };
         let mut weights = 0.0;
         let mut seen: HashSet<String> = HashSet::new();
-        for c in extract_callees(hunk, self.language).into_iter().flatten() {
+        for c in callees {
             if seen.contains(&c) {
                 continue;
             }
@@ -606,13 +661,31 @@ impl CallReceiverScorer {
     /// cluster — the single source of truth behind
     /// [`Self::weighted_contribution_for_file`], also consumed directly by
     /// research scouts and evidence tooling. Does not touch the fire counters.
+    ///
+    /// `host_context` is `(host_source, hunk_start_line, hunk_end_line)` with
+    /// 1-indexed inclusive bounds. It is consulted ONLY when the bare hunk's
+    /// parse has root-level errors (era-14 phase D): callees are then read
+    /// from the hunk's region within the host AST. Hunks that parse cleanly
+    /// never touch it, so the fallback is purely additive on the
+    /// parse-error path (G4.d invariant).
     pub fn contribution_events_for_file(
         &self,
         hunk: &str,
         file_path: Option<&Path>,
         file_source: Option<&str>,
+        host_context: Option<(&str, usize, usize)>,
     ) -> Vec<ContributionEvent> {
-        if has_root_error(hunk, self.language) {
+        let callees: Vec<String> = if has_root_error(hunk, self.language) {
+            match host_context {
+                Some((host_source, start_line, end_line)) => {
+                    callees_in_source_region(host_source, self.language, start_line, end_line)
+                }
+                None => return Vec::new(),
+            }
+        } else {
+            non_none_callees(hunk, self.language)
+        };
+        if callees.is_empty() {
             return Vec::new();
         }
         let mut cluster_id: Option<usize> =
@@ -629,7 +702,7 @@ impl CallReceiverScorer {
 
         let mut events = Vec::new();
         let mut seen: HashSet<String> = HashSet::new();
-        for c in extract_callees(hunk, self.language).into_iter().flatten() {
+        for c in callees {
             if seen.contains(&c) {
                 continue;
             }
@@ -665,7 +738,10 @@ impl CallReceiverScorer {
         events
     }
 
-    /// Cluster-conditional (`weighted_contribution_for_file`).
+    /// Cluster-conditional (`weighted_contribution_for_file`). `host_context`
+    /// is the era-14 phase D parse-error fallback — see
+    /// [`Self::contribution_events_for_file`].
+    #[allow(clippy::too_many_arguments)]
     pub fn weighted_contribution_for_file(
         &mut self,
         hunk: &str,
@@ -675,9 +751,10 @@ impl CallReceiverScorer {
         cluster_bonus: f64,
         cap: f64,
         file_source: Option<&str>,
+        host_context: Option<(&str, usize, usize)>,
     ) -> f64 {
         self.hunks_scored += 1;
-        let events = self.contribution_events_for_file(hunk, file_path, file_source);
+        let events = self.contribution_events_for_file(hunk, file_path, file_source, host_context);
         let mut weights = 0.0;
         let mut hunk_fired_rare = false;
         for ev in &events {
@@ -831,6 +908,7 @@ mod tests {
                 5.0,
                 5.0,
                 None,
+                None,
             );
             let b = gated.weighted_contribution_for_file(
                 hunk,
@@ -839,6 +917,7 @@ mod tests {
                 2.0,
                 5.0,
                 5.0,
+                None,
                 None,
             );
             assert_eq!(a, b, "hunk {hunk:?}");
@@ -861,6 +940,7 @@ mod tests {
             5.0,
             10.0,
             None,
+            None,
         );
         let b = lin.weighted_contribution_for_file(
             hunk,
@@ -869,6 +949,7 @@ mod tests {
             0.0,
             5.0,
             10.0,
+            None,
             None,
         );
         if a > 0.0 {
@@ -882,6 +963,56 @@ mod tests {
             // Cluster assignment put rare.py with a0.py; nothing fired for
             // either mode — invariant still holds.
             assert_eq!(b, 0.0);
+        }
+    }
+
+    #[test]
+    fn parse_error_hunk_falls_back_to_host_region_callees() {
+        // A bare `elif` fragment has root-level parse errors in Python.
+        let hunk = "elif validate_payload(data):\n    send_alert(data)";
+        assert!(has_root_error(hunk, Language::Python));
+        let host = "def handler(data):\n    if data is None:\n        return\n    elif validate_payload(data):\n        send_alert(data)\n";
+        let callees = callees_in_source_region(host, Language::Python, 4, 5);
+        assert_eq!(callees, vec!["validate_payload", "send_alert"]);
+
+        let cr = toy_scorer(RarityWeighting::Off);
+        // Without host context: parse error blocks everything (era-13.5).
+        assert!(cr
+            .contribution_events_for_file(hunk, Some(Path::new("a0.py")), None, None)
+            .is_empty());
+        // With host context: both (unattested) callees produce events.
+        let events = cr.contribution_events_for_file(
+            hunk,
+            Some(Path::new("a0.py")),
+            None,
+            Some((host, 4, 5)),
+        );
+        assert_eq!(events.len(), 2);
+        assert!(events
+            .iter()
+            .all(|e| matches!(e.branch, ContributionBranch::Unattested)));
+    }
+
+    #[test]
+    fn host_context_is_ignored_when_bare_hunk_parses() {
+        // G4.d invariant: a cleanly-parsing hunk scores identically with and
+        // without host context — the fallback is purely additive on the
+        // parse-error path.
+        let cr = toy_scorer(RarityWeighting::Off);
+        let hunk = "foo()\nbar()\n";
+        // Deliberately contradictory host region (would yield zero callees).
+        let host = "x = 1\ny = 2\n";
+        let without = cr.contribution_events_for_file(hunk, Some(Path::new("a0.py")), None, None);
+        let with_host = cr.contribution_events_for_file(
+            hunk,
+            Some(Path::new("a0.py")),
+            None,
+            Some((host, 1, 2)),
+        );
+        assert_eq!(without.len(), with_host.len());
+        for (a, b) in without.iter().zip(with_host.iter()) {
+            assert_eq!(a.callee, b.callee);
+            assert_eq!(a.branch, b.branch);
         }
     }
 }

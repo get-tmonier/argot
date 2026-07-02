@@ -337,6 +337,8 @@ pub fn collect_diff_candidates(
             hunk,
             file_path: repo_dir.join(fp),
             file_source: source.clone(),
+            hunk_start_line: hs + 1,
+            hunk_end_line: *he,
         });
     }
     out
@@ -433,6 +435,7 @@ pub fn build_scorer(
                 knobs.cluster_bonus,
                 knobs.cap as f64,
                 Some(file_source),
+                None,
             );
             hunks_scored += 1;
         }

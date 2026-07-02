@@ -197,6 +197,10 @@ pub struct FixtureScoringInput {
     pub hunk_start_line: Option<usize>,
     pub hunk_end_line: Option<usize>,
     pub file_path: PathBuf,
+    /// Era-14 phase D: synthesized hunk-in-host content + the hunk's
+    /// 1-indexed inclusive bounds within it. Only consulted when the bare
+    /// hunk's parse has root errors; never passed as `file_source`.
+    pub host_context: Option<(String, usize, usize)>,
 }
 
 pub fn fixture_scoring_input(
@@ -210,9 +214,10 @@ pub fn fixture_scoring_input(
     let mut scored_hs = Some(fx.hunk_start_line);
     let mut scored_he = Some(fx.hunk_end_line);
 
-    if let (Some(host_file), Some(_)) = (&fx.host_file, fx.host_inject_at_line) {
+    let mut host_context: Option<(String, usize, usize)> = None;
+    if let (Some(host_file), Some(inject_at)) = (&fx.host_file, fx.host_inject_at_line) {
         let host_path = repo_dir.join(host_file);
-        if std::fs::read_to_string(&host_path).is_ok() {
+        if let Ok(host_content) = std::fs::read_to_string(&host_path) {
             if let Ok(catalog_content) = std::fs::read_to_string(catalog_dir.join(&fx.file)) {
                 let (cleaned, clean_hs, clean_he) =
                     strip_break_meta(&catalog_content, fx.hunk_start_line, fx.hunk_end_line);
@@ -220,6 +225,20 @@ pub fn fixture_scoring_input(
                 if clean_hs >= 1 && clean_hs <= clean_he && clean_he <= cleaned_lines.len() {
                     hunk = cleaned_lines[clean_hs - 1..clean_he].join("\n");
                 }
+                // Phase D: synthesize the hunk-in-host content the catalog
+                // metadata describes; the parse-error callee fallback reads
+                // the hunk's region from this spliced AST.
+                let host_lines: Vec<&str> = host_content.lines().collect();
+                let inject_idx = inject_at.saturating_sub(1).min(host_lines.len());
+                let mut spliced: Vec<&str> = Vec::with_capacity(host_lines.len() + cleaned_lines.len());
+                spliced.extend_from_slice(&host_lines[..inject_idx]);
+                spliced.extend_from_slice(&cleaned_lines);
+                spliced.extend_from_slice(&host_lines[inject_idx..]);
+                host_context = Some((
+                    spliced.join("\n"),
+                    inject_idx + clean_hs,
+                    inject_idx + clean_he,
+                ));
                 file_path = host_path;
                 scored_src = None;
                 scored_hs = None;
@@ -233,6 +252,7 @@ pub fn fixture_scoring_input(
         hunk_start_line: scored_hs,
         hunk_end_line: scored_he,
         file_path,
+        host_context,
     })
 }
 
@@ -245,12 +265,16 @@ fn score_fixtures(
     let mut out = Vec::new();
     for fx in fixtures {
         let input = fixture_scoring_input(catalog_dir, fx, repo_dir)?;
-        let r = bench.scorer.score_hunk(
+        let r = bench.scorer.score_hunk_with_host_context(
             &input.hunk,
             input.file_source.as_deref(),
             input.hunk_start_line,
             input.hunk_end_line,
             Some(&input.file_path),
+            input
+                .host_context
+                .as_ref()
+                .map(|(src, hs, he)| (src.as_str(), *hs, *he)),
         );
         out.push(FixtureResult {
             id: fx.id.clone(),
