@@ -8,6 +8,7 @@
 //! extension→language routing) so what inspect reports is what calibrate
 //! would see. Nothing is persisted.
 
+use crate::scoring::adapters::go::GoAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::{Language, LanguageAdapter};
@@ -197,6 +198,7 @@ fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
     match language {
         Language::Python => Box::new(PythonAdapter::new()),
         Language::Typescript => Box::new(TypeScriptAdapter::new()),
+        Language::Go => Box::new(GoAdapter::new()),
     }
 }
 
@@ -273,6 +275,7 @@ fn scan_corpus(repo_dir: &Path) -> CorpusReport {
     for (key, stats) in &mut languages {
         let language = match key.as_str() {
             "python" => Language::Python,
+            "go" => Language::Go,
             _ => Language::Typescript,
         };
         let adapter = adapters

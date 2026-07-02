@@ -70,6 +70,9 @@ fn ratio_for_source(source: &str, language: Language) -> Option<f64> {
     let (handler, raise) = match language {
         Language::Python => (PY_HANDLER, PY_RAISE),
         Language::Typescript => (TS_HANDLER, TS_RAISE),
+        // Go has no exception-handler construct (errors are values); neither
+        // kind exists in the Go grammar, so this primitive stays inert for Go.
+        Language::Go => (TS_HANDLER, TS_RAISE),
     };
     let (returns, raises) = count_in_handlers(tree.root_node(), handler, raise);
     let total = returns + raises;

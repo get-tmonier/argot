@@ -4,6 +4,7 @@
 //! filters (data-dominant, auto-generated) behind a uniform surface used by
 //! the scorers and the sampler.
 
+pub mod go;
 pub mod python;
 pub mod typescript;
 
@@ -11,12 +12,12 @@ use std::collections::HashSet;
 use std::path::Path;
 
 /// Scoring-side language tag. JavaScript routes to the TypeScript adapter, so
-/// scoring only distinguishes Python vs TypeScript (matching the Python
-/// `Literal["python", "typescript"]`).
+/// scoring distinguishes Python, TypeScript, and Go.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Language {
     Python,
     Typescript,
+    Go,
 }
 
 /// Uniform language-adapter surface (port of the Python `LanguageAdapter`
@@ -95,6 +96,53 @@ impl LanguageAdapter for python::PythonAdapter {
     }
     fn line_comment_prefix(&self) -> &'static str {
         "#"
+    }
+}
+
+impl LanguageAdapter for go::GoAdapter {
+    fn language(&self) -> Language {
+        Language::Go
+    }
+    fn extract_imports(&self, source: &str) -> HashSet<String> {
+        go::GoAdapter::extract_imports(self, source)
+    }
+    fn extract_imports_with_spans(&self, source: &str) -> Vec<(String, usize, usize, usize)> {
+        go::GoAdapter::extract_imports_with_spans(self, source)
+    }
+    fn resolve_repo_modules(&self, _repo_root: &Path) -> RepoModules {
+        // Go internal packages are discovered via extract_imports at fit time;
+        // there are no exact/prefix rules read from go.mod today.
+        RepoModules::default()
+    }
+    fn is_data_dominant(&self, source: &str) -> bool {
+        go::GoAdapter::is_data_dominant(self, source)
+    }
+    fn data_literal_lines(&self, source: &str) -> HashSet<usize> {
+        go::GoAdapter::data_literal_lines(self, source)
+    }
+    fn callable_definitions(&self, source: &str) -> HashSet<String> {
+        go::GoAdapter::callable_definitions(self, source)
+    }
+    fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
+        go::GoAdapter::internal_import_bindings(self, source)
+    }
+    fn value_bindings(&self, source: &str) -> HashSet<String> {
+        go::GoAdapter::value_bindings(self, source)
+    }
+    fn is_auto_generated(&self, source: &str) -> bool {
+        go::GoAdapter::is_auto_generated(self, source)
+    }
+    fn enumerate_sampleable_ranges(&self, source: &str) -> Vec<(usize, usize)> {
+        go::GoAdapter::enumerate_sampleable_ranges(self, source)
+    }
+    fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
+        go::GoAdapter::prose_line_ranges(self, source)
+    }
+    fn identifier_noise(&self) -> &HashSet<String> {
+        go::GoAdapter::identifier_noise(self)
+    }
+    fn line_comment_prefix(&self) -> &'static str {
+        "//"
     }
 }
 

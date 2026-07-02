@@ -25,6 +25,7 @@ use argot_core::inspect::{
     format_shares, inspect_model, inspect_repo, InspectReport, ModelReport, ReasonLevel, Verdict,
 };
 use argot_core::output::OutputFormat;
+use argot_core::scoring::adapters::go::GoAdapter;
 use argot_core::scoring::adapters::python::PythonAdapter;
 use argot_core::scoring::adapters::typescript::TypeScriptAdapter;
 use argot_core::scoring::adapters::{Language, LanguageAdapter};
@@ -1171,6 +1172,7 @@ fn run_list_mutes() -> ExitCode {
         let adapter: Box<dyn LanguageAdapter> = match language {
             Language::Python => Box::new(PythonAdapter::new()),
             Language::Typescript => Box::new(TypeScriptAdapter::new()),
+            Language::Go => Box::new(GoAdapter::new()),
         };
         // Cheap pre-filter before the full parse.
         if !source.contains("argot:") {
@@ -1269,8 +1271,9 @@ fn run_score_cmd(c: ScoreCmd) -> ExitCode {
     let language = match c.language.as_str() {
         "python" => Language::Python,
         "typescript" => Language::Typescript,
+        "go" => Language::Go,
         other => {
-            eprintln!("error: --language must be python|typescript (got '{other}')");
+            eprintln!("error: --language must be python|typescript|go (got '{other}')");
             return ExitCode::from(2);
         }
     };
@@ -1300,6 +1303,7 @@ fn run_score_cmd(c: ScoreCmd) -> ExitCode {
     let adapter: Box<dyn LanguageAdapter> = match language {
         Language::Python => Box::new(PythonAdapter::new()),
         Language::Typescript => Box::new(TypeScriptAdapter::new()),
+        Language::Go => Box::new(GoAdapter::new()),
     };
     // import_modules = union of extract_imports over the corpus (matches the
     // bench's ImportGraphScorer.fit). AUC is threshold-independent; the

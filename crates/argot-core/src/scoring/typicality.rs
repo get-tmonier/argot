@@ -67,6 +67,33 @@ const TS_CONTROL_NODE_TYPES: &[&str] = &[
     "switch_statement",
 ];
 
+// Go node-type sets — the direct analog of the Python/TS sets against the Go
+// grammar (same absolute cutoffs; no Go-specific tuning).
+const GO_LITERAL_NODE_TYPES: &[&str] = &[
+    "int_literal",
+    "float_literal",
+    "imaginary_literal",
+    "rune_literal",
+    "interpreted_string_literal",
+    "raw_string_literal",
+    "true",
+    "false",
+    "nil",
+];
+
+const GO_CONTROL_NODE_TYPES: &[&str] = &[
+    "if_statement",
+    "for_statement",
+    "expression_switch_statement",
+    "type_switch_statement",
+    "select_statement",
+    "return_statement",
+    "function_declaration",
+    "method_declaration",
+    "defer_statement",
+    "go_statement",
+];
+
 // Absolute cutoffs for the structural predicate.
 const LITERAL_RATIO_CUTOFF: f64 = 0.80;
 const NAMED_LEAF_COUNT_GATE: usize = 5;
@@ -97,6 +124,7 @@ fn node_type_sets(language: Language) -> (HashSet<&'static str>, HashSet<&'stati
     let (literal, control) = match language {
         Language::Python => (PY_LITERAL_NODE_TYPES, PY_CONTROL_NODE_TYPES),
         Language::Typescript => (TS_LITERAL_NODE_TYPES, TS_CONTROL_NODE_TYPES),
+        Language::Go => (GO_LITERAL_NODE_TYPES, GO_CONTROL_NODE_TYPES),
     };
     (
         literal.iter().copied().collect(),

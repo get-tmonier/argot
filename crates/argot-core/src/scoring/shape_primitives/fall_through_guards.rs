@@ -14,6 +14,9 @@ use tree_sitter::Node;
 
 const PY_FUNC: &str = "function_definition";
 const TS_FUNC: &str = "function_declaration";
+// Go: closest general case is the top-level `function_declaration` (methods
+// aren't covered — this primitive is default-off in production).
+const GO_FUNC: &str = "function_declaration";
 const IF: &str = "if_statement";
 const RETURN: &str = "return_statement";
 
@@ -54,6 +57,7 @@ fn file_avg_guards(source: &str, language: Language) -> Option<f64> {
     let func_type = match language {
         Language::Python => PY_FUNC,
         Language::Typescript => TS_FUNC,
+        Language::Go => GO_FUNC,
     };
     let mut counts: Vec<f64> = Vec::new();
     let mut stack = vec![tree.root_node()];
