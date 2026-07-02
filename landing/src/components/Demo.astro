@@ -1,6 +1,5 @@
 ---
 import CodeWindow from '#components/CodeWindow.astro';
-import TerminalCard from '#components/TerminalCard.astro';
 import { emphasize } from '#lib/text';
 import type { SiteContent } from '#i18n/types';
 
@@ -41,13 +40,30 @@ async def get_user(user_id: int, db=Depends(get_db)) -> UserResponse:
 
     <div class="reveal flex flex-col gap-4" style="--reveal-delay: 120ms">
       <CodeWindow code={code} lang="python" title={demo.codeTitle} />
-      <TerminalCard />
+      <img
+        src="/demo.gif"
+        width="1280"
+        height="760"
+        loading="lazy"
+        decoding="async"
+        alt="argot check flagging an out-of-voice hunk, colored by severity"
+        class="demo-gif"
+      />
       <p class="text-center text-sm text-muted text-pretty" set:html={emphasize(demo.caption)} />
     </div>
   </div>
 </section>
 
 <style>
+  .demo-gif {
+    width: 100%;
+    height: auto;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.03) inset,
+      0 24px 60px -30px rgba(0, 0, 0, 0.8);
+  }
   .badge {
     display: inline-flex;
     min-width: 3.6rem;

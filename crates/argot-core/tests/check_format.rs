@@ -138,6 +138,60 @@ fn check_sarif_format_emits_valid_sarif_with_hits() {
     }
 }
 
+/// Strip CSI (`ESC [ … m`) sequences so a colored render can be compared to the
+/// plain one byte-for-byte.
+fn strip_ansi(s: &str) -> String {
+    let mut out = String::new();
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            // Skip until the final byte of the CSI sequence (a letter).
+            for e in chars.by_ref() {
+                if e.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+#[test]
+fn check_human_color_is_purely_additive() {
+    let repo = prepare_repo("human_color");
+
+    let mut plain = base_args(&repo, OutputFormat::Human);
+    plain.reference = "HEAD~2..HEAD".to_string();
+    plain.threshold = Some(-1000.0); // force every scored hunk to a visible hit
+    plain.use_color = false;
+    let plain_out = run_check(plain);
+
+    let mut colored = base_args(&repo, OutputFormat::Human);
+    colored.reference = "HEAD~2..HEAD".to_string();
+    colored.threshold = Some(-1000.0);
+    colored.use_color = true;
+    let colored_out = run_check(colored);
+
+    assert_eq!(plain_out.exit_code, colored_out.exit_code);
+    assert!(
+        !plain_out.stdout.contains('\x1b'),
+        "no-color path must be free of ANSI escapes"
+    );
+    assert!(
+        colored_out.stdout.contains("\x1b[31m") || colored_out.stdout.contains("\x1b[1m"),
+        "color path must emit ANSI accents"
+    );
+    // The whole point: color is additive, so stripping it recovers the exact
+    // no-color render the parity fixtures pin.
+    assert_eq!(
+        strip_ansi(&colored_out.stdout),
+        plain_out.stdout,
+        "ANSI-stripped colored output must equal the plain output"
+    );
+}
+
 #[test]
 fn check_json_format_clean_run_exits_zero_with_empty_hits() {
     let repo = prepare_repo("json_clean");

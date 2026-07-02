@@ -8,8 +8,10 @@
 //! This is a behaviour-preserving port: the rendered stdout is byte-identical
 //! to the Python engine's (in the `NO_COLOR` / non-tty path), including the
 //! per-reason `↳` evidence lines and the eslint-style `^^^^` caret underlines
-//! when the config carries an `evidence_corpus` block. Syntax highlighting and
-//! the ANSI color path remain deferred.
+//! when the config carries an `evidence_corpus` block. On a color-capable tty
+//! the human render adds per-severity ANSI accents (red/yellow/blue on the
+//! glyph + tier, dim on secondary detail); syntax highlighting of hunk bodies
+//! remains deferred.
 
 use crate::git_walk::{
     open_repo, resolve_shas, walk_commits, HunkSpan, WalkItem, SUPPORTED_EXTENSIONS,
@@ -39,6 +41,35 @@ pub const DEFAULT_HUNK_LINES: usize = 6;
 
 /// Severity tier ordering, weakest first (`_SEVERITY_ORDER`).
 const SEVERITY_ORDER: [&str; 3] = ["unusual", "suspicious", "foreign"];
+
+// ANSI color codes for the human `check` render. Every colored write goes
+// through `paint`, which is a no-op when `use_color` is false — so the
+// `NO_COLOR` / non-tty path stays byte-identical to the parity fixtures.
+const C_RED: &str = "\x1b[31m";
+const C_YELLOW: &str = "\x1b[33m";
+const C_BLUE: &str = "\x1b[34m";
+const C_BOLD: &str = "\x1b[1m";
+const C_DIM: &str = "\x1b[2m";
+const C_RESET: &str = "\x1b[0m";
+
+/// The accent color for a severity tier: red (foreign), yellow (suspicious),
+/// blue (unusual).
+fn severity_color(sev: &str) -> &'static str {
+    match sev {
+        "foreign" => C_RED,
+        "suspicious" => C_YELLOW,
+        _ => C_BLUE,
+    }
+}
+
+/// Wrap `text` in an ANSI code when `use_color`, else return it unchanged.
+fn paint(text: &str, color: &str, use_color: bool) -> String {
+    if use_color {
+        format!("{color}{text}{C_RESET}")
+    } else {
+        text.to_string()
+    }
+}
 
 /// Parsed CLI options for `check` (the CLI layer supplies `use_color`).
 pub struct CheckArgs {
@@ -799,6 +830,8 @@ fn render_hunk_body(
     max_lines: Option<usize>,
     must_show_hunk_lines: &HashSet<usize>,
     caret_spans_by_line: &HashMap<usize, Vec<SourceSpan>>,
+    use_color: bool,
+    caret_color: &str,
 ) -> (Vec<String>, usize) {
     if let Some(n) = max_lines {
         if n == 0 {
@@ -837,25 +870,30 @@ fn render_hunk_body(
         // The i-th rendered line is hunk-line (i + 1) regardless of start_line.
         if let Some(spans) = caret_spans_by_line.get(&(i + 1)) {
             if let Some(caret) = render_caret_line(line, spans, caret_pad) {
-                out.push(caret);
+                out.push(paint(&caret, caret_color, use_color));
             }
         }
     }
     if overflow > 0 {
         let plural = if overflow != 1 { "s" } else { "" };
-        out.push(format!(
-            "  {}   (+{} more line{})",
-            " ".repeat(width),
-            overflow,
-            plural
+        out.push(paint(
+            &format!("  {}   (+{} more line{})", " ".repeat(width), overflow, plural),
+            C_DIM,
+            use_color,
         ));
     }
     (out, overflow)
 }
 
-/// Render grouped results (`_render_results`, `use_color=false`). Returns
-/// whether any hunk body was truncated.
-fn render_results(hits: &[&Hit], hunk_lines: Option<usize>, out: &mut String) -> bool {
+/// Render grouped results (`_render_results`). Colored per-severity when
+/// `use_color`; otherwise byte-identical to the parity fixtures. Returns whether
+/// any hunk body was truncated.
+fn render_results(
+    hits: &[&Hit],
+    hunk_lines: Option<usize>,
+    use_color: bool,
+    out: &mut String,
+) -> bool {
     // Banner tier counts use the per-hit calibrated threshold.
     let mut counts: HashMap<&str, usize> = HashMap::new();
     for h in hits {
@@ -866,7 +904,7 @@ fn render_results(hits: &[&Hit], hunk_lines: Option<usize>, out: &mut String) ->
     for tier in ["foreign", "suspicious", "unusual"] {
         let c = *counts.get(tier).unwrap_or(&0);
         if c > 0 {
-            tier_parts.push(format!("{c} {tier}"));
+            tier_parts.push(format!("{c} {}", paint(tier, severity_color(tier), use_color)));
         }
     }
     let mut banner = format!(
@@ -908,7 +946,7 @@ fn render_results(hits: &[&Hit], hunk_lines: Option<usize>, out: &mut String) ->
     let mut any_truncated = false;
     let n_files = sorted_files.len();
     for (i, fp) in sorted_files.iter().enumerate() {
-        out.push_str(fp);
+        out.push_str(&paint(fp, C_BOLD, use_color));
         out.push('\n');
 
         let mut fhits: Vec<&Hit> = file_hits[fp].clone();
@@ -916,6 +954,7 @@ fn render_results(hits: &[&Hit], hunk_lines: Option<usize>, out: &mut String) ->
 
         for h in &fhits {
             let sev = severity(h.score, h.threshold);
+            let color = severity_color(sev);
             let line_str = if h.line == h.line_end {
                 format!("L{}", h.line)
             } else {
@@ -933,16 +972,23 @@ fn render_results(hits: &[&Hit], hunk_lines: Option<usize>, out: &mut String) ->
                 "suspicious" => "?",
                 _ => ".",
             };
+            // ANSI codes are zero-width, so the `{:<13}`/`{:>6.2}` columns still
+            // align; only the glyph, severity word, and hash carry escapes.
             out.push_str(&format!(
-                "  {}  {:<13} {:>6.2}  {}  {} [{}]\n",
-                glyph, line_str, h.score, sev, meta, h.hash
+                "  {}  {:<13} {:>6.2}  {}  {} {}\n",
+                paint(glyph, color, use_color),
+                line_str,
+                h.score,
+                paint(sev, color, use_color),
+                meta,
+                paint(&format!("[{}]", h.hash), C_DIM, use_color),
             ));
 
             // Per-reason evidence (names + `common here:`) sits between the
             // headline and the hunk body. `hunk_start_line = h.line` lets import
             // evidence render `(L7)` file-line annotations.
             if let Some(ev) = &h.evidence {
-                for line in format_evidence(ev, false, h.line) {
+                for line in format_evidence(ev, use_color, h.line) {
                     out.push_str(&line);
                     out.push('\n');
                 }
@@ -958,6 +1004,8 @@ fn render_results(hits: &[&Hit], hunk_lines: Option<usize>, out: &mut String) ->
                 hunk_lines,
                 &must_show,
                 &caret_spans,
+                use_color,
+                color,
             );
             for line in body {
                 out.push_str(&line);
@@ -1357,7 +1405,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         Some(args.hunk_lines)
     };
     let mut stdout = String::new();
-    let any_truncated = render_results(&visible, hunk_lines, &mut stdout);
+    let any_truncated = render_results(&visible, hunk_lines, args.use_color, &mut stdout);
 
     if any_truncated && !args.verbose {
         stdout.push('\n');

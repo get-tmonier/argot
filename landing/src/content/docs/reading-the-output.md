@@ -12,7 +12,7 @@ argot check · 2 hunks above threshold (1 foreign · 1 suspicious)
 note: argot is a probabilistic style linter — verify before action.
 
 src/utils/http-helpers.ts
-  ●  L42-L48      8.21  foreign     · workdir · foreign import (import)
+  !  L42-L48      8.21  foreign     · workdir · foreign import (import) [a1b2c3d4e5f6]
      ↳ axios — 0 of 47 module specifiers in repo
        common here: react (320×), express (88×), pg (47×)
   42 │ import axios from 'axios';
@@ -20,7 +20,7 @@ src/utils/http-helpers.ts
   44 │ export async function fetchUserData(id: string) {
 
 src/api/router.ts
-  ◐  L102         5.89  suspicious  · staged · rare token sequence (bpe)
+  ?  L102         5.89  suspicious  · staged · rare token sequence (bpe) [b7c8d9e0f1a2]
      ↳ startedAt (0×), _res (3×), use (88×)
   102 │ router.use((req, _res, next) => { req.startedAt = Date.now(); next(); });
 ```
@@ -29,7 +29,8 @@ src/api/router.ts
 
 Each hit line carries five things:
 
-- **the marker** (`●` / `◐`) and **line range** — where the hunk is.
+- **the marker** (`!` foreign / `?` suspicious / `.` unusual) and **line range** — where the hunk is.
+- **the hit hash** (`[a1b2c3d4e5f6]`) — a stable id you can pass to `argot mute`.
 - **the score** — the BPE log-likelihood ratio for the hunk. Higher means it diverges more from the
   repo's distribution.
 - **the severity tier** — `unusual` / `suspicious` / `foreign` (below).

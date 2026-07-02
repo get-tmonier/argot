@@ -48,7 +48,7 @@ argot check · 2 hunks above threshold (1 foreign · 1 suspicious)
 note: argot is a probabilistic style linter — verify before action.
 
 src/utils/http-helpers.ts
-  ●  L42-L48   8.21  foreign     · workdir · foreign import (import)
+  !  L42-L48   8.21  foreign     · workdir · foreign import (import) [a1b2c3d4e5f6]
      ↳ axios — 0 of 47 module specifiers in repo
        common here: react (320×), express (88×), pg (47×)
 ```
