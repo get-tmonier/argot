@@ -472,16 +472,14 @@ pub fn run_corpus(target: &Target, opts: &RunOptions) -> Result<Vec<CorpusReport
         };
         let fixture_results = score_fixtures(&mut bench, &catalog_dir, &fixtures, &repo_dir)?;
 
-        // Controls: primary PR.
+        // Controls: primary PR. Always language-filtered — production check
+        // routes files to their language's scorer, so a Python-corpus scorer
+        // never sees TS hunks (a polyglot app's dataset contains both).
         let records = read_control_hunks(&dataset)?;
-        let mut refs: Vec<&HunkRec> = if catalog.language == "multi" {
-            records
-                .iter()
-                .filter(|r| record_matches_language(r, language))
-                .collect()
-        } else {
-            records.iter().collect()
-        };
+        let mut refs: Vec<&HunkRec> = records
+            .iter()
+            .filter(|r| record_matches_language(r, language))
+            .collect();
         if opts.quick {
             refs.truncate(QUICK_CONTROL_CAP);
         }
@@ -511,14 +509,10 @@ pub fn run_corpus(target: &Target, opts: &RunOptions) -> Result<Vec<CorpusReport
                 );
                 let mut bench2 = build_scorer(&repo_dir, language, Some(&ds), &knobs)?;
                 let records2 = read_control_hunks(&ds)?;
-                let mut refs2: Vec<&HunkRec> = if catalog.language == "multi" {
-                    records2
-                        .iter()
-                        .filter(|r| record_matches_language(r, language))
-                        .collect()
-                } else {
-                    records2.iter().collect()
-                };
+                let mut refs2: Vec<&HunkRec> = records2
+                    .iter()
+                    .filter(|r| record_matches_language(r, language))
+                    .collect();
                 if let Some(n) = opts.sample_controls {
                     refs2 = sample_refs(&refs2, n, knobs.seed);
                 }
