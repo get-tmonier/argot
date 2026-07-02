@@ -85,15 +85,17 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Extract dataset from git history (mirrors `argot-extract`).
+    /// Extract dataset from git history.
     Extract(ExtractArgs),
-    /// Collect the repo corpus + generic baseline (mirrors `argot-train`).
+    /// Collect the repo corpus + generic baseline. Plumbing behind `fit`; hidden.
+    #[command(hide = true)]
     Train(TrainCmd),
-    /// Calibrate the per-language threshold (mirrors `argot-calibrate`).
+    /// Calibrate the per-language threshold. Plumbing behind `fit`; hidden.
+    #[command(hide = true)]
     Calibrate(CalibrateCmd),
     /// Fit the voice model to this repo (train + calibrate, one-shot).
     Fit(FitCmd),
-    /// Check code changes against the calibrated scorers (mirrors `argot-check`).
+    /// Check code changes against the calibrated scorers.
     Check(CheckCmd),
     /// Report corpus composition, calibration health, and repo suitability.
     Inspect(InspectCmd),
@@ -110,9 +112,9 @@ enum Command {
     #[command(hide = true)]
     Score(ScoreCmd),
     /// Show the current repository's argot state.
-    Status,
+    Status(StatusCmd),
     /// List all registered repositories.
-    List,
+    List(ListCmd),
     /// Update the argot CLI to the latest release.
     Update,
 }
@@ -222,24 +224,50 @@ fn format_bytes(bytes: u64) -> String {
     }
 }
 
-fn run_status() -> ExitCode {
+#[derive(Args)]
+struct StatusCmd {
+    /// Output format: human (terminal) or json (stable machine-readable).
+    #[arg(long, default_value = "human", value_parser = ["human", "json"])]
+    format: String,
+    /// Deprecated alias for `--format json` (hidden; use `--format json`).
+    #[arg(long, hide = true)]
+    json: bool,
+}
+
+fn run_status(c: StatusCmd) -> ExitCode {
     let ctx = resolve_context();
+    let dataset = fs::metadata(&ctx.dataset_path).ok().map(|m| {
+        let count = fs::read_to_string(&ctx.dataset_path)
+            .map(|s| s.lines().filter(|l| !l.trim().is_empty()).count())
+            .unwrap_or(0);
+        (count, m.len())
+    });
+    let model_bytes = fs::metadata(&ctx.repo_corpus_path).ok().map(|m| m.len());
+    let calibrated = ctx.argot_dir.join("scorer-config.json").exists();
+
+    if wants_json(&c.format, c.json) {
+        let doc = serde_json::json!({
+            "repo": { "name": ctx.name, "path": ctx.git_root },
+            "dataset": dataset.map(|(count, bytes)| serde_json::json!({
+                "records": count, "bytes": bytes,
+            })),
+            "model": { "trained": model_bytes.is_some(), "bytes": model_bytes },
+            "calibrated": calibrated,
+        });
+        println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
+        return ExitCode::SUCCESS;
+    }
+
     println!("Repo:     {} ({})", ctx.name, ctx.git_root);
-    match fs::metadata(&ctx.dataset_path) {
-        Ok(m) => {
-            let count = fs::read_to_string(&ctx.dataset_path)
-                .map(|s| s.lines().filter(|l| !l.trim().is_empty()).count())
-                .unwrap_or(0);
-            println!("Dataset:  {} records · {}", count, format_bytes(m.len()));
-        }
-        Err(_) => println!("Dataset:  —"),
+    match dataset {
+        Some((count, bytes)) => println!("Dataset:  {} records · {}", count, format_bytes(bytes)),
+        None => println!("Dataset:  —"),
     }
-    match fs::metadata(&ctx.repo_corpus_path) {
-        Ok(m) => println!("Model:    trained · {}", format_bytes(m.len())),
-        Err(_) => println!("Model:    not trained"),
+    match model_bytes {
+        Some(bytes) => println!("Model:    trained · {}", format_bytes(bytes)),
+        None => println!("Model:    not trained"),
     }
-    let config_path = ctx.argot_dir.join("scorer-config.json");
-    if config_path.exists() {
+    if calibrated {
         println!("Calibrated: yes");
     } else {
         println!("Calibrated: not calibrated — run `argot fit`");
@@ -247,11 +275,38 @@ fn run_status() -> ExitCode {
     ExitCode::SUCCESS
 }
 
-fn run_list() -> ExitCode {
+#[derive(Args)]
+struct ListCmd {
+    /// Output format: human (terminal) or json (stable machine-readable).
+    #[arg(long, default_value = "human", value_parser = ["human", "json"])]
+    format: String,
+    /// Deprecated alias for `--format json` (hidden; use `--format json`).
+    #[arg(long, hide = true)]
+    json: bool,
+}
+
+fn run_list(c: ListCmd) -> ExitCode {
     let current = git_toplevel();
     let settings = read_settings();
     let mut repos: Vec<(&String, &RepoEntry)> = settings.repos.iter().collect();
     repos.sort_by(|a, b| a.1.name.cmp(&b.1.name));
+
+    if wants_json(&c.format, c.json) {
+        let items: Vec<serde_json::Value> = repos
+            .iter()
+            .map(|(path, entry)| {
+                serde_json::json!({
+                    "name": entry.name,
+                    "path": path,
+                    "current": Some(*path) == current.as_ref(),
+                })
+            })
+            .collect();
+        let doc = serde_json::json!({ "repos": items });
+        println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
+        return ExitCode::SUCCESS;
+    }
+
     if repos.is_empty() {
         println!("No repositories registered yet.");
         return ExitCode::SUCCESS;
@@ -339,6 +394,12 @@ fn run_update() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+/// Whether a command should emit its JSON document: the shared `--format json`
+/// idiom, plus the deprecated per-command `--json` boolean alias.
+fn wants_json(format: &str, json_alias: bool) -> bool {
+    json_alias || format == "json"
 }
 
 fn print_help_banner() {
@@ -598,8 +659,11 @@ struct InspectCmd {
     /// Path to the repository to inspect.
     #[arg(default_value = ".")]
     path: PathBuf,
-    /// Emit a stable machine-readable JSON document.
-    #[arg(long)]
+    /// Output format: human (terminal) or json (stable machine-readable).
+    #[arg(long, default_value = "human", value_parser = ["human", "json"])]
+    format: String,
+    /// Deprecated alias for `--format json` (hidden; use `--format json`).
+    #[arg(long, hide = true)]
     json: bool,
 }
 
@@ -611,7 +675,7 @@ fn run_inspect_cmd(c: InspectCmd) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    if c.json {
+    if wants_json(&c.format, c.json) {
         match serde_json::to_string_pretty(&report) {
             Ok(json) => println!("{json}"),
             Err(e) => {
@@ -1232,16 +1296,27 @@ fn main() -> ExitCode {
         Some(Command::ListMutes) => run_list_mutes(),
         Some(Command::ReviewMutes(c)) => run_review_mutes_cmd(c),
         Some(Command::Score(c)) => run_score_cmd(c),
-        Some(Command::Status) => run_status(),
-        Some(Command::List) => run_list(),
+        Some(Command::Status(c)) => run_status(c),
+        Some(Command::List(c)) => run_list(c),
         Some(Command::Update) => run_update(),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::is_npm_install;
+    use super::{is_npm_install, wants_json};
     use std::path::Path;
+
+    #[test]
+    fn wants_json_honors_format_and_deprecated_alias() {
+        // The `--format json` idiom.
+        assert!(wants_json("json", false));
+        assert!(!wants_json("human", false));
+        // The deprecated `--json` boolean alias still forces JSON.
+        assert!(wants_json("human", true));
+        // Alias and format agree.
+        assert!(wants_json("json", true));
+    }
 
     #[test]
     fn npm_install_detected_by_node_modules_component() {

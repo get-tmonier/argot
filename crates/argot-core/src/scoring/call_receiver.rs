@@ -1007,16 +1007,6 @@ impl CallReceiverScorer {
             host_context,
             local_bindings,
         );
-        if std::env::var_os("ARGOT_DEBUG_EVENTS").is_some() && !events.is_empty() {
-            eprintln!(
-                "[events] file={:?} {:?}",
-                file_path,
-                events
-                    .iter()
-                    .map(|e| format!("{}:{:?}", e.callee, e.branch))
-                    .collect::<Vec<_>>()
-            );
-        }
         let mut weights = 0.0;
         let mut hunk_fired_rare = false;
         for ev in &events {
