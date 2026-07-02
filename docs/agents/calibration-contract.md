@@ -163,3 +163,58 @@ back to the hunk's line region within its host file's AST (real-PR path:
 Calibration candidates carry their own file region, so the threshold side
 sees the same fallback — cal/score symmetry is preserved. Hunks that parse
 cleanly never consult host context (G4.d, unit-tested in call_receiver.rs).
+
+---
+
+## Era-15 extensions
+
+### The model artifact carries the calibration's world
+
+`scorer-config.json` v3 persists the fit-time model (BPE token counts,
+callee attestation, cluster partition, convention frequencies + bars).
+Check scores against this snapshot, never the live tree — the threshold and
+the check path now see one score distribution by construction (issue #79:
+live-tree rebuilds let new code attest itself, silently disabling the
+unattested-callee branches on exactly the code check judges).
+
+### Parse-error host fallback is ON at check time
+
+The calibration side always applied the fallback; check ran with it off
+(era-14 gating, measured under a forced cluster-rare rule). Since git picks
+hunk boundaries, bare-fragment parse errors are the *norm* for check-time
+hunks — fallback-off made the call-receiver contribute 0 on most real
+staged hunks while the threshold included fallback-carrying cal scores.
+`run_calibrate` emits `call_receiver_parse_error_host_fallback: true` and
+check honours it; symmetry restored. The bench reproduces the era-14
+configuration with `--no-parse-error-fallback`.
+
+### Cluster branches require fitted membership
+
+Cluster-conditional branches (`cluster_absent`, `cluster_rare`) fire only
+for files present in the fit-time `file_to_cluster` map. Jaccard-guessing a
+cluster for an unknown file hands its own staples wrong-cluster bonuses (a
+React file routed into an Effect-heavy cluster was the dominant FP driver
+on real new-feature commits). Calibration candidates are corpus files and
+path-route after repo-dir canonicalization, so the cal side is unaffected;
+`nearest_cluster_for_source` survives for evidence display only.
+
+### Convention-rarity stage (asymmetric by calibrated bar)
+
+The convention stage (AST node-kind surprisal + identifier-shape surprisal,
+`scoring/conventions.rs`) is an additive bonus like the cluster rules and
+follows the same contract discipline: it never feeds
+`multi_seed_thresholds`. Instead of a fire-rate probe, its asymmetry is
+enforced by construction — the firing bars are the **max** feature value
+over the same multi-seed calibration sample the threshold uses, so the
+stage is silent on the calibration population by definition and the
+threshold is bit-identical with the stage enabled or disabled.
+
+### Neighbourhood attestation on the scoring side only
+
+The unattested-callee branches skip callees the change itself binds
+(callable definitions — file- and changeset-wide, import bindings, local
+value bindings for bare calls) and dotted callees whose method segment is
+corpus-known. The calibration side scores without these exclusions
+(candidates are corpus files whose callees are attested anyway); the
+omission leaves the threshold marginally conservative, which is the safe
+direction under the cancellation argument.
