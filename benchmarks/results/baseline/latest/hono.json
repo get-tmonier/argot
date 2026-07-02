@@ -1,0 +1,211 @@
+{
+  "corpus": "hono",
+  "language": "typescript",
+  "n_fixtures": 17,
+  "n_flagged_fixtures": 15,
+  "uncaught": [
+    "hono_validation_2",
+    "hono_middleware_3"
+  ],
+  "n_controls": 54987,
+  "n_eligible_controls": 31775,
+  "n_false_positives": 163,
+  "fp_rate": 0.005129819040125885,
+  "auc": 0.8325811079742677,
+  "threshold": 4.270709035224123,
+  "seed_thresholds": [
+    4.270709035224123,
+    4.170569749641336,
+    4.518078152537997,
+    4.170569749641336,
+    4.253825930738158,
+    4.2936575757748034,
+    4.2936575757748034
+  ],
+  "threshold_cv": 0.025241332489467173,
+  "resolved_rare_threshold": 0,
+  "recall_by_category": {
+    "async_blocking": [
+      3,
+      3
+    ],
+    "framework_swap": [
+      4,
+      4
+    ],
+    "middleware": [
+      3,
+      4
+    ],
+    "routing": [
+      3,
+      3
+    ],
+    "validation": [
+      2,
+      3
+    ]
+  },
+  "stage_attribution": {
+    "bpe": 9,
+    "call_receiver": 5,
+    "import": 1,
+    "none": 2
+  },
+  "fixture_results": [
+    {
+      "id": "hono_framework_swap_1",
+      "category": "framework_swap",
+      "difficulty": "uncaught",
+      "import_score": 0.0,
+      "bpe_score": 1.4841190236197264,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "hono_framework_swap_2",
+      "category": "framework_swap",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.21108702944016,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "hono_framework_swap_3",
+      "category": "framework_swap",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 6.3727600369942525,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "hono_async_blocking_1",
+      "category": "async_blocking",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.812526743929901,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "hono_async_blocking_2",
+      "category": "async_blocking",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 6.406351573336135,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "hono_async_blocking_3",
+      "category": "async_blocking",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.743747411491469,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "hono_validation_1",
+      "category": "validation",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 6.293807968334496,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "hono_validation_2",
+      "category": "validation",
+      "difficulty": "uncaught",
+      "import_score": 0.0,
+      "bpe_score": 2.2307295913852165,
+      "flagged": false,
+      "reason": "none"
+    },
+    {
+      "id": "hono_validation_3",
+      "category": "validation",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 4.5472198909013635,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "hono_middleware_1",
+      "category": "middleware",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.303692380218676,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "hono_middleware_2",
+      "category": "middleware",
+      "difficulty": "uncaught",
+      "import_score": 0.0,
+      "bpe_score": 0.11042218321100528,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "hono_middleware_3",
+      "category": "middleware",
+      "difficulty": "uncaught",
+      "import_score": 0.0,
+      "bpe_score": -1.7358766846133191,
+      "flagged": false,
+      "reason": "none"
+    },
+    {
+      "id": "hono_routing_1",
+      "category": "routing",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 4.712951147982592,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "hono_routing_2",
+      "category": "routing",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 1.1832357893129561,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "hono_routing_3",
+      "category": "routing",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 0.8191250909843042,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "hono_framework_swap_4",
+      "category": "framework_swap",
+      "difficulty": "easy",
+      "import_score": 1.0,
+      "bpe_score": 4.035605964247397,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "hono_middleware_4",
+      "category": "middleware",
+      "difficulty": "easy",
+      "import_score": 2.0,
+      "bpe_score": 4.712951147982592,
+      "flagged": true,
+      "reason": "import"
+    }
+  ],
+  "control_results": []
+}

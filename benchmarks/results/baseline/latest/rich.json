@@ -1,0 +1,197 @@
+{
+  "corpus": "rich",
+  "language": "python",
+  "n_fixtures": 16,
+  "n_flagged_fixtures": 16,
+  "uncaught": [],
+  "n_controls": 68598,
+  "n_eligible_controls": 52070,
+  "n_false_positives": 638,
+  "fp_rate": 0.012252736700595353,
+  "auc": 0.9963798732475514,
+  "threshold": 3.842411756614805,
+  "seed_thresholds": [
+    3.842411756614805,
+    4.646938156489021,
+    4.646938156489021,
+    3.842411756614805,
+    3.842411756614805,
+    3.842411756614805,
+    3.842411756614805
+  ],
+  "threshold_cv": 0.08924933887505686,
+  "resolved_rare_threshold": 0,
+  "recall_by_category": {
+    "ansi_raw": [
+      3,
+      3
+    ],
+    "colorama": [
+      3,
+      3
+    ],
+    "curses": [
+      3,
+      3
+    ],
+    "print_manual": [
+      4,
+      4
+    ],
+    "termcolor": [
+      3,
+      3
+    ]
+  },
+  "stage_attribution": {
+    "bpe": 15,
+    "call_receiver": 1
+  },
+  "fixture_results": [
+    {
+      "id": "ansi_raw_1",
+      "category": "ansi_raw",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.685100998314903,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "ansi_raw_2",
+      "category": "ansi_raw",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.685100998314903,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "colorama_1",
+      "category": "colorama",
+      "difficulty": "easy",
+      "import_score": 1.0,
+      "bpe_score": 6.729681876256576,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "colorama_2",
+      "category": "colorama",
+      "difficulty": "easy",
+      "import_score": 1.0,
+      "bpe_score": 5.966250208814639,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "curses_1",
+      "category": "curses",
+      "difficulty": "easy",
+      "import_score": 1.0,
+      "bpe_score": 6.216994733115355,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "curses_2",
+      "category": "curses",
+      "difficulty": "easy",
+      "import_score": 1.0,
+      "bpe_score": 7.668379040086203,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "print_manual_1",
+      "category": "print_manual",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 5.685100998314903,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "print_manual_2",
+      "category": "print_manual",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 6.729681876256576,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "termcolor_1",
+      "category": "termcolor",
+      "difficulty": "easy",
+      "import_score": 1.0,
+      "bpe_score": 6.152884840714487,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "termcolor_2",
+      "category": "termcolor",
+      "difficulty": "easy",
+      "import_score": 1.0,
+      "bpe_score": 6.729681876256576,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "ansi_raw_3",
+      "category": "ansi_raw",
+      "difficulty": "easy",
+      "import_score": 1.0,
+      "bpe_score": 2.530456961259299,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "colorama_3",
+      "category": "colorama",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 5.845220114814635,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "curses_3",
+      "category": "curses",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 6.027059272323285,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "print_manual_3",
+      "category": "print_manual",
+      "difficulty": "easy",
+      "import_score": 1.0,
+      "bpe_score": 4.214977345805778,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "termcolor_3",
+      "category": "termcolor",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.901502612626091,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "dict_render_1",
+      "category": "print_manual",
+      "difficulty": "uncaught",
+      "import_score": 0.0,
+      "bpe_score": 5.685100998314903,
+      "flagged": true,
+      "reason": "bpe"
+    }
+  ],
+  "control_results": []
+}

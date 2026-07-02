@@ -32,6 +32,18 @@ fit path=".":
 check path="." ref="HEAD~1..HEAD":
     cargo run --release -p argot -- check {{path}} {{ref}}
 
+# --- benchmarks (crates/argot-bench) ---
+
+# Full recall/FP bench over every corpus in benchmarks/targets.yaml.
+bench:
+    cargo build --release -p argot-bench
+    ./target/release/argot-bench --results-dir benchmarks/results/latest
+
+# ~1 min smoke: one fixture per category + 50 controls on ink.
+bench-quick:
+    cargo build --release -p argot-bench
+    ./target/release/argot-bench --corpus ink --quick --results-dir benchmarks/results/quick
+
 # --- checks ---
 
 # Format check + clippy-as-errors + tests. Canonical CI gate.

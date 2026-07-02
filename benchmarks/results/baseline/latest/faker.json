@@ -1,0 +1,201 @@
+{
+  "corpus": "faker",
+  "language": "python",
+  "n_fixtures": 16,
+  "n_flagged_fixtures": 15,
+  "uncaught": [
+    "synthetic_formula_1"
+  ],
+  "n_controls": 75996,
+  "n_eligible_controls": 33883,
+  "n_false_positives": 649,
+  "fp_rate": 0.019154148097866187,
+  "auc": 0.9536613124575746,
+  "threshold": 5.066338975105081,
+  "seed_thresholds": [
+    5.496316629554541,
+    5.066338975105081,
+    5.384485225237579,
+    5.041809149656434,
+    5.066338975105081,
+    5.066338975105081,
+    5.384485225237579
+  ],
+  "threshold_cv": 0.034974694143803046,
+  "resolved_rare_threshold": 0,
+  "recall_by_category": {
+    "mimesis_alt": [
+      3,
+      3
+    ],
+    "numpy_random": [
+      3,
+      4
+    ],
+    "requests_source": [
+      3,
+      3
+    ],
+    "sqlalchemy_sink": [
+      3,
+      3
+    ],
+    "threading_provider": [
+      3,
+      3
+    ]
+  },
+  "stage_attribution": {
+    "bpe": 10,
+    "call_receiver": 4,
+    "import": 1,
+    "none": 1
+  },
+  "fixture_results": [
+    {
+      "id": "mimesis_alt_1",
+      "category": "mimesis_alt",
+      "difficulty": "easy",
+      "import_score": 1.0,
+      "bpe_score": 1.8430485020866794,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "threading_provider_1",
+      "category": "threading_provider",
+      "difficulty": "easy",
+      "import_score": 2.0,
+      "bpe_score": 7.339132885635042,
+      "flagged": true,
+      "reason": "import"
+    },
+    {
+      "id": "sqlalchemy_sink_1",
+      "category": "sqlalchemy_sink",
+      "difficulty": "easy",
+      "import_score": 1.0,
+      "bpe_score": 6.956828655756679,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "numpy_random_1",
+      "category": "numpy_random",
+      "difficulty": "easy",
+      "import_score": 1.0,
+      "bpe_score": 4.593258125805839,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "requests_source_1",
+      "category": "requests_source",
+      "difficulty": "easy",
+      "import_score": 1.0,
+      "bpe_score": 7.380159938259968,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "mimesis_alt_2",
+      "category": "mimesis_alt",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.729405089538389,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "mimesis_alt_3",
+      "category": "mimesis_alt",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 2.0319176592112935,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "threading_provider_2",
+      "category": "threading_provider",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 6.058732574724017,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "threading_provider_3",
+      "category": "threading_provider",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 6.928926845982328,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "sqlalchemy_sink_2",
+      "category": "sqlalchemy_sink",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 4.570503924843333,
+      "flagged": true,
+      "reason": "call_receiver"
+    },
+    {
+      "id": "sqlalchemy_sink_3",
+      "category": "sqlalchemy_sink",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 5.109022511231034,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "numpy_random_2",
+      "category": "numpy_random",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 5.785579982321298,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "numpy_random_3",
+      "category": "numpy_random",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 5.303692380218676,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "requests_source_2",
+      "category": "requests_source",
+      "difficulty": "medium",
+      "import_score": 0.0,
+      "bpe_score": 7.2421532969506845,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "requests_source_3",
+      "category": "requests_source",
+      "difficulty": "hard",
+      "import_score": 0.0,
+      "bpe_score": 6.596321170925275,
+      "flagged": true,
+      "reason": "bpe"
+    },
+    {
+      "id": "synthetic_formula_1",
+      "category": "numpy_random",
+      "difficulty": "uncaught",
+      "import_score": 0.0,
+      "bpe_score": 3.8133212794589877,
+      "flagged": false,
+      "reason": "none"
+    }
+  ],
+  "control_results": []
+}
