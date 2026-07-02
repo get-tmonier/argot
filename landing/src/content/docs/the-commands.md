@@ -123,6 +123,22 @@ hash, scorer-config hash, fit commit + timestamp, corpus size). `inspect --model
 per language, lists the callees each cluster of your codebase leans on — a quick x-ray of the repo's
 voice.
 
+## describe-voice
+
+Generate a human-readable **STYLE.md** from the learned voice — an onboarding companion that
+describes how the repo *actually* writes (familiar imports, typical calls per area, red flags),
+grounded in its own history rather than aspirational rules.
+
+```bash
+argot describe-voice                 # print the style guide to stdout
+argot describe-voice --out STYLE.md  # write it to a file
+argot describe-voice --top 12        # more typical callees per area
+```
+
+It's descriptive, not prescriptive: argot reports what the repo does. Feed it to a new contributor,
+or hand it to an LLM agent as system-prompt context (the same signal the [MCP server](/docs/) serves
+programmatically).
+
 ## update
 
 Upgrade argot in place:

@@ -178,6 +178,8 @@ pub struct LanguageModelView {
     pub total_tokens: u64,
     pub attested_callees: usize,
     pub corpus_files: usize,
+    /// The repo's familiar import surface (first-party + attested third-party).
+    pub familiar_imports: Vec<String>,
     pub clusters: Vec<ClusterView>,
 }
 
@@ -649,6 +651,16 @@ pub fn inspect_model(repo_dir: &Path, top_n: usize) -> Result<ModelReport> {
                     total_tokens: model.bpe.total_tokens,
                     attested_callees: model.call_receiver.attested.len(),
                     corpus_files: model.call_receiver.n_corpus_files,
+                    familiar_imports: cfg
+                        .get("import_modules")
+                        .and_then(Value::as_array)
+                        .map(|a| {
+                            a.iter()
+                                .filter_map(Value::as_str)
+                                .map(String::from)
+                                .collect()
+                        })
+                        .unwrap_or_default(),
                     clusters,
                 },
             );

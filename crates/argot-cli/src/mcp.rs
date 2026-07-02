@@ -238,37 +238,15 @@ fn tool_voice_context(args: &Value, repo: &Path) -> Result<Value, String> {
         })
         .collect();
 
+    let familiar_imports: Vec<&String> = lang_view.familiar_imports.iter().take(top).collect();
     Ok(json!({
         "file_path": file_path,
         "language": language,
         "model": model.manifest.as_ref().map(|m| m.model_hash.clone()),
         "typical_callees_by_cluster": clusters,
-        "familiar_imports": familiar_imports(&argot_dir(repo), language, top),
+        "familiar_imports": familiar_imports,
         "note": "Prefer these callees and imports; code that reaches for names absent here will read as out of voice.",
     }))
-}
-
-/// The most common import specifiers for a language, from the scorer config.
-fn familiar_imports(argot_dir: &Path, language: &str, top: usize) -> Vec<String> {
-    let Ok(bytes) = std::fs::read(argot_dir.join("scorer-config.json")) else {
-        return Vec::new();
-    };
-    let Ok(config) = serde_json::from_slice::<Value>(&bytes) else {
-        return Vec::new();
-    };
-    config
-        .get("languages")
-        .and_then(|l| l.get(language))
-        .and_then(|l| l.get("import_modules"))
-        .and_then(Value::as_array)
-        .map(|arr| {
-            arr.iter()
-                .filter_map(Value::as_str)
-                .take(top)
-                .map(String::from)
-                .collect()
-        })
-        .unwrap_or_default()
 }
 
 /// `argot.fit_status`: the repo's suitability verdict + calibration health.

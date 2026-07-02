@@ -4,6 +4,7 @@
 //! (`extract` → `train` → `calibrate` → `check`, plus the `fit` one-shot and
 //! the suppression commands) runs in-process against `argot-core`.
 
+mod describe;
 mod mcp;
 mod review;
 mod voice_diff;
@@ -130,6 +131,22 @@ enum Command {
     Update,
     /// Run a Model Context Protocol server for LLM coding agents (stdio).
     Mcp(McpCmd),
+    /// Generate a STYLE.md describing the repo's learned voice.
+    #[command(name = "describe-voice")]
+    DescribeVoice(DescribeVoiceCmd),
+}
+
+#[derive(Args)]
+struct DescribeVoiceCmd {
+    /// Path to the repository.
+    #[arg(long, default_value = ".")]
+    repo: PathBuf,
+    /// Typical callees listed per cluster.
+    #[arg(long = "top", value_name = "N", default_value_t = describe::DEFAULT_TOP)]
+    top: usize,
+    /// Write to this file instead of stdout (e.g. `STYLE.md`).
+    #[arg(long, value_name = "FILE")]
+    out: Option<PathBuf>,
 }
 
 #[derive(Args)]
@@ -442,7 +459,7 @@ fn wants_json(format: &str, json_alias: bool) -> bool {
 fn print_help_banner() {
     let version = env!("CARGO_PKG_VERSION");
     println!(
-        "argot v{version}\n\nCOMMANDS\n  extract       Walk git history into a training dataset (.argot/dataset.jsonl)\n  fit           Fit the voice model to this repo (= train + calibrate, one-shot)\n  check         Check changes against the fitted voice\n  review        Score a PR (or diff range) against the local voice, no checkout\n  voice-diff    PR-level out-of-voice metric + hot-spots for a ref/range\n  inspect       Report corpus composition, calibration health, and suitability\n  mute          Mute a hit by hash (appends to .argot/suppressions.yaml)\n  list-mutes    List active suppressions across all surfaces\n  review-mutes  Report (and --prune) muted hits that no longer fire\n  status        Show current repository's argot state\n  list          List all registered repositories\n  update        Update the argot CLI\n  mcp           Run an MCP server for LLM coding agents (stdio)\n\nTypical first run: argot extract && argot fit && argot check\nRun `argot <command> --help` for details on any command."
+        "argot v{version}\n\nCOMMANDS\n  extract       Walk git history into a training dataset (.argot/dataset.jsonl)\n  fit           Fit the voice model to this repo (= train + calibrate, one-shot)\n  check         Check changes against the fitted voice\n  review        Score a PR (or diff range) against the local voice, no checkout\n  voice-diff    PR-level out-of-voice metric + hot-spots for a ref/range\n  inspect       Report corpus composition, calibration health, and suitability\n  mute          Mute a hit by hash (appends to .argot/suppressions.yaml)\n  list-mutes    List active suppressions across all surfaces\n  review-mutes  Report (and --prune) muted hits that no longer fire\n  status        Show current repository's argot state\n  list          List all registered repositories\n  update        Update the argot CLI\n  mcp           Run an MCP server for LLM coding agents (stdio)\n  describe-voice  Generate a STYLE.md describing the repo's learned voice\n\nTypical first run: argot extract && argot fit && argot check\nRun `argot <command> --help` for details on any command."
     );
 }
 
@@ -1486,6 +1503,7 @@ fn main() -> ExitCode {
         Some(Command::List(c)) => run_list(c),
         Some(Command::Update) => run_update(),
         Some(Command::Mcp(c)) => mcp::run_mcp(c.repo),
+        Some(Command::DescribeVoice(c)) => describe::run_describe_voice(c.repo, c.top, c.out),
     }
 }
 
