@@ -16,6 +16,8 @@ use serde::{Deserialize, Serialize};
 /// wire format uses: `"typescript" | "javascript" | "python" | "java"`.
 /// Source language of a hunk. Serialises to the exact lowercase strings used in
 /// the wire format: `"typescript" | "javascript" | "python" | "csharp"`.
+/// Source language of a hunk. Serialises to the exact lowercase strings:
+/// `"typescript" | "javascript" | "python" | "php"`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Language {
@@ -27,6 +29,7 @@ pub enum Language {
     C,
     Java,
     Csharp,
+    Php,
 }
 
 /// A single leaf token from the tree-sitter parse (`dataset.Token`).

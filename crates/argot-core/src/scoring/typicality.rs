@@ -193,6 +193,36 @@ const CS_CONTROL_NODE_TYPES: &[&str] = &[
     "class_declaration",
     "using_statement",
     "lock_statement",
+const PHP_LITERAL_NODE_TYPES: &[&str] = &[
+    "string",
+    "encapsed_string",
+    "heredoc",
+    "nowdoc",
+    "integer",
+    "float",
+    "boolean",
+    "null",
+];
+
+const PHP_CONTROL_NODE_TYPES: &[&str] = &[
+    "if_statement",
+    "for_statement",
+    "foreach_statement",
+    "while_statement",
+    "do_statement",
+    "try_statement",
+    "switch_statement",
+    "match_expression",
+    "return_statement",
+    "throw_expression",
+    "function_definition",
+    "method_declaration",
+    "class_declaration",
+    "interface_declaration",
+    "trait_declaration",
+    "enum_declaration",
+    "anonymous_function",
+    "arrow_function",
 ];
 
 // Absolute cutoffs for the structural predicate.
@@ -230,6 +260,7 @@ fn node_type_sets(language: Language) -> (HashSet<&'static str>, HashSet<&'stati
         Language::C => (C_LITERAL_NODE_TYPES, C_CONTROL_NODE_TYPES),
         Language::Java => (JAVA_LITERAL_NODE_TYPES, JAVA_CONTROL_NODE_TYPES),
         Language::CSharp => (CS_LITERAL_NODE_TYPES, CS_CONTROL_NODE_TYPES),
+        Language::Php => (PHP_LITERAL_NODE_TYPES, PHP_CONTROL_NODE_TYPES),
     };
     (
         literal.iter().copied().collect(),

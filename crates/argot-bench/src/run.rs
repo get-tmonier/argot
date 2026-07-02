@@ -404,6 +404,7 @@ fn record_matches_language(rec: &HunkRec, lang: Language) -> bool {
         Language::C => rec.language == "c",
         Language::Java => rec.language == "java",
         Language::CSharp => rec.language == "csharp",
+        Language::Php => rec.language == "php",
     }
 }
 
@@ -470,6 +471,7 @@ pub fn run_corpus(target: &Target, opts: &RunOptions) -> Result<Vec<CorpusReport
             Language::C => "c",
             Language::Java => "java",
             Language::CSharp => "csharp",
+            Language::Php => "php",
         };
         let fixtures: Vec<&Fixture> = if catalog.language == "multi" {
             all_fixtures

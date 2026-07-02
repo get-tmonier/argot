@@ -20,6 +20,7 @@ pub fn language_for_path(path: &str) -> Option<Language> {
         ".c" | ".h" => Some(Language::C),
         ".java" => Some(Language::Java),
         ".cs" => Some(Language::Csharp),
+        ".php" => Some(Language::Php),
         _ => None,
     }
 }
@@ -52,6 +53,7 @@ fn ts_language(lang: Language) -> tree_sitter::Language {
         Language::C => tree_sitter_c::LANGUAGE.into(),
         Language::Java => tree_sitter_java::LANGUAGE.into(),
         Language::Csharp => tree_sitter_c_sharp::LANGUAGE.into(),
+        Language::Php => tree_sitter_php::LANGUAGE_PHP.into(),
     }
 }
 

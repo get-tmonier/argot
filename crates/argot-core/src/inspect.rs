@@ -12,6 +12,7 @@ use crate::scoring::adapters::go::GoAdapter;
 use crate::scoring::adapters::c::CAdapter;
 use crate::scoring::adapters::java::JavaAdapter;
 use crate::scoring::adapters::csharp::CSharpAdapter;
+use crate::scoring::adapters::php::PhpAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
@@ -207,6 +208,7 @@ fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
         Language::C => Box::new(CAdapter::new()),
         Language::Java => Box::new(JavaAdapter::new()),
         Language::CSharp => Box::new(CSharpAdapter::new()),
+        Language::Php => Box::new(PhpAdapter::new()),
     }
 }
 
@@ -288,6 +290,7 @@ fn scan_corpus(repo_dir: &Path) -> CorpusReport {
             "c" => Language::C,
             "java" => Language::Java,
             "csharp" => Language::CSharp,
+            "php" => Language::Php,
             _ => Language::Typescript,
         };
         let adapter = adapters

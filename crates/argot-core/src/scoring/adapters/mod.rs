@@ -8,6 +8,7 @@ pub mod go;
 pub mod c;
 pub mod java;
 pub mod csharp;
+pub mod php;
 pub mod python;
 pub mod rust;
 pub mod typescript;
@@ -19,6 +20,7 @@ use std::path::Path;
 /// scoring distinguishes Python, TypeScript, Go, and Rust.
 /// scoring distinguishes Python, TypeScript, and Java.
 /// scoring distinguishes Python, TypeScript, and C#.
+/// scoring distinguishes Python, TypeScript, and PHP.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Language {
     Python,
@@ -28,6 +30,7 @@ pub enum Language {
     C,
     Java,
     CSharp,
+    Php,
 }
 
 /// Uniform language-adapter surface (port of the Python `LanguageAdapter`
