@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://argot.tmonier.com/docs/
+    about: Getting started, the commands, reading the output, the scoring model, and limitations.
+  - name: Research log
+    url: https://github.com/get-tmonier/argot/tree/main/docs/research
+    about: Why the scorer is built the way it is — the evidence behind every scoring decision.

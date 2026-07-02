@@ -1,0 +1,47 @@
+name: Language or corpus request
+description: Ask for a new language, or nominate a corpus to validate an existing/new one.
+labels: ["enhancement", "help wanted"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        argot ships a language only after it's benchmarked on a real corpus (recall ≥ 85%, FP ≤ 2%).
+        Nominating a good corpus — or doing the benchmark yourself — is the most useful thing you can file.
+        See [CONTRIBUTING.md](https://github.com/get-tmonier/argot/blob/main/CONTRIBUTING.md#proposing-a-new-language-or-corpus).
+  - type: input
+    id: language
+    attributes:
+      label: Language
+      placeholder: "Go · Rust · Java · Ruby · C# · PHP · C · C++ · …"
+    validations:
+      required: true
+  - type: textarea
+    id: corpora
+    attributes:
+      label: Candidate corpora
+      description: >-
+        2–3 real, idiomatic, well-maintained OSS repos with strong house style. Link them and say
+        why they're a good voice signal.
+      placeholder: |
+        - github.com/… — large, very idiomatic; broad surface
+        - github.com/… — tighter scope, easy to fixture
+    validations:
+      required: true
+  - type: dropdown
+    id: help
+    attributes:
+      label: Can you help with the benchmark?
+      description: Adapter + fixtures + a bench run is what turns a request into shipped support.
+      options:
+        - "No — just nominating"
+        - "Yes — I can hand-craft anomaly fixtures"
+        - "Yes — I can write the adapter and run the bench"
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Known idioms, tree-sitter parser caveats, or anything that would trip up the adapter.
+    validations:
+      required: false
