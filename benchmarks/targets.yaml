@@ -107,3 +107,46 @@ targets:
       - { pr: 33745, sha: c066caf3248a83e7f656d54967f9b0eb25146aca }
       # PR #33491 — [dagster-aws] default S3 prefix to empty string (Py)
       - { pr: 33491, sha: 995e1750bf4f152fefc15015c4a06df0907b1227 }
+
+  # --- Application corpora (issue #66) ---
+  # Libraries impose conventions on themselves; applications are where real
+  # users live. These four validate that the headline numbers generalize:
+  # 2 Python apps (Django-family) + 2 TypeScript apps, sized so a full bench
+  # stays affordable. Secondary pins are recent history snapshots (control
+  # populations), added after the initial clone.
+  - name: saleor
+    url: https://github.com/saleor/saleor
+    language: python
+    prs:
+      # Primary: HEAD on main at era-14 authoring (2026-07-02).
+      - { pr: 0, sha: 5c05b2f96feafe32628bcddf52706450c6f9a765 }
+      # History snapshot ~300 commits back (2025-11-19).
+      - { pr: 1, sha: da0fba1bbc60daadbaf0e433d209cab126f284ce }
+      # History snapshot ~800 commits back (2025-01-29).
+      - { pr: 2, sha: a4157f86497ff41b8cad33f93fe0a5412eaa28c3 }
+  - name: wagtail
+    url: https://github.com/wagtail/wagtail
+    language: python
+    prs:
+      # Primary: HEAD on main at era-14 authoring (2026-07-02).
+      - { pr: 0, sha: 6e0e6d950f6fe68360d68d833fd23b94f172cee7 }
+  - name: excalidraw
+    url: https://github.com/excalidraw/excalidraw
+    language: typescript
+    prs:
+      # Primary: HEAD on master at era-14 authoring (2026-07-02).
+      - { pr: 0, sha: cce5001aaafe0286855984cf1b4e154b6ce86754 }
+      # History snapshot ~300 commits back (2025-04-16).
+      - { pr: 1, sha: 0cf36d6b30fc84085aa903460a04d0d568518f30 }
+      # History snapshot ~800 commits back (2023-10-10).
+      - { pr: 2, sha: 7ad02c359ae64bae28eb5b59b783c5d858cd12bc }
+  - name: outline
+    url: https://github.com/outline/outline
+    language: typescript
+    prs:
+      # Primary: HEAD on main at era-14 authoring (2026-07-02).
+      - { pr: 0, sha: 91fc3a8bc8a6c941b34b0b1db2bd720febd504be }
+      # History snapshot ~300 commits back (2026-05-18).
+      - { pr: 1, sha: ee5164290d7dce7526b02aba35ef27eac08c2989 }
+      # History snapshot ~800 commits back (2026-02-21).
+      - { pr: 2, sha: cad670f19c8d04a3a45b1110876717580cf99834 }

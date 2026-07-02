@@ -1,0 +1,137 @@
+corpus: saleor
+language: python
+categories:
+- raw_sql
+- foreign_http
+- thread_background
+- framework_swap
+- print_debug
+- sleep_polling
+- shell_out
+fixtures:
+- id: raw_sql_1
+  file: breaks/break_raw_sql_1.py
+  category: raw_sql
+  hunk_start_line: 21
+  hunk_end_line: 58
+  difficulty: medium
+  rationale: "psycopg2.connect + hand-written SQL joins/updates for order queries — saleor's canonical data access is the Django ORM (Order.objects...); psycopg2 appears only in migrations, never in production modules."
+  host_file: saleor/order/actions.py
+  host_inject_at_line: 943
+- id: raw_sql_2
+  file: breaks/break_raw_sql_2.py
+  category: raw_sql
+  hunk_start_line: 17
+  hunk_end_line: 39
+  difficulty: hard
+  rationale: "django connection.cursor() executing hand-built domain SELECT/JOIN/GROUP BY for promotion rules — ORM-adjacent and subtle: saleor uses connection.cursor() only to fetch sequence nextval (order/models.py, discount/models.py), never for domain reads, which always go through querysets."
+  host_file: saleor/discount/utils/promotion.py
+  host_inject_at_line: 564
+- id: foreign_http_1
+  file: breaks/break_foreign_http_1.py
+  category: foreign_http
+  hunk_start_line: 17
+  hunk_end_line: 39
+  difficulty: medium
+  rationale: "urllib.request.urlopen with hand-rolled Request/headers for webhook delivery — urllib.request appears at 0 saleor sites; the canonical client is HTTPClient.send_request (requests_hardened wrapper in saleor/core/http_client.py)."
+  host_file: saleor/webhook/transport/utils.py
+  host_inject_at_line: 506
+- id: foreign_http_2
+  file: breaks/break_foreign_http_2.py
+  category: foreign_http
+  hunk_start_line: 16
+  hunk_end_line: 37
+  difficulty: medium
+  rationale: "bare requests.Session() with mounted HTTPAdapter/Retry and direct session.get/requests.head — requests.Session and requests.get/post appear at 0 saleor call sites; all outbound HTTP goes through the hardened HTTPClient manager with IP filtering."
+  host_file: saleor/app/installation_utils.py
+  host_inject_at_line: 204
+- id: thread_background_1
+  file: breaks/break_thread_background_1.py
+  category: thread_background
+  hunk_start_line: 16
+  hunk_end_line: 42
+  difficulty: medium
+  rationale: "daemon threading.Thread spawned per order for deferred recalculation — threading.Thread( appears at 0 saleor sites (threading is only used for Lock/local); deferred work is always a Celery @app.task."
+  host_file: saleor/order/calculations.py
+  host_inject_at_line: 768
+- id: thread_background_2
+  file: breaks/break_thread_background_2.py
+  category: thread_background
+  hunk_start_line: 18
+  hunk_end_line: 42
+  difficulty: medium
+  rationale: "multiprocessing.Pool/Process/Queue fan-out for export batches — multiprocessing appears at 0 saleor sites; batch export work is dispatched as chained Celery tasks (csv/utils/export.py export_products_in_batches)."
+  host_file: saleor/csv/utils/export.py
+  host_inject_at_line: 190
+- id: framework_swap_1
+  file: breaks/break_framework_swap_1.py
+  category: framework_swap
+  hunk_start_line: 16
+  hunk_end_line: 40
+  difficulty: easy
+  rationale: "Flask app with @app.route(..., methods=[...]), request.get_json(), jsonify(), abort() and app.run() inside a Django codebase — flask appears at 0 saleor sites; saleor views are Django views returning JsonResponse/HttpResponse."
+  host_file: saleor/graphql/views.py
+  host_inject_at_line: 624
+- id: framework_swap_2
+  file: breaks/break_framework_swap_2.py
+  category: framework_swap
+  hunk_start_line: 16
+  hunk_end_line: 41
+  difficulty: medium
+  rationale: "FastAPI APIRouter with async endpoints, Pydantic BaseModel and HTTPException in a Django views module — fastapi and pydantic appear at 0 saleor sites; saleor exposes GraphQL via graphene and plain Django views."
+  host_file: saleor/core/views.py
+  host_inject_at_line: 26
+- id: print_debug_1
+  file: breaks/break_print_debug_1.py
+  category: print_debug
+  hunk_start_line: 16
+  hunk_end_line: 40
+  difficulty: easy
+  rationale: "print() debugging on every step plus manual json.dumps into HttpResponse — saleor has exactly one noqa'd print in production (permission/management.py); the voice is logger = logging.getLogger(__name__) and JsonResponse/orjson in views."
+  host_file: saleor/checkout/complete_checkout.py
+  host_inject_at_line: 1086
+- id: print_debug_2
+  file: breaks/break_print_debug_2.py
+  category: print_debug
+  hunk_start_line: 16
+  hunk_end_line: 39
+  difficulty: medium
+  rationale: "sys.stdout.write + pprint state dumps threaded through allocation logic — pprint and sys.stdout.write appear at 0 saleor production sites; warehouse code logs via module-level logger."
+  host_file: saleor/warehouse/management.py
+  host_inject_at_line: 732
+- id: sleep_polling_1
+  file: breaks/break_sleep_polling_1.py
+  category: sleep_polling
+  hunk_start_line: 16
+  hunk_end_line: 39
+  difficulty: medium
+  rationale: "time.sleep polling loops with refresh_from_db waiting for payment status — time.sleep appears at 0 saleor production sites; payment flow is event-driven via webhooks and transaction events."
+  host_file: saleor/payment/utils.py
+  host_inject_at_line: 642
+- id: sleep_polling_2
+  file: breaks/break_sleep_polling_2.py
+  category: sleep_polling
+  hunk_start_line: 18
+  hunk_end_line: 41
+  difficulty: hard
+  rationale: "inline retry loop with time.sleep exponential backoff around delivery sends — subtle because retry vocabulary is in-voice, but saleor retries exclusively via Celery self.retry(countdown=...) with retry_backoff task kwargs (webhook/transport/asynchronous/transport.py); blocking sleep in a worker appears at 0 sites."
+  host_file: saleor/webhook/transport/asynchronous/transport.py
+  host_inject_at_line: 759
+- id: shell_out_1
+  file: breaks/break_shell_out_1.py
+  category: shell_out
+  hunk_start_line: 16
+  hunk_end_line: 32
+  difficulty: easy
+  rationale: "os.system with f-string-built gzip/tar/find commands for file handling — os.system and subprocess appear at 0 saleor sites; files are handled via django.core.files storages."
+  host_file: saleor/core/utils/__init__.py
+  host_inject_at_line: 156
+- id: shell_out_2
+  file: breaks/break_shell_out_2.py
+  category: shell_out
+  hunk_start_line: 16
+  hunk_end_line: 41
+  difficulty: medium
+  rationale: "subprocess.run/check_output shelling out to ImageMagick convert/identify for thumbnails — subprocess appears at 0 saleor sites; thumbnails are generated in-process with PIL (thumbnail/utils.py ProcessedImage)."
+  host_file: saleor/thumbnail/utils.py
+  host_inject_at_line: 266

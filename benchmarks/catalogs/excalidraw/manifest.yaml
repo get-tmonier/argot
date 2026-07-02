@@ -1,0 +1,165 @@
+corpus: excalidraw
+language: typescript
+categories:
+- jquery
+- xhr_network
+- legacy_lifecycle
+- redux_store
+- moment_dates
+- callback_pyramid
+- vue_idioms
+fixtures:
+- id: excalidraw_jquery_1
+  file: breaks/break_jquery_1.tsx
+  category: jquery
+  hunk_start_line: 1
+  hunk_end_line: 21
+  rationale: import $ from 'jquery' at line 1 plus $-chained DOM mutation in a
+    collaborator badge; jquery has 0 hits in the excalidraw corpus (.ts/.tsx),
+    which uses refs and CSS classes
+  difficulty: easy
+  host_file: packages/excalidraw/components/UserList.tsx
+  host_inject_at_line: 35
+- id: excalidraw_jquery_2
+  file: breaks/break_jquery_2.tsx
+  category: jquery
+  hunk_start_line: 12
+  hunk_end_line: 18
+  rationale: jQuery event delegation ($(...).on / .slideDown / .hide) inside a
+    useEffect where excalidraw uses React refs, controlled state, and CSS
+    transitions
+  difficulty: medium
+  host_file: packages/excalidraw/components/SearchMenu.tsx
+  host_inject_at_line: 439
+- id: excalidraw_xhr_network_1
+  file: breaks/break_xhr_network_1.ts
+  category: xhr_network
+  hunk_start_line: 9
+  hunk_end_line: 25
+  rationale: raw XMLHttpRequest with onreadystatechange to load a scene from
+    the backend; every data-layer load path in excalidraw is `await fetch(...)`
+    (XHR appears only in the vendored woff2 emscripten binding)
+  difficulty: medium
+  host_file: excalidraw-app/data/index.ts
+  host_inject_at_line: 68
+- id: excalidraw_xhr_network_2
+  file: breaks/break_xhr_network_2.ts
+  category: xhr_network
+  hunk_start_line: 9
+  hunk_end_line: 18
+  rationale: XMLHttpRequest upload with progress events and status callbacks
+    where excalidraw's persistence is async/await fetch wrappers returning
+    typed results; no foreign import, global API only
+  difficulty: hard
+  host_file: excalidraw-app/data/firebase.ts
+  host_inject_at_line: 145
+- id: excalidraw_legacy_lifecycle_1
+  file: breaks/break_legacy_lifecycle_1.tsx
+  category: legacy_lifecycle
+  hunk_start_line: 8
+  hunk_end_line: 22
+  rationale: componentWillMount + componentWillReceiveProps legacy lifecycle
+    with this.setState; 0 hits in the corpus — components are functional with
+    hooks and the one class component (App) uses only modern lifecycle
+  difficulty: medium
+  host_file: packages/excalidraw/components/LayerUI.tsx
+  host_inject_at_line: 131
+- id: excalidraw_legacy_lifecycle_2
+  file: breaks/break_legacy_lifecycle_2.tsx
+  category: legacy_lifecycle
+  hunk_start_line: 8
+  hunk_end_line: 21
+  rationale: UNSAFE_componentWillMount / UNSAFE_componentWillUpdate deriving
+    state, where excalidraw derives values inline in function components with
+    useMemo; UNSAFE_ lifecycle absent from the corpus
+  difficulty: medium
+  host_file: packages/excalidraw/components/Stats/index.tsx
+  host_inject_at_line: 71
+- id: excalidraw_redux_store_1
+  file: breaks/break_redux_store_1.tsx
+  category: redux_store
+  hunk_start_line: 1
+  hunk_end_line: 15
+  rationale: import { useSelector, useDispatch } from 'react-redux' at line 1;
+    redux/react-redux have 0 hits — excalidraw state lives in jotai atoms and
+    the App class
+  difficulty: easy
+  host_file: packages/excalidraw/components/PublishLibrary.tsx
+  host_inject_at_line: 107
+- id: excalidraw_redux_store_2
+  file: breaks/break_redux_store_2.ts
+  category: redux_store
+  hunk_start_line: 9
+  hunk_end_line: 27
+  rationale: redux reducer with switch-on-action-type plus a global
+    createStore/combineReducers store for app state, where appState is plain
+    defaults consumed by the App class and jotai atoms
+  difficulty: medium
+  host_file: packages/excalidraw/appState.ts
+  host_inject_at_line: 290
+- id: excalidraw_moment_dates_1
+  file: breaks/break_moment_dates_1.ts
+  category: moment_dates
+  hunk_start_line: 1
+  hunk_end_line: 13
+  rationale: import moment at line 1 with chained .utc().startOf().format()
+    for export filenames; moment.js has 0 hits — excalidraw uses bare
+    Date.now() epoch millis
+  difficulty: easy
+  host_file: packages/excalidraw/data/json.ts
+  host_inject_at_line: 137
+- id: excalidraw_moment_dates_2
+  file: breaks/break_moment_dates_2.ts
+  category: moment_dates
+  hunk_start_line: 10
+  hunk_end_line: 16
+  rationale: moment chained date arithmetic (.isAfter(moment().subtract(...)),
+    .clone().local().fromNow()) for collaborator presence labels; the corpus
+    compares epoch millis directly and uses no date library
+  difficulty: medium
+  host_file: packages/excalidraw/clients.ts
+  host_inject_at_line: 30
+- id: excalidraw_callback_pyramid_1
+  file: breaks/break_callback_pyramid_1.ts
+  category: callback_pyramid
+  hunk_start_line: 9
+  hunk_end_line: 32
+  rationale: error-first callback pyramid (blob -> parse -> restore, three
+    levels deep) with no foreign import; every load path in excalidraw's data
+    layer is flat async/await with thrown errors
+  difficulty: hard
+  host_file: packages/excalidraw/data/blob.ts
+  host_inject_at_line: 197
+- id: excalidraw_callback_pyramid_2
+  file: breaks/break_callback_pyramid_2.ts
+  category: callback_pyramid
+  hunk_start_line: 12
+  hunk_end_line: 31
+  rationale: onSuccess/onError continuation callbacks with nested rollback
+    save, where library persistence in the corpus is a promise queue with
+    async/await and try/catch
+  difficulty: medium
+  host_file: packages/excalidraw/data/library.ts
+  host_inject_at_line: 143
+- id: excalidraw_vue_idioms_1
+  file: breaks/break_vue_idioms_1.ts
+  category: vue_idioms
+  hunk_start_line: 5
+  hunk_end_line: 23
+  rationale: Vue Composition API reactivity (ref/computed/watch with .value)
+    in a hook-shaped helper; vue has 0 hits — excalidraw hooks are
+    useState/useEffect over jotai atoms
+  difficulty: medium
+  host_file: packages/excalidraw/hooks/useLibraryItemSvg.ts
+  host_inject_at_line: 29
+- id: excalidraw_vue_idioms_2
+  file: breaks/break_vue_idioms_2.tsx
+  category: vue_idioms
+  hunk_start_line: 3
+  hunk_end_line: 29
+  rationale: Vue options-object component (props/data()/computed/methods with
+    `this` and $emit) exported as default, where excalidraw components are
+    typed React function components
+  difficulty: medium
+  host_file: packages/excalidraw/components/ContextMenu.tsx
+  host_inject_at_line: 33
