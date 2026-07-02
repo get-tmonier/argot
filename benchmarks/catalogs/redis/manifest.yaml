@@ -1,0 +1,200 @@
+corpus: redis
+language: c
+categories:
+- wrong_error_discipline
+- wrong_concurrency
+- wrong_api_within_known_lib
+- naming_shape_break
+- foreign_import
+injection_hosts:
+- pr: 0
+  sha: 5b22a09918743ba72952e35e431db23eb3d19605
+fixtures:
+- id: exit_on_error_1
+  file: breaks/break_exit_on_error_1.c
+  category: wrong_error_discipline
+  hunk_start_line: 21
+  hunk_end_line: 47
+  rationale: 'fprintf(stderr) + exit(1)/exit(EXIT_FAILURE) on bad client input
+    inside a command implementation. Canonical: addReplyError replies (40 src
+    files use addReplyError at pinned SHA); verified 0 exit( and 0
+    fprintf(stderr sites in src/t_*.c. Command paths never terminate the
+    process on user error.'
+  difficulty: easy
+  host_file: src/t_string.c
+  host_inject_at_line: 557
+- id: printf_log_1
+  file: breaks/break_printf_log_1.c
+  category: wrong_error_discipline
+  hunk_start_line: 16
+  hunk_end_line: 29
+  rationale: 'printf/fprintf(stdout)+fflush diagnostics in an expire-cycle
+    reporting path. Canonical: serverLog(LL_VERBOSE/LL_WARNING, ...) — 29 src
+    files use serverLog at pinned SHA; verified 0 printf logging in
+    src/expire.c/db.c/pubsub.c (only REDIS_TEST harness printf in t_zset.c).'
+  difficulty: medium
+  host_file: src/expire.c
+  host_inject_at_line: 631
+- id: malloc_abort_1
+  file: breaks/break_malloc_abort_1.c
+  category: wrong_error_discipline
+  hunk_start_line: 23
+  hunk_end_line: 43
+  rationale: 'raw malloc with perror("malloc")+abort() on allocation failure
+    in a pubsub payload builder. Canonical: zmalloc (69 src files at pinned
+    SHA) with centralized OOM handling — serving code never checks allocation
+    failure; verified perror appears only in ae_evport.c/cli_common.c and
+    listpack/ziplist test mains, never in serving paths, and 0 bare abort()
+    in src/t_*.c/server.c.'
+  difficulty: medium
+  host_file: src/pubsub.c
+  host_inject_at_line: 532
+- id: errno_return_1
+  file: breaks/break_errno_return_1.c
+  category: wrong_error_discipline
+  hunk_start_line: 21
+  hunk_end_line: 42
+  rationale: 'errno = ENOENT/EBUSY + -1 return codes with
+    strerror(errno)-to-stderr as intra-server error protocol in a db-layer
+    helper. Canonical: C_OK/C_ERR returns with addReplyError/serverLog
+    reporting; verified errno in redis src is only consulted after syscalls,
+    never set by db-layer helpers, and 0 fprintf(stderr in src/t_*.c.'
+  difficulty: hard
+  host_file: src/db.c
+  host_inject_at_line: 2838
+- id: thread_spawn_1
+  file: breaks/break_thread_spawn_1.c
+  category: wrong_concurrency
+  hunk_start_line: 18
+  hunk_end_line: 37
+  rationale: 'pthread_create + pthread_detach spawning one thread per object
+    to free it asynchronously. Canonical: single-threaded ae event loop with
+    fixed bio.c worker pool — bioCreateLazyFreeJob(lazyfreeFreeObject,1,obj)
+    verified at src/lazyfree.c:234 at pinned SHA; pthread_create appears only
+    in bio.c/iothread.c infrastructure (plus modules/ and redis-benchmark),
+    never in serving paths.'
+  difficulty: medium
+  host_file: src/lazyfree.c
+  host_inject_at_line: 240
+- id: busywait_poll_1
+  file: breaks/break_busywait_poll_1.c
+  category: wrong_concurrency
+  hunk_start_line: 17
+  hunk_end_line: 41
+  rationale: 'pthread_mutex-guarded volatile flag + while/usleep(1000)
+    busy-wait polling to await EXEC completion. Canonical: event-driven
+    waiting via the ae event loop and beforeSleep callbacks; verified 0
+    usleep-polling loops in src/*.c and 0 pthread_mutex uses in
+    src/multi.c/db.c/t_*.c/expire.c at pinned SHA.'
+  difficulty: easy
+  host_file: src/multi.c
+  host_inject_at_line: 290
+- id: raw_malloc_1
+  file: breaks/break_raw_malloc_1.c
+  category: wrong_api_within_known_lib
+  hunk_start_line: 17
+  hunk_end_line: 41
+  rationale: 'raw malloc/realloc/free with NULL-check returns for object
+    buffers in an object.c-style helper. Canonical: zmalloc/zrealloc/zfree
+    family (69 src files at pinned SHA) so allocations count toward
+    used_memory; verified raw malloc in src only in memtest.c and vendored
+    setproctitle.c — module.c comment explicitly says "You should avoid
+    using malloc()".'
+  difficulty: medium
+  host_file: src/object.c
+  host_inject_at_line: 510
+- id: strcat_string_1
+  file: breaks/break_strcat_string_1.c
+  category: wrong_api_within_known_lib
+  hunk_start_line: 18
+  hunk_end_line: 41
+  rationale: 'static char[256] key building with strncat/strcat/strcpy/sprintf
+    for a sort-by pattern substitution. Canonical: sds strings
+    (sdsnew/sdscatlen/sdscatprintf — 49 src files at pinned SHA; sort.c itself
+    uses sds/lookupKeyByPattern); verified 0 strcat call sites in src/*.c.'
+  difficulty: medium
+  host_file: src/sort.c
+  host_inject_at_line: 124
+- id: dict_internals_1
+  file: breaks/break_dict_internals_1.c
+  category: wrong_api_within_known_lib
+  hunk_start_line: 16
+  hunk_end_line: 34
+  rationale: 'hand-walking dict ht_table[table][idx] buckets and de->next
+    chains to scan a set. Canonical:
+    dictGetIterator/dictGetSafeIterator + dictNext + dictReleaseIterator
+    (verified sites src/db.c:1129-1138, src/t_set.c:1327 at pinned SHA);
+    dictEntry is defined in dict.c (opaque outside it), so no call site in
+    the repo touches buckets or entry->next directly.'
+  difficulty: hard
+  host_file: src/t_set.c
+  host_inject_at_line: 626
+- id: handrolled_parse_1
+  file: breaks/break_handrolled_parse_1.c
+  category: wrong_api_within_known_lib
+  hunk_start_line: 16
+  hunk_end_line: 45
+  rationale: 'hand-rolled isdigit loop + strtol with atoi fallback to parse a
+    command argument, duplicating repo utilities. Canonical:
+    getLongLongFromObjectOrReply (17 src files) / string2ll (21 src files) at
+    pinned SHA; verified 0 strtol call sites in src/t_*.c — command args are
+    never parsed with libc converters; atoi appears only in
+    aof/cluster/cli parsing, not type commands.'
+  difficulty: hard
+  host_file: src/t_list.c
+  host_inject_at_line: 808
+- id: pascal_hungarian_1
+  file: breaks/break_pascal_hungarian_1.c
+  category: naming_shape_break
+  hunk_start_line: 18
+  hunk_end_line: 40
+  rationale: 'PascalCase function names (AddScoreToMember,
+    ZincrementBatchCommand) + Hungarian-notation locals (lpszMember, dwCount,
+    iIdx, pKvObj, dblDelta). Canonical: lowerCamelCase functions
+    (zaddGenericCommand, zsetScore) with short lowercase locals; verified
+    PascalCase definitions at pinned SHA exist only in module.c RedisModule
+    API surface, and Hungarian lpsz/dw prefixes have 0 hits in src.'
+  difficulty: medium
+  host_file: src/t_zset.c
+  host_inject_at_line: 2103
+- id: screaming_locals_1
+  file: breaks/break_screaming_locals_1.c
+  category: naming_shape_break
+  hunk_start_line: 15
+  hunk_end_line: 27
+  rationale: 'SCREAMING_SNAKE_CASE mutable locals (LAT_ONE_RAD, DELTA_LON,
+    HAVERSINE_A, FINAL_DISTANCE) in a camelCase-named geo helper. Canonical:
+    all-caps identifiers are reserved for macros/constants (#define
+    OBJ_SET_NX); locals are short lowercase throughout src at pinned SHA
+    (geo.c uses score, xy, bounds). Function name kept camelCase to isolate
+    the local-morphology axis.'
+  difficulty: medium
+  host_file: src/geo.c
+  host_inject_at_line: 207
+- id: glib_hash_1
+  file: breaks/break_glib_hash_1.c
+  category: foreign_import
+  hunk_start_line: 18
+  hunk_end_line: 37
+  rationale: 'GLib GHashTable
+    (g_hash_table_new_full/insert/lookup, g_strdup, g_malloc) for a hash-field
+    TTL cache — domain-plausible in the hash-type file, but foreign: verified
+    0 tree-wide hits for g_hash_table/GHashTable at pinned SHA; <glib.h>
+    appears only in the vendored hiredis example adapter
+    deps/hiredis/adapters/glib.h (GMainLoop adapter), never included by any
+    src/ file. redis uses its own dict for every table.'
+  difficulty: easy
+  host_file: src/t_hash.c
+  host_inject_at_line: 1328
+- id: uthash_1
+  file: breaks/break_uthash_1.c
+  category: foreign_import
+  hunk_start_line: 16
+  hunk_end_line: 38
+  rationale: 'uthash macros (UT_hash_handle, HASH_FIND, HASH_ADD_KEYPTR) for
+    an element-dedup cache in an HLL-style file — domain-plausible dedupe
+    structure, but foreign: verified 0 tree-wide hits for uthash at pinned
+    SHA. redis dedupes through its own dict/set structures.'
+  difficulty: easy
+  host_file: src/hyperloglog.c
+  host_inject_at_line: 1043

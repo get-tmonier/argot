@@ -1,0 +1,174 @@
+corpus: laravel
+language: php
+categories:
+- wrong_error_discipline
+- wrong_concurrency
+- wrong_api_within_known_lib
+- naming_shape_break
+- foreign_import
+injection_hosts:
+- pr: 0
+  sha: 8ce2bbe12ef2b048405817b130901bc6f5884a4e
+fixtures:
+- id: laravel_error_die_1
+  file: breaks/break_error_die_1.php
+  category: wrong_error_discipline
+  hunk_start_line: 27
+  hunk_end_line: 44
+  rationale: 'die() on invalid rule parameters. Verified at pinned SHA: `git grep
+    -E ''\bdie\('' -- src/*.php` = 0 sites; the repo throws InvalidArgumentException
+    (103 files contain `throw new InvalidArgumentException`), e.g. Validator''s own
+    requireParameterCount idiom.'
+  difficulty: medium
+  host_file: src/Illuminate/Validation/Validator.php
+  host_inject_at_line: 558
+- id: laravel_error_errorlog_1
+  file: breaks/break_error_errorlog_1.php
+  category: wrong_error_discipline
+  hunk_start_line: 19
+  hunk_end_line: 42
+  rationale: 'error_log() + return false on read failure. Verified: `error_log(`
+    = 0 sites in src/ at pinned SHA; Filesystem::get throws FileNotFoundException
+    and 79 files contain `throw new RuntimeException` — false-on-error with logging
+    is foreign error discipline.'
+  difficulty: medium
+  host_file: src/Illuminate/Filesystem/Filesystem.php
+  host_inject_at_line: 332
+- id: laravel_error_triggererror_1
+  file: breaks/break_error_triggererror_1.php
+  category: wrong_error_discipline
+  hunk_start_line: 21
+  hunk_end_line: 36
+  rationale: 'trigger_error(E_USER_ERROR) for a missing config key. Verified: only
+    3 trigger_error sites in src/ at pinned SHA (LazyCollection.php:889,900 and ConfiguresPooledConnections.php:70),
+    all E_USER_WARNING deprecation/pool notices; missing-required-value paths throw
+    InvalidArgumentException instead.'
+  difficulty: hard
+  host_file: src/Illuminate/Config/Repository.php
+  host_inject_at_line: 202
+- id: laravel_concurrency_fork_1
+  file: breaks/break_concurrency_fork_1.php
+  category: wrong_concurrency
+  hunk_start_line: 19
+  hunk_end_line: 48
+  rationale: 'Raw pcntl_fork()/pcntl_waitpid() worker pool. Verified: `pcntl_fork`
+    = 0 sites in src/ at pinned SHA; the repo''s only pcntl usage is signal handling
+    (pcntl_signal/pcntl_alarm/pcntl_async_signals in Queue/Worker.php, Console/Signals.php,
+    Scheduling/Event.php) — parallel work goes through queue workers and dispatched
+    jobs, never process forking.'
+  difficulty: easy
+  host_file: src/Illuminate/Queue/Worker.php
+  host_inject_at_line: 471
+- id: laravel_concurrency_flock_1
+  file: breaks/break_concurrency_flock_1.php
+  category: wrong_concurrency
+  hunk_start_line: 19
+  hunk_end_line: 40
+  rationale: 'Manual flock() file mutex with usleep() busy-wait acquisition loop.
+    Verified: `flock(` = 0 sites and `usleep(` = 0 sites in src/ at pinned SHA; the
+    repo acquires mutual exclusion via the Cache Lock contract (Illuminate\Contracts\Cache\Lock
+    implemented across ArrayStore/DatabaseStore/DynamoDbStore/...) and waits via
+    Illuminate\Support\Sleep (7 files).'
+  difficulty: medium
+  host_file: src/Illuminate/Cache/Repository.php
+  host_inject_at_line: 432
+- id: laravel_api_superglobals_1
+  file: breaks/break_api_superglobals_1.php
+  category: wrong_api_within_known_lib
+  hunk_start_line: 22
+  hunk_end_line: 44
+  rationale: 'Raw $_GET/$_POST/$_SERVER superglobal reads. Verified: `$_GET` and
+    `$_POST` = 0 sites in src/ at pinned SHA; the repo reads request input exclusively
+    through the Request abstraction (InteractsWithInput::header/input/query over
+    Symfony HttpFoundation, which it already imports).'
+  difficulty: medium
+  host_file: src/Illuminate/Http/Request.php
+  host_inject_at_line: 273
+- id: laravel_api_sqlconcat_1
+  file: breaks/break_api_sqlconcat_1.php
+  category: wrong_api_within_known_lib
+  hunk_start_line: 19
+  hunk_end_line: 33
+  rationale: 'String-concatenated SQL with an interpolated identifier executed via
+    PDO::query(). Verified at pinned SHA: PDO is a lib the repo already uses (new
+    PDO in Database/Connectors/Connector.php:66), and Connection.php runs every statement
+    through ->prepare() + bindValues() (lines 435, 438, 463, 466, 500, 502, 595,
+    597); raw ->query() with concatenated values appears nowhere. Hunk calls $this->getPdo(),
+    which exists on the host Connection class.'
+  difficulty: hard
+  host_file: src/Illuminate/Database/Connection.php
+  host_inject_at_line: 533
+- id: laravel_api_curl_1
+  file: breaks/break_api_curl_1.php
+  category: wrong_api_within_known_lib
+  hunk_start_line: 19
+  hunk_end_line: 40
+  rationale: 'Raw curl_init()/curl_setopt()/curl_exec() HTTP delivery. Verified:
+    `curl_init` = 0 sites in src/ at pinned SHA; the repo already depends on guzzlehttp/guzzle
+    (composer.json require) and issues all HTTP through the Guzzle-backed client
+    (GuzzleHttp referenced 39 times in Http/Client/PendingRequest.php).'
+  difficulty: easy
+  host_file: src/Illuminate/Http/Client/Factory.php
+  host_inject_at_line: 262
+- id: laravel_api_setcookie_1
+  file: breaks/break_api_setcookie_1.php
+  category: wrong_api_within_known_lib
+  hunk_start_line: 20
+  hunk_end_line: 37
+  rationale: 'Raw setcookie() + header() emission. Verified: `setcookie(` = 0 sites
+    and no raw header() emission calls in src/ at pinned SHA; the repo queues Symfony\Component\HttpFoundation\Cookie
+    objects on the CookieJar (CookieJar.php imports the Symfony Cookie class it already
+    depends on via symfony/http-foundation) and attaches them to Response headers.'
+  difficulty: medium
+  host_file: src/Illuminate/Cookie/CookieJar.php
+  host_inject_at_line: 103
+- id: laravel_naming_snakecase_1
+  file: breaks/break_naming_snakecase_1.php
+  category: naming_shape_break
+  hunk_start_line: 19
+  hunk_end_line: 51
+  rationale: 'snake_case public methods (pad_both_sides, make_studly_cached) and
+    snake_case locals ($studly_cache, $cache_key, $word_list). Verified: `public
+    function [a-z]+_[a-z]+\(` = 0 sites in src/ at pinned SHA, while camelCase public
+    methods appear in 667 files — method morphology is uniformly camelCase.'
+  difficulty: hard
+  host_file: src/Illuminate/Support/Str.php
+  host_inject_at_line: 364
+- id: laravel_naming_hungarian_1
+  file: breaks/break_naming_hungarian_1.php
+  category: naming_shape_break
+  hunk_start_line: 21
+  hunk_end_line: 47
+  rationale: 'Hungarian notation ($strLabel, $intPrecision, $arrParts, $boolNegative)
+    plus a SCREAMING local ($DEFAULT_LOCALE). Verified: `\$(str|int|arr|obj|bool)[A-Z]`
+    = 0 sites and `\$[A-Z]{3,}[A-Z_]* =` = 0 sites in src/ at pinned SHA; locals
+    are plain camelCase.'
+  difficulty: medium
+  host_file: src/Illuminate/Support/Number.php
+  host_inject_at_line: 222
+- id: laravel_foreign_respect_1
+  file: breaks/break_foreign_respect_1.php
+  category: foreign_import
+  hunk_start_line: 19
+  hunk_end_line: 34
+  rationale: 'Fully-qualified Respect\Validation\Validator rule chain (PHP class-body
+    splice cannot carry a `use` import, so the foreign package is referenced by FQN
+    inside the hunk). Verified: respect/validation absent from composer.json (require
+    and require-dev, all 230 lines) and `Respect\Validation` = 0 grep hits repo-wide
+    at pinned SHA; the repo validates via its own Validator and rule classes.'
+  difficulty: easy
+  host_file: src/Illuminate/Validation/Concerns/ValidatesAttributes.php
+  host_inject_at_line: 330
+- id: laravel_foreign_react_1
+  file: breaks/break_foreign_react_1.php
+  category: foreign_import
+  hunk_start_line: 18
+  hunk_end_line: 34
+  rationale: 'ReactPHP event-loop periodic timer via FQN \React\EventLoop\Loop (class-body
+    splice cannot carry a `use` import). Verified: react/event-loop absent from composer.json
+    (require and require-dev) and `React\EventLoop` plus `use React\` = 0 grep hits
+    repo-wide at pinned SHA; scheduling runs on cron expressions (dragonmantank/cron-expression)
+    over Schedule events.'
+  difficulty: easy
+  host_file: src/Illuminate/Console/Scheduling/Schedule.php
+  host_inject_at_line: 367

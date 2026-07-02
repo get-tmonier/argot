@@ -124,10 +124,8 @@ impl LanguageAdapter for go::GoAdapter {
     fn extract_imports_with_spans(&self, source: &str) -> Vec<(String, usize, usize, usize)> {
         go::GoAdapter::extract_imports_with_spans(self, source)
     }
-    fn resolve_repo_modules(&self, _repo_root: &Path) -> RepoModules {
-        // Go internal packages are discovered via extract_imports at fit time;
-        // there are no exact/prefix rules read from go.mod today.
-        RepoModules::default()
+    fn resolve_repo_modules(&self, repo_root: &Path) -> RepoModules {
+        go::GoAdapter::resolve_repo_modules(self, repo_root)
     }
     fn is_data_dominant(&self, source: &str) -> bool {
         go::GoAdapter::is_data_dominant(self, source)
@@ -315,4 +313,47 @@ impl LanguageAdapter for ruby::RubyAdapter {
 pub struct RepoModules {
     pub exact: HashSet<String>,
     pub prefixes: HashSet<String>,
+}
+
+/// Recursively list files under `root` whose basename ends with one of
+/// `suffixes`, skipping VCS/vendored/build trees. Backs the adapters'
+/// repo-ownership resolution (`resolve_repo_modules`). The scan is broader
+/// than the training corpus on purpose: a namespace declared anywhere in the
+/// repo (tests included) is repo-owned, and importing repo-owned code is
+/// never foreign voice — the honest-FP flood on fine-grained-import
+/// languages was exactly never-before-imported internal symbols (issue #92).
+pub(crate) fn walk_files_with_suffix(root: &Path, suffixes: &[&str]) -> Vec<std::path::PathBuf> {
+    const SKIP_DIRS: &[&str] = &[
+        ".git",
+        "node_modules",
+        "vendor",
+        "third_party",
+        "third-party",
+        "target",
+        "build",
+        "dist",
+    ];
+    fn rec(dir: &Path, suffixes: &[&str], out: &mut Vec<std::path::PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for e in entries.flatten() {
+            let Ok(t) = e.file_type() else { continue };
+            let name = e.file_name();
+            let name = name.to_string_lossy();
+            let path = e.path();
+            if t.is_dir() {
+                if SKIP_DIRS.contains(&name.as_ref()) {
+                    continue;
+                }
+                rec(&path, suffixes, out);
+            } else if t.is_file() && suffixes.iter().any(|s| name.ends_with(s)) {
+                out.push(path);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    rec(root, suffixes, &mut out);
+    out.sort();
+    out
 }

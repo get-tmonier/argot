@@ -1,0 +1,149 @@
+corpus: powershell
+language: csharp
+categories:
+- wrong_error_discipline
+- wrong_concurrency
+- wrong_api_within_known_lib
+- naming_shape_break
+- foreign_import
+injection_hosts:
+- pr: 0
+  sha: 36cd02b333d7cecb89d5d336c9a798287fe4736b
+fixtures:
+- id: ps_error_exit_1
+  file: breaks/break_exit_on_error_1.cs
+  category: wrong_error_discipline
+  hunk_start_line: 22
+  hunk_end_line: 34
+  rationale: Environment.Exit + Console error print in a cmdlet helper; repo discipline
+    is WriteError/ThrowTerminatingError with ErrorRecord (host Process.cs uses ErrorRecord
+    machinery throughout).
+  difficulty: medium
+  host_file: src/Microsoft.PowerShell.Commands.Management/commands/management/Process.cs
+  host_inject_at_line: 792
+- id: ps_error_string_throw_1
+  file: breaks/break_string_throw_1.cs
+  category: wrong_error_discipline
+  hunk_start_line: 19
+  hunk_end_line: 37
+  rationale: Bare `throw new Exception("...")` mixed with errno-style -1/0 return codes;
+    repo throws typed PS exceptions via PSTraceSource.New*Exception and never signals
+    via int codes.
+  difficulty: medium
+  host_file: src/System.Management.Automation/engine/Utils.cs
+  host_inject_at_line: 496
+- id: ps_error_swallow_1
+  file: breaks/break_swallow_catch_1.cs
+  category: wrong_error_discipline
+  hunk_start_line: 19
+  hunk_end_line: 32
+  rationale: Bare `catch {}` swallow of conversion failures; the host cmdlet surfaces
+    them as ErrorRecords (WriteConversionError decoy mirrors real host discipline).
+  difficulty: medium
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/ConvertToJsonCommand.cs
+  host_inject_at_line: 44
+- id: ps_conc_async_void_1
+  file: breaks/break_async_void_1.cs
+  category: wrong_concurrency
+  hunk_start_line: 16
+  hunk_end_line: 23
+  rationale: Fire-and-forget `async void` member; the host's async surface is async
+    Task consumed via await or GetAwaiter().GetResult().
+  difficulty: hard
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/Common/InvokeRestMethodCommand.Common.cs
+  host_inject_at_line: 170
+- id: ps_conc_backgroundworker_1
+  file: breaks/break_backgroundworker_1.cs
+  category: wrong_concurrency
+  hunk_start_line: 22
+  hunk_end_line: 37
+  rationale: WinForms-era System.ComponentModel.BackgroundWorker drives event draining;
+    the host coordinates with ThreadPool.QueueUserWorkItem, locks and reset events.
+  difficulty: medium
+  host_file: src/System.Management.Automation/engine/EventManager.cs
+  host_inject_at_line: 798
+- id: ps_conc_channels_1
+  file: breaks/break_channels_1.cs
+  category: wrong_concurrency
+  hunk_start_line: 19
+  hunk_end_line: 31
+  rationale: System.Threading.Channels producer/consumer pump; the host throttle manager
+    coordinates through its own operation queue, locks and event callbacks.
+  difficulty: hard
+  host_file: src/System.Management.Automation/engine/remoting/common/throttlemanager.cs
+  host_inject_at_line: 221
+- id: ps_api_console_output_1
+  file: breaks/break_console_output_1.cs
+  category: wrong_api_within_known_lib
+  hunk_start_line: 16
+  hunk_end_line: 24
+  rationale: Console.WriteLine/Console.Write as a cmdlet's output channel; repo cmdlets
+    emit through WriteObject/WriteVerbose so output composes with the pipeline.
+  difficulty: medium
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/Var.cs
+  host_inject_at_line: 416
+- id: ps_api_json_concat_1
+  file: breaks/break_json_concat_1.cs
+  category: wrong_api_within_known_lib
+  hunk_start_line: 15
+  hunk_end_line: 43
+  rationale: Hand-rolled JSON via StringBuilder + manual escaping; the host file serializes
+    exclusively through Newtonsoft.Json (4 Newtonsoft references in JsonObject.cs at the
+    pinned SHA).
+  difficulty: medium
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/JsonObject.cs
+  host_inject_at_line: 246
+- id: ps_api_webrequest_legacy_1
+  file: breaks/break_webrequest_legacy_1.cs
+  category: wrong_api_within_known_lib
+  hunk_start_line: 20
+  hunk_end_line: 30
+  rationale: Deprecated synchronous WebRequest.Create/GetResponse pipeline; this file
+    standardizes on HttpClient/HttpRequestMessage (0 WebRequest.Create sites in the
+    WebCmdlet tree at the pinned SHA).
+  difficulty: medium
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/Common/WebRequestPSCmdlet.Common.cs
+  host_inject_at_line: 719
+- id: ps_name_snake_case_1
+  file: breaks/break_snake_case_1.cs
+  category: naming_shape_break
+  hunk_start_line: 19
+  hunk_end_line: 37
+  rationale: snake_case methods/locals and a camelCase public property; the repo is
+    PascalCase members with _camelCase/s_camelCase fields (0 snake_case method
+    declarations in *.cs at the pinned SHA).
+  difficulty: medium
+  host_file: src/System.Management.Automation/engine/Modules/AnalysisCache.cs
+  host_inject_at_line: 299
+- id: ps_name_hungarian_1
+  file: breaks/break_hungarian_1.cs
+  category: naming_shape_break
+  hunk_start_line: 19
+  hunk_end_line: 37
+  rationale: Hungarian m_/str/i/b prefixes on fields, parameters and locals; the host's
+    fields are _camelCase instance / s_camelCase static with PascalCase members.
+  difficulty: medium
+  host_file: src/Microsoft.PowerShell.ConsoleHost/host/msh/ConsoleHost.cs
+  host_inject_at_line: 791
+- id: ps_foreign_polly_1
+  file: breaks/break_polly_1.cs
+  category: foreign_import
+  hunk_start_line: 20
+  hunk_end_line: 27
+  rationale: Polly retry policy (fully-qualified Polly.Policy) around help-content
+    download; Polly is absent from the repo at the pinned SHA (0 grep hits in *.cs and
+    *.csproj) — the repo hand-rolls bounded retry loops.
+  difficulty: medium
+  host_file: src/System.Management.Automation/help/UpdatableHelpSystem.cs
+  host_inject_at_line: 481
+- id: ps_foreign_serilog_1
+  file: breaks/break_serilog_1.cs
+  category: foreign_import
+  hunk_start_line: 19
+  hunk_end_line: 27
+  rationale: Serilog file logger (fully-qualified Serilog.*) for telemetry; Serilog is
+    absent from the repo at the pinned SHA (0 grep hits) — the host telemetry goes
+    through Microsoft.ApplicationInsights.
+  difficulty: medium
+  host_file: src/System.Management.Automation/utils/Telemetry.cs
+  host_inject_at_line: 659

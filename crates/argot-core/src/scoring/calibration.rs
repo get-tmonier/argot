@@ -609,6 +609,11 @@ pub fn multi_seed_thresholds(
             // Cal side scores without local-binding attestation: candidates
             // are corpus files whose callees are attested anyway, so the
             // omission only leaves the threshold marginally conservative.
+            // The call-receiver side stays memorized on purpose: cluster
+            // branches only fire on files the fit clustered (new files are
+            // not cluster-routed at check time), so memorized cal is already
+            // symmetric with check for them — only the BPE side had the
+            // train-on-test leak (issue #92).
             let contrib = call_receiver.weighted_contribution_for_file(
                 &c.hunk,
                 Some(&c.file_path),

@@ -331,11 +331,35 @@ impl JavaAdapter {
         out
     }
 
-    /// Java imports are always fully qualified — there is no relative-import
-    /// form — so no repo-module rules are derived from the tree; internal
-    /// packages are discovered via `extract_imports` at fit time.
-    pub fn resolve_repo_modules(&self, _repo_root: &Path) -> RepoModules {
-        RepoModules::default()
+    /// Repo-owned package prefixes from the corpus's own `package`
+    /// declarations: importing any class or static member under a package
+    /// the repo declares is never foreign voice — including symbols no file
+    /// had imported at fit time (issue #92: a commit expanding wildcard
+    /// static imports to explicit ones flooded the import tripwire with the
+    /// repo's own members).
+    pub fn resolve_repo_modules(&self, repo_root: &Path) -> RepoModules {
+        let mut modules = RepoModules::default();
+        for file in super::walk_files_with_suffix(repo_root, &[".java"]) {
+            let Ok(text) = crate::text::read_text_lossy(&file) else {
+                continue;
+            };
+            for line in text.lines() {
+                let trimmed = line.trim();
+                if let Some(rest) = trimmed.strip_prefix("package ") {
+                    let pkg = rest.trim_end().trim_end_matches(';').trim();
+                    if !pkg.is_empty()
+                        && pkg
+                            .chars()
+                            .all(|c| c.is_alphanumeric() || c == '.' || c == '_')
+                    {
+                        modules.exact.insert(pkg.to_string());
+                        modules.prefixes.insert(format!("{pkg}."));
+                    }
+                    break;
+                }
+            }
+        }
+        modules
     }
 
     /// Names the source binds to callable definitions — methods, constructors,
@@ -642,6 +666,27 @@ const NOISE: &[&str] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resolve_repo_modules_derives_owned_package_prefixes() {
+        let dir = std::env::temp_dir().join(format!("argot_java_pkg_test_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("src")).unwrap();
+        std::fs::write(
+            dir.join("src/Maps.java"),
+            "// header comment\npackage com.google.common.collect;\n\nclass Maps {}\n",
+        )
+        .unwrap();
+
+        let modules = JavaAdapter::new().resolve_repo_modules(&dir);
+        assert!(modules.exact.contains("com.google.common.collect"));
+        assert!(modules.prefixes.contains("com.google.common.collect."));
+        // The prefix attests static member imports the corpus never used.
+        assert!(
+            "com.google.common.collect.Maps.keyIterator".starts_with("com.google.common.collect.")
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn extract_imports_keeps_qualified_paths() {

@@ -1,0 +1,181 @@
+corpus: gh-cli
+language: go
+categories:
+- wrong_error_discipline
+- wrong_concurrency
+- wrong_api_within_known_lib
+- naming_shape_break
+- foreign_import
+injection_hosts:
+- pr: 0
+  sha: 397876d3dc2828f1c932c651b31ab78e72506da4
+fixtures:
+- id: err_panic_1
+  file: breaks/break_err_panic_1.go
+  category: wrong_error_discipline
+  hunk_start_line: 28
+  hunk_end_line: 49
+  rationale: 'panic() on every error path in a label command helper. Verified at
+    pinned SHA: fmt.Errorf appears at 1186 non-test sites and cobra RunE at 221 sites
+    (zero `Run:`); panic( in non-test, non-generated code is confined to mocks
+    (internal/gh/mock, *_mock.go), pkg/option invariants, and the garden easter egg
+    — never in command logic.'
+  difficulty: easy
+  host_file: pkg/cmd/label/clone.go
+  host_inject_at_line: 111
+- id: err_exit_1
+  file: breaks/break_err_exit_1.go
+  category: wrong_error_discipline
+  hunk_start_line: 23
+  hunk_end_line: 43
+  rationale: 'fmt.Println(err) + os.Exit(1) inside a gist shared-library helper.
+    Verified at pinned SHA: os.Exit appears at only 7 non-test sites, all process
+    entry points or documented passthroughs (cmd/gh/main.go, cmd/gen-docs,
+    pkg/cmd/copilot exit-code passthrough, iostreams pager, script/build.go);
+    fmt.Println in pkg/cmd non-test code is near-zero (garden easter egg,
+    trustedroot output). Shared helpers return errors to RunE.'
+  difficulty: easy
+  host_file: pkg/cmd/gist/shared/shared.go
+  host_inject_at_line: 250
+- id: err_stringmatch_1
+  file: breaks/break_err_stringmatch_1.go
+  category: wrong_error_discipline
+  hunk_start_line: 24
+  hunk_end_line: 47
+  rationale: 'Error matching via err.Error() == "..." literals, then swallowing the
+    error (print to stdout, return nil). Verified at pinned SHA: zero non-test
+    `err.Error() == "..."` comparisons; errors.Is/errors.As at 160 non-test sites;
+    repo propagates errors wrapped with %w rather than swallowing.'
+  difficulty: medium
+  host_file: pkg/cmd/issue/shared/lookup.go
+  host_inject_at_line: 231
+- id: api_ioutil_1
+  file: breaks/break_api_ioutil_1.go
+  category: wrong_api_within_known_lib
+  hunk_start_line: 19
+  hunk_end_line: 46
+  rationale: 'Deprecated io/ioutil stdlib APIs (ioutil.ReadFile/ReadAll/WriteFile);
+    io/ioutil imported at fixture top, ioutil.* selectors inside the hunk. Verified
+    at pinned SHA: zero files import io/ioutil; the repo uses os.ReadFile (22
+    non-test sites) and io.ReadAll (65 non-test sites) for the same operations.'
+  difficulty: medium
+  host_file: pkg/cmd/workflow/run/run.go
+  host_inject_at_line: 401
+- id: api_rawhttp_1
+  file: breaks/break_api_rawhttp_1.go
+  category: wrong_api_within_known_lib
+  hunk_start_line: 20
+  hunk_end_line: 40
+  rationale: 'Hand-rolled GitHub REST call with bare http.Get, string-concatenated
+    URL, and token as query parameter, inside the api package itself. Verified at
+    pinned SHA: zero non-test http.Get( call sites; REST calls go through
+    api.NewClientFromHTTP (107 non-test files) and Client.REST which centralize
+    auth headers and HTTP error mapping.'
+  difficulty: medium
+  host_file: api/queries_repo.go
+  host_inject_at_line: 1724
+- id: api_cobra_run_1
+  file: breaks/break_api_cobra_run_1.go
+  category: wrong_api_within_known_lib
+  hunk_start_line: 29
+  hunk_end_line: 57
+  rationale: 'Off-voice cobra use: command wired via `Run:` with a stdlib
+    flag.NewFlagSet parse of args and os.Exit(2) on bad input. Verified at pinned
+    SHA: 221 `RunE:` command definitions in pkg/cmd and zero `Run:`; flags are
+    registered on cmd.Flags() (spf13/pflag); the stdlib "flag" package is imported
+    in zero non-test files.'
+  difficulty: medium
+  host_file: pkg/cmd/repo/clone/clone.go
+  host_inject_at_line: 238
+- id: api_env_token_1
+  file: breaks/break_api_env_token_1.go
+  category: wrong_api_within_known_lib
+  hunk_start_line: 19
+  hunk_end_line: 43
+  rationale: 'Direct os.Getenv("GH_TOKEN")/("GH_ENTERPRISE_TOKEN")/("GH_HOST") with
+    a hand-rolled fallback chain in an auth helper. Verified at pinned SHA: zero
+    non-test os.Getenv("GH_TOKEN") call sites; token/host resolution goes through
+    the config layer — Authentication().ActiveToken / TokenFromEnvOrConfig in 14
+    non-test files — which owns env-vs-keyring precedence.'
+  difficulty: hard
+  host_file: pkg/cmd/auth/shared/oauth_scopes.go
+  host_inject_at_line: 74
+- id: conc_cond_1
+  file: breaks/break_conc_cond_1.go
+  category: wrong_concurrency
+  hunk_start_line: 29
+  hunk_end_line: 73
+  rationale: 'Hand-built producer/consumer queue with sync.Cond + sync.Mutex and
+    manual Wait/Signal/Broadcast handoff. Verified at pinned SHA: sync.Cond appears
+    in zero files; concurrent fan-out uses channels and golang.org/x/sync/errgroup
+    (10 non-test files, e.g. pkg/cmd/label/clone.go, api/queries_repo.go,
+    pkg/cmd/pr/edit/edit.go); sync.Mutex itself has only 11 non-test occurrences,
+    none implementing queue handoff.'
+  difficulty: medium
+  host_file: pkg/cmd/pr/checks/checks.go
+  host_inject_at_line: 256
+- id: conc_busywait_1
+  file: breaks/break_conc_busywait_1.go
+  category: wrong_concurrency
+  hunk_start_line: 31
+  hunk_end_line: 57
+  rationale: 'Busy-wait spin loop polling an atomic flag with runtime.Gosched to
+    join a goroutine. Verified at pinned SHA: runtime.Gosched appears in zero
+    files; goroutine results are communicated over channels/errgroup (10 non-test
+    files) or joined with sync.WaitGroup; the repo''s polling loops (e.g.
+    pkg/cmd/run/watch/watch.go) sleep on a configured interval, never spin.'
+  difficulty: medium
+  host_file: pkg/cmd/run/watch/watch.go
+  host_inject_at_line: 213
+- id: name_snake_1
+  file: breaks/break_name_snake_1.go
+  category: naming_shape_break
+  hunk_start_line: 23
+  hunk_end_line: 52
+  rationale: 'snake_case function and variable names (parse_remote_line,
+    collect_remote_urls, remote_name, result_map) in the git client package.
+    Verified at pinned SHA: zero snake_case function definitions in non-generated
+    non-test Go code; the repo is Go MixedCaps throughout (CurrentBranchName,
+    parseRemotes, UncommittedChangeCount).'
+  difficulty: hard
+  host_file: git/client.go
+  host_inject_at_line: 1008
+- id: name_getset_1
+  file: breaks/break_name_getset_1.go
+  category: naming_shape_break
+  hunk_start_line: 24
+  hunk_end_line: 66
+  rationale: 'Java-style getX()/setX() accessor pairs over Hungarian-prefixed
+    fields (strName, strPattern, iCount, bOverwrite). Verified at pinned SHA: zero
+    lowercase getX() accessor methods (regex over non-test code) and zero
+    Hungarian str*/iCount/bFlag identifiers; repo structs expose plain exported
+    fields accessed directly (Get-prefixed methods exist only as exported API
+    wrappers in internal/codespaces/api, never lowercase accessor pairs).'
+  difficulty: hard
+  host_file: pkg/cmd/release/download/download.go
+  host_inject_at_line: 419
+- id: foreign_urfave_1
+  file: breaks/break_foreign_urfave_1.go
+  category: foreign_import
+  hunk_start_line: 8
+  hunk_end_line: 38
+  rationale: 'github.com/urfave/cli/v2 app builder imported inside the hunk, in the
+    auth flow package. Verified at pinned SHA: zero git-grep hits for urfave
+    anywhere in *.go (including the pre-existing argotfix fixture dir) and absent
+    from go.mod; the CLI surface is spf13/cobra (221 RunE definitions).'
+  difficulty: easy
+  host_file: internal/authflow/flow.go
+  host_inject_at_line: 131
+- id: foreign_zerolog_1
+  file: breaks/break_foreign_zerolog_1.go
+  category: foreign_import
+  hunk_start_line: 8
+  hunk_end_line: 31
+  rationale: 'github.com/rs/zerolog leveled/structured logger imported inside the
+    hunk, in pkg/cmdutil. Verified at pinned SHA: zero git-grep hits for zerolog
+    in *.go (including the pre-existing argotfix fixture dir, which covers logrus
+    and zap but not zerolog) and absent from go.mod; user-facing output goes
+    through iostreams writers and errors are returned as values.'
+  difficulty: easy
+  host_file: pkg/cmdutil/errors.go
+  host_inject_at_line: 67

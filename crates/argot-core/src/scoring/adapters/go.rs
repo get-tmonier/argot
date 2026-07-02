@@ -14,6 +14,7 @@
 //!   TypeScript adapter rolls its own.
 
 use std::collections::HashSet;
+use std::path::Path;
 
 use tree_sitter::{Node, Tree};
 
@@ -223,6 +224,30 @@ impl GoAdapter {
             }
         }
         out
+    }
+
+    /// Repo-owned module paths from `go.mod` files: importing any package
+    /// under the repo's own module path is never foreign voice, including
+    /// packages that did not exist at fit time (issue #92 — new internal
+    /// packages flooded the import tripwire).
+    pub fn resolve_repo_modules(&self, repo_root: &Path) -> super::RepoModules {
+        let mut modules = super::RepoModules::default();
+        for gomod in super::walk_files_with_suffix(repo_root, &["go.mod"]) {
+            let Ok(text) = crate::text::read_text_lossy(&gomod) else {
+                continue;
+            };
+            for line in text.lines() {
+                if let Some(rest) = line.trim().strip_prefix("module ") {
+                    let path = rest.trim().trim_matches('"');
+                    if !path.is_empty() {
+                        modules.exact.insert(path.to_string());
+                        modules.prefixes.insert(format!("{path}/"));
+                    }
+                    break;
+                }
+            }
+        }
+        modules
     }
 
     /// Like `extract_imports` but each path carries its `(spec, line,
@@ -472,6 +497,25 @@ const NOISE: &[&str] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resolve_repo_modules_reads_go_mod_module_paths() {
+        let dir = std::env::temp_dir().join(format!("argot_go_mod_test_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        std::fs::write(
+            dir.join("go.mod"),
+            "module github.com/acme/tool/v2\n\ngo 1.22\n",
+        )
+        .unwrap();
+        std::fs::write(dir.join("sub/go.mod"), "module github.com/acme/helper\n").unwrap();
+
+        let modules = GoAdapter::new().resolve_repo_modules(&dir);
+        assert!(modules.exact.contains("github.com/acme/tool/v2"));
+        assert!(modules.prefixes.contains("github.com/acme/tool/v2/"));
+        assert!(modules.prefixes.contains("github.com/acme/helper/"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn imports_are_full_paths() {

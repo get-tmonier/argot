@@ -330,11 +330,32 @@ impl CSharpAdapter {
         out
     }
 
-    /// C# `using` names namespaces, never relative paths, so there are no
-    /// repo-internal exact/prefix rules — internal namespaces are discovered
-    /// via `extract_imports` at fit time.
-    pub fn resolve_repo_modules(&self, _repo_root: &Path) -> RepoModules {
-        RepoModules::default()
+    /// Repo-owned namespace prefixes from the corpus's own `namespace`
+    /// declarations (block and file-scoped forms): `using` any namespace the
+    /// repo declares is never foreign voice, including namespaces added
+    /// after fit time (issue #92).
+    pub fn resolve_repo_modules(&self, repo_root: &Path) -> RepoModules {
+        let mut modules = RepoModules::default();
+        for file in super::walk_files_with_suffix(repo_root, &[".cs"]) {
+            let Ok(text) = crate::text::read_text_lossy(&file) else {
+                continue;
+            };
+            for line in text.lines() {
+                let trimmed = line.trim();
+                let Some(rest) = trimmed.strip_prefix("namespace ") else {
+                    continue;
+                };
+                let ns: String = rest
+                    .chars()
+                    .take_while(|c| c.is_alphanumeric() || *c == '.' || *c == '_')
+                    .collect();
+                if !ns.is_empty() {
+                    modules.exact.insert(ns.clone());
+                    modules.prefixes.insert(format!("{ns}."));
+                }
+            }
+        }
+        modules
     }
 
     /// True if the file is overwhelmingly static data literals (threshold 0.65).
@@ -624,6 +645,31 @@ const NOISE: &[&str] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resolve_repo_modules_derives_owned_namespace_prefixes() {
+        let dir = std::env::temp_dir().join(format!("argot_cs_ns_test_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("src")).unwrap();
+        // Block-scoped and file-scoped namespace forms.
+        std::fs::write(
+            dir.join("src/A.cs"),
+            "namespace System.Management.Automation\n{\n    class A {}\n}\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("src/B.cs"),
+            "namespace Acme.Tool.Core;\n\nclass B {}\n",
+        )
+        .unwrap();
+
+        let modules = CSharpAdapter::new().resolve_repo_modules(&dir);
+        assert!(modules.exact.contains("System.Management.Automation"));
+        assert!(modules.prefixes.contains("System.Management.Automation."));
+        assert!(modules.exact.contains("Acme.Tool.Core"));
+        assert!(modules.prefixes.contains("Acme.Tool.Core."));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn extract_imports_keeps_full_namespace() {

@@ -164,7 +164,7 @@ targets:
     url: https://github.com/cli/cli
     language: go
     prs:
-      - { pr: 0, sha: 5dd78425eea3c6308ee63f7e31c3d3531905a6fc }
+      - { pr: 0, sha: 397876d3dc2828f1c932c651b31ab78e72506da4 }
   - name: hugo
     url: https://github.com/gohugoio/hugo
     language: go

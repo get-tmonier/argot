@@ -1,0 +1,184 @@
+corpus: ripgrep
+language: rust
+categories:
+- wrong_error_discipline
+- wrong_concurrency
+- wrong_api_within_known_lib
+- naming_shape_break
+- foreign_import
+injection_hosts:
+- pr: 0
+  sha: 48b0c795f4feb37343b2832d991c5c6a3900c08a
+fixtures:
+- id: err_unwrap_chain_1
+  file: breaks/break_err_unwrap_chain_1.rs
+  category: wrong_error_discipline
+  hunk_start_line: 32
+  hunk_end_line: 44
+  rationale: 'File::open().expect() + metadata().unwrap() + read_to_end().expect()
+    chain in a library search path. Verified at SHA: grep-searcher src is
+    Result-everywhere (io::Result / Sink S::Error); unwrap/expect on I/O confined
+    to tests and testutil.rs (panic! hits in crates/searcher/src are macros.rs
+    doc-macro and testutil.rs only).'
+  difficulty: medium
+  host_file: crates/searcher/src/searcher/glue.rs
+  host_inject_at_line: 148
+- id: err_process_exit_1
+  file: breaks/break_err_process_exit_1.rs
+  category: wrong_error_discipline
+  hunk_start_line: 27
+  hunk_end_line: 45
+  rationale: 'eprintln! + std::process::exit(2) deep in walker library code.
+    Verified at SHA: git grep process::exit hits only crates/core/messages.rs
+    (binary-side err_exit paths) and crates/{grep,searcher}/examples; the ignore
+    crate reports failures via its own Error enum (crates/ignore/src/lib.rs:66)
+    and never exits.'
+  difficulty: easy
+  host_file: crates/ignore/src/walk.rs
+  host_inject_at_line: 508
+- id: err_swallowed_result_1
+  file: breaks/break_err_swallowed_result_1.rs
+  category: wrong_error_discipline
+  hunk_start_line: 31
+  hunk_end_line: 47
+  rationale: 'let _ = wtr.write_all(...) and .flush().ok() swallowing io::Results
+    on a printer write path returning (). Verified at SHA: every write helper in
+    crates/printer/src returns io::Result and propagates with ?; `let _ =`
+    appears exactly 3 times in production src, all in crates/core/main.rs at
+    process exit (lines 148/225/226), never in the printer.'
+  difficulty: hard
+  host_file: crates/printer/src/standard.rs
+  host_inject_at_line: 596
+- id: err_panic_glob_1
+  file: breaks/break_err_panic_glob_1.rs
+  category: wrong_error_discipline
+  hunk_start_line: 26
+  hunk_end_line: 55
+  rationale: 'panic!("invalid glob: ...") + expect() on user-supplied pattern
+    input in a glob parser. Verified at SHA: globset reports malformed patterns
+    through its custom Error + ErrorKind (crates/globset/src/lib.rs:167, Error
+    impl at :198); no panic! on input anywhere in crates/globset/src.'
+  difficulty: medium
+  host_file: crates/globset/src/glob.rs
+  host_inject_at_line: 122
+- id: conc_mutex_threads_1
+  file: breaks/break_conc_mutex_threads_1.rs
+  category: wrong_concurrency
+  hunk_start_line: 30
+  hunk_end_line: 53
+  rationale: 'Raw thread::spawn worker fan-out popping an Arc<Mutex<Vec>> queue
+    and pushing into an Arc<Mutex<Vec>> accumulator. Verified at SHA: the repo
+    parallel walker is crossbeam-deque work stealing behind WalkParallel
+    (crates/ignore/src/walk.rs); Arc<Mutex<Vec>> accumulation appears only in
+    walk.rs tests (line 2116); production thread::spawn is limited to single
+    helper threads in cli/process.rs and core/main.rs.'
+  difficulty: medium
+  host_file: crates/ignore/src/dir.rs
+  host_inject_at_line: 614
+- id: conc_busywait_1
+  file: breaks/break_conc_busywait_1.rs
+  category: wrong_concurrency
+  hunk_start_line: 30
+  hunk_end_line: 53
+  rationale: 'Busy-wait polling: thread::sleep(1ms) loop on an AtomicBool done
+    flag over a hand-rolled Mutex<VecDeque> queue. Verified at SHA: zero
+    thread::sleep in production src (git grep thread::sleep over crates/*/src
+    and crates/core is empty); cross-thread handoff uses crossbeam-channel
+    (core/main.rs print thread) or the crossbeam-deque walker.'
+  difficulty: medium
+  host_file: crates/core/search.rs
+  host_inject_at_line: 198
+- id: api_regex_in_loop_1
+  file: breaks/break_api_regex_in_loop_1.rs
+  category: wrong_api_within_known_lib
+  hunk_start_line: 26
+  hunk_end_line: 44
+  rationale: 'regex::Regex::new(&pat).unwrap() recompiled for every haystack line
+    inside the match loop. Verified at SHA: regex 1.x is in-workspace (Cargo.lock
+    v1.12.2; dev-dependency of grep-matcher/grep-searcher) but the production
+    match path builds one matcher up front via grep::regex::RegexMatcherBuilder
+    (crates/core/flags/hiargs.rs:462) over regex-automata; nothing compiles a
+    pattern per line.'
+  difficulty: medium
+  host_file: crates/regex/src/matcher.rs
+  host_inject_at_line: 405
+- id: api_fs_read_dir_1
+  file: breaks/break_api_fs_read_dir_1.rs
+  category: wrong_api_within_known_lib
+  hunk_start_line: 28
+  hunk_end_line: 47
+  rationale: 'Hand-rolled recursive std::fs::read_dir traversal with a string
+    startswith(".") hidden check, duplicating the repo-owned ignore crate.
+    Verified at SHA: zero read_dir in production src; traversal is
+    ignore::WalkBuilder (used in crates/core/flags/hiargs.rs, defined in
+    crates/ignore/src/walk.rs) which owns hidden/gitignore filtering.'
+  difficulty: medium
+  host_file: crates/core/haystack.rs
+  host_inject_at_line: 102
+- id: api_println_output_1
+  file: breaks/break_api_println_output_1.rs
+  category: wrong_api_within_known_lib
+  hunk_start_line: 29
+  hunk_end_line: 39
+  rationale: 'println!-driven match and summary output. Verified at SHA: zero
+    println! in crates/core src (git grep empty); all match output flows through
+    the repo-owned grep-printer Standard/Summary printers over
+    termcolor::WriteColor buffers (WriteColor across crates/printer/src, e.g.
+    counter.rs, path.rs, hyperlink/mod.rs).'
+  difficulty: easy
+  host_file: crates/printer/src/summary.rs
+  host_inject_at_line: 368
+- id: api_read_to_string_1
+  file: breaks/break_api_read_to_string_1.rs
+  category: wrong_api_within_known_lib
+  hunk_start_line: 28
+  hunk_end_line: 43
+  rationale: 'fs::read_to_string whole-file slurp + lines().contains() scan,
+    hand-rolling what grep-searcher provides. Verified at SHA: the searcher is
+    memmap2-backed or incremental with encoding_rs transcoding and binary
+    detection (crates/searcher/Cargo.toml deps memmap2/encoding_rs/
+    encoding_rs_io), driven through Matcher + Sink; no String slurp search
+    exists in production src.'
+  difficulty: hard
+  host_file: crates/searcher/src/searcher/mod.rs
+  host_inject_at_line: 301
+- id: name_camelcase_1
+  file: breaks/break_name_camelcase_1.rs
+  category: naming_shape_break
+  hunk_start_line: 29
+  hunk_end_line: 58
+  rationale: 'camelCase fields/methods (caseInsensitive, setCaseInsensitive,
+    getMatchCount) and Java get/set accessor shape. Verified at SHA: the repo is
+    uniformly snake_case with fluent builder setters taking `yes: bool` and
+    returning &mut Self (GlobBuilder::case_insensitive in
+    crates/globset/src/glob.rs, SearcherBuilder in crates/searcher); no
+    getFoo/setFoo accessors in src.'
+  difficulty: easy
+  host_file: crates/globset/src/lib.rs
+  host_inject_at_line: 253
+- id: name_screaming_locals_1
+  file: breaks/break_name_screaming_locals_1.rs
+  category: naming_shape_break
+  hunk_start_line: 27
+  hunk_end_line: 40
+  rationale: 'SCREAMING_SNAKE locals (N_TOTAL, U_MAX_OFFSET, STR_LABEL) plus
+    Hungarian prefixes (strHaystackName, uOffsets) in a printer helper. Verified
+    at SHA: locals in crates/printer/src are lower snake_case throughout;
+    upper-case identifiers are reserved for consts/statics; no type-prefixed
+    identifiers in src.'
+  difficulty: medium
+  host_file: crates/printer/src/util.rs
+  host_inject_at_line: 366
+- id: foreign_rayon_1
+  file: breaks/break_foreign_rayon_1.rs
+  category: foreign_import
+  hunk_start_line: 33
+  hunk_end_line: 45
+  rationale: 'use rayon::prelude::* + par_iter() parallel rule matching, import
+    inside hunk. Verified foreign at SHA: `name = "rayon"` has zero occurrences
+    in Cargo.lock (and no Cargo.toml lists it); the repo''s only parallelism is
+    crossbeam-channel plus its own crossbeam-deque work-stealing walker in
+    crates/ignore/src/walk.rs.'
+  difficulty: easy
+  host_file: crates/ignore/src/gitignore.rs
+  host_inject_at_line: 316

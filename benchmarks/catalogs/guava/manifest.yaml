@@ -1,0 +1,189 @@
+corpus: guava
+language: java
+categories:
+- wrong_error_discipline
+- wrong_concurrency
+- wrong_api_within_known_lib
+- naming_shape_break
+- foreign_import
+injection_hosts:
+- pr: 0
+  sha: 5312fedc7b82bb1a83111145ea192d06fd04aa27
+fixtures:
+- id: err_exit_1
+  file: breaks/break_err_exit_1.java
+  category: wrong_error_discipline
+  hunk_start_line: 34
+  hunk_end_line: 55
+  rationale: 'System.err.println + System.exit(2) + int error-code returns for argument
+    validation. Verified at pinned SHA: System.exit has 0 executable uses in guava/src
+    (single grep hit is a javadoc example in util/concurrent/ServiceManager.java:98);
+    canonical voice is Preconditions.checkArgument (462 call sites) / checkNotNull
+    (1347 call sites) throwing unchecked.'
+  difficulty: easy
+  host_file: guava/src/com/google/common/base/Strings.java
+  host_inject_at_line: 105
+- id: err_swallow_1
+  file: breaks/break_err_swallow_1.java
+  category: wrong_error_discipline
+  hunk_start_line: 32
+  hunk_end_line: 56
+  rationale: 'Swallowed checked IOException (empty catch, sentinel empty-array/false
+    returns). Verified at pinned SHA: guava/src/com/google/common/io declares `throws
+    IOException` at 357 sites and propagates; no quiet-swallow-and-return-sentinel
+    read helpers exist in the io package.'
+  difficulty: medium
+  host_file: guava/src/com/google/common/io/Files.java
+  host_inject_at_line: 169
+- id: err_null_return_1
+  file: breaks/break_err_null_return_1.java
+  category: wrong_error_discipline
+  hunk_start_line: 29
+  hunk_end_line: 50
+  rationale: 'Returns null on invalid/out-of-range index instead of throwing. Verified
+    at pinned SHA: collect package standardizes on Preconditions.checkElementIndex
+    (44 sites) / checkPositionIndex (17 sites) with IndexOutOfBoundsException; Iterators.get
+    throws rather than returning null on bad position.'
+  difficulty: medium
+  host_file: guava/src/com/google/common/collect/Iterators.java
+  host_inject_at_line: 152
+- id: err_printstacktrace_1
+  file: breaks/break_err_printstacktrace_1.java
+  category: wrong_error_discipline
+  hunk_start_line: 24
+  hunk_end_line: 41
+  rationale: 'catch (Exception e) { e.printStackTrace(); return null; } print-and-continue
+    discipline. Verified at pinned SHA: printStackTrace appears at exactly 2 sites
+    in guava/src — Throwables.getStackTraceAsString (into a StringWriter, a utility)
+    and one finalizer guard in io/FileBackedOutputStream; the repo voice is unchecked
+    propagation, never stderr-dump-and-swallow.'
+  difficulty: easy
+  host_file: guava/src/com/google/common/hash/Hashing.java
+  host_inject_at_line: 154
+- id: conc_raw_thread_1
+  file: breaks/break_conc_raw_thread_1.java
+  category: wrong_concurrency
+  hunk_start_line: 40
+  hunk_end_line: 66
+  rationale: 'Raw new Thread() spawn plus volatile-flag busy-wait with Thread.sleep(10)
+    polling. Verified at pinned SHA: `new Thread(` has 1 executable use in guava/src
+    (base/internal/Finalizer.java:90, an isolated special case; the other hit is
+    a ServiceManager javadoc example); `Thread.sleep(` has 0 uses in guava/src; the
+    package voice is ListenableFuture/executors (467 ListenableFuture mentions).'
+  difficulty: easy
+  host_file: guava/src/com/google/common/util/concurrent/MoreExecutors.java
+  host_inject_at_line: 155
+- id: conc_busywait_1
+  file: breaks/break_conc_busywait_1.java
+  category: wrong_concurrency
+  hunk_start_line: 32
+  hunk_end_line: 56
+  rationale: 'synchronized block with wait(50)/notifyAll() polling loop guarding
+    a memoized value. Verified at pinned SHA: `.wait(` has 0 uses in guava/src; notifyAll
+    appears in executable code only twice (util/concurrent/DirectExecutorService);
+    Suppliers.memoize uses lock-free double-checked memoization, and the repo ships
+    Monitor as its own alternative to wait/notify.'
+  difficulty: medium
+  host_file: guava/src/com/google/common/base/Suppliers.java
+  host_inject_at_line: 176
+- id: conc_spinpoll_1
+  file: breaks/break_conc_spinpoll_1.java
+  category: wrong_concurrency
+  hunk_start_line: 39
+  hunk_end_line: 58
+  rationale: 'Busy-wait spin polling: while(!done.get()) Thread.yield() and a Thread.sleep(1)
+    deadline poll loop that swallows InterruptedException. Verified at pinned SHA:
+    Thread.yield 0 uses, Thread.onSpinWait 0 uses, Thread.sleep 0 uses in guava/src;
+    Uninterruptibles itself is the repo''s idiom — block on latches/conditions and
+    restore the interrupt bit.'
+  difficulty: medium
+  host_file: guava/src/com/google/common/util/concurrent/Uninterruptibles.java
+  host_inject_at_line: 131
+- id: api_nullcheck_1
+  file: breaks/break_api_nullcheck_1.java
+  category: wrong_api_within_known_lib
+  hunk_start_line: 22
+  hunk_end_line: 44
+  rationale: 'Hand-rolled if-null-throw-NullPointerException and if-throw-IllegalArgumentException
+    validation duplicating the repo''s own Preconditions utility. Verified at pinned
+    SHA: checkNotNull has 1347 call sites in guava/src; raw `throw new NullPointerException`
+    appears 30 times but 27 of those are inside Preconditions.java/CollectPreconditions.java
+    (the utility itself) — hand-rolled null checks outside it are essentially absent.'
+  difficulty: hard
+  host_file: guava/src/com/google/common/base/Splitter.java
+  host_inject_at_line: 156
+- id: api_stringjoin_1
+  file: breaks/break_api_stringjoin_1.java
+  category: wrong_api_within_known_lib
+  hunk_start_line: 29
+  hunk_end_line: 51
+  rationale: 'Manual StringBuilder joining with first-flag separator bookkeeping
+    and trailing-separator trim via setLength, duplicating the repo''s own Joiner
+    utility — planted in Joiner''s home file. Verified at pinned SHA: Joiner.on(
+    has 13 call sites across guava/src and Joiner is the repo-standard joining API.'
+  difficulty: medium
+  host_file: guava/src/com/google/common/base/Joiner.java
+  host_inject_at_line: 96
+- id: api_manualcopy_1
+  file: breaks/break_api_manualcopy_1.java
+  category: wrong_api_within_known_lib
+  hunk_start_line: 26
+  hunk_end_line: 38
+  rationale: 'Hand-rolled defensive copies — entry-loop into new HashMap / ArrayList.addAll
+    wrapped in java.util.Collections.unmodifiable* — duplicating the repo''s standard
+    ImmutableMap.copyOf/ImmutableList.copyOf idiom. Verified at pinned SHA: ImmutableMap.copyOf(
+    16 call sites and ImmutableList.copyOf( 41 call sites in guava/src; the collect
+    package is the home of the Immutable* API being bypassed.'
+  difficulty: medium
+  host_file: guava/src/com/google/common/collect/Maps.java
+  host_inject_at_line: 195
+- id: name_snake_1
+  file: breaks/break_name_snake_1.java
+  category: naming_shape_break
+  hunk_start_line: 42
+  hunk_end_line: 57
+  rationale: 'snake_case method names (to_upper_ascii_string, is_lower_case_ascii)
+    and snake_case locals (char_buffer, char_index, current_char) in a strictly camelCase
+    repo. Verified at pinned SHA: zero snake_case method declarations in guava/src
+    once algorithm-name identifiers like murmur3_32/sha_/crc32c variants are excluded.'
+  difficulty: medium
+  host_file: guava/src/com/google/common/base/Ascii.java
+  host_inject_at_line: 471
+- id: name_hungarian_1
+  file: breaks/break_name_hungarian_1.java
+  category: naming_shape_break
+  hunk_start_line: 40
+  hunk_end_line: 61
+  rationale: 'Hungarian notation fields (m_nCachedMax, m_strLastLabel), prefixed
+    locals (nMax, iIndex, arrValues, strLabel) and get_/set_ underscored accessors.
+    Verified at pinned SHA: zero `m_`-prefixed field declarations match in guava/src;
+    guava fields and accessors are plain camelCase.'
+  difficulty: medium
+  host_file: guava/src/com/google/common/primitives/Ints.java
+  host_inject_at_line: 135
+- id: foreign_commons_1
+  file: breaks/break_foreign_commons_1.java
+  category: foreign_import
+  hunk_start_line: 26
+  hunk_end_line: 36
+  rationale: 'Fully-qualified org.apache.commons.lang3.StringUtils calls (isBlank,
+    strip, lowerCase, leftPad) inside the hunk. Verified at pinned SHA: git grep
+    org.apache.commons over all *.java returns 0 files, and commons-lang3 is absent
+    from both the parent pom and guava/pom.xml dependency lists (deps are failureaccess,
+    listenablefuture, jspecify, error_prone_annotations, j2objc-annotations).'
+  difficulty: easy
+  host_file: guava/src/com/google/common/net/InetAddresses.java
+  host_inject_at_line: 246
+- id: foreign_slf4j_1
+  file: breaks/break_foreign_slf4j_1.java
+  category: foreign_import
+  hunk_start_line: 24
+  hunk_end_line: 38
+  rationale: 'Fully-qualified org.slf4j.Logger/LoggerFactory with {}-placeholder
+    logging inside the hunk. Verified at pinned SHA: git grep slf4j over all *.java
+    returns 0 files and slf4j is absent from the pom dependency lists; the host file
+    CacheBuilder.java itself imports java.util.logging.Logger (lines 43-44), the
+    repo''s actual logging voice.'
+  difficulty: easy
+  host_file: guava/src/com/google/common/cache/CacheBuilder.java
+  host_inject_at_line: 325
