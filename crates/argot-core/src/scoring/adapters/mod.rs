@@ -4,6 +4,7 @@
 //! filters (data-dominant, auto-generated) behind a uniform surface used by
 //! the scorers and the sampler.
 
+pub mod php;
 pub mod python;
 pub mod typescript;
 
@@ -11,12 +12,12 @@ use std::collections::HashSet;
 use std::path::Path;
 
 /// Scoring-side language tag. JavaScript routes to the TypeScript adapter, so
-/// scoring only distinguishes Python vs TypeScript (matching the Python
-/// `Literal["python", "typescript"]`).
+/// scoring distinguishes Python, TypeScript, and PHP.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Language {
     Python,
     Typescript,
+    Php,
 }
 
 /// Uniform language-adapter surface (port of the Python `LanguageAdapter`

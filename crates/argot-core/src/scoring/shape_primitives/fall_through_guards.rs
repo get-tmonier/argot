@@ -12,8 +12,9 @@ use crate::scoring::shape_primitives::{parse, population_mean_std};
 use std::path::PathBuf;
 use tree_sitter::Node;
 
-const PY_FUNC: &str = "function_definition";
-const TS_FUNC: &str = "function_declaration";
+const PY_FUNC: &[&str] = &["function_definition"];
+const TS_FUNC: &[&str] = &["function_declaration"];
+const PHP_FUNC: &[&str] = &["function_definition", "method_declaration"];
 const IF: &str = "if_statement";
 const RETURN: &str = "return_statement";
 
@@ -51,14 +52,15 @@ fn guards_before_return(func: Node) -> usize {
 /// Mean guard count per function for `source`, or `None` if no functions.
 fn file_avg_guards(source: &str, language: Language) -> Option<f64> {
     let tree = parse(source, language)?;
-    let func_type = match language {
+    let func_types = match language {
         Language::Python => PY_FUNC,
         Language::Typescript => TS_FUNC,
+        Language::Php => PHP_FUNC,
     };
     let mut counts: Vec<f64> = Vec::new();
     let mut stack = vec![tree.root_node()];
     while let Some(node) = stack.pop() {
-        if node.kind() == func_type {
+        if func_types.contains(&node.kind()) {
             counts.push(guards_before_return(node) as f64);
         }
         let n = node.child_count();
@@ -74,9 +76,11 @@ fn file_avg_guards(source: &str, language: Language) -> Option<f64> {
     Some(counts.iter().sum::<f64>() / counts.len() as f64)
 }
 
-/// Try Python grammar then TypeScript; first defined average wins.
+/// Try Python grammar, then TypeScript, then PHP; first defined average wins.
 fn score_hunk_avg(hunk: &str) -> Option<f64> {
-    file_avg_guards(hunk, Language::Python).or_else(|| file_avg_guards(hunk, Language::Typescript))
+    file_avg_guards(hunk, Language::Python)
+        .or_else(|| file_avg_guards(hunk, Language::Typescript))
+        .or_else(|| file_avg_guards(hunk, Language::Php))
 }
 
 /// Fall-through-guard count primitive.

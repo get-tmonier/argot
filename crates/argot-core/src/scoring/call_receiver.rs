@@ -95,6 +95,71 @@ fn extract_typescript_callee(call_node: Node, src: &[u8]) -> Option<String> {
     }
 }
 
+fn php_call_types(kind: &str) -> bool {
+    matches!(
+        kind,
+        "function_call_expression"
+            | "member_call_expression"
+            | "nullsafe_member_call_expression"
+            | "scoped_call_expression"
+            | "object_creation_expression"
+    )
+}
+
+/// Resolve a PHP expression node to a dotted receiver path (e.g. `$this.foo`,
+/// `Response`), or `None` when the chain bottoms out at something dynamic.
+fn php_expr_dotted(node: Node, src: &[u8]) -> Option<String> {
+    match node.kind() {
+        "name" | "qualified_name" | "variable_name" => Some(node_text(node, src)),
+        "member_access_expression" | "nullsafe_member_access_expression" => {
+            let obj = node.child_by_field_name("object")?;
+            let name = node.child_by_field_name("name")?;
+            let base = php_expr_dotted(obj, src)?;
+            Some(format!("{base}.{}", node_text(name, src)))
+        }
+        "scoped_property_access_expression" => {
+            let scope = node.child_by_field_name("scope")?;
+            let name = node.child_by_field_name("name")?;
+            let base = php_expr_dotted(scope, src)?;
+            Some(format!("{base}.{}", node_text(name, src)))
+        }
+        k if php_call_types(k) => Some("<call>".to_string()),
+        _ => None,
+    }
+}
+
+fn extract_php_callee(call_node: Node, src: &[u8]) -> Option<String> {
+    match call_node.kind() {
+        // `new Type(...)` — the receiver is the constructed type name.
+        "object_creation_expression" => {
+            let mut cursor = call_node.walk();
+            for child in call_node.children(&mut cursor) {
+                if matches!(child.kind(), "name" | "qualified_name" | "variable_name") {
+                    return Some(node_text(child, src));
+                }
+            }
+            None
+        }
+        "function_call_expression" => {
+            let f = call_node.child_by_field_name("function")?;
+            php_expr_dotted(f, src)
+        }
+        "member_call_expression" | "nullsafe_member_call_expression" => {
+            let obj = call_node.child_by_field_name("object")?;
+            let name = call_node.child_by_field_name("name")?;
+            let base = php_expr_dotted(obj, src)?;
+            Some(format!("{base}.{}", node_text(name, src)))
+        }
+        "scoped_call_expression" => {
+            let scope = call_node.child_by_field_name("scope")?;
+            let name = call_node.child_by_field_name("name")?;
+            let base = php_expr_dotted(scope, src)?;
+            Some(format!("{base}.{}", node_text(name, src)))
+        }
+        _ => None,
+    }
+}
+
 fn walk_preorder(root: Node, mut visit: impl FnMut(Node)) {
     // Stack DFS pushing reversed children, matching Python `_walk_nodes`.
     let mut stack = vec![root];
@@ -138,10 +203,12 @@ pub fn extract_callees(source: &str, language: Language) -> Vec<Option<String>> 
     let is_call = match language {
         Language::Python => py_call_types as fn(&str) -> bool,
         Language::Typescript => ts_call_types as fn(&str) -> bool,
+        Language::Php => php_call_types as fn(&str) -> bool,
     };
     let extractor = match language {
         Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Typescript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::Php => extract_php_callee as fn(Node, &[u8]) -> Option<String>,
     };
     walk_preorder(tree.root_node(), |node| {
         if is_call(node.kind()) {
@@ -178,10 +245,12 @@ pub fn callees_in_source_region(
     let is_call = match language {
         Language::Python => py_call_types as fn(&str) -> bool,
         Language::Typescript => ts_call_types as fn(&str) -> bool,
+        Language::Php => php_call_types as fn(&str) -> bool,
     };
     let extractor = match language {
         Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Typescript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::Php => extract_php_callee as fn(Node, &[u8]) -> Option<String>,
     };
     let mut out = Vec::new();
     walk_preorder(tree.root_node(), |node| {

@@ -14,9 +14,11 @@ use tree_sitter::Node;
 
 const PY_HANDLER: &str = "except_clause";
 const TS_HANDLER: &str = "catch_clause";
+const PHP_HANDLER: &str = "catch_clause";
 const RETURN: &str = "return_statement";
 const PY_RAISE: &str = "raise_statement";
 const TS_RAISE: &str = "throw_statement";
+const PHP_RAISE: &str = "throw_expression";
 
 const MIN_VALID_FILES: usize = 3;
 
@@ -70,6 +72,7 @@ fn ratio_for_source(source: &str, language: Language) -> Option<f64> {
     let (handler, raise) = match language {
         Language::Python => (PY_HANDLER, PY_RAISE),
         Language::Typescript => (TS_HANDLER, TS_RAISE),
+        Language::Php => (PHP_HANDLER, PHP_RAISE),
     };
     let (returns, raises) = count_in_handlers(tree.root_node(), handler, raise);
     let total = returns + raises;
@@ -79,10 +82,11 @@ fn ratio_for_source(source: &str, language: Language) -> Option<f64> {
     Some(returns as f64 / total as f64)
 }
 
-/// Try Python grammar then TypeScript; first defined ratio wins.
+/// Try Python grammar, then TypeScript, then PHP; first defined ratio wins.
 fn ratio_for_hunk(hunk: &str) -> Option<f64> {
     ratio_for_source(hunk, Language::Python)
         .or_else(|| ratio_for_source(hunk, Language::Typescript))
+        .or_else(|| ratio_for_source(hunk, Language::Php))
 }
 
 /// Except-block return/raise ratio primitive.
