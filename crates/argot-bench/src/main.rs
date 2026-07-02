@@ -7,7 +7,7 @@
 
 use anyhow::{Context, Result};
 use argot_bench::scorer::BenchKnobs;
-use argot_bench::{production, report, run, targets};
+use argot_bench::{holdout, production, report, run, targets};
 
 /// Current time as an ISO-8601 UTC string (dashboard metadata only).
 fn iso_utc_now() -> String {
@@ -47,8 +47,10 @@ struct Cli {
 
     /// Bench mode: `catalog` (in-process scorer, historical continuity),
     /// `production` (fixtures planted on disk, real `argot fit` + `check
-    /// --staged`; the headline numbers), or `both` (adds the catalog↔
-    /// production gap column).
+    /// --staged`; the headline numbers), `both` (adds the catalog↔
+    /// production gap column), or `holdout` (leak-free temporal-holdout FP:
+    /// fit at an old SHA, replay only strictly-future commits, split
+    /// new-file vs existing-file, bootstrap CIs).
     #[arg(long, default_value = "production")]
     mode: String,
 
@@ -56,6 +58,20 @@ struct Cli {
     /// --commit` as the FP control (0 disables).
     #[arg(long, default_value_t = 30)]
     fp_commits: usize,
+
+    /// Holdout mode: first-parent commits to step back from the pinned head
+    /// for the fit point (the replay window).
+    #[arg(long, default_value_t = 120)]
+    holdout_window: usize,
+
+    /// Holdout mode: minimum eligible hunks before a corpus is flagged
+    /// under-sampled.
+    #[arg(long, default_value_t = 300)]
+    min_holdout_hunks: usize,
+
+    /// Holdout mode: bootstrap resamples for the 95% CIs.
+    #[arg(long, default_value_t = 1000)]
+    bootstrap_reps: usize,
 
     #[arg(long, default_value = "benchmarks/targets.yaml")]
     targets: PathBuf,
@@ -230,11 +246,37 @@ fn real_main() -> Result<ExitCode> {
         keep_control_results: cli.keep_controls,
     };
 
+    if cli.mode == "holdout" {
+        let hopts = holdout::HoldoutOptions {
+            data_dir: opts.data_dir.clone(),
+            window: cli.holdout_window,
+            min_hunks: cli.min_holdout_hunks,
+            bootstrap_reps: cli.bootstrap_reps,
+            seed: cli.seed,
+        };
+        let mut reports = Vec::new();
+        for target in &selected {
+            let started = std::time::Instant::now();
+            let r = holdout::run_corpus_holdout(target, &hopts)
+                .with_context(|| format!("corpus {} (holdout)", target.name))?;
+            eprintln!(
+                "[{}] holdout done in {:.0}s",
+                target.name,
+                started.elapsed().as_secs_f64()
+            );
+            reports.push(r);
+        }
+        let md = holdout::write_holdout_reports(&cli.results_dir, &reports)?;
+        print!("{md}");
+        eprintln!("results → {}", cli.results_dir.display());
+        return Ok(ExitCode::SUCCESS);
+    }
+
     let (run_catalog, run_production) = match cli.mode.as_str() {
         "catalog" => (true, false),
         "production" => (false, true),
         "both" => (true, true),
-        other => anyhow::bail!("unknown mode {other:?} (catalog | production | both)"),
+        other => anyhow::bail!("unknown mode {other:?} (catalog | production | both | holdout)"),
     };
 
     // Per-corpus catalog recall (caught, total) for the gap column. Catalog

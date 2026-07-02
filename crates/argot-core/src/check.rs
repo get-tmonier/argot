@@ -16,7 +16,7 @@
 use crate::git_walk::{
     open_repo, resolve_shas, walk_commits, HunkSpan, WalkItem, SUPPORTED_EXTENSIONS,
 };
-use crate::output::{render_json, render_sarif, HitRecord, OutputFormat, ReportMeta};
+use crate::output::{render_json, render_sarif, FileScan, HitRecord, OutputFormat, ReportMeta};
 use crate::scoring::adapters::c::CAdapter;
 use crate::scoring::adapters::cpp::CppAdapter;
 use crate::scoring::adapters::csharp::CSharpAdapter;
@@ -39,7 +39,7 @@ use crate::suppress::{
 use crate::text::{read_text_lossy, splitlines};
 use git2::{DiffFindOptions, Patch, Status, StatusOptions};
 use serde_json::Value;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
@@ -209,7 +209,10 @@ const EXT_TO_LANG: &[(&str, &str)] = &[
     (".rb", "ruby"),
 ];
 
-fn ext_to_lang(ext: &str) -> Option<&'static str> {
+/// The scoring language name for a lowercase file extension (with dot), or
+/// `None` when unsupported. Public so out-of-process consumers of `check`'s
+/// JSON (the bench, scripts) classify paths the exact way `check` routes them.
+pub fn ext_to_lang(ext: &str) -> Option<&'static str> {
     EXT_TO_LANG.iter().find(|(e, _)| *e == ext).map(|(_, l)| *l)
 }
 
@@ -230,7 +233,7 @@ fn adapter_for_language(lang: &str) -> Option<Box<dyn LanguageAdapter>> {
 }
 
 /// Python `Path(path).suffix.lower()` (`git_walk._extension`).
-fn extension(path: &str) -> String {
+pub fn extension(path: &str) -> String {
     let name = match path.rfind('/') {
         Some(i) => &path[i + 1..],
         None => path,
@@ -842,7 +845,7 @@ fn chain_workdir_patches(repo_path: &str) -> anyhow::Result<Vec<PatchBatch>> {
 /// Score each hunk, dispatching per language (`_score_patches`). Applies the
 /// inline-comment and suppressions.yaml surfaces per hit (path-level
 /// `.argotignore` suppression arrives pre-marked on the batch). Returns
-/// `(hits, hunk_count)`.
+/// `(hits, hunk_count, per-file hunk counts)`.
 fn score_patches(
     patches: Vec<PatchBatch>,
     scorers: &mut HashMap<String, SequentialImportBpeScorer>,
@@ -850,9 +853,10 @@ fn score_patches(
     slices: &HashMap<String, Vec<SliceEntry>>,
     yaml_rules: &[SuppressionRule],
     stderr: &mut String,
-) -> (Vec<Hit>, usize) {
+) -> (Vec<Hit>, usize, Vec<FileScan>) {
     let mut hits: Vec<Hit> = Vec::new();
     let mut hunk_count = 0usize;
+    let mut file_counts: BTreeMap<String, usize> = BTreeMap::new();
     let mut warned: HashSet<String> = HashSet::new();
 
     for batch in patches {
@@ -887,6 +891,7 @@ fn score_patches(
 
         for hunk in &batch.hunks {
             hunk_count += 1;
+            *file_counts.entry(batch.file_path.clone()).or_insert(0) += 1;
             let hunk_start = hunk.new_start as i64 - 1;
             let hunk_end = hunk_start + hunk.new_lines as i64;
             if hunk_start < 0 || hunk_end > n_lines {
@@ -948,7 +953,11 @@ fn score_patches(
         }
     }
 
-    (hits, hunk_count)
+    let files_scanned = file_counts
+        .into_iter()
+        .map(|(path, hunks)| FileScan { path, hunks })
+        .collect();
+    (hits, hunk_count, files_scanned)
 }
 
 /// Build the eslint-style `^^^^^` underline for one source line
@@ -1222,7 +1231,13 @@ fn hit_records(hits: &[&Hit]) -> Vec<HitRecord> {
         .collect()
 }
 
-fn report_meta(args: &CheckArgs, scanned: String, hunks_scanned: usize, model: &str) -> ReportMeta {
+fn report_meta(
+    args: &CheckArgs,
+    scanned: String,
+    hunks_scanned: usize,
+    files_scanned: Vec<FileScan>,
+    model: &str,
+) -> ReportMeta {
     ReportMeta {
         // The workspace shares one version across crates, so this matches the
         // CLI binary's version.
@@ -1230,6 +1245,7 @@ fn report_meta(args: &CheckArgs, scanned: String, hunks_scanned: usize, model: &
         repo: args.repo_path.clone(),
         scanned,
         hunks_scanned,
+        files_scanned,
         model: model.to_string(),
     }
 }
@@ -1397,6 +1413,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
                     &args,
                     format!("0 commit(s) ({})", args.reference),
                     0,
+                    Vec::new(),
                     &model_hash,
                 );
                 return CheckOutcome {
@@ -1479,7 +1496,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         }
     }
 
-    let (hits, hunk_count) = score_patches(
+    let (hits, hunk_count, files_scanned) = score_patches(
         filtered,
         &mut scorers,
         &filter_adapters,
@@ -1547,7 +1564,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     // any hit is visible, 0 otherwise).
     if args.format.is_machine() {
         let records = hit_records(&visible);
-        let meta = report_meta(&args, scan_label, hunk_count, &model_hash);
+        let meta = report_meta(&args, scan_label, hunk_count, files_scanned, &model_hash);
         let exit_code = if visible.is_empty() { 0 } else { 1 };
         return CheckOutcome {
             stdout: render_machine(args.format, &meta, &records),

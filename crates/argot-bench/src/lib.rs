@@ -3,6 +3,7 @@
 
 pub mod catalog;
 pub mod dashboard;
+pub mod holdout;
 pub mod metrics;
 pub mod production;
 pub mod report;

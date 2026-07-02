@@ -60,7 +60,7 @@ pub struct ProductionReport {
     pub fixture_results: Vec<ProdFixtureResult>,
 }
 
-fn git_ok(repo_dir: &Path, args: &[&str]) -> Result<()> {
+pub(crate) fn git_ok(repo_dir: &Path, args: &[&str]) -> Result<()> {
     let st = Command::new("git")
         .arg("-C")
         .arg(repo_dir)
@@ -73,7 +73,7 @@ fn git_ok(repo_dir: &Path, args: &[&str]) -> Result<()> {
     Ok(())
 }
 
-fn git_stdout(repo_dir: &Path, args: &[&str]) -> Result<String> {
+pub(crate) fn git_stdout(repo_dir: &Path, args: &[&str]) -> Result<String> {
     let out = Command::new("git")
         .arg("-C")
         .arg(repo_dir)
@@ -86,7 +86,7 @@ fn git_stdout(repo_dir: &Path, args: &[&str]) -> Result<String> {
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
-fn check_args(repo_dir: &Path) -> CheckArgs {
+pub(crate) fn check_args(repo_dir: &Path) -> CheckArgs {
     CheckArgs {
         repo_path: repo_dir.to_string_lossy().into_owned(),
         reference: String::new(),
@@ -108,7 +108,7 @@ fn check_args(repo_dir: &Path) -> CheckArgs {
 
 /// `argot fit` (train → calibrate at production defaults) into the clone's
 /// `.argot/`. Returns (thresholds, resolved rare thresholds) per language.
-fn fit_clone(
+pub(crate) fn fit_clone(
     repo_dir: &Path,
     primary_sha: &str,
 ) -> Result<(BTreeMap<String, f64>, BTreeMap<String, u64>)> {

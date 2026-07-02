@@ -152,14 +152,27 @@ where
     if repo.is_empty()? {
         return Ok(());
     }
-    let start = match resolve_start_oid(&repo)? {
-        Some(o) => o,
-        None => return Ok(()),
-    };
 
     let mut walk = repo.revwalk()?;
     walk.set_sorting(Sort::TOPOLOGICAL)?;
-    walk.push(start)?;
+    match filter {
+        // Requested commits are the walk tips — they need not be reachable
+        // from HEAD (a detached checkout must not silently empty the scan).
+        Some(f) => {
+            for sha in f {
+                let oid = Oid::from_str(sha).with_context(|| format!("invalid sha {sha}"))?;
+                walk.push(oid)
+                    .with_context(|| format!("commit {sha} not in repo"))?;
+            }
+        }
+        None => {
+            let start = match resolve_start_oid(&repo)? {
+                Some(o) => o,
+                None => return Ok(()),
+            };
+            walk.push(start)?;
+        }
+    }
 
     for oid in walk {
         let oid = oid?;
@@ -381,6 +394,27 @@ mod tests {
         repo.write("a.py", "x = 1\n");
         let sha = repo.commit_all("first");
         assert_eq!(head_sha(repo.path()), Some(sha));
+    }
+
+    #[test]
+    fn walk_commits_visits_commits_not_reachable_from_head() {
+        let repo = TempRepo::new("detached_filter");
+        repo.write("a.py", "x = 1\n");
+        let first = repo.commit_all("first");
+        repo.write("a.py", "x = 1\ny = 2\n");
+        let second = repo.commit_all("second");
+        // Detach at the older commit: `second` is no longer reachable from
+        // HEAD. The filtered walk must still visit it (a temporal-holdout
+        // bench fits at an old SHA, then replays strictly-future commits).
+        repo.git(&["checkout", "-q", "--detach", &first]);
+
+        let mut seen = Vec::new();
+        walk_commits(repo.path(), &HashSet::from([second.clone()]), |item| {
+            seen.push(item.commit_id.clone());
+            Ok(ControlFlow::Continue(()))
+        })
+        .unwrap();
+        assert_eq!(seen, vec![second]);
     }
 
     #[test]
