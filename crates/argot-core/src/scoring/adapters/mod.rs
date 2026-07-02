@@ -6,18 +6,20 @@
 
 pub mod go;
 pub mod python;
+pub mod rust;
 pub mod typescript;
 
 use std::collections::HashSet;
 use std::path::Path;
 
 /// Scoring-side language tag. JavaScript routes to the TypeScript adapter, so
-/// scoring distinguishes Python, TypeScript, and Go.
+/// scoring distinguishes Python, TypeScript, Go, and Rust.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Language {
     Python,
     Typescript,
     Go,
+    Rust,
 }
 
 /// Uniform language-adapter surface (port of the Python `LanguageAdapter`
@@ -140,6 +142,55 @@ impl LanguageAdapter for go::GoAdapter {
     }
     fn identifier_noise(&self) -> &HashSet<String> {
         go::GoAdapter::identifier_noise(self)
+    }
+    fn line_comment_prefix(&self) -> &'static str {
+        "//"
+    }
+}
+
+impl LanguageAdapter for rust::RustAdapter {
+    fn language(&self) -> Language {
+        Language::Rust
+    }
+    fn extract_imports(&self, source: &str) -> HashSet<String> {
+        rust::RustAdapter::extract_imports(self, source)
+    }
+    fn extract_imports_with_spans(&self, source: &str) -> Vec<(String, usize, usize, usize)> {
+        rust::RustAdapter::extract_imports_with_spans(self, source)
+    }
+    fn resolve_repo_modules(&self, _repo_root: &Path) -> RepoModules {
+        // Rust internal modules are discovered via extract_imports at fit time
+        // (and `crate::`/`self::`/`super::` paths are already routed to
+        // internal_import_bindings); there are no exact/prefix rules read from
+        // Cargo.toml today.
+        RepoModules::default()
+    }
+    fn is_data_dominant(&self, source: &str) -> bool {
+        rust::RustAdapter::is_data_dominant(self, source)
+    }
+    fn data_literal_lines(&self, source: &str) -> HashSet<usize> {
+        rust::RustAdapter::data_literal_lines(self, source)
+    }
+    fn callable_definitions(&self, source: &str) -> HashSet<String> {
+        rust::RustAdapter::callable_definitions(self, source)
+    }
+    fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
+        rust::RustAdapter::internal_import_bindings(self, source)
+    }
+    fn value_bindings(&self, source: &str) -> HashSet<String> {
+        rust::RustAdapter::value_bindings(self, source)
+    }
+    fn is_auto_generated(&self, source: &str) -> bool {
+        rust::RustAdapter::is_auto_generated(self, source)
+    }
+    fn enumerate_sampleable_ranges(&self, source: &str) -> Vec<(usize, usize)> {
+        rust::RustAdapter::enumerate_sampleable_ranges(self, source)
+    }
+    fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
+        rust::RustAdapter::prose_line_ranges(self, source)
+    }
+    fn identifier_noise(&self) -> &HashSet<String> {
+        rust::RustAdapter::identifier_noise(self)
     }
     fn line_comment_prefix(&self) -> &'static str {
         "//"

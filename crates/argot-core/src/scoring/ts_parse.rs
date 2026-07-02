@@ -17,6 +17,7 @@ fn new_parser(language: Language) -> Parser {
         Language::Python => tree_sitter_python::LANGUAGE.into(),
         Language::Typescript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
         Language::Go => tree_sitter_go::LANGUAGE.into(),
+        Language::Rust => tree_sitter_rust::LANGUAGE.into(),
     };
     parser
         .set_language(&lang)
@@ -28,6 +29,7 @@ thread_local! {
     static PY_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Python));
     static TS_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Typescript));
     static GO_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Go));
+    static RUST_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Rust));
 }
 
 /// Parse `source` with a reused per-thread parser for `language`.
@@ -36,6 +38,7 @@ pub fn parse(source: &str, language: Language) -> Option<Tree> {
         Language::Python => PY_PARSER.with(|p| p.borrow_mut().parse(source, None)),
         Language::Typescript => TS_PARSER.with(|p| p.borrow_mut().parse(source, None)),
         Language::Go => GO_PARSER.with(|p| p.borrow_mut().parse(source, None)),
+        Language::Rust => RUST_PARSER.with(|p| p.borrow_mut().parse(source, None)),
     }
 }
 
@@ -61,6 +64,13 @@ mod tests {
     #[test]
     fn parses_valid_go_into_a_source_file() {
         let tree = parse("package main\n\nfunc main() {}\n", Language::Go).expect("parse succeeds");
+        assert_eq!(tree.root_node().kind(), "source_file");
+        assert!(!tree.root_node().has_error());
+    }
+
+    #[test]
+    fn parses_valid_rust_into_a_source_file() {
+        let tree = parse("fn main() {}\n", Language::Rust).expect("parse succeeds");
         assert_eq!(tree.root_node().kind(), "source_file");
         assert!(!tree.root_node().has_error());
     }

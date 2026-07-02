@@ -11,6 +11,7 @@
 use crate::bpe::BpeTokenizer;
 use crate::scoring::adapters::go::GoAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
+use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::{Language, LanguageAdapter};
 use crate::scoring::bpe_scorer::BpeScorer;
@@ -190,6 +191,7 @@ pub fn collect_candidates_with(
         Language::Python => &[".py"],
         Language::Typescript => &[".ts", ".tsx"],
         Language::Go => &[".go"],
+        Language::Rust => &[".rs"],
     };
     let mut out = Vec::new();
     for ext in exts {
@@ -463,6 +465,7 @@ fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
         Language::Python => Box::new(PythonAdapter::new()),
         Language::Typescript => Box::new(TypeScriptAdapter::new()),
         Language::Go => Box::new(GoAdapter::new()),
+        Language::Rust => Box::new(RustAdapter::new()),
     }
 }
 
@@ -473,6 +476,7 @@ pub fn language_name(language: Language) -> &'static str {
         Language::Python => "python",
         Language::Typescript => "typescript",
         Language::Go => "go",
+        Language::Rust => "rust",
     }
 }
 
@@ -488,6 +492,7 @@ pub fn language_for_filename(name: &str) -> Option<Language> {
         ".py" => Some(Language::Python),
         ".ts" | ".tsx" | ".js" | ".jsx" => Some(Language::Typescript),
         ".go" => Some(Language::Go),
+        ".rs" => Some(Language::Rust),
         _ => None,
     }
 }

@@ -94,6 +94,31 @@ const GO_CONTROL_NODE_TYPES: &[&str] = &[
     "go_statement",
 ];
 
+// Rust node-type sets — the direct analog of the Python/TS/Go sets against the
+// Rust grammar (same absolute cutoffs; no Rust-specific tuning). Rust literals
+// and control flow are expressions, so the kinds are the `*_expression` /
+// `*_item` analogs.
+const RUST_LITERAL_NODE_TYPES: &[&str] = &[
+    "integer_literal",
+    "float_literal",
+    "string_literal",
+    "raw_string_literal",
+    "char_literal",
+    "boolean_literal",
+    "negative_literal",
+];
+
+const RUST_CONTROL_NODE_TYPES: &[&str] = &[
+    "if_expression",
+    "for_expression",
+    "while_expression",
+    "loop_expression",
+    "match_expression",
+    "return_expression",
+    "function_item",
+    "closure_expression",
+];
+
 // Absolute cutoffs for the structural predicate.
 const LITERAL_RATIO_CUTOFF: f64 = 0.80;
 const NAMED_LEAF_COUNT_GATE: usize = 5;
@@ -125,6 +150,7 @@ fn node_type_sets(language: Language) -> (HashSet<&'static str>, HashSet<&'stati
         Language::Python => (PY_LITERAL_NODE_TYPES, PY_CONTROL_NODE_TYPES),
         Language::Typescript => (TS_LITERAL_NODE_TYPES, TS_CONTROL_NODE_TYPES),
         Language::Go => (GO_LITERAL_NODE_TYPES, GO_CONTROL_NODE_TYPES),
+        Language::Rust => (RUST_LITERAL_NODE_TYPES, RUST_CONTROL_NODE_TYPES),
     };
     (
         literal.iter().copied().collect(),

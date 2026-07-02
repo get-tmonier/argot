@@ -10,6 +10,7 @@
 
 use crate::scoring::adapters::go::GoAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
+use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::{Language, LanguageAdapter};
 use crate::scoring::calibration::{collect_candidates_with, language_for_filename, language_name};
@@ -199,6 +200,7 @@ fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
         Language::Python => Box::new(PythonAdapter::new()),
         Language::Typescript => Box::new(TypeScriptAdapter::new()),
         Language::Go => Box::new(GoAdapter::new()),
+        Language::Rust => Box::new(RustAdapter::new()),
     }
 }
 
@@ -276,6 +278,7 @@ fn scan_corpus(repo_dir: &Path) -> CorpusReport {
         let language = match key.as_str() {
             "python" => Language::Python,
             "go" => Language::Go,
+            "rust" => Language::Rust,
             _ => Language::Typescript,
         };
         let adapter = adapters

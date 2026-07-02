@@ -44,6 +44,11 @@ fn ts_call_types(kind: &str) -> bool {
 fn go_call_types(kind: &str) -> bool {
     kind == "call_expression"
 }
+fn rust_call_types(kind: &str) -> bool {
+    // Macros are a first-class part of Rust's call surface (`println!`, `vec!`),
+    // so they count alongside plain call expressions.
+    kind == "call_expression" || kind == "macro_invocation"
+}
 
 fn extract_python_callee(call_node: Node, src: &[u8]) -> Option<String> {
     let mut callee = call_node.child_by_field_name("function")?;
@@ -121,6 +126,36 @@ fn extract_go_callee(call_node: Node, src: &[u8]) -> Option<String> {
     }
 }
 
+fn extract_rust_callee(call_node: Node, src: &[u8]) -> Option<String> {
+    // `foo!(…)` — the macro name, tagged with `!` to keep macro and function
+    // namespaces distinct.
+    if call_node.kind() == "macro_invocation" {
+        let mac = call_node.child_by_field_name("macro")?;
+        return Some(format!("{}!", node_text(mac, src)));
+    }
+    let mut callee = call_node.child_by_field_name("function")?;
+    let mut parts: Vec<String> = Vec::new();
+    // Unwind method-call chains `recv.a().b()` into dotted parts.
+    while callee.kind() == "field_expression" {
+        let field = callee.child_by_field_name("field")?;
+        let value = callee.child_by_field_name("value")?;
+        parts.insert(0, node_text(field, src));
+        callee = value;
+    }
+    if matches!(
+        callee.kind(),
+        "identifier" | "field_identifier" | "type_identifier" | "scoped_identifier"
+    ) {
+        parts.insert(0, node_text(callee, src));
+        Some(parts.join("."))
+    } else if rust_call_types(callee.kind()) {
+        parts.insert(0, "<call>".to_string());
+        Some(parts.join("."))
+    } else {
+        None
+    }
+}
+
 fn walk_preorder(root: Node, mut visit: impl FnMut(Node)) {
     // Stack DFS pushing reversed children, matching Python `_walk_nodes`.
     let mut stack = vec![root];
@@ -165,11 +200,13 @@ pub fn extract_callees(source: &str, language: Language) -> Vec<Option<String>> 
         Language::Python => py_call_types as fn(&str) -> bool,
         Language::Typescript => ts_call_types as fn(&str) -> bool,
         Language::Go => go_call_types as fn(&str) -> bool,
+        Language::Rust => rust_call_types as fn(&str) -> bool,
     };
     let extractor = match language {
         Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Typescript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Go => extract_go_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::Rust => extract_rust_callee as fn(Node, &[u8]) -> Option<String>,
     };
     walk_preorder(tree.root_node(), |node| {
         if is_call(node.kind()) {
@@ -207,11 +244,13 @@ pub fn callees_in_source_region(
         Language::Python => py_call_types as fn(&str) -> bool,
         Language::Typescript => ts_call_types as fn(&str) -> bool,
         Language::Go => go_call_types as fn(&str) -> bool,
+        Language::Rust => rust_call_types as fn(&str) -> bool,
     };
     let extractor = match language {
         Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Typescript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Go => extract_go_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::Rust => extract_rust_callee as fn(Node, &[u8]) -> Option<String>,
     };
     let mut out = Vec::new();
     walk_preorder(tree.root_node(), |node| {

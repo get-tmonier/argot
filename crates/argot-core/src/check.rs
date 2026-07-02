@@ -19,6 +19,7 @@ use crate::git_walk::{
 use crate::output::{render_json, render_sarif, HitRecord, OutputFormat, ReportMeta};
 use crate::scoring::adapters::go::GoAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
+use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::LanguageAdapter;
 use crate::scoring::evidence::types::{Evidence, EvidenceCorpus, SourceSpan};
@@ -189,6 +190,7 @@ const EXT_TO_LANG: &[(&str, &str)] = &[
     (".js", "typescript"),
     (".jsx", "typescript"),
     (".go", "go"),
+    (".rs", "rust"),
 ];
 
 fn ext_to_lang(ext: &str) -> Option<&'static str> {
@@ -200,6 +202,7 @@ fn adapter_for_language(lang: &str) -> Option<Box<dyn LanguageAdapter>> {
         "python" => Some(Box::new(PythonAdapter::new())),
         "typescript" => Some(Box::new(TypeScriptAdapter::new())),
         "go" => Some(Box::new(GoAdapter::new())),
+        "rust" => Some(Box::new(RustAdapter::new())),
         _ => None,
     }
 }

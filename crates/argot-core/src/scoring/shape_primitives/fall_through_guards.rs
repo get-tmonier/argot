@@ -17,6 +17,11 @@ const TS_FUNC: &str = "function_declaration";
 // Go: closest general case is the top-level `function_declaration` (methods
 // aren't covered — this primitive is default-off in production).
 const GO_FUNC: &str = "function_declaration";
+// Rust functions are `function_item`. Rust's `if`/`return` are expressions
+// (`if_expression`/`return_expression`), so the shared `IF`/`RETURN` node kinds
+// below never match a Rust tree — the guard count is inert (0) for Rust, a
+// neutral default for a primitive that is default-off in production anyway.
+const RUST_FUNC: &str = "function_item";
 const IF: &str = "if_statement";
 const RETURN: &str = "return_statement";
 
@@ -58,6 +63,7 @@ fn file_avg_guards(source: &str, language: Language) -> Option<f64> {
         Language::Python => PY_FUNC,
         Language::Typescript => TS_FUNC,
         Language::Go => GO_FUNC,
+        Language::Rust => RUST_FUNC,
     };
     let mut counts: Vec<f64> = Vec::new();
     let mut stack = vec![tree.root_node()];

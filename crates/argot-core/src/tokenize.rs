@@ -16,6 +16,7 @@ pub fn language_for_path(path: &str) -> Option<Language> {
         ".js" | ".jsx" => Some(Language::Javascript),
         ".py" => Some(Language::Python),
         ".go" => Some(Language::Go),
+        ".rs" => Some(Language::Rust),
         _ => None,
     }
 }
@@ -44,6 +45,7 @@ fn ts_language(lang: Language) -> tree_sitter::Language {
         Language::Javascript => tree_sitter_javascript::LANGUAGE.into(),
         Language::Python => tree_sitter_python::LANGUAGE.into(),
         Language::Go => tree_sitter_go::LANGUAGE.into(),
+        Language::Rust => tree_sitter_rust::LANGUAGE.into(),
     }
 }
 
@@ -121,7 +123,7 @@ mod tests {
         assert_eq!(language_for_path("a.tsx"), Some(Language::Typescript));
         assert_eq!(language_for_path("a.jsx"), Some(Language::Javascript));
         assert_eq!(language_for_path("a.go"), Some(Language::Go));
-        assert_eq!(language_for_path("a.rs"), None);
+        assert_eq!(language_for_path("a.rs"), Some(Language::Rust));
     }
 
     #[test]
