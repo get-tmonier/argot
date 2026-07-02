@@ -185,11 +185,13 @@ targets:
     language: java
     prs:
       - { pr: 0, sha: 5312fedc7b82bb1a83111145ea192d06fd04aa27 }
-  - name: okhttp
-    url: https://github.com/square/okhttp
+  # okhttp was tried and rejected as the second Java corpus: its recent
+  # history is Kotlin (1 java hunk in 120 commits) — junit5 replaces it.
+  - name: junit5
+    url: https://github.com/junit-team/junit5
     language: java
     prs:
-      - { pr: 0, sha: 1d2c0fe4844fb7143c37198015539eec2fccbd71 }
+      - { pr: 0, sha: 54aa232aa25d4828cdcefb98d372f548741052fe }
   - name: powershell
     url: https://github.com/PowerShell/PowerShell
     language: csharp
