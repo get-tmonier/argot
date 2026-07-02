@@ -556,8 +556,10 @@ impl TypeScriptAdapter {
     }
 
     /// Every locally bound value name — variable declarators (including
-    /// destructuring patterns) and function parameters. Type annotations are
-    /// skipped: their identifiers are types, not bindings.
+    /// destructuring patterns), function parameters, and import clauses (any
+    /// specifier: importing a name binds it; whether the MODULE is in-voice
+    /// is the import stage's question). Type annotations are skipped: their
+    /// identifiers are types, not bindings.
     pub fn value_bindings(&self, source: &str) -> HashSet<String> {
         let tree = parse(source);
         let mut out = HashSet::new();
@@ -565,7 +567,7 @@ impl TypeScriptAdapter {
         while let Some(node) = stack.pop() {
             let binding_root = matches!(
                 node.kind(),
-                "variable_declarator" | "formal_parameters" | "catch_clause"
+                "variable_declarator" | "formal_parameters" | "catch_clause" | "import_clause"
             );
             if binding_root {
                 let mut inner = vec![node];

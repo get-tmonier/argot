@@ -631,6 +631,7 @@ impl SequentialImportBpeScorer {
                 file_path,
                 file_source,
                 &foreign,
+                &local_bindings,
             );
             return ScoredHunk {
                 score: winner.1,
@@ -656,6 +657,7 @@ impl SequentialImportBpeScorer {
     /// (`_collect_evidence`). Returns `None` when the scorer wasn't built with
     /// an [`EvidenceCorpus`] — the renderer then skips the evidence block,
     /// matching the unflagged path.
+    #[allow(clippy::too_many_arguments)]
     fn collect_evidence(
         &self,
         winning_reason: Reason,
@@ -664,6 +666,7 @@ impl SequentialImportBpeScorer {
         file_path: Option<&Path>,
         file_source: Option<&str>,
         foreign: &HashSet<String>,
+        local_bindings: &crate::scoring::call_receiver::LocalBindings,
     ) -> Option<Evidence> {
         let corpus = self.evidence_corpus.as_ref()?;
         match winning_reason {
@@ -702,7 +705,7 @@ impl SequentialImportBpeScorer {
                 let cr = self.call_receiver.as_ref()?;
                 let cluster_id = cr.cluster_id_for_hunk_file(file_path, file_source);
                 Some(Evidence::CallReceiver(collect_call_receiver_evidence(
-                    cr.distinct_unattested(hunk_content),
+                    cr.distinct_unattested_excluding(hunk_content, local_bindings),
                     cluster_id,
                     corpus,
                 )))

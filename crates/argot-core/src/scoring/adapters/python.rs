@@ -351,6 +351,19 @@ impl PythonAdapter {
                         collect_ids(left, &mut out);
                     }
                 }
+                // Imports bind names too (whether the module is in-voice is
+                // the import stage's question). `import a.b` binds `a`;
+                // `from m import y as z` binds `z` (else `y`).
+                "import_statement" | "import_from_statement" => {
+                    for name in field_children_of_kind(node, "name", "dotted_name") {
+                        out.insert(top_level(node_text(name, source)).to_string());
+                    }
+                    for name in field_children_of_kind(node, "name", "aliased_import") {
+                        if let Some(alias) = name.child_by_field_name("alias") {
+                            out.insert(node_text(alias, source).to_string());
+                        }
+                    }
+                }
                 _ => {}
             }
         }

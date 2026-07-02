@@ -822,11 +822,11 @@ impl CallReceiverScorer {
     pub fn distinct_unattested_excluding(
         &self,
         hunk: &str,
-        local_bindings: &HashSet<String>,
+        local_bindings: &LocalBindings,
     ) -> Vec<String> {
         self.distinct_unattested_impl(hunk)
             .into_iter()
-            .filter(|c| !local_bindings.contains(c) && !local_bindings.contains(Self::root(c)))
+            .filter(|c| !local_bindings.attests(c) && !self.method_attested(c))
             .collect()
     }
 
