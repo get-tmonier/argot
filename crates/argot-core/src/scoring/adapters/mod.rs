@@ -5,6 +5,7 @@
 //! the scorers and the sampler.
 
 pub mod python;
+pub mod ruby;
 pub mod typescript;
 
 use std::collections::HashSet;
@@ -17,6 +18,7 @@ use std::path::Path;
 pub enum Language {
     Python,
     Typescript,
+    Ruby,
 }
 
 /// Uniform language-adapter surface (port of the Python `LanguageAdapter`
@@ -92,6 +94,53 @@ impl LanguageAdapter for python::PythonAdapter {
     }
     fn identifier_noise(&self) -> &HashSet<String> {
         python::PythonAdapter::identifier_noise(self)
+    }
+    fn line_comment_prefix(&self) -> &'static str {
+        "#"
+    }
+}
+
+impl LanguageAdapter for ruby::RubyAdapter {
+    fn language(&self) -> Language {
+        Language::Ruby
+    }
+    fn extract_imports(&self, source: &str) -> HashSet<String> {
+        ruby::RubyAdapter::extract_imports(self, source)
+    }
+    fn extract_imports_with_spans(&self, source: &str) -> Vec<(String, usize, usize, usize)> {
+        ruby::RubyAdapter::extract_imports_with_spans(self, source)
+    }
+    fn resolve_repo_modules(&self, _repo_root: &Path) -> RepoModules {
+        // Like Python: Ruby internal modules are discovered via extract_imports
+        // at fit time; there are no exact/prefix rules from a manifest.
+        RepoModules::default()
+    }
+    fn is_data_dominant(&self, source: &str) -> bool {
+        ruby::RubyAdapter::is_data_dominant(self, source)
+    }
+    fn data_literal_lines(&self, source: &str) -> HashSet<usize> {
+        ruby::RubyAdapter::data_literal_lines(self, source)
+    }
+    fn callable_definitions(&self, source: &str) -> HashSet<String> {
+        ruby::RubyAdapter::callable_definitions(self, source)
+    }
+    fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
+        ruby::RubyAdapter::internal_import_bindings(self, source)
+    }
+    fn value_bindings(&self, source: &str) -> HashSet<String> {
+        ruby::RubyAdapter::value_bindings(self, source)
+    }
+    fn is_auto_generated(&self, source: &str) -> bool {
+        ruby::RubyAdapter::is_auto_generated(self, source)
+    }
+    fn enumerate_sampleable_ranges(&self, source: &str) -> Vec<(usize, usize)> {
+        ruby::RubyAdapter::enumerate_sampleable_ranges(self, source)
+    }
+    fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
+        ruby::RubyAdapter::prose_line_ranges(self, source)
+    }
+    fn identifier_noise(&self) -> &HashSet<String> {
+        ruby::RubyAdapter::identifier_noise(self)
     }
     fn line_comment_prefix(&self) -> &'static str {
         "#"

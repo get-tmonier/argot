@@ -9,6 +9,7 @@
 
 use anyhow::{bail, Context, Result};
 use argot_core::scoring::adapters::python::PythonAdapter;
+use argot_core::scoring::adapters::ruby::RubyAdapter;
 use argot_core::scoring::adapters::typescript::TypeScriptAdapter;
 use argot_core::scoring::adapters::{Language, LanguageAdapter};
 use argot_core::scoring::bpe_scorer::BpeScorer;
@@ -124,6 +125,7 @@ pub fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
     match language {
         Language::Python => Box::new(PythonAdapter::new()),
         Language::Typescript => Box::new(TypeScriptAdapter::new()),
+        Language::Ruby => Box::new(RubyAdapter::new()),
     }
 }
 
@@ -131,6 +133,7 @@ pub fn parse_language(name: &str) -> Result<Language> {
     match name {
         "python" => Ok(Language::Python),
         "typescript" => Ok(Language::Typescript),
+        "ruby" => Ok(Language::Ruby),
         other => bail!("unsupported language {other:?}"),
     }
 }
@@ -142,6 +145,7 @@ pub fn source_files(repo_dir: &Path, language: Language) -> Vec<PathBuf> {
     let exts: &[&str] = match language {
         Language::Python => &[".py"],
         Language::Typescript => &[".ts", ".tsx"],
+        Language::Ruby => &[".rb"],
     };
     let mut out = Vec::new();
     for ext in exts {
@@ -300,6 +304,7 @@ pub fn collect_diff_candidates(
     let lang_ok = |l: &str| match language {
         Language::Python => l == "python",
         Language::Typescript => l == "typescript",
+        Language::Ruby => l == "ruby",
     };
     let raw = match std::fs::read(dataset_path) {
         Ok(r) => r,

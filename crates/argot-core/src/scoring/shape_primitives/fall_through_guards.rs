@@ -12,27 +12,49 @@ use crate::scoring::shape_primitives::{parse, population_mean_std};
 use std::path::PathBuf;
 use tree_sitter::Node;
 
-const PY_FUNC: &str = "function_definition";
-const TS_FUNC: &str = "function_declaration";
-const IF: &str = "if_statement";
-const RETURN: &str = "return_statement";
-
 const MIN_VALID_FILES: usize = 3;
 
+/// Function-definition node kinds for `language` (Ruby methods come in plain
+/// and singleton forms).
+fn func_kinds(language: Language) -> &'static [&'static str] {
+    match language {
+        Language::Python => &["function_definition"],
+        Language::Typescript => &["function_declaration"],
+        Language::Ruby => &["method", "singleton_method"],
+    }
+}
+
+/// Guard-`if` node kinds for `language`. Ruby's postfix `x if y` / `x unless y`
+/// and their block forms all read as fall-through guards.
+fn if_kinds(language: Language) -> &'static [&'static str] {
+    match language {
+        Language::Python | Language::Typescript => &["if_statement"],
+        Language::Ruby => &["if", "if_modifier", "unless", "unless_modifier"],
+    }
+}
+
+/// The `return`-statement node kind for `language`.
+fn return_kind(language: Language) -> &'static str {
+    match language {
+        Language::Python | Language::Typescript => "return_statement",
+        Language::Ruby => "return",
+    }
+}
+
 /// Count guard `if`s before the first `return` in `func`'s subtree.
-fn guards_before_return(func: Node) -> usize {
+fn guards_before_return(func: Node, if_types: &[&str], return_type: &str) -> usize {
     let mut first_return: Option<usize> = None;
     let mut if_bytes: Vec<usize> = Vec::new();
     let mut stack = vec![func];
     while let Some(node) = stack.pop() {
         let kind = node.kind();
-        if kind == RETURN {
+        if kind == return_type {
             let b = node.start_byte();
             first_return = Some(match first_return {
                 Some(fb) => fb.min(b),
                 None => b,
             });
-        } else if kind == IF {
+        } else if if_types.contains(&kind) {
             if_bytes.push(node.start_byte());
         }
         let n = node.child_count();
@@ -51,15 +73,14 @@ fn guards_before_return(func: Node) -> usize {
 /// Mean guard count per function for `source`, or `None` if no functions.
 fn file_avg_guards(source: &str, language: Language) -> Option<f64> {
     let tree = parse(source, language)?;
-    let func_type = match language {
-        Language::Python => PY_FUNC,
-        Language::Typescript => TS_FUNC,
-    };
+    let funcs = func_kinds(language);
+    let ifs = if_kinds(language);
+    let ret = return_kind(language);
     let mut counts: Vec<f64> = Vec::new();
     let mut stack = vec![tree.root_node()];
     while let Some(node) = stack.pop() {
-        if node.kind() == func_type {
-            counts.push(guards_before_return(node) as f64);
+        if funcs.contains(&node.kind()) {
+            counts.push(guards_before_return(node, ifs, ret) as f64);
         }
         let n = node.child_count();
         for i in (0..n).rev() {
@@ -74,9 +95,11 @@ fn file_avg_guards(source: &str, language: Language) -> Option<f64> {
     Some(counts.iter().sum::<f64>() / counts.len() as f64)
 }
 
-/// Try Python grammar then TypeScript; first defined average wins.
+/// Try Python grammar, then TypeScript, then Ruby; first defined average wins.
 fn score_hunk_avg(hunk: &str) -> Option<f64> {
-    file_avg_guards(hunk, Language::Python).or_else(|| file_avg_guards(hunk, Language::Typescript))
+    file_avg_guards(hunk, Language::Python)
+        .or_else(|| file_avg_guards(hunk, Language::Typescript))
+        .or_else(|| file_avg_guards(hunk, Language::Ruby))
 }
 
 /// Fall-through-guard count primitive.

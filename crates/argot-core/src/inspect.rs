@@ -9,6 +9,7 @@
 //! would see. Nothing is persisted.
 
 use crate::scoring::adapters::python::PythonAdapter;
+use crate::scoring::adapters::ruby::RubyAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::{Language, LanguageAdapter};
 use crate::scoring::calibration::{collect_candidates_with, language_for_filename, language_name};
@@ -150,6 +151,7 @@ fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
     match language {
         Language::Python => Box::new(PythonAdapter::new()),
         Language::Typescript => Box::new(TypeScriptAdapter::new()),
+        Language::Ruby => Box::new(RubyAdapter::new()),
     }
 }
 
@@ -226,6 +228,7 @@ fn scan_corpus(repo_dir: &Path) -> CorpusReport {
     for (key, stats) in &mut languages {
         let language = match key.as_str() {
             "python" => Language::Python,
+            "ruby" => Language::Ruby,
             _ => Language::Typescript,
         };
         let adapter = adapters

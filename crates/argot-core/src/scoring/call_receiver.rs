@@ -41,6 +41,9 @@ fn py_call_types(kind: &str) -> bool {
 fn ts_call_types(kind: &str) -> bool {
     kind == "call_expression" || kind == "new_expression"
 }
+fn rb_call_types(kind: &str) -> bool {
+    kind == "call"
+}
 
 fn extract_python_callee(call_node: Node, src: &[u8]) -> Option<String> {
     let mut callee = call_node.child_by_field_name("function")?;
@@ -59,6 +62,38 @@ fn extract_python_callee(call_node: Node, src: &[u8]) -> Option<String> {
         Some(parts.join("."))
     } else {
         None
+    }
+}
+
+/// Dotted-callee signature for a Ruby `call` node, keyed by its receiver.
+///
+/// Ruby nests a dotted chain (`a.b.c`) through the `receiver` field rather than
+/// via separate attribute nodes, so we walk down receivers collecting method
+/// segments. A bare call (no receiver) yields just its method name (self
+/// scope). A literal/complex receiver is dropped (`None`), matching the Python
+/// extractor's "only identifier/constant heads survive" rule.
+fn extract_ruby_callee(call_node: Node, src: &[u8]) -> Option<String> {
+    let mut parts: Vec<String> = Vec::new();
+    let mut node = call_node;
+    loop {
+        match node.child_by_field_name("method") {
+            Some(m) => parts.insert(0, node_text(m, src)),
+            None => parts.insert(0, "<call>".to_string()),
+        }
+        match node.child_by_field_name("receiver") {
+            None => return Some(parts.join(".")),
+            Some(recv) => match recv.kind() {
+                "call" => {
+                    node = recv;
+                }
+                "identifier" | "constant" | "instance_variable" | "class_variable"
+                | "global_variable" | "self" | "scope_resolution" => {
+                    parts.insert(0, node_text(recv, src));
+                    return Some(parts.join("."));
+                }
+                _ => return None,
+            },
+        }
     }
 }
 
@@ -138,10 +173,12 @@ pub fn extract_callees(source: &str, language: Language) -> Vec<Option<String>> 
     let is_call = match language {
         Language::Python => py_call_types as fn(&str) -> bool,
         Language::Typescript => ts_call_types as fn(&str) -> bool,
+        Language::Ruby => rb_call_types as fn(&str) -> bool,
     };
     let extractor = match language {
         Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Typescript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::Ruby => extract_ruby_callee as fn(Node, &[u8]) -> Option<String>,
     };
     walk_preorder(tree.root_node(), |node| {
         if is_call(node.kind()) {
@@ -178,10 +215,12 @@ pub fn callees_in_source_region(
     let is_call = match language {
         Language::Python => py_call_types as fn(&str) -> bool,
         Language::Typescript => ts_call_types as fn(&str) -> bool,
+        Language::Ruby => rb_call_types as fn(&str) -> bool,
     };
     let extractor = match language {
         Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Typescript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::Ruby => extract_ruby_callee as fn(Node, &[u8]) -> Option<String>,
     };
     let mut out = Vec::new();
     walk_preorder(tree.root_node(), |node| {

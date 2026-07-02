@@ -24,6 +24,7 @@ use argot_core::git_walk::{head_sha, repo_exists};
 use argot_core::inspect::{format_shares, inspect_repo, InspectReport, ReasonLevel, Verdict};
 use argot_core::output::OutputFormat;
 use argot_core::scoring::adapters::python::PythonAdapter;
+use argot_core::scoring::adapters::ruby::RubyAdapter;
 use argot_core::scoring::adapters::typescript::TypeScriptAdapter;
 use argot_core::scoring::adapters::{Language, LanguageAdapter};
 use argot_core::scoring::calibration::{run_calibrate, CalibrateOptions};
@@ -906,6 +907,7 @@ fn run_list_mutes() -> ExitCode {
         let adapter: Box<dyn LanguageAdapter> = match language {
             Language::Python => Box::new(PythonAdapter::new()),
             Language::Typescript => Box::new(TypeScriptAdapter::new()),
+            Language::Ruby => Box::new(RubyAdapter::new()),
         };
         // Cheap pre-filter before the full parse.
         if !source.contains("argot:") {
@@ -1004,8 +1006,9 @@ fn run_score_cmd(c: ScoreCmd) -> ExitCode {
     let language = match c.language.as_str() {
         "python" => Language::Python,
         "typescript" => Language::Typescript,
+        "ruby" => Language::Ruby,
         other => {
-            eprintln!("error: --language must be python|typescript (got '{other}')");
+            eprintln!("error: --language must be python|typescript|ruby (got '{other}')");
             return ExitCode::from(2);
         }
     };
@@ -1035,6 +1038,7 @@ fn run_score_cmd(c: ScoreCmd) -> ExitCode {
     let adapter: Box<dyn LanguageAdapter> = match language {
         Language::Python => Box::new(PythonAdapter::new()),
         Language::Typescript => Box::new(TypeScriptAdapter::new()),
+        Language::Ruby => Box::new(RubyAdapter::new()),
     };
     // import_modules = union of extract_imports over the corpus (matches the
     // bench's ImportGraphScorer.fit). AUC is threshold-independent; the
