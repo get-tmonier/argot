@@ -20,6 +20,7 @@ use crate::output::{render_json, render_sarif, HitRecord, OutputFormat, ReportMe
 use crate::scoring::adapters::go::GoAdapter;
 use crate::scoring::adapters::c::CAdapter;
 use crate::scoring::adapters::java::JavaAdapter;
+use crate::scoring::adapters::csharp::CSharpAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
@@ -196,6 +197,7 @@ const EXT_TO_LANG: &[(&str, &str)] = &[
     (".c", "c"),
     (".h", "c"),
     (".java", "java"),
+    (".cs", "csharp"),
 ];
 
 fn ext_to_lang(ext: &str) -> Option<&'static str> {
@@ -210,6 +212,7 @@ fn adapter_for_language(lang: &str) -> Option<Box<dyn LanguageAdapter>> {
         "rust" => Some(Box::new(RustAdapter::new())),
         "c" => Some(Box::new(CAdapter::new())),
         "java" => Some(Box::new(JavaAdapter::new())),
+        "csharp" => Some(Box::new(CSharpAdapter::new())),
         _ => None,
     }
 }

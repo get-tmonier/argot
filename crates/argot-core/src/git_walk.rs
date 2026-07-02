@@ -28,6 +28,7 @@ pub fn open_repo(path: &str) -> std::result::Result<Repository, git2::Error> {
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".rs"];
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".js", ".jsx", ".py", ".c", ".h"];
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".js", ".jsx", ".py", ".java"];
+pub const SUPPORTED_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".js", ".jsx", ".py", ".cs"];
 
 /// A hunk's post-image span, as reported by the diff (1-indexed start).
 #[derive(Debug, Clone, Copy)]

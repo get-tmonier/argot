@@ -7,6 +7,7 @@
 pub mod go;
 pub mod c;
 pub mod java;
+pub mod csharp;
 pub mod python;
 pub mod rust;
 pub mod typescript;
@@ -17,6 +18,7 @@ use std::path::Path;
 /// Scoring-side language tag. JavaScript routes to the TypeScript adapter, so
 /// scoring distinguishes Python, TypeScript, Go, and Rust.
 /// scoring distinguishes Python, TypeScript, and Java.
+/// scoring distinguishes Python, TypeScript, and C#.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Language {
     Python,
@@ -25,6 +27,7 @@ pub enum Language {
     Rust,
     C,
     Java,
+    CSharp,
 }
 
 /// Uniform language-adapter surface (port of the Python `LanguageAdapter`

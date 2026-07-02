@@ -19,6 +19,7 @@ pub fn language_for_path(path: &str) -> Option<Language> {
         ".rs" => Some(Language::Rust),
         ".c" | ".h" => Some(Language::C),
         ".java" => Some(Language::Java),
+        ".cs" => Some(Language::Csharp),
         _ => None,
     }
 }
@@ -50,6 +51,7 @@ fn ts_language(lang: Language) -> tree_sitter::Language {
         Language::Rust => tree_sitter_rust::LANGUAGE.into(),
         Language::C => tree_sitter_c::LANGUAGE.into(),
         Language::Java => tree_sitter_java::LANGUAGE.into(),
+        Language::Csharp => tree_sitter_c_sharp::LANGUAGE.into(),
     }
 }
 

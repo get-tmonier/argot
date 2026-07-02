@@ -12,6 +12,7 @@ use crate::bpe::BpeTokenizer;
 use crate::scoring::adapters::go::GoAdapter;
 use crate::scoring::adapters::c::CAdapter;
 use crate::scoring::adapters::java::JavaAdapter;
+use crate::scoring::adapters::csharp::CSharpAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
@@ -196,6 +197,7 @@ pub fn collect_candidates_with(
         Language::Rust => &[".rs"],
         Language::C => &[".c", ".h"],
         Language::Java => &[".java"],
+        Language::CSharp => &[".cs"],
     };
     let mut out = Vec::new();
     for ext in exts {
@@ -481,6 +483,13 @@ fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
 
 /// Canonical config-key name for a scoring language ("python"/"typescript"/"java").
 /// Public so `inspect` reports under the same keys `scorer-config.json` uses.
+        Language::CSharp => Box::new(CSharpAdapter::new()),
+    }
+}
+
+/// Canonical config-key name for a scoring language ("python"/"typescript"/
+/// "csharp"). Public so `inspect` reports under the same keys
+/// `scorer-config.json` uses.
 pub fn language_name(language: Language) -> &'static str {
     match language {
         Language::Python => "python",
@@ -489,12 +498,13 @@ pub fn language_name(language: Language) -> &'static str {
         Language::Rust => "rust",
         Language::C => "c",
         Language::Java => "java",
+        Language::CSharp => "csharp",
     }
 }
 
 /// Extension → language routing used to partition the corpus (`.py` → python;
-/// `.ts`/`.tsx`/`.js`/`.jsx` → typescript). Public so `inspect` classifies
-/// files with exactly the calibration routing.
+/// `.ts`/`.tsx`/`.js`/`.jsx` → typescript; `.cs` → csharp). Public so `inspect`
+/// classifies files with exactly the calibration routing.
 pub fn language_for_filename(name: &str) -> Option<Language> {
     let ext = match name.rfind('.') {
         Some(i) => &name[i..],
@@ -507,6 +517,7 @@ pub fn language_for_filename(name: &str) -> Option<Language> {
         ".rs" => Some(Language::Rust),
         ".c" | ".h" => Some(Language::C),
         ".java" => Some(Language::Java),
+        ".cs" => Some(Language::CSharp),
         _ => None,
     }
 }

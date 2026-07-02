@@ -56,6 +56,8 @@ fn extract_c_callee(call_node: Node, src: &[u8]) -> Option<String> {
     crate::scoring::adapters::c::callee(call_node, src)
 fn java_call_types(kind: &str) -> bool {
     kind == "method_invocation" || kind == "object_creation_expression"
+fn cs_call_types(kind: &str) -> bool {
+    kind == "invocation_expression" || kind == "object_creation_expression"
 }
 
 fn extract_python_callee(call_node: Node, src: &[u8]) -> Option<String> {
@@ -199,6 +201,53 @@ fn build_java_receiver(node: Node, src: &[u8]) -> Option<String> {
                 }
                 None => Some(field_text),
             }
+fn cs_named_child_of_kind<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
+    let mut cursor = node.walk();
+    let children: Vec<Node<'a>> = node.children(&mut cursor).collect();
+    children.into_iter().find(|c| c.kind() == kind)
+}
+
+/// C# type name for `object_creation_expression` (generics stripped), or the
+/// dotted callee for `invocation_expression`. Mirrors `csharp.rs`.
+fn extract_csharp_callee(call_node: Node, src: &[u8]) -> Option<String> {
+    if call_node.kind() == "object_creation_expression" {
+        let ty = call_node.child_by_field_name("type")?;
+        return match ty.kind() {
+            "identifier" | "qualified_name" => Some(node_text(ty, src)),
+            "generic_name" => cs_named_child_of_kind(ty, "identifier").map(|id| node_text(id, src)),
+            _ => None,
+        };
+    }
+    // invocation_expression
+    let mut callee = call_node.child_by_field_name("function")?;
+    let mut parts: Vec<String> = Vec::new();
+    while callee.kind() == "member_access_expression" {
+        let name = callee.child_by_field_name("name")?;
+        parts.insert(0, node_text(name, src));
+        match callee.child_by_field_name("expression") {
+            Some(expr) => callee = expr,
+            None => return Some(parts.join(".")),
+        }
+    }
+    match callee.kind() {
+        "identifier" => {
+            parts.insert(0, node_text(callee, src));
+            Some(parts.join("."))
+        }
+        "generic_name" => {
+            let id = cs_named_child_of_kind(callee, "identifier")?;
+            parts.insert(0, node_text(id, src));
+            Some(parts.join("."))
+        }
+        // `this.M()` / `base.M()` — anonymous receiver nodes kept for
+        // class-internal call voice (mirrors the TS `this`/`super` handling).
+        "this" | "base" => {
+            parts.insert(0, node_text(callee, src));
+            Some(parts.join("."))
+        }
+        k if cs_call_types(k) => {
+            parts.insert(0, "<call>".to_string());
+            Some(parts.join("."))
         }
         _ => None,
     }
@@ -267,6 +316,7 @@ pub fn extract_callees(source: &str, language: Language) -> Vec<Option<String>> 
         Language::Rust => rust_call_types as fn(&str) -> bool,
         Language::C => c_call_types as fn(&str) -> bool,
         Language::Java => java_call_types as fn(&str) -> bool,
+        Language::CSharp => cs_call_types as fn(&str) -> bool,
     };
     let extractor = match language {
         Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
@@ -275,6 +325,7 @@ pub fn extract_callees(source: &str, language: Language) -> Vec<Option<String>> 
         Language::Rust => extract_rust_callee as fn(Node, &[u8]) -> Option<String>,
         Language::C => extract_c_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Java => extract_java_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::CSharp => extract_csharp_callee as fn(Node, &[u8]) -> Option<String>,
     };
     walk_preorder(tree.root_node(), |node| {
         if is_call(node.kind()) {
@@ -315,6 +366,7 @@ pub fn callees_in_source_region(
         Language::Rust => rust_call_types as fn(&str) -> bool,
         Language::C => c_call_types as fn(&str) -> bool,
         Language::Java => java_call_types as fn(&str) -> bool,
+        Language::CSharp => cs_call_types as fn(&str) -> bool,
     };
     let extractor = match language {
         Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
@@ -323,6 +375,7 @@ pub fn callees_in_source_region(
         Language::Rust => extract_rust_callee as fn(Node, &[u8]) -> Option<String>,
         Language::C => extract_c_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Java => extract_java_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::CSharp => extract_csharp_callee as fn(Node, &[u8]) -> Option<String>,
     };
     let mut out = Vec::new();
     walk_preorder(tree.root_node(), |node| {

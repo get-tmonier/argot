@@ -20,6 +20,7 @@ fn new_parser(language: Language) -> Parser {
         Language::Rust => tree_sitter_rust::LANGUAGE.into(),
         Language::C => tree_sitter_c::LANGUAGE.into(),
         Language::Java => tree_sitter_java::LANGUAGE.into(),
+        Language::CSharp => tree_sitter_c_sharp::LANGUAGE.into(),
     };
     parser
         .set_language(&lang)
@@ -34,6 +35,7 @@ thread_local! {
     static RUST_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Rust));
     static C_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::C));
     static JAVA_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Java));
+    static CS_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::CSharp));
 }
 
 /// Parse `source` with a reused per-thread parser for `language`.
@@ -117,5 +119,6 @@ mod tests {
         assert!(!ts.root_node().has_error());
         Language::C => C_PARSER.with(|p| p.borrow_mut().parse(source, None)),
         Language::Java => JAVA_PARSER.with(|p| p.borrow_mut().parse(source, None)),
+        Language::CSharp => CS_PARSER.with(|p| p.borrow_mut().parse(source, None)),
     }
 }

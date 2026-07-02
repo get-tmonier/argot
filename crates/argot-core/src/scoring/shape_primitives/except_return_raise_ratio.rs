@@ -19,6 +19,11 @@ const RETURN: &str = "return_statement";
 const PY_RAISE: &str = "raise_statement";
 const TS_RAISE: &str = "throw_statement";
 const JAVA_RAISE: &str = "throw_statement";
+const CS_HANDLER: &str = "catch_clause";
+const RETURN: &str = "return_statement";
+const PY_RAISE: &str = "raise_statement";
+const TS_RAISE: &str = "throw_statement";
+const CS_RAISE: &str = "throw_statement";
 
 const MIN_VALID_FILES: usize = 3;
 
@@ -83,6 +88,7 @@ fn ratio_for_source(source: &str, language: Language) -> Option<f64> {
         // no handler blocks means no signal.
         Language::C => return None,
         Language::Java => (JAVA_HANDLER, JAVA_RAISE),
+        Language::CSharp => (CS_HANDLER, CS_RAISE),
     };
     let (returns, raises) = count_in_handlers(tree.root_node(), handler, raise);
     let total = returns + raises;
@@ -97,6 +103,11 @@ fn ratio_for_hunk(hunk: &str) -> Option<f64> {
     ratio_for_source(hunk, Language::Python)
         .or_else(|| ratio_for_source(hunk, Language::Typescript))
         .or_else(|| ratio_for_source(hunk, Language::Java))
+/// Try Python grammar, then TypeScript, then C#; first defined ratio wins.
+fn ratio_for_hunk(hunk: &str) -> Option<f64> {
+    ratio_for_source(hunk, Language::Python)
+        .or_else(|| ratio_for_source(hunk, Language::Typescript))
+        .or_else(|| ratio_for_source(hunk, Language::CSharp))
 }
 
 /// Except-block return/raise ratio primitive.
