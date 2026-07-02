@@ -139,7 +139,7 @@ def list_users() -> list[dict[str, Any]]:
 | TypeScript | `.ts` `.tsx` | libraries 82–100% recall · applications 64–86% · FP ≤ 3.2% |
 | JavaScript | `.js` `.jsx` | uses the TypeScript adapter |
 | Rust | `.rs` | ripgrep recall **100%** · FP **1.89%** (one corpus) — [evidence](docs/research/evidence/rust-language-port.md) |
-| Go | `.go` | _adapter shipped; validation in progress_ (Cobra recall 92%, Hugo FP 1.37%) — [evidence](docs/research/evidence/go-language-port.md) |
+| Go | `.go` | gh-cli recall **100%** · FP **0.79%** — [evidence](docs/research/evidence/go-language-port.md) |
 
 Mixed-language monorepos calibrate one threshold per language and dispatch each
 hunk by file extension. Numbers are the latest full benchmark
