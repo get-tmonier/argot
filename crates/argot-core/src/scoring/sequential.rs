@@ -9,12 +9,12 @@ use crate::bpe::BpeTokenizer;
 use crate::scoring::adapters::LanguageAdapter;
 use crate::scoring::bpe_scorer::BpeScorer;
 use crate::scoring::call_receiver::{CallReceiverScorer, RarityWeighting};
-use crate::scoring::shape_primitive::ShapePrimitiveRegistry;
 use crate::scoring::evidence::types::{Evidence, EvidenceCorpus, SourceSpan};
 use crate::scoring::evidence::{
     collect_bpe_evidence, collect_call_receiver_evidence, collect_import_evidence,
 };
 use crate::scoring::import_graph::ImportGraphScorer;
+use crate::scoring::shape_primitive::ShapePrimitiveRegistry;
 use crate::scoring::typicality::TypicalityModel;
 use crate::text::splitlines_keepends;
 use anyhow::Result;
@@ -216,7 +216,9 @@ impl SequentialImportBpeScorer {
 
     /// Per-primitive fire counts from the call-receiver (bench observability).
     pub fn primitive_fire_counts(&self) -> Option<&std::collections::HashMap<String, usize>> {
-        self.call_receiver.as_ref().map(|cr| &cr.primitive_fire_count)
+        self.call_receiver
+            .as_ref()
+            .map(|cr| &cr.primitive_fire_count)
     }
 
     fn zero_stage(reason: Reason, threshold: f64) -> ScoredHunk {

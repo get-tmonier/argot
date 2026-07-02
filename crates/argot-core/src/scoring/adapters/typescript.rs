@@ -813,6 +813,9 @@ impl LanguageAdapter for TypeScriptAdapter {
     fn identifier_noise(&self) -> &HashSet<String> {
         TypeScriptAdapter::identifier_noise(self)
     }
+    fn line_comment_prefix(&self) -> &'static str {
+        "//"
+    }
 }
 
 /// TypeScript / JavaScript reserved words + literals + implicit identifiers.

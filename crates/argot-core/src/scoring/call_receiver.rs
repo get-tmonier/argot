@@ -833,7 +833,10 @@ impl CallReceiverScorer {
                 let cluster_size = self.cluster_sizes.get(&cid).copied().unwrap_or(0);
                 for i in 0..self.shape_primitives.len() {
                     let name = self.shape_primitives[i].name().to_string();
-                    let baseline = self.primitive_baselines.get(&name).and_then(|m| m.get(&cid));
+                    let baseline = self
+                        .primitive_baselines
+                        .get(&name)
+                        .and_then(|m| m.get(&cid));
                     let contribution = self.shape_primitives[i].score(hunk, baseline, cluster_size);
                     if contribution > 0.0 {
                         *self.primitive_fire_count.entry(name).or_insert(0) += 1;

@@ -119,3 +119,47 @@ passed, making the asymmetric mode observable end-to-end.
 - `docs/research/evidence/era13-final.md` — era-13 final memo with § cancellation
 - `crates/argot-core/src/scoring/calibration.rs` — implementation
 - `crates/argot-core/tests/calibration_smoke.rs` — calibration tests
+
+---
+
+## Era-14 extensions
+
+### Rarity weighting (phase A)
+
+`RarityWeighting` (crates/argot-core/src/scoring/call_receiver.rs) scales the
+cluster-branch bonuses (`cluster_absent`, `cluster_rare`) by a weight derived
+from the callee's corpus-global document frequency (number of corpus files
+whose callee bag contains it). Formula shapes: `LinearDf` (df/N), `GatedDf`
+(1 if df ≥ M else 0), `LogDf` (ln(1+df)/ln(1+N)); `Off` is the era-13.5
+behaviour and the production default.
+
+The weighting extends the asymmetry-by-construction argument from *firing
+rate* to *magnitude*: it applies identically on the calibration and scoring
+paths (probe, cal, and check call-receivers are all built with the same
+weighting), so any FP reduction comes from the weight's correlation with the
+callee population, not from a path asymmetry. Scout evidence (era 14 phase A
+scout, recorded in `docs/research/evidence/era14-final.md`) shows the df axis
+does NOT separate break callees from FP callees on the pain corpora —
+foreign-paradigm break callees are rare in-corpus by construction — so the
+weighting ships as substrate, default `Off`, unless a scoped bench shows a
+formula that cuts FP without recall regression.
+
+### Diff-hunk calibration source (phase B)
+
+`--calibration-source diff` (bench) calibrates against real diff hunks from
+the extract dataset instead of random source-file ranges. Scope filters stay
+in lock-step with control scoring: excluded paths are dropped, hunks are
+language-matched, and there is deliberately NO minimum-hunk-size filter — the
+threshold must reflect exactly the population the checker scores, including
+tiny hunks. File content is read at the extraction commit (`git show`), never
+the current checkout, so line bounds cannot go stale. The random source
+remains the default until a cumulative bench validates diff-cal against G1/G2.
+
+### Parse-error host fallback (phase D)
+
+When a bare hunk's parse has root-level ERROR nodes, callee extraction falls
+back to the hunk's line region within its host file's AST (real-PR path:
+`file_source` + hunk bounds; catalog path: synthesized hunk-in-host content).
+Calibration candidates carry their own file region, so the threshold side
+sees the same fallback — cal/score symmetry is preserved. Hunks that parse
+cleanly never consult host context (G4.d, unit-tested in call_receiver.rs).

@@ -29,11 +29,11 @@ fn staple_deficit(source: &str, language: Language, staples: &BTreeSet<String>) 
     if callees.len() < MIN_CALLS {
         return None;
     }
-    let present: HashSet<&str> = callees
+    let present: HashSet<&str> = callees.iter().filter_map(|c| c.as_deref()).collect();
+    let missing = staples
         .iter()
-        .filter_map(|c| c.as_deref())
-        .collect();
-    let missing = staples.iter().filter(|s| !present.contains(s.as_str())).count();
+        .filter(|s| !present.contains(s.as_str()))
+        .count();
     Some(missing as f64 / staples.len() as f64)
 }
 
@@ -154,7 +154,9 @@ mod tests {
     fn abstains_below_min_calls() {
         let prim = ClusterStapleDeficit::default();
         let cluster = files(&["foo()\nbar()\nbaz()\n"; 5]);
-        let baseline = prim.fit_cluster_baseline(&cluster, Language::Python).unwrap();
+        let baseline = prim
+            .fit_cluster_baseline(&cluster, Language::Python)
+            .unwrap();
         // A one-call hunk abstains regardless of content.
         assert_eq!(prim.score("qux()\n", Some(&baseline), 10), 0.0);
     }
@@ -163,7 +165,9 @@ mod tests {
     fn abstains_below_cluster_size_floor() {
         let prim = ClusterStapleDeficit::default();
         let cluster = files(&["foo()\nbar()\nbaz()\n"; 5]);
-        let baseline = prim.fit_cluster_baseline(&cluster, Language::Python).unwrap();
+        let baseline = prim
+            .fit_cluster_baseline(&cluster, Language::Python)
+            .unwrap();
         assert_eq!(prim.score("qux()\nquux()\n", Some(&baseline), 9), 0.0);
     }
 
@@ -171,9 +175,14 @@ mod tests {
     fn typical_hunk_contributes_zero() {
         let prim = ClusterStapleDeficit::default();
         let cluster = files(&["foo()\nbar()\nbaz()\n"; 6]);
-        let baseline = prim.fit_cluster_baseline(&cluster, Language::Python).unwrap();
+        let baseline = prim
+            .fit_cluster_baseline(&cluster, Language::Python)
+            .unwrap();
         // Hunk invoking every staple matches the cluster mean deficit (0).
-        assert_eq!(prim.score("foo()\nbar()\nbaz()\n", Some(&baseline), 10), 0.0);
+        assert_eq!(
+            prim.score("foo()\nbar()\nbaz()\n", Some(&baseline), 10),
+            0.0
+        );
     }
 
     #[test]
@@ -190,6 +199,9 @@ mod tests {
         let baseline = prim
             .fit_cluster_baseline(&cluster, Language::Typescript)
             .unwrap();
-        assert_eq!(prim.score("foo();\nbar();\nbaz();\n", Some(&baseline), 10), 0.0);
+        assert_eq!(
+            prim.score("foo();\nbar();\nbaz();\n", Some(&baseline), 10),
+            0.0
+        );
     }
 }

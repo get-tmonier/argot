@@ -18,6 +18,7 @@ pub mod json;
 pub mod output;
 pub mod scoring;
 pub mod stats;
+pub mod suppress;
 pub mod text;
 pub mod tokenize;
 pub mod train;

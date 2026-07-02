@@ -65,6 +65,8 @@ pub struct HitRecord {
     pub reason_label: String,
     /// Where the hunk came from: `workdir`/`staged`/`untracked` or a short SHA.
     pub source: String,
+    /// Content-based hit hash — paste into `argot mute <hash>` to suppress.
+    pub hash: String,
     /// Rendered per-reason evidence lines (empty when the scorer had none).
     pub evidence: Vec<String>,
 }
@@ -172,6 +174,7 @@ pub fn render_sarif(meta: &ReportMeta, hits: &[HitRecord]) -> String {
                     "threshold": h.threshold,
                     "severity": h.severity,
                     "source": h.source,
+                    "hash": h.hash,
                     "evidence": h.evidence,
                 },
             })
@@ -230,6 +233,7 @@ mod tests {
             }
             .to_string(),
             source: "workdir".to_string(),
+            hash: "a1b2c3d4e5f6".to_string(),
             evidence: vec!["↳ axios — 0 of 47 module specifiers in repo".to_string()],
         }
     }
@@ -264,6 +268,7 @@ mod tests {
         assert_eq!(h["reason"], "bpe");
         assert_eq!(h["reason_label"], "rare token sequence");
         assert_eq!(h["source"], "workdir");
+        assert_eq!(h["hash"], "a1b2c3d4e5f6");
         assert_eq!(
             h["evidence"][0],
             "↳ axios — 0 of 47 module specifiers in repo"
@@ -327,6 +332,7 @@ mod tests {
         assert_eq!(loc["region"]["endLine"], 16);
         assert_eq!(r["properties"]["score"], 8.25);
         assert_eq!(r["properties"]["severity"], "foreign");
+        assert_eq!(r["properties"]["hash"], "a1b2c3d4e5f6");
         assert!(r["message"]["text"]
             .as_str()
             .unwrap()

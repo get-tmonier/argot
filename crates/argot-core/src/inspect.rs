@@ -3,17 +3,16 @@
 //! Answers three questions in one lightweight in-process pass: what would (or
 //! did) argot learn from (corpus composition), is the calibration healthy
 //! (post-fit, from `.argot/scorer-config.json`), and is this repo suitable at
-//! all (verdict). Reuses the calibration inclusion logic
-//! ([`is_excluded_path`], [`collect_candidates`], the extension→language
-//! routing) so what inspect reports is what calibrate would see. Nothing is
-//! persisted.
+//! all (verdict). Reuses the calibration inclusion logic (the resolved
+//! [`PathSuppressions`] set, [`collect_candidates_with`], the
+//! extension→language routing) so what inspect reports is what calibrate
+//! would see. Nothing is persisted.
 
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::{Language, LanguageAdapter};
-use crate::scoring::calibration::{
-    collect_candidates, is_excluded_path, language_for_filename, language_name,
-};
+use crate::scoring::calibration::{collect_candidates_with, language_for_filename, language_name};
+use crate::suppress::PathSuppressions;
 use crate::text::read_text_lossy;
 use anyhow::Result;
 use serde::Serialize;
@@ -73,7 +72,8 @@ pub struct LanguageCorpus {
     pub files: usize,
     /// Files calibration would draw candidates from.
     pub included: usize,
-    /// Excluded by the calibration path filter ([`is_excluded_path`]).
+    /// Excluded by the resolved path-suppression set (recommended built-ins
+    /// plus `.argotignore`).
     pub excluded_path: usize,
     /// Excluded because the file header carries an auto-generation marker.
     pub auto_generated: usize,
@@ -81,7 +81,7 @@ pub struct LanguageCorpus {
     pub data_dominant: usize,
     /// Share of all supported files routed to this language (0.0–1.0).
     pub share_of_supported: f64,
-    /// Calibration candidate hunks ([`collect_candidates`] — the exact
+    /// Calibration candidate hunks ([`collect_candidates_with`] — the exact
     /// population calibrate samples from).
     pub candidate_hunks: usize,
 }
@@ -144,8 +144,11 @@ fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
 }
 
 /// Walk the repo and classify every file the way calibration would: extension
-/// routing, then the calibration path filter, then the structural filters.
+/// routing, then the resolved path-suppression set (recommended built-ins +
+/// `.argotignore` — the same set calibrate and check consult), then the
+/// structural filters.
 fn scan_corpus(repo_dir: &Path) -> CorpusReport {
+    let path_suppressions = PathSuppressions::load(repo_dir);
     let mut total_files = 0usize;
     let mut unsupported_files = 0usize;
     let mut languages: BTreeMap<String, LanguageCorpus> = BTreeMap::new();
@@ -181,7 +184,7 @@ fn scan_corpus(repo_dir: &Path) -> CorpusReport {
                     let key = language_name(language);
                     let stats = languages.entry(key.to_string()).or_default();
                     stats.files += 1;
-                    if is_excluded_path(&path, repo_dir) {
+                    if path_suppressions.is_suppressed_abs(&path, repo_dir) {
                         stats.excluded_path += 1;
                         continue;
                     }
@@ -218,7 +221,8 @@ fn scan_corpus(repo_dir: &Path) -> CorpusReport {
         let adapter = adapters
             .entry(language_name(language))
             .or_insert_with(|| adapter_for(language));
-        stats.candidate_hunks = collect_candidates(repo_dir, adapter.as_ref()).len();
+        stats.candidate_hunks =
+            collect_candidates_with(repo_dir, adapter.as_ref(), &path_suppressions).len();
         stats.share_of_supported = if supported_files == 0 {
             0.0
         } else {

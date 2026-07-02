@@ -180,7 +180,9 @@ mod tests {
     fn abstains_below_min_calls() {
         let prim = CalleeDistributionUnderCoverage::default();
         let cluster = files(&["foo()\nbar()\nbaz()\n"; 5]);
-        let baseline = prim.fit_cluster_baseline(&cluster, Language::Python).unwrap();
+        let baseline = prim
+            .fit_cluster_baseline(&cluster, Language::Python)
+            .unwrap();
         assert_eq!(prim.score("qux()\n", Some(&baseline), 10), 0.0);
     }
 
@@ -188,7 +190,9 @@ mod tests {
     fn abstains_below_cluster_size_floor() {
         let prim = CalleeDistributionUnderCoverage::default();
         let cluster = files(&["foo()\nbar()\nbaz()\n"; 5]);
-        let baseline = prim.fit_cluster_baseline(&cluster, Language::Python).unwrap();
+        let baseline = prim
+            .fit_cluster_baseline(&cluster, Language::Python)
+            .unwrap();
         assert_eq!(prim.score("qux()\nquux()\n", Some(&baseline), 9), 0.0);
     }
 
@@ -196,8 +200,13 @@ mod tests {
     fn cluster_matching_hunk_contributes_zero() {
         let prim = CalleeDistributionUnderCoverage::default();
         let cluster = files(&["foo()\nbar()\nbaz()\n"; 6]);
-        let baseline = prim.fit_cluster_baseline(&cluster, Language::Python).unwrap();
-        assert_eq!(prim.score("foo()\nbar()\nbaz()\n", Some(&baseline), 10), 0.0);
+        let baseline = prim
+            .fit_cluster_baseline(&cluster, Language::Python)
+            .unwrap();
+        assert_eq!(
+            prim.score("foo()\nbar()\nbaz()\n", Some(&baseline), 10),
+            0.0
+        );
     }
 
     #[test]

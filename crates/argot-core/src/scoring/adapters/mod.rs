@@ -32,6 +32,9 @@ pub trait LanguageAdapter {
     fn enumerate_sampleable_ranges(&self, source: &str) -> Vec<(usize, usize)>;
     fn prose_line_ranges(&self, source: &str) -> HashSet<usize>;
     fn identifier_noise(&self) -> &HashSet<String>;
+    /// The language's line-comment token — drives inline suppression-comment
+    /// parsing (`# argot: …` vs `// argot: …`).
+    fn line_comment_prefix(&self) -> &'static str;
 }
 
 impl LanguageAdapter for python::PythonAdapter {
@@ -63,6 +66,9 @@ impl LanguageAdapter for python::PythonAdapter {
     }
     fn identifier_noise(&self) -> &HashSet<String> {
         python::PythonAdapter::identifier_noise(self)
+    }
+    fn line_comment_prefix(&self) -> &'static str {
+        "#"
     }
 }
 

@@ -14,6 +14,7 @@ use crate::scoring::adapters::{Language, LanguageAdapter};
 use crate::scoring::bpe_scorer::BpeScorer;
 use crate::scoring::call_receiver::CallReceiverScorer;
 use crate::scoring::typicality::TypicalityModel;
+use crate::suppress::PathSuppressions;
 use crate::text::{read_text_lossy, splitlines, splitlines_keepends};
 use anyhow::{bail, Result};
 use serde::Serialize;
@@ -31,66 +32,22 @@ const CR_N_CLUSTERS: usize = 8;
 const CR_CLUSTER_SEED: u64 = 0;
 const CR_CLUSTER_BONUS: f64 = 5.0;
 
-const EXCLUDE_DIRS: &[&str] = &[
-    "test",
-    "tests",
-    "doc",
-    "docs",
-    "examples",
-    "example",
-    "migrations",
-    "migration",
-    "benchmarks",
-    "benchmark",
-    "fixtures",
-    "scripts",
-    "build",
-    "dist",
-    "__pycache__",
-    ".git",
-    ".history",
-    ".tox",
-    ".eggs",
-];
-
 fn basename(path: &Path) -> String {
     path.file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default()
 }
 
-/// Port of `is_excluded_path`. Public because the benchmark harness applies
-/// the same calibration-scope filter to real-PR control hunks (lock-step:
-/// calibration scope and scoring scope must agree).
+/// The built-in `argot:recommended` path exclusion (formerly the hardcoded
+/// list here; now [`crate::suppress::recommended_excluded`]). Public because
+/// the benchmark harness applies the same calibration-scope filter to real-PR
+/// control hunks — bench calls resolve to recommended-set-only semantics
+/// (lock-step: calibration scope and scoring scope must agree).
 pub fn is_excluded_path(path: &Path, source_dir: &Path) -> bool {
-    let rel = match path.strip_prefix(source_dir) {
-        Ok(r) => r,
-        Err(_) => return true,
-    };
-    let comps: Vec<String> = rel
-        .components()
-        .map(|c| c.as_os_str().to_string_lossy().into_owned())
-        .collect();
-    if comps.is_empty() {
-        return true;
+    match crate::suppress::rel_string(path, source_dir) {
+        Some(rel) => crate::suppress::recommended_excluded(&rel),
+        None => true,
     }
-    for part in &comps[..comps.len() - 1] {
-        if EXCLUDE_DIRS.contains(&part.as_str()) || part.starts_with("test") || part == "__tests__"
-        {
-            return true;
-        }
-    }
-    let name = &comps[comps.len() - 1];
-    if name.starts_with("test_") || name == "conftest.py" {
-        return true;
-    }
-    if name.contains(".test.") || name.contains(".spec.") {
-        return true;
-    }
-    if name.contains(".config.") {
-        return true;
-    }
-    name.starts_with('.') && name[1..].contains("rc.")
 }
 
 /// Recursively list files under `dir` matching `ext` (e.g. ".py"), sorted.
@@ -127,8 +84,23 @@ pub struct Candidate {
 }
 
 /// Port of `collect_candidates_with_metadata` (exclude_data_dominant=True,
-/// exclude_atypical=False).
+/// exclude_atypical=False), against the built-in recommended path set only —
+/// existing callers (the benchmark harness) keep today's behaviour exactly.
+/// The production calibrator resolves `.argotignore` on top via
+/// [`collect_candidates_with`].
 pub fn collect_candidates(source_dir: &Path, adapter: &dyn LanguageAdapter) -> Vec<Candidate> {
+    collect_candidates_with(source_dir, adapter, &PathSuppressions::recommended())
+}
+
+/// [`collect_candidates`] against a fully resolved path-suppression set
+/// (recommended built-ins + `.argotignore`). Calibration sampling, the
+/// check-time scope filter, and `argot inspect` all consult the same
+/// [`PathSuppressions`] so their scopes stay in lock-step.
+pub fn collect_candidates_with(
+    source_dir: &Path,
+    adapter: &dyn LanguageAdapter,
+    path_suppressions: &PathSuppressions,
+) -> Vec<Candidate> {
     let exts: &[&str] = match adapter.language() {
         Language::Python => &[".py"],
         Language::Typescript => &[".ts", ".tsx"],
@@ -136,7 +108,7 @@ pub fn collect_candidates(source_dir: &Path, adapter: &dyn LanguageAdapter) -> V
     let mut out = Vec::new();
     for ext in exts {
         for src_file in rglob_sorted(source_dir, ext) {
-            if is_excluded_path(&src_file, source_dir) {
+            if path_suppressions.is_suppressed_abs(&src_file, source_dir) {
                 continue;
             }
             let source = match read_text_lossy(&src_file) {
@@ -425,6 +397,10 @@ pub fn run_calibrate(
     let mut languages: BTreeMap<String, LangConfig> = BTreeMap::new();
     let mut thresholds_out: Vec<(String, f64)> = Vec::new();
 
+    // Resolved path-suppression set (recommended built-ins + `.argotignore`) —
+    // the same set `check` filters against (lock-step principle).
+    let path_suppressions = PathSuppressions::load(repo_dir);
+
     for (name, (language, lang_files)) in by_lang {
         let adapter = adapter_for(language);
 
@@ -471,7 +447,7 @@ pub fn run_calibrate(
         .map_err(anyhow::Error::msg)?;
 
         // Candidates for sampling.
-        let candidates = collect_candidates(repo_dir, adapter.as_ref());
+        let candidates = collect_candidates_with(repo_dir, adapter.as_ref(), &path_suppressions);
         let effective_n_cal = opts.n_cal.min(candidates.len());
         let typicality = TypicalityModel::new(language);
 

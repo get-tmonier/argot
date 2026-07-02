@@ -71,10 +71,18 @@ fn base_args(repo: &Path) -> CheckArgs {
         min_severity: "unusual".to_string(),
         use_color: false,
         format: argot_core::output::OutputFormat::Human,
+        today: "2026-01-01".to_string(),
     }
 }
 
 fn assert_golden(stdout: &str, golden_name: &str) {
+    // Deliberate rendering changes (e.g. the suppression hit-hash on the hit
+    // header) regenerate the goldens via ARGOT_UPDATE_GOLDENS=1; the committed
+    // fixture repo is deterministic, so the refreshed goldens are too.
+    if std::env::var_os("ARGOT_UPDATE_GOLDENS").is_some() {
+        std::fs::write(fixture_dir().join(golden_name), stdout).expect("update golden");
+        return;
+    }
     let golden = std::fs::read(fixture_dir().join(golden_name)).expect("read golden");
     let expected = String::from_utf8(golden).unwrap();
     // Line-by-line first for a readable diff, then full byte equality.

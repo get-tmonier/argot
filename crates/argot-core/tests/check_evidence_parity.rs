@@ -95,15 +95,21 @@ fn base_args(repo: &Path) -> CheckArgs {
         min_severity: "unusual".to_string(),
         use_color: false,
         format: argot_core::output::OutputFormat::Human,
+        today: "2026-01-01".to_string(),
     }
 }
 
 /// The committed goldens embed the exit code as a trailing `exit=<code>` line,
 /// so we compare `stdout + "exit=<code>\n"` byte-for-byte.
 fn assert_golden(stdout: &str, exit_code: i32, golden_name: &str) {
+    let actual = format!("{stdout}exit={exit_code}\n");
+    // See check_parity.rs: deliberate rendering changes regenerate goldens.
+    if std::env::var_os("ARGOT_UPDATE_GOLDENS").is_some() {
+        std::fs::write(fixture_evidence_dir().join(golden_name), &actual).expect("update golden");
+        return;
+    }
     let golden = std::fs::read(fixture_evidence_dir().join(golden_name)).expect("read golden");
     let expected = String::from_utf8(golden).unwrap();
-    let actual = format!("{stdout}exit={exit_code}\n");
     let a: Vec<&str> = actual.lines().collect();
     let e: Vec<&str> = expected.lines().collect();
     for (i, (got, want)) in a.iter().zip(e.iter()).enumerate() {

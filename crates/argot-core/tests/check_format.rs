@@ -66,6 +66,7 @@ fn base_args(repo: &Path, format: OutputFormat) -> CheckArgs {
         min_severity: "unusual".to_string(),
         use_color: false,
         format,
+        today: "2026-01-01".to_string(),
     }
 }
 
@@ -95,6 +96,7 @@ fn check_json_format_emits_a_single_json_document_with_hits() {
             "severity is a known tier"
         );
         assert!(h["reason"].is_string());
+        assert_eq!(h["hash"].as_str().unwrap().len(), 12, "hit hash present");
         assert!(h["evidence"].is_array());
     }
 }
