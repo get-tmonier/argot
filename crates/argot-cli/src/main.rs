@@ -351,10 +351,7 @@ struct CalibrateCmd {
     /// Rare-branch threshold for the check-time scorer: a callee attested in
     /// ≤ N cluster files is treated as cluster-absent. 0 disables (pre-13.5
     /// baseline). Default 2 (era-13.5 setting).
-    #[arg(
-        long = "call-receiver-cluster-rare-threshold",
-        default_value_t = 2
-    )]
+    #[arg(long = "call-receiver-cluster-rare-threshold", default_value_t = 2)]
     cluster_rare_threshold: usize,
     /// Minimum cluster size for the rare rule to fire (0 = no floor).
     #[arg(long = "call-receiver-cluster-size-min", default_value_t = 0)]
@@ -997,7 +994,7 @@ fn run_score_cmd(c: ScoreCmd) -> ExitCode {
         call_receiver_cluster_size_min: 0,
         call_receiver_rarity_weighting: argot_core::scoring::call_receiver::RarityWeighting::Off,
         call_receiver_shape_primitive_names: Vec::new(),
-            call_receiver_parse_error_host_fallback: false,
+        call_receiver_parse_error_host_fallback: false,
         import_modules: mods.into_iter().collect(),
         import_module_prefixes,
         // Bench feature extraction reads `stages.bpe_score`; no evidence needed.

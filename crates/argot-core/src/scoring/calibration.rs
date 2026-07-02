@@ -472,7 +472,11 @@ pub fn run_calibrate(
         // sampled calibration hunks; a rule that fires often on ordinary code
         // would FP-flood at check time, so fall back to baseline (rare=0).
         let mut resolved_rare = opts.cluster_rare_threshold;
-        if opts.auto_select_asym_cal && resolved_rare > 0 && CR_N_CLUSTERS > 1 && !candidates.is_empty() {
+        if opts.auto_select_asym_cal
+            && resolved_rare > 0
+            && CR_N_CLUSTERS > 1
+            && !candidates.is_empty()
+        {
             let mut probe_cr = CallReceiverScorer::new(
                 corpus,
                 language,
