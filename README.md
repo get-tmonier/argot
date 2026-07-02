@@ -28,7 +28,14 @@
   <img src="https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white" alt="Python" />
   <img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=black" alt="JavaScript" />
-  &nbsp;·&nbsp;<a href="#supported-languages">more coming →</a>
+  <img src="https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white" alt="Go" />
+  <img src="https://img.shields.io/badge/Rust-DEA584?logo=rust&logoColor=black" alt="Rust" />
+  <img src="https://img.shields.io/badge/Java-ED8B00?logo=openjdk&logoColor=white" alt="Java" />
+  <img src="https://img.shields.io/badge/C%23-512BD4?logo=dotnet&logoColor=white" alt="C#" />
+  <img src="https://img.shields.io/badge/C++-00599C?logo=cplusplus&logoColor=white" alt="C++" />
+  <img src="https://img.shields.io/badge/C-A8B9CC?logo=c&logoColor=black" alt="C" />
+  <img src="https://img.shields.io/badge/Ruby-CC342D?logo=ruby&logoColor=white" alt="Ruby" />
+  &nbsp;·&nbsp;<a href="#supported-languages">10 languages →</a>
 </p>
 
 ---
@@ -138,8 +145,14 @@ def list_users() -> list[dict[str, Any]]:
 | Python | `.py` | libraries 100% recall · applications 86–100% · FP ≤ 2.1% |
 | TypeScript | `.ts` `.tsx` | libraries 82–100% recall · applications 64–86% · FP ≤ 3.2% |
 | JavaScript | `.js` `.jsx` | uses the TypeScript adapter |
-| Rust | `.rs` | ripgrep recall **100%** · FP **1.89%** (one corpus) — [evidence](docs/research/evidence/rust-language-port.md) |
+| Rust | `.rs` | ripgrep recall **100%** · FP **1.89%** — [evidence](docs/research/evidence/rust-language-port.md) |
 | Go | `.go` | gh-cli recall **100%** · FP **0.79%** — [evidence](docs/research/evidence/go-language-port.md) |
+| Java | `.java` | guava recall **100%** · FP **0.00%** — [evidence](docs/research/evidence/language-ports-batch.md) |
+| C# | `.cs` | PowerShell recall **100%** · FP **1.56%** — [evidence](docs/research/evidence/language-ports-batch.md) |
+| C | `.c` `.h` | redis recall **100%** · FP **0.00%** — [evidence](docs/research/evidence/language-ports-batch.md) |
+| C++ | `.cpp` `.cc` `.hpp` | rocksdb recall **100%** · FP **0.43%** — [evidence](docs/research/evidence/language-ports-batch.md) |
+| Ruby | `.rb` | Homebrew recall **100%** · FP **1.45%** — [evidence](docs/research/evidence/language-ports-batch.md) |
+| PHP | `.php` | _adapter shipped; validation in progress_ (recall 100%, FP 2.6–3.7%) — [evidence](docs/research/evidence/language-ports-batch.md) |
 
 Mixed-language monorepos calibrate one threshold per language and dispatch each
 hunk by file extension. Numbers are the latest full benchmark
