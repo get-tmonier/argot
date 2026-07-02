@@ -110,6 +110,13 @@ pub struct SequentialConfig {
     pub call_receiver_rarity_weighting: RarityWeighting,
     /// Registered shape-primitive names to enable (empty = none).
     pub call_receiver_shape_primitive_names: Vec<String>,
+    /// Era-14 phase D: when true, a hunk whose bare parse has root errors gets
+    /// its callees from its region within the host AST instead of contributing
+    /// 0. Default false: the scoped bench showed the extra contributions on
+    /// real-PR parse-error hunks FP-flood corpora where the cluster-rare rule
+    /// is active (faker-js 1.7% → 4.9%), and disabling the rare rule instead
+    /// would break the era-14 G2 recall floor.
+    pub call_receiver_parse_error_host_fallback: bool,
     pub import_modules: Vec<String>,
     pub import_module_prefixes: Vec<String>,
     /// Pre-computed evidence corpus parsed from the config's `evidence_corpus`
@@ -126,6 +133,7 @@ pub struct SequentialImportBpeScorer {
     call_receiver: Option<CallReceiverScorer>,
     root_bonus: f64,
     cluster_bonus: f64,
+    parse_error_host_fallback: bool,
     pub bpe_threshold: f64,
     evidence_corpus: Option<EvidenceCorpus>,
 }
@@ -209,6 +217,7 @@ impl SequentialImportBpeScorer {
             call_receiver,
             root_bonus: cfg.call_receiver_root_bonus,
             cluster_bonus: cfg.call_receiver_cluster_bonus,
+            parse_error_host_fallback: cfg.call_receiver_parse_error_host_fallback,
             bpe_threshold: cfg.bpe_threshold,
             evidence_corpus: cfg.evidence_corpus,
         })
@@ -316,12 +325,16 @@ impl SequentialImportBpeScorer {
 
         // 4. Call-receiver contribution (always computed when configured).
         // Phase D host context: an explicit one wins; otherwise the file
-        // source + hunk bounds serve as the host (real-PR path).
-        let cr_host_context: Option<(&str, usize, usize)> =
+        // source + hunk bounds serve as the host (real-PR path). Gated by the
+        // phase D flag (default off — see SequentialConfig).
+        let cr_host_context: Option<(&str, usize, usize)> = if self.parse_error_host_fallback {
             host_context.or(match (file_source, hunk_start_line, hunk_end_line) {
                 (Some(fs), Some(hs), Some(he)) => Some((fs, hs, he)),
                 _ => None,
-            });
+            })
+        } else {
+            None
+        };
         let contribution = if let Some(cr) = &mut self.call_receiver {
             let alpha = cr.alpha;
             let cap = cr.cap as f64;

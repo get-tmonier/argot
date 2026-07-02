@@ -54,6 +54,8 @@ pub struct BenchKnobs {
     /// Era-14 phase C: shape primitives enabled on the scoring path (empty =
     /// none). Asymmetric calibration: never applied to the cal side.
     pub shape_primitive_names: Vec<String>,
+    /// Era-14 phase D: parse-error host fallback on the scoring path.
+    pub parse_error_host_fallback: bool,
 }
 
 /// Where calibration hunks come from.
@@ -90,6 +92,7 @@ impl Default for BenchKnobs {
             rarity_weighting: RarityWeighting::Off,
             calibration_source: CalibrationSource::Random,
             shape_primitive_names: Vec::new(),
+            parse_error_host_fallback: false,
         }
     }
 }
@@ -545,6 +548,7 @@ pub fn build_scorer(
             call_receiver_cluster_size_min: knobs.cluster_size_min,
             call_receiver_rarity_weighting: knobs.rarity_weighting,
             call_receiver_shape_primitive_names: knobs.shape_primitive_names.clone(),
+            call_receiver_parse_error_host_fallback: knobs.parse_error_host_fallback,
             import_modules,
             import_module_prefixes,
             evidence_corpus: None,

@@ -401,6 +401,7 @@ fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
             call_receiver_cluster_size_min: get_usize("call_receiver_cluster_size_min", 0),
             call_receiver_rarity_weighting: crate::scoring::call_receiver::RarityWeighting::Off,
             call_receiver_shape_primitive_names: Vec::new(),
+            call_receiver_parse_error_host_fallback: false,
             import_modules: get_strings("import_modules"),
             import_module_prefixes: get_strings("import_module_prefixes"),
             // Parse the optional `evidence_corpus` block. Unlike the Python

@@ -997,6 +997,7 @@ fn run_score_cmd(c: ScoreCmd) -> ExitCode {
         call_receiver_cluster_size_min: 0,
         call_receiver_rarity_weighting: argot_core::scoring::call_receiver::RarityWeighting::Off,
         call_receiver_shape_primitive_names: Vec::new(),
+            call_receiver_parse_error_host_fallback: false,
         import_modules: mods.into_iter().collect(),
         import_module_prefixes,
         // Bench feature extraction reads `stages.bpe_score`; no evidence needed.

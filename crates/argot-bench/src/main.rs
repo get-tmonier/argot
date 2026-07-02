@@ -91,6 +91,9 @@ struct Cli {
     /// Comma-separated shape-primitive names to enable on the scoring path.
     #[arg(long, default_value = "", value_delimiter = ',')]
     enable_shape_primitives: Vec<String>,
+    /// Era-14 phase D: enable the parse-error host fallback on the scoring path.
+    #[arg(long)]
+    enable_parse_error_fallback: bool,
 }
 
 fn parse_rarity_weighting(s: &str) -> Result<argot_core::scoring::call_receiver::RarityWeighting> {
@@ -173,6 +176,7 @@ fn real_main() -> Result<ExitCode> {
             .filter(|s| !s.is_empty())
             .cloned()
             .collect(),
+        parse_error_host_fallback: cli.enable_parse_error_fallback,
     };
     let opts = run::RunOptions {
         data_dir: cli.data_dir,
