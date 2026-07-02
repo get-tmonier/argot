@@ -1,5 +1,11 @@
 # Language ports batch — Java, Ruby, C#, C, C++, PHP
 
+> **⚠️ Errata (2026-07, issue [#92](https://github.com/get-tmonier/argot/issues/92)):** the FP
+> control in this document replayed commits already inside the training corpus
+> (train-on-test) and the recall fixtures were scored against a threshold with
+> the same leak. Preserved as a historical record; the honest re-measurement is
+> in [issue92-honest-rebench.md](issue92-honest-rebench.md).
+
 Six adapters built in parallel (isolated worktrees), each a full `LanguageAdapter`
 + tree-sitter grammar + wiring across the scoring pipeline, then benchmarked the
 same way Go/Rust were: fit a substantial idiomatic corpus, plant ~12 corpus-

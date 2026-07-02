@@ -197,9 +197,13 @@ impl BenchDashboard {
     fn finalize(corpora: Vec<DashboardCorpus>, commit: String, generated_at: String) -> Self {
         let caught: usize = corpora.iter().filter_map(|c| c.caught).sum();
         let fixtures: usize = corpora.iter().filter_map(|c| c.fixtures).sum();
+        // Under-sampled corpora are excluded from the headline worst-rates:
+        // a 1-hunk denominator reads as 0% or 100% and misleads either way.
+        // Their per-corpus rows stay visible with the flag.
         let worst = |f: fn(&DashboardCorpus) -> Option<&DashboardFp>| {
             corpora
                 .iter()
+                .filter(|c| !c.under_sampled)
                 .filter_map(f)
                 .map(|s| s.rate_pct)
                 .fold(0.0_f64, f64::max)

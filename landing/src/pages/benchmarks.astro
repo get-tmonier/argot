@@ -1,50 +1,81 @@
 ---
 import Base from '#layouts/Base.astro';
 
-// Build-time import of the committed dashboard history (schema in
+// Build-time import of the committed dashboard history (schema v2 in
 // crates/argot-bench/src/dashboard.rs). CI appends a dated entry per run and
-// overwrites latest.json.
+// overwrites latest.json. v2 (issue #92): false positives come from the
+// leak-free temporal-holdout protocol, split existing-file vs new-file.
 const modules = import.meta.glob('../data/benchmarks/*.json', { eager: true });
+type Fp = {
+  hits: number;
+  hunks: number;
+  rate_pct: number;
+  ci95_pct: [number, number] | null;
+};
 type Corpus = {
   corpus: string;
   language: string;
   kind: string;
-  caught: number;
-  fixtures: number;
-  recall_pct: number;
-  fp_rate_pct: number;
+  caught: number | null;
+  fixtures: number | null;
+  recall_pct: number | null;
+  fp_existing: Fp | null;
+  fp_new_file: Fp | null;
+  under_sampled: boolean;
 };
 type Entry = {
   schema_version: number;
   generated_at: string;
   commit: string;
   corpora: Corpus[];
-  totals: { caught: number; fixtures: number; recall_pct: number; worst_fp_rate_pct: number };
+  totals: {
+    caught: number;
+    fixtures: number;
+    recall_pct: number;
+    worst_fp_existing_pct: number;
+    worst_fp_new_file_pct: number;
+  };
   _name: string;
 };
 
-const entries: Entry[] = Object.entries(modules).map(([path, mod]) => ({
-  ...(mod as { default: Entry }).default,
-  _name: path.split('/').pop() ?? path,
-}));
+const entries: Entry[] = Object.entries(modules)
+  .map(([path, mod]) => ({
+    ...(mod as { default: Entry }).default,
+    _name: path.split('/').pop() ?? path,
+  }))
+  // v1 entries were measured train-on-test (issue #92) — never rendered.
+  .filter((e) => e.schema_version >= 2);
 
 const history = entries
   .filter((e) => e._name !== 'latest.json')
   .sort((a, b) => a.generated_at.localeCompare(b.generated_at));
 const latest =
   entries.find((e) => e._name === 'latest.json') ?? history[history.length - 1] ?? null;
+
+const fp = (s: Fp | null) => (s ? `${s.rate_pct.toFixed(2)}% (${s.hits}/${s.hunks})` : '—');
+const ci = (s: Fp | null) =>
+  s?.ci95_pct ? `${s.ci95_pct[0].toFixed(1)}–${s.ci95_pct[1].toFixed(1)}%` : '';
 ---
 
-<Base title="Benchmarks · argot" description="Live benchmark results for argot, fed from CI.">
+<Base title="Benchmarks · argot" description="Honest, leak-free benchmark results for argot, fed from CI.">
   <main class="mx-auto max-w-5xl px-5 py-16">
     <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">Benchmarks</h1>
     <p class="mt-4 leading-relaxed text-ink-dim">
-      argot's recall and false-positive numbers, run through the real
-      <code>argot fit</code> → <code>argot check</code> pipeline against pinned
-      open-source corpora. This page is fed from CI so the numbers can't drift
-      from what actually ships. Methodology:
-      <a class="underline" href="/docs/">the docs</a> and
-      <a class="underline" href="https://github.com/get-tmonier/argot/tree/main/docs/research">the research log</a>.
+      Honest numbers, leak-free by construction. <strong>Recall</strong>: curated break
+      fixtures spliced into real host files, judged by the real
+      <code>argot fit</code> → <code>argot check</code> pipeline.
+      <strong>False positives</strong>: a temporal holdout — the model is fitted at an old
+      commit and replays only commits it has never seen, split by whether the file existed
+      at fit time (edits vs new files), with commit-level bootstrap 95% CIs. Numbers
+      published before July 2026 were measured train-on-test and were materially
+      optimistic — see
+      <a class="underline" href="https://github.com/get-tmonier/argot/issues/92">issue #92</a>
+      and the
+      <a
+        class="underline"
+        href="https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/issue92-honest-rebench.md"
+        >re-measurement evidence</a
+      >. This page is fed from CI so the numbers can't drift from what ships.
     </p>
 
     {
@@ -53,7 +84,7 @@ const latest =
           <div class="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div class="rounded-xl border border-line p-4">
               <div class="text-2xl font-bold">{latest.totals.recall_pct.toFixed(1)}%</div>
-              <div class="text-sm text-muted">total recall</div>
+              <div class="text-sm text-muted">recall (curated breaks)</div>
             </div>
             <div class="rounded-xl border border-line p-4">
               <div class="text-2xl font-bold">
@@ -62,14 +93,22 @@ const latest =
               <div class="text-sm text-muted">fixtures caught</div>
             </div>
             <div class="rounded-xl border border-line p-4">
-              <div class="text-2xl font-bold">{latest.totals.worst_fp_rate_pct.toFixed(2)}%</div>
-              <div class="text-sm text-muted">worst FP rate</div>
+              <div class="text-2xl font-bold">
+                {latest.totals.worst_fp_existing_pct.toFixed(2)}%
+              </div>
+              <div class="text-sm text-muted">worst FP · existing files</div>
             </div>
             <div class="rounded-xl border border-line p-4">
-              <div class="font-mono text-lg">{latest.commit}</div>
-              <div class="text-sm text-muted">{latest.generated_at.slice(0, 10)}</div>
+              <div class="text-2xl font-bold">
+                {latest.totals.worst_fp_new_file_pct.toFixed(2)}%
+              </div>
+              <div class="text-sm text-muted">worst FP · new files</div>
             </div>
           </div>
+          <p class="mt-3 text-sm text-muted">
+            run {latest.commit} · {latest.generated_at.slice(0, 10)} · ⚠️ marks corpora
+            under the 300-hunk sample bar (excluded from the worst-FP tiles)
+          </p>
 
           <table class="mt-10 w-full border-collapse text-sm">
             <thead>
@@ -78,19 +117,32 @@ const latest =
                 <th>Language</th>
                 <th>Type</th>
                 <th class="text-right">Recall</th>
-                <th class="text-right">FP rate</th>
+                <th class="text-right">FP existing (95% CI)</th>
+                <th class="text-right">FP new-file (95% CI)</th>
               </tr>
             </thead>
             <tbody>
               {latest.corpora.map((c) => (
                 <tr class="border-b border-line/50">
-                  <td class="py-2 font-medium">{c.corpus}</td>
+                  <td class="py-2 font-medium">
+                    {c.corpus}
+                    {c.under_sampled ? ' ⚠️' : ''}
+                  </td>
                   <td class="text-muted">{c.language}</td>
                   <td class="text-muted">{c.kind}</td>
                   <td class="text-right">
-                    {c.caught}/{c.fixtures} ({c.recall_pct.toFixed(1)}%)
+                    {c.caught != null && c.fixtures != null
+                      ? `${c.caught}/${c.fixtures} (${(c.recall_pct ?? 0).toFixed(1)}%)`
+                      : '—'}
                   </td>
-                  <td class="text-right">{c.fp_rate_pct.toFixed(2)}%</td>
+                  <td class="text-right">
+                    {fp(c.fp_existing)}
+                    <span class="text-muted"> {ci(c.fp_existing)}</span>
+                  </td>
+                  <td class="text-right">
+                    {fp(c.fp_new_file)}
+                    <span class="text-muted"> {ci(c.fp_new_file)}</span>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -105,7 +157,8 @@ const latest =
                     <th class="py-2">Date</th>
                     <th>Commit</th>
                     <th class="text-right">Recall</th>
-                    <th class="text-right">Worst FP</th>
+                    <th class="text-right">Worst FP existing</th>
+                    <th class="text-right">Worst FP new-file</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -114,7 +167,8 @@ const latest =
                       <td class="py-2">{h.generated_at.slice(0, 10)}</td>
                       <td class="font-mono text-muted">{h.commit}</td>
                       <td class="text-right">{h.totals.recall_pct.toFixed(1)}%</td>
-                      <td class="text-right">{h.totals.worst_fp_rate_pct.toFixed(2)}%</td>
+                      <td class="text-right">{h.totals.worst_fp_existing_pct.toFixed(2)}%</td>
+                      <td class="text-right">{h.totals.worst_fp_new_file_pct.toFixed(2)}%</td>
                     </tr>
                   ))}
                 </tbody>

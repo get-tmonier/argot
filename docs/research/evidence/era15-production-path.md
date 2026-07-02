@@ -1,5 +1,11 @@
 # Era 15 — The production path: close the gap between the bench and `argot check`
 
+> **⚠️ Errata (2026-07, issue [#92](https://github.com/get-tmonier/argot/issues/92)):** the FP
+> control in this document replayed commits already inside the training corpus
+> (train-on-test) and the recall fixtures were scored against a threshold with
+> the same leak. Preserved as a historical record; the honest re-measurement is
+> in [issue92-honest-rebench.md](issue92-honest-rebench.md).
+
 Era 14 closed with strong bench numbers (108/115 libraries, 45/56
 applications, FP ≤ 2%) that did not describe the shipped tool. Era 15's brief:
 make `argot check` itself earn those numbers — subtle out-of-voice catches on

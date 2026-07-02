@@ -56,22 +56,17 @@ const en: SiteContent = {
   },
   proof: {
     label: 'Measured, not promised',
-    title: 'The numbers come from the shipped binary.',
+    title: 'Honest numbers, leak-free by construction.',
     stats: [
       {
-        value: '93.6%',
-        title: 'planted breaks caught',
-        desc: '160 of 171 hand-built paradigm breaks across 10 pinned open-source repos — judged by the real fit → check pipeline, not a lab harness. Five repos score 100%.',
+        value: '66.8%',
+        title: 'curated breaks caught',
+        desc: '201 of 301 hand-built breaks across 19 pinned open-source repos, spliced into real files and judged by the real fit → check pipeline. Python corpora run 69–100%; the hard in-vocabulary classes in other languages run 21–62% — every number published, red or green.',
       },
       {
-        value: '0%',
-        title: 'false positives on 7 of 10 repos',
-        desc: 'Each repo’s last 30 real commits replayed through argot check. Seven come back with zero flags; none exceeds a handful.',
-      },
-      {
-        value: '10/12',
-        title: 'subtle breaks caught in production',
-        desc: 'No-import breaks — snake_case in a camelCase repo, promise chains in an Effect codebase, jQuery-style DOM — planted live in a 34k-file workspace. Ten flagged.',
+        value: '≤2%',
+        title: 'false positives on 11 of 24 repos (edits)',
+        desc: 'Temporal holdout: the model is fitted at an old commit, then only commits it has never seen are replayed — no train-on-test. Most other repos sit at 2–6%; the worst (bat, 11.5%) is published, not hidden.',
       },
       {
         value: '150ms',
@@ -80,7 +75,7 @@ const en: SiteContent = {
       },
     ],
     finePrint:
-      'Production-path benchmark: every fixture planted into its host file on disk, staged with git, judged by the shipped binary. Methodology and raw results live in the public research log.',
+      'Leak-free protocol since July 2026 (issue #92): recall from fixtures planted into host files on disk and judged by the shipped binary; false positives from temporal holdout with bootstrap confidence intervals. Methodology and raw results live in the public research log.',
   },
   local: {
     label: 'How it stays honest',

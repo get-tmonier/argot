@@ -120,7 +120,10 @@ release. Full reference: `argot --help` and the
 It does *not* replace ESLint, ruff, or type checkers — it catches what they
 can't: code that's **technically fine but socially wrong** for this project. Each
 example below is valid, fully typed, lint-clean, and passes `mypy strict`; every
-other tool in your CI is silent on it.
+other tool in your CI is silent on it. (These are real fixtures from the
+FastAPI benchmark catalog, where argot catches 32/32 under the honest
+protocol — how reliably each *class* fires varies a lot by language and
+corpus; the per-language table below reports the real rates.)
 
 ```python
 # 1. Wrong exception type — the raise line is the only break.
@@ -138,36 +141,59 @@ def list_users() -> list[dict[str, Any]]:
     return httpx.get(f"{UPSTREAM_URL}/v1/users").json()
 ```
 
-## Supported languages
+## Supported languages — honest numbers
 
-| Language | Extensions | Headline result (production-path bench) |
-|---|---|---|
-| Python | `.py` | libraries 100% recall · applications 86–100% · FP ≤ 2.1% |
-| TypeScript | `.ts` `.tsx` | libraries 82–100% recall · applications 64–86% · FP ≤ 3.2% |
-| JavaScript | `.js` `.jsx` | uses the TypeScript adapter |
-| Rust | `.rs` | ripgrep recall **100%** · FP **1.89%** — [evidence](docs/research/evidence/rust-language-port.md) |
-| Go | `.go` | gh-cli recall **100%** · FP **0.79%** — [evidence](docs/research/evidence/go-language-port.md) |
-| Java | `.java` | guava recall **100%** · FP **0.00%** — [evidence](docs/research/evidence/language-ports-batch.md) |
-| C# | `.cs` | PowerShell recall **100%** · FP **1.56%** — [evidence](docs/research/evidence/language-ports-batch.md) |
-| C | `.c` `.h` | redis recall **100%** · FP **0.00%** — [evidence](docs/research/evidence/language-ports-batch.md) |
-| C++ | `.cpp` `.cc` `.hpp` | rocksdb recall **100%** · FP **0.43%** — [evidence](docs/research/evidence/language-ports-batch.md) |
-| Ruby | `.rb` | Homebrew recall **100%** · FP **1.45%** — [evidence](docs/research/evidence/language-ports-batch.md) |
-| PHP | `.php` | laravel + composer recall **100%** · FP **1.4–1.6%** — [evidence](docs/research/evidence/language-ports-batch.md) |
+All numbers below are **leak-free**: false positives come from a temporal
+holdout (fit at an old commit, replay only commits the model never saw, split
+by whether the file existed at fit time), and recall comes from curated break
+fixtures spliced into real files and judged by the real `fit` → `check`
+pipeline. Earlier published numbers were measured train-on-test and were
+materially optimistic — see
+[issue #92](https://github.com/get-tmonier/argot/issues/92) and the
+[re-measurement evidence](docs/research/evidence/issue92-honest-rebench.md).
+FP is per-corpus with bootstrap 95% CIs in the evidence doc; recall is on
+deliberately *hard* fixture classes (wrong error discipline, wrong
+concurrency model, API misuse within libraries the repo already uses, naming
+shape — not just foreign imports).
 
-Mixed-language monorepos calibrate one threshold per language and dispatch each
-hunk by file extension. Numbers are the latest full benchmark
-(**160/171 fixtures caught, 93.6%**, through the real `argot fit` → `argot check`
-pipeline against 494k+ real-PR control hunks) — live per-corpus results at
-[argot.tmonier.com/benchmarks](https://argot.tmonier.com/benchmarks) (fed from
-CI), with the methodology and known weaknesses in
-[the research log](docs/research/README.md) and
+| Language | Extensions | FP on edits to existing files | FP on new files | Recall (hard curated breaks) |
+|---|---|---|---|---|
+| Python | `.py` | 0.0–6.6% (4 of 5 corpora ≤ 2.8%; fastapi 6.6%) | 3.1–3.9% | rich 69% · fastapi/faker/saleor/wagtail 100% |
+| TypeScript | `.ts` `.tsx` | 0.1–3.5% | 0–21% (excalidraw worst) | 47–88% |
+| JavaScript | `.js` `.jsx` | uses the TypeScript adapter | | |
+| Go | `.go` | 2.3% / 5.9% | 7.8–13% | gh-cli **38%** |
+| Rust | `.rs` | ripgrep 1.0% · bat **11.5%** | 7.7% (thin sample) | ripgrep **31%** |
+| Java | `.java` | guava 2.1% · junit5 0.0% | 0.0% | guava **57%** |
+| C# | `.cs` | powershell 1.1% · jellyfin **9.7%** | 14% (jellyfin) | powershell **54%** |
+| C | `.c` `.h` | redis 0.7% · curl 0.3% | redis **61%** (19/31 hunks) | redis **21%** |
+| C++ | `.cpp` `.cc` `.hpp` | rocksdb **6.2%** · fmt 3.2% | rocksdb **49%** | rocksdb **23%** |
+| Ruby | `.rb` | homebrew 4.6% · rubocop 3.5% | 4.7% | homebrew **39%** |
+| PHP | `.php` | laravel 0.8% · composer 0.0% | 3.8–11.5% | laravel **62%** |
+
+**What this means in practice.** argot's reliable value today is the
+tripwire class: foreign imports and strongly foreign API surfaces fire at
+low false-positive cost on most corpora. The *hard* classes it aspires to —
+in-vocabulary breaks like a bare `throw new Exception` in a typed-error
+codebase — are caught well on the mature Python corpora but **miss more
+often than they hit in most other languages**, and a handful of corpora
+(bat, jellyfin, rocksdb, hugo, fastapi edits; new files on
+excalidraw/redis/rocksdb) still exceed our ≤2%-existing / ≤5%-new-file
+false-positive gates, driven by the call-receiver cluster stage. We publish
+those numbers red rather than tune the benchmark until they look green;
+closing the gap needs a structurally smarter scorer (tracked in the
+[research log](docs/research/README.md)).
+
+Mixed-language monorepos calibrate one threshold per language and dispatch
+each hunk by file extension. Live per-corpus results at
+[argot.tmonier.com/benchmarks](https://argot.tmonier.com/benchmarks) (fed
+from CI via `argot-bench --mode honest`), with methodology in
 [benchmarks/README.md](benchmarks/README.md).
 
 **Adding a language is a roadmap item, not an architectural blocker.** The
 scoring pipeline is language-agnostic; per-language is just a tree-sitter
-adapter. We ship a language only *after* benchmarking it on a real corpus and
-confirming the recall + false-positive numbers hold. Want a corpus validated?
-[Open an issue](https://github.com/get-tmonier/argot/issues/new).
+adapter. We ship a language only *after* benchmarking it honestly on real
+corpora — and we publish the numbers it actually gets. Want a corpus
+validated? [Open an issue](https://github.com/get-tmonier/argot/issues/new).
 
 ## Running in CI
 

@@ -56,22 +56,17 @@ const fr: SiteContent = {
   },
   proof: {
     label: 'Mesuré, pas promis',
-    title: 'Les chiffres viennent du binaire livré.',
+    title: 'Des chiffres honnêtes, sans fuite par construction.',
     stats: [
       {
-        value: '93,6 %',
-        title: 'des ruptures plantées attrapées',
-        desc: '160 des 171 ruptures de paradigme construites à la main sur 10 dépôts open-source épinglés — jugées par le vrai pipeline fit → check, pas par un harnais de labo. Cinq dépôts à 100 %.',
+        value: '66,8 %',
+        title: 'ruptures plantées détectées',
+        desc: '201 des 301 ruptures construites à la main sur 19 dépôts open-source épinglés, insérées dans de vrais fichiers et jugées par le vrai pipeline fit → check. Les corpus Python vont de 69 à 100 % ; les classes difficiles dans les autres langages de 21 à 62 % — chaque chiffre est publié, rouge ou vert.',
       },
       {
-        value: '0 %',
-        title: 'de faux positifs sur 7 dépôts sur 10',
-        desc: 'Les 30 derniers commits réels de chaque dépôt rejoués dans argot check. Sept reviennent sans aucun signalement ; aucun n’en dépasse une poignée.',
-      },
-      {
-        value: '10/12',
-        title: 'ruptures subtiles attrapées en production',
-        desc: 'Des ruptures sans import — du snake_case dans un dépôt camelCase, des chaînes de promesses dans un code Effect, du DOM façon jQuery — plantées en direct dans un espace de 34 000 fichiers. Dix signalées.',
+        value: '≤2 %',
+        title: 'faux positifs sur 11 des 24 dépôts (modifications)',
+        desc: 'Holdout temporel : le modèle est calibré sur un ancien commit, puis seuls des commits jamais vus sont rejoués — aucun train-on-test. La plupart des autres dépôts sont entre 2 et 6 % ; le pire (bat, 11,5 %) est publié, pas caché.',
       },
       {
         value: '150 ms',
@@ -80,7 +75,7 @@ const fr: SiteContent = {
       },
     ],
     finePrint:
-      'Benchmark en conditions réelles : chaque fixture est plantée dans son fichier hôte sur disque, stagée avec git, jugée par le binaire livré. Méthodologie et résultats bruts dans le journal de recherche public.',
+      'Protocole sans fuite depuis juillet 2026 (issue #92) : rappel mesuré sur des fixtures plantées dans de vrais fichiers et jugées par le binaire livré ; faux positifs par holdout temporel avec intervalles de confiance bootstrap. Méthodologie et résultats bruts dans le journal de recherche public.',
   },
   local: {
     label: 'Comment il reste honnête',

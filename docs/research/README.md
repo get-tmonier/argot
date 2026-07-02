@@ -1,5 +1,13 @@
 # argot research
 
+> **⚠️ Errata (2026-07, issue [#92](https://github.com/get-tmonier/argot/issues/92)):**
+> every false-positive number in this log measured before July 2026 replayed
+> commits that were ancestors of the fit SHA (train-on-test), and recall was
+> measured against thresholds calibrated with the same leak — the numbers are
+> materially optimistic. The historical text below is preserved as a research
+> record. Current, leak-free numbers:
+> [issue92-honest-rebench](evidence/issue92-honest-rebench.md).
+
 > **How a GPU-hungry neural scorer became a ~220-line statistical pipeline.**
 > Twelve eras, three dead ends, two breakthroughs, a parsing-artifact
 > mystery, a benchmark fairness audit, one Gate-3 amendment, and an
