@@ -15,6 +15,7 @@ pub fn language_for_path(path: &str) -> Option<Language> {
         ".ts" | ".tsx" => Some(Language::Typescript),
         ".js" | ".jsx" => Some(Language::Javascript),
         ".py" => Some(Language::Python),
+        ".cpp" | ".cc" | ".hpp" | ".cxx" => Some(Language::Cpp),
         _ => None,
     }
 }
@@ -42,6 +43,7 @@ fn ts_language(lang: Language) -> tree_sitter::Language {
         Language::Typescript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
         Language::Javascript => tree_sitter_javascript::LANGUAGE.into(),
         Language::Python => tree_sitter_python::LANGUAGE.into(),
+        Language::Cpp => tree_sitter_cpp::LANGUAGE.into(),
     }
 }
 
@@ -118,6 +120,8 @@ mod tests {
         assert_eq!(language_for_path("a.py"), Some(Language::Python));
         assert_eq!(language_for_path("a.tsx"), Some(Language::Typescript));
         assert_eq!(language_for_path("a.jsx"), Some(Language::Javascript));
+        assert_eq!(language_for_path("a.cpp"), Some(Language::Cpp));
+        assert_eq!(language_for_path("a.hpp"), Some(Language::Cpp));
         assert_eq!(language_for_path("a.rs"), None);
     }
 

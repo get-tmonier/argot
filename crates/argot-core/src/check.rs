@@ -15,6 +15,7 @@ use crate::git_walk::{
     open_repo, resolve_shas, walk_commits, HunkSpan, WalkItem, SUPPORTED_EXTENSIONS,
 };
 use crate::output::{render_json, render_sarif, HitRecord, OutputFormat, ReportMeta};
+use crate::scoring::adapters::cpp::CppAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::LanguageAdapter;
@@ -143,6 +144,10 @@ const EXT_TO_LANG: &[(&str, &str)] = &[
     (".tsx", "typescript"),
     (".js", "typescript"),
     (".jsx", "typescript"),
+    (".cpp", "cpp"),
+    (".cc", "cpp"),
+    (".hpp", "cpp"),
+    (".cxx", "cpp"),
 ];
 
 fn ext_to_lang(ext: &str) -> Option<&'static str> {
@@ -153,6 +158,7 @@ fn adapter_for_language(lang: &str) -> Option<Box<dyn LanguageAdapter>> {
     match lang {
         "python" => Some(Box::new(PythonAdapter::new())),
         "typescript" => Some(Box::new(TypeScriptAdapter::new())),
+        "cpp" => Some(Box::new(CppAdapter::new())),
         _ => None,
     }
 }

@@ -4,6 +4,7 @@
 //! filters (data-dominant, auto-generated) behind a uniform surface used by
 //! the scorers and the sampler.
 
+pub mod cpp;
 pub mod python;
 pub mod typescript;
 
@@ -11,12 +12,12 @@ use std::collections::HashSet;
 use std::path::Path;
 
 /// Scoring-side language tag. JavaScript routes to the TypeScript adapter, so
-/// scoring only distinguishes Python vs TypeScript (matching the Python
-/// `Literal["python", "typescript"]`).
+/// scoring distinguishes Python, TypeScript, and C++.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Language {
     Python,
     Typescript,
+    Cpp,
 }
 
 /// Uniform language-adapter surface (port of the Python `LanguageAdapter`
@@ -95,6 +96,53 @@ impl LanguageAdapter for python::PythonAdapter {
     }
     fn line_comment_prefix(&self) -> &'static str {
         "#"
+    }
+}
+
+impl LanguageAdapter for cpp::CppAdapter {
+    fn language(&self) -> Language {
+        Language::Cpp
+    }
+    fn extract_imports(&self, source: &str) -> HashSet<String> {
+        cpp::CppAdapter::extract_imports(self, source)
+    }
+    fn extract_imports_with_spans(&self, source: &str) -> Vec<(String, usize, usize, usize)> {
+        cpp::CppAdapter::extract_imports_with_spans(self, source)
+    }
+    fn resolve_repo_modules(&self, _repo_root: &Path) -> RepoModules {
+        // C++ has no package-manifest analog; repo-internal headers are the
+        // quoted `#include "..."` targets, surfaced via internal_import_bindings.
+        RepoModules::default()
+    }
+    fn is_data_dominant(&self, source: &str) -> bool {
+        cpp::CppAdapter::is_data_dominant(self, source)
+    }
+    fn data_literal_lines(&self, source: &str) -> HashSet<usize> {
+        cpp::CppAdapter::data_literal_lines(self, source)
+    }
+    fn callable_definitions(&self, source: &str) -> HashSet<String> {
+        cpp::CppAdapter::callable_definitions(self, source)
+    }
+    fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
+        cpp::CppAdapter::internal_import_bindings(self, source)
+    }
+    fn value_bindings(&self, source: &str) -> HashSet<String> {
+        cpp::CppAdapter::value_bindings(self, source)
+    }
+    fn is_auto_generated(&self, source: &str) -> bool {
+        cpp::CppAdapter::is_auto_generated(self, source)
+    }
+    fn enumerate_sampleable_ranges(&self, source: &str) -> Vec<(usize, usize)> {
+        cpp::CppAdapter::enumerate_sampleable_ranges(self, source)
+    }
+    fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
+        cpp::CppAdapter::prose_line_ranges(self, source)
+    }
+    fn identifier_noise(&self) -> &HashSet<String> {
+        cpp::CppAdapter::identifier_noise(self)
+    }
+    fn line_comment_prefix(&self) -> &'static str {
+        "//"
     }
 }
 

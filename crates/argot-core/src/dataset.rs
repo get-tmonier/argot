@@ -11,13 +11,14 @@
 use serde::{Deserialize, Serialize};
 
 /// Source language of a hunk. Serialises to the exact lowercase strings the
-/// Python `Language` `Literal` uses: `"typescript" | "javascript" | "python"`.
+/// wire format uses: `"typescript" | "javascript" | "python" | "cpp"`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Language {
     Typescript,
     Javascript,
     Python,
+    Cpp,
 }
 
 /// A single leaf token from the tree-sitter parse (`dataset.Token`).

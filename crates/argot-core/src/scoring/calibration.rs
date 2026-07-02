@@ -9,6 +9,7 @@
 //! `max(cal_scores)` threshold matches the Python engine exactly on every corpus.
 
 use crate::bpe::BpeTokenizer;
+use crate::scoring::adapters::cpp::CppAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::{Language, LanguageAdapter};
@@ -123,6 +124,7 @@ pub fn collect_candidates_with(
     let exts: &[&str] = match adapter.language() {
         Language::Python => &[".py"],
         Language::Typescript => &[".ts", ".tsx"],
+        Language::Cpp => &[".cpp", ".cc", ".hpp", ".cxx"],
     };
     let mut out = Vec::new();
     for ext in exts {
@@ -256,15 +258,17 @@ fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
     match language {
         Language::Python => Box::new(PythonAdapter::new()),
         Language::Typescript => Box::new(TypeScriptAdapter::new()),
+        Language::Cpp => Box::new(CppAdapter::new()),
     }
 }
 
-/// Canonical config-key name for a scoring language ("python"/"typescript").
+/// Canonical config-key name for a scoring language ("python"/"typescript"/"cpp").
 /// Public so `inspect` reports under the same keys `scorer-config.json` uses.
 pub fn language_name(language: Language) -> &'static str {
     match language {
         Language::Python => "python",
         Language::Typescript => "typescript",
+        Language::Cpp => "cpp",
     }
 }
 
@@ -279,6 +283,7 @@ pub fn language_for_filename(name: &str) -> Option<Language> {
     match ext {
         ".py" => Some(Language::Python),
         ".ts" | ".tsx" | ".js" | ".jsx" => Some(Language::Typescript),
+        ".cpp" | ".cc" | ".hpp" | ".cxx" => Some(Language::Cpp),
         _ => None,
     }
 }

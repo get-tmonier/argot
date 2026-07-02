@@ -41,6 +41,9 @@ fn py_call_types(kind: &str) -> bool {
 fn ts_call_types(kind: &str) -> bool {
     kind == "call_expression" || kind == "new_expression"
 }
+fn cpp_call_types(kind: &str) -> bool {
+    kind == "call_expression"
+}
 
 fn extract_python_callee(call_node: Node, src: &[u8]) -> Option<String> {
     let mut callee = call_node.child_by_field_name("function")?;
@@ -95,6 +98,34 @@ fn extract_typescript_callee(call_node: Node, src: &[u8]) -> Option<String> {
     }
 }
 
+fn extract_cpp_callee(call_node: Node, src: &[u8]) -> Option<String> {
+    let mut callee = call_node.child_by_field_name("function")?;
+    let mut parts: Vec<String> = Vec::new();
+    while callee.kind() == "field_expression" {
+        let field = callee.child_by_field_name("field")?;
+        let obj = callee.child_by_field_name("argument")?;
+        parts.insert(0, node_text(field, src));
+        callee = obj;
+    }
+    match callee.kind() {
+        "identifier" | "field_identifier" => {
+            parts.insert(0, node_text(callee, src));
+            Some(parts.join("."))
+        }
+        // `Foo::bar` → dotted `Foo.bar`; the leading segment is the receiver
+        // namespace, mirroring how `self.method` / `obj.method` are keyed.
+        "qualified_identifier" => {
+            parts.insert(0, node_text(callee, src).replace("::", "."));
+            Some(parts.join("."))
+        }
+        "call_expression" => {
+            parts.insert(0, "<call>".to_string());
+            Some(parts.join("."))
+        }
+        _ => None,
+    }
+}
+
 fn walk_preorder(root: Node, mut visit: impl FnMut(Node)) {
     // Stack DFS pushing reversed children, matching Python `_walk_nodes`.
     let mut stack = vec![root];
@@ -138,10 +169,12 @@ pub fn extract_callees(source: &str, language: Language) -> Vec<Option<String>> 
     let is_call = match language {
         Language::Python => py_call_types as fn(&str) -> bool,
         Language::Typescript => ts_call_types as fn(&str) -> bool,
+        Language::Cpp => cpp_call_types as fn(&str) -> bool,
     };
     let extractor = match language {
         Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Typescript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::Cpp => extract_cpp_callee as fn(Node, &[u8]) -> Option<String>,
     };
     walk_preorder(tree.root_node(), |node| {
         if is_call(node.kind()) {
@@ -178,10 +211,12 @@ pub fn callees_in_source_region(
     let is_call = match language {
         Language::Python => py_call_types as fn(&str) -> bool,
         Language::Typescript => ts_call_types as fn(&str) -> bool,
+        Language::Cpp => cpp_call_types as fn(&str) -> bool,
     };
     let extractor = match language {
         Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Typescript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::Cpp => extract_cpp_callee as fn(Node, &[u8]) -> Option<String>,
     };
     let mut out = Vec::new();
     walk_preorder(tree.root_node(), |node| {
