@@ -49,6 +49,19 @@ last 40 real production-`.go` commits (219 hunks).
 running them there gives a meaningless 5/12. A proper Hugo recall number needs
 Hugo-specific fixtures.
 
+## Hugo recall with Hugo-authentic fixtures
+
+Re-authored 12 fixtures foreign to *Hugo* specifically (imports Hugo never uses:
+logrus, gin, mongo-driver, gorm, lib/pq, go-redis — verified 0 usages — plus the
+same anti-idioms). Result on Hugo: **6/12**, and the split is the finding:
+
+- **Foreign imports: 6/6 caught.** The import-graph stage is rock-solid for Go.
+- **Anti-idioms: 0/6 caught.** Hugo is a *broad* codebase — it legitimately uses
+  `fmt.Println`, `os.Exit`, `net/http`, `errors.New`, `panic`, bare `println`.
+  So those aren't out-of-voice *for Hugo*; they were only breaks for Cobra's
+  tight voice. Fixtures must be corpus-authentic, and a broad app's authentic
+  breaks are almost all foreign-import / foreign-callee, not anti-idiom.
+
 ## Where this leaves Go
 
 Both bars are demonstrably achievable — **recall ≥ 85% clears on Cobra (91.7%)
