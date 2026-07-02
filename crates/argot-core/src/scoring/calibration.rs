@@ -11,6 +11,7 @@
 use crate::bpe::BpeTokenizer;
 use crate::scoring::adapters::go::GoAdapter;
 use crate::scoring::adapters::c::CAdapter;
+use crate::scoring::adapters::java::JavaAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
@@ -194,6 +195,7 @@ pub fn collect_candidates_with(
         Language::Go => &[".go"],
         Language::Rust => &[".rs"],
         Language::C => &[".c", ".h"],
+        Language::Java => &[".java"],
     };
     let mut out = Vec::new();
     for ext in exts {
@@ -473,6 +475,11 @@ fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
 }
 
 /// Canonical config-key name for a scoring language ("python"/"typescript"/"go").
+        Language::Java => Box::new(JavaAdapter::new()),
+    }
+}
+
+/// Canonical config-key name for a scoring language ("python"/"typescript"/"java").
 /// Public so `inspect` reports under the same keys `scorer-config.json` uses.
 pub fn language_name(language: Language) -> &'static str {
     match language {
@@ -481,6 +488,7 @@ pub fn language_name(language: Language) -> &'static str {
         Language::Go => "go",
         Language::Rust => "rust",
         Language::C => "c",
+        Language::Java => "java",
     }
 }
 
@@ -498,6 +506,7 @@ pub fn language_for_filename(name: &str) -> Option<Language> {
         ".go" => Some(Language::Go),
         ".rs" => Some(Language::Rust),
         ".c" | ".h" => Some(Language::C),
+        ".java" => Some(Language::Java),
         _ => None,
     }
 }

@@ -10,6 +10,7 @@
 use anyhow::{bail, Context, Result};
 use argot_core::scoring::adapters::go::GoAdapter;
 use argot_core::scoring::adapters::c::CAdapter;
+use argot_core::scoring::adapters::java::JavaAdapter;
 use argot_core::scoring::adapters::python::PythonAdapter;
 use argot_core::scoring::adapters::rust::RustAdapter;
 use argot_core::scoring::adapters::typescript::TypeScriptAdapter;
@@ -130,6 +131,7 @@ pub fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
         Language::Go => Box::new(GoAdapter::new()),
         Language::Rust => Box::new(RustAdapter::new()),
         Language::C => Box::new(CAdapter::new()),
+        Language::Java => Box::new(JavaAdapter::new()),
     }
 }
 
@@ -140,6 +142,7 @@ pub fn parse_language(name: &str) -> Result<Language> {
         "go" => Ok(Language::Go),
         "rust" => Ok(Language::Rust),
         "c" => Ok(Language::C),
+        "java" => Ok(Language::Java),
         other => bail!("unsupported language {other:?}"),
     }
 }
@@ -154,6 +157,7 @@ pub fn source_files(repo_dir: &Path, language: Language) -> Vec<PathBuf> {
         Language::Go => &[".go"],
         Language::Rust => &[".rs"],
         Language::C => &[".c", ".h"],
+        Language::Java => &[".java"],
     };
     let mut out = Vec::new();
     for ext in exts {
@@ -315,6 +319,7 @@ pub fn collect_diff_candidates(
         Language::Go => l == "go",
         Language::Rust => l == "rust",
         Language::C => l == "c",
+        Language::Java => l == "java",
     };
     let raw = match std::fs::read(dataset_path) {
         Ok(r) => r,

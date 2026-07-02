@@ -18,6 +18,7 @@ pub fn language_for_path(path: &str) -> Option<Language> {
         ".go" => Some(Language::Go),
         ".rs" => Some(Language::Rust),
         ".c" | ".h" => Some(Language::C),
+        ".java" => Some(Language::Java),
         _ => None,
     }
 }
@@ -48,6 +49,7 @@ fn ts_language(lang: Language) -> tree_sitter::Language {
         Language::Go => tree_sitter_go::LANGUAGE.into(),
         Language::Rust => tree_sitter_rust::LANGUAGE.into(),
         Language::C => tree_sitter_c::LANGUAGE.into(),
+        Language::Java => tree_sitter_java::LANGUAGE.into(),
     }
 }
 

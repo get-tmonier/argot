@@ -14,9 +14,11 @@ use tree_sitter::Node;
 
 const PY_HANDLER: &str = "except_clause";
 const TS_HANDLER: &str = "catch_clause";
+const JAVA_HANDLER: &str = "catch_clause";
 const RETURN: &str = "return_statement";
 const PY_RAISE: &str = "raise_statement";
 const TS_RAISE: &str = "throw_statement";
+const JAVA_RAISE: &str = "throw_statement";
 
 const MIN_VALID_FILES: usize = 3;
 
@@ -80,6 +82,7 @@ fn ratio_for_source(source: &str, language: Language) -> Option<f64> {
         // C has no exception-handling construct, so this ratio is undefined:
         // no handler blocks means no signal.
         Language::C => return None,
+        Language::Java => (JAVA_HANDLER, JAVA_RAISE),
     };
     let (returns, raises) = count_in_handlers(tree.root_node(), handler, raise);
     let total = returns + raises;
@@ -89,10 +92,11 @@ fn ratio_for_source(source: &str, language: Language) -> Option<f64> {
     Some(returns as f64 / total as f64)
 }
 
-/// Try Python grammar then TypeScript; first defined ratio wins.
+/// Try Python grammar, then TypeScript, then Java; first defined ratio wins.
 fn ratio_for_hunk(hunk: &str) -> Option<f64> {
     ratio_for_source(hunk, Language::Python)
         .or_else(|| ratio_for_source(hunk, Language::Typescript))
+        .or_else(|| ratio_for_source(hunk, Language::Java))
 }
 
 /// Except-block return/raise ratio primitive.

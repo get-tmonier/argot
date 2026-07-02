@@ -23,6 +23,7 @@ const GO_FUNC: &str = "function_declaration";
 // neutral default for a primitive that is default-off in production anyway.
 const RUST_FUNC: &str = "function_item";
 const C_FUNC: &str = "function_definition";
+const JAVA_FUNC: &str = "method_declaration";
 const IF: &str = "if_statement";
 const RETURN: &str = "return_statement";
 
@@ -66,6 +67,7 @@ fn file_avg_guards(source: &str, language: Language) -> Option<f64> {
         Language::Go => GO_FUNC,
         Language::Rust => RUST_FUNC,
         Language::C => C_FUNC,
+        Language::Java => JAVA_FUNC,
     };
     let mut counts: Vec<f64> = Vec::new();
     let mut stack = vec![tree.root_node()];
@@ -86,9 +88,11 @@ fn file_avg_guards(source: &str, language: Language) -> Option<f64> {
     Some(counts.iter().sum::<f64>() / counts.len() as f64)
 }
 
-/// Try Python grammar then TypeScript; first defined average wins.
+/// Try Python grammar, then TypeScript, then Java; first defined average wins.
 fn score_hunk_avg(hunk: &str) -> Option<f64> {
-    file_avg_guards(hunk, Language::Python).or_else(|| file_avg_guards(hunk, Language::Typescript))
+    file_avg_guards(hunk, Language::Python)
+        .or_else(|| file_avg_guards(hunk, Language::Typescript))
+        .or_else(|| file_avg_guards(hunk, Language::Java))
 }
 
 /// Fall-through-guard count primitive.

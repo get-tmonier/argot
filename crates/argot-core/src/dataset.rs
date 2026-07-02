@@ -12,6 +12,8 @@ use serde::{Deserialize, Serialize};
 
 /// Source language of a hunk. Serialises to lowercase strings:
 /// `"typescript" | "javascript" | "python" | "go" | "rust"`.
+/// Source language of a hunk. Serialises to the exact lowercase strings the
+/// wire format uses: `"typescript" | "javascript" | "python" | "java"`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Language {
@@ -21,6 +23,7 @@ pub enum Language {
     Go,
     Rust,
     C,
+    Java,
 }
 
 /// A single leaf token from the tree-sitter parse (`dataset.Token`).
