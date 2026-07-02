@@ -46,6 +46,9 @@ sha2 = "0.10"
 # `.argot/suppressions.yaml` loader — pure Rust (unsafe-libyaml), keeps the
 # single-static-binary story.
 serde_yaml = "0.9"
+# `argot update` self-update: reads the install receipt written by the
+# cargo-dist shell installer and re-runs the latest release's installer.
+axoupdater = { version = "0.10", default-features = false, features = ["github_releases", "blocking"] }
 
 [profile.release]
 lto = true
