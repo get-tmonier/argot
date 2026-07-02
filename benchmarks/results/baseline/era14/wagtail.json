@@ -5,10 +5,10 @@
   "n_flagged_fixtures": 14,
   "uncaught": [],
   "n_controls": 22435,
-  "n_eligible_controls": 12077,
-  "n_false_positives": 172,
-  "fp_rate": 0.014241947503519085,
-  "auc": 0.9988171139947243,
+  "n_eligible_controls": 12155,
+  "n_false_positives": 41,
+  "fp_rate": 0.0033730974907445494,
+  "auc": 0.9986601633660457,
   "threshold": 4.6714056047640495,
   "seed_thresholds": [
     4.6714056047640495,
@@ -53,8 +53,8 @@
   },
   "stage_attribution": {
     "bpe": 9,
-    "call_receiver": 3,
-    "import": 2
+    "call_receiver": 4,
+    "import": 1
   },
   "fixture_results": [
     {
@@ -127,7 +127,7 @@
       "import_score": 2.0,
       "bpe_score": 4.6714056047640495,
       "flagged": true,
-      "reason": "import"
+      "reason": "call_receiver"
     },
     {
       "id": "print_debug_1",

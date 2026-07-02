@@ -402,33 +402,40 @@ a deterministic faker-js provider, etc.). Each break is scored against
 a backdrop of **494k+ real PR hunks** from the same repos as negative
 controls.
 
-Latest full bench (171 catalog fixtures across 6 library + 4 application
-corpora, K=7 multi-seed calibration, current shipping config with
-`--auto-select-asym-cal`):
+Latest full bench, **production-path mode** (171 catalog fixtures across
+6 library + 4 application corpora): every fixture is planted into its
+host file on disk, staged with real git, and judged by the actual
+`argot fit` → `argot check --staged` pipeline — self-attestation
+conditions and all. The false-positive control replays each corpus's
+last 30 real commits through `argot check --commit`.
 
-| Corpus | Type | AUC | Recall | FP rate |
-|:---|:---|---:|---:|---:|
-| fastapi | library | **0.995** | 30/32 (93.8%) | 0.53% |
-| rich | library | **0.996** | 16/16 (**100%**) | 1.23% |
-| faker (py) | library | 0.954 | 15/16 (93.8%) | 1.92% |
-| hono | library | 0.833 | 15/17 (88.2%) | 0.51% |
-| ink | library | **0.991** | 16/17 (94.1%) | 0.39% |
-| faker-js | library | 0.948 | 16/17 (94.1%) | 1.70% |
-| saleor | application | **0.993** | 12/14 (85.7%) | **0.24%** |
-| wagtail | application | **0.999** | 14/14 (**100%**) | **0.34%** |
-| excalidraw | application | 0.957 | 9/14 (64.3%) | **0.43%** |
-| outline | application | 0.879 | 10/14 (71.4%) | **0.46%** |
+| Corpus | Type | Recall | FP rate (30-commit replay) |
+|:---|:---|---:|---:|
+| fastapi | library | 32/32 (**100%**) | **0.00%** |
+| rich | library | 16/16 (**100%**) | **0.00%** |
+| faker (py) | library | 16/16 (**100%**) | **0.00%** |
+| hono | library | 16/17 (94.1%) | **0.00%** |
+| ink | library | 17/17 (**100%**) | 1.22% |
+| faker-js | library | 14/17 (82.4%) | **0.00%** |
+| saleor | application | 14/14 (**100%**) | 2.07% |
+| wagtail | application | 14/14 (**100%**) | **0.00%** |
+| excalidraw | application | 9/14 (64.3%) | 3.17% |
+| outline | application | 12/14 (85.7%) | 0.48% |
 
-Library fixture catches **108/115 (93.9%)** with **FP ≤ 2.0% on all six**;
-application fixture catches **45/56 (80.4%)** with **FP ≤ 0.5% on all
-four**. The production scorer ships with the AST-derived typicality
-filter plus the BPE scorer call-receiver penalty (α=2.0, root_bonus=2.0,
-cluster_bonus=5.0, K=8 MinHash clusters). The latest configuration adds
-`cluster_rare_threshold=2` gated by per-corpus auto-detect: at fit time,
-probe the rule's per-hunk fire rate on extracted diff hunks; enable the
-rule on corpora where it's informative (~2% fire rate on uniform-cluster
-repos) and disable it where it would FP-flood (10–22% fire rate on
-heterogeneous repos). Runs are deterministic and reproducible.
+Library fixture catches **111/115 (96.5%)**; application fixture catches
+**49/56 (87.5%)**; overall **160/171 (93.6%)** — through the real check
+pipeline, not a synthetic harness (the previous headline, 153/171, came
+from a harness-side scorer the shipped tool could not reproduce; era 15
+closed that gap and the production path now sees strictly more than the
+old catalog mode on every corpus). The scorer ships with the fit-time
+model artifact (BPE token stats, callee attestation, cluster partition,
+convention-rarity frequencies — new code is judged against the voice as
+learned, never against itself), the AST-derived typicality filter at row
+granularity, the call-receiver penalty (α=2.0, root_bonus=2.0,
+cluster_bonus=5.0, K=8 MinHash clusters) with neighbourhood attestation,
+the convention-rarity stage (syntax-kind + identifier-morphology
+surprisal), and per-corpus auto-detect for the cluster-rare rule. Runs
+are deterministic and reproducible.
 
 Reproduce with a single command:
 
@@ -452,7 +459,8 @@ argot is **alpha** software. We ship honest benchmarks and a public research log
 - **Best on codebases with a consistent hand.** Highly polyglot repos or repos with many contributors and no enforced style are harder to model.
 - ~~**Single-threshold model on multi-language monorepos.** Mixed Python + TypeScript repos calibrate against a joint distribution today, dominated by whichever language has broader token diversity. Per-language calibration is on the roadmap ([#41](https://github.com/get-tmonier/argot/issues/41)).~~ ✅ **Shipped** (closes [#41](https://github.com/get-tmonier/argot/issues/41)) — `argot calibrate` now emits one threshold per language present in the repo and `argot check` dispatches each hunk by file extension. Dagster is the reference multi-language corpus; see [`docs/research/decisions/per-language-calibration.md`](docs/research/decisions/per-language-calibration.md).
 - ~~**Validation corpus is library-only.**~~ ✅ **Validated on applications** (closes [#66](https://github.com/get-tmonier/argot/issues/66)) — four application corpora (Saleor, Wagtail, Excalidraw, Outline) benchmarked and published with lib-vs-app categorization. Python applications clear the library bar; TypeScript applications keep FP ≤ 0.5% but miss subtle structural breaks — see [`docs/research/evidence/application-corpora-validation.md`](docs/research/evidence/application-corpora-validation.md).
-- **Residual recall and FP gaps** — 108/115 library fixtures caught, two corpora at ~1.7–1.9% FP. Research era 14 ([#54](https://github.com/get-tmonier/argot/issues/54)) ran four pre-registered mechanisms at the ≤ 1% FP goal; all four were refuted with documented structural reasons (per-callee frequency is exhausted as a mechanism family) — see [`docs/research/evidence/era14-final.md`](docs/research/evidence/era14-final.md). The parse-error host fallback ships in the engine (default-off) and puts fastapi at 32/32 for any future era that pairs it with a compatible threshold mechanism.
+- **Residual recall gaps** — 111/115 library and 49/56 application fixtures caught through the production path. The remaining excalidraw residuals (callback pyramids, vue idioms) map to signal families with documented refutations (era 15 scouted and refuted sub-max thresholding, sustained token-surprise aggregation, and nesting-depth conventions against them) — see [`docs/research/evidence/era15-production-path.md`](docs/research/evidence/era15-production-path.md). Era 14's mechanism refutations remain binding ([`docs/research/evidence/era14-final.md`](docs/research/evidence/era14-final.md)); its parse-error host fallback now ships **on** in production, which is what put fastapi at 32/32.
+- **Voice-novel commits flag proportionally.** Fixing the self-attestation bug (#79) means genuinely new feature areas — new components, new dependency surfaces — score as new voice until the next `argot fit`. A stale model amplifies this (a month of drift measured ~14× the hit volume of a fresh fit), so `check` warns when the fit is ≥ 10 commits old; refits take seconds on the model artifact.
 - **Cold start on brand-new files:** less context to score against.
 - **Signal is noisier on very small hunks** (< 5 lines).
 

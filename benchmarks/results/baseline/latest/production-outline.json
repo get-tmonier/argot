@@ -1,0 +1,157 @@
+{
+  "corpus": "outline",
+  "n_fixtures": 14,
+  "n_caught": 12,
+  "uncaught": [
+    "outline_foreign_http_2",
+    "outline_class_components_1"
+  ],
+  "thresholds": {
+    "typescript": 4.937699999004208
+  },
+  "resolved_rare": {
+    "typescript": 0
+  },
+  "fp_commits": 30,
+  "fp_hunks": 209,
+  "fp_hits": 1,
+  "fp_rate": 0.004784688995215311,
+  "fixture_results": [
+    {
+      "id": "outline_jquery_1",
+      "category": "jquery",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 4.646964393627682
+    },
+    {
+      "id": "outline_jquery_2",
+      "category": "jquery",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 2.291761829977588
+    },
+    {
+      "id": "outline_redux_boilerplate_1",
+      "category": "redux_boilerplate",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 2.4944805667304486
+    },
+    {
+      "id": "outline_redux_boilerplate_2",
+      "category": "redux_boilerplate",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 1.74827416488435
+    },
+    {
+      "id": "outline_express_idioms_1",
+      "category": "express_idioms",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 4.646964393627682
+    },
+    {
+      "id": "outline_express_idioms_2",
+      "category": "express_idioms",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 1.9141454112095089
+    },
+    {
+      "id": "outline_raw_sql_1",
+      "category": "raw_sql",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 5.64232958673383
+    },
+    {
+      "id": "outline_raw_sql_2",
+      "category": "raw_sql",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 5.246826464598678
+    },
+    {
+      "id": "outline_foreign_http_1",
+      "category": "foreign_http",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 2.3167362634687354
+    },
+    {
+      "id": "outline_foreign_http_2",
+      "category": "foreign_http",
+      "language": null,
+      "flagged": false,
+      "reasons": [],
+      "max_score": 0.0
+    },
+    {
+      "id": "outline_shell_out_1",
+      "category": "shell_out",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 5.858003940173219
+    },
+    {
+      "id": "outline_shell_out_2",
+      "category": "shell_out",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.80389423463901
+    },
+    {
+      "id": "outline_class_components_1",
+      "category": "class_components",
+      "language": null,
+      "flagged": false,
+      "reasons": [],
+      "max_score": 0.0
+    },
+    {
+      "id": "outline_class_components_2",
+      "category": "class_components",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 1.5532349035828863
+    }
+  ]
+}

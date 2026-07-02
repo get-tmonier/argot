@@ -1,0 +1,178 @@
+{
+  "corpus": "faker",
+  "n_fixtures": 16,
+  "n_caught": 16,
+  "uncaught": [],
+  "thresholds": {
+    "python": 4.765490657427074
+  },
+  "resolved_rare": {
+    "python": 0
+  },
+  "fp_commits": 30,
+  "fp_hunks": 27,
+  "fp_hits": 0,
+  "fp_rate": 0.0,
+  "fixture_results": [
+    {
+      "id": "mimesis_alt_1",
+      "category": "mimesis_alt",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 3.658226713844426
+    },
+    {
+      "id": "threading_provider_1",
+      "category": "threading_provider",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 7.339132885635042
+    },
+    {
+      "id": "sqlalchemy_sink_1",
+      "category": "sqlalchemy_sink",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.956828655756679
+    },
+    {
+      "id": "numpy_random_1",
+      "category": "numpy_random",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 4.593258125805839
+    },
+    {
+      "id": "requests_source_1",
+      "category": "requests_source",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 7.380159938259968
+    },
+    {
+      "id": "mimesis_alt_2",
+      "category": "mimesis_alt",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 5.729405089538389
+    },
+    {
+      "id": "mimesis_alt_3",
+      "category": "mimesis_alt",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 4.615506071191586
+    },
+    {
+      "id": "threading_provider_2",
+      "category": "threading_provider",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.058732574724017
+    },
+    {
+      "id": "threading_provider_3",
+      "category": "threading_provider",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.928926845982328
+    },
+    {
+      "id": "sqlalchemy_sink_2",
+      "category": "sqlalchemy_sink",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 4.570503924843333
+    },
+    {
+      "id": "sqlalchemy_sink_3",
+      "category": "sqlalchemy_sink",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.1240989479278305
+    },
+    {
+      "id": "numpy_random_2",
+      "category": "numpy_random",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 5.785579982321298
+    },
+    {
+      "id": "numpy_random_3",
+      "category": "numpy_random",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 5.303692380218676
+    },
+    {
+      "id": "requests_source_2",
+      "category": "requests_source",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 7.2421532969506845
+    },
+    {
+      "id": "requests_source_3",
+      "category": "requests_source",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.596321170925275
+    },
+    {
+      "id": "synthetic_formula_1",
+      "category": "numpy_random",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 3.658226713844426
+    }
+  ]
+}

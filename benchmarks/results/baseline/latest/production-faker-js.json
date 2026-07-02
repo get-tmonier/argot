@@ -1,0 +1,186 @@
+{
+  "corpus": "faker-js",
+  "n_fixtures": 17,
+  "n_caught": 14,
+  "uncaught": [
+    "faker_js_runtime_fetch_1",
+    "faker_js_error_flip_1",
+    "faker_js_error_flip_3"
+  ],
+  "thresholds": {
+    "typescript": 4.721930850987977
+  },
+  "resolved_rare": {
+    "typescript": 0
+  },
+  "fp_commits": 30,
+  "fp_hunks": 172,
+  "fp_hits": 0,
+  "fp_rate": 0.0,
+  "fixture_results": [
+    {
+      "id": "faker_js_foreign_rng_1",
+      "category": "foreign_rng",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 1.040951441305234
+    },
+    {
+      "id": "faker_js_foreign_rng_2",
+      "category": "foreign_rng",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 2.886307389233812
+    },
+    {
+      "id": "faker_js_foreign_rng_3",
+      "category": "foreign_rng",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 1.1703398269070409
+    },
+    {
+      "id": "faker_js_runtime_fetch_1",
+      "category": "runtime_fetch",
+      "language": null,
+      "flagged": false,
+      "reasons": [],
+      "max_score": 0.0
+    },
+    {
+      "id": "faker_js_runtime_fetch_2",
+      "category": "runtime_fetch",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 5.21108702944016
+    },
+    {
+      "id": "faker_js_runtime_fetch_3",
+      "category": "runtime_fetch",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 5.21108702944016
+    },
+    {
+      "id": "faker_js_threading_1",
+      "category": "threading",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 4.69985562045075
+    },
+    {
+      "id": "faker_js_threading_2",
+      "category": "threading",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.053522868162448
+    },
+    {
+      "id": "faker_js_threading_3",
+      "category": "threading",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.683471703379444
+    },
+    {
+      "id": "faker_js_http_sink_1",
+      "category": "http_sink",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 5.21108702944016
+    },
+    {
+      "id": "faker_js_http_sink_2",
+      "category": "http_sink",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 3.7667351676728096
+    },
+    {
+      "id": "faker_js_http_sink_3",
+      "category": "http_sink",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 2.5264529708995624
+    },
+    {
+      "id": "faker_js_error_flip_1",
+      "category": "error_flip",
+      "language": null,
+      "flagged": false,
+      "reasons": [],
+      "max_score": 0.0
+    },
+    {
+      "id": "faker_js_error_flip_2",
+      "category": "error_flip",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 5.785579982321298
+    },
+    {
+      "id": "faker_js_error_flip_3",
+      "category": "error_flip",
+      "language": null,
+      "flagged": false,
+      "reasons": [],
+      "max_score": 0.0
+    },
+    {
+      "id": "faker_js_http_sink_4",
+      "category": "http_sink",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 3.7667351676728096
+    },
+    {
+      "id": "faker_js_runtime_fetch_4",
+      "category": "runtime_fetch",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 4.593258125805839
+    }
+  ]
+}

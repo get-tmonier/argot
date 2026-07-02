@@ -1,0 +1,178 @@
+{
+  "corpus": "rich",
+  "n_fixtures": 16,
+  "n_caught": 16,
+  "uncaught": [],
+  "thresholds": {
+    "python": 4.2504279277400485
+  },
+  "resolved_rare": {
+    "python": 0
+  },
+  "fp_commits": 30,
+  "fp_hunks": 30,
+  "fp_hits": 0,
+  "fp_rate": 0.0,
+  "fixture_results": [
+    {
+      "id": "ansi_raw_1",
+      "category": "ansi_raw",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 5.457132350833485
+    },
+    {
+      "id": "ansi_raw_2",
+      "category": "ansi_raw",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 4.980180920860773
+    },
+    {
+      "id": "colorama_1",
+      "category": "colorama",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.729681876256576
+    },
+    {
+      "id": "colorama_2",
+      "category": "colorama",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 5.966250208814639
+    },
+    {
+      "id": "curses_1",
+      "category": "curses",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.2979071776744195
+    },
+    {
+      "id": "curses_2",
+      "category": "curses",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 7.668379040086203
+    },
+    {
+      "id": "print_manual_1",
+      "category": "print_manual",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 5.246826464598678
+    },
+    {
+      "id": "print_manual_2",
+      "category": "print_manual",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.729681876256576
+    },
+    {
+      "id": "termcolor_1",
+      "category": "termcolor",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.293807968334496
+    },
+    {
+      "id": "termcolor_2",
+      "category": "termcolor",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.729681876256576
+    },
+    {
+      "id": "ansi_raw_3",
+      "category": "ansi_raw",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 5.547733123620297
+    },
+    {
+      "id": "colorama_3",
+      "category": "colorama",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 5.845220114814635
+    },
+    {
+      "id": "curses_3",
+      "category": "curses",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.027059272323285
+    },
+    {
+      "id": "print_manual_3",
+      "category": "print_manual",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.2979071776744195
+    },
+    {
+      "id": "termcolor_3",
+      "category": "termcolor",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 5.901502612626091
+    },
+    {
+      "id": "dict_render_1",
+      "category": "print_manual",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.2979071776744195
+    }
+  ]
+}

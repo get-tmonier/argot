@@ -2,20 +2,19 @@
   "corpus": "excalidraw",
   "language": "typescript",
   "n_fixtures": 14,
-  "n_flagged_fixtures": 8,
+  "n_flagged_fixtures": 9,
   "uncaught": [
     "excalidraw_legacy_lifecycle_1",
+    "excalidraw_legacy_lifecycle_2",
     "excalidraw_redux_store_2",
-    "excalidraw_callback_pyramid_1",
     "excalidraw_callback_pyramid_2",
-    "excalidraw_vue_idioms_1",
     "excalidraw_vue_idioms_2"
   ],
   "n_controls": 25184,
-  "n_eligible_controls": 19316,
-  "n_false_positives": 319,
-  "fp_rate": 0.01651480637813212,
-  "auc": 0.9575093186995237,
+  "n_eligible_controls": 19408,
+  "n_false_positives": 84,
+  "fp_rate": 0.004328112118713932,
+  "auc": 0.9573611029325167,
   "threshold": 5.7596870102642255,
   "seed_thresholds": [
     5.7596870102642255,
@@ -30,7 +29,7 @@
   "resolved_rare_threshold": 0,
   "recall_by_category": {
     "callback_pyramid": [
-      0,
+      1,
       2
     ],
     "jquery": [
@@ -38,7 +37,7 @@
       2
     ],
     "legacy_lifecycle": [
-      1,
+      0,
       2
     ],
     "moment_dates": [
@@ -50,7 +49,7 @@
       2
     ],
     "vue_idioms": [
-      0,
+      1,
       2
     ],
     "xhr_network": [
@@ -59,9 +58,8 @@
     ]
   },
   "stage_attribution": {
-    "call_receiver": 7,
-    "import": 1,
-    "none": 6
+    "call_receiver": 9,
+    "none": 5
   },
   "fixture_results": [
     {
@@ -115,8 +113,8 @@
       "difficulty": "medium",
       "import_score": 0.0,
       "bpe_score": 3.845031063615245,
-      "flagged": true,
-      "reason": "call_receiver"
+      "flagged": false,
+      "reason": "none"
     },
     {
       "id": "excalidraw_redux_store_1",
@@ -125,7 +123,7 @@
       "import_score": 1.0,
       "bpe_score": 4.506888512695289,
       "flagged": true,
-      "reason": "import"
+      "reason": "call_receiver"
     },
     {
       "id": "excalidraw_redux_store_2",
@@ -160,8 +158,8 @@
       "difficulty": "hard",
       "import_score": 0.0,
       "bpe_score": 3.18820672295488,
-      "flagged": false,
-      "reason": "none"
+      "flagged": true,
+      "reason": "call_receiver"
     },
     {
       "id": "excalidraw_callback_pyramid_2",
@@ -178,8 +176,8 @@
       "difficulty": "medium",
       "import_score": 0.0,
       "bpe_score": 3.853855101556544,
-      "flagged": false,
-      "reason": "none"
+      "flagged": true,
+      "reason": "call_receiver"
     },
     {
       "id": "excalidraw_vue_idioms_2",

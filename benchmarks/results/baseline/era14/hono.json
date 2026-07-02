@@ -2,18 +2,16 @@
   "corpus": "hono",
   "language": "typescript",
   "n_fixtures": 17,
-  "n_flagged_fixtures": 13,
+  "n_flagged_fixtures": 15,
   "uncaught": [
     "hono_validation_2",
-    "hono_middleware_2",
-    "hono_middleware_3",
-    "hono_routing_2"
+    "hono_middleware_3"
   ],
   "n_controls": 54987,
-  "n_eligible_controls": 31745,
-  "n_false_positives": 1004,
-  "fp_rate": 0.03162702787840605,
-  "auc": 0.8326267221331752,
+  "n_eligible_controls": 31775,
+  "n_false_positives": 163,
+  "fp_rate": 0.005129819040125885,
+  "auc": 0.8325811079742677,
   "threshold": 4.270709035224123,
   "seed_thresholds": [
     4.270709035224123,
@@ -36,11 +34,11 @@
       4
     ],
     "middleware": [
-      2,
+      3,
       4
     ],
     "routing": [
-      2,
+      3,
       3
     ],
     "validation": [
@@ -50,9 +48,9 @@
   },
   "stage_attribution": {
     "bpe": 9,
-    "call_receiver": 3,
+    "call_receiver": 5,
     "import": 1,
-    "none": 4
+    "none": 2
   },
   "fixture_results": [
     {
@@ -151,8 +149,8 @@
       "difficulty": "uncaught",
       "import_score": 0.0,
       "bpe_score": 0.11042218321100528,
-      "flagged": false,
-      "reason": "none"
+      "flagged": true,
+      "reason": "call_receiver"
     },
     {
       "id": "hono_middleware_3",
@@ -178,8 +176,8 @@
       "difficulty": "hard",
       "import_score": 0.0,
       "bpe_score": 1.1832357893129561,
-      "flagged": false,
-      "reason": "none"
+      "flagged": true,
+      "reason": "call_receiver"
     },
     {
       "id": "hono_routing_3",

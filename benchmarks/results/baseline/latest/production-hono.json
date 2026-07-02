@@ -1,0 +1,188 @@
+{
+  "corpus": "hono",
+  "n_fixtures": 17,
+  "n_caught": 16,
+  "uncaught": [
+    "hono_middleware_3"
+  ],
+  "thresholds": {
+    "typescript": 5.440719814537371
+  },
+  "resolved_rare": {
+    "typescript": 0
+  },
+  "fp_commits": 30,
+  "fp_hunks": 53,
+  "fp_hits": 0,
+  "fp_rate": 0.0,
+  "fixture_results": [
+    {
+      "id": "hono_framework_swap_1",
+      "category": "framework_swap",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 3.145482318081042
+    },
+    {
+      "id": "hono_framework_swap_2",
+      "category": "framework_swap",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 5.21108702944016
+    },
+    {
+      "id": "hono_framework_swap_3",
+      "category": "framework_swap",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 7.174687943136394
+    },
+    {
+      "id": "hono_async_blocking_1",
+      "category": "async_blocking",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 5.812526743929901
+    },
+    {
+      "id": "hono_async_blocking_2",
+      "category": "async_blocking",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.406351573336135
+    },
+    {
+      "id": "hono_async_blocking_3",
+      "category": "async_blocking",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 7.711092337945335
+    },
+    {
+      "id": "hono_validation_1",
+      "category": "validation",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.487396130158775
+    },
+    {
+      "id": "hono_validation_2",
+      "category": "validation",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 1.5178883147739022
+    },
+    {
+      "id": "hono_validation_3",
+      "category": "validation",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 5.598398318239187
+    },
+    {
+      "id": "hono_middleware_1",
+      "category": "middleware",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 5.303692380218676
+    },
+    {
+      "id": "hono_middleware_2",
+      "category": "middleware",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 0.9719571245109028
+    },
+    {
+      "id": "hono_middleware_3",
+      "category": "middleware",
+      "language": null,
+      "flagged": false,
+      "reasons": [],
+      "max_score": 0.0
+    },
+    {
+      "id": "hono_routing_1",
+      "category": "routing",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 7.435433808136441
+    },
+    {
+      "id": "hono_routing_2",
+      "category": "routing",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 4.473926711578388
+    },
+    {
+      "id": "hono_routing_3",
+      "category": "routing",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 3.9955201556120414
+    },
+    {
+      "id": "hono_framework_swap_4",
+      "category": "framework_swap",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 5.3574978200151
+    },
+    {
+      "id": "hono_middleware_4",
+      "category": "middleware",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 7.435433808136441
+    }
+  ]
+}

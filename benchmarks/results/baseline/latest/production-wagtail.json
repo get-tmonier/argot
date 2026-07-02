@@ -1,0 +1,160 @@
+{
+  "corpus": "wagtail",
+  "n_fixtures": 14,
+  "n_caught": 14,
+  "uncaught": [],
+  "thresholds": {
+    "python": 3.8334554186696943,
+    "typescript": 3.9680237387944
+  },
+  "resolved_rare": {
+    "python": 0,
+    "typescript": 0
+  },
+  "fp_commits": 30,
+  "fp_hunks": 29,
+  "fp_hits": 0,
+  "fp_rate": 0.0,
+  "fixture_results": [
+    {
+      "id": "raw_sql_1",
+      "category": "raw_sql",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.353598679115418
+    },
+    {
+      "id": "raw_sql_2",
+      "category": "raw_sql",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 5.994349865543263
+    },
+    {
+      "id": "http_in_model_1",
+      "category": "http_in_model",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 7.32897240664437
+    },
+    {
+      "id": "http_in_model_2",
+      "category": "http_in_model",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 7.2421532969506845
+    },
+    {
+      "id": "threading_1",
+      "category": "threading_concurrency",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 6.552896740780618
+    },
+    {
+      "id": "threading_2",
+      "category": "threading_concurrency",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.053522868162448
+    },
+    {
+      "id": "framework_swap_1",
+      "category": "framework_swap",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 4.3089436542533655
+    },
+    {
+      "id": "framework_swap_2",
+      "category": "framework_swap",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 6.398983695869024
+    },
+    {
+      "id": "print_debug_1",
+      "category": "print_debug",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.449453980632002
+    },
+    {
+      "id": "print_debug_2",
+      "category": "print_debug",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "call_receiver"
+      ],
+      "max_score": 3.8334554186696943
+    },
+    {
+      "id": "sleep_polling_1",
+      "category": "sleep_polling",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 7.32897240664437
+    },
+    {
+      "id": "sleep_polling_2",
+      "category": "sleep_polling",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 5.0395016518799896
+    },
+    {
+      "id": "subprocess_1",
+      "category": "subprocess_shell",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 7.403450262979589
+    },
+    {
+      "id": "subprocess_2",
+      "category": "subprocess_shell",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.514113380282348
+    }
+  ]
+}

@@ -2,13 +2,16 @@
   "corpus": "fastapi",
   "language": "python",
   "n_fixtures": 32,
-  "n_flagged_fixtures": 32,
-  "uncaught": [],
+  "n_flagged_fixtures": 30,
+  "uncaught": [
+    "validation_2",
+    "exception_handling_4"
+  ],
   "n_controls": 79476,
-  "n_eligible_controls": 30685,
-  "n_false_positives": 510,
-  "fp_rate": 0.01662049861495845,
-  "auc": 0.9949827888218999,
+  "n_eligible_controls": 30758,
+  "n_false_positives": 164,
+  "fp_rate": 0.005331946160348528,
+  "auc": 0.9949896165225307,
   "threshold": 5.258453517608745,
   "seed_thresholds": [
     5.258453517608745,
@@ -39,7 +42,7 @@
       3
     ],
     "exception_handling": [
-      6,
+      5,
       6
     ],
     "framework_swap": [
@@ -55,13 +58,14 @@
       3
     ],
     "validation": [
-      4,
+      3,
       4
     ]
   },
   "stage_attribution": {
     "bpe": 24,
-    "call_receiver": 8
+    "call_receiver": 6,
+    "none": 2
   },
   "fixture_results": [
     {
@@ -160,8 +164,8 @@
       "difficulty": "uncaught",
       "import_score": 0.0,
       "bpe_score": 3.8168714205759535,
-      "flagged": true,
-      "reason": "call_receiver"
+      "flagged": false,
+      "reason": "none"
     },
     {
       "id": "validation_3",
@@ -295,8 +299,8 @@
       "difficulty": "uncaught",
       "import_score": 0.0,
       "bpe_score": 3.8168714205759535,
-      "flagged": true,
-      "reason": "call_receiver"
+      "flagged": false,
+      "reason": "none"
     },
     {
       "id": "exception_handling_5",

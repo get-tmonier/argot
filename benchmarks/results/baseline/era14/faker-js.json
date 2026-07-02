@@ -2,17 +2,15 @@
   "corpus": "faker-js",
   "language": "typescript",
   "n_fixtures": 17,
-  "n_flagged_fixtures": 14,
+  "n_flagged_fixtures": 16,
   "uncaught": [
-    "faker_js_foreign_rng_2",
-    "faker_js_error_flip_2",
-    "faker_js_error_flip_3"
+    "faker_js_error_flip_2"
   ],
   "n_controls": 256335,
-  "n_eligible_controls": 40540,
-  "n_false_positives": 2814,
-  "fp_rate": 0.0694129255056734,
-  "auc": 0.9656033256914014,
+  "n_eligible_controls": 44680,
+  "n_false_positives": 761,
+  "fp_rate": 0.017032229185317816,
+  "auc": 0.9476808942019064,
   "threshold": 4.860744702339855,
   "seed_thresholds": [
     4.860744702339855,
@@ -27,11 +25,11 @@
   "resolved_rare_threshold": 2,
   "recall_by_category": {
     "error_flip": [
-      1,
+      2,
       3
     ],
     "foreign_rng": [
-      2,
+      3,
       3
     ],
     "http_sink": [
@@ -49,8 +47,8 @@
   },
   "stage_attribution": {
     "bpe": 3,
-    "call_receiver": 11,
-    "none": 3
+    "call_receiver": 13,
+    "none": 1
   },
   "fixture_results": [
     {
@@ -68,8 +66,8 @@
       "difficulty": "hard",
       "import_score": 0.0,
       "bpe_score": 3.195454030705367,
-      "flagged": false,
-      "reason": "none"
+      "flagged": true,
+      "reason": "call_receiver"
     },
     {
       "id": "faker_js_foreign_rng_3",
@@ -185,8 +183,8 @@
       "difficulty": "uncaught",
       "import_score": 0.0,
       "bpe_score": 4.05272359926979,
-      "flagged": false,
-      "reason": "none"
+      "flagged": true,
+      "reason": "call_receiver"
     },
     {
       "id": "faker_js_http_sink_4",

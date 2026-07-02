@@ -1,0 +1,338 @@
+{
+  "corpus": "fastapi",
+  "n_fixtures": 32,
+  "n_caught": 32,
+  "uncaught": [],
+  "thresholds": {
+    "python": 4.17969431286199
+  },
+  "resolved_rare": {
+    "python": 0
+  },
+  "fp_commits": 30,
+  "fp_hunks": 0,
+  "fp_hits": 0,
+  "fp_rate": 0.0,
+  "fixture_results": [
+    {
+      "id": "routing_1",
+      "category": "routing",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "framework_swap_1",
+      "category": "framework_swap",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "framework_swap_2",
+      "category": "framework_swap",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "validation_1",
+      "category": "validation",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "exception_handling_1",
+      "category": "exception_handling",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "downstream_http_1",
+      "category": "downstream_http",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "async_blocking_1",
+      "category": "async_blocking",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "exception_handling_2",
+      "category": "exception_handling",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "routing_2",
+      "category": "routing",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "framework_swap_3",
+      "category": "framework_swap",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 7.360563813352925
+    },
+    {
+      "id": "validation_2",
+      "category": "validation",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "validation_3",
+      "category": "validation",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "serialization_1",
+      "category": "serialization",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 7.066950847324582
+    },
+    {
+      "id": "exception_handling_3",
+      "category": "exception_handling",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "async_blocking_2",
+      "category": "async_blocking",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 7.360563813352925
+    },
+    {
+      "id": "downstream_http_2",
+      "category": "downstream_http",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "background_tasks_1",
+      "category": "background_tasks",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "async_blocking_3",
+      "category": "async_blocking",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 7.250077898828399
+    },
+    {
+      "id": "background_tasks_2",
+      "category": "background_tasks",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "background_tasks_3",
+      "category": "background_tasks",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "background_tasks_4",
+      "category": "background_tasks",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 7.360563813352925
+    },
+    {
+      "id": "dependency_injection_1",
+      "category": "dependency_injection",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "dependency_injection_2",
+      "category": "dependency_injection",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "dependency_injection_3",
+      "category": "dependency_injection",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "downstream_http_3",
+      "category": "downstream_http",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "exception_handling_4",
+      "category": "exception_handling",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "exception_handling_5",
+      "category": "exception_handling",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "import"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "exception_handling_6",
+      "category": "exception_handling",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "routing_3",
+      "category": "routing",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "serialization_2",
+      "category": "serialization",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.861402017609482
+    },
+    {
+      "id": "serialization_3",
+      "category": "serialization",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 7.818596025919756
+    },
+    {
+      "id": "validation_4",
+      "category": "validation",
+      "language": null,
+      "flagged": true,
+      "reasons": [
+        "bpe"
+      ],
+      "max_score": 6.861402017609482
+    }
+  ]
+}

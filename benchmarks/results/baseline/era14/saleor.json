@@ -2,17 +2,16 @@
   "corpus": "saleor",
   "language": "python",
   "n_fixtures": 14,
-  "n_flagged_fixtures": 11,
+  "n_flagged_fixtures": 12,
   "uncaught": [
     "raw_sql_2",
-    "print_debug_1",
-    "sleep_polling_2"
+    "print_debug_1"
   ],
   "n_controls": 29746,
-  "n_eligible_controls": 12712,
-  "n_false_positives": 77,
-  "fp_rate": 0.006057268722466961,
-  "auc": 0.993080216668165,
+  "n_eligible_controls": 12777,
+  "n_false_positives": 31,
+  "fp_rate": 0.002426234640369414,
+  "auc": 0.9930930578383032,
   "threshold": 5.438672608846307,
   "seed_thresholds": [
     5.260686289524812,
@@ -47,7 +46,7 @@
       2
     ],
     "sleep_polling": [
-      1,
+      2,
       2
     ],
     "thread_background": [
@@ -57,9 +56,8 @@
   },
   "stage_attribution": {
     "bpe": 5,
-    "call_receiver": 5,
-    "import": 1,
-    "none": 3
+    "call_receiver": 7,
+    "none": 2
   },
   "fixture_results": [
     {
@@ -132,7 +130,7 @@
       "import_score": 1.0,
       "bpe_score": 4.933260536484301,
       "flagged": true,
-      "reason": "import"
+      "reason": "call_receiver"
     },
     {
       "id": "print_debug_1",
@@ -167,8 +165,8 @@
       "difficulty": "hard",
       "import_score": 0.0,
       "bpe_score": 4.207718171167093,
-      "flagged": false,
-      "reason": "none"
+      "flagged": true,
+      "reason": "call_receiver"
     },
     {
       "id": "shell_out_1",

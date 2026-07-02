@@ -7,10 +7,10 @@
     "ink_dom_access_2"
   ],
   "n_controls": 16678,
-  "n_eligible_controls": 7185,
-  "n_false_positives": 104,
-  "fp_rate": 0.014474599860821155,
-  "auc": 0.990552212534283,
+  "n_eligible_controls": 7204,
+  "n_false_positives": 28,
+  "fp_rate": 0.003886729594669628,
+  "auc": 0.9905036417676454,
   "threshold": 4.9931728260805714,
   "seed_thresholds": [
     4.9931728260805714,
