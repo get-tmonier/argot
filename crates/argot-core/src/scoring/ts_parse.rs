@@ -16,6 +16,7 @@ fn new_parser(language: Language) -> Parser {
     let lang: tree_sitter::Language = match language {
         Language::Python => tree_sitter_python::LANGUAGE.into(),
         Language::Typescript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+        Language::Java => tree_sitter_java::LANGUAGE.into(),
     };
     parser
         .set_language(&lang)
@@ -26,6 +27,7 @@ fn new_parser(language: Language) -> Parser {
 thread_local! {
     static PY_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Python));
     static TS_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Typescript));
+    static JAVA_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Java));
 }
 
 /// Parse `source` with a reused per-thread parser for `language`.
@@ -33,5 +35,6 @@ pub fn parse(source: &str, language: Language) -> Option<Tree> {
     match language {
         Language::Python => PY_PARSER.with(|p| p.borrow_mut().parse(source, None)),
         Language::Typescript => TS_PARSER.with(|p| p.borrow_mut().parse(source, None)),
+        Language::Java => JAVA_PARSER.with(|p| p.borrow_mut().parse(source, None)),
     }
 }

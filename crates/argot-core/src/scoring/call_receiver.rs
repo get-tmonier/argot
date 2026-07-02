@@ -41,6 +41,9 @@ fn py_call_types(kind: &str) -> bool {
 fn ts_call_types(kind: &str) -> bool {
     kind == "call_expression" || kind == "new_expression"
 }
+fn java_call_types(kind: &str) -> bool {
+    kind == "method_invocation" || kind == "object_creation_expression"
+}
 
 fn extract_python_callee(call_node: Node, src: &[u8]) -> Option<String> {
     let mut callee = call_node.child_by_field_name("function")?;
@@ -95,6 +98,65 @@ fn extract_typescript_callee(call_node: Node, src: &[u8]) -> Option<String> {
     }
 }
 
+/// Simple type name of a constructor's `type` node
+/// (`new java.util.ArrayList<String>()` → `ArrayList`).
+fn java_type_simple_name(node: Node, src: &[u8]) -> Option<String> {
+    match node.kind() {
+        "type_identifier" => Some(node_text(node, src)),
+        "generic_type" => {
+            let mut cursor = node.walk();
+            let named: Option<Node> = node.children(&mut cursor).find(|c| c.is_named());
+            named.and_then(|c| java_type_simple_name(c, src))
+        }
+        "scoped_type_identifier" => node
+            .child_by_field_name("name")
+            .map(|n| node_text(n, src))
+            .or_else(|| Some(node_text(node, src))),
+        _ => Some(node_text(node, src)),
+    }
+}
+
+/// Build the dotted receiver chain for a `method_invocation` object node.
+/// Mirrors [`extract_typescript_callee`]'s member walk: a call in the chain
+/// contributes the `<call>` sentinel; an unmodelled base returns `None`.
+fn build_java_receiver(node: Node, src: &[u8]) -> Option<String> {
+    match node.kind() {
+        "identifier" | "type_identifier" => Some(node_text(node, src)),
+        "this" => Some("this".to_string()),
+        "super" => Some("super".to_string()),
+        "method_invocation" | "object_creation_expression" => Some("<call>".to_string()),
+        "field_access" => {
+            let field = node.child_by_field_name("field")?;
+            let field_text = node_text(field, src);
+            match node.child_by_field_name("object") {
+                Some(obj) => {
+                    let base =
+                        build_java_receiver(obj, src).unwrap_or_else(|| "<call>".to_string());
+                    Some(format!("{base}.{field_text}"))
+                }
+                None => Some(field_text),
+            }
+        }
+        _ => None,
+    }
+}
+
+fn extract_java_callee(call_node: Node, src: &[u8]) -> Option<String> {
+    if call_node.kind() == "object_creation_expression" {
+        let ty = call_node.child_by_field_name("type")?;
+        return java_type_simple_name(ty, src);
+    }
+    let name = call_node.child_by_field_name("name")?;
+    let method = node_text(name, src);
+    match call_node.child_by_field_name("object") {
+        None => Some(method),
+        Some(obj) => {
+            let base = build_java_receiver(obj, src)?;
+            Some(format!("{base}.{method}"))
+        }
+    }
+}
+
 fn walk_preorder(root: Node, mut visit: impl FnMut(Node)) {
     // Stack DFS pushing reversed children, matching Python `_walk_nodes`.
     let mut stack = vec![root];
@@ -138,10 +200,12 @@ pub fn extract_callees(source: &str, language: Language) -> Vec<Option<String>> 
     let is_call = match language {
         Language::Python => py_call_types as fn(&str) -> bool,
         Language::Typescript => ts_call_types as fn(&str) -> bool,
+        Language::Java => java_call_types as fn(&str) -> bool,
     };
     let extractor = match language {
         Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Typescript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::Java => extract_java_callee as fn(Node, &[u8]) -> Option<String>,
     };
     walk_preorder(tree.root_node(), |node| {
         if is_call(node.kind()) {
@@ -178,10 +242,12 @@ pub fn callees_in_source_region(
     let is_call = match language {
         Language::Python => py_call_types as fn(&str) -> bool,
         Language::Typescript => ts_call_types as fn(&str) -> bool,
+        Language::Java => java_call_types as fn(&str) -> bool,
     };
     let extractor = match language {
         Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Typescript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::Java => extract_java_callee as fn(Node, &[u8]) -> Option<String>,
     };
     let mut out = Vec::new();
     walk_preorder(tree.root_node(), |node| {

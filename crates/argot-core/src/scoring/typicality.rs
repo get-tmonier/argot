@@ -67,6 +67,37 @@ const TS_CONTROL_NODE_TYPES: &[&str] = &[
     "switch_statement",
 ];
 
+const JAVA_LITERAL_NODE_TYPES: &[&str] = &[
+    "string_literal",
+    "character_literal",
+    "decimal_integer_literal",
+    "hex_integer_literal",
+    "octal_integer_literal",
+    "binary_integer_literal",
+    "decimal_floating_point_literal",
+    "hex_floating_point_literal",
+    "true",
+    "false",
+    "null_literal",
+];
+
+const JAVA_CONTROL_NODE_TYPES: &[&str] = &[
+    "if_statement",
+    "for_statement",
+    "enhanced_for_statement",
+    "while_statement",
+    "do_statement",
+    "try_statement",
+    "try_with_resources_statement",
+    "return_statement",
+    "method_declaration",
+    "constructor_declaration",
+    "class_declaration",
+    "switch_expression",
+    "throw_statement",
+    "synchronized_statement",
+];
+
 // Absolute cutoffs for the structural predicate.
 const LITERAL_RATIO_CUTOFF: f64 = 0.80;
 const NAMED_LEAF_COUNT_GATE: usize = 5;
@@ -97,6 +128,7 @@ fn node_type_sets(language: Language) -> (HashSet<&'static str>, HashSet<&'stati
     let (literal, control) = match language {
         Language::Python => (PY_LITERAL_NODE_TYPES, PY_CONTROL_NODE_TYPES),
         Language::Typescript => (TS_LITERAL_NODE_TYPES, TS_CONTROL_NODE_TYPES),
+        Language::Java => (JAVA_LITERAL_NODE_TYPES, JAVA_CONTROL_NODE_TYPES),
     };
     (
         literal.iter().copied().collect(),

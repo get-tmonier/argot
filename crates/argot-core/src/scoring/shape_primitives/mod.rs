@@ -34,6 +34,7 @@ pub(crate) fn parse(source: &str, language: Language) -> Option<Tree> {
     let lang: tree_sitter::Language = match language {
         Language::Python => tree_sitter_python::LANGUAGE.into(),
         Language::Typescript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+        Language::Java => tree_sitter_java::LANGUAGE.into(),
     };
     parser.set_language(&lang).ok()?;
     parser.parse(source, None)
@@ -60,6 +61,7 @@ pub(crate) fn is_call_kind(kind: &str, language: Language) -> bool {
     match language {
         Language::Python => kind == "call",
         Language::Typescript => kind == "call_expression" || kind == "new_expression",
+        Language::Java => kind == "method_invocation" || kind == "object_creation_expression",
     }
 }
 
