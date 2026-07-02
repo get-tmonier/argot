@@ -7,12 +7,12 @@
 # fitted once (`argot extract && argot fit`) before the hook can score
 # anything; an unfitted repo fails with exit 2 and a "run `argot fit`" hint.
 #
-# The hook scores staged changes only (`argot check . --staged`), which keeps
+# The hook scores staged changes only (`argot check --staged`), which keeps
 # it fast and scoped to what the commit will actually contain.
 - id: argot-check
   name: argot check (staged changes)
   description: Score staged hunks against the repo's fitted voice model.
-  entry: argot check . --staged
+  entry: argot check --staged
   language: system
   # argot reads the staged diff from git itself; filenames would be redundant.
   pass_filenames: false

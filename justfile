@@ -30,7 +30,7 @@ fit path=".":
     cargo run --release -p argot -- fit --repo {{path}}
 
 check path="." ref="HEAD~1..HEAD":
-    cargo run --release -p argot -- check {{path}} {{ref}}
+    cargo run --release -p argot -- check --repo {{path}} {{ref}}
 
 # --- benchmarks (crates/argot-bench) ---
 

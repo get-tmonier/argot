@@ -133,7 +133,7 @@ runs:
           args+=(--commit HEAD)
         fi
         set +e
-        argot check "$ARGOT_PATH" "${args[@]}" --format "$ARGOT_FORMAT" > "$ARGOT_OUT"
+        argot check --repo "$ARGOT_PATH" "${args[@]}" --format "$ARGOT_FORMAT" > "$ARGOT_OUT"
         code=$?
         set -e
         echo "exit-code=$code" >> "$GITHUB_OUTPUT"

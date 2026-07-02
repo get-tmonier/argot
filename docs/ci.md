@@ -63,7 +63,7 @@ Example: report hits without failing the build, keeping the annotations:
 
 The repo root also ships `.pre-commit-hooks.yaml`, so argot registers with the
 [pre-commit](https://pre-commit.com) framework. The hook runs
-`argot check . --staged` — staged changes only, so it stays fast and scoped to
+`argot check --staged` — staged changes only, so it stays fast and scoped to
 what the commit will contain.
 
 ```yaml
@@ -90,8 +90,8 @@ exactly one document to stdout (warnings go to stderr) and keep the usual exit
 semantics: `0` clean, `1` hits found, `2` usage/setup error.
 
 ```sh
-argot check . origin/main..HEAD --format sarif > argot-results.sarif
-argot check . --staged --format json | jq '.hits[] | {path, line_start, severity, score}'
+argot check origin/main..HEAD --format sarif > argot-results.sarif
+argot check --staged --format json | jq '.hits[] | {path, line_start, severity, score}'
 ```
 
 SARIF (2.1.0) maps argot's severity tiers to standard levels — `unusual` →

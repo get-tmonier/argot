@@ -452,11 +452,12 @@ fn run_fit_cmd(c: FitCmd) -> ExitCode {
 
 #[derive(Args)]
 struct CheckCmd {
-    /// Path to git repository.
-    repo_path: String,
     /// Optional git ref or range (e.g. abc1234 or a..b). Empty = workdir.
     #[arg(default_value = "")]
     reference: String,
+    /// Path to git repository.
+    #[arg(long, default_value = ".")]
+    repo: PathBuf,
     /// Check staged changes only.
     #[arg(long)]
     staged: bool,
@@ -506,7 +507,7 @@ fn run_check_cmd(c: CheckCmd) -> ExitCode {
     // Color is enabled only when NO_COLOR is unset and stdout is a tty.
     let use_color = std::env::var_os("NO_COLOR").is_none() && std::io::stdout().is_terminal();
     let outcome = run_check(CheckArgs {
-        repo_path: c.repo_path,
+        repo_path: c.repo.to_string_lossy().into_owned(),
         reference: c.reference,
         staged: c.staged,
         unstaged: c.unstaged,
@@ -1062,11 +1063,12 @@ fn run_score_cmd(c: ScoreCmd) -> ExitCode {
 
 #[derive(Args)]
 struct ExtractArgs {
-    /// Path to git repository.
-    repo_path: String,
     /// Optional git ref or range (e.g. abc1234 or a..b). Defaults to full history.
     #[arg(default_value = "")]
     reference: String,
+    /// Path to git repository.
+    #[arg(long, default_value = ".")]
+    repo: PathBuf,
     /// Output JSONL path.
     #[arg(long, default_value = ".argot/dataset.jsonl")]
     out: PathBuf,
@@ -1076,9 +1078,10 @@ struct ExtractArgs {
 }
 
 fn run_extract(a: ExtractArgs) -> ExitCode {
+    let repo_path = a.repo.to_string_lossy().into_owned();
     // `pygit2.Repository(path)` raising GitError → exit 2.
-    if !repo_exists(&a.repo_path) {
-        eprintln!("error: repository not found at '{}'", a.repo_path);
+    if !repo_exists(&repo_path) {
+        eprintln!("error: repository not found at '{}'", repo_path);
         return ExitCode::from(2);
     }
 
@@ -1111,7 +1114,7 @@ fn run_extract(a: ExtractArgs) -> ExitCode {
         Some(a.reference.as_str())
     };
 
-    let stats = match write_dataset(&a.repo_path, reference, a.limit, &mut writer) {
+    let stats = match write_dataset(&repo_path, reference, a.limit, &mut writer) {
         Ok(s) => s,
         Err(e) => {
             let _ = fs::remove_file(&tmp);
