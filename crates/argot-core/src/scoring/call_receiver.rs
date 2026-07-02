@@ -354,6 +354,54 @@ pub struct ContributionEvent {
     pub branch: ContributionBranch,
 }
 
+/// Era-14 rarity weighting for the cluster branches (`ClusterAbsent`,
+/// `ClusterRare`): scales `cluster_bonus` by how globally common the callee is
+/// in the corpus, so locally-rare-but-globally-rare callees (locale
+/// identifiers, Zipf-tail helpers) stop firing full-magnitude bonuses while
+/// globally-common callees absent from a cluster keep them. All weights are
+/// derived from corpus document frequencies — no domain knowledge.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RarityWeighting {
+    /// Era-13.5 behaviour: full `cluster_bonus` regardless of global rarity.
+    Off,
+    /// `weight = df / N` — proportional to document frequency.
+    LinearDf,
+    /// `weight = 1 if df ≥ min_df else 0` — hard gate on document frequency.
+    GatedDf { min_df: usize },
+    /// `weight = ln(1 + df) / ln(1 + N)` — logarithmic soft gate.
+    LogDf,
+}
+
+impl RarityWeighting {
+    /// Weight in [0, 1] for a callee seen in `df` of `n_files` corpus files.
+    pub fn weight(&self, df: usize, n_files: usize) -> f64 {
+        match self {
+            RarityWeighting::Off => 1.0,
+            RarityWeighting::LinearDf => {
+                if n_files == 0 {
+                    1.0
+                } else {
+                    df as f64 / n_files as f64
+                }
+            }
+            RarityWeighting::GatedDf { min_df } => {
+                if df >= *min_df {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
+            RarityWeighting::LogDf => {
+                if n_files == 0 {
+                    1.0
+                } else {
+                    (1.0 + df as f64).ln() / (1.0 + n_files as f64).ln()
+                }
+            }
+        }
+    }
+}
+
 /// Call-receiver scorer.
 pub struct CallReceiverScorer {
     language: Language,
@@ -373,6 +421,8 @@ pub struct CallReceiverScorer {
     callee_file_counts: HashMap<String, usize>,
     /// Number of (non-data-dominant) corpus files behind `callee_file_counts`.
     n_corpus_files: usize,
+    /// Rarity weighting applied to the cluster branches (era 14 phase A).
+    rarity_weighting: RarityWeighting,
     pub rare_branch_fire_count: usize,
     pub rare_branch_hunks_fired: usize,
     pub hunks_scored: usize,
@@ -473,10 +523,17 @@ impl CallReceiverScorer {
             cluster_sizes,
             callee_file_counts,
             n_corpus_files,
+            rarity_weighting: RarityWeighting::Off,
             rare_branch_fire_count: 0,
             rare_branch_hunks_fired: 0,
             hunks_scored: 0,
         })
+    }
+
+    /// Set the rarity weighting for the cluster branches (era 14 phase A).
+    pub fn with_rarity_weighting(mut self, weighting: RarityWeighting) -> Self {
+        self.rarity_weighting = weighting;
+        self
     }
 
     /// Corpus files that contain `callee` (document frequency; 0 if unseen).
@@ -624,14 +681,20 @@ impl CallReceiverScorer {
         let mut weights = 0.0;
         let mut hunk_fired_rare = false;
         for ev in &events {
+            // Rarity weighting scales only the cluster branches; the fire
+            // counters keep counting branch *decisions* so the auto-detect
+            // probe's fire-rate semantics are unchanged by the weighting.
+            let rarity = self
+                .rarity_weighting
+                .weight(self.callee_file_count(&ev.callee), self.n_corpus_files);
             match ev.branch {
                 ContributionBranch::UnattestedKnownRoot => weights += alpha + root_bonus,
                 ContributionBranch::Unattested => weights += alpha,
-                ContributionBranch::ClusterAbsent => weights += cluster_bonus,
+                ContributionBranch::ClusterAbsent => weights += cluster_bonus * rarity,
                 ContributionBranch::ClusterRare => {
                     self.rare_branch_fire_count += 1;
                     hunk_fired_rare = true;
-                    weights += cluster_bonus;
+                    weights += cluster_bonus * rarity;
                 }
             }
         }
@@ -661,6 +724,7 @@ impl CallReceiverScorer {
 
     /// Jaccard-nearest cluster for an arbitrary file source. Ties → smallest
     /// cluster id. None if no clusters or empty callee bag.
+    /// (tests for the era-14 rarity weighting live at the bottom of this file)
     pub fn nearest_cluster_for_source(&self, file_source: &str) -> Option<(usize, f64)> {
         if self.cluster_attested.is_empty() {
             return None;
@@ -690,5 +754,134 @@ impl CallReceiverScorer {
             }
         }
         best_cid.map(|c| (c, best_jaccard))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::scoring::adapters::python::PythonAdapter;
+
+    #[test]
+    fn rarity_weight_math() {
+        assert_eq!(RarityWeighting::Off.weight(1, 100), 1.0);
+        assert_eq!(RarityWeighting::LinearDf.weight(50, 100), 0.5);
+        assert_eq!(RarityWeighting::LinearDf.weight(0, 0), 1.0);
+        assert_eq!(RarityWeighting::GatedDf { min_df: 3 }.weight(2, 100), 0.0);
+        assert_eq!(RarityWeighting::GatedDf { min_df: 3 }.weight(3, 100), 1.0);
+        let w = RarityWeighting::LogDf.weight(100, 100);
+        assert!(w > 0.99 && w <= 1.0, "log weight near 1 for df=N, got {w}");
+        let w1 = RarityWeighting::LogDf.weight(1, 100);
+        assert!(w1 < 0.2, "log weight small for df=1, got {w1}");
+    }
+
+    fn toy_scorer(weighting: RarityWeighting) -> CallReceiverScorer {
+        let adapter = PythonAdapter::new();
+        // Two stylistically distinct groups so k-means separates them: the
+        // "alpha" files call foo/bar everywhere, the "beta" files call
+        // baz/qux. `shared()` appears in exactly one file (globally rare).
+        let mut files: Vec<(PathBuf, String)> = Vec::new();
+        for i in 0..6 {
+            files.push((
+                PathBuf::from(format!("a{i}.py")),
+                "def f():\n    foo()\n    bar()\n".to_string(),
+            ));
+        }
+        for i in 0..6 {
+            files.push((
+                PathBuf::from(format!("b{i}.py")),
+                "def g():\n    baz()\n    qux()\n".to_string(),
+            ));
+        }
+        files.push((
+            PathBuf::from("rare.py"),
+            "def h():\n    rare_helper()\n".to_string(),
+        ));
+        CallReceiverScorer::new(&files, Language::Python, 2.0, 5, &adapter, 4, 0, 0, 0)
+            .unwrap()
+            .with_rarity_weighting(weighting)
+    }
+
+    #[test]
+    fn df_counts_are_per_file_presence() {
+        let cr = toy_scorer(RarityWeighting::Off);
+        assert_eq!(cr.n_corpus_files(), 13);
+        assert_eq!(cr.callee_file_count("foo"), 6);
+        assert_eq!(cr.callee_file_count("rare_helper"), 1);
+        assert_eq!(cr.callee_file_count("never_seen"), 0);
+    }
+
+    #[test]
+    fn gated_df_at_one_matches_off_behaviour() {
+        // Every globally-attested callee has df >= 1, so GatedDf{min_df: 1}
+        // must reproduce era-13.5 contributions exactly on any hunk.
+        let mut off = toy_scorer(RarityWeighting::Off);
+        let mut gated = toy_scorer(RarityWeighting::GatedDf { min_df: 1 });
+        for hunk in [
+            "rare_helper()\nfoo()\n",
+            "baz()\n",
+            "unknown_callee()\n",
+            "foo()\nbar()\nbaz()\nqux()\n",
+        ] {
+            let a = off.weighted_contribution_for_file(
+                hunk,
+                Some(Path::new("a0.py")),
+                2.0,
+                2.0,
+                5.0,
+                5.0,
+                None,
+            );
+            let b = gated.weighted_contribution_for_file(
+                hunk,
+                Some(Path::new("a0.py")),
+                2.0,
+                2.0,
+                5.0,
+                5.0,
+                None,
+            );
+            assert_eq!(a, b, "hunk {hunk:?}");
+        }
+    }
+
+    #[test]
+    fn linear_df_shrinks_rare_callee_cluster_contribution() {
+        // `rare_helper` is globally attested (df=1) — in a file from the
+        // foo/bar cluster it takes a cluster branch. Under LinearDf its
+        // bonus is scaled by 1/13; alpha branches are untouched.
+        let mut off = toy_scorer(RarityWeighting::Off);
+        let mut lin = toy_scorer(RarityWeighting::LinearDf);
+        let hunk = "rare_helper()\n";
+        let a = off.weighted_contribution_for_file(
+            hunk,
+            Some(Path::new("a0.py")),
+            0.0,
+            0.0,
+            5.0,
+            10.0,
+            None,
+        );
+        let b = lin.weighted_contribution_for_file(
+            hunk,
+            Some(Path::new("a0.py")),
+            0.0,
+            0.0,
+            5.0,
+            10.0,
+            None,
+        );
+        if a > 0.0 {
+            // Cluster branch fired: weighting must shrink it by df/N.
+            let expected = a * (1.0 / 13.0);
+            assert!(
+                (b - expected).abs() < 1e-9,
+                "expected {expected}, got {b} (off={a})"
+            );
+        } else {
+            // Cluster assignment put rare.py with a0.py; nothing fired for
+            // either mode — invariant still holds.
+            assert_eq!(b, 0.0);
+        }
     }
 }

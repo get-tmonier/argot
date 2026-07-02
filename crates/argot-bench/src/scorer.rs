@@ -13,9 +13,10 @@ use argot_core::scoring::adapters::typescript::TypeScriptAdapter;
 use argot_core::scoring::adapters::{Language, LanguageAdapter};
 use argot_core::scoring::bpe_scorer::BpeScorer;
 use argot_core::scoring::calibration::{
-    collect_candidates, multi_seed_thresholds, sample_indices, ThresholdRunConfig,
+    collect_candidates, is_excluded_path, multi_seed_thresholds, sample_indices, Candidate,
+    ThresholdRunConfig,
 };
-use argot_core::scoring::call_receiver::CallReceiverScorer;
+use argot_core::scoring::call_receiver::{CallReceiverScorer, RarityWeighting};
 use argot_core::scoring::sequential::{SequentialConfig, SequentialImportBpeScorer};
 use argot_core::scoring::typicality::TypicalityModel;
 use argot_core::text::read_text_lossy;
@@ -44,6 +45,24 @@ pub struct BenchKnobs {
     pub auto_select_asym_cal: bool,
     pub asym_fire_rate_threshold: f64,
     pub asym_probe_n: usize,
+    /// Era-14 phase A: rarity weighting on the cluster branches, applied
+    /// symmetrically to the probe, calibration, and scoring call-receivers.
+    pub rarity_weighting: RarityWeighting,
+    /// Era-14 phase B: calibration-hunk distribution — random source-file
+    /// hunks (era-13.5 default) or real diff hunks from the extract dataset.
+    pub calibration_source: CalibrationSource,
+}
+
+/// Where calibration hunks come from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CalibrationSource {
+    /// Random sampleable source-file ranges (era-13.5 production behaviour).
+    Random,
+    /// Diff hunks from `dataset.jsonl` — structurally what real-PR controls
+    /// look like, so the threshold is tighter and more honest. Scope filters
+    /// stay in lock-step with control scoring: excluded paths are dropped and
+    /// hunks are filtered to the scorer's language.
+    Diff,
 }
 
 impl Default for BenchKnobs {
@@ -65,6 +84,8 @@ impl Default for BenchKnobs {
             auto_select_asym_cal: true,
             asym_fire_rate_threshold: 0.05,
             asym_probe_n: 1000,
+            rarity_weighting: RarityWeighting::Off,
+            calibration_source: CalibrationSource::Random,
         }
     }
 }
@@ -239,6 +260,88 @@ pub fn load_diff_hunks_for_probe(
     out
 }
 
+
+/// Era-14 phase B: calibration candidates from real diff hunks in
+/// `dataset.jsonl`. Lock-step scope with control scoring: excluded paths are
+/// dropped, hunks are filtered to the scorer's language, and file content is
+/// read at the extraction commit via `git show`. No minimum-size filter — the
+/// honesty gain of diff-cal is that tiny hunks calibrate the threshold exactly
+/// like the tiny hunks the checker scores.
+pub fn collect_diff_candidates(
+    dataset_path: &Path,
+    repo_dir: &Path,
+    language: Language,
+) -> Vec<Candidate> {
+    #[derive(serde::Deserialize)]
+    struct Rec {
+        file_path: String,
+        hunk_start_line: usize,
+        hunk_end_line: usize,
+        commit_sha: String,
+        language: String,
+    }
+    let lang_ok = |l: &str| match language {
+        Language::Python => l == "python",
+        Language::Typescript => l == "typescript",
+    };
+    let raw = match std::fs::read(dataset_path) {
+        Ok(r) => r,
+        Err(_) => return Vec::new(),
+    };
+    let mut quads: Vec<(String, usize, usize, String)> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+    for line in raw.split(|&b| b == b'\n') {
+        if line.is_empty() {
+            continue;
+        }
+        let rec: Rec = match serde_json::from_slice(line) {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+        if !lang_ok(&rec.language) {
+            continue;
+        }
+        if is_excluded_path(&repo_dir.join(&rec.file_path), repo_dir) {
+            continue;
+        }
+        let key = format!(
+            "{}:{}:{}:{}",
+            rec.commit_sha, rec.file_path, rec.hunk_start_line, rec.hunk_end_line
+        );
+        if seen.insert(key) {
+            quads.push((
+                rec.file_path,
+                rec.hunk_start_line,
+                rec.hunk_end_line,
+                rec.commit_sha,
+            ));
+        }
+    }
+    let mut file_cache: HashMap<(String, String), Option<String>> = HashMap::new();
+    let mut out = Vec::new();
+    for (fp, hs, he, sha) in &quads {
+        let cache_key = (sha.clone(), fp.clone());
+        let source = file_cache
+            .entry(cache_key)
+            .or_insert_with(|| git_show_file(repo_dir, sha, fp));
+        let Some(source) = source else { continue };
+        let lines: Vec<&str> = source.lines().collect();
+        if *he > lines.len() || he <= hs {
+            continue;
+        }
+        let hunk = lines[*hs..*he].join("\n");
+        if hunk.trim().is_empty() {
+            continue;
+        }
+        out.push(Candidate {
+            hunk,
+            file_path: repo_dir.join(fp),
+            file_source: source.clone(),
+        });
+    }
+    out
+}
+
 /// Build a calibrated bench scorer for one (corpus checkout, language).
 ///
 /// `dataset_path` (when present) supplies diff hunks for the auto-detect
@@ -314,7 +417,8 @@ pub fn build_scorer(
             resolved_rare,
             knobs.cluster_size_min,
         )
-        .map_err(anyhow::Error::msg)?;
+        .map_err(anyhow::Error::msg)?
+        .with_rarity_weighting(knobs.rarity_weighting);
 
         let mut hunks_scored = 0usize;
         for (hunk, file_path, file_source) in &probe_hunks {
@@ -374,8 +478,15 @@ pub fn build_scorer(
         cal_rare,
         knobs.cluster_size_min,
     )
-    .map_err(anyhow::Error::msg)?;
-    let candidates = collect_candidates(repo_dir, adapter.as_ref());
+    .map_err(anyhow::Error::msg)?
+    .with_rarity_weighting(knobs.rarity_weighting);
+    let candidates = match knobs.calibration_source {
+        CalibrationSource::Random => collect_candidates(repo_dir, adapter.as_ref()),
+        CalibrationSource::Diff => {
+            let ds = dataset_path.context("diff calibration source requires a dataset")?;
+            collect_diff_candidates(ds, repo_dir, language)
+        }
+    };
     if candidates.is_empty() {
         bail!("no calibration candidates in {}", repo_dir.display());
     }
@@ -426,6 +537,7 @@ pub fn build_scorer(
             call_receiver_cluster_bonus: knobs.cluster_bonus,
             call_receiver_cluster_rare_threshold: resolved_rare,
             call_receiver_cluster_size_min: knobs.cluster_size_min,
+            call_receiver_rarity_weighting: knobs.rarity_weighting,
             import_modules,
             import_module_prefixes,
             evidence_corpus: None,

@@ -9,7 +9,9 @@
 
 use anyhow::{Context, Result};
 use argot_bench::catalog::load_catalog;
-use argot_bench::run::{ensure_clone, ensure_extracted, ensure_sha_checked_out, fixture_scoring_input};
+use argot_bench::run::{
+    ensure_clone, ensure_extracted, ensure_sha_checked_out, fixture_scoring_input,
+};
 use argot_bench::scorer::{adapter_for, load_diff_hunks_for_probe, parse_language, source_files};
 use argot_bench::targets::load_targets;
 use argot_core::scoring::call_receiver::{CallReceiverScorer, ContributionBranch};

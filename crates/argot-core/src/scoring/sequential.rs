@@ -8,7 +8,7 @@
 use crate::bpe::BpeTokenizer;
 use crate::scoring::adapters::LanguageAdapter;
 use crate::scoring::bpe_scorer::BpeScorer;
-use crate::scoring::call_receiver::CallReceiverScorer;
+use crate::scoring::call_receiver::{CallReceiverScorer, RarityWeighting};
 use crate::scoring::evidence::types::{Evidence, EvidenceCorpus, SourceSpan};
 use crate::scoring::evidence::{
     collect_bpe_evidence, collect_call_receiver_evidence, collect_import_evidence,
@@ -105,6 +105,8 @@ pub struct SequentialConfig {
     pub call_receiver_cluster_bonus: f64,
     pub call_receiver_cluster_rare_threshold: usize,
     pub call_receiver_cluster_size_min: usize,
+    /// Era-14 rarity weighting for the cluster branches (default `Off`).
+    pub call_receiver_rarity_weighting: RarityWeighting,
     pub import_modules: Vec<String>,
     pub import_module_prefixes: Vec<String>,
     /// Pre-computed evidence corpus parsed from the config's `evidence_corpus`
@@ -182,7 +184,8 @@ impl SequentialImportBpeScorer {
                     cfg.call_receiver_cluster_rare_threshold,
                     cfg.call_receiver_cluster_size_min,
                 )
-                .map_err(anyhow::Error::msg)?,
+                .map_err(anyhow::Error::msg)?
+                .with_rarity_weighting(cfg.call_receiver_rarity_weighting),
             )
         } else {
             None

@@ -82,6 +82,27 @@ struct Cli {
     asym_fire_rate_threshold: f64,
     #[arg(long, default_value_t = 1000)]
     asym_probe_n: usize,
+    /// Era-14 rarity weighting: off | linear-df | gated-df:<min_df> | log-df.
+    #[arg(long, default_value = "off")]
+    rarity_weighting: String,
+    /// Era-14 calibration-hunk source: random | diff.
+    #[arg(long, default_value = "random")]
+    calibration_source: String,
+}
+
+fn parse_rarity_weighting(s: &str) -> Result<argot_core::scoring::call_receiver::RarityWeighting> {
+    use argot_core::scoring::call_receiver::RarityWeighting as W;
+    Ok(match s {
+        "off" => W::Off,
+        "linear-df" => W::LinearDf,
+        "log-df" => W::LogDf,
+        other => match other.strip_prefix("gated-df:") {
+            Some(n) => W::GatedDf {
+                min_df: n.parse().context("gated-df:<min_df> needs an integer")?,
+            },
+            None => anyhow::bail!("unknown rarity weighting {other:?}"),
+        },
+    })
 }
 
 fn main() -> ExitCode {
@@ -137,6 +158,12 @@ fn real_main() -> Result<ExitCode> {
         auto_select_asym_cal: !cli.no_auto_select_asym_cal,
         asym_fire_rate_threshold: cli.asym_fire_rate_threshold,
         asym_probe_n: cli.asym_probe_n,
+        rarity_weighting: parse_rarity_weighting(&cli.rarity_weighting)?,
+        calibration_source: match cli.calibration_source.as_str() {
+            "random" => argot_bench::scorer::CalibrationSource::Random,
+            "diff" => argot_bench::scorer::CalibrationSource::Diff,
+            other => anyhow::bail!("unknown calibration source {other:?}"),
+        },
     };
     let opts = run::RunOptions {
         data_dir: cli.data_dir,
