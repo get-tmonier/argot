@@ -294,6 +294,17 @@ fn real_main() -> Result<ExitCode> {
         }
         let md =
             production::write_production_reports(&cli.results_dir, &prod_reports, &catalog_recall)?;
+        // Versioned dashboard summary (#64) — production path is the headline.
+        let commit = std::env::var("ARGOT_BENCH_COMMIT").unwrap_or_else(|_| "local".to_string());
+        let dash = argot_bench::dashboard::BenchDashboard::from_production(
+            &prod_reports,
+            commit,
+            iso_utc_now(),
+        );
+        std::fs::write(
+            cli.results_dir.join("dashboard.json"),
+            serde_json::to_string_pretty(&dash)?,
+        )?;
         print!("{md}");
     }
 

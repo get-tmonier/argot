@@ -7,6 +7,7 @@
 
 use serde::Serialize;
 
+use crate::production::ProductionReport;
 use crate::run::CorpusReport;
 
 /// Schema version of `dashboard.json` / history entries.
@@ -79,6 +80,47 @@ impl BenchDashboard {
                 threshold_cv: r.threshold_cv,
             })
             .collect();
+        Self::finalize(corpora, commit, generated_at)
+    }
+
+    /// Aggregate production-path reports (fixtures planted on disk, real
+    /// `argot fit` → `check --staged`; the headline numbers) into the dashboard.
+    pub fn from_production(
+        reports: &[ProductionReport],
+        commit: String,
+        generated_at: String,
+    ) -> Self {
+        let corpora: Vec<DashboardCorpus> = reports
+            .iter()
+            .map(|r| {
+                // Production reports are per-corpus (possibly multi-language);
+                // name the languages the fit produced thresholds for.
+                let language = if r.thresholds.is_empty() {
+                    "mixed".to_string()
+                } else {
+                    r.thresholds.keys().cloned().collect::<Vec<_>>().join("+")
+                };
+                let threshold = r.thresholds.values().cloned().fold(0.0_f64, f64::max);
+                DashboardCorpus {
+                    corpus: r.corpus.clone(),
+                    language,
+                    kind: corpus_kind(&r.corpus),
+                    caught: r.n_caught,
+                    fixtures: r.n_fixtures,
+                    recall_pct: pct(r.n_caught, r.n_fixtures),
+                    false_positives: r.fp_hits,
+                    eligible_controls: r.fp_hunks,
+                    fp_rate_pct: r.fp_rate * 100.0,
+                    threshold,
+                    threshold_cv: 0.0,
+                }
+            })
+            .collect();
+        Self::finalize(corpora, commit, generated_at)
+    }
+
+    /// Shared totals assembly.
+    fn finalize(corpora: Vec<DashboardCorpus>, commit: String, generated_at: String) -> Self {
         let caught: usize = corpora.iter().map(|c| c.caught).sum();
         let fixtures: usize = corpora.iter().map(|c| c.fixtures).sum();
         let worst_fp_rate_pct = corpora
