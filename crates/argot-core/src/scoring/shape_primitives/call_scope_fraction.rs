@@ -8,7 +8,7 @@
 //! `function_definition`, tree-sitter-typescript uses `function_declaration`.
 //! (The original port carried the Python literal for both grammars, so the
 //! fraction was constantly 1.0 on TypeScript and the primitive always
-//! abstained there — fixed in era 14 Phase F.)
+//! abstained there — since fixed.)
 
 use crate::scoring::adapters::Language;
 use crate::scoring::shape_primitive::{Baseline, ShapePrimitive};

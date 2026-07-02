@@ -8,20 +8,30 @@
 //! This is a behaviour-preserving port: the rendered stdout is byte-identical
 //! to the Python engine's (in the `NO_COLOR` / non-tty path), including the
 //! per-reason `↳` evidence lines and the eslint-style `^^^^` caret underlines
-//! when the config carries an `evidence_corpus` block. Syntax highlighting and
-//! the ANSI color path remain deferred.
+//! when the config carries an `evidence_corpus` block. On a color-capable tty
+//! the human render adds per-severity ANSI accents (red/yellow/blue on the
+//! glyph + tier, dim on secondary detail); syntax highlighting of hunk bodies
+//! remains deferred.
 
 use crate::git_walk::{
     open_repo, resolve_shas, walk_commits, HunkSpan, WalkItem, SUPPORTED_EXTENSIONS,
 };
 use crate::output::{render_json, render_sarif, HitRecord, OutputFormat, ReportMeta};
+use crate::scoring::adapters::c::CAdapter;
+use crate::scoring::adapters::cpp::CppAdapter;
+use crate::scoring::adapters::csharp::CSharpAdapter;
+use crate::scoring::adapters::go::GoAdapter;
+use crate::scoring::adapters::java::JavaAdapter;
+use crate::scoring::adapters::php::PhpAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
+use crate::scoring::adapters::ruby::RubyAdapter;
+use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::LanguageAdapter;
 use crate::scoring::evidence::types::{Evidence, EvidenceCorpus, SourceSpan};
 use crate::scoring::evidence::{evidence_caret_spans, evidence_lines_of_interest, format_evidence};
 use crate::scoring::model::LanguageModel;
-use crate::scoring::sequential::{SequentialConfig, SequentialImportBpeScorer};
+use crate::scoring::sequential::{ScoredHunk, SequentialConfig, SequentialImportBpeScorer};
 use crate::suppress::{
     fnmatch, hit_hash, load_suppressions_file, parse_inline, write_last_check, LastCheckHit,
     PathScope, PathSuppressions, SuppressionRule, SUPPRESSIONS_FILE,
@@ -39,6 +49,35 @@ pub const DEFAULT_HUNK_LINES: usize = 6;
 
 /// Severity tier ordering, weakest first (`_SEVERITY_ORDER`).
 const SEVERITY_ORDER: [&str; 3] = ["unusual", "suspicious", "foreign"];
+
+// ANSI color codes for the human `check` render. Every colored write goes
+// through `paint`, which is a no-op when `use_color` is false — so the
+// `NO_COLOR` / non-tty path stays byte-identical to the parity fixtures.
+const C_RED: &str = "\x1b[31m";
+const C_YELLOW: &str = "\x1b[33m";
+const C_BLUE: &str = "\x1b[34m";
+const C_BOLD: &str = "\x1b[1m";
+const C_DIM: &str = "\x1b[2m";
+const C_RESET: &str = "\x1b[0m";
+
+/// The accent color for a severity tier: red (foreign), yellow (suspicious),
+/// blue (unusual).
+fn severity_color(sev: &str) -> &'static str {
+    match sev {
+        "foreign" => C_RED,
+        "suspicious" => C_YELLOW,
+        _ => C_BLUE,
+    }
+}
+
+/// Wrap `text` in an ANSI code when `use_color`, else return it unchanged.
+fn paint(text: &str, color: &str, use_color: bool) -> String {
+    if use_color {
+        format!("{color}{text}{C_RESET}")
+    } else {
+        text.to_string()
+    }
+}
 
 /// Parsed CLI options for `check` (the CLI layer supplies `use_color`).
 pub struct CheckArgs {
@@ -126,14 +165,27 @@ struct Hit {
     suppressed_by: Option<SuppressedBy>,
 }
 
+/// One calibrated slice for check-time dispatch: its threshold applies to hunks
+/// whose repo-relative path matches any of `paths`.
+struct SliceEntry {
+    paths: Vec<String>,
+    threshold: f64,
+}
+
 /// Loaded per-language scorers plus the filtering machinery.
 struct Loaded {
     scorers: HashMap<String, SequentialImportBpeScorer>,
     filter_adapters: HashMap<String, Box<dyn LanguageAdapter>>,
     language_extensions: HashSet<String>,
+    /// Per-language slice thresholds (per-subdirectory / per-author voice).
+    /// Empty for an unsliced fit.
+    slices: HashMap<String, Vec<SliceEntry>>,
     /// Repo SHA the model was fitted at (calibration meta), for the
     /// freshness warning. `None` when the config predates the field.
     fit_sha: Option<String>,
+    /// Combined fingerprint of the fit-time model — the same `model_hash` the
+    /// manifest records. Lets `check` name which model judged the diff.
+    model_hash: String,
 }
 
 /// Extension → language name (`_EXT_TO_LANG`). JS/JSX route to TypeScript.
@@ -143,6 +195,18 @@ const EXT_TO_LANG: &[(&str, &str)] = &[
     (".tsx", "typescript"),
     (".js", "typescript"),
     (".jsx", "typescript"),
+    (".go", "go"),
+    (".rs", "rust"),
+    (".c", "c"),
+    (".h", "c"),
+    (".java", "java"),
+    (".cs", "csharp"),
+    (".php", "php"),
+    (".cpp", "cpp"),
+    (".cc", "cpp"),
+    (".hpp", "cpp"),
+    (".cxx", "cpp"),
+    (".rb", "ruby"),
 ];
 
 fn ext_to_lang(ext: &str) -> Option<&'static str> {
@@ -153,6 +217,14 @@ fn adapter_for_language(lang: &str) -> Option<Box<dyn LanguageAdapter>> {
     match lang {
         "python" => Some(Box::new(PythonAdapter::new())),
         "typescript" => Some(Box::new(TypeScriptAdapter::new())),
+        "go" => Some(Box::new(GoAdapter::new())),
+        "rust" => Some(Box::new(RustAdapter::new())),
+        "c" => Some(Box::new(CAdapter::new())),
+        "java" => Some(Box::new(JavaAdapter::new())),
+        "csharp" => Some(Box::new(CSharpAdapter::new())),
+        "php" => Some(Box::new(PhpAdapter::new())),
+        "cpp" => Some(Box::new(CppAdapter::new())),
+        "ruby" => Some(Box::new(RubyAdapter::new())),
         _ => None,
     }
 }
@@ -463,12 +535,120 @@ fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
         .find(|s| !s.is_empty() && *s != "unknown")
         .map(String::from);
 
+    // Combine the per-language model fingerprints into one overall hash, the
+    // same way the manifest does, so `check` can name the model it scored with.
+    let per_lang_model_hash: std::collections::BTreeMap<String, String> = languages
+        .iter()
+        .filter_map(|(lang, lc)| {
+            lc.get("model_hash")
+                .and_then(Value::as_str)
+                .map(|h| (lang.clone(), h.to_string()))
+        })
+        .collect();
+    let model_hash = crate::scoring::calibration::combined_model_hash(&per_lang_model_hash);
+
+    // Per-language slice thresholds (absent for an unsliced fit).
+    let mut slices: HashMap<String, Vec<SliceEntry>> = HashMap::new();
+    for (lang, lc) in languages {
+        let Some(arr) = lc.get("slices").and_then(Value::as_array) else {
+            continue;
+        };
+        let entries: Vec<SliceEntry> = arr
+            .iter()
+            .filter_map(|s| {
+                let threshold = s.get("threshold").and_then(Value::as_f64)?;
+                let paths = s
+                    .get("paths")
+                    .and_then(Value::as_array)
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(Value::as_str)
+                            .map(String::from)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                Some(SliceEntry { paths, threshold })
+            })
+            .collect();
+        if !entries.is_empty() {
+            slices.insert(lang.clone(), entries);
+        }
+    }
+
     Ok(Loaded {
         scorers,
         filter_adapters,
         language_extensions,
         fit_sha,
+        model_hash,
+        slices,
     })
+}
+
+/// The slice threshold that applies to `rel_path` for `lang`, if any (first
+/// matching slice wins — most-specific specs should be listed first at fit).
+fn slice_threshold(
+    slices: &HashMap<String, Vec<SliceEntry>>,
+    lang: &str,
+    rel_path: &str,
+) -> Option<f64> {
+    slices.get(lang)?.iter().find_map(|s| {
+        if s.paths
+            .iter()
+            .any(|p| rel_path == p || rel_path.starts_with(p))
+        {
+            Some(s.threshold)
+        } else {
+            None
+        }
+    })
+}
+
+/// A repo's fitted per-language scorers, loaded once for reuse outside the
+/// `check` diff flow (the MCP server scores agent-supplied hunks the same way
+/// `check` scores diff hunks — against the frozen fit-time model, never the
+/// live tree).
+pub struct RepoScorers {
+    scorers: HashMap<String, SequentialImportBpeScorer>,
+    /// Combined model fingerprint — the `model:` hash `check` reports.
+    pub model_hash: String,
+}
+
+impl RepoScorers {
+    /// Load from a repo's `.argot/`. The error carries a human-readable message
+    /// (e.g. "run `argot fit` first").
+    pub fn load(argot_dir: &Path) -> std::result::Result<Self, String> {
+        let loaded = load_scorers(argot_dir).map_err(|(msg, _)| msg)?;
+        Ok(RepoScorers {
+            scorers: loaded.scorers,
+            model_hash: loaded.model_hash,
+        })
+    }
+
+    /// The scoring language name (`"python"`/`"typescript"`) for a file path, or
+    /// `None` when the extension isn't supported.
+    pub fn language_for(&self, file_path: &str) -> Option<&'static str> {
+        ext_to_lang(&extension(file_path))
+    }
+
+    /// Score one hunk against the model for its file's language. `None` when the
+    /// file's language has no fitted scorer.
+    pub fn score(
+        &mut self,
+        file_path: &str,
+        hunk_content: &str,
+        file_source: Option<&str>,
+    ) -> Option<ScoredHunk> {
+        let lang = self.language_for(file_path)?;
+        let scorer = self.scorers.get_mut(lang)?;
+        Some(scorer.score_hunk(
+            hunk_content,
+            file_source,
+            None,
+            None,
+            Some(Path::new(file_path)),
+        ))
+    }
 }
 
 /// Yield batches for committed changes (`_committed_patches`), source = 7-char SHA.
@@ -667,6 +847,7 @@ fn score_patches(
     patches: Vec<PatchBatch>,
     scorers: &mut HashMap<String, SequentialImportBpeScorer>,
     filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
+    slices: &HashMap<String, Vec<SliceEntry>>,
     yaml_rules: &[SuppressionRule],
     stderr: &mut String,
 ) -> (Vec<Hit>, usize) {
@@ -728,6 +909,15 @@ fn score_patches(
             let line = hunk.new_start as usize;
             let line_end = (hunk.new_start + hunk.new_lines).saturating_sub(1) as usize;
             let reason = scored.reason.as_str().to_string();
+            // Per-slice dispatch: if the file falls in a calibrated slice, judge
+            // the score against that slice's threshold instead of the whole-repo
+            // one. Foreign-import hits fire regardless of threshold.
+            let (flagged, threshold) = match ext_to_lang(&ext)
+                .and_then(|lang| slice_threshold(slices, lang, &batch.file_path))
+            {
+                Some(t) => (reason == "import" || scored.score >= t, t),
+                None => (scored.flagged, scored.threshold),
+            };
             let hash = hit_hash(&batch.file_path, &reason, &hunk_content);
             let suppressed_by = if batch.ignored_by_pattern {
                 Some(SuppressedBy::ArgotIgnore)
@@ -748,8 +938,8 @@ fn score_patches(
                 line_end,
                 source: batch.source.clone(),
                 reason,
-                flagged: scored.flagged,
-                threshold: scored.threshold,
+                flagged,
+                threshold,
                 hunk_content,
                 evidence: scored.evidence,
                 hash,
@@ -799,6 +989,8 @@ fn render_hunk_body(
     max_lines: Option<usize>,
     must_show_hunk_lines: &HashSet<usize>,
     caret_spans_by_line: &HashMap<usize, Vec<SourceSpan>>,
+    use_color: bool,
+    caret_color: &str,
 ) -> (Vec<String>, usize) {
     if let Some(n) = max_lines {
         if n == 0 {
@@ -837,25 +1029,35 @@ fn render_hunk_body(
         // The i-th rendered line is hunk-line (i + 1) regardless of start_line.
         if let Some(spans) = caret_spans_by_line.get(&(i + 1)) {
             if let Some(caret) = render_caret_line(line, spans, caret_pad) {
-                out.push(caret);
+                out.push(paint(&caret, caret_color, use_color));
             }
         }
     }
     if overflow > 0 {
         let plural = if overflow != 1 { "s" } else { "" };
-        out.push(format!(
-            "  {}   (+{} more line{})",
-            " ".repeat(width),
-            overflow,
-            plural
+        out.push(paint(
+            &format!(
+                "  {}   (+{} more line{})",
+                " ".repeat(width),
+                overflow,
+                plural
+            ),
+            C_DIM,
+            use_color,
         ));
     }
     (out, overflow)
 }
 
-/// Render grouped results (`_render_results`, `use_color=false`). Returns
-/// whether any hunk body was truncated.
-fn render_results(hits: &[&Hit], hunk_lines: Option<usize>, out: &mut String) -> bool {
+/// Render grouped results (`_render_results`). Colored per-severity when
+/// `use_color`; otherwise byte-identical to the parity fixtures. Returns whether
+/// any hunk body was truncated.
+fn render_results(
+    hits: &[&Hit],
+    hunk_lines: Option<usize>,
+    use_color: bool,
+    out: &mut String,
+) -> bool {
     // Banner tier counts use the per-hit calibrated threshold.
     let mut counts: HashMap<&str, usize> = HashMap::new();
     for h in hits {
@@ -866,7 +1068,10 @@ fn render_results(hits: &[&Hit], hunk_lines: Option<usize>, out: &mut String) ->
     for tier in ["foreign", "suspicious", "unusual"] {
         let c = *counts.get(tier).unwrap_or(&0);
         if c > 0 {
-            tier_parts.push(format!("{c} {tier}"));
+            tier_parts.push(format!(
+                "{c} {}",
+                paint(tier, severity_color(tier), use_color)
+            ));
         }
     }
     let mut banner = format!(
@@ -908,7 +1113,7 @@ fn render_results(hits: &[&Hit], hunk_lines: Option<usize>, out: &mut String) ->
     let mut any_truncated = false;
     let n_files = sorted_files.len();
     for (i, fp) in sorted_files.iter().enumerate() {
-        out.push_str(fp);
+        out.push_str(&paint(fp, C_BOLD, use_color));
         out.push('\n');
 
         let mut fhits: Vec<&Hit> = file_hits[fp].clone();
@@ -916,6 +1121,7 @@ fn render_results(hits: &[&Hit], hunk_lines: Option<usize>, out: &mut String) ->
 
         for h in &fhits {
             let sev = severity(h.score, h.threshold);
+            let color = severity_color(sev);
             let line_str = if h.line == h.line_end {
                 format!("L{}", h.line)
             } else {
@@ -933,16 +1139,23 @@ fn render_results(hits: &[&Hit], hunk_lines: Option<usize>, out: &mut String) ->
                 "suspicious" => "?",
                 _ => ".",
             };
+            // ANSI codes are zero-width, so the `{:<13}`/`{:>6.2}` columns still
+            // align; only the glyph, severity word, and hash carry escapes.
             out.push_str(&format!(
-                "  {}  {:<13} {:>6.2}  {}  {} [{}]\n",
-                glyph, line_str, h.score, sev, meta, h.hash
+                "  {}  {:<13} {:>6.2}  {}  {} {}\n",
+                paint(glyph, color, use_color),
+                line_str,
+                h.score,
+                paint(sev, color, use_color),
+                meta,
+                paint(&format!("[{}]", h.hash), C_DIM, use_color),
             ));
 
             // Per-reason evidence (names + `common here:`) sits between the
             // headline and the hunk body. `hunk_start_line = h.line` lets import
             // evidence render `(L7)` file-line annotations.
             if let Some(ev) = &h.evidence {
-                for line in format_evidence(ev, false, h.line) {
+                for line in format_evidence(ev, use_color, h.line) {
                     out.push_str(&line);
                     out.push('\n');
                 }
@@ -958,6 +1171,8 @@ fn render_results(hits: &[&Hit], hunk_lines: Option<usize>, out: &mut String) ->
                 hunk_lines,
                 &must_show,
                 &caret_spans,
+                use_color,
+                color,
             );
             for line in body {
                 out.push_str(&line);
@@ -1007,7 +1222,7 @@ fn hit_records(hits: &[&Hit]) -> Vec<HitRecord> {
         .collect()
 }
 
-fn report_meta(args: &CheckArgs, scanned: String, hunks_scanned: usize) -> ReportMeta {
+fn report_meta(args: &CheckArgs, scanned: String, hunks_scanned: usize, model: &str) -> ReportMeta {
     ReportMeta {
         // The workspace shares one version across crates, so this matches the
         // CLI binary's version.
@@ -1015,6 +1230,7 @@ fn report_meta(args: &CheckArgs, scanned: String, hunks_scanned: usize) -> Repor
         repo: args.repo_path.clone(),
         scanned,
         hunks_scanned,
+        model: model.to_string(),
     }
 }
 
@@ -1163,6 +1379,8 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         filter_adapters,
         language_extensions,
         fit_sha,
+        model_hash,
+        slices,
     } = match load_scorers(&args.argot_dir) {
         Ok(l) => l,
         Err((msg, code)) => return CheckOutcome::err(msg, code),
@@ -1175,7 +1393,12 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
             // explicit range with no commits, exit 0) still emits a complete,
             // hit-free document. Hard errors (exit != 0) stay stderr-only.
             if args.format.is_machine() && outcome.exit_code == 0 {
-                let meta = report_meta(&args, format!("0 commit(s) ({})", args.reference), 0);
+                let meta = report_meta(
+                    &args,
+                    format!("0 commit(s) ({})", args.reference),
+                    0,
+                    &model_hash,
+                );
                 return CheckOutcome {
                     stdout: render_machine(args.format, &meta, &[]),
                     stderr: outcome.stderr,
@@ -1187,6 +1410,13 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     };
 
     let mut stderr = String::new();
+
+    // Name the model that judged this diff — reproducibility + "is my model the
+    // same as my colleague's?". On stderr (human) so stdout stays byte-parity;
+    // machine formats carry it in the report meta instead.
+    if !args.format.is_machine() {
+        stderr.push_str(&format!("[argot] model: {model_hash}\n"));
+    }
 
     // Freshness: a stale model turns ordinary drift into noise (a month of
     // drift on a busy workspace measured ~14× the hit volume of a fresh
@@ -1253,6 +1483,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         filtered,
         &mut scorers,
         &filter_adapters,
+        &slices,
         &yaml.active,
         &mut stderr,
     );
@@ -1316,7 +1547,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     // any hit is visible, 0 otherwise).
     if args.format.is_machine() {
         let records = hit_records(&visible);
-        let meta = report_meta(&args, scan_label, hunk_count);
+        let meta = report_meta(&args, scan_label, hunk_count, &model_hash);
         let exit_code = if visible.is_empty() { 0 } else { 1 };
         return CheckOutcome {
             stdout: render_machine(args.format, &meta, &records),
@@ -1357,7 +1588,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         Some(args.hunk_lines)
     };
     let mut stdout = String::new();
-    let any_truncated = render_results(&visible, hunk_lines, &mut stdout);
+    let any_truncated = render_results(&visible, hunk_lines, args.use_color, &mut stdout);
 
     if any_truncated && !args.verbose {
         stdout.push('\n');

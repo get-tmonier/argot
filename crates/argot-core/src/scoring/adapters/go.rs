@@ -1,0 +1,563 @@
+//! Go language adapter — the first language port beyond Python / TypeScript
+//! and the reference for the series.
+//!
+//! Structurally a sibling of `python.rs` / `typescript.rs`: manual
+//! `TreeCursor` traversal over the pinned tree-sitter-go grammar, adapted to
+//! Go's node kinds. Notes worth keeping in mind:
+//! - Imports are quoted paths (`import "github.com/x/y"`); the module string is
+//!   the whole path, not a top-level segment (Go paths have no `a.b.c` splitting
+//!   the way Python dotted modules do).
+//! - Go has no relative-import concept, so `internal_import_bindings` is empty —
+//!   repo-internal neighbours are discovered via `extract_imports` at fit time.
+//! - Data-dominance is computed against the Go grammar directly (the shared
+//!   `filters::data_dominant` is Python-grammar-bound), mirroring how the
+//!   TypeScript adapter rolls its own.
+
+use std::collections::HashSet;
+
+use tree_sitter::{Node, Tree};
+
+use super::Language;
+
+const HEADER_LINE_LIMIT: usize = 20;
+
+/// Ratio of data-literal rows above which a file is data-dominant.
+const DATA_DOMINANT_THRESHOLD: f64 = 0.65;
+/// Fraction of a composite literal's elements that must be value literals for
+/// it to count as static data.
+const VALUE_DOMINANT_THRESHOLD: f64 = 0.8;
+
+/// Node kinds that count as static value literals inside a composite literal.
+const GO_VALUE_LITERAL_TYPES: &[&str] = &[
+    "int_literal",
+    "float_literal",
+    "imaginary_literal",
+    "rune_literal",
+    "interpreted_string_literal",
+    "raw_string_literal",
+    "true",
+    "false",
+    "nil",
+    "iota",
+    "composite_literal",
+    "literal_value",
+];
+
+/// Parse Go `source` into a tree-sitter `Tree` (reused per-thread parser).
+pub(crate) fn parse(source: &str) -> Tree {
+    crate::scoring::ts_parse::parse(source, Language::Go)
+        .expect("tree-sitter parse never returns None without a timeout")
+}
+
+/// Collect every descendant of `node` (pre-order, excluding `node` itself).
+fn descendants<'a>(node: Node<'a>) -> Vec<Node<'a>> {
+    let mut out = Vec::new();
+    let mut cursor = node.walk();
+    fn go<'a>(node: Node<'a>, out: &mut Vec<Node<'a>>) {
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            out.push(child);
+            go(child, out);
+        }
+    }
+    for child in node.children(&mut cursor) {
+        out.push(child);
+        go(child, &mut out);
+    }
+    out
+}
+
+/// Direct children of `node` as a `Vec`.
+fn children<'a>(node: Node<'a>) -> Vec<Node<'a>> {
+    let mut cursor = node.walk();
+    node.children(&mut cursor).collect()
+}
+
+/// Direct named children of `node`.
+fn named_children<'a>(node: Node<'a>) -> Vec<Node<'a>> {
+    let mut cursor = node.walk();
+    node.named_children(&mut cursor).collect()
+}
+
+/// Direct children of `node` whose field name is `field` and kind is `kind`.
+///
+/// A `var`/`const`/parameter spec can carry the same field on several children
+/// (`var a, b int` has two `name` fields), which `child_by_field_name` cannot
+/// express — hence the manual cursor walk.
+fn field_children_of_kind<'a>(node: Node<'a>, field: &str, kind: &str) -> Vec<Node<'a>> {
+    let mut out = Vec::new();
+    let mut cursor = node.walk();
+    if cursor.goto_first_child() {
+        loop {
+            if cursor.field_name() == Some(field) && cursor.node().kind() == kind {
+                out.push(cursor.node());
+            }
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+    out
+}
+
+fn node_text<'a>(node: Node, source: &'a str) -> &'a str {
+    &source[node.byte_range()]
+}
+
+/// Strip the surrounding quotes from a Go string-literal node text
+/// (`"fmt"` → `fmt`, `` `raw` `` → `raw`).
+fn strip_quotes(text: &str) -> &str {
+    let bytes = text.as_bytes();
+    if bytes.len() >= 2 {
+        let first = bytes[0];
+        let last = bytes[bytes.len() - 1];
+        if (first == b'"' || first == b'`') && last == first {
+            return &text[1..text.len() - 1];
+        }
+    }
+    text
+}
+
+/// The value node of a composite-literal element (unwrapping `keyed_element`s
+/// to their value side), or `None`.
+fn go_element_value(el: Node) -> Option<Node> {
+    match el.kind() {
+        "literal_element" => el.named_child(0),
+        "keyed_element" => el
+            .child_by_field_name("value")
+            .and_then(|v| v.named_child(0)),
+        _ => None,
+    }
+}
+
+/// True if ≥80% of a composite literal's immediate elements are value literals.
+/// Empty / bodyless literals return true (conservative — allow).
+fn is_go_value_literal_dominant(comp: Node) -> bool {
+    let Some(body) = comp.child_by_field_name("body") else {
+        return true;
+    };
+    let values: Vec<Node> = children(body)
+        .into_iter()
+        .filter(|c| matches!(c.kind(), "literal_element" | "keyed_element"))
+        .filter_map(go_element_value)
+        .collect();
+    if values.is_empty() {
+        return true;
+    }
+    let literal_count = values
+        .iter()
+        .filter(|v| GO_VALUE_LITERAL_TYPES.contains(&v.kind()))
+        .count();
+    (literal_count as f64) / (values.len() as f64) >= VALUE_DOMINANT_THRESHOLD
+}
+
+/// The `var_spec`/`const_spec` nodes under a top-level `var`/`const`
+/// declaration (unwrapping the grouped `var ( … )` `var_spec_list`).
+fn declaration_specs<'a>(decl: Node<'a>) -> Vec<Node<'a>> {
+    let mut out = Vec::new();
+    for sub in children(decl) {
+        match sub.kind() {
+            "var_spec" | "const_spec" => out.push(sub),
+            "var_spec_list" => {
+                for s in children(sub) {
+                    if s.kind() == "var_spec" {
+                        out.push(s);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+/// Add 0-indexed row spans of top-level data-literal `var`/`const`
+/// declarations to `rows`.
+fn collect_go_data_rows(root: Node, rows: &mut HashSet<usize>) {
+    for child in children(root) {
+        if !matches!(child.kind(), "var_declaration" | "const_declaration") {
+            continue;
+        }
+        for spec in declaration_specs(child) {
+            let Some(value) = spec.child_by_field_name("value") else {
+                continue;
+            };
+            for v in named_children(value) {
+                if v.kind() == "composite_literal" && is_go_value_literal_dominant(v) {
+                    for r in spec.start_position().row..=spec.end_position().row {
+                        rows.insert(r);
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// `GoAdapter` — the language adapter for `.go` sources.
+#[derive(Debug, Default)]
+pub struct GoAdapter {
+    noise: HashSet<String>,
+}
+
+impl GoAdapter {
+    pub fn new() -> Self {
+        Self {
+            noise: NOISE.iter().map(|s| (*s).to_string()).collect(),
+        }
+    }
+
+    /// Module paths imported in `source` — the full quoted path (`"fmt"`,
+    /// `"github.com/x/y"`), never split on `/`.
+    pub fn extract_imports(&self, source: &str) -> HashSet<String> {
+        let tree = parse(source);
+        let mut out = HashSet::new();
+        for node in descendants(tree.root_node()) {
+            if node.kind() != "import_spec" {
+                continue;
+            }
+            if let Some(path) = node.child_by_field_name("path") {
+                let spec = strip_quotes(node_text(path, source));
+                if !spec.is_empty() {
+                    out.insert(spec.to_string());
+                }
+            }
+        }
+        out
+    }
+
+    /// Like `extract_imports` but each path carries its `(spec, line,
+    /// col_start, col_end)` span. Line 1-indexed; columns 0-indexed byte
+    /// offsets covering the path text (opening quote skipped), end exclusive.
+    /// Sorted by `(line, col_start, spec)`.
+    pub fn extract_imports_with_spans(&self, source: &str) -> Vec<(String, usize, usize, usize)> {
+        let tree = parse(source);
+        let mut out: Vec<(String, usize, usize, usize)> = Vec::new();
+        for node in descendants(tree.root_node()) {
+            if node.kind() != "import_spec" {
+                continue;
+            }
+            if let Some(path) = node.child_by_field_name("path") {
+                let spec = strip_quotes(node_text(path, source));
+                if spec.is_empty() {
+                    continue;
+                }
+                let line = path.start_position().row + 1;
+                // Skip the opening quote so the underline lands on the path.
+                let col_start = path.start_position().column + 1;
+                let col_end = col_start + spec.len();
+                out.push((spec.to_string(), line, col_start, col_end));
+            }
+        }
+        out.sort_by(|a, b| (a.1, a.2, &a.0).cmp(&(b.1, b.2, &b.0)));
+        out
+    }
+
+    /// Repo-internal import bindings. Go has no relative-import syntax, so this
+    /// is always empty (repo-internal modules are discovered via
+    /// `extract_imports` at fit time).
+    pub fn internal_import_bindings(&self, _source: &str) -> HashSet<String> {
+        HashSet::new()
+    }
+
+    /// 1-indexed line numbers that carry prose — line (`//`) and block
+    /// (`/* … */`) comments.
+    pub fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
+        let tree = parse(source);
+        let mut rows: HashSet<usize> = HashSet::new();
+        for node in descendants(tree.root_node()) {
+            if node.kind() == "comment" {
+                for r in (node.start_position().row + 1)..=(node.end_position().row + 1) {
+                    rows.insert(r);
+                }
+            }
+        }
+        rows
+    }
+
+    /// True if the file is overwhelmingly top-level data literals (slice / map /
+    /// array / struct composite literals bound at package scope).
+    pub fn is_data_dominant(&self, source: &str) -> bool {
+        if source.trim().is_empty() {
+            return false;
+        }
+        let tree = parse(source);
+        let root = tree.root_node();
+        let total_nonblank = source.lines().filter(|l| !l.trim().is_empty()).count();
+        if total_nonblank == 0 {
+            return false;
+        }
+        let mut data_rows: HashSet<usize> = HashSet::new();
+        collect_go_data_rows(root, &mut data_rows);
+        (data_rows.len() as f64) / (total_nonblank as f64) > DATA_DOMINANT_THRESHOLD
+    }
+
+    /// 1-indexed line numbers covered by top-level data-literal declarations.
+    pub fn data_literal_lines(&self, source: &str) -> HashSet<usize> {
+        if source.trim().is_empty() {
+            return HashSet::new();
+        }
+        let tree = parse(source);
+        let mut rows: HashSet<usize> = HashSet::new();
+        collect_go_data_rows(tree.root_node(), &mut rows);
+        rows.into_iter().map(|r| r + 1).collect()
+    }
+
+    /// Names the source binds to callable definitions — `func`/method
+    /// declarations, and `var`/`const`/`:=` bindings to a `func` literal.
+    /// Local-binding attestation: code calling what it defines is not foreign
+    /// voice.
+    pub fn callable_definitions(&self, source: &str) -> HashSet<String> {
+        let tree = parse(source);
+        let mut out = HashSet::new();
+        for node in descendants(tree.root_node()) {
+            match node.kind() {
+                "function_declaration" | "method_declaration" => {
+                    if let Some(name) = node.child_by_field_name("name") {
+                        out.insert(node_text(name, source).to_string());
+                    }
+                }
+                "short_var_declaration" => {
+                    if let (Some(left), Some(right)) = (
+                        node.child_by_field_name("left"),
+                        node.child_by_field_name("right"),
+                    ) {
+                        bind_func_literals(
+                            &named_children(left),
+                            &named_children(right),
+                            source,
+                            &mut out,
+                        );
+                    }
+                }
+                "var_spec" | "const_spec" => {
+                    let names = field_children_of_kind(node, "name", "identifier");
+                    if let Some(value) = node.child_by_field_name("value") {
+                        bind_func_literals(&names, &named_children(value), source, &mut out);
+                    }
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+
+    /// Every locally bound value name — `:=` / `var` / `const` targets and
+    /// function parameters. Attests bare calls: calling a value you just bound
+    /// is neighbourhood behaviour, not foreign voice.
+    pub fn value_bindings(&self, source: &str) -> HashSet<String> {
+        let tree = parse(source);
+        let mut out = HashSet::new();
+        for node in descendants(tree.root_node()) {
+            match node.kind() {
+                "short_var_declaration" => {
+                    if let Some(left) = node.child_by_field_name("left") {
+                        for id in named_children(left) {
+                            if id.kind() == "identifier" {
+                                out.insert(node_text(id, source).to_string());
+                            }
+                        }
+                    }
+                }
+                "var_spec" | "const_spec" => {
+                    for name in field_children_of_kind(node, "name", "identifier") {
+                        out.insert(node_text(name, source).to_string());
+                    }
+                }
+                "parameter_declaration" => {
+                    for name in field_children_of_kind(node, "name", "identifier") {
+                        out.insert(node_text(name, source).to_string());
+                    }
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+
+    /// True if the header carries Go's generated-file marker
+    /// (`// Code generated … DO NOT EDIT.`), within the head `HEADER_LINE_LIMIT`
+    /// lines.
+    pub fn is_auto_generated(&self, source: &str) -> bool {
+        if source.is_empty() {
+            return false;
+        }
+        let tree = parse(source);
+        for node in descendants(tree.root_node()) {
+            if node.kind() != "comment" {
+                continue;
+            }
+            if node.start_position().row >= HEADER_LINE_LIMIT {
+                continue;
+            }
+            let text = node_text(node, source).trim();
+            if text.starts_with("// Code generated") && text.contains("DO NOT EDIT") {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// 1-indexed inclusive `(start_line, end_line)` spans for top-level
+    /// function / method declarations. Empty when the file failed to parse.
+    pub fn enumerate_sampleable_ranges(&self, source: &str) -> Vec<(usize, usize)> {
+        let tree = parse(source);
+        let root = tree.root_node();
+        if root.has_error() {
+            return Vec::new();
+        }
+        let mut ranges = Vec::new();
+        for child in children(root) {
+            if matches!(child.kind(), "function_declaration" | "method_declaration") {
+                ranges.push((child.start_position().row + 1, child.end_position().row + 1));
+            }
+        }
+        ranges
+    }
+
+    /// Go keywords, predeclared constants, and common builtins — noise tokens
+    /// that would dominate `common here:` without saying anything.
+    pub fn identifier_noise(&self) -> &HashSet<String> {
+        &self.noise
+    }
+}
+
+/// Bind each name whose positionally-matched value is a `func_literal`.
+fn bind_func_literals(names: &[Node], values: &[Node], source: &str, out: &mut HashSet<String>) {
+    for (name, value) in names.iter().zip(values.iter()) {
+        if value.kind() == "func_literal" && name.kind() == "identifier" {
+            out.insert(node_text(*name, source).to_string());
+        }
+    }
+}
+
+/// Go keywords + predeclared identifiers + common builtins.
+const NOISE: &[&str] = &[
+    "func",
+    "package",
+    "import",
+    "return",
+    "if",
+    "else",
+    "for",
+    "range",
+    "var",
+    "const",
+    "type",
+    "struct",
+    "interface",
+    "map",
+    "chan",
+    "go",
+    "defer",
+    "select",
+    "switch",
+    "case",
+    "default",
+    "break",
+    "continue",
+    "fallthrough",
+    "nil",
+    "true",
+    "false",
+    "iota",
+    "error",
+    "make",
+    "len",
+    "cap",
+    "append",
+    "panic",
+    "recover",
+];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn imports_are_full_paths() {
+        let adapter = GoAdapter::new();
+        let src = "package main\n\nimport (\n\t\"fmt\"\n\t\"github.com/x/y\"\n)\n";
+        let imports = adapter.extract_imports(src);
+        assert!(imports.contains("fmt"));
+        assert!(imports.contains("github.com/x/y"));
+        // Full path, not split on '/'.
+        assert!(!imports.contains("github.com"));
+    }
+
+    #[test]
+    fn aliased_import_path_still_extracts() {
+        let adapter = GoAdapter::new();
+        let src = "package main\n\nimport f \"fmt\"\n";
+        let imports = adapter.extract_imports(src);
+        assert!(imports.contains("fmt"));
+    }
+
+    #[test]
+    fn callable_definitions_cover_funcs_methods_and_func_literals() {
+        let adapter = GoAdapter::new();
+        let src =
+            "package main\n\nfunc Foo() {}\n\nfunc (r Recv) Bar() {}\n\nvar Baz = func() {}\n";
+        let defs = adapter.callable_definitions(src);
+        assert!(defs.contains("Foo"));
+        assert!(defs.contains("Bar"));
+        assert!(defs.contains("Baz"));
+    }
+
+    #[test]
+    fn value_bindings_cover_short_var_and_params() {
+        let adapter = GoAdapter::new();
+        let src = "package main\n\nfunc f(a int, b string) {\n\tx := a\n\treturn\n}\n";
+        let binds = adapter.value_bindings(src);
+        assert!(binds.contains("a"));
+        assert!(binds.contains("b"));
+        assert!(binds.contains("x"));
+    }
+
+    #[test]
+    fn sampleable_ranges_are_top_level_functions() {
+        let adapter = GoAdapter::new();
+        let src = "package main\n\nfunc a() {\n\treturn\n}\n\nfunc b() {\n\treturn\n}\n";
+        let ranges = adapter.enumerate_sampleable_ranges(src);
+        assert_eq!(ranges.len(), 2);
+    }
+
+    #[test]
+    fn generated_header_is_detected() {
+        let adapter = GoAdapter::new();
+        let src =
+            "// Code generated by protoc-gen-go. DO NOT EDIT.\n\npackage main\n\nfunc F() {}\n";
+        assert!(adapter.is_auto_generated(src));
+        let hand = "// A normal comment.\n\npackage main\n\nfunc F() {}\n";
+        assert!(!adapter.is_auto_generated(hand));
+    }
+
+    #[test]
+    fn top_level_data_tables_are_data_dominant() {
+        let adapter = GoAdapter::new();
+        let src = "package main\n\nvar Cities = []string{\n\t\"a\",\n\t\"b\",\n\t\"c\",\n\t\"d\",\n\t\"e\",\n}\n";
+        assert!(adapter.is_data_dominant(src));
+        assert!(!adapter.data_literal_lines(src).is_empty());
+    }
+
+    #[test]
+    fn code_is_not_data_dominant() {
+        let adapter = GoAdapter::new();
+        let src = "package main\n\nfunc add(a, b int) int {\n\treturn a + b\n}\n";
+        assert!(!adapter.is_data_dominant(src));
+    }
+
+    #[test]
+    fn go_has_no_relative_imports() {
+        let adapter = GoAdapter::new();
+        let src = "package main\n\nimport \"github.com/x/y\"\n";
+        assert!(adapter.internal_import_bindings(src).is_empty());
+    }
+
+    #[test]
+    fn identifier_noise_contains_keywords_and_builtins() {
+        let adapter = GoAdapter::new();
+        assert!(adapter.identifier_noise().contains("func"));
+        assert!(adapter.identifier_noise().contains("append"));
+        assert_eq!(adapter.identifier_noise().len(), NOISE.len());
+    }
+}

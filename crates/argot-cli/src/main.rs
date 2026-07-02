@@ -1,13 +1,13 @@
 //! argot CLI — clap-based entry point.
 //!
-//! Replaces both the TypeScript/Bun shell (`cli/src`) and the Python engine
-//! entry points (`argot-extract`, `argot-train`, `argot-calibrate`,
-//! `argot-check`). One statically-linked binary, no subprocess.
-//!
-//! Subcommands are wired in as the port progresses. The user-facing command
-//! surface is reconciled with the TS CLI in the CLI phase; the engine-level
-//! commands mirror the Python entry points exactly (args, messages, exit
-//! codes) so the benchmark harness and `just` recipes can drive the binary.
+//! One statically-linked binary, no subprocess: the full pipeline
+//! (`extract` → `train` → `calibrate` → `check`, plus the `fit` one-shot and
+//! the suppression commands) runs in-process against `argot-core`.
+
+mod describe;
+mod mcp;
+mod review;
+mod voice_diff;
 
 use clap::{Args, Parser, Subcommand};
 use serde::{Deserialize, Serialize};
@@ -15,15 +15,25 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::io::{BufWriter, IsTerminal, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command as ProcCommand, ExitCode};
+use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use argot_core::check::{run_check, CheckArgs, DEFAULT_HUNK_LINES};
 use argot_core::extract::{write_dataset, ExtractError};
 use argot_core::git_walk::{head_sha, repo_exists};
-use argot_core::inspect::{format_shares, inspect_repo, InspectReport, ReasonLevel, Verdict};
+use argot_core::inspect::{
+    format_shares, inspect_model, inspect_repo, InspectReport, ModelReport, ReasonLevel, Verdict,
+};
 use argot_core::output::OutputFormat;
+use argot_core::scoring::adapters::c::CAdapter;
+use argot_core::scoring::adapters::cpp::CppAdapter;
+use argot_core::scoring::adapters::csharp::CSharpAdapter;
+use argot_core::scoring::adapters::go::GoAdapter;
+use argot_core::scoring::adapters::java::JavaAdapter;
+use argot_core::scoring::adapters::php::PhpAdapter;
 use argot_core::scoring::adapters::python::PythonAdapter;
+use argot_core::scoring::adapters::ruby::RubyAdapter;
+use argot_core::scoring::adapters::rust::RustAdapter;
 use argot_core::scoring::adapters::typescript::TypeScriptAdapter;
 use argot_core::scoring::adapters::{Language, LanguageAdapter};
 use argot_core::scoring::calibration::{run_calibrate, CalibrateOptions};
@@ -90,16 +100,23 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Extract dataset from git history (mirrors `argot-extract`).
+    /// Extract dataset from git history.
     Extract(ExtractArgs),
-    /// Collect the repo corpus + generic baseline (mirrors `argot-train`).
+    /// Collect the repo corpus + generic baseline. Plumbing behind `fit`; hidden.
+    #[command(hide = true)]
     Train(TrainCmd),
-    /// Calibrate the per-language threshold (mirrors `argot-calibrate`).
+    /// Calibrate the per-language threshold. Plumbing behind `fit`; hidden.
+    #[command(hide = true)]
     Calibrate(CalibrateCmd),
     /// Fit the voice model to this repo (train + calibrate, one-shot).
     Fit(FitCmd),
-    /// Check code changes against the calibrated scorers (mirrors `argot-check`).
+    /// Check code changes against the calibrated scorers.
     Check(CheckCmd),
+    /// Score a PR (or diff range) against the local voice without checking it out.
+    Review(ReviewCmd),
+    /// PR-level out-of-voice metric plus ranked hot-spots for a ref/range.
+    #[command(name = "voice-diff")]
+    VoiceDiff(VoiceDiffCmd),
     /// Report corpus composition, calibration health, and repo suitability.
     Inspect(InspectCmd),
     /// Mute a hit by hash (appends to .argot/suppressions.yaml).
@@ -115,11 +132,36 @@ enum Command {
     #[command(hide = true)]
     Score(ScoreCmd),
     /// Show the current repository's argot state.
-    Status,
+    Status(StatusCmd),
     /// List all registered repositories.
-    List,
+    List(ListCmd),
     /// Update the argot CLI to the latest release.
     Update,
+    /// Run a Model Context Protocol server for LLM coding agents (stdio).
+    Mcp(McpCmd),
+    /// Generate a STYLE.md describing the repo's learned voice.
+    #[command(name = "describe-voice")]
+    DescribeVoice(DescribeVoiceCmd),
+}
+
+#[derive(Args)]
+struct DescribeVoiceCmd {
+    /// Path to the repository.
+    #[arg(long, default_value = ".")]
+    repo: PathBuf,
+    /// Typical callees listed per cluster.
+    #[arg(long = "top", value_name = "N", default_value_t = describe::DEFAULT_TOP)]
+    top: usize,
+    /// Write to this file instead of stdout (e.g. `STYLE.md`).
+    #[arg(long, value_name = "FILE")]
+    out: Option<PathBuf>,
+}
+
+#[derive(Args)]
+struct McpCmd {
+    /// Path to the repository whose fitted voice the server scores against.
+    #[arg(long, default_value = ".")]
+    repo: PathBuf,
 }
 
 // --- repo context / registry (port of fs-repo-context.adapter.ts) ---
@@ -147,11 +189,32 @@ struct RepoCtx {
     repo_corpus_path: PathBuf,
 }
 
+/// The user's home directory across platforms: `$HOME` (Unix), then
+/// `%USERPROFILE%` and `%HOMEDRIVE%%HOMEPATH%` (Windows, where `HOME` is usually
+/// unset). Empty values are ignored so the global registry never silently lands
+/// in the current directory.
+fn home_dir() -> Option<PathBuf> {
+    let non_empty = |var: &str| std::env::var_os(var).filter(|v| !v.is_empty());
+    if let Some(h) = non_empty("HOME").or_else(|| non_empty("USERPROFILE")) {
+        return Some(PathBuf::from(h));
+    }
+    match (non_empty("HOMEDRIVE"), non_empty("HOMEPATH")) {
+        (Some(drive), Some(path)) => {
+            let mut home = PathBuf::from(drive);
+            home.push(path);
+            Some(home)
+        }
+        _ => None,
+    }
+}
+
 fn settings_path() -> PathBuf {
-    let home = std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_default();
-    home.join(".argot").join("settings.json")
+    // With no discoverable home the global registry is a no-op convenience
+    // (status/list); fall back to the cwd rather than crash.
+    home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(".argot")
+        .join("settings.json")
 }
 
 fn read_settings() -> GlobalSettings {
@@ -171,15 +234,11 @@ fn write_settings(s: &GlobalSettings) {
     }
 }
 
+/// The repo root of the current directory, resolved in-process via libgit2
+/// (`argot_core::git_walk::repo_workdir`) — no external `git` binary, so it
+/// behaves identically on Windows, macOS, and Linux.
 fn git_toplevel() -> Option<String> {
-    let out = ProcCommand::new("git")
-        .args(["rev-parse", "--show-toplevel"])
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
+    argot_core::git_walk::repo_workdir(".")
 }
 
 fn resolve_context() -> RepoCtx {
@@ -227,24 +286,50 @@ fn format_bytes(bytes: u64) -> String {
     }
 }
 
-fn run_status() -> ExitCode {
+#[derive(Args)]
+struct StatusCmd {
+    /// Output format: human (terminal) or json (stable machine-readable).
+    #[arg(long, default_value = "human", value_parser = ["human", "json"])]
+    format: String,
+    /// Deprecated alias for `--format json` (hidden; use `--format json`).
+    #[arg(long, hide = true)]
+    json: bool,
+}
+
+fn run_status(c: StatusCmd) -> ExitCode {
     let ctx = resolve_context();
+    let dataset = fs::metadata(&ctx.dataset_path).ok().map(|m| {
+        let count = fs::read_to_string(&ctx.dataset_path)
+            .map(|s| s.lines().filter(|l| !l.trim().is_empty()).count())
+            .unwrap_or(0);
+        (count, m.len())
+    });
+    let model_bytes = fs::metadata(&ctx.repo_corpus_path).ok().map(|m| m.len());
+    let calibrated = ctx.argot_dir.join("scorer-config.json").exists();
+
+    if wants_json(&c.format, c.json) {
+        let doc = serde_json::json!({
+            "repo": { "name": ctx.name, "path": ctx.git_root },
+            "dataset": dataset.map(|(count, bytes)| serde_json::json!({
+                "records": count, "bytes": bytes,
+            })),
+            "model": { "trained": model_bytes.is_some(), "bytes": model_bytes },
+            "calibrated": calibrated,
+        });
+        println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
+        return ExitCode::SUCCESS;
+    }
+
     println!("Repo:     {} ({})", ctx.name, ctx.git_root);
-    match fs::metadata(&ctx.dataset_path) {
-        Ok(m) => {
-            let count = fs::read_to_string(&ctx.dataset_path)
-                .map(|s| s.lines().filter(|l| !l.trim().is_empty()).count())
-                .unwrap_or(0);
-            println!("Dataset:  {} records · {}", count, format_bytes(m.len()));
-        }
-        Err(_) => println!("Dataset:  —"),
+    match dataset {
+        Some((count, bytes)) => println!("Dataset:  {} records · {}", count, format_bytes(bytes)),
+        None => println!("Dataset:  —"),
     }
-    match fs::metadata(&ctx.repo_corpus_path) {
-        Ok(m) => println!("Model:    trained · {}", format_bytes(m.len())),
-        Err(_) => println!("Model:    not trained"),
+    match model_bytes {
+        Some(bytes) => println!("Model:    trained · {}", format_bytes(bytes)),
+        None => println!("Model:    not trained"),
     }
-    let config_path = ctx.argot_dir.join("scorer-config.json");
-    if config_path.exists() {
+    if calibrated {
         println!("Calibrated: yes");
     } else {
         println!("Calibrated: not calibrated — run `argot fit`");
@@ -252,11 +337,38 @@ fn run_status() -> ExitCode {
     ExitCode::SUCCESS
 }
 
-fn run_list() -> ExitCode {
+#[derive(Args)]
+struct ListCmd {
+    /// Output format: human (terminal) or json (stable machine-readable).
+    #[arg(long, default_value = "human", value_parser = ["human", "json"])]
+    format: String,
+    /// Deprecated alias for `--format json` (hidden; use `--format json`).
+    #[arg(long, hide = true)]
+    json: bool,
+}
+
+fn run_list(c: ListCmd) -> ExitCode {
     let current = git_toplevel();
     let settings = read_settings();
     let mut repos: Vec<(&String, &RepoEntry)> = settings.repos.iter().collect();
     repos.sort_by(|a, b| a.1.name.cmp(&b.1.name));
+
+    if wants_json(&c.format, c.json) {
+        let items: Vec<serde_json::Value> = repos
+            .iter()
+            .map(|(path, entry)| {
+                serde_json::json!({
+                    "name": entry.name,
+                    "path": path,
+                    "current": Some(*path) == current.as_ref(),
+                })
+            })
+            .collect();
+        let doc = serde_json::json!({ "repos": items });
+        println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
+        return ExitCode::SUCCESS;
+    }
+
     if repos.is_empty() {
         println!("No repositories registered yet.");
         return ExitCode::SUCCESS;
@@ -346,10 +458,16 @@ fn run_update() -> ExitCode {
     }
 }
 
+/// Whether a command should emit its JSON document: the shared `--format json`
+/// idiom, plus the deprecated per-command `--json` boolean alias.
+fn wants_json(format: &str, json_alias: bool) -> bool {
+    json_alias || format == "json"
+}
+
 fn print_help_banner() {
     let version = env!("CARGO_PKG_VERSION");
     println!(
-        "argot v{version}\n\nCOMMANDS\n  extract       Walk git history into a training dataset (.argot/dataset.jsonl)\n  fit           Fit the voice model to this repo (= train + calibrate, one-shot)\n  check         Check changes against the fitted voice\n  inspect       Report corpus composition, calibration health, and suitability\n  mute          Mute a hit by hash (appends to .argot/suppressions.yaml)\n  list-mutes    List active suppressions across all surfaces\n  review-mutes  Report (and --prune) muted hits that no longer fire\n  status        Show current repository's argot state\n  list          List all registered repositories\n  update        Update the argot CLI\n\nTypical first run: argot extract && argot fit && argot check\nRun `argot <command> --help` for details on any command."
+        "argot v{version}\n\nCOMMANDS\n  extract       Walk git history into a training dataset (.argot/dataset.jsonl)\n  fit           Fit the voice model to this repo (= train + calibrate, one-shot)\n  check         Check changes against the fitted voice\n  review        Score a PR (or diff range) against the local voice, no checkout\n  voice-diff    PR-level out-of-voice metric + hot-spots for a ref/range\n  inspect       Report corpus composition, calibration health, and suitability\n  mute          Mute a hit by hash (appends to .argot/suppressions.yaml)\n  list-mutes    List active suppressions across all surfaces\n  review-mutes  Report (and --prune) muted hits that no longer fire\n  status        Show current repository's argot state\n  list          List all registered repositories\n  update        Update the argot CLI\n  mcp           Run an MCP server for LLM coding agents (stdio)\n  describe-voice  Generate a STYLE.md describing the repo's learned voice\n\nTypical first run: argot extract && argot fit && argot check\nRun `argot <command> --help` for details on any command."
     );
 }
 
@@ -417,8 +535,8 @@ struct CalibrateCmd {
     #[arg(long = "evidence-top-n", default_value_t = 50)]
     evidence_top_n: usize,
     /// Rare-branch threshold for the check-time scorer: a callee attested in
-    /// ≤ N cluster files is treated as cluster-absent. 0 disables (pre-13.5
-    /// baseline). Default 2 (era-13.5 setting).
+    /// ≤ N cluster files is treated as cluster-absent. 0 disables the rule; the
+    /// default of 2 treats callees in one or two cluster files as rare.
     #[arg(long = "call-receiver-cluster-rare-threshold", default_value_t = 2)]
     cluster_rare_threshold: usize,
     /// Minimum cluster size for the rare rule to fire (0 = no floor).
@@ -431,6 +549,10 @@ struct CalibrateCmd {
     /// is below this fraction of cal hunks.
     #[arg(long = "asym-fire-rate-threshold", default_value_t = 0.05)]
     asym_fire_rate_threshold: f64,
+    /// Calibrate an extra threshold per slice (repeatable): `path:<prefix>`,
+    /// `author:<email>`, or `auto`.
+    #[arg(long = "slice", value_name = "SPEC")]
+    slice: Vec<String>,
 }
 
 fn run_calibrate_cmd(c: CalibrateCmd) -> ExitCode {
@@ -456,6 +578,7 @@ fn run_calibrate_cmd(c: CalibrateCmd) -> ExitCode {
         cluster_size_min: c.cluster_size_min,
         auto_select_asym_cal: !c.no_auto_select_asym_cal,
         asym_fire_rate_threshold: c.asym_fire_rate_threshold,
+        slices: c.slice.clone(),
     };
     match run_calibrate(&c.repo, &c.repo_corpus, &generic, &c.output, &opts) {
         Ok(thresholds) => {
@@ -464,7 +587,7 @@ fn run_calibrate_cmd(c: CalibrateCmd) -> ExitCode {
             }
             let langs: Vec<&str> = thresholds.iter().map(|(l, _)| l.as_str()).collect();
             println!(
-                "scorer-config.json (v3, languages: {}) → {}",
+                "scorer-config.json (languages: {}) → {}",
                 langs.join(", "),
                 c.output.display()
             );
@@ -482,6 +605,11 @@ struct FitCmd {
     /// Path to the target repository.
     #[arg(long, default_value = ".")]
     repo: PathBuf,
+    /// Calibrate an extra threshold for a slice of the repo (repeatable):
+    /// `path:<prefix>` (a subdirectory), `author:<email>`, or `auto` (one per
+    /// top-level directory). Hunks in a slice are judged against its threshold.
+    #[arg(long = "slice", value_name = "SPEC")]
+    slice: Vec<String>,
 }
 
 fn run_fit_cmd(c: FitCmd) -> ExitCode {
@@ -508,6 +636,7 @@ fn run_fit_cmd(c: FitCmd) -> ExitCode {
     let opts = CalibrateOptions {
         repo_sha,
         timestamp_utc: iso_now(),
+        slices: c.slice.clone(),
         ..CalibrateOptions::default()
     };
     if let Err(e) = run_calibrate(&c.repo, &repo_corpus, &generic_bytes, &scorer_config, &opts) {
@@ -599,16 +728,56 @@ fn run_check_cmd(c: CheckCmd) -> ExitCode {
 }
 
 #[derive(Args)]
+struct ReviewCmd {
+    /// A PR URL, `#number` / `number`, a `base..head` range, or a commit sha.
+    target: String,
+    /// Path to the local repository (whose fitted voice scores the PR).
+    #[arg(long, default_value = ".")]
+    repo: PathBuf,
+    /// Output format: human, json, or sarif.
+    #[arg(long, default_value = "human", value_parser = ["human", "json", "sarif"])]
+    format: String,
+}
+
+#[derive(Args)]
+struct VoiceDiffCmd {
+    /// A ref or `base..head` range to summarize (e.g. `main..HEAD`).
+    target: String,
+    /// Path to the repository.
+    #[arg(long, default_value = ".")]
+    repo: PathBuf,
+    /// Output format: human or json.
+    #[arg(long, default_value = "human", value_parser = ["human", "json"])]
+    format: String,
+    /// Hot-spots to list.
+    #[arg(long = "top", value_name = "N", default_value_t = voice_diff::DEFAULT_TOP)]
+    top: usize,
+}
+
+#[derive(Args)]
 struct InspectCmd {
     /// Path to the repository to inspect.
     #[arg(default_value = ".")]
     path: PathBuf,
-    /// Emit a stable machine-readable JSON document.
+    /// Inspect the fitted model artifact (hashes, provenance, and the typical
+    /// callees per cluster) instead of repo suitability.
     #[arg(long)]
+    model: bool,
+    /// Typical callees shown per cluster under `--model`.
+    #[arg(long = "top", value_name = "N", default_value_t = 8)]
+    top: usize,
+    /// Output format: human (terminal) or json (stable machine-readable).
+    #[arg(long, default_value = "human", value_parser = ["human", "json"])]
+    format: String,
+    /// Deprecated alias for `--format json` (hidden; use `--format json`).
+    #[arg(long, hide = true)]
     json: bool,
 }
 
 fn run_inspect_cmd(c: InspectCmd) -> ExitCode {
+    if c.model {
+        return run_inspect_model(&c);
+    }
     let report = match inspect_repo(&c.path) {
         Ok(r) => r,
         Err(e) => {
@@ -616,7 +785,7 @@ fn run_inspect_cmd(c: InspectCmd) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    if c.json {
+    if wants_json(&c.format, c.json) {
         match serde_json::to_string_pretty(&report) {
             Ok(json) => println!("{json}"),
             Err(e) => {
@@ -739,6 +908,110 @@ fn render_inspect_human(report: &InspectReport, use_color: bool) -> String {
             reason.signal,
             reason.message
         );
+    }
+    out
+}
+
+fn run_inspect_model(c: &InspectCmd) -> ExitCode {
+    let report = match inspect_model(&c.path, c.top) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    if wants_json(&c.format, c.json) {
+        match serde_json::to_string_pretty(&report) {
+            Ok(json) => println!("{json}"),
+            Err(e) => {
+                eprintln!("error: {e}");
+                return ExitCode::from(2);
+            }
+        }
+        return ExitCode::SUCCESS;
+    }
+    let use_color = std::env::var_os("NO_COLOR").is_none() && std::io::stdout().is_terminal();
+    print!("{}", render_model_human(&report, use_color));
+    ExitCode::SUCCESS
+}
+
+fn render_model_human(report: &ModelReport, use_color: bool) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    let _ = writeln!(out, "Model artifact for {}", report.path);
+    let _ = writeln!(out);
+
+    match &report.manifest {
+        Some(m) => {
+            let _ = writeln!(
+                out,
+                "  {} {}",
+                paint("model:", ANSI_BOLD, use_color),
+                m.model_hash
+            );
+            let _ = writeln!(out, "  scorer-config: {}", m.scorer_config_hash);
+            let _ = writeln!(
+                out,
+                "  format: manifest v{} · config v{}",
+                m.manifest_version, m.config_version
+            );
+            let _ = writeln!(
+                out,
+                "  fitted at {} · repo sha {}",
+                m.fit_timestamp, m.fit_commit_sha
+            );
+            let _ = writeln!(
+                out,
+                "  corpus: {} files · {} lines",
+                m.corpus_files, m.corpus_lines
+            );
+        }
+        None => {
+            let _ = writeln!(
+                out,
+                "  (no manifest.json — re-run `argot fit` to write one)"
+            );
+        }
+    }
+    let _ = writeln!(out);
+
+    for (lang, lm) in &report.languages {
+        let _ = writeln!(
+            out,
+            "{} — threshold {:.4} · model {} · n_cal {}",
+            paint(lang, ANSI_BOLD, use_color),
+            lm.threshold,
+            lm.model_hash,
+            lm.n_cal
+        );
+        let _ = writeln!(
+            out,
+            "  {} distinct BPE tokens ({} total) · {} attested callees over {} corpus files · {} clusters",
+            lm.distinct_tokens,
+            lm.total_tokens,
+            lm.attested_callees,
+            lm.corpus_files,
+            lm.clusters.len()
+        );
+        for cl in &lm.clusters {
+            let callees: Vec<String> = cl
+                .top_callees
+                .iter()
+                .map(|(name, n)| format!("{name} ({n})"))
+                .collect();
+            let _ = writeln!(
+                out,
+                "    cluster {} ({} files): {}",
+                cl.id,
+                cl.files,
+                if callees.is_empty() {
+                    "—".to_string()
+                } else {
+                    callees.join(", ")
+                }
+            );
+        }
+        let _ = writeln!(out);
     }
     out
 }
@@ -906,6 +1179,14 @@ fn run_list_mutes() -> ExitCode {
         let adapter: Box<dyn LanguageAdapter> = match language {
             Language::Python => Box::new(PythonAdapter::new()),
             Language::Typescript => Box::new(TypeScriptAdapter::new()),
+            Language::Go => Box::new(GoAdapter::new()),
+            Language::Rust => Box::new(RustAdapter::new()),
+            Language::C => Box::new(CAdapter::new()),
+            Language::Java => Box::new(JavaAdapter::new()),
+            Language::CSharp => Box::new(CSharpAdapter::new()),
+            Language::Php => Box::new(PhpAdapter::new()),
+            Language::Cpp => Box::new(CppAdapter::new()),
+            Language::Ruby => Box::new(RubyAdapter::new()),
         };
         // Cheap pre-filter before the full parse.
         if !source.contains("argot:") {
@@ -989,7 +1270,7 @@ struct ScoreCmd {
     /// recall/fp comparison.
     #[arg(long, default_value_t = 0.0)]
     threshold: f64,
-    /// Cluster-rare threshold (era-13.5); the bench auto-selects 0 or 2.
+    /// Cluster-rare threshold; the bench auto-selects 0 or 2.
     #[arg(long = "cluster-rare-threshold", default_value_t = 0)]
     cluster_rare_threshold: usize,
     /// Repo root for resolving the repo's own module names (package.json name /
@@ -1004,8 +1285,18 @@ fn run_score_cmd(c: ScoreCmd) -> ExitCode {
     let language = match c.language.as_str() {
         "python" => Language::Python,
         "typescript" => Language::Typescript,
+        "go" => Language::Go,
+        "rust" => Language::Rust,
+        "c" => Language::C,
+        "java" => Language::Java,
+        "csharp" => Language::CSharp,
+        "php" => Language::Php,
+        "cpp" => Language::Cpp,
+        "ruby" => Language::Ruby,
         other => {
-            eprintln!("error: --language must be python|typescript (got '{other}')");
+            eprintln!(
+                "error: --language must be python|typescript|go|rust|c|java|csharp|php|cpp|ruby (got '{other}')"
+            );
             return ExitCode::from(2);
         }
     };
@@ -1035,6 +1326,14 @@ fn run_score_cmd(c: ScoreCmd) -> ExitCode {
     let adapter: Box<dyn LanguageAdapter> = match language {
         Language::Python => Box::new(PythonAdapter::new()),
         Language::Typescript => Box::new(TypeScriptAdapter::new()),
+        Language::Go => Box::new(GoAdapter::new()),
+        Language::Rust => Box::new(RustAdapter::new()),
+        Language::C => Box::new(CAdapter::new()),
+        Language::Java => Box::new(JavaAdapter::new()),
+        Language::CSharp => Box::new(CSharpAdapter::new()),
+        Language::Php => Box::new(PhpAdapter::new()),
+        Language::Cpp => Box::new(CppAdapter::new()),
+        Language::Ruby => Box::new(RubyAdapter::new()),
     };
     // import_modules = union of extract_imports over the corpus (matches the
     // bench's ImportGraphScorer.fit). AUC is threshold-independent; the
@@ -1232,21 +1531,42 @@ fn main() -> ExitCode {
         Some(Command::Calibrate(c)) => run_calibrate_cmd(c),
         Some(Command::Fit(c)) => run_fit_cmd(c),
         Some(Command::Check(c)) => run_check_cmd(c),
+        Some(Command::Review(c)) => {
+            let use_color =
+                std::env::var_os("NO_COLOR").is_none() && std::io::stdout().is_terminal();
+            review::run_review(&c.target, c.repo, &c.format, use_color)
+        }
+        Some(Command::VoiceDiff(c)) => {
+            voice_diff::run_voice_diff(&c.target, c.repo, &c.format, c.top)
+        }
         Some(Command::Inspect(c)) => run_inspect_cmd(c),
         Some(Command::Mute(c)) => run_mute_cmd(c),
         Some(Command::ListMutes) => run_list_mutes(),
         Some(Command::ReviewMutes(c)) => run_review_mutes_cmd(c),
         Some(Command::Score(c)) => run_score_cmd(c),
-        Some(Command::Status) => run_status(),
-        Some(Command::List) => run_list(),
+        Some(Command::Status(c)) => run_status(c),
+        Some(Command::List(c)) => run_list(c),
         Some(Command::Update) => run_update(),
+        Some(Command::Mcp(c)) => mcp::run_mcp(c.repo),
+        Some(Command::DescribeVoice(c)) => describe::run_describe_voice(c.repo, c.top, c.out),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::is_npm_install;
+    use super::{is_npm_install, wants_json};
     use std::path::Path;
+
+    #[test]
+    fn wants_json_honors_format_and_deprecated_alias() {
+        // The `--format json` idiom.
+        assert!(wants_json("json", false));
+        assert!(!wants_json("human", false));
+        // The deprecated `--json` boolean alias still forces JSON.
+        assert!(wants_json("human", true));
+        // Alias and format agree.
+        assert!(wants_json("json", true));
+    }
 
     #[test]
     fn npm_install_detected_by_node_modules_component() {

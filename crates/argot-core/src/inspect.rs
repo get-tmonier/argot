@@ -8,7 +8,15 @@
 //! extension→language routing) so what inspect reports is what calibrate
 //! would see. Nothing is persisted.
 
+use crate::scoring::adapters::c::CAdapter;
+use crate::scoring::adapters::cpp::CppAdapter;
+use crate::scoring::adapters::csharp::CSharpAdapter;
+use crate::scoring::adapters::go::GoAdapter;
+use crate::scoring::adapters::java::JavaAdapter;
+use crate::scoring::adapters::php::PhpAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
+use crate::scoring::adapters::ruby::RubyAdapter;
+use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::{Language, LanguageAdapter};
 use crate::scoring::calibration::{collect_candidates_with, language_for_filename, language_name};
@@ -146,10 +154,65 @@ pub struct InspectReport {
     pub reasons: Vec<Reason>,
 }
 
+/// Artifact-level fields from `.argot/manifest.json` (`argot inspect --model`).
+#[derive(Serialize, Debug, Clone)]
+pub struct ManifestView {
+    pub manifest_version: u64,
+    pub config_version: u64,
+    pub model_hash: String,
+    pub scorer_config_hash: String,
+    pub fit_commit_sha: String,
+    pub fit_timestamp: String,
+    pub corpus_files: usize,
+    pub corpus_lines: usize,
+}
+
+/// One callee-bag cluster in the fitted model, with its most-typical callees.
+#[derive(Serialize, Debug, Clone)]
+pub struct ClusterView {
+    pub id: String,
+    pub files: usize,
+    /// Top callees by how many cluster files use them (name, file count).
+    pub top_callees: Vec<(String, usize)>,
+}
+
+/// Per-language view of the fit-time model snapshot.
+#[derive(Serialize, Debug, Clone)]
+pub struct LanguageModelView {
+    pub threshold: f64,
+    pub model_hash: String,
+    pub n_cal: usize,
+    pub distinct_tokens: usize,
+    pub total_tokens: u64,
+    pub attested_callees: usize,
+    pub corpus_files: usize,
+    /// The repo's familiar import surface (first-party + attested third-party).
+    pub familiar_imports: Vec<String>,
+    pub clusters: Vec<ClusterView>,
+}
+
+/// `argot inspect --model` report: what the model learned, plus the artifact
+/// provenance that lets two fits be compared.
+#[derive(Serialize, Debug, Clone)]
+pub struct ModelReport {
+    pub path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manifest: Option<ManifestView>,
+    pub languages: BTreeMap<String, LanguageModelView>,
+}
+
 fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
     match language {
         Language::Python => Box::new(PythonAdapter::new()),
         Language::Typescript => Box::new(TypeScriptAdapter::new()),
+        Language::Go => Box::new(GoAdapter::new()),
+        Language::Rust => Box::new(RustAdapter::new()),
+        Language::C => Box::new(CAdapter::new()),
+        Language::Java => Box::new(JavaAdapter::new()),
+        Language::CSharp => Box::new(CSharpAdapter::new()),
+        Language::Php => Box::new(PhpAdapter::new()),
+        Language::Cpp => Box::new(CppAdapter::new()),
+        Language::Ruby => Box::new(RubyAdapter::new()),
     }
 }
 
@@ -226,6 +289,14 @@ fn scan_corpus(repo_dir: &Path) -> CorpusReport {
     for (key, stats) in &mut languages {
         let language = match key.as_str() {
             "python" => Language::Python,
+            "go" => Language::Go,
+            "rust" => Language::Rust,
+            "c" => Language::C,
+            "java" => Language::Java,
+            "csharp" => Language::CSharp,
+            "php" => Language::Php,
+            "cpp" => Language::Cpp,
+            "ruby" => Language::Ruby,
             _ => Language::Typescript,
         };
         let adapter = adapters
@@ -507,6 +578,123 @@ pub fn inspect_repo(repo_dir: &Path) -> Result<InspectReport> {
         corpus,
         calibration,
         reasons,
+    })
+}
+
+/// Read the fitted model artifact for `argot inspect --model`: the manifest
+/// provenance plus, per language, the BPE/callee summary and the most-typical
+/// callees in each cluster (`top_n` per cluster). Errors only when there's no
+/// scorer-config to read.
+pub fn inspect_model(repo_dir: &Path, top_n: usize) -> Result<ModelReport> {
+    use crate::scoring::model::LanguageModel;
+
+    let argot_dir = repo_dir.join(".argot");
+    let config_path = argot_dir.join("scorer-config.json");
+    let bytes = std::fs::read(&config_path).map_err(|_| {
+        anyhow::anyhow!(
+            "no fitted model at {} — run `argot fit` first",
+            config_path.display()
+        )
+    })?;
+    let config: Value = serde_json::from_slice(&bytes)
+        .map_err(|e| anyhow::anyhow!("{} is not valid JSON: {e}", config_path.display()))?;
+
+    // Manifest is optional — a fit that predates it still has a readable model.
+    let str_field = |v: &Value, k: &str, default: &str| {
+        v.get(k)
+            .and_then(Value::as_str)
+            .unwrap_or(default)
+            .to_string()
+    };
+    let manifest = std::fs::read(argot_dir.join("manifest.json"))
+        .ok()
+        .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+        .map(|m| ManifestView {
+            manifest_version: m
+                .get("manifest_version")
+                .and_then(Value::as_u64)
+                .unwrap_or(0),
+            config_version: m.get("config_version").and_then(Value::as_u64).unwrap_or(0),
+            model_hash: str_field(&m, "model_hash", ""),
+            scorer_config_hash: str_field(&m, "scorer_config_hash", ""),
+            fit_commit_sha: str_field(&m, "fit_commit_sha", "unknown"),
+            fit_timestamp: str_field(&m, "fit_timestamp", "unknown"),
+            corpus_files: m
+                .get("corpus")
+                .and_then(|c| c.get("files"))
+                .and_then(Value::as_u64)
+                .unwrap_or(0) as usize,
+            corpus_lines: m
+                .get("corpus")
+                .and_then(|c| c.get("lines"))
+                .and_then(Value::as_u64)
+                .unwrap_or(0) as usize,
+        });
+
+    let mut languages: BTreeMap<String, LanguageModelView> = BTreeMap::new();
+    if let Some(langs) = config.get("languages").and_then(Value::as_object) {
+        for (lang, cfg) in langs {
+            let Some(model) = cfg
+                .get("model")
+                .and_then(|m| serde_json::from_value::<LanguageModel>(m.clone()).ok())
+            else {
+                continue;
+            };
+            let mut clusters: Vec<ClusterView> = model
+                .call_receiver
+                .clusters
+                .iter()
+                .map(|(id, cm)| {
+                    let mut callees: Vec<(String, usize)> = cm
+                        .callee_counts
+                        .iter()
+                        .map(|(c, n)| (c.clone(), *n))
+                        .collect();
+                    // Most-typical first; ties broken by name for determinism.
+                    callees.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+                    callees.truncate(top_n);
+                    ClusterView {
+                        id: id.clone(),
+                        files: cm.files.len(),
+                        top_callees: callees,
+                    }
+                })
+                .collect();
+            clusters.sort_by(|a, b| a.id.cmp(&b.id));
+            languages.insert(
+                lang.clone(),
+                LanguageModelView {
+                    threshold: cfg.get("threshold").and_then(Value::as_f64).unwrap_or(0.0),
+                    model_hash: str_field(cfg, "model_hash", ""),
+                    n_cal: cfg
+                        .get("calibration")
+                        .and_then(|c| c.get("n_cal"))
+                        .and_then(Value::as_u64)
+                        .unwrap_or(0) as usize,
+                    distinct_tokens: model.bpe.token_counts.len(),
+                    total_tokens: model.bpe.total_tokens,
+                    attested_callees: model.call_receiver.attested.len(),
+                    corpus_files: model.call_receiver.n_corpus_files,
+                    familiar_imports: cfg
+                        .get("import_modules")
+                        .and_then(Value::as_array)
+                        .map(|a| {
+                            a.iter()
+                                .filter_map(Value::as_str)
+                                .map(String::from)
+                                .collect()
+                        })
+                        .unwrap_or_default(),
+                    clusters,
+                },
+            );
+        }
+    }
+
+    Ok(ModelReport {
+        path: repo_dir.display().to_string(),
+        manifest,
+        languages,
     })
 }
 

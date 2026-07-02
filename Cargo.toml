@@ -10,6 +10,7 @@ edition = "2021"
 rust-version = "1.85"
 license = "MIT"
 repository = "https://github.com/get-tmonier/argot"
+homepage = "https://argot.tmonier.com"
 
 # Dependency versions are pinned for parity with the Python engine being
 # replaced:
@@ -30,6 +31,16 @@ tree-sitter = "0.23"
 tree-sitter-python = "0.23"
 tree-sitter-typescript = "0.23"
 tree-sitter-javascript = "0.23"
+tree-sitter-go = "0.23"
+tree-sitter-rust = "0.23"
+tree-sitter-c = "0.23"
+tree-sitter-java = "0.23"
+# Pinned to 0.23.0: later 0.23.x (0.23.5) ship a grammar built at ABI 15, which
+# tree-sitter 0.23.2 (max ABI 14) rejects with LanguageError. 0.23.0 is ABI 14.
+tree-sitter-c-sharp = "=0.23.0"
+tree-sitter-php = "0.23"
+tree-sitter-cpp = "0.23"
+tree-sitter-ruby = "0.23"
 # Vendored libgit2, no ssh/https/openssl: argot only does local git operations,
 # so we drop the network transports (openssl-sys, libssh2-sys) for a portable
 # static binary. libgit2 itself is the same C library pygit2 bound, so diff

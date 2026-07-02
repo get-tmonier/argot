@@ -13,8 +13,16 @@ installers = ["shell", "npm"]
 npm-scope = "@tmonier"
 # Push the npm installer to the registry (uses the NPM_TOKEN secret)
 publish-jobs = ["npm"]
-# Target platforms to build apps for (Rust target-triple syntax)
-targets = ["aarch64-apple-darwin", "x86_64-unknown-linux-gnu"]
+# Target platforms to build apps for (Rust target-triple syntax).
+# apple-darwin x2 (Apple Silicon + Intel Macs) · linux-gnu x2 (x86_64 + ARM:
+# Graviton CI, Raspberry Pi, ARM containers).
+targets = [
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+]
 # Shipped binaries self-update via `argot update`; dev/CI builds skip the
 # feature (and its HTTP dependency tree) entirely.
 features = ["self-update"]

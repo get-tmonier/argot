@@ -26,7 +26,7 @@ Prefer a package manager?
 npm install -g @tmonier/argot
 ```
 
-Both download the prebuilt `argot` binary for your platform (macOS arm64, Linux x64).
+Both download the prebuilt `argot` binary for your platform (macOS arm64/Intel, Linux x64/arm64).
 Everything runs locally — no API key, no account, nothing leaves your machine.
 
 ## Calibrate, then check
@@ -48,7 +48,7 @@ argot check · 2 hunks above threshold (1 foreign · 1 suspicious)
 note: argot is a probabilistic style linter — verify before action.
 
 src/utils/http-helpers.ts
-  ●  L42-L48   8.21  foreign     · workdir · foreign import (import)
+  !  L42-L48   8.21  foreign     · workdir · foreign import (import) [a1b2c3d4e5f6]
      ↳ axios — 0 of 47 module specifiers in repo
        common here: react (320×), express (88×), pg (47×)
 ```

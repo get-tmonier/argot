@@ -137,6 +137,25 @@ fn check_comment_text(text: &str, markers: &[&str]) -> bool {
     markers.iter().any(|m| ll.contains(m))
 }
 
+/// True if the comment `text` at 0-based `line_index` carries an
+/// auto-generation marker: a strong DO-NOT-EDIT marker within the first 10
+/// lines, or any generic/tool marker within `head_lines`. Language-agnostic —
+/// each adapter feeds its own grammar's comment nodes so block-comment styles
+/// (`//`, `/* */`) that the Python grammar can't parse are still covered.
+pub fn comment_indicates_generated(line_index: usize, text: &str, head_lines: usize) -> bool {
+    if line_index >= head_lines {
+        return false;
+    }
+    // Strong-signal check: "do not edit" / "do not modify" in first 10 lines.
+    if line_index < 10 && check_comment_text(text, STRONG_FIRST_10_MARKERS) {
+        return true;
+    }
+    // Full marker scan.
+    check_comment_text(text, GENERIC_MARKERS)
+        || check_comment_text(text, DO_NOT_EDIT_MARKERS)
+        || check_comment_text(text, TOOL_MARKERS)
+}
+
 /// True if a comment within the first `head_lines` lines carries an
 /// auto-generation marker (case-insensitive), or a strong DO-NOT-EDIT
 /// marker within the first 10 lines. False for empty input.
@@ -153,19 +172,8 @@ pub fn is_auto_generated(source: &str, head_lines: usize) -> bool {
             continue;
         }
         let line_index = node.start_position().row; // 0-based
-        if line_index >= head_lines {
-            continue;
-        }
         let text = &source[node.byte_range()];
-        // Strong-signal check: "do not edit" / "do not modify" in first 10 lines.
-        if line_index < 10 && check_comment_text(text, STRONG_FIRST_10_MARKERS) {
-            return true;
-        }
-        // Full marker scan.
-        if check_comment_text(text, GENERIC_MARKERS)
-            || check_comment_text(text, DO_NOT_EDIT_MARKERS)
-            || check_comment_text(text, TOOL_MARKERS)
-        {
+        if comment_indicates_generated(line_index, text, head_lines) {
             return true;
         }
     }

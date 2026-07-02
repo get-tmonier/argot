@@ -1,4 +1,4 @@
-//! Cluster-staple deficit — era-14 phase C candidate (math option i).
+//! Cluster-staple deficit — a shape-primitive candidate.
 //!
 //! "Staples" are the cluster's top-10 most-attested callees (per-file
 //! presence, first-insertion tie-break). Per source, the scalar is the

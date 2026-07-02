@@ -9,7 +9,15 @@
 //! `max(cal_scores)` threshold matches the Python engine exactly on every corpus.
 
 use crate::bpe::BpeTokenizer;
+use crate::scoring::adapters::c::CAdapter;
+use crate::scoring::adapters::cpp::CppAdapter;
+use crate::scoring::adapters::csharp::CSharpAdapter;
+use crate::scoring::adapters::go::GoAdapter;
+use crate::scoring::adapters::java::JavaAdapter;
+use crate::scoring::adapters::php::PhpAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
+use crate::scoring::adapters::ruby::RubyAdapter;
+use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::{Language, LanguageAdapter};
 use crate::scoring::bpe_scorer::BpeScorer;
@@ -20,6 +28,7 @@ use crate::scoring::typicality::TypicalityModel;
 use crate::suppress::PathSuppressions;
 use crate::text::{read_text_lossy, splitlines, splitlines_keepends};
 use anyhow::{bail, Result};
+use md5::{Digest, Md5};
 use serde::Serialize;
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -29,6 +38,68 @@ const MIN_BODY_LINES: usize = 5;
 /// attestation snapshot) and repo-owned import modules. Check refuses other
 /// versions — regenerate via `argot fit`.
 const CONFIG_VERSION: u32 = 3;
+/// Schema version of `.argot/manifest.json` — bumped independently of
+/// `CONFIG_VERSION` so the artifact contract can evolve on its own cadence.
+pub const MANIFEST_VERSION: u32 = 1;
+
+/// Name of the model manifest inside `.argot/`.
+pub const MANIFEST_FILE: &str = "manifest.json";
+
+/// First 12 hex chars of the MD5 of `bytes` — the repo-wide short-hash idiom
+/// (`model_hash`, config hash, etc.).
+pub fn short_hash(bytes: &[u8]) -> String {
+    let digest = Md5::new().chain_update(bytes).finalize();
+    let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
+    hex[..12].to_string()
+}
+
+/// Combine per-language model fingerprints into one stable overall hash. The
+/// input is sorted by language name, so the result is order-independent and
+/// identical for identical models. A single-language repo still gets a distinct
+/// combined hash (not the raw per-language one) so the two can't be confused.
+pub fn combined_model_hash(per_language: &BTreeMap<String, String>) -> String {
+    let mut buf = String::new();
+    for (lang, hash) in per_language {
+        buf.push_str(lang);
+        buf.push(':');
+        buf.push_str(hash);
+        buf.push('\n');
+    }
+    short_hash(buf.as_bytes())
+}
+
+/// The inspectable model artifact (`.argot/manifest.json`): a stable fingerprint
+/// of what argot learned, so two fits of the same corpus+config are provably
+/// identical and a stale or foreign artifact is obvious at a glance.
+#[derive(Serialize)]
+struct Manifest {
+    manifest_version: u32,
+    config_version: u32,
+    /// Combined fingerprint of every language's fit-time model snapshot.
+    model_hash: String,
+    /// Fingerprint of the emitted `scorer-config.json` bytes.
+    scorer_config_hash: String,
+    /// Repo HEAD sha when the model was fitted (`unknown` outside a git repo).
+    fit_commit_sha: String,
+    fit_timestamp: String,
+    corpus: CorpusSummary,
+    languages: Vec<LangSummary>,
+}
+
+#[derive(Serialize)]
+struct CorpusSummary {
+    files: usize,
+    lines: usize,
+}
+
+#[derive(Serialize)]
+struct LangSummary {
+    language: String,
+    threshold: f64,
+    model_hash: String,
+    n_cal: usize,
+    files: usize,
+}
 
 // Production call-receiver constants (match calibration defaults).
 const CR_ALPHA: f64 = 2.0;
@@ -43,12 +114,13 @@ const CR_CLUSTER_BONUS: f64 = 5.0;
 /// call-receiver contributes 0 on exactly the hunks check scores. The
 /// calibration side has always applied the fallback (candidates carry their
 /// file region), so enabling it at check time is what makes the two paths
-/// symmetric. Era-14 gated it off based on catalog-mode FP with a forced
-/// cluster-rare rule; in production the rare rule is auto-detected per
-/// corpus, and the era-15 production-path FP controls re-validated it.
+/// symmetric. It was gated off when a forced cluster-rare rule made the
+/// catalog-mode false-positive control regress; in production the rare rule is
+/// auto-detected per corpus, and the production-path FP controls re-validated
+/// this setting.
 const CR_PARSE_ERROR_FALLBACK: bool = true;
 /// Score added when a hunk's rarest present convention clears its calibrated
-/// bar (era 15; same magnitude as the cluster bonus).
+/// bar (same magnitude as the cluster bonus).
 const CONVENTION_BONUS: f64 = 5.0;
 
 fn basename(path: &Path) -> String {
@@ -93,7 +165,8 @@ fn rglob_sorted(dir: &Path, ext: &str) -> Vec<PathBuf> {
 
 /// A calibration candidate: hunk text + originating file path + file source.
 /// Line bounds are 1-indexed inclusive within `file_source` and back the
-/// era-14 phase D parse-error callee fallback.
+/// parse-error host fallback for callee extraction.
+#[derive(Clone)]
 pub struct Candidate {
     pub hunk: String,
     pub file_path: PathBuf,
@@ -123,6 +196,14 @@ pub fn collect_candidates_with(
     let exts: &[&str] = match adapter.language() {
         Language::Python => &[".py"],
         Language::Typescript => &[".ts", ".tsx"],
+        Language::Go => &[".go"],
+        Language::Rust => &[".rs"],
+        Language::C => &[".c", ".h"],
+        Language::Java => &[".java"],
+        Language::CSharp => &[".cs"],
+        Language::Php => &[".php"],
+        Language::Cpp => &[".cpp", ".cc", ".hpp", ".cxx"],
+        Language::Ruby => &[".rb"],
     };
     let mut out = Vec::new();
     for ext in exts {
@@ -241,9 +322,148 @@ struct LangConfig {
     evidence_corpus: EvidenceCorpusJson,
     /// Fingerprint of `model` (deterministic serialization → stable hash).
     model_hash: String,
+    /// Optional per-slice thresholds (per-subdirectory / per-author voice).
+    /// Omitted entirely for an unsliced fit, so those configs are byte-identical
+    /// to before this field existed.
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    slices: Vec<SliceConfig>,
     /// Fit-time model snapshot: BPE token stats + callee attestation +
     /// cluster partition. Check scores against this, never the live tree.
     model: LanguageModel,
+}
+
+/// One calibrated slice: its own threshold applies to hunks whose repo-relative
+/// path matches any of `paths` (a top-level-dir prefix, an explicit glob-free
+/// prefix, or the exact files an author owns).
+#[derive(Serialize, Clone)]
+struct SliceConfig {
+    name: String,
+    paths: Vec<String>,
+    threshold: f64,
+}
+
+/// A slice resolved to the repo-relative path prefixes/files its threshold
+/// covers.
+#[derive(Clone)]
+pub struct ResolvedSlice {
+    pub name: String,
+    pub paths: Vec<String>,
+}
+
+/// True when `rel_path` (repo-relative, `/`-separated) falls in the slice: it
+/// starts with one of the slice's prefixes, or equals one of its files.
+fn slice_matches(rel_path: &str, paths: &[String]) -> bool {
+    paths
+        .iter()
+        .any(|p| rel_path == p || rel_path.starts_with(p))
+}
+
+/// Repo-relative, `/`-separated form of `path` (best-effort: strips the repo
+/// prefix when present, and normalizes Windows separators).
+fn rel_to_repo(path: &Path, repo_dir: &Path) -> String {
+    let rel = path.strip_prefix(repo_dir).unwrap_or(path);
+    rel.to_string_lossy().replace('\\', "/")
+}
+
+/// Resolve raw `--slice` specs (`path:<prefix>`, `author:<email>`, `auto`) into
+/// concrete slices over `corpus_files` (repo-relative paths). Unknown/empty
+/// specs are dropped. `auto` expands to one slice per top-level directory that
+/// holds at least [`SLICE_AUTO_MIN_FILES`] source files.
+pub fn resolve_slices(
+    repo_dir: &Path,
+    corpus_rel_files: &[String],
+    raw: &[String],
+) -> Vec<ResolvedSlice> {
+    let mut out = Vec::new();
+    for spec in raw {
+        let spec = spec.trim();
+        if spec == "auto" {
+            out.extend(auto_slices(corpus_rel_files));
+        } else if let Some(prefix) = spec.strip_prefix("path:") {
+            let prefix = prefix.trim().to_string();
+            if !prefix.is_empty() {
+                out.push(ResolvedSlice {
+                    name: format!("path:{prefix}"),
+                    paths: vec![prefix],
+                });
+            }
+        } else if let Some(email) = spec.strip_prefix("author:") {
+            let email = email.trim();
+            let files = author_files(repo_dir, email);
+            if !files.is_empty() {
+                out.push(ResolvedSlice {
+                    name: format!("author:{email}"),
+                    paths: files,
+                });
+            }
+        }
+    }
+    out
+}
+
+/// A top-level directory needs this many source files to become an auto slice.
+const SLICE_AUTO_MIN_FILES: usize = 10;
+
+/// A slice needs at least this many calibration candidates to get its own
+/// threshold; below it, the whole-repo threshold is more stable.
+const SLICE_MIN_CANDIDATES: usize = 20;
+
+fn auto_slices(corpus_rel_files: &[String]) -> Vec<ResolvedSlice> {
+    let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+    for f in corpus_rel_files {
+        if let Some(idx) = f.find('/') {
+            *counts.entry(f[..idx].to_string()).or_insert(0) += 1;
+        }
+    }
+    counts
+        .into_iter()
+        .filter(|(_, n)| *n >= SLICE_AUTO_MIN_FILES)
+        .map(|(dir, _)| ResolvedSlice {
+            name: format!("path:{dir}/"),
+            paths: vec![format!("{dir}/")],
+        })
+        .collect()
+}
+
+/// Repo-relative files an author has touched (in-process via libgit2, so no
+/// external `git`). Empty when the repo can't be opened or the author has no
+/// commits — the caller then drops the slice.
+fn author_files(repo_dir: &Path, email: &str) -> Vec<String> {
+    let Ok(repo) = git2::Repository::open(repo_dir) else {
+        return Vec::new();
+    };
+    let Ok(mut walk) = repo.revwalk() else {
+        return Vec::new();
+    };
+    if walk.push_head().is_err() {
+        return Vec::new();
+    }
+    let mut files: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for oid in walk.flatten() {
+        let Ok(commit) = repo.find_commit(oid) else {
+            continue;
+        };
+        if commit.author().email() != Some(email) {
+            continue;
+        }
+        if commit.parent_count() != 1 {
+            continue;
+        }
+        let (Ok(tree), Ok(parent)) = (commit.tree(), commit.parent(0)) else {
+            continue;
+        };
+        let Ok(parent_tree) = parent.tree() else {
+            continue;
+        };
+        if let Ok(diff) = repo.diff_tree_to_tree(Some(&parent_tree), Some(&tree), None) {
+            for delta in diff.deltas() {
+                if let Some(p) = delta.new_file().path().and_then(|p| p.to_str()) {
+                    files.insert(p.to_string());
+                }
+            }
+        }
+    }
+    files.into_iter().collect()
 }
 
 #[derive(Serialize)]
@@ -256,21 +476,37 @@ fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
     match language {
         Language::Python => Box::new(PythonAdapter::new()),
         Language::Typescript => Box::new(TypeScriptAdapter::new()),
+        Language::Go => Box::new(GoAdapter::new()),
+        Language::Rust => Box::new(RustAdapter::new()),
+        Language::C => Box::new(CAdapter::new()),
+        Language::Java => Box::new(JavaAdapter::new()),
+        Language::CSharp => Box::new(CSharpAdapter::new()),
+        Language::Php => Box::new(PhpAdapter::new()),
+        Language::Cpp => Box::new(CppAdapter::new()),
+        Language::Ruby => Box::new(RubyAdapter::new()),
     }
 }
 
-/// Canonical config-key name for a scoring language ("python"/"typescript").
+/// Canonical config-key name for a scoring language.
 /// Public so `inspect` reports under the same keys `scorer-config.json` uses.
 pub fn language_name(language: Language) -> &'static str {
     match language {
         Language::Python => "python",
         Language::Typescript => "typescript",
+        Language::Go => "go",
+        Language::Rust => "rust",
+        Language::C => "c",
+        Language::Java => "java",
+        Language::CSharp => "csharp",
+        Language::Php => "php",
+        Language::Cpp => "cpp",
+        Language::Ruby => "ruby",
     }
 }
 
 /// Extension → language routing used to partition the corpus (`.py` → python;
-/// `.ts`/`.tsx`/`.js`/`.jsx` → typescript). Public so `inspect` classifies
-/// files with exactly the calibration routing.
+/// `.ts`/`.tsx`/`.js`/`.jsx` → typescript; `.cs` → csharp). Public so `inspect`
+/// classifies files with exactly the calibration routing.
 pub fn language_for_filename(name: &str) -> Option<Language> {
     let ext = match name.rfind('.') {
         Some(i) => &name[i..],
@@ -279,6 +515,14 @@ pub fn language_for_filename(name: &str) -> Option<Language> {
     match ext {
         ".py" => Some(Language::Python),
         ".ts" | ".tsx" | ".js" | ".jsx" => Some(Language::Typescript),
+        ".go" => Some(Language::Go),
+        ".rs" => Some(Language::Rust),
+        ".c" | ".h" => Some(Language::C),
+        ".java" => Some(Language::Java),
+        ".cs" => Some(Language::CSharp),
+        ".php" => Some(Language::Php),
+        ".cpp" | ".cc" | ".hpp" | ".cxx" => Some(Language::Cpp),
+        ".rb" => Some(Language::Ruby),
         _ => None,
     }
 }
@@ -364,7 +608,7 @@ pub fn multi_seed_thresholds(
 }
 
 /// Options for `run_calibrate` (defaults mirror the Python CLI, including the
-/// era-13.5 asymmetric-calibration knobs the final Python calibrator shipped).
+/// asymmetric-calibration knobs the final Python calibrator shipped).
 pub struct CalibrateOptions {
     pub n_cal: usize,
     pub seed: u64,
@@ -374,7 +618,7 @@ pub struct CalibrateOptions {
     pub timestamp_utc: String,
     /// Cluster-rare threshold for the CHECK-time scorer: a callee attested in
     /// ≤ N cluster files is treated as cluster-absent. 0 disables the rule
-    /// (pre-13.5 baseline). Calibration itself always runs with the rule off
+    /// (baseline). Calibration itself always runs with the rule off
     /// (asymmetric calibration — see docs/agents/calibration-contract.md).
     pub cluster_rare_threshold: usize,
     /// Minimum cluster size for the rare rule to fire.
@@ -384,12 +628,16 @@ pub struct CalibrateOptions {
     /// `asym_fire_rate_threshold`), disable it when noisy (would FP-flood).
     pub auto_select_asym_cal: bool,
     pub asym_fire_rate_threshold: f64,
+    /// Raw `--slice` specs (`path:<prefix>`, `author:<email>`, `auto`). Each
+    /// resolved slice gets its own calibrated threshold, dispatched by file path
+    /// at check time. Empty = a single whole-repo threshold (today's behaviour).
+    pub slices: Vec<String>,
 }
 
 impl Default for CalibrateOptions {
     fn default() -> Self {
         Self {
-            // n_cal=100 × 7 seeds is the configuration every era's bench
+            // n_cal=100 × 7 seeds is the configuration the bench has
             // validated the recall/FP gates against. The production default
             // previously sampled 500, which systematically raises the
             // max-of-sample threshold above the validated one (measured:
@@ -405,6 +653,7 @@ impl Default for CalibrateOptions {
             cluster_size_min: 0,
             auto_select_asym_cal: true,
             asym_fire_rate_threshold: 0.05,
+            slices: Vec::new(),
         }
     }
 }
@@ -452,8 +701,19 @@ pub fn run_calibrate(
         bail!("no recognized language files in repo corpus");
     }
 
+    // Resolve `--slice` specs to concrete path sets once (cross-language). Each
+    // language then calibrates its own threshold for each slice's candidates.
+    let corpus_rel: Vec<String> = corpus_files
+        .iter()
+        .map(|p| rel_to_repo(p, repo_dir))
+        .collect();
+    let resolved_slices = resolve_slices(repo_dir, &corpus_rel, &opts.slices);
+
     let mut languages: BTreeMap<String, LangConfig> = BTreeMap::new();
     let mut thresholds_out: Vec<(String, f64)> = Vec::new();
+    // Per-language corpus sizes for the manifest (files scored, source lines).
+    let mut per_lang_files: BTreeMap<String, usize> = BTreeMap::new();
+    let mut total_lines: usize = 0;
 
     // Resolved path-suppression set (recommended built-ins + `.argotignore`) —
     // the same set `check` filters against (lock-step principle).
@@ -479,6 +739,8 @@ pub fn run_calibrate(
             &filtered
         };
         let sources: Vec<String> = corpus.iter().map(|(_, s)| s.clone()).collect();
+        per_lang_files.insert(name.to_string(), corpus.len());
+        total_lines += sources.iter().map(|s| s.lines().count()).sum::<usize>();
 
         let bpe = BpeScorer::new(BpeTokenizer::load(), generic_baseline_json, &sources)?;
         // import_modules = corpus imports + repo-owned module names
@@ -513,7 +775,7 @@ pub fn run_calibrate(
         let effective_n_cal = opts.n_cal.min(candidates.len());
         let typicality = TypicalityModel::new(language);
 
-        // Era-13.5 per-corpus auto-detect: probe the rare rule's fire rate on
+        // Per-corpus auto-detect: probe the rare rule's fire rate on
         // sampled calibration hunks; a rule that fires often on ordinary code
         // would FP-flood at check time, so fall back to baseline (rare=0).
         let mut resolved_rare = opts.cluster_rare_threshold;
@@ -589,6 +851,41 @@ pub fn run_calibrate(
         );
         let threshold = median(seed_thresholds);
 
+        // Per-slice thresholds: re-calibrate over just the candidates whose file
+        // falls in each slice. A slice with too few candidates is skipped — it
+        // would only get a noisier threshold than the whole-repo one.
+        let mut slice_configs: Vec<SliceConfig> = Vec::new();
+        for slice in &resolved_slices {
+            let slice_candidates: Vec<Candidate> = candidates
+                .iter()
+                .filter(|c| slice_matches(&rel_to_repo(&c.file_path, repo_dir), &slice.paths))
+                .cloned()
+                .collect();
+            if slice_candidates.len() < SLICE_MIN_CANDIDATES {
+                continue;
+            }
+            let slice_n_cal = opts.n_cal.min(slice_candidates.len());
+            let slice_seeds = multi_seed_thresholds(
+                &slice_candidates,
+                &bpe,
+                &mut call_receiver,
+                adapter.as_ref(),
+                &typicality,
+                &ThresholdRunConfig {
+                    n_cal: slice_n_cal,
+                    base_seed: opts.seed,
+                    n_seeds: opts.n_seeds,
+                    cluster_bonus: CR_CLUSTER_BONUS,
+                    cap: CR_CAP as f64,
+                },
+            );
+            slice_configs.push(SliceConfig {
+                name: slice.name.clone(),
+                paths: slice.paths.clone(),
+                threshold: median(slice_seeds),
+            });
+        }
+
         // Evidence corpus.
         let evidence = build_evidence_corpus(
             &lang_files,
@@ -663,6 +960,7 @@ pub fn run_calibrate(
                 },
                 evidence_corpus: evidence,
                 model_hash,
+                slices: slice_configs,
                 model,
             },
         );
@@ -676,7 +974,45 @@ pub fn run_calibrate(
         std::fs::create_dir_all(parent).ok();
     }
     let json = serde_json::to_string_pretty(&config)?;
-    std::fs::write(output, json)?;
+    std::fs::write(output, &json)?;
+
+    // Emit the inspectable model manifest alongside the config.
+    let per_lang_model_hash: BTreeMap<String, String> = config
+        .languages
+        .iter()
+        .map(|(lang, lc)| (lang.clone(), lc.model_hash.clone()))
+        .collect();
+    let lang_summaries: Vec<LangSummary> = config
+        .languages
+        .iter()
+        .map(|(lang, lc)| LangSummary {
+            language: lang.clone(),
+            threshold: lc.threshold,
+            model_hash: lc.model_hash.clone(),
+            n_cal: lc.calibration.n_cal,
+            files: per_lang_files.get(lang).copied().unwrap_or(0),
+        })
+        .collect();
+    let manifest = Manifest {
+        manifest_version: MANIFEST_VERSION,
+        config_version: CONFIG_VERSION,
+        model_hash: combined_model_hash(&per_lang_model_hash),
+        scorer_config_hash: short_hash(json.as_bytes()),
+        fit_commit_sha: opts.repo_sha.clone(),
+        fit_timestamp: opts.timestamp_utc.clone(),
+        corpus: CorpusSummary {
+            files: corpus_files.len(),
+            lines: total_lines,
+        },
+        languages: lang_summaries,
+    };
+    if let Some(parent) = output.parent() {
+        let manifest_path = parent.join(MANIFEST_FILE);
+        if let Ok(manifest_json) = serde_json::to_string_pretty(&manifest) {
+            std::fs::write(manifest_path, manifest_json)?;
+        }
+    }
+
     Ok(thresholds_out)
 }
 
@@ -765,4 +1101,49 @@ fn extract_identifiers(src: &str) -> Vec<String> {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod slice_tests {
+    use super::*;
+
+    #[test]
+    fn slice_matches_by_prefix_and_exact_file() {
+        let paths = vec!["frontend/".to_string(), "shared/util.ts".to_string()];
+        assert!(slice_matches("frontend/app.ts", &paths));
+        assert!(slice_matches("shared/util.ts", &paths)); // exact file
+        assert!(!slice_matches("backend/api.py", &paths));
+        assert!(!slice_matches("shared/other.ts", &paths));
+    }
+
+    #[test]
+    fn auto_slices_are_top_level_dirs_above_the_floor() {
+        let mut files: Vec<String> = Vec::new();
+        // frontend/ has enough files; docs/ does not.
+        for i in 0..SLICE_AUTO_MIN_FILES {
+            files.push(format!("frontend/f{i}.ts"));
+        }
+        files.push("docs/readme.ts".to_string());
+        files.push("top.ts".to_string()); // no dir → ignored
+        let slices = auto_slices(&files);
+        let names: Vec<&str> = slices.iter().map(|s| s.name.as_str()).collect();
+        assert!(names.contains(&"path:frontend/"));
+        assert!(!names.iter().any(|n| n.contains("docs")));
+    }
+
+    #[test]
+    fn resolve_slices_parses_path_specs_and_ignores_unknown() {
+        let slices = resolve_slices(
+            Path::new("/nonexistent"),
+            &[],
+            &[
+                "path:frontend/".to_string(),
+                "bogus".to_string(),
+                "path:".to_string(), // empty → dropped
+            ],
+        );
+        assert_eq!(slices.len(), 1);
+        assert_eq!(slices[0].name, "path:frontend/");
+        assert_eq!(slices[0].paths, vec!["frontend/".to_string()]);
+    }
 }

@@ -15,6 +15,14 @@ pub fn language_for_path(path: &str) -> Option<Language> {
         ".ts" | ".tsx" => Some(Language::Typescript),
         ".js" | ".jsx" => Some(Language::Javascript),
         ".py" => Some(Language::Python),
+        ".go" => Some(Language::Go),
+        ".rs" => Some(Language::Rust),
+        ".c" | ".h" => Some(Language::C),
+        ".java" => Some(Language::Java),
+        ".cs" => Some(Language::Csharp),
+        ".php" => Some(Language::Php),
+        ".cpp" | ".cc" | ".hpp" | ".cxx" => Some(Language::Cpp),
+        ".rb" => Some(Language::Ruby),
         _ => None,
     }
 }
@@ -42,6 +50,14 @@ fn ts_language(lang: Language) -> tree_sitter::Language {
         Language::Typescript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
         Language::Javascript => tree_sitter_javascript::LANGUAGE.into(),
         Language::Python => tree_sitter_python::LANGUAGE.into(),
+        Language::Go => tree_sitter_go::LANGUAGE.into(),
+        Language::Rust => tree_sitter_rust::LANGUAGE.into(),
+        Language::C => tree_sitter_c::LANGUAGE.into(),
+        Language::Java => tree_sitter_java::LANGUAGE.into(),
+        Language::Csharp => tree_sitter_c_sharp::LANGUAGE.into(),
+        Language::Php => tree_sitter_php::LANGUAGE_PHP.into(),
+        Language::Cpp => tree_sitter_cpp::LANGUAGE.into(),
+        Language::Ruby => tree_sitter_ruby::LANGUAGE.into(),
     }
 }
 
@@ -118,7 +134,17 @@ mod tests {
         assert_eq!(language_for_path("a.py"), Some(Language::Python));
         assert_eq!(language_for_path("a.tsx"), Some(Language::Typescript));
         assert_eq!(language_for_path("a.jsx"), Some(Language::Javascript));
-        assert_eq!(language_for_path("a.rs"), None);
+        assert_eq!(language_for_path("a.go"), Some(Language::Go));
+        assert_eq!(language_for_path("a.rs"), Some(Language::Rust));
+        assert_eq!(language_for_path("a.c"), Some(Language::C));
+        assert_eq!(language_for_path("a.h"), Some(Language::C));
+        assert_eq!(language_for_path("a.java"), Some(Language::Java));
+        assert_eq!(language_for_path("a.cs"), Some(Language::Csharp));
+        assert_eq!(language_for_path("a.php"), Some(Language::Php));
+        assert_eq!(language_for_path("a.cpp"), Some(Language::Cpp));
+        assert_eq!(language_for_path("a.hpp"), Some(Language::Cpp));
+        assert_eq!(language_for_path("a.rb"), Some(Language::Ruby));
+        assert_eq!(language_for_path("a.unknown"), None);
     }
 
     #[test]

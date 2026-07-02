@@ -1,0 +1,54 @@
+name: Bug report
+description: Something in argot behaves incorrectly (a crash, a wrong result, a confusing output).
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. A minimal repro and the `argot inspect` output below get it fixed fastest.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you run, what did you expect, and what did you get?
+      placeholder: |
+        $ argot check --staged
+        expected: … / got: …
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The smallest sequence that triggers it. A link to a public repo/commit is ideal.
+      placeholder: |
+        1. cd repo
+        2. argot fit
+        3. argot check HEAD~1..HEAD
+    validations:
+      required: true
+  - type: textarea
+    id: inspect
+    attributes:
+      label: "`argot inspect --format json` output"
+      description: >-
+        Run `argot inspect --format json` in the affected repo and paste it here. It reports
+        corpus composition and calibration health without exposing your source.
+      render: json
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: argot version
+      description: "Output of `argot --version`."
+      placeholder: "argot 0.2.45"
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: OS / arch
+      placeholder: "macOS 14 arm64 · Ubuntu 24.04 x64 · Windows 11 x64"
+    validations:
+      required: true

@@ -117,18 +117,18 @@ pub struct SequentialConfig {
     pub call_receiver_cluster_bonus: f64,
     pub call_receiver_cluster_rare_threshold: usize,
     pub call_receiver_cluster_size_min: usize,
-    /// Era-14 rarity weighting for the cluster branches (default `Off`).
+    /// Rarity weighting for the cluster branches (default `Off`).
     pub call_receiver_rarity_weighting: RarityWeighting,
     /// Registered shape-primitive names to enable (empty = none).
     pub call_receiver_shape_primitive_names: Vec<String>,
-    /// Era-14 phase D: when true, a hunk whose bare parse has root errors gets
-    /// its callees from its region within the host AST instead of contributing
-    /// 0. Production check runs with this ON since era 15: git picks hunk
+    /// Parse-error host fallback: when true, a hunk whose bare parse has root
+    /// errors gets its callees from its region within the host AST instead of
+    /// contributing 0. Production check runs with this ON: git picks hunk
     /// boundaries, not the parser, so mid-construct fragments are the norm at
     /// check time, and calibration always applied the fallback on its side.
-    /// Era-14's FP flood (faker-js 1.7% → 4.9%) was measured with a forced
-    /// cluster-rare rule; production auto-detects that rule per corpus.
-    /// The bench's catalog mode keeps it off for baseline continuity.
+    /// An earlier FP flood was measured with a forced cluster-rare rule;
+    /// production auto-detects that rule per corpus. The bench's catalog mode
+    /// keeps it off for baseline continuity.
     pub call_receiver_parse_error_host_fallback: bool,
     /// Fitted convention-rarity model (frequencies + calibrated bars);
     /// `None` disables the stage.
@@ -442,9 +442,9 @@ impl SequentialImportBpeScorer {
     /// Score a hunk through both stages (`score_hunk`). `file_path` is `None`
     /// at check time (non-cluster contribution); the bench passes it.
     ///
-    /// When `file_source` + line bounds are given, they double as the era-14
-    /// phase D host context: a hunk whose bare parse has root errors gets its
-    /// callees from its region within the file AST instead of contributing 0.
+    /// When `file_source` + line bounds are given, they double as the
+    /// parse-error host context: a hunk whose bare parse has root errors gets
+    /// its callees from its region within the file AST instead of contributing 0.
     pub fn score_hunk(
         &mut self,
         hunk_content: &str,
@@ -463,8 +463,8 @@ impl SequentialImportBpeScorer {
         )
     }
 
-    /// [`Self::score_hunk`] with an explicit host context for the phase D
-    /// parse-error callee fallback — used by the benchmark's catalog fixtures,
+    /// [`Self::score_hunk`] with an explicit host context for the parse-error
+    /// callee fallback — used by the benchmark's catalog fixtures,
     /// where the synthesized hunk-in-host content must NOT be passed as
     /// `file_source` (it would poison prose-blanking and file-level
     /// typicality) but should still back callee extraction on parse failure.
@@ -525,9 +525,9 @@ impl SequentialImportBpeScorer {
         let bpe_score = self.bpe.bpe_score(&bpe_input);
 
         // 4. Call-receiver contribution (always computed when configured).
-        // Phase D host context: an explicit one wins; otherwise the file
+        // Parse-error host context: an explicit one wins; otherwise the file
         // source + hunk bounds serve as the host (real-PR path). Gated by the
-        // phase D flag (default off — see SequentialConfig).
+        // parse-error host fallback flag (default off — see SequentialConfig).
         let cr_host_context: Option<(&str, usize, usize)> = if self.parse_error_host_fallback {
             host_context.or(match (file_source, hunk_start_line, hunk_end_line) {
                 (Some(fs), Some(hs), Some(he)) => Some((fs, hs, he)),

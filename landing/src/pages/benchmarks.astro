@@ -1,0 +1,130 @@
+---
+import Base from '#layouts/Base.astro';
+
+// Build-time import of the committed dashboard history (schema in
+// crates/argot-bench/src/dashboard.rs). CI appends a dated entry per run and
+// overwrites latest.json.
+const modules = import.meta.glob('../data/benchmarks/*.json', { eager: true });
+type Corpus = {
+  corpus: string;
+  language: string;
+  kind: string;
+  caught: number;
+  fixtures: number;
+  recall_pct: number;
+  fp_rate_pct: number;
+};
+type Entry = {
+  schema_version: number;
+  generated_at: string;
+  commit: string;
+  corpora: Corpus[];
+  totals: { caught: number; fixtures: number; recall_pct: number; worst_fp_rate_pct: number };
+  _name: string;
+};
+
+const entries: Entry[] = Object.entries(modules).map(([path, mod]) => ({
+  ...(mod as { default: Entry }).default,
+  _name: path.split('/').pop() ?? path,
+}));
+
+const history = entries
+  .filter((e) => e._name !== 'latest.json')
+  .sort((a, b) => a.generated_at.localeCompare(b.generated_at));
+const latest =
+  entries.find((e) => e._name === 'latest.json') ?? history[history.length - 1] ?? null;
+---
+
+<Base title="Benchmarks · argot" description="Live benchmark results for argot, fed from CI.">
+  <main class="mx-auto max-w-5xl px-5 py-16">
+    <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">Benchmarks</h1>
+    <p class="mt-4 leading-relaxed text-ink-dim">
+      argot's recall and false-positive numbers, run through the real
+      <code>argot fit</code> → <code>argot check</code> pipeline against pinned
+      open-source corpora. This page is fed from CI so the numbers can't drift
+      from what actually ships. Methodology:
+      <a class="underline" href="/docs/">the docs</a> and
+      <a class="underline" href="https://github.com/get-tmonier/argot/tree/main/docs/research">the research log</a>.
+    </p>
+
+    {
+      latest ? (
+        <>
+          <div class="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div class="rounded-xl border border-line p-4">
+              <div class="text-2xl font-bold">{latest.totals.recall_pct.toFixed(1)}%</div>
+              <div class="text-sm text-muted">total recall</div>
+            </div>
+            <div class="rounded-xl border border-line p-4">
+              <div class="text-2xl font-bold">
+                {latest.totals.caught}/{latest.totals.fixtures}
+              </div>
+              <div class="text-sm text-muted">fixtures caught</div>
+            </div>
+            <div class="rounded-xl border border-line p-4">
+              <div class="text-2xl font-bold">{latest.totals.worst_fp_rate_pct.toFixed(2)}%</div>
+              <div class="text-sm text-muted">worst FP rate</div>
+            </div>
+            <div class="rounded-xl border border-line p-4">
+              <div class="font-mono text-lg">{latest.commit}</div>
+              <div class="text-sm text-muted">{latest.generated_at.slice(0, 10)}</div>
+            </div>
+          </div>
+
+          <table class="mt-10 w-full border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-line text-left text-muted">
+                <th class="py-2">Corpus</th>
+                <th>Language</th>
+                <th>Type</th>
+                <th class="text-right">Recall</th>
+                <th class="text-right">FP rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {latest.corpora.map((c) => (
+                <tr class="border-b border-line/50">
+                  <td class="py-2 font-medium">{c.corpus}</td>
+                  <td class="text-muted">{c.language}</td>
+                  <td class="text-muted">{c.kind}</td>
+                  <td class="text-right">
+                    {c.caught}/{c.fixtures} ({c.recall_pct.toFixed(1)}%)
+                  </td>
+                  <td class="text-right">{c.fp_rate_pct.toFixed(2)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {history.length > 1 && (
+            <section class="mt-12">
+              <h2 class="text-xl font-semibold">History</h2>
+              <table class="mt-4 w-full border-collapse text-sm">
+                <thead>
+                  <tr class="border-b border-line text-left text-muted">
+                    <th class="py-2">Date</th>
+                    <th>Commit</th>
+                    <th class="text-right">Recall</th>
+                    <th class="text-right">Worst FP</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map((h) => (
+                    <tr class="border-b border-line/50">
+                      <td class="py-2">{h.generated_at.slice(0, 10)}</td>
+                      <td class="font-mono text-muted">{h.commit}</td>
+                      <td class="text-right">{h.totals.recall_pct.toFixed(1)}%</td>
+                      <td class="text-right">{h.totals.worst_fp_rate_pct.toFixed(2)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
+        </>
+      ) : (
+        <p class="mt-10 text-ink-dim">No benchmark data yet.</p>
+      )
+    }
+  </main>
+</Base>

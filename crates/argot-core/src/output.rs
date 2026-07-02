@@ -81,6 +81,8 @@ pub struct ReportMeta {
     pub scanned: String,
     /// Total hunks scored (including below-threshold ones).
     pub hunks_scanned: usize,
+    /// Combined fingerprint of the fit-time model that scored the diff.
+    pub model: String,
 }
 
 /// Map a severity tier to its SARIF result level.
@@ -106,6 +108,7 @@ fn to_pretty(doc: &Value) -> String {
 pub fn render_json(meta: &ReportMeta, hits: &[HitRecord]) -> String {
     let doc = json!({
         "tool": { "name": "argot", "version": meta.tool_version },
+        "model": meta.model,
         "repo": meta.repo,
         "scanned": meta.scanned,
         "hunks_scanned": meta.hunks_scanned,
@@ -195,6 +198,7 @@ pub fn render_sarif(meta: &ReportMeta, hits: &[HitRecord]) -> String {
             },
             "results": results,
             "properties": {
+                "model": meta.model,
                 "repo": meta.repo,
                 "scanned": meta.scanned,
                 "hunksScanned": meta.hunks_scanned,
@@ -214,6 +218,7 @@ mod tests {
             repo: "/tmp/repo".to_string(),
             scanned: "workdir".to_string(),
             hunks_scanned: 7,
+            model: "abc123def456".to_string(),
         }
     }
 

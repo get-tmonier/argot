@@ -67,6 +67,241 @@ const TS_CONTROL_NODE_TYPES: &[&str] = &[
     "switch_statement",
 ];
 
+// Go node-type sets — the direct analog of the Python/TS sets against the Go
+// grammar (same absolute cutoffs; no Go-specific tuning).
+const GO_LITERAL_NODE_TYPES: &[&str] = &[
+    "int_literal",
+    "float_literal",
+    "imaginary_literal",
+    "rune_literal",
+    "interpreted_string_literal",
+    "raw_string_literal",
+    "true",
+    "false",
+    "nil",
+];
+
+const GO_CONTROL_NODE_TYPES: &[&str] = &[
+    "if_statement",
+    "for_statement",
+    "expression_switch_statement",
+    "type_switch_statement",
+    "select_statement",
+    "return_statement",
+    "function_declaration",
+    "method_declaration",
+    "defer_statement",
+    "go_statement",
+];
+
+// Rust node-type sets — the direct analog of the Python/TS/Go sets against the
+// Rust grammar (same absolute cutoffs; no Rust-specific tuning). Rust literals
+// and control flow are expressions, so the kinds are the `*_expression` /
+// `*_item` analogs.
+const RUST_LITERAL_NODE_TYPES: &[&str] = &[
+    "integer_literal",
+    "float_literal",
+    "string_literal",
+    "raw_string_literal",
+    "char_literal",
+    "boolean_literal",
+    "negative_literal",
+];
+
+const RUST_CONTROL_NODE_TYPES: &[&str] = &[
+    "if_expression",
+    "for_expression",
+    "while_expression",
+    "loop_expression",
+    "match_expression",
+    "return_expression",
+    "function_item",
+    "closure_expression",
+];
+
+const C_LITERAL_NODE_TYPES: &[&str] = &[
+    "number_literal",
+    "string_literal",
+    "char_literal",
+    "concatenated_string",
+    "true",
+    "false",
+    "null",
+];
+
+const C_CONTROL_NODE_TYPES: &[&str] = &[
+    "if_statement",
+    "for_statement",
+    "while_statement",
+    "do_statement",
+    "switch_statement",
+    "return_statement",
+    "function_definition",
+    "goto_statement",
+];
+
+const JAVA_LITERAL_NODE_TYPES: &[&str] = &[
+    "string_literal",
+    "character_literal",
+    "decimal_integer_literal",
+    "hex_integer_literal",
+    "octal_integer_literal",
+    "binary_integer_literal",
+    "decimal_floating_point_literal",
+    "hex_floating_point_literal",
+    "true",
+    "false",
+    "null_literal",
+];
+
+const JAVA_CONTROL_NODE_TYPES: &[&str] = &[
+    "if_statement",
+    "for_statement",
+    "enhanced_for_statement",
+    "while_statement",
+    "do_statement",
+    "try_statement",
+    "try_with_resources_statement",
+    "return_statement",
+    "method_declaration",
+    "constructor_declaration",
+    "class_declaration",
+    "switch_expression",
+    "throw_statement",
+    "synchronized_statement",
+];
+
+const CS_LITERAL_NODE_TYPES: &[&str] = &[
+    "integer_literal",
+    "real_literal",
+    "string_literal",
+    "verbatim_string_literal",
+    "raw_string_literal",
+    "interpolated_string_expression",
+    "character_literal",
+    "boolean_literal",
+    "null_literal",
+];
+
+const CS_CONTROL_NODE_TYPES: &[&str] = &[
+    "if_statement",
+    "for_statement",
+    "for_each_statement",
+    "while_statement",
+    "do_statement",
+    "switch_statement",
+    "try_statement",
+    "return_statement",
+    "throw_statement",
+    "method_declaration",
+    "constructor_declaration",
+    "local_function_statement",
+    "class_declaration",
+    "using_statement",
+    "lock_statement",
+];
+
+const PHP_LITERAL_NODE_TYPES: &[&str] = &[
+    "string",
+    "encapsed_string",
+    "heredoc",
+    "nowdoc",
+    "integer",
+    "float",
+    "boolean",
+    "null",
+];
+
+const PHP_CONTROL_NODE_TYPES: &[&str] = &[
+    "if_statement",
+    "for_statement",
+    "foreach_statement",
+    "while_statement",
+    "do_statement",
+    "try_statement",
+    "switch_statement",
+    "match_expression",
+    "return_statement",
+    "throw_expression",
+    "function_definition",
+    "method_declaration",
+    "class_declaration",
+    "interface_declaration",
+    "trait_declaration",
+    "enum_declaration",
+    "anonymous_function",
+    "arrow_function",
+];
+
+const CPP_LITERAL_NODE_TYPES: &[&str] = &[
+    "string_literal",
+    "raw_string_literal",
+    "concatenated_string",
+    "number_literal",
+    "char_literal",
+    "true",
+    "false",
+    "null",
+    "nullptr",
+    "user_defined_literal",
+];
+
+const CPP_CONTROL_NODE_TYPES: &[&str] = &[
+    "if_statement",
+    "for_statement",
+    "for_range_loop",
+    "while_statement",
+    "do_statement",
+    "try_statement",
+    "return_statement",
+    "function_definition",
+    "class_specifier",
+    "struct_specifier",
+    "throw_statement",
+    "switch_statement",
+    "lambda_expression",
+];
+
+const RB_LITERAL_NODE_TYPES: &[&str] = &[
+    "string",
+    "chained_string",
+    "bare_string",
+    "integer",
+    "float",
+    "rational",
+    "complex",
+    "true",
+    "false",
+    "nil",
+    "simple_symbol",
+    "hash_key_symbol",
+    "bare_symbol",
+    "delimited_symbol",
+    "character",
+    "regex",
+];
+
+const RB_CONTROL_NODE_TYPES: &[&str] = &[
+    "if",
+    "unless",
+    "while",
+    "until",
+    "for",
+    "case",
+    "case_match",
+    "begin",
+    "do_block",
+    "block",
+    "return",
+    "yield",
+    "rescue",
+    "conditional",
+    "method",
+    "singleton_method",
+    "class",
+    "module",
+];
+
 // Absolute cutoffs for the structural predicate.
 const LITERAL_RATIO_CUTOFF: f64 = 0.80;
 const NAMED_LEAF_COUNT_GATE: usize = 5;
@@ -97,6 +332,14 @@ fn node_type_sets(language: Language) -> (HashSet<&'static str>, HashSet<&'stati
     let (literal, control) = match language {
         Language::Python => (PY_LITERAL_NODE_TYPES, PY_CONTROL_NODE_TYPES),
         Language::Typescript => (TS_LITERAL_NODE_TYPES, TS_CONTROL_NODE_TYPES),
+        Language::Go => (GO_LITERAL_NODE_TYPES, GO_CONTROL_NODE_TYPES),
+        Language::Rust => (RUST_LITERAL_NODE_TYPES, RUST_CONTROL_NODE_TYPES),
+        Language::C => (C_LITERAL_NODE_TYPES, C_CONTROL_NODE_TYPES),
+        Language::Java => (JAVA_LITERAL_NODE_TYPES, JAVA_CONTROL_NODE_TYPES),
+        Language::CSharp => (CS_LITERAL_NODE_TYPES, CS_CONTROL_NODE_TYPES),
+        Language::Php => (PHP_LITERAL_NODE_TYPES, PHP_CONTROL_NODE_TYPES),
+        Language::Cpp => (CPP_LITERAL_NODE_TYPES, CPP_CONTROL_NODE_TYPES),
+        Language::Ruby => (RB_LITERAL_NODE_TYPES, RB_CONTROL_NODE_TYPES),
     };
     (
         literal.iter().copied().collect(),
@@ -226,7 +469,7 @@ impl TypicalityModel {
 
     /// Hunk-level check: `(true, features)` if structurally data-dominant.
     ///
-    /// The v2 file-level fallback (`is_atypical_file`) was retired in era 15:
+    /// The v2 file-level fallback (`is_atypical_file`) was retired:
     /// its population — partial-array hunks below the hunk gate inside
     /// data-heavy files — is covered at row granularity by the scorer's
     /// data-row gate, which no longer silences *code* hunks in those files.

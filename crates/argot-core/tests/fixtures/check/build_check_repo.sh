@@ -5,6 +5,9 @@
 # `argot check HEAD~1..HEAD` should flag.
 set -euo pipefail
 DEST="${1:?usage: build_check_repo.sh <target_dir>}"
+# CARGO_TARGET_TMPDIR is a backslash path on Windows; MSYS bash mangles
+# backslashes in `cd`, so normalize to forward slashes.
+DEST="${DEST//\\//}"
 rm -rf "$DEST"; mkdir -p "$DEST"; cd "$DEST"
 export GIT_AUTHOR_NAME="Argot Fixture" GIT_AUTHOR_EMAIL="fixture@argot.test"
 export GIT_COMMITTER_NAME="Argot Fixture" GIT_COMMITTER_EMAIL="fixture@argot.test"

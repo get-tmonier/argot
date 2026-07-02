@@ -1,5 +1,4 @@
-//! Callee-distribution under-coverage — era-14 phase C candidate (math
-//! option ii).
+//! Callee-distribution under-coverage — a shape-primitive candidate.
 //!
 //! The cluster baseline is the pooled callee-occurrence distribution `p`.
 //! Per source, the scalar is a one-sided KL-style divergence: only mass the

@@ -12,24 +12,66 @@ use crate::scoring::shape_primitives::{parse, population_mean_std};
 use std::path::PathBuf;
 use tree_sitter::Node;
 
-const PY_HANDLER: &str = "except_clause";
-const TS_HANDLER: &str = "catch_clause";
-const RETURN: &str = "return_statement";
-const PY_RAISE: &str = "raise_statement";
-const TS_RAISE: &str = "throw_statement";
-
 const MIN_VALID_FILES: usize = 3;
 
+/// The exception-handler clause node kind for `language`, or `None` for
+/// languages with no exception-handling construct (Go, Rust, C — errors are
+/// values there, so there are no handler blocks to measure).
+fn handler_kind(language: Language) -> Option<&'static str> {
+    match language {
+        Language::Python => Some("except_clause"),
+        Language::Typescript
+        | Language::Java
+        | Language::CSharp
+        | Language::Cpp
+        | Language::Php => Some("catch_clause"),
+        Language::Ruby => Some("rescue"),
+        Language::Go | Language::Rust | Language::C => None,
+    }
+}
+
+/// The `return`-statement node kind for `language`.
+fn return_kind(language: Language) -> &'static str {
+    match language {
+        Language::Ruby => "return",
+        _ => "return_statement",
+    }
+}
+
+/// Whether `node` raises. Python/TS have a dedicated statement node; Ruby
+/// raises via a `raise`/`fail` method call, so it needs the source text.
+fn is_raise(node: Node, src: &[u8], language: Language) -> bool {
+    match language {
+        Language::Python => node.kind() == "raise_statement",
+        // PHP raises via a throw *expression*, not a statement.
+        Language::Php => node.kind() == "throw_expression",
+        Language::Ruby => {
+            node.kind() == "call"
+                && node.child_by_field_name("receiver").is_none()
+                && node
+                    .child_by_field_name("method")
+                    .map(|m| {
+                        let text = &src[m.byte_range()];
+                        text == b"raise" || text == b"fail"
+                    })
+                    .unwrap_or(false)
+        }
+        // TypeScript, Java, C#, C++ all raise via a throw statement. Go, Rust
+        // and C never reach here (they have no handler kind).
+        _ => node.kind() == "throw_statement",
+    }
+}
+
 /// Count `(returns, raises)` in the whole subtree rooted at `root`.
-fn count_returns_raises(root: Node, raise_type: &str) -> (usize, usize) {
+fn count_returns_raises(root: Node, src: &[u8], language: Language) -> (usize, usize) {
+    let return_type = return_kind(language);
     let mut returns = 0usize;
     let mut raises = 0usize;
     let mut stack = vec![root];
     while let Some(node) = stack.pop() {
-        let kind = node.kind();
-        if kind == RETURN {
+        if node.kind() == return_type {
             returns += 1;
-        } else if kind == raise_type {
+        } else if is_raise(node, src, language) {
             raises += 1;
         }
         let n = node.child_count();
@@ -45,13 +87,17 @@ fn count_returns_raises(root: Node, raise_type: &str) -> (usize, usize) {
 /// Sum `(returns, raises)` across every handler subtree under `root`. Nested
 /// handlers are walked independently (double-counting is intentional, matching
 /// the Python `_count_in_handlers`).
-fn count_in_handlers(root: Node, handler_type: &str, raise_type: &str) -> (usize, usize) {
+fn count_in_handlers(root: Node, src: &[u8], language: Language) -> (usize, usize) {
+    let handler_type = match handler_kind(language) {
+        Some(h) => h,
+        None => return (0, 0),
+    };
     let mut returns = 0usize;
     let mut raises = 0usize;
     let mut stack = vec![root];
     while let Some(node) = stack.pop() {
         if node.kind() == handler_type {
-            let (r, x) = count_returns_raises(node, raise_type);
+            let (r, x) = count_returns_raises(node, src, language);
             returns += r;
             raises += x;
         }
@@ -67,11 +113,10 @@ fn count_in_handlers(root: Node, handler_type: &str, raise_type: &str) -> (usize
 
 fn ratio_for_source(source: &str, language: Language) -> Option<f64> {
     let tree = parse(source, language)?;
-    let (handler, raise) = match language {
-        Language::Python => (PY_HANDLER, PY_RAISE),
-        Language::Typescript => (TS_HANDLER, TS_RAISE),
-    };
-    let (returns, raises) = count_in_handlers(tree.root_node(), handler, raise);
+    // Languages with no exception-handling construct (Go, Rust, C) have no
+    // handler blocks, so the ratio is undefined — no signal.
+    handler_kind(language)?;
+    let (returns, raises) = count_in_handlers(tree.root_node(), source.as_bytes(), language);
     let total = returns + raises;
     if total == 0 {
         return None;
@@ -79,10 +124,17 @@ fn ratio_for_source(source: &str, language: Language) -> Option<f64> {
     Some(returns as f64 / total as f64)
 }
 
-/// Try Python grammar then TypeScript; first defined ratio wins.
+/// Probe the exception-having grammars in turn; first defined ratio wins.
+/// The hunk's language is not known at score time, so we try each grammar
+/// that has an exception-handler construct.
 fn ratio_for_hunk(hunk: &str) -> Option<f64> {
     ratio_for_source(hunk, Language::Python)
         .or_else(|| ratio_for_source(hunk, Language::Typescript))
+        .or_else(|| ratio_for_source(hunk, Language::Java))
+        .or_else(|| ratio_for_source(hunk, Language::CSharp))
+        .or_else(|| ratio_for_source(hunk, Language::Php))
+        .or_else(|| ratio_for_source(hunk, Language::Cpp))
+        .or_else(|| ratio_for_source(hunk, Language::Ruby))
 }
 
 /// Except-block return/raise ratio primitive.

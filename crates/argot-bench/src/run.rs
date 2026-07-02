@@ -399,6 +399,14 @@ fn record_matches_language(rec: &HunkRec, lang: Language) -> bool {
         // JS records score against the TypeScript scorer, matching extract's
         // language routing.
         Language::Typescript => rec.language == "typescript" || rec.language == "javascript",
+        Language::Go => rec.language == "go",
+        Language::Rust => rec.language == "rust",
+        Language::C => rec.language == "c",
+        Language::Java => rec.language == "java",
+        Language::CSharp => rec.language == "csharp",
+        Language::Php => rec.language == "php",
+        Language::Cpp => rec.language == "cpp",
+        Language::Ruby => rec.language == "ruby",
     }
 }
 
@@ -460,6 +468,14 @@ pub fn run_corpus(target: &Target, opts: &RunOptions) -> Result<Vec<CorpusReport
         let lang_name = match language {
             Language::Python => "python",
             Language::Typescript => "typescript",
+            Language::Go => "go",
+            Language::Rust => "rust",
+            Language::C => "c",
+            Language::Java => "java",
+            Language::CSharp => "csharp",
+            Language::Php => "php",
+            Language::Cpp => "cpp",
+            Language::Ruby => "ruby",
         };
         let fixtures: Vec<&Fixture> = if catalog.language == "multi" {
             all_fixtures

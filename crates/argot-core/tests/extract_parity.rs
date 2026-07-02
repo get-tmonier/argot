@@ -17,11 +17,15 @@ fn fixture_dir() -> PathBuf {
 fn build_fixture_repo() -> PathBuf {
     let out = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("extract_fixture_repo");
     let script = fixture_dir().join("build_fixture.sh");
-    let status = Command::new("bash")
-        .arg(&script)
-        .arg(&out)
-        .status()
-        .expect("run build_fixture.sh");
+    let status = Command::new(
+        std::env::var_os("ARGOT_TEST_BASH")
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "bash".into()),
+    )
+    .arg(&script)
+    .arg(&out)
+    .status()
+    .expect("run build_fixture.sh");
     assert!(status.success(), "fixture build failed");
     out
 }

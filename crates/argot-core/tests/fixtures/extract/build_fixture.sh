@@ -7,6 +7,9 @@
 set -euo pipefail
 
 DEST="${1:?usage: build_fixture.sh <target_dir>}"
+# CARGO_TARGET_TMPDIR is a backslash path on Windows; MSYS bash mangles
+# backslashes in `cd`, so normalize to forward slashes.
+DEST="${DEST//\\//}"
 rm -rf "$DEST"
 mkdir -p "$DEST"
 cd "$DEST"

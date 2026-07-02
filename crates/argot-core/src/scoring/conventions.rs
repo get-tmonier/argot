@@ -1,4 +1,4 @@
-//! Convention-rarity scorer — the era-15 signal for out-of-voice *phrasing
+//! Convention-rarity scorer — the signal for out-of-voice *phrasing
 //! shape* rather than out-of-voice tokens.
 //!
 //! Two corpus-derived features, no domain knowledge:

@@ -28,11 +28,15 @@ fn build_fixture_repo(suffix: &str) -> PathBuf {
     let out =
         PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("suppress_fixture_repo_{suffix}"));
     let script = fixture_check_dir().join("build_check_repo.sh");
-    let status = Command::new("bash")
-        .arg(&script)
-        .arg(&out)
-        .status()
-        .expect("run build_check_repo.sh");
+    let status = Command::new(
+        std::env::var_os("ARGOT_TEST_BASH")
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "bash".into()),
+    )
+    .arg(&script)
+    .arg(&out)
+    .status()
+    .expect("run build_check_repo.sh");
     assert!(status.success(), "fixture build failed");
     out
 }
@@ -102,12 +106,20 @@ fn range_args(repo: &Path) -> CheckArgs {
 fn argotignore_suppresses_hits_and_reports_summary() {
     let repo = prepare_repo("argotignore");
 
-    // Baseline: two hits, no suppression traffic on stderr.
+    // Baseline: two hits; stderr names the model that scored the diff but
+    // carries no suppression traffic.
     let out = run_check(range_args(&repo));
     assert_eq!(out.exit_code, 1);
     assert!(out.stdout.contains("integration.py"));
     assert!(out.stdout.contains("pipeline.py"));
-    assert!(out.stderr.is_empty(), "no suppression → untouched stderr");
+    assert!(
+        out.stderr.contains("[argot] model: "),
+        "check names its model on stderr"
+    );
+    assert!(
+        !out.stderr.contains("suppressed"),
+        "no suppression traffic on the baseline run"
+    );
 
     // Path-level mute via .argotignore.
     std::fs::write(repo.join(".argotignore"), "integration.py\npipeline.py\n").unwrap();

@@ -1,0 +1,110 @@
+name: benchmark
+
+# Public benchmark dashboard (#64). Compute budget is real — the full bench
+# clones ~10 corpora and runs the whole fit→check pipeline (~40 min) — so:
+#   • pull_request → a FAST quick bench (one corpus, ~1 min) posted as a PR
+#     comment, so a regression is visible in the open without paying full cost.
+#   • workflow_dispatch → the FULL bench, whose dashboard.json is committed to
+#     landing/src/data/benchmarks/ and rendered at argot.tmonier.com/benchmarks.
+on:
+  pull_request:
+    paths:
+      - "crates/**"
+      - "benchmarks/**"
+      - ".github/workflows/benchmark.yml"
+  workflow_dispatch:
+    inputs:
+      corpora:
+        description: "Comma-separated corpora (blank = all)."
+        required: false
+        default: ""
+
+concurrency:
+  group: benchmark-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quick:
+    name: quick bench (PR)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      ARGOT_BENCH_COMMIT: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain (pinned)
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - name: Run quick bench (ink)
+        run: |
+          cargo build --release -p argot-bench
+          ./target/release/argot-bench --corpus ink --quick \
+            --results-dir benchmarks/results/quick
+      - name: Comment results on the PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const d = JSON.parse(fs.readFileSync('benchmarks/results/quick/dashboard.json', 'utf8'));
+            const rows = d.corpora.map(c =>
+              `| ${c.corpus} (${c.language}) | ${c.caught}/${c.fixtures} (${c.recall_pct.toFixed(1)}%) | ${c.fp_rate_pct.toFixed(2)}% |`
+            ).join('\n');
+            const body = [
+              '<!-- argot-benchmark -->',
+              '### 📊 argot quick bench',
+              '',
+              `Recall ${d.totals.caught}/${d.totals.fixtures} (**${d.totals.recall_pct.toFixed(1)}%**), worst FP ${d.totals.worst_fp_rate_pct.toFixed(2)}% · \`${d.commit}\``,
+              '',
+              '| Corpus | Recall | FP rate |',
+              '|---|---:|---:|',
+              rows,
+              '',
+              '_Quick subset (one corpus). The full matrix lives at [argot.tmonier.com/benchmarks](https://argot.tmonier.com/benchmarks)._',
+            ].join('\n');
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body.includes('<!-- argot-benchmark -->'));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body });
+            }
+
+  full:
+    name: full bench (dispatch)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      ARGOT_BENCH_COMMIT: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain (pinned)
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - name: Run full bench
+        run: |
+          cargo build --release -p argot-bench
+          ARGS="--results-dir benchmarks/results/latest"
+          if [ -n "${{ github.event.inputs.corpora }}" ]; then
+            for c in $(echo "${{ github.event.inputs.corpora }}" | tr ',' ' '); do
+              ARGS="$ARGS --corpus $c"
+            done
+          fi
+          ./target/release/argot-bench $ARGS
+      - name: Publish dashboard data
+        run: |
+          set -euo pipefail
+          DATE=$(date -u +%Y-%m-%d)
+          cp benchmarks/results/latest/dashboard.json "landing/src/data/benchmarks/${DATE}.json"
+          cp benchmarks/results/latest/dashboard.json landing/src/data/benchmarks/latest.json
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add landing/src/data/benchmarks/
+          git commit -m "bench: update dashboard data (${DATE})" || echo "no changes"
+          git push

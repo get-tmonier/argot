@@ -9,8 +9,8 @@
 #   3. Runs `argot check --format <format>` and writes the document to a file.
 #   4. Optionally uploads the SARIF file to GitHub code scanning.
 #
-# Supported runners: ubuntu (x64) and macOS (arm64) — the targets argot
-# publishes prebuilt binaries for.
+# Supported runners: Linux (x64/arm64), macOS (arm64/x64), and Windows (x64) —
+# the targets argot publishes prebuilt binaries for.
 #
 # Note: checking a ref range (the default on pull requests) needs git history.
 # Use `actions/checkout` with `fetch-depth: 0`.
@@ -74,26 +74,33 @@ runs:
         ARGOT_VERSION: ${{ inputs.argot-version }}
       run: |
         set -euo pipefail
+        # Unix ships .tar.xz; Windows ships .zip with argot.exe.
         case "${RUNNER_OS}-${RUNNER_ARCH}" in
-          Linux-X64)   target="x86_64-unknown-linux-gnu" ;;
-          macOS-ARM64) target="aarch64-apple-darwin" ;;
+          Linux-X64)   target="x86_64-unknown-linux-gnu"; ext="tar.xz"; bin="argot" ;;
+          Linux-ARM64) target="aarch64-unknown-linux-gnu"; ext="tar.xz"; bin="argot" ;;
+          macOS-ARM64) target="aarch64-apple-darwin"; ext="tar.xz"; bin="argot" ;;
+          macOS-X64)   target="x86_64-apple-darwin"; ext="tar.xz"; bin="argot" ;;
+          Windows-X64) target="x86_64-pc-windows-msvc"; ext="zip"; bin="argot.exe" ;;
           *)
-            echo "::error::argot publishes prebuilt binaries for Linux x64 and macOS arm64 only (got ${RUNNER_OS}-${RUNNER_ARCH})"
+            echo "::error::argot publishes prebuilt binaries for Linux (x64/arm64), macOS (arm64/x64), and Windows (x64); got ${RUNNER_OS}-${RUNNER_ARCH}"
             exit 1
             ;;
         esac
         if [ "$ARGOT_VERSION" = "latest" ]; then
-          url="https://github.com/get-tmonier/argot/releases/latest/download/argot-${target}.tar.xz"
+          url="https://github.com/get-tmonier/argot/releases/latest/download/argot-${target}.${ext}"
         else
-          url="https://github.com/get-tmonier/argot/releases/download/v${ARGOT_VERSION#v}/argot-${target}.tar.xz"
+          url="https://github.com/get-tmonier/argot/releases/download/v${ARGOT_VERSION#v}/argot-${target}.${ext}"
         fi
         install_dir="${RUNNER_TEMP}/argot-bin"
         mkdir -p "$install_dir"
+        archive="${RUNNER_TEMP}/argot.${ext}"
         echo "Downloading $url"
-        curl --proto '=https' --tlsv1.2 -fsSL --retry 3 "$url" -o "${RUNNER_TEMP}/argot.tar.xz"
-        tar -xJf "${RUNNER_TEMP}/argot.tar.xz" -C "$install_dir" --strip-components=1
+        curl --proto '=https' --tlsv1.2 -fsSL --retry 3 "$url" -o "$archive"
+        # bsdtar (the `tar` on GitHub's Windows runners) extracts .zip too, so
+        # one code path serves both archive kinds.
+        tar -xf "$archive" -C "$install_dir" --strip-components=1
         echo "$install_dir" >> "$GITHUB_PATH"
-        "$install_dir/argot" --version
+        "$install_dir/$bin" --version
 
     - name: Cache argot model
       if: ${{ inputs.cache == 'true' }}
