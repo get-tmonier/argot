@@ -138,6 +138,7 @@ def list_users() -> list[dict[str, Any]]:
 | Python | `.py` | libraries 100% recall · applications 86–100% · FP ≤ 2.1% |
 | TypeScript | `.ts` `.tsx` | libraries 82–100% recall · applications 64–86% · FP ≤ 3.2% |
 | JavaScript | `.js` `.jsx` | uses the TypeScript adapter |
+| Go | `.go` | _adapter shipped; validation in progress_ (Cobra recall 92%, Hugo FP 1.37%) — [evidence](docs/research/evidence/go-language-port.md) |
 
 Mixed-language monorepos calibrate one threshold per language and dispatch each
 hunk by file extension. Numbers are the latest full benchmark
