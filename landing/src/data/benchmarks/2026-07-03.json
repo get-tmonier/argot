@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
-  "generated_at": "2026-07-02T22:38:02+00:00",
-  "commit": "b3105e5a",
+  "generated_at": "2026-07-02T22:58:41+00:00",
+  "commit": "6f398efc",
   "methodology": "recall: curated spliced break fixtures planted on disk and judged by the production fit+check pipeline; FP: temporal holdout \u2014 fit at an old SHA, replay only commits strictly after it, split by file-existed-at-fit, commit-level bootstrap 95% CIs",
   "corpora": [
     {
@@ -201,22 +201,25 @@
       "fixtures": null,
       "recall_pct": null,
       "fp_existing": {
-        "hits": 4,
-        "hunks": 126,
-        "rate_pct": 3.1746,
+        "hits": 24,
+        "hunks": 913,
+        "rate_pct": 2.6287,
         "ci95_pct": [
-          0.6211,
-          7.0866
+          1.3514,
+          4.1439
         ]
       },
       "fp_new_file": {
-        "hits": 0,
-        "hunks": 0,
-        "rate_pct": 0.0,
-        "ci95_pct": null
+        "hits": 20,
+        "hunks": 35,
+        "rate_pct": 57.1429,
+        "ci95_pct": [
+          42.8571,
+          74.2857
+        ]
       },
-      "under_sampled": true,
-      "threshold": 11.6305
+      "under_sampled": false,
+      "threshold": 12.5135
     },
     {
       "corpus": "gh-cli",
@@ -406,25 +409,25 @@
       "fixtures": null,
       "recall_pct": null,
       "fp_existing": {
-        "hits": 0,
-        "hunks": 172,
-        "rate_pct": 0.0,
+        "hits": 11,
+        "hunks": 375,
+        "rate_pct": 2.9333,
         "ci95_pct": [
-          0.0,
-          0.0
+          0.7491,
+          5.9809
         ]
       },
       "fp_new_file": {
-        "hits": 0,
-        "hunks": 3,
-        "rate_pct": 0.0,
+        "hits": 2,
+        "hunks": 23,
+        "rate_pct": 8.6957,
         "ci95_pct": [
           0.0,
-          0.0
+          28.5714
         ]
       },
-      "under_sampled": true,
-      "threshold": 8.0555
+      "under_sampled": false,
+      "threshold": 7.4354
     },
     {
       "corpus": "laravel",
@@ -490,24 +493,24 @@
       "fixtures": 13,
       "recall_pct": 53.8462,
       "fp_existing": {
-        "hits": 1,
-        "hunks": 93,
-        "rate_pct": 1.0753,
+        "hits": 32,
+        "hunks": 1799,
+        "rate_pct": 1.7788,
         "ci95_pct": [
-          0.0,
-          3.9216
+          1.0072,
+          2.8554
         ]
       },
       "fp_new_file": {
-        "hits": 1,
-        "hunks": 1,
-        "rate_pct": 100.0,
+        "hits": 6,
+        "hunks": 30,
+        "rate_pct": 20.0,
         "ci95_pct": [
-          100.0,
-          100.0
+          10.0,
+          34.7826
         ]
       },
-      "under_sampled": true,
+      "under_sampled": false,
       "threshold": 5.7856
     },
     {
@@ -630,25 +633,25 @@
       "fixtures": null,
       "recall_pct": null,
       "fp_existing": {
-        "hits": 10,
-        "hunks": 289,
-        "rate_pct": 3.4602,
+        "hits": 55,
+        "hunks": 790,
+        "rate_pct": 6.962,
         "ci95_pct": [
-          1.0453,
-          6.2271
+          4.4885,
+          9.2664
         ]
       },
       "fp_new_file": {
-        "hits": 0,
-        "hunks": 1,
-        "rate_pct": 0.0,
+        "hits": 6,
+        "hunks": 11,
+        "rate_pct": 54.5455,
         "ci95_pct": [
-          0.0,
-          0.0
+          14.2857,
+          81.8182
         ]
       },
-      "under_sampled": true,
-      "threshold": 6.0108
+      "under_sampled": false,
+      "threshold": 5.6926
     },
     {
       "corpus": "saleor",
@@ -686,21 +689,24 @@
       "fixtures": 14,
       "recall_pct": 100.0,
       "fp_existing": {
-        "hits": 0,
-        "hunks": 260,
-        "rate_pct": 0.0,
+        "hits": 9,
+        "hunks": 531,
+        "rate_pct": 1.6949,
         "ci95_pct": [
-          0.0,
-          0.0
+          0.5535,
+          3.0523
         ]
       },
       "fp_new_file": {
-        "hits": 0,
-        "hunks": 0,
-        "rate_pct": 0.0,
-        "ci95_pct": null
+        "hits": 3,
+        "hunks": 11,
+        "rate_pct": 27.2727,
+        "ci95_pct": [
+          0.0,
+          57.1429
+        ]
       },
-      "under_sampled": true,
+      "under_sampled": false,
       "threshold": 7.9952
     }
   ],

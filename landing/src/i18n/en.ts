@@ -65,7 +65,7 @@ const en: SiteContent = {
       },
       {
         value: '≤2%',
-        title: 'false positives on 11 of 24 repos (edits)',
+        title: 'false positives on 10 of 24 repos (edits)',
         desc: 'Temporal holdout: the model is fitted at an old commit, then only commits it has never seen are replayed — no train-on-test. Most other repos sit at 2–6%; the worst (bat, 11.5%) is published, not hidden.',
       },
       {

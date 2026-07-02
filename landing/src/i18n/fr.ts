@@ -65,7 +65,7 @@ const fr: SiteContent = {
       },
       {
         value: '≤2 %',
-        title: 'faux positifs sur 11 des 24 dépôts (modifications)',
+        title: 'faux positifs sur 10 des 24 dépôts (modifications)',
         desc: 'Holdout temporel : le modèle est calibré sur un ancien commit, puis seuls des commits jamais vus sont rejoués — aucun train-on-test. La plupart des autres dépôts sont entre 2 et 6 % ; le pire (bat, 11,5 %) est publié, pas caché.',
       },
       {

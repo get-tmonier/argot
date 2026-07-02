@@ -21,10 +21,10 @@ files and judged by the actual `argot fit` → `argot check --staged` pipeline. 
 bootstrap confidence intervals live in the
 [re-measurement evidence](https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/issue92-honest-rebench.md).
 
-The honest picture, in one paragraph: on **edits to existing files**, 11 of 24 benchmarked
+The honest picture, in one paragraph: on **edits to existing files**, 10 of 24 benchmarked
 corpora meet our ≤ 2% false-positive gate and most of the rest sit between 2% and 6%, with a few
-genuinely red (bat 11.5%, jellyfin 9.7%, rocksdb 6.2%, fastapi 6.6%). On **new files**, most
-corpora are ≤ 5% but several flood (redis 61%, rocksdb 49%, excalidraw 21%). Recall on the
+genuinely red (bat 11.5%, jellyfin 9.7%, rubocop 7.0%, rocksdb 6.2%, fastapi 6.6%). On **new files**, most
+corpora are ≤ 5% but several flood (fmt 57%, redis 61%, rocksdb 49%, excalidraw 21%). Recall on the
 mature Python corpora is strong (fastapi/faker/saleor/wagtail 100%, rich 69%); on the *hard*
 curated break classes in the other languages — wrong error discipline, wrong concurrency, API
 misuse within libraries the repo already uses, naming shape — it ranges **21–62%**. The
@@ -65,7 +65,7 @@ These are the adoption-blockers we're building toward v1:
 
 | Goal | Status |
 |---|---|
-| Push FP ≤ 2% (existing files) and close the recall gap | Under the leak-free protocol: 11 of 24 corpora meet the FP gate; hard-class recall 21–100% by language — honest tables in the [#92 evidence](https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/issue92-honest-rebench.md) |
+| Push FP ≤ 2% (existing files) and close the recall gap | Under the leak-free protocol: 10 of 24 corpora meet the FP gate; hard-class recall 21–100% by language — honest tables in the [#92 evidence](https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/issue92-honest-rebench.md) |
 | Validate on application corpora | ✅ Done — four application corpora benchmarked and published |
 | Suppression mechanism | ✅ Shipped |
 | Repo suitability check | ✅ Shipped (`argot inspect`) |

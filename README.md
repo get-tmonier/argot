@@ -163,21 +163,23 @@ shape — not just foreign imports).
 | JavaScript | `.js` `.jsx` | uses the TypeScript adapter | | |
 | Go | `.go` | 2.3% / 5.9% | 7.8–13% | gh-cli **38%** |
 | Rust | `.rs` | ripgrep 1.0% · bat **11.5%** | 7.7% (thin sample) | ripgrep **31%** |
-| Java | `.java` | guava 2.1% · junit5 0.0% | 0.0% | guava **57%** |
-| C# | `.cs` | powershell 1.1% · jellyfin **9.7%** | 14% (jellyfin) | powershell **54%** |
+| Java | `.java` | guava 2.1% · junit5 **2.9%** | 0.0% | guava **57%** |
+| C# | `.cs` | powershell 1.8% · jellyfin **9.7%** | 14–20% | powershell **54%** |
 | C | `.c` `.h` | redis 0.7% · curl 0.3% | redis **61%** (19/31 hunks) | redis **21%** |
-| C++ | `.cpp` `.cc` `.hpp` | rocksdb **6.2%** · fmt 3.2% | rocksdb **49%** | rocksdb **23%** |
-| Ruby | `.rb` | homebrew 4.6% · rubocop 3.5% | 4.7% | homebrew **39%** |
+| C++ | `.cpp` `.cc` `.hpp` | rocksdb **6.2%** · fmt **2.6%** | rocksdb **49%** · fmt **57%** | rocksdb **23%** |
+| Ruby | `.rb` | homebrew 4.6% · rubocop **7.0%** | 4.7% | homebrew **39%** |
 | PHP | `.php` | laravel 0.8% · composer 0.0% | 3.8–11.5% | laravel **62%** |
 
 **What this means in practice.** argot's reliable value today is the
 tripwire class: foreign imports and strongly foreign API surfaces fire at
-low false-positive cost on most corpora. The *hard* classes it aspires to —
+low false-positive cost on most corpora — **10 of 24 benchmarked corpora
+meet our ≤2% false-positive gate on edits to existing files**, and most of
+the rest sit between 2% and 6%. The *hard* classes it aspires to —
 in-vocabulary breaks like a bare `throw new Exception` in a typed-error
 codebase — are caught well on the mature Python corpora but **miss more
 often than they hit in most other languages**, and a handful of corpora
-(bat, jellyfin, rocksdb, hugo, fastapi edits; new files on
-excalidraw/redis/rocksdb) still exceed our ≤2%-existing / ≤5%-new-file
+(bat, jellyfin, rocksdb, hugo, rubocop, fastapi edits; new files on
+excalidraw/redis/rocksdb/fmt) exceed our ≤2%-existing / ≤5%-new-file
 false-positive gates, driven by the call-receiver cluster stage. We publish
 those numbers red rather than tune the benchmark until they look green;
 closing the gap needs a structurally smarter scorer (tracked in the
