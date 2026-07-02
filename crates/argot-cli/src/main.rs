@@ -278,6 +278,25 @@ fn is_npm_install(exe: Option<&Path>) -> bool {
     exe.is_some_and(|p| p.components().any(|c| c.as_os_str() == "node_modules"))
 }
 
+/// Builds without the `self-update` feature (dev/CI) keep the command but
+/// can only point at the other update channels.
+#[cfg(not(feature = "self-update"))]
+fn run_update() -> ExitCode {
+    let current = env!("CARGO_PKG_VERSION");
+
+    if is_npm_install(std::env::current_exe().ok().as_deref()) {
+        println!("argot {current} was installed via npm; update it with:");
+        println!("  npm install -g @tmonier/argot@latest");
+        return ExitCode::SUCCESS;
+    }
+
+    eprintln!("argot {current}: this build was compiled without self-update support.");
+    eprintln!("Update via the installer:");
+    eprintln!("  curl -LsSf https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.sh | sh");
+    ExitCode::FAILURE
+}
+
+#[cfg(feature = "self-update")]
 fn run_update() -> ExitCode {
     let current = env!("CARGO_PKG_VERSION");
 

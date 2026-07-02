@@ -11,10 +11,16 @@ description = "argot — voice linter CLI. Single statically-linked binary repla
 name = "argot"
 path = "src/main.rs"
 
+[features]
+# Off by default: axoupdater drags in an HTTP stack (reqwest/rustls/tokio)
+# that only shipped binaries need. Release builds enable it via
+# dist-workspace.toml; CI and dev loops skip the whole tree.
+self-update = ["dep:axoupdater"]
+
 [dependencies]
 argot-core = { path = "../argot-core" }
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
 clap.workspace = true
-axoupdater.workspace = true
+axoupdater = { workspace = true, optional = true }

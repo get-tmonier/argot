@@ -8,7 +8,7 @@ name: rust
 
 on:
   push:
-    branches: [feat/rust-rewrite]
+    branches: [main]
     paths:
       - 'crates/**'
       - 'Cargo.toml'
@@ -35,6 +35,10 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      # No debugger runs in CI; skipping debuginfo cuts compile + link time
+      # (test failures still report file:line from source, not debuginfo).
+      CARGO_PROFILE_DEV_DEBUG: 0
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,13 +46,24 @@ jobs:
       - name: Install Rust toolchain (pinned by rust-toolchain.toml)
         run: rustup show && rustup component add rustfmt clippy
       - uses: Swatinem/rust-cache@v2
+        with:
+          # A red run should still warm the cache for the fix-up run.
+          cache-on-failure: true
       - name: Format check
         run: cargo fmt --check
       - name: Clippy (deny warnings)
         run: cargo clippy --workspace --all-targets -- -D warnings
+      # The self-update feature only ships in release builds; lint it here so
+      # it can't rot unchecked until a release. Linux-only + check-mode keeps
+      # the axoupdater dependency tree off the hot path (cached after run one).
+      - name: Clippy self-update feature (release-only code)
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo clippy -p argot --all-targets --features self-update -- -D warnings
       - name: Test (incl. Python-parity golden suites)
         run: cargo test --workspace
+      # Dev profile: reuses the build from the test step (a release build here
+      # costs ~3 min of pure recompilation; extract itself takes seconds).
       - name: Smoke (extract runs end-to-end)
         run: |
-          cargo run --release -p argot -- extract .
+          cargo run -p argot -- extract --repo .
           test -s .argot/dataset.jsonl && echo "OK — dataset.jsonl non-empty"
