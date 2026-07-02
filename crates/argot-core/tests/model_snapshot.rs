@@ -23,11 +23,15 @@ fn build_fixture_repo(suffix: &str) -> PathBuf {
     let out =
         PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("model_snapshot_repo_{suffix}"));
     let script = fixture_dir().join("build_check_repo.sh");
-    let status = Command::new("bash")
-        .arg(&script)
-        .arg(&out)
-        .status()
-        .expect("run build_check_repo.sh");
+    let status = Command::new(
+        std::env::var_os("ARGOT_TEST_BASH")
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "bash".into()),
+    )
+    .arg(&script)
+    .arg(&out)
+    .status()
+    .expect("run build_check_repo.sh");
     assert!(status.success(), "fixture build failed");
     out
 }

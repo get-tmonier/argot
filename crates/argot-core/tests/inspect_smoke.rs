@@ -13,11 +13,15 @@ fn build_repo() -> PathBuf {
     let out = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("inspect_check_repo");
     let script =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/check/build_check_repo.sh");
-    let status = Command::new("bash")
-        .arg(&script)
-        .arg(&out)
-        .status()
-        .expect("run build_check_repo.sh");
+    let status = Command::new(
+        std::env::var_os("ARGOT_TEST_BASH")
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "bash".into()),
+    )
+    .arg(&script)
+    .arg(&out)
+    .status()
+    .expect("run build_check_repo.sh");
     assert!(status.success());
     out
 }
