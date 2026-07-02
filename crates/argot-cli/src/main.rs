@@ -4,6 +4,8 @@
 //! (`extract` → `train` → `calibrate` → `check`, plus the `fit` one-shot and
 //! the suppression commands) runs in-process against `argot-core`.
 
+mod mcp;
+
 use clap::{Args, Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -119,6 +121,15 @@ enum Command {
     List(ListCmd),
     /// Update the argot CLI to the latest release.
     Update,
+    /// Run a Model Context Protocol server for LLM coding agents (stdio).
+    Mcp(McpCmd),
+}
+
+#[derive(Args)]
+struct McpCmd {
+    /// Path to the repository whose fitted voice the server scores against.
+    #[arg(long, default_value = ".")]
+    repo: PathBuf,
 }
 
 // --- repo context / registry (port of fs-repo-context.adapter.ts) ---
@@ -424,7 +435,7 @@ fn wants_json(format: &str, json_alias: bool) -> bool {
 fn print_help_banner() {
     let version = env!("CARGO_PKG_VERSION");
     println!(
-        "argot v{version}\n\nCOMMANDS\n  extract       Walk git history into a training dataset (.argot/dataset.jsonl)\n  fit           Fit the voice model to this repo (= train + calibrate, one-shot)\n  check         Check changes against the fitted voice\n  inspect       Report corpus composition, calibration health, and suitability\n  mute          Mute a hit by hash (appends to .argot/suppressions.yaml)\n  list-mutes    List active suppressions across all surfaces\n  review-mutes  Report (and --prune) muted hits that no longer fire\n  status        Show current repository's argot state\n  list          List all registered repositories\n  update        Update the argot CLI\n\nTypical first run: argot extract && argot fit && argot check\nRun `argot <command> --help` for details on any command."
+        "argot v{version}\n\nCOMMANDS\n  extract       Walk git history into a training dataset (.argot/dataset.jsonl)\n  fit           Fit the voice model to this repo (= train + calibrate, one-shot)\n  check         Check changes against the fitted voice\n  inspect       Report corpus composition, calibration health, and suitability\n  mute          Mute a hit by hash (appends to .argot/suppressions.yaml)\n  list-mutes    List active suppressions across all surfaces\n  review-mutes  Report (and --prune) muted hits that no longer fire\n  status        Show current repository's argot state\n  list          List all registered repositories\n  update        Update the argot CLI\n  mcp           Run an MCP server for LLM coding agents (stdio)\n\nTypical first run: argot extract && argot fit && argot check\nRun `argot <command> --help` for details on any command."
     );
 }
 
@@ -1432,6 +1443,7 @@ fn main() -> ExitCode {
         Some(Command::Status(c)) => run_status(c),
         Some(Command::List(c)) => run_list(c),
         Some(Command::Update) => run_update(),
+        Some(Command::Mcp(c)) => mcp::run_mcp(c.repo),
     }
 }
 

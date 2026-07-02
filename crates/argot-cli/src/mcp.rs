@@ -1,0 +1,345 @@
+//! `argot mcp` — a Model Context Protocol server over stdio.
+//!
+//! Exposes argot's voice signal to LLM coding agents (Claude Code, Cursor,
+//! Aider, …) so they can (a) score generated code against the repo's voice and
+//! (b) ask for the local voice *before* generating, writing in-voice from the
+//! first token instead of writing-then-fixing.
+//!
+//! Transport: newline-delimited JSON-RPC 2.0 on stdin/stdout (the MCP stdio
+//! transport). One JSON object per line; notifications (no `id`) get no reply.
+//! It runs entirely in-process against the repo's fitted `.argot/` model — no
+//! network, no separate runtime, same single binary.
+
+use std::io::{BufRead, Write};
+use std::path::{Path, PathBuf};
+use std::process::ExitCode;
+
+use serde_json::{json, Value};
+
+use argot_core::check::RepoScorers;
+use argot_core::inspect::{inspect_model, inspect_repo};
+use argot_core::scoring::evidence::format_evidence;
+
+/// MCP protocol revision this server implements.
+const PROTOCOL_VERSION: &str = "2024-11-05";
+
+/// Run the stdio server loop until stdin closes.
+pub fn run_mcp(repo: PathBuf) -> ExitCode {
+    let stdin = std::io::stdin();
+    let stdout = std::io::stdout();
+    let mut out = stdout.lock();
+    for line in stdin.lock().lines() {
+        let Ok(line) = line else { break };
+        if line.trim().is_empty() {
+            continue;
+        }
+        let Some(reply) = handle_line(&line, &repo) else {
+            // Notification or unparseable input → no response.
+            continue;
+        };
+        if writeln!(out, "{reply}").is_err() || out.flush().is_err() {
+            break;
+        }
+    }
+    ExitCode::SUCCESS
+}
+
+/// Turn one incoming JSON-RPC line into the serialized response line, or `None`
+/// for notifications (no `id`) and unparseable input.
+fn handle_line(line: &str, repo: &Path) -> Option<String> {
+    let req: Value = serde_json::from_str(line).ok()?;
+    let id = req.get("id").cloned();
+    // Notifications carry no id and expect no reply (e.g. notifications/initialized).
+    let id = id?;
+    let method = req.get("method").and_then(Value::as_str).unwrap_or("");
+    let params = req.get("params").cloned().unwrap_or(Value::Null);
+    let response = match dispatch(method, &params, repo) {
+        Ok(result) => json!({ "jsonrpc": "2.0", "id": id, "result": result }),
+        Err((code, message)) => {
+            json!({ "jsonrpc": "2.0", "id": id, "error": { "code": code, "message": message } })
+        }
+    };
+    Some(serde_json::to_string(&response).unwrap_or_default())
+}
+
+type RpcError = (i64, String);
+
+/// Route a JSON-RPC method to its handler.
+fn dispatch(method: &str, params: &Value, repo: &Path) -> Result<Value, RpcError> {
+    match method {
+        "initialize" => Ok(json!({
+            "protocolVersion": PROTOCOL_VERSION,
+            "capabilities": { "tools": {} },
+            "serverInfo": { "name": "argot", "version": env!("CARGO_PKG_VERSION") },
+            "instructions": "argot scores code against a repo's learned voice. Call argot.voice_context before generating code for a file to bias toward the local idioms; call argot.check on generated hunks to catch out-of-voice code.",
+        })),
+        "tools/list" => Ok(json!({ "tools": tool_definitions() })),
+        "tools/call" => tools_call(params, repo),
+        // Unknown methods: -32601 Method not found.
+        _ => Err((-32601, format!("method not found: {method}"))),
+    }
+}
+
+/// The four tools, with JSON-Schema input shapes.
+fn tool_definitions() -> Value {
+    let hunk_schema = json!({
+        "type": "object",
+        "properties": {
+            "file_path": { "type": "string", "description": "Repo-relative path (its extension picks the language)." },
+            "hunk_content": { "type": "string", "description": "The code hunk to score." },
+            "file_source": { "type": "string", "description": "Optional: the full file the hunk belongs to, for better context." }
+        },
+        "required": ["file_path", "hunk_content"]
+    });
+    json!([
+        {
+            "name": "argot.check",
+            "description": "Score a code hunk against the repo's voice. Returns whether it is out of voice, the score, the reason, and evidence naming the surprising tokens.",
+            "inputSchema": hunk_schema,
+        },
+        {
+            "name": "argot.explain",
+            "description": "Explain a hunk's voice score in detail: the reason it fired and the full evidence trail (surprising tokens with repo attestation counts).",
+            "inputSchema": hunk_schema,
+        },
+        {
+            "name": "argot.voice_context",
+            "description": "Preemptive: given a target file, return the local voice that applies there — the typical callees per cluster and the familiar imports — so generation is biased toward the repo's idioms from the first token.",
+            "inputSchema": json!({
+                "type": "object",
+                "properties": {
+                    "file_path": { "type": "string", "description": "Repo-relative path of the file about to be edited/created." },
+                    "top": { "type": "integer", "description": "Typical callees per cluster to return (default 10)." }
+                },
+                "required": ["file_path"]
+            }),
+        },
+        {
+            "name": "argot.fit_status",
+            "description": "Report whether the repo is well-fitted for argot: corpus composition, calibration freshness, and a Ready / Marginal / Not-recommended verdict.",
+            "inputSchema": json!({ "type": "object", "properties": {} }),
+        },
+    ])
+}
+
+/// Dispatch a `tools/call`. Tool errors are returned as an `isError` content
+/// result (per MCP) rather than a protocol error, so the agent can read them.
+fn tools_call(params: &Value, repo: &Path) -> Result<Value, RpcError> {
+    let name = params
+        .get("name")
+        .and_then(Value::as_str)
+        .ok_or((-32602, "tools/call requires a 'name'".to_string()))?;
+    let args = params.get("arguments").cloned().unwrap_or(Value::Null);
+
+    let result = match name {
+        "argot.check" => tool_check(&args, repo, false),
+        "argot.explain" => tool_check(&args, repo, true),
+        "argot.voice_context" => tool_voice_context(&args, repo),
+        "argot.fit_status" => tool_fit_status(repo),
+        other => return Err((-32602, format!("unknown tool: {other}"))),
+    };
+
+    Ok(match result {
+        Ok(value) => text_content(&value, false),
+        Err(message) => text_content(&json!({ "error": message }), true),
+    })
+}
+
+/// Wrap a JSON payload as MCP tool `content` (one text block of pretty JSON).
+fn text_content(value: &Value, is_error: bool) -> Value {
+    json!({
+        "content": [{
+            "type": "text",
+            "text": serde_json::to_string_pretty(value).unwrap_or_default()
+        }],
+        "isError": is_error,
+    })
+}
+
+fn argot_dir(repo: &Path) -> PathBuf {
+    repo.join(".argot")
+}
+
+/// `argot.check` / `argot.explain`: score one hunk against the model.
+fn tool_check(args: &Value, repo: &Path, explain: bool) -> Result<Value, String> {
+    let file_path = args
+        .get("file_path")
+        .and_then(Value::as_str)
+        .ok_or("file_path is required")?;
+    let hunk_content = args
+        .get("hunk_content")
+        .and_then(Value::as_str)
+        .ok_or("hunk_content is required")?;
+    let file_source = args.get("file_source").and_then(Value::as_str);
+
+    let mut scorers = RepoScorers::load(&argot_dir(repo))?;
+    if scorers.language_for(file_path).is_none() {
+        return Err(format!(
+            "unsupported file type for '{file_path}' (argot scores .py/.ts/.tsx/.js/.jsx)"
+        ));
+    }
+    let scored = scorers
+        .score(file_path, hunk_content, file_source)
+        .ok_or_else(|| format!("no fitted model for the language of '{file_path}'"))?;
+
+    let mut out = json!({
+        "model": scorers.model_hash,
+        "file_path": file_path,
+        "out_of_voice": scored.flagged,
+        "score": scored.stages.bpe_score,
+        "reason": scored.reason.as_str(),
+    });
+    // Evidence: always for explain; and on a fired hunk for check.
+    if explain || scored.flagged {
+        if let Some(ev) = &scored.evidence {
+            let lines: Vec<String> = format_evidence(ev, false, 1)
+                .into_iter()
+                .map(|l| l.trim().to_string())
+                .collect();
+            out["evidence"] = json!(lines);
+        }
+    }
+    Ok(out)
+}
+
+/// `argot.voice_context`: the local voice for a file — typical callees per
+/// cluster (from the fitted model) plus the familiar import surface.
+fn tool_voice_context(args: &Value, repo: &Path) -> Result<Value, String> {
+    let file_path = args
+        .get("file_path")
+        .and_then(Value::as_str)
+        .ok_or("file_path is required")?;
+    let top = args
+        .get("top")
+        .and_then(Value::as_u64)
+        .map(|n| n as usize)
+        .unwrap_or(10);
+
+    let scorers = RepoScorers::load(&argot_dir(repo))?;
+    let language = scorers
+        .language_for(file_path)
+        .ok_or_else(|| format!("unsupported file type for '{file_path}'"))?;
+
+    let model = inspect_model(repo, top).map_err(|e| e.to_string())?;
+    let lang_view = model
+        .languages
+        .get(language)
+        .ok_or_else(|| format!("no fitted model for '{language}'"))?;
+
+    let clusters: Vec<Value> = lang_view
+        .clusters
+        .iter()
+        .map(|c| {
+            json!({
+                "cluster": c.id,
+                "files": c.files,
+                "typical_callees": c.top_callees.iter().map(|(n, _)| n).collect::<Vec<_>>(),
+            })
+        })
+        .collect();
+
+    Ok(json!({
+        "file_path": file_path,
+        "language": language,
+        "model": model.manifest.as_ref().map(|m| m.model_hash.clone()),
+        "typical_callees_by_cluster": clusters,
+        "familiar_imports": familiar_imports(&argot_dir(repo), language, top),
+        "note": "Prefer these callees and imports; code that reaches for names absent here will read as out of voice.",
+    }))
+}
+
+/// The most common import specifiers for a language, from the scorer config.
+fn familiar_imports(argot_dir: &Path, language: &str, top: usize) -> Vec<String> {
+    let Ok(bytes) = std::fs::read(argot_dir.join("scorer-config.json")) else {
+        return Vec::new();
+    };
+    let Ok(config) = serde_json::from_slice::<Value>(&bytes) else {
+        return Vec::new();
+    };
+    config
+        .get("languages")
+        .and_then(|l| l.get(language))
+        .and_then(|l| l.get("import_modules"))
+        .and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(Value::as_str)
+                .take(top)
+                .map(String::from)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// `argot.fit_status`: the repo's suitability verdict + calibration health.
+fn tool_fit_status(repo: &Path) -> Result<Value, String> {
+    let report = inspect_repo(repo).map_err(|e| e.to_string())?;
+    serde_json::to_value(&report).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn initialize_advertises_tools_and_server_info() {
+        let repo = PathBuf::from(".");
+        let result = dispatch("initialize", &Value::Null, &repo).unwrap();
+        assert_eq!(result["protocolVersion"], PROTOCOL_VERSION);
+        assert_eq!(result["serverInfo"]["name"], "argot");
+        assert!(result["capabilities"]["tools"].is_object());
+    }
+
+    #[test]
+    fn tools_list_exposes_the_four_tools() {
+        let repo = PathBuf::from(".");
+        let result = dispatch("tools/list", &Value::Null, &repo).unwrap();
+        let names: Vec<&str> = result["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["name"].as_str().unwrap())
+            .collect();
+        assert!(names.contains(&"argot.check"));
+        assert!(names.contains(&"argot.explain"));
+        assert!(names.contains(&"argot.voice_context"));
+        assert!(names.contains(&"argot.fit_status"));
+    }
+
+    #[test]
+    fn unknown_method_is_a_json_rpc_method_not_found() {
+        let repo = PathBuf::from(".");
+        let err = dispatch("does/not/exist", &Value::Null, &repo).unwrap_err();
+        assert_eq!(err.0, -32601);
+    }
+
+    #[test]
+    fn notifications_get_no_reply() {
+        // No `id` → notification → no response line.
+        let line = r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#;
+        assert!(handle_line(line, &PathBuf::from(".")).is_none());
+    }
+
+    #[test]
+    fn a_request_with_an_id_gets_a_reply_line() {
+        let line = r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#;
+        let reply = handle_line(line, &PathBuf::from(".")).expect("reply");
+        let doc: Value = serde_json::from_str(&reply).unwrap();
+        assert_eq!(doc["id"], 1);
+        assert_eq!(doc["result"]["serverInfo"]["name"], "argot");
+    }
+
+    #[test]
+    fn tools_call_on_a_repo_without_a_model_reports_an_iserror_result() {
+        // No `.argot/` under a bare temp dir → check tool returns isError, not a
+        // protocol error (the agent can read the message).
+        let tmp = std::env::temp_dir().join("argot_mcp_no_model_test");
+        let _ = std::fs::create_dir_all(&tmp);
+        let params = json!({
+            "name": "argot.check",
+            "arguments": { "file_path": "a.py", "hunk_content": "x = 1\n" }
+        });
+        let result = dispatch("tools/call", &params, &tmp).unwrap();
+        assert_eq!(result["isError"], true);
+    }
+}

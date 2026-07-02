@@ -23,7 +23,7 @@ use crate::scoring::adapters::LanguageAdapter;
 use crate::scoring::evidence::types::{Evidence, EvidenceCorpus, SourceSpan};
 use crate::scoring::evidence::{evidence_caret_spans, evidence_lines_of_interest, format_evidence};
 use crate::scoring::model::LanguageModel;
-use crate::scoring::sequential::{SequentialConfig, SequentialImportBpeScorer};
+use crate::scoring::sequential::{ScoredHunk, SequentialConfig, SequentialImportBpeScorer};
 use crate::suppress::{
     fnmatch, hit_hash, load_suppressions_file, parse_inline, write_last_check, LastCheckHit,
     PathScope, PathSuppressions, SuppressionRule, SUPPRESSIONS_FILE,
@@ -516,6 +516,53 @@ fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
         fit_sha,
         model_hash,
     })
+}
+
+/// A repo's fitted per-language scorers, loaded once for reuse outside the
+/// `check` diff flow (the MCP server scores agent-supplied hunks the same way
+/// `check` scores diff hunks — against the frozen fit-time model, never the
+/// live tree).
+pub struct RepoScorers {
+    scorers: HashMap<String, SequentialImportBpeScorer>,
+    /// Combined model fingerprint — the `model:` hash `check` reports.
+    pub model_hash: String,
+}
+
+impl RepoScorers {
+    /// Load from a repo's `.argot/`. The error carries a human-readable message
+    /// (e.g. "run `argot fit` first").
+    pub fn load(argot_dir: &Path) -> std::result::Result<Self, String> {
+        let loaded = load_scorers(argot_dir).map_err(|(msg, _)| msg)?;
+        Ok(RepoScorers {
+            scorers: loaded.scorers,
+            model_hash: loaded.model_hash,
+        })
+    }
+
+    /// The scoring language name (`"python"`/`"typescript"`) for a file path, or
+    /// `None` when the extension isn't supported.
+    pub fn language_for(&self, file_path: &str) -> Option<&'static str> {
+        ext_to_lang(&extension(file_path))
+    }
+
+    /// Score one hunk against the model for its file's language. `None` when the
+    /// file's language has no fitted scorer.
+    pub fn score(
+        &mut self,
+        file_path: &str,
+        hunk_content: &str,
+        file_source: Option<&str>,
+    ) -> Option<ScoredHunk> {
+        let lang = self.language_for(file_path)?;
+        let scorer = self.scorers.get_mut(lang)?;
+        Some(scorer.score_hunk(
+            hunk_content,
+            file_source,
+            None,
+            None,
+            Some(Path::new(file_path)),
+        ))
+    }
 }
 
 /// Yield batches for committed changes (`_committed_patches`), source = 7-char SHA.

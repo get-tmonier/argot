@@ -160,6 +160,10 @@ confirming the recall + false-positive numbers hold. Want a corpus validated?
 repo root (`uses: get-tmonier/argot@main`), and `.pre-commit-hooks.yaml`
 registers an `argot-check` hook. Copy-paste setups: [docs/ci.md](docs/ci.md).
 
+For LLM coding agents, `argot mcp` runs a Model Context Protocol server so an
+agent can ask for the repo's voice *before* generating and score hunks *after* —
+setup for Claude Code, Cursor, and generic clients in [docs/mcp.md](docs/mcp.md).
+
 ## How it works
 
 A three-stage scorer runs on each diff hunk: an **import check** (is any
