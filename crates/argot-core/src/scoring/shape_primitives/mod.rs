@@ -9,12 +9,16 @@
 //! - [`fall_through_guards`] — guard `if`s before the first `return`.
 
 pub mod call_scope_fraction;
+pub mod callee_distribution_under_coverage;
+pub mod cluster_staple_deficit;
 pub mod except_return_raise_ratio;
 pub mod fall_through_guards;
 pub mod namespace_jsd;
 pub mod typical_call_density;
 
 pub use call_scope_fraction::CallScopeFraction;
+pub use callee_distribution_under_coverage::CalleeDistributionUnderCoverage;
+pub use cluster_staple_deficit::ClusterStapleDeficit;
 pub use except_return_raise_ratio::ExceptReturnRaiseRatio;
 pub use fall_through_guards::FallThroughGuards;
 pub use namespace_jsd::NamespaceJsd;

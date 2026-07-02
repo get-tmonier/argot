@@ -15,6 +15,7 @@
 
 use crate::scoring::adapters::{Language, LanguageAdapter};
 use crate::scoring::minhash_params_seed0::{MINHASH_A_SEED0, MINHASH_B_SEED0};
+use crate::scoring::shape_primitive::{Baseline, ShapePrimitive};
 use crate::scoring::ts_parse::parse;
 use md5::{Digest, Md5};
 use std::collections::{HashMap, HashSet};
@@ -462,6 +463,12 @@ pub struct CallReceiverScorer {
     n_corpus_files: usize,
     /// Rarity weighting applied to the cluster branches (era 14 phase A).
     rarity_weighting: RarityWeighting,
+    /// Additive per-cluster AST-shape primitives (empty = true no-op).
+    shape_primitives: Vec<Box<dyn ShapePrimitive>>,
+    /// primitive name → cluster id → fitted baseline.
+    primitive_baselines: HashMap<String, HashMap<usize, Baseline>>,
+    /// Per-primitive fire counts (bench observability).
+    pub primitive_fire_count: HashMap<String, usize>,
     pub rare_branch_fire_count: usize,
     pub rare_branch_hunks_fired: usize,
     pub hunks_scored: usize,
@@ -563,6 +570,9 @@ impl CallReceiverScorer {
             callee_file_counts,
             n_corpus_files,
             rarity_weighting: RarityWeighting::Off,
+            shape_primitives: Vec::new(),
+            primitive_baselines: HashMap::new(),
+            primitive_fire_count: HashMap::new(),
             rare_branch_fire_count: 0,
             rare_branch_hunks_fired: 0,
             hunks_scored: 0,
@@ -572,6 +582,46 @@ impl CallReceiverScorer {
     /// Set the rarity weighting for the cluster branches (era 14 phase A).
     pub fn with_rarity_weighting(mut self, weighting: RarityWeighting) -> Self {
         self.rarity_weighting = weighting;
+        self
+    }
+
+    /// Attach additive shape primitives and fit their per-cluster baselines
+    /// over the (non-data-dominant, clustered) corpus files. An empty
+    /// primitive list is a true no-op, matching the Python scorer.
+    pub fn with_shape_primitives(
+        mut self,
+        primitives: Vec<Box<dyn ShapePrimitive>>,
+        repo_files: &[(PathBuf, String)],
+        adapter: &dyn LanguageAdapter,
+    ) -> Self {
+        if primitives.is_empty() {
+            return self;
+        }
+        let mut cluster_files: HashMap<usize, Vec<(PathBuf, String)>> = HashMap::new();
+        for (path, src) in repo_files {
+            if adapter.is_data_dominant(src) {
+                continue;
+            }
+            if let Some(&cid) = self.file_to_cluster.get(path) {
+                cluster_files
+                    .entry(cid)
+                    .or_default()
+                    .push((path.clone(), src.clone()));
+            }
+        }
+        for primitive in &primitives {
+            let mut per_cluster: HashMap<usize, Baseline> = HashMap::new();
+            for (cid, files) in &cluster_files {
+                if let Some(b) = primitive.fit_cluster_baseline(files, self.language) {
+                    per_cluster.insert(*cid, b);
+                }
+            }
+            self.primitive_baselines
+                .insert(primitive.name().to_string(), per_cluster);
+            self.primitive_fire_count
+                .insert(primitive.name().to_string(), 0);
+        }
+        self.shape_primitives = primitives;
         self
     }
 
@@ -772,6 +822,23 @@ impl CallReceiverScorer {
                     self.rare_branch_fire_count += 1;
                     hunk_fired_rare = true;
                     weights += cluster_bonus * rarity;
+                }
+            }
+        }
+        // Shape-primitive dispatch: additive scalars, final cap still bounds
+        // the total. Skipped on root-error hunks, matching the Python scorer
+        // (phase D's host fallback feeds callee extraction only).
+        if !self.shape_primitives.is_empty() && !has_root_error(hunk, self.language) {
+            if let Some(cid) = self.cluster_id_for_hunk_file(file_path, file_source) {
+                let cluster_size = self.cluster_sizes.get(&cid).copied().unwrap_or(0);
+                for i in 0..self.shape_primitives.len() {
+                    let name = self.shape_primitives[i].name().to_string();
+                    let baseline = self.primitive_baselines.get(&name).and_then(|m| m.get(&cid));
+                    let contribution = self.shape_primitives[i].score(hunk, baseline, cluster_size);
+                    if contribution > 0.0 {
+                        *self.primitive_fire_count.entry(name).or_insert(0) += 1;
+                        weights += contribution;
+                    }
                 }
             }
         }

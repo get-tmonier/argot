@@ -88,6 +88,9 @@ struct Cli {
     /// Era-14 calibration-hunk source: random | diff.
     #[arg(long, default_value = "random")]
     calibration_source: String,
+    /// Comma-separated shape-primitive names to enable on the scoring path.
+    #[arg(long, default_value = "", value_delimiter = ',')]
+    enable_shape_primitives: Vec<String>,
 }
 
 fn parse_rarity_weighting(s: &str) -> Result<argot_core::scoring::call_receiver::RarityWeighting> {
@@ -164,6 +167,12 @@ fn real_main() -> Result<ExitCode> {
             "diff" => argot_bench::scorer::CalibrationSource::Diff,
             other => anyhow::bail!("unknown calibration source {other:?}"),
         },
+        shape_primitive_names: cli
+            .enable_shape_primitives
+            .iter()
+            .filter(|s| !s.is_empty())
+            .cloned()
+            .collect(),
     };
     let opts = run::RunOptions {
         data_dir: cli.data_dir,

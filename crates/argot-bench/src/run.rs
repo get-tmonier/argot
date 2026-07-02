@@ -528,6 +528,11 @@ pub fn run_corpus(target: &Target, opts: &RunOptions) -> Result<Vec<CorpusReport
             ensure_sha_checked_out(&repo_dir, &primary.sha)?;
         }
 
+        if let Some(counts) = bench.scorer.primitive_fire_counts() {
+            for (name, n) in counts {
+                eprintln!("[{}] primitive fire count: {name}={n}", target.name);
+            }
+        }
         let corpus_name = if catalog.language == "multi" {
             format!("{} ({lang_name})", target.name)
         } else {

@@ -9,6 +9,7 @@ use crate::bpe::BpeTokenizer;
 use crate::scoring::adapters::LanguageAdapter;
 use crate::scoring::bpe_scorer::BpeScorer;
 use crate::scoring::call_receiver::{CallReceiverScorer, RarityWeighting};
+use crate::scoring::shape_primitive::ShapePrimitiveRegistry;
 use crate::scoring::evidence::types::{Evidence, EvidenceCorpus, SourceSpan};
 use crate::scoring::evidence::{
     collect_bpe_evidence, collect_call_receiver_evidence, collect_import_evidence,
@@ -107,6 +108,8 @@ pub struct SequentialConfig {
     pub call_receiver_cluster_size_min: usize,
     /// Era-14 rarity weighting for the cluster branches (default `Off`).
     pub call_receiver_rarity_weighting: RarityWeighting,
+    /// Registered shape-primitive names to enable (empty = none).
+    pub call_receiver_shape_primitive_names: Vec<String>,
     pub import_modules: Vec<String>,
     pub import_module_prefixes: Vec<String>,
     /// Pre-computed evidence corpus parsed from the config's `evidence_corpus`
@@ -185,7 +188,14 @@ impl SequentialImportBpeScorer {
                     cfg.call_receiver_cluster_size_min,
                 )
                 .map_err(anyhow::Error::msg)?
-                .with_rarity_weighting(cfg.call_receiver_rarity_weighting),
+                .with_rarity_weighting(cfg.call_receiver_rarity_weighting)
+                .with_shape_primitives(
+                    ShapePrimitiveRegistry::with_builtins()
+                        .build(&cfg.call_receiver_shape_primitive_names)
+                        .map_err(anyhow::Error::msg)?,
+                    corpus,
+                    adapter.as_ref(),
+                ),
             )
         } else {
             None
@@ -202,6 +212,11 @@ impl SequentialImportBpeScorer {
             bpe_threshold: cfg.bpe_threshold,
             evidence_corpus: cfg.evidence_corpus,
         })
+    }
+
+    /// Per-primitive fire counts from the call-receiver (bench observability).
+    pub fn primitive_fire_counts(&self) -> Option<&std::collections::HashMap<String, usize>> {
+        self.call_receiver.as_ref().map(|cr| &cr.primitive_fire_count)
     }
 
     fn zero_stage(reason: Reason, threshold: f64) -> ScoredHunk {

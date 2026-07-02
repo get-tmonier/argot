@@ -51,6 +51,9 @@ pub struct BenchKnobs {
     /// Era-14 phase B: calibration-hunk distribution — random source-file
     /// hunks (era-13.5 default) or real diff hunks from the extract dataset.
     pub calibration_source: CalibrationSource,
+    /// Era-14 phase C: shape primitives enabled on the scoring path (empty =
+    /// none). Asymmetric calibration: never applied to the cal side.
+    pub shape_primitive_names: Vec<String>,
 }
 
 /// Where calibration hunks come from.
@@ -86,6 +89,7 @@ impl Default for BenchKnobs {
             asym_probe_n: 1000,
             rarity_weighting: RarityWeighting::Off,
             calibration_source: CalibrationSource::Random,
+            shape_primitive_names: Vec::new(),
         }
     }
 }
@@ -540,6 +544,7 @@ pub fn build_scorer(
             call_receiver_cluster_rare_threshold: resolved_rare,
             call_receiver_cluster_size_min: knobs.cluster_size_min,
             call_receiver_rarity_weighting: knobs.rarity_weighting,
+            call_receiver_shape_primitive_names: knobs.shape_primitive_names.clone(),
             import_modules,
             import_module_prefixes,
             evidence_corpus: None,
