@@ -10,6 +10,7 @@ edition = "2021"
 rust-version = "1.85"
 license = "MIT"
 repository = "https://github.com/get-tmonier/argot"
+homepage = "https://argot.tmonier.com"
 
 # Dependency versions are pinned for parity with the Python engine being
 # replaced:

@@ -1,0 +1,11 @@
+# Force LF everywhere so byte-for-byte golden/parity comparisons hold on every
+# platform — Windows CI would otherwise check out CRLF (core.autocrlf) and the
+# fixtures + committed goldens would diverge from the LF originals.
+* text=auto eol=lf
+
+# Binary assets: never touched by line-ending normalization.
+*.png binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary

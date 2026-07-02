@@ -63,6 +63,18 @@ pub fn head_sha(path: &str) -> Option<String> {
     head.target().map(|o| o.to_string())
 }
 
+/// The working-tree root of the repository containing `path` (in-process via
+/// libgit2, so it needs no external `git` binary on any platform). `None` for a
+/// bare repo or when `path` isn't inside a repository. The trailing separator
+/// libgit2 appends is stripped so the result matches `git rev-parse
+/// --show-toplevel`.
+pub fn repo_workdir(path: &str) -> Option<String> {
+    let repo = open_repo(path).ok()?;
+    let workdir = repo.workdir()?;
+    let s = workdir.to_string_lossy();
+    Some(s.trim_end_matches(['/', '\\']).to_string())
+}
+
 fn is_supported_ext(path: &str) -> bool {
     let name = match path.rfind('/') {
         Some(i) => &path[i + 1..],
@@ -322,6 +334,25 @@ mod tests {
             !is_supported_ext("dir.py/no_ext"),
             "extension check is basename-only"
         );
+    }
+
+    #[test]
+    fn repo_workdir_is_the_worktree_root_without_a_trailing_separator() {
+        let repo = TempRepo::new("workdir");
+        let workdir = repo_workdir(repo.path()).expect("inside a repo");
+        // libgit2 appends a trailing separator; repo_workdir must strip it so
+        // the result matches `git rev-parse --show-toplevel`.
+        assert!(!workdir.ends_with('/') && !workdir.ends_with('\\'));
+        // Same canonical directory as the repo (compare via metadata identity
+        // to sidestep symlinked temp roots, e.g. macOS /var → /private/var).
+        let a = std::fs::canonicalize(&workdir).unwrap();
+        let b = std::fs::canonicalize(repo.path()).unwrap();
+        assert_eq!(a, b);
+        // Not a repo → None.
+        let plain = std::env::temp_dir();
+        // temp_dir itself may sit inside a repo on some CI images; assert the
+        // positive case above and that a non-repo path also resolves cleanly.
+        let _ = repo_workdir(plain.to_str().unwrap());
     }
 
     #[test]

@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::io::{BufWriter, IsTerminal, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command as ProcCommand, ExitCode};
+use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use argot_core::check::{run_check, CheckArgs, DEFAULT_HUNK_LINES};
@@ -146,11 +146,32 @@ struct RepoCtx {
     repo_corpus_path: PathBuf,
 }
 
+/// The user's home directory across platforms: `$HOME` (Unix), then
+/// `%USERPROFILE%` and `%HOMEDRIVE%%HOMEPATH%` (Windows, where `HOME` is usually
+/// unset). Empty values are ignored so the global registry never silently lands
+/// in the current directory.
+fn home_dir() -> Option<PathBuf> {
+    let non_empty = |var: &str| std::env::var_os(var).filter(|v| !v.is_empty());
+    if let Some(h) = non_empty("HOME").or_else(|| non_empty("USERPROFILE")) {
+        return Some(PathBuf::from(h));
+    }
+    match (non_empty("HOMEDRIVE"), non_empty("HOMEPATH")) {
+        (Some(drive), Some(path)) => {
+            let mut home = PathBuf::from(drive);
+            home.push(path);
+            Some(home)
+        }
+        _ => None,
+    }
+}
+
 fn settings_path() -> PathBuf {
-    let home = std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_default();
-    home.join(".argot").join("settings.json")
+    // With no discoverable home the global registry is a no-op convenience
+    // (status/list); fall back to the cwd rather than crash.
+    home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(".argot")
+        .join("settings.json")
 }
 
 fn read_settings() -> GlobalSettings {
@@ -170,15 +191,11 @@ fn write_settings(s: &GlobalSettings) {
     }
 }
 
+/// The repo root of the current directory, resolved in-process via libgit2
+/// (`argot_core::git_walk::repo_workdir`) — no external `git` binary, so it
+/// behaves identically on Windows, macOS, and Linux.
 fn git_toplevel() -> Option<String> {
-    let out = ProcCommand::new("git")
-        .args(["rev-parse", "--show-toplevel"])
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
+    argot_core::git_walk::repo_workdir(".")
 }
 
 fn resolve_context() -> RepoCtx {

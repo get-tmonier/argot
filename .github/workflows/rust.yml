@@ -31,8 +31,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        # bash is available on all three runners (Git Bash on Windows); pin it
+        # so the smoke step's heredoc + `test -s` behave identically.
+        shell: bash
     env:
       # No debugger runs in CI; skipping debuginfo cuts compile + link time
       # (test failures still report file:line from source, not debuginfo).
