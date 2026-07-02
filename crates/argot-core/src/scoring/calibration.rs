@@ -34,6 +34,11 @@ use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 
 const MIN_BODY_LINES: usize = 5;
+/// Window length (lines) for calibrating the convention identifier-shape bar
+/// over diff-hunk-sized sub-regions of each candidate declaration rather than
+/// the whole declaration — the unit check actually scores. Sized to a typical
+/// diff hunk; declarations shorter than this are scored whole.
+const CONVENTION_BAR_WINDOW_LINES: usize = 8;
 /// v3: adds the per-language `model` block (fit-time BPE stats + callee
 /// attestation snapshot) and repo-owned import modules. Check refuses other
 /// versions — regenerate via `argot fit`.
@@ -903,9 +908,24 @@ pub fn run_calibrate(
             // Bars over ALL candidates (not the threshold's n_cal sample):
             // the bar is a max-gate, so sampling only adds noise — a smaller
             // sample lowers the bar and fires the stage on ordinary code.
-            // Over the full candidate population the bar is deterministic
-            // and maximally conservative: a convention fires only when rarer
-            // than anything the repo's own sampleable code contains.
+            //
+            // Check scores small contiguous *diff hunks*, not whole
+            // declarations. The identifier-shape bar is therefore taken over
+            // the same unit: a diff-hunk-sized window is slid across each
+            // candidate and the most-skewed window wins. A whole declaration
+            // averages its identifier mix and never reaches the skew of one of
+            // its sub-regions — a long fluent call chain (all camelCase) or a
+            // block of SCREAMING_SNAKE constants — so a later commit touching a
+            // line next to such a region would re-score it above a bar its own
+            // repo never set. Windowing removes that asymmetry while staying
+            // self-targeting: a corpus whose sub-regions don't skew (uniform
+            // camelCase, uniform snake_case) yields the same bar as before.
+            // The shape feature is a byte scan, so windowing it is cheap.
+            //
+            // The syntax-kind bar stays over the whole declaration: it reads
+            // the parsed AST (windowing it would re-parse the host per window),
+            // and node-kind mix does not concentrate in sub-regions the way
+            // identifier morphology does.
             let conv = ConventionScorer::new(convention_model.clone(), language);
             let mut syntax_bar = 0.0f64;
             let mut ident_bar = 0.0f64;
@@ -919,6 +939,25 @@ pub fn run_calibrate(
                 );
                 syntax_bar = syntax_bar.max(scores.syntax_surprisal);
                 ident_bar = ident_bar.max(scores.ident_surprisal);
+
+                let lines = splitlines(&c.file_source);
+                let start0 = c.hunk_start_line.saturating_sub(1);
+                let end0 = c.hunk_end_line.min(lines.len());
+                let span = end0.saturating_sub(start0);
+                if span == 0 {
+                    continue;
+                }
+                let win = CONVENTION_BAR_WINDOW_LINES.min(span);
+                let last_start = end0 - win;
+                let mut ws = start0;
+                loop {
+                    let we = ws + win;
+                    ident_bar = ident_bar.max(conv.ident_surprisal(&lines[ws..we].join("\n")));
+                    if ws >= last_start {
+                        break;
+                    }
+                    ws += 1;
+                }
             }
             convention_model.syntax_bar = syntax_bar;
             convention_model.ident_bar = ident_bar;

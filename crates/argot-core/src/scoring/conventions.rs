@@ -200,6 +200,18 @@ impl ConventionScorer {
             .map(|(k, &n)| self.kind_surprisal(k, n))
             .fold(0.0f64, f64::max);
 
+        ConventionScores {
+            syntax_surprisal,
+            ident_surprisal: self.ident_surprisal(hunk),
+        }
+    }
+
+    /// Identifier-shape surprisal for a hunk in isolation — a pure byte scan
+    /// over the hunk text (no parse), so it is cheap enough to evaluate over
+    /// many sliding windows during bar calibration. Always reads the bare hunk
+    /// (the shape feature never consults a host region), so this is exactly the
+    /// `ident_surprisal` component of [`Self::scores`].
+    pub fn ident_surprisal(&self, hunk: &str) -> f64 {
         let mut shapes: BTreeMap<String, u64> = BTreeMap::new();
         let total = count_ident_shapes(hunk, &mut shapes);
         let mut ident_surprisal = 0.0f64;
@@ -214,10 +226,7 @@ impl ConventionScorer {
                 }
             }
         }
-        ConventionScores {
-            syntax_surprisal,
-            ident_surprisal,
-        }
+        ident_surprisal
     }
 
     /// Whether either convention clears its calibrated bar.
