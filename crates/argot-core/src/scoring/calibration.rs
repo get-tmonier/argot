@@ -9,6 +9,7 @@
 //! `max(cal_scores)` threshold matches the Python engine exactly on every corpus.
 
 use crate::bpe::BpeTokenizer;
+use crate::scoring::adapters::csharp::CSharpAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::{Language, LanguageAdapter};
@@ -123,6 +124,7 @@ pub fn collect_candidates_with(
     let exts: &[&str] = match adapter.language() {
         Language::Python => &[".py"],
         Language::Typescript => &[".ts", ".tsx"],
+        Language::CSharp => &[".cs"],
     };
     let mut out = Vec::new();
     for ext in exts {
@@ -256,21 +258,24 @@ fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
     match language {
         Language::Python => Box::new(PythonAdapter::new()),
         Language::Typescript => Box::new(TypeScriptAdapter::new()),
+        Language::CSharp => Box::new(CSharpAdapter::new()),
     }
 }
 
-/// Canonical config-key name for a scoring language ("python"/"typescript").
-/// Public so `inspect` reports under the same keys `scorer-config.json` uses.
+/// Canonical config-key name for a scoring language ("python"/"typescript"/
+/// "csharp"). Public so `inspect` reports under the same keys
+/// `scorer-config.json` uses.
 pub fn language_name(language: Language) -> &'static str {
     match language {
         Language::Python => "python",
         Language::Typescript => "typescript",
+        Language::CSharp => "csharp",
     }
 }
 
 /// Extension → language routing used to partition the corpus (`.py` → python;
-/// `.ts`/`.tsx`/`.js`/`.jsx` → typescript). Public so `inspect` classifies
-/// files with exactly the calibration routing.
+/// `.ts`/`.tsx`/`.js`/`.jsx` → typescript; `.cs` → csharp). Public so `inspect`
+/// classifies files with exactly the calibration routing.
 pub fn language_for_filename(name: &str) -> Option<Language> {
     let ext = match name.rfind('.') {
         Some(i) => &name[i..],
@@ -279,6 +284,7 @@ pub fn language_for_filename(name: &str) -> Option<Language> {
     match ext {
         ".py" => Some(Language::Python),
         ".ts" | ".tsx" | ".js" | ".jsx" => Some(Language::Typescript),
+        ".cs" => Some(Language::CSharp),
         _ => None,
     }
 }

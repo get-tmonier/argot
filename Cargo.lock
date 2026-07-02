@@ -119,6 +119,7 @@ dependencies = [
  "thiserror",
  "tokenizers",
  "tree-sitter",
+ "tree-sitter-c-sharp",
  "tree-sitter-javascript",
  "tree-sitter-python",
  "tree-sitter-typescript",
@@ -2178,6 +2179,16 @@ dependencies = [
  "cc",
  "regex",
  "regex-syntax",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-c-sharp"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04c0f6d2209a3cd6d0bb9d2934715da15a15710d3c09c7c1ecd4c9804c3ecd10"
+dependencies = [
+ "cc",
  "tree-sitter-language",
 ]
 

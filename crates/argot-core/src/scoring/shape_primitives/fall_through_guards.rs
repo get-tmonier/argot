@@ -14,6 +14,7 @@ use tree_sitter::Node;
 
 const PY_FUNC: &str = "function_definition";
 const TS_FUNC: &str = "function_declaration";
+const CS_FUNC: &str = "method_declaration";
 const IF: &str = "if_statement";
 const RETURN: &str = "return_statement";
 
@@ -54,6 +55,7 @@ fn file_avg_guards(source: &str, language: Language) -> Option<f64> {
     let func_type = match language {
         Language::Python => PY_FUNC,
         Language::Typescript => TS_FUNC,
+        Language::CSharp => CS_FUNC,
     };
     let mut counts: Vec<f64> = Vec::new();
     let mut stack = vec![tree.root_node()];
@@ -74,9 +76,11 @@ fn file_avg_guards(source: &str, language: Language) -> Option<f64> {
     Some(counts.iter().sum::<f64>() / counts.len() as f64)
 }
 
-/// Try Python grammar then TypeScript; first defined average wins.
+/// Try Python grammar, then TypeScript, then C#; first defined average wins.
 fn score_hunk_avg(hunk: &str) -> Option<f64> {
-    file_avg_guards(hunk, Language::Python).or_else(|| file_avg_guards(hunk, Language::Typescript))
+    file_avg_guards(hunk, Language::Python)
+        .or_else(|| file_avg_guards(hunk, Language::Typescript))
+        .or_else(|| file_avg_guards(hunk, Language::CSharp))
 }
 
 /// Fall-through-guard count primitive.
