@@ -588,7 +588,7 @@ impl SequentialImportBpeScorer {
                         (Some(fs), Some(hs), Some(he)) => Some((fs, hs, he)),
                         _ => None,
                     });
-                if conv.fires(conv.scores(hunk_content, host)) {
+                if conv.fires(&conv.scores(hunk_content, host)) {
                     self.convention_bonus
                 } else {
                     0.0

@@ -63,7 +63,14 @@ pub struct ConventionModel {
     pub ident_shapes: BTreeMap<String, u64>,
     pub total_idents: u64,
     pub syntax_bar: f64,
-    pub ident_bar: f64,
+    /// Per-morphology firing bar (shape class → max windowed surprisal over the
+    /// calibration sample). A single scalar bar conflated shapes: an in-voice
+    /// window concentrated in one shape (a `SCREAMING_SNAKE` constants block)
+    /// would raise the bar against a genuinely-foreign shape (camelCase in a
+    /// snake_case repo). Per-shape bars judge each morphology against the repo's
+    /// own concentration of *that* shape. A shape absent here was never
+    /// concentrated in-voice, so it fires whenever it dominates a hunk.
+    pub ident_bars: BTreeMap<String, f64>,
 }
 
 /// The complete per-language model block.
@@ -123,7 +130,7 @@ mod tests {
                 ident_shapes: BTreeMap::from([("camel".to_string(), 30u64)]),
                 total_idents: 30,
                 syntax_bar: 9.5,
-                ident_bar: 1.5,
+                ident_bars: BTreeMap::from([("camel".to_string(), 1.5)]),
             }),
         }
     }

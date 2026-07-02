@@ -23,7 +23,7 @@ use crate::scoring::adapters::{Language, LanguageAdapter};
 use crate::scoring::bpe_scorer::BpeScorer;
 use crate::scoring::call_receiver::CallReceiverScorer;
 use crate::scoring::conventions::{fit_convention_frequencies, ConventionScorer};
-use crate::scoring::model::LanguageModel;
+use crate::scoring::model::{ConventionModel, LanguageModel};
 use crate::scoring::typicality::TypicalityModel;
 use crate::suppress::PathSuppressions;
 use crate::text::{read_text_lossy, splitlines, splitlines_keepends};
@@ -663,6 +663,75 @@ impl Default for CalibrateOptions {
     }
 }
 
+/// Calibrate the convention firing bars over ALL candidates (not the threshold's
+/// `n_cal` sample): the bar is a max-gate, so sampling only lowers it and fires
+/// the stage on ordinary code. Shared by the production calibrator and the
+/// benchmark harness so the two can't drift.
+///
+/// The **syntax** bar is a single max over whole declarations (it reads the
+/// parsed AST; windowing would re-parse the host per window, and node-kind mix
+/// doesn't concentrate in sub-regions). The **identifier** bar is *per
+/// morphology*, taken over diff-hunk-sized windows — the unit check actually
+/// scores. Two reasons:
+/// - **Windowing:** a whole declaration averages its identifier mix and never
+///   reaches the skew of one sub-region (a fluent camelCase chain, a
+///   `SCREAMING_SNAKE` block), so a later commit touching a nearby line would
+///   re-score in-voice code above a bar its own repo never set. The shape
+///   feature is a byte scan, so windowing is cheap.
+/// - **Per-shape:** a single scalar bar let an in-voice concentrated shape gate a
+///   genuinely-foreign one (camelCase in a snake_case repo). Each shape's bar is
+///   the most-skewed window the repo's own code contains *for that shape*.
+pub fn calibrate_convention_bars(
+    candidates: &[Candidate],
+    convention_model: &ConventionModel,
+    language: Language,
+    typicality: &TypicalityModel,
+) -> (f64, BTreeMap<String, f64>) {
+    let conv = ConventionScorer::new(convention_model.clone(), language);
+    let mut syntax_bar = 0.0f64;
+    let mut ident_bars: BTreeMap<String, f64> = BTreeMap::new();
+    let raise = |surps: &BTreeMap<String, f64>, bars: &mut BTreeMap<String, f64>| {
+        for (shape, &s) in surps {
+            let e = bars.entry(shape.clone()).or_insert(0.0);
+            *e = e.max(s);
+        }
+    };
+    for c in candidates {
+        if typicality.is_atypical(&c.hunk).0 {
+            continue;
+        }
+        let scores = conv.scores(
+            &c.hunk,
+            Some((&c.file_source, c.hunk_start_line, c.hunk_end_line)),
+        );
+        syntax_bar = syntax_bar.max(scores.syntax_surprisal);
+        raise(&scores.ident_surprisals, &mut ident_bars);
+
+        let lines = splitlines(&c.file_source);
+        let start0 = c.hunk_start_line.saturating_sub(1);
+        let end0 = c.hunk_end_line.min(lines.len());
+        let span = end0.saturating_sub(start0);
+        if span == 0 {
+            continue;
+        }
+        let win = CONVENTION_BAR_WINDOW_LINES.min(span);
+        let last_start = end0 - win;
+        let mut ws = start0;
+        loop {
+            let we = ws + win;
+            raise(
+                &conv.ident_surprisals(&lines[ws..we].join("\n")),
+                &mut ident_bars,
+            );
+            if ws >= last_start {
+                break;
+            }
+            ws += 1;
+        }
+    }
+    (syntax_bar, ident_bars)
+}
+
 /// Run calibration and write `scorer-config.json` to `output`.
 ///
 /// `repo_dir` is the target repo (candidate rglob source). `repo_corpus_path`
@@ -904,64 +973,10 @@ pub fn run_calibrate(
         // the threshold uses — the stage stays silent on in-voice code, and
         // per the calibration contract it never feeds the threshold itself.
         let mut convention_model = fit_convention_frequencies(corpus, language);
-        {
-            // Bars over ALL candidates (not the threshold's n_cal sample):
-            // the bar is a max-gate, so sampling only adds noise — a smaller
-            // sample lowers the bar and fires the stage on ordinary code.
-            //
-            // Check scores small contiguous *diff hunks*, not whole
-            // declarations. The identifier-shape bar is therefore taken over
-            // the same unit: a diff-hunk-sized window is slid across each
-            // candidate and the most-skewed window wins. A whole declaration
-            // averages its identifier mix and never reaches the skew of one of
-            // its sub-regions — a long fluent call chain (all camelCase) or a
-            // block of SCREAMING_SNAKE constants — so a later commit touching a
-            // line next to such a region would re-score it above a bar its own
-            // repo never set. Windowing removes that asymmetry while staying
-            // self-targeting: a corpus whose sub-regions don't skew (uniform
-            // camelCase, uniform snake_case) yields the same bar as before.
-            // The shape feature is a byte scan, so windowing it is cheap.
-            //
-            // The syntax-kind bar stays over the whole declaration: it reads
-            // the parsed AST (windowing it would re-parse the host per window),
-            // and node-kind mix does not concentrate in sub-regions the way
-            // identifier morphology does.
-            let conv = ConventionScorer::new(convention_model.clone(), language);
-            let mut syntax_bar = 0.0f64;
-            let mut ident_bar = 0.0f64;
-            for c in &candidates {
-                if typicality.is_atypical(&c.hunk).0 {
-                    continue;
-                }
-                let scores = conv.scores(
-                    &c.hunk,
-                    Some((&c.file_source, c.hunk_start_line, c.hunk_end_line)),
-                );
-                syntax_bar = syntax_bar.max(scores.syntax_surprisal);
-                ident_bar = ident_bar.max(scores.ident_surprisal);
-
-                let lines = splitlines(&c.file_source);
-                let start0 = c.hunk_start_line.saturating_sub(1);
-                let end0 = c.hunk_end_line.min(lines.len());
-                let span = end0.saturating_sub(start0);
-                if span == 0 {
-                    continue;
-                }
-                let win = CONVENTION_BAR_WINDOW_LINES.min(span);
-                let last_start = end0 - win;
-                let mut ws = start0;
-                loop {
-                    let we = ws + win;
-                    ident_bar = ident_bar.max(conv.ident_surprisal(&lines[ws..we].join("\n")));
-                    if ws >= last_start {
-                        break;
-                    }
-                    ws += 1;
-                }
-            }
-            convention_model.syntax_bar = syntax_bar;
-            convention_model.ident_bar = ident_bar;
-        }
+        let (syntax_bar, ident_bars) =
+            calibrate_convention_bars(&candidates, &convention_model, language, &typicality);
+        convention_model.syntax_bar = syntax_bar;
+        convention_model.ident_bars = ident_bars;
 
         // Fit-time model snapshot: the calibration call-receiver's fitted
         // state is threshold-parameter-independent (rare/alpha are scoring
