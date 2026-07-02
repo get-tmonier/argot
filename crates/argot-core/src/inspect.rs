@@ -115,6 +115,16 @@ pub struct LanguageCalibration {
     /// Candidate hunks available in the working tree right now — compare with
     /// `n_cal` to see how much the sampleable population has drifted.
     pub candidate_hunks_now: usize,
+    /// The BPE stage's reachable ceiling under this model: the maximum
+    /// surprise any single token can score (a hunk's BPE score is a max over
+    /// its tokens). Computed from the fit-time model snapshot.
+    pub bpe_ceiling: f64,
+    /// The call-receiver contribution cap in score points.
+    pub contribution_cap: f64,
+    /// `bpe_ceiling + contribution_cap − threshold`: how far the strongest
+    /// possible import-free hunk clears the threshold. ≤ 0 means phrasing
+    /// detection cannot fire — the fit is an import tripwire only.
+    pub phrasing_headroom: f64,
 }
 
 /// Post-fit calibration health (absent when `.argot/scorer-config.json` does
@@ -285,6 +295,26 @@ fn load_calibration(
                 .unwrap_or("unknown")
                 .to_string()
         };
+
+        // Phrasing-detection headroom from the fit-time model snapshot: what
+        // can the strongest import-free hunk actually score against this
+        // threshold?
+        let bpe_stats: crate::scoring::model::BpeStats = cfg
+            .get("model")
+            .and_then(|m| m.get("bpe"))
+            .and_then(|b| serde_json::from_value(b.clone()).ok())
+            .ok_or_else(|| format!("language '{lang}' has no readable model.bpe block"))?;
+        let bpe = crate::scoring::bpe_scorer::BpeScorer::from_stats(
+            crate::bpe::BpeTokenizer::load(),
+            crate::train::GENERIC_BASELINE_JSON,
+            &bpe_stats,
+        )
+        .map_err(|e| format!("language '{lang}': cannot rebuild BPE stats: {e}"))?;
+        let bpe_ceiling = bpe.max_token_surprise_ceiling();
+        let contribution_cap = cfg
+            .get("call_receiver_cap")
+            .and_then(Value::as_f64)
+            .unwrap_or(0.0);
         out.insert(
             lang.clone(),
             LanguageCalibration {
@@ -299,6 +329,9 @@ fn load_calibration(
                     .get(lang)
                     .map(|l| l.candidate_hunks)
                     .unwrap_or(0),
+                bpe_ceiling,
+                contribution_cap,
+                phrasing_headroom: bpe_ceiling + contribution_cap - threshold,
             },
         );
     }
@@ -306,6 +339,43 @@ fn load_calibration(
         config_path: config_path.display().to_string(),
         languages: out,
     }))
+}
+
+/// Suitability reasons derived from the calibration's phrasing headroom.
+/// Red when phrasing detection cannot fire at all (import tripwire only);
+/// yellow when alien phrasing alone cannot cross and detection depends on
+/// unattested-callee contributions.
+pub fn phrasing_reasons(cal: &CalibrationReport) -> Vec<Reason> {
+    let mut reasons = Vec::new();
+    for (lang, lc) in &cal.languages {
+        if lc.phrasing_headroom <= 0.0 {
+            reasons.push(Reason {
+                level: ReasonLevel::Red,
+                signal: "phrasing_detection_dead".to_string(),
+                message: format!(
+                    "{lang}: threshold {:.2} exceeds the strongest import-free hunk \
+                     (BPE ceiling {:.2} + callee cap {:.0} = {:.2}) — phrasing \
+                     detection cannot fire; argot is an import tripwire on this fit",
+                    lc.threshold,
+                    lc.bpe_ceiling,
+                    lc.contribution_cap,
+                    lc.bpe_ceiling + lc.contribution_cap
+                ),
+            });
+        } else if lc.threshold > lc.bpe_ceiling {
+            reasons.push(Reason {
+                level: ReasonLevel::Yellow,
+                signal: "phrasing_needs_callees".to_string(),
+                message: format!(
+                    "{lang}: threshold {:.2} exceeds the BPE ceiling {:.2} — alien \
+                     phrasing alone cannot cross; detection relies on unattested-callee \
+                     contributions (headroom {:.2})",
+                    lc.threshold, lc.bpe_ceiling, lc.phrasing_headroom
+                ),
+            });
+        }
+    }
+    reasons
 }
 
 /// Compute the suitability verdict from corpus composition. Every yellow/red
@@ -375,14 +445,18 @@ pub fn compute_verdict(corpus: &CorpusReport) -> (Verdict, Vec<Reason>) {
         });
     }
 
-    let verdict = if reasons.iter().any(|r| r.level == ReasonLevel::Red) {
+    (verdict_from_reasons(&reasons), reasons)
+}
+
+/// Any red → not recommended; any reason at all → marginal; else ready.
+pub fn verdict_from_reasons(reasons: &[Reason]) -> Verdict {
+    if reasons.iter().any(|r| r.level == ReasonLevel::Red) {
         Verdict::NotRecommended
     } else if reasons.is_empty() {
         Verdict::Ready
     } else {
         Verdict::Marginal
-    };
-    (verdict, reasons)
+    }
 }
 
 /// Polyglotism ratio, largest share first: "73% typescript · 27% python".
@@ -407,32 +481,31 @@ pub fn inspect_repo(repo_dir: &Path) -> Result<InspectReport> {
         anyhow::bail!("not a directory: {}", repo_dir.display());
     }
     let corpus = scan_corpus(repo_dir);
-    let (verdict, mut reasons) = compute_verdict(&corpus);
+    let (_, mut reasons) = compute_verdict(&corpus);
 
     let config_path = repo_dir.join(".argot").join("scorer-config.json");
-    let (calibration, verdict) = match load_calibration(&config_path, &corpus) {
-        Ok(c) => (c, verdict),
+    let calibration = match load_calibration(&config_path, &corpus) {
+        Ok(c) => {
+            if let Some(cal) = &c {
+                reasons.extend(phrasing_reasons(cal));
+            }
+            c
+        }
         Err(msg) => {
             reasons.push(Reason {
                 level: ReasonLevel::Yellow,
                 signal: "scorer_config_invalid".to_string(),
                 message: msg,
             });
-            // An unreadable config never *improves* the verdict.
-            let v = if verdict == Verdict::Ready {
-                Verdict::Marginal
-            } else {
-                verdict
-            };
-            (None, v)
+            None
         }
     };
 
     Ok(InspectReport {
         path: repo_dir.display().to_string(),
+        verdict: verdict_from_reasons(&reasons),
         corpus,
         calibration,
-        verdict,
         reasons,
     })
 }
@@ -605,12 +678,17 @@ mod tests {
               "languages": {
                 "python": {
                   "threshold": 42.5,
+                  "call_receiver_cap": 5,
                   "calibration": {
                     "n_cal": 9,
                     "seed": 0,
                     "n_seeds": 7,
                     "repo_sha": "deadbeef",
                     "timestamp_utc": "1970-01-01T00:00:00+00:00"
+                  },
+                  "model": {
+                    "bpe": { "token_counts": {}, "total_tokens": 0 },
+                    "call_receiver": { "attested": [], "n_corpus_files": 0, "clusters": {} }
                   }
                 }
               }
@@ -627,6 +705,53 @@ mod tests {
         assert_eq!(py.repo_sha, "deadbeef");
         assert_eq!(py.timestamp_utc, "1970-01-01T00:00:00+00:00");
         assert_eq!(py.candidate_hunks_now, 10, "live candidate pass");
+        // Threshold 42.5 is far above any reachable token surprise → the
+        // phrasing-dead red reason fires and the verdict is honest about it.
+        assert!(py.bpe_ceiling > 0.0);
+        assert!(py.phrasing_headroom < 0.0);
+        assert!(report
+            .reasons
+            .iter()
+            .any(|r| r.signal == "phrasing_detection_dead" && r.level == ReasonLevel::Red));
+        assert_eq!(report.verdict, Verdict::NotRecommended);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn healthy_threshold_has_phrasing_headroom() {
+        let dir = temp_repo("headroom");
+        fs::write(dir.join("app.py"), py_functions(10)).unwrap();
+        fs::create_dir_all(dir.join(".argot")).unwrap();
+        fs::write(
+            dir.join(".argot/scorer-config.json"),
+            r#"{
+              "version": 3,
+              "languages": {
+                "python": {
+                  "threshold": 4.5,
+                  "call_receiver_cap": 5,
+                  "calibration": {},
+                  "model": {
+                    "bpe": { "token_counts": {}, "total_tokens": 0 },
+                    "call_receiver": { "attested": [], "n_corpus_files": 0, "clusters": {} }
+                  }
+                }
+              }
+            }"#,
+        )
+        .unwrap();
+        let report = inspect_repo(&dir).unwrap();
+        let cal = report.calibration.expect("calibration report");
+        let py = &cal.languages["python"];
+        assert!(
+            py.phrasing_headroom > 0.0,
+            "headroom {}",
+            py.phrasing_headroom
+        );
+        assert!(!report
+            .reasons
+            .iter()
+            .any(|r| r.signal.starts_with("phrasing")));
         let _ = fs::remove_dir_all(&dir);
     }
 

@@ -707,6 +707,17 @@ impl TypeScriptAdapter {
         ratio > 0.65
     }
 
+    /// 1-indexed line numbers covered by top-level data-literal declarations.
+    pub fn data_literal_lines(&self, source: &str) -> HashSet<usize> {
+        if source.is_empty() || source.trim().is_empty() {
+            return HashSet::new();
+        }
+        let tree = parse(source);
+        let mut rows: HashSet<usize> = HashSet::new();
+        collect_ts_data_rows(tree.root_node(), &mut rows);
+        rows.into_iter().map(|r| r + 1).collect()
+    }
+
     /// True if a comment in the first `HEADER_LINE_LIMIT` lines carries an
     /// auto-generation marker (case-insensitive), or a strong DO-NOT-EDIT
     /// marker within the first 10 lines.
@@ -800,6 +811,9 @@ impl LanguageAdapter for TypeScriptAdapter {
     }
     fn is_data_dominant(&self, source: &str) -> bool {
         TypeScriptAdapter::is_data_dominant(self, source)
+    }
+    fn data_literal_lines(&self, source: &str) -> HashSet<usize> {
+        TypeScriptAdapter::data_literal_lines(self, source)
     }
     fn is_auto_generated(&self, source: &str) -> bool {
         TypeScriptAdapter::is_auto_generated(self, source)

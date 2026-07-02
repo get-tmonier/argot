@@ -3,6 +3,7 @@
 
 pub mod catalog;
 pub mod metrics;
+pub mod production;
 pub mod report;
 pub mod run;
 pub mod scorer;

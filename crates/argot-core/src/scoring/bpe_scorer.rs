@@ -159,4 +159,35 @@ impl BpeScorer {
     pub fn tokenizer(&self) -> &BpeTokenizer {
         &self.tokenizer
     }
+
+    /// The BPE stage's reachable ceiling for this repo: the maximum surprise
+    /// any single meaningful token can score. A hunk's BPE score is a max
+    /// over its tokens, so no hunk can exceed this — comparing it against the
+    /// calibrated threshold tells whether phrasing detection (as opposed to
+    /// the import tripwire) can fire at all.
+    ///
+    /// The max is taken over the generic baseline's meaningful tokens that
+    /// are absent from the repo corpus (repo-seen tokens only lower the
+    /// surprise), falling back to all meaningful tokens when the corpus has
+    /// seen everything.
+    pub fn max_token_surprise_ceiling(&self) -> f64 {
+        let mut best = f64::NEG_INFINITY;
+        let mut best_any = f64::NEG_INFINITY;
+        for id in self.generic_baseline.keys() {
+            if !self.is_meaningful_token_id(*id) {
+                continue;
+            }
+            let s = self.token_surprise(*id);
+            best_any = best_any.max(s);
+            if !self.repo_corpus.contains_key(id) {
+                best = best.max(s);
+            }
+        }
+        let ceiling = if best.is_finite() { best } else { best_any };
+        if ceiling.is_finite() {
+            ceiling
+        } else {
+            0.0
+        }
+    }
 }

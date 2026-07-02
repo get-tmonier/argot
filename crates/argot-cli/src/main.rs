@@ -634,6 +634,11 @@ fn render_inspect_human(report: &InspectReport, use_color: bool) -> String {
                     "    calibrated at {} · repo sha {}",
                     lc.timestamp_utc, lc.repo_sha
                 );
+                let _ = writeln!(
+                    out,
+                    "    phrasing headroom: {:+.2} (BPE ceiling {:.2} + callee cap {:.0} vs threshold {:.2})",
+                    lc.phrasing_headroom, lc.bpe_ceiling, lc.contribution_cap, lc.threshold
+                );
             }
         }
         None => {

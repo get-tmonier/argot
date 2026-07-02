@@ -7,7 +7,7 @@
 
 use anyhow::{Context, Result};
 use argot_bench::scorer::BenchKnobs;
-use argot_bench::{report, run, targets};
+use argot_bench::{production, report, run, targets};
 use clap::Parser;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -22,6 +22,18 @@ struct Cli {
     /// Smoke mode: 1 fixture per category, 50 controls, small n_cal, primary PR only.
     #[arg(long)]
     quick: bool,
+
+    /// Bench mode: `catalog` (in-process scorer, historical continuity),
+    /// `production` (fixtures planted on disk, real `argot fit` + `check
+    /// --staged`; the headline numbers), or `both` (adds the catalog↔
+    /// production gap column).
+    #[arg(long, default_value = "production")]
+    mode: String,
+
+    /// Production mode: real history commits replayed through `check
+    /// --commit` as the FP control (0 disables).
+    #[arg(long, default_value_t = 30)]
+    fp_commits: usize,
 
     #[arg(long, default_value = "benchmarks/targets.yaml")]
     targets: PathBuf,
@@ -187,21 +199,64 @@ fn real_main() -> Result<ExitCode> {
         keep_control_results: cli.keep_controls,
     };
 
-    let mut reports = Vec::new();
-    for target in &selected {
-        let started = std::time::Instant::now();
-        let mut rs =
-            run::run_corpus(target, &opts).with_context(|| format!("corpus {}", target.name))?;
-        eprintln!(
-            "[{}] done in {:.0}s",
-            target.name,
-            started.elapsed().as_secs_f64()
-        );
-        reports.append(&mut rs);
+    let (run_catalog, run_production) = match cli.mode.as_str() {
+        "catalog" => (true, false),
+        "production" => (false, true),
+        "both" => (true, true),
+        other => anyhow::bail!("unknown mode {other:?} (catalog | production | both)"),
+    };
+
+    // Per-corpus catalog recall (caught, total) for the gap column. Catalog
+    // reports are per (corpus, language); the production path checks whole
+    // staged diffs, so the gap is compared at corpus granularity.
+    let mut catalog_recall: std::collections::BTreeMap<String, (usize, usize)> =
+        std::collections::BTreeMap::new();
+
+    if run_catalog {
+        let mut reports = Vec::new();
+        for target in &selected {
+            let started = std::time::Instant::now();
+            let mut rs = run::run_corpus(target, &opts)
+                .with_context(|| format!("corpus {}", target.name))?;
+            eprintln!(
+                "[{}] catalog done in {:.0}s",
+                target.name,
+                started.elapsed().as_secs_f64()
+            );
+            for r in &rs {
+                let entry = catalog_recall.entry(target.name.clone()).or_insert((0, 0));
+                entry.0 += r.n_flagged_fixtures;
+                entry.1 += r.n_fixtures;
+            }
+            reports.append(&mut rs);
+        }
+        report::write_reports(&cli.results_dir, &reports)?;
+        print!("{}", report::summary_markdown(&reports));
     }
 
-    report::write_reports(&cli.results_dir, &reports)?;
-    print!("{}", report::summary_markdown(&reports));
+    if run_production {
+        let fp_commits = if cli.quick {
+            cli.fp_commits.min(5)
+        } else {
+            cli.fp_commits
+        };
+        let mut prod_reports = Vec::new();
+        for target in &selected {
+            let started = std::time::Instant::now();
+            let r = production::run_corpus_production(target, &opts, fp_commits)
+                .with_context(|| format!("corpus {} (production)", target.name))?;
+            eprintln!(
+                "[{}] production done in {:.0}s",
+                target.name,
+                started.elapsed().as_secs_f64()
+            );
+            prod_reports.push(r);
+        }
+        let md =
+            production::write_production_reports(&cli.results_dir, &prod_reports, &catalog_recall)?;
+        print!("{md}");
+    }
+
     eprintln!("results → {}", cli.results_dir.display());
     Ok(ExitCode::SUCCESS)
 }

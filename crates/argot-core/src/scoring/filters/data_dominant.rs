@@ -142,6 +142,23 @@ fn extract_data_literal_lines(root: Node) -> HashSet<usize> {
     rows
 }
 
+/// 1-indexed line numbers covered by data-literal assignment spans — the
+/// row-granular view behind [`is_data_dominant`]. Empty on parse failure.
+pub fn data_literal_lines(source: &str) -> HashSet<usize> {
+    if source.is_empty() || source.trim().is_empty() {
+        return HashSet::new();
+    }
+    let tree = parse(source);
+    let root = tree.root_node();
+    if root.has_error() && root.kind() == "ERROR" {
+        return HashSet::new();
+    }
+    extract_data_literal_lines(root)
+        .into_iter()
+        .map(|r| r + 1)
+        .collect()
+}
+
 /// True if the file is overwhelmingly top-level data-literal assignments.
 pub fn is_data_dominant(source: &str, threshold: f64) -> bool {
     if source.is_empty() || source.trim().is_empty() {

@@ -28,6 +28,10 @@ pub trait LanguageAdapter {
     fn extract_imports_with_spans(&self, source: &str) -> Vec<(String, usize, usize, usize)>;
     fn resolve_repo_modules(&self, repo_root: &Path) -> RepoModules;
     fn is_data_dominant(&self, source: &str) -> bool;
+    /// 1-indexed line numbers covered by static data-literal spans — the
+    /// row-granular view behind `is_data_dominant`, used to skip data-row
+    /// hunks while still judging code rows in the same file.
+    fn data_literal_lines(&self, source: &str) -> HashSet<usize>;
     fn is_auto_generated(&self, source: &str) -> bool;
     fn enumerate_sampleable_ranges(&self, source: &str) -> Vec<(usize, usize)>;
     fn prose_line_ranges(&self, source: &str) -> HashSet<usize>;
@@ -54,6 +58,9 @@ impl LanguageAdapter for python::PythonAdapter {
     }
     fn is_data_dominant(&self, source: &str) -> bool {
         python::PythonAdapter::is_data_dominant(self, source)
+    }
+    fn data_literal_lines(&self, source: &str) -> HashSet<usize> {
+        python::PythonAdapter::data_literal_lines(self, source)
     }
     fn is_auto_generated(&self, source: &str) -> bool {
         python::PythonAdapter::is_auto_generated(self, source)

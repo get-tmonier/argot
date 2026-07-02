@@ -71,11 +71,6 @@ const TS_CONTROL_NODE_TYPES: &[&str] = &[
 const LITERAL_RATIO_CUTOFF: f64 = 0.80;
 const NAMED_LEAF_COUNT_GATE: usize = 5;
 
-// File-level fallback thresholds — stricter, used when the hunk-level check
-// does not fire.
-const FILE_LEVEL_MIN_LEAVES: usize = 100;
-const FILE_LEVEL_MIN_RATIO: f64 = 0.80;
-
 /// Five AST-derived features. All five are recorded for audit/debug; only
 /// `literal_leaf_ratio` and `named_leaf_count` gate the verdict.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -230,6 +225,11 @@ impl TypicalityModel {
     }
 
     /// Hunk-level check: `(true, features)` if structurally data-dominant.
+    ///
+    /// The v2 file-level fallback (`is_atypical_file`) was retired in era 15:
+    /// its population — partial-array hunks below the hunk gate inside
+    /// data-heavy files — is covered at row granularity by the scorer's
+    /// data-row gate, which no longer silences *code* hunks in those files.
     pub fn is_atypical(&self, hunk: &str) -> (bool, TypicalityFeatures) {
         let features = compute_features(hunk, self.language);
         if features == NEUTRAL {
@@ -237,18 +237,6 @@ impl TypicalityModel {
         }
         let is_atyp = features.named_leaf_count >= NAMED_LEAF_COUNT_GATE
             && features.literal_leaf_ratio > LITERAL_RATIO_CUTOFF;
-        (is_atyp, features)
-    }
-
-    /// File-level check: stricter thresholds, used when the hunk-level check
-    /// does not fire.
-    pub fn is_atypical_file(&self, file_source: &str) -> (bool, TypicalityFeatures) {
-        let features = compute_features(file_source, self.language);
-        if features == NEUTRAL {
-            return (false, features);
-        }
-        let is_atyp = features.named_leaf_count >= FILE_LEVEL_MIN_LEAVES
-            && features.literal_leaf_ratio > FILE_LEVEL_MIN_RATIO;
         (is_atyp, features)
     }
 }
@@ -264,7 +252,6 @@ mod tests {
             let (atyp, features) = model.is_atypical(src);
             assert!(!atyp);
             assert_eq!(features, NEUTRAL);
-            assert!(!model.is_atypical_file(src).0);
         }
     }
 
@@ -277,25 +264,11 @@ mod tests {
     }
 
     #[test]
-    fn small_data_table_trips_hunk_but_not_file() {
+    fn small_data_table_trips_hunk_gate() {
         let model = TypicalityModel::new(Language::Python);
         let src = "CITIES = [\"a\",\"b\",\"c\",\"d\",\"e\",\"f\",\"g\",\"h\"]\n";
         let (hunk, features) = model.is_atypical(src);
         assert!(hunk);
         assert!(features.literal_leaf_ratio > LITERAL_RATIO_CUTOFF);
-        // Too few leaves for the file-level gate (>= 100).
-        assert!(!model.is_atypical_file(src).0);
-    }
-
-    #[test]
-    fn large_data_blob_trips_file_level() {
-        // >= 100 mostly-literal named leaves clears the file-level gate.
-        let entries: Vec<String> = (0..150).map(|n| n.to_string()).collect();
-        let src = format!("DATA = [{}]\n", entries.join(", "));
-        let model = TypicalityModel::new(Language::Python);
-        let (file_atyp, features) = model.is_atypical_file(&src);
-        assert!(file_atyp);
-        assert!(features.named_leaf_count >= FILE_LEVEL_MIN_LEAVES);
-        assert!(features.literal_leaf_ratio > FILE_LEVEL_MIN_RATIO);
     }
 }

@@ -207,28 +207,24 @@ enum BatchScope {
 }
 
 /// Port of `_is_out_of_scope`, split so user-ignored files stay countable:
-/// wrong language / recommended-set path / data-dominant → `Drop` (silent, as
-/// always); user `.argotignore` match → `ScoreSuppressed`.
+/// wrong language / recommended-set path → `Drop` (silent, as always); user
+/// `.argotignore` match → `ScoreSuppressed`. Data-heavy files are NOT dropped
+/// here: data scope is row-granular inside the scorer (a planted code hunk in
+/// a data-dominant file must still be judged; its data-row hunks are skipped
+/// per hunk).
 fn batch_scope(
     file_path: &str,
-    content: &[u8],
     language_extensions: &HashSet<String>,
-    filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
     path_suppressions: &PathSuppressions,
 ) -> BatchScope {
     let ext = extension(file_path);
     if !language_extensions.contains(&ext) {
         return BatchScope::Drop;
     }
-    let scope = match path_suppressions.classify(file_path) {
-        PathScope::Recommended => return BatchScope::Drop,
+    match path_suppressions.classify(file_path) {
+        PathScope::Recommended => BatchScope::Drop,
         PathScope::UserIgnored => BatchScope::ScoreSuppressed,
         PathScope::InScope => BatchScope::Score,
-    };
-    let source = String::from_utf8_lossy(content);
-    match ext_to_lang(&ext).and_then(|l| filter_adapters.get(l)) {
-        Some(adapter) if !adapter.is_data_dominant(&source) => scope,
-        _ => BatchScope::Drop,
     }
 }
 
@@ -1162,13 +1158,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     let filtered: Vec<PatchBatch> = patches
         .into_iter()
         .filter_map(|mut b| {
-            match batch_scope(
-                &b.file_path,
-                &b.content,
-                &language_extensions,
-                &filter_adapters,
-                &path_suppressions,
-            ) {
+            match batch_scope(&b.file_path, &language_extensions, &path_suppressions) {
                 BatchScope::Drop => return None,
                 BatchScope::ScoreSuppressed => b.ignored_by_pattern = true,
                 BatchScope::Score => {}
