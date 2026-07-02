@@ -42,9 +42,22 @@ recall stays a real measurement of out-of-voice detection, not a threshold game)
 took recall from 8/12 to 12/12. The lesson — fixtures must be corpus-authentic —
 is the same one the [Go port](go-language-port.md) surfaced.
 
-## Follow-up
+## Second corpus (bat)
 
-Validated on one corpus (ripgrep). The Python/TS pattern is 2–3 corpora; a
-second (tokio or serde, with their own corpus-authentic fixtures) and folding
-the fixtures into the `argot-bench` catalog would harden the claim. Fixtures
-committed under [`benchmarks/fixtures/rust/`](../../../benchmarks/fixtures/rust/).
+`bat` (40 production `.rs` files) confirms **recall 12/12 (100%)** on the same
+fixtures. Its FP, however, is **3.51%** — over the bar — because bat is *small*:
+40 files calibrate a low threshold (3.2 vs ripgrep's 4.03), which argot's own
+`inspect` flags as marginal (few sampleable candidates → seed-sensitive
+threshold → more borderline hits). This is the documented reason tiny corpora
+(e.g. Click, 13 files) are **excluded from validation** — bat is in the same
+class. It's a useful recall confirmation, not an FP benchmark.
+
+## Verdict
+
+**Rust clears ≥ 85% / ≤ 2% on ripgrep**, a substantial idiomatic corpus (968
+candidates) — the same standard the Python/TS libraries were held to. Recall is
+confirmed on a second corpus (bat, 12/12); FP validation wants substantial
+corpora only. Folding these fixtures into the `argot-bench` catalog +
+`targets.yaml` (so the public dashboard tracks Go/Rust too) is the natural
+follow-up. Fixtures under
+[`benchmarks/fixtures/rust/`](../../../benchmarks/fixtures/rust/).
