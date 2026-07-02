@@ -152,7 +152,7 @@ def list_users() -> list[dict[str, Any]]:
 | C | `.c` `.h` | redis recall **100%** · FP **0.00%** — [evidence](docs/research/evidence/language-ports-batch.md) |
 | C++ | `.cpp` `.cc` `.hpp` | rocksdb recall **100%** · FP **0.43%** — [evidence](docs/research/evidence/language-ports-batch.md) |
 | Ruby | `.rb` | Homebrew recall **100%** · FP **1.45%** — [evidence](docs/research/evidence/language-ports-batch.md) |
-| PHP | `.php` | _adapter shipped; validation in progress_ (recall 100%, FP 2.6–3.7%) — [evidence](docs/research/evidence/language-ports-batch.md) |
+| PHP | `.php` | laravel + composer recall **100%** · FP **1.4–1.6%** — [evidence](docs/research/evidence/language-ports-batch.md) |
 
 Mixed-language monorepos calibrate one threshold per language and dispatch each
 hunk by file extension. Numbers are the latest full benchmark

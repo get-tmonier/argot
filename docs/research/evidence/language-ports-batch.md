@@ -16,7 +16,9 @@ positives**. Bar: recall ≥ 85%, FP ≤ 2%.
 | **C#** | PowerShell | thr 4.38 | 12/12 (100%) | 3/192 (**1.56%**) | ✅ clears |
 | **C** | redis | thr 4.54 | 12/12 (100%) | 0/276 (**0.00%**) | ✅ clears |
 | **C++** | rocksdb | thr 5.56 | 12/12 (100%) | 4/940 (**0.43%**) | ✅ clears |
-| **PHP** | laravel / composer | thr 6.29 / 6.70 | 12/12 (100%) | **2.56–3.72%** | ❌ FP over |
+| **PHP** | laravel / composer | thr 6.29 / 6.70 | 12/12 (100%) | 1.60% / 1.44% | ✅ clears* |
+
+\* PHP cleared after a convention-scorer calibration fix — see below.
 
 Recall fixtures fire across all three scorers (import graph, call-receiver, BPE
 surprise) — not shallow import-matching. FP is real recent-commit history.
@@ -35,19 +37,35 @@ surprise) — not shallow import-matching. FP is real recent-commit history.
   audio) took recall to 12/12 with FP unchanged at 0%. Fixtures must be
   corpus-authentic — the same lesson Go/Rust surfaced.
 
-## PHP — recall clears, FP does not (box left unticked)
+## PHP — cleared after a convention-scorer calibration fix
 
-PHP recall is 12/12 on both a large framework (laravel) and a mid-size
-disciplined library (composer), but FP is **over the bar on both** (3.72% /
-2.56%). The FP hits are `convention`- and `call-receiver`-stage flags on real
-production hunks, and the FP replay scores full committed files (which carry the
-`<?php` tag), so this is **not** the known bare-hunk tokenization limitation — it
-is genuine model noise. Two signals point at a calibration issue specific to the
-PHP adapter: the per-corpus cluster-rare rule is atypically **KEPT** for PHP
-(fire-rate ~0.00–0.02, vs disabled for every other language), and the convention
-scorer fires on ordinary framework code. Closing PHP to spec needs adapter/
-calibration work (callee/convention precision, cluster-rare behaviour), not a
-different corpus. Not fabricating a pass. Fixtures under
+PHP recall was 12/12 from the start, but FP was initially **over the bar on
+both** corpora (laravel 3.72%, composer 4.86% over a robust 555-hunk sample).
+The dominant driver was the **convention scorer's identifier-shape bar**, and the
+root cause is general (not PHP-specific): the bar was calibrated over *whole
+declarations*, but `check` scores small *diff hunks*. A hunk that is a pure
+fluent call chain (all camelCase) or a `SCREAMING_SNAKE` const block is more
+morphologically skewed than its whole declaration averaged, so a later commit
+touching a nearby line re-scored in-voice code above a bar the repo never set.
+PHP's keyword/sigil-flat vs camel-method bimodality made this acute.
+
+**Fix** (`calibration.rs` + `conventions.rs`): calibrate the ident-shape bar over
+diff-hunk-sized (8-line) sliding windows of each candidate — the same unit check
+scores. It is language-agnostic and self-targeting (uniform-morphology corpora
+yield the same bar) and **monotone**: windowing can only *raise* the bar, so the
+convention scorer fires ≤ before and can never add a false positive to any
+language. After the fix:
+
+| Corpus | Recall | FP before | FP after |
+|---|---:|---:|---:|
+| laravel | 12/12 | 7/188 (3.72%) | 3/188 (**1.60%**) |
+| composer | 12/12 | 27/555 (4.86%) | 8/555 (**1.44%**) |
+
+Convention-stage FPs went 4→0 and 24→0; the residual FPs are the `cluster_rare`
+branch (within budget, left for a separate follow-up — its keep/disable
+auto-detect probes whole-declaration candidates rather than historical diff
+hunks). No regression: Java (guava 0.00%) and C# (PowerShell 1.56%) unchanged;
+`just verify` green. Tracked/closed via #90. Fixtures under
 [`benchmarks/fixtures/php/`](../../../benchmarks/fixtures/php/).
 
 ## Reproduction
