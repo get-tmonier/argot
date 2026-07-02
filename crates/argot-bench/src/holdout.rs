@@ -273,7 +273,7 @@ pub fn run_corpus_holdout(target: &Target, opts: &HoldoutOptions) -> Result<Hold
         "[{}] holdout: fit @ {} (head~{}), replaying {} commits",
         target.name,
         &fit_sha[..8],
-        opts.window,
+        window,
         replay.len()
     );
     let fit_files = fit_tree_files(&repo_dir, &fit_sha)?;
@@ -420,7 +420,7 @@ pub fn run_corpus_holdout(target: &Target, opts: &HoldoutOptions) -> Result<Hold
         corpus: target.name.clone(),
         fit_sha,
         head_sha,
-        window: opts.window,
+        window,
         n_commits: commits.len(),
         thresholds,
         existing,
