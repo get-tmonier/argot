@@ -552,9 +552,15 @@ pub fn build_scorer(
         bail!("no calibration candidates in {}", repo_dir.display());
     }
     let effective_n_cal = knobs.n_cal.min(candidates.len());
+    // Leave-one-file-out counts — mirrors run_calibrate (issue #92).
+    let per_file_counts: argot_core::scoring::calibration::PerFileTokenCounts = corpus
+        .iter()
+        .map(|(p, s)| (p.clone(), bpe.token_counts(s)))
+        .collect();
     let seed_thresholds = multi_seed_thresholds(
         &candidates,
         &bpe,
+        Some(&per_file_counts),
         &mut cal_cr,
         adapter.as_ref(),
         &typicality,

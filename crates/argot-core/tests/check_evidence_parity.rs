@@ -10,8 +10,10 @@
 //! and import_modules exclude `sqlalchemy`):
 //!
 //! * BPE evidence (`golden_bpe_evidence.txt`): with the model fit at HEAD~1,
-//!   `integration.py`'s tokens are unattested and the BPE stage wins → a
-//!   `↳ sessionmaker (0×), ...` line.
+//!   `integration.py`'s tokens are unattested; the threshold is pinned to a
+//!   fixed low value so the BPE stage wins over the import tripwire → a
+//!   `↳ sessionmaker (0×), ...` line. (The honest LOO calibration otherwise
+//!   sits above this tiny fixture's reachable BPE scores.)
 //! * Import evidence (`golden_import_evidence.txt`): same fit, but with the
 //!   BPE threshold pinned high in a test-local copy of the config so only the
 //!   import stage can fire (the renderer under test) → a
@@ -87,14 +89,17 @@ fn fit(repo: &Path) {
     .expect("calibrate");
 }
 
-/// Pin the calibrated BPE threshold far above any reachable score so only the
-/// import stage can fire — isolates the import-evidence renderer.
-fn pin_threshold_high(repo: &Path) {
+/// Pin the calibrated BPE threshold to a fixed value in the fitted config.
+/// High (1000.0) leaves only the import stage able to fire — isolates the
+/// import-evidence renderer. Low (4.0) lets the BPE stage win over the
+/// import tripwire — isolates the BPE-evidence renderer (the honest LOO
+/// calibration otherwise sits above this tiny fixture's reachable scores).
+fn pin_threshold(repo: &Path, value: f64) {
     let config_path = repo.join(".argot/scorer-config.json");
     let raw = std::fs::read_to_string(&config_path).expect("read config");
     let mut config: serde_json::Value = serde_json::from_str(&raw).expect("parse config");
     for (_, lang_cfg) in config["languages"].as_object_mut().expect("languages") {
-        lang_cfg["threshold"] = serde_json::json!(1000.0);
+        lang_cfg["threshold"] = serde_json::json!(value);
     }
     std::fs::write(&config_path, serde_json::to_string(&config).unwrap()).expect("write config");
 }
@@ -147,6 +152,7 @@ fn check_bpe_evidence() {
     git(&repo, &["checkout", "-q", "HEAD~1"]);
     fit(&repo);
     git(&repo, &["checkout", "-q", "main"]);
+    pin_threshold(&repo, 4.0);
 
     let out = run_check(base_args(&repo));
     assert_eq!(out.exit_code, 1, "bpe evidence exit code");
@@ -162,7 +168,7 @@ fn check_import_evidence() {
     git(&repo, &["checkout", "-q", "HEAD~1"]);
     fit(&repo);
     git(&repo, &["checkout", "-q", "main"]);
-    pin_threshold_high(&repo);
+    pin_threshold(&repo, 1000.0);
 
     let out = run_check(base_args(&repo));
     assert_eq!(out.exit_code, 1, "import evidence exit code");

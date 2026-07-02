@@ -61,9 +61,16 @@ fn exts_for(lang: &str) -> &'static [&'static str] {
 }
 
 fn git_out(repo: &Path, args: &[&str]) -> Result<String> {
-    let out = Command::new("git").arg("-C").arg(repo).args(args).output()?;
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(repo)
+        .args(args)
+        .output()?;
     if !out.status.success() {
-        bail!("git {args:?} failed: {}", String::from_utf8_lossy(&out.stderr));
+        bail!(
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
     }
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
@@ -109,7 +116,11 @@ impl LooBpe {
                     .unwrap_or(false)
             })
             .collect();
-        let use_ids: &[u32] = if meaningful.is_empty() { &ids } else { &meaningful };
+        let use_ids: &[u32] = if meaningful.is_empty() {
+            &ids
+        } else {
+            &meaningful
+        };
         if use_ids.is_empty() {
             return 0.0;
         }
@@ -178,11 +189,7 @@ fn main() -> Result<()> {
             let name = p.to_string_lossy().to_lowercase();
             exts.iter().any(|e| name.ends_with(e))
         })
-        .filter_map(|p| {
-            argot_core::text::read_text_lossy(&p)
-                .ok()
-                .map(|s| (p, s))
-        })
+        .filter_map(|p| argot_core::text::read_text_lossy(&p).ok().map(|s| (p, s)))
         .collect();
     eprintln!("corpus files: {}", sources.len());
 

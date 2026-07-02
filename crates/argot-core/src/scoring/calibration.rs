@@ -559,8 +559,20 @@ pub struct ThresholdRunConfig {
     pub cap: f64,
 }
 
+/// Per-file BPE token counts for leave-one-file-out calibration, keyed by
+/// the corpus file paths [`Candidate::file_path`] resolves to.
+pub type PerFileTokenCounts =
+    std::collections::HashMap<PathBuf, std::collections::HashMap<u32, u64>>;
+
 /// Per-seed calibration thresholds: for each seed, `max` over sampled
 /// cal-hunk scores (BPE + cluster contribution at alpha/root_bonus 0).
+///
+/// The BPE side of each cal hunk is scored **leave-one-file-out** when
+/// `per_file_counts` is given: the hunk's own file's token counts are
+/// subtracted from the repo distribution, so the hunk is scored the way
+/// check scores code the model has not memorized. Calibrating on memorized
+/// scores deflates the threshold below the level genuinely-unseen idiomatic
+/// code reaches — the honest-FP flood of issue #92.
 ///
 /// Shared by the production calibrator ([`run_calibrate`] takes the median)
 /// and the benchmark harness (which also reports threshold CV across seeds) so
@@ -571,6 +583,7 @@ pub struct ThresholdRunConfig {
 pub fn multi_seed_thresholds(
     candidates: &[Candidate],
     bpe: &BpeScorer,
+    per_file_counts: Option<&PerFileTokenCounts>,
     call_receiver: &mut CallReceiverScorer,
     adapter: &dyn LanguageAdapter,
     typicality: &TypicalityModel,
@@ -588,7 +601,11 @@ pub fn multi_seed_thresholds(
                 continue;
             }
             let prose = adapter.prose_line_ranges(&c.hunk);
-            let raw_bpe = bpe.bpe_score(&blank_prose_lines(&c.hunk, &prose));
+            let blanked = blank_prose_lines(&c.hunk, &prose);
+            let raw_bpe = match per_file_counts.and_then(|m| m.get(&c.file_path)) {
+                Some(counts) => bpe.bpe_score_excluding(&blanked, counts),
+                None => bpe.bpe_score(&blanked),
+            };
             // Cal side scores without local-binding attestation: candidates
             // are corpus files whose callees are attested anyway, so the
             // omission only leaves the threshold marginally conservative.
@@ -909,9 +926,17 @@ pub fn run_calibrate(
             }
         }
 
+        // Leave-one-file-out counts: calibration hunks are scored as if
+        // their file were not in the corpus (see multi_seed_thresholds).
+        let per_file_counts: PerFileTokenCounts = corpus
+            .iter()
+            .map(|(p, s)| (p.clone(), bpe.token_counts(s)))
+            .collect();
+
         let seed_thresholds = multi_seed_thresholds(
             &candidates,
             &bpe,
+            Some(&per_file_counts),
             &mut call_receiver,
             adapter.as_ref(),
             &typicality,
@@ -942,6 +967,7 @@ pub fn run_calibrate(
             let slice_seeds = multi_seed_thresholds(
                 &slice_candidates,
                 &bpe,
+                Some(&per_file_counts),
                 &mut call_receiver,
                 adapter.as_ref(),
                 &typicality,
