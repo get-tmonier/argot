@@ -18,6 +18,7 @@ fn new_parser(language: Language) -> Parser {
         Language::Typescript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
         Language::Go => tree_sitter_go::LANGUAGE.into(),
         Language::Rust => tree_sitter_rust::LANGUAGE.into(),
+        Language::C => tree_sitter_c::LANGUAGE.into(),
     };
     parser
         .set_language(&lang)
@@ -30,6 +31,7 @@ thread_local! {
     static TS_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Typescript));
     static GO_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Go));
     static RUST_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Rust));
+    static C_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::C));
 }
 
 /// Parse `source` with a reused per-thread parser for `language`.
@@ -111,5 +113,6 @@ mod tests {
         assert_eq!(ts.root_node().kind(), "program");
         assert!(!py.root_node().has_error());
         assert!(!ts.root_node().has_error());
+        Language::C => C_PARSER.with(|p| p.borrow_mut().parse(source, None)),
     }
 }

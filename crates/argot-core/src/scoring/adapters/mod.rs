@@ -5,6 +5,7 @@
 //! the scorers and the sampler.
 
 pub mod go;
+pub mod c;
 pub mod python;
 pub mod rust;
 pub mod typescript;
@@ -20,6 +21,7 @@ pub enum Language {
     Typescript,
     Go,
     Rust,
+    C,
 }
 
 /// Uniform language-adapter surface (port of the Python `LanguageAdapter`

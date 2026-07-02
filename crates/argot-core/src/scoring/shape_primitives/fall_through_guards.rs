@@ -22,6 +22,7 @@ const GO_FUNC: &str = "function_declaration";
 // below never match a Rust tree — the guard count is inert (0) for Rust, a
 // neutral default for a primitive that is default-off in production anyway.
 const RUST_FUNC: &str = "function_item";
+const C_FUNC: &str = "function_definition";
 const IF: &str = "if_statement";
 const RETURN: &str = "return_statement";
 
@@ -64,6 +65,7 @@ fn file_avg_guards(source: &str, language: Language) -> Option<f64> {
         Language::Typescript => TS_FUNC,
         Language::Go => GO_FUNC,
         Language::Rust => RUST_FUNC,
+        Language::C => C_FUNC,
     };
     let mut counts: Vec<f64> = Vec::new();
     let mut stack = vec![tree.root_node()];

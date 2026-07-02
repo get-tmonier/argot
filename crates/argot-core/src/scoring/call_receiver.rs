@@ -48,6 +48,12 @@ fn rust_call_types(kind: &str) -> bool {
     // Macros are a first-class part of Rust's call surface (`println!`, `vec!`),
     // so they count alongside plain call expressions.
     kind == "call_expression" || kind == "macro_invocation"
+fn c_call_types(kind: &str) -> bool {
+    crate::scoring::adapters::c::is_call_kind(kind)
+}
+
+fn extract_c_callee(call_node: Node, src: &[u8]) -> Option<String> {
+    crate::scoring::adapters::c::callee(call_node, src)
 }
 
 fn extract_python_callee(call_node: Node, src: &[u8]) -> Option<String> {
@@ -201,12 +207,14 @@ pub fn extract_callees(source: &str, language: Language) -> Vec<Option<String>> 
         Language::Typescript => ts_call_types as fn(&str) -> bool,
         Language::Go => go_call_types as fn(&str) -> bool,
         Language::Rust => rust_call_types as fn(&str) -> bool,
+        Language::C => c_call_types as fn(&str) -> bool,
     };
     let extractor = match language {
         Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Typescript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Go => extract_go_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Rust => extract_rust_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::C => extract_c_callee as fn(Node, &[u8]) -> Option<String>,
     };
     walk_preorder(tree.root_node(), |node| {
         if is_call(node.kind()) {
@@ -245,12 +253,14 @@ pub fn callees_in_source_region(
         Language::Typescript => ts_call_types as fn(&str) -> bool,
         Language::Go => go_call_types as fn(&str) -> bool,
         Language::Rust => rust_call_types as fn(&str) -> bool,
+        Language::C => c_call_types as fn(&str) -> bool,
     };
     let extractor = match language {
         Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Typescript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Go => extract_go_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Rust => extract_rust_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::C => extract_c_callee as fn(Node, &[u8]) -> Option<String>,
     };
     let mut out = Vec::new();
     walk_preorder(tree.root_node(), |node| {

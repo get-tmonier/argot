@@ -117,6 +117,25 @@ const RUST_CONTROL_NODE_TYPES: &[&str] = &[
     "return_expression",
     "function_item",
     "closure_expression",
+const C_LITERAL_NODE_TYPES: &[&str] = &[
+    "number_literal",
+    "string_literal",
+    "char_literal",
+    "concatenated_string",
+    "true",
+    "false",
+    "null",
+];
+
+const C_CONTROL_NODE_TYPES: &[&str] = &[
+    "if_statement",
+    "for_statement",
+    "while_statement",
+    "do_statement",
+    "switch_statement",
+    "return_statement",
+    "function_definition",
+    "goto_statement",
 ];
 
 // Absolute cutoffs for the structural predicate.
@@ -151,6 +170,7 @@ fn node_type_sets(language: Language) -> (HashSet<&'static str>, HashSet<&'stati
         Language::Typescript => (TS_LITERAL_NODE_TYPES, TS_CONTROL_NODE_TYPES),
         Language::Go => (GO_LITERAL_NODE_TYPES, GO_CONTROL_NODE_TYPES),
         Language::Rust => (RUST_LITERAL_NODE_TYPES, RUST_CONTROL_NODE_TYPES),
+        Language::C => (C_LITERAL_NODE_TYPES, C_CONTROL_NODE_TYPES),
     };
     (
         literal.iter().copied().collect(),

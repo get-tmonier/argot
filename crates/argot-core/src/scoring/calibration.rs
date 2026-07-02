@@ -10,6 +10,7 @@
 
 use crate::bpe::BpeTokenizer;
 use crate::scoring::adapters::go::GoAdapter;
+use crate::scoring::adapters::c::CAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
@@ -192,6 +193,7 @@ pub fn collect_candidates_with(
         Language::Typescript => &[".ts", ".tsx"],
         Language::Go => &[".go"],
         Language::Rust => &[".rs"],
+        Language::C => &[".c", ".h"],
     };
     let mut out = Vec::new();
     for ext in exts {
@@ -466,6 +468,7 @@ fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
         Language::Typescript => Box::new(TypeScriptAdapter::new()),
         Language::Go => Box::new(GoAdapter::new()),
         Language::Rust => Box::new(RustAdapter::new()),
+        Language::C => Box::new(CAdapter::new()),
     }
 }
 
@@ -477,6 +480,7 @@ pub fn language_name(language: Language) -> &'static str {
         Language::Typescript => "typescript",
         Language::Go => "go",
         Language::Rust => "rust",
+        Language::C => "c",
     }
 }
 
@@ -493,6 +497,7 @@ pub fn language_for_filename(name: &str) -> Option<Language> {
         ".ts" | ".tsx" | ".js" | ".jsx" => Some(Language::Typescript),
         ".go" => Some(Language::Go),
         ".rs" => Some(Language::Rust),
+        ".c" | ".h" => Some(Language::C),
         _ => None,
     }
 }

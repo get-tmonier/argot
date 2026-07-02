@@ -20,6 +20,7 @@ pub enum Language {
     Python,
     Go,
     Rust,
+    C,
 }
 
 /// A single leaf token from the tree-sitter parse (`dataset.Token`).

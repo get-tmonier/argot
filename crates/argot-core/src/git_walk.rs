@@ -26,6 +26,7 @@ pub fn open_repo(path: &str) -> std::result::Result<Repository, git2::Error> {
 
 /// Extensions the extractor considers, matching `SUPPORTED_EXTENSIONS`.
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".rs"];
+pub const SUPPORTED_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".js", ".jsx", ".py", ".c", ".h"];
 
 /// A hunk's post-image span, as reported by the diff (1-indexed start).
 #[derive(Debug, Clone, Copy)]

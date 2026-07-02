@@ -9,6 +9,7 @@
 //! would see. Nothing is persisted.
 
 use crate::scoring::adapters::go::GoAdapter;
+use crate::scoring::adapters::c::CAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
@@ -201,6 +202,7 @@ fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
         Language::Typescript => Box::new(TypeScriptAdapter::new()),
         Language::Go => Box::new(GoAdapter::new()),
         Language::Rust => Box::new(RustAdapter::new()),
+        Language::C => Box::new(CAdapter::new()),
     }
 }
 
@@ -279,6 +281,7 @@ fn scan_corpus(repo_dir: &Path) -> CorpusReport {
             "python" => Language::Python,
             "go" => Language::Go,
             "rust" => Language::Rust,
+            "c" => Language::C,
             _ => Language::Typescript,
         };
         let adapter = adapters

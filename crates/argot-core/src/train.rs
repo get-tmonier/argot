@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 pub const GENERIC_BASELINE_JSON: &[u8] = include_bytes!("../data/generic_tokens_bpe.json");
 
 const SOURCE_EXTENSIONS: &[&str] = &[".py", ".ts", ".tsx", ".go", ".rs"];
+const SOURCE_EXTENSIONS: &[&str] = &[".py", ".ts", ".tsx", ".c", ".h"];
 
 const EXCLUDE_DIRS: &[&str] = &[
     "node_modules",
