@@ -17,7 +17,7 @@ build:
 # --- pipeline (single Rust binary) ---
 
 extract path=".":
-    cargo run --release -p argot -- extract {{path}}
+    cargo run --release -p argot -- extract --repo {{path}}
 
 train path=".":
     cargo run --release -p argot -- train --repo {{path}}
@@ -61,8 +61,10 @@ verify-fix:
 test:
     cargo test --workspace
 
+# Dev profile on purpose: after `just verify` (or CI's cargo test) the dev
+# binary is already built, so smoke adds no rebuild.
 smoke:
-    cargo run --release -p argot -- extract . && test -s .argot/dataset.jsonl
+    cargo run -p argot -- extract --repo . && test -s .argot/dataset.jsonl
 
 ci: verify smoke
 
@@ -71,10 +73,10 @@ ci: verify smoke
 # emitted. Dev-loop signal that monorepo handling didn't silently break.
 dogfood path=".":
     cargo build --release -p argot
-    ./target/release/argot extract {{path}}
+    ./target/release/argot extract --repo {{path}}
     ./target/release/argot train --repo {{path}}
     ./target/release/argot calibrate --repo {{path}}
-    ./target/release/argot check {{path}} || true
+    ./target/release/argot check --repo {{path}} || true
     test -s .argot/dataset.jsonl || (echo "✗ dataset.jsonl empty/missing" && exit 1)
     grep -qE '"file_path": "[^"]*\.py"' .argot/dataset.jsonl || (echo "✗ no .py rows" && exit 1)
     grep -qE '"file_path": "[^"]*\.tsx?"' .argot/dataset.jsonl || (echo "✗ no .ts rows" && exit 1)

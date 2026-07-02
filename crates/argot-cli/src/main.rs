@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::{BufWriter, IsTerminal, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command as ProcCommand, ExitCode};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -118,7 +118,7 @@ enum Command {
     Status,
     /// List all registered repositories.
     List,
-    /// Show the CLI version (self-update is handled by the installer).
+    /// Update the argot CLI to the latest release.
     Update,
 }
 
@@ -272,10 +272,78 @@ fn run_list() -> ExitCode {
     ExitCode::SUCCESS
 }
 
+/// npm installs live under `node_modules`; the receipt-based updater would
+/// touch a different install, so those must be updated through npm itself.
+fn is_npm_install(exe: Option<&Path>) -> bool {
+    exe.is_some_and(|p| p.components().any(|c| c.as_os_str() == "node_modules"))
+}
+
+/// Builds without the `self-update` feature (dev/CI) keep the command but
+/// can only point at the other update channels.
+#[cfg(not(feature = "self-update"))]
 fn run_update() -> ExitCode {
-    println!("argot {}", env!("CARGO_PKG_VERSION"));
-    println!("Self-update is handled by the installer (install.sh / package manager).");
-    ExitCode::SUCCESS
+    let current = env!("CARGO_PKG_VERSION");
+
+    if is_npm_install(std::env::current_exe().ok().as_deref()) {
+        println!("argot {current} was installed via npm; update it with:");
+        println!("  npm install -g @tmonier/argot@latest");
+        return ExitCode::SUCCESS;
+    }
+
+    eprintln!("argot {current}: this build was compiled without self-update support.");
+    eprintln!("Update via the installer:");
+    eprintln!("  curl -LsSf https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.sh | sh");
+    ExitCode::FAILURE
+}
+
+#[cfg(feature = "self-update")]
+fn run_update() -> ExitCode {
+    let current = env!("CARGO_PKG_VERSION");
+
+    let exe = std::env::current_exe().ok();
+    if is_npm_install(exe.as_deref()) {
+        println!("argot {current} was installed via npm; update it with:");
+        println!("  npm install -g @tmonier/argot@latest");
+        return ExitCode::SUCCESS;
+    }
+
+    let mut updater = axoupdater::AxoUpdater::new_for("argot");
+    if updater.load_receipt().is_err() {
+        eprintln!("argot {current}: no install receipt found, cannot self-update.");
+        eprintln!("Re-install with the installer to enable `argot update`:");
+        eprintln!("  curl -LsSf https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.sh | sh");
+        return ExitCode::FAILURE;
+    }
+
+    // Without this guard axoupdater silently reports "no update needed" for
+    // any binary that isn't the one the receipt describes (dev builds, manual
+    // copies) — surface that case honestly instead.
+    if !updater
+        .check_receipt_is_for_this_executable()
+        .unwrap_or(false)
+    {
+        eprintln!(
+            "argot {current}: this executable is not the installed copy recorded in the install receipt; skipping self-update."
+        );
+        eprintln!("Update the installed copy by running `argot update` from it directly.");
+        return ExitCode::FAILURE;
+    }
+
+    println!("argot {current} — checking for updates...");
+    match updater.run_sync() {
+        Ok(Some(result)) => {
+            println!("Updated to argot {}.", result.new_version);
+            ExitCode::SUCCESS
+        }
+        Ok(None) => {
+            println!("Already up to date.");
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("Update failed: {e}");
+            ExitCode::FAILURE
+        }
+    }
 }
 
 fn print_help_banner() {
@@ -1172,5 +1240,27 @@ fn main() -> ExitCode {
         Some(Command::Status) => run_status(),
         Some(Command::List) => run_list(),
         Some(Command::Update) => run_update(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_npm_install;
+    use std::path::Path;
+
+    #[test]
+    fn npm_install_detected_by_node_modules_component() {
+        let npm = Path::new(
+            "/Users/x/.nvm/versions/node/v26.1.0/lib/node_modules/@tmonier/argot/bin/argot",
+        );
+        assert!(is_npm_install(Some(npm)));
+    }
+
+    #[test]
+    fn cargo_home_install_is_not_npm() {
+        assert!(!is_npm_install(Some(Path::new(
+            "/Users/x/.cargo/bin/argot"
+        ))));
+        assert!(!is_npm_install(None));
     }
 }
