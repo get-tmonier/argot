@@ -23,6 +23,7 @@ tree-sitter-java.workspace = true
 tree-sitter-c-sharp.workspace = true
 tree-sitter-php.workspace = true
 tree-sitter-cpp.workspace = true
+tree-sitter-ruby.workspace = true
 git2.workspace = true
 tokenizers.workspace = true
 md-5.workspace = true

@@ -25,6 +25,7 @@ use crate::scoring::adapters::php::PhpAdapter;
 use crate::scoring::adapters::cpp::CppAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::rust::RustAdapter;
+use crate::scoring::adapters::ruby::RubyAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::LanguageAdapter;
 use crate::scoring::evidence::types::{Evidence, EvidenceCorpus, SourceSpan};
@@ -205,6 +206,7 @@ const EXT_TO_LANG: &[(&str, &str)] = &[
     (".cc", "cpp"),
     (".hpp", "cpp"),
     (".cxx", "cpp"),
+    (".rb", "ruby"),
 ];
 
 fn ext_to_lang(ext: &str) -> Option<&'static str> {
@@ -222,6 +224,7 @@ fn adapter_for_language(lang: &str) -> Option<Box<dyn LanguageAdapter>> {
         "csharp" => Some(Box::new(CSharpAdapter::new())),
         "php" => Some(Box::new(PhpAdapter::new())),
         "cpp" => Some(Box::new(CppAdapter::new())),
+        "ruby" => Some(Box::new(RubyAdapter::new())),
         _ => None,
     }
 }

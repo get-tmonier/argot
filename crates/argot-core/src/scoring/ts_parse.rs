@@ -23,6 +23,7 @@ fn new_parser(language: Language) -> Parser {
         Language::CSharp => tree_sitter_c_sharp::LANGUAGE.into(),
         Language::Php => tree_sitter_php::LANGUAGE_PHP.into(),
         Language::Cpp => tree_sitter_cpp::LANGUAGE.into(),
+        Language::Ruby => tree_sitter_ruby::LANGUAGE.into(),
     };
     parser
         .set_language(&lang)
@@ -40,6 +41,7 @@ thread_local! {
     static CS_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::CSharp));
     static PHP_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Php));
     static CPP_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Cpp));
+    static RB_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Ruby));
 }
 
 /// Parse `source` with a reused per-thread parser for `language`.
@@ -126,5 +128,6 @@ mod tests {
         Language::CSharp => CS_PARSER.with(|p| p.borrow_mut().parse(source, None)),
         Language::Php => PHP_PARSER.with(|p| p.borrow_mut().parse(source, None)),
         Language::Cpp => CPP_PARSER.with(|p| p.borrow_mut().parse(source, None)),
+        Language::Ruby => RB_PARSER.with(|p| p.borrow_mut().parse(source, None)),
     }
 }

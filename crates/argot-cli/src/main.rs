@@ -33,6 +33,7 @@ use argot_core::scoring::adapters::php::PhpAdapter;
 use argot_core::scoring::adapters::cpp::CppAdapter;
 use argot_core::scoring::adapters::python::PythonAdapter;
 use argot_core::scoring::adapters::rust::RustAdapter;
+use argot_core::scoring::adapters::ruby::RubyAdapter;
 use argot_core::scoring::adapters::typescript::TypeScriptAdapter;
 use argot_core::scoring::adapters::{Language, LanguageAdapter};
 use argot_core::scoring::calibration::{run_calibrate, CalibrateOptions};
@@ -1185,6 +1186,7 @@ fn run_list_mutes() -> ExitCode {
             Language::CSharp => Box::new(CSharpAdapter::new()),
             Language::Php => Box::new(PhpAdapter::new()),
             Language::Cpp => Box::new(CppAdapter::new()),
+            Language::Ruby => Box::new(RubyAdapter::new()),
         };
         // Cheap pre-filter before the full parse.
         if !source.contains("argot:") {
@@ -1302,6 +1304,9 @@ fn run_score_cmd(c: ScoreCmd) -> ExitCode {
         "cpp" => Language::Cpp,
         other => {
             eprintln!("error: --language must be python|typescript|cpp (got '{other}')");
+        "ruby" => Language::Ruby,
+        other => {
+            eprintln!("error: --language must be python|typescript|ruby (got '{other}')");
             return ExitCode::from(2);
         }
     };
@@ -1338,6 +1343,7 @@ fn run_score_cmd(c: ScoreCmd) -> ExitCode {
         Language::CSharp => Box::new(CSharpAdapter::new()),
         Language::Php => Box::new(PhpAdapter::new()),
         Language::Cpp => Box::new(CppAdapter::new()),
+        Language::Ruby => Box::new(RubyAdapter::new()),
     };
     // import_modules = union of extract_imports over the corpus (matches the
     // bench's ImportGraphScorer.fit). AUC is threshold-independent; the

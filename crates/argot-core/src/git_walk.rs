@@ -33,6 +33,7 @@ pub const SUPPORTED_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".js", ".jsx", ".py",
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
     ".ts", ".tsx", ".js", ".jsx", ".py", ".cpp", ".cc", ".hpp", ".cxx",
 ];
+pub const SUPPORTED_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".js", ".jsx", ".py", ".rb"];
 
 /// A hunk's post-image span, as reported by the diff (1-indexed start).
 #[derive(Debug, Clone, Copy)]

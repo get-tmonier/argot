@@ -17,6 +17,7 @@ use crate::scoring::adapters::php::PhpAdapter;
 use crate::scoring::adapters::cpp::CppAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::rust::RustAdapter;
+use crate::scoring::adapters::ruby::RubyAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::{Language, LanguageAdapter};
 use crate::scoring::bpe_scorer::BpeScorer;
@@ -202,6 +203,7 @@ pub fn collect_candidates_with(
         Language::CSharp => &[".cs"],
         Language::Php => &[".php"],
         Language::Cpp => &[".cpp", ".cc", ".hpp", ".cxx"],
+        Language::Ruby => &[".rb"],
     };
     let mut out = Vec::new();
     for ext in exts {
@@ -477,6 +479,7 @@ fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
         Language::Go => Box::new(GoAdapter::new()),
         Language::Rust => Box::new(RustAdapter::new()),
         Language::C => Box::new(CAdapter::new()),
+        Language::Ruby => Box::new(RubyAdapter::new()),
     }
 }
 
@@ -517,6 +520,7 @@ pub fn language_name(language: Language) -> &'static str {
         Language::CSharp => "csharp",
         Language::Php => "php",
         Language::Cpp => "cpp",
+        Language::Ruby => "ruby",
     }
 }
 
@@ -538,6 +542,7 @@ pub fn language_for_filename(name: &str) -> Option<Language> {
         ".cs" => Some(Language::CSharp),
         ".php" => Some(Language::Php),
         ".cpp" | ".cc" | ".hpp" | ".cxx" => Some(Language::Cpp),
+        ".rb" => Some(Language::Ruby),
         _ => None,
     }
 }

@@ -16,6 +16,7 @@ use crate::scoring::adapters::php::PhpAdapter;
 use crate::scoring::adapters::cpp::CppAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::rust::RustAdapter;
+use crate::scoring::adapters::ruby::RubyAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::{Language, LanguageAdapter};
 use crate::scoring::calibration::{collect_candidates_with, language_for_filename, language_name};
@@ -211,6 +212,7 @@ fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
         Language::CSharp => Box::new(CSharpAdapter::new()),
         Language::Php => Box::new(PhpAdapter::new()),
         Language::Cpp => Box::new(CppAdapter::new()),
+        Language::Ruby => Box::new(RubyAdapter::new()),
     }
 }
 
@@ -294,6 +296,7 @@ fn scan_corpus(repo_dir: &Path) -> CorpusReport {
             "csharp" => Language::CSharp,
             "php" => Language::Php,
             "cpp" => Language::Cpp,
+            "ruby" => Language::Ruby,
             _ => Language::Typescript,
         };
         let adapter = adapters
