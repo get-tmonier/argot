@@ -13,12 +13,6 @@ installers = ["shell", "npm"]
 npm-scope = "@tmonier"
 # Push the npm installer to the registry (uses the NPM_TOKEN secret)
 publish-jobs = ["npm"]
-# Homebrew tap: cargo-dist builds `argot.rb` and attaches it to every release.
-# Auto-publishing the formula to the tap repo is intentionally left OFF until the
-# tap exists — to enable it, create the `get-tmonier/homebrew-tap` repo, add a
-# `HOMEBREW_TAP_TOKEN` secret with push access, add "homebrew" to publish-jobs
-# above, and re-run `dist generate`. Then `brew install get-tmonier/homebrew-tap/argot`.
-tap = "get-tmonier/homebrew-tap"
 # Target platforms to build apps for (Rust target-triple syntax).
 # apple-darwin x2 (Apple Silicon + Intel Macs) · linux-gnu x2 (x86_64 + ARM:
 # Graviton CI, Raspberry Pi, ARM containers).

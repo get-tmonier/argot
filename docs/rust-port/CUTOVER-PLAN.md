@@ -56,7 +56,7 @@ assumed. Action: run the golden tests + a 1–2 corpus bench parity check on Lin
 - Replace the `build-binaries` job's `bun build --compile` with cargo cross-builds
   producing assets named `argot-<target>` (must match `npm/scripts/postinstall.js`).
   Recommend **cargo-dist** — it generates the build matrix, GitHub Release, shell +
-  PowerShell installers, a Homebrew tap, and an npm shim, from one config.
+  PowerShell installers, and an npm shim, from one config.
 - **Delete** the `publish-engine` (PyPI/uv trusted-publishing) job.
 - Keep `publish-npm` (`@tmonier/argot`) and `create-release` (attach `argot-*`).
 - Extend `postinstall.js` beyond `linux-x64`/`darwin-arm64` to match the new matrix
@@ -182,8 +182,8 @@ lead with the per-command numbers.)
    the bench is Rust-only.)
 2. **Platform matrix** — just linux-x64 + darwin-arm64 (today), or add darwin-x64 /
    linux-arm64 / musl-static / Windows?
-3. **Extra install channels** — `cargo install argot` (crates.io) and/or a Homebrew
-   tap, or keep npm-wrapper + curl only?
+3. **Extra install channels** — `cargo install argot` (crates.io), or keep
+   npm-wrapper + curl only?
 4. **Release tooling** — adopt cargo-dist (recommended; generates matrix + installers +
    npm shim + brew), or hand-roll a cargo-zigbuild matrix in the existing workflow?
 5. **Bench** — port the harness (incl. auto-select probe) to Rust-only now, or keep the
