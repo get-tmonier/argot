@@ -144,11 +144,32 @@ pub struct SequentialConfig {
     pub evidence_corpus: Option<EvidenceCorpus>,
 }
 
+/// Per-file derived state that every hunk of the same file shares. Hunks
+/// arrive batched per file, so a single-entry cache keyed by a content hash
+/// removes the repeated file parses (bindings, data rows, prose ranges).
+/// Pure memoization — scoring is byte-identical with or without it.
+#[derive(Default)]
+struct FileDerivedCache {
+    key: u64,
+    data_rows: HashSet<usize>,
+    prose_rows: HashSet<usize>,
+    file_bindings: crate::scoring::call_receiver::LocalBindings,
+}
+
+fn content_key(source: &str) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    source.hash(&mut h);
+    h.finish()
+}
+
 pub struct SequentialImportBpeScorer {
     adapter: Box<dyn LanguageAdapter>,
     /// Callable names defined anywhere in the change being checked (all
     /// files of the changeset) — new code naming its own neighbourhood.
     changeset_bindings: HashSet<String>,
+    /// Single-entry per-file cache (see [`FileDerivedCache`]).
+    file_cache: Option<FileDerivedCache>,
     typicality: Option<TypicalityModel>,
     import_scorer: ImportGraphScorer,
     bpe: BpeScorer,
@@ -238,6 +259,7 @@ impl SequentialImportBpeScorer {
         Ok(Self {
             adapter,
             changeset_bindings: HashSet::new(),
+            file_cache: None,
             typicality,
             import_scorer,
             bpe,
@@ -311,6 +333,7 @@ impl SequentialImportBpeScorer {
         Ok(Self {
             adapter,
             changeset_bindings: HashSet::new(),
+            file_cache: None,
             typicality,
             import_scorer,
             bpe,
@@ -338,17 +361,43 @@ impl SequentialImportBpeScorer {
             .map(|cr| &cr.primitive_fire_count)
     }
 
+    /// The per-file derived state for `source`, recomputing only when the
+    /// content differs from the cached entry.
+    fn file_derived(&mut self, source: &str) -> &FileDerivedCache {
+        let key = content_key(source);
+        let hit = self.file_cache.as_ref().is_some_and(|c| c.key == key);
+        if !hit {
+            let mut file_bindings = crate::scoring::call_receiver::LocalBindings::default();
+            file_bindings
+                .callables
+                .extend(self.adapter.callable_definitions(source));
+            file_bindings
+                .callables
+                .extend(self.adapter.internal_import_bindings(source));
+            file_bindings
+                .values
+                .extend(self.adapter.value_bindings(source));
+            self.file_cache = Some(FileDerivedCache {
+                key,
+                data_rows: self.adapter.data_literal_lines(source),
+                prose_rows: self.adapter.prose_line_ranges(source),
+                file_bindings,
+            });
+        }
+        self.file_cache.as_ref().expect("just populated")
+    }
+
     /// Share of the hunk's non-blank rows that fall inside the host file's
     /// static data-literal spans (1-indexed inclusive hunk bounds). 0.0 when
     /// the hunk has no non-blank rows or the file has no data spans.
     fn hunk_data_row_share(
-        &self,
+        &mut self,
         hunk_content: &str,
         file_source: &str,
         hunk_start_line: usize,
         hunk_end_line: usize,
     ) -> f64 {
-        let data_rows = self.adapter.data_literal_lines(file_source);
+        let data_rows = &self.file_derived(file_source).data_rows;
         if data_rows.is_empty() {
             return 0.0;
         }
@@ -464,9 +513,10 @@ impl SequentialImportBpeScorer {
         // 3. BPE stage (optionally blank prose lines within the hunk span).
         let mut bpe_input = hunk_content.to_string();
         if let (Some(fs), Some(hs), Some(he)) = (file_source, hunk_start_line, hunk_end_line) {
-            let file_prose = self.adapter.prose_line_ranges(fs);
+            let file_prose = &self.file_derived(fs).prose_rows;
             let hunk_prose_local: HashSet<usize> = file_prose
-                .into_iter()
+                .iter()
+                .copied()
                 .filter(|&ln| hs <= ln && ln <= he)
                 .map(|ln| ln - hs + 1)
                 .collect();
@@ -495,19 +545,10 @@ impl SequentialImportBpeScorer {
         let binding_source: &str = file_source
             .or(host_context.map(|(h, _, _)| h))
             .unwrap_or(hunk_content);
-        let mut local_bindings = crate::scoring::call_receiver::LocalBindings::default();
-        local_bindings
-            .callables
-            .extend(self.adapter.callable_definitions(binding_source));
-        local_bindings
-            .callables
-            .extend(self.adapter.internal_import_bindings(binding_source));
+        let mut local_bindings = self.file_derived(binding_source).file_bindings.clone();
         local_bindings
             .callables
             .extend(self.changeset_bindings.iter().cloned());
-        local_bindings
-            .values
-            .extend(self.adapter.value_bindings(binding_source));
 
         let contribution = if let Some(cr) = &mut self.call_receiver {
             let alpha = cr.alpha;

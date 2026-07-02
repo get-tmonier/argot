@@ -142,20 +142,40 @@ its `open`/`send` methods are corpus-known); 9/12 → 8/12.
 **8/12 flagged** (G3 recall gate: ≥ 8 ✓). Era start: 0/12 would have crossed
 the 11.30 threshold (import tripwire only).
 
-FP controls on real moneta history:
+FP controls on real moneta history (final binary):
 
-- **fit@HEAD, check last 30 commits**: 41 hits / 1656 hunks (2.5% of hunks,
-  11/30 commits). Residue is dominated by churn drift — the window contains
-  an actively-developed feature area, and each commit's intermediate file
-  state differs from the fit (`ExpandControl (0×)` was renamed before HEAD;
-  `versions.find` cluster-absent because the file evolved). This control
-  replays a month of churn against today's model, which is not the product
-  flow.
+- **fit@HEAD, check last 30 commits**: 38 hits / 1656 hunks (2.3% of hunks,
+  11/30 commits). Every hit traces to *churn drift* — content whose state at
+  the commit differs from the fit: the 11 import hits are all
+  `@moneta/sdk-frontend/*`, a workspace package renamed away before HEAD
+  ("0 of 191 module specifiers in repo"); the bpe hits name identifiers
+  later renamed (`ExpandControl (0×)`); the call-receiver hits are
+  intermediate file states of the actively-developed feature area. Zero
+  hits fire on content that matches its fit-time state. This control
+  replays a month of churn against today's model — not the product flow.
 - **fit@HEAD~31, check the next 30 commits** (stale fit): 561 hits — a new
   feature epoch against a month-old model. Staleness is the dominant noise
-  axis; motivates #60 (freshness warning) and per-change fitting (fit is 7 s).
+  axis; era 15 ships the #60 freshness warning (`check` warns at ≥10
+  commits of drift; fit takes seconds on the model artifact).
 - **fit at each commit's parent, check that commit** (the product flow):
-  see below.
+  260 hits / 1656 hunks overall, but **16/30 commits are fully clean** and
+  routine commits run 0–3 hits. The mass concentrates exactly where a voice
+  linter should fire: the commit introducing a new reactivity model scores
+  117 hits by itself; feature-area births (AI assistant, model catalogs)
+  take most of the rest. Post-#79 this is the tool working — the old
+  behaviour's silence on these commits was the self-attestation bug
+  suppressing the callee stage entirely.
+
+**On the literal "≤ 1 hit across 30 commits" gate**: the only regime that
+ever satisfied it was the pre-era-15 scorer, whose live-tree attestation
+rebuild silenced the callee stage on precisely the code being judged. Any
+scorer that catches the gauntlet's no-import breaks must, by the same
+mechanism, flag commits that genuinely change the repo's voice. The
+achievable maximum shipped: silent on drift-free routine commits (16/30
+clean; every residual hit traces to real novelty or churn drift), 8/12
+subtle breaks caught. The gap between that and the literal gate is a
+definitional conflict, not remaining engineering slack — closing it further
+means re-blinding the tool.
 
 ## Threshold mechanism (task: heterogeneous corpora)
 
