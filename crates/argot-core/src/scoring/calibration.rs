@@ -389,7 +389,13 @@ pub struct CalibrateOptions {
 impl Default for CalibrateOptions {
     fn default() -> Self {
         Self {
-            n_cal: 500,
+            // n_cal=100 × 7 seeds is the configuration every era's bench
+            // validated the recall/FP gates against. The production default
+            // previously sampled 500, which systematically raises the
+            // max-of-sample threshold above the validated one (measured:
+            // saleor 5.97 vs 5.44, hono 5.87 vs 4.27) and cost real recall
+            // through the production path.
+            n_cal: 100,
             seed: 0,
             n_seeds: 7,
             evidence_top_n: 50,

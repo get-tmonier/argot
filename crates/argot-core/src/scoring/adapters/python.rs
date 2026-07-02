@@ -179,12 +179,16 @@ impl PythonAdapter {
     }
 
     /// Top-level module names imported in `source` (non-relative only).
+    ///
+    /// Error-tolerant like the TypeScript extractor: git picks hunk
+    /// boundaries, so check-time fragments routinely carry root parse errors
+    /// — tree-sitter still yields the well-formed import statements within,
+    /// and bailing on `has_error` silently disabled the import stage on
+    /// exactly the hunks check scores (measured: saleor framework-swap
+    /// fixtures through the production path).
     pub fn extract_imports(&self, source: &str) -> HashSet<String> {
         let tree = parse(source);
         let root = tree.root_node();
-        if root.has_error() {
-            return HashSet::new();
-        }
         let mut out = HashSet::new();
         for node in descendants(root) {
             match node.kind() {
@@ -214,9 +218,6 @@ impl PythonAdapter {
     pub fn extract_imports_with_spans(&self, source: &str) -> Vec<(String, usize, usize, usize)> {
         let tree = parse(source);
         let root = tree.root_node();
-        if root.has_error() {
-            return Vec::new();
-        }
         let mut out: Vec<(String, usize, usize, usize)> = Vec::new();
         for node in descendants(root) {
             match node.kind() {
@@ -376,9 +377,6 @@ impl PythonAdapter {
     pub fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
         let tree = parse(source);
         let root = tree.root_node();
-        if root.has_error() {
-            return HashSet::new();
-        }
         let mut out = HashSet::new();
         for node in descendants(root) {
             if node.kind() != "import_from_statement" {

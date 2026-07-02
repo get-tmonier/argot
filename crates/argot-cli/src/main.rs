@@ -325,7 +325,7 @@ struct CalibrateCmd {
     #[arg(long, default_value = ".")]
     repo: PathBuf,
     /// Number of calibration hunks.
-    #[arg(long = "n-cal", default_value_t = 500)]
+    #[arg(long = "n-cal", default_value_t = 100)]
     n_cal: usize,
     /// RNG seed for hunk sampling.
     #[arg(long, default_value_t = 0)]

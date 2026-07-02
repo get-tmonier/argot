@@ -82,6 +82,14 @@ fn extract_typescript_callee(call_node: Node, src: &[u8]) -> Option<String> {
     } else if ts_call_types(callee.kind()) {
         parts.insert(0, "<call>".to_string());
         Some(parts.join("."))
+    } else if matches!(callee.kind(), "this" | "super") {
+        // `this.method()` / `super.method()` — Python's `self.method` has
+        // always been extracted (self is a plain identifier); TypeScript's
+        // `this` is its own node kind, which the original walk dropped,
+        // leaving class-internal call voice invisible (the legacy-lifecycle
+        // and class-component break families all live in this namespace).
+        parts.insert(0, node_text(callee, src));
+        Some(parts.join("."))
     } else {
         None
     }
