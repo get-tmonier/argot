@@ -102,7 +102,7 @@ pub struct CorpusReport {
     pub meaningfully_mixed: bool,
 }
 
-/// Calibration health for one language, from `scorer-config.json` (v2) plus
+/// Calibration health for one language, from `scorer-config.json` (v3) plus
 /// the live candidate pass.
 #[derive(Serialize, Debug, Clone)]
 pub struct LanguageCalibration {
@@ -245,10 +245,10 @@ fn scan_corpus(repo_dir: &Path) -> CorpusReport {
     }
 }
 
-/// Read calibration health from a v2 `scorer-config.json`.
+/// Read calibration health from a v3 `scorer-config.json`.
 ///
 /// `Ok(None)` = no config (pre-fit). `Err(msg)` = config present but not a
-/// readable v2 document (surfaced as a yellow reason, never a hard failure —
+/// readable v3 document (surfaced as a yellow reason, never a hard failure —
 /// inspect must not die on the thing it diagnoses).
 fn load_calibration(
     config_path: &Path,
@@ -260,9 +260,9 @@ fn load_calibration(
     };
     let config: Value = serde_json::from_slice(&bytes)
         .map_err(|e| format!("{} is not valid JSON: {e}", config_path.display()))?;
-    if config.get("version").and_then(Value::as_i64) != Some(2) {
+    if config.get("version").and_then(Value::as_i64) != Some(3) {
         return Err(format!(
-            "{} is not a v2 scorer config — regenerate via `argot fit`",
+            "{} is not a v3 scorer config — regenerate via `argot fit`",
             config_path.display()
         ));
     }
@@ -594,14 +594,14 @@ mod tests {
     }
 
     #[test]
-    fn calibration_health_is_read_from_v2_config() {
+    fn calibration_health_is_read_from_v3_config() {
         let dir = temp_repo("calibrated");
         fs::write(dir.join("app.py"), py_functions(10)).unwrap();
         fs::create_dir_all(dir.join(".argot")).unwrap();
         fs::write(
             dir.join(".argot/scorer-config.json"),
             r#"{
-              "version": 2,
+              "version": 3,
               "languages": {
                 "python": {
                   "threshold": 42.5,

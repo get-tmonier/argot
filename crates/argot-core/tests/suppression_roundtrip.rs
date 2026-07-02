@@ -11,7 +11,9 @@ use std::process::Command;
 
 use argot_core::check::{run_check, run_review_mutes, CheckArgs};
 use argot_core::scoring::adapters::python::PythonAdapter;
-use argot_core::scoring::calibration::{collect_candidates, collect_candidates_with};
+use argot_core::scoring::calibration::{
+    collect_candidates, collect_candidates_with, run_calibrate, CalibrateOptions,
+};
 use argot_core::suppress::{
     load_suppressions_file, mute_hash, read_last_check, PathSuppressions, SUPPRESSIONS_FILE,
 };
@@ -35,22 +37,36 @@ fn build_fixture_repo(suffix: &str) -> PathBuf {
     out
 }
 
-/// Build repo + `.argot/` artifacts (train + committed scorer-config.json).
-fn prepare_repo(suffix: &str) -> PathBuf {
-    let repo = build_fixture_repo(suffix);
+/// Full fit (train → calibrate; deterministic v3 config with the model
+/// snapshot) against the current checkout.
+fn fit(repo: &Path) {
     let argot_dir = repo.join(".argot");
     std::fs::create_dir_all(&argot_dir).unwrap();
     argot_core::train::run_train(
-        &repo,
+        repo,
         &argot_dir.join("repo-corpus.txt"),
         &argot_dir.join("generic-baseline.json"),
     )
     .expect("train");
-    std::fs::copy(
-        fixture_check_dir().join("scorer-config.json"),
-        argot_dir.join("scorer-config.json"),
+    let opts = CalibrateOptions {
+        repo_sha: "fixture".to_string(),
+        timestamp_utc: "1970-01-01T00:00:00+00:00".to_string(),
+        ..Default::default()
+    };
+    run_calibrate(
+        repo,
+        &argot_dir.join("repo-corpus.txt"),
+        argot_core::train::GENERIC_BASELINE_JSON,
+        &argot_dir.join("scorer-config.json"),
+        &opts,
     )
-    .expect("copy scorer-config.json");
+    .expect("calibrate");
+}
+
+/// Build repo + `.argot/` artifacts (full fit at HEAD).
+fn prepare_repo(suffix: &str) -> PathBuf {
+    let repo = build_fixture_repo(suffix);
+    fit(&repo);
     repo
 }
 
@@ -262,21 +278,9 @@ fn review_mutes_reports_rot_and_prunes() {
         assert!(status.success());
     };
     let argot_dir = repo.join(".argot");
-    std::fs::create_dir_all(&argot_dir).unwrap();
     git(&["checkout", "-q", "HEAD~1"]);
-    argot_core::train::run_train(
-        &repo,
-        &argot_dir.join("repo-corpus.txt"),
-        &argot_dir.join("generic-baseline.json"),
-    )
-    .expect("train");
+    fit(&repo);
     git(&["checkout", "-q", "main"]);
-    std::fs::copy(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/check_evidence/scorer-config-head1fit.json"),
-        argot_dir.join("scorer-config.json"),
-    )
-    .expect("copy head1fit config");
 
     // Check flags integration.py; mute it by hash.
     let mut args = base_args(&repo);

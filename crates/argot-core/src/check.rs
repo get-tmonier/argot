@@ -20,6 +20,7 @@ use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::LanguageAdapter;
 use crate::scoring::evidence::types::{Evidence, EvidenceCorpus, SourceSpan};
 use crate::scoring::evidence::{evidence_caret_spans, evidence_lines_of_interest, format_evidence};
+use crate::scoring::model::LanguageModel;
 use crate::scoring::sequential::{SequentialConfig, SequentialImportBpeScorer};
 use crate::suppress::{
     fnmatch, hit_hash, load_suppressions_file, parse_inline, write_last_check, LastCheckHit,
@@ -161,21 +162,6 @@ fn extension(path: &str) -> String {
     }
 }
 
-/// Case-sensitive `language_for_extension(Path(p).suffix)` used for corpus
-/// partitioning (NOT lowercased, matching the Python calibration path).
-fn lang_for_ext_cased(p: &Path) -> Option<&'static str> {
-    let name = p.file_name()?.to_str()?;
-    let suffix = match name.rfind('.') {
-        Some(i) if i > 0 && i < name.len() - 1 => &name[i..],
-        _ => "",
-    };
-    match suffix {
-        ".py" => Some("python"),
-        ".ts" | ".tsx" | ".js" | ".jsx" => Some("typescript"),
-        _ => None,
-    }
-}
-
 fn is_supported_ext(file_path: &str) -> bool {
     SUPPORTED_EXTENSIONS.contains(&extension(file_path).as_str())
 }
@@ -275,15 +261,16 @@ fn py_repr(v: &Value) -> String {
     }
 }
 
-/// Load v2 per-language scorers from `.argot/` (`_load_scorers` + helpers).
+/// Load v3 per-language scorers from `.argot/` — entirely from the fit-time
+/// model snapshot in `scorer-config.json`. The live tree is never consulted:
+/// scoring must judge new code against the voice as it was learned, not as
+/// the new code just rewrote it (issue #79).
 /// On failure returns the exact stderr message and exit code.
 fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
-    let repo_corpus_txt = argot_dir.join("repo-corpus.txt");
     let generic_baseline_json = argot_dir.join("generic-baseline.json");
     let config_json = argot_dir.join("scorer-config.json");
 
     for (p, msg) in [
-        (&repo_corpus_txt, "run `argot fit` first"),
         (&generic_baseline_json, "run `argot fit` first"),
         (&config_json, "run `argot calibrate` first"),
     ] {
@@ -296,14 +283,14 @@ fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
     let config: Value =
         serde_json::from_slice(&config_bytes).map_err(|e| (format!("error: {e}\n"), 2))?;
 
-    if config.get("version").and_then(Value::as_i64) != Some(2) {
+    if config.get("version").and_then(Value::as_i64) != Some(3) {
         let vrepr = config
             .get("version")
             .map(py_repr)
             .unwrap_or_else(|| "None".to_string());
         return Err((
             format!(
-                "error: {} uses config version {} — regenerate via `argot-calibrate`.\n",
+                "error: {} uses config version {} — regenerate via `argot fit`.\n",
                 config_json.display(),
                 vrepr
             ),
@@ -323,14 +310,6 @@ fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
             ))
         }
     };
-
-    let corpus_text =
-        fs::read_to_string(&repo_corpus_txt).map_err(|e| (format!("error: {e}\n"), 2))?;
-    let repo_corpus_files: Vec<PathBuf> = splitlines(&corpus_text)
-        .into_iter()
-        .filter(|l| !l.trim().is_empty())
-        .map(PathBuf::from)
-        .collect();
 
     let baseline_bytes =
         fs::read(&generic_baseline_json).map_err(|e| (format!("error: {e}\n"), 2))?;
@@ -426,24 +405,32 @@ fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
         };
         let filter_adapter = adapter_for_language(lang).expect("adapter already built above");
 
-        let lang_files: Vec<PathBuf> = repo_corpus_files
-            .iter()
-            .filter(|p| lang_for_ext_cased(p) == Some(lang.as_str()))
-            .cloned()
-            .collect();
-        let repo_files: Vec<(PathBuf, String)> = lang_files
-            .iter()
-            .filter_map(|p| read_text_lossy(p).ok().map(|s| (p.clone(), s)))
-            .collect();
+        let model: LanguageModel = match lc.get("model") {
+            Some(m) => serde_json::from_value(m.clone()).map_err(|e| {
+                (
+                    format!("error: failed to load scorer for '{lang}': model: {e}\n"),
+                    2,
+                )
+            })?,
+            None => {
+                return Err((
+                    format!(
+                        "error: {} has no 'model' block for language '{}' — regenerate via `argot fit`.\n",
+                        config_json.display(),
+                        lang
+                    ),
+                    2,
+                ))
+            }
+        };
 
-        let scorer =
-            SequentialImportBpeScorer::from_config(&repo_files, &baseline_bytes, adapter, cfg)
-                .map_err(|e| {
-                    (
-                        format!("error: failed to load scorer for '{lang}': {e}\n"),
-                        2,
-                    )
-                })?;
+        let scorer = SequentialImportBpeScorer::from_model(&model, &baseline_bytes, adapter, cfg)
+            .map_err(|e| {
+            (
+                format!("error: failed to load scorer for '{lang}': {e}\n"),
+                2,
+            )
+        })?;
         scorers.insert(lang.clone(), scorer);
         filter_adapters.insert(lang.clone(), filter_adapter);
     }
@@ -706,12 +693,16 @@ fn score_patches(
             let hs = hunk_start as usize;
             let he = hunk_end as usize;
             let hunk_content = file_lines[hs..he].join("\n");
+            // file_path routes the hunk to its fit-time cluster (falling back
+            // to Jaccard-nearest for files the model has never seen) — the
+            // same signal surface calibration hunks scored against, so the
+            // threshold and the check path see one score distribution.
             let scored = scorer.score_hunk(
                 &hunk_content,
                 Some(&file_source),
                 Some(hs + 1),
                 Some(he),
-                None,
+                Some(Path::new(&batch.file_path)),
             );
             let line = hunk.new_start as usize;
             let line_end = (hunk.new_start + hunk.new_lines).saturating_sub(1) as usize;
@@ -1471,7 +1462,13 @@ fn firing_hashes_for_file(
             continue;
         }
         let hunk = lines[s..e].join("\n");
-        let scored = scorer.score_hunk(&hunk, Some(&source), Some(s + 1), Some(e), None);
+        let scored = scorer.score_hunk(
+            &hunk,
+            Some(&source),
+            Some(s + 1),
+            Some(e),
+            Some(Path::new(rel_path)),
+        );
         if scored.flagged {
             out.insert(hit_hash(rel_path, scored.reason.as_str(), &hunk));
         }

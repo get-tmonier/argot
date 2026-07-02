@@ -15,10 +15,11 @@
 
 use crate::scoring::adapters::{Language, LanguageAdapter};
 use crate::scoring::minhash_params_seed0::{MINHASH_A_SEED0, MINHASH_B_SEED0};
+use crate::scoring::model::{CallReceiverModel, ClusterModel};
 use crate::scoring::shape_primitive::{Baseline, ShapePrimitive};
 use crate::scoring::ts_parse::parse;
 use md5::{Digest, Md5};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use tree_sitter::Node;
 
@@ -579,6 +580,113 @@ impl CallReceiverScorer {
         })
     }
 
+    /// Export the fitted state as a [`CallReceiverModel`] snapshot. File keys
+    /// are relativized against `repo_root` (paths outside the root keep their
+    /// full string form) so the artifact is repo-relative and matches the
+    /// paths `check` sees from git.
+    pub fn export_model(&self, repo_root: &Path) -> CallReceiverModel {
+        let rel = |p: &Path| {
+            crate::suppress::rel_string(p, repo_root)
+                .unwrap_or_else(|| p.to_string_lossy().into_owned())
+        };
+        let mut clusters: BTreeMap<String, ClusterModel> = BTreeMap::new();
+        let mut cids: Vec<usize> = self.cluster_sizes.keys().copied().collect();
+        cids.sort_unstable();
+        for cid in cids {
+            let mut files: Vec<String> = self
+                .file_to_cluster
+                .iter()
+                .filter(|(_, &c)| c == cid)
+                .map(|(p, _)| rel(p))
+                .collect();
+            files.sort();
+            let callee_counts: BTreeMap<String, usize> = self
+                .cluster_callee_counts
+                .get(&cid)
+                .map(|m| m.iter().map(|(k, v)| (k.clone(), *v)).collect())
+                .unwrap_or_default();
+            clusters.insert(
+                cid.to_string(),
+                ClusterModel {
+                    files,
+                    callee_counts,
+                },
+            );
+        }
+        let mut attested: Vec<String> = self.attested.iter().cloned().collect();
+        attested.sort();
+        CallReceiverModel {
+            attested,
+            n_corpus_files: self.n_corpus_files,
+            clusters,
+        }
+    }
+
+    /// Rebuild a scorer from a fit-time [`CallReceiverModel`] snapshot — the
+    /// check-time path. The snapshot pins attestation and cluster membership
+    /// to fit time, so new code cannot attest its own callees (issue #79).
+    /// Document frequencies are recovered as the per-callee sum across
+    /// clusters (each corpus file belongs to exactly one cluster).
+    pub fn from_model(
+        model: &CallReceiverModel,
+        language: Language,
+        alpha: f64,
+        cap: usize,
+        cluster_rare_threshold: usize,
+        cluster_size_min: usize,
+    ) -> Result<Self, &'static str> {
+        let attested: HashSet<String> = model.attested.iter().cloned().collect();
+        let attested_roots: HashSet<String> = attested
+            .iter()
+            .map(|c| c.split_once('.').map(|(h, _)| h).unwrap_or(c).to_string())
+            .collect();
+        let mut file_to_cluster = HashMap::new();
+        let mut cluster_attested: HashMap<usize, HashSet<String>> = HashMap::new();
+        let mut cluster_callee_counts: HashMap<usize, HashMap<String, usize>> = HashMap::new();
+        let mut cluster_sizes = HashMap::new();
+        let mut callee_file_counts: HashMap<String, usize> = HashMap::new();
+        for (cid_str, cluster) in &model.clusters {
+            let cid: usize = cid_str.parse().map_err(|_| "invalid cluster id")?;
+            for f in &cluster.files {
+                file_to_cluster.insert(PathBuf::from(f), cid);
+            }
+            cluster_sizes.insert(cid, cluster.files.len());
+            cluster_attested.insert(cid, cluster.callee_counts.keys().cloned().collect());
+            let counts: HashMap<String, usize> = cluster
+                .callee_counts
+                .iter()
+                .map(|(k, v)| (k.clone(), *v))
+                .collect();
+            for (callee, n) in &counts {
+                *callee_file_counts.entry(callee.clone()).or_insert(0) += n;
+            }
+            cluster_callee_counts.insert(cid, counts);
+        }
+        Ok(Self {
+            language,
+            alpha,
+            cap,
+            cluster_rare_threshold,
+            cluster_size_min,
+            attested,
+            attested_roots,
+            n_skipped_data_dominant: 0,
+            file_to_cluster,
+            cluster_attested,
+            cluster_callee_counts,
+            cluster_sizes,
+            callee_file_counts,
+            n_corpus_files: model.n_corpus_files,
+            rarity_weighting: RarityWeighting::Off,
+            shape_primitives: Vec::new(),
+            primitive_baselines: HashMap::new(),
+            primitive_fire_count: HashMap::new(),
+            rare_branch_fire_count: 0,
+            rare_branch_hunks_fired: 0,
+            hunks_scored: 0,
+        })
+    }
+
     /// Set the rarity weighting for the cluster branches (era 14 phase A).
     pub fn with_rarity_weighting(mut self, weighting: RarityWeighting) -> Self {
         self.rarity_weighting = weighting;
@@ -1061,6 +1169,58 @@ mod tests {
         assert!(events
             .iter()
             .all(|e| matches!(e.branch, ContributionBranch::Unattested)));
+    }
+
+    #[test]
+    fn model_roundtrip_preserves_contribution_decisions() {
+        // Export → import must reproduce every contribution decision, both
+        // for path-routed hunks (file in a fit-time cluster) and for
+        // source-routed hunks (unknown file → Jaccard-nearest cluster).
+        let original = toy_scorer(RarityWeighting::Off);
+        let model = original.export_model(Path::new(""));
+        assert_eq!(model.n_corpus_files, 13);
+        assert!(model.attested.contains(&"foo".to_string()));
+        let restored =
+            CallReceiverScorer::from_model(&model, Language::Python, 2.0, 5, 0, 0).unwrap();
+
+        let unknown_file_source = "def h():\n    baz()\n    qux()\n";
+        for hunk in [
+            "rare_helper()\nfoo()\n",
+            "unknown_callee()\nbaz()\n",
+            "foo()\nbar()\nbaz()\nqux()\n",
+        ] {
+            let a =
+                original.contribution_events_for_file(hunk, Some(Path::new("a0.py")), None, None);
+            let b =
+                restored.contribution_events_for_file(hunk, Some(Path::new("a0.py")), None, None);
+            assert_eq!(a.len(), b.len(), "path-routed event count for {hunk:?}");
+            for (x, y) in a.iter().zip(b.iter()) {
+                assert_eq!(x.callee, y.callee);
+                assert_eq!(x.branch, y.branch);
+            }
+            let a = original.contribution_events_for_file(
+                hunk,
+                Some(Path::new("never_seen.py")),
+                Some(unknown_file_source),
+                None,
+            );
+            let b = restored.contribution_events_for_file(
+                hunk,
+                Some(Path::new("never_seen.py")),
+                Some(unknown_file_source),
+                None,
+            );
+            assert_eq!(a.len(), b.len(), "source-routed event count for {hunk:?}");
+            for (x, y) in a.iter().zip(b.iter()) {
+                assert_eq!(x.callee, y.callee);
+                assert_eq!(x.branch, y.branch);
+            }
+        }
+
+        // Document frequencies are recovered from the cluster sums.
+        assert_eq!(restored.callee_file_count("foo"), 6);
+        assert_eq!(restored.callee_file_count("rare_helper"), 1);
+        assert_eq!(restored.n_corpus_files(), 13);
     }
 
     #[test]

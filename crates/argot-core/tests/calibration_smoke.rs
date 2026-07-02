@@ -1,8 +1,8 @@
 //! Smoke test for calibration: run the full pipeline (train → calibrate) on
-//! the check fixture repo and assert a schema-valid, check-consumable v2
-//! scorer-config.json is emitted. The threshold VALUE is a documented
-//! divergence from numpy (see PORTING-NOTES), so this asserts structure, not
-//! exact values.
+//! the check fixture repo and assert a schema-valid, check-consumable v3
+//! scorer-config.json is emitted — including the fit-time model snapshot.
+//! The threshold VALUE is a documented divergence from numpy (see
+//! PORTING-NOTES), so this asserts structure, not exact values.
 
 use argot_core::scoring::calibration::{run_calibrate, CalibrateOptions};
 use argot_core::train::{run_train, GENERIC_BASELINE_JSON};
@@ -24,7 +24,7 @@ fn build_repo() -> PathBuf {
 }
 
 #[test]
-fn calibrate_emits_valid_v2_config() {
+fn calibrate_emits_valid_v3_config() {
     let repo = build_repo();
     let argot_dir = repo.join(".argot");
     let repo_corpus = argot_dir.join("repo-corpus.txt");
@@ -42,7 +42,7 @@ fn calibrate_emits_valid_v2_config() {
     assert!(!thresholds.is_empty(), "expected at least one language");
 
     let cfg: Value = serde_json::from_str(&std::fs::read_to_string(&out).unwrap()).unwrap();
-    assert_eq!(cfg["version"], 2);
+    assert_eq!(cfg["version"], 3);
     let py = &cfg["languages"]["python"];
     assert!(py.is_object(), "python language block present");
     assert!(py["threshold"].is_number(), "threshold is a number");
@@ -65,5 +65,38 @@ fn calibrate_emits_valid_v2_config() {
     assert!(
         mods.contains(&"math".to_string()),
         "math imported, got {mods:?}"
+    );
+    // v3 model snapshot: BPE stats + callee attestation + clusters.
+    let model = &py["model"];
+    assert!(
+        model["bpe"]["token_counts"].is_object(),
+        "model bpe token counts"
+    );
+    assert!(model["bpe"]["total_tokens"].as_u64().unwrap() > 0);
+    let attested: Vec<String> = model["call_receiver"]["attested"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap().to_string())
+        .collect();
+    assert!(
+        attested.contains(&"math.fsum".to_string()),
+        "corpus callee attested, got {attested:?}"
+    );
+    let clusters = model["call_receiver"]["clusters"].as_object().unwrap();
+    assert!(!clusters.is_empty(), "cluster partition present");
+    // Cluster file keys are repo-relative (no absolute prefixes).
+    for (_, cluster) in clusters {
+        for f in cluster["files"].as_array().unwrap() {
+            assert!(
+                !f.as_str().unwrap().starts_with('/'),
+                "cluster file paths are repo-relative, got {f}"
+            );
+        }
+    }
+    assert_eq!(
+        py["model_hash"].as_str().unwrap().len(),
+        32,
+        "model hash is an md5 hex digest"
     );
 }

@@ -396,7 +396,7 @@ fn run_calibrate_cmd(c: CalibrateCmd) -> ExitCode {
             }
             let langs: Vec<&str> = thresholds.iter().map(|(l, _)| l.as_str()).collect();
             println!(
-                "scorer-config.json (v2, languages: {}) → {}",
+                "scorer-config.json (v3, languages: {}) → {}",
                 langs.join(", "),
                 c.output.display()
             );

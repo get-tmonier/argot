@@ -1,7 +1,8 @@
 //! Calibration — port of `engine/argot/scoring/calibration/`.
 //!
 //! Collects sampleable hunks, calibrates a BPE threshold over multiple seeds,
-//! builds the evidence corpus, and emits `scorer-config.json` (v2).
+//! builds the evidence corpus, and emits `scorer-config.json` (v3, carrying
+//! the fit-time model snapshot).
 //!
 //! Calibration-hunk sampling reproduces numpy's `default_rng(seed).choice(...)`
 //! bit-for-bit (see [`crate::scoring::numpy_sampler`]), so the calibrated
@@ -13,6 +14,7 @@ use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::{Language, LanguageAdapter};
 use crate::scoring::bpe_scorer::BpeScorer;
 use crate::scoring::call_receiver::CallReceiverScorer;
+use crate::scoring::model::LanguageModel;
 use crate::scoring::typicality::TypicalityModel;
 use crate::suppress::PathSuppressions;
 use crate::text::{read_text_lossy, splitlines, splitlines_keepends};
@@ -22,7 +24,10 @@ use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 
 const MIN_BODY_LINES: usize = 5;
-const CONFIG_VERSION: u32 = 2;
+/// v3: adds the per-language `model` block (fit-time BPE stats + callee
+/// attestation snapshot) and repo-owned import modules. Check refuses other
+/// versions — regenerate via `argot fit`.
+const CONFIG_VERSION: u32 = 3;
 
 // Production call-receiver constants (match calibration defaults).
 const CR_ALPHA: f64 = 2.0;
@@ -218,6 +223,11 @@ struct LangConfig {
     import_module_prefixes: Vec<String>,
     calibration: CalibrationMeta,
     evidence_corpus: EvidenceCorpusJson,
+    /// Fingerprint of `model` (deterministic serialization → stable hash).
+    model_hash: String,
+    /// Fit-time model snapshot: BPE token stats + callee attestation +
+    /// cluster partition. Check scores against this, never the live tree.
+    model: LanguageModel,
 }
 
 #[derive(Serialize)]
@@ -385,6 +395,11 @@ pub fn run_calibrate(
     output: &Path,
     opts: &CalibrateOptions,
 ) -> Result<Vec<(String, f64)>> {
+    // Canonicalize so candidate paths (rglobbed from here) share the corpus
+    // paths' prefix — cluster routing at calibration time must resolve by
+    // path exactly as check-time routing resolves against the model's
+    // repo-relative keys.
+    let repo_dir = &std::fs::canonicalize(repo_dir).unwrap_or_else(|_| repo_dir.to_path_buf());
     let corpus_txt = read_text_lossy(repo_corpus_path)
         .map_err(|_| anyhow::anyhow!("repo corpus not found: {}", repo_corpus_path.display()))?;
     let corpus_files: Vec<PathBuf> = corpus_txt
@@ -440,16 +455,20 @@ pub fn run_calibrate(
         let sources: Vec<String> = corpus.iter().map(|(_, s)| s.clone()).collect();
 
         let bpe = BpeScorer::new(BpeTokenizer::load(), generic_baseline_json, &sources)?;
-        // import_modules = sorted(union of extract_imports over corpus).
-        // calibrate builds the scorer with repo_root=None, so no
-        // resolve_repo_modules (exact/prefix) contribution; prefixes stay empty.
-        let mut repo_modules: HashSet<String> = HashSet::new();
+        // import_modules = corpus imports + repo-owned module names
+        // (package/tsconfig aliases). Folding resolve_repo_modules matches
+        // the bench scorer's import surface: a repo-internal module the
+        // corpus never happened to import is still not a foreign voice.
+        let mut modules: HashSet<String> = HashSet::new();
         for s in &sources {
-            repo_modules.extend(adapter.extract_imports(s));
+            modules.extend(adapter.extract_imports(s));
         }
-        let mut import_modules: Vec<String> = repo_modules.into_iter().collect();
+        let resolved = adapter.resolve_repo_modules(repo_dir);
+        modules.extend(resolved.exact.iter().cloned());
+        let mut import_modules: Vec<String> = modules.into_iter().collect();
         import_modules.sort();
-        let import_module_prefixes: Vec<String> = Vec::new();
+        let mut import_module_prefixes: Vec<String> = resolved.prefixes.into_iter().collect();
+        import_module_prefixes.sort();
         let mut call_receiver = CallReceiverScorer::new(
             corpus,
             language,
@@ -551,6 +570,15 @@ pub fn run_calibrate(
             opts.evidence_top_n,
         );
 
+        // Fit-time model snapshot: the calibration call-receiver's fitted
+        // state is threshold-parameter-independent (rare/alpha are scoring
+        // knobs, not fitted state), so exporting from it is exact.
+        let model = LanguageModel {
+            bpe: bpe.stats(),
+            call_receiver: call_receiver.export_model(repo_dir),
+        };
+        let model_hash = model.hash();
+
         thresholds_out.push((name.to_string(), threshold));
         languages.insert(
             name.to_string(),
@@ -574,6 +602,8 @@ pub fn run_calibrate(
                     timestamp_utc: opts.timestamp_utc.clone(),
                 },
                 evidence_corpus: evidence,
+                model_hash,
+                model,
             },
         );
     }

@@ -5,6 +5,7 @@
 //! port of `_token_surprise` / `_bpe_score` / `_is_meaningful_token`.
 
 use crate::bpe::BpeTokenizer;
+use crate::scoring::model::BpeStats;
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -72,6 +73,45 @@ impl BpeScorer {
             repo_corpus,
             total_repo,
         })
+    }
+
+    /// Build from a fit-time [`BpeStats`] snapshot instead of re-tokenizing
+    /// the corpus — the check-time path. The snapshot pins the repo token
+    /// distribution to what it was at fit time, so new code cannot dilute its
+    /// own surprise.
+    pub fn from_stats(
+        tokenizer: BpeTokenizer,
+        generic_baseline_json: &[u8],
+        stats: &BpeStats,
+    ) -> Result<Self> {
+        let mut scorer = Self::new(tokenizer, generic_baseline_json, &[])?;
+        let mut repo_corpus = HashMap::with_capacity(stats.token_counts.len());
+        for (k, v) in &stats.token_counts {
+            let id: u32 = k.parse().context("model bpe token id")?;
+            repo_corpus.insert(id, *v);
+        }
+        scorer.repo_corpus = repo_corpus;
+        scorer.total_repo = if stats.total_tokens == 0 {
+            1.0
+        } else {
+            stats.total_tokens as f64
+        };
+        Ok(scorer)
+    }
+
+    /// Export the fitted repo token distribution as a [`BpeStats`] snapshot.
+    pub fn stats(&self) -> BpeStats {
+        let token_counts = self
+            .repo_corpus
+            .iter()
+            .map(|(id, count)| (id.to_string(), *count))
+            .collect();
+        BpeStats {
+            token_counts,
+            // Persist the raw corpus total; `from_stats` reapplies the
+            // "or 1" guard, so a genuinely empty corpus roundtrips.
+            total_tokens: self.repo_corpus.values().sum(),
+        }
     }
 
     pub fn total_repo(&self) -> f64 {

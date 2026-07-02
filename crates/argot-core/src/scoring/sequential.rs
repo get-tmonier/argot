@@ -14,6 +14,7 @@ use crate::scoring::evidence::{
     collect_bpe_evidence, collect_call_receiver_evidence, collect_import_evidence,
 };
 use crate::scoring::import_graph::ImportGraphScorer;
+use crate::scoring::model::LanguageModel;
 use crate::scoring::shape_primitive::ShapePrimitiveRegistry;
 use crate::scoring::typicality::TypicalityModel;
 use crate::text::splitlines_keepends;
@@ -204,6 +205,71 @@ impl SequentialImportBpeScorer {
                     corpus,
                     adapter.as_ref(),
                 ),
+            )
+        } else {
+            None
+        };
+
+        Ok(Self {
+            adapter,
+            typicality,
+            import_scorer,
+            bpe,
+            call_receiver,
+            root_bonus: cfg.call_receiver_root_bonus,
+            cluster_bonus: cfg.call_receiver_cluster_bonus,
+            parse_error_host_fallback: cfg.call_receiver_parse_error_host_fallback,
+            bpe_threshold: cfg.bpe_threshold,
+            evidence_corpus: cfg.evidence_corpus,
+        })
+    }
+
+    /// Build a check-time scorer from the fit-time [`LanguageModel`] snapshot
+    /// instead of re-reading the corpus. Attestation, cluster membership, and
+    /// the repo BPE token distribution are pinned to fit time, so new code is
+    /// scored against the voice as learned — it cannot attest itself (#79).
+    ///
+    /// Shape primitives are not supported on this path: their per-cluster
+    /// baselines are corpus-fitted state that the artifact does not carry
+    /// (they are default-off research substrate; the bench builds them from
+    /// a live corpus).
+    pub fn from_model(
+        model: &LanguageModel,
+        generic_baseline_json: &[u8],
+        adapter: Box<dyn LanguageAdapter>,
+        cfg: SequentialConfig,
+    ) -> Result<Self> {
+        if !cfg.call_receiver_shape_primitive_names.is_empty() {
+            anyhow::bail!("shape primitives require a live corpus, not a model snapshot");
+        }
+        let language = adapter.language();
+
+        let typicality = if cfg.enable_typicality {
+            Some(TypicalityModel::new(language))
+        } else {
+            None
+        };
+
+        let mut import_scorer = ImportGraphScorer::new();
+        import_scorer.load_snapshot(
+            cfg.import_modules.clone(),
+            cfg.import_module_prefixes.clone(),
+        );
+
+        let bpe = BpeScorer::from_stats(BpeTokenizer::load(), generic_baseline_json, &model.bpe)?;
+
+        let call_receiver = if cfg.call_receiver_alpha > 0.0 {
+            Some(
+                CallReceiverScorer::from_model(
+                    &model.call_receiver,
+                    language,
+                    cfg.call_receiver_alpha,
+                    cfg.call_receiver_cap,
+                    cfg.call_receiver_cluster_rare_threshold,
+                    cfg.call_receiver_cluster_size_min,
+                )
+                .map_err(anyhow::Error::msg)?
+                .with_rarity_weighting(cfg.call_receiver_rarity_weighting),
             )
         } else {
             None

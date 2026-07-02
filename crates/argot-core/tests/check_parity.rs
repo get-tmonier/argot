@@ -1,17 +1,22 @@
-//! Byte-parity test for `argot check`.
+//! Golden test for the full `argot check` pipeline.
 //!
 //! Builds the deterministic fixture repo (fixed authors/dates → reproducible
-//! SHAs), runs `train` to emit `repo-corpus.txt` + `generic-baseline.json`,
-//! drops in the committed Python-generated `scorer-config.json`, then asserts
-//! `run_check`'s stdout is byte-identical to each committed golden and the exit
-//! code matches.
+//! SHAs), fits it end-to-end (`train` → `calibrate`, fixed seeds/metadata →
+//! deterministic v3 config with the fit-time model snapshot), then asserts
+//! `run_check`'s stdout is byte-identical to each committed golden and the
+//! exit code matches.
 //!
-//! Requires `git` and `bash` on PATH (build step). No Python at test time.
+//! Historically this compared against the Python engine's output with a
+//! committed Python-generated config; the v3 model artifact (era 15) is a
+//! deliberate divergence, so these are now self-contained pipeline goldens.
+//!
+//! Requires `git` and `bash` on PATH (build step).
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use argot_core::check::{run_check, CheckArgs};
+use argot_core::scoring::calibration::{run_calibrate, CalibrateOptions};
 
 fn fixture_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/check")
@@ -32,7 +37,9 @@ fn build_fixture_repo(suffix: &str) -> PathBuf {
     out
 }
 
-/// Build repo + `.argot/` artifacts and return the repo path.
+/// Build repo + `.argot/` artifacts (full fit: train → calibrate) and return
+/// the repo path. Calibrate metadata is pinned so the emitted v3 config is
+/// deterministic.
 fn prepare_repo(suffix: &str) -> PathBuf {
     let repo = build_fixture_repo(suffix);
     let argot_dir = repo.join(".argot");
@@ -45,12 +52,19 @@ fn prepare_repo(suffix: &str) -> PathBuf {
     )
     .expect("train");
 
-    // Drop in the committed, Python-generated v2 scorer-config.json.
-    std::fs::copy(
-        fixture_dir().join("scorer-config.json"),
-        argot_dir.join("scorer-config.json"),
+    let opts = CalibrateOptions {
+        repo_sha: "fixture".to_string(),
+        timestamp_utc: "1970-01-01T00:00:00+00:00".to_string(),
+        ..Default::default()
+    };
+    run_calibrate(
+        &repo,
+        &argot_dir.join("repo-corpus.txt"),
+        argot_core::train::GENERIC_BASELINE_JSON,
+        &argot_dir.join("scorer-config.json"),
+        &opts,
     )
-    .expect("copy scorer-config.json");
+    .expect("calibrate");
 
     repo
 }

@@ -12,6 +12,7 @@ pub mod call_receiver;
 pub mod evidence;
 pub mod filters;
 pub mod import_graph;
+pub mod model;
 pub mod sequential;
 pub mod shape_primitive;
 pub mod shape_primitives;

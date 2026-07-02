@@ -1,31 +1,30 @@
-//! Byte-parity test for `argot check` **with evidence rendering**.
+//! Golden test for `argot check` **with evidence rendering**.
 //!
 //! Builds the deterministic `check` fixture repo (fixed authors/dates →
-//! reproducible SHAs), runs `train` to emit `repo-corpus.txt` +
-//! `generic-baseline.json`, drops in the committed Python-generated
-//! `scorer-config-head1fit.json` (which carries an `evidence_corpus` block),
-//! then asserts `run_check`'s stdout — plus a trailing `exit=<code>` line —
-//! is byte-identical to each committed golden.
+//! reproducible SHAs), fits it at HEAD~1 (checkout HEAD~1 → train → calibrate
+//! → checkout back) so the last commit's `integration.py` is genuinely
+//! post-fit code, then asserts `run_check`'s stdout — plus a trailing
+//! `exit=<code>` line — is byte-identical to each committed golden.
 //!
-//! Two scenarios, both keyed off the HEAD~1-fit config (import_modules exclude
-//! `sqlalchemy`, so it is foreign):
+//! Two scenarios, both against the HEAD~1-fit v3 config (whose model snapshot
+//! and import_modules exclude `sqlalchemy`):
 //!
-//! * BPE evidence (`golden_bpe_evidence.txt`): the BPE repo corpus is fit at
-//!   HEAD~1 (checkout HEAD~1 → train → checkout back), so `integration.py`'s
-//!   tokens are unattested and the BPE stage wins with score 8.17 → a
+//! * BPE evidence (`golden_bpe_evidence.txt`): with the model fit at HEAD~1,
+//!   `integration.py`'s tokens are unattested and the BPE stage wins → a
 //!   `↳ sessionmaker (0×), ...` line.
-//! * Import evidence (`golden_import_evidence.txt`): the BPE corpus is fit at
-//!   HEAD (train on the working tree, `integration.py` included), so the BPE
-//!   stage stays below threshold and the import stage wins → a
+//! * Import evidence (`golden_import_evidence.txt`): same fit, but with the
+//!   BPE threshold pinned high in a test-local copy of the config so only the
+//!   import stage can fire (the renderer under test) → a
 //!   `↳ sqlalchemy (L2) — never seen in repo` line, a `common here:` line, and
 //!   the `^^^^` caret underline under the offending import.
 //!
-//! Requires `git` and `bash` on PATH (build step). No Python at test time.
+//! Requires `git` and `bash` on PATH (build step).
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use argot_core::check::{run_check, CheckArgs};
+use argot_core::scoring::calibration::{run_calibrate, CalibrateOptions};
 
 fn fixture_check_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/check")
@@ -58,7 +57,9 @@ fn git(repo: &Path, args: &[&str]) {
     assert!(status.success(), "git {args:?} failed");
 }
 
-fn train(repo: &Path) {
+/// Full fit (train → calibrate) against the current checkout; deterministic
+/// v3 config with the fit-time model snapshot.
+fn fit(repo: &Path) {
     let argot_dir = repo.join(".argot");
     std::fs::create_dir_all(&argot_dir).unwrap();
     argot_core::train::run_train(
@@ -67,16 +68,31 @@ fn train(repo: &Path) {
         &argot_dir.join("generic-baseline.json"),
     )
     .expect("train");
+    let opts = CalibrateOptions {
+        repo_sha: "fixture".to_string(),
+        timestamp_utc: "1970-01-01T00:00:00+00:00".to_string(),
+        ..Default::default()
+    };
+    run_calibrate(
+        repo,
+        &argot_dir.join("repo-corpus.txt"),
+        argot_core::train::GENERIC_BASELINE_JSON,
+        &argot_dir.join("scorer-config.json"),
+        &opts,
+    )
+    .expect("calibrate");
 }
 
-/// Copy the committed HEAD~1-fit config (it carries the `evidence_corpus`
-/// block) into `.argot/scorer-config.json`.
-fn install_head1_config(repo: &Path) {
-    std::fs::copy(
-        fixture_evidence_dir().join("scorer-config-head1fit.json"),
-        repo.join(".argot/scorer-config.json"),
-    )
-    .expect("copy scorer-config-head1fit.json");
+/// Pin the calibrated BPE threshold far above any reachable score so only the
+/// import stage can fire — isolates the import-evidence renderer.
+fn pin_threshold_high(repo: &Path) {
+    let config_path = repo.join(".argot/scorer-config.json");
+    let raw = std::fs::read_to_string(&config_path).expect("read config");
+    let mut config: serde_json::Value = serde_json::from_str(&raw).expect("parse config");
+    for (_, lang_cfg) in config["languages"].as_object_mut().expect("languages") {
+        lang_cfg["threshold"] = serde_json::json!(1000.0);
+    }
+    std::fs::write(&config_path, serde_json::to_string(&config).unwrap()).expect("write config");
 }
 
 fn base_args(repo: &Path) -> CheckArgs {
@@ -121,13 +137,12 @@ fn assert_golden(stdout: &str, exit_code: i32, golden_name: &str) {
 
 #[test]
 fn check_bpe_evidence() {
-    // Fit the BPE repo corpus at HEAD~1 (before integration.py existed) so the
-    // sqlalchemy tokens are unattested and the BPE stage wins.
+    // Fit at HEAD~1 (before integration.py existed) so the sqlalchemy tokens
+    // are unattested in the model snapshot and the BPE stage wins.
     let repo = build_fixture_repo("bpe");
     git(&repo, &["checkout", "-q", "HEAD~1"]);
-    train(&repo);
+    fit(&repo);
     git(&repo, &["checkout", "-q", "main"]);
-    install_head1_config(&repo);
 
     let out = run_check(base_args(&repo));
     assert_eq!(out.exit_code, 1, "bpe evidence exit code");
@@ -136,12 +151,14 @@ fn check_bpe_evidence() {
 
 #[test]
 fn check_import_evidence() {
-    // Fit the BPE repo corpus at HEAD (integration.py included) so the BPE
-    // stage stays below threshold and the import stage wins — exercising the
-    // import `↳` line, the `common here:` line, and the caret underline.
+    // Same HEAD~1 fit, but with the BPE threshold pinned high so only the
+    // import stage can fire — exercising the import `↳` line, the
+    // `common here:` line, and the caret underline.
     let repo = build_fixture_repo("import");
-    train(&repo);
-    install_head1_config(&repo);
+    git(&repo, &["checkout", "-q", "HEAD~1"]);
+    fit(&repo);
+    git(&repo, &["checkout", "-q", "main"]);
+    pin_threshold_high(&repo);
 
     let out = run_check(base_args(&repo));
     assert_eq!(out.exit_code, 1, "import evidence exit code");

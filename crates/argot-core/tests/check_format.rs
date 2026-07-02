@@ -5,13 +5,14 @@
 //! identical to the human path (0 clean, 1 when hits are visible).
 //!
 //! Requires `git` and `bash` on PATH (fixture build). Reuses the same fixture
-//! repo + committed scorer-config.json as `check_parity.rs`.
+//! repo + fit flow (train → calibrate) as `check_parity.rs`.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use argot_core::check::{run_check, CheckArgs};
 use argot_core::output::OutputFormat;
+use argot_core::scoring::calibration::{run_calibrate, CalibrateOptions};
 use serde_json::Value;
 
 fn fixture_dir() -> PathBuf {
@@ -42,11 +43,19 @@ fn prepare_repo(suffix: &str) -> PathBuf {
         &argot_dir.join("generic-baseline.json"),
     )
     .expect("train");
-    std::fs::copy(
-        fixture_dir().join("scorer-config.json"),
-        argot_dir.join("scorer-config.json"),
+    let opts = CalibrateOptions {
+        repo_sha: "fixture".to_string(),
+        timestamp_utc: "1970-01-01T00:00:00+00:00".to_string(),
+        ..Default::default()
+    };
+    run_calibrate(
+        &repo,
+        &argot_dir.join("repo-corpus.txt"),
+        argot_core::train::GENERIC_BASELINE_JSON,
+        &argot_dir.join("scorer-config.json"),
+        &opts,
     )
-    .expect("copy scorer-config.json");
+    .expect("calibrate");
     repo
 }
 
