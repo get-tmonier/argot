@@ -74,9 +74,9 @@ const en: SiteContent = {
         desc: 'No-import breaks — snake_case in a camelCase repo, promise chains in an Effect codebase, jQuery-style DOM — planted live in a 34k-file workspace. Ten flagged.',
       },
       {
-        value: '~7s',
-        title: 'to learn a 34k-file repo',
-        desc: 'One fit on a laptop CPU builds the whole voice model. Checks run in milliseconds. No GPU, no cloud, no waiting.',
+        value: '150ms',
+        title: 'to check a change',
+        desc: 'Measured on a 34k-file workspace, laptop CPU — fast enough for a pre-commit hook. The one-time fit that learns the whole repo’s voice takes ~7 s. No GPU, no cloud.',
       },
     ],
     finePrint:

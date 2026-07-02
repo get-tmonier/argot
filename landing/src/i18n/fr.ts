@@ -74,9 +74,9 @@ const fr: SiteContent = {
         desc: 'Des ruptures sans import — du snake_case dans un dépôt camelCase, des chaînes de promesses dans un code Effect, du DOM façon jQuery — plantées en direct dans un espace de 34 000 fichiers. Dix signalées.',
       },
       {
-        value: '~7 s',
-        title: 'pour apprendre un dépôt de 34 000 fichiers',
-        desc: 'Un seul fit sur un CPU de portable construit tout le modèle de voix. Les checks tournent en millisecondes. Pas de GPU, pas de cloud, pas d’attente.',
+        value: '150 ms',
+        title: 'pour vérifier un changement',
+        desc: 'Mesuré sur un espace de 34 000 fichiers, CPU de portable — assez rapide pour un hook pre-commit. Le fit unique qui apprend la voix du dépôt entier prend ~7 s. Pas de GPU, pas de cloud.',
       },
     ],
     finePrint:
