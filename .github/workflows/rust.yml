@@ -48,12 +48,6 @@ jobs:
           fetch-depth: 0 # extract walks git history; the smoke step needs it
       - name: Install Rust toolchain (pinned by rust-toolchain.toml)
         run: rustup show && rustup component add rustfmt clippy
-      # The fixture-building tests shell out to `bash`, which on Windows runners
-      # resolves to the WSL launcher (no distro installed) before Git Bash.
-      # Prepend Git's bin so `Command::new("bash")` finds the real thing.
-      - name: Prefer Git Bash over WSL on Windows
-        if: runner.os == 'Windows'
-        run: echo "C:\Program Files\Git\bin" >> "$GITHUB_PATH"
       - uses: Swatinem/rust-cache@v2
         with:
           # A red run should still warm the cache for the fix-up run.
@@ -69,7 +63,15 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: cargo clippy -p argot --all-targets --features self-update -- -D warnings
       - name: Test (incl. Python-parity golden suites)
-        run: cargo test --workspace
+        # The fixture-building tests spawn `bash`; on Windows the bare name
+        # resolves to the WSL launcher (no distro) before Git Bash. Prepend Git
+        # Bash in this shell so the test binaries' `Command::new("bash")` inherit
+        # it. `RUNNER_OS` is set on every runner; the guard no-ops elsewhere.
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            export PATH="/c/Program Files/Git/bin:$PATH"
+          fi
+          cargo test --workspace
       # Dev profile: reuses the build from the test step (a release build here
       # costs ~3 min of pure recompilation; extract itself takes seconds).
       - name: Smoke (extract runs end-to-end)
