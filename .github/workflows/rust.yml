@@ -15,13 +15,11 @@ on:
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
       - '.github/workflows/rust.yml'
+  # No paths filter: the verify jobs are required status checks on main, and a
+  # PR that doesn't trigger the workflow reports no status at all — blocking
+  # the merge forever. (Skip-via-`if` doesn't work either: skipped matrix jobs
+  # report under the unexpanded job name.) Warm-cache runs are ~2.5 min.
   pull_request:
-    paths:
-      - 'crates/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
-      - '.github/workflows/rust.yml'
   workflow_dispatch:
 
 concurrency:
