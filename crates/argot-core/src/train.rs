@@ -4,7 +4,7 @@
 //! emits the pre-baked BPE generic baseline. There is no model training here;
 //! "train" is corpus collection + baseline copy.
 
-use crate::suppress::{PathScope, PathSuppressions};
+use crate::suppress::PathSuppressions;
 use anyhow::{bail, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -77,10 +77,12 @@ pub fn collect_source_files_with(
 
 /// True when the user's `.argotignore` mutes this path. Recommended-set
 /// exclusions deliberately do NOT count here (corpus behaviour without an
-/// `.argotignore` must stay byte-identical).
+/// `.argotignore` must stay byte-identical) — but a user pattern applies even
+/// where the recommended set overlaps it (e.g. `.history/`), so vendored /
+/// editor-state trees are pruned from the corpus the user explicitly muted.
 fn user_ignored(path: &Path, root: &Path, suppressions: &PathSuppressions) -> bool {
     match crate::suppress::rel_string(path, root) {
-        Some(rel) => suppressions.classify(&rel) == PathScope::UserIgnored,
+        Some(rel) => suppressions.matches_user_pattern(&rel),
         None => false,
     }
 }

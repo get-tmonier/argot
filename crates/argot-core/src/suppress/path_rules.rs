@@ -258,6 +258,22 @@ impl PathSuppressions {
         }
     }
 
+    /// True when a user `.argotignore` pattern mutes this path, regardless of
+    /// whether the recommended set also covers it (gitignore last-match-wins
+    /// over the user patterns only). Corpus collection uses this: a user who
+    /// mutes a directory the recommended set happens to cover must still see
+    /// it pruned from the voice-model corpus.
+    pub fn matches_user_pattern(&self, rel_path: &str) -> bool {
+        let parts: Vec<&str> = rel_path.split('/').collect();
+        let mut ignored = false;
+        for p in &self.patterns {
+            if p.matches(&parts) {
+                ignored = !p.negated;
+            }
+        }
+        ignored
+    }
+
     /// True when the path is suppressed by any surface.
     pub fn is_suppressed(&self, rel_path: &str) -> bool {
         self.classify(rel_path) != PathScope::InScope

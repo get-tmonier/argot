@@ -326,6 +326,18 @@ pub fn compute_verdict(corpus: &CorpusReport) -> (Verdict, Vec<Reason>) {
     }
 
     for (lang, stats) in &corpus.languages {
+        // A trace language (a handful of stray files in an otherwise
+        // single-language repo) doesn't get calibrated and shouldn't tank
+        // the verdict; the candidate-hunk signals apply only to languages
+        // that meaningfully compose the repo.
+        let share = if corpus.supported_files > 0 {
+            stats.files as f64 / corpus.supported_files as f64
+        } else {
+            0.0
+        };
+        if share < POLYGLOT_MINORITY_SHARE {
+            continue;
+        }
         if stats.candidate_hunks < MIN_CANDIDATE_HUNKS {
             reasons.push(Reason {
                 level: ReasonLevel::Red,
