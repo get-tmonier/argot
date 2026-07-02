@@ -28,6 +28,7 @@ const CS_FUNC: &str = "method_declaration";
 const PY_FUNC: &[&str] = &["function_definition"];
 const TS_FUNC: &[&str] = &["function_declaration"];
 const PHP_FUNC: &[&str] = &["function_definition", "method_declaration"];
+const CPP_FUNC: &str = "function_definition";
 const IF: &str = "if_statement";
 const RETURN: &str = "return_statement";
 
@@ -74,6 +75,7 @@ fn file_avg_guards(source: &str, language: Language) -> Option<f64> {
         Language::Java => JAVA_FUNC,
         Language::CSharp => CS_FUNC,
         Language::Php => PHP_FUNC,
+        Language::Cpp => CPP_FUNC,
     };
     let mut counts: Vec<f64> = Vec::new();
     let mut stack = vec![tree.root_node()];
@@ -109,6 +111,11 @@ fn score_hunk_avg(hunk: &str) -> Option<f64> {
     file_avg_guards(hunk, Language::Python)
         .or_else(|| file_avg_guards(hunk, Language::Typescript))
         .or_else(|| file_avg_guards(hunk, Language::Php))
+/// Try Python grammar then TypeScript then C++; first defined average wins.
+fn score_hunk_avg(hunk: &str) -> Option<f64> {
+    file_avg_guards(hunk, Language::Python)
+        .or_else(|| file_avg_guards(hunk, Language::Typescript))
+        .or_else(|| file_avg_guards(hunk, Language::Cpp))
 }
 
 /// Fall-through-guard count primitive.

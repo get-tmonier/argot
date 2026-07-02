@@ -22,6 +22,7 @@ use crate::scoring::adapters::c::CAdapter;
 use crate::scoring::adapters::java::JavaAdapter;
 use crate::scoring::adapters::csharp::CSharpAdapter;
 use crate::scoring::adapters::php::PhpAdapter;
+use crate::scoring::adapters::cpp::CppAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
@@ -200,6 +201,10 @@ const EXT_TO_LANG: &[(&str, &str)] = &[
     (".java", "java"),
     (".cs", "csharp"),
     (".php", "php"),
+    (".cpp", "cpp"),
+    (".cc", "cpp"),
+    (".hpp", "cpp"),
+    (".cxx", "cpp"),
 ];
 
 fn ext_to_lang(ext: &str) -> Option<&'static str> {
@@ -216,6 +221,7 @@ fn adapter_for_language(lang: &str) -> Option<Box<dyn LanguageAdapter>> {
         "java" => Some(Box::new(JavaAdapter::new())),
         "csharp" => Some(Box::new(CSharpAdapter::new())),
         "php" => Some(Box::new(PhpAdapter::new())),
+        "cpp" => Some(Box::new(CppAdapter::new())),
         _ => None,
     }
 }

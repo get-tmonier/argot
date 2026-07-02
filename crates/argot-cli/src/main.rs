@@ -30,6 +30,7 @@ use argot_core::scoring::adapters::c::CAdapter;
 use argot_core::scoring::adapters::java::JavaAdapter;
 use argot_core::scoring::adapters::csharp::CSharpAdapter;
 use argot_core::scoring::adapters::php::PhpAdapter;
+use argot_core::scoring::adapters::cpp::CppAdapter;
 use argot_core::scoring::adapters::python::PythonAdapter;
 use argot_core::scoring::adapters::rust::RustAdapter;
 use argot_core::scoring::adapters::typescript::TypeScriptAdapter;
@@ -1183,6 +1184,7 @@ fn run_list_mutes() -> ExitCode {
             Language::Java => Box::new(JavaAdapter::new()),
             Language::CSharp => Box::new(CSharpAdapter::new()),
             Language::Php => Box::new(PhpAdapter::new()),
+            Language::Cpp => Box::new(CppAdapter::new()),
         };
         // Cheap pre-filter before the full parse.
         if !source.contains("argot:") {
@@ -1297,6 +1299,9 @@ fn run_score_cmd(c: ScoreCmd) -> ExitCode {
         "php" => Language::Php,
         other => {
             eprintln!("error: --language must be python|typescript|php (got '{other}')");
+        "cpp" => Language::Cpp,
+        other => {
+            eprintln!("error: --language must be python|typescript|cpp (got '{other}')");
             return ExitCode::from(2);
         }
     };
@@ -1332,6 +1337,7 @@ fn run_score_cmd(c: ScoreCmd) -> ExitCode {
         Language::Java => Box::new(JavaAdapter::new()),
         Language::CSharp => Box::new(CSharpAdapter::new()),
         Language::Php => Box::new(PhpAdapter::new()),
+        Language::Cpp => Box::new(CppAdapter::new()),
     };
     // import_modules = union of extract_imports over the corpus (matches the
     // bench's ImportGraphScorer.fit). AUC is threshold-independent; the

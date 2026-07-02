@@ -21,6 +21,7 @@ pub fn language_for_path(path: &str) -> Option<Language> {
         ".java" => Some(Language::Java),
         ".cs" => Some(Language::Csharp),
         ".php" => Some(Language::Php),
+        ".cpp" | ".cc" | ".hpp" | ".cxx" => Some(Language::Cpp),
         _ => None,
     }
 }
@@ -54,6 +55,7 @@ fn ts_language(lang: Language) -> tree_sitter::Language {
         Language::Java => tree_sitter_java::LANGUAGE.into(),
         Language::Csharp => tree_sitter_c_sharp::LANGUAGE.into(),
         Language::Php => tree_sitter_php::LANGUAGE_PHP.into(),
+        Language::Cpp => tree_sitter_cpp::LANGUAGE.into(),
     }
 }
 
@@ -132,6 +134,9 @@ mod tests {
         assert_eq!(language_for_path("a.jsx"), Some(Language::Javascript));
         assert_eq!(language_for_path("a.go"), Some(Language::Go));
         assert_eq!(language_for_path("a.rs"), Some(Language::Rust));
+        assert_eq!(language_for_path("a.cpp"), Some(Language::Cpp));
+        assert_eq!(language_for_path("a.hpp"), Some(Language::Cpp));
+        assert_eq!(language_for_path("a.rs"), None);
     }
 
     #[test]

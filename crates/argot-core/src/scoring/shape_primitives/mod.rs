@@ -40,6 +40,7 @@ pub(crate) fn parse(source: &str, language: Language) -> Option<Tree> {
         Language::Java => tree_sitter_java::LANGUAGE.into(),
         Language::CSharp => tree_sitter_c_sharp::LANGUAGE.into(),
         Language::Php => tree_sitter_php::LANGUAGE_PHP.into(),
+        Language::Cpp => tree_sitter_cpp::LANGUAGE.into(),
     };
     parser.set_language(&lang).ok()?;
     parser.parse(source, None)
@@ -81,6 +82,7 @@ pub(crate) fn is_call_kind(kind: &str, language: Language) -> bool {
                 | "scoped_call_expression"
                 | "object_creation_expression"
         ),
+        Language::Cpp => kind == "call_expression",
     }
 }
 

@@ -18,6 +18,7 @@ const SOURCE_EXTENSIONS: &[&str] = &[".py", ".ts", ".tsx", ".c", ".h"];
 const SOURCE_EXTENSIONS: &[&str] = &[".py", ".ts", ".tsx", ".java"];
 const SOURCE_EXTENSIONS: &[&str] = &[".py", ".ts", ".tsx", ".cs"];
 const SOURCE_EXTENSIONS: &[&str] = &[".py", ".ts", ".tsx", ".php"];
+const SOURCE_EXTENSIONS: &[&str] = &[".py", ".ts", ".tsx", ".cpp", ".cc", ".hpp", ".cxx"];
 
 const EXCLUDE_DIRS: &[&str] = &[
     "node_modules",

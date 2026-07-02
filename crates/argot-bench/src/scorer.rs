@@ -13,6 +13,7 @@ use argot_core::scoring::adapters::c::CAdapter;
 use argot_core::scoring::adapters::java::JavaAdapter;
 use argot_core::scoring::adapters::csharp::CSharpAdapter;
 use argot_core::scoring::adapters::php::PhpAdapter;
+use argot_core::scoring::adapters::cpp::CppAdapter;
 use argot_core::scoring::adapters::python::PythonAdapter;
 use argot_core::scoring::adapters::rust::RustAdapter;
 use argot_core::scoring::adapters::typescript::TypeScriptAdapter;
@@ -136,6 +137,7 @@ pub fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
         Language::Java => Box::new(JavaAdapter::new()),
         Language::CSharp => Box::new(CSharpAdapter::new()),
         Language::Php => Box::new(PhpAdapter::new()),
+        Language::Cpp => Box::new(CppAdapter::new()),
     }
 }
 
@@ -149,6 +151,7 @@ pub fn parse_language(name: &str) -> Result<Language> {
         "java" => Ok(Language::Java),
         "csharp" => Ok(Language::CSharp),
         "php" => Ok(Language::Php),
+        "cpp" => Ok(Language::Cpp),
         other => bail!("unsupported language {other:?}"),
     }
 }
@@ -166,6 +169,7 @@ pub fn source_files(repo_dir: &Path, language: Language) -> Vec<PathBuf> {
         Language::Java => &[".java"],
         Language::CSharp => &[".cs"],
         Language::Php => &[".php"],
+        Language::Cpp => &[".cpp", ".cc", ".hpp", ".cxx"],
     };
     let mut out = Vec::new();
     for ext in exts {
@@ -330,6 +334,7 @@ pub fn collect_diff_candidates(
         Language::Java => l == "java",
         Language::CSharp => l == "csharp",
         Language::Php => l == "php",
+        Language::Cpp => l == "cpp",
     };
     let raw = match std::fs::read(dataset_path) {
         Ok(r) => r,

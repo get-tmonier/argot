@@ -14,6 +14,7 @@ use crate::scoring::adapters::c::CAdapter;
 use crate::scoring::adapters::java::JavaAdapter;
 use crate::scoring::adapters::csharp::CSharpAdapter;
 use crate::scoring::adapters::php::PhpAdapter;
+use crate::scoring::adapters::cpp::CppAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
@@ -200,6 +201,7 @@ pub fn collect_candidates_with(
         Language::Java => &[".java"],
         Language::CSharp => &[".cs"],
         Language::Php => &[".php"],
+        Language::Cpp => &[".cpp", ".cc", ".hpp", ".cxx"],
     };
     let mut out = Vec::new();
     for ext in exts {
@@ -484,6 +486,11 @@ fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
 }
 
 /// Canonical config-key name for a scoring language ("python"/"typescript"/"java").
+        Language::Cpp => Box::new(CppAdapter::new()),
+    }
+}
+
+/// Canonical config-key name for a scoring language ("python"/"typescript"/"cpp").
 /// Public so `inspect` reports under the same keys `scorer-config.json` uses.
         Language::CSharp => Box::new(CSharpAdapter::new()),
     }
@@ -509,6 +516,7 @@ pub fn language_name(language: Language) -> &'static str {
         Language::Java => "java",
         Language::CSharp => "csharp",
         Language::Php => "php",
+        Language::Cpp => "cpp",
     }
 }
 
@@ -529,6 +537,7 @@ pub fn language_for_filename(name: &str) -> Option<Language> {
         ".java" => Some(Language::Java),
         ".cs" => Some(Language::CSharp),
         ".php" => Some(Language::Php),
+        ".cpp" | ".cc" | ".hpp" | ".cxx" => Some(Language::Cpp),
         _ => None,
     }
 }
