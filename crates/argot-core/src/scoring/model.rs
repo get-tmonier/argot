@@ -44,11 +44,37 @@ pub struct CallReceiverModel {
     pub clusters: BTreeMap<String, ClusterModel>,
 }
 
+/// The convention-rarity model: corpus frequencies of AST node kinds and of
+/// abstract identifier shapes (character-class morphology only — camelCase /
+/// snake_case / PascalCase / SCREAMING / flat / other), plus the calibrated
+/// firing bars. A hunk whose rarest present convention clears a bar is
+/// phrased in a construct or naming style the corpus does not use — a voice
+/// signal that token surprise cannot see (the tokens themselves are common;
+/// their arrangement is not).
+///
+/// Bars are the max convention surprisal over the calibration sample, so the
+/// stage essentially never fires on in-voice code; per the calibration
+/// contract the stage is suppressed on the calibration side (asymmetric by
+/// construction — see docs/agents/calibration-contract.md).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ConventionModel {
+    pub node_kinds: BTreeMap<String, u64>,
+    pub total_nodes: u64,
+    pub ident_shapes: BTreeMap<String, u64>,
+    pub total_idents: u64,
+    pub syntax_bar: f64,
+    pub ident_bar: f64,
+}
+
 /// The complete per-language model block.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LanguageModel {
     pub bpe: BpeStats,
     pub call_receiver: CallReceiverModel,
+    /// Absent in artifacts fitted before the convention stage existed — the
+    /// stage is then simply off.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conventions: Option<ConventionModel>,
 }
 
 impl LanguageModel {
@@ -91,6 +117,14 @@ mod tests {
                 n_corpus_files: 2,
                 clusters,
             },
+            conventions: Some(ConventionModel {
+                node_kinds: BTreeMap::from([("call_expression".to_string(), 12u64)]),
+                total_nodes: 40,
+                ident_shapes: BTreeMap::from([("camel".to_string(), 30u64)]),
+                total_idents: 30,
+                syntax_bar: 9.5,
+                ident_bar: 1.5,
+            }),
         }
     }
 

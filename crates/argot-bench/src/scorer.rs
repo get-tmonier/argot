@@ -17,6 +17,7 @@ use argot_core::scoring::calibration::{
     ThresholdRunConfig,
 };
 use argot_core::scoring::call_receiver::{CallReceiverScorer, RarityWeighting};
+use argot_core::scoring::conventions::{fit_convention_frequencies, ConventionScorer};
 use argot_core::scoring::sequential::{SequentialConfig, SequentialImportBpeScorer};
 use argot_core::scoring::typicality::TypicalityModel;
 use argot_core::text::read_text_lossy;
@@ -54,8 +55,16 @@ pub struct BenchKnobs {
     /// Era-14 phase C: shape primitives enabled on the scoring path (empty =
     /// none). Asymmetric calibration: never applied to the cal side.
     pub shape_primitive_names: Vec<String>,
-    /// Era-14 phase D: parse-error host fallback on the scoring path.
+    /// Era-14 phase D: parse-error host fallback on the scoring path. On by
+    /// default since era 15 (production check runs with it on; git-shaped
+    /// fragments need it) — `--no-parse-error-fallback` restores the era-14
+    /// catalog baseline.
     pub parse_error_host_fallback: bool,
+    /// Era-15 convention-rarity stage (corpus-frequency model + calibrated
+    /// bars). On by default to match production; `--no-conventions` restores
+    /// the pre-era-15 catalog baseline.
+    pub enable_conventions: bool,
+    pub convention_bonus: f64,
 }
 
 /// Where calibration hunks come from.
@@ -92,7 +101,9 @@ impl Default for BenchKnobs {
             rarity_weighting: RarityWeighting::Off,
             calibration_source: CalibrationSource::Random,
             shape_primitive_names: Vec::new(),
-            parse_error_host_fallback: false,
+            parse_error_host_fallback: true,
+            enable_conventions: true,
+            convention_bonus: 5.0,
         }
     }
 }
@@ -442,6 +453,7 @@ pub fn build_scorer(
                 knobs.cap as f64,
                 Some(file_source),
                 None,
+                &Default::default(),
             );
             hunks_scored += 1;
         }
@@ -516,6 +528,36 @@ pub fn build_scorer(
     );
     let threshold = median(seed_thresholds.clone());
 
+    // --- Era-15 convention-rarity model: corpus frequencies + bars at the
+    // max feature value over the multi-seed calibration sample (mirror of
+    // run_calibrate; never feeds the threshold per the calibration contract).
+    let convention_model = if knobs.enable_conventions {
+        let mut model = fit_convention_frequencies(corpus, language);
+        let conv = ConventionScorer::new(model.clone(), language);
+        let mut syntax_bar = 0.0f64;
+        let mut ident_bar = 0.0f64;
+        for k in 0..knobs.threshold_n_seeds {
+            let seed = knobs.seed.wrapping_add(k as u64);
+            for &i in &sample_indices(candidates.len(), effective_n_cal, seed) {
+                let c = &candidates[i];
+                if typicality.is_atypical(&c.hunk).0 {
+                    continue;
+                }
+                let scores = conv.scores(
+                    &c.hunk,
+                    Some((&c.file_source, c.hunk_start_line, c.hunk_end_line)),
+                );
+                syntax_bar = syntax_bar.max(scores.syntax_surprisal);
+                ident_bar = ident_bar.max(scores.ident_surprisal);
+            }
+        }
+        model.syntax_bar = syntax_bar;
+        model.ident_bar = ident_bar;
+        Some(model)
+    } else {
+        None
+    };
+
     // --- Import-module snapshot: corpus imports + repo-owned module names.
     // The retired harness built its scorer with `repo_root=repo_dir`, which
     // folds package/tsconfig aliases into the known-module surface.
@@ -549,6 +591,8 @@ pub fn build_scorer(
             call_receiver_rarity_weighting: knobs.rarity_weighting,
             call_receiver_shape_primitive_names: knobs.shape_primitive_names.clone(),
             call_receiver_parse_error_host_fallback: knobs.parse_error_host_fallback,
+            conventions: convention_model,
+            convention_bonus: knobs.convention_bonus,
             import_modules,
             import_module_prefixes,
             evidence_corpus: None,

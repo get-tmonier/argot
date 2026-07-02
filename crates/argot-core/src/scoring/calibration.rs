@@ -14,6 +14,7 @@ use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::{Language, LanguageAdapter};
 use crate::scoring::bpe_scorer::BpeScorer;
 use crate::scoring::call_receiver::CallReceiverScorer;
+use crate::scoring::conventions::{fit_convention_frequencies, ConventionScorer};
 use crate::scoring::model::LanguageModel;
 use crate::scoring::typicality::TypicalityModel;
 use crate::suppress::PathSuppressions;
@@ -36,6 +37,19 @@ const CR_ROOT_BONUS: f64 = 2.0;
 const CR_N_CLUSTERS: usize = 8;
 const CR_CLUSTER_SEED: u64 = 0;
 const CR_CLUSTER_BONUS: f64 = 5.0;
+/// Real diff hunks routinely start or end mid-construct (git picks hunk
+/// boundaries, not the parser), so a bare-fragment parse error is the NORM
+/// for check-time hunks, not an edge case — without the host fallback the
+/// call-receiver contributes 0 on exactly the hunks check scores. The
+/// calibration side has always applied the fallback (candidates carry their
+/// file region), so enabling it at check time is what makes the two paths
+/// symmetric. Era-14 gated it off based on catalog-mode FP with a forced
+/// cluster-rare rule; in production the rare rule is auto-detected per
+/// corpus, and the era-15 production-path FP controls re-validated it.
+const CR_PARSE_ERROR_FALLBACK: bool = true;
+/// Score added when a hunk's rarest present convention clears its calibrated
+/// bar (era 15; same magnitude as the cluster bonus).
+const CONVENTION_BONUS: f64 = 5.0;
 
 fn basename(path: &Path) -> String {
     path.file_name()
@@ -219,6 +233,8 @@ struct LangConfig {
     call_receiver_cluster_bonus: f64,
     call_receiver_cluster_rare_threshold: usize,
     call_receiver_cluster_size_min: usize,
+    call_receiver_parse_error_host_fallback: bool,
+    convention_bonus: f64,
     import_modules: Vec<String>,
     import_module_prefixes: Vec<String>,
     calibration: CalibrationMeta,
@@ -324,6 +340,9 @@ pub fn multi_seed_thresholds(
             }
             let prose = adapter.prose_line_ranges(&c.hunk);
             let raw_bpe = bpe.bpe_score(&blank_prose_lines(&c.hunk, &prose));
+            // Cal side scores without local-binding attestation: candidates
+            // are corpus files whose callees are attested anyway, so the
+            // omission only leaves the threshold marginally conservative.
             let contrib = call_receiver.weighted_contribution_for_file(
                 &c.hunk,
                 Some(&c.file_path),
@@ -333,6 +352,7 @@ pub fn multi_seed_thresholds(
                 cfg.cap,
                 Some(&c.file_source),
                 Some((&c.file_source, c.hunk_start_line, c.hunk_end_line)),
+                &Default::default(),
             );
             cal_scores.push(raw_bpe + contrib);
         }
@@ -524,6 +544,7 @@ pub fn run_calibrate(
                     CR_CAP as f64,
                     Some(&c.file_source),
                     Some((&c.file_source, c.hunk_start_line, c.hunk_end_line)),
+                    &Default::default(),
                 );
                 hunks_scored += 1;
             }
@@ -570,12 +591,41 @@ pub fn run_calibrate(
             opts.evidence_top_n,
         );
 
+        // Convention-rarity model: corpus frequencies plus firing bars set at
+        // the max feature value over the same multi-seed calibration sample
+        // the threshold uses — the stage stays silent on in-voice code, and
+        // per the calibration contract it never feeds the threshold itself.
+        let mut convention_model = fit_convention_frequencies(corpus, language);
+        {
+            let conv = ConventionScorer::new(convention_model.clone(), language);
+            let mut syntax_bar = 0.0f64;
+            let mut ident_bar = 0.0f64;
+            for k in 0..opts.n_seeds {
+                let seed = opts.seed.wrapping_add(k as u64);
+                for &i in &sample_indices(candidates.len(), effective_n_cal, seed) {
+                    let c = &candidates[i];
+                    if typicality.is_atypical(&c.hunk).0 {
+                        continue;
+                    }
+                    let scores = conv.scores(
+                        &c.hunk,
+                        Some((&c.file_source, c.hunk_start_line, c.hunk_end_line)),
+                    );
+                    syntax_bar = syntax_bar.max(scores.syntax_surprisal);
+                    ident_bar = ident_bar.max(scores.ident_surprisal);
+                }
+            }
+            convention_model.syntax_bar = syntax_bar;
+            convention_model.ident_bar = ident_bar;
+        }
+
         // Fit-time model snapshot: the calibration call-receiver's fitted
         // state is threshold-parameter-independent (rare/alpha are scoring
         // knobs, not fitted state), so exporting from it is exact.
         let model = LanguageModel {
             bpe: bpe.stats(),
             call_receiver: call_receiver.export_model(repo_dir),
+            conventions: Some(convention_model),
         };
         let model_hash = model.hash();
 
@@ -592,6 +642,8 @@ pub fn run_calibrate(
                 call_receiver_cluster_bonus: CR_CLUSTER_BONUS,
                 call_receiver_cluster_rare_threshold: resolved_rare,
                 call_receiver_cluster_size_min: opts.cluster_size_min,
+                call_receiver_parse_error_host_fallback: CR_PARSE_ERROR_FALLBACK,
+                convention_bonus: CONVENTION_BONUS,
                 import_modules,
                 import_module_prefixes,
                 calibration: CalibrationMeta {

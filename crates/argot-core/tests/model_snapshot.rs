@@ -128,6 +128,8 @@ fn new_code_cannot_attest_its_own_callees() {
         call_receiver_rarity_weighting: argot_core::scoring::call_receiver::RarityWeighting::Off,
         call_receiver_shape_primitive_names: Vec::new(),
         call_receiver_parse_error_host_fallback: false,
+        conventions: None,
+        convention_bonus: 0.0,
         import_modules: Vec::new(),
         import_module_prefixes: Vec::new(),
         evidence_corpus: None,

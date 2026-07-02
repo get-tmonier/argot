@@ -514,6 +514,152 @@ impl TypeScriptAdapter {
         }
     }
 
+    /// Names the source binds to callable definitions — function/class
+    /// declarations and variables bound to function values. Ambient
+    /// (`declare …`) statements are skipped: they bind nothing locally.
+    /// Feeds local-binding attestation: code calling what it defines is not
+    /// foreign voice.
+    pub fn callable_definitions(&self, source: &str) -> HashSet<String> {
+        let tree = parse(source);
+        let mut out = HashSet::new();
+        let mut stack = vec![tree.root_node()];
+        while let Some(node) = stack.pop() {
+            if node.kind() == "ambient_declaration" {
+                continue;
+            }
+            match node.kind() {
+                "function_declaration" | "generator_function_declaration" | "class_declaration" => {
+                    if let Some(name) = node.child_by_field_name("name") {
+                        out.insert(node_text(name, source).to_string());
+                    }
+                }
+                "variable_declarator" => {
+                    if let (Some(name), Some(rhs)) =
+                        (node.child_by_field_name("name"), get_ts_rhs(node))
+                    {
+                        if TS_FUNCTION_VALUE_TYPES.contains(&rhs.kind())
+                            && name.kind() == "identifier"
+                        {
+                            out.insert(node_text(name, source).to_string());
+                        }
+                    }
+                }
+                _ => {}
+            }
+            for i in (0..node.child_count()).rev() {
+                if let Some(c) = node.child(i) {
+                    stack.push(c);
+                }
+            }
+        }
+        out
+    }
+
+    /// Every locally bound value name — variable declarators (including
+    /// destructuring patterns) and function parameters. Type annotations are
+    /// skipped: their identifiers are types, not bindings.
+    pub fn value_bindings(&self, source: &str) -> HashSet<String> {
+        let tree = parse(source);
+        let mut out = HashSet::new();
+        let mut stack = vec![tree.root_node()];
+        while let Some(node) = stack.pop() {
+            let binding_root = matches!(
+                node.kind(),
+                "variable_declarator" | "formal_parameters" | "catch_clause"
+            );
+            if binding_root {
+                let mut inner = vec![node];
+                while let Some(n) = inner.pop() {
+                    match n.kind() {
+                        "type_annotation" | "type_arguments" | "type_parameters" => continue,
+                        "identifier" | "shorthand_property_identifier_pattern" => {
+                            out.insert(node_text(n, source).to_string());
+                        }
+                        // A declarator's value is an expression, not a binding.
+                        _ if n.kind() == "variable_declarator" && n.id() != node.id() => {}
+                        _ => {}
+                    }
+                    for i in (0..n.child_count()).rev() {
+                        if let Some(c) = n.child(i) {
+                            if n.kind() == "variable_declarator"
+                                && n.child_by_field_name("value").map(|v| v.id()) == Some(c.id())
+                            {
+                                continue;
+                            }
+                            inner.push(c);
+                        }
+                    }
+                }
+                continue;
+            }
+            for i in (0..node.child_count()).rev() {
+                if let Some(c) = node.child(i) {
+                    stack.push(c);
+                }
+            }
+        }
+        out
+    }
+
+    /// Names bound by imports from repo-internal (relative) specifiers —
+    /// default imports, named imports (aliases win), and namespace imports.
+    /// A callee the file imports from its own package neighbourhood is not
+    /// foreign voice.
+    pub fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
+        let tree = parse(source);
+        let root = tree.root_node();
+        let mut out = HashSet::new();
+        for node in descendants(root) {
+            if node.kind() != "import_statement" {
+                continue;
+            }
+            let Some(src) = node.child_by_field_name("source") else {
+                continue;
+            };
+            if src.kind() != "string" {
+                continue;
+            }
+            let spec = strip_quotes(node_text(src, source));
+            if !is_relative(spec) {
+                continue;
+            }
+            for clause in children(node) {
+                if clause.kind() != "import_clause" {
+                    continue;
+                }
+                for item in descendants(clause) {
+                    match item.kind() {
+                        // Default import: `import X from './x'`.
+                        "identifier"
+                            if item.parent().map(|p| p.kind()) == Some("import_clause") =>
+                        {
+                            out.insert(node_text(item, source).to_string());
+                        }
+                        // Named import: alias if present, else the name.
+                        "import_specifier" => {
+                            let bound = item
+                                .child_by_field_name("alias")
+                                .or_else(|| item.child_by_field_name("name"));
+                            if let Some(b) = bound {
+                                out.insert(node_text(b, source).to_string());
+                            }
+                        }
+                        // Namespace import: `import * as x from './x'`.
+                        "namespace_import" => {
+                            for c in children(item) {
+                                if c.kind() == "identifier" {
+                                    out.insert(node_text(c, source).to_string());
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        out
+    }
+
     /// Non-relative module specifiers imported in `source` (import + require).
     pub fn extract_imports(&self, source: &str) -> HashSet<String> {
         let tree = parse(source);
@@ -814,6 +960,15 @@ impl LanguageAdapter for TypeScriptAdapter {
     }
     fn data_literal_lines(&self, source: &str) -> HashSet<usize> {
         TypeScriptAdapter::data_literal_lines(self, source)
+    }
+    fn callable_definitions(&self, source: &str) -> HashSet<String> {
+        TypeScriptAdapter::callable_definitions(self, source)
+    }
+    fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
+        TypeScriptAdapter::internal_import_bindings(self, source)
+    }
+    fn value_bindings(&self, source: &str) -> HashSet<String> {
+        TypeScriptAdapter::value_bindings(self, source)
     }
     fn is_auto_generated(&self, source: &str) -> bool {
         TypeScriptAdapter::is_auto_generated(self, source)

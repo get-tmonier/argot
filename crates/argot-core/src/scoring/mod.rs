@@ -9,6 +9,7 @@ pub mod adapters;
 pub mod bpe_scorer;
 pub mod calibration;
 pub mod call_receiver;
+pub mod conventions;
 pub mod evidence;
 pub mod filters;
 pub mod import_graph;

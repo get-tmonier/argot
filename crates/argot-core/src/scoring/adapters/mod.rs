@@ -32,6 +32,16 @@ pub trait LanguageAdapter {
     /// row-granular view behind `is_data_dominant`, used to skip data-row
     /// hunks while still judging code rows in the same file.
     fn data_literal_lines(&self, source: &str) -> HashSet<usize>;
+    /// Names the source binds to callable definitions (functions, classes,
+    /// function-valued variables). Local-binding attestation: code calling
+    /// what it defines is not foreign voice.
+    fn callable_definitions(&self, source: &str) -> HashSet<String>;
+    /// Names bound by imports from repo-internal (relative) specifiers.
+    fn internal_import_bindings(&self, source: &str) -> HashSet<String>;
+    /// Every other locally bound value name (destructured names, plain
+    /// consts/vars, parameters). Attests bare calls only — calling a value
+    /// you just bound is neighbourhood behaviour, not foreign voice.
+    fn value_bindings(&self, source: &str) -> HashSet<String>;
     fn is_auto_generated(&self, source: &str) -> bool;
     fn enumerate_sampleable_ranges(&self, source: &str) -> Vec<(usize, usize)>;
     fn prose_line_ranges(&self, source: &str) -> HashSet<usize>;
@@ -61,6 +71,15 @@ impl LanguageAdapter for python::PythonAdapter {
     }
     fn data_literal_lines(&self, source: &str) -> HashSet<usize> {
         python::PythonAdapter::data_literal_lines(self, source)
+    }
+    fn callable_definitions(&self, source: &str) -> HashSet<String> {
+        python::PythonAdapter::callable_definitions(self, source)
+    }
+    fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
+        python::PythonAdapter::internal_import_bindings(self, source)
+    }
+    fn value_bindings(&self, source: &str) -> HashSet<String> {
+        python::PythonAdapter::value_bindings(self, source)
     }
     fn is_auto_generated(&self, source: &str) -> bool {
         python::PythonAdapter::is_auto_generated(self, source)

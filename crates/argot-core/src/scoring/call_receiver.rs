@@ -374,6 +374,32 @@ fn cluster_by_signatures(
     (file_to_cluster, cluster_sizes)
 }
 
+/// Names the change binds locally, split by how they attest callees.
+///
+/// * `callables` — function/class definitions, function-valued variables,
+///   import bindings, changeset-wide definitions. Attest bare callees AND
+///   dotted callees via their root (`helpers.run()` with `helpers` imported).
+/// * `values` — every other local value binding (destructured names, plain
+///   consts/vars, parameters). Attest BARE callees only: calling a value you
+///   just bound (a `useState` setter, an injected callback) is neighbourhood
+///   behaviour, but a dotted method on it (`xhr.open`) still carries voice.
+#[derive(Debug, Clone, Default)]
+pub struct LocalBindings {
+    pub callables: HashSet<String>,
+    pub values: HashSet<String>,
+}
+
+impl LocalBindings {
+    /// Whether `callee` is attested by these bindings.
+    fn attests(&self, callee: &str) -> bool {
+        let root = callee.split_once('.').map(|(h, _)| h).unwrap_or(callee);
+        if self.callables.contains(callee) || self.callables.contains(root) {
+            return true;
+        }
+        !callee.contains('.') && self.values.contains(callee)
+    }
+}
+
 /// Which rule a distinct hunk callee triggered in
 /// [`CallReceiverScorer::weighted_contribution_for_file`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -452,6 +478,12 @@ pub struct CallReceiverScorer {
     cluster_size_min: usize,
     attested: HashSet<String>,
     attested_roots: HashSet<String>,
+    /// Last segments of dotted attested callees — the corpus's known method
+    /// vocabulary. A dotted callee is keyed by its receiver's variable name,
+    /// so a fresh receiver makes `widgetTitles.join` look unattested even
+    /// though the corpus calls `.join` constantly; the method segment is
+    /// what carries voice, so corpus-known methods do not alpha-fire.
+    attested_methods: HashSet<String>,
     pub n_skipped_data_dominant: usize,
     file_to_cluster: HashMap<PathBuf, usize>,
     cluster_attested: HashMap<usize, HashSet<String>>,
@@ -526,6 +558,10 @@ impl CallReceiverScorer {
             .iter()
             .map(|c| c.split_once('.').map(|(h, _)| h).unwrap_or(c).to_string())
             .collect();
+        let attested_methods: HashSet<String> = attested
+            .iter()
+            .filter_map(|c| c.rsplit_once('.').map(|(_, m)| m.to_string()))
+            .collect();
 
         let mut file_to_cluster = HashMap::new();
         let mut cluster_attested: HashMap<usize, HashSet<String>> = HashMap::new();
@@ -563,6 +599,7 @@ impl CallReceiverScorer {
             cluster_size_min,
             attested,
             attested_roots,
+            attested_methods,
             n_skipped_data_dominant: skipped,
             file_to_cluster,
             cluster_attested,
@@ -640,6 +677,10 @@ impl CallReceiverScorer {
             .iter()
             .map(|c| c.split_once('.').map(|(h, _)| h).unwrap_or(c).to_string())
             .collect();
+        let attested_methods: HashSet<String> = attested
+            .iter()
+            .filter_map(|c| c.rsplit_once('.').map(|(_, m)| m.to_string()))
+            .collect();
         let mut file_to_cluster = HashMap::new();
         let mut cluster_attested: HashMap<usize, HashSet<String>> = HashMap::new();
         let mut cluster_callee_counts: HashMap<usize, HashMap<String, usize>> = HashMap::new();
@@ -670,6 +711,7 @@ impl CallReceiverScorer {
             cluster_size_min,
             attested,
             attested_roots,
+            attested_methods,
             n_skipped_data_dominant: 0,
             file_to_cluster,
             cluster_attested,
@@ -747,6 +789,15 @@ impl CallReceiverScorer {
         callee.split_once('.').map(|(h, _)| h).unwrap_or(callee)
     }
 
+    /// Dotted callee whose method segment is corpus-known — the receiver
+    /// variable is fresh but the invoked method is in-voice.
+    fn method_attested(&self, callee: &str) -> bool {
+        callee
+            .rsplit_once('.')
+            .map(|(_, m)| self.attested_methods.contains(m))
+            .unwrap_or(false)
+    }
+
     fn distinct_unattested_impl(&self, hunk: &str) -> Vec<String> {
         if has_root_error(hunk, self.language) {
             return Vec::new();
@@ -764,6 +815,19 @@ impl CallReceiverScorer {
 
     pub fn distinct_unattested(&self, hunk: &str) -> Vec<String> {
         self.distinct_unattested_impl(hunk)
+    }
+
+    /// [`Self::distinct_unattested`] minus local bindings — the evidence view
+    /// matching what the contribution actually counted.
+    pub fn distinct_unattested_excluding(
+        &self,
+        hunk: &str,
+        local_bindings: &HashSet<String>,
+    ) -> Vec<String> {
+        self.distinct_unattested_impl(hunk)
+            .into_iter()
+            .filter(|c| !local_bindings.contains(c) && !local_bindings.contains(Self::root(c)))
+            .collect()
     }
 
     pub fn count_unattested(&self, hunk: &str) -> usize {
@@ -785,6 +849,7 @@ impl CallReceiverScorer {
         root_bonus: f64,
         cap: f64,
         host_context: Option<(&str, usize, usize)>,
+        local_bindings: &LocalBindings,
     ) -> f64 {
         let callees: Vec<String> = if has_root_error(hunk, self.language) {
             match host_context {
@@ -803,7 +868,10 @@ impl CallReceiverScorer {
                 continue;
             }
             seen.insert(c.clone());
-            if self.attested.contains(&c) {
+            if local_bindings.attests(&c) {
+                continue;
+            }
+            if self.attested.contains(&c) || self.method_attested(&c) {
                 continue;
             }
             if self.attested_roots.contains(Self::root(&c)) {
@@ -830,8 +898,9 @@ impl CallReceiverScorer {
         &self,
         hunk: &str,
         file_path: Option<&Path>,
-        file_source: Option<&str>,
+        _file_source: Option<&str>,
         host_context: Option<(&str, usize, usize)>,
+        local_bindings: &LocalBindings,
     ) -> Vec<ContributionEvent> {
         let callees: Vec<String> = if has_root_error(hunk, self.language) {
             match host_context {
@@ -846,15 +915,15 @@ impl CallReceiverScorer {
         if callees.is_empty() {
             return Vec::new();
         }
-        let mut cluster_id: Option<usize> =
+        // Cluster-conditional branches apply only to files whose cluster
+        // membership was FITTED (path lookup). Jaccard-guessing a cluster for
+        // an unknown file hands its own staples cluster-absent bonuses when
+        // the guess lands wrong (a React file routed into an Effect-heavy
+        // cluster) — measured as the dominant FP driver on new-feature
+        // commits. Unknown files still get the global unattested branches;
+        // `nearest_cluster_for_source` remains for evidence display.
+        let cluster_id: Option<usize> =
             file_path.and_then(|p| self.file_to_cluster.get(p).copied());
-        if cluster_id.is_none() {
-            if let Some(src) = file_source {
-                if !self.cluster_attested.is_empty() {
-                    cluster_id = self.nearest_cluster_for_source(src).map(|(c, _)| c);
-                }
-            }
-        }
         let cluster_set = cluster_id.and_then(|c| self.cluster_attested.get(&c));
         let cluster_counts = cluster_id.and_then(|c| self.cluster_callee_counts.get(&c));
 
@@ -865,15 +934,24 @@ impl CallReceiverScorer {
                 continue;
             }
             seen.insert(c.clone());
-            let branch = if !self.attested.contains(&c) {
+            // Local-binding attestation: a callee the change itself defines,
+            // imports from a repo-internal path, or binds as a local value is
+            // new code naming its own neighbourhood, not foreign voice.
+            if local_bindings.attests(&c) {
+                continue;
+            }
+            let branch = if !self.attested.contains(&c) && !self.method_attested(&c) {
                 if self.attested_roots.contains(Self::root(&c)) {
                     Some(ContributionBranch::UnattestedKnownRoot)
                 } else {
                     Some(ContributionBranch::Unattested)
                 }
-            } else if cluster_set.map(|s| !s.contains(&c)).unwrap_or(false) {
+            } else if self.attested.contains(&c)
+                && cluster_set.map(|s| !s.contains(&c)).unwrap_or(false)
+            {
                 Some(ContributionBranch::ClusterAbsent)
-            } else if self.cluster_rare_threshold > 0
+            } else if self.attested.contains(&c)
+                && self.cluster_rare_threshold > 0
                 && cluster_id.is_some()
                 && cluster_counts.is_some()
                 && cluster_counts.unwrap().get(&c).copied().unwrap_or(0)
@@ -910,9 +988,26 @@ impl CallReceiverScorer {
         cap: f64,
         file_source: Option<&str>,
         host_context: Option<(&str, usize, usize)>,
+        local_bindings: &LocalBindings,
     ) -> f64 {
         self.hunks_scored += 1;
-        let events = self.contribution_events_for_file(hunk, file_path, file_source, host_context);
+        let events = self.contribution_events_for_file(
+            hunk,
+            file_path,
+            file_source,
+            host_context,
+            local_bindings,
+        );
+        if std::env::var_os("ARGOT_DEBUG_EVENTS").is_some() && !events.is_empty() {
+            eprintln!(
+                "[events] file={:?} {:?}",
+                file_path,
+                events
+                    .iter()
+                    .map(|e| format!("{}:{:?}", e.callee, e.branch))
+                    .collect::<Vec<_>>()
+            );
+        }
         let mut weights = 0.0;
         let mut hunk_fired_rare = false;
         for ev in &events {
@@ -1087,6 +1182,7 @@ mod tests {
                 5.0,
                 None,
                 None,
+                &Default::default(),
             );
             let b = gated.weighted_contribution_for_file(
                 hunk,
@@ -1097,6 +1193,7 @@ mod tests {
                 5.0,
                 None,
                 None,
+                &Default::default(),
             );
             assert_eq!(a, b, "hunk {hunk:?}");
         }
@@ -1119,6 +1216,7 @@ mod tests {
             10.0,
             None,
             None,
+            &Default::default(),
         );
         let b = lin.weighted_contribution_for_file(
             hunk,
@@ -1129,6 +1227,7 @@ mod tests {
             10.0,
             None,
             None,
+            &Default::default(),
         );
         if a > 0.0 {
             // Cluster branch fired: weighting must shrink it by df/N.
@@ -1156,7 +1255,13 @@ mod tests {
         let cr = toy_scorer(RarityWeighting::Off);
         // Without host context: parse error blocks everything (era-13.5).
         assert!(cr
-            .contribution_events_for_file(hunk, Some(Path::new("a0.py")), None, None)
+            .contribution_events_for_file(
+                hunk,
+                Some(Path::new("a0.py")),
+                None,
+                None,
+                &Default::default()
+            )
             .is_empty());
         // With host context: both (unattested) callees produce events.
         let events = cr.contribution_events_for_file(
@@ -1164,6 +1269,7 @@ mod tests {
             Some(Path::new("a0.py")),
             None,
             Some((host, 4, 5)),
+            &Default::default(),
         );
         assert_eq!(events.len(), 2);
         assert!(events
@@ -1189,10 +1295,20 @@ mod tests {
             "unknown_callee()\nbaz()\n",
             "foo()\nbar()\nbaz()\nqux()\n",
         ] {
-            let a =
-                original.contribution_events_for_file(hunk, Some(Path::new("a0.py")), None, None);
-            let b =
-                restored.contribution_events_for_file(hunk, Some(Path::new("a0.py")), None, None);
+            let a = original.contribution_events_for_file(
+                hunk,
+                Some(Path::new("a0.py")),
+                None,
+                None,
+                &Default::default(),
+            );
+            let b = restored.contribution_events_for_file(
+                hunk,
+                Some(Path::new("a0.py")),
+                None,
+                None,
+                &Default::default(),
+            );
             assert_eq!(a.len(), b.len(), "path-routed event count for {hunk:?}");
             for (x, y) in a.iter().zip(b.iter()) {
                 assert_eq!(x.callee, y.callee);
@@ -1203,12 +1319,14 @@ mod tests {
                 Some(Path::new("never_seen.py")),
                 Some(unknown_file_source),
                 None,
+                &Default::default(),
             );
             let b = restored.contribution_events_for_file(
                 hunk,
                 Some(Path::new("never_seen.py")),
                 Some(unknown_file_source),
                 None,
+                &Default::default(),
             );
             assert_eq!(a.len(), b.len(), "source-routed event count for {hunk:?}");
             for (x, y) in a.iter().zip(b.iter()) {
@@ -1232,12 +1350,19 @@ mod tests {
         let hunk = "foo()\nbar()\n";
         // Deliberately contradictory host region (would yield zero callees).
         let host = "x = 1\ny = 2\n";
-        let without = cr.contribution_events_for_file(hunk, Some(Path::new("a0.py")), None, None);
+        let without = cr.contribution_events_for_file(
+            hunk,
+            Some(Path::new("a0.py")),
+            None,
+            None,
+            &Default::default(),
+        );
         let with_host = cr.contribution_events_for_file(
             hunk,
             Some(Path::new("a0.py")),
             None,
             Some((host, 1, 2)),
+            &Default::default(),
         );
         assert_eq!(without.len(), with_host.len());
         for (a, b) in without.iter().zip(with_host.iter()) {

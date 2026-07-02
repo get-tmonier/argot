@@ -63,6 +63,8 @@ fn score_hunk_matches_python_golden_no_cr() {
         call_receiver_rarity_weighting: argot_core::scoring::call_receiver::RarityWeighting::Off,
         call_receiver_shape_primitive_names: Vec::new(),
         call_receiver_parse_error_host_fallback: false,
+        conventions: None,
+        convention_bonus: 0.0,
         import_modules: golden.import_modules.clone(),
         import_module_prefixes: vec![],
         evidence_corpus: None,

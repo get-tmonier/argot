@@ -376,7 +376,17 @@ fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
             call_receiver_cluster_size_min: get_usize("call_receiver_cluster_size_min", 0),
             call_receiver_rarity_weighting: crate::scoring::call_receiver::RarityWeighting::Off,
             call_receiver_shape_primitive_names: Vec::new(),
-            call_receiver_parse_error_host_fallback: false,
+            // Real diff hunks routinely start/end mid-construct, so the host
+            // fallback is what lets the call-receiver see check-time hunks at
+            // all; the calibration side always applied it (symmetry).
+            call_receiver_parse_error_host_fallback: lc
+                .get("call_receiver_parse_error_host_fallback")
+                .and_then(Value::as_bool)
+                .unwrap_or(true),
+            // from_model reads the fitted convention model (with calibrated
+            // bars) from the artifact itself.
+            conventions: None,
+            convention_bonus: get_f64("convention_bonus", 5.0),
             import_modules: get_strings("import_modules"),
             import_module_prefixes: get_strings("import_module_prefixes"),
             // Parse the optional `evidence_corpus` block. Unlike the Python
@@ -1166,6 +1176,31 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
             passes_filters(&b.file_path, &args.only, &args.exclude).then_some(b)
         })
         .collect();
+
+    // Changeset-wide local bindings: names any file in this change defines.
+    // A change that calls what it also defines (a new feature naming its own
+    // components) is new code, not foreign voice; only callees neither the
+    // corpus nor the changeset knows keep contributing.
+    let mut changeset_bindings: HashMap<&'static str, HashSet<String>> = HashMap::new();
+    for b in &filtered {
+        let ext = extension(&b.file_path);
+        let Some(lang) = ext_to_lang(&ext) else {
+            continue;
+        };
+        let Some(adapter) = filter_adapters.get(lang) else {
+            continue;
+        };
+        let source = String::from_utf8_lossy(&b.content);
+        changeset_bindings
+            .entry(lang)
+            .or_default()
+            .extend(adapter.callable_definitions(&source));
+    }
+    for (lang, bindings) in changeset_bindings {
+        if let Some(scorer) = scorers.get_mut(lang) {
+            scorer.set_changeset_bindings(bindings);
+        }
+    }
 
     let (hits, hunk_count) = score_patches(
         filtered,
