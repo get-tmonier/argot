@@ -25,15 +25,15 @@ use argot_core::inspect::{
     format_shares, inspect_model, inspect_repo, InspectReport, ModelReport, ReasonLevel, Verdict,
 };
 use argot_core::output::OutputFormat;
-use argot_core::scoring::adapters::go::GoAdapter;
 use argot_core::scoring::adapters::c::CAdapter;
-use argot_core::scoring::adapters::java::JavaAdapter;
-use argot_core::scoring::adapters::csharp::CSharpAdapter;
-use argot_core::scoring::adapters::php::PhpAdapter;
 use argot_core::scoring::adapters::cpp::CppAdapter;
+use argot_core::scoring::adapters::csharp::CSharpAdapter;
+use argot_core::scoring::adapters::go::GoAdapter;
+use argot_core::scoring::adapters::java::JavaAdapter;
+use argot_core::scoring::adapters::php::PhpAdapter;
 use argot_core::scoring::adapters::python::PythonAdapter;
-use argot_core::scoring::adapters::rust::RustAdapter;
 use argot_core::scoring::adapters::ruby::RubyAdapter;
+use argot_core::scoring::adapters::rust::RustAdapter;
 use argot_core::scoring::adapters::typescript::TypeScriptAdapter;
 use argot_core::scoring::adapters::{Language, LanguageAdapter};
 use argot_core::scoring::calibration::{run_calibrate, CalibrateOptions};
@@ -1287,26 +1287,16 @@ fn run_score_cmd(c: ScoreCmd) -> ExitCode {
         "typescript" => Language::Typescript,
         "go" => Language::Go,
         "rust" => Language::Rust,
-        other => {
-            eprintln!("error: --language must be python|typescript|go|rust (got '{other}')");
         "c" => Language::C,
-        other => {
-            eprintln!("error: --language must be python|typescript|c (got '{other}')");
         "java" => Language::Java,
-        other => {
-            eprintln!("error: --language must be python|typescript|java (got '{other}')");
         "csharp" => Language::CSharp,
-        other => {
-            eprintln!("error: --language must be python|typescript|csharp (got '{other}')");
         "php" => Language::Php,
-        other => {
-            eprintln!("error: --language must be python|typescript|php (got '{other}')");
         "cpp" => Language::Cpp,
-        other => {
-            eprintln!("error: --language must be python|typescript|cpp (got '{other}')");
         "ruby" => Language::Ruby,
         other => {
-            eprintln!("error: --language must be python|typescript|ruby (got '{other}')");
+            eprintln!(
+                "error: --language must be python|typescript|go|rust|c|java|csharp|php|cpp|ruby (got '{other}')"
+            );
             return ExitCode::from(2);
         }
     };

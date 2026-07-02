@@ -25,15 +25,10 @@ pub fn open_repo(path: &str) -> std::result::Result<Repository, git2::Error> {
 }
 
 /// Extensions the extractor considers, matching `SUPPORTED_EXTENSIONS`.
-pub const SUPPORTED_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".rs"];
-pub const SUPPORTED_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".js", ".jsx", ".py", ".c", ".h"];
-pub const SUPPORTED_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".js", ".jsx", ".py", ".java"];
-pub const SUPPORTED_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".js", ".jsx", ".py", ".cs"];
-pub const SUPPORTED_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".js", ".jsx", ".py", ".php"];
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
-    ".ts", ".tsx", ".js", ".jsx", ".py", ".cpp", ".cc", ".hpp", ".cxx",
+    ".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".rs", ".c", ".h", ".java", ".cs", ".php", ".cpp",
+    ".cc", ".hpp", ".cxx", ".rb",
 ];
-pub const SUPPORTED_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".js", ".jsx", ".py", ".rb"];
 
 /// A hunk's post-image span, as reported by the diff (1-indexed start).
 #[derive(Debug, Clone, Copy)]

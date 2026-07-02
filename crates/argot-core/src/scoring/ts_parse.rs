@@ -51,6 +51,12 @@ pub fn parse(source: &str, language: Language) -> Option<Tree> {
         Language::Typescript => TS_PARSER.with(|p| p.borrow_mut().parse(source, None)),
         Language::Go => GO_PARSER.with(|p| p.borrow_mut().parse(source, None)),
         Language::Rust => RUST_PARSER.with(|p| p.borrow_mut().parse(source, None)),
+        Language::C => C_PARSER.with(|p| p.borrow_mut().parse(source, None)),
+        Language::Java => JAVA_PARSER.with(|p| p.borrow_mut().parse(source, None)),
+        Language::CSharp => CS_PARSER.with(|p| p.borrow_mut().parse(source, None)),
+        Language::Php => PHP_PARSER.with(|p| p.borrow_mut().parse(source, None)),
+        Language::Cpp => CPP_PARSER.with(|p| p.borrow_mut().parse(source, None)),
+        Language::Ruby => RB_PARSER.with(|p| p.borrow_mut().parse(source, None)),
     }
 }
 
@@ -123,11 +129,5 @@ mod tests {
         assert_eq!(ts.root_node().kind(), "program");
         assert!(!py.root_node().has_error());
         assert!(!ts.root_node().has_error());
-        Language::C => C_PARSER.with(|p| p.borrow_mut().parse(source, None)),
-        Language::Java => JAVA_PARSER.with(|p| p.borrow_mut().parse(source, None)),
-        Language::CSharp => CS_PARSER.with(|p| p.borrow_mut().parse(source, None)),
-        Language::Php => PHP_PARSER.with(|p| p.borrow_mut().parse(source, None)),
-        Language::Cpp => CPP_PARSER.with(|p| p.borrow_mut().parse(source, None)),
-        Language::Ruby => RB_PARSER.with(|p| p.borrow_mut().parse(source, None)),
     }
 }

@@ -8,15 +8,15 @@
 //! scorer with the full parameter set.
 
 use anyhow::{bail, Context, Result};
-use argot_core::scoring::adapters::go::GoAdapter;
 use argot_core::scoring::adapters::c::CAdapter;
-use argot_core::scoring::adapters::java::JavaAdapter;
-use argot_core::scoring::adapters::csharp::CSharpAdapter;
-use argot_core::scoring::adapters::php::PhpAdapter;
 use argot_core::scoring::adapters::cpp::CppAdapter;
+use argot_core::scoring::adapters::csharp::CSharpAdapter;
+use argot_core::scoring::adapters::go::GoAdapter;
+use argot_core::scoring::adapters::java::JavaAdapter;
+use argot_core::scoring::adapters::php::PhpAdapter;
 use argot_core::scoring::adapters::python::PythonAdapter;
-use argot_core::scoring::adapters::rust::RustAdapter;
 use argot_core::scoring::adapters::ruby::RubyAdapter;
+use argot_core::scoring::adapters::rust::RustAdapter;
 use argot_core::scoring::adapters::typescript::TypeScriptAdapter;
 use argot_core::scoring::adapters::{Language, LanguageAdapter};
 use argot_core::scoring::bpe_scorer::BpeScorer;

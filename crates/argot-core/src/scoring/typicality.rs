@@ -117,6 +117,8 @@ const RUST_CONTROL_NODE_TYPES: &[&str] = &[
     "return_expression",
     "function_item",
     "closure_expression",
+];
+
 const C_LITERAL_NODE_TYPES: &[&str] = &[
     "number_literal",
     "string_literal",
@@ -136,6 +138,8 @@ const C_CONTROL_NODE_TYPES: &[&str] = &[
     "return_statement",
     "function_definition",
     "goto_statement",
+];
+
 const JAVA_LITERAL_NODE_TYPES: &[&str] = &[
     "string_literal",
     "character_literal",
@@ -165,6 +169,8 @@ const JAVA_CONTROL_NODE_TYPES: &[&str] = &[
     "switch_expression",
     "throw_statement",
     "synchronized_statement",
+];
+
 const CS_LITERAL_NODE_TYPES: &[&str] = &[
     "integer_literal",
     "real_literal",
@@ -193,6 +199,8 @@ const CS_CONTROL_NODE_TYPES: &[&str] = &[
     "class_declaration",
     "using_statement",
     "lock_statement",
+];
+
 const PHP_LITERAL_NODE_TYPES: &[&str] = &[
     "string",
     "encapsed_string",
@@ -223,6 +231,8 @@ const PHP_CONTROL_NODE_TYPES: &[&str] = &[
     "enum_declaration",
     "anonymous_function",
     "arrow_function",
+];
+
 const CPP_LITERAL_NODE_TYPES: &[&str] = &[
     "string_literal",
     "raw_string_literal",
@@ -250,6 +260,8 @@ const CPP_CONTROL_NODE_TYPES: &[&str] = &[
     "throw_statement",
     "switch_statement",
     "lambda_expression",
+];
+
 const RB_LITERAL_NODE_TYPES: &[&str] = &[
     "string",
     "chained_string",

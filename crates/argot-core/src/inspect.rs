@@ -8,15 +8,15 @@
 //! extension→language routing) so what inspect reports is what calibrate
 //! would see. Nothing is persisted.
 
-use crate::scoring::adapters::go::GoAdapter;
 use crate::scoring::adapters::c::CAdapter;
-use crate::scoring::adapters::java::JavaAdapter;
-use crate::scoring::adapters::csharp::CSharpAdapter;
-use crate::scoring::adapters::php::PhpAdapter;
 use crate::scoring::adapters::cpp::CppAdapter;
+use crate::scoring::adapters::csharp::CSharpAdapter;
+use crate::scoring::adapters::go::GoAdapter;
+use crate::scoring::adapters::java::JavaAdapter;
+use crate::scoring::adapters::php::PhpAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
-use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::ruby::RubyAdapter;
+use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::{Language, LanguageAdapter};
 use crate::scoring::calibration::{collect_candidates_with, language_for_filename, language_name};

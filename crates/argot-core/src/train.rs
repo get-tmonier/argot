@@ -13,13 +13,10 @@ use std::path::{Path, PathBuf};
 /// binary is self-contained (Python `train.py` copies this file).
 pub const GENERIC_BASELINE_JSON: &[u8] = include_bytes!("../data/generic_tokens_bpe.json");
 
-const SOURCE_EXTENSIONS: &[&str] = &[".py", ".ts", ".tsx", ".go", ".rs"];
-const SOURCE_EXTENSIONS: &[&str] = &[".py", ".ts", ".tsx", ".c", ".h"];
-const SOURCE_EXTENSIONS: &[&str] = &[".py", ".ts", ".tsx", ".java"];
-const SOURCE_EXTENSIONS: &[&str] = &[".py", ".ts", ".tsx", ".cs"];
-const SOURCE_EXTENSIONS: &[&str] = &[".py", ".ts", ".tsx", ".php"];
-const SOURCE_EXTENSIONS: &[&str] = &[".py", ".ts", ".tsx", ".cpp", ".cc", ".hpp", ".cxx"];
-const SOURCE_EXTENSIONS: &[&str] = &[".py", ".ts", ".tsx", ".rb"];
+const SOURCE_EXTENSIONS: &[&str] = &[
+    ".py", ".ts", ".tsx", ".go", ".rs", ".c", ".h", ".java", ".cs", ".php", ".cpp", ".cc", ".hpp",
+    ".cxx", ".rb",
+];
 
 const EXCLUDE_DIRS: &[&str] = &[
     "node_modules",

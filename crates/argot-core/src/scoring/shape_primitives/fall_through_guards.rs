@@ -12,52 +12,43 @@ use crate::scoring::shape_primitives::{parse, population_mean_std};
 use std::path::PathBuf;
 use tree_sitter::Node;
 
-const PY_FUNC: &str = "function_definition";
-const TS_FUNC: &str = "function_declaration";
-// Go: closest general case is the top-level `function_declaration` (methods
-// aren't covered — this primitive is default-off in production).
-const GO_FUNC: &str = "function_declaration";
-// Rust functions are `function_item`. Rust's `if`/`return` are expressions
-// (`if_expression`/`return_expression`), so the shared `IF`/`RETURN` node kinds
-// below never match a Rust tree — the guard count is inert (0) for Rust, a
-// neutral default for a primitive that is default-off in production anyway.
-const RUST_FUNC: &str = "function_item";
-const C_FUNC: &str = "function_definition";
-const JAVA_FUNC: &str = "method_declaration";
-const CS_FUNC: &str = "method_declaration";
-const PY_FUNC: &[&str] = &["function_definition"];
-const TS_FUNC: &[&str] = &["function_declaration"];
-const PHP_FUNC: &[&str] = &["function_definition", "method_declaration"];
-const CPP_FUNC: &str = "function_definition";
-const IF: &str = "if_statement";
-const RETURN: &str = "return_statement";
-
 const MIN_VALID_FILES: usize = 3;
 
 /// Function-definition node kinds for `language` (Ruby methods come in plain
-/// and singleton forms).
+/// and singleton forms; Go/PHP have both free functions and methods).
 fn func_kinds(language: Language) -> &'static [&'static str] {
     match language {
         Language::Python => &["function_definition"],
         Language::Typescript => &["function_declaration"],
+        Language::Go => &["function_declaration", "method_declaration"],
+        Language::Rust => &["function_item"],
+        Language::C => &["function_definition"],
+        Language::Java => &["method_declaration"],
+        Language::CSharp => &["method_declaration"],
+        Language::Php => &["function_definition", "method_declaration"],
+        Language::Cpp => &["function_definition"],
         Language::Ruby => &["method", "singleton_method"],
     }
 }
 
 /// Guard-`if` node kinds for `language`. Ruby's postfix `x if y` / `x unless y`
-/// and their block forms all read as fall-through guards.
+/// and their block forms all read as fall-through guards; Rust's `if` is an
+/// expression, not a statement.
 fn if_kinds(language: Language) -> &'static [&'static str] {
     match language {
-        Language::Python | Language::Typescript => &["if_statement"],
         Language::Ruby => &["if", "if_modifier", "unless", "unless_modifier"],
+        Language::Rust => &["if_expression"],
+        _ => &["if_statement"],
     }
 }
 
-/// The `return`-statement node kind for `language`.
+/// The `return` node kind for `language` (Ruby `return`, Rust
+/// `return_expression`, everything else `return_statement`).
 fn return_kind(language: Language) -> &'static str {
     match language {
-        Language::Python | Language::Typescript => "return_statement",
         Language::Ruby => "return",
+        Language::Rust => "return_expression",
+        _ => "return_statement",
     }
 }
 
@@ -93,22 +84,6 @@ fn guards_before_return(func: Node, if_types: &[&str], return_type: &str) -> usi
 /// Mean guard count per function for `source`, or `None` if no functions.
 fn file_avg_guards(source: &str, language: Language) -> Option<f64> {
     let tree = parse(source, language)?;
-    let func_types = match language {
-        Language::Python => PY_FUNC,
-        Language::Typescript => TS_FUNC,
-        Language::Go => GO_FUNC,
-        Language::Rust => RUST_FUNC,
-        Language::C => C_FUNC,
-        Language::Java => JAVA_FUNC,
-        Language::CSharp => CS_FUNC,
-        Language::Php => PHP_FUNC,
-        Language::Cpp => CPP_FUNC,
-    };
-    let mut counts: Vec<f64> = Vec::new();
-    let mut stack = vec![tree.root_node()];
-    while let Some(node) = stack.pop() {
-        if func_types.contains(&node.kind()) {
-            counts.push(guards_before_return(node) as f64);
     let funcs = func_kinds(language);
     let ifs = if_kinds(language);
     let ret = return_kind(language);
@@ -131,30 +106,18 @@ fn file_avg_guards(source: &str, language: Language) -> Option<f64> {
     Some(counts.iter().sum::<f64>() / counts.len() as f64)
 }
 
-/// Try Python grammar, then TypeScript, then Java; first defined average wins.
+/// Probe each grammar in turn; first defined average wins. The hunk's language
+/// is not known at score time, so every grammar is tried.
 fn score_hunk_avg(hunk: &str) -> Option<f64> {
     file_avg_guards(hunk, Language::Python)
         .or_else(|| file_avg_guards(hunk, Language::Typescript))
+        .or_else(|| file_avg_guards(hunk, Language::Go))
+        .or_else(|| file_avg_guards(hunk, Language::Rust))
+        .or_else(|| file_avg_guards(hunk, Language::C))
         .or_else(|| file_avg_guards(hunk, Language::Java))
-/// Try Python grammar, then TypeScript, then C#; first defined average wins.
-fn score_hunk_avg(hunk: &str) -> Option<f64> {
-    file_avg_guards(hunk, Language::Python)
-        .or_else(|| file_avg_guards(hunk, Language::Typescript))
         .or_else(|| file_avg_guards(hunk, Language::CSharp))
-/// Try Python grammar, then TypeScript, then PHP; first defined average wins.
-fn score_hunk_avg(hunk: &str) -> Option<f64> {
-    file_avg_guards(hunk, Language::Python)
-        .or_else(|| file_avg_guards(hunk, Language::Typescript))
         .or_else(|| file_avg_guards(hunk, Language::Php))
-/// Try Python grammar then TypeScript then C++; first defined average wins.
-fn score_hunk_avg(hunk: &str) -> Option<f64> {
-    file_avg_guards(hunk, Language::Python)
-        .or_else(|| file_avg_guards(hunk, Language::Typescript))
         .or_else(|| file_avg_guards(hunk, Language::Cpp))
-/// Try Python grammar, then TypeScript, then Ruby; first defined average wins.
-fn score_hunk_avg(hunk: &str) -> Option<f64> {
-    file_avg_guards(hunk, Language::Python)
-        .or_else(|| file_avg_guards(hunk, Language::Typescript))
         .or_else(|| file_avg_guards(hunk, Language::Ruby))
 }
 

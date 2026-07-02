@@ -136,9 +136,15 @@ mod tests {
         assert_eq!(language_for_path("a.jsx"), Some(Language::Javascript));
         assert_eq!(language_for_path("a.go"), Some(Language::Go));
         assert_eq!(language_for_path("a.rs"), Some(Language::Rust));
+        assert_eq!(language_for_path("a.c"), Some(Language::C));
+        assert_eq!(language_for_path("a.h"), Some(Language::C));
+        assert_eq!(language_for_path("a.java"), Some(Language::Java));
+        assert_eq!(language_for_path("a.cs"), Some(Language::Csharp));
+        assert_eq!(language_for_path("a.php"), Some(Language::Php));
         assert_eq!(language_for_path("a.cpp"), Some(Language::Cpp));
         assert_eq!(language_for_path("a.hpp"), Some(Language::Cpp));
-        assert_eq!(language_for_path("a.rs"), None);
+        assert_eq!(language_for_path("a.rb"), Some(Language::Ruby));
+        assert_eq!(language_for_path("a.unknown"), None);
     }
 
     #[test]

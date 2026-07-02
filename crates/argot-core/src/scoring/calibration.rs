@@ -9,15 +9,15 @@
 //! `max(cal_scores)` threshold matches the Python engine exactly on every corpus.
 
 use crate::bpe::BpeTokenizer;
-use crate::scoring::adapters::go::GoAdapter;
 use crate::scoring::adapters::c::CAdapter;
-use crate::scoring::adapters::java::JavaAdapter;
-use crate::scoring::adapters::csharp::CSharpAdapter;
-use crate::scoring::adapters::php::PhpAdapter;
 use crate::scoring::adapters::cpp::CppAdapter;
+use crate::scoring::adapters::csharp::CSharpAdapter;
+use crate::scoring::adapters::go::GoAdapter;
+use crate::scoring::adapters::java::JavaAdapter;
+use crate::scoring::adapters::php::PhpAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
-use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::ruby::RubyAdapter;
+use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::{Language, LanguageAdapter};
 use crate::scoring::bpe_scorer::BpeScorer;
@@ -479,36 +479,16 @@ fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
         Language::Go => Box::new(GoAdapter::new()),
         Language::Rust => Box::new(RustAdapter::new()),
         Language::C => Box::new(CAdapter::new()),
+        Language::Java => Box::new(JavaAdapter::new()),
+        Language::CSharp => Box::new(CSharpAdapter::new()),
+        Language::Php => Box::new(PhpAdapter::new()),
+        Language::Cpp => Box::new(CppAdapter::new()),
         Language::Ruby => Box::new(RubyAdapter::new()),
     }
 }
 
-/// Canonical config-key name for a scoring language ("python"/"typescript"/"go").
-        Language::Java => Box::new(JavaAdapter::new()),
-    }
-}
-
-/// Canonical config-key name for a scoring language ("python"/"typescript"/"java").
-        Language::Cpp => Box::new(CppAdapter::new()),
-    }
-}
-
-/// Canonical config-key name for a scoring language ("python"/"typescript"/"cpp").
+/// Canonical config-key name for a scoring language.
 /// Public so `inspect` reports under the same keys `scorer-config.json` uses.
-        Language::CSharp => Box::new(CSharpAdapter::new()),
-    }
-}
-
-/// Canonical config-key name for a scoring language ("python"/"typescript"/
-/// "csharp"). Public so `inspect` reports under the same keys
-/// `scorer-config.json` uses.
-        Language::Php => Box::new(PhpAdapter::new()),
-    }
-}
-
-/// Canonical config-key name for a scoring language
-/// ("python"/"typescript"/"php"). Public so `inspect` reports under the same
-/// keys `scorer-config.json` uses.
 pub fn language_name(language: Language) -> &'static str {
     match language {
         Language::Python => "python",

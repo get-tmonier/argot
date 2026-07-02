@@ -17,15 +17,15 @@ use crate::git_walk::{
     open_repo, resolve_shas, walk_commits, HunkSpan, WalkItem, SUPPORTED_EXTENSIONS,
 };
 use crate::output::{render_json, render_sarif, HitRecord, OutputFormat, ReportMeta};
-use crate::scoring::adapters::go::GoAdapter;
 use crate::scoring::adapters::c::CAdapter;
-use crate::scoring::adapters::java::JavaAdapter;
-use crate::scoring::adapters::csharp::CSharpAdapter;
-use crate::scoring::adapters::php::PhpAdapter;
 use crate::scoring::adapters::cpp::CppAdapter;
+use crate::scoring::adapters::csharp::CSharpAdapter;
+use crate::scoring::adapters::go::GoAdapter;
+use crate::scoring::adapters::java::JavaAdapter;
+use crate::scoring::adapters::php::PhpAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
-use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::ruby::RubyAdapter;
+use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::LanguageAdapter;
 use crate::scoring::evidence::types::{Evidence, EvidenceCorpus, SourceSpan};

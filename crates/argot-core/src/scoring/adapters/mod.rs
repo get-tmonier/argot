@@ -4,26 +4,23 @@
 //! filters (data-dominant, auto-generated) behind a uniform surface used by
 //! the scorers and the sampler.
 
-pub mod go;
 pub mod c;
-pub mod java;
-pub mod csharp;
-pub mod php;
 pub mod cpp;
+pub mod csharp;
+pub mod go;
+pub mod java;
+pub mod php;
 pub mod python;
-pub mod rust;
 pub mod ruby;
+pub mod rust;
 pub mod typescript;
 
 use std::collections::HashSet;
 use std::path::Path;
 
 /// Scoring-side language tag. JavaScript routes to the TypeScript adapter, so
-/// scoring distinguishes Python, TypeScript, Go, and Rust.
-/// scoring distinguishes Python, TypeScript, and Java.
-/// scoring distinguishes Python, TypeScript, and C#.
-/// scoring distinguishes Python, TypeScript, and PHP.
-/// scoring distinguishes Python, TypeScript, and C++.
+/// scoring distinguishes Python, TypeScript, Go, Rust, C, Java, C#, PHP, C++,
+/// and Ruby.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Language {
     Python,
@@ -207,6 +204,12 @@ impl LanguageAdapter for rust::RustAdapter {
     }
     fn identifier_noise(&self) -> &HashSet<String> {
         rust::RustAdapter::identifier_noise(self)
+    }
+    fn line_comment_prefix(&self) -> &'static str {
+        "//"
+    }
+}
+
 impl LanguageAdapter for cpp::CppAdapter {
     fn language(&self) -> Language {
         Language::Cpp
@@ -251,6 +254,9 @@ impl LanguageAdapter for cpp::CppAdapter {
     }
     fn line_comment_prefix(&self) -> &'static str {
         "//"
+    }
+}
+
 impl LanguageAdapter for ruby::RubyAdapter {
     fn language(&self) -> Language {
         Language::Ruby

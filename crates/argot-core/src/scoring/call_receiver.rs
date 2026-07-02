@@ -48,19 +48,23 @@ fn rust_call_types(kind: &str) -> bool {
     // Macros are a first-class part of Rust's call surface (`println!`, `vec!`),
     // so they count alongside plain call expressions.
     kind == "call_expression" || kind == "macro_invocation"
+}
 fn c_call_types(kind: &str) -> bool {
     crate::scoring::adapters::c::is_call_kind(kind)
 }
 
 fn extract_c_callee(call_node: Node, src: &[u8]) -> Option<String> {
     crate::scoring::adapters::c::callee(call_node, src)
+}
 fn java_call_types(kind: &str) -> bool {
     kind == "method_invocation" || kind == "object_creation_expression"
+}
 fn cs_call_types(kind: &str) -> bool {
     kind == "invocation_expression" || kind == "object_creation_expression"
 }
 fn cpp_call_types(kind: &str) -> bool {
     kind == "call_expression"
+}
 fn rb_call_types(kind: &str) -> bool {
     kind == "call"
 }
@@ -200,6 +204,9 @@ fn extract_rust_callee(call_node: Node, src: &[u8]) -> Option<String> {
         Some(parts.join("."))
     } else {
         None
+    }
+}
+
 /// Simple type name of a constructor's `type` node
 /// (`new java.util.ArrayList<String>()` → `ArrayList`).
 fn java_type_simple_name(node: Node, src: &[u8]) -> Option<String> {
@@ -238,6 +245,11 @@ fn build_java_receiver(node: Node, src: &[u8]) -> Option<String> {
                 }
                 None => Some(field_text),
             }
+        }
+        _ => None,
+    }
+}
+
 fn cs_named_child_of_kind<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
     let mut cursor = node.walk();
     let children: Vec<Node<'a>> = node.children(&mut cursor).collect();
@@ -285,6 +297,11 @@ fn extract_csharp_callee(call_node: Node, src: &[u8]) -> Option<String> {
         k if cs_call_types(k) => {
             parts.insert(0, "<call>".to_string());
             Some(parts.join("."))
+        }
+        _ => None,
+    }
+}
+
 fn php_call_types(kind: &str) -> bool {
     matches!(
         kind,
@@ -345,6 +362,11 @@ fn extract_php_callee(call_node: Node, src: &[u8]) -> Option<String> {
             let name = call_node.child_by_field_name("name")?;
             let base = php_expr_dotted(scope, src)?;
             Some(format!("{base}.{}", node_text(name, src)))
+        }
+        _ => None,
+    }
+}
+
 fn extract_cpp_callee(call_node: Node, src: &[u8]) -> Option<String> {
     let mut callee = call_node.child_by_field_name("function")?;
     let mut parts: Vec<String> = Vec::new();
