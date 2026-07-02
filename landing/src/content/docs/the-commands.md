@@ -88,7 +88,23 @@ argot review abc1234                               # a single commit
 
 PR mode uses the `gh` CLI (`gh auth login` once). Range and commit targets go
 straight through to the local git — no network. `--format json|sarif` works the
-same as `check`.
+same as `check`. `review` also prints a one-line **voice-diff** headline above
+the hits.
+
+## voice-diff
+
+A single PR-level number — *how out of voice is this diff?* — plus the ranked
+hot-spots, for triaging which PRs deserve the closest read.
+
+```bash
+argot voice-diff main..HEAD              # metric + hot-spots for a range
+argot voice-diff HEAD~5..HEAD --top 5    # show the 5 worst spots
+argot voice-diff main..HEAD --format json
+```
+
+The metric is the smoothed proportion of hunks above threshold, so a tiny diff
+with one anomalous hunk doesn't read 100%. It's pure aggregation over the same
+per-hunk scores `check` produces — no extra modeling.
 
 ## inspect
 

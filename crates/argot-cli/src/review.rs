@@ -113,7 +113,16 @@ fn run_pr_review(
         return ExitCode::from(2);
     }
     let range = format!("{}..{}", info.base_oid, info.head_oid);
-    let header = pr_header(&info);
+    // A PR-level voice-diff headline above the per-hunk hits (sibling #62).
+    let mut header = pr_header(&info);
+    if !OutputFormat::parse(format).unwrap_or_default().is_machine() {
+        if let Some(summary) =
+            crate::voice_diff::summary_for_ref(&repo, &range, crate::voice_diff::DEFAULT_TOP)
+        {
+            header.push_str(&crate::voice_diff::one_liner(&summary));
+            header.push_str("\n\n");
+        }
+    }
     run_check_ref(&repo, &range, format, use_color, Some(header))
 }
 
