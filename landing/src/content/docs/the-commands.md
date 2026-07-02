@@ -70,6 +70,26 @@ Every `check` run also names the model that judged the diff — a short `model:`
 or in the `model` field of `--format json`/`sarif`. Same corpus + config always fits the same hash, so
 you can tell at a glance whether your model matches a colleague's.
 
+## review
+
+Score a pull request against your local voice **without checking it out** — the
+moment argot is most useful is at the merge button, reviewing someone else's PR.
+`review` fetches the PR head into your object store (a fetch, not a checkout —
+your working tree is never touched), then runs the same scoring and output as
+`check` with a PR header on top.
+
+```bash
+argot review 123                                  # PR #123 in the current repo
+argot review https://github.com/org/repo/pull/45  # by URL
+argot review 45 --repo org/repo                    # PR in another repo
+argot review main..HEAD                            # any diff range (no gh needed)
+argot review abc1234                               # a single commit
+```
+
+PR mode uses the `gh` CLI (`gh auth login` once). Range and commit targets go
+straight through to the local git — no network. `--format json|sarif` works the
+same as `check`.
+
 ## inspect
 
 Reports whether the repo is a good fit for argot (corpus composition, calibration health, a

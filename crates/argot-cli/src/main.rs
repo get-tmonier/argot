@@ -5,6 +5,7 @@
 //! the suppression commands) runs in-process against `argot-core`.
 
 mod mcp;
+mod review;
 
 use clap::{Args, Parser, Subcommand};
 use serde::{Deserialize, Serialize};
@@ -101,6 +102,8 @@ enum Command {
     Fit(FitCmd),
     /// Check code changes against the calibrated scorers.
     Check(CheckCmd),
+    /// Score a PR (or diff range) against the local voice without checking it out.
+    Review(ReviewCmd),
     /// Report corpus composition, calibration health, and repo suitability.
     Inspect(InspectCmd),
     /// Mute a hit by hash (appends to .argot/suppressions.yaml).
@@ -435,7 +438,7 @@ fn wants_json(format: &str, json_alias: bool) -> bool {
 fn print_help_banner() {
     let version = env!("CARGO_PKG_VERSION");
     println!(
-        "argot v{version}\n\nCOMMANDS\n  extract       Walk git history into a training dataset (.argot/dataset.jsonl)\n  fit           Fit the voice model to this repo (= train + calibrate, one-shot)\n  check         Check changes against the fitted voice\n  inspect       Report corpus composition, calibration health, and suitability\n  mute          Mute a hit by hash (appends to .argot/suppressions.yaml)\n  list-mutes    List active suppressions across all surfaces\n  review-mutes  Report (and --prune) muted hits that no longer fire\n  status        Show current repository's argot state\n  list          List all registered repositories\n  update        Update the argot CLI\n  mcp           Run an MCP server for LLM coding agents (stdio)\n\nTypical first run: argot extract && argot fit && argot check\nRun `argot <command> --help` for details on any command."
+        "argot v{version}\n\nCOMMANDS\n  extract       Walk git history into a training dataset (.argot/dataset.jsonl)\n  fit           Fit the voice model to this repo (= train + calibrate, one-shot)\n  check         Check changes against the fitted voice\n  review        Score a PR (or diff range) against the local voice, no checkout\n  inspect       Report corpus composition, calibration health, and suitability\n  mute          Mute a hit by hash (appends to .argot/suppressions.yaml)\n  list-mutes    List active suppressions across all surfaces\n  review-mutes  Report (and --prune) muted hits that no longer fire\n  status        Show current repository's argot state\n  list          List all registered repositories\n  update        Update the argot CLI\n  mcp           Run an MCP server for LLM coding agents (stdio)\n\nTypical first run: argot extract && argot fit && argot check\nRun `argot <command> --help` for details on any command."
     );
 }
 
@@ -682,6 +685,18 @@ fn run_check_cmd(c: CheckCmd) -> ExitCode {
     print!("{}", outcome.stdout);
     eprint!("{}", outcome.stderr);
     ExitCode::from(outcome.exit_code as u8)
+}
+
+#[derive(Args)]
+struct ReviewCmd {
+    /// A PR URL, `#number` / `number`, a `base..head` range, or a commit sha.
+    target: String,
+    /// Path to the local repository (whose fitted voice scores the PR).
+    #[arg(long, default_value = ".")]
+    repo: PathBuf,
+    /// Output format: human, json, or sarif.
+    #[arg(long, default_value = "human", value_parser = ["human", "json", "sarif"])]
+    format: String,
 }
 
 #[derive(Args)]
@@ -1435,6 +1450,11 @@ fn main() -> ExitCode {
         Some(Command::Calibrate(c)) => run_calibrate_cmd(c),
         Some(Command::Fit(c)) => run_fit_cmd(c),
         Some(Command::Check(c)) => run_check_cmd(c),
+        Some(Command::Review(c)) => {
+            let use_color =
+                std::env::var_os("NO_COLOR").is_none() && std::io::stdout().is_terminal();
+            review::run_review(&c.target, c.repo, &c.format, use_color)
+        }
         Some(Command::Inspect(c)) => run_inspect_cmd(c),
         Some(Command::Mute(c)) => run_mute_cmd(c),
         Some(Command::ListMutes) => run_list_mutes(),
