@@ -603,23 +603,25 @@ pub fn run_calibrate(
         // per the calibration contract it never feeds the threshold itself.
         let mut convention_model = fit_convention_frequencies(corpus, language);
         {
+            // Bars over ALL candidates (not the threshold's n_cal sample):
+            // the bar is a max-gate, so sampling only adds noise — a smaller
+            // sample lowers the bar and fires the stage on ordinary code.
+            // Over the full candidate population the bar is deterministic
+            // and maximally conservative: a convention fires only when rarer
+            // than anything the repo's own sampleable code contains.
             let conv = ConventionScorer::new(convention_model.clone(), language);
             let mut syntax_bar = 0.0f64;
             let mut ident_bar = 0.0f64;
-            for k in 0..opts.n_seeds {
-                let seed = opts.seed.wrapping_add(k as u64);
-                for &i in &sample_indices(candidates.len(), effective_n_cal, seed) {
-                    let c = &candidates[i];
-                    if typicality.is_atypical(&c.hunk).0 {
-                        continue;
-                    }
-                    let scores = conv.scores(
-                        &c.hunk,
-                        Some((&c.file_source, c.hunk_start_line, c.hunk_end_line)),
-                    );
-                    syntax_bar = syntax_bar.max(scores.syntax_surprisal);
-                    ident_bar = ident_bar.max(scores.ident_surprisal);
+            for c in &candidates {
+                if typicality.is_atypical(&c.hunk).0 {
+                    continue;
                 }
+                let scores = conv.scores(
+                    &c.hunk,
+                    Some((&c.file_source, c.hunk_start_line, c.hunk_end_line)),
+                );
+                syntax_bar = syntax_bar.max(scores.syntax_surprisal);
+                ident_bar = ident_bar.max(scores.ident_surprisal);
             }
             convention_model.syntax_bar = syntax_bar;
             convention_model.ident_bar = ident_bar;

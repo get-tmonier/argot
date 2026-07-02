@@ -103,7 +103,11 @@ enum SuppressedBy {
 
 /// One above-threshold hunk plus everything needed to explain it (`_Hit`).
 struct Hit {
-    /// BPE-stage score (`scored.stages.bpe_score`), regardless of winning reason.
+    /// The winning candidate's score (adjusted for contributions), measured
+    /// against the winning candidate's threshold — so severity tiers mean
+    /// the same thing for every reason. A call-receiver hit that crossed on
+    /// a +5 contribution reads as the strong signal it is, not as its raw
+    /// BPE component.
     score: f64,
     file_path: String,
     line: usize,
@@ -682,7 +686,6 @@ fn score_patches(
                 continue;
             }
         };
-        let bpe_threshold = scorer.bpe_threshold;
 
         let file_source = String::from_utf8_lossy(&batch.content).into_owned();
         let file_lines = splitlines(&file_source);
@@ -739,14 +742,14 @@ fn score_patches(
                 None
             };
             hits.push(Hit {
-                score: scored.stages.bpe_score,
+                score: scored.score,
                 file_path: batch.file_path.clone(),
                 line,
                 line_end,
                 source: batch.source.clone(),
                 reason,
                 flagged: scored.flagged,
-                threshold: bpe_threshold,
+                threshold: scored.threshold,
                 hunk_content,
                 evidence: scored.evidence,
                 hash,

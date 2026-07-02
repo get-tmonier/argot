@@ -532,24 +532,22 @@ pub fn build_scorer(
     // max feature value over the multi-seed calibration sample (mirror of
     // run_calibrate; never feeds the threshold per the calibration contract).
     let convention_model = if knobs.enable_conventions {
+        // Bars over ALL candidates — deterministic max-gate (see
+        // run_calibrate; the two must stay in lock-step).
         let mut model = fit_convention_frequencies(corpus, language);
         let conv = ConventionScorer::new(model.clone(), language);
         let mut syntax_bar = 0.0f64;
         let mut ident_bar = 0.0f64;
-        for k in 0..knobs.threshold_n_seeds {
-            let seed = knobs.seed.wrapping_add(k as u64);
-            for &i in &sample_indices(candidates.len(), effective_n_cal, seed) {
-                let c = &candidates[i];
-                if typicality.is_atypical(&c.hunk).0 {
-                    continue;
-                }
-                let scores = conv.scores(
-                    &c.hunk,
-                    Some((&c.file_source, c.hunk_start_line, c.hunk_end_line)),
-                );
-                syntax_bar = syntax_bar.max(scores.syntax_surprisal);
-                ident_bar = ident_bar.max(scores.ident_surprisal);
+        for c in &candidates {
+            if typicality.is_atypical(&c.hunk).0 {
+                continue;
             }
+            let scores = conv.scores(
+                &c.hunk,
+                Some((&c.file_source, c.hunk_start_line, c.hunk_end_line)),
+            );
+            syntax_bar = syntax_bar.max(scores.syntax_surprisal);
+            ident_bar = ident_bar.max(scores.ident_surprisal);
         }
         model.syntax_bar = syntax_bar;
         model.ident_bar = ident_bar;
