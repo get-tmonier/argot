@@ -15,6 +15,7 @@ pub fn language_for_path(path: &str) -> Option<Language> {
         ".ts" | ".tsx" => Some(Language::Typescript),
         ".js" | ".jsx" => Some(Language::Javascript),
         ".py" => Some(Language::Python),
+        ".c" | ".h" => Some(Language::C),
         _ => None,
     }
 }
@@ -42,6 +43,7 @@ fn ts_language(lang: Language) -> tree_sitter::Language {
         Language::Typescript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
         Language::Javascript => tree_sitter_javascript::LANGUAGE.into(),
         Language::Python => tree_sitter_python::LANGUAGE.into(),
+        Language::C => tree_sitter_c::LANGUAGE.into(),
     }
 }
 

@@ -70,6 +70,9 @@ fn ratio_for_source(source: &str, language: Language) -> Option<f64> {
     let (handler, raise) = match language {
         Language::Python => (PY_HANDLER, PY_RAISE),
         Language::Typescript => (TS_HANDLER, TS_RAISE),
+        // C has no exception-handling construct, so this ratio is undefined:
+        // no handler blocks means no signal.
+        Language::C => return None,
     };
     let (returns, raises) = count_in_handlers(tree.root_node(), handler, raise);
     let total = returns + raises;

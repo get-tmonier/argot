@@ -41,6 +41,13 @@ fn py_call_types(kind: &str) -> bool {
 fn ts_call_types(kind: &str) -> bool {
     kind == "call_expression" || kind == "new_expression"
 }
+fn c_call_types(kind: &str) -> bool {
+    crate::scoring::adapters::c::is_call_kind(kind)
+}
+
+fn extract_c_callee(call_node: Node, src: &[u8]) -> Option<String> {
+    crate::scoring::adapters::c::callee(call_node, src)
+}
 
 fn extract_python_callee(call_node: Node, src: &[u8]) -> Option<String> {
     let mut callee = call_node.child_by_field_name("function")?;
@@ -138,10 +145,12 @@ pub fn extract_callees(source: &str, language: Language) -> Vec<Option<String>> 
     let is_call = match language {
         Language::Python => py_call_types as fn(&str) -> bool,
         Language::Typescript => ts_call_types as fn(&str) -> bool,
+        Language::C => c_call_types as fn(&str) -> bool,
     };
     let extractor = match language {
         Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Typescript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::C => extract_c_callee as fn(Node, &[u8]) -> Option<String>,
     };
     walk_preorder(tree.root_node(), |node| {
         if is_call(node.kind()) {
@@ -178,10 +187,12 @@ pub fn callees_in_source_region(
     let is_call = match language {
         Language::Python => py_call_types as fn(&str) -> bool,
         Language::Typescript => ts_call_types as fn(&str) -> bool,
+        Language::C => c_call_types as fn(&str) -> bool,
     };
     let extractor = match language {
         Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Typescript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::C => extract_c_callee as fn(Node, &[u8]) -> Option<String>,
     };
     let mut out = Vec::new();
     walk_preorder(tree.root_node(), |node| {

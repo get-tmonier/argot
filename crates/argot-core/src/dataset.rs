@@ -18,6 +18,7 @@ pub enum Language {
     Typescript,
     Javascript,
     Python,
+    C,
 }
 
 /// A single leaf token from the tree-sitter parse (`dataset.Token`).

@@ -4,6 +4,7 @@
 //! filters (data-dominant, auto-generated) behind a uniform surface used by
 //! the scorers and the sampler.
 
+pub mod c;
 pub mod python;
 pub mod typescript;
 
@@ -17,6 +18,7 @@ use std::path::Path;
 pub enum Language {
     Python,
     Typescript,
+    C,
 }
 
 /// Uniform language-adapter surface (port of the Python `LanguageAdapter`
