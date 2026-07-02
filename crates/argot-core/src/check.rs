@@ -127,6 +127,9 @@ struct Loaded {
     scorers: HashMap<String, SequentialImportBpeScorer>,
     filter_adapters: HashMap<String, Box<dyn LanguageAdapter>>,
     language_extensions: HashSet<String>,
+    /// Repo SHA the model was fitted at (calibration meta), for the
+    /// freshness warning. `None` when the config predates the field.
+    fit_sha: Option<String>,
 }
 
 /// Extension → language name (`_EXT_TO_LANG`). JS/JSX route to TypeScript.
@@ -448,10 +451,19 @@ fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
         }
     }
 
+    let fit_sha = languages
+        .values()
+        .filter_map(|lc| lc.get("calibration"))
+        .filter_map(|c| c.get("repo_sha"))
+        .filter_map(Value::as_str)
+        .find(|s| !s.is_empty() && *s != "unknown")
+        .map(String::from);
+
     Ok(Loaded {
         scorers,
         filter_adapters,
         language_extensions,
+        fit_sha,
     })
 }
 
@@ -1011,6 +1023,24 @@ fn render_machine(format: OutputFormat, meta: &ReportMeta, records: &[HitRecord]
     }
 }
 
+/// Commits between the fit SHA and HEAD to trigger the freshness warning.
+const FRESHNESS_WARN_COMMITS: usize = 10;
+
+/// How many commits HEAD is ahead of the fit SHA (`None` when either end
+/// cannot be resolved — shallow clones, rewritten history, detached states
+/// must never break check).
+fn commits_since_fit(repo_path: &str, fit_sha: &str) -> Option<usize> {
+    let repo = open_repo(repo_path).ok()?;
+    let head = repo.head().ok()?.peel_to_commit().ok()?;
+    let fit_oid = git2::Oid::from_str(fit_sha).ok()?;
+    if head.id() == fit_oid {
+        return Some(0);
+    }
+    repo.find_commit(fit_oid).ok()?;
+    let (ahead, _) = repo.graph_ahead_behind(head.id(), fit_oid).ok()?;
+    Some(ahead)
+}
+
 /// Collect patches for the requested mode (`main()` mode dispatch). On a
 /// mode-specific early exit returns the finished outcome.
 fn collect_patches(args: &CheckArgs) -> Result<(Vec<PatchBatch>, String), CheckOutcome> {
@@ -1129,6 +1159,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         mut scorers,
         filter_adapters,
         language_extensions,
+        fit_sha,
     } = match load_scorers(&args.argot_dir) {
         Ok(l) => l,
         Err((msg, code)) => return CheckOutcome::err(msg, code),
@@ -1153,6 +1184,19 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     };
 
     let mut stderr = String::new();
+
+    // Freshness: a stale model turns ordinary drift into noise (a month of
+    // drift on a busy workspace measured ~14× the hit volume of a fresh
+    // fit). Warn when HEAD has moved substantially since the fit.
+    if let Some(fit_sha) = &fit_sha {
+        if let Some(behind) = commits_since_fit(&args.repo_path, fit_sha) {
+            if behind >= FRESHNESS_WARN_COMMITS {
+                stderr.push_str(&format!(
+                    "[argot] model fitted {behind} commits ago — voice may have drifted; re-run `argot fit`\n"
+                ));
+            }
+        }
+    }
 
     // Suppression surfaces: the resolved path set (recommended built-ins +
     // `.argotignore`, the same set calibration samples from) and the
@@ -1499,4 +1543,44 @@ fn firing_hashes_for_file(
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn commit_all(repo: &git2::Repository, msg: &str) -> git2::Oid {
+        let mut index = repo.index().unwrap();
+        index
+            .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+            .unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let sig = git2::Signature::now("t", "t@t").unwrap();
+        let parent = repo.head().ok().and_then(|h| h.peel_to_commit().ok());
+        let parents: Vec<&git2::Commit> = parent.iter().collect();
+        repo.commit(Some("HEAD"), &sig, &sig, msg, &tree, &parents)
+            .unwrap()
+    }
+
+    #[test]
+    fn commits_since_fit_counts_head_distance() {
+        let dir = std::env::temp_dir().join(format!("argot_freshness_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let repo = git2::Repository::init(&dir).unwrap();
+        std::fs::write(dir.join("a.py"), "x = 1\n").unwrap();
+        let first = commit_all(&repo, "one");
+        std::fs::write(dir.join("a.py"), "x = 2\n").unwrap();
+        commit_all(&repo, "two");
+
+        let path = dir.to_str().unwrap();
+        assert_eq!(commits_since_fit(path, &first.to_string()), Some(1));
+        let head = repo.head().unwrap().peel_to_commit().unwrap().id();
+        assert_eq!(commits_since_fit(path, &head.to_string()), Some(0));
+        // Unresolvable fit SHA must never break check.
+        assert_eq!(commits_since_fit(path, "fixture"), None);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
