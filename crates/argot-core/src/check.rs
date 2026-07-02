@@ -877,7 +877,12 @@ fn render_hunk_body(
     if overflow > 0 {
         let plural = if overflow != 1 { "s" } else { "" };
         out.push(paint(
-            &format!("  {}   (+{} more line{})", " ".repeat(width), overflow, plural),
+            &format!(
+                "  {}   (+{} more line{})",
+                " ".repeat(width),
+                overflow,
+                plural
+            ),
             C_DIM,
             use_color,
         ));
@@ -904,7 +909,10 @@ fn render_results(
     for tier in ["foreign", "suspicious", "unusual"] {
         let c = *counts.get(tier).unwrap_or(&0);
         if c > 0 {
-            tier_parts.push(format!("{c} {}", paint(tier, severity_color(tier), use_color)));
+            tier_parts.push(format!(
+                "{c} {}",
+                paint(tier, severity_color(tier), use_color)
+            ));
         }
     }
     let mut banner = format!(
