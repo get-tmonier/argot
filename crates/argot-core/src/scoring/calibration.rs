@@ -333,7 +333,8 @@ pub fn multi_seed_thresholds(
     seed_thresholds
 }
 
-/// Options for `run_calibrate` (defaults mirror the Python CLI).
+/// Options for `run_calibrate` (defaults mirror the Python CLI, including the
+/// era-13.5 asymmetric-calibration knobs the final Python calibrator shipped).
 pub struct CalibrateOptions {
     pub n_cal: usize,
     pub seed: u64,
@@ -341,6 +342,18 @@ pub struct CalibrateOptions {
     pub evidence_top_n: usize,
     pub repo_sha: String,
     pub timestamp_utc: String,
+    /// Cluster-rare threshold for the CHECK-time scorer: a callee attested in
+    /// ≤ N cluster files is treated as cluster-absent. 0 disables the rule
+    /// (pre-13.5 baseline). Calibration itself always runs with the rule off
+    /// (asymmetric calibration — see docs/agents/calibration-contract.md).
+    pub cluster_rare_threshold: usize,
+    /// Minimum cluster size for the rare rule to fire.
+    pub cluster_size_min: usize,
+    /// Per-corpus auto-detect: probe the calibration distribution's rare-rule
+    /// fire rate; keep the rule when it is discriminative (fire rate below
+    /// `asym_fire_rate_threshold`), disable it when noisy (would FP-flood).
+    pub auto_select_asym_cal: bool,
+    pub asym_fire_rate_threshold: f64,
 }
 
 impl Default for CalibrateOptions {
@@ -352,6 +365,10 @@ impl Default for CalibrateOptions {
             evidence_top_n: 50,
             repo_sha: "unknown".to_string(),
             timestamp_utc: String::new(),
+            cluster_rare_threshold: 2,
+            cluster_size_min: 0,
+            auto_select_asym_cal: true,
+            asym_fire_rate_threshold: 0.05,
         }
     }
 }
@@ -451,6 +468,61 @@ pub fn run_calibrate(
         let effective_n_cal = opts.n_cal.min(candidates.len());
         let typicality = TypicalityModel::new(language);
 
+        // Era-13.5 per-corpus auto-detect: probe the rare rule's fire rate on
+        // sampled calibration hunks; a rule that fires often on ordinary code
+        // would FP-flood at check time, so fall back to baseline (rare=0).
+        let mut resolved_rare = opts.cluster_rare_threshold;
+        if opts.auto_select_asym_cal && resolved_rare > 0 && CR_N_CLUSTERS > 1 && !candidates.is_empty() {
+            let mut probe_cr = CallReceiverScorer::new(
+                corpus,
+                language,
+                CR_ALPHA,
+                CR_CAP,
+                adapter.as_ref(),
+                CR_N_CLUSTERS,
+                CR_CLUSTER_SEED,
+                resolved_rare,
+                opts.cluster_size_min,
+            )
+            .map_err(anyhow::Error::msg)?;
+            let idx = sample_indices(candidates.len(), effective_n_cal, opts.seed);
+            let mut hunks_scored = 0usize;
+            for &i in &idx {
+                let c = &candidates[i];
+                if typicality.is_atypical(&c.hunk).0 {
+                    continue;
+                }
+                probe_cr.weighted_contribution_for_file(
+                    &c.hunk,
+                    Some(&c.file_path),
+                    0.0,
+                    0.0,
+                    CR_CLUSTER_BONUS,
+                    CR_CAP as f64,
+                    Some(&c.file_source),
+                    Some((&c.file_source, c.hunk_start_line, c.hunk_end_line)),
+                );
+                hunks_scored += 1;
+            }
+            let fire_rate = probe_cr.rare_branch_hunks_fired as f64 / hunks_scored.max(1) as f64;
+            let keep_rule = fire_rate < opts.asym_fire_rate_threshold;
+            eprintln!(
+                "[{name}][auto-asym] cluster_rare probe: rare_hunks_fired={}/{} fire_rate={:.3} threshold={:.3} → {}",
+                probe_cr.rare_branch_hunks_fired,
+                hunks_scored,
+                fire_rate,
+                opts.asym_fire_rate_threshold,
+                if keep_rule {
+                    "KEEP rule"
+                } else {
+                    "DISABLE rule (rare=0)"
+                }
+            );
+            if !keep_rule {
+                resolved_rare = 0;
+            }
+        }
+
         let seed_thresholds = multi_seed_thresholds(
             &candidates,
             &bpe,
@@ -486,8 +558,8 @@ pub fn run_calibrate(
                 call_receiver_n_clusters: CR_N_CLUSTERS,
                 call_receiver_cluster_seed: CR_CLUSTER_SEED,
                 call_receiver_cluster_bonus: CR_CLUSTER_BONUS,
-                call_receiver_cluster_rare_threshold: 0,
-                call_receiver_cluster_size_min: 0,
+                call_receiver_cluster_rare_threshold: resolved_rare,
+                call_receiver_cluster_size_min: opts.cluster_size_min,
                 import_modules,
                 import_module_prefixes,
                 calibration: CalibrationMeta {

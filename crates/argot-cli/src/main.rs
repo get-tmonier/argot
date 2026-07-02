@@ -348,6 +348,24 @@ struct CalibrateCmd {
     /// Number of top entries per dimension in the evidence corpus.
     #[arg(long = "evidence-top-n", default_value_t = 50)]
     evidence_top_n: usize,
+    /// Rare-branch threshold for the check-time scorer: a callee attested in
+    /// ≤ N cluster files is treated as cluster-absent. 0 disables (pre-13.5
+    /// baseline). Default 2 (era-13.5 setting).
+    #[arg(
+        long = "call-receiver-cluster-rare-threshold",
+        default_value_t = 2
+    )]
+    cluster_rare_threshold: usize,
+    /// Minimum cluster size for the rare rule to fire (0 = no floor).
+    #[arg(long = "call-receiver-cluster-size-min", default_value_t = 0)]
+    cluster_size_min: usize,
+    /// Disable the per-corpus rare-rule auto-detect probe (probe is on by default).
+    #[arg(long = "no-auto-select-asym-cal")]
+    no_auto_select_asym_cal: bool,
+    /// Auto-detect cutoff: keep the rare rule when its calibration fire rate
+    /// is below this fraction of cal hunks.
+    #[arg(long = "asym-fire-rate-threshold", default_value_t = 0.05)]
+    asym_fire_rate_threshold: f64,
 }
 
 fn run_calibrate_cmd(c: CalibrateCmd) -> ExitCode {
@@ -369,6 +387,10 @@ fn run_calibrate_cmd(c: CalibrateCmd) -> ExitCode {
         evidence_top_n: c.evidence_top_n,
         repo_sha,
         timestamp_utc: iso_now(),
+        cluster_rare_threshold: c.cluster_rare_threshold,
+        cluster_size_min: c.cluster_size_min,
+        auto_select_asym_cal: !c.no_auto_select_asym_cal,
+        asym_fire_rate_threshold: c.asym_fire_rate_threshold,
     };
     match run_calibrate(&c.repo, &c.repo_corpus, &generic, &c.output, &opts) {
         Ok(thresholds) => {
@@ -419,12 +441,9 @@ fn run_fit_cmd(c: FitCmd) -> ExitCode {
     };
     let repo_sha = head_sha(&c.repo.to_string_lossy()).unwrap_or_else(|| "unknown".to_string());
     let opts = CalibrateOptions {
-        n_cal: 500,
-        seed: 0,
-        n_seeds: 7,
-        evidence_top_n: 50,
         repo_sha,
         timestamp_utc: iso_now(),
+        ..CalibrateOptions::default()
     };
     if let Err(e) = run_calibrate(&c.repo, &repo_corpus, &generic_bytes, &scorer_config, &opts) {
         eprintln!("error: {e}");
