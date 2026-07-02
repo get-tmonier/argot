@@ -130,6 +130,10 @@ targets:
     prs:
       # Primary: HEAD on main at era-14 authoring (2026-07-02).
       - { pr: 0, sha: 6e0e6d950f6fe68360d68d833fd23b94f172cee7 }
+      # History snapshot ~300 commits back (2026-03-26).
+      - { pr: 1, sha: 5a237ef16783f5aa1625d9b67ac4a7472ca38b27 }
+      # History snapshot ~800 commits back (2025-10-21).
+      - { pr: 2, sha: 262e1347d3d5f833882f37615f9033711843e15c }
   - name: excalidraw
     url: https://github.com/excalidraw/excalidraw
     language: typescript
