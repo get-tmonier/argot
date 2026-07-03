@@ -100,6 +100,10 @@ fn pin_threshold(repo: &Path, value: f64) {
     let mut config: serde_json::Value = serde_json::from_str(&raw).expect("parse config");
     for (_, lang_cfg) in config["languages"].as_object_mut().expect("languages") {
         lang_cfg["threshold"] = serde_json::json!(value);
+        // integration.py is a new file relative to the HEAD~1 fit, so it is
+        // judged against the new-file threshold — pin both to isolate the
+        // evidence renderer (issue #92).
+        lang_cfg["new_file_threshold"] = serde_json::json!(value);
     }
     std::fs::write(&config_path, serde_json::to_string(&config).unwrap()).expect("write config");
 }

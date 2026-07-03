@@ -180,6 +180,16 @@ struct Loaded {
     /// Per-language slice thresholds (per-subdirectory / per-author voice).
     /// Empty for an unsliced fit.
     slices: HashMap<String, Vec<SliceEntry>>,
+    /// Per-language new-file thresholds. A hunk whose file was absent from the
+    /// fit corpus is judged against this (higher) bar instead of `threshold`
+    /// (issue #92 new-file flooding). Absent for configs predating the field —
+    /// then new files keep the single-threshold behaviour.
+    new_file_thresholds: HashMap<String, f64>,
+    /// Authoritative fit-corpus file set (repo-relative), including data-dominant
+    /// files. A path absent here is a new file. Empty for configs predating the
+    /// field — then new-file detection falls back to cluster membership, which
+    /// misclassifies data-dominant known files (issue #92).
+    fit_corpus_files: HashSet<String>,
     /// Repo SHA the model was fitted at (calibration meta), for the
     /// freshness warning. `None` when the config predates the field.
     fit_sha: Option<String>,
@@ -578,6 +588,27 @@ fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
         }
     }
 
+    // Per-language new-file thresholds (absent for configs predating the field).
+    let mut new_file_thresholds: HashMap<String, f64> = HashMap::new();
+    for (lang, lc) in languages {
+        if let Some(t) = lc.get("new_file_threshold").and_then(Value::as_f64) {
+            new_file_thresholds.insert(lang.clone(), t);
+        }
+    }
+
+    // Authoritative fit-corpus file set (repo-relative), including data-dominant
+    // files (absent for configs predating the field).
+    let fit_corpus_files: HashSet<String> = config
+        .get("corpus_files")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(Value::as_str)
+                .map(String::from)
+                .collect()
+        })
+        .unwrap_or_default();
+
     Ok(Loaded {
         scorers,
         filter_adapters,
@@ -585,6 +616,8 @@ fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
         fit_sha,
         model_hash,
         slices,
+        new_file_thresholds,
+        fit_corpus_files,
     })
 }
 
@@ -846,11 +879,14 @@ fn chain_workdir_patches(repo_path: &str) -> anyhow::Result<Vec<PatchBatch>> {
 /// inline-comment and suppressions.yaml surfaces per hit (path-level
 /// `.argotignore` suppression arrives pre-marked on the batch). Returns
 /// `(hits, hunk_count, per-file hunk counts)`.
+#[allow(clippy::too_many_arguments)]
 fn score_patches(
     patches: Vec<PatchBatch>,
     scorers: &mut HashMap<String, SequentialImportBpeScorer>,
     filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
     slices: &HashMap<String, Vec<SliceEntry>>,
+    new_file_thresholds: &HashMap<String, f64>,
+    fit_corpus_files: &HashSet<String>,
     yaml_rules: &[SuppressionRule],
     stderr: &mut String,
 ) -> (Vec<Hit>, usize, Vec<FileScan>) {
@@ -914,14 +950,32 @@ fn score_patches(
             let line = hunk.new_start as usize;
             let line_end = (hunk.new_start + hunk.new_lines).saturating_sub(1) as usize;
             let reason = scored.reason.as_str().to_string();
-            // Per-slice dispatch: if the file falls in a calibrated slice, judge
-            // the score against that slice's threshold instead of the whole-repo
-            // one. Foreign-import hits fire regardless of threshold.
-            let (flagged, threshold) = match ext_to_lang(&ext)
-                .and_then(|lang| slice_threshold(slices, lang, &batch.file_path))
-            {
+            let lang = ext_to_lang(&ext);
+            // New-file dispatch takes precedence: a hunk whose file was absent
+            // from the fit corpus is judged against the (higher) new-file
+            // threshold — a new file gets full unattested-callee mass with no
+            // cluster routing, a systematically higher distribution than an edit
+            // to a known file (issue #92 new-file flooding). Foreign imports
+            // still fire regardless of threshold. Falls through to per-slice /
+            // whole-repo dispatch for known files, or configs without the field.
+            let is_new_file = if fit_corpus_files.is_empty() {
+                // Config predates the corpus_files snapshot: fall back to cluster
+                // membership (misclassifies data-dominant known files).
+                !scorer.is_fit_file(Path::new(&batch.file_path))
+            } else {
+                !fit_corpus_files.contains(&batch.file_path)
+            };
+            let new_file_threshold = lang.and_then(|l| {
+                is_new_file
+                    .then(|| new_file_thresholds.get(l).copied())
+                    .flatten()
+            });
+            let (flagged, threshold) = match new_file_threshold {
                 Some(t) => (reason == "import" || scored.score >= t, t),
-                None => (scored.flagged, scored.threshold),
+                None => match lang.and_then(|l| slice_threshold(slices, l, &batch.file_path)) {
+                    Some(t) => (reason == "import" || scored.score >= t, t),
+                    None => (scored.flagged, scored.threshold),
+                },
             };
             let hash = hit_hash(&batch.file_path, &reason, &hunk_content);
             let suppressed_by = if batch.ignored_by_pattern {
@@ -1397,6 +1451,8 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         fit_sha,
         model_hash,
         slices,
+        new_file_thresholds,
+        fit_corpus_files,
     } = match load_scorers(&args.argot_dir) {
         Ok(l) => l,
         Err((msg, code)) => return CheckOutcome::err(msg, code),
@@ -1501,6 +1557,8 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         &mut scorers,
         &filter_adapters,
         &slices,
+        &new_file_thresholds,
+        &fit_corpus_files,
         &yaml.active,
         &mut stderr,
     );

@@ -1142,6 +1142,14 @@ impl CallReceiverScorer {
         self.n_corpus_files
     }
 
+    /// Whether `path` was one of the fit-time corpus files (repo-relative key,
+    /// the same routing key [`Self::contribution_events_impl`] resolves cluster
+    /// membership by). A path the model has never seen is a new file — `check`
+    /// judges its hunks against the new-file threshold (issue #92).
+    pub fn knows_file(&self, path: &Path) -> bool {
+        self.file_to_cluster.contains_key(path)
+    }
+
     fn root(callee: &str) -> &str {
         callee.split_once('.').map(|(h, _)| h).unwrap_or(callee)
     }
@@ -1259,6 +1267,26 @@ impl CallReceiverScorer {
         host_context: Option<(&str, usize, usize)>,
         local_bindings: &LocalBindings,
     ) -> Vec<ContributionEvent> {
+        self.contribution_events_impl(hunk, file_path, host_context, local_bindings, false)
+    }
+
+    /// As [`Self::contribution_events_for_file`], but scoring the hunk as though
+    /// its file were newly added post-fit (`as_new`): cluster routing is
+    /// disabled (a genuinely-new file is never cluster-routed at check time, so
+    /// only the global unattested/alpha branches apply) and a callee counts as
+    /// attested only when some OTHER corpus file also contains it (`df ≥ 2`) —
+    /// exact leave-one-file-out attestation, since a callee whose sole container
+    /// is this file would be unattested once the file is removed. This mirrors
+    /// how `check` scores a new file and drives the separate new-file
+    /// calibration threshold (issue #92 new-file flooding).
+    fn contribution_events_impl(
+        &self,
+        hunk: &str,
+        file_path: Option<&Path>,
+        host_context: Option<(&str, usize, usize)>,
+        local_bindings: &LocalBindings,
+        as_new: bool,
+    ) -> Vec<ContributionEvent> {
         let callees: Vec<String> = if has_root_error(hunk, self.language) {
             match host_context {
                 Some((host_source, start_line, end_line)) => {
@@ -1279,8 +1307,11 @@ impl CallReceiverScorer {
         // cluster) — measured as the dominant FP driver on new-feature
         // commits. Unknown files still get the global unattested branches;
         // `nearest_cluster_for_source` remains for evidence display.
-        let cluster_id: Option<usize> =
-            file_path.and_then(|p| self.file_to_cluster.get(p).copied());
+        let cluster_id: Option<usize> = if as_new {
+            None
+        } else {
+            file_path.and_then(|p| self.file_to_cluster.get(p).copied())
+        };
         let cluster_set = cluster_id.and_then(|c| self.cluster_attested.get(&c));
         let cluster_counts = cluster_id.and_then(|c| self.cluster_callee_counts.get(&c));
 
@@ -1297,7 +1328,12 @@ impl CallReceiverScorer {
             if local_bindings.attests(&c) {
                 continue;
             }
-            let branch = if !self.attested.contains(&c) && !self.method_attested(&c) {
+            let attested_here = if as_new {
+                self.callee_file_count(&c) >= 2
+            } else {
+                self.attested.contains(&c)
+            };
+            let branch = if !attested_here && !self.method_attested(&c) {
                 if self.attested_roots.contains(Self::root(&c)) {
                     Some(ContributionBranch::UnattestedKnownRoot)
                 } else {
@@ -1397,6 +1433,42 @@ impl CallReceiverScorer {
         }
         if hunk_fired_rare {
             self.rare_branch_hunks_fired += 1;
+        }
+        weights.min(cap)
+    }
+
+    /// Call-receiver contribution for a hunk scored as though its file were
+    /// newly added post-fit (see [`Self::contribution_events_impl`]). Side-effect
+    /// free (`&self`, no fire counters, no shape primitives): it feeds only the
+    /// separate new-file calibration threshold, which is the honest operating
+    /// point for a genuinely-new file — cluster branches are off, so only the
+    /// global alpha branches contribute, exactly as `check` scores a new file.
+    #[allow(clippy::too_many_arguments)]
+    pub fn weighted_contribution_as_new(
+        &self,
+        hunk: &str,
+        file_path: Option<&Path>,
+        alpha: f64,
+        root_bonus: f64,
+        cluster_bonus: f64,
+        cap: f64,
+        host_context: Option<(&str, usize, usize)>,
+        local_bindings: &LocalBindings,
+    ) -> f64 {
+        let events =
+            self.contribution_events_impl(hunk, file_path, host_context, local_bindings, true);
+        let mut weights = 0.0;
+        for ev in &events {
+            let rarity = self
+                .rarity_weighting
+                .weight(self.callee_file_count(&ev.callee), self.n_corpus_files);
+            match ev.branch {
+                ContributionBranch::UnattestedKnownRoot => weights += alpha + root_bonus,
+                ContributionBranch::Unattested => weights += alpha,
+                ContributionBranch::ClusterAbsent | ContributionBranch::ClusterRare => {
+                    weights += cluster_bonus * rarity
+                }
+            }
         }
         weights.min(cap)
     }
@@ -1506,6 +1578,61 @@ mod tests {
         assert_eq!(cr.callee_file_count("foo"), 6);
         assert_eq!(cr.callee_file_count("rare_helper"), 1);
         assert_eq!(cr.callee_file_count("never_seen"), 0);
+    }
+
+    #[test]
+    fn as_new_fires_alpha_on_singleton_df_callees() {
+        // File-level LOO: a callee whose only corpus container is the held-out
+        // file (df == 1) is unattested once that file is treated as newly added,
+        // so it fires the global alpha branch; a widely-shared callee (df >= 2)
+        // stays attested and, with cluster routing off for new files,
+        // contributes nothing. This asymmetry lifts the new-file threshold above
+        // the existing-file one (issue #92 new-file flooding).
+        let cr = toy_scorer(RarityWeighting::Off);
+        // rare_helper has df == 1 (only rare.py) → alpha fires as-new.
+        let singleton = cr.weighted_contribution_as_new(
+            "rare_helper()\n",
+            Some(Path::new("rare.py")),
+            2.0,
+            2.0,
+            5.0,
+            5.0,
+            None,
+            &Default::default(),
+        );
+        // Alpha fires (>= 2.0), capped at 5.0. Root attestation stays global, so
+        // a singleton bare callee resolves to UnattestedKnownRoot (alpha +
+        // root_bonus = 4.0) — a bounded, conservative over-estimate that only
+        // raises the new-file bar.
+        assert!(
+            (2.0..=5.0).contains(&singleton),
+            "singleton-df callee fires alpha as-new, got {singleton}"
+        );
+        // foo has df == 6 → attested by other files → no alpha; cluster off → 0.
+        let shared = cr.weighted_contribution_as_new(
+            "foo()\n",
+            Some(Path::new("a0.py")),
+            2.0,
+            2.0,
+            5.0,
+            5.0,
+            None,
+            &Default::default(),
+        );
+        assert_eq!(
+            shared, 0.0,
+            "widely-shared callee contributes nothing as-new"
+        );
+    }
+
+    #[test]
+    fn knows_file_tracks_fit_membership() {
+        let cr = toy_scorer(RarityWeighting::Off);
+        assert!(cr.knows_file(Path::new("a0.py")), "fit file is known");
+        assert!(
+            !cr.knows_file(Path::new("brand_new.py")),
+            "unseen file is a new file"
+        );
     }
 
     #[test]

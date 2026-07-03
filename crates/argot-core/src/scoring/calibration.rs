@@ -311,6 +311,13 @@ struct CalibrationMeta {
 #[derive(Serialize)]
 struct LangConfig {
     threshold: f64,
+    /// Honest threshold for hunks in files absent from the fit corpus. A new
+    /// file gets full unattested-callee (alpha) mass with no cluster routing —
+    /// a systematically higher score distribution than an edit to an existing
+    /// file — so it needs its own, higher bar (issue #92 new-file flooding).
+    /// `check` applies it only to new-file hunks; existing files keep
+    /// `threshold`. Never below `threshold`.
+    new_file_threshold: f64,
     call_receiver_alpha: f64,
     call_receiver_cap: usize,
     call_receiver_root_bonus: f64,
@@ -475,6 +482,14 @@ fn author_files(repo_dir: &Path, email: &str) -> Vec<String> {
 struct ScorerConfig {
     version: u32,
     languages: BTreeMap<String, LangConfig>,
+    /// Every fit-corpus file, repo-relative — the authoritative set `check` uses
+    /// to tell a new file (absent here → new-file threshold) from an edit to a
+    /// known one. Includes data-dominant files (which are filtered out of
+    /// clustering), so a fixture/edit in a data-heavy known file is NOT
+    /// misclassified as new (issue #92). Omitted for configs predating the
+    /// field — then `check` falls back to cluster membership.
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    corpus_files: Vec<String>,
 }
 
 fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
@@ -628,6 +643,63 @@ pub fn multi_seed_thresholds(
             cal_scores.push(raw_bpe + contrib);
         }
         // threshold_percentile default 100 → max.
+        let t = cal_scores.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        seed_thresholds.push(if t.is_finite() { t } else { 0.0 });
+    }
+    seed_thresholds
+}
+
+/// Per-seed **new-file** thresholds: like [`multi_seed_thresholds`], but each
+/// cal hunk is scored as though its file had just been added post-fit —
+/// BPE leave-one-file-out (as before) plus a call-receiver contribution from
+/// [`CallReceiverScorer::weighted_contribution_as_new`] (cluster off, the real
+/// check-time `alpha`/`root_bonus`, attestation requiring `df ≥ 2`). The main
+/// threshold zeroes `alpha` and keeps cluster routing on, which models an edit
+/// to an *existing* file; a new file gets no cluster mass but full alpha mass on
+/// its unattested callees, landing systematically higher. This threshold is the
+/// honest operating point for that distribution, applied by `check` only to
+/// hunks whose file was absent from the fit corpus (issue #92 new-file flood).
+#[allow(clippy::too_many_arguments)]
+pub fn multi_seed_new_file_thresholds(
+    candidates: &[Candidate],
+    bpe: &BpeScorer,
+    per_file_counts: Option<&PerFileTokenCounts>,
+    call_receiver: &CallReceiverScorer,
+    adapter: &dyn LanguageAdapter,
+    typicality: &TypicalityModel,
+    cfg: &ThresholdRunConfig,
+    alpha: f64,
+    root_bonus: f64,
+) -> Vec<f64> {
+    let effective_n_cal = cfg.n_cal.min(candidates.len());
+    let mut seed_thresholds = Vec::new();
+    for k in 0..cfg.n_seeds {
+        let seed = cfg.base_seed.wrapping_add(k as u64);
+        let idx = sample_indices(candidates.len(), effective_n_cal, seed);
+        let mut cal_scores = Vec::new();
+        for &i in &idx {
+            let c = &candidates[i];
+            if typicality.is_atypical(&c.hunk).0 {
+                continue;
+            }
+            let prose = adapter.prose_line_ranges(&c.hunk);
+            let blanked = blank_prose_lines(&c.hunk, &prose);
+            let raw_bpe = match per_file_counts.and_then(|m| m.get(&c.file_path)) {
+                Some(counts) => bpe.bpe_score_excluding(&blanked, counts),
+                None => bpe.bpe_score(&blanked),
+            };
+            let contrib = call_receiver.weighted_contribution_as_new(
+                &c.hunk,
+                Some(&c.file_path),
+                alpha,
+                root_bonus,
+                cfg.cluster_bonus,
+                cfg.cap,
+                Some((&c.file_source, c.hunk_start_line, c.hunk_end_line)),
+                &Default::default(),
+            );
+            cal_scores.push(raw_bpe + contrib);
+        }
         let t = cal_scores.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
         seed_thresholds.push(if t.is_finite() { t } else { 0.0 });
     }
@@ -955,6 +1027,29 @@ pub fn run_calibrate(
         );
         let threshold = median(seed_thresholds);
 
+        // Separate new-file threshold: the honest operating point for a
+        // genuinely-new file (cluster routing off, real check-time alpha) —
+        // never below the existing-file threshold. Applied by check only to
+        // hunks whose file was absent from the fit corpus.
+        let new_file_seeds = multi_seed_new_file_thresholds(
+            &candidates,
+            &bpe,
+            Some(&per_file_counts),
+            &call_receiver,
+            adapter.as_ref(),
+            &typicality,
+            &ThresholdRunConfig {
+                n_cal: effective_n_cal,
+                base_seed: opts.seed,
+                n_seeds: opts.n_seeds,
+                cluster_bonus: CR_CLUSTER_BONUS,
+                cap: CR_CAP as f64,
+            },
+            CR_ALPHA,
+            CR_ROOT_BONUS,
+        );
+        let new_file_threshold = median(new_file_seeds).max(threshold);
+
         // Per-slice thresholds: re-calibrate over just the candidates whose file
         // falls in each slice. A slice with too few candidates is skipped — it
         // would only get a noisier threshold than the whole-repo one.
@@ -1024,6 +1119,7 @@ pub fn run_calibrate(
             name.to_string(),
             LangConfig {
                 threshold,
+                new_file_threshold,
                 call_receiver_alpha: CR_ALPHA,
                 call_receiver_cap: CR_CAP,
                 call_receiver_root_bonus: CR_ROOT_BONUS,
@@ -1051,9 +1147,13 @@ pub fn run_calibrate(
         );
     }
 
+    let mut corpus_files_sorted = corpus_rel.clone();
+    corpus_files_sorted.sort();
+    corpus_files_sorted.dedup();
     let config = ScorerConfig {
         version: CONFIG_VERSION,
         languages,
+        corpus_files: corpus_files_sorted,
     };
     if let Some(parent) = output.parent() {
         std::fs::create_dir_all(parent).ok();

@@ -354,6 +354,17 @@ impl SequentialImportBpeScorer {
         self.changeset_bindings = bindings;
     }
 
+    /// Whether `path` (repo-relative) was in the fit corpus. A path the model
+    /// never saw is a new file, judged by `check` against the new-file threshold
+    /// rather than the existing-file one (issue #92 new-file flooding). Falls
+    /// back to `true` (treat as existing) when there is no call-receiver model,
+    /// so a call-receiver-less config keeps its single-threshold behaviour.
+    pub fn is_fit_file(&self, path: &std::path::Path) -> bool {
+        self.call_receiver
+            .as_ref()
+            .is_none_or(|cr| cr.knows_file(path))
+    }
+
     /// Per-primitive fire counts from the call-receiver (bench observability).
     pub fn primitive_fire_counts(&self) -> Option<&std::collections::HashMap<String, usize>> {
         self.call_receiver
