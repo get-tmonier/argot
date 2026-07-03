@@ -50,6 +50,30 @@ import/call_receiver scorer already sits near that ceiling (laravel 62%, the res
 odd naming/shape case (laravel naming 0.92) but cannot cross the semantic-break
 wall.
 
+## The caught-vs-missed pattern makes the ceiling concrete
+
+laravel, clean `--mode honest` run, 8/13. Every HIT is a break with an
+**unattested callee** (call_receiver fires at 8.7–11.8); every MISS (all score
+**0.00**) is a break that uses **attested vocabulary in the wrong context**:
+
+| result | fixtures | why |
+|---|---|---|
+| HIT (8) | 1 error-discipline, 2 concurrency, 2 api, 2 naming, 1 foreign-import | unattested callee → call_receiver fires |
+| MISS (5) | 2 error-discipline, 2 api-within-known-lib, 1 foreign-import | attested callee/construct, contextual misuse |
+
+The misses are the fundamental class: `trigger_error(E_USER_ERROR)` (repo uses
+`trigger_error`, just with `E_USER_WARNING`), API-within-known-lib misuse
+(attested calls, wrong API for the situation). Even the *most optimistic*
+principled improvement — capturing the one unattested error *construct* (`die`
+appears in 0 corpus files but tree-sitter parses it as a statement, not a call,
+so callee extraction misses it) plus the anomalous foreign-import miss — reaches
+~10/13 = **77%**, still below the 85% gate. At least three misses are contextual
+(minimal-pair cosine 0.996) and uncatchable by any hunk-level signal. **The gate
+is arithmetically capped below 85% by the contextual class, independent of
+scorer.** (Chasing the `die` construct specifically would also be fixture-tuning,
+which the rubric forbids; a principled generic control-flow-construct attestation
+is a real but separate improvement that still does not clear the gate.)
+
 ## Verdict
 
 Recall ≥ 85% on the curated hard-class catalogs is a **genuine fundamental
