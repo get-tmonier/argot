@@ -6,6 +6,7 @@ categories:
 - wrong_api_within_known_lib
 - naming_shape_break
 - foreign_import
+- foreign_api
 injection_hosts:
 - pr: 0
   sha: 5312fedc7b82bb1a83111145ea192d06fd04aa27
@@ -187,3 +188,60 @@ fixtures:
   difficulty: easy
   host_file: guava/src/com/google/common/cache/CacheBuilder.java
   host_inject_at_line: 325
+- id: foreign_gson_1
+  file: breaks/break_foreign_gson_1.java
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 26
+  rationale: 'Fully-qualified com.google.gson.Gson/GsonBuilder JSON serialization
+    (toJson) inside the hunk. Verified at pinned SHA: git grep com.google.gson over
+    all *.java returns 0 files, and gson is absent from both the parent pom and
+    guava/pom.xml dependency lists (deps are failureaccess, listenablefuture, jspecify,
+    error_prone_annotations, j2objc-annotations); GsonBuilder/.toJson( are 0 hits
+    in guava/src (non-colliding); the repo writes structured data through its own
+    Joiner/Splitter and byte sinks, never a foreign JSON library.'
+  difficulty: easy
+  host_file: guava/src/com/google/common/io/Files.java
+  host_inject_at_line: 169
+- id: foreign_okhttp_1
+  file: breaks/break_foreign_okhttp_1.java
+  category: foreign_api
+  hunk_start_line: 13
+  hunk_end_line: 24
+  rationale: 'Fully-qualified okhttp3.OkHttpClient request/response fetch (newCall/execute)
+    inside the hunk. Verified at pinned SHA: git grep okhttp3 over all *.java returns
+    0 files and okhttp3 is absent from both the parent pom and guava/pom.xml dependency
+    lists; OkHttpClient/.newCall( are 0 hits in guava/src (non-colliding); the repo
+    has no HTTP client of its own and never reaches for a foreign one — resource
+    loading goes through Resources/Files.'
+  difficulty: easy
+  host_file: guava/src/com/google/common/io/Files.java
+  host_inject_at_line: 169
+- id: foreign_hibernate_1
+  file: breaks/break_foreign_hibernate_1.java
+  category: foreign_api
+  hunk_start_line: 13
+  hunk_end_line: 27
+  rationale: 'Fully-qualified org.hibernate.Session query lifecycle (openSession/beginTransaction/getResultList)
+    inside the hunk. Verified at pinned SHA: git grep org.hibernate over all *.java
+    returns 0 files and hibernate is absent from both the parent pom and guava/pom.xml
+    dependency lists; SessionFactory/openSession/beginTransaction/getResultList are
+    0 hits in guava/src (non-colliding); the repo has no persistence layer and gathers
+    elements through its own collection and iterator types, never a foreign ORM.'
+  difficulty: easy
+  host_file: guava/src/com/google/common/collect/Iterators.java
+  host_inject_at_line: 152
+- id: foreign_jackson_1
+  file: breaks/break_foreign_jackson_1.java
+  category: foreign_api
+  hunk_start_line: 11
+  hunk_end_line: 25
+  rationale: 'Fully-qualified com.fasterxml.jackson.databind.ObjectMapper JSON serialization
+    (writeValueAsString) inside the hunk. Verified at pinned SHA: git grep com.fasterxml.jackson
+    over all *.java returns 0 files and jackson is absent from both the parent pom
+    and guava/pom.xml dependency lists; ObjectMapper/writeValueAsString are 0 hits
+    in guava/src (non-colliding); the repo renders debug text through MoreObjects.toStringHelper,
+    never a foreign JSON mapper.'
+  difficulty: easy
+  host_file: guava/src/com/google/common/base/Strings.java
+  host_inject_at_line: 105

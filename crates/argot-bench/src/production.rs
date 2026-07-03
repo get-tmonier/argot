@@ -258,44 +258,104 @@ pub fn write_production_reports(
     Ok(md)
 }
 
+/// Rubric scope tier for a break class (see `benchmarks/catalogs/RUBRIC.md`):
+/// `voice` = foreign-to-repo vocabulary argot's stages detect (gated ≥85%);
+/// `semantic` = misuse of the repo's own/known vocabulary (reported, ungated —
+/// a documented fundamental limit, not a pass/fail line).
+pub fn tier_of(category: &str) -> &'static str {
+    match category {
+        // Gated foreign-symbol classes (RUBRIC v2): a foreign package/library
+        // verified 0-usage in the repo — argot's reliable capability.
+        "foreign_import" | "foreign_api" | "foreign_concurrency" => "gated",
+        "naming_shape_break" => "naming",
+        // v1 `wrong_concurrency` is mostly *attested* primitives (pthread where
+        // attested, busy-wait) — semantic, not a foreign symbol. Reported.
+        "wrong_error_discipline"
+        | "wrong_api_within_known_lib"
+        | "wrong_concurrency"
+        | "semantic_convention" => "semantic",
+        // Legacy Python/TS catalogs use an ad-hoc taxonomy predating the RUBRIC.
+        _ => "other",
+    }
+}
+
+/// `(caught, total)` over a report's fixtures in one scope tier.
+fn tier_recall(r: &ProductionReport, tier: &str) -> (usize, usize) {
+    let mut caught = 0;
+    let mut total = 0;
+    for f in &r.fixture_results {
+        if tier_of(&f.category) == tier {
+            total += 1;
+            if f.flagged {
+                caught += 1;
+            }
+        }
+    }
+    (caught, total)
+}
+
+fn pct(caught: usize, total: usize) -> f64 {
+    if total > 0 {
+        100.0 * caught as f64 / total as f64
+    } else {
+        0.0
+    }
+}
+
 pub fn production_summary_markdown(
     reports: &[ProductionReport],
-    catalog_recall: &BTreeMap<String, (usize, usize)>,
+    _catalog_recall: &BTreeMap<String, (usize, usize)>,
 ) -> String {
     let mut out = String::new();
     out.push_str("# argot-bench production-path report\n\n");
     out.push_str(
-        "| Corpus | Recall (production) | Recall (catalog) | Gap | Uncaught |\n\
-         |:---|---:|---:|---:|:---|\n",
+        "Recall split by RUBRIC v2 scope tier. **Gated** (foreign_import / \
+         foreign_api / foreign_concurrency) is argot's shippable design target \
+         (≥85%) — foreign-dependency detection. **Naming** and **Semantic** \
+         (misuse of the repo's own vocabulary — a documented limit) are reported, \
+         never gated. See `benchmarks/catalogs/RUBRIC.md`.\n\n",
     );
-    let mut total_caught = 0usize;
-    let mut total_fixtures = 0usize;
-    for r in reports {
-        total_caught += r.n_caught;
-        total_fixtures += r.n_fixtures;
-        let prod_pct = if r.n_fixtures > 0 {
-            100.0 * r.n_caught as f64 / r.n_fixtures as f64
+    let cell = |c: usize, t: usize| {
+        if t == 0 {
+            "—".to_string()
         } else {
-            0.0
-        };
-        let (cat_cell, gap_cell) = match catalog_recall.get(&r.corpus) {
-            Some((caught, total)) if *total > 0 => {
-                let cat_pct = 100.0 * *caught as f64 / *total as f64;
-                (
-                    format!("{caught}/{total} ({cat_pct:.1}%)"),
-                    format!("{:+.1}pp", prod_pct - cat_pct),
-                )
-            }
-            _ => ("—".to_string(), "—".to_string()),
+            format!("{c}/{t} ({:.0}%)", pct(c, t))
+        }
+    };
+    out.push_str(
+        "| Corpus | Gated recall (≥85%) | Naming | Semantic | Legacy | Uncaught |\n\
+         |:---|---:|---:|---:|---:|:---|\n",
+    );
+    let (mut g_c, mut g_t, mut n_c, mut n_t, mut s_c, mut s_t, mut o_c, mut o_t) =
+        (0, 0, 0, 0, 0, 0, 0, 0);
+    for r in reports {
+        let (gc, gt) = tier_recall(r, "gated");
+        let (nc, nt) = tier_recall(r, "naming");
+        let (sc, st) = tier_recall(r, "semantic");
+        let (oc, ot) = tier_recall(r, "other");
+        g_c += gc;
+        g_t += gt;
+        n_c += nc;
+        n_t += nt;
+        s_c += sc;
+        s_t += st;
+        o_c += oc;
+        o_t += ot;
+        let gate = if gt == 0 {
+            "" // legacy corpus: no gated fixtures
+        } else if pct(gc, gt) >= 85.0 {
+            " ✅"
+        } else {
+            " ❌"
         };
         out.push_str(&format!(
-            "| {} | {}/{} ({:.1}%) | {} | {} | {} |\n",
+            "| {} | {}{} | {} | {} | {} | {} |\n",
             r.corpus,
-            r.n_caught,
-            r.n_fixtures,
-            prod_pct,
-            cat_cell,
-            gap_cell,
+            cell(gc, gt),
+            gate,
+            cell(nc, nt),
+            cell(sc, st),
+            cell(oc, ot),
             if r.uncaught.is_empty() {
                 "—".to_string()
             } else {
@@ -303,11 +363,15 @@ pub fn production_summary_markdown(
             },
         ));
     }
-    if total_fixtures > 0 {
-        out.push_str(&format!(
-            "\n**Total production recall: {total_caught}/{total_fixtures} ({:.1}%)**\n",
-            100.0 * total_caught as f64 / total_fixtures as f64
-        ));
-    }
+    out.push_str(&format!(
+        "\n**Gated recall (foreign-dependency, ≥85%): {g_c}/{g_t} ({:.1}%)** — the shippable headline\n\
+         **Naming recall (best-effort, reported): {n_c}/{n_t} ({:.1}%)**\n\
+         **Semantic recall (out-of-scope, reported — fundamental limit): {s_c}/{s_t} ({:.1}%)**\n\
+         **Legacy catalogs (ad-hoc taxonomy, continuity only): {o_c}/{o_t} ({:.1}%)**\n",
+        pct(g_c, g_t),
+        pct(n_c, n_t),
+        pct(s_c, s_t),
+        pct(o_c, o_t),
+    ));
     out
 }

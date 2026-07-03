@@ -6,6 +6,7 @@ categories:
 - wrong_api_within_known_lib
 - naming_shape_break
 - foreign_import
+- foreign_api
 injection_hosts:
 - pr: 0
   sha: 8ce2bbe12ef2b048405817b130901bc6f5884a4e
@@ -172,3 +173,75 @@ fixtures:
   difficulty: easy
   host_file: src/Illuminate/Console/Scheduling/Schedule.php
   host_inject_at_line: 367
+- id: laravel_foreign_doctrine_1
+  file: breaks/break_foreign_doctrine_1.php
+  category: foreign_api
+  hunk_start_line: 30
+  hunk_end_line: 48
+  rationale: 'Doctrine ORM EntityManager unit-of-work (persist/flush). Verified at
+    pinned SHA: doctrine/orm absent from composer.json and `\Doctrine\ORM` = 0 hits
+    in src/; the distinctive callees `EntityManager`/`persist` = 0 src hits (non-colliding);
+    the repo persists through Eloquent models and the query builder.'
+  difficulty: easy
+  host_file: src/Illuminate/Database/Connection.php
+  host_inject_at_line: 533
+- id: laravel_foreign_mongodb_1
+  file: breaks/break_foreign_mongodb_1.php
+  category: foreign_api
+  hunk_start_line: 30
+  hunk_end_line: 45
+  rationale: 'MongoDB client document writes (selectCollection/insertOne). Verified
+    at pinned SHA: mongodb/mongodb absent from composer.json and `\MongoDB\` = 0 hits
+    in src/; `selectCollection`/`insertOne` = 0 src hits (non-colliding); the repo
+    reads/writes exclusively through the SQL query builder and Eloquent.'
+  difficulty: easy
+  host_file: src/Illuminate/Database/Connection.php
+  host_inject_at_line: 533
+- id: laravel_foreign_twig_1
+  file: breaks/break_foreign_twig_1.php
+  category: foreign_api
+  hunk_start_line: 18
+  hunk_end_line: 32
+  rationale: 'Twig standalone environment (ArrayLoader/createTemplate). Verified at
+    pinned SHA: twig/twig absent from composer.json and `\Twig\` = 0 hits in src/;
+    `createTemplate` = 0 src hits (non-colliding); the repo renders through the Blade
+    compiler and view factory.'
+  difficulty: easy
+  host_file: src/Illuminate/View/Factory.php
+  host_inject_at_line: 30
+- id: laravel_foreign_smarty_1
+  file: breaks/break_foreign_smarty_1.php
+  category: foreign_api
+  hunk_start_line: 18
+  hunk_end_line: 33
+  rationale: 'Smarty template engine (setTemplateDir/setCompileDir/fetch). Verified
+    at pinned SHA: smarty/smarty absent from composer.json and `Smarty` = 0 hits in
+    src/; `setTemplateDir`/`setCompileDir` = 0 src hits (non-colliding); the repo
+    compiles views through Blade.'
+  difficulty: easy
+  host_file: src/Illuminate/View/Factory.php
+  host_inject_at_line: 30
+- id: laravel_foreign_stripe_1
+  file: breaks/break_foreign_stripe_1.php
+  category: foreign_api
+  hunk_start_line: 18
+  hunk_end_line: 33
+  rationale: 'Stripe SDK direct payment-intent creation (StripeClient/paymentIntents->create).
+    Verified at pinned SHA: stripe/stripe-php absent from composer.json and `\Stripe\StripeClient`
+    = 0 hits in src/; `paymentIntents` = 0 src hits (non-colliding); the repo issues
+    HTTP through its own Guzzle-backed client.'
+  difficulty: easy
+  host_file: src/Illuminate/Http/Client/Factory.php
+  host_inject_at_line: 262
+- id: laravel_foreign_firebasejwt_1
+  file: breaks/break_foreign_firebasejwt_1.php
+  category: foreign_api
+  hunk_start_line: 18
+  hunk_end_line: 28
+  rationale: 'firebase/php-jwt direct token signing (JWT::encode). Verified at pinned
+    SHA: firebase/php-jwt absent from composer.json and `\Firebase\JWT` = 0 hits in
+    src/; `JWT::encode` = 0 src hits (non-colliding); the repo signs via its own Encrypter
+    and Signer contracts.'
+  difficulty: easy
+  host_file: src/Illuminate/Http/Request.php
+  host_inject_at_line: 273

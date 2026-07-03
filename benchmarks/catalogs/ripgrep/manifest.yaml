@@ -6,6 +6,7 @@ categories:
 - wrong_api_within_known_lib
 - naming_shape_break
 - foreign_import
+- foreign_api
 injection_hosts:
 - pr: 0
   sha: 48b0c795f4feb37343b2832d991c5c6a3900c08a
@@ -182,3 +183,63 @@ fixtures:
   difficulty: easy
   host_file: crates/ignore/src/gitignore.rs
   host_inject_at_line: 316
+- id: foreign_tokio_1
+  file: breaks/break_foreign_tokio_1.rs
+  category: foreign_api
+  hunk_start_line: 34
+  hunk_end_line: 45
+  rationale: 'tokio::runtime::Runtime::new() + .block_on() spun up inside a
+    synchronous per-file match-counting helper, referenced by fully-qualified
+    path (no `use` import). Verified foreign at SHA: `tokio` = 0 grep hits in
+    crates/ (Cargo.lock lists no tokio package at all); `Runtime::new` and
+    `block_on` = 0 src hits (non-colliding); the searcher''s Core/MultiLine
+    sink is plain synchronous Rust over Matcher + Sink, never async.'
+  difficulty: easy
+  host_file: crates/searcher/src/searcher/glue.rs
+  host_inject_at_line: 148
+- id: foreign_reqwest_1
+  file: breaks/break_foreign_reqwest_1.rs
+  category: foreign_api
+  hunk_start_line: 37
+  hunk_end_line: 43
+  rationale: 'reqwest::blocking::get() fetching a shared ignore-rule list over
+    HTTP before the walker builds its ignore stack, referenced by
+    fully-qualified path (no `use` import). Verified foreign at SHA:
+    `reqwest` = 0 grep hits in crates/ (Cargo.lock lists no reqwest package);
+    `blocking::get` = 0 src hits (non-colliding); the ignore crate resolves
+    rules exclusively from the local filesystem (.gitignore/.ignore/
+    .rgignore) via its own Gitignore builder, never over the network.'
+  difficulty: easy
+  host_file: crates/ignore/src/walk.rs
+  host_inject_at_line: 508
+- id: foreign_diesel_1
+  file: breaks/break_foreign_diesel_1.rs
+  category: foreign_api
+  hunk_start_line: 37
+  hunk_end_line: 53
+  rationale: 'diesel::pg::PgConnection::establish() + sql_query().bind().execute()
+    persisting formatted match records to Postgres, referenced by
+    fully-qualified path (no `use` import). Verified foreign at SHA: `diesel`
+    = 0 grep hits in crates/ (Cargo.lock lists no diesel package);
+    `PgConnection` and `establish_connection`/`.establish(` = 0 src hits
+    (non-colliding); the standard printer only ever writes to its generic
+    `W: WriteColor` writer over termcolor, never to a database.'
+  difficulty: easy
+  host_file: crates/printer/src/standard.rs
+  host_inject_at_line: 596
+- id: foreign_sqlx_1
+  file: breaks/break_foreign_sqlx_1.rs
+  category: foreign_api
+  hunk_start_line: 24
+  hunk_end_line: 40
+  rationale: 'sqlx::postgres::PgPoolOptions + sqlx::query().bind().execute()
+    async-logging per-run match totals to Postgres, referenced by
+    fully-qualified path (no `use` import). Verified foreign at SHA: `sqlx` =
+    0 grep hits in crates/ (Cargo.lock lists no sqlx package); `PgPoolOptions`
+    and `sqlx::query`/`fetch_all` = 0 src hits (non-colliding); the standard
+    printer''s stats are held in-process via this crate''s own counter types
+    and written to the terminal writer, never queried against or persisted to
+    a database.'
+  difficulty: easy
+  host_file: crates/printer/src/standard.rs
+  host_inject_at_line: 596

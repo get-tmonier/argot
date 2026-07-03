@@ -6,6 +6,7 @@ categories:
 - wrong_api_within_known_lib
 - naming_shape_break
 - foreign_import
+- foreign_api
 injection_hosts:
 - pr: 0
   sha: a40466d963a35d469d8b6bbf1c53724eb4f6360b
@@ -179,3 +180,65 @@ fixtures:
   difficulty: easy
   host_file: db/db_iter.cc
   host_inject_at_line: 327
+- id: foreign_nlohmann_1
+  file: breaks/break_foreign_nlohmann_1.cpp
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 29
+  rationale: 'nlohmann::json debug-dump of write-batch stats, #include
+    <nlohmann/json.hpp> inside the hunk. Verified at pinned SHA: zero
+    `#include <nlohmann`, zero `nlohmann::json`, and zero `json::parse` sites
+    in db/util/table/include (git grep); the distinctive callees
+    `nlohmann::json::parse`/case-sensitive `.dump(` = 0 hits (repo''s own
+    dump helper is PascalCase `.Dump(`, 6 hits, non-colliding at exact
+    match). Repo builds debug/status strings via std::string append and
+    PutLengthPrefixedSlice, never a JSON library.'
+  difficulty: easy
+  host_file: db/write_batch.cc
+  host_inject_at_line: 302
+- id: foreign_absl_1
+  file: breaks/break_foreign_absl_1.cpp
+  category: foreign_api
+  hunk_start_line: 14
+  hunk_end_line: 30
+  rationale: 'abseil flat_hash_map + StrCat for an in-process file-number
+    debug index, #include <absl/container/flat_hash_map.h> and
+    <absl/strings/str_cat.h> inside the hunk. Verified at pinned SHA: zero
+    `#include <absl/` sites in db/util/table/include and zero
+    `absl::flat_hash_map`/`absl::StrCat` sites repo-wide (git grep,
+    non-colliding); rocksdb keys caches through Cache::Lookup/Insert over a
+    Slice and uses std::unordered_map (208 sites in db/) for plain
+    in-process maps, never abseil containers.'
+  difficulty: easy
+  host_file: db/table_cache.cc
+  host_inject_at_line: 209
+- id: foreign_grpc_1
+  file: breaks/break_foreign_grpc_1.cpp
+  category: foreign_api
+  hunk_start_line: 14
+  hunk_end_line: 30
+  rationale: 'gRPC ServerBuilder/BuildAndStart to push manifest records to a
+    remote follower, #include <grpcpp/grpcpp.h> inside the hunk. Verified at
+    pinned SHA: zero `#include <grpcpp/grpcpp`, zero `grpc::ServerBuilder`,
+    and zero `BuildAndStart` sites in db/util/table/include and repo-wide
+    (git grep, non-colliding); rocksdb''s replication/notification surface
+    is in-process callbacks (WalFilter, EventListener), never an RPC
+    transport.'
+  difficulty: easy
+  host_file: db/version_edit.cc
+  host_inject_at_line: 269
+- id: foreign_spdlog_1
+  file: breaks/break_foreign_spdlog_1.cpp
+  category: foreign_api
+  hunk_start_line: 12
+  hunk_end_line: 27
+  rationale: 'spdlog::logger/spdlog::info for an oversized-write-batch
+    warning, #include <spdlog/spdlog.h> inside the hunk. Verified at pinned
+    SHA: zero `#include <spdlog/spdlog`, zero `spdlog::logger`, and zero
+    `spdlog::info(` sites in db/util/table/include (git grep, non-colliding);
+    rocksdb logs exclusively through ROCKS_LOG_* macros over
+    db_options_.info_log (491 sites in db/), never a standalone logging
+    library.'
+  difficulty: easy
+  host_file: db/write_batch.cc
+  host_inject_at_line: 302

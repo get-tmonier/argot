@@ -6,6 +6,7 @@ categories:
 - wrong_api_within_known_lib
 - naming_shape_break
 - foreign_import
+- foreign_api
 injection_hosts:
 - pr: 0
   sha: 09f982d033fd50d45e6e1de90af92c8f886f64a8
@@ -181,3 +182,57 @@ fixtures:
   difficulty: easy
   host_file: Library/Homebrew/livecheck/livecheck.rb
   host_inject_at_line: 428
+- id: fa_faraday_1
+  file: breaks/break_foreign_faraday_1.rb
+  category: foreign_api
+  hunk_start_line: 19
+  hunk_end_line: 31
+  rationale: 'Faraday HTTP client with retry middleware for a tap manifest fetch.
+    Verified at pinned SHA: faraday absent from Library/Homebrew/Gemfile and zero
+    occurrences of faraday/Faraday anywhere in the tree; the distinctive callees
+    `Faraday.new` and `.status` = 0 src hits each (non-colliding); the corpus fetches
+    remote JSON through Utils::Curl and DownloadQueue.'
+  difficulty: easy
+  host_file: Library/Homebrew/tap.rb
+  host_inject_at_line: 108
+- id: fa_sequel_1
+  file: breaks/break_foreign_sequel_1.rb
+  category: foreign_api
+  hunk_start_line: 18
+  hunk_end_line: 25
+  rationale: 'Sequel-backed sqlite dataset query (Sequel.connect + bracket dataset
+    + `.where` block) for purging old download records. Verified at pinned SHA:
+    sequel absent from Library/Homebrew/Gemfile and zero occurrences of sequel/Sequel
+    anywhere in the tree; the distinctive callees `Sequel.connect` and `.where` =
+    0 src hits each (non-colliding); the corpus tracks downloads through
+    DownloadQueue, never a foreign query DSL.'
+  difficulty: easy
+  host_file: Library/Homebrew/cleanup.rb
+  host_inject_at_line: 76
+- id: fa_restclient_1
+  file: breaks/break_foreign_restclient_1.rb
+  category: foreign_api
+  hunk_start_line: 18
+  hunk_end_line: 28
+  rationale: 'RestClient.post for install telemetry reporting. Verified at pinned
+    SHA: rest-client absent from Library/Homebrew/Gemfile and zero occurrences of
+    rest-client/RestClient anywhere in the tree; the distinctive callees
+    `RestClient.post` and `.code` = 0 src hits each (non-colliding); the corpus
+    reports through its own analytics plumbing, never a foreign HTTP client gem.'
+  difficulty: easy
+  host_file: Library/Homebrew/formula_installer.rb
+  host_inject_at_line: 218
+- id: fa_sinatra_1
+  file: breaks/break_foreign_sinatra_1.rb
+  category: foreign_api
+  hunk_start_line: 20
+  hunk_end_line: 29
+  rationale: 'Sinatra::Base micro app exposing tap install status over HTTP.
+    Verified at pinned SHA: sinatra absent from Library/Homebrew/Gemfile and zero
+    occurrences of sinatra/Sinatra anywhere in the tree (bare-substring grep, no
+    word-boundary trap); the distinctive callees `Sinatra::Base` and `set :bind` =
+    0 src hits each (non-colliding); the corpus reports status through ohai/puts,
+    never an HTTP endpoint of its own.'
+  difficulty: easy
+  host_file: Library/Homebrew/tap.rb
+  host_inject_at_line: 108

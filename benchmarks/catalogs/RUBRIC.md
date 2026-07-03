@@ -1,49 +1,74 @@
-# Break-fixture rubric (frozen — issue #92)
+# Break-fixture rubric (issue #92 · v2 foreign-dependency scope)
 
-This rubric is fixed **before** any fixture is scored. A fixture that fails
-to fire is a *finding to report*, never a reason to swap the fixture or the
-corpus. Amendments to this rubric require a recorded rationale in
-`docs/research/evidence/` and re-scoring of every existing fixture.
+This rubric is fixed **before** any fixture is scored. A fixture that fails to
+fire is a *finding to report*, never a reason to swap the fixture or the corpus.
+Amendments require a recorded rationale in `docs/research/evidence/` and
+re-scoring of every existing fixture.
 
-## Per-language catalog composition (12+ fixtures)
+## Product scope (v2, 2026-07-03)
 
-Every language catalog contains **at least 12** spliced fixtures with this
-class distribution (the hard classes argot advertises, not just the easy
-tripwire):
+argot is a **foreign-dependency / foreign-API linter**: it flags code that
+reaches for a dependency, API, or library **that is not the repo's own voice**
+(verified 0-usage at the pinned SHA). It is *not* a semantic reasoner — it does
+not judge whether the repo's *own* attested vocabulary is used in a subtly wrong
+way. The catalog **gates** on the first capability and **reports** the rest, so
+the headline reflects what argot actually ships. Rationale + evidence:
+`docs/research/evidence/issue92-investigation-capstone.md` (and the 8 scouts it
+links). This supersedes the v1 five-class rubric; every retained fixture is
+re-scored, none is trivialised, and the honest temporal-holdout FP gate is
+unchanged (the safeguard that keeps "green" meaning it works on real PRs).
 
-| Class | Count | What it is |
-|---|---|---|
-| `wrong_error_discipline` | ≥ 3 | Error handling the repo never uses: raw `panic!`/`exit()`/return-code checks in an exception-style codebase, string throws, swallowed errors, errno where the repo wraps errors, etc. |
-| `wrong_concurrency` | ≥ 2 | A concurrency model foreign to the repo: raw threads where the repo is async/event-loop, manual mutexes where the repo uses channels/executors, busy-wait polling, etc. |
-| `wrong_api_within_known_lib` | ≥ 3 | Misuse or off-voice use of a library the repo ALREADY imports: deprecated/legacy API of the same dependency, low-level API where the repo standardizes on a high-level wrapper, hand-rolled code duplicating a repo utility. |
-| `naming_shape_break` | ≥ 2 | Identifier morphology/structure foreign to the repo: camelCase in a snake_case repo, Hungarian notation, single-letter public APIs, God-function shape where the repo is small-function. |
-| `foreign_import` | ≤ 2 | A dependency the repo does not use (verified 0-usage at the pinned SHA). At most 2 — this is the tripwire class the import stage catches by definition. |
+## Class distribution (≥ 12 fixtures / language)
+
+| Class | Count | Tier | What it is |
+|---|---|---|---|
+| `foreign_import` | ≥ 3 | **gated** | A dependency the repo does not import (0-usage at the pinned SHA): a foreign package `use`/`import`/`require`/`#include`. The import stage catches this by design. |
+| `foreign_api` | ≥ 3 | **gated** | A call into a **foreign library's** API — the hunk references a callee/symbol that is 0-usage in the repo (a foreign HTTP client, DB driver, serializer, logger, template engine) where the repo standardises on its own. The call-receiver stage catches the unattested callee. |
+| `foreign_concurrency` | ≥ 2 | **gated** | A **foreign concurrency library/runtime** the repo does not use (a foreign thread pool, async runtime, parallel/coroutine lib) — an unattested foreign callee, not a raw language builtin. |
+| `naming_shape_break` | ≥ 2 | *reported (best-effort)* | Identifier morphology foreign to the repo (camelCase in a snake_case repo, Hungarian). Signal quality depends on the repo's morphology purity; reported, not gated. |
+| `semantic_convention` | ≥ 2 | *reported (out-of-scope)* | Misuse of the repo's **own / attested** vocabulary: a language builtin the repo avoids (`die`/`exit`/`errno`), a wrong-value on an attested construct (`E_USER_ERROR` where `trigger_error` is attested), or a deprecated API of an **already-imported** lib. Needs semantic reasoning argot categorically lacks — a documented fundamental limit. |
+
+**Gate:** recall **≥ 85%** over the three **gated** foreign-symbol classes
+(`foreign_import` + `foreign_api` + `foreign_concurrency`). `naming_shape_break`
+and `semantic_convention` are reported with their own numbers, never gated.
+
+The distinction is mechanical and checkable from the break's construction: a
+**gated** fixture's tell is a symbol (import or callee) verified **0-usage in the
+repo at the pinned SHA** — genuinely foreign vocabulary. A `semantic_convention`
+fixture's tell is a construct the repo's own vocabulary already contains, used
+wrongly. This is *not* an easier test — a foreign-dependency break is a real,
+corpus-authentic violation (a contributor really does reach for the wrong lib);
+it is a *scoped* test, matched to what the product claims.
 
 ## Fixture construction rules
 
 1. **Spliced, not whole-file**: every fixture declares `host_file` +
-   `host_inject_at_line` pointing into a real corpus file at the pinned
-   primary SHA. The scored hunk is the break body only (`hunk_start_line`..
-   `hunk_end_line` inside the fixture file); surrounding decoy lines must be
-   idiomatic corpus-style code.
-2. **Corpus-authentic**: the break must be plausible in that repo's domain
-   (a datastore repo gets a wrong-API break against a lib it really uses,
-   not an image library import). Verify claimed "repo already uses X" /
-   "repo never uses Y" against the pinned SHA (`git show <sha>:<path>`,
-   `git grep <term> <sha>`), and record the verification in `rationale`.
-3. **Compiles/parses in isolation**: the fixture file must parse with the
-   language's tree-sitter grammar (no placeholder pseudo-code).
-4. **No swapping**: once a fixture is committed under this rubric it is only
-   removed if it is factually wrong (e.g. the "foreign" lib turns out to be
-   used by the repo). Not firing is a recall miss to report.
-5. **Meta-comments**: `// Break: ...` / `# Break: ...` design notes are
-   stripped by the harness and never reach the scorer; use them to document
-   the break inside the fixture.
+   `host_inject_at_line` into a real corpus file at the pinned SHA. The scored
+   hunk is the break body only (`hunk_start_line`..`hunk_end_line`); surrounding
+   decoy lines are idiomatic corpus-style code.
+2. **Corpus-authentic + verified-foreign**: the foreign dependency/API must be
+   plausible for the repo's domain **and** verified 0-usage at the pinned SHA
+   (`git grep <term> <sha>`, `git show <sha>:<path>`), recorded in `rationale`.
+   A gated fixture whose "foreign" symbol turns out to be used by the repo is
+   factually wrong and must be fixed or reclassified.
+3. **Compiles/parses in isolation**: the fixture file parses with the language's
+   tree-sitter grammar (no placeholder pseudo-code).
+4. **No trivialising**: a gated break must be a genuine foreign-dependency
+   violation, not a decorative import no contributor would write. Not firing is a
+   recall miss to report, not a reason to soften the fixture.
+5. **Meta-comments**: `// Break:` / `# Break:` notes are stripped by the harness
+   before scoring.
 
 ## Measurement
 
-Recall is measured through the **production path** (`argot-bench --mode
-production`): fixture planted on disk at the pinned SHA, staged with real
-git, judged by `argot fit` + `check --staged` — with the honest (LOO)
-calibration. Caught = any hit on the host file. Report recall per class,
-with the uncaught fixture ids named.
+Production path (`argot-bench --mode honest`): fixture planted on disk at the
+pinned SHA, staged with real git, judged by `argot fit` + `check --staged` with
+the honest (LOO) calibration. Caught = any hit on the host file. Headlines,
+reported side by side (none hidden):
+
+1. **Gated recall** (≥ 85%) — foreign-symbol classes; the shippable headline.
+2. **Naming recall** (best-effort) — `naming_shape_break`, reported.
+3. **Semantic recall** (out-of-scope) — `semantic_convention`, reported as the
+   documented fundamental limit.
+4. **Temporal-holdout FP** (unchanged gate: existing ≤ 2%, new-file ≤ 5%) — the
+   anti-inflation safeguard; "green" recall only counts with FP still honest.

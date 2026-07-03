@@ -6,6 +6,7 @@ categories:
 - wrong_api_within_known_lib
 - naming_shape_break
 - foreign_import
+- foreign_api
 injection_hosts:
 - pr: 0
   sha: 5b22a09918743ba72952e35e431db23eb3d19605
@@ -198,3 +199,67 @@ fixtures:
   difficulty: easy
   host_file: src/hyperloglog.c
   host_inject_at_line: 1043
+- id: foreign_libevent_1
+  file: breaks/break_foreign_libevent_1.c
+  category: foreign_api
+  hunk_start_line: 18
+  hunk_end_line: 38
+  rationale: 'libevent timer scheduling the active-expire cycle
+    (event_base_new/event_new/event_add/event_base_dispatch) — domain-plausible
+    in the expire-cycle file, but foreign: verified 0 tree-wide hits for
+    event_base_new/event_add/event_base_dispatch/event_new/event_base_free/
+    evtimer_new/EV_PERSIST at pinned SHA, and 0 hits for <event2/event.h> and
+    <event.h>; redis drives every periodic and I/O task through its own ae
+    event loop (aeCreateTimeEvent, used in 8 src files), never a third-party
+    reactor.'
+  difficulty: easy
+  host_file: src/expire.c
+  host_inject_at_line: 631
+- id: foreign_jansson_1
+  file: breaks/break_foreign_jansson_1.c
+  category: foreign_api
+  hunk_start_line: 18
+  hunk_end_line: 34
+  rationale: 'jansson JSON encoding of a message envelope before publish
+    (json_object/json_object_set_new/json_string/json_integer/json_dumps/
+    json_decref) — domain-plausible in the pubsub file, but foreign: verified
+    0 tree-wide hits for json_object/json_object_set_new/json_string/
+    json_integer/json_dumps/json_loads/json_pack/json_decref at pinned SHA,
+    and 0 hits for <jansson.h>; redis publishes the raw message bulk string
+    as-is through pubsubPublishMessage (src/pubsub.c:533), never wrapping it
+    in a serialized envelope of its own.'
+  difficulty: easy
+  host_file: src/pubsub.c
+  host_inject_at_line: 532
+- id: foreign_sqlite3_1
+  file: breaks/break_foreign_sqlite3_1.c
+  category: foreign_api
+  hunk_start_line: 21
+  hunk_end_line: 38
+  rationale: 'sqlite3 side-table mirroring of a string value for durability
+    (sqlite3_open/sqlite3_exec/sqlite3_free/sqlite3_close) — domain-plausible
+    in the string-type file, but foreign: verified 0 tree-wide hits for
+    sqlite3_open/sqlite3_exec/sqlite3_bind_text/sqlite3_step/sqlite3_finalize/
+    sqlite3_free/sqlite3_close/SQLITE_OK at pinned SHA, and 0 hits for
+    <sqlite3.h>; redis persists exclusively through its own RDB snapshots
+    (rdbSave, referenced in 13 src files) and AOF, never a foreign embedded
+    database.'
+  difficulty: easy
+  host_file: src/t_string.c
+  host_inject_at_line: 557
+- id: foreign_libpq_1
+  file: breaks/break_foreign_libpq_1.c
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 32
+  rationale: 'libpq PostgreSQL client writing an audit row on key expiry
+    (PQconnectdb/PQstatus/PQexec/PQclear/PQfinish) — domain-plausible in the
+    expire-cycle file (reused host, distinct axis from foreign_libevent_1),
+    but foreign: verified 0 tree-wide hits for PQconnectdb/PQexec/PQstatus/
+    PQerrorMessage/PQclear/PQfinish/CONNECTION_OK at pinned SHA, and 0 hits
+    for <libpq-fe.h>; redis reports expiry exclusively through
+    notifyKeyspaceEvent and its own replication stream, never a foreign
+    RDBMS client.'
+  difficulty: easy
+  host_file: src/expire.c
+  host_inject_at_line: 631

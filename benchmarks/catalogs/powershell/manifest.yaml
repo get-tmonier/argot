@@ -6,6 +6,7 @@ categories:
 - wrong_api_within_known_lib
 - naming_shape_break
 - foreign_import
+- foreign_api
 injection_hosts:
 - pr: 0
   sha: 36cd02b333d7cecb89d5d336c9a798287fe4736b
@@ -147,3 +148,56 @@ fixtures:
   difficulty: medium
   host_file: src/System.Management.Automation/utils/Telemetry.cs
   host_inject_at_line: 659
+- id: ps_foreign_nlog_1
+  file: breaks/break_nlog_1.cs
+  category: foreign_api
+  hunk_start_line: 14
+  hunk_end_line: 19
+  rationale: NLog structured logger (fully-qualified NLog.LogManager.GetCurrentClassLogger)
+    for process-lookup diagnostics; NLog is absent from the repo at the pinned SHA (0
+    grep hits for `NLog\.` in src/*.cs and 0 PackageReference entries in *.csproj repo-wide)
+    — the distinctive callees `LogManager`/`GetCurrentClassLogger` = 0 src hits
+    (non-colliding); the host reports diagnostics through WriteVerbose/WriteDebug.
+  difficulty: medium
+  host_file: src/Microsoft.PowerShell.Commands.Management/commands/management/Process.cs
+  host_inject_at_line: 792
+- id: ps_foreign_automapper_1
+  file: breaks/break_automapper_1.cs
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 25
+  rationale: AutoMapper object-to-object mapping (MapperConfiguration/CreateMap) for
+    module argument dictionaries; AutoMapper is absent from the repo at the pinned SHA
+    (0 grep hits for `AutoMapper\.` in src/*.cs and 0 PackageReference entries in *.csproj
+    repo-wide) — the distinctive callees `MapperConfiguration`/`CreateMap` = 0 src hits
+    (non-colliding); the host copies dictionary values by hand via direct key assignment.
+  difficulty: medium
+  host_file: src/System.Management.Automation/engine/Utils.cs
+  host_inject_at_line: 496
+- id: ps_foreign_dapper_1
+  file: breaks/break_dapper_1.cs
+  category: foreign_api
+  hunk_start_line: 28
+  hunk_end_line: 31
+  rationale: Dapper micro-ORM query helper (fully-qualified Dapper.SqlMapper.QueryAsync)
+    replacing a manual ADO.NET reader loop; Dapper is absent from the repo at the pinned
+    SHA (0 grep hits for `Dapper\.` in src/*.cs and 0 PackageReference entries in *.csproj
+    repo-wide) — the distinctive callees `SqlMapper`/`QueryAsync` = 0 src hits
+    (non-colliding); the host has no data-access layer beyond plain ADO.NET usage.
+  difficulty: medium
+  host_file: src/System.Management.Automation/engine/Utils.cs
+  host_inject_at_line: 496
+- id: ps_foreign_restsharp_1
+  file: breaks/break_restsharp_1.cs
+  category: foreign_api
+  hunk_start_line: 15
+  hunk_end_line: 22
+  rationale: RestSharp HTTP client (fully-qualified RestSharp.RestClient/RestRequest)
+    posting the converted JSON payload to a diagnostics endpoint; RestSharp is absent
+    from the repo at the pinned SHA (0 grep hits for `RestSharp\.` in src/*.cs and 0
+    PackageReference entries in *.csproj repo-wide) — the distinctive callees
+    `RestClient`/`RestRequest` = 0 src hits (non-colliding); the WebCmdlet tree issues
+    requests exclusively through HttpClient/HttpRequestMessage.
+  difficulty: medium
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/ConvertToJsonCommand.cs
+  host_inject_at_line: 44

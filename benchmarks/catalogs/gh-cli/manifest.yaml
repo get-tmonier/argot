@@ -6,6 +6,7 @@ categories:
 - wrong_api_within_known_lib
 - naming_shape_break
 - foreign_import
+- foreign_api
 injection_hosts:
 - pr: 0
   sha: 397876d3dc2828f1c932c651b31ab78e72506da4
@@ -179,3 +180,58 @@ fixtures:
   difficulty: easy
   host_file: pkg/cmdutil/errors.go
   host_inject_at_line: 67
+- id: foreign_viper_1
+  file: breaks/break_foreign_viper_1.go
+  category: foreign_api
+  hunk_start_line: 8
+  hunk_end_line: 28
+  rationale: 'github.com/spf13/viper config loader (SetConfigName/ReadInConfig/GetString)
+    used to load label defaults, in the label package. Verified at pinned SHA: zero
+    git-grep hits for spf13/viper and viper\. anywhere in *.go, and absent from
+    go.mod (only the unrelated go-viper/mapstructure indirect dependency appears);
+    label options are populated from cobra flags and repo context, never a
+    standalone config-loading library.'
+  difficulty: easy
+  host_file: pkg/cmd/label/clone.go
+  host_inject_at_line: 111
+- id: foreign_sqlx_1
+  file: breaks/break_foreign_sqlx_1.go
+  category: foreign_api
+  hunk_start_line: 8
+  hunk_end_line: 33
+  rationale: 'github.com/jmoiron/sqlx SQL helpers (NamedExecContext/Connect) used
+    to cache gist metadata in a local store, in the gist shared package. Verified
+    at pinned SHA: zero git-grep hits for jmoiron/sqlx and sqlx\. anywhere in *.go
+    and absent from go.mod; the repo has no SQL database anywhere — gists are read
+    and written exclusively through api.Client REST/GraphQL calls.'
+  difficulty: easy
+  host_file: pkg/cmd/gist/shared/shared.go
+  host_inject_at_line: 250
+- id: foreign_mux_1
+  file: breaks/break_foreign_mux_1.go
+  category: foreign_api
+  hunk_start_line: 9
+  hunk_end_line: 33
+  rationale: 'github.com/gorilla/mux router (NewRouter/RouteMatch) used to extract
+    issue route parameters from a URL, in the issue shared package. Verified at
+    pinned SHA: zero git-grep hits for gorilla/mux, mux\. and RouteMatch anywhere
+    in *.go and absent from go.mod (go.mod carries only the unrelated
+    gorilla/css and gorilla/websocket indirects); URL parsing goes through the
+    package-level issueURLRE regexp, never a routing library.'
+  difficulty: easy
+  host_file: pkg/cmd/issue/shared/lookup.go
+  host_inject_at_line: 231
+- id: foreign_resty_1
+  file: breaks/break_foreign_resty_1.go
+  category: foreign_api
+  hunk_start_line: 8
+  hunk_end_line: 28
+  rationale: 'github.com/go-resty/resty/v2 HTTP client (New/SetTimeout/R().Get)
+    used to fetch a label template from a remote URL, in the label package.
+    Verified at pinned SHA: zero git-grep hits for go-resty/resty and resty\.
+    anywhere in *.go and absent from go.mod; outbound API calls go through
+    api.NewClientFromHTTP and Client.REST, never a standalone HTTP client
+    library.'
+  difficulty: easy
+  host_file: pkg/cmd/label/clone.go
+  host_inject_at_line: 111
