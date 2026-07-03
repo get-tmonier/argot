@@ -1,6 +1,6 @@
 # argot
 
-Voice linter that learns a repo's voice from git history. A single statically-linked Rust binary (`crates/argot-{core,cli}`) — no Python, no Node, no runtime dependencies. (Previously a TS/Bun CLI + Python engine; ported to Rust with verified byte-for-byte parity — see `docs/rust-port/`.)
+A guardrail that flags code foreign to a repo's own patterns — the dependencies, APIs, and constructs an AI coding agent reaches for that the codebase has never used — learned from the repo's git history (north star + metric: `benchmarks/catalogs/RUBRIC.md`; novel-pattern catch rate @ low false-alarm). A single statically-linked Rust binary (`crates/argot-{core,cli}`) — no Python, no Node, no runtime dependencies. (Previously a TS/Bun CLI + Python engine; ported to Rust with verified byte-for-byte parity — see `docs/rust-port/`.)
 
 ## Guiding principle
 

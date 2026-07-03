@@ -4,7 +4,7 @@ const en: SiteContent = {
   meta: {
     title: 'argot — lint the rules you never wrote down',
     description:
-      'argot is a voice linter. It learns your repo’s voice from its own git history, then flags the hunks that don’t sound like anyone on your team wrote them. No model, no cloud, no GPU.',
+      'argot is a guardrail for AI-written code. It learns your repo’s patterns from its own git history, then flags the dependencies, APIs, and constructs it has never seen — the “unknown to this repo” code an AI agent reaches for when it doesn’t know your stack. No model, no cloud, no GPU.',
   },
   nav: {
     demo: 'Demo',
@@ -17,7 +17,7 @@ const en: SiteContent = {
     titleLead: 'Lint the rules',
     titleGradient: 'you never wrote down.',
     subtitle:
-      'argot learns your repo’s voice from its own git history, then flags the hunks that don’t sound like anyone on your team wrote them. [[No model. No cloud. No GPU.]]',
+      'argot learns your repo’s patterns from its own git history, then flags code foreign to your codebase — the dependencies and APIs an AI agent drags in that your repo has never used. [[No model. No cloud. No GPU.]]',
     ctaPrimary: 'Read the docs',
     ctaSecondary: 'Star on GitHub',
     install: 'npm i -g @tmonier/argot',

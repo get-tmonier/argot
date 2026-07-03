@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <strong>Like ESLint, but for the unwritten rules.</strong><br/>
-  <em>argot learns your repo's voice from its own git history, then flags code that doesn't sound like your team wrote it.</em>
+  <strong>A guardrail against code that's foreign to your codebase.</strong><br/>
+  <em>argot learns your repo's patterns from its own git history, then flags the dependencies, APIs, and constructs it has never seen — the "unknown to this repo" code an AI coding agent reaches for when it doesn't know your stack.</em>
 </p>
 
 <p align="center">
