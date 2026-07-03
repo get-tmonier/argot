@@ -490,6 +490,25 @@ fn non_none_callees(source: &str, language: Language) -> Vec<String> {
         .collect()
 }
 
+/// The leading module/namespace segment of a callee — the first non-empty
+/// token when split on `.`, `::`, or `\`. A bare name (no separator) returns
+/// the whole string. `\Doctrine\ORM\X.create` → `Doctrine`,
+/// `tokio::runtime::Runtime::new` → `tokio`, `viper.GetString` → `viper`,
+/// `String::with_capacity` → `String`. Used to decide whether an unattested
+/// callee reaches into a module foreign to the repo (`tokio`) or a known /
+/// local one (`String`, `self`, a local receiver variable).
+fn leading_namespace(callee: &str) -> &str {
+    let trimmed = callee.trim_start_matches('\\');
+    let end = trimmed.find(['.', ':', '\\']).unwrap_or(trimmed.len());
+    &trimmed[..end]
+}
+
+/// Whether `callee` carries a receiver/namespace qualifier (a `.`, `::`, or
+/// `\`). A bare identifier is unqualified.
+fn is_qualified(callee: &str) -> bool {
+    callee.contains('.') || callee.contains(':') || callee.contains('\\')
+}
+
 /// Callees of every call-expression whose start line falls inside the
 /// 1-indexed inclusive `[start_line, end_line]` region of `source`.
 ///
@@ -841,6 +860,13 @@ pub struct CallReceiverScorer {
     /// though the corpus calls `.join` constantly; the method segment is
     /// what carries voice, so corpus-known methods do not alpha-fire.
     attested_methods: HashSet<String>,
+    /// Leading module/namespace segments of every attested callee — the set
+    /// of modules the repo already reaches into (`String`, `self`, `gix`,
+    /// every local receiver name). An unattested callee qualified by a
+    /// namespace *outside* this set (`tokio`, `viper`, `\Doctrine`) reaches
+    /// into a foreign module; one inside it (`String::with_capacity`,
+    /// `repository.set_resource`) is a new API on a known/local receiver.
+    attested_namespaces: HashSet<String>,
     pub n_skipped_data_dominant: usize,
     file_to_cluster: HashMap<PathBuf, usize>,
     cluster_attested: HashMap<usize, HashSet<String>>,
@@ -919,6 +945,10 @@ impl CallReceiverScorer {
             .iter()
             .filter_map(|c| c.rsplit_once('.').map(|(_, m)| m.to_string()))
             .collect();
+        let attested_namespaces: HashSet<String> = attested
+            .iter()
+            .map(|c| leading_namespace(c).to_string())
+            .collect();
 
         let mut file_to_cluster = HashMap::new();
         let mut cluster_attested: HashMap<usize, HashSet<String>> = HashMap::new();
@@ -964,6 +994,7 @@ impl CallReceiverScorer {
             cluster_sizes,
             callee_file_counts,
             n_corpus_files,
+            attested_namespaces,
             rarity_weighting: RarityWeighting::Off,
             shape_primitives: Vec::new(),
             primitive_baselines: HashMap::new(),
@@ -1038,6 +1069,10 @@ impl CallReceiverScorer {
             .iter()
             .filter_map(|c| c.rsplit_once('.').map(|(_, m)| m.to_string()))
             .collect();
+        let attested_namespaces: HashSet<String> = attested
+            .iter()
+            .map(|c| leading_namespace(c).to_string())
+            .collect();
         let mut file_to_cluster = HashMap::new();
         let mut cluster_attested: HashMap<usize, HashSet<String>> = HashMap::new();
         let mut cluster_callee_counts: HashMap<usize, HashMap<String, usize>> = HashMap::new();
@@ -1076,6 +1111,7 @@ impl CallReceiverScorer {
             cluster_sizes,
             callee_file_counts,
             n_corpus_files: model.n_corpus_files,
+            attested_namespaces,
             rarity_weighting: RarityWeighting::Off,
             shape_primitives: Vec::new(),
             primitive_baselines: HashMap::new(),
@@ -1161,6 +1197,78 @@ impl CallReceiverScorer {
             .rsplit_once('.')
             .map(|(_, m)| self.attested_methods.contains(m))
             .unwrap_or(false)
+    }
+
+    /// Whether an unattested `callee` reaches into a module/namespace foreign
+    /// to the repo. It must be *qualified* (carry a receiver/namespace) whose
+    /// leading segment is none of: a `self`/`this`-style receiver, a local
+    /// binding (a receiver variable the change itself introduced), or a
+    /// namespace the corpus already attests. `tokio::runtime::Runtime::new`
+    /// and `\Doctrine\ORM\EntityManager.create` are foreign; `String::with_capacity`
+    /// (`String` attested), `repository.set_resource` (`repository` local),
+    /// and `self.render` are not. A *bare* callee is never namespace-foreign —
+    /// a foreign bare call (`event_base_new`) is recognised by its file's
+    /// foreign import, not its name.
+    pub fn is_namespace_foreign(&self, callee: &str, local: &LocalBindings) -> bool {
+        if !is_qualified(callee) {
+            return false;
+        }
+        let lead = leading_namespace(callee);
+        if lead.is_empty() || matches!(lead, "self" | "Self" | "this" | "super" | "base" | "cls") {
+            return false;
+        }
+        if local.callables.contains(lead) || local.values.contains(lead) {
+            return false;
+        }
+        !self.attested_namespaces.contains(lead)
+    }
+
+    /// Whether `file_source` reaches into a module foreign to the repo. It
+    /// does when the file contains an unattested callee that is either
+    /// namespace-qualified into an unknown module (`\Doctrine\ORM\X.create`,
+    /// `tokio::spawn`) or a **bare** foreign symbol (`event_base_new` — a C
+    /// library function; the repo's own new functions are excluded via
+    /// `local`, which carries the change's callable and value bindings).
+    ///
+    /// This is a *file-level* signal so a foreign dependency spread across
+    /// hunks — the FQN assignment in one hunk, the calls through a local
+    /// receiver in another — flags every hunk of the file's new code, not just
+    /// the one line that names the module. A file that only reaches known
+    /// modules (`String::with_capacity`, `self.render`, a local receiver) does
+    /// not qualify, so the codebase's own new code stays quiet.
+    pub fn file_reaches_foreign(&self, file_source: &str, local: &LocalBindings) -> bool {
+        non_none_callees(file_source, self.language)
+            .iter()
+            .any(|c| self.callee_reaches_foreign(c, local))
+    }
+
+    /// Whether a single callee reaches into a foreign module. Three cases:
+    /// * **module path** (`::` or `\`, e.g. `tokio::spawn`,
+    ///   `\React\EventLoop\Loop.get`) — foreign iff its module root is unknown
+    ///   to the repo, *regardless* of whether the leaf method is a common
+    ///   attested name (`get`). The foreign namespace is the signal.
+    /// * **bare symbol** (`event_base_new`) — foreign iff the repo never
+    ///   attested it (a C library function); the change's own new functions
+    ///   are excluded via `local`.
+    /// * **single-`.` receiver form** (`client.newCall`, `Type.Method`) — the
+    ///   `.` is ambiguous between a package and a plain member access, so a
+    ///   corpus-known method (fresh receiver, in-voice method) is NOT foreign;
+    ///   only an unknown method on an unknown, non-local receiver namespace is.
+    fn callee_reaches_foreign(&self, callee: &str, local: &LocalBindings) -> bool {
+        if local.attests(callee) {
+            return false;
+        }
+        if callee.contains(':') || callee.contains('\\') {
+            return self.is_namespace_foreign(callee, local);
+        }
+        if self.attested.contains(callee) || self.method_attested(callee) {
+            return false;
+        }
+        if is_qualified(callee) {
+            self.is_namespace_foreign(callee, local)
+        } else {
+            true
+        }
     }
 
     fn distinct_unattested_impl(&self, hunk: &str) -> Vec<String> {

@@ -154,6 +154,10 @@ struct FileDerivedCache {
     data_rows: HashSet<usize>,
     prose_rows: HashSet<usize>,
     file_bindings: crate::scoring::call_receiver::LocalBindings,
+    /// Whether the file reaches into a module foreign to the repo (a foreign
+    /// namespace-qualified or bare-foreign callee anywhere in the file) —
+    /// the file-level half of the call-receiver foreign-context gate.
+    foreign_reach: bool,
 }
 
 fn content_key(source: &str) -> u64 {
@@ -388,11 +392,23 @@ impl SequentialImportBpeScorer {
             file_bindings
                 .values
                 .extend(self.adapter.value_bindings(source));
+            // File-level foreign reach: the change's callable/value bindings
+            // (host file + changeset) mark the code's own new symbols, so only
+            // genuinely foreign callees count.
+            let mut reach_bindings = file_bindings.clone();
+            reach_bindings
+                .callables
+                .extend(self.changeset_bindings.iter().cloned());
+            let foreign_reach = self
+                .call_receiver
+                .as_ref()
+                .is_some_and(|cr| cr.file_reaches_foreign(source, &reach_bindings));
             self.file_cache = Some(FileDerivedCache {
                 key,
                 data_rows: self.adapter.data_literal_lines(source),
                 prose_rows: self.adapter.prose_line_ranges(source),
                 file_bindings,
+                foreign_reach,
             });
         }
         self.file_cache.as_ref().expect("just populated")
@@ -431,6 +447,22 @@ impl SequentialImportBpeScorer {
             0.0
         } else {
             in_data as f64 / nonblank as f64
+        }
+    }
+
+    /// Whether `source` (a full file) declares an import the fit corpus never
+    /// used — a foreign dependency at the file level. Backs the call-receiver
+    /// foreign-context gate: a bare unattested callee (`event_base_new`) is
+    /// foreign only when its file pulls a foreign `#include`/import, which can
+    /// sit in a different hunk than the call itself.
+    fn file_has_foreign_import(&self, source: Option<&str>) -> bool {
+        match source {
+            Some(src) => self
+                .adapter
+                .extract_imports(src)
+                .into_iter()
+                .any(|spec| self.import_scorer.is_foreign(&spec)),
+            None => false,
         }
     }
 
@@ -556,7 +588,9 @@ impl SequentialImportBpeScorer {
         let binding_source: &str = file_source
             .or(host_context.map(|(h, _, _)| h))
             .unwrap_or(hunk_content);
-        let mut local_bindings = self.file_derived(binding_source).file_bindings.clone();
+        let derived = self.file_derived(binding_source);
+        let file_foreign_reach = derived.foreign_reach;
+        let mut local_bindings = derived.file_bindings.clone();
         local_bindings
             .callables
             .extend(self.changeset_bindings.iter().cloned());
@@ -622,7 +656,19 @@ impl SequentialImportBpeScorer {
 
         let import_fired = import_score >= IMPORT_THRESHOLD;
         let bpe_fired = bpe_score > self.bpe_threshold;
-        let cr_fired = cr_active && !bpe_fired && bpe_side_score > self.bpe_threshold;
+        // Foreign-context gate for the call-receiver reason: a call-receiver
+        // contribution may flag a hunk on its own only when the hunk reaches
+        // into a module foreign to the repo — a foreign import in the hunk or
+        // its file, or an unattested callee whose namespace the repo has never
+        // used. A bare unattested callee with no foreign association is the
+        // codebase's own new code (a fresh local function/method), not foreign
+        // voice, and must not cry wolf. Evaluated lazily, only when the
+        // contribution would otherwise win.
+        let cr_would_fire = cr_active && !bpe_fired && bpe_side_score > self.bpe_threshold;
+        let cr_fired = cr_would_fire
+            && (import_score >= IMPORT_THRESHOLD
+                || file_foreign_reach
+                || self.file_has_foreign_import(file_source.or(host_context.map(|(h, _, _)| h))));
         let conv_side_score = bpe_score + convention_contribution;
         let conv_fired =
             convention_contribution > 0.0 && !bpe_fired && conv_side_score > self.bpe_threshold;
@@ -924,6 +970,62 @@ mod tests {
         assert!(
             scored.stages.call_receiver_contribution > 0.0,
             "neighbourhood-less callee still fires"
+        );
+    }
+
+    /// Foreign-context gate: the call-receiver reason may only *flag* a hunk
+    /// when the hunk reaches into a foreign module. A bare unattested callee
+    /// (the codebase's own new function) contributes but must not cry wolf; a
+    /// namespace-qualified callee into an unknown module (or a foreign import)
+    /// does flag.
+    #[test]
+    fn call_receiver_flags_only_with_foreign_context() {
+        // Threshold above both hunks' BPE surprisal, contribution (uncapped
+        // here) large enough to cross it on its own: isolates the firing
+        // decision to the gate.
+        let mut cfg = config(12.0);
+        cfg.call_receiver_alpha = 25.0;
+        cfg.call_receiver_cap = 25;
+        cfg.call_receiver_root_bonus = 0.0;
+        let files: Vec<(PathBuf, String)> = (0..4)
+            .map(|i| {
+                (
+                    PathBuf::from(format!("m{i}.py")),
+                    "import math\n\n\ndef mean(xs):\n    total = math.fsum(xs)\n    return total / len(xs)\n".to_string(),
+                )
+            })
+            .collect();
+        let mut scorer = SequentialImportBpeScorer::from_config(
+            &files,
+            GENERIC_BASELINE_JSON,
+            Box::new(PythonAdapter::new()),
+            cfg,
+        )
+        .unwrap();
+
+        // New method on a KNOWN module (`math` is attested via `math.fsum`):
+        // the repo's own new code reaching into a module it already uses —
+        // contributes, but the file reaches no foreign module, so it does not
+        // flag under the call-receiver reason.
+        let known = "def run(xs):\n    return math.newhelper(xs)";
+        let scored = scorer.score_hunk(known, None, None, None, None);
+        assert!(
+            scored.stages.call_receiver_contribution > 0.0,
+            "new method on a known module still contributes"
+        );
+        assert!(
+            !scored.flagged,
+            "new API on a known module (no foreign reach) must not flag: {scored:?}"
+        );
+
+        // Namespace-qualified callee into a module the repo never uses: foreign
+        // voice — flags under the call-receiver reason.
+        let foreign = "def run(xs):\n    return foreignlib.connect(xs)";
+        let scored = scorer.score_hunk(foreign, None, None, None, None);
+        assert_eq!(
+            scored.reason,
+            Reason::CallReceiver,
+            "namespace-foreign callee flags: {scored:?}"
         );
     }
 }

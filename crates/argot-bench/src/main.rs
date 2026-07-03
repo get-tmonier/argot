@@ -243,6 +243,7 @@ fn real_main() -> Result<ExitCode> {
     if cli.mode == "holdout" || cli.mode == "honest" {
         let hopts = holdout::HoldoutOptions {
             data_dir: opts.data_dir.clone(),
+            catalogs_dir: opts.catalogs_dir.clone(),
             window: cli.holdout_window,
             min_hunks: cli.min_holdout_hunks,
             bootstrap_reps: cli.bootstrap_reps,

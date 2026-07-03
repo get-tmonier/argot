@@ -17,7 +17,10 @@
 //! surface the bench always had.
 
 use crate::catalog::load_catalog;
-use crate::run::{ensure_clone, ensure_sha_checked_out, fixture_scoring_input, RunOptions};
+use crate::run::{
+    ensure_clone, ensure_sha_checked_out, fixture_scoring_input, sync_corpus_argotignore,
+    RunOptions,
+};
 use crate::targets::Target;
 use anyhow::{bail, Context, Result};
 use argot_core::check::{run_check, CheckArgs, DEFAULT_HUNK_LINES};
@@ -159,6 +162,10 @@ pub fn run_corpus_production(target: &Target, opts: &RunOptions) -> Result<Produ
     if argot_dir.exists() {
         std::fs::remove_dir_all(&argot_dir)?;
     }
+
+    // Fit and check this corpus the way a real user of the repo would — with
+    // the per-corpus `.argotignore` (e.g. vendored trees muted).
+    sync_corpus_argotignore(&opts.catalogs_dir, &target.name, &repo_dir)?;
 
     eprintln!(
         "[{}] production fit (train → calibrate) @ {}",

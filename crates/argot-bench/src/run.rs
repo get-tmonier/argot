@@ -103,6 +103,24 @@ pub fn ensure_clone(data_dir: &Path, corpus: &str, url: &str) -> Result<PathBuf>
     Ok(repo_dir)
 }
 
+/// Install the per-corpus `.argotignore` a real user of this repo would write,
+/// so the bench fits and checks each corpus the way it would actually be used
+/// (e.g. redis' vendored `deps/` tree is out of the voice model). The config
+/// lives at `catalogs_dir/<corpus>/argotignore`; when absent, any stale
+/// `.argotignore` in the clone is removed so the corpus runs against the
+/// built-in defaults. Corpus-specific knowledge stays here in the bench, never
+/// in the production core.
+pub fn sync_corpus_argotignore(catalogs_dir: &Path, corpus: &str, repo_dir: &Path) -> Result<()> {
+    let src = catalogs_dir.join(corpus).join("argotignore");
+    let dst = repo_dir.join(".argotignore");
+    if src.exists() {
+        std::fs::copy(&src, &dst).with_context(|| format!("installing {corpus} .argotignore"))?;
+    } else if dst.exists() {
+        std::fs::remove_file(&dst)?;
+    }
+    Ok(())
+}
+
 /// Detached-checkout `sha`, fetching once if the object is missing locally.
 pub fn ensure_sha_checked_out(repo_dir: &Path, sha: &str) -> Result<()> {
     if git(repo_dir, &["checkout", "--quiet", "--detach", sha]).is_ok() {
