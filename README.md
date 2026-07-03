@@ -191,10 +191,14 @@ The *hard* recall classes it aspires to — in-vocabulary breaks like a bare
 mature Python corpora but **miss more often than they hit in every other
 language**. This is a **proven limit, not a missing feature**: we
 seriously attacked it with a pretrained-code-embedding manifold-outlier and
-per-token MLM surprise, and both plateau at ~0.65 AUC (below the 0.85 bar)
-once fairly controlled — a hunk-level scorer cannot resolve a one-token
-semantic deviation buried in otherwise-idiomatic code
-([evidence](docs/research/evidence/issue92-phaseB-pertoken-mlm.md)). The
+per-token MLM surprise, and both plateau at ~0.65 AUC once fairly controlled.
+Decisively, a confound-free minimal-pair test — a `wrong_error_discipline`
+break vs its own idiomatic twin (only the error mechanism swapped) — leaves the
+pretrained code embedding at **cosine 0.996** and the per-token surprise
+unchanged (Δ ≈ 0): the break is invisible. Since that class is ~a quarter of
+every hard catalog and 0%-catchable, recall is capped **below 85% regardless of
+the scorer** — a hunk-level model encodes the tokens, not the convention
+([evidence](docs/research/evidence/issue92-phaseB-recall-limit.md)). The
 existing-file FP reds (bat, jellyfin, rocksdb, hugo, rubocop, fastapi edits)
 are the same limit on the false-positive side: the call-receiver stage cannot
 separate a legitimately-new callee (a library migration) from a foreign

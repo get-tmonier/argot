@@ -51,11 +51,13 @@ foreign imports and strongly foreign API surfaces.
 - **In-vocabulary breaks often score in the same range as legitimate new code.** The scorer is a
   token-rarity model; an honest threshold that keeps false positives low also lets many
   wrong-error-discipline / naming-shape breaks through (the 21–62% hard-class recall above). This
-  is a **proven limit**, not a tuning gap: a pretrained-code-embedding manifold-outlier and
-  per-token MLM surprise were both scouted and both plateau at ~0.65 AUC once fairly controlled
-  (below the 0.85 bar) — a hunk-level scorer cannot resolve a one-token semantic deviation buried
-  in otherwise-idiomatic code. Documented in the
-  [Phase B evidence](https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/issue92-phaseB-pertoken-mlm.md).
+  is a **proven limit**, not a tuning gap. A pretrained-code-embedding manifold-outlier and
+  per-token MLM surprise were both scouted and both plateau at ~0.65 AUC once fairly controlled;
+  decisively, a minimal-pair test (a wrong-error-discipline break vs its own idiomatic twin, only
+  the error mechanism swapped) leaves the pretrained code embedding at **cosine 0.996** — the
+  break is invisible. That class is ~a quarter of every hard catalog and 0%-catchable, so recall
+  is capped below 85% regardless of the scorer. Documented in the
+  [Phase B evidence](https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/issue92-phaseB-recall-limit.md).
 - **Voice-novel commits flag proportionally.** New feature areas score as new voice until the
   next `argot fit`; a stale model amplifies this, so `check` warns when the fit is ≥ 10 commits
   old (refits take seconds on the model artifact).
