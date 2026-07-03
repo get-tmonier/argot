@@ -174,21 +174,37 @@ recall regression on any of the 10 languages.** The existing-file reds
 are the call_receiver / import fundamental-limit and structural-recall problems,
 not addressable by the new-file threshold (Findings 1–2).
 
-## Import residue — considered and left as an honest limit
+## Import residue — measured, a fix built and rejected as benchmark-gaming
 
 The residual new-file reds are import-dominated: rocksdb 40% (22 import on new
 `.py` — Python tooling in a C++ repo), redis 32% (vendored TRE C lib), fmt 20%
 (a new `src/fmt-c.cc` C-API subsystem — *primary* language), rubocop 9.1% (1
-hit, thin n=11), outline 6.2% (2 new util files). A **minority-language import
-guard** (suppress the import tripwire for a language with fewer than K fit
-files) would clear *only* rocksdb — fmt/redis/outline are the primary language,
-not a minority. And any specific K is a knob tuned to make one corpus green,
-which the mission's rubric forbids ("never tune to a bar"). The honest read: the
-import residue is the same fundamental ambiguity as [Finding 2] on the import
-axis — a foreign-import tripwire cannot distinguish a new file *legitimately
-adding a dependency* (new C API, vendored lib, new tooling) from a foreign-voice
-break. The new-file threshold fixed the calibratable (bpe/call_receiver) mass;
-this residue is reported red as a known limitation, not tuned away.
+hit, thin n=11), outline 6.2% (2 new util files).
+
+**Measured, not assumed.** The foreign-import counts on the new-file import hits
+are low — fmt all ≤2, outline all =1, redis mostly ≤3, rocksdb mostly 2–3 (a few
+4–12). So a **file-LOO new-file import threshold** (calibrate, over fit files
+scored as-if-new, the max count of imports unique to a file; fire on a new file
+only ABOVE that bar) is *constructible and principled*, and would cut the FP on
+fmt/outline/redis. It was implemented and the FP reduction confirmed.
+
+**But it was reverted.** Two production tests (`check_import_evidence`,
+`review_mutes_reports_rot_and_prunes`) encode the expected behaviour: a new file
+with a *single* foreign import must flag — that is argot's headline catch (a
+foreign framework dropped into the repo). The new-file import threshold removes
+exactly that, because the "FP" it suppresses (a new file adding one dependency)
+and the "TP" it would catch (a new file importing a foreign framework) are the
+**same signal** — one foreign import. The threshold does not *discriminate* them;
+it just moves the operating point, trading argot's core foreign-import detection
+on new files for a better benchmark FP number. That is the "tune to a bar"
+anti-pattern the rubric forbids: it improves the number by detecting *less*, not
+by discriminating better. Reverted; 351 tests green.
+
+The honest read stands: the import residue is the same fundamental ambiguity as
+[Finding 2] on the import axis — a foreign-import tripwire cannot distinguish a
+new file *legitimately adding a dependency* from a foreign-voice break, because
+they are the identical signal. The new-file threshold fixed the calibratable
+(bpe/call_receiver) mass; this residue is reported red as a known limitation.
 
 ## Phase B / recall
 
