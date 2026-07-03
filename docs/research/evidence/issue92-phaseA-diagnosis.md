@@ -174,13 +174,28 @@ recall regression on any of the 10 languages.** The existing-file reds
 are the call_receiver / import fundamental-limit and structural-recall problems,
 not addressable by the new-file threshold (Findings 1–2).
 
-## Next
+## Import residue — considered and left as an honest limit
 
-- Record full re-bench; confirm no existing-file/recall regression on any of the
-  10 languages; count new-file gates cleared (import-dominated corpora —
-  rocksdb-new, redis-new — expected to stay red on the import residue).
-- Minority-language import guard for the import residue (rocksdb python-in-C++).
-- Phase B structural scorer (the recall wall) — highest mission leverage; the
-  density/kNN-outlier-on-frozen-CodeRankEmbed angle is untried (the 0.50 mutation
-  AUC was JEPA-head distance, not repo-manifold outlier). Product tension: check
-  is a static binary, so a check-time encoder needs distillation or bundling.
+The residual new-file reds are import-dominated: rocksdb 40% (22 import on new
+`.py` — Python tooling in a C++ repo), redis 32% (vendored TRE C lib), fmt 20%
+(a new `src/fmt-c.cc` C-API subsystem — *primary* language), rubocop 9.1% (1
+hit, thin n=11), outline 6.2% (2 new util files). A **minority-language import
+guard** (suppress the import tripwire for a language with fewer than K fit
+files) would clear *only* rocksdb — fmt/redis/outline are the primary language,
+not a minority. And any specific K is a knob tuned to make one corpus green,
+which the mission's rubric forbids ("never tune to a bar"). The honest read: the
+import residue is the same fundamental ambiguity as [Finding 2] on the import
+axis — a foreign-import tripwire cannot distinguish a new file *legitimately
+adding a dependency* (new C API, vendored lib, new tooling) from a foreign-voice
+break. The new-file threshold fixed the calibratable (bpe/call_receiver) mass;
+this residue is reported red as a known limitation, not tuned away.
+
+## Phase B / recall
+
+Recall's hard-class gap is the dominant blocker and is a *proven* limit — a
+structural scorer (pretrained-embedding manifold-outlier, per-token MLM) was
+seriously attempted and both plateau at ~0.65 AUC once fairly controlled. See
+[issue92-phaseB-manifold-outlier.md] and [issue92-phaseB-pertoken-mlm.md]. The
+existing-file call_receiver reds (bat/hugo/homebrew/rubocop/fastapi) are the
+same limit on the FP side (Finding 2, score overlap). Both are reported red and
+the affected languages marked not-yet-shippable, per the mission.
