@@ -76,3 +76,6 @@ benchmarks/results/*
 # the write-ups under docs/research/evidence/ are what we commit, not the dumps).
 .era14-features/
 engine/.era14-features/
+
+# Phase B (#92) experiment venv — torch/sentence-transformers, regenerable
+.venv-phaseb/
