@@ -584,10 +584,16 @@ judged against the fit-time model artifact rather than a harness-side scorer —
 added the convention-rarity phrasing stage, and validated four application
 corpora alongside the libraries.
 
-The current scorer catches **160/171 fixtures (93.6%)** through the real
-`argot fit` → `argot check` pipeline. The residual misses (parse-error-blocked
-hunks, structural anomalies with no distinctive callee) are documented with
-their refutations in [`evidence/era15-production-path.md`](evidence/era15-production-path.md).
+That era reported **160/171 fixtures (93.6%)** through the real `argot fit` →
+`argot check` pipeline — but issue #92 later showed those recall fixtures were
+softballs (whole new files whose only break was a foreign import) and, worse,
+that the whole benchmark was **train-on-test**: FP was measured by replaying
+commits the model had already trained on. Under the leak-free re-measurement
+(temporal-holdout FP, curated hard-class recall spliced into real files) the
+honest numbers are materially lower — see
+[`evidence/issue92-honest-rebench.md`](evidence/issue92-honest-rebench.md) and
+the Phase A/B follow-ups. The 93.6% above is retained as the era-15 record, not
+a current claim.
 
 The live roadmap has moved from the scorer to the product surface — broader
 language coverage, editor/agent integration, a versioned model artifact, and a

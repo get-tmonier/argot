@@ -158,32 +158,49 @@ shape — not just foreign imports).
 
 | Language | Extensions | FP on edits to existing files | FP on new files | Recall (hard curated breaks) |
 |---|---|---|---|---|
-| Python | `.py` | 0.0–6.6% (4 of 5 corpora ≤ 2.8%; fastapi 6.6%) | 3.1–3.9% | rich 69% · fastapi/faker/saleor/wagtail 100% |
-| TypeScript | `.ts` `.tsx` | 0.1–3.5% | 0–21% (excalidraw worst) | 47–88% |
+| Python | `.py` | 0.0–6.6% (4 of 5 corpora ≤ 2.8%; fastapi 6.6%) | 0–1.4% | rich 69% · fastapi/faker/saleor/wagtail 100% |
+| TypeScript | `.ts` `.tsx` | 0.1–3.5% | 0–6.2% (outline worst) | 47–88% |
 | JavaScript | `.js` `.jsx` | uses the TypeScript adapter | | |
-| Go | `.go` | 2.3% / 5.9% | 7.8–13% | gh-cli **38%** |
-| Rust | `.rs` | ripgrep 1.0% · bat **11.5%** | 7.7% (thin sample) | ripgrep **31%** |
+| Go | `.go` | 2.3% / 5.9% | 0–1.7% | gh-cli **38%** |
+| Rust | `.rs` | ripgrep 1.0% · bat **11.5%** | 0% (thin sample) | ripgrep **31%** |
 | Java | `.java` | guava 2.1% · junit5 **2.9%** | 0.0% | guava **57%** |
-| C# | `.cs` | powershell 1.8% · jellyfin **9.7%** | 14–20% | powershell **54%** |
-| C | `.c` `.h` | redis 0.7% · curl 0.3% | redis **61%** (19/31 hunks) | redis **21%** |
-| C++ | `.cpp` `.cc` `.hpp` | rocksdb **6.2%** · fmt **2.6%** | rocksdb **49%** · fmt **57%** | rocksdb **23%** |
-| Ruby | `.rb` | homebrew 4.6% · rubocop **7.0%** | 4.7% | homebrew **39%** |
-| PHP | `.php` | laravel 0.8% · composer 0.0% | 3.8–11.5% | laravel **62%** |
+| C# | `.cs` | powershell 1.8% · jellyfin **9.7%** | 0–2.6% | powershell **54%** |
+| C | `.c` `.h` | redis 0.7% · curl 0.3% | redis **32%** (10/31 hunks) | redis **21%** |
+| C++ | `.cpp` `.cc` `.hpp` | rocksdb **6.2%** · fmt **2.6%** | rocksdb **40%** · fmt **20%** | rocksdb **23%** |
+| Ruby | `.rb` | homebrew 4.6% · rubocop **7.0%** | homebrew 0% · rubocop 9.1% (thin) | homebrew **39%** |
+| PHP | `.php` | laravel 0.8% · composer 0.0% | composer 3.8% · laravel **11.5%** | laravel **62%** |
 
 **What this means in practice.** argot's reliable value today is the
 tripwire class: foreign imports and strongly foreign API surfaces fire at
 low false-positive cost on most corpora — **10 of 24 benchmarked corpora
 meet our ≤2% false-positive gate on edits to existing files**, and most of
-the rest sit between 2% and 6%. The *hard* classes it aspires to —
-in-vocabulary breaks like a bare `throw new Exception` in a typed-error
-codebase — are caught well on the mature Python corpora but **miss more
-often than they hit in most other languages**, and a handful of corpora
-(bat, jellyfin, rocksdb, hugo, rubocop, fastapi edits; new files on
-excalidraw/redis/rocksdb/fmt) exceed our ≤2%-existing / ≤5%-new-file
-false-positive gates, driven by the call-receiver cluster stage. We publish
-those numbers red rather than tune the benchmark until they look green;
-closing the gap needs a structurally smarter scorer (tracked in the
-[research log](docs/research/README.md)).
+the rest sit between 2% and 7%. New-file false positives — once the worst
+failure (excalidraw 21%, redis 61%, fmt 57%) — are now largely fixed by a
+separate, higher **new-file threshold** calibrated by scoring each fit file
+as if newly added ([#92](https://github.com/get-tmonier/argot/issues/92),
+[evidence](docs/research/evidence/issue92-phaseA-diagnosis.md)): 8 corpora
+crossed back under the ≤5% gate with zero regression on existing-file FP or
+recall. The new-file red that remains is import-dominated — minority-language
+files (rocksdb's Python tooling in a C++ repo), vendored third-party code
+(redis), and new-feature files that legitimately add a dependency (fmt's C
+API, laravel dev-tooling) — where a foreign-import tripwire cannot tell a new
+dependency from a break.
+
+The *hard* recall classes it aspires to — in-vocabulary breaks like a bare
+`throw new Exception` in a typed-error codebase — are caught well on the
+mature Python corpora but **miss more often than they hit in every other
+language**. This is a **proven limit, not a missing feature**: we
+seriously attacked it with a pretrained-code-embedding manifold-outlier and
+per-token MLM surprise, and both plateau at ~0.65 AUC (below the 0.85 bar)
+once fairly controlled — a hunk-level scorer cannot resolve a one-token
+semantic deviation buried in otherwise-idiomatic code
+([evidence](docs/research/evidence/issue92-phaseB-pertoken-mlm.md)). The
+existing-file FP reds (bat, jellyfin, rocksdb, hugo, rubocop, fastapi edits)
+are the same limit on the false-positive side: the call-receiver stage cannot
+separate a legitimately-new callee (a library migration) from a foreign
+break. We publish these numbers red rather than tune the benchmark until they
+look green; the languages below their bars are **not yet shippable** for the
+hard classes, and we say so.
 
 Mixed-language monorepos calibrate one threshold per language and dispatch
 each hunk by file extension. Live per-corpus results at

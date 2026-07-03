@@ -22,13 +22,21 @@ bootstrap confidence intervals live in the
 [re-measurement evidence](https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/issue92-honest-rebench.md).
 
 The honest picture, in one paragraph: on **edits to existing files**, 10 of 24 benchmarked
-corpora meet our ≤ 2% false-positive gate and most of the rest sit between 2% and 6%, with a few
-genuinely red (bat 11.5%, jellyfin 9.7%, rubocop 7.0%, rocksdb 6.2%, fastapi 6.6%). On **new files**, most
-corpora are ≤ 5% but several flood (fmt 57%, redis 61%, rocksdb 49%, excalidraw 21%). Recall on the
-mature Python corpora is strong (fastapi/faker/saleor/wagtail 100%, rich 69%); on the *hard*
+corpora meet our ≤ 2% false-positive gate and most of the rest sit between 2% and 7%, with a few
+genuinely red (bat 11.5%, jellyfin 9.7%, rubocop 7.0%, fastapi 6.6%, rocksdb 6.2%). On **new files**,
+what used to flood (excalidraw 21%, redis 61%, fmt 57%) is now largely fixed by a separate
+**new-file threshold** calibrated by scoring each fit file as if newly added — 8 corpora crossed
+back under the ≤ 5% gate with zero regression on existing-file FP or recall
+([#92 Phase A](https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/issue92-phaseA-diagnosis.md)).
+The new-file red that remains is import-dominated (rocksdb 40% — Python tooling in a C++ repo;
+redis 32% — vendored third-party C; fmt 20% and laravel 11.5% — new-feature files that add a
+dependency), where a foreign-import tripwire cannot tell a new dependency from a break. Recall on
+the mature Python corpora is strong (fastapi/faker/saleor/wagtail 100%, rich 69%); on the *hard*
 curated break classes in the other languages — wrong error discipline, wrong concurrency, API
-misuse within libraries the repo already uses, naming shape — it ranges **21–62%**. The
-dependable value today is the tripwire class: foreign imports and strongly foreign API surfaces.
+misuse within libraries the repo already uses, naming shape — it ranges **21–62%**, a **proven
+limit**: an embedding manifold-outlier and per-token MLM surprise were both attempted and both
+plateau at ~0.65 AUC once fairly controlled. The dependable value today is the tripwire class:
+foreign imports and strongly foreign API surfaces.
 
 ## Modeling caveats
 
@@ -42,8 +50,12 @@ dependable value today is the tripwire class: foreign imports and strongly forei
   class were scouted and refuted with documented evidence).
 - **In-vocabulary breaks often score in the same range as legitimate new code.** The scorer is a
   token-rarity model; an honest threshold that keeps false positives low also lets many
-  wrong-error-discipline / naming-shape breaks through (the 21–62% hard-class recall above).
-  Closing this needs a structurally smarter scorer, not threshold tuning.
+  wrong-error-discipline / naming-shape breaks through (the 21–62% hard-class recall above). This
+  is a **proven limit**, not a tuning gap: a pretrained-code-embedding manifold-outlier and
+  per-token MLM surprise were both scouted and both plateau at ~0.65 AUC once fairly controlled
+  (below the 0.85 bar) — a hunk-level scorer cannot resolve a one-token semantic deviation buried
+  in otherwise-idiomatic code. Documented in the
+  [Phase B evidence](https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/issue92-phaseB-pertoken-mlm.md).
 - **Voice-novel commits flag proportionally.** New feature areas score as new voice until the
   next `argot fit`; a stale model amplifies this, so `check` warns when the fit is ≥ 10 commits
   old (refits take seconds on the model artifact).
