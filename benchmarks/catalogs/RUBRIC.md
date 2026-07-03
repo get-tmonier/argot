@@ -1,22 +1,38 @@
-# Break-fixture rubric (issue #92 · v2 foreign-dependency scope)
+# Break-fixture rubric (issue #92 · v2 novel-pattern / LLM-guardrail scope)
 
 This rubric is fixed **before** any fixture is scored. A fixture that fails to
 fire is a *finding to report*, never a reason to swap the fixture or the corpus.
 Amendments require a recorded rationale in `docs/research/evidence/` and
 re-scoring of every existing fixture.
 
-## Product scope (v2, 2026-07-03)
+## What argot is for (the north star)
 
-argot is a **foreign-dependency / foreign-API linter**: it flags code that
-reaches for a dependency, API, or library **that is not the repo's own voice**
-(verified 0-usage at the pinned SHA). It is *not* a semantic reasoner — it does
-not judge whether the repo's *own* attested vocabulary is used in a subtly wrong
-way. The catalog **gates** on the first capability and **reports** the rest, so
-the headline reflects what argot actually ships. Rationale + evidence:
-`docs/research/evidence/issue92-investigation-capstone.md` (and the 8 scouts it
-links). This supersedes the v1 five-class rubric; every retained fixture is
-re-scored, none is trivialised, and the honest temporal-holdout FP gate is
-unchanged (the safeguard that keeps "green" meaning it works on real PRs).
+**A guardrail against code that is foreign to your codebase's established
+patterns — the "totally unknown to this repo" thing an LLM coding agent
+introduces before it lands.** An AI agent that doesn't know your stack reaches
+for a dependency, API, or construct your repo has never used; argot flags it at
+`check`/pre-commit time, learned from the repo's own voice, zero-config.
+
+That gives argot exactly **one job**, and its scorecard is **two numbers**:
+
+1. **Novel-pattern catch rate** — of code that introduces something foreign to
+   the repo (a dependency/API/callee 0-usage at the pinned SHA), what share does
+   argot flag? *(The gated headline; ≥ 85%.)*
+2. **False-alarm rate** — of real idiomatic commits, what share does argot flag?
+   *(Temporal-holdout FP; existing ≤ 2%, new-file ≤ 5%. A guardrail that cries
+   wolf is worse than none.)*
+
+Everything else the old rubric measured (does it also catch a misused *builtin*
+the repo already has — `die` vs `throw`; or a naming-morphology slip) is
+**secondary coverage, not the metric** — reported for interest, never gated. It
+proved a fundamental local limit (see the evidence) and, more to the point, is
+not the danger an LLM poses: an agent doesn't subtly misuse your own vocabulary,
+it drags in a whole foreign pattern. Rationale + full investigation:
+`docs/research/evidence/issue92-investigation-capstone.md`.
+
+Rubric discipline is unchanged: a fixture that fails to fire is a finding to
+report, never a reason to trivialise it, and every fixture is 0-usage-verified
+at the pinned SHA.
 
 ## Class distribution (≥ 12 fixtures / language)
 
@@ -25,20 +41,20 @@ unchanged (the safeguard that keeps "green" meaning it works on real PRs).
 | `foreign_import` | ≥ 3 | **gated** | A dependency the repo does not import (0-usage at the pinned SHA): a foreign package `use`/`import`/`require`/`#include`. The import stage catches this by design. |
 | `foreign_api` | ≥ 3 | **gated** | A call into a **foreign library's** API — the hunk references a callee/symbol that is 0-usage in the repo (a foreign HTTP client, DB driver, serializer, logger, template engine) where the repo standardises on its own. The call-receiver stage catches the unattested callee. |
 | `foreign_concurrency` | ≥ 2 | **gated** | A **foreign concurrency library/runtime** the repo does not use (a foreign thread pool, async runtime, parallel/coroutine lib) — an unattested foreign callee, not a raw language builtin. |
-| `naming_shape_break` | ≥ 2 | *reported (best-effort)* | Identifier morphology foreign to the repo (camelCase in a snake_case repo, Hungarian). Signal quality depends on the repo's morphology purity; reported, not gated. |
-| `semantic_convention` | ≥ 2 | *reported (out-of-scope)* | Misuse of the repo's **own / attested** vocabulary: a language builtin the repo avoids (`die`/`exit`/`errno`), a wrong-value on an attested construct (`E_USER_ERROR` where `trigger_error` is attested), or a deprecated API of an **already-imported** lib. Needs semantic reasoning argot categorically lacks — a documented fundamental limit. |
+| `naming_shape_break` | ≥ 2 | *secondary* | Identifier morphology foreign to the repo (camelCase in a snake_case repo, Hungarian). Reported for interest, never gated. |
+| `semantic_convention` | ≥ 2 | *secondary* | Misuse of the repo's **own / attested** vocabulary: a builtin the repo avoids (`die`/`exit`), a wrong value on an attested construct (`E_USER_ERROR`), or a deprecated API of an already-imported lib. A proven local limit; reported, never gated. |
 
-**Gate:** recall **≥ 85%** over the three **gated** foreign-symbol classes
-(`foreign_import` + `foreign_api` + `foreign_concurrency`). `naming_shape_break`
-and `semantic_convention` are reported with their own numbers, never gated.
+**The metric = the novel-pattern classes** (`foreign_import` + `foreign_api` +
+`foreign_concurrency`): each fixture's tell is a symbol (import or callee)
+verified **0-usage in the repo at the pinned SHA** — genuinely foreign
+vocabulary, exactly the "unknown to this codebase" thing an LLM drags in. Gate:
+**catch rate ≥ 85%**, at **false-alarm ≤ 2%** (existing-file temporal-holdout).
+The two `secondary` classes are reported but never gated — they are neither the
+danger an LLM poses nor reliably local-detectable.
 
-The distinction is mechanical and checkable from the break's construction: a
-**gated** fixture's tell is a symbol (import or callee) verified **0-usage in the
-repo at the pinned SHA** — genuinely foreign vocabulary. A `semantic_convention`
-fixture's tell is a construct the repo's own vocabulary already contains, used
-wrongly. This is *not* an easier test — a foreign-dependency break is a real,
-corpus-authentic violation (a contributor really does reach for the wrong lib);
-it is a *scoped* test, matched to what the product claims.
+The novel-pattern test is not an *easier* test — a foreign-dependency break is a
+real, corpus-authentic violation an AI agent genuinely produces; it is a *scoped*
+one, matched to argot's one job.
 
 ## Fixture construction rules
 
@@ -63,12 +79,15 @@ it is a *scoped* test, matched to what the product claims.
 
 Production path (`argot-bench --mode honest`): fixture planted on disk at the
 pinned SHA, staged with real git, judged by `argot fit` + `check --staged` with
-the honest (LOO) calibration. Caught = any hit on the host file. Headlines,
-reported side by side (none hidden):
+the honest (LOO) calibration. Caught = any hit on the host file. **Two numbers:**
 
-1. **Gated recall** (≥ 85%) — foreign-symbol classes; the shippable headline.
-2. **Naming recall** (best-effort) — `naming_shape_break`, reported.
-3. **Semantic recall** (out-of-scope) — `semantic_convention`, reported as the
-   documented fundamental limit.
+1. **Novel-pattern catch rate** (≥ 85%) — recall over the novel-pattern classes.
+   *The headline.*
+2. **False-alarm rate** (existing ≤ 2%, new-file ≤ 5%) — temporal-holdout FP on
+   real commits (`--mode honest`/`holdout`). *The co-headline — a guardrail is
+   only good if it stays quiet on idiomatic code.*
+
+Secondary coverage (`naming_shape_break`, `semantic_convention`) is printed
+underneath for interest, clearly marked not-gated.
 4. **Temporal-holdout FP** (unchanged gate: existing ≤ 2%, new-file ≤ 5%) — the
    anti-inflation safeguard; "green" recall only counts with FP still honest.

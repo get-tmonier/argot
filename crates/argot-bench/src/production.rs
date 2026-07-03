@@ -309,11 +309,12 @@ pub fn production_summary_markdown(
     let mut out = String::new();
     out.push_str("# argot-bench production-path report\n\n");
     out.push_str(
-        "Recall split by RUBRIC v2 scope tier. **Gated** (foreign_import / \
-         foreign_api / foreign_concurrency) is argot's shippable design target \
-         (≥85%) — foreign-dependency detection. **Naming** and **Semantic** \
-         (misuse of the repo's own vocabulary — a documented limit) are reported, \
-         never gated. See `benchmarks/catalogs/RUBRIC.md`.\n\n",
+        "argot's one job: catch code introducing a pattern **foreign to the \
+         repo** — the \"unknown to this codebase\" thing an LLM agent drags in. \
+         The headline is **novel-pattern catch rate** (foreign import/API/dep, \
+         gated ≥85%) paired with **false-alarm rate** (temporal-holdout FP, \
+         separate run). Naming/semantic are *secondary coverage*, never gated \
+         (see `benchmarks/catalogs/RUBRIC.md`).\n\n",
     );
     let cell = |c: usize, t: usize| {
         if t == 0 {
@@ -323,7 +324,7 @@ pub fn production_summary_markdown(
         }
     };
     out.push_str(
-        "| Corpus | Gated recall (≥85%) | Naming | Semantic | Legacy | Uncaught |\n\
+        "| Corpus | Novel-pattern catch (≥85%) | Naming | Semantic | Legacy | Uncaught |\n\
          |:---|---:|---:|---:|---:|:---|\n",
     );
     let (mut g_c, mut g_t, mut n_c, mut n_t, mut s_c, mut s_t, mut o_c, mut o_t) =
@@ -364,10 +365,10 @@ pub fn production_summary_markdown(
         ));
     }
     out.push_str(&format!(
-        "\n**Gated recall (foreign-dependency, ≥85%): {g_c}/{g_t} ({:.1}%)** — the shippable headline\n\
-         **Naming recall (best-effort, reported): {n_c}/{n_t} ({:.1}%)**\n\
-         **Semantic recall (out-of-scope, reported — fundamental limit): {s_c}/{s_t} ({:.1}%)**\n\
-         **Legacy catalogs (ad-hoc taxonomy, continuity only): {o_c}/{o_t} ({:.1}%)**\n",
+        "\n**Novel-pattern catch rate (≥85%): {g_c}/{g_t} ({:.1}%)** — THE HEADLINE \
+         (pair with false-alarm/FP from `--mode holdout`)\n\
+         _secondary coverage (never gated): naming {n_c}/{n_t} ({:.1}%) · \
+         semantic {s_c}/{s_t} ({:.1}%) · legacy {o_c}/{o_t} ({:.1}%)_\n",
         pct(g_c, g_t),
         pct(n_c, n_t),
         pct(s_c, s_t),
