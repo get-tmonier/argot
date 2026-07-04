@@ -976,10 +976,23 @@ fn score_patches(
                     .then(|| new_file_thresholds.get(l).copied())
                     .flatten()
             });
+            // A `none`-reason hunk fired no stage: its call-receiver
+            // contribution was *not* gated (the hunk reaches nothing foreign),
+            // so it must not count toward the new-file / slice threshold —
+            // otherwise a new file of the repo's own code (its own unattested
+            // callees) is flagged on exactly the signal the hunk-level
+            // foreign-reach gate already rejected. Judge it on token surprise
+            // alone. Firing reasons (import/bpe/call_receiver) already carry a
+            // gated score in `scored.score`.
+            let new_score = if reason == "none" {
+                scored.stages.bpe_score
+            } else {
+                scored.score
+            };
             let (mut flagged, threshold) = match new_file_threshold {
-                Some(t) => (reason == "import" || scored.score >= t, t),
+                Some(t) => (reason == "import" || new_score >= t, t),
                 None => match lang.and_then(|l| slice_threshold(slices, l, &batch.file_path)) {
-                    Some(t) => (reason == "import" || scored.score >= t, t),
+                    Some(t) => (reason == "import" || new_score >= t, t),
                     None => (scored.flagged, scored.threshold),
                 },
             };

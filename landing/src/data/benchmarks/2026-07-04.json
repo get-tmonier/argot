@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
-  "generated_at": "2026-07-04T20:30:00+00:00",
-  "commit": "18fc9d9b",
+  "generated_at": "2026-07-05T00:30:00+00:00",
+  "commit": "4e4266fd",
   "methodology": "recall: curated spliced break fixtures planted on disk and judged by the production fit+check pipeline; FP: temporal holdout \u2014 fit at an old SHA, replay only commits strictly after it, split by file-existed-at-fit, commit-level bootstrap 95% CIs",
   "corpora": [
     {
@@ -11,6 +11,9 @@
       "caught": 32,
       "fixtures": 32,
       "recall_pct": 100.0,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null,
       "fp_existing": {
         "hits": 38,
         "hunks": 1718,
@@ -30,10 +33,7 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 7.794159311260955,
-      "gated_caught": null,
-      "gated_fixtures": null,
-      "gated_recall_pct": null
+      "threshold": 7.794159311260955
     },
     {
       "corpus": "rich",
@@ -42,6 +42,9 @@
       "caught": 11,
       "fixtures": 16,
       "recall_pct": 68.75,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null,
       "fp_existing": {
         "hits": 2,
         "hunks": 391,
@@ -61,10 +64,7 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 7.675625825016976,
-      "gated_caught": null,
-      "gated_fixtures": null,
-      "gated_recall_pct": null
+      "threshold": 7.675625825016976
     },
     {
       "corpus": "faker",
@@ -73,6 +73,9 @@
       "caught": 12,
       "fixtures": 16,
       "recall_pct": 75.0,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null,
       "fp_existing": {
         "hits": 1,
         "hunks": 109,
@@ -92,10 +95,7 @@
         ]
       },
       "under_sampled": true,
-      "threshold": 7.817701531332887,
-      "gated_caught": null,
-      "gated_fixtures": null,
-      "gated_recall_pct": null
+      "threshold": 7.817701531332887
     },
     {
       "corpus": "hono",
@@ -104,6 +104,9 @@
       "caught": 9,
       "fixtures": 17,
       "recall_pct": 52.94117647058823,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null,
       "fp_existing": {
         "hits": 0,
         "hunks": 359,
@@ -123,10 +126,7 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 8.351895166347443,
-      "gated_caught": null,
-      "gated_fixtures": null,
-      "gated_recall_pct": null
+      "threshold": 8.351895166347443
     },
     {
       "corpus": "ink",
@@ -135,6 +135,9 @@
       "caught": 15,
       "fixtures": 17,
       "recall_pct": 88.23529411764706,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null,
       "fp_existing": {
         "hits": 33,
         "hunks": 378,
@@ -154,10 +157,7 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 9.425204726140128,
-      "gated_caught": null,
-      "gated_fixtures": null,
-      "gated_recall_pct": null
+      "threshold": 9.425204726140128
     },
     {
       "corpus": "faker-js",
@@ -166,6 +166,9 @@
       "caught": 7,
       "fixtures": 17,
       "recall_pct": 41.1764705882353,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null,
       "fp_existing": {
         "hits": 0,
         "hunks": 1149,
@@ -185,10 +188,7 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 8.694500630785932,
-      "gated_caught": null,
-      "gated_fixtures": null,
-      "gated_recall_pct": null
+      "threshold": 8.694500630785932
     },
     {
       "corpus": "dagster",
@@ -197,6 +197,9 @@
       "caught": 13,
       "fixtures": 24,
       "recall_pct": 54.166666666666664,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null,
       "fp_existing": {
         "hits": 2,
         "hunks": 714,
@@ -216,10 +219,7 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 6.260394937943262,
-      "gated_caught": null,
-      "gated_fixtures": null,
-      "gated_recall_pct": null
+      "threshold": 6.260394937943262
     },
     {
       "corpus": "saleor",
@@ -228,6 +228,9 @@
       "caught": 13,
       "fixtures": 14,
       "recall_pct": 92.85714285714286,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null,
       "fp_existing": {
         "hits": 0,
         "hunks": 855,
@@ -247,10 +250,7 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 6.593281191284822,
-      "gated_caught": null,
-      "gated_fixtures": null,
-      "gated_recall_pct": null
+      "threshold": 6.593281191284822
     },
     {
       "corpus": "wagtail",
@@ -259,6 +259,9 @@
       "caught": 12,
       "fixtures": 14,
       "recall_pct": 85.71428571428571,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null,
       "fp_existing": {
         "hits": 3,
         "hunks": 531,
@@ -278,10 +281,7 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 7.995171474997431,
-      "gated_caught": null,
-      "gated_fixtures": null,
-      "gated_recall_pct": null
+      "threshold": 7.995171474997431
     },
     {
       "corpus": "excalidraw",
@@ -290,6 +290,9 @@
       "caught": 8,
       "fixtures": 14,
       "recall_pct": 57.142857142857146,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null,
       "fp_existing": {
         "hits": 6,
         "hunks": 1159,
@@ -300,19 +303,16 @@
         ]
       },
       "fp_new_file": {
-        "hits": 2,
+        "hits": 1,
         "hunks": 141,
-        "rate_pct": 1.4184397163120568,
+        "rate_pct": 0.7092198581560284,
         "ci95_pct": [
           0.0,
-          3.571428571428571
+          2.631578947368421
         ]
       },
       "under_sampled": false,
-      "threshold": 7.66432032715173,
-      "gated_caught": null,
-      "gated_fixtures": null,
-      "gated_recall_pct": null
+      "threshold": 7.66432032715173
     },
     {
       "corpus": "outline",
@@ -321,6 +321,9 @@
       "caught": 7,
       "fixtures": 14,
       "recall_pct": 50.0,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null,
       "fp_existing": {
         "hits": 6,
         "hunks": 935,
@@ -340,10 +343,7 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 6.689020340092849,
-      "gated_caught": null,
-      "gated_fixtures": null,
-      "gated_recall_pct": null
+      "threshold": 6.689020340092849
     },
     {
       "corpus": "gh-cli",
@@ -352,6 +352,9 @@
       "caught": 9,
       "fixtures": 17,
       "recall_pct": 52.94117647058823,
+      "gated_caught": 6,
+      "gated_fixtures": 6,
+      "gated_recall_pct": 100.0,
       "fp_existing": {
         "hits": 0,
         "hunks": 608,
@@ -362,19 +365,16 @@
         ]
       },
       "fp_new_file": {
-        "hits": 7,
+        "hits": 2,
         "hunks": 540,
-        "rate_pct": 1.2962962962962963,
+        "rate_pct": 0.3703703703703704,
         "ci95_pct": [
-          0.3189792663476874,
-          3.260869565217391
+          0.0,
+          1.153846153846154
         ]
       },
       "under_sampled": false,
-      "threshold": 6.330537167682023,
-      "gated_caught": 6,
-      "gated_fixtures": 6,
-      "gated_recall_pct": 100.0
+      "threshold": 6.330537167682023
     },
     {
       "corpus": "ripgrep",
@@ -383,6 +383,9 @@
       "caught": 6,
       "fixtures": 17,
       "recall_pct": 35.294117647058826,
+      "gated_caught": 5,
+      "gated_fixtures": 5,
+      "gated_recall_pct": 100.0,
       "fp_existing": {
         "hits": 2,
         "hunks": 317,
@@ -402,10 +405,7 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 12.45093604010043,
-      "gated_caught": 5,
-      "gated_fixtures": 5,
-      "gated_recall_pct": 100.0
+      "threshold": 12.45093604010043
     },
     {
       "corpus": "guava",
@@ -414,6 +414,9 @@
       "caught": 7,
       "fixtures": 18,
       "recall_pct": 38.888888888888886,
+      "gated_caught": 6,
+      "gated_fixtures": 6,
+      "gated_recall_pct": 100.0,
       "fp_existing": {
         "hits": 18,
         "hunks": 2424,
@@ -433,10 +436,7 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 5.743611866588147,
-      "gated_caught": 6,
-      "gated_fixtures": 6,
-      "gated_recall_pct": 100.0
+      "threshold": 5.743611866588147
     },
     {
       "corpus": "powershell",
@@ -445,6 +445,9 @@
       "caught": 6,
       "fixtures": 17,
       "recall_pct": 35.294117647058826,
+      "gated_caught": 6,
+      "gated_fixtures": 6,
+      "gated_recall_pct": 100.0,
       "fp_existing": {
         "hits": 11,
         "hunks": 1799,
@@ -464,10 +467,7 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 5.785579982321298,
-      "gated_caught": 6,
-      "gated_fixtures": 6,
-      "gated_recall_pct": 100.0
+      "threshold": 5.785579982321298
     },
     {
       "corpus": "redis",
@@ -476,6 +476,9 @@
       "caught": 8,
       "fixtures": 18,
       "recall_pct": 44.44444444444444,
+      "gated_caught": 6,
+      "gated_fixtures": 6,
+      "gated_recall_pct": 100.0,
       "fp_existing": {
         "hits": 2,
         "hunks": 561,
@@ -495,10 +498,7 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 10.376270082758705,
-      "gated_caught": 6,
-      "gated_fixtures": 6,
-      "gated_recall_pct": 100.0
+      "threshold": 10.376270082758705
     },
     {
       "corpus": "rocksdb",
@@ -507,6 +507,9 @@
       "caught": 7,
       "fixtures": 17,
       "recall_pct": 41.1764705882353,
+      "gated_caught": 6,
+      "gated_fixtures": 6,
+      "gated_recall_pct": 100.0,
       "fp_existing": {
         "hits": 34,
         "hunks": 2230,
@@ -526,10 +529,7 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 7.994421821578509,
-      "gated_caught": 6,
-      "gated_fixtures": 6,
-      "gated_recall_pct": 100.0
+      "threshold": 7.994421821578509
     },
     {
       "corpus": "homebrew",
@@ -538,6 +538,9 @@
       "caught": 7,
       "fixtures": 17,
       "recall_pct": 41.1764705882353,
+      "gated_caught": 6,
+      "gated_fixtures": 6,
+      "gated_recall_pct": 100.0,
       "fp_existing": {
         "hits": 1,
         "hunks": 458,
@@ -557,10 +560,7 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 6.536919398829664,
-      "gated_caught": 6,
-      "gated_fixtures": 6,
-      "gated_recall_pct": 100.0
+      "threshold": 6.536919398829664
     },
     {
       "corpus": "laravel",
@@ -569,6 +569,9 @@
       "caught": 10,
       "fixtures": 19,
       "recall_pct": 52.63157894736842,
+      "gated_caught": 7,
+      "gated_fixtures": 8,
+      "gated_recall_pct": 87.5,
       "fp_existing": {
         "hits": 0,
         "hunks": 476,
@@ -579,19 +582,16 @@
         ]
       },
       "fp_new_file": {
-        "hits": 7,
+        "hits": 2,
         "hunks": 61,
-        "rate_pct": 11.475409836065573,
+        "rate_pct": 3.278688524590164,
         "ci95_pct": [
           0.0,
-          24.528301886792452
+          9.230769230769232
         ]
       },
       "under_sampled": false,
-      "threshold": 7.529258456578942,
-      "gated_caught": 7,
-      "gated_fixtures": 8,
-      "gated_recall_pct": 87.5
+      "threshold": 7.529258456578942
     },
     {
       "corpus": "hugo",
@@ -600,6 +600,9 @@
       "caught": null,
       "fixtures": null,
       "recall_pct": null,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null,
       "fp_existing": {
         "hits": 7,
         "hunks": 509,
@@ -619,10 +622,7 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 9.212162049333433,
-      "gated_caught": null,
-      "gated_fixtures": null,
-      "gated_recall_pct": null
+      "threshold": 9.212162049333433
     },
     {
       "corpus": "bat",
@@ -631,6 +631,9 @@
       "caught": null,
       "fixtures": null,
       "recall_pct": null,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null,
       "fp_existing": {
         "hits": 25,
         "hunks": 338,
@@ -647,10 +650,7 @@
         "ci95_pct": null
       },
       "under_sampled": false,
-      "threshold": 8.8705684714994,
-      "gated_caught": null,
-      "gated_fixtures": null,
-      "gated_recall_pct": null
+      "threshold": 8.8705684714994
     },
     {
       "corpus": "junit5",
@@ -659,6 +659,9 @@
       "caught": null,
       "fixtures": null,
       "recall_pct": null,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null,
       "fp_existing": {
         "hits": 4,
         "hunks": 375,
@@ -678,10 +681,7 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 7.435433808136441,
-      "gated_caught": null,
-      "gated_fixtures": null,
-      "gated_recall_pct": null
+      "threshold": 7.435433808136441
     },
     {
       "corpus": "jellyfin",
@@ -690,6 +690,9 @@
       "caught": null,
       "fixtures": null,
       "recall_pct": null,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null,
       "fp_existing": {
         "hits": 5,
         "hunks": 442,
@@ -709,10 +712,7 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 6.9375952316484675,
-      "gated_caught": null,
-      "gated_fixtures": null,
-      "gated_recall_pct": null
+      "threshold": 6.9375952316484675
     },
     {
       "corpus": "curl",
@@ -721,6 +721,9 @@
       "caught": null,
       "fixtures": null,
       "recall_pct": null,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null,
       "fp_existing": {
         "hits": 0,
         "hunks": 400,
@@ -740,10 +743,7 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 6.256138703615452,
-      "gated_caught": null,
-      "gated_fixtures": null,
-      "gated_recall_pct": null
+      "threshold": 6.256138703615452
     },
     {
       "corpus": "fmt",
@@ -752,6 +752,9 @@
       "caught": null,
       "fixtures": null,
       "recall_pct": null,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null,
       "fp_existing": {
         "hits": 13,
         "hunks": 913,
@@ -771,10 +774,7 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 12.513468288870405,
-      "gated_caught": null,
-      "gated_fixtures": null,
-      "gated_recall_pct": null
+      "threshold": 12.513468288870405
     },
     {
       "corpus": "rubocop",
@@ -783,6 +783,9 @@
       "caught": null,
       "fixtures": null,
       "recall_pct": null,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null,
       "fp_existing": {
         "hits": 9,
         "hunks": 790,
@@ -802,10 +805,7 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 5.692622668359421,
-      "gated_caught": null,
-      "gated_fixtures": null,
-      "gated_recall_pct": null
+      "threshold": 5.692622668359421
     },
     {
       "corpus": "composer",
@@ -814,6 +814,9 @@
       "caught": null,
       "fixtures": null,
       "recall_pct": null,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null,
       "fp_existing": {
         "hits": 0,
         "hunks": 478,
@@ -824,29 +827,26 @@
         ]
       },
       "fp_new_file": {
-        "hits": 2,
+        "hits": 0,
         "hunks": 53,
-        "rate_pct": 3.7735849056603774,
+        "rate_pct": 0.0,
         "ci95_pct": [
           0.0,
-          7.317073170731707
+          0.0
         ]
       },
       "under_sampled": false,
-      "threshold": 8.241653311191182,
-      "gated_caught": null,
-      "gated_fixtures": null,
-      "gated_recall_pct": null
+      "threshold": 8.241653311191182
     }
   ],
   "totals": {
     "caught": 199,
     "fixtures": 335,
     "recall_pct": 59.40298507462686,
-    "worst_fp_existing_pct": 8.73015873015873,
-    "worst_fp_new_file_pct": 22.857142857142858,
     "gated_caught": 48,
     "gated_fixtures": 49,
-    "gated_recall_pct": 97.95918367346938
+    "gated_recall_pct": 97.95918367346938,
+    "worst_fp_existing_pct": 8.73015873015873,
+    "worst_fp_new_file_pct": 22.857142857142858
   }
 }
