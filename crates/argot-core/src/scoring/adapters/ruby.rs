@@ -84,11 +84,6 @@ fn path_top_segment(path: &str) -> &str {
     path.split('/').next().unwrap_or(path)
 }
 
-/// Leading constant segment of a scoped constant (`A::B::C` → `A`).
-fn const_top_segment(name: &str) -> &str {
-    name.split("::").next().unwrap_or(name)
-}
-
 /// Last path segment with a trailing `.rb` stripped (`foo/bar.rb` → `bar`).
 fn path_basename(path: &str) -> &str {
     let last = path.rsplit('/').next().unwrap_or(path);
@@ -118,15 +113,6 @@ fn first_string_content<'a>(call: Node<'a>) -> Option<Node<'a>> {
     None
 }
 
-/// First `constant`/`scope_resolution` argument of a call (an `include`
-/// target).
-fn first_constant_arg<'a>(call: Node<'a>) -> Option<Node<'a>> {
-    let args = call.child_by_field_name("arguments")?;
-    children(args)
-        .into_iter()
-        .find(|c| matches!(c.kind(), "constant" | "scope_resolution"))
-}
-
 /// Bind name for a `class`/`module` name field — the defined constant. For a
 /// scoped name (`Foo::Bar`) it's the rightmost segment (`Bar`).
 fn constant_binding<'a>(name: Node<'a>, source: &'a str) -> Option<&'a str> {
@@ -154,7 +140,11 @@ impl RubyAdapter {
     }
 
     /// Top-level modules referenced via `require`/`load`/`autoload` (external
-    /// gems) plus simple `include`/`extend`/`prepend` constant targets.
+    /// gems). `include`/`extend`/`prepend` are deliberately *not* captured:
+    /// they mix a module (usually a repo-internal one, or a stdlib module like
+    /// `Comparable`) into a class — usage, not a dependency load. The gem is
+    /// already signalled by its `require`; treating the mixin as an import
+    /// false-alarmed on internal and standard-library modules.
     /// `require_relative` is repo-internal and handled by
     /// [`internal_import_bindings`](Self::internal_import_bindings).
     pub fn extract_imports(&self, source: &str) -> HashSet<String> {
@@ -168,14 +158,6 @@ impl RubyAdapter {
                 "require" | "load" | "autoload" => {
                     if let Some(content) = first_string_content(node) {
                         let seg = path_top_segment(node_text(content, source));
-                        if !seg.is_empty() {
-                            out.insert(seg.to_string());
-                        }
-                    }
-                }
-                "include" | "extend" | "prepend" => {
-                    if let Some(arg) = first_constant_arg(node) {
-                        let seg = const_top_segment(node_text(arg, source));
                         if !seg.is_empty() {
                             out.insert(seg.to_string());
                         }
@@ -204,10 +186,6 @@ impl RubyAdapter {
                         content,
                         path_top_segment(node_text(content, source)).to_string(),
                     ),
-                    None => continue,
-                },
-                "include" | "extend" | "prepend" => match first_constant_arg(node) {
-                    Some(arg) => (arg, const_top_segment(node_text(arg, source)).to_string()),
                     None => continue,
                 },
                 _ => continue,
@@ -541,10 +519,17 @@ mod tests {
     }
 
     #[test]
-    fn include_of_constant_is_a_dependency_signal() {
+    fn include_extend_prepend_are_mixins_not_imports() {
         let adapter = RubyAdapter::new();
-        let imports = adapter.extract_imports("class C\n  include ActiveSupport::Concern\nend\n");
-        assert!(imports.contains("ActiveSupport"));
+        // `include`/`extend`/`prepend` mix a module (internal helper, or a
+        // stdlib module like `Comparable`) into a class — usage, not a
+        // dependency load. The gem, if any, is signalled by its `require`.
+        let src = "class C\n  include ExcludeLimitHelper\n  include Comparable\n  extend Forwardable\nend\n";
+        assert!(adapter.extract_imports(src).is_empty());
+        // `require` of the same gem is still captured as the dependency.
+        let req =
+            "require \"active_support/concern\"\nclass C\n  include ActiveSupport::Concern\nend\n";
+        assert!(adapter.extract_imports(req).contains("active_support"));
     }
 
     #[test]

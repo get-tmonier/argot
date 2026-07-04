@@ -784,21 +784,21 @@
       "fixtures": null,
       "recall_pct": null,
       "fp_existing": {
-        "hits": 11,
+        "hits": 9,
         "hunks": 790,
-        "rate_pct": 1.3924050632911391,
+        "rate_pct": 1.139240506329114,
         "ci95_pct": [
-          0.4975124378109453,
-          2.5
+          0.42194092827004215,
+          1.968019680196802
         ]
       },
       "fp_new_file": {
-        "hits": 1,
+        "hits": 0,
         "hunks": 11,
-        "rate_pct": 9.090909090909092,
+        "rate_pct": 0.0,
         "ci95_pct": [
           0.0,
-          33.33333333333333
+          0.0
         ]
       },
       "under_sampled": false,
