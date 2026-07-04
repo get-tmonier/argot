@@ -89,8 +89,9 @@ For each changed hunk, argot runs a short pipeline:
    a data-dominant file. The n-gram model would only see noise there.
 2. **Import checker** — if a hunk imports a module that's foreign to the repo's own first-party import
    set, flag it immediately (`reason: import`).
-3. **BPE scorer** — compute the max-surprise score, adjusted by a small per-callee penalty, and flag
-   the hunk if the adjusted score exceeds the calibrated threshold.
+3. **BPE scorer** — compute the max-surprise score, adjusted by a small per-callee penalty (applied
+   only when the hunk reaches into a module foreign to the repo), and flag the hunk if the adjusted
+   score exceeds the calibrated threshold.
 
 The math, in one line:
 

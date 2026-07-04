@@ -21,22 +21,25 @@ files and judged by the actual `argot fit` → `argot check --staged` pipeline. 
 bootstrap confidence intervals live in the
 [re-measurement evidence](https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/issue92-honest-rebench.md).
 
-The honest picture, in one paragraph: on **edits to existing files**, 10 of 24 benchmarked
-corpora meet our ≤ 2% false-positive gate and most of the rest sit between 2% and 7%, with a few
-genuinely red (bat 11.5%, jellyfin 9.7%, rubocop 7.0%, fastapi 6.6%, rocksdb 6.2%). On **new files**,
-what used to flood (excalidraw 21%, redis 61%, fmt 57%) is now largely fixed by a separate
-**new-file threshold** calibrated by scoring each fit file as if newly added — 8 corpora crossed
-back under the ≤ 5% gate with zero regression on existing-file FP or recall
-([#92 Phase A](https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/issue92-phaseA-diagnosis.md)).
-The new-file red that remains is import-dominated (rocksdb 40% — Python tooling in a C++ repo;
-redis 32% — vendored third-party C; fmt 20% and laravel 11.5% — new-feature files that add a
-dependency), where a foreign-import tripwire cannot tell a new dependency from a break. Recall on
-the mature Python corpora is strong (fastapi/faker/saleor/wagtail 100%, rich 69%); on the *hard*
-curated break classes in the other languages — wrong error discipline, wrong concurrency, API
-misuse within libraries the repo already uses, naming shape — it ranges **21–62%**, a **proven
-limit**: an embedding manifold-outlier and per-token MLM surprise were both attempted and both
-plateau at ~0.65 AUC once fairly controlled. The dependable value today is the tripwire class:
-foreign imports and strongly foreign API surfaces.
+The honest picture, across **27 repos in 8 languages**. argot's gated job — catching a **novel
+pattern** the repo has never used (a foreign import, a foreign API, a foreign concurrency library) —
+lands **48 of 49 = 98%**, and all 8 language corpora clear the ≥ 85% bar. On **edits to existing
+files** the false-alarm rate is **1.38% aggregate**, and **23 of 27 repos** sit under the ≤ 2% gate.
+The worst residuals we publish rather than hide: **ink 10.58%** (a repo adopting Node built-ins like
+`setImmediate`/`parseInt` it hadn't used at fit), **bat 8.58%** (a genuine `git2` → `gix` dependency
+migration plus Rust std), **rocksdb 4.04%** (cross-file C++ internal types and namespaces), and
+**fastapi 2.21%** (`annotated_doc`/`pwdlib` adopted across separate commits). Three fixes in the #92
+pass drove these down: a **Python relative-import error-recovery guard** (a mid-fragment
+`from ._compat import v2` no longer leaks the imported symbol as a phantom foreign module), a
+**per-changeset novel-import dedup** (one commit adding the same new dependency across many files
+alerts once, not once per file), and **C++ class member-field capture** (`member_.method()` now
+reads as member access, not a call into an unknown namespace).
+
+The harder classes — naming shape, and semantic/API misuse *within* a library the repo already
+uses — are **secondary coverage**: argot reports them but never gates on them, and it admits it does
+not catch them reliably. That's a **proven limit**, not a tuning gap — see the modeling caveats
+below. The dependable value today is the novel-pattern class: foreign imports and strongly foreign
+API surfaces.
 
 ## Modeling caveats
 
@@ -45,18 +48,17 @@ foreign imports and strongly foreign API surfaces.
 - **Best on a consistent hand.** Highly polyglot repos, or repos with many contributors and no
   enforced style, are harder to model.
 - **Subtle structural breaks on heterogeneous application code.** Callback pyramids and
-  framework-idiom shapes carry little import/callee/convention signal when the host repo's own
-  code legitimately reaches the same shapes (excalidraw 9/14; three candidate mechanisms for this
-  class were scouted and refuted with documented evidence).
+  framework-idiom shapes carry little import/callee signal when the host repo's own code
+  legitimately reaches the same shapes (three candidate mechanisms for this class were scouted and
+  refuted with documented evidence).
 - **In-vocabulary breaks often score in the same range as legitimate new code.** The scorer is a
   token-rarity model; an honest threshold that keeps false positives low also lets many
-  wrong-error-discipline / naming-shape breaks through (the 21–62% hard-class recall above). This
-  is a **proven limit**, not a tuning gap. A pretrained-code-embedding manifold-outlier and
-  per-token MLM surprise were both scouted and both plateau at ~0.65 AUC once fairly controlled;
-  decisively, a minimal-pair test (a wrong-error-discipline break vs its own idiomatic twin, only
-  the error mechanism swapped) leaves the pretrained code embedding at **cosine 0.996** — the
-  break is invisible. That class is ~a quarter of every hard catalog and 0%-catchable, so recall
-  is capped below 85% regardless of the scorer. Documented in the
+  wrong-error-discipline / naming-shape breaks through — the **secondary classes** argot reports
+  but never gates on. This is a **proven limit**, not a tuning gap. A pretrained-code-embedding
+  manifold-outlier and per-token MLM surprise were both scouted and both plateau at ~0.65 AUC once
+  fairly controlled; decisively, a minimal-pair test (a wrong-error-discipline break vs its own
+  idiomatic twin, only the error mechanism swapped) leaves the pretrained code embedding at
+  **cosine 0.996** — the break is invisible. Documented in the
   [Phase B evidence](https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/issue92-phaseB-recall-limit.md).
 - **Voice-novel commits flag proportionally.** New feature areas score as new voice until the
   next `argot fit`; a stale model amplifies this, so `check` warns when the fit is ≥ 10 commits
@@ -79,7 +81,7 @@ These are the adoption-blockers we're building toward v1:
 
 | Goal | Status |
 |---|---|
-| Push FP ≤ 2% (existing files) and close the recall gap | Under the leak-free protocol: 10 of 24 corpora meet the FP gate; hard-class recall 21–100% by language — honest tables in the [#92 evidence](https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/issue92-honest-rebench.md) |
+| Push FP ≤ 2% (existing files) and grow secondary-class coverage | Under the leak-free protocol: 1.38% aggregate existing-file FP, 23 of 27 corpora under the gate; gated novel-pattern catch 48/49 = 98% — honest tables in the [#92 evidence](https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/issue92-honest-rebench.md) |
 | Validate on application corpora | ✅ Done — four application corpora benchmarked and published |
 | Suppression mechanism | ✅ Shipped |
 | Repo suitability check | ✅ Shipped (`argot inspect`) |

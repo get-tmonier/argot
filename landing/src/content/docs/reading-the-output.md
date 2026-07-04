@@ -36,7 +36,8 @@ Each hit line carries five things:
 - **the severity tier** — `unusual` / `suspicious` / `foreign` (below).
 - **the source** — `workdir`, `staged`, `untracked`, or a commit SHA, so you know where it came from.
 - **the reason** that fired — `import` (foreign import), `bpe` (rare token sequence), or `call_receiver`
-  (an unfamiliar callee tipped it over).
+  (an unfamiliar callee tipped it over). A fourth reason, `convention`, exists in the engine but is
+  **off by default** — an internal benchmark-only knob, not something `check` normally emits.
 
 ## Severity tiers
 

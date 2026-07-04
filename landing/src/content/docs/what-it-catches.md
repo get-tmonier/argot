@@ -1,24 +1,46 @@
 ---
 title: What it catches
-description: Three real examples — all valid, typed, lint-clean — that every other tool stays silent on.
+description: The dependable catch — a foreign dependency or API — plus the harder in-vocabulary breaks, all valid, typed, and lint-clean.
 group: Guide
 order: 5
 ---
 
-argot catches code that is *technically fine but socially wrong* for this project. The four shapes it
-sees most often:
+argot catches code that is *technically fine but socially wrong* for this project. The shapes it sees,
+strongest first:
 
-| Signal | What it means |
-|---|---|
-| **LLM paste-through** | A block whose style diverges sharply from the surrounding file |
-| **Convention drift** | Error handling, logging, or patterns that don't match the repo |
-| **Foreign paradigm** | Class-based OOP in a functional codebase, the wrong import style |
-| **Stylistic outlier** | Correct code that doesn't sound like anyone on this team wrote it |
+| Signal | What it means | How reliably |
+|---|---|---|
+| **Foreign dependency** | An import — package, module, header — the repo has never used | **gated · 98%** |
+| **Foreign API** | A call into a library the codebase standardises away from | **gated · 98%** |
+| **LLM paste-through** | A block whose token distribution diverges sharply from the file | secondary |
+| **Stylistic outlier** | Correct code that doesn't sound like anyone on this team wrote it | secondary |
 
-The examples below are pulled from argot's FastAPI benchmark catalog. **All three are syntactically
-valid, fully typed, lint-clean, and pass mypy strict.** Every other tool in CI is silent on them.
+The dependable, benchmark-**gated** catch is the first two — a *novel pattern*, a dependency or API
+the repo has never reached for. That is what argot is built for, and it lands **48 of 49 (98%)** on the
+honest, leak-free bench.
 
-## 1. Wrong exception type
+## 1. A foreign dependency (the dependable catch)
+
+```python
+# flagged — import stage: a package this repo has never used
+import requests  # this codebase standardises on httpx + its own HTTPClient
+
+async def notify(url: str, payload: dict) -> None:
+    requests.post(url, json=payload)  # foreign HTTP client + a blocking call
+```
+
+Nothing here is a syntax error and `requests` is a perfectly good library — it's just *foreign to this
+repo*, which has never imported it. The import stage flags the new top-level module directly; the
+call-receiver stage flags `requests.post` as a callee the corpus never attests. This is the class the
+published numbers gate on, and the one an AI agent trips most: reaching for a dependency the codebase
+doesn't use.
+
+The three below are the **harder** end — in-vocabulary breaks where every token already lives in the
+repo. **All are syntactically valid, fully typed, lint-clean, and pass mypy strict.** argot surfaces
+them, but this is *secondary coverage* — it does not catch them reliably and its numbers don't gate on
+them (see the caveat at the end).
+
+## 2. Wrong exception type
 
 ```python
 # flagged — ValueError instead of HTTPException
@@ -35,7 +57,7 @@ token sequence: a bare `ValueError` instead of `HTTPException(status_code=...)`.
 happy. The linter has nothing. argot catches it because the FastAPI corpus's exception vocabulary is
 `HTTPException`, not Python's built-ins.
 
-## 2. Manual status check vs `raise_for_status()`
+## 3. Manual status check vs `raise_for_status()`
 
 ```python
 # flagged — structural shape, not vocabulary
@@ -53,7 +75,7 @@ async def proxy_get_user(user_id: int) -> dict[str, Any]:
 linter can encode that preference; argot picks it up because the distribution over short token
 windows captures the structural difference.
 
-## 3. Sync blocking in an async codebase
+## 4. Sync blocking in an async codebase
 
 ```python
 # flagged — sync def + blocking I/O on a hot path
@@ -70,5 +92,12 @@ which is built around `async def` + `await`.
 
 ---
 
-The thread through all three: **the tokens are familiar; the combination isn't.** That's the gap
+One honest caveat, restated: examples 2–4 are the **harder** end. argot's dependable, benchmark-gated
+catch is the **novel-pattern** class in example 1 — a foreign import, API, or concurrency library the
+repo has *never* used (**48 of 49 = 98%** on the honest, leak-free bench). In-vocabulary structural
+breaks — where every token already lives in the repo — are **secondary coverage**: argot surfaces
+them, but doesn't catch them reliably, and its published numbers don't gate on them. Treat a hit in
+that class as a prompt to look, not a guarantee (see [Limitations](/docs/limitations/)).
+
+The thread through all of them: **the tokens are familiar; the combination isn't.** That's the gap
 between "valid" and "ours," and it's the gap argot is built to close.

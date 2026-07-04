@@ -41,12 +41,12 @@ const en: SiteContent = {
         desc: 'A block whose style diverges sharply from the surrounding file — fluent in the average voice of every public repo, not yours.',
       },
       {
-        title: 'Convention drift',
-        desc: 'Error handling, logging, or control-flow shapes that don’t match how the rest of the codebase does it.',
+        title: 'A foreign dependency',
+        desc: 'An import — a package, module, or header — the repo has never used. The signal argot is built for, and the one it catches most reliably.',
       },
       {
-        title: 'Foreign paradigm',
-        desc: 'Class-based OOP dropped into a functional codebase. A sync def on a hot async path. The wrong import for the job.',
+        title: 'A foreign API',
+        desc: 'A call into a library the codebase standardises away from — a different HTTP client, ORM, or logger than the rest of the repo reaches for.',
       },
       {
         title: 'Stylistic outlier',
@@ -59,14 +59,14 @@ const en: SiteContent = {
     title: 'Honest numbers, leak-free by construction.',
     stats: [
       {
-        value: '66.8%',
-        title: 'curated breaks caught',
-        desc: '201 of 301 hand-built breaks across 19 pinned open-source repos, spliced into real files and judged by the real fit → check pipeline. Python corpora run 69–100%; the hard in-vocabulary classes in other languages run 21–62% — every number published, red or green.',
+        value: '48/49',
+        title: 'novel-pattern breaks caught',
+        desc: 'The metric argot is built for — a foreign import, API, or dependency the repo has never used — caught at 98% across 8 language corpora, every one ≥85%. Spliced into real files and judged by the real fit → check pipeline. The harder in-vocabulary classes (naming, semantics) are secondary coverage, reported red, never gated.',
       },
       {
-        value: '≤2%',
-        title: 'false positives on 10 of 24 repos (edits)',
-        desc: 'Temporal holdout: the model is fitted at an old commit, then only commits it has never seen are replayed — no train-on-test. Most other repos sit at 2–6%; the worst (bat, 11.5%) is published, not hidden.',
+        value: '1.38%',
+        title: 'false alarms on real edits',
+        desc: 'Temporal holdout across 27 repos: the model is fitted at an old commit, then only commits it has never seen are replayed — no train-on-test. 23 of 27 repos sit at ≤2%; the worst (ink, 10.6% — a repo adopting Node built-ins it had not used) is published, not hidden.',
       },
       {
         value: '150ms',
@@ -75,7 +75,7 @@ const en: SiteContent = {
       },
     ],
     finePrint:
-      'Leak-free protocol since July 2026 (issue #92): recall from fixtures planted into host files on disk and judged by the shipped binary; false positives from temporal holdout with bootstrap confidence intervals. Methodology and raw results live in the public research log.',
+      'Leak-free protocol (issue #92): recall from fixtures planted into host files on disk and judged by the shipped binary; false alarms from temporal holdout with commit-level bootstrap confidence intervals. Methodology and raw per-repo results live in the public research log.',
   },
   local: {
     label: 'How it stays honest',

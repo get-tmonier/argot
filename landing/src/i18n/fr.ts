@@ -41,12 +41,12 @@ const fr: SiteContent = {
         desc: 'Un bloc dont le style s’écarte nettement du fichier qui l’entoure — fluide dans la voix moyenne de tous les dépôts publics, pas la vôtre.',
       },
       {
-        title: 'Dérive de convention',
-        desc: 'Gestion d’erreurs, journalisation ou formes de contrôle de flux qui ne correspondent pas au reste du code.',
+        title: 'Une dépendance étrangère',
+        desc: 'Un import — un paquet, un module, un header — que le dépôt n’a jamais utilisé. Le signal pour lequel argot est conçu, et celui qu’il détecte le plus fiablement.',
       },
       {
-        title: 'Paradigme étranger',
-        desc: 'De la POO à base de classes lâchée dans un code fonctionnel. Un def synchrone sur un chemin async critique. Le mauvais import.',
+        title: 'Une API étrangère',
+        desc: 'Un appel vers une bibliothèque dont le code s’écarte — un autre client HTTP, ORM ou logger que celui que le reste du dépôt emploie.',
       },
       {
         title: 'Anomalie stylistique',
@@ -59,14 +59,14 @@ const fr: SiteContent = {
     title: 'Des chiffres honnêtes, sans fuite par construction.',
     stats: [
       {
-        value: '66,8 %',
-        title: 'ruptures plantées détectées',
-        desc: '201 des 301 ruptures construites à la main sur 19 dépôts open-source épinglés, insérées dans de vrais fichiers et jugées par le vrai pipeline fit → check. Les corpus Python vont de 69 à 100 % ; les classes difficiles dans les autres langages de 21 à 62 % — chaque chiffre est publié, rouge ou vert.',
+        value: '48/49',
+        title: 'ruptures « motif inédit » détectées',
+        desc: 'Le critère pour lequel argot est conçu — un import, une API ou une dépendance étrangère que le dépôt n’a jamais utilisée — détecté à 98 % sur 8 corpus de langages, chacun ≥85 %. Inséré dans de vrais fichiers et jugé par le vrai pipeline fit → check. Les classes plus difficiles (nommage, sémantique) sont une couverture secondaire, publiée en rouge, jamais gatée.',
       },
       {
-        value: '≤2 %',
-        title: 'faux positifs sur 10 des 24 dépôts (modifications)',
-        desc: 'Holdout temporel : le modèle est calibré sur un ancien commit, puis seuls des commits jamais vus sont rejoués — aucun train-on-test. La plupart des autres dépôts sont entre 2 et 6 % ; le pire (bat, 11,5 %) est publié, pas caché.',
+        value: '1,38 %',
+        title: 'fausses alertes sur de vraies modifications',
+        desc: 'Holdout temporel sur 27 dépôts : le modèle est calibré sur un ancien commit, puis seuls des commits jamais vus sont rejoués — aucun train-on-test. 23 des 27 dépôts sont à ≤2 % ; le pire (ink, 10,6 % — un dépôt adoptant des primitives Node qu’il n’utilisait pas) est publié, pas caché.',
       },
       {
         value: '150 ms',
@@ -75,7 +75,7 @@ const fr: SiteContent = {
       },
     ],
     finePrint:
-      'Protocole sans fuite depuis juillet 2026 (issue #92) : rappel mesuré sur des fixtures plantées dans de vrais fichiers et jugées par le binaire livré ; faux positifs par holdout temporel avec intervalles de confiance bootstrap. Méthodologie et résultats bruts dans le journal de recherche public.',
+      'Protocole sans fuite (issue #92) : rappel mesuré sur des fixtures plantées dans de vrais fichiers et jugées par le binaire livré ; fausses alertes par holdout temporel avec intervalles de confiance bootstrap au niveau commit. Méthodologie et résultats bruts par dépôt dans le journal de recherche public.',
   },
   local: {
     label: 'Comment il reste honnête',

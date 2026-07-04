@@ -68,6 +68,12 @@ The cluster-conditional term targets context-dependent breaks — a known callee
 kind it never belongs to (think `Math.random` inside a deterministic faker provider, even though
 `Math.random` exists elsewhere in the repo's tests).
 
+The whole penalty is **gated by foreign reach**: it applies only when the hunk's file reaches into a
+module foreign to the repo (a foreign namespace-qualified or bare-foreign callee somewhere in the
+file). In files that stay entirely within the repo's own vocabulary the penalty is suppressed, so an
+unattested-callee soft signal can't tip in-voice code over the line — the gate that cut
+`call_receiver` false alarms in the #92 pass.
+
 ## File clustering
 
 At fit time, every non-data-dominant source file is reduced to its **callee bag** (the set of dotted

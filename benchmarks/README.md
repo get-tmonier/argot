@@ -42,12 +42,17 @@ Modes (issue #92 — every published number is leak-free):
 `--mode both` adds the catalog↔production recall gap column — the tracked
 path-fidelity metric (non-negative on every corpus as of era 15).
 
-Canonical scoring config = the era-15 production defaults (n_cal=100, K=7
+Canonical scoring config = the current production defaults (n_cal=100, K=7
 seeds, cluster_rare=2 + per-corpus auto-detect, parse-error host fallback
-ON, convention-rarity stage ON). `--no-parse-error-fallback
---no-conventions` reproduces the era-14 catalog baseline; the remaining
-era-14 substrate knobs (`--rarity-weighting`, `--calibration-source diff`,
-`--enable-shape-primitives`) default off — see
+ON). The convention-rarity stage is **off in production** — *secondary
+coverage*, never gated (`catalogs/RUBRIC.md`), and a co-headline false-alarm
+driver — so `fit`/`check` never enable it and expose no user-facing flag; it
+survives only as the internal `CalibrateOptions.enable_conventions` field
+(default off) that the benchmark harness can flip to measure the
+with/without trade-off. In the `catalog` continuity mode,
+`--no-parse-error-fallback --no-conventions` reproduces the era-14 baseline;
+the remaining era-14 substrate knobs (`--rarity-weighting`,
+`--calibration-source diff`, `--enable-shape-primitives`) default off — see
 `docs/research/evidence/era14-final.md` and `era15-production-path.md`.
 
 Parity vs the old Python engine is locked in by the golden fixtures under
