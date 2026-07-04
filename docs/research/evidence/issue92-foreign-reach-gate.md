@@ -30,17 +30,30 @@ the codebase's own new code stays quiet. The file-level scope means a foreign
 dependency spread across hunks (the `\React` assignment in one, the calls
 through a local receiver in another) flags every hunk, not just the naming line.
 
-## Result (production-path recall + temporal-holdout FP)
+## Result — full honest re-bench, all 27 corpora
 
-| | catch (gated ≥85%) | bat FP | jellyfin FP |
-|---|---|---|---|
-| before (no gate) | 48/49, 8/8 corpora | 11.54% | 9.73% |
-| **foreign-reach gate** | **48/49 (98%), 8/8 corpora** | **8.88%** | **6.79%** |
+Production-path recall (catch) + temporal-holdout FP, `--mode honest`:
 
-`call_receiver` false alarms: bat 33→24, jellyfin 21→7. Every gated foreign
-catch survives (they all reach a foreign module); the cry-wolf on the repo's
-own new functions is gone. The one miss (`laravel_foreign_respect_1`) is a
-Validator name-collision, not gate-related — unchanged from before.
+| | before (no gate) | **foreign-reach gate** |
+|---|---|---|
+| novel-pattern catch (gated ≥85%) | 48/49, 8/8 corpora | **48/49 (98%), 8/8 corpora** |
+| existing-file FP (aggregate, 27 corpora) | 3.50% (750/21416) | **2.00% (429/21416)** |
+| `call_receiver` false alarms (total) | 529 | **195** (−63%) |
+| corpora at ≤2% existing FP | 11/27 | **19/27** |
+
+**Every corpus improved or held flat — zero regressions.** Standouts:
+rubocop 6.96→1.27% (cr 48→2), homebrew 4.59→0.22% (cr 21→1), hugo 5.89→1.38%,
+gh-cli 2.30→0.00% (cr 14→0), outline 2.99→0.53%, rocksdb 6.23→4.26% (cr
+134→81), fastapi 6.58→5.18% (cr 42→18), bat 11.54→8.88%, jellyfin 9.73→6.79%
+(cr 21→7). Every gated foreign catch survives (they all reach a foreign
+module); the cry-wolf on the repo's own new functions is gone. The one miss
+(`laravel_foreign_respect_1`) is a Validator name-collision, not gate-related.
+
+Residual worst corpora are the next levers, in a different stage or genuinely
+novel: ink 10.85% (still call_receiver-heavy — a React/TS lib whose new code
+reaches many libraries), bat 8.88% (largely the git2→gix / minus **dependency
+migrations** — arguably correct to flag), jellyfin 6.79% (now mostly the
+**convention** stage, 22), fastapi 5.18% (**import** stage, 59 — new deps).
 
 ## Per-corpus realism, not corpus-specific production code
 
