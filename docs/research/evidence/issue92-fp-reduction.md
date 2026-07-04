@@ -159,6 +159,70 @@ fit-time repo-type/namespace snapshot (rocksdb) or a shipped per-language
 builtin/ecosystem-callee prior (ink/bat) — neither derivable from the current
 artifacts without new data. Documented, not chased.
 
+## Follow-up: repo-declared symbols + a hunk-level foreign-reach gate
+
+The rocksdb residual (4.04%, call_receiver-dominated) was two coupled bugs:
+
+1. **The frozen model doesn't attest the repo's own cross-TU symbols.** rocksdb
+   calls hundreds of its own bare functions (`ResetState`, `rocksdb_*_create`)
+   and its own types (`AlignedBuffer::isAligned`, `trie_index::…`) across `.cc`
+   files. None were *called* at fit, so none are in `attested`, so they read as
+   foreign. Fix: a fit-time `CallReceiverModel.defined_symbols` snapshot — every
+   name the repo **declares** (functions, methods, classes, structs, enums,
+   traits, via each adapter's `callable_definitions`). A bare callee that is a
+   declared name is not foreign; a `Type::method` / `ns::func` whose leading
+   segment is a declared type/namespace is not foreign. Foreign libs
+   (`event_base_new`, `absl::`, `boost::`) are never repo-declared, so they still
+   fire. (Rust `callable_definitions` was extended to capture `struct`/`enum`/
+   `union`/`type`/`trait` names, which it had missed.)
+
+2. **The foreign-reach gate was file-level — one foreign callee cried wolf across
+   the whole file.** `defined_symbols` alone did nothing (measured): a file
+   always retains *one* uncaptured foreign-looking callee (a template method, a
+   header-only type), and the file-level gate then flagged every hunk whose new
+   code was entirely the repo's own. Fix: check foreign reach at **hunk**
+   granularity — the hunk's own callees, not the whole file's. The file-level
+   foreign *import* condition stays (a foreign `#include` legitimately colours the
+   file — libevent), so cross-hunk import→call catches are unaffected.
+
+**Beware concurrent benches on one corpus clone.** An early "rocksdb 0.04%"
+reading was a race: a holdout and a production run fit into the same
+`benchmarks/data/rocksdb/.repo/.argot` simultaneously and corrupted the model.
+Two isolated runs both reproduce the real numbers. Never run two benches that
+touch the same corpus at once.
+
+**Result — honest re-bench, all 27 corpora (both changes):** existing-file FP
+**1.38% → 1.05%** (296→224), corpora ≤2% **23 → 24** (rocksdb 4.04→1.52 now
+passes), gated novel-pattern catch **48/49 held**, **zero catches lost anywhere**,
+zero FP regressions. ink 10.58→8.73 and bat 8.58→7.40 also improved (the gate
+de-amplifies their dependency-migration spikes) but remain > 2% — genuine
+dependency/builtin adoption, the inherent limit.
+
+**REJECTED — a per-language stdlib/builtin set.** ink's residual is JS/Node
+globals (`setImmediate`, `parseInt`, `JSON`, `Set`), bat's is Rust std (`Cow::`,
+`mem::take`). Seeding the foreign-reach check with a curated per-language builtin
+set (language grammar, not corpus knowledge) is the obvious fix. Measured: ink
+8.73→7.41, bat 7.40→6.80 — modest, and **both still fail** (the rest of their
+over-fire is the repo's own new functions called across commits, which no
+static set covers). Worse, it **cost a catch**: ripgrep `conc_busywait_1` (a
+busy-wait using std concurrency primitives) — marking `thread`/`time`/`Duration`
+as builtin suppressed the very std call the concurrency break rides on. The
+`language builtin` and the `wrong_concurrency`/semantic catch classes both live
+in the standard library and cannot be cleanly separated. Reverted: marginal
+gain, catch cost, and embedded literals for a problem it doesn't solve.
+
+The token-frequency **popularity proxy was re-tested at the callee level** too
+(not just modules) and fails identically: `parseInt`/`Promise` (globals) score 0
+ppm while `event_base_new`/`setcookie` (foreign) score 150+/38 ppm — the shipped
+BPE baseline cannot separate a language builtin from a foreign API by frequency.
+
+ink/bat/fastapi remain the inherent limit: genuine new dependencies, language
+builtins, and the repo's own new functions across commits — all of which a
+frozen, never-re-fitted model correctly reads as "not seen before." The real
+levers are outside the scorer: periodic re-fit (a real deployment attests
+adopted deps), or a shipped offline ecosystem/builtin prior generated from a
+broad corpus (not derivable from the current artifacts without new data).
+
 ## Artifacts
 
 `benchmarks/results/issue92-final/` (holdout + production, git-ignored,

@@ -42,6 +42,17 @@ pub struct CallReceiverModel {
     pub attested: Vec<String>,
     pub n_corpus_files: usize,
     pub clusters: BTreeMap<String, ClusterModel>,
+    /// Symbols the repo *declares* anywhere in its corpus — functions, methods,
+    /// classes, structs, namespaces, enums (via the adapter's
+    /// `callable_definitions`). A bare call to one, or a `Type::method` /
+    /// `ns::func` whose leading segment is one, is the repo's own code reached
+    /// across translation units — not foreign — even when it was never *called*
+    /// at fit (so absent from `attested`). Separates rocksdb's own
+    /// `ResetState` / `AlignedBuffer::` from foreign `event_base_new` / `absl::`.
+    /// Absent in artifacts fitted before this field existed (then no symbol is
+    /// treated as repo-declared — the prior behaviour).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub defined_symbols: Vec<String>,
 }
 
 /// The convention-rarity model: corpus frequencies of AST node kinds and of
@@ -123,6 +134,7 @@ mod tests {
                 attested: vec!["bar".to_string(), "foo".to_string()],
                 n_corpus_files: 2,
                 clusters,
+                defined_symbols: vec!["helper".to_string()],
             },
             conventions: Some(ConventionModel {
                 node_kinds: BTreeMap::from([("call_expression".to_string(), 12u64)]),

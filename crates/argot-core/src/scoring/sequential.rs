@@ -160,10 +160,6 @@ struct FileDerivedCache {
     data_rows: HashSet<usize>,
     prose_rows: HashSet<usize>,
     file_bindings: crate::scoring::call_receiver::LocalBindings,
-    /// Whether the file reaches into a module foreign to the repo (a foreign
-    /// namespace-qualified or bare-foreign callee anywhere in the file) —
-    /// the file-level half of the call-receiver foreign-context gate.
-    foreign_reach: bool,
 }
 
 fn content_key(source: &str) -> u64 {
@@ -398,23 +394,11 @@ impl SequentialImportBpeScorer {
             file_bindings
                 .values
                 .extend(self.adapter.value_bindings(source));
-            // File-level foreign reach: the change's callable/value bindings
-            // (host file + changeset) mark the code's own new symbols, so only
-            // genuinely foreign callees count.
-            let mut reach_bindings = file_bindings.clone();
-            reach_bindings
-                .callables
-                .extend(self.changeset_bindings.iter().cloned());
-            let foreign_reach = self
-                .call_receiver
-                .as_ref()
-                .is_some_and(|cr| cr.file_reaches_foreign(source, &reach_bindings));
             self.file_cache = Some(FileDerivedCache {
                 key,
                 data_rows: self.adapter.data_literal_lines(source),
                 prose_rows: self.adapter.prose_line_ranges(source),
                 file_bindings,
-                foreign_reach,
             });
         }
         self.file_cache.as_ref().expect("just populated")
@@ -596,7 +580,6 @@ impl SequentialImportBpeScorer {
             .or(host_context.map(|(h, _, _)| h))
             .unwrap_or(hunk_content);
         let derived = self.file_derived(binding_source);
-        let file_foreign_reach = derived.foreign_reach;
         let mut local_bindings = derived.file_bindings.clone();
         local_bindings
             .callables
@@ -672,9 +655,20 @@ impl SequentialImportBpeScorer {
         // voice, and must not cry wolf. Evaluated lazily, only when the
         // contribution would otherwise win.
         let cr_would_fire = cr_active && !bpe_fired && bpe_side_score > self.bpe_threshold;
+        // Foreign reach is checked at HUNK granularity, not file: a file that
+        // reaches a foreign module in one hunk must not flag every *other* hunk
+        // whose new code is entirely the repo's own (the file-level amplifier
+        // that made one foreign callee cry wolf across a whole rocksdb `.cc`).
+        // The file-level foreign *import* still opens the gate — a foreign
+        // `#include`/dependency legitimately colours the whole file (libevent).
+        let hunk_foreign_reach = cr_would_fire
+            && self
+                .call_receiver
+                .as_ref()
+                .is_some_and(|cr| cr.file_reaches_foreign(hunk_content, &local_bindings));
         let cr_fired = cr_would_fire
             && (import_score >= IMPORT_THRESHOLD
-                || file_foreign_reach
+                || hunk_foreign_reach
                 || self.file_has_foreign_import(file_source.or(host_context.map(|(h, _, _)| h))));
         let conv_side_score = bpe_score + convention_contribution;
         let conv_fired =

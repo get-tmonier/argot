@@ -867,6 +867,8 @@ pub struct CallReceiverScorer {
     /// into a foreign module; one inside it (`String::with_capacity`,
     /// `repository.set_resource`) is a new API on a known/local receiver.
     attested_namespaces: HashSet<String>,
+    /// Repo-declared symbols (see [`CallReceiverModel::defined_symbols`]).
+    defined_symbols: HashSet<String>,
     pub n_skipped_data_dominant: usize,
     file_to_cluster: HashMap<PathBuf, usize>,
     cluster_attested: HashMap<usize, HashSet<String>>,
@@ -906,6 +908,9 @@ impl CallReceiverScorer {
         cluster_size_min: usize,
     ) -> Result<Self, &'static str> {
         let mut attested: HashSet<String> = HashSet::new();
+        // Symbols the repo declares (functions, methods, classes, types,
+        // namespaces) — see `CallReceiverModel::defined_symbols`.
+        let mut defined_symbols: HashSet<String> = HashSet::new();
         let mut skipped = 0usize;
         let mut files_list: Vec<PathBuf> = Vec::new();
         let mut file_bags: Vec<(PathBuf, HashSet<String>)> = Vec::new();
@@ -917,6 +922,7 @@ impl CallReceiverScorer {
                 skipped += 1;
                 continue;
             }
+            defined_symbols.extend(adapter.callable_definitions(src));
             let callees = non_none_callees(src, language);
             for c in &callees {
                 attested.insert(c.clone());
@@ -995,6 +1001,7 @@ impl CallReceiverScorer {
             callee_file_counts,
             n_corpus_files,
             attested_namespaces,
+            defined_symbols,
             rarity_weighting: RarityWeighting::Off,
             shape_primitives: Vec::new(),
             primitive_baselines: HashMap::new(),
@@ -1040,10 +1047,13 @@ impl CallReceiverScorer {
         }
         let mut attested: Vec<String> = self.attested.iter().cloned().collect();
         attested.sort();
+        let mut defined_symbols: Vec<String> = self.defined_symbols.iter().cloned().collect();
+        defined_symbols.sort();
         CallReceiverModel {
             attested,
             n_corpus_files: self.n_corpus_files,
             clusters,
+            defined_symbols,
         }
     }
 
@@ -1061,6 +1071,7 @@ impl CallReceiverScorer {
         cluster_size_min: usize,
     ) -> Result<Self, &'static str> {
         let attested: HashSet<String> = model.attested.iter().cloned().collect();
+        let defined_symbols: HashSet<String> = model.defined_symbols.iter().cloned().collect();
         let attested_roots: HashSet<String> = attested
             .iter()
             .map(|c| c.split_once('.').map(|(h, _)| h).unwrap_or(c).to_string())
@@ -1112,6 +1123,7 @@ impl CallReceiverScorer {
             callee_file_counts,
             n_corpus_files: model.n_corpus_files,
             attested_namespaces,
+            defined_symbols,
             rarity_weighting: RarityWeighting::Off,
             shape_primitives: Vec::new(),
             primitive_baselines: HashMap::new(),
@@ -1220,6 +1232,13 @@ impl CallReceiverScorer {
         if local.callables.contains(lead) || local.values.contains(lead) {
             return false;
         }
+        // A leading segment the repo declares (`AlignedBuffer::isAligned`,
+        // `trie_index::Register` — rocksdb's own type/namespace) is internal
+        // cross-file code, not a foreign module. A foreign namespace the repo
+        // never declares (`absl::`, `tokio::`, `\Doctrine`) still fires.
+        if self.defined_symbols.contains(lead) {
+            return false;
+        }
         !self.attested_namespaces.contains(lead)
     }
 
@@ -1269,7 +1288,11 @@ impl CallReceiverScorer {
         if is_qualified(callee) {
             self.is_namespace_foreign(callee, local)
         } else {
-            true
+            // Bare unattested callee: foreign only if the repo never declares
+            // it. A repo-declared name (`ResetState`, `rocksdb_*_create`) is
+            // internal code reached across translation units; a name the repo
+            // never declares (`event_base_new`, `strcat`) is a foreign symbol.
+            !self.defined_symbols.contains(callee)
         }
     }
 
