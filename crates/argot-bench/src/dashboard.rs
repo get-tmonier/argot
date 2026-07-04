@@ -47,10 +47,20 @@ pub struct DashboardCorpus {
     pub language: String,
     pub kind: &'static str,
     /// Recall over the curated spliced catalog (production path). `None`
-    /// when the corpus has no catalog (holdout-only corpora).
+    /// when the corpus has no catalog (holdout-only corpora). This is the
+    /// aggregate over ALL fixture classes — including the secondary naming /
+    /// semantic classes argot reports but does not gate on; read
+    /// `gated_recall_pct` for the headline metric.
     pub caught: Option<usize>,
     pub fixtures: Option<usize>,
     pub recall_pct: Option<f64>,
+    /// **The headline metric** — recall over the gated *novel-pattern* classes
+    /// only (`foreign_import` / `foreign_api` / `foreign_concurrency`; RUBRIC).
+    /// `None` when the corpus has no gated fixtures (legacy catalogs predating
+    /// the RUBRIC, or FP-only corpora).
+    pub gated_caught: Option<usize>,
+    pub gated_fixtures: Option<usize>,
+    pub gated_recall_pct: Option<f64>,
     /// Temporal-holdout FP, split by whether the file existed at the fit
     /// point. `None` when holdout did not run (quick bench).
     pub fp_existing: Option<DashboardFp>,
@@ -65,6 +75,10 @@ pub struct DashboardTotals {
     pub caught: usize,
     pub fixtures: usize,
     pub recall_pct: f64,
+    /// **The headline metric** — gated novel-pattern recall across all corpora.
+    pub gated_caught: usize,
+    pub gated_fixtures: usize,
+    pub gated_recall_pct: f64,
     /// Worst per-corpus temporal-holdout FP rates (headline risk numbers).
     pub worst_fp_existing_pct: f64,
     pub worst_fp_new_file_pct: f64,
@@ -88,6 +102,22 @@ pub struct BenchDashboard {
 const METHODOLOGY: &str = "recall: curated spliced break fixtures planted on disk and judged by \
      the production fit+check pipeline; FP: temporal holdout — fit at an old SHA, replay only \
      commits strictly after it, split by file-existed-at-fit, commit-level bootstrap 95% CIs";
+
+/// Gated novel-pattern recall for a production report: `(caught, total)` over
+/// the `foreign_import`/`foreign_api`/`foreign_concurrency` fixtures. `None`
+/// when the corpus has no gated fixtures (legacy catalogs, FP-only corpora).
+fn gated_recall(r: &ProductionReport) -> Option<(usize, usize)> {
+    let gated: Vec<_> = r
+        .fixture_results
+        .iter()
+        .filter(|f| crate::production::tier_of(&f.category) == "gated")
+        .collect();
+    if gated.is_empty() {
+        return None;
+    }
+    let caught = gated.iter().filter(|f| f.flagged).count();
+    Some((caught, gated.len()))
+}
 
 fn fp(split: &crate::holdout::SplitFp) -> DashboardFp {
     DashboardFp {
@@ -125,6 +155,7 @@ impl BenchDashboard {
                         hold.map(|h| h.thresholds.values().cloned().fold(0.0_f64, f64::max))
                     })
                     .unwrap_or(0.0);
+                let gated = prod.and_then(gated_recall);
                 DashboardCorpus {
                     corpus: name.clone(),
                     language: languages.get(name).cloned().unwrap_or_default(),
@@ -132,6 +163,9 @@ impl BenchDashboard {
                     caught: prod.map(|r| r.n_caught),
                     fixtures: prod.map(|r| r.n_fixtures),
                     recall_pct: prod.map(|r| pct(r.n_caught, r.n_fixtures)),
+                    gated_caught: gated.map(|(c, _)| c),
+                    gated_fixtures: gated.map(|(_, t)| t),
+                    gated_recall_pct: gated.map(|(c, t)| pct(c, t)),
                     fp_existing: hold.map(|h| fp(&h.existing)),
                     fp_new_file: hold.map(|h| fp(&h.new_file)),
                     under_sampled: hold.map(|h| h.under_sampled).unwrap_or(false),
@@ -153,6 +187,9 @@ impl BenchDashboard {
                 caught: Some(r.n_flagged_fixtures),
                 fixtures: Some(r.n_fixtures),
                 recall_pct: Some(pct(r.n_flagged_fixtures, r.n_fixtures)),
+                gated_caught: None,
+                gated_fixtures: None,
+                gated_recall_pct: None,
                 fp_existing: None,
                 fp_new_file: None,
                 under_sampled: false,
@@ -176,6 +213,7 @@ impl BenchDashboard {
                 } else {
                     r.thresholds.keys().cloned().collect::<Vec<_>>().join("+")
                 };
+                let gated = gated_recall(r);
                 DashboardCorpus {
                     corpus: r.corpus.clone(),
                     language,
@@ -183,6 +221,9 @@ impl BenchDashboard {
                     caught: Some(r.n_caught),
                     fixtures: Some(r.n_fixtures),
                     recall_pct: Some(pct(r.n_caught, r.n_fixtures)),
+                    gated_caught: gated.map(|(c, _)| c),
+                    gated_fixtures: gated.map(|(_, t)| t),
+                    gated_recall_pct: gated.map(|(c, t)| pct(c, t)),
                     fp_existing: None,
                     fp_new_file: None,
                     under_sampled: false,
@@ -197,6 +238,8 @@ impl BenchDashboard {
     fn finalize(corpora: Vec<DashboardCorpus>, commit: String, generated_at: String) -> Self {
         let caught: usize = corpora.iter().filter_map(|c| c.caught).sum();
         let fixtures: usize = corpora.iter().filter_map(|c| c.fixtures).sum();
+        let gated_caught: usize = corpora.iter().filter_map(|c| c.gated_caught).sum();
+        let gated_fixtures: usize = corpora.iter().filter_map(|c| c.gated_fixtures).sum();
         // Under-sampled corpora are excluded from the headline worst-rates:
         // a 1-hunk denominator reads as 0% or 100% and misleads either way.
         // Their per-corpus rows stay visible with the flag.
@@ -217,6 +260,9 @@ impl BenchDashboard {
                 caught,
                 fixtures,
                 recall_pct: pct(caught, fixtures),
+                gated_caught,
+                gated_fixtures,
+                gated_recall_pct: pct(gated_caught, gated_fixtures),
                 worst_fp_existing_pct: worst(|c| c.fp_existing.as_ref()),
                 worst_fp_new_file_pct: worst(|c| c.fp_new_file.as_ref()),
             },

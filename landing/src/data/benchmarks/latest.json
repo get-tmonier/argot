@@ -30,7 +30,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 7.794159311260955
+      "threshold": 7.794159311260955,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null
     },
     {
       "corpus": "rich",
@@ -58,7 +61,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 7.675625825016976
+      "threshold": 7.675625825016976,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null
     },
     {
       "corpus": "faker",
@@ -86,7 +92,10 @@
         ]
       },
       "under_sampled": true,
-      "threshold": 7.817701531332887
+      "threshold": 7.817701531332887,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null
     },
     {
       "corpus": "hono",
@@ -114,7 +123,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 8.351895166347443
+      "threshold": 8.351895166347443,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null
     },
     {
       "corpus": "ink",
@@ -142,7 +154,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 9.425204726140128
+      "threshold": 9.425204726140128,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null
     },
     {
       "corpus": "faker-js",
@@ -170,7 +185,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 8.694500630785932
+      "threshold": 8.694500630785932,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null
     },
     {
       "corpus": "dagster",
@@ -198,7 +216,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 6.260394937943262
+      "threshold": 6.260394937943262,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null
     },
     {
       "corpus": "saleor",
@@ -226,7 +247,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 6.593281191284822
+      "threshold": 6.593281191284822,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null
     },
     {
       "corpus": "wagtail",
@@ -254,7 +278,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 7.995171474997431
+      "threshold": 7.995171474997431,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null
     },
     {
       "corpus": "excalidraw",
@@ -282,7 +309,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 7.66432032715173
+      "threshold": 7.66432032715173,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null
     },
     {
       "corpus": "outline",
@@ -310,7 +340,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 6.689020340092849
+      "threshold": 6.689020340092849,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null
     },
     {
       "corpus": "gh-cli",
@@ -338,7 +371,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 6.330537167682023
+      "threshold": 6.330537167682023,
+      "gated_caught": 6,
+      "gated_fixtures": 6,
+      "gated_recall_pct": 100.0
     },
     {
       "corpus": "ripgrep",
@@ -366,7 +402,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 12.45093604010043
+      "threshold": 12.45093604010043,
+      "gated_caught": 5,
+      "gated_fixtures": 5,
+      "gated_recall_pct": 100.0
     },
     {
       "corpus": "guava",
@@ -394,7 +433,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 5.743611866588147
+      "threshold": 5.743611866588147,
+      "gated_caught": 6,
+      "gated_fixtures": 6,
+      "gated_recall_pct": 100.0
     },
     {
       "corpus": "powershell",
@@ -422,7 +464,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 5.785579982321298
+      "threshold": 5.785579982321298,
+      "gated_caught": 6,
+      "gated_fixtures": 6,
+      "gated_recall_pct": 100.0
     },
     {
       "corpus": "redis",
@@ -450,7 +495,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 10.376270082758705
+      "threshold": 10.376270082758705,
+      "gated_caught": 6,
+      "gated_fixtures": 6,
+      "gated_recall_pct": 100.0
     },
     {
       "corpus": "rocksdb",
@@ -478,7 +526,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 7.994421821578509
+      "threshold": 7.994421821578509,
+      "gated_caught": 6,
+      "gated_fixtures": 6,
+      "gated_recall_pct": 100.0
     },
     {
       "corpus": "homebrew",
@@ -506,7 +557,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 6.536919398829664
+      "threshold": 6.536919398829664,
+      "gated_caught": 6,
+      "gated_fixtures": 6,
+      "gated_recall_pct": 100.0
     },
     {
       "corpus": "laravel",
@@ -534,7 +588,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 7.529258456578942
+      "threshold": 7.529258456578942,
+      "gated_caught": 7,
+      "gated_fixtures": 8,
+      "gated_recall_pct": 87.5
     },
     {
       "corpus": "hugo",
@@ -562,7 +619,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 9.212162049333433
+      "threshold": 9.212162049333433,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null
     },
     {
       "corpus": "bat",
@@ -587,7 +647,10 @@
         "ci95_pct": null
       },
       "under_sampled": false,
-      "threshold": 8.8705684714994
+      "threshold": 8.8705684714994,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null
     },
     {
       "corpus": "junit5",
@@ -615,7 +678,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 7.435433808136441
+      "threshold": 7.435433808136441,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null
     },
     {
       "corpus": "jellyfin",
@@ -643,7 +709,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 6.9375952316484675
+      "threshold": 6.9375952316484675,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null
     },
     {
       "corpus": "curl",
@@ -671,7 +740,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 6.256138703615452
+      "threshold": 6.256138703615452,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null
     },
     {
       "corpus": "fmt",
@@ -699,7 +771,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 12.513468288870405
+      "threshold": 12.513468288870405,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null
     },
     {
       "corpus": "rubocop",
@@ -727,7 +802,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 5.692622668359421
+      "threshold": 5.692622668359421,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null
     },
     {
       "corpus": "composer",
@@ -755,7 +833,10 @@
         ]
       },
       "under_sampled": false,
-      "threshold": 8.241653311191182
+      "threshold": 8.241653311191182,
+      "gated_caught": null,
+      "gated_fixtures": null,
+      "gated_recall_pct": null
     }
   ],
   "totals": {
@@ -763,6 +844,9 @@
     "fixtures": 335,
     "recall_pct": 59.40298507462686,
     "worst_fp_existing_pct": 8.73015873015873,
-    "worst_fp_new_file_pct": 22.857142857142858
+    "worst_fp_new_file_pct": 22.857142857142858,
+    "gated_caught": 48,
+    "gated_fixtures": 49,
+    "gated_recall_pct": 97.95918367346938
   }
 }

@@ -19,6 +19,9 @@ type Corpus = {
   caught: number | null;
   fixtures: number | null;
   recall_pct: number | null;
+  gated_caught?: number | null;
+  gated_fixtures?: number | null;
+  gated_recall_pct?: number | null;
   fp_existing: Fp | null;
   fp_new_file: Fp | null;
   under_sampled: boolean;
@@ -32,6 +35,9 @@ type Entry = {
     caught: number;
     fixtures: number;
     recall_pct: number;
+    gated_caught?: number;
+    gated_fixtures?: number;
+    gated_recall_pct?: number;
     worst_fp_existing_pct: number;
     worst_fp_new_file_pct: number;
   };
@@ -61,9 +67,15 @@ const ci = (s: Fp | null) =>
   <main class="mx-auto max-w-5xl px-5 py-16">
     <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">Benchmarks</h1>
     <p class="mt-4 leading-relaxed text-ink-dim">
-      Honest numbers, leak-free by construction. <strong>Recall</strong>: curated break
-      fixtures spliced into real host files, judged by the real
-      <code>argot fit</code> → <code>argot check</code> pipeline.
+      Honest numbers, leak-free by construction. <strong>Catch</strong> is the
+      <strong>novel-pattern</strong> metric — a foreign import, API, or dependency the repo
+      has never used — spliced into real host files and judged by the real
+      <code>argot fit</code> → <code>argot check</code> pipeline. The <em>aggregate</em>
+      column also counts <em>secondary</em> classes (naming shape, semantic API-misuse
+      <em>within</em> a library the repo already uses) which argot reports but does not gate
+      on and does not catch reliably — that's why aggregate sits well below the gated
+      number. Corpora with no catalog show <code>—</code> for catch (they are false-positive
+      corpora only).
       <strong>False positives</strong>: a temporal holdout — the model is fitted at an old
       commit and replays only commits it has never seen, split by whether the file existed
       at fit time (edits vs new files), with commit-level bootstrap 95% CIs. Numbers
@@ -83,14 +95,18 @@ const ci = (s: Fp | null) =>
         <>
           <div class="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div class="rounded-xl border border-line p-4">
-              <div class="text-2xl font-bold">{latest.totals.recall_pct.toFixed(1)}%</div>
-              <div class="text-sm text-muted">recall (curated breaks)</div>
+              <div class="text-2xl font-bold">
+                {(latest.totals.gated_recall_pct ?? latest.totals.recall_pct).toFixed(0)}%
+              </div>
+              <div class="text-sm text-muted">novel-pattern catch (the metric)</div>
             </div>
             <div class="rounded-xl border border-line p-4">
               <div class="text-2xl font-bold">
-                {latest.totals.caught}/{latest.totals.fixtures}
+                {latest.totals.gated_caught ?? latest.totals.caught}/{
+                  latest.totals.gated_fixtures ?? latest.totals.fixtures
+                }
               </div>
-              <div class="text-sm text-muted">fixtures caught</div>
+              <div class="text-sm text-muted">foreign import/API/dep caught</div>
             </div>
             <div class="rounded-xl border border-line p-4">
               <div class="text-2xl font-bold">
@@ -116,7 +132,7 @@ const ci = (s: Fp | null) =>
                 <th class="py-2">Corpus</th>
                 <th>Language</th>
                 <th>Type</th>
-                <th class="text-right">Recall</th>
+                <th class="text-right">Catch · novel-pattern</th>
                 <th class="text-right">FP existing (95% CI)</th>
                 <th class="text-right">FP new-file (95% CI)</th>
               </tr>
@@ -131,9 +147,22 @@ const ci = (s: Fp | null) =>
                   <td class="text-muted">{c.language}</td>
                   <td class="text-muted">{c.kind}</td>
                   <td class="text-right">
-                    {c.caught != null && c.fixtures != null
-                      ? `${c.caught}/${c.fixtures} (${(c.recall_pct ?? 0).toFixed(1)}%)`
-                      : '—'}
+                    {c.gated_fixtures != null && c.gated_caught != null ? (
+                      <>
+                        {`${c.gated_caught}/${c.gated_fixtures} (${(c.gated_recall_pct ?? 0).toFixed(0)}%)`}
+                        {c.caught != null && c.fixtures != null && c.fixtures !== c.gated_fixtures ? (
+                          <span class="text-muted">
+                            {` · ${c.caught}/${c.fixtures} all`}
+                          </span>
+                        ) : null}
+                      </>
+                    ) : c.caught != null && c.fixtures != null ? (
+                      <span class="text-muted">
+                        {`${c.caught}/${c.fixtures} (${(c.recall_pct ?? 0).toFixed(0)}%) legacy`}
+                      </span>
+                    ) : (
+                      '—'
+                    )}
                   </td>
                   <td class="text-right">
                     {fp(c.fp_existing)}
