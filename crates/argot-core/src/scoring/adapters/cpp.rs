@@ -388,6 +388,17 @@ impl CppAdapter {
                         }
                     }
                 }
+                // Class/struct member fields (`Benchmark bm_;`). Without these,
+                // an instance method's `bm_.method()` reads as a call into an
+                // unknown namespace `bm_` rather than member access on a known
+                // receiver — the residual C++ call-receiver over-fire.
+                "field_declaration" => {
+                    for decl in field_children(node, "declarator") {
+                        if let Some(name) = declarator_name(decl, source) {
+                            out.insert(name);
+                        }
+                    }
+                }
                 // Uninitialized declarations (`int a, b;`) carry their names
                 // directly on `declarator` children rather than init_declarators.
                 "declaration" => {

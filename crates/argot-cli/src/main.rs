@@ -579,6 +579,7 @@ fn run_calibrate_cmd(c: CalibrateCmd) -> ExitCode {
         auto_select_asym_cal: !c.no_auto_select_asym_cal,
         asym_fire_rate_threshold: c.asym_fire_rate_threshold,
         slices: c.slice.clone(),
+        ..CalibrateOptions::default()
     };
     match run_calibrate(&c.repo, &c.repo_corpus, &generic, &c.output, &opts) {
         Ok(thresholds) => {

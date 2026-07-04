@@ -80,6 +80,24 @@ fn top_level(spec: &str) -> &str {
     spec.split('.').next().unwrap_or(spec)
 }
 
+/// Whether `node` begins at the first non-whitespace character of its line.
+///
+/// A genuine `import`/`from` statement always starts its logical line (modulo
+/// indentation). Tree-sitter's error recovery on a mid-construct diff fragment
+/// can split a relative import like `from ._compat import v2` and re-parse its
+/// tail `import v2` as a standalone `import_statement` starting mid-line — which
+/// would otherwise contribute the imported *symbol* (`v2`) as a phantom foreign
+/// module. Requiring the node to own the start of its line rejects that
+/// artifact (and semicolon-chained imports, which are vanishingly rare and not
+/// worth a foreign-import fire).
+fn node_starts_line(node: Node, source: &str) -> bool {
+    let start = node.start_byte();
+    source[..start]
+        .rsplit('\n')
+        .next()
+        .is_none_or(|prefix| prefix.bytes().all(|b| b == b' ' || b == b'\t'))
+}
+
 /// `_is_docstring` from `python_ts.py`, replicated with node-id equality.
 fn is_docstring(node: Node) -> bool {
     let parent = match node.parent() {
@@ -192,12 +210,12 @@ impl PythonAdapter {
         let mut out = HashSet::new();
         for node in descendants(root) {
             match node.kind() {
-                "import_statement" => {
+                "import_statement" if node_starts_line(node, source) => {
                     for name in field_children_of_kind(node, "name", "dotted_name") {
                         out.insert(top_level(node_text(name, source)).to_string());
                     }
                 }
-                "import_from_statement" => {
+                "import_from_statement" if node_starts_line(node, source) => {
                     for name in field_children_of_kind(node, "module_name", "dotted_name") {
                         out.insert(top_level(node_text(name, source)).to_string());
                     }
@@ -221,7 +239,7 @@ impl PythonAdapter {
         let mut out: Vec<(String, usize, usize, usize)> = Vec::new();
         for node in descendants(root) {
             match node.kind() {
-                "import_statement" | "import_from_statement" => {
+                "import_statement" | "import_from_statement" if node_starts_line(node, source) => {
                     let field = if node.kind() == "import_statement" {
                         "name"
                     } else {
@@ -466,6 +484,30 @@ mod tests {
         assert!(!imports.contains("np"));
         assert!(!imports.contains("pkg"));
         assert!(!imports.contains("local"));
+    }
+
+    /// Error-recovery guard: a diff fragment starting mid-function whose only
+    /// import is relative (`from ._compat import v2`) must yield no module.
+    /// Tree-sitter re-parses the tail `import v2` as a standalone
+    /// `import_statement` mid-line; the phantom module `v2` used to leak
+    /// through and fire the import stage on the codebase's own relative import
+    /// (fastapi holdout false alarms).
+    #[test]
+    fn relative_import_in_error_fragment_yields_no_module() {
+        let adapter = PythonAdapter::new();
+        let frag = "    cloned_types: Optional[Mapping[str, str]] = None,\n) -> ModelField:\n    if PYDANTIC_V2:\n        from ._compat import v2\n\n        if isinstance(field, v2.ModelField):\n            return field\n    if cloned_types is None:";
+        let imports = adapter.extract_imports(frag);
+        assert!(
+            !imports.contains("v2"),
+            "imported symbol of a relative import leaked as a module: {imports:?}"
+        );
+        assert!(
+            imports.is_empty(),
+            "no top-level module in fragment: {imports:?}"
+        );
+        // A genuine top-level import in the same fragment still counts.
+        let frag2 = format!("    x = 1\n{frag}\nimport requests\n");
+        assert!(adapter.extract_imports(&frag2).contains("requests"));
     }
 
     #[test]

@@ -81,6 +81,12 @@ pub struct ScoredHunk {
     /// when the scorer was built with an [`EvidenceCorpus`]; `None` otherwise
     /// (and for non-flagged / short-circuited hunks).
     pub evidence: Option<Evidence>,
+    /// Top-level modules this hunk imports that are foreign to the repo (sorted,
+    /// deduped). Backs the check-time per-changeset novel-import dedup: the same
+    /// foreign dependency added across many files of one change (a mechanical
+    /// migration) should alert once, not once per file. Empty unless the hunk
+    /// carries a foreign import.
+    pub foreign_import_modules: Vec<String>,
 }
 
 /// Blank the 1-indexed prose lines in `ranges`, preserving line count
@@ -479,6 +485,7 @@ impl SequentialImportBpeScorer {
                 convention_contribution: 0.0,
             },
             evidence: None,
+            foreign_import_modules: Vec::new(),
         }
     }
 
@@ -709,6 +716,12 @@ impl SequentialImportBpeScorer {
             ));
         }
 
+        let foreign_import_modules: Vec<String> = {
+            let mut v: Vec<String> = foreign.iter().cloned().collect();
+            v.sort();
+            v
+        };
+
         if !candidates.is_empty() {
             let tiebreak = |r: Reason| match r {
                 Reason::CallReceiver => 0,
@@ -738,6 +751,7 @@ impl SequentialImportBpeScorer {
                 reason: winner.0,
                 stages,
                 evidence,
+                foreign_import_modules: foreign_import_modules.clone(),
             };
         }
 
@@ -748,6 +762,7 @@ impl SequentialImportBpeScorer {
             reason: Reason::None,
             stages,
             evidence: None,
+            foreign_import_modules,
         }
     }
 

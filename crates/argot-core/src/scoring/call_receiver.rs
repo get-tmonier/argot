@@ -1247,9 +1247,11 @@ impl CallReceiverScorer {
     ///   `\React\EventLoop\Loop.get`) — foreign iff its module root is unknown
     ///   to the repo, *regardless* of whether the leaf method is a common
     ///   attested name (`get`). The foreign namespace is the signal.
-    /// * **bare symbol** (`event_base_new`) — foreign iff the repo never
-    ///   attested it (a C library function); the change's own new functions
-    ///   are excluded via `local`.
+    /// * **bare symbol** (`event_base_new`, `setcookie`, `strcat`, jQuery `$`)
+    ///   — foreign iff the repo never attested it. Many foreign APIs are called
+    ///   bare with no distinct import (C/PHP builtins, macros, globals), so this
+    ///   path is load-bearing for the foreign-API catch classes; the change's
+    ///   own new functions are excluded via `local`.
     /// * **single-`.` receiver form** (`client.newCall`, `Type.Method`) — the
     ///   `.` is ambiguous between a package and a plain member access, so a
     ///   corpus-known method (fresh receiver, in-voice method) is NOT foreign;

@@ -731,6 +731,15 @@ pub struct CalibrateOptions {
     /// resolved slice gets its own calibrated threshold, dispatched by file path
     /// at check time. Empty = a single whole-repo threshold (today's behaviour).
     pub slices: Vec<String>,
+    /// Fit and emit the convention-rarity stage (syntax/identifier-shape
+    /// surprisal). Off by default and NOT a user-facing knob — production
+    /// `fit`/`check` never expose it. It is *secondary coverage* (never gated —
+    /// see `benchmarks/catalogs/RUBRIC.md`) and a co-headline false-alarm
+    /// driver whose feature space overlaps in-voice code (jellyfin holdout:
+    /// FP fire at the same convention-bar ratios as the two catches it carries,
+    /// so no threshold separates them). The benchmark harness sets this to
+    /// measure the with/without trade-off; nothing else should.
+    pub enable_conventions: bool,
 }
 
 impl Default for CalibrateOptions {
@@ -753,6 +762,7 @@ impl Default for CalibrateOptions {
             auto_select_asym_cal: true,
             asym_fire_rate_threshold: 0.05,
             slices: Vec::new(),
+            enable_conventions: false,
         }
     }
 }
@@ -1098,11 +1108,18 @@ pub fn run_calibrate(
         // the max feature value over the same multi-seed calibration sample
         // the threshold uses — the stage stays silent on in-voice code, and
         // per the calibration contract it never feeds the threshold itself.
-        let mut convention_model = fit_convention_frequencies(corpus, language);
-        let (syntax_bar, ident_bars) =
-            calibrate_convention_bars(&candidates, &convention_model, language, &typicality);
-        convention_model.syntax_bar = syntax_bar;
-        convention_model.ident_bars = ident_bars;
+        // Off by default (secondary coverage, co-headline FP driver); opt in
+        // via `enable_conventions`.
+        let conventions = if opts.enable_conventions {
+            let mut convention_model = fit_convention_frequencies(corpus, language);
+            let (syntax_bar, ident_bars) =
+                calibrate_convention_bars(&candidates, &convention_model, language, &typicality);
+            convention_model.syntax_bar = syntax_bar;
+            convention_model.ident_bars = ident_bars;
+            Some(convention_model)
+        } else {
+            None
+        };
 
         // Fit-time model snapshot: the calibration call-receiver's fitted
         // state is threshold-parameter-independent (rare/alpha are scoring
@@ -1110,7 +1127,7 @@ pub fn run_calibrate(
         let model = LanguageModel {
             bpe: bpe.stats(),
             call_receiver: call_receiver.export_model(repo_dir),
-            conventions: Some(convention_model),
+            conventions,
         };
         let model_hash = model.hash();
 
@@ -1129,7 +1146,11 @@ pub fn run_calibrate(
                 call_receiver_cluster_rare_threshold: resolved_rare,
                 call_receiver_cluster_size_min: opts.cluster_size_min,
                 call_receiver_parse_error_host_fallback: CR_PARSE_ERROR_FALLBACK,
-                convention_bonus: CONVENTION_BONUS,
+                convention_bonus: if opts.enable_conventions {
+                    CONVENTION_BONUS
+                } else {
+                    0.0
+                },
                 import_modules,
                 import_module_prefixes,
                 calibration: CalibrationMeta {

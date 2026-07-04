@@ -894,6 +894,12 @@ fn score_patches(
     let mut hunk_count = 0usize;
     let mut file_counts: BTreeMap<String, usize> = BTreeMap::new();
     let mut warned: HashSet<String> = HashSet::new();
+    // Per-changeset novel-import dedup: foreign top-level modules that have
+    // already raised an import alert in this check run. The same new dependency
+    // added across many files of one change (a mechanical migration) is one
+    // decision — alert on its first appearance, dedup the rest.
+    let mut alerted_foreign_modules: HashSet<String> = HashSet::new();
+    let mut deduped_import_alerts: usize = 0;
 
     for batch in patches {
         let ext = extension(&batch.file_path);
@@ -970,13 +976,30 @@ fn score_patches(
                     .then(|| new_file_thresholds.get(l).copied())
                     .flatten()
             });
-            let (flagged, threshold) = match new_file_threshold {
+            let (mut flagged, threshold) = match new_file_threshold {
                 Some(t) => (reason == "import" || scored.score >= t, t),
                 None => match lang.and_then(|l| slice_threshold(slices, l, &batch.file_path)) {
                     Some(t) => (reason == "import" || scored.score >= t, t),
                     None => (scored.flagged, scored.threshold),
                 },
             };
+            // Per-changeset novel-import dedup: an import alert whose foreign
+            // modules were all already alerted in this run is the same decision
+            // seen again (one dependency spread across a migration). Alert on
+            // the first appearance; dedup the repeats. A hunk that adds a
+            // genuinely new foreign module still fires.
+            if flagged && reason == "import" && !scored.foreign_import_modules.is_empty() {
+                if scored
+                    .foreign_import_modules
+                    .iter()
+                    .all(|m| alerted_foreign_modules.contains(m))
+                {
+                    flagged = false;
+                    deduped_import_alerts += 1;
+                } else {
+                    alerted_foreign_modules.extend(scored.foreign_import_modules.iter().cloned());
+                }
+            }
             let hash = hit_hash(&batch.file_path, &reason, &hunk_content);
             let suppressed_by = if batch.ignored_by_pattern {
                 Some(SuppressedBy::ArgotIgnore)
@@ -1005,6 +1028,12 @@ fn score_patches(
                 suppressed_by,
             });
         }
+    }
+    if deduped_import_alerts > 0 {
+        stderr.push_str(&format!(
+            "[argot] {deduped_import_alerts} repeat novel-import alert(s) deduped \
+             (same dependency across the change)\n"
+        ));
     }
 
     let files_scanned = file_counts
