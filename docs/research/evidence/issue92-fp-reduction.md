@@ -245,6 +245,45 @@ aggregate FP ~1%, with corpora mid-adoption expected to spike and reported red.
 The remaining lever is not the scorer but the deployment: run pre-merge on agent
 diffs, gate CI at a stricter severity tier, and re-fit periodically.
 
+## New-file false alarms — two more fixes (diagnosed by reconstruction)
+
+Reconstructing every new-file import/none hit (holdout JSON → git blob) split
+them cleanly:
+
+- **Ruby `include`/`extend`/`prepend` are mixins, not imports.** rubocop's sole
+  new-file hit was `include ExcludeLimitHelper` — mixing a repo-internal module
+  into a class, which the import stage counted as a foreign dependency (it would
+  also fire on a stdlib mixin like `Comparable`). The dependency signal is
+  `require`; the mixin is usage. Dropped from the Ruby extractor. No Ruby catch
+  uses include (all use `require`), no Ruby parity golden. rubocop new-file
+  9.09→0.00%.
+- **The foreign-reach gate now covers the new-file path.** A new file's hunks
+  were flagged on `bpe + call-receiver contribution` even when the hunk reached
+  nothing foreign — so a new file of the repo's own code (laravel's new
+  `Illuminate\Foundation` framework files, flagged with reason `none`) crossed
+  the new-file threshold on its *own* unattested callees, the exact signal the
+  hunk-level gate rejects for existing files. A `none`-reason hunk is now judged
+  on token surprise alone for the new-file/slice threshold. Recall plants into
+  existing host files, so catch is untouched. laravel new-file 11.48→3.28%;
+  composer/excalidraw/gh-cli also down.
+
+**Honest re-bench, all 27:** existing FP **1.04%** (24/27 ≤2%), new-file ≤5%
+**22/27** (was 20), gated novel-pattern catch **48/49 = 98%** held, **zero
+regressions**. Residual new-file reds (fmt, rocksdb, dagster, outline, ink) are
+import-reason: language stdlib (`<stdbool.h>`, Python `argparse`), a new internal
+monorepo package (`dagster_soda`), and genuine first-use third-party deps —
+the same inherent classes as existing-file.
+
+## Reporting — the catch metric was under-sold
+
+The dashboard headlined *aggregate* recall over all fixture classes (59%),
+dragging in the secondary naming/semantic fixtures argot never gates on. The
+RUBRIC metric is the gated novel-pattern subset, where every corpus is 88–100%
+(ripgrep 5/5, powershell/rocksdb/redis/guava 6/6) — **48/49 = 98% total**.
+`dashboard.rs` now emits `gated_*` recall per corpus and in totals, and the
+landing headlines it; FP-only corpora (no recall catalog) are labelled, not
+shown as a bare `—`.
+
 ## Artifacts
 
 `benchmarks/results/issue92-final/` (holdout + production, git-ignored,

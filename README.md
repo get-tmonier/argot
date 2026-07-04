@@ -183,7 +183,9 @@ corpora, every one clearing the ≥85% bar. New-file false positives — once th
 failure (excalidraw 21%, redis 61%, fmt 57%) — were largely fixed by a
 separate, higher **new-file threshold** calibrated by scoring each fit file
 as if newly added ([#92](https://github.com/get-tmonier/argot/issues/92),
-[evidence](docs/research/evidence/issue92-phaseA-diagnosis.md)), and 20 of 27
+[evidence](docs/research/evidence/issue92-phaseA-diagnosis.md)) plus a
+hunk-level foreign-reach gate on the new-file path (a new file of the repo's own
+code is judged on token surprise, not its own unattested callees), and 22 of 27
 corpora now sit at ≤5% with zero regression on existing-file FP or recall. The
 new-file red that remains is import-dominated and measured on **thin post-fit
 samples** (11–61 new-file hunks per window, so the rates are noisy): a new file
