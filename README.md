@@ -159,23 +159,23 @@ shape — not just foreign imports).
 | Language | Extensions | FP on edits to existing files | FP on new files | Recall (hard curated breaks) |
 |---|---|---|---|---|
 | Python | `.py` | fastapi **2.2%** · rich 0.5% · saleor/wagtail 0.0% | 0–1.4% (rich) | rich 69% · fastapi/faker/saleor/wagtail 100% |
-| TypeScript | `.ts` `.tsx` | 0.0–10.6% (ink **10.6%**) | 0–6.3% (outline) | 47–88% |
+| TypeScript | `.ts` `.tsx` | 0.0–8.7% (ink **8.7%**) | 0–6.3% (outline) | 47–88% |
 | JavaScript | `.js` `.jsx` | uses the TypeScript adapter | | |
 | Go | `.go` | 0.0% (gh-cli, hugo 1.2%) | 0–1.3% | gh-cli **38%** |
-| Rust | `.rs` | ripgrep 0.6% · bat **8.6%** | 0% (thin sample) | ripgrep **31%** |
+| Rust | `.rs` | ripgrep 0.6% · bat **7.4%** | 0% (thin sample) | ripgrep **31%** |
 | Java | `.java` | guava 0.7% · junit5 1.1% | 0.0% | guava **57%** |
 | C# | `.cs` | powershell 0.7% · jellyfin 1.8% | 0–2.6% | powershell **54%** |
 | C | `.c` `.h` | redis 0.5% · curl 0.0% | redis 3.2% (1/31, thin) | redis **21%** |
-| C++ | `.cpp` `.cc` `.hpp` | rocksdb **4.0%** · fmt 1.4% | rocksdb **20%** · fmt **23%** (thin) | rocksdb **23%** |
+| C++ | `.cpp` `.cc` `.hpp` | rocksdb 1.5% · fmt 1.4% | rocksdb **20%** · fmt **23%** (thin) | rocksdb **23%** |
 | Ruby | `.rb` | homebrew 0.2% · rubocop 1.0% | homebrew 0% · rubocop 9.1% (1/11, thin) | homebrew **39%** |
 | PHP | `.php` | laravel 0.0% · composer 0.0% | composer 3.8% · laravel **11.5%** | laravel **62%** |
 
 **What this means in practice.** argot's reliable value today is the
 tripwire class: foreign imports and strongly foreign API surfaces fire at
-low false-positive cost on most corpora — **23 of 27 benchmarked corpora
-meet our ≤2% false-positive gate on edits to existing files** (1.38%
-aggregate), and the four that don't — ink 10.6%, bat 8.6%, rocksdb 4.0%,
-fastapi 2.2% — are all cases where a language builtin/stdlib or a genuine
+low false-positive cost on most corpora — **24 of 27 benchmarked corpora
+meet our ≤2% false-positive gate on edits to existing files** (1.05%
+aggregate), and the three that don't — ink 8.7%, bat 7.4%, fastapi 2.2% —
+are all cases where a language builtin/stdlib or the *first use* of a genuine
 new dependency reads as foreign to the frozen model. On the gated
 novel-pattern class — a foreign import, API, or concurrency construct the
 repo has never used — argot catches 48/49 (98%) across the 8 rubric
@@ -205,7 +205,7 @@ unchanged (Δ ≈ 0): the break is invisible. Since that class is ~a quarter of
 every hard catalog and 0%-catchable, recall is capped **below 85% regardless of
 the scorer** — a hunk-level model encodes the tokens, not the convention
 ([evidence](docs/research/evidence/issue92-phaseB-recall-limit.md)). The
-existing-file FP reds (ink, bat, rocksdb, fastapi edits)
+existing-file FP reds (ink, bat, fastapi edits)
 are the same limit on the false-positive side: the call-receiver stage cannot
 separate a language builtin or a legitimately-new callee (a library migration)
 from a foreign break. We publish these numbers red rather than tune the benchmark until they

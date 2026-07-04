@@ -64,9 +64,9 @@ const en: SiteContent = {
         desc: 'The metric argot is built for — a foreign import, API, or dependency the repo has never used — caught at 98% across 8 language corpora, every one ≥85%. Spliced into real files and judged by the real fit → check pipeline. The harder in-vocabulary classes (naming, semantics) are secondary coverage, reported red, never gated.',
       },
       {
-        value: '1.38%',
+        value: '1.05%',
         title: 'false alarms on real edits',
-        desc: 'Temporal holdout across 27 repos: the model is fitted at an old commit, then only commits it has never seen are replayed — no train-on-test. 23 of 27 repos sit at ≤2%; the worst (ink, 10.6% — a repo adopting Node built-ins it had not used) is published, not hidden.',
+        desc: 'Temporal holdout across 27 repos: the model is fitted at an old commit, then only commits it has never seen are replayed — no train-on-test. 24 of 27 repos sit at ≤2%; the worst (ink, 8.7% — a repo first adopting Node built-ins it had not used) is published, not hidden.',
       },
       {
         value: '150ms',

@@ -24,16 +24,19 @@ bootstrap confidence intervals live in the
 The honest picture, across **27 repos in 8 languages**. argot's gated job — catching a **novel
 pattern** the repo has never used (a foreign import, a foreign API, a foreign concurrency library) —
 lands **48 of 49 = 98%**, and all 8 language corpora clear the ≥ 85% bar. On **edits to existing
-files** the false-alarm rate is **1.38% aggregate**, and **23 of 27 repos** sit under the ≤ 2% gate.
-The worst residuals we publish rather than hide: **ink 10.58%** (a repo adopting Node built-ins like
-`setImmediate`/`parseInt` it hadn't used at fit), **bat 8.58%** (a genuine `git2` → `gix` dependency
-migration plus Rust std), **rocksdb 4.04%** (cross-file C++ internal types and namespaces), and
-**fastapi 2.21%** (`annotated_doc`/`pwdlib` adopted across separate commits). Three fixes in the #92
-pass drove these down: a **Python relative-import error-recovery guard** (a mid-fragment
-`from ._compat import v2` no longer leaks the imported symbol as a phantom foreign module), a
-**per-changeset novel-import dedup** (one commit adding the same new dependency across many files
-alerts once, not once per file), and **C++ class member-field capture** (`member_.method()` now
-reads as member access, not a call into an unknown namespace).
+files** the false-alarm rate is **1.05% aggregate**, and **24 of 27 repos** sit under the ≤ 2% gate.
+The worst residuals we publish rather than hide: **ink 8.7%** (a repo first adopting Node built-ins like
+`setImmediate`/`parseInt` it hadn't used at fit), **bat 7.4%** (a genuine `git2` → `gix` dependency
+migration plus Rust std), and **fastapi 2.2%** (`annotated_doc`/`pwdlib` adopted across separate
+commits) — each the *first use* of a dependency the repo had never touched, which is exactly what
+argot is built to flag. Several fixes in the #92 pass drove the FP down: a **Python relative-import
+error-recovery guard** (a mid-fragment `from ._compat import v2` no longer leaks the imported symbol
+as a phantom foreign module), a **per-changeset novel-import dedup** (one commit adding the same new
+dependency across many files
+alerts once, not once per file), a **repo-declared-symbol snapshot** (a bare call or `Type::method`
+to a function/class/type the repo itself declares is internal cross-file code, not foreign — this
+alone took rocksdb from 4.0% to 1.5%), and a **hunk-level foreign-reach gate** (one foreign callee no
+longer flags every hunk in the file).
 
 The harder classes — naming shape, and semantic/API misuse *within* a library the repo already
 uses — are **secondary coverage**: argot reports them but never gates on them, and it admits it does
@@ -81,7 +84,7 @@ These are the adoption-blockers we're building toward v1:
 
 | Goal | Status |
 |---|---|
-| Push FP ≤ 2% (existing files) and grow secondary-class coverage | Under the leak-free protocol: 1.38% aggregate existing-file FP, 23 of 27 corpora under the gate; gated novel-pattern catch 48/49 = 98% — honest tables in the [#92 evidence](https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/issue92-honest-rebench.md) |
+| Push FP ≤ 2% (existing files) and grow secondary-class coverage | Under the leak-free protocol: 1.05% aggregate existing-file FP, 24 of 27 corpora under the gate; gated novel-pattern catch 48/49 = 98% — honest tables in the [#92 evidence](https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/issue92-honest-rebench.md) |
 | Validate on application corpora | ✅ Done — four application corpora benchmarked and published |
 | Suppression mechanism | ✅ Shipped |
 | Repo suitability check | ✅ Shipped (`argot inspect`) |

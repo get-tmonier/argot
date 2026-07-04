@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
-  "generated_at": "2026-07-04T16:33:07+00:00",
-  "commit": "bdd11f0b",
+  "generated_at": "2026-07-04T20:30:00+00:00",
+  "commit": "18fc9d9b",
   "methodology": "recall: curated spliced break fixtures planted on disk and judged by the production fit+check pipeline; FP: temporal holdout \u2014 fit at an old SHA, replay only commits strictly after it, split by file-existed-at-fit, commit-level bootstrap 95% CIs",
   "corpora": [
     {
@@ -124,12 +124,12 @@
       "fixtures": 17,
       "recall_pct": 88.23529411764706,
       "fp_existing": {
-        "hits": 40,
+        "hits": 33,
         "hunks": 378,
-        "rate_pct": 10.582010582010582,
+        "rate_pct": 8.73015873015873,
         "ci95_pct": [
-          7.341772151898734,
-          14.545454545454545
+          5.707196029776675,
+          12.368421052631579
         ]
       },
       "fp_new_file": {
@@ -236,12 +236,12 @@
       "fixtures": 14,
       "recall_pct": 85.71428571428571,
       "fp_existing": {
-        "hits": 2,
+        "hits": 3,
         "hunks": 531,
-        "rate_pct": 0.3766478342749529,
+        "rate_pct": 0.5649717514124294,
         "ci95_pct": [
           0.0,
-          0.8880994671403196
+          1.2012012012012012
         ]
       },
       "fp_new_file": {
@@ -264,12 +264,12 @@
       "fixtures": 14,
       "recall_pct": 57.142857142857146,
       "fp_existing": {
-        "hits": 12,
+        "hits": 6,
         "hunks": 1159,
-        "rate_pct": 1.0353753235547885,
+        "rate_pct": 0.5176876617773942,
         "ci95_pct": [
-          0.5291005291005291,
-          1.6695957820738139
+          0.18587360594795538,
+          0.9174311926605505
         ]
       },
       "fp_new_file": {
@@ -292,12 +292,12 @@
       "fixtures": 14,
       "recall_pct": 50.0,
       "fp_existing": {
-        "hits": 5,
+        "hits": 6,
         "hunks": 935,
-        "rate_pct": 0.53475935828877,
+        "rate_pct": 0.6417112299465241,
         "ci95_pct": [
-          0.0,
-          1.7082785808147174
+          0.0975609756097561,
+          1.8302828618968388
         ]
       },
       "fp_new_file": {
@@ -404,12 +404,12 @@
       "fixtures": 17,
       "recall_pct": 35.294117647058826,
       "fp_existing": {
-        "hits": 12,
+        "hits": 11,
         "hunks": 1799,
-        "rate_pct": 0.6670372429127293,
+        "rate_pct": 0.6114508060033352,
         "ci95_pct": [
-          0.21893814997263275,
-          1.4351320321469576
+          0.1806140878988561,
+          1.3457556935817805
         ]
       },
       "fp_new_file": {
@@ -432,12 +432,12 @@
       "fixtures": 18,
       "recall_pct": 44.44444444444444,
       "fp_existing": {
-        "hits": 3,
+        "hits": 2,
         "hunks": 561,
-        "rate_pct": 0.53475935828877,
+        "rate_pct": 0.35650623885918004,
         "ci95_pct": [
           0.0,
-          1.1627906976744187
+          0.8726003490401396
         ]
       },
       "fp_new_file": {
@@ -460,12 +460,12 @@
       "fixtures": 17,
       "recall_pct": 41.1764705882353,
       "fp_existing": {
-        "hits": 90,
+        "hits": 34,
         "hunks": 2230,
-        "rate_pct": 4.0358744394618835,
+        "rate_pct": 1.5246636771300448,
         "ci95_pct": [
-          1.956745623069001,
-          7.201946472019465
+          0.8801955990220048,
+          2.299368800721371
         ]
       },
       "fp_new_file": {
@@ -493,7 +493,7 @@
         "rate_pct": 0.21834061135371177,
         "ci95_pct": [
           0.0,
-          0.7177033492822966
+          0.7299270072992701
         ]
       },
       "fp_new_file": {
@@ -544,12 +544,12 @@
       "fixtures": null,
       "recall_pct": null,
       "fp_existing": {
-        "hits": 6,
+        "hits": 7,
         "hunks": 509,
-        "rate_pct": 1.1787819253438114,
+        "rate_pct": 1.37524557956778,
         "ci95_pct": [
-          0.37453183520599254,
-          2.2813688212927756
+          0.4784688995215311,
+          2.495201535508637
         ]
       },
       "fp_new_file": {
@@ -572,12 +572,12 @@
       "fixtures": null,
       "recall_pct": null,
       "fp_existing": {
-        "hits": 29,
+        "hits": 25,
         "hunks": 338,
-        "rate_pct": 8.579881656804734,
+        "rate_pct": 7.396449704142012,
         "ci95_pct": [
-          5.045871559633028,
-          13.571428571428571
+          3.953488372093023,
+          11.974110032362459
         ]
       },
       "fp_new_file": {
@@ -625,12 +625,12 @@
       "fixtures": null,
       "recall_pct": null,
       "fp_existing": {
-        "hits": 8,
+        "hits": 5,
         "hunks": 442,
-        "rate_pct": 1.809954751131222,
+        "rate_pct": 1.1312217194570136,
         "ci95_pct": [
-          0.6578947368421052,
-          3.3112582781456954
+          0.2457002457002457,
+          2.3255813953488373
         ]
       },
       "fp_new_file": {
@@ -709,12 +709,12 @@
       "fixtures": null,
       "recall_pct": null,
       "fp_existing": {
-        "hits": 8,
+        "hits": 11,
         "hunks": 790,
-        "rate_pct": 1.0126582278481013,
+        "rate_pct": 1.3924050632911391,
         "ci95_pct": [
-          0.2652519893899204,
-          1.9488428745432398
+          0.4975124378109453,
+          2.5
         ]
       },
       "fp_new_file": {
@@ -762,7 +762,7 @@
     "caught": 199,
     "fixtures": 335,
     "recall_pct": 59.40298507462686,
-    "worst_fp_existing_pct": 10.582010582010582,
+    "worst_fp_existing_pct": 8.73015873015873,
     "worst_fp_new_file_pct": 22.857142857142858
   }
 }

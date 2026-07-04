@@ -218,10 +218,32 @@ BPE baseline cannot separate a language builtin from a foreign API by frequency.
 
 ink/bat/fastapi remain the inherent limit: genuine new dependencies, language
 builtins, and the repo's own new functions across commits — all of which a
-frozen, never-re-fitted model correctly reads as "not seen before." The real
-levers are outside the scorer: periodic re-fit (a real deployment attests
-adopted deps), or a shipped offline ecosystem/builtin prior generated from a
-broad corpus (not derivable from the current artifacts without new data).
+frozen, never-re-fitted model correctly reads as "not seen before."
+
+**REJECTED — base-repo / incremental attestation.** The proposed methodology
+fix: attest imports/callees the repo already uses in ≥K files of the state the
+change applies to (leak-safe — the PR's base), so an adopted dependency goes
+quiet after the first PR. Validated the hypothesis *before* building it, and it
+fails on the corpora that need it: the holdout replays the **adoption period
+itself**, so the foreign callees are genuine *first* uses, not established ones.
+At the parent of an ink call_receiver FP, `setImmediate` appears in 2 files,
+`parseInt` in 3, `clearImmediate` in 1, `TextEncoder` and `structuredClone` in
+**0** — the very hunks that fire are the ones introducing the builtin. Live
+attestation quiets *subsequent* uses (which a periodically-re-fit deployment
+already handles) but not the first — and the first use is precisely the
+novel-pattern signal argot exists to raise.
+
+**The load-bearing conclusion.** ink/bat/fastapi's residual is argot *correctly*
+flagging the first use of a dependency/API/builtin the repo has never used
+(bat's `git2`→`gix`, ink's `setImmediate`, fastapi's `annotated_doc`). It reads
+as false-positive only because the temporal holdout replays real *human*
+adoption commits; on an *agent's* pre-merge diff the same fire is the feature.
+An agent-introduced foreign dependency and a human-adopted one are the identical
+event — no scorer or attestation change separates them without also silencing
+the catch. The honest operating point is: gated novel-pattern catch 48/49 @
+aggregate FP ~1%, with corpora mid-adoption expected to spike and reported red.
+The remaining lever is not the scorer but the deployment: run pre-merge on agent
+diffs, gate CI at a stricter severity tier, and re-fit periodically.
 
 ## Artifacts
 
