@@ -65,6 +65,15 @@ pub struct DashboardCorpus {
     /// point. `None` when holdout did not run (quick bench).
     pub fp_existing: Option<DashboardFp>,
     pub fp_new_file: Option<DashboardFp>,
+    /// `fp_existing`/`fp_new_file` decomposed into **over-fire** (the true
+    /// false-alarm rate — argot fired on the repo's own code) and
+    /// **novel-pattern detection** (argot fired on a symbol 0-usage in the repo
+    /// at fit — a new dependency or API in a real commit, i.e. argot working).
+    /// Over-fire is the headline risk number; detection is reported, not gated.
+    pub fp_existing_overfire: Option<DashboardFp>,
+    pub fp_existing_detection: Option<DashboardFp>,
+    pub fp_new_overfire: Option<DashboardFp>,
+    pub fp_new_detection: Option<DashboardFp>,
     /// Fewer eligible holdout hunks than the sample bar — widen the window.
     pub under_sampled: bool,
     pub threshold: f64,
@@ -79,9 +88,14 @@ pub struct DashboardTotals {
     pub gated_caught: usize,
     pub gated_fixtures: usize,
     pub gated_recall_pct: f64,
-    /// Worst per-corpus temporal-holdout FP rates (headline risk numbers).
+    /// Worst per-corpus temporal-holdout FP rates (total: over-fire + detection).
     pub worst_fp_existing_pct: f64,
     pub worst_fp_new_file_pct: f64,
+    /// Worst per-corpus **over-fire** rate — the true false-alarm headline
+    /// (argot firing on the repo's own code; excludes correct novel-pattern
+    /// detections on real commits). This is the number to keep near zero.
+    pub worst_fp_existing_overfire_pct: f64,
+    pub worst_fp_new_overfire_pct: f64,
 }
 
 /// The compact, versioned dashboard payload.
@@ -101,7 +115,13 @@ pub struct BenchDashboard {
 
 const METHODOLOGY: &str = "recall: curated spliced break fixtures planted on disk and judged by \
      the production fit+check pipeline; FP: temporal holdout — fit at an old SHA, replay only \
-     commits strictly after it, split by file-existed-at-fit, commit-level bootstrap 95% CIs";
+     commits strictly after it, split by file-existed-at-fit, commit-level bootstrap 95% CIs. \
+     Each FP rate is further split into over-fire (argot fired on the repo's own code — the true \
+     false-alarm rate) and novel-pattern detection (argot fired on a symbol/module 0-usage in the \
+     repo at fit — a new dependency or API in a real commit, i.e. argot working). Reason import / \
+     call_receiver = detection (fires only on a 0-usage symbol by construction); bpe / convention \
+     = over-fire (distributional surprise on the repo's own tokens; conservatively counted as \
+     false alarm).";
 
 /// Gated novel-pattern recall for a production report: `(caught, total)` over
 /// the `foreign_import`/`foreign_api`/`foreign_concurrency` fixtures. `None`
@@ -168,6 +188,10 @@ impl BenchDashboard {
                     gated_recall_pct: gated.map(|(c, t)| pct(c, t)),
                     fp_existing: hold.map(|h| fp(&h.existing)),
                     fp_new_file: hold.map(|h| fp(&h.new_file)),
+                    fp_existing_overfire: hold.map(|h| fp(&h.existing_overfire)),
+                    fp_existing_detection: hold.map(|h| fp(&h.existing_detection)),
+                    fp_new_overfire: hold.map(|h| fp(&h.new_overfire)),
+                    fp_new_detection: hold.map(|h| fp(&h.new_detection)),
                     under_sampled: hold.map(|h| h.under_sampled).unwrap_or(false),
                     threshold,
                 }
@@ -192,6 +216,10 @@ impl BenchDashboard {
                 gated_recall_pct: None,
                 fp_existing: None,
                 fp_new_file: None,
+                fp_existing_overfire: None,
+                fp_existing_detection: None,
+                fp_new_overfire: None,
+                fp_new_detection: None,
                 under_sampled: false,
                 threshold: r.threshold,
             })
@@ -226,6 +254,10 @@ impl BenchDashboard {
                     gated_recall_pct: gated.map(|(c, t)| pct(c, t)),
                     fp_existing: None,
                     fp_new_file: None,
+                    fp_existing_overfire: None,
+                    fp_existing_detection: None,
+                    fp_new_overfire: None,
+                    fp_new_detection: None,
                     under_sampled: false,
                     threshold: r.thresholds.values().cloned().fold(0.0_f64, f64::max),
                 }
@@ -265,6 +297,8 @@ impl BenchDashboard {
                 gated_recall_pct: pct(gated_caught, gated_fixtures),
                 worst_fp_existing_pct: worst(|c| c.fp_existing.as_ref()),
                 worst_fp_new_file_pct: worst(|c| c.fp_new_file.as_ref()),
+                worst_fp_existing_overfire_pct: worst(|c| c.fp_existing_overfire.as_ref()),
+                worst_fp_new_overfire_pct: worst(|c| c.fp_new_overfire.as_ref()),
             },
             corpora,
         }
@@ -400,6 +434,20 @@ mod tests {
                 ci95: None,
             },
             overall: SplitFp::default(),
+            existing_overfire: SplitFp {
+                hunks: 391,
+                hits: 2,
+                rate: 2.0 / 391.0,
+                ci95: None,
+            },
+            existing_detection: SplitFp {
+                hunks: 391,
+                hits: 9,
+                rate: 9.0 / 391.0,
+                ci95: None,
+            },
+            new_overfire: SplitFp::default(),
+            new_detection: SplitFp::default(),
             languages: BTreeMap::new(),
             min_hunks: 300,
             under_sampled: false,

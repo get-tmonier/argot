@@ -71,13 +71,33 @@ pub struct SplitFp {
     pub ci95: Option<(f64, f64)>,
 }
 
-/// Per-language tally within one commit.
+/// Whether a hit's winning reason is an *over-fire* (a false alarm on the
+/// repo's own code) rather than a *novel-pattern detection*.
+///
+/// The import and call-receiver stages fire only on a symbol/module verified
+/// 0-usage in the repo at the fit SHA (a foreign import, an unattested
+/// callee/namespace) — argot's one job — so a fire there on a real later commit
+/// is a correct detection of a genuinely-new pattern (a new dependency, a new
+/// stdlib API), not a false alarm. The bpe stage (distributional surprise over
+/// the repo's *own* tokens) and the convention stage carry no 0-usage guarantee,
+/// so a fire there is counted as over-fire. Conservative: this *over*-counts
+/// over-fire (some bpe fires are real novel patterns), making the reported
+/// over-fire rate an honest ceiling on argot's true false-alarm rate.
+pub fn is_overfire(reason: &str) -> bool {
+    matches!(reason, "bpe" | "convention")
+}
+
+/// Per-language tally within one commit. `*_overfire` counts the subset of
+/// `*_hits` whose winning reason is an over-fire (see [`is_overfire`]); the
+/// complement is a novel-pattern detection.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct LangTally {
     pub existing_hunks: usize,
     pub existing_hits: usize,
+    pub existing_overfire: usize,
     pub new_hunks: usize,
     pub new_hits: usize,
+    pub new_overfire: usize,
 }
 
 /// One replayed commit's tallies.
@@ -119,6 +139,14 @@ pub struct HoldoutReport {
     pub existing: SplitFp,
     pub new_file: SplitFp,
     pub overall: SplitFp,
+    /// `existing`/`new_file` decomposed into over-fire (false alarm on the
+    /// repo's own code) and novel-pattern detection (fire on a 0-usage symbol
+    /// in a real commit — argot working). Each carries its own bootstrap CI;
+    /// `*_overfire.rate + *_detection.rate == existing/new_file.rate`.
+    pub existing_overfire: SplitFp,
+    pub existing_detection: SplitFp,
+    pub new_overfire: SplitFp,
+    pub new_detection: SplitFp,
     pub languages: BTreeMap<String, LangReport>,
     pub min_hunks: usize,
     /// Total eligible hunks fell below `min_hunks` — widen the window.
@@ -327,18 +355,22 @@ pub fn run_corpus_holdout(target: &Target, opts: &HoldoutOptions) -> Result<Hold
                 continue;
             };
             let new_file = !fit_files.contains(path);
+            let reason = h["reason"].as_str().unwrap_or("");
+            let overfire = is_overfire(reason);
             let tally = by_lang.entry(lang.to_string()).or_default();
             if new_file {
                 tally.new_hits += 1;
+                tally.new_overfire += usize::from(overfire);
             } else {
                 tally.existing_hits += 1;
+                tally.existing_overfire += usize::from(overfire);
             }
             hits.push(HoldoutHit {
                 commit: sha[..8].to_string(),
                 path: path.to_string(),
                 line_start: h["line_start"].as_u64().unwrap_or(0) as usize,
                 line_end: h["line_end"].as_u64().unwrap_or(0) as usize,
-                reason: h["reason"].as_str().unwrap_or("").to_string(),
+                reason: reason.to_string(),
                 score: h["score"].as_f64().unwrap_or(0.0),
                 threshold: h["threshold"].as_f64().unwrap_or(0.0),
                 new_file,
@@ -376,10 +408,35 @@ pub fn run_corpus_holdout(target: &Target, opts: &HoldoutOptions) -> Result<Hold
     let existing_of = |t: &LangTally| (t.existing_hunks, t.existing_hits);
     let new_of = |t: &LangTally| (t.new_hunks, t.new_hits);
     let overall_of = |t: &LangTally| (t.existing_hunks + t.new_hunks, t.existing_hits + t.new_hits);
+    let existing_overfire_of = |t: &LangTally| (t.existing_hunks, t.existing_overfire);
+    let existing_detection_of =
+        |t: &LangTally| (t.existing_hunks, t.existing_hits - t.existing_overfire);
+    let new_overfire_of = |t: &LangTally| (t.new_hunks, t.new_overfire);
+    let new_detection_of = |t: &LangTally| (t.new_hunks, t.new_hits - t.new_overfire);
     let reps = opts.bootstrap_reps;
     let existing = split_fp(&pairs(&existing_of, None), reps, opts.seed);
     let new_file = split_fp(&pairs(&new_of, None), reps, opts.seed.wrapping_add(1));
     let overall = split_fp(&pairs(&overall_of, None), reps, opts.seed.wrapping_add(2));
+    let existing_overfire = split_fp(
+        &pairs(&existing_overfire_of, None),
+        reps,
+        opts.seed.wrapping_add(3),
+    );
+    let existing_detection = split_fp(
+        &pairs(&existing_detection_of, None),
+        reps,
+        opts.seed.wrapping_add(4),
+    );
+    let new_overfire = split_fp(
+        &pairs(&new_overfire_of, None),
+        reps,
+        opts.seed.wrapping_add(5),
+    );
+    let new_detection = split_fp(
+        &pairs(&new_detection_of, None),
+        reps,
+        opts.seed.wrapping_add(6),
+    );
 
     let lang_names: HashSet<String> = commits
         .iter()
@@ -431,6 +488,10 @@ pub fn run_corpus_holdout(target: &Target, opts: &HoldoutOptions) -> Result<Hold
         existing,
         new_file,
         overall,
+        existing_overfire,
+        existing_detection,
+        new_overfire,
+        new_detection,
         languages,
         min_hunks: opts.min_hunks,
         under_sampled,
