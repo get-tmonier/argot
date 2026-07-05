@@ -677,10 +677,9 @@ impl SequentialImportBpeScorer {
         // `boost::`, jQuery `$`) sits in the scored hunk itself, so hunk-level
         // reach catches it; the hunk's own foreign import opens the gate too.
         let hunk_foreign_reach = cr_would_fire
-            && self
-                .call_receiver
-                .as_ref()
-                .is_some_and(|cr| cr.file_reaches_foreign(hunk_content, &local_bindings));
+            && self.call_receiver.as_ref().is_some_and(|cr| {
+                cr.hunk_reaches_foreign(hunk_content, cr_host_context, &local_bindings)
+            });
         // A file-level foreign import (in a hunk other than this one) colours
         // this hunk only when the hunk actually *uses* a name that import bound
         // — colorama's `Fore`/`Style`, numpy's `np`/`default_rng`, `httpx` —
@@ -692,10 +691,26 @@ impl SequentialImportBpeScorer {
             && !hunk_foreign_reach
             && import_score < IMPORT_THRESHOLD
             && self.hunk_uses_foreign_import_binding(hunk_content, binding_source);
-        let cr_fired = cr_would_fire
+        // An explicit foreign namespace (`\Respect\Validation\Validator::key`,
+        // `tokio::spawn`) is an unambiguous foreign-dependency reference — as
+        // strong a signal as a foreign import — so it fires regardless of the
+        // surprisal threshold. A tiny edit that reaches a namespace the repo
+        // has never used must not slip under the bar (the laravel PHP-FQN
+        // breaks). On real commits such a fire is a correct novel-pattern
+        // *detection* (a new namespaced dependency), not an over-fire.
+        let explicit_foreign = cr_active
+            && self.call_receiver.as_ref().is_some_and(|cr| {
+                cr.hunk_names_explicit_foreign_namespace(
+                    hunk_content,
+                    cr_host_context,
+                    &local_bindings,
+                )
+            });
+        let cr_fired = (cr_would_fire
             && (import_score >= IMPORT_THRESHOLD
                 || hunk_foreign_reach
-                || hunk_uses_foreign_binding);
+                || hunk_uses_foreign_binding))
+            || explicit_foreign;
         let conv_side_score = bpe_score + convention_contribution;
         let conv_fired =
             convention_contribution > 0.0 && !bpe_fired && conv_side_score > self.bpe_threshold;
@@ -720,11 +735,19 @@ impl SequentialImportBpeScorer {
             ));
         }
         if cr_fired {
+            // An explicit foreign namespace clears the bar on its own (foreign
+            // reference, threshold-independent); otherwise the surprisal-side
+            // score already exceeded it.
+            let cr_score = if explicit_foreign {
+                adjusted_bpe.max(self.bpe_threshold)
+            } else {
+                adjusted_bpe
+            };
             candidates.push((
                 Reason::CallReceiver,
-                adjusted_bpe,
+                cr_score,
                 self.bpe_threshold,
-                adjusted_bpe / denom,
+                cr_score / denom,
             ));
         }
         if conv_fired {

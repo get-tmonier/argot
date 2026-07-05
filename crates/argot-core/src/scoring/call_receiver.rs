@@ -1261,6 +1261,55 @@ impl CallReceiverScorer {
             .any(|c| self.callee_reaches_foreign(c, local))
     }
 
+    /// [`Self::file_reaches_foreign`] robust to fragments that only parse in
+    /// their file context. When the bare `hunk` yields no callees — a PHP
+    /// method body without `<?php` parses as inert `text` — the callees are
+    /// re-derived from `file_region = (file_source, start, end)` parsed whole,
+    /// restricted to the hunk's own line span so a foreign callee elsewhere in
+    /// the file never leaks in.
+    pub fn hunk_reaches_foreign(
+        &self,
+        hunk: &str,
+        file_region: Option<(&str, usize, usize)>,
+        local: &LocalBindings,
+    ) -> bool {
+        let bare = non_none_callees(hunk, self.language);
+        let callees = match (bare.is_empty(), file_region) {
+            (true, Some((src, s, e))) => callees_in_source_region(src, self.language, s, e),
+            _ => bare,
+        };
+        callees
+            .iter()
+            .any(|c| self.callee_reaches_foreign(c, local))
+    }
+
+    /// Whether the hunk names an **explicit foreign namespace** — a callee with
+    /// a namespace separator (`::` or `\`) whose module root the repo never
+    /// attests (`\Respect\Validation\Validator::key`, `tokio::spawn`,
+    /// `\Doctrine\ORM\EntityManager::create`). This is an unambiguous
+    /// foreign-dependency reference, as strong a signal as a foreign import, so
+    /// the caller fires it regardless of the surprisal threshold — a small edit
+    /// that reaches a namespace the repo has never used must not slip under the
+    /// bar. Bare callees and single-`.` receiver forms (ambiguous globals /
+    /// member access — `$`, `Math.floor`, `client.get`) are deliberately
+    /// excluded; only an explicit multi-segment namespace qualifies. Robust to
+    /// fragments that only parse in file context (see [`Self::hunk_reaches_foreign`]).
+    pub fn hunk_names_explicit_foreign_namespace(
+        &self,
+        hunk: &str,
+        file_region: Option<(&str, usize, usize)>,
+        local: &LocalBindings,
+    ) -> bool {
+        let bare = non_none_callees(hunk, self.language);
+        let callees = match (bare.is_empty(), file_region) {
+            (true, Some((src, s, e))) => callees_in_source_region(src, self.language, s, e),
+            _ => bare,
+        };
+        callees
+            .iter()
+            .any(|c| (c.contains("::") || c.contains('\\')) && self.is_namespace_foreign(c, local))
+    }
+
     /// Whether a single callee reaches into a foreign module. Three cases:
     /// * **module path** (`::` or `\`, e.g. `tokio::spawn`,
     ///   `\React\EventLoop\Loop.get`) — foreign iff its module root is unknown
@@ -1428,7 +1477,23 @@ impl CallReceiverScorer {
                 None => return Vec::new(),
             }
         } else {
-            non_none_callees(hunk, self.language)
+            let bare = non_none_callees(hunk, self.language);
+            // A hunk that parses to zero callees may be a fragment that needs
+            // its file's preamble to parse standalone — a PHP method body
+            // without `<?php`, which tree-sitter reads as inert `text` (no
+            // error, no calls). Recover the callees from the file parsed in
+            // context, restricted to the hunk's own line region so a foreign
+            // callee elsewhere in the file never leaks in.
+            if bare.is_empty() {
+                match host_context {
+                    Some((host_source, s, e)) => {
+                        callees_in_source_region(host_source, self.language, s, e)
+                    }
+                    None => bare,
+                }
+            } else {
+                bare
+            }
         };
         if callees.is_empty() {
             return Vec::new();
@@ -1756,6 +1821,40 @@ mod tests {
             shared, 0.0,
             "widely-shared callee contributes nothing as-new"
         );
+    }
+
+    #[test]
+    fn explicit_foreign_namespace_fires_only_on_unattested_qualified_callees() {
+        use crate::scoring::adapters::php::PhpAdapter;
+        let adapter = PhpAdapter::new();
+        // The repo attests the `\Known\Ns` namespace.
+        let files: Vec<(PathBuf, String)> = (0..3)
+            .map(|i| {
+                (
+                    PathBuf::from(format!("f{i}.php")),
+                    "<?php\nfunction f() {\n    return \\Known\\Ns\\Thing::make();\n}\n"
+                        .to_string(),
+                )
+            })
+            .collect();
+        let cr =
+            CallReceiverScorer::new(&files, Language::Php, 2.0, 5, &adapter, 4, 0, 0, 0).unwrap();
+        let local = LocalBindings::default();
+        // Explicit foreign namespace the repo never uses → detected.
+        assert!(cr.hunk_names_explicit_foreign_namespace(
+            "<?php\n$v = \\Respect\\Validation\\Validator::key($a);\n",
+            None,
+            &local,
+        ));
+        // A namespace the repo attests → not foreign.
+        assert!(!cr.hunk_names_explicit_foreign_namespace(
+            "<?php\n$v = \\Known\\Ns\\Thing::make();\n",
+            None,
+            &local,
+        ));
+        // A bare call (no explicit namespace separator) never qualifies for the
+        // threshold-independent fire, ambiguous global or not.
+        assert!(!cr.hunk_names_explicit_foreign_namespace("<?php\nstrlen($x);\n", None, &local,));
     }
 
     #[test]
