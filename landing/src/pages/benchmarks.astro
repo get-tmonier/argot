@@ -4,7 +4,9 @@ import Base from '#layouts/Base.astro';
 // Build-time import of the committed dashboard history (schema v2 in
 // crates/argot-bench/src/dashboard.rs). CI appends a dated entry per run and
 // overwrites latest.json. v2 (issue #92): false positives come from the
-// leak-free temporal-holdout protocol, split existing-file vs new-file.
+// leak-free temporal-holdout protocol, split existing-file vs new-file, and
+// each FP rate is further split into over-fire (the true false alarm) vs
+// novel-pattern detection (argot correctly flagging a 0-usage symbol).
 const modules = import.meta.glob('../data/benchmarks/*.json', { eager: true });
 type Fp = {
   hits: number;
@@ -16,14 +18,19 @@ type Corpus = {
   corpus: string;
   language: string;
   kind: string;
-  caught: number | null;
-  fixtures: number | null;
   recall_pct: number | null;
   gated_caught?: number | null;
   gated_fixtures?: number | null;
   gated_recall_pct?: number | null;
+  foreign_caught?: number | null;
+  foreign_fixtures?: number | null;
+  foreign_recall_pct?: number | null;
   fp_existing: Fp | null;
   fp_new_file: Fp | null;
+  fp_existing_overfire?: Fp | null;
+  fp_existing_detection?: Fp | null;
+  fp_new_overfire?: Fp | null;
+  fp_new_detection?: Fp | null;
   under_sampled: boolean;
 };
 type Entry = {
@@ -32,14 +39,17 @@ type Entry = {
   commit: string;
   corpora: Corpus[];
   totals: {
-    caught: number;
-    fixtures: number;
     recall_pct: number;
     gated_caught?: number;
     gated_fixtures?: number;
     gated_recall_pct?: number;
+    foreign_caught?: number;
+    foreign_fixtures?: number;
+    foreign_recall_pct?: number;
     worst_fp_existing_pct: number;
     worst_fp_new_file_pct: number;
+    worst_fp_existing_overfire_pct?: number;
+    worst_fp_new_overfire_pct?: number;
   };
   _name: string;
 };
@@ -58,36 +68,54 @@ const history = entries
 const latest =
   entries.find((e) => e._name === 'latest.json') ?? history[history.length - 1] ?? null;
 
-const fp = (s: Fp | null) => (s ? `${s.rate_pct.toFixed(2)}% (${s.hits}/${s.hunks})` : '—');
-const ci = (s: Fp | null) =>
+// Novel-pattern (foreign) catch for a corpus, or '—' when it has no break
+// catalog (an FP-only corpus, there only to measure false alarms).
+const catch_ = (c: Corpus) =>
+  c.foreign_caught != null && c.foreign_fixtures != null
+    ? `${c.foreign_caught}/${c.foreign_fixtures} (${(c.foreign_recall_pct ?? 0).toFixed(0)}%)`
+    : '—';
+const rate = (s: Fp | null | undefined) =>
+  s ? `${s.rate_pct.toFixed(2)}%` : '—';
+const ci = (s: Fp | null | undefined) =>
   s?.ci95_pct ? `${s.ci95_pct[0].toFixed(1)}–${s.ci95_pct[1].toFixed(1)}%` : '';
+const det = (s: Fp | null | undefined) =>
+  s && s.hits > 0 ? `+${s.rate_pct.toFixed(2)}% detections` : '';
 ---
 
 <Base title="Benchmarks · argot" description="Honest, leak-free benchmark results for argot, fed from CI.">
   <main class="mx-auto max-w-5xl px-5 py-16">
     <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">Benchmarks</h1>
     <p class="mt-4 leading-relaxed text-ink-dim">
-      Honest numbers, leak-free by construction. <strong>Catch</strong> is the
-      <strong>novel-pattern</strong> metric — a foreign import, API, or dependency the repo
-      has never used — spliced into real host files and judged by the real
-      <code>argot fit</code> → <code>argot check</code> pipeline. The <em>aggregate</em>
-      column also counts <em>secondary</em> classes (naming shape, semantic API-misuse
-      <em>within</em> a library the repo already uses) which argot reports but does not gate
-      on and does not catch reliably — that's why aggregate sits well below the gated
-      number. Corpora with no catalog show <code>—</code> for catch (they are false-positive
-      corpora only).
-      <strong>False positives</strong>: a temporal holdout — the model is fitted at an old
-      commit and replays only commits it has never seen, split by whether the file existed
-      at fit time (edits vs new files), with commit-level bootstrap 95% CIs. Numbers
-      published before July 2026 were measured train-on-test and were materially
-      optimistic — see
-      <a class="underline" href="https://github.com/get-tmonier/argot/issues/92">issue #92</a>
-      and the
-      <a
-        class="underline"
-        href="https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/issue92-honest-rebench.md"
-        >re-measurement evidence</a
-      >. This page is fed from CI so the numbers can't drift from what ships.
+      argot has one job: flag code that introduces a pattern <strong>foreign to
+      the repo</strong> — a dependency, API, or construct the codebase has never
+      used — the kind of thing an AI agent drags in. So the scorecard is two
+      numbers.
+    </p>
+    <ul class="mt-4 space-y-2 leading-relaxed text-ink-dim">
+      <li>
+        <strong>Novel-pattern catch</strong> — of foreign patterns spliced into
+        real host files (a foreign import / API / dependency, verified 0-usage at
+        the pinned commit) and judged by the real
+        <code>argot fit</code> → <code>argot check</code> pipeline, what share
+        does argot flag? Higher is better.
+      </li>
+      <li>
+        <strong>False alarm (over-fire)</strong> — a leak-free temporal holdout:
+        fit at an old commit, replay only commits argot never saw, and count how
+        often it fires on the repo's <em>own existing code</em>. That is the true
+        false-alarm rate — lower is better. Fires on a symbol <em>0-usage in the
+        repo</em> (a genuinely new dependency or API in a real commit) are argot
+        doing its job, so they are reported separately as
+        <em>detections</em>, not counted as false alarms.
+      </li>
+    </ul>
+    <p class="mt-4 text-sm text-muted">
+      Split existing-file vs new-file, with commit-level bootstrap 95% CIs.
+      Corpora with no break catalog show <code>—</code> for catch — they are
+      there only to measure false alarms. Numbers published before July 2026 were
+      measured train-on-test and were materially optimistic — see
+      <a class="underline" href="https://github.com/get-tmonier/argot/issues/92">issue #92</a>.
+      This page is fed from CI so the numbers can't drift from what ships.
     </p>
 
     {
@@ -98,32 +126,35 @@ const ci = (s: Fp | null) =>
               <div class="text-2xl font-bold">
                 {(latest.totals.gated_recall_pct ?? latest.totals.recall_pct).toFixed(0)}%
               </div>
-              <div class="text-sm text-muted">novel-pattern catch (the metric)</div>
+              <div class="text-sm text-muted">
+                novel-pattern catch · {latest.totals.gated_caught}/{latest.totals.gated_fixtures} gated
+              </div>
             </div>
             <div class="rounded-xl border border-line p-4">
               <div class="text-2xl font-bold">
-                {latest.totals.gated_caught ?? latest.totals.caught}/{
-                  latest.totals.gated_fixtures ?? latest.totals.fixtures
-                }
+                {(latest.totals.foreign_recall_pct ?? 0).toFixed(0)}%
               </div>
-              <div class="text-sm text-muted">foreign import/API/dep caught</div>
+              <div class="text-sm text-muted">
+                foreign catch · {latest.totals.foreign_caught}/{latest.totals.foreign_fixtures} all corpora
+              </div>
             </div>
             <div class="rounded-xl border border-line p-4">
               <div class="text-2xl font-bold">
-                {latest.totals.worst_fp_existing_pct.toFixed(2)}%
+                {(latest.totals.worst_fp_existing_overfire_pct ?? latest.totals.worst_fp_existing_pct).toFixed(2)}%
               </div>
-              <div class="text-sm text-muted">worst FP · existing files</div>
+              <div class="text-sm text-muted">worst false alarm · existing files</div>
             </div>
             <div class="rounded-xl border border-line p-4">
               <div class="text-2xl font-bold">
-                {latest.totals.worst_fp_new_file_pct.toFixed(2)}%
+                {(latest.totals.worst_fp_new_overfire_pct ?? latest.totals.worst_fp_new_file_pct).toFixed(2)}%
               </div>
-              <div class="text-sm text-muted">worst FP · new files</div>
+              <div class="text-sm text-muted">worst false alarm · new files</div>
             </div>
           </div>
           <p class="mt-3 text-sm text-muted">
             run {latest.commit} · {latest.generated_at.slice(0, 10)} · ⚠️ marks corpora
-            under the 300-hunk sample bar (excluded from the worst-FP tiles)
+            under the 300-hunk sample bar (excluded from the worst-FP tiles) · false-alarm =
+            over-fire on the repo's own code; novel-pattern detections shown muted
           </p>
 
           <table class="mt-10 w-full border-collapse text-sm">
@@ -131,51 +162,50 @@ const ci = (s: Fp | null) =>
               <tr class="border-b border-line text-left text-muted">
                 <th class="py-2">Corpus</th>
                 <th>Language</th>
-                <th>Type</th>
-                <th class="text-right">Catch · novel-pattern</th>
-                <th class="text-right">FP existing (95% CI)</th>
-                <th class="text-right">FP new-file (95% CI)</th>
+                <th class="text-right">Novel-pattern catch</th>
+                <th class="text-right">False alarm · existing</th>
+                <th class="text-right">False alarm · new-file</th>
               </tr>
             </thead>
             <tbody>
               {latest.corpora.map((c) => (
-                <tr class="border-b border-line/50">
+                <tr class="border-b border-line/50 align-top">
                   <td class="py-2 font-medium">
                     {c.corpus}
                     {c.under_sampled ? ' ⚠️' : ''}
                   </td>
                   <td class="text-muted">{c.language}</td>
-                  <td class="text-muted">{c.kind}</td>
+                  <td class="text-right">{catch_(c)}</td>
                   <td class="text-right">
-                    {c.gated_fixtures != null && c.gated_caught != null ? (
-                      <>
-                        {`${c.gated_caught}/${c.gated_fixtures} (${(c.gated_recall_pct ?? 0).toFixed(0)}%)`}
-                        {c.caught != null && c.fixtures != null && c.fixtures !== c.gated_fixtures ? (
-                          <span class="text-muted">
-                            {` · ${c.caught}/${c.fixtures} all`}
-                          </span>
-                        ) : null}
-                      </>
-                    ) : c.caught != null && c.fixtures != null ? (
-                      <span class="text-muted">
-                        {`${c.caught}/${c.fixtures} (${(c.recall_pct ?? 0).toFixed(0)}%) legacy`}
-                      </span>
-                    ) : (
-                      '—'
+                    {rate(c.fp_existing_overfire ?? c.fp_existing)}
+                    <span class="text-muted"> {ci(c.fp_existing_overfire ?? c.fp_existing)}</span>
+                    {det(c.fp_existing_detection) && (
+                      <div class="text-xs text-muted">{det(c.fp_existing_detection)}</div>
                     )}
                   </td>
                   <td class="text-right">
-                    {fp(c.fp_existing)}
-                    <span class="text-muted"> {ci(c.fp_existing)}</span>
-                  </td>
-                  <td class="text-right">
-                    {fp(c.fp_new_file)}
-                    <span class="text-muted"> {ci(c.fp_new_file)}</span>
+                    {rate(c.fp_new_overfire ?? c.fp_new_file)}
+                    <span class="text-muted"> {ci(c.fp_new_overfire ?? c.fp_new_file)}</span>
+                    {det(c.fp_new_detection) && (
+                      <div class="text-xs text-muted">{det(c.fp_new_detection)}</div>
+                    )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+
+          <p class="mt-4 text-xs text-muted">
+            <strong>Novel-pattern catch</strong> counts the foreign classes
+            (foreign import / API / dependency, plus the legacy catalogs' foreign
+            names) — argot's actual target. It excludes the naming &amp; semantic
+            classes (misusing a library the repo already uses), which argot
+            reports but does not gate on and cannot detect locally — a documented
+            limit, not the danger an LLM poses.
+            <strong>Detections</strong> (muted) are fires on a symbol 0-usage in
+            the repo at fit — a real new dependency or API — which argot correctly
+            flags for review; they are not false alarms.
+          </p>
 
           {history.length > 1 && (
             <section class="mt-12">
@@ -185,9 +215,9 @@ const ci = (s: Fp | null) =>
                   <tr class="border-b border-line text-left text-muted">
                     <th class="py-2">Date</th>
                     <th>Commit</th>
-                    <th class="text-right">Recall</th>
-                    <th class="text-right">Worst FP existing</th>
-                    <th class="text-right">Worst FP new-file</th>
+                    <th class="text-right">Catch (gated)</th>
+                    <th class="text-right">Worst false alarm · existing</th>
+                    <th class="text-right">Worst false alarm · new-file</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -195,9 +225,15 @@ const ci = (s: Fp | null) =>
                     <tr class="border-b border-line/50">
                       <td class="py-2">{h.generated_at.slice(0, 10)}</td>
                       <td class="font-mono text-muted">{h.commit}</td>
-                      <td class="text-right">{h.totals.recall_pct.toFixed(1)}%</td>
-                      <td class="text-right">{h.totals.worst_fp_existing_pct.toFixed(2)}%</td>
-                      <td class="text-right">{h.totals.worst_fp_new_file_pct.toFixed(2)}%</td>
+                      <td class="text-right">
+                        {(h.totals.gated_recall_pct ?? h.totals.recall_pct).toFixed(0)}%
+                      </td>
+                      <td class="text-right">
+                        {(h.totals.worst_fp_existing_overfire_pct ?? h.totals.worst_fp_existing_pct).toFixed(2)}%
+                      </td>
+                      <td class="text-right">
+                        {(h.totals.worst_fp_new_overfire_pct ?? h.totals.worst_fp_new_file_pct).toFixed(2)}%
+                      </td>
                     </tr>
                   ))}
                 </tbody>
