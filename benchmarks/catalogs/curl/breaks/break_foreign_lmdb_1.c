@@ -7,13 +7,17 @@ static bool altsvc_entry_expired(time_t expires, time_t now)
   return expires && expires < now;
 }
 
+/* Decoy region (NOT part of the scored hunk): the foreign dependency is pulled
+ * in up here, OUTSIDE the hunk, so the scored hunk holds only the bare mdb_*
+ * callees — the medium "import sits outside the hunk" pattern. */
+#include <lmdb.h>
+
 // Break: LMDB memory-mapped persistence of the Alt-Svc cache; LMDB is absent
-// from the repo at the pinned SHA (mdb_env_create, mdb_env_open,
-// mdb_txn_begin, mdb_dbi_open, mdb_put, mdb_txn_commit, mdb_env_close = 0 hits
-// tree-wide, no <lmdb.h>) — curl persists Alt-Svc through its own flat-file
-// writer (Curl_altsvc_save), never a foreign embedded key-value store. No
-// foreign include is present in the hunk, so the catch rests entirely on the
-// bare mdb_* callee resolution.
+// Break: from the repo at the pinned SHA (<lmdb.h>, mdb_env_create,
+// Break: mdb_env_open, mdb_txn_begin, mdb_dbi_open, mdb_put, mdb_txn_commit,
+// Break: mdb_env_close = 0 hits tree-wide) — curl persists Alt-Svc through its
+// Break: own flat-file writer (Curl_altsvc_save), never a foreign embedded
+// Break: key-value store.
 CURLcode Curl_altsvc_lmdb_store(const char *host, const char *alpn, int port)
 {
   MDB_env *env;

@@ -8,12 +8,12 @@ static char sigv4_hex_digit(unsigned char nib)
 }
 
 // Break: libsodium generic-hash + secretbox to derive and seal the AWS SigV4
-// signing key; libsodium is absent from the repo at the pinned SHA
-// (<sodium.h>, sodium_init, crypto_generichash, randombytes_buf,
-// crypto_secretbox_easy = 0 hits tree-wide) — curl derives the SigV4 key with
-// its own HMAC-SHA256 chain (Curl_hmacit / Curl_sha256it), never a foreign
-// crypto library. The bare sodium_* callees fire in the call-receiver stage
-// because the repo never declares them.
+// Break: signing key; libsodium is absent from the repo at the pinned SHA
+// Break: (<sodium.h>, sodium_init, crypto_generichash, randombytes_buf,
+// Break: crypto_secretbox_easy = 0 hits tree-wide) — curl derives the SigV4 key with
+// Break: its own HMAC-SHA256 chain (Curl_hmacit / Curl_sha256it), never a foreign
+// Break: crypto library. The bare sodium_* callees fire in the call-receiver stage
+// Break: because the repo never declares them.
 #include <sodium.h>
 
 CURLcode Curl_sigv4_seal_key(const unsigned char *secret, size_t slen,

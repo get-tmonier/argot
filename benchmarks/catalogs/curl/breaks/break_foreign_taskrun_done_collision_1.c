@@ -8,16 +8,16 @@ static int multi_inflight(struct Curl_multi *multi)
 }
 
 // Break: libtask stackful-coroutine runtime driving one transfer per coroutine;
-// completion is dispatched through a curl-handler-style run vtable. libtask is
-// absent from the repo at the pinned SHA (<task.h>, taskcreate, taskyield,
-// coroutine = 0 hits tree-wide) — curl multiplexes transfers on its own single
-// event loop (curl_multi_perform), not a foreign coroutine runtime. HARD /
-// masked: the completion is reached through handle->conn->scheme->run->done(),
-// whose leaf method COLLIDES with curl's attested run-vtable done() method
-// (lib/url.c:2373, lib/multi.c:732), so the call-receiver stage treats it as an
-// in-voice method; the foreign anchor Task is a type token, not a callee; and
-// no <...> foreign include is present, so the import stage is silent. Expected
-// honest MISS.
+// Break: completion is dispatched through a curl-handler-style run vtable. libtask is
+// Break: absent from the repo at the pinned SHA (<task.h>, taskcreate, taskyield,
+// Break: coroutine = 0 hits tree-wide) — curl multiplexes transfers on its own single
+// Break: event loop (curl_multi_perform), not a foreign coroutine runtime. HARD /
+// Break: masked: the completion is reached through handle->conn->scheme->run->done(),
+// Break: whose leaf method COLLIDES with curl's attested run-vtable done() method
+// Break: (lib/url.c:2373, lib/multi.c:732), so the call-receiver stage treats it as an
+// Break: in-voice method; the foreign anchor Task is a type token, not a callee; and
+// Break: no <...> foreign include is present, so the import stage is silent. Expected
+// Break: honest MISS.
 void Curl_multi_task_done(struct Curl_easy *data, CURLcode result)
 {
   Task *co = NULL;

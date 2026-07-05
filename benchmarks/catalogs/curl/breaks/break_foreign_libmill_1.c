@@ -8,11 +8,11 @@ static bool thrdd_slot_busy(int running, int limit)
 }
 
 // Break: libmill structured-concurrency coroutines fanning name resolution
-// onto channels; libmill is absent from the repo at the pinned SHA
-// (<libmill.h>, chmake, chsend, chrecv, chdone, msleep = 0 hits tree-wide) —
-// curl runs its threaded resolver on its own curl_thread wrapper
-// (Curl_thread_create) draining results through the multi handle, never a
-// foreign coroutine runtime.
+// Break: onto channels; libmill is absent from the repo at the pinned SHA
+// Break: (<libmill.h>, chmake, chsend, chrecv, chdone, msleep = 0 hits tree-wide) —
+// Break: curl runs its threaded resolver on its own curl_thread wrapper
+// Break: (Curl_thread_create) draining results through the multi handle, never a
+// Break: foreign coroutine runtime.
 #include <libmill.h>
 
 static coroutine void resolve_worker(chan ch, const char *host)

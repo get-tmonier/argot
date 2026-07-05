@@ -8,12 +8,12 @@ static curl_off_t decoded_running_total(curl_off_t written, size_t nbytes)
 }
 
 // Break: MPI distributed-memory scatter/gather parallelizing decompression of
-// independent content blocks across ranks; MPI is absent from the repo at the
-// pinned SHA (MPI_Init, MPI_Comm_rank, MPI_Comm_size, MPI_Scatter, MPI_Gather,
-// MPI_Finalize = 0 hits tree-wide, no <mpi.h>) — curl streams every content
-// decoding through a single sequential writer chain and runs no foreign
-// message-passing runtime. No foreign include is present in the hunk, so the
-// catch rests entirely on the bare MPI_* callee resolution.
+// Break: independent content blocks across ranks; MPI is absent from the repo at the
+// Break: pinned SHA (MPI_Init, MPI_Comm_rank, MPI_Comm_size, MPI_Scatter, MPI_Gather,
+// Break: MPI_Finalize = 0 hits tree-wide, no <mpi.h>) — curl streams every content
+// Break: decoding through a single sequential writer chain and runs no foreign
+// Break: message-passing runtime. No foreign include is present in the hunk, so the
+// Break: catch rests entirely on the bare MPI_* callee resolution.
 int Curl_decode_blocks_mpi(char *blocks, int nblocks, int blocksize)
 {
   int rank, size;

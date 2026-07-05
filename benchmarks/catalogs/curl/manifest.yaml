@@ -257,27 +257,31 @@ fixtures:
     protobuf_c_message_get_packed_size/protobuf_c_message_pack/
     protobuf_c_message_free_unpacked across *.c/*.h at the pinned SHA. curl
     frames HTTP/2 through nghttp2''s own submit/callbacks, never a foreign
-    schema serializer. MEDIUM: the foreign dependency is pulled in via a
-    *quoted* include (outside the scored hunk, in the decoy region) so the
-    import stage never sees an angled system module — the catch must come from
-    the bare protobuf_c_* callee in the call-receiver stage.'
+    schema serializer. MEDIUM (on the hard edge): the foreign dependency is
+    pulled in via a *quoted* include (in the decoy region) so the import stage
+    never sees an angled system module — the catch must come from the two bare
+    protobuf_c_* callees alone. In production this MISSES: the call-receiver
+    contribution from just two distinct foreign callees lands under the
+    surprise threshold once the import tell is masked. Reported as an honest
+    medium miss ("usually catches, sometimes not"), not softened.'
   difficulty: medium
   host_file: lib/http2.c
   host_inject_at_line: 1570
 - id: foreign_lmdb_1
   file: breaks/break_foreign_lmdb_1.c
   category: foreign_api
-  hunk_start_line: 17
-  hunk_end_line: 38
+  hunk_start_line: 21
+  hunk_end_line: 42
   rationale: 'LMDB memory-mapped persistence of the Alt-Svc cache (mdb_env_create/
     mdb_env_open/mdb_txn_begin/mdb_dbi_open/mdb_put/mdb_txn_commit/
     mdb_env_close) — domain-plausible in the alt-svc file, but foreign: verified
     0 tree-wide hits for <lmdb.h> and for mdb_env_create/mdb_env_open/
     mdb_txn_begin/mdb_dbi_open/mdb_get/mdb_put/mdb_txn_commit across *.c/*.h at
     the pinned SHA. curl persists Alt-Svc through its own flat-file writer
-    (Curl_altsvc_save), never a foreign embedded key-value store. MEDIUM: no
-    foreign <...> include is present in the hunk, so the catch rests entirely
-    on bare mdb_* callee resolution in the call-receiver stage.'
+    (Curl_altsvc_save), never a foreign embedded key-value store. MEDIUM: the
+    <lmdb.h> import sits in the decoy region OUTSIDE the scored hunk (the hunk
+    holds only the bare mdb_* callees) — the "import outside the hunk" pattern;
+    the whole planted file diff carries the import so it fires in production.'
   difficulty: medium
   host_file: lib/altsvc.c
   host_inject_at_line: 351
@@ -302,17 +306,18 @@ fixtures:
 - id: foreign_zeromq_1
   file: breaks/break_foreign_zeromq_1.c
   category: foreign_concurrency
-  hunk_start_line: 17
-  hunk_end_line: 29
+  hunk_start_line: 21
+  hunk_end_line: 33
   rationale: 'ZeroMQ PUSH socket mirroring each decoded WebSocket frame onto a
     message bus (zmq_ctx_new/zmq_socket/zmq_connect/zmq_msg_init_size/
     zmq_msg_send/zmq_close) — a foreign messaging runtime: verified 0 tree-wide
     hits for <zmq.h> and for zmq_ctx_new/zmq_socket/zmq_connect/
     zmq_msg_init_size/zmq_msg_send/zmq_bind across *.c/*.h at the pinned SHA.
     curl delivers every WebSocket frame to the caller''s write callback and
-    runs no foreign messaging runtime of its own. MEDIUM: no foreign <...>
-    include is present in the hunk, so the catch rests entirely on bare zmq_*
-    callee resolution in the call-receiver stage.'
+    runs no foreign messaging runtime of its own. MEDIUM: the <zmq.h> import
+    sits in the decoy region OUTSIDE the scored hunk (the hunk holds only the
+    bare zmq_* callees) — the "import outside the hunk" pattern; the whole
+    planted file diff carries the import so it fires in production.'
   difficulty: medium
   host_file: lib/ws.c
   host_inject_at_line: 931
