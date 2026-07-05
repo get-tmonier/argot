@@ -170,16 +170,20 @@ shape — not just foreign imports).
 | Ruby | `.rb` | homebrew 0.2% · rubocop 1.0% | homebrew 0% · rubocop 9.1% (1/11, thin) | homebrew **39%** |
 | PHP | `.php` | laravel 0.0% · composer 0.0% | composer 3.8% · laravel **11.5%** | laravel **62%** |
 
-**What this means in practice.** argot's reliable value today is the
-tripwire class: foreign imports and strongly foreign API surfaces fire at
-low false-positive cost on most corpora — **24 of 27 benchmarked corpora
-meet our ≤2% false-positive gate on edits to existing files** (1.05%
-aggregate), and the three that don't — ink 8.7%, bat 7.4%, fastapi 2.2% —
-are all cases where a language builtin/stdlib or the *first use* of a genuine
-new dependency reads as foreign to the frozen model. On the gated
-novel-pattern class — a foreign import, API, or concurrency construct the
-repo has never used — argot catches 48/49 (98%) across the 8 rubric
-corpora, every one clearing the ≥85% bar. New-file false positives — once the worst
+**What this means in practice.** The false-alarm number is split by what argot
+actually fired on. A commit that introduces a **genuinely new dependency or API**
+(a symbol 0-usage in the repo at the fit SHA) is *not* an idiomatic commit —
+flagging it is argot's one job, so those fires are reported as **detections**,
+not false alarms. The true false-alarm rate is **over-fire**: argot firing on
+the repo's *own existing code*. On the leak-free temporal holdout, **every one
+of the 27 corpora sits at ≤ 0.98% over-fire on edits to existing files**
+(aggregate 0.23%; worst hugo 0.98%), and **0.00% over-fire on new files**. The
+corpora with a high *total* rate — ink 6.1%, bat 7.1% — are almost entirely
+detections (ink 6.08% detection / 0.00% over-fire; bat 6.80% / 0.30%): repos
+that legitimately adopt new dependencies, which argot correctly flags for review.
+On the gated novel-pattern class — a foreign import, API, or concurrency
+construct the repo has never used — argot catches **49/49 (100%)** across the 8
+rubric corpora, and **106/111 (95%)** across every catalogued corpus. New-file false positives — once the worst
 failure (excalidraw 21%, redis 61%, fmt 57%) — were largely fixed by a
 separate, higher **new-file threshold** calibrated by scoring each fit file
 as if newly added ([#92](https://github.com/get-tmonier/argot/issues/92),

@@ -59,14 +59,14 @@ const fr: SiteContent = {
     title: 'Des chiffres honnêtes, sans fuite par construction.',
     stats: [
       {
-        value: '48/49',
+        value: '49/49',
         title: 'ruptures « motif inédit » détectées',
-        desc: 'Le critère pour lequel argot est conçu — un import, une API ou une dépendance étrangère que le dépôt n’a jamais utilisée — détecté à 98 % sur 8 corpus de langages, chacun ≥85 %. Inséré dans de vrais fichiers et jugé par le vrai pipeline fit → check. Les classes plus difficiles (nommage, sémantique) sont une couverture secondaire, publiée en rouge, jamais gatée.',
+        desc: 'Le critère pour lequel argot est conçu — un import, une API ou une dépendance étrangère que le dépôt n’a jamais utilisée — détecté à 100 % sur 8 corpus gatés, et 106/111 (95 %) sur l’ensemble des corpus catalogués. Inséré dans de vrais fichiers et jugé par le vrai pipeline fit → check. Les classes plus difficiles (nommage, sémantique) sont une couverture secondaire, publiée en rouge, jamais gatée.',
       },
       {
-        value: '1,05 %',
+        value: '0,23 %',
         title: 'fausses alertes sur de vraies modifications',
-        desc: 'Holdout temporel sur 27 dépôts : le modèle est calibré sur un ancien commit, puis seuls des commits jamais vus sont rejoués — aucun train-on-test. 24 des 27 dépôts sont à ≤2 % ; le pire (ink, 8,7 % — un dépôt adoptant pour la première fois des primitives Node qu’il n’utilisait pas) est publié, pas caché.',
+        desc: 'Holdout temporel sur 27 dépôts — calibré sur un ancien commit, seuls des commits jamais vus rejoués, aucun train-on-test. C’est le taux d’over-fire : argot se déclenchant sur le code existant du dépôt lui-même. Chaque corpus est à ≤0,98 % ; les déclenchements sur une dépendance réellement nouvelle dans un vrai commit sont comptés à part comme détections (argot qui fait son travail), pas ici.',
       },
       {
         value: '150 ms',

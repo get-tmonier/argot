@@ -59,14 +59,14 @@ const en: SiteContent = {
     title: 'Honest numbers, leak-free by construction.',
     stats: [
       {
-        value: '48/49',
+        value: '49/49',
         title: 'novel-pattern breaks caught',
-        desc: 'The metric argot is built for — a foreign import, API, or dependency the repo has never used — caught at 98% across 8 language corpora, every one ≥85%. Spliced into real files and judged by the real fit → check pipeline. The harder in-vocabulary classes (naming, semantics) are secondary coverage, reported red, never gated.',
+        desc: 'The metric argot is built for — a foreign import, API, or dependency the repo has never used — caught at 100% across 8 gated language corpora, and 106/111 (95%) across every catalogued corpus. Spliced into real files and judged by the real fit → check pipeline. The harder in-vocabulary classes (naming, semantics) are secondary coverage, reported red, never gated.',
       },
       {
-        value: '1.05%',
+        value: '0.23%',
         title: 'false alarms on real edits',
-        desc: 'Temporal holdout across 27 repos: the model is fitted at an old commit, then only commits it has never seen are replayed — no train-on-test. 24 of 27 repos sit at ≤2%; the worst (ink, 8.7% — a repo first adopting Node built-ins it had not used) is published, not hidden.',
+        desc: 'Temporal holdout across 27 repos — fitted at an old commit, only unseen commits replayed, no train-on-test. This is the over-fire rate: argot firing on the repo’s own existing code. Every corpus sits at ≤0.98%; fires on a genuinely new dependency in a real commit are reported separately as detections (argot working), not counted here.',
       },
       {
         value: '150ms',
