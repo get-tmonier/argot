@@ -169,6 +169,14 @@ fn content_key(source: &str) -> u64 {
     h.finish()
 }
 
+/// Identifier-like tokens in `src` (maximal `[A-Za-z0-9_]` runs). Language
+/// agnostic: used only to test whether a hunk mentions a known import binding,
+/// so `Fore.BLUE` yields `Fore` and `np.ndarray` yields `np`.
+fn identifier_tokens(src: &str) -> impl Iterator<Item = &str> {
+    src.split(|c: char| !(c.is_alphanumeric() || c == '_'))
+        .filter(|t| !t.is_empty())
+}
+
 pub struct SequentialImportBpeScorer {
     adapter: Box<dyn LanguageAdapter>,
     /// Callable names defined anywhere in the change being checked (all
@@ -440,20 +448,24 @@ impl SequentialImportBpeScorer {
         }
     }
 
-    /// Whether `source` (a full file) declares an import the fit corpus never
-    /// used — a foreign dependency at the file level. Backs the call-receiver
-    /// foreign-context gate: a bare unattested callee (`event_base_new`) is
-    /// foreign only when its file pulls a foreign `#include`/import, which can
-    /// sit in a different hunk than the call itself.
-    fn file_has_foreign_import(&self, source: Option<&str>) -> bool {
-        match source {
-            Some(src) => self
-                .adapter
-                .extract_imports(src)
-                .into_iter()
-                .any(|spec| self.import_scorer.is_foreign(&spec)),
-            None => false,
+    /// Whether `hunk_content` references a name bound by a *foreign* import in
+    /// `binding_source` (the file). Scopes the file-level foreign-import signal
+    /// to hunks that actually use the foreign dependency's symbols, so a hunk
+    /// of the repo's own code in a file that merely imports something foreign
+    /// stays quiet. Bindings come from the adapter (`import numpy as np` → `np`,
+    /// `from colorama import Fore` → `Fore`); foreignness from the import scorer.
+    fn hunk_uses_foreign_import_binding(&self, hunk_content: &str, binding_source: &str) -> bool {
+        let foreign_names: HashSet<String> = self
+            .adapter
+            .import_bindings(binding_source)
+            .into_iter()
+            .filter(|(_, module)| self.import_scorer.is_foreign(module))
+            .map(|(name, _)| name)
+            .collect();
+        if foreign_names.is_empty() {
+            return false;
         }
+        identifier_tokens(hunk_content).any(|tok| foreign_names.contains(tok))
     }
 
     fn zero_stage(reason: Reason, threshold: f64) -> ScoredHunk {
@@ -657,19 +669,33 @@ impl SequentialImportBpeScorer {
         let cr_would_fire = cr_active && !bpe_fired && bpe_side_score > self.bpe_threshold;
         // Foreign reach is checked at HUNK granularity, not file: a file that
         // reaches a foreign module in one hunk must not flag every *other* hunk
-        // whose new code is entirely the repo's own (the file-level amplifier
-        // that made one foreign callee cry wolf across a whole rocksdb `.cc`).
-        // The file-level foreign *import* still opens the gate — a foreign
-        // `#include`/dependency legitimately colours the whole file (libevent).
+        // whose new code is entirely the repo's own. A file-level foreign import
+        // is deliberately NOT enough on its own — a benign refactor hunk in a
+        // file that merely *has* a foreign `#include`/dependency (ink pulling
+        // `terminal-size`, a rocksdb `.cc` with one new dep) must stay quiet.
+        // Every genuine foreign symbol a break introduces (`event_base_new`,
+        // `boost::`, jQuery `$`) sits in the scored hunk itself, so hunk-level
+        // reach catches it; the hunk's own foreign import opens the gate too.
         let hunk_foreign_reach = cr_would_fire
             && self
                 .call_receiver
                 .as_ref()
                 .is_some_and(|cr| cr.file_reaches_foreign(hunk_content, &local_bindings));
+        // A file-level foreign import (in a hunk other than this one) colours
+        // this hunk only when the hunk actually *uses* a name that import bound
+        // — colorama's `Fore`/`Style`, numpy's `np`/`default_rng`, `httpx` —
+        // reached through a receiver the hunk itself doesn't re-import. A
+        // benign refactor whose callees are all the repo's own attested code
+        // (ink's `performance.now`, bat's `.canonicalize`) never matches, so it
+        // stays quiet.
+        let hunk_uses_foreign_binding = cr_would_fire
+            && !hunk_foreign_reach
+            && import_score < IMPORT_THRESHOLD
+            && self.hunk_uses_foreign_import_binding(hunk_content, binding_source);
         let cr_fired = cr_would_fire
             && (import_score >= IMPORT_THRESHOLD
                 || hunk_foreign_reach
-                || self.file_has_foreign_import(file_source.or(host_context.map(|(h, _, _)| h))));
+                || hunk_uses_foreign_binding);
         let conv_side_score = bpe_score + convention_contribution;
         let conv_fired =
             convention_contribution > 0.0 && !bpe_fired && conv_side_score > self.bpe_threshold;
@@ -1035,6 +1061,50 @@ mod tests {
             scored.reason,
             Reason::CallReceiver,
             "namespace-foreign callee flags: {scored:?}"
+        );
+    }
+
+    /// Amplification guard: a benign refactor hunk whose callees are all the
+    /// repo's own attested code must NOT flag just because its *file* pulls a
+    /// foreign import elsewhere. Before the fix, one file-level foreign
+    /// dependency opened the call-receiver gate for every hunk in the file
+    /// (ink's `terminal-size` import lit up `performance.now()`/`clearTimeout`).
+    #[test]
+    fn file_level_foreign_import_does_not_amplify_benign_hunk() {
+        let mut cfg = config(12.0);
+        cfg.call_receiver_alpha = 25.0;
+        cfg.call_receiver_cap = 25;
+        cfg.call_receiver_root_bonus = 0.0;
+        let files: Vec<(PathBuf, String)> = (0..4)
+            .map(|i| {
+                (
+                    PathBuf::from(format!("m{i}.py")),
+                    "import math\n\n\ndef mean(xs):\n    total = math.fsum(xs)\n    return total / len(xs)\n".to_string(),
+                )
+            })
+            .collect();
+        let mut scorer = SequentialImportBpeScorer::from_config(
+            &files,
+            GENERIC_BASELINE_JSON,
+            Box::new(PythonAdapter::new()),
+            cfg,
+        )
+        .unwrap();
+
+        // The hunk's only reach is `math.newhelper` (a new method on an
+        // attested module — the repo's own code). Its *file* adds a foreign
+        // import (`requests`), but that must not open the gate for this hunk.
+        let file_src =
+            "import math\nimport requests\n\n\ndef run(xs):\n    return math.newhelper(xs)\n";
+        let hunk = "def run(xs):\n    return math.newhelper(xs)";
+        let scored = scorer.score_hunk(hunk, Some(file_src), None, None, None);
+        assert!(
+            scored.stages.call_receiver_contribution > 0.0,
+            "attested-module method still contributes"
+        );
+        assert!(
+            !scored.flagged,
+            "benign hunk must not flag on a file-level foreign import: {scored:?}"
         );
     }
 }

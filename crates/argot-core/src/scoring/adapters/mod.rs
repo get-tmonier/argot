@@ -54,6 +54,17 @@ pub trait LanguageAdapter {
     fn callable_definitions(&self, source: &str) -> HashSet<String>;
     /// Names bound by imports from repo-internal (relative) specifiers.
     fn internal_import_bindings(&self, source: &str) -> HashSet<String>;
+    /// Names bound by *non-relative* imports, each paired with the top-level
+    /// module it came from: `import numpy as np` → `(np, numpy)`,
+    /// `from colorama import Fore, Style` → `(Fore, colorama), (Style, colorama)`.
+    /// Lets the call-receiver gate tell "this hunk uses a symbol from a foreign
+    /// dependency" (colorama's `Fore`, numpy's `default_rng`) apart from "this
+    /// hunk is the repo's own code in a file that merely happens to import one".
+    /// Default empty: a language without this simply gets no file-level foreign
+    /// association, falling back to hunk-local reach.
+    fn import_bindings(&self, _source: &str) -> Vec<(String, String)> {
+        Vec::new()
+    }
     /// Every other locally bound value name (destructured names, plain
     /// consts/vars, parameters). Attests bare calls only — calling a value
     /// you just bound is neighbourhood behaviour, not foreign voice.
@@ -93,6 +104,9 @@ impl LanguageAdapter for python::PythonAdapter {
     }
     fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
         python::PythonAdapter::internal_import_bindings(self, source)
+    }
+    fn import_bindings(&self, source: &str) -> Vec<(String, String)> {
+        python::PythonAdapter::import_bindings(self, source)
     }
     fn value_bindings(&self, source: &str) -> HashSet<String> {
         python::PythonAdapter::value_bindings(self, source)
