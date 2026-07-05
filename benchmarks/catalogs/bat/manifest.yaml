@@ -132,3 +132,187 @@ fixtures:
   difficulty: medium
   host_file: src/style.rs
   host_inject_at_line: 88
+- id: foreign_rand_import_1
+  file: breaks/break_foreign_rand_import.rs
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 20
+  rationale: 'use rand::Rng + rand::thread_rng().gen_range() picking a theme at
+    random from the embedded set, import inside hunk. Verified foreign at SHA
+    78951393e29b: `rand` = 0 grep hits across *.rs and absent from Cargo.toml;
+    bat resolves the theme deterministically from config/env
+    (HighlightingAssets::get_theme in assets.rs), never at random.'
+  difficulty: easy
+  host_file: src/assets.rs
+  host_inject_at_line: 377
+- id: foreign_crossterm_import_1
+  file: breaks/break_foreign_crossterm_import.rs
+  category: foreign_import
+  hunk_start_line: 13
+  hunk_end_line: 20
+  rationale: 'use crossterm::terminal + terminal::size() sizing the pager''s wrap
+    width, import inside hunk. Verified foreign at SHA 78951393e29b: `crossterm`
+    = 0 grep hits across *.rs and absent from Cargo.toml; bat measures the
+    terminal through `console` / `terminal-colorsaurus` and grep-cli, never
+    crossterm.'
+  difficulty: easy
+  host_file: src/pager.rs
+  host_inject_at_line: 19
+- id: foreign_dirs_import_1
+  file: breaks/break_foreign_dirs_import.rs
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 21
+  rationale: 'ALIASED import `use dirs as user_dirs` + user_dirs::config_dir(),
+    the alias masking the crate name (import stage still keys off the `dirs`
+    crate root). Verified foreign at SHA 78951393e29b: `dirs` = 0 grep hits
+    across *.rs and absent from Cargo.toml; bat resolves cache/config dirs
+    through `etcetera` (BaseStrategy in bin/bat/directories.rs) plus the
+    BAT_CACHE_PATH / BAT_CONFIG_DIR env vars, never the `dirs` crate.'
+  difficulty: medium
+  host_file: src/bin/bat/directories.rs
+  host_inject_at_line: 49
+- id: foreign_zstd_import_1
+  file: breaks/break_foreign_zstd_import.rs
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 21
+  rationale: 'SUBMODULE import `use zstd::stream::read::Decoder` + Decoder::new()
+    decompressing a theme blob. Verified foreign at SHA 78951393e29b: `zstd` = 0
+    grep hits across *.rs and absent from Cargo.toml; bat decompresses its
+    embedded syntax/theme assets with `flate2` (COMPRESS_THEMES / from_binary in
+    assets.rs), never zstd.'
+  difficulty: medium
+  host_file: src/assets.rs
+  host_inject_at_line: 380
+- id: foreign_git2_api_1
+  file: breaks/break_foreign_git2_api.rs
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 20
+  rationale: 'git2::Repository::open() + git2::Repository::statuses() reading
+    worktree changes, referenced by fully-qualified path (no `use` import).
+    Verified foreign at SHA 78951393e29b: `git2` = 0 grep hits across *.rs and
+    absent from Cargo.toml; bat computes line modifications through `gix`
+    (gix::diff::blob in diff.rs, the `git` feature), never the libgit2 `git2`
+    crate.'
+  difficulty: easy
+  host_file: src/diff.rs
+  host_inject_at_line: 19
+- id: foreign_uuid_api_1
+  file: breaks/break_foreign_uuid_api.rs
+  category: foreign_api
+  hunk_start_line: 14
+  hunk_end_line: 17
+  rationale: 'uuid::Uuid::new_v4() stamping each render with a session tag,
+    referenced by fully-qualified path (no `use` import). Verified foreign at
+    SHA 78951393e29b: `uuid` = 0 grep hits across *.rs and absent from
+    Cargo.toml; bat identifies inputs by their ordinal/filename in InputReader
+    (input.rs) and never mints UUIDs.'
+  difficulty: easy
+  host_file: src/printer.rs
+  host_inject_at_line: 43
+- id: foreign_redis_api_1
+  file: breaks/break_foreign_redis_api.rs
+  category: foreign_api
+  hunk_start_line: 15
+  hunk_end_line: 19
+  rationale: 'redis client caching serialized theme sets — the foreign namespace
+    is named once on the constructor (redis::Client::open), then writes flow
+    through a local `client`/`con` RECEIVER variable. Verified foreign at SHA
+    78951393e29b: `redis` = 0 grep hits across *.rs and absent from Cargo.toml;
+    bat caches assets on the local filesystem (asset_from_cache in assets.rs),
+    never in an external key-value store.'
+  difficulty: medium
+  host_file: src/assets.rs
+  host_inject_at_line: 381
+- id: foreign_lru_api_1
+  file: breaks/break_foreign_lru_api.rs
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 23
+  rationale: 'HARD — an lru::LruCache reached ONLY through a receiver whose
+    methods (contains, get, cloned) collide with bat''s own attested map idioms,
+    the crate named only in the parameter TYPE position (no `use`, no
+    `foreign::` callee). Verified foreign at SHA 78951393e29b: `lru` = 0 grep
+    hits across *.rs and absent from Cargo.toml; bat caches parsed configuration
+    in plain owned structs (config.rs), not an LRU cache. Genuinely hard: the
+    foreignness lives in a type annotation the import/call-receiver stages do
+    not inspect.'
+  difficulty: hard
+  host_file: src/config.rs
+  host_inject_at_line: 124
+- id: foreign_sled_api_1
+  file: breaks/break_foreign_sled_api.rs
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 21
+  rationale: 'HARD — a sled::Db embedded key-value store read ONLY through a
+    receiver whose methods (get, ok, map, to_vec) are all attested bat idioms,
+    the crate named only in the parameter TYPE position (no `use`, no
+    `foreign::` callee). Verified foreign at SHA 78951393e29b: `sled` = 0 grep
+    hits across *.rs and absent from Cargo.toml; bat''s asset cache is a
+    directory of bincode blobs (asset_from_cache in assets.rs), never an
+    embedded database. Genuinely hard: the only foreign token sits in a type
+    annotation neither stage inspects.'
+  difficulty: hard
+  host_file: src/assets.rs
+  host_inject_at_line: 377
+- id: foreign_threadpool_concurrency_1
+  file: breaks/break_foreign_threadpool_concurrency.rs
+  category: foreign_concurrency
+  hunk_start_line: 14
+  hunk_end_line: 25
+  rationale: 'threadpool::ThreadPool::new() + pool.execute() fanning line-range
+    membership checks across a foreign thread pool, referenced by
+    fully-qualified path (no `use` import). Verified foreign at SHA
+    78951393e29b: `threadpool` = 0 grep hits across *.rs and absent from
+    Cargo.toml; bat evaluates line ranges with a single sequential itertools
+    pass (line_range.rs) and has no thread pool.'
+  difficulty: easy
+  host_file: src/line_range.rs
+  host_inject_at_line: 28
+- id: foreign_asyncstd_concurrency_1
+  file: breaks/break_foreign_asyncstd_concurrency.rs
+  category: foreign_concurrency
+  hunk_start_line: 15
+  hunk_end_line: 24
+  rationale: 'async-std runtime driving preprocessing on an async task, reached
+    through a SUBMODULE import `use async_std::task` + task::block_on(). Verified
+    foreign at SHA 78951393e29b: `async_std` = 0 grep hits across *.rs and absent
+    from Cargo.toml; bat''s preprocessing (expand_tabs / replace_nonprintable in
+    preprocessor.rs) is entirely synchronous, with no async runtime in the
+    crate.'
+  difficulty: medium
+  host_file: src/preprocessor.rs
+  host_inject_at_line: 139
+- id: foreign_flume_concurrency_1
+  file: breaks/break_foreign_flume_concurrency.rs
+  category: foreign_concurrency
+  hunk_start_line: 14
+  hunk_end_line: 19
+  rationale: 'flume MPMC channel wiring a writer thread, reached through an
+    ALIASED import `use flume as chan` + chan::unbounded(), the alias masking the
+    crate name (import stage still keys off the `flume` crate root). Verified
+    foreign at SHA 78951393e29b: `flume` = 0 grep hits across *.rs and absent
+    from Cargo.toml; bat''s only cross-thread handoff is the paging thread
+    spawned via std::thread in output.rs, with no external channel crate.'
+  difficulty: medium
+  host_file: src/output.rs
+  host_inject_at_line: 58
+- id: foreign_dashmap_concurrency_1
+  file: breaks/break_foreign_dashmap_concurrency.rs
+  category: foreign_concurrency
+  hunk_start_line: 22
+  hunk_end_line: 32
+  rationale: 'HARD — a dashmap::DashMap concurrent map tallying style components,
+    reached ONLY through a receiver whose methods (get, insert) mimic bat''s own
+    single-threaded HashMap idiom, the crate named only in the parameter TYPE
+    position (no `use`, no `foreign::` callee). Verified foreign at SHA
+    78951393e29b: `dashmap` = 0 grep hits across *.rs and absent from Cargo.toml;
+    bat resolves StyleComponents synchronously over a plain HashSet (style.rs),
+    with no concurrent map. Genuinely hard: the foreign type is indistinguishable
+    from a std map at the call site.'
+  difficulty: hard
+  host_file: src/style.rs
+  host_inject_at_line: 88

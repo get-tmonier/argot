@@ -222,3 +222,139 @@ fixtures:
   rationale: "import dramatiq + @dramatiq.actor with .send() run snippet reindex/purge on a dramatiq worker off the request cycle — dramatiq appears at 0 wagtail production sites at the pinned SHA (`import dramatiq`/`dramatiq.` git grep sum = 0); wagtail snippet actions run in-request. Foreign concurrency import + actor API are in-hunk."
   host_file: wagtail/snippets/views/snippets.py
   host_inject_at_line: 1255
+# --- graded expansion (issue #92): easy/medium/hard mix, distinct deps ---
+- id: foreign_import_graphene_1
+  file: breaks/break_foreign_import_graphene.py
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 34
+  difficulty: easy
+  rationale: "import graphene + graphene.ObjectType/String/Schema build a GraphQL schema over Page, replacing wagtail's DRF viewsets — graphene appears at 0 wagtail production sites at the pinned SHA (git grep sum = 0; GraphQL ships as the separate wagtail-grapple package, not a core dep). Bare foreign import + graphene.* API are in-hunk; the import stage catches the 0-usage top-level module."
+  host_file: wagtail/api/v2/views.py
+  host_inject_at_line: 437
+- id: foreign_import_marshmallow_1
+  file: breaks/break_foreign_import_marshmallow.py
+  category: foreign_import
+  hunk_start_line: 18
+  hunk_end_line: 36
+  difficulty: easy
+  rationale: "from marshmallow import Schema, fields, validate declare a Schema subclass validating API payloads, replacing wagtail's DRF serializers (rest_framework.serializers) — marshmallow appears at 0 wagtail production sites at the pinned SHA (git grep sum = 0; absent from pyproject.toml). Foreign import + Schema/fields API are in-hunk."
+  host_file: wagtail/api/v2/serializers.py
+  host_inject_at_line: 368
+- id: foreign_import_jwt_1
+  file: breaks/break_foreign_import_jwt.py
+  category: foreign_import
+  hunk_start_line: 16
+  hunk_end_line: 32
+  difficulty: easy
+  rationale: "import jwt (PyJWT) + jwt.encode/decode sign preview tokens, replacing django.core.signing.TimestampSigner — PyJWT appears at 0 wagtail production sites at the pinned SHA (`import jwt`/`from jwt` git grep sum = 0; absent from pyproject.toml). Bare foreign import + jwt.* API are in-hunk."
+  host_file: wagtail/admin/views/pages/preview.py
+  host_inject_at_line: 71
+- id: foreign_import_arrow_1
+  file: breaks/break_foreign_import_arrow.py
+  category: foreign_import
+  hunk_start_line: 16
+  hunk_end_line: 29
+  difficulty: easy
+  rationale: "import arrow + arrow.get/utcnow/shift format publish timestamps, replacing django.utils.timezone — arrow appears at 0 wagtail production sites at the pinned SHA (`import arrow`/`from arrow` git grep sum = 0). Bare foreign import + arrow.* API are in-hunk."
+  host_file: wagtail/log_actions.py
+  host_inject_at_line: 61
+- id: foreign_api_weasyprint_1
+  file: breaks/break_foreign_api_weasyprint.py
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 25
+  difficulty: easy
+  rationale: "import weasyprint + weasyprint.HTML(...).write_pdf/weasyprint.CSS render documents to PDF, bypassing Django storage/FileResponse serving — weasyprint appears at 0 wagtail production sites at the pinned SHA (git grep sum = 0). Foreign import + qualified weasyprint.* API are in-hunk; the call-receiver stage catches the unattested weasyprint namespace."
+  host_file: wagtail/documents/views/serve.py
+  host_inject_at_line: 117
+- id: foreign_concurrency_rq_1
+  file: breaks/break_foreign_concurrency_rq.py
+  category: foreign_concurrency
+  hunk_start_line: 14
+  hunk_end_line: 30
+  difficulty: easy
+  rationale: "from rq import Queue + Queue.enqueue with rq.job.Retry offload workflow email to a Redis-Queue worker — rq appears at 0 wagtail production sites at the pinned SHA (`import rq`/`from rq` git grep sum = 0); wagtail sends mail synchronously (django.core.mail). Foreign concurrency import + Queue.enqueue API are in-hunk."
+  host_file: wagtail/admin/mail.py
+  host_inject_at_line: 284
+- id: foreign_api_pymongo_1
+  file: breaks/break_foreign_api_pymongo.py
+  category: foreign_api
+  hunk_start_line: 14
+  hunk_end_line: 28
+  difficulty: medium
+  rationale: "from pymongo import MongoClient + a MongoClient receiver variable (_mongo.wagtail.site_events) with .insert_one/.find/.sort mirror site events to MongoDB, bypassing the Django ORM — pymongo appears at 0 wagtail production sites at the pinned SHA (`pymongo`/`MongoClient` git grep sum = 0). Foreign import fires the import stage; the receiver-variable API stresses callee resolution. In-hunk."
+  host_file: wagtail/models/sites.py
+  host_inject_at_line: 284
+- id: foreign_api_sentry_1
+  file: breaks/break_foreign_api_sentry.py
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 27
+  difficulty: medium
+  rationale: "import sentry_sdk as sentry (ALIASED — evades the import stage, which does not capture aliased imports) + sentry.capture_exception/capture_message/set_context report signal-handler errors, replacing the stdlib logger — sentry_sdk appears at 0 wagtail production sites at the pinned SHA (git grep sum = 0). Catch must come from the call-receiver stage on the unattested sentry.* namespace, not the import stage."
+  host_file: wagtail/signal_handlers.py
+  host_inject_at_line: 79
+- id: foreign_concurrency_apscheduler_1
+  file: breaks/break_foreign_concurrency_apscheduler.py
+  category: foreign_concurrency
+  hunk_start_line: 14
+  hunk_end_line: 31
+  difficulty: medium
+  rationale: "from apscheduler.schedulers.background import BackgroundScheduler + apscheduler.triggers.interval.IntervalTrigger run a background job sweeping stale workflow tasks — apscheduler appears at 0 wagtail production sites at the pinned SHA (`apscheduler`/`APScheduler` git grep sum = 0); wagtail workflow progression is event-driven. Submodule import (top-level `apscheduler` 0-usage) fires the import stage. In-hunk."
+  host_file: wagtail/models/workflows.py
+  host_inject_at_line: 819
+- id: foreign_concurrency_gevent_1
+  file: breaks/break_foreign_concurrency_gevent.py
+  category: foreign_concurrency
+  hunk_start_line: 14
+  hunk_end_line: 27
+  difficulty: medium
+  rationale: "import gevent + from gevent.pool import Pool + a Pool receiver (pool.spawn/join, gevent.spawn/joinall) parallelise rendition generation on greenlets — gevent appears at 0 wagtail production sites at the pinned SHA (`import gevent`/`from gevent` git grep sum = 0; the one attested pool is stdlib ThreadPoolExecutor). Foreign import + receiver-variable API are in-hunk."
+  host_file: wagtail/images/models.py
+  host_inject_at_line: 947
+- id: foreign_concurrency_joblib_1
+  file: breaks/break_foreign_concurrency_joblib.py
+  category: foreign_concurrency
+  hunk_start_line: 15
+  hunk_end_line: 27
+  difficulty: medium
+  rationale: "import joblib as _jl (ALIASED — evades the import stage) + _jl.Parallel/_jl.delayed fan daily-hits recount across worker processes — joblib appears at 0 wagtail production sites at the pinned SHA (git grep sum = 0). Catch must come from the call-receiver stage on the unattested _jl.Parallel/_jl.delayed callees, not the import stage."
+  host_file: wagtail/contrib/search_promotions/models.py
+  host_inject_at_line: 75
+- id: foreign_api_postgres_search_1
+  file: breaks/break_foreign_api_postgres_search.py
+  category: foreign_api
+  hunk_start_line: 15
+  hunk_end_line: 40
+  difficulty: hard
+  rationale: "from django.contrib.postgres.search import SearchVector, SearchRank, SearchQuery, TrigramSimilarity build raw full-text ranking, bypassing wagtail's search backend (get_search_backend) — MASKED: the import's top-level module is `django` (heavily attested), so the import stage does NOT fire; the foreign symbols are the 0-usage callees SearchVector/SearchRank/TrigramSimilarity (git grep sum = 0; the only `SearchQuery` hits are `BaseSearchQueryCompiler` in a test file). Catch, if any, must come from the call-receiver stage on the bare unattested search expressions. Genuinely-hard attested-root submodule."
+  host_file: wagtail/api/v2/views.py
+  host_inject_at_line: 635
+- id: foreign_api_gis_1
+  file: breaks/break_foreign_api_gis.py
+  category: foreign_api
+  hunk_start_line: 14
+  hunk_end_line: 29
+  difficulty: hard
+  rationale: "from django.contrib.gis.geos import GEOSGeometry, Point + from django.contrib.gis.measure import Distance geolocate sites — MASKED: the import's top-level module is `django` (attested), so the import stage does NOT fire; the foreign symbols are the 0-usage callees GEOSGeometry/Point/Distance (`contrib.gis`/`GEOSGeometry`/`Distance` git grep sum = 0). Catch, if any, must come from the call-receiver stage on the bare unattested geometry callees. Genuinely-hard attested-root submodule."
+  host_file: wagtail/models/sites.py
+  host_inject_at_line: 65
+- id: foreign_api_gspread_1
+  file: breaks/break_foreign_api_gspread.py
+  category: foreign_api
+  hunk_start_line: 14
+  hunk_end_line: 25
+  difficulty: hard
+  rationale: "import gspread as sheets exports the audit log to Google Sheets — MASKED on two axes: (1) the import is ALIASED so the import stage does not capture it; (2) every reached leaf collides with an attested repo method — sheets.open (`.open` attested 83x), tab.get (`.get` attested 5529x), tab.update (`.update` attested 294x) short-circuit call-receiver's method-attested check, and tab.append_row rides a local receiver. gspread appears at 0 wagtail production sites at the pinned SHA (git grep sum = 0). Genuinely-hard method-name collision; expected to MISS."
+  host_file: wagtail/log_actions.py
+  host_inject_at_line: 69
+- id: foreign_concurrency_trio_1
+  file: breaks/break_foreign_concurrency_trio.py
+  category: foreign_concurrency
+  hunk_start_line: 14
+  hunk_end_line: 29
+  difficulty: hard
+  rationale: "import trio as _trio drives an async batch-publish runtime — MASKED design: (1) the import is ALIASED so the import stage does not capture it; (2) the only reached foreign leaf is _trio.run, an attempted collision with the repo's `.run` (avoiding `.sleep`/nursery calls that name obviously-foreign leaves). trio appears at 0 wagtail production sites at the pinned SHA (`import trio`/`from trio` git grep sum = 0). Genuinely-hard method-name collision. FINDING: unlike `.get`/`.open`/`.update`, `.run` is NOT in wagtail's learned attested-method set (its 57 source hits sit in filtered files), so call-receiver still flags the foreign `_trio` namespace — this fixture CATCHES via call_receiver, the collision masking did not hold for this leaf."
+  host_file: wagtail/actions/publish_page_revision.py
+  host_inject_at_line: 20

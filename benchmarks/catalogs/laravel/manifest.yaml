@@ -7,6 +7,7 @@ categories:
 - naming_shape_break
 - foreign_import
 - foreign_api
+- foreign_concurrency
 injection_hosts:
 - pr: 0
   sha: 8ce2bbe12ef2b048405817b130901bc6f5884a4e
@@ -245,3 +246,203 @@ fixtures:
   difficulty: easy
   host_file: src/Illuminate/Http/Request.php
   host_inject_at_line: 273
+- id: laravel_foreign_amp_1
+  file: breaks/break_foreign_amp_1.php
+  category: foreign_concurrency
+  hunk_start_line: 19
+  hunk_end_line: 38
+  rationale: 'amphp/amp async futures (\Amp\async / \Amp\delay / \Amp\Future\await via
+    FQN). Verified at pinned SHA: amphp/amp absent from composer.json (require and require-dev)
+    and `\Amp\` = 0 grep hits in src/; the repo runs concurrent work through queue workers
+    and dispatched jobs, never a foreign async runtime. Explicit foreign namespace \Amp\.'
+  difficulty: easy
+  host_file: src/Illuminate/Queue/Worker.php
+  host_inject_at_line: 471
+- id: laravel_foreign_revolt_1
+  file: breaks/break_foreign_revolt_1.php
+  category: foreign_concurrency
+  hunk_start_line: 18
+  hunk_end_line: 32
+  rationale: 'revolt/event-loop fiber scheduler (\Revolt\EventLoop::repeat / ::run via
+    FQN). Verified at pinned SHA: revolt/event-loop absent from composer.json (require
+    and require-dev) and `\Revolt\` = 0 grep hits in src/; scheduling runs on cron expressions
+    (dragonmantank/cron-expression) over Schedule events, never a foreign event loop.'
+  difficulty: easy
+  host_file: src/Illuminate/Console/Scheduling/Schedule.php
+  host_inject_at_line: 367
+- id: laravel_foreign_ampparallel_1
+  file: breaks/break_foreign_ampparallel_1.php
+  category: foreign_concurrency
+  hunk_start_line: 23
+  hunk_end_line: 42
+  rationale: 'amphp/parallel worker pool (DefaultWorkerPool reached by short name, driven
+    through a receiver variable rather than an FQN call). Verified at pinned SHA: amphp/parallel
+    absent from composer.json (require and require-dev) and `Amp\Parallel` = 0 grep hits
+    in src/; the repo parallelises through queue workers, never a foreign worker pool.
+    Medium: the tell is a bare unattested callee (new DefaultWorkerPool), not an explicit
+    namespace.'
+  difficulty: medium
+  host_file: src/Illuminate/Bus/Dispatcher.php
+  host_inject_at_line: 125
+- id: laravel_foreign_sentry_1
+  file: breaks/break_foreign_sentry_1.php
+  category: foreign_import
+  hunk_start_line: 19
+  hunk_end_line: 33
+  rationale: 'sentry/sentry monitoring SDK (\Sentry\init / \Sentry\captureException via
+    FQN). Verified at pinned SHA: sentry/sentry absent from composer.json (require and
+    require-dev) and `\Sentry\` = 0 grep hits in src/; the repo reports failures through
+    its own exception handler and the PSR-3 logger (psr/log), never a foreign SDK. Explicit
+    foreign namespace \Sentry\.'
+  difficulty: easy
+  host_file: src/Illuminate/Http/Client/Factory.php
+  host_inject_at_line: 262
+- id: laravel_foreign_phpmailer_1
+  file: breaks/break_foreign_phpmailer_1.php
+  category: foreign_import
+  hunk_start_line: 19
+  hunk_end_line: 37
+  rationale: 'phpmailer/phpmailer direct SMTP client (new \PHPMailer\PHPMailer\PHPMailer
+    via FQN). Verified at pinned SHA: phpmailer/phpmailer absent from composer.json (require
+    and require-dev) and `\PHPMailer\` = 0 grep hits in src/; the repo sends mail through
+    the Symfony Mailer transport it already depends on (symfony/mailer). Explicit foreign
+    namespace \PHPMailer\.'
+  difficulty: easy
+  host_file: src/Illuminate/Mail/Mailer.php
+  host_inject_at_line: 185
+- id: laravel_foreign_elasticsearch_1
+  file: breaks/break_foreign_elasticsearch_1.php
+  category: foreign_import
+  hunk_start_line: 32
+  hunk_end_line: 50
+  rationale: 'elasticsearch/elasticsearch index writes (ClientBuilder reached by short
+    name via a receiver variable). Verified at pinned SHA: elasticsearch/elasticsearch
+    absent from composer.json (require and require-dev) and `Elasticsearch\ClientBuilder`
+    = 0 grep hits in src/; the repo queries exclusively through the SQL query builder and
+    Eloquent. Medium: the tell is a bare unattested callee (new ClientBuilder), not an
+    explicit namespace.'
+  difficulty: medium
+  host_file: src/Illuminate/Database/Connection.php
+  host_inject_at_line: 533
+- id: laravel_foreign_googlecloud_1
+  file: breaks/break_foreign_googlecloud_1.php
+  category: foreign_import
+  hunk_start_line: 21
+  hunk_end_line: 38
+  rationale: 'google/cloud-storage bucket uploads (StorageClient reached by short name
+    via a receiver variable). Verified at pinned SHA: google/cloud-storage absent from
+    composer.json (require and require-dev) and `Google\Cloud\Storage` = 0 grep hits in
+    src/; the repo stores files through the Flysystem-backed filesystem it already depends
+    on (league/flysystem). Medium: the tell is a bare unattested callee (new StorageClient).'
+  difficulty: medium
+  host_file: src/Illuminate/Http/Client/Factory.php
+  host_inject_at_line: 262
+- id: laravel_foreign_intervention_1
+  file: breaks/break_foreign_intervention_1.php
+  category: foreign_api
+  hunk_start_line: 19
+  hunk_end_line: 35
+  rationale: 'intervention/image manipulation (\Intervention\Image\ImageManager::gd via
+    FQN). Verified at pinned SHA: intervention/image absent from composer.json (require
+    and require-dev) and `\Intervention\` = 0 grep hits in src/; the repo has no image
+    pipeline of its own and never reaches a foreign imaging library. Explicit foreign
+    namespace \Intervention\.'
+  difficulty: easy
+  host_file: src/Illuminate/View/Factory.php
+  host_inject_at_line: 30
+- id: laravel_foreign_money_1
+  file: breaks/break_foreign_money_1.php
+  category: foreign_api
+  hunk_start_line: 19
+  hunk_end_line: 35
+  rationale: 'moneyphp/money value objects (new \Money\Money / new \Money\Currency via
+    FQN). Verified at pinned SHA: moneyphp/money absent from composer.json (require and
+    require-dev) and `\Money\` = 0 grep hits in src/; the repo has no money value type
+    and models amounts with brick/math and plain scalars. Explicit foreign namespace \Money\.'
+  difficulty: easy
+  host_file: src/Illuminate/Cache/Repository.php
+  host_inject_at_line: 432
+- id: laravel_foreign_phpseclib_1
+  file: breaks/break_foreign_phpseclib_1.php
+  category: foreign_api
+  hunk_start_line: 23
+  hunk_end_line: 38
+  rationale: 'phpseclib3 RSA signing (RSA reached by short name; RSA::createKey static
+    call whose leaf is non-attested). Verified at pinned SHA: phpseclib/phpseclib absent
+    from composer.json (require and require-dev) and `phpseclib3` = 0 grep hits in src/;
+    the repo signs via its own Encrypter and the ext-openssl primitives it already depends
+    on. Medium: the tell is an unattested foreign class (RSA), not an explicit namespace.'
+  difficulty: medium
+  host_file: src/Illuminate/Http/Request.php
+  host_inject_at_line: 273
+- id: laravel_foreign_phpparser_1
+  file: breaks/break_foreign_phpparser_1.php
+  category: foreign_api
+  hunk_start_line: 21
+  hunk_end_line: 36
+  rationale: 'nikic/php-parser AST inspection (ParserFactory reached by short name via
+    a receiver variable). Verified at pinned SHA: nikic/php-parser absent from composer.json
+    (require and require-dev) and `PhpParser\` = 0 grep hits in src/; the repo compiles
+    templates through its own Blade compiler and never parses PHP into an AST. Medium:
+    the tell is a bare unattested callee (new ParserFactory), not an explicit namespace.'
+  difficulty: medium
+  host_file: src/Illuminate/View/Factory.php
+  host_inject_at_line: 30
+- id: laravel_foreign_ramseycollection_1
+  file: breaks/break_foreign_ramseycollection_1.php
+  category: foreign_api
+  hunk_start_line: 32
+  hunk_end_line: 47
+  rationale: 'ramsey/collection typed collection (foreign class named Collection). Verified
+    at pinned SHA: ramsey/collection absent from composer.json (require and require-dev)
+    and `Ramsey\Collection` = 0 grep hits in src/ (only ramsey/uuid present). HARD: the
+    foreign short name Collection collides with the attested Illuminate\Support\Collection
+    (2 class definitions, 43 static-call sites), so the foreign construction is masked
+    behind a repo-owned type name and no foreign namespace is visible in the call graph.'
+  difficulty: hard
+  host_file: src/Illuminate/Database/Connection.php
+  host_inject_at_line: 533
+- id: laravel_foreign_laminas_1
+  file: breaks/break_foreign_laminas_1.php
+  category: foreign_api
+  hunk_start_line: 20
+  hunk_end_line: 36
+  rationale: 'laminas/laminas-diactoros PSR-7 response (foreign class named Response).
+    Verified at pinned SHA: laminas/laminas-diactoros absent from composer.json (require
+    and require-dev) and `Laminas\` = 0 grep hits in src/. HARD: the foreign short name
+    Response collides with the attested Illuminate\Http\Response (8 class definitions,
+    13 static-call sites), so the foreign PSR-7 object is masked behind a repo-owned type
+    name; the repo builds responses through its own Response over Symfony HttpFoundation.'
+  difficulty: hard
+  host_file: src/Illuminate/Http/Request.php
+  host_inject_at_line: 273
+- id: laravel_foreign_doctrinedbal_1
+  file: breaks/break_foreign_doctrinedbal_1.php
+  category: foreign_api
+  hunk_start_line: 24
+  hunk_end_line: 38
+  rationale: 'doctrine/dbal raw connection (Connection type reached purely through a receiver
+    variable; leaf methods executeQuery/fetchAllAssociative). Verified at pinned SHA: doctrine/dbal
+    absent from composer.json (require and require-dev) and `Doctrine\DBAL` = 0 grep hits
+    in src/ (only doctrine/inflector present). HARD: the foreign dependency lives only
+    in the use import and the type hint Connection, which collides with the attested Illuminate\Database\Connection
+    (10 class definitions); every call is on a local receiver, so no foreign symbol appears
+    in the call graph.'
+  difficulty: hard
+  host_file: src/Illuminate/Database/Connection.php
+  host_inject_at_line: 533
+- id: laravel_foreign_leaguecontainer_1
+  file: breaks/break_foreign_leaguecontainer_1.php
+  category: foreign_api
+  hunk_start_line: 21
+  hunk_end_line: 35
+  rationale: 'league/container standalone container (foreign class named Container; leaf
+    methods add/get). Verified at pinned SHA: league/container absent from composer.json
+    (require and require-dev) and `League\Container` = 0 grep hits in src/ (only league/commonmark,
+    flysystem and uri present). HARD: the foreign short name Container collides with the
+    attested Illuminate\Container\Container (2 class definitions, 48 static-call sites)
+    and its leaf methods add/get are attested repo methods, so the foreign container is
+    fully masked behind repo-owned vocabulary.'
+  difficulty: hard
+  host_file: src/Illuminate/Cache/Repository.php
+  host_inject_at_line: 432

@@ -7,6 +7,7 @@ categories:
 - naming_shape_break
 - foreign_import
 - foreign_api
+- foreign_concurrency
 injection_hosts:
 - pr: 0
   sha: 5312fedc7b82bb1a83111145ea192d06fd04aa27
@@ -245,3 +246,261 @@ fixtures:
   difficulty: easy
   host_file: guava/src/com/google/common/base/Strings.java
   host_inject_at_line: 105
+- id: foreign_snakeyaml_1
+  file: breaks/break_foreign_snakeyaml_1.java
+  category: foreign_import
+  hunk_start_line: 19
+  hunk_end_line: 22
+  rationale: 'import org.yaml.snakeyaml.Yaml + new Yaml().load(content) inside the
+    hunk. Verified 0-usage at pinned SHA 5312fedc: git grep org.yaml.snakeyaml over
+    all *.java returns 0 files, and snakeyaml is absent from both the parent pom and
+    guava/pom.xml dependency lists (deps are failureaccess, listenablefuture, jspecify,
+    error_prone_annotations, j2objc-annotations); the repo reads structured input
+    through its own Splitter/CharStreams, never a foreign YAML parser. EASY: explicit
+    foreign import plus a bare foreign constructor (new Yaml).'
+  difficulty: easy
+  host_file: guava/src/com/google/common/io/CharStreams.java
+  host_inject_at_line: 180
+- id: foreign_commonsio_1
+  file: breaks/break_foreign_commonsio_1.java
+  category: foreign_import
+  hunk_start_line: 19
+  hunk_end_line: 21
+  rationale: 'import org.apache.commons.io.IOUtils + IOUtils.toString inside the hunk.
+    Verified 0-usage at pinned SHA 5312fedc: git grep org.apache.commons.io over all
+    *.java returns 0 files, and commons-io is absent from the pom dependency lists;
+    the repo drains streams through its own ByteStreams/CharStreams. EASY: explicit
+    foreign import plus a foreign static call. Distinct artifact from commons-lang3.'
+  difficulty: easy
+  host_file: guava/src/com/google/common/io/ByteStreams.java
+  host_inject_at_line: 400
+- id: foreign_jsoup_1
+  file: breaks/break_foreign_jsoup_1.java
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 18
+  rationale: 'import org.jsoup.Jsoup + Jsoup.parse(html).text() inside the hunk. Verified
+    0-usage at pinned SHA 5312fedc: git grep org.jsoup over all *.java returns 0 files
+    and jsoup is absent from the pom dependency lists; guava has no HTML parser and
+    reduces text through its own CharMatcher. EASY: the foreign import carries the
+    tell even though the leaf method parse is attested.'
+  difficulty: easy
+  host_file: guava/src/com/google/common/base/CharMatcher.java
+  host_inject_at_line: 900
+- id: foreign_hikari_1
+  file: breaks/break_foreign_hikari_1.java
+  category: foreign_import
+  hunk_start_line: 18
+  hunk_end_line: 22
+  rationale: 'import com.zaxxer.hikari.HikariDataSource + new HikariDataSource().getConnection()
+    inside the hunk. Verified 0-usage at pinned SHA 5312fedc: git grep com.zaxxer.hikari
+    over all *.java returns 0 files and HikariCP is absent from the pom dependency
+    lists; guava has no database layer and opens no connection pool. EASY: explicit
+    foreign import plus a bare foreign constructor.'
+  difficulty: easy
+  host_file: guava/src/com/google/common/io/Resources.java
+  host_inject_at_line: 120
+- id: foreign_log4j2_1
+  file: breaks/break_foreign_log4j2_1.java
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 20
+  rationale: 'import org.apache.logging.log4j.LogManager/Logger + LogManager.getLogger
+    inside the hunk. Verified 0-usage at pinned SHA 5312fedc: git grep org.apache.logging.log4j
+    over all *.java returns 0 files and log4j2 is absent from the pom dependency lists;
+    the cache package logs through java.util.logging, never a foreign logger. EASY:
+    explicit foreign import (distinct from the slf4j fixture).'
+  difficulty: easy
+  host_file: guava/src/com/google/common/cache/LocalCache.java
+  host_inject_at_line: 2500
+- id: foreign_rxjava_1
+  file: breaks/break_foreign_rxjava_1.java
+  category: foreign_concurrency
+  hunk_start_line: 18
+  hunk_end_line: 20
+  rationale: 'import io.reactivex.rxjava3.core.Flowable + Flowable.fromIterable(items).forEach
+    inside the hunk. Verified 0-usage at pinned SHA 5312fedc: git grep io.reactivex.rxjava3
+    (and io.reactivex) over all *.java returns 0 files and RxJava is absent from the
+    pom dependency lists; guava streams work through ListenableFuture, never a foreign
+    reactive runtime. EASY: explicit foreign import plus a foreign static factory
+    (Flowable.fromIterable, leaf 0-usage).'
+  difficulty: easy
+  host_file: guava/src/com/google/common/util/concurrent/Uninterruptibles.java
+  host_inject_at_line: 200
+- id: foreign_netty_1
+  file: breaks/break_foreign_netty_1.java
+  category: foreign_concurrency
+  hunk_start_line: 17
+  hunk_end_line: 19
+  rationale: 'import io.netty.channel.nio.NioEventLoopGroup + new NioEventLoopGroup(threads)
+    inside the hunk. Verified 0-usage at pinned SHA 5312fedc: git grep io.netty over
+    all *.java returns 0 files and Netty is absent from the pom dependency lists;
+    guava provisions executors through its own factories, never a foreign NIO event
+    loop. EASY: explicit foreign import plus a bare foreign constructor.'
+  difficulty: easy
+  host_file: guava/src/com/google/common/util/concurrent/MoreExecutors.java
+  host_inject_at_line: 300
+- id: foreign_codec_1
+  file: breaks/break_foreign_codec_1.java
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 20
+  rationale: 'Submodule import org.apache.commons.codec.digest.DigestUtils + DigestUtils.sha256Hex(bytes)
+    inside the hunk. Verified 0-usage at pinned SHA 5312fedc: git grep org.apache.commons.codec
+    over all *.java returns 0 files and commons-codec is absent from the pom dependency
+    lists; guava computes digests through its own Hashing/HashFunction API. MEDIUM:
+    a deep submodule import stresses module resolution; the dotted callee DigestUtils.sha256Hex
+    (leaf 0-usage) and the import both carry the tell.'
+  difficulty: medium
+  host_file: guava/src/com/google/common/hash/Hashing.java
+  host_inject_at_line: 400
+- id: foreign_reactor_1
+  file: breaks/break_foreign_reactor_1.java
+  category: foreign_concurrency
+  hunk_start_line: 17
+  hunk_end_line: 19
+  rationale: 'Wildcard-family import reactor.core.publisher.Flux + Flux.fromIterable(source).collectList().block()
+    inside the hunk. Verified 0-usage at pinned SHA 5312fedc: git grep reactor.core
+    over all *.java returns 0 files and Project Reactor is absent from the pom dependency
+    lists; guava composes async work through ListenableFuture. MEDIUM: the foreign
+    API is reached through a chained pipeline; Flux.fromIterable (leaf 0-usage) and
+    the import carry the tell.'
+  difficulty: medium
+  host_file: guava/src/com/google/common/util/concurrent/Futures.java
+  host_inject_at_line: 700
+- id: foreign_jedis_1
+  file: breaks/break_foreign_jedis_1.java
+  category: foreign_api
+  hunk_start_line: 29
+  hunk_end_line: 32
+  rationale: 'new Jedis(host, port) with jedis.get(key) through a receiver variable;
+    the import redis.clients.jedis.Jedis sits ABOVE in a decoy region, OUTSIDE the
+    scored hunk. Verified 0-usage at pinned SHA 5312fedc: git grep redis.clients.jedis
+    over all *.java returns 0 files and Jedis is absent from the pom dependency lists;
+    guava keeps no external cache and reaches for no network client. MEDIUM: the tell
+    is a bare foreign constructor plus a file-level foreign import outside the hunk.'
+  difficulty: medium
+  host_file: guava/src/com/google/common/collect/Iterables.java
+  host_inject_at_line: 550
+- id: foreign_disruptor_1
+  file: breaks/break_foreign_disruptor_1.java
+  category: foreign_concurrency
+  hunk_start_line: 24
+  hunk_end_line: 26
+  rationale: 'Foreign type Disruptor<Runnable> as a parameter with disruptor.start()
+    through a receiver variable; the import com.lmax.disruptor.dsl.Disruptor sits ABOVE
+    in a decoy region, OUTSIDE the scored hunk. Verified 0-usage at pinned SHA 5312fedc:
+    git grep com.lmax.disruptor over all *.java returns 0 files and the LMAX Disruptor
+    is absent from the pom dependency lists; guava hands work to executors and
+    ListenableFuture, never a foreign ring-buffer runtime. MEDIUM: the local receiver
+    masks the call (leaf start is attested); the file-level foreign import and the
+    Disruptor type reference carry the tell.'
+  difficulty: medium
+  host_file: guava/src/com/google/common/util/concurrent/MoreExecutors.java
+  host_inject_at_line: 520
+- id: foreign_httpclient_1
+  file: breaks/break_foreign_httpclient_1.java
+  category: foreign_api
+  hunk_start_line: 22
+  hunk_end_line: 26
+  rationale: 'new HttpGet(url) with request.setHeader through a receiver variable;
+    the import org.apache.http.client.methods.HttpGet sits ABOVE in a decoy region,
+    OUTSIDE the scored hunk. Verified 0-usage at pinned SHA 5312fedc: git grep org.apache.http
+    over all *.java returns 0 files and Apache HttpClient is absent from the pom dependency
+    lists; guava ships no HTTP client. MEDIUM: bare foreign constructor plus a file-level
+    foreign import outside the hunk.'
+  difficulty: medium
+  host_file: guava/src/com/google/common/net/HostAndPort.java
+  host_inject_at_line: 180
+- id: foreign_hazelcast_1
+  file: breaks/break_foreign_hazelcast_1.java
+  category: foreign_concurrency
+  hunk_start_line: 18
+  hunk_end_line: 21
+  rationale: 'import com.hazelcast.core.Hazelcast/HazelcastInstance + Hazelcast.newHazelcastInstance()
+    with a receiver-variable map lookup inside the hunk. Verified 0-usage at pinned
+    SHA 5312fedc: git grep com.hazelcast over all *.java returns 0 files and Hazelcast
+    is absent from the pom dependency lists; guava''s concurrent maps are in-process,
+    never a foreign clustered data grid. MEDIUM: the foreign instance is reached through
+    a static factory (Hazelcast.newHazelcastInstance, leaf 0-usage) then a local
+    receiver; the dotted callee and imports carry the tell.'
+  difficulty: medium
+  host_file: guava/src/com/google/common/util/concurrent/Futures.java
+  host_inject_at_line: 800
+- id: foreign_guice_1
+  file: breaks/break_foreign_guice_1.java
+  category: foreign_api
+  hunk_start_line: 18
+  hunk_end_line: 20
+  rationale: 'Fully-qualified com.google.inject.Guice.createInjector(module).getInstance(type),
+    NO import. Verified 0-usage at pinned SHA 5312fedc: git grep com.google.inject
+    over all *.java returns 0 files and Guice is absent from the pom dependency lists.
+    HARD (honest miss candidate): the root namespace com.google is guava''s own —
+    the repo makes fully-qualified com.google.common.* calls (e.g. com.google.common.base.Optional.of),
+    so the call-receiver stage treats com as an attested namespace; and the leaf getInstance
+    collides with an attested method (110 call sites). With no import either, both
+    tells are masked.'
+  difficulty: hard
+  host_file: guava/src/com/google/common/collect/Lists.java
+  host_inject_at_line: 600
+- id: foreign_protobuf_1
+  file: breaks/break_foreign_protobuf_1.java
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 19
+  rationale: 'Fully-qualified com.google.protobuf.TextFormat.printer().printToString(message),
+    NO import. Verified 0-usage at pinned SHA 5312fedc: git grep com.google.protobuf
+    over all *.java returns 0 files and protobuf is absent from the pom dependency
+    lists. HARD (honest miss candidate): the root namespace com.google is guava''s
+    own attested namespace (fully-qualified com.google.common.* calls exist), so the
+    fully-qualified foreign call is not seen as reaching a foreign module; no import
+    to flag either.'
+  difficulty: hard
+  host_file: guava/src/com/google/common/io/ByteStreams.java
+  host_inject_at_line: 500
+- id: foreign_collections4_1
+  file: breaks/break_foreign_collections4_1.java
+  category: foreign_api
+  hunk_start_line: 19
+  hunk_end_line: 21
+  rationale: 'Fully-qualified org.apache.commons.collections4.CollectionUtils.get(items,
+    index), NO import. Verified 0-usage at pinned SHA 5312fedc: git grep org.apache.commons.collections4
+    over all *.java returns 0 files, CollectionUtils is not a guava-declared type,
+    and commons-collections4 is absent from the pom dependency lists. HARD (honest
+    miss candidate): the leaf method get collides with an attested repo method (4891
+    call sites), so the call-receiver stage treats the foreign call as in-voice; with
+    no import there is nothing else to flag. This is the textbook leaf-collision case.'
+  difficulty: hard
+  host_file: guava/src/com/google/common/collect/Sets.java
+  host_inject_at_line: 1100
+- id: foreign_jctools_1
+  file: breaks/break_foreign_jctools_1.java
+  category: foreign_concurrency
+  hunk_start_line: 16
+  hunk_end_line: 23
+  rationale: 'org.jctools.queues.MpscArrayQueue reached only through a variable-type
+    declaration and a cast; every call goes through a local receiver (queue.poll,
+    queue.add). NO import. Verified 0-usage at pinned SHA 5312fedc: git grep org.jctools
+    over all *.java returns 0 files and JCTools is absent from the pom dependency lists;
+    guava has no lock-free-queue dependency. HARD (honest miss candidate): the foreign
+    type surfaces only in type/cast position (never as a callee) and the local receiver''s
+    leaf methods poll/add are attested, so no foreign callee is visible.'
+  difficulty: hard
+  host_file: guava/src/com/google/common/util/concurrent/Uninterruptibles.java
+  host_inject_at_line: 400
+- id: foreign_quartz_1
+  file: breaks/break_foreign_quartz_1.java
+  category: foreign_concurrency
+  hunk_start_line: 17
+  hunk_end_line: 20
+  rationale: 'org.quartz.Scheduler reached only through a cast, with scheduler.start()
+    through a local receiver. NO import. Verified 0-usage at pinned SHA 5312fedc: git
+    grep org.quartz over all *.java returns 0 files and Quartz is absent from the pom
+    dependency lists; guava schedules through its own AbstractScheduledService, never
+    a foreign job scheduler. HARD (honest miss candidate): the foreign type appears
+    only in a fully-qualified cast (no bare Scheduler, which guava also declares) and
+    the local receiver''s leaf method start is attested (262 sites), so no foreign
+    callee is visible and there is no import.'
+  difficulty: hard
+  host_file: guava/src/com/google/common/util/concurrent/MoreExecutors.java
+  host_inject_at_line: 700

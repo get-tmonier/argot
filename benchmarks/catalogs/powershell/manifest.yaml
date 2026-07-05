@@ -7,6 +7,7 @@ categories:
 - naming_shape_break
 - foreign_import
 - foreign_api
+- foreign_concurrency
 injection_hosts:
 - pr: 0
   sha: 36cd02b333d7cecb89d5d336c9a798287fe4736b
@@ -201,3 +202,165 @@ fixtures:
   difficulty: medium
   host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/ConvertToJsonCommand.cs
   host_inject_at_line: 44
+- id: ps_foreign_flurl_1
+  file: breaks/break_flurl_1.cs
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 18
+  rationale: 'Flurl.Http fluent HTTP client (foreign `using Flurl.Http` + endpoint.GetStringAsync) fetches the REST payload; Flurl is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — the WebCmdlet tree issues every request through HttpClient/HttpRequestMessage. Caught by the import stage (foreign using token Flurl.Http).'
+  difficulty: easy
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/Common/InvokeRestMethodCommand.Common.cs
+  host_inject_at_line: 170
+- id: ps_foreign_yamldotnet_1
+  file: breaks/break_yamldotnet_1.cs
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 19
+  rationale: 'YamlDotNet serializer (foreign `using YamlDotNet.Serialization` + new SerializerBuilder) emits a YAML rendering; YamlDotNet is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — structured output in this file is Newtonsoft.Json only. Caught by the import stage (foreign using token YamlDotNet.Serialization; SerializerBuilder also 0-usage).'
+  difficulty: easy
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/JsonObject.cs
+  host_inject_at_line: 246
+- id: ps_foreign_nodatime_1
+  file: breaks/break_nodatime_1.cs
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 18
+  rationale: 'NodaTime clock (foreign `using NodaTime` + SystemClock.Instance.GetCurrentInstant) stamps the event instant; NodaTime is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — time handling here uses System.DateTime/DateTimeOffset. Caught by the import stage (foreign using token NodaTime); SystemClock namespace also foreign.'
+  difficulty: easy
+  host_file: src/System.Management.Automation/engine/Utils.cs
+  host_inject_at_line: 496
+- id: ps_foreign_messagepack_1
+  file: breaks/break_messagepack_1.cs
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 18
+  rationale: 'MessagePack binary serializer (foreign `using MessagePack` + MessagePackSerializer.Serialize) replaces the JSON path; MessagePack is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — conversion here goes through Newtonsoft.Json. Caught by the import stage (foreign using token MessagePack).'
+  difficulty: easy
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/ConvertToJsonCommand.cs
+  host_inject_at_line: 44
+- id: ps_foreign_refit_1
+  file: breaks/break_refit_1.cs
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 18
+  rationale: 'Refit typed REST client (foreign `using Refit` + RestService.For) generates a client from an interface; Refit is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — requests here are built on HttpClient by hand. Caught by the import stage (foreign using token Refit).'
+  difficulty: easy
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/Common/WebRequestPSCmdlet.Common.cs
+  host_inject_at_line: 719
+- id: ps_foreign_scriban_1
+  file: breaks/break_scriban_1.cs
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 19
+  rationale: 'Scriban template engine (foreign `using Scriban` + Template.Parse/Render) renders the help summary; Scriban is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — help text here is composed with StringUtil.Format. Caught by the import stage (foreign using token Scriban).'
+  difficulty: easy
+  host_file: src/System.Management.Automation/help/UpdatableHelpSystem.cs
+  host_inject_at_line: 481
+- id: ps_foreign_litedb_1
+  file: breaks/break_litedb_1.cs
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 20
+  rationale: 'LiteDB embedded document store (foreign `using LiteDB` + new LiteDatabase) persists the analysis cache; LiteDB is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — this cache lives in a ConcurrentDictionary. Caught by the import stage (foreign using token LiteDB); LiteDatabase type also 0-usage.'
+  difficulty: easy
+  host_file: src/System.Management.Automation/engine/Modules/AnalysisCache.cs
+  host_inject_at_line: 299
+- id: ps_foreign_redis_1
+  file: breaks/break_redis_1.cs
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 24
+  rationale: 'StackExchange.Redis distributed cache (foreign `using StackExchange.Redis` + ConnectionMultiplexer/GetDatabase/StringGet) backs the analysis lookups; StackExchange.Redis is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — caching is a local ConcurrentDictionary. Medium: the cache is reached through a receiver variable and the leaf .Connect collides with attested repo callees (24 sites), so call_receiver''s leaf gate is masked; caught by the import stage on the foreign using token StackExchange.Redis.'
+  difficulty: medium
+  host_file: src/System.Management.Automation/engine/Modules/AnalysisCache.cs
+  host_inject_at_line: 299
+- id: ps_foreign_mongodb_1
+  file: breaks/break_mongodb_1.cs
+  category: foreign_api
+  hunk_start_line: 28
+  hunk_end_line: 34
+  rationale: 'MongoDB.Driver document client (fully-qualified new MongoDB.Driver.MongoClient, then reached through a receiver variable) reads module settings; MongoDB.Driver is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — persistence here is plain ADO.NET. The foreign type construction (root MongoDB) fires call_receiver; the receiver-variable methods (GetDatabase/CountDocuments) are masked.'
+  difficulty: medium
+  host_file: src/System.Management.Automation/engine/Utils.cs
+  host_inject_at_line: 496
+- id: ps_foreign_npgsql_1
+  file: breaks/break_npgsql_1.cs
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 23
+  rationale: 'Npgsql PostgreSQL client (foreign `using Npgsql` + new NpgsqlConnection, then receiver-variable OpenAsync/CreateCommand) loads persisted variables; Npgsql is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — this cmdlet reads variables from session state, never a database. Medium: the connection is reached through a receiver variable and the leaf .OpenAsync collides with attested callees (20 sites), so call_receiver''s leaf gate is masked; caught by the import stage on the foreign using token Npgsql (NpgsqlConnection type also 0-usage).'
+  difficulty: medium
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/Var.cs
+  host_inject_at_line: 416
+- id: ps_foreign_sharpziplib_1
+  file: breaks/break_sharpziplib_1.cs
+  category: foreign_api
+  hunk_start_line: 14
+  hunk_end_line: 20
+  rationale: 'SharpZipLib archive writer (submodule `using ICSharpCode.SharpZipLib.Zip` + new ZipOutputStream/ZipEntry) repackages the help bundle; SharpZipLib is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — archive handling uses System.IO.Compression. Caught by the import stage (foreign submodule using token ICSharpCode.SharpZipLib.Zip); ZipOutputStream/ZipEntry also 0-usage.'
+  difficulty: medium
+  host_file: src/System.Management.Automation/help/UpdatableHelpSystem.cs
+  host_inject_at_line: 481
+- id: ps_foreign_grpc_1
+  file: breaks/break_grpc_1.cs
+  category: foreign_api
+  hunk_start_line: 14
+  hunk_end_line: 18
+  rationale: 'gRPC channel (aliased `using Rpc = Grpc.Core` + new Rpc.Channel/Rpc.ChannelCredentials) replaces the HTTP call; Grpc.Core is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — remote calls here go over HttpClient/HTTP. The alias LHS is dropped so the import stage sees the foreign target namespace Grpc.Core; the aliased receiver Rpc is also unattested.'
+  difficulty: medium
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/Common/InvokeRestMethodCommand.Common.cs
+  host_inject_at_line: 170
+- id: ps_foreign_nitoasyncex_1
+  file: breaks/break_nitoasyncex_1.cs
+  category: foreign_concurrency
+  hunk_start_line: 20
+  hunk_end_line: 29
+  rationale: 'Nito.AsyncEx AsyncLock (foreign `using Nito.AsyncEx` + new AsyncLock/LockAsync) serializes async event dispatch; Nito.AsyncEx is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — coordination uses lock/ThreadPool/events. Caught by the import stage (foreign using token Nito.AsyncEx); AsyncLock type also 0-usage.'
+  difficulty: medium
+  host_file: src/System.Management.Automation/engine/EventManager.cs
+  host_inject_at_line: 798
+- id: ps_foreign_quartz_1
+  file: breaks/break_quartz_1.cs
+  category: foreign_concurrency
+  hunk_start_line: 20
+  hunk_end_line: 24
+  rationale: 'Quartz.NET scheduler (fully-qualified new Quartz.Impl.StdSchedulerFactory().GetScheduler) drives throttled operations; Quartz is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — throttling is coordinated by the manager''s own queue. The foreign type construction (root Quartz) fires call_receiver via the unattested namespace.'
+  difficulty: medium
+  host_file: src/System.Management.Automation/engine/remoting/common/throttlemanager.cs
+  host_inject_at_line: 221
+- id: ps_foreign_dataflow_1
+  file: breaks/break_dataflow_1.cs
+  category: foreign_concurrency
+  hunk_start_line: 19
+  hunk_end_line: 29
+  rationale: 'TPL Dataflow ActionBlock (`using System.Threading.Tasks.Dataflow` + new ActionBlock, Post/Complete) pumps throttled operations; the Dataflow library is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — throttling uses the manager''s own queue. HARD: its namespace root is System (repo-attested) so the call_receiver namespace gate is blind; detectable only via the foreign import token System.Threading.Tasks.Dataflow (and the unattested short type ActionBlock).'
+  difficulty: hard
+  host_file: src/System.Management.Automation/engine/remoting/common/throttlemanager.cs
+  host_inject_at_line: 221
+- id: ps_foreign_reactive_1
+  file: breaks/break_reactive_1.cs
+  category: foreign_concurrency
+  hunk_start_line: 16
+  hunk_end_line: 22
+  rationale: 'System.Reactive (Rx.NET) reactive stream (fully-qualified System.Reactive.Linq.Observable.Interval + Subscribe, no using) drives a heartbeat instead of the plain event; System.Reactive is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — signalling uses C# events and Timer. HARD genuine miss: reached fully-qualified with NO using and its namespace root is System (repo-attested), so the import stage sees no foreign token and call_receiver''s namespace gate is blind; every other callee (List.Add, TimeSpan.FromSeconds, the local stream receiver) is attested/local.'
+  difficulty: hard
+  host_file: src/System.Management.Automation/engine/EventManager.cs
+  host_inject_at_line: 798
+- id: ps_foreign_msextcaching_1
+  file: breaks/break_msextcaching_1.cs
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 27
+  rationale: 'Microsoft.Extensions.Caching.Memory MemoryCache (fully-qualified new Microsoft.Extensions.Caching.Memory.MemoryCache, no using) backs the analysis cache; that package is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA (Microsoft.Extensions.Caching = 0 in *.cs and 0 PackageReference) — this cache is a ConcurrentDictionary. HARD genuine miss: reached fully-qualified with NO using and its namespace root is Microsoft (repo-attested via 4439 Microsoft.* callees), so no foreign import token appears and call_receiver''s namespace gate is blind; the receiver .TryGetValue is masked.'
+  difficulty: hard
+  host_file: src/System.Management.Automation/engine/Modules/AnalysisCache.cs
+  host_inject_at_line: 299
+- id: ps_foreign_hangfire_1
+  file: breaks/break_hangfire_1.cs
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 21
+  rationale: 'Hangfire background job client (fully-qualified new Hangfire.BackgroundJobClient, then receiver .Enqueue) hands process cleanup to a Hangfire server; Hangfire is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — work runs inline on the cmdlet thread. HARD: the leaf method Enqueue collides with attested repo callees (55 .Enqueue sites), so the fixture reaches Hangfire through its fully-qualified type (root Hangfire is foreign, firing call_receiver), not the masked leaf.'
+  difficulty: hard
+  host_file: src/Microsoft.PowerShell.Commands.Management/commands/management/Process.cs
+  host_inject_at_line: 792

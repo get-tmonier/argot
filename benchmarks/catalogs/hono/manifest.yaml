@@ -221,3 +221,156 @@ fixtures:
   difficulty: easy
   host_file: src/helper/cookie/index.ts
   host_inject_at_line: 70
+- id: hono_foreign_import_3
+  file: breaks/break_foreign_import_3.ts
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 14
+  rationale: "import { customAlphabet } from 'nanoid' at line 2 + customAlphabet()() id generation; 'nanoid' is 0-usage in the hono corpus at SHA fa2c74fe (git grep 0, absent from package.json) — the repo rolls its own ids / uses node:crypto. EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: src/utils/headers.ts
+  host_inject_at_line: 334
+- id: hono_foreign_import_4
+  file: breaks/break_foreign_import_4.ts
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 13
+  rationale: "import { load } from 'js-yaml' at line 2 + load() YAML config parsing; 'js-yaml' is 0-usage in the hono corpus at SHA fa2c74fe (git grep 0, absent from package.json) — the repo parses JSON only. EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: src/helper/css/common.ts
+  host_inject_at_line: 329
+- id: hono_foreign_api_3
+  file: breaks/break_foreign_api_3.ts
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 18
+  rationale: "import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3' at line 2 + new S3Client()/s3.send(new PutObjectCommand()); '@aws-sdk/client-s3' is 0-usage in the hono corpus at SHA fa2c74fe (git grep 0, absent from package.json) — the repo has no object-storage layer. EASY: explicit foreign import + foreign constructors."
+  difficulty: easy
+  host_file: src/middleware/language/language.ts
+  host_inject_at_line: 306
+- id: hono_foreign_api_4
+  file: breaks/break_foreign_api_4.ts
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 15
+  rationale: "import mysql from 'mysql2/promise' at line 2 + mysql.createPool()/pool.query() SQL; 'mysql2' is 0-usage in the hono corpus at SHA fa2c74fe (git grep 0, absent from package.json) — the repo has no database layer. EASY: explicit foreign import + foreign namespace call."
+  difficulty: easy
+  host_file: src/utils/accept.ts
+  host_inject_at_line: 267
+- id: hono_foreign_concurrency_3
+  file: breaks/break_foreign_concurrency_3.ts
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 17
+  rationale: "import pLimit from 'p-limit' at line 2 + pLimit(5) concurrency limiter; 'p-limit' is 0-usage in the hono corpus at SHA fa2c74fe (git grep 0, absent from package.json) — the repo uses plain async/await. EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: src/middleware/ip-restriction/index.ts
+  host_inject_at_line: 244
+- id: hono_foreign_concurrency_4
+  file: breaks/break_foreign_concurrency_4.ts
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 15
+  rationale: "import Piscina from 'piscina' at line 2 + new Piscina()/pool.run() worker-thread pool; 'piscina' is 0-usage in the hono corpus at SHA fa2c74fe (git grep 0, absent from package.json) — the repo runs everything on the request loop. EASY: explicit foreign import + foreign constructor."
+  difficulty: easy
+  host_file: src/utils/jwt/jws.ts
+  host_inject_at_line: 235
+- id: hono_foreign_api_5
+  file: breaks/break_foreign_api_5.ts
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 12
+  rationale: "winston.createLogger + new winston.transports.Console reached module-qualified with NO import in the hunk (only a hono type import); 'winston' is 0-usage in the hono corpus at SHA fa2c74fe (git grep 0, absent from package.json). MEDIUM: no foreign import to fire the import stage — the foreign 'winston' namespace (leaves createLogger/Console unattested) must be caught by call-receiver."
+  difficulty: medium
+  host_file: src/helper/proxy/index.ts
+  host_inject_at_line: 191
+- id: hono_foreign_api_6
+  file: breaks/break_foreign_api_6.ts
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 13
+  rationale: "mongoose.model + new mongoose.Schema reached module-qualified with NO import in the hunk (only a hono type import); 'mongoose' is 0-usage in the hono corpus at SHA fa2c74fe (git grep 0, absent from package.json) — the repo has no database layer. MEDIUM: no foreign import — the foreign 'mongoose' namespace (leaves model/Schema unattested) must be caught by call-receiver."
+  difficulty: medium
+  host_file: src/middleware/trailing-slash/index.ts
+  host_inject_at_line: 159
+- id: hono_foreign_concurrency_5
+  file: breaks/break_foreign_concurrency_5.ts
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 10
+  rationale: "new Bottleneck() rate-limiter constructed with NO import in the hunk (only a hono type import); 'bottleneck' is 0-usage in the hono corpus at SHA fa2c74fe (git grep 0, absent from package.json) — the repo uses plain async/await. MEDIUM: no foreign import — the single unattested foreign constructor Bottleneck must be caught by call-receiver (contribution alpha only, so borderline)."
+  difficulty: medium
+  host_file: src/middleware/combine/index.ts
+  host_inject_at_line: 166
+- id: hono_foreign_import_5
+  file: breaks/break_foreign_import_5.ts
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 13
+  rationale: "import { formatISO as isoStamp, subDays as minusDays } from 'date-fns' at line 2 (aliased) + isoStamp()/minusDays() report windows; 'date-fns' is 0-usage in the hono corpus at SHA fa2c74fe (git grep 0, absent from package.json) — the repo uses bare Date. MEDIUM: aliased import hides the callee names, but the foreign module specifier still fires the import stage."
+  difficulty: medium
+  host_file: src/utils/html.ts
+  host_inject_at_line: 183
+- id: hono_foreign_import_6
+  file: breaks/break_foreign_import_6.ts
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 13
+  rationale: "import groupBy from 'lodash/groupBy' at line 2 (submodule) + groupBy() aggregation; 'lodash' is 0-usage in the hono corpus at SHA fa2c74fe (git grep 0, absent from package.json) — the repo uses plain reduce/Map. MEDIUM: submodule import path, but the foreign module specifier still fires the import stage."
+  difficulty: medium
+  host_file: src/middleware/jwk/jwk.ts
+  host_inject_at_line: 184
+- id: hono_foreign_api_7
+  file: breaks/break_foreign_api_7.ts
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 8
+  rationale: "ky.get() foreign HTTP client reached through an ambient 'ky' singleton with NO import; 'ky' is 0-usage in the hono corpus at SHA fa2c74fe (no `from 'ky'`, absent from package.json; the repo uses global fetch). HARD: ky's leaf method .get collides with the repo's attested .get, so call-receiver's method-attested check masks the foreign namespace and the hunk carries no foreign import — a genuine foreign break that may MISS."
+  difficulty: hard
+  host_file: src/middleware/serve-static/index.ts
+  host_inject_at_line: 127
+- id: hono_foreign_api_8
+  file: breaks/break_foreign_api_8.ts
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 9
+  rationale: "jwt.sign()/jwt.verify() from jsonwebtoken reached through an ambient 'jwt' singleton with NO import; 'jsonwebtoken' is 0-usage in the hono corpus at SHA fa2c74fe (absent from package.json) — the repo ships its OWN JWT under src/utils/jwt. HARD: the leaf methods .sign/.verify collide with the repo's attested .sign/.verify, so call-receiver's method-attested check masks the foreign namespace and the hunk carries no foreign import — a genuine foreign break that may MISS."
+  difficulty: hard
+  host_file: src/middleware/body-limit/index.ts
+  host_inject_at_line: 126
+- id: hono_foreign_concurrency_6
+  file: breaks/break_foreign_concurrency_6.ts
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 8
+  rationale: "pool.run() on a tinypool worker pool reached through an ambient 'pool' singleton with NO import; 'tinypool' is 0-usage in the hono corpus at SHA fa2c74fe (absent from package.json) — the repo runs everything on the request loop. HARD: tinypool's leaf method .run collides with the repo's attested .run, so call-receiver's method-attested check masks the foreign namespace and the hunk carries no foreign import — a genuine foreign break that may MISS."
+  difficulty: hard
+  host_file: src/router/linear-router/router.ts
+  host_inject_at_line: 145
+- id: hono_foreign_concurrency_7
+  file: breaks/break_foreign_concurrency_7.ts
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 8
+  rationale: "queue.push() on a fastq work queue reached through an ambient 'queue' singleton with NO import; 'fastq' is 0-usage in the hono corpus at SHA fa2c74fe (absent from package.json) — the repo has no queue runtime. HARD: fastq's leaf method .push collides with the repo's attested .push, so call-receiver's method-attested check masks the foreign namespace and the hunk carries no foreign import — a genuine foreign break that may MISS."
+  difficulty: hard
+  host_file: src/helper/websocket/index.ts
+  host_inject_at_line: 141
+- id: hono_foreign_import_7
+  file: breaks/break_foreign_import_7.ts
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 13
+  rationale: "import slugify from 'slugify' at line 2 + slugify() slug generation; 'slugify' is 0-usage in the hono corpus at SHA fa2c74fe (git grep 0, absent from package.json) — the repo has no slug dependency. EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: src/utils/mime.ts
+  host_inject_at_line: 97
+- id: hono_foreign_api_9
+  file: breaks/break_foreign_api_9.ts
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 9
+  rationale: "pino() foreign logger factory reached with NO import in the hunk (only a hono type import); 'pino' is 0-usage in the hono corpus at SHA fa2c74fe (git grep 0, absent from package.json) — the repo has no logging dependency. MEDIUM: no foreign import — the unattested foreign factory callee pino must be caught by call-receiver."
+  difficulty: medium
+  host_file: src/utils/stream.ts
+  host_inject_at_line: 97

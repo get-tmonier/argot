@@ -6,6 +6,9 @@ categories:
 - curses
 - print_manual
 - termcolor
+- foreign_import
+- foreign_api
+- foreign_concurrency
 injection_hosts:
 - pr: 0
   sha: 46cebbb032f920eb096efbaf23cdc6fe9dd541f7
@@ -159,3 +162,129 @@ fixtures:
   difficulty: uncaught
   host_file: rich/pretty.py
   host_inject_at_line: 1017
+- id: foreign_import_loguru_1
+  file: breaks/break_foreign_import_loguru.py
+  category: foreign_import
+  hunk_start_line: 15
+  hunk_end_line: 22
+  difficulty: easy
+  rationale: "from loguru import logger + logger.add/bind/info/debug replace rich's own stdlib logging/Console render path — loguru appears at 0 rich production sites at the pinned SHA (git grep loguru over rich/ = 0; rich depends only on pygments/markdown-it-py/wcwidth). Foreign import is in-hunk; import stage catches the 0-usage top-level module."
+  host_file: rich/console.py
+  host_inject_at_line: 544
+- id: foreign_import_prettytable_1
+  file: breaks/break_foreign_import_prettytable.py
+  category: foreign_import
+  hunk_start_line: 19
+  hunk_end_line: 28
+  difficulty: easy
+  rationale: "from prettytable import PrettyTable builds tabular output instead of rich.table.Table — prettytable appears at 0 rich production sites at the pinned SHA (git grep prettytable over rich/ = 0). Foreign import is in-hunk; import stage catches the 0-usage module."
+  host_file: rich/box.py
+  host_inject_at_line: 10
+- id: foreign_api_requests_1
+  file: breaks/break_foreign_api_requests.py
+  category: foreign_api
+  hunk_start_line: 14
+  hunk_end_line: 21
+  difficulty: easy
+  rationale: "import requests + requests.get(...).json()/raise_for_status pull a palette from a remote HTTP service — requests appears at 0 rich production sites at the pinned SHA (git grep requests over rich/ = 0; rich renders locally, no HTTP dependency). Foreign import + qualified requests.* API are in-hunk."
+  host_file: rich/palette.py
+  host_inject_at_line: 11
+- id: foreign_api_numpy_1
+  file: breaks/break_foreign_api_numpy.py
+  category: foreign_api
+  hunk_start_line: 14
+  hunk_end_line: 21
+  difficulty: easy
+  rationale: "import numpy + numpy.array/sum/floor/astype compute bar-segment geometry — numpy appears at 0 rich production sites at the pinned SHA (git grep numpy over rich/ = 0; rich's Bar uses plain-python ratio math). Foreign import + qualified numpy.* API are in-hunk."
+  host_file: rich/bar.py
+  host_inject_at_line: 17
+- id: foreign_concurrency_joblib_1
+  file: breaks/break_foreign_concurrency_joblib.py
+  category: foreign_concurrency
+  hunk_start_line: 12
+  hunk_end_line: 19
+  difficulty: easy
+  rationale: "from joblib import Parallel, delayed fan renderables across worker processes — joblib appears at 0 rich production sites at the pinned SHA (git grep joblib over rich/ = 0; rich rendering is synchronous). Foreign concurrency import + Parallel/delayed API are in-hunk."
+  host_file: rich/containers.py
+  host_inject_at_line: 66
+- id: foreign_concurrency_anyio_1
+  file: breaks/break_foreign_concurrency_anyio.py
+  category: foreign_concurrency
+  hunk_start_line: 12
+  hunk_end_line: 25
+  difficulty: easy
+  rationale: "import anyio + anyio.create_task_group/start_soon/sleep run cell measurement on a foreign async runtime — anyio appears at 0 rich production sites at the pinned SHA (git grep anyio over rich/ = 0; rich has one internal async def and no async runtime dependency). Foreign concurrency import + anyio.* API are in-hunk."
+  host_file: rich/cells.py
+  host_inject_at_line: 299
+- id: foreign_import_orjson_1
+  file: breaks/break_foreign_import_orjson.py
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 22
+  difficulty: medium
+  rationale: "from orjson import dumps as _dumps, loads as _loads, OPT_INDENT_2 (symbol-aliased import) replace stdlib json for rich.json serialization — orjson appears at 0 rich production sites at the pinned SHA (git grep orjson over rich/ = 0). The from-import keeps module_name=orjson visible, so the import stage catches it despite the aliased symbols. (Note: whole-module `import orjson as _oj` evades both stages — extract_imports skips aliased_import and the alias becomes a value binding masking _oj.* calls — so the from-import alias form is used here.)"
+  host_file: rich/json.py
+  host_inject_at_line: 9
+- id: foreign_import_prompt_toolkit_1
+  file: breaks/break_foreign_import_prompt_toolkit.py
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 27
+  difficulty: medium
+  rationale: "from prompt_toolkit.shortcuts import radiolist_dialog, message_dialog (submodule import) replace rich.prompt/rich.status — prompt_toolkit appears at 0 rich production sites at the pinned SHA (git grep prompt_toolkit over rich/ = 0). Submodule import resolves to top-level prompt_toolkit; import stage catches it."
+  host_file: rich/status.py
+  host_inject_at_line: 11
+- id: foreign_import_pendulum_1
+  file: breaks/break_foreign_import_pendulum.py
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 22
+  difficulty: medium
+  rationale: "pendulum.now(...).add/.to_datetime_string/.to_iso8601_string build progress ETA timestamps — import pendulum sits in the decoy region OUTSIDE the scored hunk; the hunk carries only the bare pendulum.now() callee. pendulum appears at 0 rich production sites at the pinned SHA (git grep pendulum over rich/ = 0; rich uses stdlib time). In production the whole block is planted, so the import stage still catches the module."
+  host_file: rich/progress.py
+  host_inject_at_line: 926
+- id: foreign_api_msgpack_1
+  file: breaks/break_foreign_api_msgpack.py
+  category: foreign_api
+  hunk_start_line: 12
+  hunk_end_line: 24
+  difficulty: medium
+  rationale: "import msgpack + a packer = msgpack.Packer() / unpacker = msgpack.Unpacker() receiver-variable chain (packer.pack, unpacker.feed) serialize scope vars to binary — msgpack appears at 0 rich production sites at the pinned SHA (git grep msgpack over rich/ = 0). Foreign import + receiver-variable msgpack API are in-hunk; call-receiver catches the unattested packer/unpacker callees."
+  host_file: rich/scope.py
+  host_inject_at_line: 14
+- id: foreign_concurrency_gevent_1
+  file: breaks/break_foreign_concurrency_gevent.py
+  category: foreign_concurrency
+  hunk_start_line: 12
+  hunk_end_line: 25
+  difficulty: medium
+  rationale: "import gevent + from gevent.pool import Pool drive concurrent screen updates with greenlets (pool.spawn, gevent.joinall/sleep) — gevent appears at 0 rich production sites at the pinned SHA (git grep gevent over rich/ = 0). Foreign concurrency import + gevent.* API are in-hunk; import stage catches the module."
+  host_file: rich/screen.py
+  host_inject_at_line: 18
+- id: foreign_api_jinja2_1
+  file: breaks/break_foreign_api_jinja2.py
+  category: foreign_api
+  hunk_start_line: 12
+  hunk_end_line: 22
+  difficulty: hard
+  rationale: "template.render(**context) drives markdown output through a jinja2.Template injected by the caller — jinja2 appears at 0 rich production sites at the pinned SHA (git grep jinja2 over rich/ = 0). MASKED: no import in the block (the template is a parameter), and the leaf method .render() collides with rich's own attested render() vocabulary (27 dotted .render( call-sites), so call-receiver treats it as in-voice and does not fire. Genuine hard break — expected to MISS."
+  host_file: rich/markdown.py
+  host_inject_at_line: 465
+- id: foreign_api_redis_1
+  file: breaks/break_foreign_api_redis.py
+  category: foreign_api
+  hunk_start_line: 12
+  hunk_end_line: 19
+  difficulty: hard
+  rationale: "store.get(path) reads a filesize label from a redis.Redis client injected by the caller — redis appears at 0 rich production sites at the pinned SHA (git grep redis over rich/ = 0). MASKED: no import in the block (the store is a parameter), and the leaf method .get() collides with rich's own attested get() vocabulary (49 dotted .get( call-sites), so call-receiver treats it as in-voice and does not fire. Genuine hard break — expected to MISS."
+  host_file: rich/filesize.py
+  host_inject_at_line: 52
+- id: foreign_api_httpx_1
+  file: breaks/break_foreign_api_httpx.py
+  category: foreign_api
+  hunk_start_line: 12
+  hunk_end_line: 17
+  difficulty: hard
+  rationale: "client.get(...) fetches a remote emoji sheet from an httpx.Client injected by the caller — httpx appears at 0 rich production sites at the pinned SHA (git grep httpx over rich/ = 0). MASKED: no import in the block (the client is a parameter), and the leaf method .get() collides with rich's own attested get() vocabulary (49 dotted .get( call-sites), so call-receiver treats it as in-voice and does not fire. Genuine hard break — expected to MISS."
+  host_file: rich/emoji.py
+  host_inject_at_line: 20

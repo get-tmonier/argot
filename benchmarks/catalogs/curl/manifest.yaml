@@ -161,3 +161,234 @@ fixtures:
   difficulty: medium
   host_file: lib/conncache.c
   host_inject_at_line: 308
+- id: foreign_libyaml_1
+  file: breaks/break_foreign_libyaml_1.c
+  category: foreign_import
+  hunk_start_line: 16
+  hunk_end_line: 36
+  rationale: 'libyaml parse of a user-supplied options file into curl_easy_setopt
+    calls (<yaml.h> + yaml_parser_initialize/yaml_parser_set_input_string/
+    yaml_parser_parse/yaml_event_delete/yaml_parser_delete) — domain-plausible
+    in the setopt file, but foreign: verified 0 tree-wide hits for <yaml.h> and
+    for yaml_parser_initialize/yaml_parser_set_input_string/yaml_parser_parse/
+    yaml_event_delete/yaml_parser_delete across *.c/*.h at the pinned SHA. curl
+    reads every option through its own curl_easy_setopt switch, never a foreign
+    YAML config parser. The foreign <yaml.h> include fires in the import stage.'
+  difficulty: easy
+  host_file: lib/setopt.c
+  host_inject_at_line: 949
+- id: foreign_libarchive_1
+  file: breaks/break_foreign_libarchive_1.c
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 34
+  rationale: 'libarchive extraction of a downloaded tar/zip part into its member
+    files (<archive.h>/<archive_entry.h> + archive_read_new/
+    archive_read_support_format_all/archive_read_open_memory/
+    archive_read_next_header/archive_read_data/archive_read_free) —
+    domain-plausible in the mime file, but foreign: verified 0 tree-wide hits
+    for <archive.h>, <archive_entry.h> and for archive_read_new/
+    archive_read_open_memory/archive_read_data/archive_read_free across *.c/*.h
+    at the pinned SHA. curl hands every downloaded byte to the caller''s write
+    callback and never unpacks archives with a foreign extraction library. The
+    foreign <archive.h> include fires in the import stage.'
+  difficulty: easy
+  host_file: lib/mime.c
+  host_inject_at_line: 1102
+- id: foreign_libmemcached_1
+  file: breaks/break_foreign_libmemcached_1.c
+  category: foreign_import
+  hunk_start_line: 16
+  hunk_end_line: 26
+  rationale: 'libmemcached caching of a resolved DoH answer in a remote
+    memcached cluster (<libmemcached/memcached.h> + memcached_create/
+    memcached_server_add/memcached_set/memcached_free) — domain-plausible in
+    the DoH file, but foreign: verified 0 tree-wide hits for libmemcached and
+    for memcached_create/memcached_server_add/memcached_set/memcached_get/
+    memcached_free across *.c/*.h at the pinned SHA. curl caches DNS answers in
+    its own in-process hash (Curl_dnscache), never a foreign distributed cache
+    client. The foreign <libmemcached/memcached.h> include fires in the import
+    stage.'
+  difficulty: easy
+  host_file: lib/doh.c
+  host_inject_at_line: 601
+- id: foreign_libsodium_1
+  file: breaks/break_foreign_libsodium_1.c
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 31
+  rationale: 'libsodium generic-hash + secretbox deriving and sealing the AWS
+    SigV4 signing key (<sodium.h> + sodium_init/crypto_generichash/
+    randombytes_buf/crypto_secretbox_easy) — domain-plausible in the sigv4
+    file, but foreign: verified 0 tree-wide hits for <sodium.h> and for
+    sodium_init/crypto_generichash/randombytes_buf/crypto_secretbox_easy across
+    *.c/*.h at the pinned SHA. curl derives the SigV4 key with its own
+    HMAC-SHA256 chain (Curl_hmacit/Curl_sha256it), never a foreign crypto
+    library. The bare sodium_*/crypto_* callees fire in the call-receiver stage
+    (and the <sodium.h> include in the import stage).'
+  difficulty: easy
+  host_file: lib/http_aws_sigv4.c
+  host_inject_at_line: 602
+- id: foreign_libmill_1
+  file: breaks/break_foreign_libmill_1.c
+  category: foreign_concurrency
+  hunk_start_line: 16
+  hunk_end_line: 35
+  rationale: 'libmill structured-concurrency coroutines fanning name resolution
+    onto channels (<libmill.h> + chmake/chsend/chrecv/chdone/msleep/go) — a
+    foreign coroutine runtime: verified 0 tree-wide hits for <libmill.h> and
+    for chmake/chsend/chrecv/chdone/msleep across *.c/*.h at the pinned SHA.
+    curl runs its threaded resolver on its own curl_thread wrapper
+    (Curl_thread_create) draining results through the multi handle, never a
+    foreign coroutine runtime. The foreign <libmill.h> include fires in the
+    import stage.'
+  difficulty: easy
+  host_file: lib/asyn-thrdd.c
+  host_inject_at_line: 407
+- id: foreign_protobuf_c_1
+  file: breaks/break_foreign_protobuf_c_1.c
+  category: foreign_import
+  hunk_start_line: 21
+  hunk_end_line: 28
+  rationale: 'protobuf-c serialization of an outgoing HTTP/2 frame into a
+    length-prefixed wire buffer (protobuf_c_message_get_packed_size/
+    protobuf_c_message_pack) — domain-plausible in the http2 file, but foreign:
+    verified 0 tree-wide hits for protobuf-c/protobuf-c.h and for
+    protobuf_c_message_get_packed_size/protobuf_c_message_pack/
+    protobuf_c_message_free_unpacked across *.c/*.h at the pinned SHA. curl
+    frames HTTP/2 through nghttp2''s own submit/callbacks, never a foreign
+    schema serializer. MEDIUM: the foreign dependency is pulled in via a
+    *quoted* include (outside the scored hunk, in the decoy region) so the
+    import stage never sees an angled system module — the catch must come from
+    the bare protobuf_c_* callee in the call-receiver stage.'
+  difficulty: medium
+  host_file: lib/http2.c
+  host_inject_at_line: 1570
+- id: foreign_lmdb_1
+  file: breaks/break_foreign_lmdb_1.c
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 38
+  rationale: 'LMDB memory-mapped persistence of the Alt-Svc cache (mdb_env_create/
+    mdb_env_open/mdb_txn_begin/mdb_dbi_open/mdb_put/mdb_txn_commit/
+    mdb_env_close) — domain-plausible in the alt-svc file, but foreign: verified
+    0 tree-wide hits for <lmdb.h> and for mdb_env_create/mdb_env_open/
+    mdb_txn_begin/mdb_dbi_open/mdb_get/mdb_put/mdb_txn_commit across *.c/*.h at
+    the pinned SHA. curl persists Alt-Svc through its own flat-file writer
+    (Curl_altsvc_save), never a foreign embedded key-value store. MEDIUM: no
+    foreign <...> include is present in the hunk, so the catch rests entirely
+    on bare mdb_* callee resolution in the call-receiver stage.'
+  difficulty: medium
+  host_file: lib/altsvc.c
+  host_inject_at_line: 351
+- id: foreign_leveldb_1
+  file: breaks/break_foreign_leveldb_1.c
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 32
+  rationale: 'LevelDB on-disk journalling of per-connection transfer stats
+    (leveldb_options_create/leveldb_open/leveldb_writeoptions_create/
+    leveldb_put/leveldb_close) — domain-plausible in the socket connection
+    filter, but foreign: verified 0 tree-wide hits for <leveldb/c.h> and for
+    leveldb_open/leveldb_put/leveldb_close/leveldb_options_create/
+    leveldb_writeoptions_create across *.c/*.h at the pinned SHA. curl keeps
+    connection metrics in its own progress struct (Curl_pgrsUpdate), never a
+    foreign LSM key-value store. MEDIUM: no foreign <...> include is present in
+    the hunk, so the catch rests entirely on bare leveldb_* callee resolution
+    in the call-receiver stage.'
+  difficulty: medium
+  host_file: lib/cf-socket.c
+  host_inject_at_line: 1104
+- id: foreign_zeromq_1
+  file: breaks/break_foreign_zeromq_1.c
+  category: foreign_concurrency
+  hunk_start_line: 17
+  hunk_end_line: 29
+  rationale: 'ZeroMQ PUSH socket mirroring each decoded WebSocket frame onto a
+    message bus (zmq_ctx_new/zmq_socket/zmq_connect/zmq_msg_init_size/
+    zmq_msg_send/zmq_close) — a foreign messaging runtime: verified 0 tree-wide
+    hits for <zmq.h> and for zmq_ctx_new/zmq_socket/zmq_connect/
+    zmq_msg_init_size/zmq_msg_send/zmq_bind across *.c/*.h at the pinned SHA.
+    curl delivers every WebSocket frame to the caller''s write callback and
+    runs no foreign messaging runtime of its own. MEDIUM: no foreign <...>
+    include is present in the hunk, so the catch rests entirely on bare zmq_*
+    callee resolution in the call-receiver stage.'
+  difficulty: medium
+  host_file: lib/ws.c
+  host_inject_at_line: 931
+- id: foreign_mpi_1
+  file: breaks/break_foreign_mpi_1.c
+  category: foreign_concurrency
+  hunk_start_line: 17
+  hunk_end_line: 33
+  rationale: 'MPI distributed-memory scatter/gather parallelizing decompression
+    of independent content blocks across ranks (MPI_Init/MPI_Comm_rank/
+    MPI_Comm_size/MPI_Scatter/MPI_Gather/MPI_Finalize) — a foreign
+    message-passing runtime: verified 0 tree-wide hits for <mpi.h> and for
+    MPI_Init/MPI_Comm_rank/MPI_Comm_size/MPI_Scatter/MPI_Gather/MPI_Finalize
+    across *.c/*.h at the pinned SHA. curl streams every content decoding
+    through a single sequential writer chain and runs no foreign parallel
+    runtime. MEDIUM: no foreign <...> include is present in the hunk, so the
+    catch rests entirely on bare MPI_* callee resolution in the call-receiver
+    stage.'
+  difficulty: medium
+  host_file: lib/content_encoding.c
+  host_inject_at_line: 478
+- id: foreign_hash_collision_1
+  file: breaks/break_foreign_hash_collision_1.c
+  category: foreign_api
+  hunk_start_line: 19
+  hunk_end_line: 28
+  rationale: 'xxHash non-cryptographic fingerprinting of the credential blob for
+    a dedup cache — foreign dependency verified 0 tree-wide hits for <xxhash.h>,
+    xxh3.h and XXH3 across *.c/*.h at the pinned SHA; curl digests credentials
+    only through its own HMAC/MD5/SHA chain. HARD / masked collision: the
+    foreign primitive is reached through hash(dst, src, len), whose name
+    COLLIDES with curl''s attested hash() callee (lib/vauth/digest.c lines
+    747/772/786 — the HMAC_hash function pointer), so call-receiver cannot flag
+    it; the foreign anchor XXH64_hash_t is a type token, not a callee; and no
+    foreign <...> include is present, so the import stage is silent. Expected
+    honest MISS — the foreignness is masked by the name collision, exactly the
+    documented local limit.'
+  difficulty: hard
+  host_file: lib/vauth/digest.c
+  host_inject_at_line: 977
+- id: foreign_lookup_collision_1
+  file: breaks/break_foreign_lookup_collision_1.c
+  category: foreign_api
+  hunk_start_line: 20
+  hunk_end_line: 29
+  rationale: 'libcfu in-memory registry resolving a user-supplied option alias
+    to its canonical curl_easyoption — foreign dependency verified 0 tree-wide
+    hits for <cfu.h>, cfuhash and cfuhash_table_t across *.c/*.h at the pinned
+    SHA; curl resolves options only through its own generated table. HARD /
+    masked collision: the foreign registry is reached through lookup(name, id),
+    whose name COLLIDES with easygetopt.c''s attested-and-defined lookup()
+    (lib/easygetopt.c:31 static definition, called at :56/:61), so
+    call-receiver cannot flag it; the foreign anchor cfuhash_table_t is a type
+    token, not a callee; and no foreign <...> include is present, so the import
+    stage is silent. Expected honest MISS — foreignness masked by the name
+    collision.'
+  difficulty: hard
+  host_file: lib/easygetopt.c
+  host_inject_at_line: 63
+- id: foreign_taskrun_done_collision_1
+  file: breaks/break_foreign_taskrun_done_collision_1.c
+  category: foreign_concurrency
+  hunk_start_line: 21
+  hunk_end_line: 27
+  rationale: 'libtask stackful-coroutine runtime driving one transfer per
+    coroutine, with completion dispatched through a curl-handler-style run
+    vtable — foreign dependency verified 0 tree-wide hits for <task.h>,
+    taskcreate, taskyield and coroutine across *.c/*.h at the pinned SHA; curl
+    multiplexes transfers on its own single event loop (curl_multi_perform),
+    not a foreign coroutine runtime. HARD / masked collision: completion is
+    reached through handle->conn->scheme->run->done(), whose leaf method
+    COLLIDES with curl''s attested run-vtable done() method (lib/url.c:2373,
+    lib/multi.c:732), so call-receiver treats it as an in-voice method; the
+    foreign anchor Task is a type token, not a callee; and no foreign <...>
+    include is present, so the import stage is silent. Expected honest MISS —
+    foreignness masked by the method-leaf collision.'
+  difficulty: hard
+  host_file: lib/multi.c
+  host_inject_at_line: 2297

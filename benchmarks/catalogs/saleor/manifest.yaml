@@ -219,3 +219,121 @@ fixtures:
   rationale: "from rq import Queue, Retry (in the hunk) + queue.enqueue fanning export batches onto a Redis Queue — rq appears at 0 saleor sites at SHA 5c05b2f9 (git grep -c 'import rq'/'from rq' over *.py = 0); saleor dispatches export work as chained Celery tasks (csv/utils/export.py). Foreign task-queue library, caught by the import stage."
   host_file: saleor/csv/utils/export.py
   host_inject_at_line: 200
+# --- issue #92 graded-mix additions (easy/medium/hard) ---
+- id: foreign_import_pika_1
+  file: breaks/break_foreign_pika_import.py
+  category: foreign_import
+  hunk_start_line: 15
+  hunk_end_line: 23
+  difficulty: easy
+  rationale: "import pika (in the hunk) + pika.BlockingConnection/ConnectionParameters + channel.basic_publish opening a raw AMQP channel for webhook delivery — pika appears at 0 saleor sites at SHA 5c05b2f9 (git grep -c pika over *.py = 0) and is absent from pyproject.toml deps; saleor's messaging/deferred work goes through Celery + kombu. Foreign dependency, caught by the import stage."
+  host_file: saleor/webhook/transport/asynchronous/transport.py
+  host_inject_at_line: 759
+- id: foreign_import_paramiko_1
+  file: breaks/break_foreign_paramiko_import.py
+  category: foreign_import
+  hunk_start_line: 15
+  hunk_end_line: 25
+  difficulty: easy
+  rationale: "import paramiko (in the hunk) + paramiko.SSHClient/AutoAddPolicy + client.connect/open_sftp shipping an export over SFTP — paramiko appears at 0 saleor sites at SHA 5c05b2f9 (git grep -c paramiko over *.py = 0) and is absent from pyproject.toml deps; saleor writes files via django.core.files storages. Foreign dependency, caught by the import stage."
+  host_file: saleor/csv/utils/export.py
+  host_inject_at_line: 200
+- id: foreign_import_grpc_1
+  file: breaks/break_foreign_grpc_import.py
+  category: foreign_import
+  hunk_start_line: 15
+  hunk_end_line: 24
+  difficulty: easy
+  rationale: "import grpc (in the hunk) + grpc.insecure_channel + channel.unary_unary dialing a gRPC tax service — grpc appears at 0 saleor sites at SHA 5c05b2f9 (git grep -c grpc over *.py = 0) and is absent from pyproject.toml deps (grpcio is only a transitive dep of google-cloud, never imported in source); all outbound calls go through the hardened HTTPClient. Foreign dependency, caught by the import stage."
+  host_file: saleor/webhook/transport/utils.py
+  host_inject_at_line: 500
+- id: foreign_api_pyarrow_1
+  file: breaks/break_foreign_pyarrow_api.py
+  category: foreign_api
+  hunk_start_line: 15
+  hunk_end_line: 23
+  difficulty: easy
+  rationale: "import pyarrow (in the hunk) + pyarrow.Table.from_pylist/BufferOutputStream/ipc.new_stream building an Arrow/IPC stock export — pyarrow appears at 0 saleor sites at SHA 5c05b2f9 (git grep -c pyarrow over *.py = 0) and is absent from pyproject.toml deps; saleor exports via petl/CSV/XLSX. Foreign dependency, caught by the import stage."
+  host_file: saleor/warehouse/management.py
+  host_inject_at_line: 700
+- id: foreign_concurrency_arq_1
+  file: breaks/break_foreign_arq_concurrency.py
+  category: foreign_concurrency
+  hunk_start_line: 15
+  hunk_end_line: 24
+  difficulty: easy
+  rationale: "import arq (in the hunk) + arq.create_pool/connections.RedisSettings + pool.enqueue_job fanning export batches onto an arq Redis worker pool — arq appears at 0 saleor sites at SHA 5c05b2f9 (git grep -c arq over *.py = 0) and is absent from pyproject.toml deps; saleor's deferred work is always a Celery @app.task. Foreign async task-queue, caught by the import stage."
+  host_file: saleor/csv/utils/export.py
+  host_inject_at_line: 190
+- id: foreign_import_pendulum_1
+  file: breaks/break_foreign_pendulum_import.py
+  category: foreign_import
+  hunk_start_line: 15
+  hunk_end_line: 26
+  difficulty: medium
+  rationale: "aliased import pendulum as pdl (in the hunk) + pdl.parse/pdl.now/.add/.in_hours computing an order settlement window — pendulum appears at 0 saleor sites at SHA 5c05b2f9 (git grep -c pendulum over *.py = 0) and is absent from pyproject.toml deps; saleor uses django.utils.timezone + python-dateutil. Medium: the alias masks the module name; the import stage must resolve the aliased module. Foreign dependency."
+  host_file: saleor/order/actions.py
+  host_inject_at_line: 1000
+- id: foreign_api_zeep_1
+  file: breaks/break_foreign_zeep_api.py
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 23
+  difficulty: medium
+  rationale: "zeep.Client(...) reached through a receiver variable (client = zeep.Client(); client.create_service(); service.GetTaxRate()) for a SOAP tax-rate WSDL — import kept in the decoy region so the call-receiver stage must resolve the foreign zeep.Client constructor inside the hunk. zeep appears at 0 saleor sites at SHA 5c05b2f9 (git grep -c zeep over *.py = 0) and is absent from pyproject.toml deps; saleor's outbound HTTP is requests-hardened. Foreign namespace, caught by call-receiver."
+  host_file: saleor/payment/utils.py
+  host_inject_at_line: 642
+- id: foreign_api_jsonschema_1
+  file: breaks/break_foreign_jsonschema_api.py
+  category: foreign_api
+  hunk_start_line: 21
+  hunk_end_line: 24
+  difficulty: medium
+  rationale: "jsonschema.validate + jsonschema.Draft7Validator(...).iter_errors (module-qualified, import kept outside the hunk) validating a webhook payload — jsonschema appears at 0 saleor sites at SHA 5c05b2f9 (git grep -c jsonschema over *.py = 0) and is absent from pyproject.toml deps; saleor validates via graphene/DRF and pydantic. Foreign namespace, caught by call-receiver."
+  host_file: saleor/webhook/transport/utils.py
+  host_inject_at_line: 506
+- id: foreign_concurrency_eventlet_1
+  file: breaks/break_foreign_eventlet_concurrency.py
+  category: foreign_concurrency
+  hunk_start_line: 17
+  hunk_end_line: 21
+  difficulty: medium
+  rationale: "eventlet.GreenPool(...) reached through a receiver (pool = eventlet.GreenPool(); pool.spawn_n(); pool.waitall()) fanning out order recalculation — import kept in the decoy region so call-receiver must resolve the foreign eventlet.GreenPool constructor in the hunk. eventlet appears at 0 saleor sites at SHA 5c05b2f9 (git grep -c eventlet over *.py = 0) and is absent from pyproject.toml deps; saleor concurrency is asyncio + Celery. Foreign green-thread runtime, caught by call-receiver."
+  host_file: saleor/order/calculations.py
+  host_inject_at_line: 900
+- id: foreign_concurrency_apscheduler_1
+  file: breaks/break_foreign_apscheduler_concurrency.py
+  category: foreign_concurrency
+  hunk_start_line: 15
+  hunk_end_line: 22
+  difficulty: medium
+  rationale: "submodule import from apscheduler.schedulers.background import BackgroundScheduler (in the hunk) + scheduler.add_job/start scheduling recalculation — apscheduler appears at 0 saleor sites at SHA 5c05b2f9 (git grep -c apscheduler over *.py = 0) and is absent from pyproject.toml deps; periodic work is dispatched via django-celery-beat. Medium: the deep submodule path stresses import resolution. Foreign scheduler library."
+  host_file: saleor/order/calculations.py
+  host_inject_at_line: 768
+- id: foreign_api_pymongo_1
+  file: breaks/break_foreign_pymongo_api.py
+  category: foreign_api
+  hunk_start_line: 19
+  hunk_end_line: 28
+  difficulty: hard
+  rationale: "MongoDB collection ops on a pymongo Database handle (db.orders.aggregate(pipeline) / .update(..., multi=True) / .count()) rolling up order totals — pymongo appears at 0 saleor sites at SHA 5c05b2f9 (git grep -c pymongo over *.py = 0) and is absent from pyproject.toml deps; saleor's data access is the Django ORM. HARD: the receiver db is a bare parameter (no foreign import token in the file) and every leaf callee collides with an attested QuerySet method — .aggregate (36 hits), .update (678), .count (2355); the only foreign tell is the Mongo pipeline operator syntax ($group/$sum/$set). Genuine masked-foreign break; may miss."
+  host_file: saleor/order/actions.py
+  host_inject_at_line: 943
+- id: foreign_api_cassandra_1
+  file: breaks/break_foreign_cassandra_api.py
+  category: foreign_api
+  hunk_start_line: 15
+  hunk_end_line: 25
+  difficulty: hard
+  rationale: "Cassandra CQL executed through a driver Session (session.execute('INSERT ... toTimestamp(now())') / session.execute('SELECT ... ALLOW FILTERING')) — cassandra(-driver) appears at 0 saleor sites at SHA 5c05b2f9 (git grep -c cassandra over *.py = 0) and is absent from pyproject.toml deps; saleor uses Postgres via the ORM. HARD: the receiver session is a bare parameter (no foreign import token) and the leaf callee .execute collides with the attested DB-API cursor.execute idiom (65 hits, incl. the raw_sql fixtures); the only foreign tell is CQL-specific syntax (toTimestamp(now()), ALLOW FILTERING). Genuine masked-foreign break; may miss."
+  host_file: saleor/warehouse/management.py
+  host_inject_at_line: 732
+- id: foreign_concurrency_gevent_1
+  file: breaks/break_foreign_gevent_concurrency.py
+  category: foreign_concurrency
+  hunk_start_line: 15
+  hunk_end_line: 20
+  difficulty: hard
+  rationale: "gevent greenlets drained through bare receivers (group.join(timeout=...) + greenlet.get(block=False)) to collect prefetch results — gevent appears at 0 saleor sites at SHA 5c05b2f9 (git grep -c gevent over *.py = 0) and is absent from pyproject.toml deps; saleor concurrency is asyncio + Celery. HARD: no foreign import token anywhere in the file and both leaf callees collide with attested methods — .join (str.join, 170 hits) and .get (QuerySet/dict.get, 5523 hits); no distinctive foreign token remains. Expected to miss (documents the leaf-collision limit)."
+  host_file: saleor/graphql/views.py
+  host_inject_at_line: 600

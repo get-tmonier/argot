@@ -303,3 +303,190 @@ fixtures:
   difficulty: easy
   host_file: crates/searcher/src/searcher/glue.rs
   host_inject_at_line: 101
+- id: foreign_clap_1
+  file: breaks/break_foreign_clap_1.rs
+  category: foreign_import
+  hunk_start_line: 24
+  hunk_end_line: 39
+  rationale: 'use clap::Parser + #[derive(Parser)] CLI arg struct standing in for
+    ripgrep''s hand-rolled flag layer, import inside hunk. Verified foreign at SHA
+    48b0c795f4fe: `clap` = 0 grep hits across *.rs and absent from every
+    Cargo.toml/Cargo.lock; ripgrep parses argv itself through crates/core/flags
+    (lowargs/hiargs over the `lexopt` crate), never a derive-macro parser.'
+  difficulty: easy
+  host_file: crates/core/flags/config.rs
+  host_inject_at_line: 54
+- id: foreign_ron_1
+  file: breaks/break_foreign_ron_1.rs
+  category: foreign_import
+  hunk_start_line: 24
+  hunk_end_line: 33
+  rationale: 'use ron::de::from_reader deserializing a shared ignore-rule file from
+    Rusty Object Notation, import inside hunk. Verified foreign at SHA 48b0c795f4fe:
+    `ron` = 0 grep hits across *.rs and absent from every Cargo.toml/Cargo.lock;
+    ripgrep resolves ignore rules from plain-text .gitignore/.ignore/.rgignore
+    files via its own Gitignore builder, never a structured RON document.'
+  difficulty: easy
+  host_file: crates/ignore/src/gitignore.rs
+  host_inject_at_line: 316
+- id: foreign_serde_yaml_1
+  file: breaks/break_foreign_serde_yaml_1.rs
+  category: foreign_import
+  hunk_start_line: 24
+  hunk_end_line: 32
+  rationale: 'use serde_yaml + serde_yaml::from_str deserializing a user file-type
+    map from a YAML document, import inside hunk. Verified foreign at SHA
+    48b0c795f4fe: `serde_yaml` = 0 grep hits across *.rs and absent from every
+    Cargo.toml/Cargo.lock; ripgrep''s file-type definitions are compiled-in Rust
+    tables (ignore/src/default_types.rs) extended via `--type-add` name:glob
+    strings, never parsed from a YAML config.'
+  difficulty: easy
+  host_file: crates/ignore/src/types.rs
+  host_inject_at_line: 182
+- id: foreign_mongodb_1
+  file: breaks/break_foreign_mongodb_1.rs
+  category: foreign_api
+  hunk_start_line: 23
+  hunk_end_line: 29
+  rationale: 'mongodb::sync::Client::with_uri_str() + collection().insert_one()
+    persisting each formatted match to a document store, referenced by
+    fully-qualified path (no `use` import). Verified foreign at SHA 48b0c795f4fe:
+    `mongodb` = 0 grep hits across *.rs and absent from every Cargo.toml/Cargo.lock;
+    `with_uri_str` = 0 src hits (non-colliding); the JSON printer serialises each
+    match to its `W: io::Write` sink via serde_json (crates/printer/src/json.rs),
+    never to a database.'
+  difficulty: easy
+  host_file: crates/printer/src/json.rs
+  host_inject_at_line: 492
+- id: foreign_flume_1
+  file: breaks/break_foreign_flume_1.rs
+  category: foreign_concurrency
+  hunk_start_line: 25
+  hunk_end_line: 35
+  rationale: 'flume::unbounded() MPMC channel fanning per-file outcomes back from
+    worker threads, referenced by fully-qualified path (no `use` import). Verified
+    foreign at SHA 48b0c795f4fe: `flume` = 0 grep hits across *.rs and absent from
+    every Cargo.toml/Cargo.lock; ripgrep''s cross-thread handoff is
+    crossbeam-channel (core/main.rs print thread) over its own crossbeam-deque
+    work-stealing walker, never a flume channel.'
+  difficulty: easy
+  host_file: crates/core/search.rs
+  host_inject_at_line: 242
+- id: foreign_parking_lot_1
+  file: breaks/break_foreign_parking_lot_1.rs
+  category: foreign_concurrency
+  hunk_start_line: 25
+  hunk_end_line: 34
+  rationale: 'use parking_lot::Mutex as PlMutex (aliased import) guarding the shared
+    walker visit state across worker threads. Verified foreign at SHA 48b0c795f4fe:
+    `parking_lot` = 0 grep hits across *.rs and absent from every
+    Cargo.toml/Cargo.lock; the parallel walker coordinates through crossbeam (its
+    crossbeam-deque work-stealing stack behind WalkParallel), using std::sync::Mutex
+    where it needs a lock, never parking_lot.'
+  difficulty: medium
+  host_file: crates/ignore/src/dir.rs
+  host_inject_at_line: 614
+- id: foreign_jwalk_1
+  file: breaks/break_foreign_jwalk_1.rs
+  category: foreign_import
+  hunk_start_line: 24
+  hunk_end_line: 37
+  rationale: 'use jwalk::WalkDir + use jwalk::rayon::prelude::* (submodule imports)
+    replacing the repo-owned ignore::WalkBuilder traversal with a foreign parallel
+    walker. Verified foreign at SHA 48b0c795f4fe: `jwalk` = 0 grep hits across *.rs
+    and absent from every Cargo.toml/Cargo.lock; ripgrep''s recursive traversal is
+    its own crossbeam-deque work-stealing WalkParallel over the `ignore` crate
+    (which owns gitignore/hidden filtering), never an external walker.'
+  difficulty: medium
+  host_file: crates/ignore/src/walk.rs
+  host_inject_at_line: 508
+- id: foreign_indicatif_1
+  file: breaks/break_foreign_indicatif_1.rs
+  category: foreign_api
+  hunk_start_line: 24
+  hunk_end_line: 33
+  rationale: 'indicatif::ProgressBar::new() reached through a receiver variable
+    (pb.inc / pb.finish_and_clear), built by a fully-qualified constructor (no
+    `use` import). Verified foreign at SHA 48b0c795f4fe: `indicatif` = 0 grep hits
+    across *.rs and absent from every Cargo.toml/Cargo.lock; ripgrep prints no
+    progress UI — results stream straight through the grep-printer onto the
+    termcolor writer, with no terminal spinner or bar.'
+  difficulty: medium
+  host_file: crates/core/search.rs
+  host_inject_at_line: 198
+- id: foreign_prettytable_1
+  file: breaks/break_foreign_prettytable_1.rs
+  category: foreign_api
+  hunk_start_line: 22
+  hunk_end_line: 29
+  rationale: 'prettytable::Table::new() reached through a receiver variable
+    (table.add_row / table.to_string) with the prettytable::row! macro, built by a
+    fully-qualified constructor (no `use` import). Verified foreign at SHA
+    48b0c795f4fe: `prettytable` = 0 grep hits across *.rs and absent from every
+    Cargo.toml/Cargo.lock; the summary printer writes counts line-by-line to its
+    termcolor WriteColor sink (crates/printer/src/summary.rs), never a bordered
+    table.'
+  difficulty: medium
+  host_file: crates/printer/src/summary.rs
+  host_inject_at_line: 368
+- id: foreign_async_std_1
+  file: breaks/break_foreign_async_std_1.rs
+  category: foreign_concurrency
+  hunk_start_line: 29
+  hunk_end_line: 43
+  rationale: 'async-std runtime driving the slice-by-line sink concurrently via a
+    bare `task::block_on` / `task::spawn` callee, its `use async_std::task` import
+    intentionally in the decoy region above the scored hunk (bare-callee variant).
+    Verified foreign at SHA 48b0c795f4fe: `async_std` = 0 grep hits across *.rs and
+    absent from every Cargo.toml/Cargo.lock; the searcher drives its Matcher + Sink
+    synchronously (ReadByLine/SliceByLine glue over a plain Core), with no async
+    runtime.'
+  difficulty: medium
+  host_file: crates/searcher/src/searcher/glue.rs
+  host_inject_at_line: 101
+- id: foreign_itertools_1
+  file: breaks/break_foreign_itertools_1.rs
+  category: foreign_api
+  hunk_start_line: 28
+  hunk_end_line: 35
+  rationale: 'HARD (masked): itertools adaptor methods (.tuple_windows / .dedup_by)
+    reached as extension methods on a local iterator receiver — no
+    `use itertools::Itertools`, no `itertools::` path, so the only tell is the
+    method names and call-receiver cannot fire (local receiver). Verified foreign
+    at SHA 48b0c795f4fe: `itertools` = 0 grep hits across *.rs and absent from every
+    Cargo.toml/Cargo.lock; `tuple_windows` = 0 src hits; ripgrep composes iterators
+    with std combinators and its own helpers, never the itertools extension trait.'
+  difficulty: hard
+  host_file: crates/printer/src/util.rs
+  host_inject_at_line: 366
+- id: foreign_dashmap_1
+  file: breaks/break_foreign_dashmap_1.rs
+  category: foreign_concurrency
+  hunk_start_line: 30
+  hunk_end_line: 39
+  rationale: 'HARD (masked): dashmap concurrent map named only as a
+    `&dashmap::DashMap` parameter type (never a `use`, never a call callee) and
+    reached through a local receiver with attested method names (.entry/.insert),
+    so call-receiver stays quiet and only token surprise on dashmap/DashMap could
+    fire. Verified foreign at SHA 48b0c795f4fe: `dashmap` = 0 grep hits across *.rs
+    and absent from every Cargo.toml/Cargo.lock; ripgrep aggregates per-thread
+    stats into its own Stats type and merges them, never a shared concurrent map.'
+  difficulty: hard
+  host_file: crates/core/search.rs
+  host_inject_at_line: 242
+- id: foreign_redis_1
+  file: breaks/break_foreign_redis_1.rs
+  category: foreign_api
+  hunk_start_line: 30
+  hunk_end_line: 37
+  rationale: 'HARD (masked, leaf collision): redis client named only as a
+    `&mut redis::Connection` parameter type and reached through a local receiver
+    whose leaf methods (.get/.set) collide with attested repo methods — so
+    call-receiver''s method-attested guard suppresses it and only token surprise on
+    redis/Connection could fire. Verified foreign at SHA 48b0c795f4fe: `redis` = 0
+    grep hits across *.rs and absent from every Cargo.toml/Cargo.lock; the standard
+    printer writes rendered lines straight to its `W: WriteColor` termcolor sink,
+    never to a cache.'
+  difficulty: hard
+  host_file: crates/printer/src/standard.rs
+  host_inject_at_line: 596

@@ -244,3 +244,186 @@ fixtures:
   difficulty: easy
   host_file: src/reconciler.ts
   host_inject_at_line: 402
+- id: ink_foreign_import_ramda
+  file: breaks/break_foreign_ramda_import.tsx
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 23
+  rationale: "import * as R from 'ramda' inside the hunk + R.groupBy/R.sortBy
+    functional pipeline. Verified foreign at SHA cb6687322886: ramda = 0 git-grep
+    hits across *.ts/*.tsx and absent from package.json (deps + devDeps); ink
+    standardises on es-toolkit and native array methods, never ramda. Import stage
+    fires."
+  difficulty: easy
+  host_file: src/utils.ts
+  host_inject_at_line: 20
+- id: ink_foreign_import_immer
+  file: breaks/break_foreign_immer_import.tsx
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 29
+  rationale: "import {produce} from 'immer' inside the hunk + produce() draft
+    mutation for grid state. Verified foreign at SHA cb6687322886: immer = 0
+    git-grep hits across *.ts/*.tsx and absent from package.json (deps + devDeps);
+    ink builds new state with plain spreads/setState, never immer. Import stage
+    fires."
+  difficulty: easy
+  host_file: src/styles.ts
+  host_inject_at_line: 400
+- id: ink_foreign_api_datefns
+  file: breaks/break_foreign_datefns_api.tsx
+  category: foreign_api
+  hunk_start_line: 14
+  hunk_end_line: 26
+  rationale: "import {format, formatDistanceToNow} from 'date-fns' inside the hunk +
+    format()/formatDistanceToNow() date formatting. Verified foreign at SHA
+    cb6687322886: date-fns = 0 git-grep hits across *.ts/*.tsx and absent from
+    package.json (deps + devDeps); ink keeps raw epoch millis and formats nothing
+    with a date library. Import stage fires."
+  difficulty: easy
+  host_file: src/kitty-keyboard.ts
+  host_inject_at_line: 50
+- id: ink_foreign_api_got
+  file: breaks/break_foreign_got_api.tsx
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 34
+  rationale: "import got from 'got' inside the hunk + got(url).json() HTTP fetch in
+    an effect. Verified foreign at SHA cb6687322886: got = 0 git-grep hits across
+    *.ts/*.tsx and absent from package.json (deps + devDeps); ink is a terminal
+    renderer with no data-fetch layer. Import stage fires."
+  difficulty: easy
+  host_file: src/devtools.ts
+  host_inject_at_line: 40
+- id: ink_foreign_concurrency_piscina
+  file: breaks/break_foreign_piscina_concurrency.tsx
+  category: foreign_concurrency
+  hunk_start_line: 14
+  hunk_end_line: 28
+  rationale: "import Piscina from 'piscina' inside the hunk + new Piscina()/pool.run()
+    worker-thread pool offloading tile rasterization. Verified foreign at SHA
+    cb6687322886: piscina = 0 git-grep hits across *.ts/*.tsx and absent from
+    package.json (deps + devDeps); ink lays out synchronously on the main thread.
+    Import stage fires."
+  difficulty: easy
+  host_file: src/wrap-text.ts
+  host_inject_at_line: 50
+- id: ink_foreign_import_uuid
+  file: breaks/break_foreign_uuid_import.tsx
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 20
+  rationale: "aliased import {v4 as uuidv4} from 'uuid' inside the hunk + uuidv4()
+    minting React keys. Verified foreign at SHA cb6687322886: uuid = 0 git-grep hits
+    across *.ts/*.tsx and absent from package.json (deps + devDeps); ink derives keys
+    from stable indices/content. The alias stresses callee resolution but the import
+    stage should still fire."
+  difficulty: medium
+  host_file: src/cursor-helpers.ts
+  host_inject_at_line: 90
+- id: ink_foreign_import_nanoid
+  file: breaks/break_foreign_nanoid_import.tsx
+  category: foreign_import
+  hunk_start_line: 18
+  hunk_end_line: 20
+  rationale: "bare nanoid() callee inside the scored hunk with a static import {nanoid}
+    from 'nanoid' kept in the decoy region outside the hunk — stresses bare-callee
+    resolution on the scorer path. Verified foreign at SHA cb6687322886: nanoid = 0
+    git-grep hits across *.ts/*.tsx and absent from package.json (deps + devDeps); ink
+    mints no random ids."
+  difficulty: medium
+  host_file: src/measure-text.ts
+  host_inject_at_line: 28
+- id: ink_foreign_api_winston
+  file: breaks/break_foreign_winston_api.tsx
+  category: foreign_api
+  hunk_start_line: 18
+  hunk_end_line: 22
+  rationale: "winston.createLogger()/logger.info() module-qualified structured
+    logging inside the hunk with import winston kept OUTSIDE the hunk (decoy region),
+    so call-receiver (receiver token 'winston' unseen) must catch it, not the import
+    stage. Verified foreign at SHA cb6687322886: winston = 0 git-grep hits across
+    *.ts/*.tsx and absent from package.json (deps + devDeps); ink writes plainly to
+    the output stream."
+  difficulty: medium
+  host_file: src/render-background.ts
+  host_inject_at_line: 48
+- id: ink_foreign_concurrency_rxjs
+  file: breaks/break_foreign_rxjs_concurrency.tsx
+  category: foreign_concurrency
+  hunk_start_line: 18
+  hunk_end_line: 24
+  rationale: "new Subject()/.subscribe()/.next() reactive stream inside the scored hunk
+    with a static import {Subject} from 'rxjs' kept in the decoy region outside the hunk
+    — stresses foreign constructor/receiver resolution on the scorer path. Verified
+    foreign at SHA cb6687322886: rxjs = 0 git-grep hits across *.ts/*.tsx and absent from
+    package.json (deps + devDeps); ink drives updates through React state + effects."
+  difficulty: medium
+  host_file: src/input-parser.ts
+  host_inject_at_line: 270
+- id: ink_foreign_concurrency_pretry
+  file: breaks/break_foreign_pretry_concurrency.tsx
+  category: foreign_concurrency
+  hunk_start_line: 18
+  hunk_end_line: 20
+  rationale: "bare pRetry(task, {retries}) callee inside the scored hunk with a static
+    import pRetry from 'p-retry' kept in the decoy region outside the hunk — stresses
+    bare-callee resolution on the scorer path. Verified foreign at SHA cb6687322886:
+    p-retry = 0 git-grep hits across *.ts/*.tsx and absent from package.json (deps +
+    devDeps); ink has no retry primitive. Note: p-queue is a devDep but p-retry is a
+    distinct, absent package."
+  difficulty: medium
+  host_file: src/parse-keypress.ts
+  host_inject_at_line: 520
+- id: ink_foreign_api_lrucache
+  file: breaks/break_foreign_lrucache_api.tsx
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 26
+  rationale: "MASKED hard case: lru-cache is reached through a dynamic import()
+    (`const {LRUCache} = await import('lru-cache')`) — ink's own idiom (src/reconciler.ts
+    uses `const fs = await import('node:fs')`) — so NO static import statement exists for
+    the import stage to catch. The only method calls are cache.get()/cache.set(), whose
+    leaf names .get (7 attested) and .set (6 attested) collide with attested ink methods,
+    and the receiver 'cache' is a plain local const, so call-receiver must judge it
+    unaided — a genuine hard case that may miss. Verified foreign at SHA cb6687322886:
+    lru-cache/LRUCache = 0 git-grep hits across *.ts/*.tsx and absent from package.json
+    (deps + devDeps); ink memoizes via es-toolkit/plain maps."
+  difficulty: hard
+  host_file: src/ansi-tokenizer.ts
+  host_inject_at_line: 480
+- id: ink_foreign_api_fastcsv
+  file: breaks/break_foreign_fastcsv_api.tsx
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 25
+  rationale: "MASKED hard case: fast-csv is reached through a dynamic import()
+    (`const {format} = await import('fast-csv')`) — ink's own idiom (src/reconciler.ts
+    uses `await import('node:fs')`) — so NO static import statement exists for the import
+    stage to catch. The only method calls are stream.write()/stream.end(), and .write (54
+    attested — ink's stdout writes) is the repo's most-attested method, with 'stream' a
+    plain local const, so the foreignness is camouflaged — a genuine hard case that may
+    miss. Verified foreign at SHA cb6687322886: fast-csv = 0 git-grep hits across
+    *.ts/*.tsx and absent from package.json (deps + devDeps); ink writes ANSI frames to
+    the output stream, never CSV."
+  difficulty: hard
+  host_file: src/squash-text-nodes.ts
+  host_inject_at_line: 44
+- id: ink_foreign_concurrency_eventemitter3
+  file: breaks/break_foreign_eventemitter3_concurrency.tsx
+  category: foreign_concurrency
+  hunk_start_line: 16
+  hunk_end_line: 24
+  rationale: "MASKED hard case: eventemitter3 is reached through a dynamic import()
+    (`const {default: EventEmitter} = await import('eventemitter3')`) — ink's own idiom
+    (src/reconciler.ts uses `await import('node:fs')`) — so NO static import statement
+    exists for the import stage to catch. The only method calls are bus.on()/bus.emit()/
+    bus.off(); leaf names .on (9 attested) and .off (5 attested) collide with attested
+    ink event methods and 'bus' is a plain local const, so the foreign pub/sub is
+    camouflaged — a genuine hard case that may miss (.emit is unattested, so it may still
+    fire honestly). Verified foreign at SHA cb6687322886: eventemitter3 = 0 git-grep hits
+    across *.ts/*.tsx and absent from package.json (deps + devDeps); ink drives updates
+    through React state."
+  difficulty: hard
+  host_file: src/sanitize-ansi.ts
+  host_inject_at_line: 30

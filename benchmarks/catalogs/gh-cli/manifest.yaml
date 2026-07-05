@@ -7,6 +7,7 @@ categories:
 - naming_shape_break
 - foreign_import
 - foreign_api
+- foreign_concurrency
 injection_hosts:
 - pr: 0
   sha: 397876d3dc2828f1c932c651b31ab78e72506da4
@@ -235,3 +236,242 @@ fixtures:
   difficulty: easy
   host_file: pkg/cmd/label/clone.go
   host_inject_at_line: 111
+- id: foreign_gin_1
+  file: breaks/break_foreign_gin_1.go
+  category: foreign_import
+  hunk_start_line: 8
+  hunk_end_line: 19
+  rationale: 'github.com/gin-gonic/gin web framework imported inside the hunk
+    (gin.Default/gin.Context/router.Run) to serve a local page preview, in the
+    browse package. Verified 0-usage at pinned SHA: zero git-grep hits for
+    gin-gonic/gin in *.go and absent from go.mod; gh has no web framework — its
+    only HTTP surface is net/http through api.NewClientFromHTTP.'
+  difficulty: easy
+  host_file: pkg/cmd/browse/browse.go
+  host_inject_at_line: 187
+- id: foreign_zap_1
+  file: breaks/break_foreign_zap_1.go
+  category: foreign_api
+  hunk_start_line: 7
+  hunk_end_line: 19
+  rationale: 'go.uber.org/zap structured logger (zap.NewProduction/zap.String/zap.Int)
+    imported inside the hunk to log GraphQL queries, in the api package. Verified
+    0-usage at pinned SHA: zero git-grep hits for go.uber.org/zap in *.go and absent
+    from go.mod (only go.opentelemetry/go.yaml.in appear under go.*); gh surfaces
+    diagnostics through iostreams writers and returns errors as values, never a
+    leveled logger.'
+  difficulty: easy
+  host_file: api/queries_pr.go
+  host_inject_at_line: 309
+- id: foreign_gorm_1
+  file: breaks/break_foreign_gorm_1.go
+  category: foreign_api
+  hunk_start_line: 7
+  hunk_end_line: 29
+  rationale: 'gorm.io/gorm ORM (gorm.Open/gorm.Model/gorm.Config + gorm.io/driver/sqlite)
+    imported inside the hunk to persist config entries to SQL, in the config package.
+    Verified 0-usage at pinned SHA: zero git-grep hits for gorm.io/gorm in *.go and
+    absent from go.mod; gh config is a YAML document tree (gopkg.in/yaml.v3), never
+    an ORM-backed database.'
+  difficulty: easy
+  host_file: internal/config/config.go
+  host_inject_at_line: 93
+- id: foreign_ants_1
+  file: breaks/break_foreign_ants_1.go
+  category: foreign_concurrency
+  hunk_start_line: 8
+  hunk_end_line: 30
+  rationale: 'github.com/panjf2000/ants/v2 goroutine pool (ants.NewPool/pool.Submit/pool.Release)
+    imported inside the hunk to fetch run details in parallel, in the run/list package.
+    Verified 0-usage at pinned SHA: zero git-grep hits for panjf2000/ants in *.go and
+    absent from go.mod; gh fans out concurrent work through golang.org/x/sync/errgroup,
+    never a foreign goroutine-pool library.'
+  difficulty: easy
+  host_file: pkg/cmd/run/list/list.go
+  host_inject_at_line: 104
+- id: foreign_conc_1
+  file: breaks/break_foreign_conc_1.go
+  category: foreign_concurrency
+  hunk_start_line: 7
+  hunk_end_line: 21
+  rationale: 'github.com/sourcegraph/conc structured-concurrency pool
+    (pool.New().WithMaxGoroutines/p.Go/p.Wait) imported inside the hunk to enrich
+    pull requests concurrently, in the pr/list package. Verified 0-usage at pinned
+    SHA: zero git-grep hits for sourcegraph/conc in *.go and absent from go.mod; gh
+    parallelises through golang.org/x/sync/errgroup, never a foreign
+    structured-concurrency library.'
+  difficulty: easy
+  host_file: pkg/cmd/pr/list/list.go
+  host_inject_at_line: 145
+- id: foreign_validator_1
+  file: breaks/break_foreign_validator_1.go
+  category: foreign_import
+  hunk_start_line: 7
+  hunk_end_line: 22
+  rationale: 'github.com/go-playground/validator/v10 reflection-driven validator
+    (validator.New/v.Struct + struct tags) imported inside the hunk to validate secret
+    names, in the secret/list package. Verified 0-usage at pinned SHA: zero git-grep
+    hits for go-playground/validator in *.go and absent from go.mod; gh validates
+    inputs with explicit checks and cmdutil.FlagErrorf, never a validation library.'
+  difficulty: easy
+  host_file: pkg/cmd/secret/list/list.go
+  host_inject_at_line: 234
+- id: foreign_prometheus_1
+  file: breaks/break_foreign_prometheus_1.go
+  category: foreign_api
+  hunk_start_line: 7
+  hunk_end_line: 20
+  rationale: 'github.com/prometheus/client_golang metrics exporter
+    (promauto.NewHistogram/prometheus.HistogramOpts) imported inside the hunk to
+    export workflow-list timings, in the workflow/list package. Verified 0-usage at
+    pinned SHA: zero git-grep hits for prometheus/client_golang in *.go and absent
+    from go.mod; gh has no metrics surface — timings are not exported anywhere.'
+  difficulty: easy
+  host_file: pkg/cmd/workflow/list/list.go
+  host_inject_at_line: 69
+- id: foreign_echo_1
+  file: breaks/break_foreign_echo_1.go
+  category: foreign_import
+  hunk_start_line: 8
+  hunk_end_line: 19
+  rationale: 'github.com/labstack/echo/v4 web framework imported inside the hunk via
+    an ALIAS (echoweb "github.com/labstack/echo/v4"; echoweb.New/echoweb.Context) to
+    serve a README preview, in the repo/view package. Verified 0-usage at pinned SHA:
+    zero git-grep hits for labstack/echo in *.go and absent from go.mod; gh has no web
+    framework. Medium: the import is aliased, but the full path still resolves foreign.'
+  difficulty: medium
+  host_file: pkg/cmd/repo/view/view.go
+  host_inject_at_line: 218
+- id: foreign_kingpin_1
+  file: breaks/break_foreign_kingpin_1.go
+  category: foreign_import
+  hunk_start_line: 7
+  hunk_end_line: 19
+  rationale: 'github.com/alecthomas/kingpin/v2 argument parser imported inside the
+    hunk (kingpin.New/app.Flag/app.Parse) to parse a legacy flag set, in the
+    release/list package. Verified 0-usage at pinned SHA: zero git-grep hits for
+    alecthomas/kingpin in *.go and absent from go.mod (alecthomas/chroma is unrelated);
+    every gh command is defined with github.com/spf13/cobra (221 RunE), never a second
+    parser. Medium: a versioned submodule path (/v2) rather than a bare module.'
+  difficulty: medium
+  host_file: pkg/cmd/release/list/list.go
+  host_inject_at_line: 67
+- id: foreign_envconfig_1
+  file: breaks/break_foreign_envconfig_1.go
+  category: foreign_api
+  hunk_start_line: 7
+  hunk_end_line: 14
+  rationale: 'github.com/kelseyhightower/envconfig reached through a BARE
+    envconfig.Process(...) call (no import line in the hunk) to load issue-list
+    defaults from the environment, in the issue/list package. Verified 0-usage at
+    pinned SHA: zero git-grep hits for kelseyhightower/envconfig in *.go and absent
+    from go.mod; the leaf .Process is 0-usage in the repo, and gh reads env through
+    the config layer (Authentication/TokenFromEnvOrConfig), never a struct-tag env
+    loader. Medium: no import — call_receiver must resolve the foreign callee.'
+  difficulty: medium
+  host_file: pkg/cmd/issue/list/list.go
+  host_inject_at_line: 265
+- id: foreign_retryablehttp_1
+  file: breaks/break_foreign_retryablehttp_1.go
+  category: foreign_api
+  hunk_start_line: 9
+  hunk_end_line: 26
+  rationale: 'github.com/hashicorp/go-retryablehttp imported inside the hunk and
+    reached through a receiver variable (retryablehttp.NewClient(); client.Get) to
+    fetch PR patch data with retries, in the checkout package. Verified 0-usage at
+    pinned SHA: zero git-grep hits for hashicorp/go-retryablehttp in *.go and absent
+    from go.mod (hashicorp/go-version is unrelated); REST calls go through
+    api.NewClientFromHTTP and Client.REST, which own retry and error mapping. Medium:
+    the API is used via a receiver variable rather than package-qualified calls.'
+  difficulty: medium
+  host_file: pkg/cmd/pr/checkout/checkout.go
+  host_inject_at_line: 261
+- id: foreign_pond_1
+  file: breaks/break_foreign_pond_1.go
+  category: foreign_concurrency
+  hunk_start_line: 7
+  hunk_end_line: 21
+  rationale: 'github.com/alitto/pond worker pool imported inside the hunk and reached
+    through a receiver variable (pond.New(); workers.Submit/workers.StopAndWait) to
+    render PR comment threads in parallel, in the pr/view package. Verified 0-usage at
+    pinned SHA: zero git-grep hits for alitto/pond in *.go and absent from go.mod; gh
+    fans out concurrent work through golang.org/x/sync/errgroup, never a foreign
+    worker-pool library. Medium: the pool is driven through a receiver variable.'
+  difficulty: medium
+  host_file: pkg/cmd/pr/view/view.go
+  host_inject_at_line: 310
+- id: foreign_tunny_1
+  file: breaks/break_foreign_tunny_1.go
+  category: foreign_concurrency
+  hunk_start_line: 7
+  hunk_end_line: 19
+  rationale: 'github.com/Jeffail/tunny reached through a BARE tunny.NewFunc(...) call
+    (no import line in the hunk) to process gist rendering on a fixed worker pool, in
+    the gist/list package. Verified 0-usage at pinned SHA: zero git-grep hits for
+    Jeffail/tunny in *.go and absent from go.mod; the leaves .NewFunc/.Process are
+    0-usage in the repo, and gh fans out through golang.org/x/sync/errgroup, never a
+    worker-pool library. Medium: no import — call_receiver must resolve the foreign
+    callee.'
+  difficulty: medium
+  host_file: pkg/cmd/gist/list/list.go
+  host_inject_at_line: 224
+- id: foreign_redis_1
+  file: breaks/break_foreign_redis_1.go
+  category: foreign_api
+  hunk_start_line: 9
+  hunk_end_line: 21
+  rationale: 'github.com/redis/go-redis/v9 reached ONLY through a *redis.Client
+    parameter type; the API is driven via the local receiver rdb through .Set/.Get,
+    method names the repo attests (168 and 111 non-qualified call sites), so no
+    foreign import or foreign namespace is named in the hunk. Verified 0-usage at
+    pinned SHA: zero git-grep hits for redis/go-redis in *.go and absent from go.mod;
+    gh has no cache backend — secrets are fetched through api.Client REST. Hard:
+    foreignness is masked behind a receiver type and attested leaf methods; may miss.'
+  difficulty: hard
+  host_file: pkg/cmd/secret/list/list.go
+  host_inject_at_line: 265
+- id: foreign_gocache_1
+  file: breaks/break_foreign_gocache_1.go
+  category: foreign_api
+  hunk_start_line: 7
+  hunk_end_line: 16
+  rationale: 'github.com/patrickmn/go-cache reached ONLY through a *cache.Cache
+    parameter type; the API is driven via the local receiver c through .Set/.Get,
+    method names the repo attests, so no foreign import or namespace is named in the
+    hunk. Verified 0-usage at pinned SHA: zero git-grep hits for patrickmn/go-cache in
+    *.go and absent from go.mod; gh keeps no in-process cache — gist listings come from
+    api.Client REST. Hard: foreignness masked behind a receiver type and attested leaf
+    methods; may miss.'
+  difficulty: hard
+  host_file: pkg/cmd/gist/list/list.go
+  host_inject_at_line: 272
+- id: foreign_ratelimit_1
+  file: breaks/break_foreign_ratelimit_1.go
+  category: foreign_concurrency
+  hunk_start_line: 7
+  hunk_end_line: 16
+  rationale: 'go.uber.org/ratelimit reached ONLY through a ratelimit.Limiter
+    parameter type; the limiter is driven via the local receiver lim through .Take(),
+    so no foreign import or foreign namespace is named in the hunk. Verified 0-usage
+    at pinned SHA: zero git-grep hits for go.uber.org/ratelimit in *.go and absent
+    from go.mod; gh throttles nothing with a foreign limiter — concurrency is bounded
+    by golang.org/x/sync/errgroup. Hard: the foreign callee sits on a local receiver
+    so the foreign-reach gate never opens; may miss.'
+  difficulty: hard
+  host_file: pkg/cmd/browse/browse.go
+  host_inject_at_line: 298
+- id: foreign_koanf_1
+  file: breaks/break_foreign_koanf_1.go
+  category: foreign_api
+  hunk_start_line: 7
+  hunk_end_line: 17
+  rationale: 'github.com/knadh/koanf reached ONLY through a *koanf.Koanf parameter
+    type; config is read via the local receiver k through .String/.Get, method names
+    the repo attests (992 and 111 non-qualified call sites), so no foreign import or
+    namespace is named in the hunk. Verified 0-usage at pinned SHA: zero git-grep hits
+    for knadh/koanf in *.go and absent from go.mod; gh config is a YAML document tree
+    (gopkg.in/yaml.v3) read through the config layer, never a koanf provider. Hard:
+    foreignness masked behind a receiver type and attested leaf methods; may miss.'
+  difficulty: hard
+  host_file: internal/config/config.go
+  host_inject_at_line: 106

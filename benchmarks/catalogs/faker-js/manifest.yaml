@@ -224,3 +224,126 @@ fixtures:
   difficulty: easy
   host_file: src/modules/science/index.ts
   host_inject_at_line: 70
+# ---- difficulty-graded additions (#92 graded recall sample) — new deps, none
+# ---- overlapping the deps above. EASY: explicit foreign import in the hunk.
+# ---- MEDIUM: import less explicit (aliased / submodule / namespace / receiver
+# ---- var / import in a decoy region). HARD: NO foreign import — a foreign
+# ---- library API whose leaf method collides with an attested faker method, so
+# ---- call-receiver resolves it as in-voice (genuinely may MISS; that is the point).
+- id: faker_js_foreign_import_seedrandom
+  file: breaks/break_foreign_import_seedrandom.ts
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 11
+  rationale: "import seedrandom from 'seedrandom' + seedrandom(seed)() inside an RNG utility. Verified foreign at SHA 6c2a0abd: seedrandom = 0 git-grep hits across *.ts and absent from package.json — faker ships its own Mersenne Twister (src/internal/mersenne.ts) and never a foreign RNG. Import scorer fires on the foreign top-level module."
+  difficulty: easy
+  host_file: src/internal/mersenne.ts
+  host_inject_at_line: 191
+- id: faker_js_foreign_import_bcryptjs
+  file: breaks/break_foreign_import_bcryptjs.ts
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 10
+  rationale: "import bcrypt from 'bcryptjs' + bcrypt.hashSync(...) inside the internet module. Verified foreign at SHA 6c2a0abd: bcryptjs = 0 git-grep hits across *.ts and absent from package.json — faker returns plaintext fakes and ships no hashing lib. Import scorer fires on the foreign top-level module."
+  difficulty: easy
+  host_file: src/modules/internet/index.ts
+  host_inject_at_line: 1059
+- id: faker_js_foreign_import_nanoid
+  file: breaks/break_foreign_import_nanoid.ts
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 9
+  rationale: "import { nanoid } from 'nanoid' + nanoid(size) inside the string module. Verified foreign at SHA 6c2a0abd: the nanoid *package* = 0 import sites across *.ts (the only 'nanoid' occurrence is a test describe() label for faker's own string.nanoid method) and absent from package.json. Import scorer fires on the foreign top-level module."
+  difficulty: easy
+  host_file: src/modules/string/index.ts
+  host_inject_at_line: 954
+- id: faker_js_foreign_api_chance
+  file: breaks/break_foreign_api_chance.ts
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 11
+  rationale: "import Chance from 'chance' + new Chance().animal(...) inside the animal module — a competing fake-data generator. Verified foreign at SHA 6c2a0abd: chance = 0 import sites across *.ts (the only 'chance' occurrence is a Danish noun-list data word in src/locales/da/word/noun.ts) and absent from package.json. Import + call-receiver fire on the foreign generator."
+  difficulty: easy
+  host_file: src/modules/animal/index.ts
+  host_inject_at_line: 219
+- id: faker_js_foreign_concurrency_tinypool
+  file: breaks/break_foreign_concurrency_tinypool.ts
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 16
+  rationale: "import Tinypool from 'tinypool' + new Tinypool(...).run(...) parallelising price generation inside the commerce module. Verified foreign at SHA 6c2a0abd: tinypool = 0 git-grep hits across *.ts and absent from package.json — faker runs synchronously on the main thread. Import scorer fires on the foreign concurrency lib."
+  difficulty: easy
+  host_file: src/modules/commerce/index.ts
+  host_inject_at_line: 404
+- id: faker_js_foreign_import_uuid_aliased
+  file: breaks/break_foreign_import_uuid_aliased.ts
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 9
+  rationale: "aliased import { v4 as uuidv4 } from 'uuid' + uuidv4() inside the database module. Verified foreign at SHA 6c2a0abd: the uuid *package* = 0 import sites across *.ts (the only 'uuid' occurrence is a test describe() label for faker's own string.uuid) and absent from package.json. Medium: the import is aliased, but the top-level specifier 'uuid' is still foreign so the import scorer fires."
+  difficulty: medium
+  host_file: src/modules/database/index.ts
+  host_inject_at_line: 85
+- id: faker_js_foreign_api_datefns_submodule
+  file: breaks/break_foreign_api_datefns_submodule.ts
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 10
+  rationale: "submodule import formatISO from 'date-fns/formatISO' + formatISO(...) inside the date module. Verified foreign at SHA 6c2a0abd: date-fns = 0 git-grep hits across *.ts and absent from package.json — faker uses its own internal date helpers. Medium: import reaches a deep submodule specifier, still foreign so the import scorer fires."
+  difficulty: medium
+  host_file: src/modules/date/index.ts
+  host_inject_at_line: 736
+- id: faker_js_foreign_api_mathjs_namespace
+  file: breaks/break_foreign_api_mathjs_namespace.ts
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 10
+  rationale: "namespace import * as math from 'mathjs' + math.evaluate(...) inside the number module. Verified foreign at SHA 6c2a0abd: mathjs = 0 git-grep hits across *.ts and absent from package.json — faker uses plain arithmetic on its seeded RNG. Medium: namespace import + receiver call; specifier 'mathjs' is foreign so the import scorer fires."
+  difficulty: medium
+  host_file: src/modules/number/index.ts
+  host_inject_at_line: 553
+- id: faker_js_foreign_concurrency_plimit_decoy
+  file: breaks/break_foreign_concurrency_plimit_decoy.ts
+  category: foreign_concurrency
+  hunk_start_line: 14
+  hunk_end_line: 20
+  rationale: "import pLimit from 'p-limit' lives in the decoy region (line 1, OUTSIDE the scored hunk); the scored hunk (manyDataUris) uses the bare foreign callee pLimit(4) to throttle image generation. Verified foreign at SHA 6c2a0abd: p-limit = 0 git-grep hits across *.ts and absent from package.json — faker builds data URIs synchronously. Medium: import-outside-hunk stresses callee resolution; in production the whole planted block is diffed so the import scorer still fires."
+  difficulty: medium
+  host_file: src/modules/image/index.ts
+  host_inject_at_line: 347
+- id: faker_js_foreign_api_bignumber_receiver
+  file: breaks/break_foreign_api_bignumber_receiver.ts
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 14
+  rationale: "import { BigNumber } from 'bignumber.js' + a receiver variable (total = new BigNumber(...); total.plus(...).toFixed(2)) accumulating a precise money total inside the finance module. Verified foreign at SHA 6c2a0abd: bignumber.js = 0 git-grep hits across *.ts and absent from package.json — faker returns plain numbers/strings. Medium: receiver-variable API; specifier 'bignumber.js' is foreign so the import scorer fires."
+  difficulty: medium
+  host_file: src/modules/finance/index.ts
+  host_inject_at_line: 853
+- id: faker_js_foreign_api_superjson_leafcollision
+  file: breaks/break_foreign_api_superjson_leafcollision.ts
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 9
+  rationale: "superjson.stringify / superjson.parse serialize a generated record — a foreign serializer. Verified foreign at SHA 6c2a0abd: superjson = 0 git-grep hits across *.ts and absent from package.json. HARD (masked): NO foreign import line in the hunk (import assumed pre-existing), and the leaf methods stringify/parse collide with faker's attested .stringify (4 sites) / .parse (2 sites), so call-receiver resolves the callee as in-voice (method_attested short-circuit) and does not fire. Expected to MISS unless BPE surprises on the novel 'superjson' token — an honest hard break."
+  difficulty: hard
+  host_file: src/modules/datatype/index.ts
+  host_inject_at_line: 61
+- id: faker_js_foreign_api_yaml_leafcollision
+  file: breaks/break_foreign_api_yaml_leafcollision.ts
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 13
+  rationale: "YAML.stringify / YAML.parse (the yaml package) serialize a generated config blob — a foreign serializer. Verified foreign at SHA 6c2a0abd: yaml = 0 git-grep hits across *.ts and absent from package.json. HARD (masked): NO foreign import line (import assumed pre-existing); leaf methods stringify/parse collide with faker's attested .stringify/.parse, so call-receiver resolves the foreign namespace YAML as in-voice and does not fire. Expected to MISS unless BPE surprises on the novel token — an honest hard break."
+  difficulty: hard
+  host_file: src/modules/system/index.ts
+  host_inject_at_line: 375
+- id: faker_js_foreign_concurrency_rxjs_leafcollision
+  file: breaks/break_foreign_concurrency_rxjs_leafcollision.ts
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 12
+  rationale: "rxjs.from(seeds).pipe(rxjs.map(...)) builds a reactive async-streams pipeline over generated seeds — a foreign runtime. Verified foreign at SHA 6c2a0abd: rxjs = 0 git-grep hits across *.ts and absent from package.json. HARD (masked): NO foreign import line (import assumed pre-existing); the foreign leaf methods from (11 sites) / map (12 sites) collide with faker's attested .from/.map, and .pipe runs through a local receiver variable (stream), so call-receiver never marks the callees foreign. Expected to MISS unless BPE surprises on the novel 'rxjs' token — an honest hard break."
+  difficulty: hard
+  host_file: src/modules/music/index.ts
+  host_inject_at_line: 71
