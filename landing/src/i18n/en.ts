@@ -59,9 +59,9 @@ const en: SiteContent = {
     title: 'Honest numbers, leak-free by construction.',
     stats: [
       {
-        value: '121/121',
+        value: '161/161',
         title: 'novel-pattern breaks caught',
-        desc: 'The metric argot is built for — a foreign import, API, or dependency the repo has never used — caught at 100% across 16 gated language corpora, and 178/183 (97%) across every catalogued corpus. Spliced into real files and judged by the real fit → check pipeline. The harder in-vocabulary classes (naming, semantics) are secondary coverage, reported red, never gated.',
+        desc: 'The metric argot is built for — a foreign import, API, or dependency the repo has never used — caught at 100% across 16 gated language corpora, and 218/223 (98%) across every catalogued corpus. Spliced into real files and judged by the real fit → check pipeline. The harder in-vocabulary classes (naming, semantics) are secondary coverage, reported red, never gated.',
       },
       {
         value: '0.23%',

@@ -182,8 +182,8 @@ corpora with a high *total* rate — ink 6.1%, bat 7.1% — are almost entirely
 detections (ink 6.08% detection / 0.00% over-fire; bat 6.80% / 0.30%): repos
 that legitimately adopt new dependencies, which argot correctly flags for review.
 On the gated novel-pattern class — a foreign import, API, or concurrency
-construct the repo has never used — argot catches **121/121 (100%)** across 16
-language corpora, and **178/183 (97%)** across every catalogued corpus. New-file false positives — once the worst
+construct the repo has never used — argot catches **161/161 (100%)** across 16
+language corpora, and **218/223 (98%)** across every catalogued corpus. New-file false positives — once the worst
 failure (excalidraw 21%, redis 61%, fmt 57%) — were largely fixed by a
 separate, higher **new-file threshold** calibrated by scoring each fit file
 as if newly added ([#92](https://github.com/get-tmonier/argot/issues/92),
