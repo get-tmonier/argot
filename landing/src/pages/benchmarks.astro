@@ -14,6 +14,8 @@ type Fp = {
   rate_pct: number;
   ci95_pct: [number, number] | null;
 };
+type Tier = { caught: number; total: number; pct?: number };
+type ByDifficulty = { easy: Tier; medium: Tier; hard: Tier };
 type Corpus = {
   corpus: string;
   language: string;
@@ -25,6 +27,7 @@ type Corpus = {
   foreign_caught?: number | null;
   foreign_fixtures?: number | null;
   foreign_recall_pct?: number | null;
+  foreign_by_difficulty?: ByDifficulty;
   fp_existing: Fp | null;
   fp_new_file: Fp | null;
   fp_existing_overfire?: Fp | null;
@@ -46,6 +49,7 @@ type Entry = {
     foreign_caught?: number;
     foreign_fixtures?: number;
     foreign_recall_pct?: number;
+    foreign_by_difficulty?: ByDifficulty;
     worst_fp_existing_pct: number;
     worst_fp_new_file_pct: number;
     worst_fp_existing_overfire_pct?: number;
@@ -67,6 +71,16 @@ const history = entries
   .sort((a, b) => a.generated_at.localeCompare(b.generated_at));
 const latest =
   entries.find((e) => e._name === 'latest.json') ?? history[history.length - 1] ?? null;
+
+// Recall by difficulty: "visible" foreign (easy+medium — an explicit import,
+// FQN call, or distinct API name) vs "masked" foreign (hard — a foreign method
+// whose name collides with one of the repo's own, an attested root namespace,
+// or a dynamic import; a documented statistical limit).
+const bd = latest?.totals.foreign_by_difficulty;
+const visCaught = bd ? bd.easy.caught + bd.medium.caught : 0;
+const visTotal = bd ? bd.easy.total + bd.medium.total : 0;
+const visPct = visTotal ? (100 * visCaught) / visTotal : 0;
+const hardPct = bd && bd.hard.total ? (100 * bd.hard.caught) / bd.hard.total : 0;
 
 // Novel-pattern (foreign) catch for a corpus, or '—' when it has no break
 // catalog (an FP-only corpus, there only to measure false alarms).
@@ -97,7 +111,13 @@ const det = (s: Fp | null | undefined) =>
         real host files (a foreign import / API / dependency, verified 0-usage at
         the pinned commit) and judged by the real
         <code>argot fit</code> → <code>argot check</code> pipeline, what share
-        does argot flag? Higher is better.
+        does argot flag? The fixtures are <strong>difficulty-graded</strong>:
+        <em>visible</em> foreign (an explicit import, a fully-qualified call, a
+        distinct API name) argot catches ~99%; <em>masked</em> foreign (a foreign
+        method whose name collides with one of your own, a namespace root your
+        repo owns, or a dynamic <code>import()</code>) is a documented
+        statistical limit — if the foreign code looks exactly like yours, a
+        voice model can't separate it. Higher is better.
       </li>
       <li>
         <strong>False alarm (over-fire)</strong> — a leak-free temporal holdout:
@@ -123,11 +143,9 @@ const det = (s: Fp | null | undefined) =>
         <>
           <div class="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div class="rounded-xl border border-line p-4">
-              <div class="text-2xl font-bold">
-                {(latest.totals.gated_recall_pct ?? latest.totals.recall_pct).toFixed(0)}%
-              </div>
+              <div class="text-2xl font-bold">{visPct.toFixed(0)}%</div>
               <div class="text-sm text-muted">
-                novel-pattern catch · {latest.totals.gated_caught}/{latest.totals.gated_fixtures} gated
+                catch · <strong>visible</strong> foreign ({visCaught}/{visTotal})
               </div>
             </div>
             <div class="rounded-xl border border-line p-4">
@@ -135,7 +153,7 @@ const det = (s: Fp | null | undefined) =>
                 {(latest.totals.foreign_recall_pct ?? 0).toFixed(0)}%
               </div>
               <div class="text-sm text-muted">
-                foreign catch · {latest.totals.foreign_caught}/{latest.totals.foreign_fixtures} all corpora
+                catch · all fixtures ({latest.totals.foreign_caught}/{latest.totals.foreign_fixtures}, easy→hard)
               </div>
             </div>
             <div class="rounded-xl border border-line p-4">
@@ -151,6 +169,14 @@ const det = (s: Fp | null | undefined) =>
               <div class="text-sm text-muted">worst false alarm · new files</div>
             </div>
           </div>
+          {bd && (
+            <p class="mt-3 text-sm text-muted">
+              catch by difficulty across {latest.totals.foreign_fixtures} graded fixtures / {latest.corpora.filter((c) => c.foreign_fixtures).length} corpora:
+              <span class="text-ink-dim"> easy {bd.easy.caught}/{bd.easy.total} ({((100 * bd.easy.caught) / bd.easy.total).toFixed(0)}%)</span> ·
+              <span class="text-ink-dim"> medium {bd.medium.caught}/{bd.medium.total} ({((100 * bd.medium.caught) / bd.medium.total).toFixed(0)}%)</span> ·
+              <span class="text-ink-dim"> hard {bd.hard.caught}/{bd.hard.total} ({hardPct.toFixed(0)}%) — masked foreign, documented limit</span>
+            </p>
+          )}
           <p class="mt-3 text-sm text-muted">
             run {latest.commit} · {latest.generated_at.slice(0, 10)} · ⚠️ marks corpora
             under the 300-hunk sample bar (excluded from the worst-FP tiles) · false-alarm =

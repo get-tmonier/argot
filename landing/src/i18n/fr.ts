@@ -59,9 +59,9 @@ const fr: SiteContent = {
     title: 'Des chiffres honnêtes, sans fuite par construction.',
     stats: [
       {
-        value: '161/161',
-        title: 'ruptures « motif inédit » détectées',
-        desc: 'Le critère pour lequel argot est conçu — un import, une API ou une dépendance étrangère que le dépôt n’a jamais utilisée — détecté à 100 % sur 16 corpus gatés, et 218/223 (98 %) sur l’ensemble des corpus catalogués. Inséré dans de vrais fichiers et jugé par le vrai pipeline fit → check. Les classes plus difficiles (nommage, sémantique) sont une couverture secondaire, publiée en rouge, jamais gatée.',
+        value: '99 %',
+        title: 'détection étrangère visible',
+        desc: 'Le critère pour lequel argot est conçu — un import, une API ou une dépendance étrangère que le dépôt n’a jamais utilisée. Sur 635 fixtures graduées en difficulté (16 langages) : quand le symbole étranger est visible (import explicite, appel pleinement qualifié, nom d’API distinct) argot détecte 522/527 (99 %) ; quand il est masqué (méthode étrangère entrant en collision avec un nom du dépôt, racine de namespace possédée, ou import dynamique) il détecte 24/106 (23 %) — une limite statistique documentée. Global 546/635 (86 %). Inséré dans de vrais fichiers, jugé par le vrai pipeline fit → check.',
       },
       {
         value: '0,23 %',

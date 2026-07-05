@@ -59,9 +59,9 @@ const en: SiteContent = {
     title: 'Honest numbers, leak-free by construction.',
     stats: [
       {
-        value: '161/161',
-        title: 'novel-pattern breaks caught',
-        desc: 'The metric argot is built for — a foreign import, API, or dependency the repo has never used — caught at 100% across 16 gated language corpora, and 218/223 (98%) across every catalogued corpus. Spliced into real files and judged by the real fit → check pipeline. The harder in-vocabulary classes (naming, semantics) are secondary coverage, reported red, never gated.',
+        value: '99%',
+        title: 'visible-foreign catch',
+        desc: 'The metric argot is built for — a foreign import, API, or dependency the repo has never used. Across 635 difficulty-graded fixtures in 16 languages: when the foreign symbol is visible (an explicit import, fully-qualified call, or distinct API name) argot catches 522/527 (99%); when it is masked (a foreign method colliding with the repo’s own name, an owned root namespace, or a dynamic import) it catches 24/106 (23%) — a documented statistical limit. Overall 546/635 (86%). Spliced into real files, judged by the real fit → check pipeline.',
       },
       {
         value: '0.23%',
