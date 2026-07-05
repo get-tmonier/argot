@@ -1,0 +1,136 @@
+corpus: composer
+language: php
+categories:
+- foreign_import
+- foreign_api
+- foreign_concurrency
+injection_hosts:
+- pr: 0
+  sha: c6c9144f1b75
+fixtures:
+- id: composer_foreign_doctrine_1
+  file: breaks/break_foreign_doctrine_1.php
+  category: foreign_import
+  hunk_start_line: 33
+  hunk_end_line: 46
+  rationale: 'Doctrine ORM EntityManager unit-of-work via FQN (\Doctrine\ORM\ORMSetup,
+    \Doctrine\ORM\EntityManager::create, persist/flush) — a PHP class-body splice cannot
+    carry a `use`, so the foreign package is referenced by fully-qualified name inside
+    the hunk. Verified at pinned SHA c6c9144f1b75: doctrine/orm absent from composer.json
+    (require + require-dev) and `\Doctrine\ORM` = 0 grep hits over all *.php (src included);
+    the distinctive callee `EntityManager` = 0 hits. Composer persists package state
+    through its own JsonFile-backed repositories and ArrayDumper, never a foreign ORM.'
+  difficulty: easy
+  host_file: src/Composer/Repository/FilesystemRepository.php
+  host_inject_at_line: 71
+- id: composer_foreign_twig_1
+  file: breaks/break_foreign_twig_1.php
+  category: foreign_import
+  hunk_start_line: 28
+  hunk_end_line: 37
+  rationale: 'Twig standalone environment via FQN (\Twig\Loader\ArrayLoader + \Twig\Environment::render)
+    to build the generated autoload bootstrap. Verified at pinned SHA c6c9144f1b75:
+    twig/twig absent from composer.json (require + require-dev) and `\Twig\` = 0 grep
+    hits over all *.php (src included); the distinctive callee `createTemplate` = 0
+    hits. Composer emits generated PHP through its own string builders in AutoloadGenerator
+    (getAutoloadFile / getAutoloadRealFile), never a foreign template engine.'
+  difficulty: easy
+  host_file: src/Composer/Autoload/AutoloadGenerator.php
+  host_inject_at_line: 105
+- id: composer_foreign_monolog_1
+  file: breaks/break_foreign_monolog_1.php
+  category: foreign_import
+  hunk_start_line: 28
+  hunk_end_line: 36
+  rationale: 'Monolog logger stack via FQN (\Monolog\Logger + \Monolog\Handler\StreamHandler
+    + pushHandler + \Monolog\Processor\PsrLogMessageProcessor). Verified at pinned SHA
+    c6c9144f1b75: monolog/monolog absent from composer.json (require + require-dev)
+    and `\Monolog\` = 0 grep hits over all *.php (src included); the distinctive callee
+    `pushHandler` = 0 hits. Composer depends on the psr/log interface only and reports
+    diagnostics exclusively through the injected IOInterface (io->writeError), never
+    a foreign logging framework.'
+  difficulty: easy
+  host_file: src/Composer/Cache.php
+  host_inject_at_line: 78
+- id: composer_foreign_guzzle_1
+  file: breaks/break_foreign_guzzle_1.php
+  category: foreign_api
+  hunk_start_line: 28
+  hunk_end_line: 35
+  rationale: 'GuzzleHttp\Client direct HTTP request via FQN (\GuzzleHttp\Client::request
+    / getBody / getContents). Verified at pinned SHA c6c9144f1b75: guzzlehttp/guzzle
+    absent from composer.json (require + require-dev) and `\GuzzleHttp\` = 0 grep hits
+    over all *.php (src included). Composer issues every HTTP request through its own
+    HttpDownloader / CurlDownloader stack over react/promise, never a foreign HTTP client.'
+  difficulty: easy
+  host_file: src/Composer/Util/HttpDownloader.php
+  host_inject_at_line: 120
+- id: composer_foreign_ramsey_1
+  file: breaks/break_foreign_ramsey_1.php
+  category: foreign_api
+  hunk_start_line: 28
+  hunk_end_line: 34
+  rationale: 'Ramsey UUID generation via FQN (\Ramsey\Uuid\Uuid::uuid4()->toString())
+    for cache temp-file naming. Verified at pinned SHA c6c9144f1b75: ramsey/uuid absent
+    from composer.json (require + require-dev) and `\Ramsey\Uuid` = 0 grep hits over
+    all *.php (src included); the distinctive callee `uuid4` = 0 hits. Composer names
+    temp cache files with `bin2hex(random_bytes(5))` from the PHP stdlib (see Cache::write),
+    never a foreign UUID library.'
+  difficulty: easy
+  host_file: src/Composer/Cache.php
+  host_inject_at_line: 270
+- id: composer_foreign_carbon_1
+  file: breaks/break_foreign_carbon_1.php
+  category: foreign_api
+  hunk_start_line: 28
+  hunk_end_line: 34
+  rationale: 'Carbon date library via FQN (\Carbon\Carbon::now()->subSeconds()->format())
+    to compute the cache gc cut-off. Verified at pinned SHA c6c9144f1b75: nesbot/carbon
+    absent from composer.json (require + require-dev) and `\Carbon\Carbon` = 0 grep hits
+    over all *.php (src included); the distinctive callee `Carbon::now` = 0 hits. Composer''s
+    cache gc computes its cut-off with the native `\DateTime` + `modify()` (see Cache::gc),
+    never a foreign date library.'
+  difficulty: medium
+  host_file: src/Composer/Cache.php
+  host_inject_at_line: 300
+- id: composer_foreign_amp_1
+  file: breaks/break_foreign_amp_1.php
+  category: foreign_concurrency
+  hunk_start_line: 28
+  hunk_end_line: 37
+  rationale: 'Amp async runtime via FQN (\Amp\async + \Amp\Future\await) to run a job
+    batch concurrently. Verified at pinned SHA c6c9144f1b75: amphp/amp absent from composer.json
+    (require + require-dev) and `\Amp\` = 0 grep hits over all *.php (src included);
+    the distinctive callee `Amp\Future` = 0 hits. Composer coordinates concurrent work
+    through its own Util\Loop over react/promise, never a foreign async runtime.'
+  difficulty: easy
+  host_file: src/Composer/Util/Loop.php
+  host_inject_at_line: 52
+- id: composer_foreign_swoole_1
+  file: breaks/break_foreign_swoole_1.php
+  category: foreign_concurrency
+  hunk_start_line: 28
+  hunk_end_line: 38
+  rationale: 'Swoole coroutine runtime via FQN (\Swoole\Coroutine\run + \Swoole\Coroutine::create
+    + \Swoole\Coroutine\System::exec). Verified at pinned SHA c6c9144f1b75: ext-swoole
+    / swoole absent from composer.json (require + require-dev) and `\Swoole\` = 0 grep
+    hits over all *.php (src included); the distinctive callee `Swoole\Coroutine` = 0
+    hits. Composer runs external processes through Symfony Process via its own ProcessExecutor,
+    never a foreign coroutine runtime.'
+  difficulty: easy
+  host_file: src/Composer/Util/ProcessExecutor.php
+  host_inject_at_line: 101
+- id: composer_foreign_parallel_1
+  file: breaks/break_foreign_parallel_1.php
+  category: foreign_concurrency
+  hunk_start_line: 28
+  hunk_end_line: 42
+  rationale: 'ext-parallel worker threads via FQN (new \parallel\Runtime + Runtime->run
+    + \parallel\Future->value) for concurrent task execution. Verified at pinned SHA
+    c6c9144f1b75: ext-parallel / parallel absent from composer.json (require + require-dev)
+    and `\parallel\Runtime` = 0 grep hits over all *.php (src included); the distinctive
+    callee `parallel\Runtime` = 0 hits. Composer parallelises work through its own async
+    Util\Loop over react/promise, never a foreign thread-runtime extension.'
+  difficulty: medium
+  host_file: src/Composer/Util/ProcessExecutor.php
+  host_inject_at_line: 117

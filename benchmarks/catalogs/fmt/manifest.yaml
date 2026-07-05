@@ -1,0 +1,139 @@
+corpus: fmt
+language: cpp
+categories:
+- foreign_import
+- foreign_api
+- foreign_concurrency
+injection_hosts:
+- pr: 0
+  sha: 77b6ff700be3417e0a3ad9674ca306e40c451b6b
+fixtures:
+- id: foreign_nlohmann_1
+  file: breaks/break_foreign_nlohmann_1.cc
+  category: foreign_import
+  hunk_start_line: 16
+  hunk_end_line: 23
+  rationale: 'nlohmann/json dependency for a JSON dump of a format spec, #include
+    <nlohmann/json.hpp> inside the hunk. Verified at pinned SHA: zero `#include
+    <nlohmann`, zero `nlohmann::json`, and zero `json::parse` sites anywhere in
+    *.cc/*.h/*.cpp (git grep). {fmt} assembles every string through its own
+    fmt::format / memory_buffer and links no third-party JSON library.'
+  difficulty: easy
+  host_file: src/format.cc
+  host_inject_at_line: 43
+- id: foreign_spdlog_1
+  file: breaks/break_foreign_spdlog_1.cc
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 23
+  rationale: 'spdlog logging dependency for an oversized-buffer warning, #include
+    <spdlog/spdlog.h> inside the hunk. Verified at pinned SHA: zero `#include
+    <spdlog/` and zero `spdlog::` sites anywhere in *.cc/*.h/*.cpp (git grep).
+    {fmt} is a formatting library with no logging facility of its own and never
+    reaches for a standalone logging framework; the host src/os.cc reports errors
+    via its own report_system_error helper.'
+  difficulty: easy
+  host_file: src/os.cc
+  host_inject_at_line: 170
+- id: foreign_boost_filesystem_1
+  file: breaks/break_foreign_boost_filesystem_1.cc
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 24
+  rationale: 'boost::filesystem dependency for template-file existence/size
+    checks, #include <boost/filesystem.hpp> inside the hunk. Verified at pinned
+    SHA: zero `#include <boost/filesystem` sites and zero
+    `boost::filesystem::exists` / `::file_size` / `::is_regular_file` call sites
+    in *.cc/*.h/*.cpp (git grep; the bare token `boost::filesystem` appears only
+    as 2 prose comments in the vendored, muted test/gtest/gtest.h). {fmt} touches
+    the filesystem exclusively through its own os.h wrappers over POSIX/Win32
+    handles, as in the host src/os.cc.'
+  difficulty: easy
+  host_file: src/os.cc
+  host_inject_at_line: 380
+- id: foreign_boost_algorithm_1
+  file: breaks/break_foreign_boost_algorithm_1.cc
+  category: foreign_api
+  hunk_start_line: 23
+  hunk_end_line: 28
+  rationale: 'Boost string_algo API for joining/upcasing argument names, #include
+    <boost/algorithm/string.hpp> inside the hunk. Verified at pinned SHA: zero
+    `#include <boost/algorithm`, zero `boost::algorithm::join`, and zero
+    `boost::algorithm::to_upper` sites anywhere in *.cc/*.h/*.cpp (git grep).
+    {fmt} builds joined output with its own fmt::join / format_to and never calls
+    into boost::algorithm.'
+  difficulty: easy
+  host_file: src/format.cc
+  host_inject_at_line: 43
+- id: foreign_poco_1
+  file: breaks/break_foreign_poco_1.cc
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 23
+  rationale: 'POCO NumberParser API for parsing a numeric format argument,
+    #include <Poco/NumberParser.h> inside the hunk. Verified at pinned SHA: zero
+    `#include <Poco/`, zero `Poco::`, and zero `Poco::NumberParser` sites
+    anywhere in *.cc/*.h/*.cpp (git grep). {fmt} converts text through its own
+    detail parsers (parse_float / to_unsigned) and never links the POCO
+    libraries.'
+  difficulty: medium
+  host_file: src/os.cc
+  host_inject_at_line: 396
+- id: foreign_absl_1
+  file: breaks/break_foreign_absl_1.cc
+  category: foreign_api
+  hunk_start_line: 20
+  hunk_end_line: 28
+  rationale: 'abseil flat_hash_map + StrCat for an in-process label cache,
+    #include <absl/container/flat_hash_map.h> and <absl/strings/str_cat.h> inside
+    the hunk. Verified at pinned SHA: zero `absl::flat_hash_map` and zero
+    `absl::StrCat` call sites anywhere in *.cc/*.h/*.cpp (git grep). The only
+    `absl::` identifiers in the tree live under the vendored, muted
+    test/gtest/gmock-gtest-all.cc; {fmt}''s own code caches nothing in
+    third-party containers and builds strings with fmt::format, never abseil.'
+  difficulty: easy
+  host_file: src/format.cc
+  host_inject_at_line: 43
+- id: foreign_tbb_1
+  file: breaks/break_foreign_tbb_1.cc
+  category: foreign_concurrency
+  hunk_start_line: 19
+  hunk_end_line: 30
+  rationale: 'Intel TBB parallel task runtime for batch formatting, #include
+    <tbb/parallel_for.h> inside the hunk with a tbb::parallel_for over a
+    tbb::blocked_range. Verified at pinned SHA: zero `#include <tbb/`, zero
+    `tbb::parallel_for`, and zero `tbb::blocked_range` sites anywhere in
+    *.cc/*.h/*.cpp (git grep). {fmt} is a synchronous formatting library and
+    pulls in no parallel task runtime (a foreign concurrency lib, not a raw
+    std::thread).'
+  difficulty: medium
+  host_file: src/os.cc
+  host_inject_at_line: 359
+- id: foreign_asio_1
+  file: breaks/break_foreign_asio_1.cc
+  category: foreign_concurrency
+  hunk_start_line: 18
+  hunk_end_line: 29
+  rationale: 'Boost.Asio thread-pool runtime for async formatting jobs, #include
+    <boost/asio.hpp> inside the hunk with boost::asio::thread_pool +
+    boost::asio::post. Verified at pinned SHA: zero `#include <boost/asio`, zero
+    `boost::asio::thread_pool`, and zero `boost::asio::post` sites anywhere in
+    *.cc/*.h/*.cpp (git grep). {fmt} runs formatting inline on the calling thread
+    and never schedules work onto an asio executor.'
+  difficulty: medium
+  host_file: src/os.cc
+  host_inject_at_line: 384
+- id: foreign_folly_1
+  file: breaks/break_foreign_folly_1.cc
+  category: foreign_concurrency
+  hunk_start_line: 19
+  hunk_end_line: 30
+  rationale: 'Facebook folly CPUThreadPoolExecutor for parallel formatting,
+    #include <folly/executors/CPUThreadPoolExecutor.h> inside the hunk. Verified
+    at pinned SHA: zero `#include <folly/` and zero `folly::CPUThreadPoolExecutor`
+    sites anywhere in *.cc/*.h/*.cpp (git grep). {fmt} owns no executor
+    abstraction and never offloads formatting onto a folly thread pool (a foreign
+    concurrency lib, not a raw std::thread).'
+  difficulty: medium
+  host_file: src/format.cc
+  host_inject_at_line: 43

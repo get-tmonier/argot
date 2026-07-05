@@ -1,0 +1,131 @@
+corpus: junit5
+language: java
+categories:
+- foreign_import
+- foreign_api
+- foreign_concurrency
+injection_hosts:
+- pr: 0
+  sha: 54aa232aa25d
+fixtures:
+- id: foreign_gson_1
+  file: breaks/break_foreign_gson_1.java
+  category: foreign_import
+  hunk_start_line: 21
+  hunk_end_line: 28
+  rationale: 'Fully-qualified com.google.gson.Gson/GsonBuilder JSON serialization
+    (toJson) inside the hunk. Verified 0-usage at pinned SHA 54aa232aa25d: git grep
+    over all *.java returns com.google.gson = 0, GsonBuilder = 0, Gson = 0 hits;
+    junit5 has no JSON dependency and renders diagnostics through its own StringUtils,
+    never a foreign JSON library.'
+  difficulty: easy
+  host_file: junit-platform-commons/src/main/java/org/junit/platform/commons/util/StringUtils.java
+  host_inject_at_line: 63
+- id: foreign_jackson_1
+  file: breaks/break_foreign_jackson_1.java
+  category: foreign_import
+  hunk_start_line: 20
+  hunk_end_line: 33
+  rationale: 'Fully-qualified com.fasterxml.jackson.databind.ObjectMapper serialization
+    (writeValueAsString) inside the hunk. Verified 0-usage at pinned SHA 54aa232aa25d:
+    git grep over all *.java returns com.fasterxml.jackson = 0, ObjectMapper = 0 hits;
+    junit5 renders assertion payloads through its own AssertionUtils/StringUtils,
+    never a foreign JSON mapper.'
+  difficulty: easy
+  host_file: junit-jupiter-api/src/main/java/org/junit/jupiter/api/AssertionUtils.java
+  host_inject_at_line: 62
+- id: foreign_snakeyaml_1
+  file: breaks/break_foreign_snakeyaml_1.java
+  category: foreign_import
+  hunk_start_line: 26
+  hunk_end_line: 34
+  rationale: 'Top-level import of org.yaml.snakeyaml.Yaml/LoaderOptions plus a YAML
+    parse (Yaml.load). Verified 0-usage at pinned SHA 54aa232aa25d: git grep over
+    all *.java returns org.yaml.snakeyaml = 0, snakeyaml = 0, Yaml = 0, LoaderOptions
+    = 0 hits (0 of the repo''s module specifiers); junit5 reads configuration through
+    its own ConfigurationParameters, never a foreign YAML library. Caught by the
+    import stage: the call-receiver stage cannot see it foreign because the module
+    root org.* collides with junit5''s own org.junit namespace.'
+  difficulty: easy
+  host_file: junit-platform-commons/src/main/java/org/junit/platform/commons/util/CollectionUtils.java
+  host_inject_at_line: 85
+- id: foreign_okhttp_1
+  file: breaks/break_foreign_okhttp_1.java
+  category: foreign_api
+  hunk_start_line: 23
+  hunk_end_line: 33
+  rationale: 'Fully-qualified okhttp3.OkHttpClient request/response fetch (newCall/execute)
+    inside the hunk. Verified 0-usage at pinned SHA 54aa232aa25d: git grep over all
+    *.java returns okhttp3 = 0, OkHttpClient = 0 hits; junit5 has no HTTP client of
+    its own and does not reach for a foreign one — resources are read through the
+    classpath scanner.'
+  difficulty: easy
+  host_file: junit-platform-commons/src/main/java/org/junit/platform/commons/util/ClassUtils.java
+  host_inject_at_line: 56
+- id: foreign_hikari_1
+  file: breaks/break_foreign_hikari_1.java
+  category: foreign_api
+  hunk_start_line: 24
+  hunk_end_line: 33
+  rationale: 'Fully-qualified com.zaxxer.hikari.HikariDataSource/HikariConfig JDBC
+    connection pool (getConnection) inside the hunk. Verified 0-usage at pinned SHA
+    54aa232aa25d: git grep over all *.java returns com.zaxxer.hikari = 0,
+    HikariDataSource = 0, HikariConfig = 0 hits; junit5 has no database layer and
+    never reaches for a foreign connection pool.'
+  difficulty: easy
+  host_file: junit-platform-commons/src/main/java/org/junit/platform/commons/util/ReflectionUtils.java
+  host_inject_at_line: 116
+- id: foreign_jedis_1
+  file: breaks/break_foreign_jedis_1.java
+  category: foreign_api
+  hunk_start_line: 21
+  hunk_end_line: 33
+  rationale: 'Fully-qualified redis.clients.jedis.Jedis client lookup (get) inside
+    the hunk. Verified 0-usage at pinned SHA 54aa232aa25d: git grep over all *.java
+    returns redis.clients.jedis = 0, Jedis = 0 hits; junit5 caches reflection
+    results in its own in-process LruCache and has no external cache dependency.'
+  difficulty: easy
+  host_file: junit-platform-commons/src/main/java/org/junit/platform/commons/util/ModuleUtils.java
+  host_inject_at_line: 83
+- id: foreign_rxjava_1
+  file: breaks/break_foreign_rxjava_1.java
+  category: foreign_concurrency
+  hunk_start_line: 24
+  hunk_end_line: 35
+  rationale: 'Fully-qualified io.reactivex.rxjava3 reactive pipeline
+    (Flowable.fromIterable/Schedulers.computation/PublishSubject.create) inside the
+    hunk. Verified 0-usage at pinned SHA 54aa232aa25d: git grep over all *.java
+    returns io.reactivex.rxjava3 = 0, Flowable = 0, Schedulers = 0, PublishSubject =
+    0 hits; junit5 drives parallel execution with java.util.concurrent ForkJoinPool,
+    never a foreign reactive runtime.'
+  difficulty: medium
+  host_file: junit-jupiter-engine/src/main/java/org/junit/jupiter/engine/execution/ConditionEvaluator.java
+  host_inject_at_line: 60
+- id: foreign_reactor_1
+  file: breaks/break_foreign_reactor_1.java
+  category: foreign_concurrency
+  hunk_start_line: 25
+  hunk_end_line: 34
+  rationale: 'Fully-qualified reactor.core reactive pipeline (Flux.fromIterable/
+    Schedulers.parallel/Mono.just) inside the hunk. Verified 0-usage at pinned SHA
+    54aa232aa25d: git grep over all *.java returns reactor.core = 0, reactor = 0,
+    Flux = 0, Mono = 0 hits; junit5 resolves parameters synchronously and
+    parallelises via the platform''s own hierarchical executor, never a foreign
+    reactive runtime.'
+  difficulty: medium
+  host_file: junit-jupiter-engine/src/main/java/org/junit/jupiter/engine/execution/ParameterResolutionUtils.java
+  host_inject_at_line: 91
+- id: foreign_akka_1
+  file: breaks/break_foreign_akka_1.java
+  category: foreign_concurrency
+  hunk_start_line: 22
+  hunk_end_line: 33
+  rationale: 'Fully-qualified akka.actor actor runtime (ActorSystem.create/actorOf/
+    Props.create/ActorRef) inside the hunk. Verified 0-usage at pinned SHA
+    54aa232aa25d: git grep over all *.java returns akka = 0, com.typesafe.akka = 0,
+    ActorSystem = 0, ActorRef = 0, Props = 0 hits; junit5 orchestrates engine
+    execution through its own synchronous orchestrator, never a foreign actor
+    framework.'
+  difficulty: medium
+  host_file: junit-platform-launcher/src/main/java/org/junit/platform/launcher/core/EngineExecutionOrchestrator.java
+  host_inject_at_line: 92

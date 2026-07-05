@@ -1,0 +1,163 @@
+corpus: curl
+language: c
+categories:
+- foreign_import
+- foreign_api
+- foreign_concurrency
+injection_hosts:
+- pr: 0
+  sha: 84ecfb3ecc793c0087ed9700bdc2a1475ab53ff9
+fixtures:
+- id: foreign_jansson_1
+  file: breaks/break_foreign_jansson_1.c
+  category: foreign_import
+  hunk_start_line: 19
+  hunk_end_line: 33
+  rationale: 'jansson JSON encoding of the outgoing request-header set before
+    send (json_object/json_array/json_string/json_object_set_new/
+    json_array_append_new/json_dumps/json_decref) — domain-plausible in the
+    HTTP request-building file, but foreign: verified 0 tree-wide hits for
+    <jansson.h> and for json_object/json_string/json_object_set_new/
+    json_array/json_array_append_new/json_dumps/json_decref/json_t across
+    *.c/*.h at the pinned SHA. curl builds every request-header line into a
+    dynbuf via curlx_dyn_addf (96 hits) and never serializes headers through a
+    foreign JSON library.'
+  difficulty: easy
+  host_file: lib/http.c
+  host_inject_at_line: 2467
+- id: foreign_sqlite3_1
+  file: breaks/break_foreign_sqlite3_1.c
+  category: foreign_import
+  hunk_start_line: 16
+  hunk_end_line: 36
+  rationale: 'sqlite3 side-table persistence of the cookie jar for durability
+    (sqlite3_open/sqlite3_prepare_v2/sqlite3_bind_text/sqlite3_step/
+    sqlite3_finalize/sqlite3_close) — domain-plausible in the cookie file, but
+    foreign: verified 0 tree-wide hits for <sqlite3.h> and for sqlite3_open/
+    sqlite3_prepare_v2/sqlite3_bind_text/sqlite3_step/sqlite3_finalize/
+    sqlite3_close/sqlite3_stmt/SQLITE_DONE across *.c/*.h at the pinned SHA.
+    curl persists cookies exclusively through its own Netscape-format flat
+    file (Curl_cookie_output), never a foreign embedded database.'
+  difficulty: easy
+  host_file: lib/cookie.c
+  host_inject_at_line: 562
+- id: foreign_libxml2_1
+  file: breaks/break_foreign_libxml2_1.c
+  category: foreign_import
+  hunk_start_line: 18
+  hunk_end_line: 34
+  rationale: 'libxml2 DOM parse of a WebDAV/multistatus response body
+    (xmlReadMemory/xmlDocGetRootElement/xmlNodePtr/xmlDocPtr/xmlFreeDoc/
+    xmlCleanupParser) — domain-plausible in the transfer file, but foreign:
+    verified 0 tree-wide hits for libxml/parser.h, libxml/tree.h and for
+    xmlReadMemory/xmlDocGetRootElement/xmlNodePtr/xmlDocPtr/xmlFreeDoc/
+    xmlCleanupParser across *.c/*.h at the pinned SHA. curl hands every
+    response body to the caller''s write callback and never parses XML with a
+    foreign DOM library.'
+  difficulty: easy
+  host_file: lib/transfer.c
+  host_inject_at_line: 441
+- id: foreign_libpq_1
+  file: breaks/break_foreign_libpq_1.c
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 38
+  rationale: 'libpq PostgreSQL client writing a DNS-resolution audit row
+    (PQconnectdb/PQstatus/PQexec/PQresultStatus/PQclear/PQfinish) —
+    domain-plausible in the name-resolution file, but foreign: verified 0
+    tree-wide hits for libpq-fe.h and for PQconnectdb/PQstatus/PQexec/
+    PQresultStatus/PQclear/PQfinish/PGconn/CONNECTION_OK/PGRES_COMMAND_OK
+    across *.c/*.h at the pinned SHA. curl surfaces resolver activity only
+    through its own CURL_TRC/infof tracing and its DNS cache, never a foreign
+    RDBMS client. The bare foreign callees (PQconnectdb, PQexec, ...) fire in
+    the call-receiver stage because the repo never declares them.'
+  difficulty: easy
+  host_file: lib/hostip.c
+  host_inject_at_line: 430
+- id: foreign_cjson_1
+  file: breaks/break_foreign_cjson_1.c
+  category: foreign_api
+  hunk_start_line: 20
+  hunk_end_line: 32
+  rationale: 'cJSON serialization of the parsed URL components
+    (cJSON_CreateObject/cJSON_AddStringToObject/cJSON_AddNumberToObject/
+    cJSON_PrintUnformatted/cJSON_Delete) — domain-plausible in the URL file,
+    but foreign: verified 0 tree-wide hits for cjson/cJSON.h and for
+    cJSON_CreateObject/cJSON_AddStringToObject/cJSON_AddNumberToObject/
+    cJSON_PrintUnformatted/cJSON_Delete across *.c/*.h at the pinned SHA. curl
+    exposes URL parts through its own CURLU handle and curl_url_get, never a
+    foreign JSON library. The bare cJSON_* callees fire in the call-receiver
+    stage because the repo never declares them.'
+  difficulty: easy
+  host_file: lib/url.c
+  host_inject_at_line: 992
+- id: foreign_hiredis_1
+  file: breaks/break_foreign_hiredis_1.c
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 32
+  rationale: 'hiredis caching of a downloaded response chunk to a remote Redis
+    server (redisConnect/redisCommand/redisReply/freeReplyObject/redisFree) —
+    domain-plausible in the client-write file, but foreign: verified 0
+    tree-wide hits for hiredis/hiredis.h and for redisConnect/redisCommand/
+    redisReply/freeReplyObject/redisFree/redisContext across *.c/*.h at the
+    pinned SHA. curl delivers every received byte to the caller''s write
+    callback and keeps no foreign cache client of its own. The bare
+    redis*/freeReplyObject callees fire in the call-receiver stage because the
+    repo never declares them.'
+  difficulty: easy
+  host_file: lib/sendf.c
+  host_inject_at_line: 740
+- id: foreign_gcd_1
+  file: breaks/break_foreign_gcd_1.c
+  category: foreign_concurrency
+  hunk_start_line: 17
+  hunk_end_line: 35
+  rationale: 'Grand Central Dispatch fan-out of the easy transfers onto a
+    concurrent queue (dispatch_get_global_queue/dispatch_group_create/
+    dispatch_group_async_f/dispatch_group_wait/dispatch_release) — a foreign
+    concurrency runtime: verified 0 tree-wide hits for dispatch/dispatch.h and
+    for dispatch_queue_create/dispatch_get_global_queue/dispatch_group_create/
+    dispatch_group_async_f/dispatch_group_wait/dispatch_release/
+    dispatch_queue_t across *.c/*.h at the pinned SHA. curl multiplexes
+    transfers on its own single event loop (curl_multi_perform), never a
+    foreign concurrency runtime. (libuv/libevent/glib appear only in
+    docs/examples and are deliberately avoided here.) The bare dispatch_*
+    callees fire in the call-receiver stage.'
+  difficulty: easy
+  host_file: lib/multi.c
+  host_inject_at_line: 1980
+- id: foreign_openmp_1
+  file: breaks/break_foreign_openmp_1.c
+  category: foreign_concurrency
+  hunk_start_line: 16
+  hunk_end_line: 28
+  rationale: 'OpenMP data-parallel decompression of independent content blocks
+    (<omp.h> + #pragma omp parallel for + omp_set_num_threads/
+    omp_get_thread_num) — a foreign parallel runtime: verified 0 tree-wide
+    hits for <omp.h> and for omp_get_thread_num/omp_get_num_threads/
+    omp_set_num_threads and "omp parallel" across *.c/*.h at the pinned SHA.
+    curl streams every content decoding through a single sequential writer
+    chain and never parallelizes with a foreign OpenMP runtime. The bare
+    omp_* callees fire in the call-receiver stage because the repo never
+    declares them.'
+  difficulty: medium
+  host_file: lib/content_encoding.c
+  host_inject_at_line: 349
+- id: foreign_ck_1
+  file: breaks/break_foreign_ck_1.c
+  category: foreign_concurrency
+  hunk_start_line: 16
+  hunk_end_line: 33
+  rationale: 'Concurrency Kit lock-free SPSC ring handing idle connections
+    between threads (ck_ring_init/ck_ring_enqueue_spsc/ck_ring_dequeue_spsc/
+    ck_pr_load_ptr) — a foreign lock-free concurrency library: verified 0
+    tree-wide hits for <ck_ring.h> and for ck_ring_init/ck_ring_enqueue_spsc/
+    ck_ring_dequeue_spsc/ck_pr_load_ptr/ck_pr_store_ptr/ck_ring_t/
+    ck_ring_buffer_t across *.c/*.h at the pinned SHA. curl guards its
+    connection cache with the multi handle''s own locking and linked lists,
+    never a foreign lock-free concurrency library. The bare ck_* callees fire
+    in the call-receiver stage because the repo never declares them.'
+  difficulty: medium
+  host_file: lib/conncache.c
+  host_inject_at_line: 308

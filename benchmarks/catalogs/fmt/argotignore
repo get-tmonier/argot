@@ -1,0 +1,4 @@
+# What a {fmt} maintainer would mute: test/gtest/ is vendored (googletest,
+# googlemock, and the abseil/boost identifiers they carry) -- not fmt's own
+# voice. Everything under test/gtest is a third-party import.
+test/gtest/

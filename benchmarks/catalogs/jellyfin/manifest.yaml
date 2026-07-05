@@ -1,0 +1,149 @@
+corpus: jellyfin
+language: csharp
+categories:
+- foreign_import
+- foreign_api
+- foreign_concurrency
+injection_hosts:
+- pr: 0
+  sha: 8f3eb3205d61
+fixtures:
+- id: ji_automapper_1
+  file: breaks/break_automapper_1.cs
+  category: foreign_import
+  hunk_start_line: 19
+  hunk_end_line: 26
+  rationale: 'AutoMapper MapperConfiguration/CreateMap/Map (fully-qualified
+    AutoMapper.MapperConfiguration) replaces the host''s hand-written DTO field
+    copy. Verified foreign at SHA: AutoMapper = 0 grep hits in *.cs and 0
+    PackageReference/PackageVersion entries in *.csproj/*.props (Directory.Packages.props
+    lists no AutoMapper); the distinctive callees MapperConfiguration/CreateMap =
+    0 src hits (non-colliding). DtoService populates every DTO by explicit field
+    assignment, never a mapping library.'
+  difficulty: medium
+  host_file: Emby.Server.Implementations/Dto/DtoService.cs
+  host_inject_at_line: 1703
+- id: ji_fluentvalidation_1
+  file: breaks/break_fluentvalidation_1.cs
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 28
+  rationale: 'FluentValidation AbstractValidator/RuleFor (fully-qualified
+    FluentValidation.AbstractValidator) replaces the host''s inline argument
+    guard. Verified foreign at SHA: FluentValidation = 0 grep hits in *.cs and 0
+    PackageReference/PackageVersion entries repo-wide; the distinctive callees
+    AbstractValidator/FluentValidation. = 0 src hits (non-colliding). Controllers
+    validate requests through data annotations and inline checks, never a
+    validation library.'
+  difficulty: medium
+  host_file: Jellyfin.Api/Controllers/UserController.cs
+  host_inject_at_line: 640
+- id: ji_mediatr_1
+  file: breaks/break_mediatr_1.cs
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 22
+  rationale: 'MediatR IMediator.Send (fully-qualified MediatR.IMediator field)
+    dispatches an item lookup through a mediator/CQRS bus. Verified foreign at
+    SHA: MediatR = 0 grep hits in *.cs and 0 PackageReference/PackageVersion
+    entries repo-wide; the distinctive callee IMediator = 0 src hits
+    (non-colliding). Controllers depend on their managers directly via
+    constructor injection, never a mediator bus.'
+  difficulty: medium
+  host_file: Jellyfin.Api/Controllers/ItemsController.cs
+  host_inject_at_line: 1175
+- id: ja_restsharp_1
+  file: breaks/break_restsharp_1.cs
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 25
+  rationale: 'RestSharp RestClient/RestRequest (using RestSharp + fully-qualified
+    RestSharp.RestClient object creation) issues the remote artwork lookup in
+    place of the shared HttpClient. Verified foreign at SHA: RestSharp = 0 grep
+    hits in *.cs and 0 PackageReference/PackageVersion entries repo-wide; the
+    distinctive callees RestClient/RestRequest = 0 src hits (non-colliding).
+    Every provider fetches through IHttpClientFactory/HttpClient.'
+  difficulty: medium
+  host_file: MediaBrowser.Providers/Plugins/AudioDb/AudioDbArtistImageProvider.cs
+  host_inject_at_line: 154
+- id: ja_dapper_1
+  file: breaks/break_dapper_1.cs
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 22
+  rationale: 'Dapper SqlMapper.QueryAsync + DynamicParameters (using Dapper +
+    fully-qualified Dapper.SqlMapper.QueryAsync) runs a raw-SQL read in place of
+    the EF Core query. Verified foreign at SHA: Dapper = 0 grep hits in *.cs and
+    0 PackageReference/PackageVersion entries repo-wide; the distinctive callees
+    SqlMapper/DynamicParameters = 0 src hits (non-colliding). All data access
+    goes through Entity Framework Core (Microsoft.EntityFrameworkCore.* in
+    Directory.Packages.props), never a micro-ORM.'
+  difficulty: medium
+  host_file: Jellyfin.Server.Implementations/Item/BaseItemRepository.cs
+  host_inject_at_line: 234
+- id: ja_nlog_1
+  file: breaks/break_nlog_1.cs
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 21
+  rationale: 'NLog LogManager.GetCurrentClassLogger (fully-qualified
+    NLog.LogManager.GetCurrentClassLogger) acquires a separate logger beside the
+    injected ILogger. Verified foreign at SHA: NLog = 0 grep hits in *.cs and 0
+    PackageReference/PackageVersion entries repo-wide; the distinctive callee
+    GetCurrentClassLogger = 0 src hits (non-colliding). Logging flows through
+    Microsoft.Extensions.Logging / Serilog (Serilog.* in Directory.Packages.props),
+    never a second logging framework.'
+  difficulty: medium
+  host_file: Emby.Server.Implementations/ScheduledTasks/TaskManager.cs
+  host_inject_at_line: 263
+- id: jc_reactive_1
+  file: breaks/break_reactive_1.cs
+  category: foreign_concurrency
+  hunk_start_line: 16
+  hunk_end_line: 25
+  rationale: 'System.Reactive (Rx.NET) Observable.Interval + Subject (using
+    System.Reactive.Linq/System.Reactive.Subjects + foreign-namespace callees
+    Observable/Subject) drives a reactive heartbeat stream in place of the plain
+    C# event. Verified foreign at SHA: System.Reactive = 0 grep hits in *.cs and
+    0 PackageReference/PackageVersion entries repo-wide; the distinctive callees
+    Observable.Interval/Subject/IObservable = 0 src hits (non-colliding). Session
+    signalling uses C# events and Timer, never a reactive library. NOTE: the Rx
+    namespace root is System (repo-attested), so a fully-qualified
+    System.Reactive.* callee cannot trip the call-receiver foreign-namespace
+    gate; the fixture reaches Rx by short name (foreign root Observable/Subject)
+    and by the foreign using-import so it is detectable.'
+  difficulty: medium
+  host_file: Emby.Server.Implementations/Session/SessionManager.cs
+  host_inject_at_line: 2146
+- id: jc_hangfire_1
+  file: breaks/break_hangfire_1.cs
+  category: foreign_concurrency
+  hunk_start_line: 16
+  hunk_end_line: 22
+  rationale: 'Hangfire BackgroundJobClient (using Hangfire + fully-qualified
+    Hangfire.BackgroundJobClient object creation) hands the task off to a
+    Hangfire server in place of the in-process runner. Verified foreign at SHA:
+    Hangfire = 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries
+    repo-wide; the distinctive type Hangfire.BackgroundJobClient = 0 src hits
+    (non-colliding). NOTE: the bare method name Enqueue collides with 7 attested
+    repo callees, so the fixture reaches Hangfire through a foreign type
+    construction (foreign root Hangfire) rather than the Enqueue leaf. Background
+    work runs through the repo''s own ITaskManager / IScheduledTaskWorker.'
+  difficulty: medium
+  host_file: Emby.Server.Implementations/ScheduledTasks/ScheduledTaskWorker.cs
+  host_inject_at_line: 678
+- id: jc_quartz_1
+  file: breaks/break_quartz_1.cs
+  category: foreign_concurrency
+  hunk_start_line: 20
+  hunk_end_line: 24
+  rationale: 'Quartz.NET StdSchedulerFactory/IScheduler (fully-qualified
+    Quartz.Impl.StdSchedulerFactory / Quartz.IScheduler) schedules the refresh
+    job in place of the repo''s TaskTriggerInfo. Verified foreign at SHA: Quartz
+    = 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries repo-wide;
+    the distinctive callees StdSchedulerFactory/ScheduleJob = 0 src hits
+    (non-colliding). Scheduling is handled by the repo''s own ITaskManager and
+    ITaskTrigger implementations.'
+  difficulty: medium
+  host_file: Emby.Server.Implementations/ScheduledTasks/Tasks/RefreshMediaLibraryTask.cs
+  host_inject_at_line: 65

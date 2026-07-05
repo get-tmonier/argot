@@ -1,0 +1,128 @@
+corpus: hugo
+language: go
+categories:
+- foreign_import
+- foreign_api
+- foreign_concurrency
+injection_hosts:
+- pr: 0
+  sha: a5ec54239312
+fixtures:
+- id: foreign_logrus_1
+  file: breaks/break_foreign_logrus_1.go
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 29
+  rationale: 'github.com/sirupsen/logrus leveled/structured logger imported inside
+    the hunk (logrus.New/JSONFormatter/WithFields) in the loggers package. Verified
+    foreign at SHA: sirupsen/logrus = 0 git-grep hits in *.go and absent from go.mod;
+    logging goes through the repo''s own common/loggers built on github.com/bep/logg,
+    never a foreign leveled logger.'
+  difficulty: easy
+  host_file: common/loggers/logger.go
+  host_inject_at_line: 30
+- id: foreign_gin_1
+  file: breaks/break_foreign_gin_1.go
+  category: foreign_import
+  hunk_start_line: 16
+  hunk_end_line: 30
+  rationale: 'github.com/gin-gonic/gin web framework imported inside the hunk
+    (gin.Default/gin.Engine/gin.Context) to serve the live-reload preview, in the
+    commands package. Verified foreign at SHA: gin-gonic/gin = 0 git-grep hits in
+    *.go and absent from go.mod; Hugo''s dev server is the standard net/http server
+    with its own handlers, never a foreign web framework.'
+  difficulty: easy
+  host_file: commands/server.go
+  host_inject_at_line: 72
+- id: foreign_redis_1
+  file: breaks/break_foreign_redis_1.go
+  category: foreign_import
+  hunk_start_line: 15
+  hunk_end_line: 28
+  rationale: 'github.com/redis/go-redis/v9 client imported inside the hunk
+    (redis.NewClient/redis.Options) to back the file cache with a remote store, in
+    the filecache package. Verified foreign at SHA: redis/go-redis = 0 git-grep hits
+    in *.go and absent from go.mod; Hugo''s caches persist to the local filesystem
+    through github.com/spf13/afero, never a networked key-value store.'
+  difficulty: easy
+  host_file: cache/filecache/filecache.go
+  host_inject_at_line: 37
+- id: foreign_zap_1
+  file: breaks/break_foreign_zap_1.go
+  category: foreign_api
+  hunk_start_line: 15
+  hunk_end_line: 30
+  rationale: 'go.uber.org/zap structured logger (zap.NewProduction/zap.String/zap.Int64)
+    used to log each uploaded file, in the deploy package. Verified foreign at SHA:
+    go.uber.org/zap = 0 git-grep hits in *.go and absent from go.mod (only the
+    unrelated go.uber.org/automaxprocs appears); deploy progress is reported through
+    the repo''s own common/loggers, never a foreign structured logger.'
+  difficulty: easy
+  host_file: deploy/deploy.go
+  host_inject_at_line: 52
+- id: foreign_gorm_1
+  file: breaks/break_foreign_gorm_1.go
+  category: foreign_api
+  hunk_start_line: 12
+  hunk_end_line: 36
+  rationale: 'gorm.io/gorm ORM (gorm.Open/gorm.Model/gorm.Config + gorm.io/driver/sqlite)
+    used to persist captured page metadata to a SQL database, in the hugolib package.
+    Verified foreign at SHA: gorm.io/gorm and gorm.io/driver/sqlite = 0 git-grep hits
+    in *.go and absent from go.mod; Hugo has no database layer — captured pages live
+    in in-memory structures and the page bundle map, never an ORM.'
+  difficulty: easy
+  host_file: hugolib/pages_capture.go
+  host_inject_at_line: 36
+- id: foreign_prometheus_1
+  file: breaks/break_foreign_prometheus_1.go
+  category: foreign_api
+  hunk_start_line: 12
+  hunk_end_line: 29
+  rationale: 'github.com/prometheus/client_golang metrics exporter
+    (promauto.NewHistogramVec/prometheus.HistogramOpts) used to export build timings,
+    in the metrics package. Verified foreign at SHA: prometheus/client_golang = 0
+    git-grep hits in *.go and absent from go.mod; Hugo exposes timings through its
+    own metrics.Provider (WriteMetrics to an io.Writer), never a metrics exporter.'
+  difficulty: easy
+  host_file: metrics/metrics.go
+  host_inject_at_line: 32
+- id: foreign_ants_1
+  file: breaks/break_foreign_ants_1.go
+  category: foreign_concurrency
+  hunk_start_line: 19
+  hunk_end_line: 44
+  rationale: 'github.com/panjf2000/ants/v2 goroutine pool (ants.NewPool/pool.Submit/pool.Release)
+    used to fan out tasks, in the common/para package. Verified foreign at SHA:
+    panjf2000/ants = 0 git-grep hits in *.go and absent from go.mod; Hugo parallelises
+    through its own common/para Workers over golang.org/x/sync/errgroup (17 errgroup
+    sites), never a foreign goroutine-pool library.'
+  difficulty: easy
+  host_file: common/para/para.go
+  host_inject_at_line: 22
+- id: foreign_conc_1
+  file: breaks/break_foreign_conc_1.go
+  category: foreign_concurrency
+  hunk_start_line: 18
+  hunk_end_line: 35
+  rationale: 'github.com/sourcegraph/conc structured-concurrency pool
+    (pool.New().WithMaxGoroutines/p.Go/p.Wait) used to render sections concurrently,
+    in the hugolib package. Verified foreign at SHA: sourcegraph/conc = 0 git-grep
+    hits in *.go and absent from go.mod; Hugo renders in parallel through its own
+    common/para Workers over golang.org/x/sync/errgroup, never a foreign
+    structured-concurrency lib.'
+  difficulty: easy
+  host_file: hugolib/site.go
+  host_inject_at_line: 93
+- id: foreign_pond_1
+  file: breaks/break_foreign_pond_1.go
+  category: foreign_concurrency
+  hunk_start_line: 15
+  hunk_end_line: 32
+  rationale: 'github.com/alitto/pond worker pool (pond.New/pool.Submit/pool.StopAndWait)
+    used to resize images in parallel, in the resources package. Verified foreign at
+    SHA: alitto/pond = 0 git-grep hits in *.go and absent from go.mod; Hugo processes
+    images through its own resource cache and common/para Workers over
+    golang.org/x/sync/errgroup, never a foreign worker-pool library.'
+  difficulty: easy
+  host_file: resources/image.go
+  host_inject_at_line: 44
