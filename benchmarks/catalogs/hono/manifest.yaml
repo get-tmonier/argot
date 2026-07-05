@@ -167,3 +167,57 @@ fixtures:
   difficulty: easy
   host_file: src/middleware/bearer-auth/index.ts
   host_inject_at_line: 219
+- id: hono_foreign_import_1
+  file: breaks/break_foreign_import_1.ts
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 17
+  rationale: "import axios at line 2 + axios.get() in a Hono handler; 'axios' is 0-usage in the hono corpus at SHA fa2c74fe (git grep 0, absent from package.json) \u2014 the repo uses global fetch"
+  difficulty: easy
+  host_file: src/client/client.ts
+  host_inject_at_line: 100
+- id: hono_foreign_import_2
+  file: breaks/break_foreign_import_2.ts
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 18
+  rationale: "import dayjs at line 2 + dayjs()/.subtract()/.format() date chain; 'dayjs' is 0-usage in the hono corpus at SHA fa2c74fe (git grep 0) \u2014 the repo uses bare Date"
+  difficulty: easy
+  host_file: src/utils/cookie.ts
+  host_inject_at_line: 130
+- id: hono_foreign_api_1
+  file: breaks/break_foreign_api_1.ts
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 22
+  rationale: "new PrismaClient() + prisma.user.findUnique() ORM call; '@prisma/client' and PrismaClient are 0-usage in the hono corpus at SHA fa2c74fe (git grep 0) \u2014 the repo has no database layer"
+  difficulty: easy
+  host_file: src/middleware/cache/index.ts
+  host_inject_at_line: 80
+- id: hono_foreign_api_2
+  file: breaks/break_foreign_api_2.ts
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 21
+  rationale: "import Redis from 'ioredis' + new Redis()/.setex()/.get() cache calls; 'ioredis' and new Redis are 0-usage in the hono corpus at SHA fa2c74fe (git grep 0) \u2014 the repo has no Redis dependency"
+  difficulty: easy
+  host_file: src/utils/jwt/jwt.ts
+  host_inject_at_line: 140
+- id: hono_foreign_concurrency_1
+  file: breaks/break_foreign_concurrency_1.ts
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 20
+  rationale: "import PQueue from 'p-queue' + new PQueue()/.addAll() concurrency limiter; 'p-queue' and PQueue are 0-usage in the hono corpus at SHA fa2c74fe (git grep 0) \u2014 the repo uses plain async/await"
+  difficulty: easy
+  host_file: src/middleware/etag/index.ts
+  host_inject_at_line: 60
+- id: hono_foreign_concurrency_2
+  file: breaks/break_foreign_concurrency_2.ts
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 21
+  rationale: "import { Queue } from 'bullmq' + new Queue()/.add() background-job enqueue; 'bullmq'/Queue are 0-usage in the hono corpus at SHA fa2c74fe (git grep 0) \u2014 the repo has no worker/queue runtime"
+  difficulty: easy
+  host_file: src/helper/cookie/index.ts
+  host_inject_at_line: 70

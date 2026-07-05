@@ -8,6 +8,9 @@ categories:
 - print_debug
 - sleep_polling
 - shell_out
+- foreign_import
+- foreign_api
+- foreign_concurrency
 fixtures:
 - id: raw_sql_1
   file: breaks/break_raw_sql_1.py
@@ -135,3 +138,84 @@ fixtures:
   rationale: "subprocess.run/check_output shelling out to ImageMagick convert/identify for thumbnails — subprocess appears at 0 saleor sites; thumbnails are generated in-process with PIL (thumbnail/utils.py ProcessedImage)."
   host_file: saleor/thumbnail/utils.py
   host_inject_at_line: 266
+- id: foreign_import_httpx_1
+  file: breaks/break_foreign_httpx_import.py
+  category: foreign_import
+  hunk_start_line: 16
+  hunk_end_line: 28
+  difficulty: easy
+  rationale: "import httpx (in the hunk) + httpx.Client/httpx.Timeout/httpx.post for a payment-gateway call — httpx appears at 0 saleor sites at SHA 5c05b2f9 (git grep -c httpx over *.py = 0); all outbound HTTP goes through the hardened HTTPClient (saleor/core/http_client.py). Foreign dependency, caught by the import stage."
+  host_file: saleor/payment/utils.py
+  host_inject_at_line: 1500
+- id: foreign_import_marshmallow_1
+  file: breaks/break_foreign_marshmallow_import.py
+  category: foreign_import
+  hunk_start_line: 16
+  hunk_end_line: 38
+  difficulty: easy
+  rationale: "from marshmallow import Schema, fields, post_load (in the hunk) declaring a webhook payload schema — marshmallow appears at 0 saleor sites at SHA 5c05b2f9 (git grep -c marshmallow over *.py = 0); saleor serializes via graphene/DRF and pydantic, never marshmallow. Foreign dependency, caught by the import stage."
+  host_file: saleor/webhook/transport/utils.py
+  host_inject_at_line: 500
+- id: foreign_import_tenacity_1
+  file: breaks/break_foreign_tenacity_import.py
+  category: foreign_import
+  hunk_start_line: 16
+  hunk_end_line: 29
+  difficulty: easy
+  rationale: "from tenacity import retry, stop_after_attempt, wait_exponential (in the hunk) decorating a manifest fetch — tenacity appears at 0 saleor sites at SHA 5c05b2f9 (git grep -c tenacity over *.py = 0); saleor retries exclusively via Celery self.retry(countdown=...). Foreign dependency, caught by the import stage."
+  host_file: saleor/app/installation_utils.py
+  host_inject_at_line: 200
+- id: foreign_api_msgpack_1
+  file: breaks/break_foreign_msgpack_api.py
+  category: foreign_api
+  hunk_start_line: 18
+  hunk_end_line: 27
+  difficulty: medium
+  rationale: "msgpack.Packer/msgpack.packb/msgpack.Unpacker binary (un)packing a checkout cache snapshot — module-qualified calls, import kept outside the scored hunk so the call-receiver stage (not the import stage) must catch it. msgpack appears at 0 saleor sites at SHA 5c05b2f9 (git grep -c msgpack over *.py = 0; .packb/.unpackb/.Packer/.Unpacker method segments each 0 grep hits, so none are method-attested); saleor caches via orjson/JSON. Foreign namespace, caught by call-receiver."
+  host_file: saleor/checkout/complete_checkout.py
+  host_inject_at_line: 1200
+- id: foreign_api_sqlalchemy_1
+  file: breaks/break_foreign_sqlalchemy_api.py
+  category: foreign_api
+  hunk_start_line: 22
+  hunk_end_line: 35
+  difficulty: medium
+  rationale: "sqlalchemy.create_engine/MetaData/Column Core query for order-total reporting — module-qualified calls, import kept outside the scored hunk so the call-receiver stage must catch it. sqlalchemy appears at 0 saleor sites at SHA 5c05b2f9 (git grep -c sqlalchemy over *.py = 0; .create_engine/.MetaData/.Column method segments each 0 grep hits); saleor's data access is the Django ORM. Foreign namespace, caught by call-receiver."
+  host_file: saleor/order/actions.py
+  host_inject_at_line: 1000
+- id: foreign_api_elasticsearch_1
+  file: breaks/break_foreign_elasticsearch_api.py
+  category: foreign_api
+  hunk_start_line: 19
+  hunk_end_line: 27
+  difficulty: medium
+  rationale: "elasticsearch.Elasticsearch + elasticsearch.helpers.streaming_bulk + elasticsearch.serializer.JSONSerializer indexing product stocks — module-qualified calls, import kept outside the scored hunk so the call-receiver stage must catch it. elasticsearch appears at 0 saleor sites at SHA 5c05b2f9 (git grep -c elasticsearch over *.py = 0; .Elasticsearch/.streaming_bulk/.JSONSerializer method segments each 0 grep hits); saleor searches via Postgres/ORM. Foreign namespace, caught by call-receiver."
+  host_file: saleor/warehouse/management.py
+  host_inject_at_line: 700
+- id: foreign_concurrency_dramatiq_1
+  file: breaks/break_foreign_dramatiq_concurrency.py
+  category: foreign_concurrency
+  hunk_start_line: 16
+  hunk_end_line: 26
+  difficulty: medium
+  rationale: "import dramatiq (in the hunk) + @dramatiq.actor + .send() dispatching deferred order recalculation — dramatiq appears at 0 saleor sites at SHA 5c05b2f9 (git grep -c dramatiq over *.py = 0); saleor's deferred work is always a Celery @app.task. Foreign concurrency library, caught by the import stage."
+  host_file: saleor/order/calculations.py
+  host_inject_at_line: 900
+- id: foreign_concurrency_trio_1
+  file: breaks/break_foreign_trio_concurrency.py
+  category: foreign_concurrency
+  hunk_start_line: 16
+  hunk_end_line: 31
+  difficulty: medium
+  rationale: "import trio (in the hunk) + trio.run/trio.open_nursery/nursery.start_soon structured-concurrency fan-out to warm GraphQL caches — trio appears at 0 saleor sites at SHA 5c05b2f9 (git grep -c trio over *.py = 0); saleor concurrency is asyncio + Celery. Foreign async runtime, caught by the import stage."
+  host_file: saleor/graphql/views.py
+  host_inject_at_line: 600
+- id: foreign_concurrency_rq_1
+  file: breaks/break_foreign_rq_concurrency.py
+  category: foreign_concurrency
+  hunk_start_line: 16
+  hunk_end_line: 31
+  difficulty: medium
+  rationale: "from rq import Queue, Retry (in the hunk) + queue.enqueue fanning export batches onto a Redis Queue — rq appears at 0 saleor sites at SHA 5c05b2f9 (git grep -c 'import rq'/'from rq' over *.py = 0); saleor dispatches export work as chained Celery tasks (csv/utils/export.py). Foreign task-queue library, caught by the import stage."
+  host_file: saleor/csv/utils/export.py
+  host_inject_at_line: 200

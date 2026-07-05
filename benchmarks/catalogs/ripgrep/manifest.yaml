@@ -7,6 +7,7 @@ categories:
 - naming_shape_break
 - foreign_import
 - foreign_api
+- foreign_concurrency
 injection_hosts:
 - pr: 0
   sha: 48b0c795f4feb37343b2832d991c5c6a3900c08a
@@ -243,3 +244,62 @@ fixtures:
   difficulty: easy
   host_file: crates/printer/src/standard.rs
   host_inject_at_line: 596
+- id: foreign_tracing_1
+  file: breaks/break_foreign_tracing_1.rs
+  category: foreign_import
+  hunk_start_line: 26
+  hunk_end_line: 40
+  rationale: 'use tracing::instrument + tracing::info_span! / tracing::debug!
+    spans wrapped around the searcher core''s match loop, import inside hunk.
+    Verified foreign at SHA 48b0c795f4fe: `tracing` = 0 grep hits across *.rs
+    and absent from every Cargo.toml; ripgrep''s diagnostics go through the
+    `log` crate macros (log:: = 84 src hits, e.g. log::debug!/log::trace!) and
+    crates/core/messages.rs, never a tracing subscriber or spans.'
+  difficulty: easy
+  host_file: crates/searcher/src/searcher/core.rs
+  host_inject_at_line: 38
+- id: foreign_rusqlite_1
+  file: breaks/break_foreign_rusqlite_1.rs
+  category: foreign_api
+  hunk_start_line: 25
+  hunk_end_line: 38
+  rationale: 'rusqlite::Connection::open() + conn.execute() with rusqlite::params!
+    persisting formatted match records to a local SQLite database, referenced by
+    fully-qualified path (no `use` import). Verified foreign at SHA 48b0c795f4fe:
+    `rusqlite` = 0 grep hits across *.rs and absent from every Cargo.toml;
+    `Connection::open` = 0 src hits (non-colliding); the JSON printer serialises
+    each match to its `W: io::Write` sink via serde_json (crates/printer/src/
+    json.rs), never to a SQL database.'
+  difficulty: easy
+  host_file: crates/printer/src/json.rs
+  host_inject_at_line: 492
+- id: foreign_threadpool_1
+  file: breaks/break_foreign_threadpool_1.rs
+  category: foreign_concurrency
+  hunk_start_line: 26
+  hunk_end_line: 38
+  rationale: 'threadpool::ThreadPool::new() + pool.execute() fanning per-file
+    search across a foreign thread pool, referenced by fully-qualified path (no
+    `use` import). Verified foreign at SHA 48b0c795f4fe: `threadpool` = 0 grep
+    hits across *.rs and absent from every Cargo.toml; `ThreadPool` = 0 src hits
+    (non-colliding); ripgrep''s only parallelism is its own crossbeam-deque
+    work-stealing walker behind WalkParallel (crates/ignore/src/walk.rs) plus
+    crossbeam-channel, never an external thread pool.'
+  difficulty: easy
+  host_file: crates/core/search.rs
+  host_inject_at_line: 242
+- id: foreign_smol_1
+  file: breaks/break_foreign_smol_1.rs
+  category: foreign_concurrency
+  hunk_start_line: 24
+  hunk_end_line: 38
+  rationale: 'smol::block_on() + smol::spawn() driving the slice-by-line sink
+    concurrently on a foreign async runtime, referenced by fully-qualified path
+    (no `use` import). Verified foreign at SHA 48b0c795f4fe: `smol` = 0 grep hits
+    across *.rs and absent from every Cargo.toml; `block_on` = 0 src hits
+    (non-colliding); the searcher drives its Matcher + Sink synchronously
+    (ReadByLine/SliceByLine glue over a plain Core in crates/searcher/src/
+    searcher/glue.rs), with no async runtime anywhere in the crate.'
+  difficulty: easy
+  host_file: crates/searcher/src/searcher/glue.rs
+  host_inject_at_line: 101

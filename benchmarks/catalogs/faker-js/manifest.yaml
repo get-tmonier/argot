@@ -6,6 +6,9 @@ categories:
 - threading
 - http_sink
 - error_flip
+- foreign_import
+- foreign_api
+- foreign_concurrency
 injection_hosts:
 - pr: 3798
   sha: 6c2a0abd3092c8afb2bca67544a16e85a13b6b61
@@ -167,3 +170,57 @@ fixtures:
   difficulty: easy
   host_file: src/utils/merge-locales.ts
   host_inject_at_line: 36
+- id: faker_js_foreign_import_1
+  file: breaks/break_foreign_import_1.ts
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 10
+  rationale: import dayjs from 'dayjs' at line 1 inside a faker-js date provider; dayjs has 0 hits in the corpus (.ts) at 6c2a0abd and is absent from package.json — faker-js ships no date library; import scorer fires on the foreign dependency
+  difficulty: easy
+  host_file: src/modules/date/index.ts
+  host_inject_at_line: 736
+- id: faker_js_foreign_import_2
+  file: breaks/break_foreign_import_2.ts
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 10
+  rationale: import { shuffle } from 'lodash' at line 1 inside the helpers module; lodash has 0 hits in the corpus (.ts) at 6c2a0abd and is absent from package.json — faker-js implements its own seeded shuffle; import scorer fires on the foreign dependency
+  difficulty: easy
+  host_file: src/modules/helpers/index.ts
+  host_inject_at_line: 1298
+- id: faker_js_foreign_api_1
+  file: breaks/break_foreign_api_1.ts
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 10
+  rationale: import { DateTime } from 'luxon' plus DateTime.now().minus().toISO() inside a finance provider; luxon has 0 hits in the corpus (.ts) at 6c2a0abd and is absent from package.json — faker-js uses its own date module; import/call-receiver fires on the foreign API
+  difficulty: easy
+  host_file: src/modules/finance/index.ts
+  host_inject_at_line: 853
+- id: faker_js_foreign_api_2
+  file: breaks/break_foreign_api_2.ts
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 13
+  rationale: import Redis from 'ioredis' plus new Redis().set(...) inside the database module; ioredis has 0 hits in the corpus (.ts) at 6c2a0abd and is absent from package.json — faker-js touches no external store; import/call-receiver fires on the foreign DB client
+  difficulty: easy
+  host_file: src/modules/database/index.ts
+  host_inject_at_line: 85
+- id: faker_js_foreign_concurrency_1
+  file: breaks/break_foreign_concurrency_1.ts
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 12
+  rationale: import Piscina from 'piscina' plus a new Piscina(...) worker pool inside the color module; piscina has 0 hits in the corpus (.ts) at 6c2a0abd and is absent from package.json — faker-js runs synchronously; import/call-receiver fires on the foreign concurrency lib
+  difficulty: easy
+  host_file: src/modules/color/index.ts
+  host_inject_at_line: 1015
+- id: faker_js_foreign_concurrency_2
+  file: breaks/break_foreign_concurrency_2.ts
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 12
+  rationale: import { spawn, Thread, Worker } from 'threads' plus spawn(new Worker(...)) inside the science module; the threads package has 0 hits in the corpus (.ts) at 6c2a0abd and is absent from package.json — faker-js is synchronous; import/call-receiver fires on the foreign concurrency lib
+  difficulty: easy
+  host_file: src/modules/science/index.ts
+  host_inject_at_line: 70

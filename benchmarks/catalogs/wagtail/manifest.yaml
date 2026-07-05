@@ -8,6 +8,9 @@ categories:
 - print_debug
 - sleep_polling
 - subprocess_shell
+- foreign_import
+- foreign_api
+- foreign_concurrency
 injection_hosts:
 - pr: 0
   sha: 6e0e6d950f6fe68360d68d833fd23b94f172cee7
@@ -138,3 +141,84 @@ fixtures:
   rationale: "os.system string-interpolated clamscan/mv plus subprocess tar/rm file shuffling on documents — os.system and subprocess appear at 0 wagtail production sites; document files go through Django storage APIs (document.file / FieldFile)"
   host_file: wagtail/documents/models.py
   host_inject_at_line: 213
+- id: foreign_import_sqlalchemy_1
+  file: breaks/break_foreign_import_sqlalchemy.py
+  category: foreign_import
+  hunk_start_line: 18
+  hunk_end_line: 43
+  difficulty: easy
+  rationale: "import sqlalchemy + from sqlalchemy import create_engine, text drive a raw SQLAlchemy Engine over wagtailcore_modellogentry, bypassing wagtail's Django ORM (ModelLogEntry.objects) — `import sqlalchemy`/`sqlalchemy.` appear at 0 wagtail production sites at the pinned SHA (git grep sum = 0); wagtail's data-access voice is the Django ORM. Foreign import is in-hunk."
+  host_file: wagtail/models/audit_log.py
+  host_inject_at_line: 347
+- id: foreign_import_tenacity_1
+  file: breaks/break_foreign_import_tenacity.py
+  category: foreign_import
+  hunk_start_line: 18
+  hunk_end_line: 40
+  difficulty: easy
+  rationale: "import tenacity + from tenacity import retry, stop_after_attempt, wait_exponential wrap embed fetching in a @retry loop — tenacity appears at 0 wagtail production sites at the pinned SHA (git grep sum = 0); wagtail has no retry-library dependency, embed resolution is the finder chain. Foreign import is in-hunk."
+  host_file: wagtail/embeds/finders/oembed.py
+  host_inject_at_line: 101
+- id: foreign_import_structlog_1
+  file: breaks/break_foreign_import_structlog.py
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 35
+  difficulty: easy
+  rationale: "import structlog + structlog.get_logger() emit structured audit logs, replacing wagtail's stdlib logging voice (logging.getLogger('wagtail')) — structlog appears at 0 wagtail production sites at the pinned SHA (git grep sum = 0). Foreign import is in-hunk."
+  host_file: wagtail/log_actions.py
+  host_inject_at_line: 184
+- id: foreign_api_redis_1
+  file: breaks/break_foreign_api_redis.py
+  category: foreign_api
+  hunk_start_line: 14
+  hunk_end_line: 34
+  difficulty: easy
+  rationale: "redis.Redis(...) client with .get/.setex/.pipeline/.scan_iter caches redirect lookups, bypassing Django's cache framework and the ORM — redis appears at 0 wagtail production sites at the pinned SHA (`import redis`/`redis.` git grep sum = 0). The call-receiver stage catches the unattested redis.* callees. Foreign import + qualified API are in-hunk."
+  host_file: wagtail/contrib/redirects/models.py
+  host_inject_at_line: 238
+- id: foreign_api_elasticsearch_1
+  file: breaks/break_foreign_api_elasticsearch.py
+  category: foreign_api
+  hunk_start_line: 14
+  hunk_end_line: 34
+  difficulty: easy
+  rationale: "from elasticsearch import Elasticsearch + _es.search/_es.index/_es.indices.refresh query an ES cluster directly, bypassing wagtail's configured search backend (get_search_backend) — the elasticsearch client appears at 0 wagtail production sites at the pinned SHA (`import elasticsearch`/`from elasticsearch`/`elasticsearch.` git grep sum = 0; wagtail's ES support ships as a separate wagtail-search package, not a core dep). Foreign import + qualified API are in-hunk."
+  host_file: wagtail/contrib/search_promotions/models.py
+  host_inject_at_line: 100
+- id: foreign_api_pydantic_1
+  file: breaks/break_foreign_api_pydantic.py
+  category: foreign_api
+  hunk_start_line: 15
+  hunk_end_line: 34
+  difficulty: medium
+  rationale: "import pydantic + pydantic.BaseModel/Field/field_validator/model_validate validate an API payload, replacing wagtail's DRF serializers (rest_framework.serializers) — pydantic appears at 0 wagtail production sites at the pinned SHA (`import pydantic`/`from pydantic`/`pydantic.` git grep sum = 0). Foreign import + BaseModel/Field API are in-hunk."
+  host_file: wagtail/api/v2/serializers.py
+  host_inject_at_line: 396
+- id: foreign_api_msgpack_1
+  file: breaks/break_foreign_api_msgpack.py
+  category: foreign_api
+  hunk_start_line: 14
+  hunk_end_line: 26
+  difficulty: medium
+  rationale: "import msgpack + msgpack.packb/msgpack.unpackb serialize a collection tree to binary, bypassing wagtail's JSON/DRF serialization — msgpack appears at 0 wagtail production sites at the pinned SHA (`import msgpack`/`msgpack.` git grep sum = 0). The call-receiver stage catches the unattested msgpack.* callees. Foreign import + qualified API are in-hunk."
+  host_file: wagtail/models/media.py
+  host_inject_at_line: 216
+- id: foreign_concurrency_celery_1
+  file: breaks/break_foreign_concurrency_celery.py
+  category: foreign_concurrency
+  hunk_start_line: 14
+  hunk_end_line: 35
+  difficulty: easy
+  rationale: "import celery + from celery import shared_task with @shared_task, .delay(), .s(), and celery.group offload notification email to a Celery worker — celery appears at 0 wagtail production sites at the pinned SHA (`import celery`/`from celery`/`celery.` git grep sum = 0); wagtail sends mail synchronously (django.core.mail) with no task-queue dependency. Foreign concurrency import + API are in-hunk."
+  host_file: wagtail/admin/mail.py
+  host_inject_at_line: 70
+- id: foreign_concurrency_dramatiq_1
+  file: breaks/break_foreign_concurrency_dramatiq.py
+  category: foreign_concurrency
+  hunk_start_line: 14
+  hunk_end_line: 32
+  difficulty: easy
+  rationale: "import dramatiq + @dramatiq.actor with .send() run snippet reindex/purge on a dramatiq worker off the request cycle — dramatiq appears at 0 wagtail production sites at the pinned SHA (`import dramatiq`/`dramatiq.` git grep sum = 0); wagtail snippet actions run in-request. Foreign concurrency import + actor API are in-hunk."
+  host_file: wagtail/snippets/views/snippets.py
+  host_inject_at_line: 1255
