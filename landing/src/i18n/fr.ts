@@ -59,9 +59,9 @@ const fr: SiteContent = {
     title: 'Des chiffres honnêtes, sans fuite par construction.',
     stats: [
       {
-        value: '49/49',
+        value: '121/121',
         title: 'ruptures « motif inédit » détectées',
-        desc: 'Le critère pour lequel argot est conçu — un import, une API ou une dépendance étrangère que le dépôt n’a jamais utilisée — détecté à 100 % sur 8 corpus gatés, et 106/111 (95 %) sur l’ensemble des corpus catalogués. Inséré dans de vrais fichiers et jugé par le vrai pipeline fit → check. Les classes plus difficiles (nommage, sémantique) sont une couverture secondaire, publiée en rouge, jamais gatée.',
+        desc: 'Le critère pour lequel argot est conçu — un import, une API ou une dépendance étrangère que le dépôt n’a jamais utilisée — détecté à 100 % sur 16 corpus gatés, et 178/183 (97 %) sur l’ensemble des corpus catalogués. Inséré dans de vrais fichiers et jugé par le vrai pipeline fit → check. Les classes plus difficiles (nommage, sémantique) sont une couverture secondaire, publiée en rouge, jamais gatée.',
       },
       {
         value: '0,23 %',
