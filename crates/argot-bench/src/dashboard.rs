@@ -61,6 +61,15 @@ pub struct DashboardCorpus {
     pub gated_caught: Option<usize>,
     pub gated_fixtures: Option<usize>,
     pub gated_recall_pct: Option<f64>,
+    /// Broad **novel-pattern (foreign) catch** — recall over every foreign
+    /// class (RUBRIC gated + legacy foreign names; `production::is_novel_pattern`),
+    /// the consistent per-corpus number that excludes the naming/semantic
+    /// classes argot never targets. `None` for FP-only corpora (no catalog).
+    /// This is what the per-corpus "catch" column should show; `recall_pct`
+    /// (the raw aggregate over *all* classes) is retained only for history.
+    pub foreign_caught: Option<usize>,
+    pub foreign_fixtures: Option<usize>,
+    pub foreign_recall_pct: Option<f64>,
     /// Temporal-holdout FP, split by whether the file existed at the fit
     /// point. `None` when holdout did not run (quick bench).
     pub fp_existing: Option<DashboardFp>,
@@ -84,10 +93,17 @@ pub struct DashboardTotals {
     pub caught: usize,
     pub fixtures: usize,
     pub recall_pct: f64,
-    /// **The headline metric** — gated novel-pattern recall across all corpora.
+    /// **The headline metric** — gated novel-pattern recall across all corpora
+    /// (RUBRIC-tagged corpora only; the cleanest, most conservative number).
     pub gated_caught: usize,
     pub gated_fixtures: usize,
     pub gated_recall_pct: f64,
+    /// Broad novel-pattern (foreign) recall across every catalogued corpus —
+    /// RUBRIC + legacy foreign classes. Wider coverage than `gated_*`, still
+    /// excludes the naming/semantic classes argot never targets.
+    pub foreign_caught: usize,
+    pub foreign_fixtures: usize,
+    pub foreign_recall_pct: f64,
     /// Worst per-corpus temporal-holdout FP rates (total: over-fire + detection).
     pub worst_fp_existing_pct: f64,
     pub worst_fp_new_file_pct: f64,
@@ -139,6 +155,25 @@ fn gated_recall(r: &ProductionReport) -> Option<(usize, usize)> {
     Some((caught, gated.len()))
 }
 
+/// Broad novel-pattern (foreign) recall: `(caught, total)` over every fixture
+/// whose class names a foreign symbol/dep — RUBRIC gated classes plus the
+/// legacy catalogs' foreign names (see `production::is_novel_pattern`). This is
+/// the consistent per-corpus foreign-catch number; unlike `recall_pct` it does
+/// not average in the naming/semantic classes argot never targets. `None` when
+/// the corpus has no foreign fixtures (FP-only corpora).
+fn foreign_recall(r: &ProductionReport) -> Option<(usize, usize)> {
+    let foreign: Vec<_> = r
+        .fixture_results
+        .iter()
+        .filter(|f| crate::production::is_novel_pattern(&f.category))
+        .collect();
+    if foreign.is_empty() {
+        return None;
+    }
+    let caught = foreign.iter().filter(|f| f.flagged).count();
+    Some((caught, foreign.len()))
+}
+
 fn fp(split: &crate::holdout::SplitFp) -> DashboardFp {
     DashboardFp {
         hits: split.hits,
@@ -176,6 +211,7 @@ impl BenchDashboard {
                     })
                     .unwrap_or(0.0);
                 let gated = prod.and_then(gated_recall);
+                let foreign = prod.and_then(foreign_recall);
                 DashboardCorpus {
                     corpus: name.clone(),
                     language: languages.get(name).cloned().unwrap_or_default(),
@@ -186,6 +222,9 @@ impl BenchDashboard {
                     gated_caught: gated.map(|(c, _)| c),
                     gated_fixtures: gated.map(|(_, t)| t),
                     gated_recall_pct: gated.map(|(c, t)| pct(c, t)),
+                    foreign_caught: foreign.map(|(c, _)| c),
+                    foreign_fixtures: foreign.map(|(_, t)| t),
+                    foreign_recall_pct: foreign.map(|(c, t)| pct(c, t)),
                     fp_existing: hold.map(|h| fp(&h.existing)),
                     fp_new_file: hold.map(|h| fp(&h.new_file)),
                     fp_existing_overfire: hold.map(|h| fp(&h.existing_overfire)),
@@ -214,6 +253,9 @@ impl BenchDashboard {
                 gated_caught: None,
                 gated_fixtures: None,
                 gated_recall_pct: None,
+                foreign_caught: None,
+                foreign_fixtures: None,
+                foreign_recall_pct: None,
                 fp_existing: None,
                 fp_new_file: None,
                 fp_existing_overfire: None,
@@ -242,6 +284,7 @@ impl BenchDashboard {
                     r.thresholds.keys().cloned().collect::<Vec<_>>().join("+")
                 };
                 let gated = gated_recall(r);
+                let foreign = foreign_recall(r);
                 DashboardCorpus {
                     corpus: r.corpus.clone(),
                     language,
@@ -252,6 +295,9 @@ impl BenchDashboard {
                     gated_caught: gated.map(|(c, _)| c),
                     gated_fixtures: gated.map(|(_, t)| t),
                     gated_recall_pct: gated.map(|(c, t)| pct(c, t)),
+                    foreign_caught: foreign.map(|(c, _)| c),
+                    foreign_fixtures: foreign.map(|(_, t)| t),
+                    foreign_recall_pct: foreign.map(|(c, t)| pct(c, t)),
                     fp_existing: None,
                     fp_new_file: None,
                     fp_existing_overfire: None,
@@ -272,6 +318,8 @@ impl BenchDashboard {
         let fixtures: usize = corpora.iter().filter_map(|c| c.fixtures).sum();
         let gated_caught: usize = corpora.iter().filter_map(|c| c.gated_caught).sum();
         let gated_fixtures: usize = corpora.iter().filter_map(|c| c.gated_fixtures).sum();
+        let foreign_caught: usize = corpora.iter().filter_map(|c| c.foreign_caught).sum();
+        let foreign_fixtures: usize = corpora.iter().filter_map(|c| c.foreign_fixtures).sum();
         // Under-sampled corpora are excluded from the headline worst-rates:
         // a 1-hunk denominator reads as 0% or 100% and misleads either way.
         // Their per-corpus rows stay visible with the flag.
@@ -295,6 +343,9 @@ impl BenchDashboard {
                 gated_caught,
                 gated_fixtures,
                 gated_recall_pct: pct(gated_caught, gated_fixtures),
+                foreign_caught,
+                foreign_fixtures,
+                foreign_recall_pct: pct(foreign_caught, foreign_fixtures),
                 worst_fp_existing_pct: worst(|c| c.fp_existing.as_ref()),
                 worst_fp_new_file_pct: worst(|c| c.fp_new_file.as_ref()),
                 worst_fp_existing_overfire_pct: worst(|c| c.fp_existing_overfire.as_ref()),

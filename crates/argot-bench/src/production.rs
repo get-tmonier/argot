@@ -286,6 +286,45 @@ pub fn tier_of(category: &str) -> &'static str {
     }
 }
 
+/// Whether a break class is a **novel-pattern** class — a symbol/module/dep
+/// foreign to the repo (argot's one job), across both the RUBRIC tiers and the
+/// legacy catalogs' ad-hoc names. The RUBRIC `gated` classes qualify; so do the
+/// legacy classes that name a foreign library or a network/subprocess sink a
+/// data/UI library reaches into (jQuery, colorama, numpy, moment, mimesis,
+/// httpx/requests, XHR, etc.). Excludes the `naming`/`semantic` classes, which
+/// misuse the repo's *own* attested vocabulary and are a documented local limit.
+///
+/// This is the consistent per-corpus recall metric — every catalogued corpus
+/// gets a foreign-catch number, instead of the RUBRIC-8 showing a clean gated %
+/// while legacy corpora show a mixed aggregate dragged down by classes argot
+/// never targets. (Bench taxonomy only — enumerated legacy names live here, not
+/// in production code.)
+pub fn is_novel_pattern(category: &str) -> bool {
+    if tier_of(category) == "gated" {
+        return true;
+    }
+    matches!(
+        category,
+        "foreign_http"
+            | "foreign_rng"
+            | "framework_swap"
+            | "jquery"
+            | "numpy_random"
+            | "colorama"
+            | "termcolor"
+            | "curses"
+            | "moment_dates"
+            | "mimesis_alt"
+            | "requests_source"
+            | "runtime_fetch"
+            | "xhr_network"
+            | "http_sink"
+            | "downstream_http"
+            | "shell_out"
+            | "subprocess_shell"
+    )
+}
+
 /// `(caught, total)` over a report's fixtures in one scope tier.
 fn tier_recall(r: &ProductionReport, tier: &str) -> (usize, usize) {
     let mut caught = 0;
