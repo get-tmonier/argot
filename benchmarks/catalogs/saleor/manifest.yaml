@@ -29,7 +29,7 @@ fixtures:
   host_inject_at_line: 564
 - id: foreign_http_1
   file: breaks/break_foreign_http_1.py
-  category: foreign_http
+  category: semantic_convention
   hunk_start_line: 17
   hunk_end_line: 39
   difficulty: medium

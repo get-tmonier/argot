@@ -18,9 +18,23 @@ That gives argot exactly **one job**, and its scorecard is **two numbers**:
 1. **Novel-pattern catch rate** — of code that introduces something foreign to
    the repo (a dependency/API/callee 0-usage at the pinned SHA), what share does
    argot flag? *(The gated headline; ≥ 85%.)*
-2. **False-alarm rate** — of real idiomatic commits, what share does argot flag?
-   *(Temporal-holdout FP; existing ≤ 2%, new-file ≤ 5%. A guardrail that cries
-   wolf is worse than none.)*
+2. **False-alarm rate (over-fire)** — of real idiomatic commits, what share does
+   argot flag *on the repo's own existing code*? *(Temporal-holdout FP,
+   decomposed. A guardrail that cries wolf is worse than none.)*
+
+   The temporal holdout counts every fire on a later commit, but a commit that
+   introduces a **genuinely-new dependency or API** (a symbol 0-usage in the repo
+   at the fit SHA) is *not* an idiomatic commit — flagging it is argot's one job,
+   not a false alarm. So the holdout FP is split by firing reason:
+   - **over-fire** (`bpe`/`convention` — distributional/rarity surprise on the
+     repo's *own* tokens): the true false-alarm rate. **Target: ≈ 0** (existing),
+     ≤ 5% (new-file).
+   - **novel-pattern detection** (`import`/`call_receiver` — fires only on a
+     symbol/module 0-usage in the repo by construction): argot correctly flagging
+     a new dependency/API for review. Reported, never counted against the tool.
+
+   The split is conservative (a `bpe` fire on a real novel pattern is still
+   counted as over-fire), so the reported over-fire rate is an honest ceiling.
 
 Everything else the old rubric measured (does it also catch a misused *builtin*
 the repo already has — `die` vs `throw`; or a naming-morphology slip) is
@@ -48,7 +62,8 @@ at the pinned SHA.
 `foreign_concurrency`): each fixture's tell is a symbol (import or callee)
 verified **0-usage in the repo at the pinned SHA** — genuinely foreign
 vocabulary, exactly the "unknown to this codebase" thing an LLM drags in. Gate:
-**catch rate ≥ 85%**, at **false-alarm ≤ 2%** (existing-file temporal-holdout).
+**catch rate ≥ 85%**, at **over-fire ≈ 0** (existing-file temporal-holdout, the
+false-alarm half of the split above).
 The two `secondary` classes are reported but never gated — they are neither the
 danger an LLM poses nor reliably local-detectable.
 
@@ -83,11 +98,15 @@ the honest (LOO) calibration. Caught = any hit on the host file. **Two numbers:*
 
 1. **Novel-pattern catch rate** (≥ 85%) — recall over the novel-pattern classes.
    *The headline.*
-2. **False-alarm rate** (existing ≤ 2%, new-file ≤ 5%) — temporal-holdout FP on
-   real commits (`--mode honest`/`holdout`). *The co-headline — a guardrail is
-   only good if it stays quiet on idiomatic code.*
+2. **False-alarm rate (over-fire)** (existing ≈ 0, new-file ≤ 5%) —
+   temporal-holdout FP on real commits (`--mode honest`/`holdout`), the over-fire
+   half of the reason-split (fires on the repo's own code). Novel-pattern
+   detections (fires on 0-usage symbols — argot working) are reported separately.
+   *The co-headline — a guardrail is only good if it stays quiet on idiomatic
+   code.*
 
 Secondary coverage (`naming_shape_break`, `semantic_convention`) is printed
 underneath for interest, clearly marked not-gated.
-4. **Temporal-holdout FP** (unchanged gate: existing ≤ 2%, new-file ≤ 5%) — the
-   anti-inflation safeguard; "green" recall only counts with FP still honest.
+4. **Temporal-holdout FP** (over-fire ≈ 0 existing, ≤ 5% new-file) — the
+   anti-inflation safeguard; "green" recall only counts with over-fire still
+   honest.

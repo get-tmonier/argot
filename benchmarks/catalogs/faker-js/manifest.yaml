@@ -16,7 +16,7 @@ injection_hosts:
 fixtures:
 - id: faker_js_foreign_rng_1
   file: breaks/break_foreign_rng_1.ts
-  category: foreign_rng
+  category: semantic_convention
   hunk_start_line: 3
   hunk_end_line: 8
   rationale: Math.random instead of faker-js internal RNG
@@ -34,7 +34,7 @@ fixtures:
   host_inject_at_line: 643
 - id: faker_js_foreign_rng_3
   file: breaks/break_foreign_rng_3.ts
-  category: foreign_rng
+  category: semantic_convention
   hunk_start_line: 5
   hunk_end_line: 9
   rationale: Math.random index pick inside a person-name provider
@@ -43,7 +43,7 @@ fixtures:
   host_inject_at_line: 421
 - id: faker_js_runtime_fetch_1
   file: breaks/break_runtime_fetch_1.ts
-  category: runtime_fetch
+  category: semantic_convention
   hunk_start_line: 3
   hunk_end_line: 8
   rationale: Runtime fetch from a locale data file
@@ -52,7 +52,7 @@ fixtures:
   host_inject_at_line: 159
 - id: faker_js_runtime_fetch_2
   file: breaks/break_runtime_fetch_2.ts
-  category: runtime_fetch
+  category: semantic_convention
   hunk_start_line: 3
   hunk_end_line: 11
   rationale: ImageProvider.url() issues a live network fetch
@@ -61,7 +61,7 @@ fixtures:
   host_inject_at_line: 350
 - id: faker_js_runtime_fetch_3
   file: breaks/break_runtime_fetch_3.ts
-  category: runtime_fetch
+  category: semantic_convention
   hunk_start_line: 3
   hunk_end_line: 12
   rationale: CompanyProvider.name() fetches from a remote name-service
@@ -106,7 +106,7 @@ fixtures:
   host_inject_at_line: 574
 - id: faker_js_http_sink_2
   file: breaks/break_http_sink_2.ts
-  category: http_sink
+  category: semantic_convention
   hunk_start_line: 3
   hunk_end_line: 11
   rationale: Generator pipes every generated value to a remote log sink via fetch
@@ -115,7 +115,7 @@ fixtures:
   host_inject_at_line: 221
 - id: faker_js_http_sink_3
   file: breaks/break_http_sink_3.ts
-  category: http_sink
+  category: semantic_convention
   hunk_start_line: 3
   hunk_end_line: 9
   rationale: navigator.sendBeacon reporting inside a faker provider

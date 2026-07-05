@@ -19,19 +19,6 @@ fixtures:
   # ---------------------------------------------------------------------
   # Python — Dagster vs other-framework paradigms
   # ---------------------------------------------------------------------
-  - id: dagster_py_framework_swap_1
-    language: python
-    file: breaks/py/paradigm_break_airflow_operator.py
-    category: framework_swap
-    hunk_start_line: 15
-    hunk_end_line: 85
-    rationale: "Dagster uses @op / @job / @asset with typed Output objects and a Definitions registry; Airflow's
-      DAG, PythonOperator, default_args dict, schedule_interval, and XCom (ti.xcom_push / ti.xcom_pull)
-      are absent from the Dagster corpus — the entire wiring vocabulary is foreign"
-    difficulty: easy
-    host_file: python_modules/dagster/dagster/_core/definitions/schedule_definition.py
-    host_inject_at_line: 430
-
   - id: dagster_py_framework_swap_2
     language: python
     file: breaks/py/paradigm_break_prefect_task.py

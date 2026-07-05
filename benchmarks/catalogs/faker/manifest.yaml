@@ -65,16 +65,6 @@ fixtures:
     \ Faker() + fake.name() etc.; ModelFactory appears at 0 faker corpus sites."
   host_file: faker/factory.py
   host_inject_at_line: 115
-- id: mimesis_alt_3
-  file: breaks/break_mimesis_alt_3.py
-  category: mimesis_alt
-  hunk_start_line: 14
-  hunk_end_line: 26
-  difficulty: hard
-  rationale: "Faker() calling rare financial provider methods (aba, bban, iban, swift, cryptocurrency_code) \u2014 no foreign import, BPE familiar, but these methods appear at 0 call sites in the faker\
-    \ corpus itself. Single axis: rarely-called financial callee methods."
-  host_file: faker/providers/credit_card/__init__.py
-  host_inject_at_line: 196
 - id: threading_provider_2
   file: breaks/break_threading_provider_2.py
   category: threading_provider

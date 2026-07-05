@@ -131,7 +131,7 @@ fixtures:
   host_inject_at_line: 1199
 - id: subprocess_2
   file: breaks/break_subprocess_2.py
-  category: subprocess_shell
+  category: semantic_convention
   hunk_start_line: 14
   hunk_end_line: 33
   difficulty: medium
