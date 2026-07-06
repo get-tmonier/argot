@@ -21,6 +21,9 @@ error-tolerant parser. Two properties matter here:
 
 ## Supported out of the box
 
+<!-- TODO(js-lang): JavaScript is becoming a first-class 11th language (own adapter + model, `.js`/`.jsx`).
+     When it lands and is benchmarked, split "TypeScript / JavaScript" into two, and change "ten languages"
+     below to "eleven". Do not change the count until the JS corpus numbers ship. -->
 Python, TypeScript / JavaScript, Go, Rust, Java, C#, C, C++, Ruby, and PHP —
 ten languages, each with its own tree-sitter adapter, each benchmarked on a
 real open-source corpus. We publish the leak-free per-corpus numbers — catch
@@ -46,5 +49,5 @@ scoring:
 - **Data-dominant files** — modules that are ≥80% top-level array/object literals (locale tables,
   fixtures, generated lookups). The same structural predicate runs at fit and check time.
 - **Comments and docstrings** — blanked before scoring, so prose doesn't inflate the surprise signal.
-- **Test files and conventional directories** — skipped today as a placeholder default, moving to
-  user-configurable rules with the suppression surface.
+- **Test files and conventional directories** — skipped by the built-in `argot:recommended` set, which
+  you can extend or replace with `.argotignore`. See [Configure](/docs/configure/).

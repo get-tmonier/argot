@@ -132,8 +132,28 @@ policy):
           fail-on-hits: true
 ```
 
-Other inputs: `argot-version` (pin a release), `path`, `ref` (an explicit
-range), `format`, `cache`, `upload-sarif`, `comment-pr`. All optional.
+### Action inputs
+
+All inputs are optional.
+
+| Input | Default | What it does |
+|---|---|---|
+| `path` | `.` | Repository to check (working-directory relative). |
+| `argot-version` | `latest` | Release to install — `latest` or a version like `0.2.48`. |
+| `format` | `sarif` | Output format for `argot check`: `sarif`, `json`, or `human`. |
+| `output-file` | `argot-results.sarif` | File the check results are written to. |
+| `ref` | *(empty)* | Ref or range to check (e.g. `origin/main..HEAD`). Empty = automatic: `base..HEAD` on PRs, the head commit on pushes. |
+| `cache` | `true` | Cache the fitted `.argot/` model between runs, keyed on the base commit. |
+| `upload-sarif` | `true` | Upload the SARIF file to code scanning (needs `format: sarif` and `security-events: write`). |
+| `comment-pr` | `true` | Post/update the sticky voice-score PR comment (needs `pull-requests: write`). |
+| `fail-on-hits` | `false` | Fail the job when argot finds hits above the threshold. Off by default — argot informs without gating. |
+
+### Action outputs
+
+| Output | Meaning |
+|---|---|
+| `exit-code` | Exit code of `argot check` (`0` clean, `1` hits found). |
+| `results-file` | Path to the written results file. |
 
 ## Locally, before you push
 

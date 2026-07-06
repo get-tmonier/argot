@@ -92,6 +92,6 @@ suppression surfaces.
   the GitHub Action) — install with `npx skills add get-tmonier/argot`.
 - **MCP** (proactive): `argot mcp` exposes `voice_context` so you can write
   in-voice from the first token — see
-  [the MCP guide](https://argot.tmonier.com/docs/mcp/).
+  [the agents guide](https://argot.tmonier.com/docs/agents/).
 - **Docs:** <https://argot.tmonier.com/docs/> · **llms.txt:**
   <https://argot.tmonier.com/llms.txt>

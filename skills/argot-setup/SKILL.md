@@ -35,6 +35,12 @@ the semantic knowledge of the tree.
    - peripheral monorepo members: a marketing/landing site, a playground, demo
      or example apps, a benchmark suite, build/dev tooling
    - generated code (protobuf/gRPC, OpenAPI/GraphQL clients, `*_pb2.py`, `gen/`)
+   - **transpiled / built JavaScript in a TypeScript repo** — compiled `.js`
+     output (a `.js`/`.js.map` beside a `.ts` source, or a `dist/`/`lib/`/`esm/`/
+     `cjs/`/`out/` of build output). It is generated, not authored voice, and
+     would pollute the JS model. argot auto-excludes the ones carrying a
+     `sourceMappingURL` or tsc `__esModule` tell, but a transpiled directory with
+     none of those (plain `tsc` without source maps into `lib/`) is yours to name.
    - vendored / third-party code checked into the repo (`vendor/`, bundled SDKs)
    - large data, fixtures, snapshots, locale tables, database migrations
    - legacy or archived modules that aren't how the team writes code today

@@ -98,6 +98,10 @@ into the voice).
    - peripheral monorepo members: a marketing/landing site, a playground, demo
      or example apps, a benchmark suite, build/dev tooling
    - generated code (protobuf/gRPC, OpenAPI/GraphQL clients, `*_pb2.py`, `gen/`)
+   - transpiled / built JavaScript in a TypeScript repo — compiled `.js` output
+     (`dist/`/`lib/`/`esm/`/`cjs/`/`out/`); it is generated, not authored voice.
+     argot auto-excludes the `.js` carrying a `sourceMappingURL`/`__esModule`
+     tell, but a plain-`tsc`-into-`lib/` build with none of those is ours to name
    - vendored / third-party code checked in (`vendor/`, bundled SDKs)
    - large data, fixtures, snapshots, locale tables, database migrations
    - legacy or archived modules that aren't how we write code today

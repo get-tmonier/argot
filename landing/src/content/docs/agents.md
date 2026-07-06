@@ -73,6 +73,15 @@ no separate runtime. It exposes four tools:
 | `argot.explain` | to understand a hit | the reason plus the full evidence trail |
 | `argot.fit_status` | to gauge trust | corpus composition, calibration freshness, and a Ready / Marginal / Not-recommended verdict |
 
+**Tool inputs and responses.** `argot.check` and `argot.explain` take `file_path` and `hunk_content`
+(both required) plus optional `file_source` (the full file, for better context); they return
+`out_of_voice`, `score`, `threshold`, `reason`, `model`, and — on a hit, or always for `explain` —
+`evidence`. `argot.voice_context` takes `file_path` (required) and optional `top` (default 10), and
+returns `typical_callees_by_cluster`, `familiar_imports`, and the resolved `language`.
+`argot.fit_status` takes no arguments and returns the full `inspect` report (corpus, calibration,
+verdict, reasons). Tool-level failures come back as an `isError` text result the agent can read, not a
+protocol error.
+
 The point is **writing in-voice from the first token** instead of
 writing-then-fixing. Fit the repo first (`argot init`), then wire it up:
 

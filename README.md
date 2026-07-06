@@ -38,6 +38,13 @@
   &nbsp;·&nbsp;<a href="#benchmarks">10 languages →</a>
 </p>
 
+<!-- TODO(js-lang): JavaScript is landing as a first-class 11th language (own adapter + model). When its
+     benchmarked corpus ships, bump "10 languages" here and at the benchmarks section ("27 repos in 10
+     languages"), and split the "TypeScript / JS" rows in the benchmark table, Acknowledgements, and the
+     tree-sitter grammar list into separate TypeScript and JavaScript entries. Do not change the count until
+     the JS numbers land. -->
+
+
 ---
 
 Type checkers and linters answer *"is this valid?"* argot answers the question

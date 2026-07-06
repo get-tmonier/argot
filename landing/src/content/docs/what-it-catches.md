@@ -16,6 +16,8 @@ verbatim. Where it doesn't, that's said plainly.
 
 ## The dependable catches
 
+<!-- TODO(js-lang): "10 languages" (and the 635/522/527 fixture counts) update when JavaScript ships as a
+     separate 11th language with its own benchmarked corpus. Do not change the count until those numbers land. -->
 Across 635 fixtures in 10 languages, when the foreign symbol is visible in the code — an explicit
 import, a fully-qualified call, a distinct API name — argot catches **522 of 527 (99%)** on the
 honest, leak-free bench. Three shapes, strongest first.
