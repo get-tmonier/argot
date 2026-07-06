@@ -29,19 +29,20 @@ npm install -g @tmonier/argot
 Both download the prebuilt `argot` binary for your platform (macOS arm64/Intel, Linux x64/arm64).
 Everything runs locally — no API key, no account, nothing leaves your machine.
 
-## Calibrate, then check
+## Set up, then check
 
-argot has three commands. Run them in order the first time, then just `check` on every commit.
+The fastest path is one command:
 
 ```bash
 cd your-repo
-argot extract      # walk git history → .argot/dataset.jsonl
-argot fit          # build the repo corpus + baseline, then calibrate the threshold
+argot init         # learn your repo's voice, then a health check (Ready / Marginal / …)
 argot check        # score uncommitted changes (or pass a ref/range)
 ```
 
-That's it. `extract` and `fit` are the one-time setup (re-run `fit` after a major refactor); `check`
-is the thing you run on every diff.
+`argot init` fits the model once and writes a `.argot/.gitignore` so the rebuildable model stays out
+of git. If the health check isn't **Ready**, or your repo has generated / vendored / peripheral code
+(a monorepo's marketing site, playground, or demo apps), spend a minute on [Setup](/docs/setup/) to
+tell argot what shouldn't shape its voice. Then run `check` on every diff.
 
 ```text
 argot check · 2 hunks above threshold (1 foreign · 1 suspicious)
@@ -63,7 +64,8 @@ If your team ships LLM-assisted code, this is the layer your CI is missing.
 
 ## Where to next
 
+- [Setup](/docs/setup/) — configure what argot should (and shouldn't) learn from.
 - [How it works](/docs/how-it-works/) — the two-phase pipeline, in plain terms.
-- [The commands](/docs/the-commands/) — `extract`, `fit`, and `check` in detail.
+- [The commands](/docs/the-commands/) — `init`, `check`, and the rest in detail.
 - [Reading the output](/docs/reading-the-output/) — severity tiers, sources, and the evidence line.
 - [What it catches](/docs/what-it-catches/) — three real examples every other tool stays silent on.

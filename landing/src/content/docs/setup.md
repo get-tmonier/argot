@@ -66,44 +66,58 @@ agent) at your repo root:
 
 ```text
 You are setting up **argot** for this repository. argot learns this repo's own
-coding "voice" from its history and flags future code that is foreign to it. It
-only works well when it learns from code we wrote by hand — not generated code,
-vendored dependencies, or pure data. Configure what argot should ignore, then
-confirm the model is healthy.
+coding "voice" from its source and flags future code foreign to it. It only
+works well when it learns from the code we actually ship and maintain by hand —
+not demos, generated code, vendored dependencies, or config. Configure what
+argot ignores, confirm the model is healthy, and verify it catches a foreign
+import.
 
-1. Confirm argot is installed: run `argot --version`. If it is missing, tell me
-   how to install it and stop.
+First, work on a clean tree: `argot init` learns from files as they are, so
+commit or stash any work in progress (uncommitted foreign code would be baked
+into the voice).
 
-2. Fit and check health: run `argot init`. Read the "Verdict" line
-   (Ready / Marginal / Not recommended) and the corpus summary.
+1. Confirm argot is installed: `argot --version`. If missing, tell me how to
+   install it and stop.
 
-3. Get argot's statistical suggestions: run `argot init --suggest --format json`.
-   These are directories that are mostly auto-generated or data files — strong
-   ignore candidates, with counts.
+2. Identify the PRIMARY authored source — the library or app this repo actually
+   ships. In a monorepo (multiple packages/workspaces), that's usually one or a
+   few packages; everything else is peripheral.
 
-4. Read the repository tree yourself and find directories that should NOT shape
-   our voice but argot cannot detect by name:
+3. Fit and check health: `argot init`. Read the "Verdict" and corpus summary.
+
+4. Get argot's statistical suggestions: `argot init --suggest --format json` —
+   directories that are mostly auto-generated or data files, with counts. Note:
+   `--suggest` only finds generated/data-heavy dirs; on a monorepo it is often
+   empty, and the peripheral-package call in step 5 is yours to make.
+
+5. Read the tree and exclude what should NOT shape our voice — but never the
+   primary source from step 2:
+   - peripheral monorepo members: a marketing/landing site, a playground, demo
+     or example apps, a benchmark suite, build/dev tooling
    - generated code (protobuf/gRPC, OpenAPI/GraphQL clients, `*_pb2.py`, `gen/`)
-   - vendored / third-party code checked into the repo (`vendor/`, bundled SDKs)
+   - vendored / third-party code checked in (`vendor/`, bundled SDKs)
    - large data, fixtures, snapshots, locale tables, database migrations
-   - legacy or archived modules that are not how we write code today
-   Do NOT ignore our real application or library source — that is exactly what
-   argot must learn from. argot already excludes tests, docs, examples, and
-   build output, so you do not need to add those.
+   - legacy or archived modules that aren't how we write code today
+   argot already excludes tests, docs, examples, and build output by default, so
+   focus on the repo-specific directories above.
 
-5. Write a `.argotignore` at the repo root (gitignore-style patterns, one per
-   line). Add only directories you are confident about, each with a short `#`
-   comment saying why. Prefer directory patterns like `src/generated/`.
+6. Write a `.argotignore` at the repo root (gitignore-style, one pattern per
+   line, each with a short `#` reason). Prefer directory patterns. Re-run
+   `argot init`.
 
-6. Re-run `argot init`. Confirm the Verdict moved toward **Ready** and the
-   corpus is dominated by our own code. If it is still Marginal or Not
-   recommended because of a directory you can identify, refine `.argotignore`
-   and repeat — at most a few rounds.
+7. VERIFY the catch works — the important check. In a real primary-source file,
+   add a throwaway import of a package this repo never uses (e.g. `import boto3`
+   / `import axios from "axios"`) plus a line using it, run `argot check`, and
+   confirm it's flagged. Then revert. If it is NOT flagged, the voice is still
+   diluted by non-authored code — exclude more peripheral directories and repeat.
 
-7. Summarize: what you excluded and why, and the final Verdict.
+8. Summarize what you excluded and why, and the final Verdict.
 
-Keep it minimal and reversible — every line in `.argotignore` is a human-
-readable decision I can undo.
+Don't chase a green "Ready". If the verdict stays **Marginal** only because the
+repo is small (few candidate hunks), that's fine — Marginal is usable and
+excluding more won't help. Keep excluding only when the corpus is polluted by
+non-authored code (step 7 reveals this). Keep it minimal and reversible — every
+`.argotignore` line is a decision I can undo.
 ```
 
 The agent runs the same commands you would; it just brings the semantic

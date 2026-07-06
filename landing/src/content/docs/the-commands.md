@@ -1,11 +1,28 @@
 ---
 title: The commands
-description: extract, fit, and check — what each one does and the flags that matter.
+description: init and check — the everyday commands — plus fit, extract, and the on-demand tools.
 group: Guide
 order: 4
 ---
 
-argot is three commands. `extract` and `fit` are one-time setup; `check` is the per-diff loop.
+The two everyday commands are **`argot init`** (one-time setup — it fits the model and health-checks
+the repo) and **`argot check`** (the per-diff loop). `fit` is what `init` runs under the hood;
+`extract` writes a raw training dataset the check path doesn't need, so most repos never run it. The
+rest — `review`, `voice-diff`, `inspect`, `mute` — are on demand. Run `argot --help` for the full list.
+
+## init
+
+Fits the voice model to the repo (`fit`), prints a health check (corpus composition + a
+Ready / Marginal / Not-recommended verdict), and writes a `.argot/.gitignore` so the rebuildable
+model stays out of version control. This is the one command a new repo needs.
+
+```bash
+argot init                   # set up the current repo
+argot init --suggest         # list generated/data-heavy dirs you may want to exclude first
+argot init --suggest --format json   # the same, machine-readable (for the setup skill)
+```
+
+See [Setup](/docs/setup/) for deciding what shouldn't shape your voice.
 
 ## extract
 
