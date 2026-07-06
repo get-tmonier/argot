@@ -9,8 +9,8 @@ hand-recorded.
 ## Files
 
 - **`demo.tape`** — the [VHS](https://github.com/charmbracelet/vhs) script (styling + the typed command).
-- **`receipts.py`** — the planted out-of-voice hunk (wrong exception type + a novel-token helper). The same hunk the README quotes verbatim.
-- **`render.sh`** — reproducible driver: fits argot on the pinned FastAPI benchmark checkout, plants `receipts.py`, and records the GIF.
+- **`receipts.py`** — the out-of-voice hunk: a Django-style class-based view (`View`, `JsonResponse`, `HttpResponseNotFound`) in an all-FastAPI codebase. The same hunk the README quotes.
+- **`render.sh`** — reproducible driver: fits argot on the pinned FastAPI benchmark checkout, appends `receipts.py` to an existing source file (so the call-receiver stage scores the paradigm against that file's cluster), and records the GIF.
 
 ## Re-render
 

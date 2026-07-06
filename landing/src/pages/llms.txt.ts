@@ -36,6 +36,21 @@ export const GET: APIRoute = async () => {
       '(e.g. `/docs/configure.md`) — fetch that to read the source without ' +
       'scraping HTML.',
     '',
+    '## What it catches (and what it does not)',
+    '',
+    '**Catches — reliably (~99% when the foreign symbol is visible in the change):** ' +
+      'a foreign dependency (an import the repo has never used), a foreign API (a call ' +
+      'into a library it standardises away from), or a whole foreign paradigm (a ' +
+      'Django-style view in a FastAPI repo, hand-rolled validation, a different HTTP ' +
+      'client). These are the novel-pattern classes the published numbers gate on.',
+    '',
+    '**Does NOT reliably catch — secondary, never gated:** in-vocabulary breaks where ' +
+      'every token is already in the repo and only the *choice* is wrong (a bare ' +
+      '`ValueError` where the repo raises `HTTPException`; a manual status check instead ' +
+      'of `raise_for_status()`). Separating these from in-voice code drives false alarms, ' +
+      'so argot leaves them. **A clean `argot check` means "no foreign pattern found," ' +
+      'not "this matches every convention."**',
+    '',
     '## Docs',
     '',
     ...docs.map(

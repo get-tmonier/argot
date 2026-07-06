@@ -8,12 +8,13 @@ interface Props {
 }
 const { demo } = Astro.props.content;
 
-const code = `@router.get("/{user_id}", response_model=UserResponse)
-async def get_user(user_id: int, db=Depends(get_db)) -> UserResponse:
-    user = db.get(user_id)
-    if user is None:
-        raise ValueError(f"User {user_id} not found")
-    return user`;
+const code = `# a Django-style view added to an all-FastAPI codebase
+class ReceiptView(View):              # every other route here is @router.get + Depends
+    def get(self, request, user_id):
+        receipt = self.repo.find(user_id)
+        if receipt is None:
+            return HttpResponseNotFound()
+        return JsonResponse(receipt.to_dict())`;
 ---
 
 <section id="demo" class="snap-section relative flex min-h-svh items-center">

@@ -40,6 +40,20 @@ Run `argot check --format json` for machine output. Each hit carries a
 verdict is **Marginal** or **Not recommended**, down-weight every hit — the model
 isn't well-calibrated on this repo yet.
 
+## What it catches — and what a clean run doesn't mean
+
+argot reliably flags a **novel pattern** foreign to this repo: a dependency it
+never imports, an API it never calls, or a whole paradigm (a Django-style view in
+a FastAPI repo, a different HTTP client, hand-rolled validation) it never writes —
+~99% when the foreign symbol is in the change. Trust those hits.
+
+It does **not** reliably catch *in-vocabulary* breaks — where every token is
+already in the repo and only the choice is wrong (a bare `ValueError` where the
+repo raises `HTTPException`; a manual status check instead of `raise_for_status()`).
+So **a clean `argot check` means "no foreign pattern found," not "this is
+idiomatic."** Don't tell the user their code matches the repo's conventions on the
+strength of a clean run — argot is silent on that subtler class by design.
+
 ## When a hit is a real divergence
 
 Look at the evidence line — it names the surprising identifier and what the repo

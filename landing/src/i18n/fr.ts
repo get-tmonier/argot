@@ -27,30 +27,30 @@ const fr: SiteContent = {
     label: 'La deuxième question',
     title: 'Le type-checker demande si ça compile. argot demande si c’est le vôtre.',
     body: 'Les linters et type-checkers répondent à « est-ce valide ? ». Ils ne savent pas répondre à « est-ce ainsi que cette équipe écrit ? ». Cela vivait dans la revue de code — jusqu’à ce qu’un LLM puisse l’enterrer sous cent PR propres et bien typées en une après-midi. [[argot est la couche qui repose la question.]]',
-    codeTitle: 'routers/users.py',
+    codeTitle: 'routers/receipts.py',
     caption:
-      'Décorateurs, Depends, le retour typé — tout est idiomatique en FastAPI. Le seul écart : un ValueError nu là où ce dépôt lève toujours HTTPException. mypy est content. Le linter n’a rien à dire. [[argot signale la ligne.]]',
+      'Chaque autre endpoint de ce dépôt est une fonction FastAPI typée avec Depends. Celui-ci est une vue-classe à la Django — View, JsonResponse, HttpResponseNotFound. Python valide ; mypy et ruff sont contents. Aucun linter ne sait que ce dépôt n’écrit jamais du Django. [[argot signale le paradigme étranger.]]',
   },
   catches: {
     label: 'Ce qu’il détecte',
-    title: 'Techniquement correct. Socialement faux.',
-    body: 'argot ne remplace ni ESLint, ni ruff, ni votre type-checker. Il attrape ce qu’ils ne savent pas formuler — les conventions que votre équipe a adoptées [[par répétition]], jamais par écrit.',
+    title: 'Techniquement correct. Socialement étranger.',
+    body: 'argot ne remplace ni ESLint, ni ruff, ni votre type-checker. Il attrape ce qu’ils ne savent pas formuler : une dépendance, une API ou tout un paradigme [[que le dépôt n’a jamais utilisés]] — le code qu’un agent invoque quand il ne connaît pas votre stack. Et il est honnête sur la seule limite qu’il ne franchit pas.',
     items: [
       {
-        title: 'Copier-coller de LLM',
-        desc: 'Un bloc dont le style s’écarte nettement du fichier qui l’entoure — fluide dans la voix moyenne de tous les dépôts publics, pas la vôtre.',
-      },
-      {
         title: 'Une dépendance étrangère',
-        desc: 'Un import — un paquet, un module, un header — que le dépôt n’a jamais utilisé. Le signal pour lequel argot est conçu, et celui qu’il détecte le plus fiablement.',
+        desc: 'Un import — un paquet, un module, un header — que le dépôt n’a jamais utilisé. Le signal le plus net, et celui qu’argot détecte le plus fiablement.',
       },
       {
         title: 'Une API étrangère',
-        desc: 'Un appel vers une bibliothèque dont le code s’écarte — un autre client HTTP, ORM ou logger que celui que le reste du dépôt emploie.',
+        desc: 'Un appel vers une bibliothèque dont le code s’écarte — un autre client HTTP, ORM ou sérialiseur que celui du reste du dépôt. Le signe, c’est l’appel, pas seulement l’import.',
       },
       {
-        title: 'Anomalie stylistique',
-        desc: 'Du code correct, typé, sans erreur de lint — mais qui ne ressemble à personne de cette équipe.',
+        title: 'Un paradigme étranger',
+        desc: 'Tout un idiome venu d’un autre framework — une vue-classe à la Django, une route Flask, une validation à la main — parachuté dans un dépôt qui n’a jamais écrit ainsi.',
+      },
+      {
+        title: 'La limite qu’il ne franchit pas',
+        desc: 'Une mauvaise exception ou valeur alors que [[tout le vocabulaire est déjà le vôtre]] — un choix, pas un motif étranger. argot ne les signale que parfois, ne s’y engage jamais, et vous le dit.',
       },
     ],
   },
