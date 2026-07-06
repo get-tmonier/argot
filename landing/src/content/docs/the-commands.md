@@ -101,8 +101,10 @@ argot check --min-severity foreign  # only show foreign-tier hits
 argot check --verbose               # show full hunk contents (no truncation)
 ```
 
-`--min-severity` is the dial you'll reach for most: start at `foreign` for high-confidence anomalies,
-loosen to `suspicious` once you trust the calibration on your repo.
+`--min-severity` filters by tier. Keep the default (`unusual`) to see everything argot flags — a lone
+foreign import can score right at the threshold and land in `unusual`, so `--min-severity foreign`
+(the strongest-anomaly tier) may *hide* a single new dependency. Raise it to `suspicious` or `foreign`
+only to cut noise on a chatty repo, once you trust the calibration.
 
 Every `check` run also names the model that judged the diff — a short `model:` hash on stderr (human)
 or in the `model` field of `--format json`/`sarif`. Same corpus + config always fits the same hash, so

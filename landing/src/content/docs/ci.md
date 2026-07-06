@@ -32,6 +32,15 @@ jobs:
       - uses: get-tmonier/argot@main
 ```
 
+argot fits the model on the PR's **base** branch and scores your changes against
+it, so a dependency the PR introduces is judged as new (not learned as normal
+first). The model is cached per base commit and only re-fit when the base moves.
+
+> **Committing the workflow:** pushing a `.github/workflows/*.yml` needs the
+> `workflow` token scope. If `git push` is rejected with *"refusing to allow an
+> OAuth App to … workflow … without 'workflow' scope"*, run
+> `gh auth refresh -s workflow` (or push over SSH).
+
 That's the whole setup. On each PR you get three things, none of which block the
 merge:
 
