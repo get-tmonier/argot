@@ -186,7 +186,10 @@ fn tool_check(args: &Value, repo: &Path, explain: bool) -> Result<Value, String>
         "model": scorers.model_hash,
         "file_path": file_path,
         "out_of_voice": scored.flagged,
-        "score": scored.stages.bpe_score,
+        // The winning scorer's score and its bar — the same pair `check` reports,
+        // so an agent can gauge how close a hit was (not the internal BPE stage).
+        "score": scored.score,
+        "threshold": scored.threshold,
         "reason": scored.reason.as_str(),
     });
     // Evidence: always for explain; and on a fired hunk for check.

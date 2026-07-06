@@ -1531,9 +1531,17 @@ fn collect_patches(args: &CheckArgs) -> Result<(Vec<PatchBatch>, String), CheckO
             }
             return Ok((patches, format!("net diff ({reference})")));
         }
-        // Bare ref: <ref>..HEAD commits plus full workdir.
+        // Bare ref: <ref>..HEAD commits plus full workdir. Validate the ref
+        // first — otherwise `resolve_shas` treats an unknown start as "since the
+        // beginning of history" and silently scores the whole tree as if clean.
+        if repo.revparse_single(reference).is_err() {
+            return Err(CheckOutcome::err(
+                format!("error: unknown revision '{reference}' — not a commit, branch, or tag.\n"),
+                2,
+            ));
+        }
         let shas = resolve_shas(&repo, &format!("{reference}..HEAD"))
-            .map_err(|e| CheckOutcome::err(format!("error: {e}\n"), 1))?;
+            .map_err(|e| CheckOutcome::err(format!("error: {e}\n"), 2))?;
         let workdir = chain_workdir_patches(repo_path)
             .map_err(|e| CheckOutcome::err(format!("error: {e}\n"), 1))?;
         if !shas.is_empty() {
