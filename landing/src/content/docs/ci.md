@@ -10,6 +10,11 @@ argot in CI is **advisory by design**. It's a statistical guardrail, so it
 — without ever gating the merge. The reviewer has the last word. (Want a hard
 gate anyway? One input flips it on.)
 
+This is the **CI path** and it's self-contained: **you don't need to install or
+set up argot locally** — the Action installs it and fits the model in CI. Prefer
+to run it on your own machine instead? See [Setup](/docs/setup/). You can do
+both.
+
 ## GitHub Action
 
 ```yaml

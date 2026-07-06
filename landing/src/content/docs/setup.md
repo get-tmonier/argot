@@ -10,7 +10,9 @@ question: *what should it learn from?* Everything hand-written stays in; anythin
 generated, vendored, or pure data should stay out — otherwise argot learns a
 voice that isn't yours and flags the wrong things.
 
-There are three ways in, fastest first.
+This is the **local path** — checking on your machine (and in a pre-commit hook).
+Just want a voice score on every PR, with no local install? That's the
+[CI path](/docs/ci/) instead. There are three ways in here, fastest first.
 
 ## 1. One command
 
