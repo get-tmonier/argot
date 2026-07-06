@@ -28,6 +28,18 @@ argot check --staged --format json   # what's about to be committed
 Exit codes: `0` clean · `1` hits found · `2` setup/usage error. **Treat `1` as
 "there is something to look at," not as a failure.**
 
+Each hit in the JSON `hits` array carries:
+
+| Field | Use |
+|---|---|
+| `severity` | `foreign` / `suspicious` / `unusual` — branch on this (see the decision tree). |
+| `reason_label` | Human label of the signal: `foreign import`, `unfamiliar callee`, `rare token sequence`. |
+| `evidence` | The lines to show the user — names the foreign symbol and what the repo uses instead. |
+| `hash` | Stable id for `argot mute <hash>`. |
+| `path`, `line_start`, `line_end` | Where it is. |
+| `source` | `workdir` / `staged` / `untracked` / a commit SHA — where the change came from. |
+| `score`, `threshold` | Raw internals. **Read `severity`, not these** — they sit on different scales per signal (a foreign import scores 1.0 against its own bar of 1.0, unrelated to the BPE `threshold` shown), so comparing them directly is meaningless. |
+
 ## Gauge trust first
 
 Run `argot inspect` and read the verdict. If it's **Marginal** or **Not
