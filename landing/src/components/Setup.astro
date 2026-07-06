@@ -26,17 +26,57 @@ const term = [
   `<span style="color:var(--muted)">Next:  </span><span style="color:var(--ember-bright)">argot check</span>`,
 ].join('\n');
 const html = `<pre><code>${term}</code></pre>`;
+
+// CLI literals — like Demo.astro's sample, kept out of i18n. Each renders as a
+// copy-to-clipboard chip (the Hero's `.copy-install` script wires them).
+const skillCmd = 'npx skills add get-tmonier/argot';
+const initCmd = 'argot init';
 ---
 
 <section id="setup" class="snap-section relative flex min-h-svh items-center">
   <div
-    class="mx-auto grid w-full max-w-6xl grid-cols-1 gap-10 px-5 py-24 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:gap-16"
+    class="mx-auto grid w-full max-w-6xl grid-cols-1 gap-10 px-5 py-24 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:gap-16"
   >
     <div class="reveal">
       <p class="mb-3 font-mono text-xs tracking-widest text-ember uppercase">{setup.label}</p>
       <h2 class="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{setup.title}</h2>
       <p class="mt-5 leading-relaxed text-ink-dim text-pretty" set:html={emphasize(setup.body)} />
-      <p class="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+
+      <div class="mt-7 space-y-5">
+        <div>
+          <p class="lane-label">{setup.agentLane}</p>
+          <button
+            type="button"
+            class="copy-install setup-chip group"
+            data-copy={skillCmd}
+            aria-label="Copy the skill-install command"
+          >
+            <span class="text-ember">$</span>
+            <span class="text-ink-dim">npx skills add <span class="text-ink">get-tmonier/argot</span></span>
+            <span class="copy-icon ml-auto pl-2 text-muted transition-colors group-hover:text-ink"
+              >⧉</span
+            >
+          </button>
+          <p class="lane-note" set:html={emphasize(setup.agentNote)} />
+        </div>
+        <div>
+          <p class="lane-label">{setup.localLane}</p>
+          <button
+            type="button"
+            class="copy-install setup-chip group"
+            data-copy={initCmd}
+            aria-label="Copy the init command"
+          >
+            <span class="text-ember">$</span>
+            <span class="text-ink-dim">argot <span class="text-ink">init</span></span>
+            <span class="copy-icon ml-auto pl-2 text-muted transition-colors group-hover:text-ink"
+              >⧉</span
+            >
+          </button>
+        </div>
+      </div>
+
+      <p class="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
         <a
           href="/docs/setup/"
           class="group inline-flex items-center gap-1.5 font-medium text-ember transition-colors hover:text-ember-bright"
@@ -57,3 +97,39 @@ const html = `<pre><code>${term}</code></pre>`;
     </div>
   </div>
 </section>
+
+<style>
+  .lane-label {
+    margin-bottom: 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .lane-note {
+    margin-top: 0.5rem;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--ink-dim);
+  }
+  .setup-chip {
+    display: flex;
+    width: 100%;
+    max-width: 26rem;
+    align-items: center;
+    gap: 0.6rem;
+    overflow-x: auto;
+    border-radius: 0.5rem;
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--bg-2) 70%, transparent);
+    padding: 0.6rem 0.9rem;
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 0.8125rem;
+    white-space: nowrap;
+    transition: border-color 0.2s;
+  }
+  .setup-chip:hover {
+    border-color: var(--line-2);
+  }
+</style>

@@ -8,9 +8,10 @@ interface Props {
 }
 const { agents } = Astro.props.content;
 
-// Install command is a literal CLI transcript (like Demo.astro's code sample)
-// — not marketing prose, so it stays out of i18n.
-const installCmd = 'npx skills add get-tmonier/argot';
+// The skills install lives in the Setup section; here we show the *other*
+// integration — the MCP server that feeds the agent your idioms before it
+// writes. A literal CLI transcript (like Demo.astro's sample), so out of i18n.
+const mcpCmd = 'claude mcp add argot -- argot mcp --repo .';
 
 // One glyph per card, echoing the badge convention set by Catches.astro.
 const glyphs = ['⚙', '◎', '⇄', '§'];
@@ -27,7 +28,7 @@ const glyphs = ['⚙', '◎', '⇄', '§'];
     </div>
 
     <div class="reveal flex flex-col gap-5" style="--reveal-delay: 120ms">
-      <CodeWindow code={installCmd} lang="bash" title="terminal" />
+      <CodeWindow code={mcpCmd} lang="bash" title="terminal" />
 
       <div class="grid grid-cols-2 gap-3">
         {

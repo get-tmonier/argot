@@ -51,6 +51,9 @@ export interface SiteContent {
     readonly title: string;
     readonly body: string;
     readonly caption: string;
+    readonly agentLane: string;
+    readonly agentNote: string;
+    readonly localLane: string;
     readonly ctaLocal: string;
     readonly ctaCi: string;
   };

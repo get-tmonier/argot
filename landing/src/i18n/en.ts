@@ -26,7 +26,8 @@ const en: SiteContent = {
     label: 'The second question',
     title: 'Type checkers ask if it compiles. argot asks if it’s yours.',
     body: 'Linters ask “is this valid?” — never “is this how we write things?” An LLM buries that under clean, type-correct PRs. [[argot asks it back.]]',
-    caption: 'A Django view in an all-FastAPI repo. mypy and ruff pass — [[argot flags it in ~150 ms.]]',
+    caption:
+      'A Django view in an all-FastAPI repo. mypy and ruff pass — [[argot flags it in ~150 ms.]]',
     seeLive: 'See it on real repos',
   },
   catches: {
@@ -81,17 +82,21 @@ const en: SiteContent = {
       'Leak-free protocol (issue #92): recall from fixtures planted into real files and judged by the shipped binary; false alarms from a temporal holdout with commit-level bootstrap CIs. Full per-repo numbers on the benchmarks page.',
   },
   setup: {
-    label: 'Setup in one command',
-    title: 'From clone to calibrated in one line.',
-    body: 'argot init learns your repo and tells you if it’s ready — no config, no annotations. [[argot init --suggest]] handles the messy ones.',
-    caption: 'One command. The model stays out of your git history.',
-    ctaLocal: 'Set it up with one prompt',
-    ctaCi: 'or one prompt for CI',
+    label: 'Setup — 30 seconds',
+    title: 'Point it at your repo. Your agent, or you.',
+    body: 'argot is a CLI: [[argot init]] fits it to your code, [[argot check]] scores your diffs. Install the skill and your agent runs that same setup for you — or do it yourself in one command.',
+    caption:
+      'The skill just drives the argot binary. The fitted model stays out of your git history.',
+    agentLane: 'Let your agent do it',
+    agentNote: 'then [[/argot-setup]] in Claude Code, Cursor, or 70+ agents',
+    localLane: 'Or one command yourself',
+    ctaLocal: 'Set it up by hand',
+    ctaCi: 'or wire CI',
   },
   agents: {
-    label: 'Built for AI agents',
-    title: 'Your agent writes the code. argot keeps it in voice.',
-    body: 'The code argot judges is written by agents — so give the agent the guardrail. [[Advisory, never blocking.]]',
+    label: 'Pilot it from your editor',
+    title: 'A CLI your coding agent can drive.',
+    body: 'argot is the tool; the skills and MCP are the steering wheel — they let the agent that writes your code run [[the same argot binary]] you would. Advisory, never blocking.',
     cards: [
       {
         title: 'argot-setup · local',
@@ -110,7 +115,7 @@ const en: SiteContent = {
         desc: 'Feeds your idioms before the agent writes.',
       },
     ],
-    caption: 'It surfaces — you decide. Never blocks, never rewrites.',
+    caption: 'It surfaces — you decide. Never blocks, never rewrites, never mutes for you.',
   },
   ciScore: {
     label: 'In CI, without the friction',

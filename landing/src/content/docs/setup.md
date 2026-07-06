@@ -12,9 +12,35 @@ voice that isn't yours and flags the wrong things.
 
 This is the **local path** — checking on your machine (and in a pre-commit hook).
 Just want a voice score on every PR, with no local install? That's the
-[CI path](/docs/ci/) instead. There are three ways in here, fastest first.
+[CI path](/docs/ci/) instead. Four ways in, fastest first — the first hands the
+judgment call to your coding agent; the rest are yours to drive.
 
-## 1. One command
+## 1. Let your agent set it up  <span class="rec">recommended</span>
+
+Deciding what *shouldn't* shape your voice is a judgment call — a vendored
+`stripe/` client, an OpenAPI SDK, a `legacy/` module frozen years ago. The
+**argot-setup** skill hands that call to the agent already reading your tree: it
+runs `argot init`, weighs the `--suggest` evidence, writes a `.argotignore`, and
+verifies the catch — driving the same `argot` binary you would, with nothing to
+copy-paste. Install it once:
+
+```text
+npx skills add get-tmonier/argot
+```
+
+Then run **`/argot-setup`** in Claude Code or Cursor (Codex: `$argot-setup`; the
+skill works across 70+ agents). In Claude Code you can instead install the
+plugin, which bundles the skills *and* the MCP server:
+
+```text
+/plugin marketplace add get-tmonier/argot
+/plugin install argot
+```
+
+The skill runs the exact prompt in §3 for you — reach for that prompt directly
+only on an agent where you can't install the skill.
+
+## 2. One command yourself
 
 ```text
 argot init
@@ -30,16 +56,15 @@ Next:  argot check          # score your working changes
 Out of the box argot already ignores tests, docs, examples, build output, and
 any file it detects as auto-generated or data-only (the built-in
 `argot:recommended` set — see [Configure](/docs/configure/)). For a lot of repos
-that's all you need. If the verdict is **Ready**, you're done.
+that's all you need. If the verdict is **Ready**, you're done. `init` also drops a
+`.argot/.gitignore` so the fitted model — a rebuildable artifact — never lands in
+version control.
 
-`init` also drops a `.argot/.gitignore` so the fitted model — a rebuildable
-artifact — never lands in version control.
+### If the verdict isn't Ready
 
-## 2. See what stands out
-
-If the verdict is **Marginal** or **Not recommended**, the corpus is usually
-either too small or polluted by generated/data directories argot can't recognize
-by name. Ask for evidence:
+If it's **Marginal** or **Not recommended**, the corpus is usually either too
+small or polluted by generated/data directories argot can't recognize by name.
+Ask for evidence:
 
 ```text
 argot init --suggest
@@ -56,16 +81,15 @@ Directories you may want to add to .argotignore (evidence only — you decide):
 
 These are directories that are *mostly* generated or data — strong candidates,
 but the call is yours: the report tells you exactly how much real code a rule
-would drop.
+would drop. Add the ones you agree with to a `.argotignore` (§4) and re-run
+`argot init`.
 
-## 3. Let an AI agent set it up locally  <span class="rec">recommended</span>
+## 3. The copy-paste prompt
 
-Deciding what *shouldn't* shape your voice is a judgment call — a vendored
-`stripe/` client, an OpenAPI SDK, a `legacy/` module frozen years ago. An agent
-that can read your tree makes that call well, and argot's `--suggest` gives it
-hard evidence to anchor on. Paste this **local-setup** prompt into Claude Code
-(or Cursor, Aider, any agent) at your repo root — there's a matching
-[CI-setup prompt](/docs/ci/) for the CI path:
+No skills CLI on your agent? Paste this **local-setup** prompt into Claude Code
+(or Cursor, Aider, any agent) at your repo root — it's exactly what the
+`argot-setup` skill (§1) runs for you, so use it only when you can't install the
+skill. There's a matching [CI-setup prompt](/docs/ci/) for the CI path:
 
 ```text
 You are setting up **argot** for this repository. argot learns this repo's own

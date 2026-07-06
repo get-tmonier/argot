@@ -26,7 +26,8 @@ const fr: SiteContent = {
     label: 'La deuxième question',
     title: 'Le type-checker demande si ça compile. argot demande si c’est le vôtre.',
     body: 'Les linters demandent « est-ce valide ? » — jamais « est-ce ainsi qu’on écrit ici ? » Un LLM l’enterre sous des PR propres et bien typées. [[argot repose la question.]]',
-    caption: 'Une vue à la Django dans un dépôt 100 % FastAPI. mypy et ruff passent — [[argot le signale en ~150 ms.]]',
+    caption:
+      'Une vue à la Django dans un dépôt 100 % FastAPI. mypy et ruff passent — [[argot le signale en ~150 ms.]]',
     seeLive: 'Voyez-le sur de vrais dépôts',
   },
   catches: {
@@ -81,17 +82,21 @@ const fr: SiteContent = {
       'Protocole sans fuite (issue #92) : rappel mesuré sur des fixtures plantées dans de vrais fichiers et jugées par le binaire livré ; fausses alertes par holdout temporel avec intervalles de confiance bootstrap. Chiffres complets par dépôt sur la page benchmarks.',
   },
   setup: {
-    label: 'Configuration en une commande',
-    title: 'Du clone au calibrage, en une ligne.',
-    body: 'argot init apprend votre dépôt et vous dit s’il est prêt — sans config, sans annotation. [[argot init --suggest]] gère les dépôts en désordre.',
-    caption: 'Une commande. Le modèle reste hors de votre historique git.',
-    ctaLocal: 'Configurez-le avec un seul prompt',
-    ctaCi: 'ou un seul prompt pour la CI',
+    label: 'Configuration — 30 secondes',
+    title: 'Pointez-le sur votre dépôt. Votre agent, ou vous.',
+    body: 'argot est un CLI : [[argot init]] le calibre sur votre code, [[argot check]] score vos diffs. Installez la skill et votre agent lance cette même configuration pour vous — ou faites-le vous-même en une commande.',
+    caption:
+      'La skill ne fait que piloter le binaire argot. Le modèle calibré reste hors de votre historique git.',
+    agentLane: 'Laissez votre agent le faire',
+    agentNote: 'puis [[/argot-setup]] dans Claude Code, Cursor, ou 70+ agents',
+    localLane: 'Ou une seule commande vous-même',
+    ctaLocal: 'Configurez-le à la main',
+    ctaCi: 'ou branchez la CI',
   },
   agents: {
-    label: 'Conçu pour les agents IA',
-    title: 'Votre agent écrit le code. argot le garde dans la voix du dépôt.',
-    body: 'Le code qu’argot juge est écrit par des agents — donnez-lui le garde-fou. [[Consultatif, jamais bloquant.]]',
+    label: 'Pilotez-le depuis votre éditeur',
+    title: 'Un CLI que votre agent peut piloter.',
+    body: 'argot est l’outil ; les skills et le MCP sont le volant — ils laissent l’agent qui écrit votre code lancer [[le même binaire argot]] que vous. Consultatif, jamais bloquant.',
     cards: [
       {
         title: 'argot-setup · local',
@@ -110,7 +115,8 @@ const fr: SiteContent = {
         desc: 'Fournit vos idiomes avant que l’agent écrive.',
       },
     ],
-    caption: 'Il signale — vous décidez. Ne bloque jamais, ne réécrit jamais.',
+    caption:
+      'Il signale — vous décidez. Ne bloque jamais, ne réécrit jamais, ne mute jamais à votre place.',
   },
   ciScore: {
     label: 'En CI, sans la friction',

@@ -108,7 +108,32 @@ Intel), Linux (x64 + arm64), and Windows (x64). See the
 [CI guide](https://argot.tmonier.com/docs/ci/) and the
 [install docs](https://argot.tmonier.com/docs/) for the full platform matrix.
 
-## Quickstart
+## Set up
+
+argot is a CLI you point at a repo: `argot init` fits it to your code, `argot check`
+scores your changes. Deciding what should — and shouldn't — shape your repo's voice
+takes about 30 seconds. Pick a lane.
+
+**Let your coding agent do it — fastest.** Install the skills once:
+
+```sh
+npx skills add get-tmonier/argot     # writes SKILL.md files your agent reads
+```
+
+Then run **`/argot-setup`** in Claude Code or Cursor (Codex: `$argot-setup`). Your
+agent fits the model, decides what to ignore, and verifies the catch — driving the
+same `argot` binary you'd run by hand. `/argot-check` scores a diff as you work;
+`/argot-ci` wires the GitHub Action. Works across 70+ agents; in Claude Code you can
+also `/plugin install argot` to get the skills and the MCP server together.
+
+For proactive context — feeding your repo's idioms to the agent *before* it writes,
+not just checking after — add the MCP server:
+`claude mcp add argot -- argot mcp --repo .`. Drop argot's [`AGENTS.md`](AGENTS.md)
+into your repo so any agent follows the never-block contract, point tools at the
+machine-readable [`llms.txt`](https://argot.tmonier.com/llms.txt), and see the
+[agents guide](https://argot.tmonier.com/docs/agents/) for the full loop.
+
+**Or run it yourself.**
 
 ```sh
 cd your-repo
@@ -116,16 +141,15 @@ argot init         # learn your repo's voice, then a health check (Ready / Margi
 argot check        # score uncommitted changes (or pass a ref/range)
 ```
 
-`argot init` fits the model once per repo and writes a `.argot/.gitignore` so the
-rebuildable model stays out of git. Run `check` on every diff — `--staged`, a
-`HEAD~5..HEAD` range, `--commit <sha>`, `--min-severity foreign`, or
-`--format json|sarif` for machines. `argot update` pulls the latest release. Full
-reference: `argot --help` and the [docs site](https://argot.tmonier.com/docs/).
+`argot init` fits once and writes a `.argot/.gitignore` so the rebuildable model stays
+out of git. Run `check` on every diff — `--staged`, a `HEAD~5..HEAD` range,
+`--commit <sha>`, `--min-severity foreign`, or `--format json|sarif` for machines.
+`argot update` pulls the latest release.
 
-**Prefer to hand it off?** Paste one prompt and let your coding agent do the
-setup — there's a [local-setup prompt](https://argot.tmonier.com/docs/setup/) and
-a [CI-setup prompt](https://argot.tmonier.com/docs/ci/) (in Claude Code:
-`npx skills add get-tmonier/argot`).
+**Or drive it by hand.** To choose exactly what argot learns from, the
+[Setup guide](https://argot.tmonier.com/docs/setup/) walks through `.argotignore` and
+a copy-paste prompt for any agent. Full reference: `argot --help` and the
+[docs](https://argot.tmonier.com/docs/).
 
 ## Configuration
 
@@ -254,14 +278,8 @@ validated? [Open an issue](https://github.com/get-tmonier/argot/issues/new).
 (SARIF 2.1.0 for GitHub code scanning). A composite GitHub Action ships at the
 repo root (`uses: get-tmonier/argot@main`), and `.pre-commit-hooks.yaml`
 registers an `argot-check` hook. It's non-blocking by default — a visual voice
-score on every PR. Copy-paste setups: [the CI guide](https://argot.tmonier.com/docs/ci/).
-
-For LLM coding agents, install the `argot-setup` / `argot-check` skills
-(`npx skills add get-tmonier/argot`) or run the `argot mcp` server for proactive
-voice context — see [the agents guide](https://argot.tmonier.com/docs/agents/).
-Drop argot's [`AGENTS.md`](AGENTS.md) into your repo so any agent follows the
-never-block contract, and point agents at the machine-readable
-[`llms.txt`](https://argot.tmonier.com/llms.txt).
+score on every PR. Copy-paste setups: [the CI guide](https://argot.tmonier.com/docs/ci/),
+or run `/argot-ci` (see [Set up](#set-up)).
 
 ## How it works
 
