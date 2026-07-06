@@ -4,7 +4,7 @@ const en: SiteContent = {
   meta: {
     title: 'argot — lint the rules you never wrote down',
     description:
-      'argot is a voice linter. It learns your repo’s voice from its own git history, then flags the hunks that don’t sound like anyone on your team wrote them. No model, no cloud, no GPU.',
+      'argot is a guardrail for AI-written code. It learns your repo’s patterns from its own git history, then flags the dependencies, APIs, and constructs it has never seen — the “unknown to this repo” code an AI agent reaches for when it doesn’t know your stack. No model, no cloud, no GPU.',
   },
   nav: {
     demo: 'Demo',
@@ -17,7 +17,7 @@ const en: SiteContent = {
     titleLead: 'Lint the rules',
     titleGradient: 'you never wrote down.',
     subtitle:
-      'argot learns your repo’s voice from its own git history, then flags the hunks that don’t sound like anyone on your team wrote them. [[No model. No cloud. No GPU.]]',
+      'argot learns your repo’s patterns from its own git history, then flags code foreign to your codebase — the dependencies and APIs an AI agent drags in that your repo has never used. [[No model. No cloud. No GPU.]]',
     ctaPrimary: 'Read the docs',
     ctaSecondary: 'Star on GitHub',
     install: 'npm i -g @tmonier/argot',
@@ -41,12 +41,12 @@ const en: SiteContent = {
         desc: 'A block whose style diverges sharply from the surrounding file — fluent in the average voice of every public repo, not yours.',
       },
       {
-        title: 'Convention drift',
-        desc: 'Error handling, logging, or control-flow shapes that don’t match how the rest of the codebase does it.',
+        title: 'A foreign dependency',
+        desc: 'An import — a package, module, or header — the repo has never used. The signal argot is built for, and the one it catches most reliably.',
       },
       {
-        title: 'Foreign paradigm',
-        desc: 'Class-based OOP dropped into a functional codebase. A sync def on a hot async path. The wrong import for the job.',
+        title: 'A foreign API',
+        desc: 'A call into a library the codebase standardises away from — a different HTTP client, ORM, or logger than the rest of the repo reaches for.',
       },
       {
         title: 'Stylistic outlier',
@@ -56,31 +56,31 @@ const en: SiteContent = {
   },
   proof: {
     label: 'Measured, not promised',
-    title: 'The numbers come from the shipped binary.',
+    title: 'Honest numbers, leak-free by construction.',
     stats: [
       {
-        value: '93.6%',
-        title: 'planted breaks caught',
-        desc: '160 of 171 hand-built paradigm breaks across 10 pinned open-source repos — judged by the real fit → check pipeline, not a lab harness. Five repos score 100%.',
+        value: '99%',
+        title: 'visible-foreign catch',
+        desc: 'The one signal argot is built for — a foreign import, API, or dependency your repo has never used. When it shows in the code, argot catches [[522 of 527]], spliced into real files and judged by the real fit → check pipeline.',
       },
       {
-        value: '0%',
-        title: 'false positives on 7 of 10 repos',
-        desc: 'Each repo’s last 30 real commits replayed through argot check. Seven come back with zero flags; none exceeds a handful.',
-      },
-      {
-        value: '10/12',
-        title: 'subtle breaks caught in production',
-        desc: 'No-import breaks — snake_case in a camelCase repo, promise chains in an Effect codebase, jQuery-style DOM — planted live in a 34k-file workspace. Ten flagged.',
+        value: '0.23%',
+        title: 'false alarms on real edits',
+        desc: 'How often argot fires on your repo’s [[own existing code]] — replaying 27 repos’ commits it never trained on. Every corpus stays ≤ 0.98%. A fire on a genuinely new dependency is a [[detection]], not an alarm.',
       },
       {
         value: '150ms',
         title: 'to check a change',
-        desc: 'Measured on a 34k-file workspace, laptop CPU — fast enough for a pre-commit hook. The one-time fit that learns the whole repo’s voice takes ~7 s. No GPU, no cloud.',
+        desc: 'Fast enough for a [[pre-commit hook]], on a 34k-file repo, laptop CPU. The one-time fit that learns your repo’s voice takes ~7 s. [[No GPU, no cloud.]]',
+      },
+      {
+        value: '10',
+        title: 'languages, one binary',
+        desc: 'Python, TypeScript, Go, Rust, Java, C#, C, C++, Ruby, PHP — from a [[single static binary]], nothing to install. Mixed monorepos get [[one threshold per language]].',
       },
     ],
     finePrint:
-      'Production-path benchmark: every fixture planted into its host file on disk, staged with git, judged by the shipped binary. Methodology and raw results live in the public research log.',
+      'Leak-free protocol (issue #92): recall from fixtures planted into real files and judged by the shipped binary; false alarms from a temporal holdout with commit-level bootstrap confidence intervals. Full per-repo numbers and methodology on the benchmarks page.',
   },
   local: {
     label: 'How it stays honest',

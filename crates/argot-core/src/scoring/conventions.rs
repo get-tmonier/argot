@@ -36,11 +36,13 @@ const MIN_HUNK_IDENTS: usize = 5;
 const MIN_SHAPE_COUNT: usize = 3;
 const MIN_SHAPE_SHARE: f64 = 0.3;
 
-/// Both convention features for one hunk.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// Both convention features for one hunk. The identifier feature is per
+/// morphology class (shape → surprisal contribution) so each shape can be judged
+/// against its own calibrated bar.
+#[derive(Debug, Clone, PartialEq)]
 pub struct ConventionScores {
     pub syntax_surprisal: f64,
-    pub ident_surprisal: f64,
+    pub ident_surprisals: BTreeMap<String, f64>,
 }
 
 /// Abstract morphology class of one identifier (character classes only).
@@ -147,7 +149,7 @@ pub fn fit_convention_frequencies(
         ident_shapes,
         total_idents,
         syntax_bar: f64::INFINITY,
-        ident_bar: f64::INFINITY,
+        ident_bars: BTreeMap::new(),
     }
 }
 
@@ -167,9 +169,9 @@ impl ConventionScorer {
     }
 
     /// Set the calibrated firing bars.
-    pub fn set_bars(&mut self, syntax_bar: f64, ident_bar: f64) {
+    pub fn set_bars(&mut self, syntax_bar: f64, ident_bars: BTreeMap<String, f64>) {
         self.model.syntax_bar = syntax_bar;
-        self.model.ident_bar = ident_bar;
+        self.model.ident_bars = ident_bars;
     }
 
     fn kind_surprisal(&self, kind: &str, count: u64) -> f64 {
@@ -200,9 +202,23 @@ impl ConventionScorer {
             .map(|(k, &n)| self.kind_surprisal(k, n))
             .fold(0.0f64, f64::max);
 
+        ConventionScores {
+            syntax_surprisal,
+            ident_surprisals: self.ident_surprisals(hunk),
+        }
+    }
+
+    /// Per-morphology identifier-shape surprisal for a hunk in isolation — a
+    /// pure byte scan (no parse), cheap enough to evaluate over many sliding
+    /// windows during bar calibration. Returns one entry per shape class that
+    /// dominates the hunk (count ≥ `MIN_SHAPE_COUNT`, share ≥ `MIN_SHAPE_SHARE`),
+    /// mapping it to `-ln(corpus fraction) · share`. Always reads the bare hunk
+    /// (the shape feature never consults a host region), so this is exactly the
+    /// `ident_surprisals` component of [`Self::scores`].
+    pub fn ident_surprisals(&self, hunk: &str) -> BTreeMap<String, f64> {
         let mut shapes: BTreeMap<String, u64> = BTreeMap::new();
         let total = count_ident_shapes(hunk, &mut shapes);
-        let mut ident_surprisal = 0.0f64;
+        let mut out = BTreeMap::new();
         if total as usize >= MIN_HUNK_IDENTS && self.model.total_idents > 0 {
             for (class, &n) in &shapes {
                 let share = n as f64 / total as f64;
@@ -210,20 +226,41 @@ impl ConventionScorer {
                     let cf = (self.model.ident_shapes.get(class).copied().unwrap_or(0) as f64
                         + 1.0)
                         / (self.model.total_idents as f64 + 1.0);
-                    ident_surprisal = ident_surprisal.max(-cf.ln() * share);
+                    out.insert(class.clone(), -cf.ln() * share);
                 }
             }
         }
-        ConventionScores {
-            syntax_surprisal,
-            ident_surprisal,
-        }
+        out
     }
 
-    /// Whether either convention clears its calibrated bar.
-    pub fn fires(&self, scores: ConventionScores) -> bool {
-        scores.syntax_surprisal > self.model.syntax_bar
-            || scores.ident_surprisal > self.model.ident_bar
+    /// Scalar identifier-shape surprisal — the max over dominating shapes.
+    /// Retained for reporting and tests; firing uses the per-shape map.
+    pub fn ident_surprisal(&self, hunk: &str) -> f64 {
+        self.ident_surprisals(hunk)
+            .values()
+            .copied()
+            .fold(0.0f64, f64::max)
+    }
+
+    /// Whether either convention clears its calibrated bar. The syntax feature
+    /// uses a single bar; the identifier feature is judged per morphology — a
+    /// shape fires when its surprisal exceeds the bar calibrated for *that*
+    /// shape. In a calibrated model a shape with no bar was never concentrated
+    /// in-voice, so any dominant occurrence fires (bar defaults to 0). An empty
+    /// `ident_bars` means the model was never calibrated (bars are set by
+    /// `run_calibrate`), so the identifier feature stays silent — the analogue
+    /// of the old `f64::INFINITY` uncalibrated bar.
+    pub fn fires(&self, scores: &ConventionScores) -> bool {
+        if scores.syntax_surprisal > self.model.syntax_bar {
+            return true;
+        }
+        if self.model.ident_bars.is_empty() {
+            return false;
+        }
+        scores
+            .ident_surprisals
+            .iter()
+            .any(|(shape, &surp)| surp > self.model.ident_bars.get(shape).copied().unwrap_or(0.0))
     }
 }
 
@@ -268,12 +305,9 @@ mod tests {
                      let total_sum = 0\n  let weight_sum = 0\n  return total_sum + weight_sum\n}";
         let native = "function computeWeightedSum(inputValues: number[]) {\n  \
                       let totalSum = 0\n  let weightSum = 0\n  return totalSum + weightSum\n}";
-        let a = scorer.scores(alien, None);
-        let n = scorer.scores(native, None);
-        assert!(
-            a.ident_surprisal > n.ident_surprisal + 1.0,
-            "snake {a:?} vs camel {n:?}"
-        );
+        let a = scorer.ident_surprisal(alien);
+        let n = scorer.ident_surprisal(native);
+        assert!(a > n + 1.0, "snake surprisal {a} vs camel {n}");
     }
 
     #[test]
@@ -321,8 +355,14 @@ mod tests {
         let alien = "function compute_weighted_sum(input_values: number[]) {\n  \
                      let total_sum = 0\n  let weight_sum = 0\n  return total_sum + weight_sum\n}";
         let s = scorer.scores(alien, None);
-        assert!(!scorer.fires(s), "infinite bars never fire");
-        scorer.set_bars(1000.0, s.ident_surprisal - 0.1);
-        assert!(scorer.fires(s), "bar below the score fires");
+        assert!(!scorer.fires(&s), "uncalibrated bars never fire");
+        // Set every present shape's bar just below its surprisal so it fires.
+        let bars = s
+            .ident_surprisals
+            .iter()
+            .map(|(shape, &v)| (shape.clone(), v - 0.1))
+            .collect();
+        scorer.set_bars(1000.0, bars);
+        assert!(scorer.fires(&s), "bar below the score fires");
     }
 }

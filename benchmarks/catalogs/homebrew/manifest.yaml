@@ -1,0 +1,475 @@
+corpus: homebrew
+language: ruby
+categories:
+- wrong_error_discipline
+- wrong_concurrency
+- wrong_api_within_known_lib
+- naming_shape_break
+- foreign_import
+- foreign_api
+- foreign_concurrency
+injection_hosts:
+- pr: 0
+  sha: 09f982d033fd50d45e6e1de90af92c8f886f64a8
+fixtures:
+- id: ed_exit_bang_1
+  file: breaks/break_ed_exit_bang_1.rb
+  category: wrong_error_discipline
+  hunk_start_line: 20
+  hunk_end_line: 38
+  rationale: 'exit! + $stderr.puts for an ordinary tap-validation error path. Verified
+    at pinned SHA: odie defined at Library/Homebrew/utils/output.rb:151 with 264 call
+    sites (ofail 66, onoe 100); exit! appears only at INT traps and post-exec paths
+    (brew.rb:16, build.rb:313, formula.rb:3723 "never gets here unless exec threw",
+    utils/fork.rb:86), never in ordinary error handling.'
+  difficulty: medium
+  host_file: Library/Homebrew/tap.rb
+  host_inject_at_line: 108
+- id: ed_abort_mid_library_1
+  file: breaks/break_ed_abort_mid_library_1.rb
+  category: wrong_error_discipline
+  hunk_start_line: 18
+  hunk_end_line: 34
+  rationale: 'Kernel#abort for failure handling mid-library. Verified at pinned SHA:
+    abort in library code appears only as ::Kernel.abort at a Linux install boundary
+    (extend/os/linux/install.rb:49) and in the pre-boot utils/ruby_check_version_script.rb:27;
+    the corpus voice for fatal errors is odie (264 sites, utils/output.rb:151).'
+  difficulty: medium
+  host_file: Library/Homebrew/cleanup.rb
+  host_inject_at_line: 76
+- id: ed_rescue_swallow_1
+  file: breaks/break_ed_rescue_swallow_1.rb
+  category: wrong_error_discipline
+  hunk_start_line: 19
+  hunk_end_line: 35
+  rationale: 'Bare `rescue Exception` blocks that silently swallow all errors with
+    no reporting or re-raise and no rubocop disable. Verified at pinned SHA: every
+    corpus `rescue Exception` site carries `# rubocop:disable Lint/RescueException`
+    and re-raises or reports (brew.rb:198, formula_installer.rb:611, download_queue.rb:191);
+    ordinary failure reporting goes through onoe/opoo (100/242 sites).'
+  difficulty: medium
+  host_file: Library/Homebrew/formula_installer.rb
+  host_inject_at_line: 218
+- id: ed_puts_error_report_1
+  file: breaks/break_ed_puts_error_report_1.rb
+  category: wrong_error_discipline
+  hunk_start_line: 20
+  hunk_end_line: 38
+  rationale: 'Error/warning reporting via plain puts of "ERROR:"/"WARNING:" strings
+    with boolean returns. Verified at pinned SHA: brew reports through onoe (100 sites),
+    opoo (242) and ofail (66) from utils/output.rb; puts is reserved for regular output.
+    Hard: puts/return tokens are ubiquitous in the corpus, only the ERROR:/WARNING:
+    string prefixes are novel.'
+  difficulty: hard
+  host_file: Library/Homebrew/caveats.rb
+  host_inject_at_line: 66
+- id: wc_thread_sleep_poll_1
+  file: breaks/break_wc_thread_sleep_poll_1.rb
+  category: wrong_concurrency
+  hunk_start_line: 19
+  hunk_end_line: 37
+  rationale: 'Raw Thread.new fan-out with a busy-wait `sleep 0.1 until` poll on a shared
+    results hash for completion. Verified at pinned SHA: the host file itself
+    (download_queue.rb:28-35) coordinates parallel downloads with
+    Concurrent::Promises.future_on over Concurrent::FixedThreadPool plus
+    Concurrent::AtomicBoolean/Concurrent::Set; corpus Thread.new sites are IO pumping
+    (system_command.rb:356, sandbox.rb:486), and no spin-wait-on-thread-completion
+    loop exists (corpus sleep sites are retry/backoff delays).'
+  difficulty: medium
+  host_file: Library/Homebrew/download_queue.rb
+  host_inject_at_line: 214
+- id: wc_fork_parallel_map_1
+  file: breaks/break_wc_fork_parallel_map_1.rb
+  category: wrong_concurrency
+  hunk_start_line: 20
+  hunk_end_line: 40
+  rationale: 'fork-per-item data parallelism with IO.pipe result collection and
+    Process.waitall. Verified at pinned SHA: corpus fork sites are fork+exec process
+    boundaries or Utils.safe_fork build isolation (formula.rb:3506, homebrew.rb:39,
+    system_command.rb:422, utils/fork.rb:51); in-process data-parallel fan-out uses
+    Concurrent::FixedThreadPool (download_queue.rb:28, bundle/parallel_installer.rb).'
+  difficulty: medium
+  host_file: Library/Homebrew/system_command.rb
+  host_inject_at_line: 136
+- id: api_net_http_1
+  file: breaks/break_api_net_http_1.rb
+  category: wrong_api_within_known_lib
+  hunk_start_line: 19
+  hunk_end_line: 38
+  rationale: 'Raw Net::HTTP.start/Net::HTTP::Get request plumbing with manual redirect
+    loop for a download (require "net/http" at file top, outside hunk). Verified at
+    pinned SHA: Net::HTTP has zero call sites in Library/Homebrew (its only mention
+    is a docstring example in utils.rb deconstantize); the repo standardizes on its
+    curl machinery — Utils::Curl#curl_download at utils/curl.rb:283, curl_output at
+    83 sites. Host file is the curl wrapper itself.'
+  difficulty: easy
+  host_file: Library/Homebrew/utils/curl.rb
+  host_inject_at_line: 169
+- id: api_backticks_1
+  file: breaks/break_api_backticks_1.rb
+  category: wrong_api_within_known_lib
+  hunk_start_line: 18
+  hunk_end_line: 34
+  rationale: 'Kernel backticks with $CHILD_STATUS checks for git plumbing. Verified
+    at pinned SHA: the corpus standardizes on Utils.popen_read/safe_popen_read
+    (utils/popen.rb:17; 126 call sites), and the host file utils/git.rb itself calls
+    Utils.popen_read at line 44; backticks survive at only two diagnostic.rb sites
+    (562, 905). Hard: backticks are not literally zero-usage and git tokens are
+    corpus-common.'
+  difficulty: hard
+  host_file: Library/Homebrew/utils/git.rb
+  host_inject_at_line: 47
+- id: api_system_interp_1
+  file: breaks/break_api_system_interp_1.rb
+  category: wrong_api_within_known_lib
+  hunk_start_line: 18
+  hunk_end_line: 28
+  rationale: 'system() called with single-string shell interpolation ("hdiutil detach
+    #{mountpoint} -force") plus $? checks. Verified at pinned SHA: zero corpus matches
+    for system("...#{...}") string interpolation; the voice is safe_system/system
+    with argv arrays (extend/kernel.rb:55; 71 safe_system sites) and SystemCommand.run.'
+  difficulty: medium
+  host_file: Library/Homebrew/cask/installer.rb
+  host_inject_at_line: 140
+- id: ns_camel_case_1
+  file: breaks/break_ns_camel_case_1.rb
+  category: naming_shape_break
+  hunk_start_line: 17
+  hunk_end_line: 34
+  rationale: 'camelCase method names (fetchBottleManifest, isBottleCached) and locals
+    (manifestUrl, downloadedPayload) in a snake_case corpus. Verified at pinned SHA:
+    git grep for def [a-z]+[A-Z] over Library/Homebrew returns zero matches. Decoy
+    calls (curl_output, atomic_write, HOMEBREW_CACHE) are corpus-real so the only
+    break axis is identifier morphology.'
+  difficulty: medium
+  host_file: Library/Homebrew/formula.rb
+  host_inject_at_line: 338
+- id: ns_getter_hungarian_1
+  file: breaks/break_ns_getter_hungarian_1.rb
+  category: naming_shape_break
+  hunk_start_line: 17
+  hunk_end_line: 32
+  rationale: 'Java-bean getStagedPath/setStagedPath accessor pair and Hungarian-notation
+    locals (strToken, boolInstalled, objPath). Verified at pinned SHA: zero get[A-Z]/set[A-Z]
+    method definitions in Library/Homebrew (covered by the empty def [a-z]+[A-Z] grep);
+    the corpus uses attr_reader and bare snake_case readers (cask/cask.rb:131
+    loaded_from_api?).'
+  difficulty: medium
+  host_file: Library/Homebrew/cask/cask.rb
+  host_inject_at_line: 130
+- id: fi_httparty_1
+  file: breaks/break_fi_httparty_1.rb
+  category: foreign_import
+  hunk_start_line: 18
+  hunk_end_line: 30
+  rationale: 'require "httparty" + HTTParty.get for API JSON fetching. Verified at
+    pinned SHA: zero occurrences of httparty/HTTParty anywhere in the tree; the gem
+    is not in Library/Homebrew/Gemfile (vendored gems are addressable, base64,
+    concurrent-ruby, patchelf, plist, ruby-macho, sorbet-runtime, warning); the corpus
+    fetches its JSON API through Utils::Curl and DownloadQueue (api.rb).'
+  difficulty: easy
+  host_file: Library/Homebrew/api.rb
+  host_inject_at_line: 188
+- id: fi_nokogiri_1
+  file: breaks/break_fi_nokogiri_1.rb
+  category: foreign_import
+  hunk_start_line: 18
+  hunk_end_line: 30
+  rationale: 'require "nokogiri" + Nokogiri::HTML css scraping for livecheck version
+    extraction. Verified at pinned SHA: Library/Homebrew/Gemfile:14 explicitly disallows
+    nokogiri ("use rexml instead for XML parsing"); the only non-comment mentions are
+    test helpers asserting Nokogiri is undefined (test/support/helper/cmd/brew-verify-undefined.rb:27,
+    test/utils_spec.rb:133); livecheck strategies parse pages with regex/rexml.'
+  difficulty: easy
+  host_file: Library/Homebrew/livecheck/livecheck.rb
+  host_inject_at_line: 428
+- id: fa_faraday_1
+  file: breaks/break_foreign_faraday_1.rb
+  category: foreign_api
+  hunk_start_line: 19
+  hunk_end_line: 31
+  rationale: 'Faraday HTTP client with retry middleware for a tap manifest fetch.
+    Verified at pinned SHA: faraday absent from Library/Homebrew/Gemfile and zero
+    occurrences of faraday/Faraday anywhere in the tree; the distinctive callees
+    `Faraday.new` and `.status` = 0 src hits each (non-colliding); the corpus fetches
+    remote JSON through Utils::Curl and DownloadQueue.'
+  difficulty: easy
+  host_file: Library/Homebrew/tap.rb
+  host_inject_at_line: 108
+- id: fa_sequel_1
+  file: breaks/break_foreign_sequel_1.rb
+  category: foreign_api
+  hunk_start_line: 18
+  hunk_end_line: 25
+  rationale: 'Sequel-backed sqlite dataset query (Sequel.connect + bracket dataset
+    + `.where` block) for purging old download records. Verified at pinned SHA:
+    sequel absent from Library/Homebrew/Gemfile and zero occurrences of sequel/Sequel
+    anywhere in the tree; the distinctive callees `Sequel.connect` and `.where` =
+    0 src hits each (non-colliding); the corpus tracks downloads through
+    DownloadQueue, never a foreign query DSL.'
+  difficulty: easy
+  host_file: Library/Homebrew/cleanup.rb
+  host_inject_at_line: 76
+- id: fa_restclient_1
+  file: breaks/break_foreign_restclient_1.rb
+  category: foreign_api
+  hunk_start_line: 18
+  hunk_end_line: 28
+  rationale: 'RestClient.post for install telemetry reporting. Verified at pinned
+    SHA: rest-client absent from Library/Homebrew/Gemfile and zero occurrences of
+    rest-client/RestClient anywhere in the tree; the distinctive callees
+    `RestClient.post` and `.code` = 0 src hits each (non-colliding); the corpus
+    reports through its own analytics plumbing, never a foreign HTTP client gem.'
+  difficulty: easy
+  host_file: Library/Homebrew/formula_installer.rb
+  host_inject_at_line: 218
+- id: fa_sinatra_1
+  file: breaks/break_foreign_sinatra_1.rb
+  category: foreign_api
+  hunk_start_line: 20
+  hunk_end_line: 29
+  rationale: 'Sinatra::Base micro app exposing tap install status over HTTP.
+    Verified at pinned SHA: sinatra absent from Library/Homebrew/Gemfile and zero
+    occurrences of sinatra/Sinatra anywhere in the tree (bare-substring grep, no
+    word-boundary trap); the distinctive callees `Sinatra::Base` and `set :bind` =
+    0 src hits each (non-colliding); the corpus reports status through ohai/puts,
+    never an HTTP endpoint of its own.'
+  difficulty: easy
+  host_file: Library/Homebrew/tap.rb
+  host_inject_at_line: 108
+- id: fi_redis_1
+  file: breaks/break_fi_redis_1.rb
+  category: foreign_import
+  hunk_start_line: 19
+  hunk_end_line: 26
+  rationale: 'require "redis" + Redis.new to cache API responses in a network cache
+    server. Verified at pinned SHA: redis absent from Library/Homebrew/Gemfile and 0
+    word-boundary occurrences in own source (the lone raw-substring hit is "VCRedist"
+    in bundle/extensions/winget.rb); the corpus caches API JSON on the local filesystem
+    via Homebrew::API, never a network cache.'
+  difficulty: easy
+  host_file: Library/Homebrew/api.rb
+  host_inject_at_line: 188
+- id: fi_oj_1
+  file: breaks/break_fi_oj_1.rb
+  category: foreign_import
+  hunk_start_line: 18
+  hunk_end_line: 28
+  rationale: 'require "oj" + Oj.load/Oj.dump as a drop-in fast JSON codec. Verified at
+    pinned SHA: oj absent from Library/Homebrew/Gemfile and 0 word-boundary occurrences
+    in own source; the corpus parses and emits API JSON exclusively through the stdlib
+    JSON module (require "json"), never Oj.'
+  difficulty: easy
+  host_file: Library/Homebrew/api.rb
+  host_inject_at_line: 188
+- id: fi_liquid_1
+  file: breaks/break_fi_liquid_1.rb
+  category: foreign_import
+  hunk_start_line: 18
+  hunk_end_line: 24
+  rationale: 'require "liquid" + Liquid::Template.parse to render caveats from a template.
+    Verified at pinned SHA: liquid absent from Library/Homebrew/Gemfile and 0 occurrences
+    in own source; the corpus builds caveats text with plain string heredocs and Formula
+    accessors, never a Liquid/handlebars engine.'
+  difficulty: easy
+  host_file: Library/Homebrew/caveats.rb
+  host_inject_at_line: 66
+- id: fi_mustache_decoy_1
+  file: breaks/break_fi_mustache_decoy_1.rb
+  category: foreign_import
+  hunk_start_line: 20
+  hunk_end_line: 23
+  rationale: 'Mustache templating for caveats — require "mustache" sits in the decoy
+    region above the scored hunk, so the only in-hunk tell is the qualified Mustache.render
+    callee (medium: import outside the scored hunk, resolution via call_receiver).
+    Verified at pinned SHA: mustache absent from Library/Homebrew/Gemfile and 0
+    occurrences in own source; the corpus builds caveats via heredocs.'
+  difficulty: medium
+  host_file: Library/Homebrew/caveats.rb
+  host_inject_at_line: 66
+- id: fi_dry_monads_submodule_1
+  file: breaks/break_fi_dry_monads_submodule_1.rb
+  category: foreign_import
+  hunk_start_line: 19
+  hunk_end_line: 26
+  rationale: 'Submodule require "dry/monads" + Dry::Monads::Result modelling the install
+    outcome as a monad (medium: submodule import path). Verified at pinned SHA: dry-monads
+    absent from Library/Homebrew/Gemfile and 0 occurrences of `Dry` in own source; the
+    corpus signals install outcomes with return values and raised errors (odie/onoe),
+    never a monad DSL.'
+  difficulty: medium
+  host_file: Library/Homebrew/formula_installer.rb
+  host_inject_at_line: 218
+- id: fi_http_gem_1
+  file: breaks/break_fi_http_gem_1.rb
+  category: foreign_import
+  hunk_start_line: 20
+  hunk_end_line: 28
+  rationale: 'HARD: the `http` gem''s HTTP.get(url) client. Masked because the root
+    token `HTTP` is heavily attested in the corpus (51 own-source hits via Net::HTTP /
+    HTTP status constants) and require "http" resembles the stdlib "net/http" the corpus
+    actually uses. Verified at pinned SHA: the http gem absent from Library/Homebrew/Gemfile,
+    `HTTP.get` = 0 own-source hits; brew downloads through Utils::Curl#curl_download.'
+  difficulty: hard
+  host_file: Library/Homebrew/utils/curl.rb
+  host_inject_at_line: 169
+- id: fa_excon_1
+  file: breaks/break_fa_excon_1.rb
+  category: foreign_api
+  hunk_start_line: 19
+  hunk_end_line: 27
+  rationale: 'require "excon" + Excon.get for a tap manifest fetch. Verified at pinned
+    SHA: excon absent from Library/Homebrew/Gemfile and 0 occurrences in own source; the
+    distinctive callee `Excon.get` = 0 src hits; the corpus fetches remote JSON through
+    Utils::Curl and DownloadQueue, never Excon.'
+  difficulty: easy
+  host_file: Library/Homebrew/tap.rb
+  host_inject_at_line: 108
+- id: fa_typhoeus_1
+  file: breaks/break_fa_typhoeus_1.rb
+  category: foreign_api
+  hunk_start_line: 19
+  hunk_end_line: 31
+  rationale: 'require "typhoeus" + Typhoeus::Hydra/Typhoeus::Request for a parallel bottle
+    fetch. Verified at pinned SHA: typhoeus absent from Library/Homebrew/Gemfile and 0
+    occurrences in own source; the distinctive callees `Typhoeus::Hydra`/`Typhoeus::Request`
+    = 0 src hits; the corpus parallelises downloads with Concurrent::Promises over a
+    FixedThreadPool.'
+  difficulty: easy
+  host_file: Library/Homebrew/download_queue.rb
+  host_inject_at_line: 214
+- id: fa_httpx_receiver_1
+  file: breaks/break_fa_httpx_receiver_1.rb
+  category: foreign_api
+  hunk_start_line: 19
+  hunk_end_line: 26
+  rationale: 'HTTPX reached through a session receiver variable — `session = HTTPX.plugin(...)`
+    then `session.get(...)` (medium: receiver indirection). Verified at pinned SHA: httpx
+    absent from Library/Homebrew/Gemfile and 0 occurrences in own source; the distinctive
+    callee `HTTPX.plugin` = 0 src hits; the corpus fetches its API through Utils::Curl and
+    DownloadQueue.'
+  difficulty: medium
+  host_file: Library/Homebrew/api.rb
+  host_inject_at_line: 188
+- id: fa_octokit_receiver_1
+  file: breaks/break_fa_octokit_receiver_1.rb
+  category: foreign_api
+  hunk_start_line: 21
+  hunk_end_line: 28
+  rationale: 'Octokit GitHub client reached through a receiver variable — `client =
+    Octokit::Client.new(...)` then `client.contents(...)` (medium: receiver indirection).
+    Verified at pinned SHA: octokit absent from Library/Homebrew/Gemfile and 0 occurrences
+    in own source; the distinctive callee `Octokit::Client` = 0 src hits; the corpus talks
+    to GitHub through its own GitHub::API + Utils::Curl, never the octokit gem.'
+  difficulty: medium
+  host_file: Library/Homebrew/tap.rb
+  host_inject_at_line: 108
+- id: fa_curb_curl_1
+  file: breaks/break_fa_curb_curl_1.rb
+  category: foreign_api
+  hunk_start_line: 21
+  hunk_end_line: 27
+  rationale: 'HARD: curb''s Curl::Easy.new download. Masked because the root namespace
+    `Curl` is one the corpus owns heavily as `Utils::Curl` (56 own-source `Curl` hits);
+    require "curb" sits in the decoy above, so only the `Curl::Easy` scope-resolution
+    callee is in the scored hunk. Verified at pinned SHA: curb absent from
+    Library/Homebrew/Gemfile, `Curl::` = 0 own-source hits; brew downloads via
+    Utils::Curl#curl_download, not curb.'
+  difficulty: hard
+  host_file: Library/Homebrew/utils/curl.rb
+  host_inject_at_line: 169
+- id: fa_dalli_fetch_1
+  file: breaks/break_fa_dalli_fetch_1.rb
+  category: foreign_api
+  hunk_start_line: 25
+  hunk_end_line: 30
+  rationale: 'HARD: memcached (dalli) fetch-or-compute. Masked to the leaf method `.fetch`,
+    which collides with the corpus''s ubiquitous `fetch` (836 own-source call sites, 17
+    `def fetch`); the distinctive Dalli::Client constructor sits in the decoy above, so
+    only the colliding `cache.fetch` receiver-call is in the scored hunk. Verified at
+    pinned SHA: dalli absent from Library/Homebrew/Gemfile, `Dalli` = 0 own-source hits;
+    brew memoizes metadata in-process / on disk, never a memcached client.'
+  difficulty: hard
+  host_file: Library/Homebrew/download_queue.rb
+  host_inject_at_line: 214
+- id: fa_git_gem_1
+  file: breaks/break_fa_git_gem_1.rb
+  category: foreign_api
+  hunk_start_line: 22
+  hunk_end_line: 27
+  rationale: 'HARD: the `git` gem''s Git.open(path) object API. Doubly masked — the root
+    namespace `Git` is one the corpus owns heavily as `Utils::Git` (149 own-source `Git`
+    hits) and the leaf `.fetch` collides with brew''s ubiquitous `fetch` (836 sites);
+    require "git" sits in the decoy above. Verified at pinned SHA: the git gem absent from
+    Library/Homebrew/Gemfile, `Git.open`/`Git::` = 0 own-source hits; brew drives git via
+    Utils::Git and `system "git", ...`, not an object wrapper.'
+  difficulty: hard
+  host_file: Library/Homebrew/utils/git.rb
+  host_inject_at_line: 47
+- id: fc_celluloid_1
+  file: breaks/break_fc_celluloid_1.rb
+  category: foreign_concurrency
+  hunk_start_line: 19
+  hunk_end_line: 29
+  rationale: 'require "celluloid/current" + the Celluloid actor framework (include Celluloid,
+    Celluloid::Future) for concurrent command execution. Verified at pinned SHA: celluloid
+    absent from Library/Homebrew/Gemfile and 0 occurrences in own source; the corpus runs
+    commands via SystemCommand and fans out with Concurrent::Promises, never an actor
+    framework.'
+  difficulty: easy
+  host_file: Library/Homebrew/system_command.rb
+  host_inject_at_line: 136
+- id: fc_eventmachine_1
+  file: breaks/break_fc_eventmachine_1.rb
+  category: foreign_concurrency
+  hunk_start_line: 19
+  hunk_end_line: 29
+  rationale: 'require "eventmachine" + the EventMachine reactor (EventMachine.run,
+    EventMachine::HttpRequest) driving concurrent downloads. Verified at pinned SHA:
+    eventmachine absent from Library/Homebrew/Gemfile and 0 occurrences in own source; the
+    corpus has no reactor loop — it fans downloads out through Concurrent::Promises over a
+    FixedThreadPool.'
+  difficulty: easy
+  host_file: Library/Homebrew/download_queue.rb
+  host_inject_at_line: 214
+- id: fc_parallel_1
+  file: breaks/break_fc_parallel_1.rb
+  category: foreign_concurrency
+  hunk_start_line: 22
+  hunk_end_line: 27
+  rationale: 'The `parallel` gem''s Parallel.map for concurrent dependency resolution —
+    require "parallel" sits in the decoy region above, so the only in-hunk tell is the
+    qualified Parallel.map callee (medium: import outside the scored hunk). Verified at
+    pinned SHA: parallel absent from Library/Homebrew/Gemfile (parallel_tests is a distinct
+    test-only gem whose constant is ParallelTests, not Parallel), `Parallel` = 0 own-source
+    hits; brew fans out parallel work through Concurrent::FixedThreadPool.'
+  difficulty: medium
+  host_file: Library/Homebrew/formula_installer.rb
+  host_inject_at_line: 218
+- id: fc_sucker_punch_1
+  file: breaks/break_fc_sucker_punch_1.rb
+  category: foreign_concurrency
+  hunk_start_line: 20
+  hunk_end_line: 34
+  rationale: 'require "sucker_punch" + a SuckerPunch::Job actor enqueued via `perform_async`
+    for background cache cleanup (medium: mixin + async enqueue). Verified at pinned SHA:
+    sucker_punch absent from Library/Homebrew/Gemfile and 0 occurrences in own source;
+    `perform_async` = 0 src hits; brew runs cleanup synchronously, it has no background-job
+    queue.'
+  difficulty: medium
+  host_file: Library/Homebrew/formula_installer.rb
+  host_inject_at_line: 218
+- id: fc_async_1
+  file: breaks/break_fc_async_1.rb
+  category: foreign_concurrency
+  hunk_start_line: 22
+  hunk_end_line: 29
+  rationale: 'HARD: the socketry `async` gem''s reactor (Async { |task| task.async }).
+    Masked because the bare root `Async` shadows the vendored concurrent-ruby''s
+    `Concurrent::Async` module that ships inside the tree; require "async" sits in the
+    decoy above. Verified at pinned SHA: the async gem absent from Library/Homebrew/Gemfile,
+    bare `Async` = 0 hits in brew''s own source; brew fans out via Concurrent::Promises over
+    a Concurrent::FixedThreadPool.'
+  difficulty: hard
+  host_file: Library/Homebrew/download_queue.rb
+  host_inject_at_line: 214

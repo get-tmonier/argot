@@ -8,6 +8,9 @@ categories:
 - moment_dates
 - callback_pyramid
 - vue_idioms
+- foreign_import
+- foreign_api
+- foreign_concurrency
 fixtures:
 - id: excalidraw_jquery_1
   file: breaks/break_jquery_1.tsx
@@ -163,3 +166,235 @@ fixtures:
   difficulty: medium
   host_file: packages/excalidraw/components/ContextMenu.tsx
   host_inject_at_line: 33
+- id: excalidraw_foreign_import_uuid
+  file: breaks/break_foreign_uuid_import.ts
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 11
+  rationale: "import { v4 } from 'uuid' at line 1 (inside the hunk) + v4() minting
+    element ids where excalidraw mints ids with nanoid. Verified foreign at SHA
+    cce5001aaafe: `uuid` = 0 module-specifier hits across *.ts/*.tsx and absent
+    from every package.json; the repo standardises on nanoid for ids."
+  difficulty: easy
+  host_file: packages/element/src/newElement.ts
+  host_inject_at_line: 34
+- id: excalidraw_foreign_import_zod
+  file: breaks/break_foreign_zod_import.ts
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 15
+  rationale: "import { z } from 'zod' at line 1 (inside the hunk) + z.object().parse()
+    validating an imported scene where excalidraw validates with plain TypeScript
+    types + restore(). Verified foreign at SHA cce5001aaafe: `zod` = 0 hits across
+    *.ts/*.tsx and absent from every package.json."
+  difficulty: easy
+  host_file: packages/excalidraw/data/restore.ts
+  host_inject_at_line: 40
+- id: excalidraw_foreign_import_immer
+  file: breaks/break_foreign_immer_import.ts
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 12
+  rationale: "import { produce } from 'immer' at line 1 (inside the hunk) +
+    produce(appState, draft => ...) for immutable state where excalidraw derives
+    next appState with plain object spread. Verified foreign at SHA cce5001aaafe:
+    `immer` = 0 hits across *.ts/*.tsx and absent from every package.json."
+  difficulty: easy
+  host_file: packages/excalidraw/history.ts
+  host_inject_at_line: 15
+- id: excalidraw_foreign_import_datefns
+  file: breaks/break_foreign_datefns_import.ts
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 9
+  rationale: "import { format } from 'date-fns' at line 1 (inside the hunk) +
+    format(new Date(), ...) for export filenames where excalidraw builds names
+    from bare Date.now() epoch millis. Verified foreign at SHA cce5001aaafe:
+    `date-fns` = 0 hits across *.ts/*.tsx and absent from every package.json (moment
+    is a separate existing fixture; the repo uses no date library at all)."
+  difficulty: easy
+  host_file: packages/excalidraw/data/filesystem.ts
+  host_inject_at_line: 24
+- id: excalidraw_foreign_import_konva
+  file: breaks/break_foreign_konva_import.ts
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 21
+  rationale: "import Konva from 'konva' at line 1 (inside the hunk) + new
+    Konva.Stage/Layer/Rect to render elements where excalidraw draws on a raw 2D
+    context with roughjs. Verified foreign at SHA cce5001aaafe: `konva` = 0 hits
+    across *.ts/*.tsx and absent from every package.json."
+  difficulty: easy
+  host_file: packages/excalidraw/renderer/staticScene.ts
+  host_inject_at_line: 46
+- id: excalidraw_foreign_import_styled
+  file: breaks/break_foreign_styled_import.tsx
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 16
+  rationale: "import styled from 'styled-components' at line 2 (inside the hunk) +
+    styled.div`...` CSS-in-JS for a toast where excalidraw styles with SCSS class
+    names. Verified foreign at SHA cce5001aaafe: `styled-components` = 0 hits across
+    *.ts/*.tsx and absent from every package.json (the repo uses sass)."
+  difficulty: easy
+  host_file: packages/excalidraw/components/Toast.tsx
+  host_inject_at_line: 20
+- id: excalidraw_foreign_import_jszip
+  file: breaks/break_foreign_jszip_import.ts
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 19
+  rationale: "import JSZip from 'jszip' at line 1 (inside the hunk) + new JSZip()
+    to bundle a scene archive where excalidraw serializes with its own encode
+    pipeline + pako. Verified foreign at SHA cce5001aaafe: `jszip` = 0 hits across
+    *.ts/*.tsx and absent from every package.json."
+  difficulty: easy
+  host_file: packages/excalidraw/data/encode.ts
+  host_inject_at_line: 30
+- id: excalidraw_foreign_api_dayjs
+  file: breaks/break_foreign_dayjs_api.ts
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 12
+  rationale: "import dayjs from 'dayjs' + submodule import dayjs/plugin/relativeTime
+    (both inside the hunk) + dayjs(savedAt).fromNow()/.format() for a last-saved
+    label where excalidraw compares bare epoch millis. Verified foreign at SHA
+    cce5001aaafe: `dayjs` = 0 hits across *.ts/*.tsx and absent from every
+    package.json. Medium: submodule/plugin import + chained-receiver calls."
+  difficulty: medium
+  host_file: excalidraw-app/data/LocalData.ts
+  host_inject_at_line: 40
+- id: excalidraw_foreign_api_reactquery
+  file: breaks/break_foreign_reactquery_api.tsx
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 17
+  rationale: "import { useQuery } from '@tanstack/react-query' at line 2 (inside the
+    hunk) + useQuery({ queryKey, queryFn }) to fetch library items where excalidraw
+    loads library data through its own promise-based data layer + jotai. Verified
+    foreign at SHA cce5001aaafe: `@tanstack/react-query` = 0 hits across *.ts/*.tsx
+    and absent from every package.json. Medium: data reached through a hook."
+  difficulty: medium
+  host_file: packages/excalidraw/components/Actions.tsx
+  host_inject_at_line: 40
+- id: excalidraw_foreign_api_axios
+  file: breaks/break_foreign_axios_api.ts
+  category: foreign_api
+  hunk_start_line: 5
+  hunk_end_line: 15
+  rationale: "axios.request({ url, method }) HTTP client where excalidraw's collab
+    data layer loads through fetch/firebase, with `import axios from 'axios'` at line 1
+    and the bare foreign callee axios.request (.request is 0-usage repo vocabulary)
+    below it. Verified foreign at SHA cce5001aaafe: `axios` = 0 hits across *.ts/*.tsx
+    and absent from every package.json. Medium: foreign HTTP client reached through a
+    static-import + bare namespaced callee."
+  difficulty: medium
+  host_file: excalidraw-app/collab/Collab.tsx
+  host_inject_at_line: 54
+- id: excalidraw_foreign_concurrency_plimit
+  file: breaks/break_foreign_plimit_concurrency.ts
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 14
+  rationale: "import pLimit from 'p-limit' at line 1 (inside the hunk) + const
+    limit = pLimit(3); limit(() => decode(file)) to throttle parallel image decodes
+    where excalidraw batches async work with its own es6-promise-pool. Verified
+    foreign at SHA cce5001aaafe: `p-limit` = 0 hits across *.ts/*.tsx and absent from
+    every package.json. Medium: concurrency limiter reached through a receiver var."
+  difficulty: medium
+  host_file: packages/excalidraw/data/image.ts
+  host_inject_at_line: 30
+- id: excalidraw_foreign_concurrency_comlink
+  file: breaks/break_foreign_comlink_concurrency.ts
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 18
+  rationale: "import * as Comlink from 'comlink' at line 1 (inside the hunk) +
+    Comlink.wrap(worker) worker-thread RPC to offload rasterization where excalidraw
+    renders synchronously on the main thread. Verified foreign at SHA cce5001aaafe:
+    `comlink` = 0 hits across *.ts/*.tsx and absent from every package.json. Medium:
+    foreign worker runtime reached through a wrapped receiver."
+  difficulty: medium
+  host_file: packages/excalidraw/renderer/interactiveScene.ts
+  host_inject_at_line: 83
+- id: excalidraw_foreign_concurrency_rxjs
+  file: breaks/break_foreign_rxjs_concurrency.ts
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 13
+  rationale: "import { Subject } from 'rxjs' + submodule import rxjs/operators (both
+    inside the hunk) + new Subject().pipe(debounceTime).subscribe() reactive stream
+    for scroll events where excalidraw uses plain callbacks + its own throttle.
+    Verified foreign at SHA cce5001aaafe: `rxjs` = 0 hits across *.ts/*.tsx and
+    absent from every package.json. Medium: submodule import + reactive pipeline."
+  difficulty: medium
+  host_file: packages/excalidraw/scene/scroll.ts
+  host_inject_at_line: 30
+- id: excalidraw_foreign_api_localforage
+  file: breaks/break_foreign_localforage_api.ts
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 16
+  rationale: "localforage offline scene cache lazy-loaded via `await import('localforage')`
+    and reached through .getItem()/.setItem(). HARD/masked: the dynamic import()
+    evades the import stage (only static import/require specifiers are modelled), AND
+    both leaf methods are attested repo vocabulary (.getItem = 16, .setItem = 12 corpus
+    hits) reached through a hunk-local receiver, so the callee is method-attested and
+    invisible to the call-receiver stage — only bpe token-surprise can catch it.
+    Verified foreign at SHA cce5001aaafe: `localforage` = 0 hits across *.ts/*.tsx and
+    absent from every package.json. May legitimately miss."
+  difficulty: hard
+  host_file: excalidraw-app/data/index.ts
+  host_inject_at_line: 90
+- id: excalidraw_foreign_api_ky
+  file: breaks/break_foreign_ky_api.ts
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 12
+  rationale: "ky HTTP client lazy-loaded via `await import('ky')` and reached through
+    .get(...).json() fetching a shared scene where excalidraw's data layer loads
+    through fetch/firebase. HARD/masked: the dynamic import() evades the import stage
+    (only static import/require specifiers are modelled), AND both leaf methods are
+    attested repo vocabulary (.get = 299, .json = 4 corpus hits) reached through a
+    hunk-local receiver, so the foreign HTTP client is method-attested and invisible to
+    the call-receiver stage — only bpe token-surprise can catch it. Verified foreign at
+    SHA cce5001aaafe: `ky` = 0 hits across *.ts/*.tsx and absent from every package.json.
+    May legitimately miss."
+  difficulty: hard
+  host_file: excalidraw-app/data/firebase.ts
+  host_inject_at_line: 60
+- id: excalidraw_foreign_api_superjson
+  file: breaks/break_foreign_superjson_api.ts
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 13
+  rationale: "superjson serializer lazy-loaded via `await import('superjson')` and
+    reached through .stringify()/.parse(), mimicking excalidraw's own
+    JSON.stringify/JSON.parse idiom. HARD/masked: the dynamic import() evades the
+    import stage (only static import/require specifiers are modelled), AND both leaf
+    methods are attested repo vocabulary (.stringify = 52, .parse = 37 corpus hits)
+    reached through a hunk-local receiver, so the foreign serializer is method-attested
+    and invisible to the call-receiver stage — only bpe can catch it. Verified foreign
+    at SHA cce5001aaafe: `superjson` = 0 hits across *.ts/*.tsx and absent from every
+    package.json. May legitimately miss."
+  difficulty: hard
+  host_file: packages/excalidraw/data/json.ts
+  host_inject_at_line: 40
+- id: excalidraw_foreign_concurrency_pusher
+  file: breaks/break_foreign_pusher_concurrency.ts
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 19
+  rationale: "pusher-js realtime presence runtime lazy-loaded via
+    `await import('pusher-js')` and reached through pusher.subscribe()/channel.bind(),
+    where excalidraw collaboration runs on socket.io-client. HARD/masked: the dynamic
+    import() evades the import stage (only static import/require specifiers are
+    modelled), the constructor and receivers are hunk-local bindings, AND both leaf
+    methods are attested repo vocabulary (.subscribe = 2, .bind = 12 corpus hits) — so
+    the foreign realtime runtime is invisible to both the import and call-receiver
+    stages; only bpe can catch it. Verified foreign at SHA cce5001aaafe: `pusher-js`
+    = 0 hits across *.ts/*.tsx and absent from every package.json. May legitimately
+    miss."
+  difficulty: hard
+  host_file: excalidraw-app/collab/Collab.tsx
+  host_inject_at_line: 75

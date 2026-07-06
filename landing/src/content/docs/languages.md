@@ -21,10 +21,11 @@ error-tolerant parser. Two properties matter here:
 
 ## Supported out of the box
 
-| Language | Status |
-|---|---|
-| Python | Supported |
-| TypeScript / JavaScript | Supported |
+Python, TypeScript / JavaScript, Go, Rust, Java, C#, C, C++, Ruby, and PHP —
+ten languages, each with its own tree-sitter adapter, each benchmarked on a
+real open-source corpus. We publish the leak-free per-corpus numbers — catch
+rate and false alarms, with commit-level confidence intervals — on the
+[benchmarks page](/benchmarks). Nothing is hidden.
 
 More languages are adapter-shaped work — the model and pipeline don't change.
 

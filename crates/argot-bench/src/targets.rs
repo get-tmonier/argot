@@ -12,7 +12,8 @@ pub struct PrPin {
     pub sha: String,
 }
 
-/// A pinned corpus. `language` is `python`, `typescript`, or `multi`.
+/// A pinned corpus. `language` is one of the ten scoring languages, or
+/// `multi` for polyglot monorepos.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Target {
     pub name: String,
@@ -20,7 +21,26 @@ pub struct Target {
     pub language: String,
     #[serde(default)]
     pub prs: Vec<PrPin>,
+    /// Corpus-specific holdout window (first-parent commits behind the pin
+    /// for the fit point). Overrides the CLI default — docs-heavy or
+    /// slow-moving repos need wider windows to reach the sample bar.
+    #[serde(default)]
+    pub holdout_window: Option<usize>,
 }
+
+const TARGET_LANGUAGES: &[&str] = &[
+    "python",
+    "typescript",
+    "go",
+    "rust",
+    "c",
+    "java",
+    "csharp",
+    "php",
+    "cpp",
+    "ruby",
+    "multi",
+];
 
 #[derive(Debug, Deserialize)]
 struct TargetsFile {
@@ -33,7 +53,7 @@ pub fn load_targets(path: &Path) -> Result<Vec<Target>> {
     let parsed: TargetsFile = serde_yaml::from_str(&raw)
         .with_context(|| format!("invalid YAML in {}", path.display()))?;
     for t in &parsed.targets {
-        if !matches!(t.language.as_str(), "python" | "typescript" | "multi") {
+        if !TARGET_LANGUAGES.contains(&t.language.as_str()) {
             anyhow::bail!("target {}: unsupported language {:?}", t.name, t.language);
         }
         if t.prs.is_empty() {

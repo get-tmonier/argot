@@ -42,6 +42,17 @@ pub struct CallReceiverModel {
     pub attested: Vec<String>,
     pub n_corpus_files: usize,
     pub clusters: BTreeMap<String, ClusterModel>,
+    /// Symbols the repo *declares* anywhere in its corpus — functions, methods,
+    /// classes, structs, namespaces, enums (via the adapter's
+    /// `callable_definitions`). A bare call to one, or a `Type::method` /
+    /// `ns::func` whose leading segment is one, is the repo's own code reached
+    /// across translation units — not foreign — even when it was never *called*
+    /// at fit (so absent from `attested`). Separates rocksdb's own
+    /// `ResetState` / `AlignedBuffer::` from foreign `event_base_new` / `absl::`.
+    /// Absent in artifacts fitted before this field existed (then no symbol is
+    /// treated as repo-declared — the prior behaviour).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub defined_symbols: Vec<String>,
 }
 
 /// The convention-rarity model: corpus frequencies of AST node kinds and of
@@ -63,7 +74,14 @@ pub struct ConventionModel {
     pub ident_shapes: BTreeMap<String, u64>,
     pub total_idents: u64,
     pub syntax_bar: f64,
-    pub ident_bar: f64,
+    /// Per-morphology firing bar (shape class → max windowed surprisal over the
+    /// calibration sample). A single scalar bar conflated shapes: an in-voice
+    /// window concentrated in one shape (a `SCREAMING_SNAKE` constants block)
+    /// would raise the bar against a genuinely-foreign shape (camelCase in a
+    /// snake_case repo). Per-shape bars judge each morphology against the repo's
+    /// own concentration of *that* shape. A shape absent here was never
+    /// concentrated in-voice, so it fires whenever it dominates a hunk.
+    pub ident_bars: BTreeMap<String, f64>,
 }
 
 /// The complete per-language model block.
@@ -116,6 +134,7 @@ mod tests {
                 attested: vec!["bar".to_string(), "foo".to_string()],
                 n_corpus_files: 2,
                 clusters,
+                defined_symbols: vec!["helper".to_string()],
             },
             conventions: Some(ConventionModel {
                 node_kinds: BTreeMap::from([("call_expression".to_string(), 12u64)]),
@@ -123,7 +142,7 @@ mod tests {
                 ident_shapes: BTreeMap::from([("camel".to_string(), 30u64)]),
                 total_idents: 30,
                 syntax_bar: 9.5,
-                ident_bar: 1.5,
+                ident_bars: BTreeMap::from([("camel".to_string(), 1.5)]),
             }),
         }
     }

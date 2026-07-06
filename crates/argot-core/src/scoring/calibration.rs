@@ -23,7 +23,7 @@ use crate::scoring::adapters::{Language, LanguageAdapter};
 use crate::scoring::bpe_scorer::BpeScorer;
 use crate::scoring::call_receiver::CallReceiverScorer;
 use crate::scoring::conventions::{fit_convention_frequencies, ConventionScorer};
-use crate::scoring::model::LanguageModel;
+use crate::scoring::model::{ConventionModel, LanguageModel};
 use crate::scoring::typicality::TypicalityModel;
 use crate::suppress::PathSuppressions;
 use crate::text::{read_text_lossy, splitlines, splitlines_keepends};
@@ -34,6 +34,11 @@ use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 
 const MIN_BODY_LINES: usize = 5;
+/// Window length (lines) for calibrating the convention identifier-shape bar
+/// over diff-hunk-sized sub-regions of each candidate declaration rather than
+/// the whole declaration — the unit check actually scores. Sized to a typical
+/// diff hunk; declarations shorter than this are scored whole.
+const CONVENTION_BAR_WINDOW_LINES: usize = 8;
 /// v3: adds the per-language `model` block (fit-time BPE stats + callee
 /// attestation snapshot) and repo-owned import modules. Check refuses other
 /// versions — regenerate via `argot fit`.
@@ -306,6 +311,13 @@ struct CalibrationMeta {
 #[derive(Serialize)]
 struct LangConfig {
     threshold: f64,
+    /// Honest threshold for hunks in files absent from the fit corpus. A new
+    /// file gets full unattested-callee (alpha) mass with no cluster routing —
+    /// a systematically higher score distribution than an edit to an existing
+    /// file — so it needs its own, higher bar (issue #92 new-file flooding).
+    /// `check` applies it only to new-file hunks; existing files keep
+    /// `threshold`. Never below `threshold`.
+    new_file_threshold: f64,
     call_receiver_alpha: f64,
     call_receiver_cap: usize,
     call_receiver_root_bonus: f64,
@@ -470,6 +482,14 @@ fn author_files(repo_dir: &Path, email: &str) -> Vec<String> {
 struct ScorerConfig {
     version: u32,
     languages: BTreeMap<String, LangConfig>,
+    /// Every fit-corpus file, repo-relative — the authoritative set `check` uses
+    /// to tell a new file (absent here → new-file threshold) from an edit to a
+    /// known one. Includes data-dominant files (which are filtered out of
+    /// clustering), so a fixture/edit in a data-heavy known file is NOT
+    /// misclassified as new (issue #92). Omitted for configs predating the
+    /// field — then `check` falls back to cluster membership.
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    corpus_files: Vec<String>,
 }
 
 fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
@@ -554,8 +574,20 @@ pub struct ThresholdRunConfig {
     pub cap: f64,
 }
 
+/// Per-file BPE token counts for leave-one-file-out calibration, keyed by
+/// the corpus file paths [`Candidate::file_path`] resolves to.
+pub type PerFileTokenCounts =
+    std::collections::HashMap<PathBuf, std::collections::HashMap<u32, u64>>;
+
 /// Per-seed calibration thresholds: for each seed, `max` over sampled
 /// cal-hunk scores (BPE + cluster contribution at alpha/root_bonus 0).
+///
+/// The BPE side of each cal hunk is scored **leave-one-file-out** when
+/// `per_file_counts` is given: the hunk's own file's token counts are
+/// subtracted from the repo distribution, so the hunk is scored the way
+/// check scores code the model has not memorized. Calibrating on memorized
+/// scores deflates the threshold below the level genuinely-unseen idiomatic
+/// code reaches — the honest-FP flood of issue #92.
 ///
 /// Shared by the production calibrator ([`run_calibrate`] takes the median)
 /// and the benchmark harness (which also reports threshold CV across seeds) so
@@ -566,6 +598,7 @@ pub struct ThresholdRunConfig {
 pub fn multi_seed_thresholds(
     candidates: &[Candidate],
     bpe: &BpeScorer,
+    per_file_counts: Option<&PerFileTokenCounts>,
     call_receiver: &mut CallReceiverScorer,
     adapter: &dyn LanguageAdapter,
     typicality: &TypicalityModel,
@@ -583,10 +616,19 @@ pub fn multi_seed_thresholds(
                 continue;
             }
             let prose = adapter.prose_line_ranges(&c.hunk);
-            let raw_bpe = bpe.bpe_score(&blank_prose_lines(&c.hunk, &prose));
+            let blanked = blank_prose_lines(&c.hunk, &prose);
+            let raw_bpe = match per_file_counts.and_then(|m| m.get(&c.file_path)) {
+                Some(counts) => bpe.bpe_score_excluding(&blanked, counts),
+                None => bpe.bpe_score(&blanked),
+            };
             // Cal side scores without local-binding attestation: candidates
             // are corpus files whose callees are attested anyway, so the
             // omission only leaves the threshold marginally conservative.
+            // The call-receiver side stays memorized on purpose: cluster
+            // branches only fire on files the fit clustered (new files are
+            // not cluster-routed at check time), so memorized cal is already
+            // symmetric with check for them — only the BPE side had the
+            // train-on-test leak (issue #92).
             let contrib = call_receiver.weighted_contribution_for_file(
                 &c.hunk,
                 Some(&c.file_path),
@@ -601,6 +643,63 @@ pub fn multi_seed_thresholds(
             cal_scores.push(raw_bpe + contrib);
         }
         // threshold_percentile default 100 → max.
+        let t = cal_scores.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        seed_thresholds.push(if t.is_finite() { t } else { 0.0 });
+    }
+    seed_thresholds
+}
+
+/// Per-seed **new-file** thresholds: like [`multi_seed_thresholds`], but each
+/// cal hunk is scored as though its file had just been added post-fit —
+/// BPE leave-one-file-out (as before) plus a call-receiver contribution from
+/// [`CallReceiverScorer::weighted_contribution_as_new`] (cluster off, the real
+/// check-time `alpha`/`root_bonus`, attestation requiring `df ≥ 2`). The main
+/// threshold zeroes `alpha` and keeps cluster routing on, which models an edit
+/// to an *existing* file; a new file gets no cluster mass but full alpha mass on
+/// its unattested callees, landing systematically higher. This threshold is the
+/// honest operating point for that distribution, applied by `check` only to
+/// hunks whose file was absent from the fit corpus (issue #92 new-file flood).
+#[allow(clippy::too_many_arguments)]
+pub fn multi_seed_new_file_thresholds(
+    candidates: &[Candidate],
+    bpe: &BpeScorer,
+    per_file_counts: Option<&PerFileTokenCounts>,
+    call_receiver: &CallReceiverScorer,
+    adapter: &dyn LanguageAdapter,
+    typicality: &TypicalityModel,
+    cfg: &ThresholdRunConfig,
+    alpha: f64,
+    root_bonus: f64,
+) -> Vec<f64> {
+    let effective_n_cal = cfg.n_cal.min(candidates.len());
+    let mut seed_thresholds = Vec::new();
+    for k in 0..cfg.n_seeds {
+        let seed = cfg.base_seed.wrapping_add(k as u64);
+        let idx = sample_indices(candidates.len(), effective_n_cal, seed);
+        let mut cal_scores = Vec::new();
+        for &i in &idx {
+            let c = &candidates[i];
+            if typicality.is_atypical(&c.hunk).0 {
+                continue;
+            }
+            let prose = adapter.prose_line_ranges(&c.hunk);
+            let blanked = blank_prose_lines(&c.hunk, &prose);
+            let raw_bpe = match per_file_counts.and_then(|m| m.get(&c.file_path)) {
+                Some(counts) => bpe.bpe_score_excluding(&blanked, counts),
+                None => bpe.bpe_score(&blanked),
+            };
+            let contrib = call_receiver.weighted_contribution_as_new(
+                &c.hunk,
+                Some(&c.file_path),
+                alpha,
+                root_bonus,
+                cfg.cluster_bonus,
+                cfg.cap,
+                Some((&c.file_source, c.hunk_start_line, c.hunk_end_line)),
+                &Default::default(),
+            );
+            cal_scores.push(raw_bpe + contrib);
+        }
         let t = cal_scores.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
         seed_thresholds.push(if t.is_finite() { t } else { 0.0 });
     }
@@ -632,6 +731,15 @@ pub struct CalibrateOptions {
     /// resolved slice gets its own calibrated threshold, dispatched by file path
     /// at check time. Empty = a single whole-repo threshold (today's behaviour).
     pub slices: Vec<String>,
+    /// Fit and emit the convention-rarity stage (syntax/identifier-shape
+    /// surprisal). Off by default and NOT a user-facing knob — production
+    /// `fit`/`check` never expose it. It is *secondary coverage* (never gated —
+    /// see `benchmarks/catalogs/RUBRIC.md`) and a co-headline false-alarm
+    /// driver whose feature space overlaps in-voice code (jellyfin holdout:
+    /// FP fire at the same convention-bar ratios as the two catches it carries,
+    /// so no threshold separates them). The benchmark harness sets this to
+    /// measure the with/without trade-off; nothing else should.
+    pub enable_conventions: bool,
 }
 
 impl Default for CalibrateOptions {
@@ -654,8 +762,78 @@ impl Default for CalibrateOptions {
             auto_select_asym_cal: true,
             asym_fire_rate_threshold: 0.05,
             slices: Vec::new(),
+            enable_conventions: false,
         }
     }
+}
+
+/// Calibrate the convention firing bars over ALL candidates (not the threshold's
+/// `n_cal` sample): the bar is a max-gate, so sampling only lowers it and fires
+/// the stage on ordinary code. Shared by the production calibrator and the
+/// benchmark harness so the two can't drift.
+///
+/// The **syntax** bar is a single max over whole declarations (it reads the
+/// parsed AST; windowing would re-parse the host per window, and node-kind mix
+/// doesn't concentrate in sub-regions). The **identifier** bar is *per
+/// morphology*, taken over diff-hunk-sized windows — the unit check actually
+/// scores. Two reasons:
+/// - **Windowing:** a whole declaration averages its identifier mix and never
+///   reaches the skew of one sub-region (a fluent camelCase chain, a
+///   `SCREAMING_SNAKE` block), so a later commit touching a nearby line would
+///   re-score in-voice code above a bar its own repo never set. The shape
+///   feature is a byte scan, so windowing is cheap.
+/// - **Per-shape:** a single scalar bar let an in-voice concentrated shape gate a
+///   genuinely-foreign one (camelCase in a snake_case repo). Each shape's bar is
+///   the most-skewed window the repo's own code contains *for that shape*.
+pub fn calibrate_convention_bars(
+    candidates: &[Candidate],
+    convention_model: &ConventionModel,
+    language: Language,
+    typicality: &TypicalityModel,
+) -> (f64, BTreeMap<String, f64>) {
+    let conv = ConventionScorer::new(convention_model.clone(), language);
+    let mut syntax_bar = 0.0f64;
+    let mut ident_bars: BTreeMap<String, f64> = BTreeMap::new();
+    let raise = |surps: &BTreeMap<String, f64>, bars: &mut BTreeMap<String, f64>| {
+        for (shape, &s) in surps {
+            let e = bars.entry(shape.clone()).or_insert(0.0);
+            *e = e.max(s);
+        }
+    };
+    for c in candidates {
+        if typicality.is_atypical(&c.hunk).0 {
+            continue;
+        }
+        let scores = conv.scores(
+            &c.hunk,
+            Some((&c.file_source, c.hunk_start_line, c.hunk_end_line)),
+        );
+        syntax_bar = syntax_bar.max(scores.syntax_surprisal);
+        raise(&scores.ident_surprisals, &mut ident_bars);
+
+        let lines = splitlines(&c.file_source);
+        let start0 = c.hunk_start_line.saturating_sub(1);
+        let end0 = c.hunk_end_line.min(lines.len());
+        let span = end0.saturating_sub(start0);
+        if span == 0 {
+            continue;
+        }
+        let win = CONVENTION_BAR_WINDOW_LINES.min(span);
+        let last_start = end0 - win;
+        let mut ws = start0;
+        loop {
+            let we = ws + win;
+            raise(
+                &conv.ident_surprisals(&lines[ws..we].join("\n")),
+                &mut ident_bars,
+            );
+            if ws >= last_start {
+                break;
+            }
+            ws += 1;
+        }
+    }
+    (syntax_bar, ident_bars)
 }
 
 /// Run calibration and write `scorer-config.json` to `output`.
@@ -835,9 +1013,17 @@ pub fn run_calibrate(
             }
         }
 
+        // Leave-one-file-out counts: calibration hunks are scored as if
+        // their file were not in the corpus (see multi_seed_thresholds).
+        let per_file_counts: PerFileTokenCounts = corpus
+            .iter()
+            .map(|(p, s)| (p.clone(), bpe.token_counts(s)))
+            .collect();
+
         let seed_thresholds = multi_seed_thresholds(
             &candidates,
             &bpe,
+            Some(&per_file_counts),
             &mut call_receiver,
             adapter.as_ref(),
             &typicality,
@@ -850,6 +1036,29 @@ pub fn run_calibrate(
             },
         );
         let threshold = median(seed_thresholds);
+
+        // Separate new-file threshold: the honest operating point for a
+        // genuinely-new file (cluster routing off, real check-time alpha) —
+        // never below the existing-file threshold. Applied by check only to
+        // hunks whose file was absent from the fit corpus.
+        let new_file_seeds = multi_seed_new_file_thresholds(
+            &candidates,
+            &bpe,
+            Some(&per_file_counts),
+            &call_receiver,
+            adapter.as_ref(),
+            &typicality,
+            &ThresholdRunConfig {
+                n_cal: effective_n_cal,
+                base_seed: opts.seed,
+                n_seeds: opts.n_seeds,
+                cluster_bonus: CR_CLUSTER_BONUS,
+                cap: CR_CAP as f64,
+            },
+            CR_ALPHA,
+            CR_ROOT_BONUS,
+        );
+        let new_file_threshold = median(new_file_seeds).max(threshold);
 
         // Per-slice thresholds: re-calibrate over just the candidates whose file
         // falls in each slice. A slice with too few candidates is skipped — it
@@ -868,6 +1077,7 @@ pub fn run_calibrate(
             let slice_seeds = multi_seed_thresholds(
                 &slice_candidates,
                 &bpe,
+                Some(&per_file_counts),
                 &mut call_receiver,
                 adapter.as_ref(),
                 &typicality,
@@ -898,31 +1108,18 @@ pub fn run_calibrate(
         // the max feature value over the same multi-seed calibration sample
         // the threshold uses — the stage stays silent on in-voice code, and
         // per the calibration contract it never feeds the threshold itself.
-        let mut convention_model = fit_convention_frequencies(corpus, language);
-        {
-            // Bars over ALL candidates (not the threshold's n_cal sample):
-            // the bar is a max-gate, so sampling only adds noise — a smaller
-            // sample lowers the bar and fires the stage on ordinary code.
-            // Over the full candidate population the bar is deterministic
-            // and maximally conservative: a convention fires only when rarer
-            // than anything the repo's own sampleable code contains.
-            let conv = ConventionScorer::new(convention_model.clone(), language);
-            let mut syntax_bar = 0.0f64;
-            let mut ident_bar = 0.0f64;
-            for c in &candidates {
-                if typicality.is_atypical(&c.hunk).0 {
-                    continue;
-                }
-                let scores = conv.scores(
-                    &c.hunk,
-                    Some((&c.file_source, c.hunk_start_line, c.hunk_end_line)),
-                );
-                syntax_bar = syntax_bar.max(scores.syntax_surprisal);
-                ident_bar = ident_bar.max(scores.ident_surprisal);
-            }
+        // Off by default (secondary coverage, co-headline FP driver); opt in
+        // via `enable_conventions`.
+        let conventions = if opts.enable_conventions {
+            let mut convention_model = fit_convention_frequencies(corpus, language);
+            let (syntax_bar, ident_bars) =
+                calibrate_convention_bars(&candidates, &convention_model, language, &typicality);
             convention_model.syntax_bar = syntax_bar;
-            convention_model.ident_bar = ident_bar;
-        }
+            convention_model.ident_bars = ident_bars;
+            Some(convention_model)
+        } else {
+            None
+        };
 
         // Fit-time model snapshot: the calibration call-receiver's fitted
         // state is threshold-parameter-independent (rare/alpha are scoring
@@ -930,7 +1127,7 @@ pub fn run_calibrate(
         let model = LanguageModel {
             bpe: bpe.stats(),
             call_receiver: call_receiver.export_model(repo_dir),
-            conventions: Some(convention_model),
+            conventions,
         };
         let model_hash = model.hash();
 
@@ -939,6 +1136,7 @@ pub fn run_calibrate(
             name.to_string(),
             LangConfig {
                 threshold,
+                new_file_threshold,
                 call_receiver_alpha: CR_ALPHA,
                 call_receiver_cap: CR_CAP,
                 call_receiver_root_bonus: CR_ROOT_BONUS,
@@ -948,7 +1146,11 @@ pub fn run_calibrate(
                 call_receiver_cluster_rare_threshold: resolved_rare,
                 call_receiver_cluster_size_min: opts.cluster_size_min,
                 call_receiver_parse_error_host_fallback: CR_PARSE_ERROR_FALLBACK,
-                convention_bonus: CONVENTION_BONUS,
+                convention_bonus: if opts.enable_conventions {
+                    CONVENTION_BONUS
+                } else {
+                    0.0
+                },
                 import_modules,
                 import_module_prefixes,
                 calibration: CalibrationMeta {
@@ -966,9 +1168,13 @@ pub fn run_calibrate(
         );
     }
 
+    let mut corpus_files_sorted = corpus_rel.clone();
+    corpus_files_sorted.sort();
+    corpus_files_sorted.dedup();
     let config = ScorerConfig {
         version: CONFIG_VERSION,
         languages,
+        corpus_files: corpus_files_sorted,
     };
     if let Some(parent) = output.parent() {
         std::fs::create_dir_all(parent).ok();

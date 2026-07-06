@@ -1,5 +1,11 @@
 # Rust language port — benchmark (ripgrep)
 
+> **⚠️ Errata (2026-07, issue [#92](https://github.com/get-tmonier/argot/issues/92)):** the FP
+> control in this document replayed commits already inside the training corpus
+> (train-on-test) and the recall fixtures were scored against a threshold with
+> the same leak. Preserved as a historical record; the honest re-measurement is
+> in [issue92-honest-rebench.md](issue92-honest-rebench.md).
+
 **Status: clears the bar on ripgrep.** Recall 12/12 (100%), FP 1.89% — both
 inside the ≥ 85% / ≤ 2% gate on a substantial, idiomatic corpus.
 

@@ -9,8 +9,8 @@ order: 1
 hunks whose token distribution diverges from the learned norm — the code that's valid, typed, and
 lint-clean, but doesn't sound like anyone on your team wrote it. No model, no cloud, no GPU.
 
-> **Status: alpha.** The scorer works and ships honest benchmarks, but argot is not yet recommended
-> for production gating. See [Limitations](/docs/limitations/) for the v1 roadmap.
+> **Status: alpha.** argot is a probabilistic style linter — treat every flag as a prompt to look,
+> and verify before you gate CI on it. It ships honest, leak-free benchmarks and a public research log.
 
 ## Install
 

@@ -1,0 +1,327 @@
+corpus: junit5
+language: java
+categories:
+- foreign_import
+- foreign_api
+- foreign_concurrency
+injection_hosts:
+- pr: 0
+  sha: 54aa232aa25d
+fixtures:
+- id: foreign_gson_1
+  file: breaks/break_foreign_gson_1.java
+  category: foreign_import
+  hunk_start_line: 21
+  hunk_end_line: 28
+  rationale: 'Fully-qualified com.google.gson.Gson/GsonBuilder JSON serialization
+    (toJson) inside the hunk. Verified 0-usage at pinned SHA 54aa232aa25d: git grep
+    over all *.java returns com.google.gson = 0, GsonBuilder = 0, Gson = 0 hits;
+    junit5 has no JSON dependency and renders diagnostics through its own StringUtils,
+    never a foreign JSON library.'
+  difficulty: easy
+  host_file: junit-platform-commons/src/main/java/org/junit/platform/commons/util/StringUtils.java
+  host_inject_at_line: 63
+- id: foreign_jackson_1
+  file: breaks/break_foreign_jackson_1.java
+  category: foreign_import
+  hunk_start_line: 20
+  hunk_end_line: 33
+  rationale: 'Fully-qualified com.fasterxml.jackson.databind.ObjectMapper serialization
+    (writeValueAsString) inside the hunk. Verified 0-usage at pinned SHA 54aa232aa25d:
+    git grep over all *.java returns com.fasterxml.jackson = 0, ObjectMapper = 0 hits;
+    junit5 renders assertion payloads through its own AssertionUtils/StringUtils,
+    never a foreign JSON mapper.'
+  difficulty: easy
+  host_file: junit-jupiter-api/src/main/java/org/junit/jupiter/api/AssertionUtils.java
+  host_inject_at_line: 62
+- id: foreign_snakeyaml_1
+  file: breaks/break_foreign_snakeyaml_1.java
+  category: foreign_import
+  hunk_start_line: 26
+  hunk_end_line: 34
+  rationale: 'Top-level import of org.yaml.snakeyaml.Yaml/LoaderOptions plus a YAML
+    parse (Yaml.load). Verified 0-usage at pinned SHA 54aa232aa25d: git grep over
+    all *.java returns org.yaml.snakeyaml = 0, snakeyaml = 0, Yaml = 0, LoaderOptions
+    = 0 hits (0 of the repo''s module specifiers); junit5 reads configuration through
+    its own ConfigurationParameters, never a foreign YAML library. Caught by the
+    import stage: the call-receiver stage cannot see it foreign because the module
+    root org.* collides with junit5''s own org.junit namespace.'
+  difficulty: easy
+  host_file: junit-platform-commons/src/main/java/org/junit/platform/commons/util/CollectionUtils.java
+  host_inject_at_line: 85
+- id: foreign_okhttp_1
+  file: breaks/break_foreign_okhttp_1.java
+  category: foreign_api
+  hunk_start_line: 23
+  hunk_end_line: 33
+  rationale: 'Fully-qualified okhttp3.OkHttpClient request/response fetch (newCall/execute)
+    inside the hunk. Verified 0-usage at pinned SHA 54aa232aa25d: git grep over all
+    *.java returns okhttp3 = 0, OkHttpClient = 0 hits; junit5 has no HTTP client of
+    its own and does not reach for a foreign one — resources are read through the
+    classpath scanner.'
+  difficulty: easy
+  host_file: junit-platform-commons/src/main/java/org/junit/platform/commons/util/ClassUtils.java
+  host_inject_at_line: 56
+- id: foreign_hikari_1
+  file: breaks/break_foreign_hikari_1.java
+  category: foreign_api
+  hunk_start_line: 24
+  hunk_end_line: 33
+  rationale: 'Fully-qualified com.zaxxer.hikari.HikariDataSource/HikariConfig JDBC
+    connection pool (getConnection) inside the hunk. Verified 0-usage at pinned SHA
+    54aa232aa25d: git grep over all *.java returns com.zaxxer.hikari = 0,
+    HikariDataSource = 0, HikariConfig = 0 hits; junit5 has no database layer and
+    never reaches for a foreign connection pool.'
+  difficulty: easy
+  host_file: junit-platform-commons/src/main/java/org/junit/platform/commons/util/ReflectionUtils.java
+  host_inject_at_line: 116
+- id: foreign_jedis_1
+  file: breaks/break_foreign_jedis_1.java
+  category: foreign_api
+  hunk_start_line: 21
+  hunk_end_line: 33
+  rationale: 'Fully-qualified redis.clients.jedis.Jedis client lookup (get) inside
+    the hunk. Verified 0-usage at pinned SHA 54aa232aa25d: git grep over all *.java
+    returns redis.clients.jedis = 0, Jedis = 0 hits; junit5 caches reflection
+    results in its own in-process LruCache and has no external cache dependency.'
+  difficulty: easy
+  host_file: junit-platform-commons/src/main/java/org/junit/platform/commons/util/ModuleUtils.java
+  host_inject_at_line: 83
+- id: foreign_rxjava_1
+  file: breaks/break_foreign_rxjava_1.java
+  category: foreign_concurrency
+  hunk_start_line: 24
+  hunk_end_line: 35
+  rationale: 'Fully-qualified io.reactivex.rxjava3 reactive pipeline
+    (Flowable.fromIterable/Schedulers.computation/PublishSubject.create) inside the
+    hunk. Verified 0-usage at pinned SHA 54aa232aa25d: git grep over all *.java
+    returns io.reactivex.rxjava3 = 0, Flowable = 0, Schedulers = 0, PublishSubject =
+    0 hits; junit5 drives parallel execution with java.util.concurrent ForkJoinPool,
+    never a foreign reactive runtime.'
+  difficulty: medium
+  host_file: junit-jupiter-engine/src/main/java/org/junit/jupiter/engine/execution/ConditionEvaluator.java
+  host_inject_at_line: 60
+- id: foreign_reactor_1
+  file: breaks/break_foreign_reactor_1.java
+  category: foreign_concurrency
+  hunk_start_line: 25
+  hunk_end_line: 34
+  rationale: 'Fully-qualified reactor.core reactive pipeline (Flux.fromIterable/
+    Schedulers.parallel/Mono.just) inside the hunk. Verified 0-usage at pinned SHA
+    54aa232aa25d: git grep over all *.java returns reactor.core = 0, reactor = 0,
+    Flux = 0, Mono = 0 hits; junit5 resolves parameters synchronously and
+    parallelises via the platform''s own hierarchical executor, never a foreign
+    reactive runtime.'
+  difficulty: medium
+  host_file: junit-jupiter-engine/src/main/java/org/junit/jupiter/engine/execution/ParameterResolutionUtils.java
+  host_inject_at_line: 91
+- id: foreign_akka_1
+  file: breaks/break_foreign_akka_1.java
+  category: foreign_concurrency
+  hunk_start_line: 22
+  hunk_end_line: 33
+  rationale: 'Fully-qualified akka.actor actor runtime (ActorSystem.create/actorOf/
+    Props.create/ActorRef) inside the hunk. Verified 0-usage at pinned SHA
+    54aa232aa25d: git grep over all *.java returns akka = 0, com.typesafe.akka = 0,
+    ActorSystem = 0, ActorRef = 0, Props = 0 hits; junit5 orchestrates engine
+    execution through its own synchronous orchestrator, never a foreign actor
+    framework.'
+  difficulty: medium
+  host_file: junit-platform-launcher/src/main/java/org/junit/platform/launcher/core/EngineExecutionOrchestrator.java
+  host_inject_at_line: 92
+- id: foreign_jsoup_1
+  file: breaks/break_foreign_jsoup_1.java
+  category: foreign_import
+  hunk_start_line: 24
+  hunk_end_line: 32
+  rationale: 'Top-level import of org.jsoup.Jsoup/nodes.Document/select.Elements plus
+    an HTML parse (Jsoup.parse/select). Verified 0-usage at pinned SHA 54aa232aa25d:
+    git grep org.jsoup over all *.java returns 0 files, and jsoup is absent from
+    gradle/libs.versions.toml; junit5 emits its own XML/text reports through
+    junit-platform-reporting, never a foreign HTML parser. Caught by the import stage
+    (the org.* root collides with junit5''s own org.junit namespace, so call_receiver
+    cannot see it foreign).'
+  difficulty: easy
+  host_file: junit-platform-reporting/src/main/java/org/junit/platform/reporting/legacy/LegacyReportingUtils.java
+  host_inject_at_line: 86
+- id: foreign_protobuf_1
+  file: breaks/break_foreign_protobuf_1.java
+  category: foreign_import
+  hunk_start_line: 23
+  hunk_end_line: 30
+  rationale: 'Top-level import of com.google.protobuf.Message/util.JsonFormat plus a
+    protobuf-to-JSON render (JsonFormat.printer/print). Verified 0-usage at pinned SHA
+    54aa232aa25d: git grep com.google.protobuf over all *.java returns 0 files, and
+    protobuf is absent from gradle/libs.versions.toml; junit5 serialises report events
+    through its own XML writers, never a foreign protobuf codec.'
+  difficulty: easy
+  host_file: junit-platform-reporting/src/main/java/org/junit/platform/reporting/legacy/xml/XmlReportData.java
+  host_inject_at_line: 143
+- id: foreign_dom4j_1
+  file: breaks/break_foreign_dom4j_1.java
+  category: foreign_import
+  hunk_start_line: 26
+  hunk_end_line: 35
+  rationale: 'Top-level import of org.dom4j.Document/Element/io.SAXReader plus a DOM
+    parse (SAXReader.read/getRootElement). Verified 0-usage at pinned SHA 54aa232aa25d:
+    git grep org.dom4j over all *.java returns 0 files, and dom4j is absent from
+    gradle/libs.versions.toml; junit5 writes and reads its legacy reports with
+    javax.xml.stream through XmlReportWriter, never a foreign DOM library. Caught by
+    the import stage (the org.* root collides with junit5''s own org.junit namespace).'
+  difficulty: easy
+  host_file: junit-platform-reporting/src/main/java/org/junit/platform/reporting/legacy/xml/LegacyXmlReportGeneratingListener.java
+  host_inject_at_line: 138
+- id: foreign_freemarker_1
+  file: breaks/break_foreign_freemarker_1.java
+  category: foreign_api
+  hunk_start_line: 23
+  hunk_end_line: 34
+  rationale: 'Fully-qualified freemarker.template.Configuration/Template rendering
+    (getTemplate/process) inside the hunk, no import. Verified 0-usage at pinned SHA
+    54aa232aa25d: git grep freemarker over all *.java returns 0 files, and freemarker
+    is absent from gradle/libs.versions.toml; junit5 formats console output through
+    its own theme and printers, never a foreign template engine. The foreign root
+    (freemarker) is non-colliding, so the call-receiver stage sees it foreign.'
+  difficulty: easy
+  host_file: junit-platform-console/src/main/java/org/junit/platform/console/options/ConsoleUtils.java
+  host_inject_at_line: 43
+- id: foreign_caffeine_1
+  file: breaks/break_foreign_caffeine_1.java
+  category: foreign_api
+  hunk_start_line: 21
+  hunk_end_line: 34
+  rationale: 'Caffeine cache reached through a receiver variable — a fully-qualified
+    com.github.benmanes.caffeine.cache.Caffeine.newBuilder() static entry then
+    getIfPresent/put on the local var. Verified 0-usage at pinned SHA 54aa232aa25d:
+    git grep com.github.benmanes.caffeine over all *.java returns 0 files, and
+    caffeine is absent from gradle/libs.versions.toml; junit5 memoizes reflection
+    lookups in its own in-process LruCache, never a foreign cache. The foreign root
+    (com.*) is non-colliding, so the call-receiver stage sees the newBuilder callee.'
+  difficulty: medium
+  host_file: junit-platform-commons/src/main/java/org/junit/platform/commons/util/ClassLoaderUtils.java
+  host_inject_at_line: 107
+- id: foreign_mongodb_1
+  file: breaks/break_foreign_mongodb_1.java
+  category: foreign_api
+  hunk_start_line: 21
+  hunk_end_line: 32
+  rationale: 'MongoDB driver reached through receiver variables — a fully-qualified
+    com.mongodb.client.MongoClients.create(uri) static entry then getDatabase/
+    getCollection on the local vars, plus distinctive com.mongodb.client.model
+    Indexes.ascending/Filters.eq statics. Verified 0-usage at pinned SHA 54aa232aa25d:
+    git grep com.mongodb over all *.java returns 0 files, and the mongodb driver is
+    absent from gradle/libs.versions.toml; junit5 has no persistence layer and holds
+    execution state in its own in-memory containers, never a foreign document store.'
+  difficulty: medium
+  host_file: junit-platform-commons/src/main/java/org/junit/platform/commons/util/FunctionUtils.java
+  host_inject_at_line: 39
+- id: foreign_micrometer_1
+  file: breaks/break_foreign_micrometer_1.java
+  category: foreign_api
+  hunk_start_line: 21
+  hunk_end_line: 29
+  rationale: 'Micrometer metrics reached through a receiver variable — a fully-qualified
+    io.micrometer.core.instrument.Metrics.counter(...) static entry then increment on
+    the local Counter. Verified 0-usage at pinned SHA 54aa232aa25d: git grep io.micrometer
+    over all *.java returns 0 files, and micrometer is absent from gradle/libs.versions.toml;
+    junit5 surfaces counts through its own test-execution listeners and summaries, never
+    a foreign metrics facade.'
+  difficulty: medium
+  host_file: junit-platform-commons/src/main/java/org/junit/platform/commons/util/Preconditions.java
+  host_inject_at_line: 392
+- id: foreign_commonscodec_1
+  file: breaks/break_foreign_commonscodec_1.java
+  category: foreign_api
+  hunk_start_line: 20
+  hunk_end_line: 30
+  rationale: 'Apache Commons Codec digesting (DigestUtils.sha256Hex) reached only
+    through a fully-qualified org.apache.commons.codec.digest static call, no import.
+    Verified 0-usage at pinned SHA 54aa232aa25d: git grep org.apache.commons.codec over
+    all *.java returns 0 files (the single org.apache.commons.lang3 hit elsewhere is a
+    javadoc URL, not this package), and commons-codec is absent from
+    gradle/libs.versions.toml. HARD: the foreign root org.* collides with junit5''s own
+    org.junit namespace so call_receiver treats it as an attested root, and no import
+    declaration exists for the import stage to flag — the FQN static call is the only
+    tell; may miss.'
+  difficulty: hard
+  host_file: junit-platform-reporting/src/main/java/org/junit/platform/reporting/open/xml/UniqueId.java
+  host_inject_at_line: 26
+- id: foreign_netty_1
+  file: breaks/break_foreign_netty_1.java
+  category: foreign_concurrency
+  hunk_start_line: 26
+  hunk_end_line: 37
+  rationale: 'Top-level import of io.netty.channel.EventLoopGroup/nio.NioEventLoopGroup/
+    util.concurrent.Future plus an event-loop submit (new NioEventLoopGroup/submit/
+    shutdownGracefully). Verified 0-usage at pinned SHA 54aa232aa25d: git grep io.netty
+    over all *.java returns 0 files, and netty is absent from gradle/libs.versions.toml;
+    junit5 parallelises with a java.util.concurrent ForkJoinPool through its own executor
+    service, never a foreign event loop. Caught by the import stage (io.netty root is
+    non-colliding foreign).'
+  difficulty: easy
+  host_file: junit-platform-engine/src/main/java/org/junit/platform/engine/support/hierarchical/ForkJoinPoolHierarchicalTestExecutorService.java
+  host_inject_at_line: 331
+- id: foreign_vertx_1
+  file: breaks/break_foreign_vertx_1.java
+  category: foreign_concurrency
+  hunk_start_line: 24
+  hunk_end_line: 32
+  rationale: 'Vert.x timer runtime reached through a receiver variable — a fully-qualified
+    io.vertx.core.Vertx.vertx() static entry then setPeriodic/setTimer/cancelTimer on
+    the local var. Verified 0-usage at pinned SHA 54aa232aa25d: git grep io.vertx over
+    all *.java returns 0 files, and vert.x is absent from gradle/libs.versions.toml;
+    junit5 drives timing through the platform''s own hierarchical executor and java.time,
+    never a foreign async runtime.'
+  difficulty: medium
+  host_file: junit-platform-engine/src/main/java/org/junit/platform/engine/support/hierarchical/SameThreadHierarchicalTestExecutorService.java
+  host_inject_at_line: 49
+- id: foreign_disruptor_1
+  file: breaks/break_foreign_disruptor_1.java
+  category: foreign_concurrency
+  hunk_start_line: 24
+  hunk_end_line: 37
+  rationale: 'LMAX Disruptor ring buffer reached through a receiver variable — a
+    fully-qualified com.lmax.disruptor.dsl.Disruptor<> construction then
+    handleEventsWith/start/publishEvent/shutdown on the local var. Verified 0-usage at
+    pinned SHA 54aa232aa25d: git grep com.lmax.disruptor over all *.java returns 0
+    files, and disruptor is absent from gradle/libs.versions.toml; junit5 dispatches
+    engine execution events synchronously through its own listener, never a foreign
+    ring buffer. The distinctive verbs (handleEventsWith/publishEvent) carry the foreign
+    voice even though the constructor leaf reduces to a simple name.'
+  difficulty: medium
+  host_file: junit-jupiter-engine/src/main/java/org/junit/jupiter/engine/execution/JupiterEngineExecutionContext.java
+  host_inject_at_line: 208
+- id: foreign_quartz_1
+  file: breaks/break_foreign_quartz_1.java
+  category: foreign_concurrency
+  hunk_start_line: 22
+  hunk_end_line: 33
+  rationale: 'Quartz scheduler reached only through fully-qualified org.quartz calls,
+    no import — StdSchedulerFactory.getDefaultScheduler() then scheduleJob/start on the
+    local Scheduler. Verified 0-usage at pinned SHA 54aa232aa25d: git grep org.quartz
+    over all *.java returns 0 files, and quartz is absent from gradle/libs.versions.toml;
+    junit5 has no scheduler and reruns nothing on a timer. HARD: the foreign root org.*
+    collides with junit5''s own org.junit namespace so call_receiver treats it as an
+    attested root, no import exists for the import stage, and the leaf verbs
+    (getScheduler/scheduleJob/start) collide with the launcher''s own vocabulary; may
+    miss.'
+  difficulty: hard
+  host_file: junit-platform-launcher/src/main/java/org/junit/platform/launcher/core/DefaultLauncher.java
+  host_inject_at_line: 144
+- id: foreign_jctools_1
+  file: breaks/break_foreign_jctools_1.java
+  category: foreign_concurrency
+  hunk_start_line: 22
+  hunk_end_line: 33
+  rationale: 'JCTools lock-free MpscArrayQueue reached through a bare constructor with
+    no import (new org.jctools.queues.MpscArrayQueue<>) then offer/poll on the local
+    var. Verified 0-usage at pinned SHA 54aa232aa25d: git grep org.jctools over all
+    *.java returns 0 files, and jctools is absent from gradle/libs.versions.toml; junit5
+    hands tasks between workers through java.util.concurrent structures, never a foreign
+    lock-free queue. HARD: no import declaration, the type is reached only through a bare
+    constructor (the callee leaf reduces to the simple name MpscArrayQueue), and the
+    verbs offer/poll collide with the executor''s own queue vocabulary, so both the
+    import and call-receiver stages may stay quiet; may miss.'
+  difficulty: hard
+  host_file: junit-platform-engine/src/main/java/org/junit/platform/engine/support/hierarchical/WorkerThreadPoolHierarchicalTestExecutorService.java
+  host_inject_at_line: 892

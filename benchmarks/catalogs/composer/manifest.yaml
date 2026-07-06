@@ -1,0 +1,332 @@
+corpus: composer
+language: php
+categories:
+- foreign_import
+- foreign_api
+- foreign_concurrency
+injection_hosts:
+- pr: 0
+  sha: c6c9144f1b75
+fixtures:
+- id: composer_foreign_doctrine_1
+  file: breaks/break_foreign_doctrine_1.php
+  category: foreign_import
+  hunk_start_line: 33
+  hunk_end_line: 46
+  rationale: 'Doctrine ORM EntityManager unit-of-work via FQN (\Doctrine\ORM\ORMSetup,
+    \Doctrine\ORM\EntityManager::create, persist/flush) — a PHP class-body splice cannot
+    carry a `use`, so the foreign package is referenced by fully-qualified name inside
+    the hunk. Verified at pinned SHA c6c9144f1b75: doctrine/orm absent from composer.json
+    (require + require-dev) and `\Doctrine\ORM` = 0 grep hits over all *.php (src included);
+    the distinctive callee `EntityManager` = 0 hits. Composer persists package state
+    through its own JsonFile-backed repositories and ArrayDumper, never a foreign ORM.'
+  difficulty: easy
+  host_file: src/Composer/Repository/FilesystemRepository.php
+  host_inject_at_line: 71
+- id: composer_foreign_twig_1
+  file: breaks/break_foreign_twig_1.php
+  category: foreign_import
+  hunk_start_line: 28
+  hunk_end_line: 37
+  rationale: 'Twig standalone environment via FQN (\Twig\Loader\ArrayLoader + \Twig\Environment::render)
+    to build the generated autoload bootstrap. Verified at pinned SHA c6c9144f1b75:
+    twig/twig absent from composer.json (require + require-dev) and `\Twig\` = 0 grep
+    hits over all *.php (src included); the distinctive callee `createTemplate` = 0
+    hits. Composer emits generated PHP through its own string builders in AutoloadGenerator
+    (getAutoloadFile / getAutoloadRealFile), never a foreign template engine.'
+  difficulty: easy
+  host_file: src/Composer/Autoload/AutoloadGenerator.php
+  host_inject_at_line: 105
+- id: composer_foreign_monolog_1
+  file: breaks/break_foreign_monolog_1.php
+  category: foreign_import
+  hunk_start_line: 28
+  hunk_end_line: 36
+  rationale: 'Monolog logger stack via FQN (\Monolog\Logger + \Monolog\Handler\StreamHandler
+    + pushHandler + \Monolog\Processor\PsrLogMessageProcessor). Verified at pinned SHA
+    c6c9144f1b75: monolog/monolog absent from composer.json (require + require-dev)
+    and `\Monolog\` = 0 grep hits over all *.php (src included); the distinctive callee
+    `pushHandler` = 0 hits. Composer depends on the psr/log interface only and reports
+    diagnostics exclusively through the injected IOInterface (io->writeError), never
+    a foreign logging framework.'
+  difficulty: easy
+  host_file: src/Composer/Cache.php
+  host_inject_at_line: 78
+- id: composer_foreign_guzzle_1
+  file: breaks/break_foreign_guzzle_1.php
+  category: foreign_api
+  hunk_start_line: 28
+  hunk_end_line: 35
+  rationale: 'GuzzleHttp\Client direct HTTP request via FQN (\GuzzleHttp\Client::request
+    / getBody / getContents). Verified at pinned SHA c6c9144f1b75: guzzlehttp/guzzle
+    absent from composer.json (require + require-dev) and `\GuzzleHttp\` = 0 grep hits
+    over all *.php (src included). Composer issues every HTTP request through its own
+    HttpDownloader / CurlDownloader stack over react/promise, never a foreign HTTP client.'
+  difficulty: easy
+  host_file: src/Composer/Util/HttpDownloader.php
+  host_inject_at_line: 120
+- id: composer_foreign_ramsey_1
+  file: breaks/break_foreign_ramsey_1.php
+  category: foreign_api
+  hunk_start_line: 28
+  hunk_end_line: 34
+  rationale: 'Ramsey UUID generation via FQN (\Ramsey\Uuid\Uuid::uuid4()->toString())
+    for cache temp-file naming. Verified at pinned SHA c6c9144f1b75: ramsey/uuid absent
+    from composer.json (require + require-dev) and `\Ramsey\Uuid` = 0 grep hits over
+    all *.php (src included); the distinctive callee `uuid4` = 0 hits. Composer names
+    temp cache files with `bin2hex(random_bytes(5))` from the PHP stdlib (see Cache::write),
+    never a foreign UUID library.'
+  difficulty: easy
+  host_file: src/Composer/Cache.php
+  host_inject_at_line: 270
+- id: composer_foreign_carbon_1
+  file: breaks/break_foreign_carbon_1.php
+  category: foreign_api
+  hunk_start_line: 28
+  hunk_end_line: 34
+  rationale: 'Carbon date library via FQN (\Carbon\Carbon::now()->subSeconds()->format())
+    to compute the cache gc cut-off. Verified at pinned SHA c6c9144f1b75: nesbot/carbon
+    absent from composer.json (require + require-dev) and `\Carbon\Carbon` = 0 grep hits
+    over all *.php (src included); the distinctive callee `Carbon::now` = 0 hits. Composer''s
+    cache gc computes its cut-off with the native `\DateTime` + `modify()` (see Cache::gc),
+    never a foreign date library.'
+  difficulty: medium
+  host_file: src/Composer/Cache.php
+  host_inject_at_line: 300
+- id: composer_foreign_amp_1
+  file: breaks/break_foreign_amp_1.php
+  category: foreign_concurrency
+  hunk_start_line: 28
+  hunk_end_line: 37
+  rationale: 'Amp async runtime via FQN (\Amp\async + \Amp\Future\await) to run a job
+    batch concurrently. Verified at pinned SHA c6c9144f1b75: amphp/amp absent from composer.json
+    (require + require-dev) and `\Amp\` = 0 grep hits over all *.php (src included);
+    the distinctive callee `Amp\Future` = 0 hits. Composer coordinates concurrent work
+    through its own Util\Loop over react/promise, never a foreign async runtime.'
+  difficulty: easy
+  host_file: src/Composer/Util/Loop.php
+  host_inject_at_line: 52
+- id: composer_foreign_swoole_1
+  file: breaks/break_foreign_swoole_1.php
+  category: foreign_concurrency
+  hunk_start_line: 28
+  hunk_end_line: 38
+  rationale: 'Swoole coroutine runtime via FQN (\Swoole\Coroutine\run + \Swoole\Coroutine::create
+    + \Swoole\Coroutine\System::exec). Verified at pinned SHA c6c9144f1b75: ext-swoole
+    / swoole absent from composer.json (require + require-dev) and `\Swoole\` = 0 grep
+    hits over all *.php (src included); the distinctive callee `Swoole\Coroutine` = 0
+    hits. Composer runs external processes through Symfony Process via its own ProcessExecutor,
+    never a foreign coroutine runtime.'
+  difficulty: easy
+  host_file: src/Composer/Util/ProcessExecutor.php
+  host_inject_at_line: 101
+- id: composer_foreign_parallel_1
+  file: breaks/break_foreign_parallel_1.php
+  category: foreign_concurrency
+  hunk_start_line: 28
+  hunk_end_line: 42
+  rationale: 'ext-parallel worker threads via FQN (new \parallel\Runtime + Runtime->run
+    + \parallel\Future->value) for concurrent task execution. Verified at pinned SHA
+    c6c9144f1b75: ext-parallel / parallel absent from composer.json (require + require-dev)
+    and `\parallel\Runtime` = 0 grep hits over all *.php (src included); the distinctive
+    callee `parallel\Runtime` = 0 hits. Composer parallelises work through its own async
+    Util\Loop over react/promise, never a foreign thread-runtime extension.'
+  difficulty: medium
+  host_file: src/Composer/Util/ProcessExecutor.php
+  host_inject_at_line: 117
+- id: composer_foreign_firebasejwt_1
+  file: breaks/break_foreign_firebasejwt_1.php
+  category: foreign_api
+  hunk_start_line: 28
+  hunk_end_line: 38
+  rationale: 'firebase/php-jwt token signing via FQN (\Firebase\JWT\JWT::encode with an
+    HS256 secret). Verified at pinned SHA c6c9144f1b75: firebase/php-jwt absent from composer.json
+    (require + require-dev) and `\Firebase\JWT` = 0 grep hits over all *.php (src included);
+    the distinctive callee `JWT::encode` = 0 hits. Composer authenticates registry requests
+    through its own AuthHelper / IOInterface credential store, never a foreign JWT library.'
+  difficulty: easy
+  host_file: src/Composer/Util/AuthHelper.php
+  host_inject_at_line: 120
+- id: composer_foreign_phpdotenv_1
+  file: breaks/break_foreign_phpdotenv_1.php
+  category: foreign_import
+  hunk_start_line: 28
+  hunk_end_line: 36
+  rationale: 'vlucas/phpdotenv environment loading via FQN (\Dotenv\Dotenv::createImmutable(...)->load()
+    + required()). Verified at pinned SHA c6c9144f1b75: vlucas/phpdotenv absent from composer.json
+    (require + require-dev) and `\Dotenv\` = 0 grep hits over all *.php (src included);
+    the distinctive callee `Dotenv::createImmutable` = 0 hits. Composer reads environment
+    overrides through Platform::getEnv / getenv in its own Config layer, never a foreign
+    dotenv library.'
+  difficulty: easy
+  host_file: src/Composer/Config.php
+  host_inject_at_line: 199
+- id: composer_foreign_predis_1
+  file: breaks/break_foreign_predis_1.php
+  category: foreign_api
+  hunk_start_line: 28
+  hunk_end_line: 34
+  rationale: 'predis/predis Redis client via FQN (new \Predis\Client + setex + expire).
+    Verified at pinned SHA c6c9144f1b75: predis/predis absent from composer.json (require
+    + require-dev) and `\Predis\` = 0 grep hits over all *.php (src included); the distinctive
+    callee `Predis\Client` = 0 hits. Composer''s cache is a filesystem tree under Cache.php
+    (file_put_contents / rename), never a foreign Redis client.'
+  difficulty: easy
+  host_file: src/Composer/Cache.php
+  host_inject_at_line: 150
+- id: composer_foreign_spatieasync_1
+  file: breaks/break_foreign_spatieasync_1.php
+  category: foreign_concurrency
+  hunk_start_line: 28
+  hunk_end_line: 37
+  rationale: 'spatie/async process pool via FQN (\Spatie\Async\Pool::create + $pool->add
+    + \Spatie\Async\Pool::await). Verified at pinned SHA c6c9144f1b75: spatie/async absent
+    from composer.json (require + require-dev) and `\Spatie\Async` = 0 grep hits over all
+    *.php (src included); the distinctive callee `Spatie\Async\Pool` = 0 hits. Composer
+    coordinates concurrent work through its own Util\Loop over react/promise, never a foreign
+    async process pool.'
+  difficulty: easy
+  host_file: src/Composer/Util/Loop.php
+  host_inject_at_line: 70
+- id: composer_foreign_phpseclib_1
+  file: breaks/break_foreign_phpseclib_1.php
+  category: foreign_import
+  hunk_start_line: 28
+  hunk_end_line: 35
+  rationale: 'phpseclib3 RSA signature check via FQN (\phpseclib3\Crypt\PublicKeyLoader::load
+    + \phpseclib3\Crypt\RSA::SIGNATURE_PSS + verify). Verified at pinned SHA c6c9144f1b75:
+    phpseclib/phpseclib absent from composer.json (require + require-dev) and `phpseclib3`
+    = 0 grep hits over all *.php (src included); the distinctive callee `phpseclib3\Crypt\PublicKeyLoader`
+    = 0 hits. Composer verifies archive integrity with native hash_file() in FileDownloader,
+    never a foreign crypto library.'
+  difficulty: easy
+  host_file: src/Composer/Downloader/FileDownloader.php
+  host_inject_at_line: 210
+- id: composer_foreign_commonmark_1
+  file: breaks/break_foreign_commonmark_1.php
+  category: foreign_api
+  hunk_start_line: 30
+  hunk_end_line: 37
+  rationale: 'league/commonmark markdown rendering reached through a receiver (new CommonMarkConverter;
+    $converter->convert(...)->getContent()); the foreign dependency is a bare `use League\CommonMark\CommonMarkConverter`
+    in the decoy region, not an FQN in call position. Verified at pinned SHA c6c9144f1b75:
+    league/commonmark absent from composer.json (require + require-dev) and `League\CommonMark`
+    = 0 grep hits over all *.php (src included); the distinctive callee `CommonMarkConverter`
+    = 0 hits. Composer emits console output through its own IOInterface / Symfony Console
+    formatters, never a foreign markdown engine.'
+  difficulty: medium
+  host_file: src/Composer/Command/ShowCommand.php
+  host_inject_at_line: 214
+- id: composer_foreign_leaguecsv_1
+  file: breaks/break_foreign_leaguecsv_1.php
+  category: foreign_api
+  hunk_start_line: 30
+  hunk_end_line: 40
+  rationale: 'league/csv document building reached through a receiver ($writer = Writer::createFromString('''');
+    $writer->insertOne(...)); the foreign dependency is a bare `use League\Csv\Writer`
+    submodule import in the decoy region, not an FQN in call position. Verified at pinned
+    SHA c6c9144f1b75: league/csv absent from composer.json (require + require-dev) and
+    `League\Csv` = 0 grep hits over all *.php (src included); the distinctive callee `insertOne`
+    = 0 hits. Composer renders tabular command output through Symfony Console''s Table
+    helper, never a foreign CSV library.'
+  difficulty: medium
+  host_file: src/Composer/Command/LicensesCommand.php
+  host_inject_at_line: 94
+- id: composer_foreign_pimple_1
+  file: breaks/break_foreign_pimple_1.php
+  category: foreign_import
+  hunk_start_line: 30
+  hunk_end_line: 41
+  rationale: 'pimple/pimple DI container reached through an aliased import (use Pimple\Container
+    as ServiceContainer; new ServiceContainer()); the foreign dependency is not an FQN
+    in call position. Verified at pinned SHA c6c9144f1b75: pimple/pimple absent from composer.json
+    (require + require-dev) and `Pimple` = 0 grep hits over all *.php (src included); the
+    distinctive callee `Pimple\Container` = 0 hits. Composer wires plugin capabilities
+    through its own PluginManager / Capable interface, never a foreign service container.'
+  difficulty: medium
+  host_file: src/Composer/Plugin/PluginManager.php
+  host_inject_at_line: 210
+- id: composer_foreign_revolt_1
+  file: breaks/break_foreign_revolt_1.php
+  category: foreign_concurrency
+  hunk_start_line: 30
+  hunk_end_line: 37
+  rationale: 'revolt/event-loop cooperative runtime reached through a submodule import
+    (use Revolt\EventLoop; EventLoop::repeat / EventLoop::run); the foreign dependency
+    is not an FQN in call position. Verified at pinned SHA c6c9144f1b75: revolt/event-loop
+    absent from composer.json (require + require-dev) and `Revolt\EventLoop` = 0 grep hits
+    over all *.php (src included). Composer coordinates concurrent work through its own
+    Util\Loop over react/promise, never a foreign event-loop runtime.'
+  difficulty: medium
+  host_file: src/Composer/Util/ProcessExecutor.php
+  host_inject_at_line: 205
+- id: composer_foreign_openswoole_1
+  file: breaks/break_foreign_openswoole_1.php
+  category: foreign_concurrency
+  hunk_start_line: 30
+  hunk_end_line: 40
+  rationale: 'openswoole coroutine runtime reached through a submodule import (use OpenSwoole\Coroutine;
+    Coroutine::run / Coroutine::create / Coroutine\System::exec); the foreign dependency
+    is not an FQN in call position. Verified at pinned SHA c6c9144f1b75: openswoole absent
+    from composer.json (require + require-dev) and `OpenSwoole` = 0 grep hits over all
+    *.php (src included); the distinctive callee `OpenSwoole\Coroutine` = 0 hits. Composer
+    runs external processes through Symfony Process via its own ProcessExecutor, never
+    a foreign coroutine runtime.'
+  difficulty: medium
+  host_file: src/Composer/Util/ProcessExecutor.php
+  host_inject_at_line: 254
+- id: composer_foreign_flysystem_1
+  file: breaks/break_foreign_flysystem_1.php
+  category: foreign_api
+  hunk_start_line: 28
+  hunk_end_line: 38
+  rationale: 'HARD (leaf-method collision). league/flysystem filesystem reached only through
+    a receiver whose leaf methods collide with composer''s own attested vocabulary (write
+    = 207 calls / 8 defs, read = 51 / 3, has = 5 / 1 across src at c6c9144f1b75). The foreign
+    type `\League\Flysystem\FilesystemOperator` appears ONLY in the parameter type hint
+    — no `use`, no FQN in call position — so the import and call-receiver stages have no
+    foreign namespace to catch; only bpe surprise could fire. Verified at pinned SHA c6c9144f1b75:
+    league/flysystem absent from composer.json (require + require-dev) and `League\Flysystem`
+    = 0 grep hits over all *.php (src included). Composer manipulates files through its
+    own Util\Filesystem (native rename / file_put_contents), never a foreign filesystem
+    abstraction. Honest hard case: may miss.'
+  difficulty: hard
+  host_file: src/Composer/Util/Filesystem.php
+  host_inject_at_line: 210
+- id: composer_foreign_psrhttp_1
+  file: breaks/break_foreign_psrhttp_1.php
+  category: foreign_import
+  hunk_start_line: 30
+  hunk_end_line: 42
+  rationale: 'HARD (root namespace attested). psr/http-message (PSR-7) reached through
+    a receiver, imported as `use Psr\Http\Message\ServerRequestInterface`. The import stage
+    reduces a PHP `use` to its LEADING namespace segment (`Psr`), which composer already
+    attests via psr/log (`use Psr\Log\LoggerInterface` — 3 src hits at c6c9144f1b75), so
+    the foreign package''s root namespace is attested and the import stage does NOT fire;
+    the calls go through the `$request` receiver (getMethod / getRequestTarget = 0 src
+    hits), so no explicit foreign namespace appears in call position. Verified at pinned
+    SHA c6c9144f1b75: psr/http-message absent from composer.json (require + require-dev)
+    and `Psr\Http\Message` = 0 grep hits over all *.php (src included). Composer models
+    HTTP through its own Util\Http\Request/Response, never PSR-7. Honest hard case: may
+    miss (root namespace attested).'
+  difficulty: hard
+  host_file: src/Composer/Util/HttpDownloader.php
+  host_inject_at_line: 204
+- id: composer_foreign_spatiefork_1
+  file: breaks/break_foreign_spatiefork_1.php
+  category: foreign_concurrency
+  hunk_start_line: 28
+  hunk_end_line: 36
+  rationale: 'HARD (leaf-method collision). spatie/fork process forking reached only through
+    a receiver whose leaf method collides with composer''s own attested `run` (run = 17
+    calls / 3 defs across src at c6c9144f1b75). The foreign type `\Spatie\Fork\Fork` appears
+    ONLY in the parameter type hint — no `use`, no FQN in call position — so the import
+    and call-receiver stages have no foreign namespace to catch; only bpe surprise could
+    fire. Verified at pinned SHA c6c9144f1b75: spatie/fork absent from composer.json (require
+    + require-dev) and `Spatie\Fork` = 0 grep hits over all *.php (src included); the distinctive
+    callee `Spatie\Fork\Fork` = 0 hits. Composer parallelises work through its own Util\Loop
+    over react/promise, never a foreign process-forking library. Honest hard case: may
+    miss.'
+  difficulty: hard
+  host_file: src/Composer/Util/Loop.php
+  host_inject_at_line: 75

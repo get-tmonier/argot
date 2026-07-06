@@ -361,6 +361,14 @@ impl RustAdapter {
                         out.insert(node_text(name, source).to_string());
                     }
                 }
+                // Type declarations: their names lead `Type::variant` /
+                // `Type::method` calls, so calling a repo-declared type is
+                // internal cross-file code, not a foreign namespace.
+                "struct_item" | "enum_item" | "union_item" | "type_item" | "trait_item" => {
+                    if let Some(name) = node.child_by_field_name("name") {
+                        out.insert(node_text(name, source).to_string());
+                    }
+                }
                 "let_declaration" => {
                     if let (Some(pattern), Some(value)) = (
                         node.child_by_field_name("pattern"),

@@ -80,6 +80,24 @@ fn top_level(spec: &str) -> &str {
     spec.split('.').next().unwrap_or(spec)
 }
 
+/// Whether `node` begins at the first non-whitespace character of its line.
+///
+/// A genuine `import`/`from` statement always starts its logical line (modulo
+/// indentation). Tree-sitter's error recovery on a mid-construct diff fragment
+/// can split a relative import like `from ._compat import v2` and re-parse its
+/// tail `import v2` as a standalone `import_statement` starting mid-line — which
+/// would otherwise contribute the imported *symbol* (`v2`) as a phantom foreign
+/// module. Requiring the node to own the start of its line rejects that
+/// artifact (and semicolon-chained imports, which are vanishingly rare and not
+/// worth a foreign-import fire).
+fn node_starts_line(node: Node, source: &str) -> bool {
+    let start = node.start_byte();
+    source[..start]
+        .rsplit('\n')
+        .next()
+        .is_none_or(|prefix| prefix.bytes().all(|b| b == b' ' || b == b'\t'))
+}
+
 /// `_is_docstring` from `python_ts.py`, replicated with node-id equality.
 fn is_docstring(node: Node) -> bool {
     let parent = match node.parent() {
@@ -192,12 +210,12 @@ impl PythonAdapter {
         let mut out = HashSet::new();
         for node in descendants(root) {
             match node.kind() {
-                "import_statement" => {
+                "import_statement" if node_starts_line(node, source) => {
                     for name in field_children_of_kind(node, "name", "dotted_name") {
                         out.insert(top_level(node_text(name, source)).to_string());
                     }
                 }
-                "import_from_statement" => {
+                "import_from_statement" if node_starts_line(node, source) => {
                     for name in field_children_of_kind(node, "module_name", "dotted_name") {
                         out.insert(top_level(node_text(name, source)).to_string());
                     }
@@ -221,7 +239,7 @@ impl PythonAdapter {
         let mut out: Vec<(String, usize, usize, usize)> = Vec::new();
         for node in descendants(root) {
             match node.kind() {
-                "import_statement" | "import_from_statement" => {
+                "import_statement" | "import_from_statement" if node_starts_line(node, source) => {
                     let field = if node.kind() == "import_statement" {
                         "name"
                     } else {
@@ -398,6 +416,64 @@ impl PythonAdapter {
         out
     }
 
+    /// See `LanguageAdapter::import_bindings`. Non-relative imports only, each
+    /// bound name paired with its top-level module: `import numpy as np` →
+    /// `(np, numpy)`, `from colorama import Fore, Style` → `(Fore, colorama),
+    /// (Style, colorama)`. Relative imports are repo-internal and skipped.
+    pub fn import_bindings(&self, source: &str) -> Vec<(String, String)> {
+        let tree = parse(source);
+        let root = tree.root_node();
+        let mut out = Vec::new();
+        for node in descendants(root) {
+            match node.kind() {
+                "import_statement" if node_starts_line(node, source) => {
+                    // `import a.b` binds `a` from module `a`.
+                    for name in field_children_of_kind(node, "name", "dotted_name") {
+                        let top = top_level(node_text(name, source)).to_string();
+                        out.push((top.clone(), top));
+                    }
+                    // `import numpy as np` binds `np` from module `numpy`.
+                    for name in field_children_of_kind(node, "name", "aliased_import") {
+                        let module = name
+                            .child_by_field_name("name")
+                            .map(|n| top_level(node_text(n, source)).to_string());
+                        let alias = name
+                            .child_by_field_name("alias")
+                            .map(|a| node_text(a, source).to_string());
+                        if let (Some(module), Some(alias)) = (module, alias) {
+                            out.push((alias, module));
+                        }
+                    }
+                }
+                "import_from_statement" if node_starts_line(node, source) => {
+                    // Relative (`from .x import y`) is repo-internal, not foreign.
+                    if !field_children_of_kind(node, "module_name", "relative_import").is_empty() {
+                        continue;
+                    }
+                    let Some(module) = field_children_of_kind(node, "module_name", "dotted_name")
+                        .first()
+                        .map(|m| top_level(node_text(*m, source)).to_string())
+                    else {
+                        continue;
+                    };
+                    for name in field_children_of_kind(node, "name", "dotted_name") {
+                        out.push((
+                            top_level(node_text(name, source)).to_string(),
+                            module.clone(),
+                        ));
+                    }
+                    for name in field_children_of_kind(node, "name", "aliased_import") {
+                        if let Some(alias) = name.child_by_field_name("alias") {
+                            out.push((node_text(alias, source).to_string(), module.clone()));
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+
     /// True if the file header carries an auto-generation marker (head 20 lines).
     pub fn is_auto_generated(&self, source: &str) -> bool {
         autogenerated::is_auto_generated(source, HEADER_LINE_LIMIT)
@@ -468,11 +544,54 @@ mod tests {
         assert!(!imports.contains("local"));
     }
 
+    /// Error-recovery guard: a diff fragment starting mid-function whose only
+    /// import is relative (`from ._compat import v2`) must yield no module.
+    /// Tree-sitter re-parses the tail `import v2` as a standalone
+    /// `import_statement` mid-line; the phantom module `v2` used to leak
+    /// through and fire the import stage on the codebase's own relative import
+    /// (fastapi holdout false alarms).
+    #[test]
+    fn relative_import_in_error_fragment_yields_no_module() {
+        let adapter = PythonAdapter::new();
+        let frag = "    cloned_types: Optional[Mapping[str, str]] = None,\n) -> ModelField:\n    if PYDANTIC_V2:\n        from ._compat import v2\n\n        if isinstance(field, v2.ModelField):\n            return field\n    if cloned_types is None:";
+        let imports = adapter.extract_imports(frag);
+        assert!(
+            !imports.contains("v2"),
+            "imported symbol of a relative import leaked as a module: {imports:?}"
+        );
+        assert!(
+            imports.is_empty(),
+            "no top-level module in fragment: {imports:?}"
+        );
+        // A genuine top-level import in the same fragment still counts.
+        let frag2 = format!("    x = 1\n{frag}\nimport requests\n");
+        assert!(adapter.extract_imports(&frag2).contains("requests"));
+    }
+
     #[test]
     fn future_import_is_literal() {
         let adapter = PythonAdapter::new();
         let imports = adapter.extract_imports("from __future__ import annotations\n");
         assert!(imports.contains("__future__"));
+    }
+
+    #[test]
+    fn import_bindings_pairs_bound_names_with_modules() {
+        let adapter = PythonAdapter::new();
+        let src = "import numpy as np\nimport os.path\nfrom colorama import Fore, Back, Style\nfrom . import local\nfrom .pkg import thing as t\n";
+        let b: std::collections::HashSet<(String, String)> =
+            adapter.import_bindings(src).into_iter().collect();
+        // Aliased top-level import: binding is the alias, module the real name.
+        assert!(b.contains(&("np".to_string(), "numpy".to_string())));
+        // Dotted import binds the crate root to itself.
+        assert!(b.contains(&("os".to_string(), "os".to_string())));
+        // `from m import a, b` binds each name to m.
+        assert!(b.contains(&("Fore".to_string(), "colorama".to_string())));
+        assert!(b.contains(&("Style".to_string(), "colorama".to_string())));
+        // Relative imports are repo-internal — never surfaced as foreign bindings.
+        assert!(!b
+            .iter()
+            .any(|(n, _)| n == "local" || n == "t" || n == "thing"));
     }
 
     #[test]

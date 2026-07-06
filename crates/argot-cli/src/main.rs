@@ -579,6 +579,7 @@ fn run_calibrate_cmd(c: CalibrateCmd) -> ExitCode {
         auto_select_asym_cal: !c.no_auto_select_asym_cal,
         asym_fire_rate_threshold: c.asym_fire_rate_threshold,
         slices: c.slice.clone(),
+        ..CalibrateOptions::default()
     };
     match run_calibrate(&c.repo, &c.repo_corpus, &generic, &c.output, &opts) {
         Ok(thresholds) => {
@@ -700,9 +701,23 @@ struct CheckCmd {
     format: String,
 }
 
+/// Resolve `--argot-dir` against `--repo`: a relative artifacts dir (the default
+/// `.argot`) is anchored to the target repo, not the process CWD. Absolute paths
+/// pass through unchanged. This keeps `cd repo && argot check` identical
+/// (`--repo .` → `./.argot`) while making `argot check --repo other/path` load
+/// `other/path/.argot` instead of silently reading a stray `./.argot` in the CWD.
+fn resolve_argot_dir(repo: &Path, argot_dir: PathBuf) -> PathBuf {
+    if argot_dir.is_absolute() {
+        argot_dir
+    } else {
+        repo.join(argot_dir)
+    }
+}
+
 fn run_check_cmd(c: CheckCmd) -> ExitCode {
     // Color is enabled only when NO_COLOR is unset and stdout is a tty.
     let use_color = std::env::var_os("NO_COLOR").is_none() && std::io::stdout().is_terminal();
+    let argot_dir = resolve_argot_dir(&c.repo, c.argot_dir);
     let outcome = run_check(CheckArgs {
         repo_path: c.repo.to_string_lossy().into_owned(),
         reference: c.reference,
@@ -712,7 +727,7 @@ fn run_check_cmd(c: CheckCmd) -> ExitCode {
         only: c.only,
         exclude: c.exclude,
         threshold: c.threshold,
-        argot_dir: c.argot_dir,
+        argot_dir,
         hunk_lines: c.hunk_lines,
         verbose: c.verbose,
         min_severity: c.min_severity,
@@ -1554,8 +1569,29 @@ fn main() -> ExitCode {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_npm_install, wants_json};
-    use std::path::Path;
+    use super::{is_npm_install, resolve_argot_dir, wants_json};
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn argot_dir_resolves_relative_to_repo_not_cwd() {
+        // Default `.argot` under an explicit repo anchors to that repo, so
+        // `argot check --repo other/path` reads `other/path/.argot`, not a
+        // stray `./.argot` in the process CWD.
+        assert_eq!(
+            resolve_argot_dir(Path::new("other/path"), PathBuf::from(".argot")),
+            PathBuf::from("other/path/.argot")
+        );
+        // The common `--repo .` case is byte-identical to the old behaviour.
+        assert_eq!(
+            resolve_argot_dir(Path::new("."), PathBuf::from(".argot")),
+            PathBuf::from("./.argot")
+        );
+        // An absolute --argot-dir is honoured verbatim (escape hatch).
+        assert_eq!(
+            resolve_argot_dir(Path::new("/repo"), PathBuf::from("/tmp/custom")),
+            PathBuf::from("/tmp/custom")
+        );
+    }
 
     #[test]
     fn wants_json_honors_format_and_deprecated_alias() {

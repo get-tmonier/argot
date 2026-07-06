@@ -1,0 +1,536 @@
+corpus: redis
+language: c
+categories:
+- wrong_error_discipline
+- wrong_concurrency
+- wrong_api_within_known_lib
+- naming_shape_break
+- foreign_import
+- foreign_api
+- foreign_concurrency
+injection_hosts:
+- pr: 0
+  sha: 5b22a09918743ba72952e35e431db23eb3d19605
+fixtures:
+- id: exit_on_error_1
+  file: breaks/break_exit_on_error_1.c
+  category: wrong_error_discipline
+  hunk_start_line: 21
+  hunk_end_line: 47
+  rationale: 'fprintf(stderr) + exit(1)/exit(EXIT_FAILURE) on bad client input
+    inside a command implementation. Canonical: addReplyError replies (40 src
+    files use addReplyError at pinned SHA); verified 0 exit( and 0
+    fprintf(stderr sites in src/t_*.c. Command paths never terminate the
+    process on user error.'
+  difficulty: easy
+  host_file: src/t_string.c
+  host_inject_at_line: 557
+- id: printf_log_1
+  file: breaks/break_printf_log_1.c
+  category: wrong_error_discipline
+  hunk_start_line: 16
+  hunk_end_line: 29
+  rationale: 'printf/fprintf(stdout)+fflush diagnostics in an expire-cycle
+    reporting path. Canonical: serverLog(LL_VERBOSE/LL_WARNING, ...) — 29 src
+    files use serverLog at pinned SHA; verified 0 printf logging in
+    src/expire.c/db.c/pubsub.c (only REDIS_TEST harness printf in t_zset.c).'
+  difficulty: medium
+  host_file: src/expire.c
+  host_inject_at_line: 631
+- id: malloc_abort_1
+  file: breaks/break_malloc_abort_1.c
+  category: wrong_error_discipline
+  hunk_start_line: 23
+  hunk_end_line: 43
+  rationale: 'raw malloc with perror("malloc")+abort() on allocation failure
+    in a pubsub payload builder. Canonical: zmalloc (69 src files at pinned
+    SHA) with centralized OOM handling — serving code never checks allocation
+    failure; verified perror appears only in ae_evport.c/cli_common.c and
+    listpack/ziplist test mains, never in serving paths, and 0 bare abort()
+    in src/t_*.c/server.c.'
+  difficulty: medium
+  host_file: src/pubsub.c
+  host_inject_at_line: 532
+- id: errno_return_1
+  file: breaks/break_errno_return_1.c
+  category: wrong_error_discipline
+  hunk_start_line: 21
+  hunk_end_line: 42
+  rationale: 'errno = ENOENT/EBUSY + -1 return codes with
+    strerror(errno)-to-stderr as intra-server error protocol in a db-layer
+    helper. Canonical: C_OK/C_ERR returns with addReplyError/serverLog
+    reporting; verified errno in redis src is only consulted after syscalls,
+    never set by db-layer helpers, and 0 fprintf(stderr in src/t_*.c.'
+  difficulty: hard
+  host_file: src/db.c
+  host_inject_at_line: 2838
+- id: thread_spawn_1
+  file: breaks/break_thread_spawn_1.c
+  category: wrong_concurrency
+  hunk_start_line: 18
+  hunk_end_line: 37
+  rationale: 'pthread_create + pthread_detach spawning one thread per object
+    to free it asynchronously. Canonical: single-threaded ae event loop with
+    fixed bio.c worker pool — bioCreateLazyFreeJob(lazyfreeFreeObject,1,obj)
+    verified at src/lazyfree.c:234 at pinned SHA; pthread_create appears only
+    in bio.c/iothread.c infrastructure (plus modules/ and redis-benchmark),
+    never in serving paths.'
+  difficulty: medium
+  host_file: src/lazyfree.c
+  host_inject_at_line: 240
+- id: busywait_poll_1
+  file: breaks/break_busywait_poll_1.c
+  category: wrong_concurrency
+  hunk_start_line: 17
+  hunk_end_line: 41
+  rationale: 'pthread_mutex-guarded volatile flag + while/usleep(1000)
+    busy-wait polling to await EXEC completion. Canonical: event-driven
+    waiting via the ae event loop and beforeSleep callbacks; verified 0
+    usleep-polling loops in src/*.c and 0 pthread_mutex uses in
+    src/multi.c/db.c/t_*.c/expire.c at pinned SHA.'
+  difficulty: easy
+  host_file: src/multi.c
+  host_inject_at_line: 290
+- id: raw_malloc_1
+  file: breaks/break_raw_malloc_1.c
+  category: wrong_api_within_known_lib
+  hunk_start_line: 17
+  hunk_end_line: 41
+  rationale: 'raw malloc/realloc/free with NULL-check returns for object
+    buffers in an object.c-style helper. Canonical: zmalloc/zrealloc/zfree
+    family (69 src files at pinned SHA) so allocations count toward
+    used_memory; verified raw malloc in src only in memtest.c and vendored
+    setproctitle.c — module.c comment explicitly says "You should avoid
+    using malloc()".'
+  difficulty: medium
+  host_file: src/object.c
+  host_inject_at_line: 510
+- id: strcat_string_1
+  file: breaks/break_strcat_string_1.c
+  category: wrong_api_within_known_lib
+  hunk_start_line: 18
+  hunk_end_line: 41
+  rationale: 'static char[256] key building with strncat/strcat/strcpy/sprintf
+    for a sort-by pattern substitution. Canonical: sds strings
+    (sdsnew/sdscatlen/sdscatprintf — 49 src files at pinned SHA; sort.c itself
+    uses sds/lookupKeyByPattern); verified 0 strcat call sites in src/*.c.'
+  difficulty: medium
+  host_file: src/sort.c
+  host_inject_at_line: 124
+- id: dict_internals_1
+  file: breaks/break_dict_internals_1.c
+  category: wrong_api_within_known_lib
+  hunk_start_line: 16
+  hunk_end_line: 34
+  rationale: 'hand-walking dict ht_table[table][idx] buckets and de->next
+    chains to scan a set. Canonical:
+    dictGetIterator/dictGetSafeIterator + dictNext + dictReleaseIterator
+    (verified sites src/db.c:1129-1138, src/t_set.c:1327 at pinned SHA);
+    dictEntry is defined in dict.c (opaque outside it), so no call site in
+    the repo touches buckets or entry->next directly.'
+  difficulty: hard
+  host_file: src/t_set.c
+  host_inject_at_line: 626
+- id: handrolled_parse_1
+  file: breaks/break_handrolled_parse_1.c
+  category: wrong_api_within_known_lib
+  hunk_start_line: 16
+  hunk_end_line: 45
+  rationale: 'hand-rolled isdigit loop + strtol with atoi fallback to parse a
+    command argument, duplicating repo utilities. Canonical:
+    getLongLongFromObjectOrReply (17 src files) / string2ll (21 src files) at
+    pinned SHA; verified 0 strtol call sites in src/t_*.c — command args are
+    never parsed with libc converters; atoi appears only in
+    aof/cluster/cli parsing, not type commands.'
+  difficulty: hard
+  host_file: src/t_list.c
+  host_inject_at_line: 808
+- id: pascal_hungarian_1
+  file: breaks/break_pascal_hungarian_1.c
+  category: naming_shape_break
+  hunk_start_line: 18
+  hunk_end_line: 40
+  rationale: 'PascalCase function names (AddScoreToMember,
+    ZincrementBatchCommand) + Hungarian-notation locals (lpszMember, dwCount,
+    iIdx, pKvObj, dblDelta). Canonical: lowerCamelCase functions
+    (zaddGenericCommand, zsetScore) with short lowercase locals; verified
+    PascalCase definitions at pinned SHA exist only in module.c RedisModule
+    API surface, and Hungarian lpsz/dw prefixes have 0 hits in src.'
+  difficulty: medium
+  host_file: src/t_zset.c
+  host_inject_at_line: 2103
+- id: screaming_locals_1
+  file: breaks/break_screaming_locals_1.c
+  category: naming_shape_break
+  hunk_start_line: 15
+  hunk_end_line: 27
+  rationale: 'SCREAMING_SNAKE_CASE mutable locals (LAT_ONE_RAD, DELTA_LON,
+    HAVERSINE_A, FINAL_DISTANCE) in a camelCase-named geo helper. Canonical:
+    all-caps identifiers are reserved for macros/constants (#define
+    OBJ_SET_NX); locals are short lowercase throughout src at pinned SHA
+    (geo.c uses score, xy, bounds). Function name kept camelCase to isolate
+    the local-morphology axis.'
+  difficulty: medium
+  host_file: src/geo.c
+  host_inject_at_line: 207
+- id: glib_hash_1
+  file: breaks/break_glib_hash_1.c
+  category: foreign_import
+  hunk_start_line: 18
+  hunk_end_line: 37
+  rationale: 'GLib GHashTable
+    (g_hash_table_new_full/insert/lookup, g_strdup, g_malloc) for a hash-field
+    TTL cache — domain-plausible in the hash-type file, but foreign: verified
+    0 tree-wide hits for g_hash_table/GHashTable at pinned SHA; <glib.h>
+    appears only in the vendored hiredis example adapter
+    deps/hiredis/adapters/glib.h (GMainLoop adapter), never included by any
+    src/ file. redis uses its own dict for every table.'
+  difficulty: easy
+  host_file: src/t_hash.c
+  host_inject_at_line: 1328
+- id: uthash_1
+  file: breaks/break_uthash_1.c
+  category: foreign_import
+  hunk_start_line: 16
+  hunk_end_line: 38
+  rationale: 'uthash macros (UT_hash_handle, HASH_FIND, HASH_ADD_KEYPTR) for
+    an element-dedup cache in an HLL-style file — domain-plausible dedupe
+    structure, but foreign: verified 0 tree-wide hits for uthash at pinned
+    SHA. redis dedupes through its own dict/set structures.'
+  difficulty: easy
+  host_file: src/hyperloglog.c
+  host_inject_at_line: 1043
+- id: foreign_libevent_1
+  file: breaks/break_foreign_libevent_1.c
+  category: foreign_api
+  hunk_start_line: 18
+  hunk_end_line: 38
+  rationale: 'libevent timer scheduling the active-expire cycle
+    (event_base_new/event_new/event_add/event_base_dispatch) — domain-plausible
+    in the expire-cycle file, but foreign: verified 0 tree-wide hits for
+    event_base_new/event_add/event_base_dispatch/event_new/event_base_free/
+    evtimer_new/EV_PERSIST at pinned SHA, and 0 hits for <event2/event.h> and
+    <event.h>; redis drives every periodic and I/O task through its own ae
+    event loop (aeCreateTimeEvent, used in 8 src files), never a third-party
+    reactor.'
+  difficulty: easy
+  host_file: src/expire.c
+  host_inject_at_line: 631
+- id: foreign_jansson_1
+  file: breaks/break_foreign_jansson_1.c
+  category: foreign_api
+  hunk_start_line: 18
+  hunk_end_line: 34
+  rationale: 'jansson JSON encoding of a message envelope before publish
+    (json_object/json_object_set_new/json_string/json_integer/json_dumps/
+    json_decref) — domain-plausible in the pubsub file, but foreign: verified
+    0 tree-wide hits for json_object/json_object_set_new/json_string/
+    json_integer/json_dumps/json_loads/json_pack/json_decref at pinned SHA,
+    and 0 hits for <jansson.h>; redis publishes the raw message bulk string
+    as-is through pubsubPublishMessage (src/pubsub.c:533), never wrapping it
+    in a serialized envelope of its own.'
+  difficulty: easy
+  host_file: src/pubsub.c
+  host_inject_at_line: 532
+- id: foreign_sqlite3_1
+  file: breaks/break_foreign_sqlite3_1.c
+  category: foreign_api
+  hunk_start_line: 21
+  hunk_end_line: 38
+  rationale: 'sqlite3 side-table mirroring of a string value for durability
+    (sqlite3_open/sqlite3_exec/sqlite3_free/sqlite3_close) — domain-plausible
+    in the string-type file, but foreign: verified 0 tree-wide hits for
+    sqlite3_open/sqlite3_exec/sqlite3_bind_text/sqlite3_step/sqlite3_finalize/
+    sqlite3_free/sqlite3_close/SQLITE_OK at pinned SHA, and 0 hits for
+    <sqlite3.h>; redis persists exclusively through its own RDB snapshots
+    (rdbSave, referenced in 13 src files) and AOF, never a foreign embedded
+    database.'
+  difficulty: easy
+  host_file: src/t_string.c
+  host_inject_at_line: 557
+- id: foreign_libpq_1
+  file: breaks/break_foreign_libpq_1.c
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 32
+  rationale: 'libpq PostgreSQL client writing an audit row on key expiry
+    (PQconnectdb/PQstatus/PQexec/PQclear/PQfinish) — domain-plausible in the
+    expire-cycle file (reused host, distinct axis from foreign_libevent_1),
+    but foreign: verified 0 tree-wide hits for PQconnectdb/PQexec/PQstatus/
+    PQerrorMessage/PQclear/PQfinish/CONNECTION_OK at pinned SHA, and 0 hits
+    for <libpq-fe.h>; redis reports expiry exclusively through
+    notifyKeyspaceEvent and its own replication stream, never a foreign
+    RDBMS client.'
+  difficulty: easy
+  host_file: src/expire.c
+  host_inject_at_line: 631
+- id: foreign_lmdb_1
+  file: breaks/break_foreign_lmdb_1.c
+  category: foreign_import
+  hunk_start_line: 16
+  hunk_end_line: 31
+  rationale: 'LMDB (Lightning Memory-Mapped Database) mirroring every saved key
+    into a side B-tree for durability in an rdb-style helper — domain-plausible
+    in the persistence file, but foreign: verified 0 tree-wide hits for
+    mdb_env_create/mdb_env_open/mdb_txn_begin/mdb_dbi_open/mdb_put/
+    mdb_txn_commit at the pinned SHA, and 0 hits for <lmdb.h>; redis persists
+    exclusively through its own RDB snapshots (rdbSaveObject) and AOF, never a
+    foreign embedded key-value store. Fires in the call-receiver stage on the
+    bare mdb_* callees.'
+  difficulty: easy
+  host_file: src/rdb.c
+  host_inject_at_line: 1641
+- id: foreign_zstd_1
+  file: breaks/break_foreign_zstd_1.c
+  category: foreign_import
+  hunk_start_line: 15
+  hunk_end_line: 27
+  rationale: 'Zstandard compression of an RDB payload block before it is written
+    to the rio sink — domain-plausible in the rio file, but foreign: verified 0
+    tree-wide hits for ZSTD_compressBound/ZSTD_compress/ZSTD_isError at the
+    pinned SHA, and 0 hits for <zstd.h>; redis compresses payloads only with its
+    own vendored LZF codec (lzf_compress in src/lzf_c.c), never a foreign
+    compression library (deps/ vendors fpconv/hdr_histogram/hiredis/jemalloc/
+    linenoise/lua/tre/xxhash, none of them zstd). Fires on the bare ZSTD_*
+    callees.'
+  difficulty: easy
+  host_file: src/rio.c
+  host_inject_at_line: 260
+- id: foreign_libconfig_1
+  file: breaks/break_foreign_libconfig_1.c
+  category: foreign_import
+  hunk_start_line: 16
+  hunk_end_line: 31
+  rationale: 'libconfig parsing an external structured config file into server
+    fields — domain-plausible near the config surface, but foreign: verified 0
+    tree-wide hits for config_init/config_read_file/config_lookup_string/
+    config_destroy at the pinned SHA, and 0 hits for <libconfig.h>; redis parses
+    its config only with its own line tokenizer (loadServerConfigFromString in
+    src/config.c), never a foreign config-file library. Fires on the bare
+    config_* callees.'
+  difficulty: easy
+  host_file: src/server.c
+  host_inject_at_line: 2788
+- id: foreign_zeromq_1
+  file: breaks/break_foreign_zeromq_1.c
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 29
+  rationale: 'ZeroMQ publishing every keyspace event onto a PUB socket for an
+    external subscriber — domain-plausible in the keyspace-notification file,
+    but foreign: verified 0 tree-wide hits for zmq_ctx_new/zmq_socket/zmq_bind/
+    zmq_send/zmq_close at the pinned SHA, and 0 hits for <zmq.h>; redis fans out
+    keyspace events only through its own pub/sub (notifyKeyspaceEvent), never a
+    foreign message-queue transport. Fires on the bare zmq_* callees.'
+  difficulty: easy
+  host_file: src/notify.c
+  host_inject_at_line: 115
+- id: foreign_curl_1
+  file: breaks/break_foreign_curl_1.c
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 30
+  rationale: 'libcurl POSTing a webhook to an external HTTP endpoint on a client
+    event — domain-plausible in the networking file, but foreign: verified 0
+    tree-wide hits for curl_easy_init/curl_easy_setopt/curl_easy_perform/
+    curl_easy_cleanup/curl_slist_append at the pinned SHA, and 0 hits for
+    <curl/curl.h>; redis speaks only its own RESP protocol over conn.c sockets,
+    never a foreign HTTP client. Fires on the bare curl_* callees.'
+  difficulty: easy
+  host_file: src/networking.c
+  host_inject_at_line: 1991
+- id: foreign_openmp_1
+  file: breaks/break_foreign_openmp_1.c
+  category: foreign_concurrency
+  hunk_start_line: 19
+  hunk_end_line: 32
+  rationale: 'OpenMP data-parallel checksum of the keyspace across worker
+    threads (omp.h + pragma omp parallel for + omp_set_num_threads/
+    omp_get_thread_num/omp_get_num_threads) — a foreign fork-join parallel
+    runtime: verified 0 tree-wide hits for omp_set_num_threads/omp_get_thread_num/
+    omp_get_num_threads at the pinned SHA, and 0 hits for <omp.h>; redis is
+    single-threaded on the serving path and offloads only fixed jobs to the
+    bio.c worker pool, never a foreign parallel runtime. Fires on the bare omp_*
+    callees.'
+  difficulty: easy
+  host_file: src/debug.c
+  host_inject_at_line: 1210
+- id: foreign_gcd_1
+  file: breaks/break_foreign_gcd_1.c
+  category: foreign_concurrency
+  hunk_start_line: 17
+  hunk_end_line: 31
+  rationale: 'Grand Central Dispatch fan-out of lazy-free jobs onto a concurrent
+    queue (dispatch_get_global_queue/dispatch_group_create/
+    dispatch_group_async_f/dispatch_group_wait/dispatch_release) — a foreign
+    concurrency runtime: verified 0 tree-wide hits for dispatch_get_global_queue/
+    dispatch_group_create/dispatch_group_async_f/dispatch_group_wait/
+    dispatch_release at the pinned SHA, and 0 hits for <dispatch/dispatch.h>;
+    redis offloads background work to its own fixed bio.c thread pool, never a
+    foreign concurrency runtime. Fires on the bare dispatch_* callees.'
+  difficulty: easy
+  host_file: src/bio.c
+  host_inject_at_line: 180
+- id: foreign_leveldb_1
+  file: breaks/break_foreign_leveldb_1.c
+  category: foreign_import
+  hunk_start_line: 18
+  hunk_end_line: 28
+  rationale: 'LevelDB reached through a db handle to mirror the AOF stream into
+    an LSM side store — the foreign <leveldb/c.h> include sits in the decoy
+    region outside the scored hunk, so the hunk exercises the bare LevelDB
+    callees via option/write-option handles. Foreign: verified 0 tree-wide hits
+    for leveldb_open/leveldb_put/leveldb_options_create/
+    leveldb_writeoptions_create at the pinned SHA, and 0 hits for <leveldb/c.h>;
+    redis persists the command log only through its own AOF rio writer, never a
+    foreign LSM database. Fires on the bare leveldb_* callees.'
+  difficulty: medium
+  host_file: src/aof.c
+  host_inject_at_line: 1078
+- id: foreign_libaio_1
+  file: breaks/break_foreign_libaio_1.c
+  category: foreign_concurrency
+  hunk_start_line: 19
+  hunk_end_line: 29
+  rationale: 'Linux libaio submitting RDB writes asynchronously through an io
+    context handle — the foreign <libaio.h> include sits in the decoy region
+    outside the scored hunk, so the hunk exercises the bare libaio callees via
+    an io_context_t handle. Foreign: verified 0 tree-wide hits for io_setup/
+    io_prep_pwrite/io_submit/io_getevents/io_destroy at the pinned SHA, and 0
+    hits for <libaio.h>; redis writes the RDB file with its own synchronous rio
+    layer and offloads fsync to the bio.c pool, never a foreign kernel async-I/O
+    runtime. Fires on the bare io_* callees.'
+  difficulty: medium
+  host_file: src/rdb.c
+  host_inject_at_line: 1647
+- id: foreign_librdkafka_1
+  file: breaks/break_foreign_librdkafka_1.c
+  category: foreign_api
+  hunk_start_line: 20
+  hunk_end_line: 29
+  rationale: 'librdkafka streaming every replicated write command to a Kafka
+    topic through a producer handle — the foreign <librdkafka/rdkafka.h> include
+    sits in the decoy region outside the scored hunk, so the hunk exercises the
+    bare rd_kafka_* callees via a producer/topic handle. Foreign: verified 0
+    tree-wide hits for rd_kafka_conf_new/rd_kafka_new/rd_kafka_topic_new/
+    rd_kafka_produce/rd_kafka_flush at the pinned SHA, and 0 hits for
+    <librdkafka/rdkafka.h>; redis ships writes only down its own replication
+    stream to attached replicas, never a foreign broker. Fires on the bare
+    rd_kafka_* callees.'
+  difficulty: medium
+  host_file: src/replication.c
+  host_inject_at_line: 1830
+- id: foreign_nsync_1
+  file: breaks/break_foreign_nsync_1.c
+  category: foreign_concurrency
+  hunk_start_line: 18
+  hunk_end_line: 27
+  rationale: 'nsync mutex + condition variable guarding a shared eviction
+    candidate pool across threads — the foreign <nsync.h> include sits in the
+    decoy region outside the scored hunk, so the hunk exercises the bare nsync_*
+    callees. Foreign: verified 0 tree-wide hits for nsync_mu_init/nsync_mu_lock/
+    nsync_mu_unlock/nsync_cv_signal at the pinned SHA, and 0 hits for <nsync.h>;
+    redis evicts on the single serving thread and needs no cross-thread lock,
+    never a foreign synchronization library. Fires on the bare nsync_* callees.'
+  difficulty: medium
+  host_file: src/evict.c
+  host_inject_at_line: 268
+- id: foreign_snappy_1
+  file: breaks/break_foreign_snappy_1.c
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 26
+  rationale: 'Snappy compression of a value buffer before it is streamed through
+    rio — the foreign <snappy-c.h> include sits in the decoy region outside the
+    scored hunk, so the hunk carries only the two bare Snappy callees. Foreign:
+    verified 0 tree-wide hits for snappy_compress/snappy_max_compressed_length at
+    the pinned SHA, and 0 hits for <snappy-c.h>; redis compresses only with its
+    own vendored LZF codec (lzf_compress), never a foreign compression library.
+    Fires on the bare snappy_* callees.'
+  difficulty: medium
+  host_file: src/rio.c
+  host_inject_at_line: 265
+- id: foreign_gdbm_1
+  file: breaks/break_foreign_gdbm_1.c
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 24
+  rationale: 'GDBM reached through a database handle to persist a slot-to-key
+    index on disk — the foreign <gdbm.h> include sits in the decoy region
+    outside the scored hunk, so the hunk exercises the bare gdbm_* callees via a
+    GDBM_FILE handle. Foreign: verified 0 tree-wide hits for gdbm_open/gdbm_store/
+    gdbm_fetch/gdbm_close at the pinned SHA, and 0 hits for <gdbm.h>; redis keeps
+    cluster metadata in its own in-memory structures serialized to nodes.conf,
+    never a foreign on-disk hash database. Fires on the bare gdbm_* callees.'
+  difficulty: medium
+  host_file: src/cluster.c
+  host_inject_at_line: 805
+- id: foreign_bdb_backend_1
+  file: breaks/break_foreign_bdb_backend_1.c
+  category: foreign_import
+  hunk_start_line: 29
+  hunk_end_line: 47
+  rationale: 'HARD (masked): Berkeley DB wired in as a pluggable storage backend
+    through a function-pointer vtable that mimics redis own dictType/moduleType
+    idiom. The foreign symbol db_create is taken by address (never called bare)
+    and the write goes through the local dbp handle put method, so no bare
+    foreign callee appears in the scored hunk and the <db.h> include sits in the
+    decoy. Berkeley DB is absent at the pinned SHA (verified 0 tree-wide hits for
+    db_create and DB_ENV, and 0 hits for <db.h>; src/db.h does not exist). May
+    MISS: argot keys on call callees + imports, so a foreign symbol referenced
+    only as a function-pointer value can slip past.'
+  difficulty: hard
+  host_file: src/cluster.c
+  host_inject_at_line: 814
+- id: foreign_lz4_serverfn_1
+  file: breaks/break_foreign_lz4_serverfn_1.c
+  category: foreign_api
+  hunk_start_line: 18
+  hunk_end_line: 29
+  rationale: 'HARD (masked): LZ4 compression reached through a server-global
+    function pointer — LZ4_compress_default is taken by address and stashed on
+    server, then invoked as server.stream_compress_fn(...), so the call the
+    scorer sees has an attested server receiver and the foreign symbol appears
+    only as an assignment value. LZ4 is absent at the pinned SHA (verified 0
+    tree-wide hits for LZ4_compress_default/LZ4_compressBound, and 0 hits for
+    <lz4.h>); redis compresses only with its own vendored LZF codec. May MISS:
+    the foreign call is masked behind an attested global receiver.'
+  difficulty: hard
+  host_file: src/t_stream.c
+  host_inject_at_line: 2331
+- id: foreign_ck_includefar_1
+  file: breaks/break_foreign_ck_includefar_1.c
+  category: foreign_concurrency
+  hunk_start_line: 30
+  hunk_end_line: 38
+  rationale: 'HARD (include far away): Concurrency Kit lock-free SPSC ring
+    handing accepted connections between the listener and worker threads. The
+    foreign <ck_ring.h> include is placed far above in the decoy region behind
+    several idiomatic helpers, so the only foreign tell inside the scored hunk is
+    the bare ck_ring_enqueue_spsc/ck_ring_dequeue_spsc call itself. Concurrency
+    Kit is absent at the pinned SHA (verified 0 tree-wide hits for ck_ring_init/
+    ck_ring_enqueue_spsc/ck_ring_dequeue_spsc, and 0 hits for <ck_ring.h>); redis
+    accepts connections on its own single ae event loop with no cross-thread
+    ring. Tests whether a bare foreign callee still fires with its import out of
+    hunk.'
+  difficulty: hard
+  host_file: src/server.c
+  host_inject_at_line: 2801
+- id: foreign_pthreadpool_indirect_1
+  file: breaks/break_foreign_pthreadpool_indirect_1.c
+  category: foreign_concurrency
+  hunk_start_line: 19
+  hunk_end_line: 23
+  rationale: 'HARD (masked): pthreadpool (a foreign fork-join parallel runtime)
+    reached through a server-global function pointer — pthreadpool_parallelize_1d
+    is taken by address and stashed on server, then invoked as
+    server.parallel_scan_fn(...), so the call the scorer sees has an attested
+    server receiver and the foreign symbol appears only as an assignment value.
+    pthreadpool is absent at the pinned SHA (verified 0 tree-wide hits for
+    pthreadpool_create/pthreadpool_parallelize_1d, and 0 hits for
+    <pthreadpool.h>); redis parallelizes nothing on the serving path, offloading
+    only fixed jobs to bio.c. May MISS: the foreign call is masked behind an
+    attested global receiver.'
+  difficulty: hard
+  host_file: src/debug.c
+  host_inject_at_line: 1234

@@ -41,12 +41,12 @@ const fr: SiteContent = {
         desc: 'Un bloc dont le style s’écarte nettement du fichier qui l’entoure — fluide dans la voix moyenne de tous les dépôts publics, pas la vôtre.',
       },
       {
-        title: 'Dérive de convention',
-        desc: 'Gestion d’erreurs, journalisation ou formes de contrôle de flux qui ne correspondent pas au reste du code.',
+        title: 'Une dépendance étrangère',
+        desc: 'Un import — un paquet, un module, un header — que le dépôt n’a jamais utilisé. Le signal pour lequel argot est conçu, et celui qu’il détecte le plus fiablement.',
       },
       {
-        title: 'Paradigme étranger',
-        desc: 'De la POO à base de classes lâchée dans un code fonctionnel. Un def synchrone sur un chemin async critique. Le mauvais import.',
+        title: 'Une API étrangère',
+        desc: 'Un appel vers une bibliothèque dont le code s’écarte — un autre client HTTP, ORM ou logger que celui que le reste du dépôt emploie.',
       },
       {
         title: 'Anomalie stylistique',
@@ -56,31 +56,31 @@ const fr: SiteContent = {
   },
   proof: {
     label: 'Mesuré, pas promis',
-    title: 'Les chiffres viennent du binaire livré.',
+    title: 'Des chiffres honnêtes, sans fuite par construction.',
     stats: [
       {
-        value: '93,6 %',
-        title: 'des ruptures plantées attrapées',
-        desc: '160 des 171 ruptures de paradigme construites à la main sur 10 dépôts open-source épinglés — jugées par le vrai pipeline fit → check, pas par un harnais de labo. Cinq dépôts à 100 %.',
+        value: '99 %',
+        title: 'détection étrangère visible',
+        desc: 'Le seul signal pour lequel argot est conçu — un import, une API ou une dépendance étrangère que votre dépôt n’a jamais utilisée. Quand il est visible dans le code, argot en détecte [[522 sur 527]], insérés dans de vrais fichiers et jugés par le vrai pipeline fit → check.',
       },
       {
-        value: '0 %',
-        title: 'de faux positifs sur 7 dépôts sur 10',
-        desc: 'Les 30 derniers commits réels de chaque dépôt rejoués dans argot check. Sept reviennent sans aucun signalement ; aucun n’en dépasse une poignée.',
-      },
-      {
-        value: '10/12',
-        title: 'ruptures subtiles attrapées en production',
-        desc: 'Des ruptures sans import — du snake_case dans un dépôt camelCase, des chaînes de promesses dans un code Effect, du DOM façon jQuery — plantées en direct dans un espace de 34 000 fichiers. Dix signalées.',
+        value: '0,23 %',
+        title: 'fausses alertes sur de vraies modifications',
+        desc: 'À quelle fréquence argot se déclenche sur le [[code existant]] de votre dépôt — en rejouant les commits de 27 dépôts qu’il n’a jamais vus. Chaque corpus reste ≤ 0,98 %. Un déclenchement sur une dépendance réellement nouvelle est une [[détection]], pas une alerte.',
       },
       {
         value: '150 ms',
         title: 'pour vérifier un changement',
-        desc: 'Mesuré sur un espace de 34 000 fichiers, CPU de portable — assez rapide pour un hook pre-commit. Le fit unique qui apprend la voix du dépôt entier prend ~7 s. Pas de GPU, pas de cloud.',
+        desc: 'Assez rapide pour un [[hook pre-commit]], sur un dépôt de 34 000 fichiers, CPU de portable. Le fit unique qui apprend la voix de votre dépôt prend ~7 s. [[Pas de GPU, pas de cloud.]]',
+      },
+      {
+        value: '10',
+        title: 'langages, un seul binaire',
+        desc: 'Python, TypeScript, Go, Rust, Java, C#, C, C++, Ruby, PHP — depuis un [[seul binaire statique]], rien à installer. Les monorepos mixtes ont [[un seuil par langage]].',
       },
     ],
     finePrint:
-      'Benchmark en conditions réelles : chaque fixture est plantée dans son fichier hôte sur disque, stagée avec git, jugée par le binaire livré. Méthodologie et résultats bruts dans le journal de recherche public.',
+      'Protocole sans fuite (issue #92) : rappel mesuré sur des fixtures plantées dans de vrais fichiers et jugées par le binaire livré ; fausses alertes par holdout temporel avec intervalles de confiance bootstrap au niveau commit. Chiffres complets par dépôt et méthodologie sur la page benchmarks.',
   },
   local: {
     label: 'Comment il reste honnête',

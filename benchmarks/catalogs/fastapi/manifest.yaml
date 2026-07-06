@@ -342,3 +342,219 @@ fixtures:
   difficulty: medium
   host_file: fastapi/openapi/docs.py
   host_inject_at_line: 390
+- id: foreign_import_structlog_1
+  file: breaks/break_foreign_import_structlog.py
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 25
+  rationale: "import structlog + structlog.get_logger().bind().info emit structured access logs, replacing the stdlib logging voice — structlog appears at 0 fastapi source sites at the pinned SHA (git grep import/from sum = 0) and is absent from pyproject.toml. Foreign import is in-hunk."
+  difficulty: easy
+  host_file: fastapi/routing.py
+  host_inject_at_line: 4957
+- id: foreign_import_loguru_1
+  file: breaks/break_foreign_import_loguru.py
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 23
+  rationale: "from loguru import logger + logger.add/opt/error configure loguru sinks, replacing the stdlib logging voice — loguru appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Foreign import is in-hunk."
+  difficulty: easy
+  host_file: fastapi/applications.py
+  host_inject_at_line: 4692
+- id: foreign_import_tenacity_1
+  file: breaks/break_foreign_import_tenacity.py
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 26
+  rationale: "import tenacity + from tenacity import retry, stop_after_attempt, wait_exponential wrap a loader in a @retry backoff loop — tenacity appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml; the corpus has no retry-library dependency. Foreign import is in-hunk."
+  difficulty: easy
+  host_file: fastapi/openapi/utils.py
+  host_inject_at_line: 607
+- id: foreign_import_boto3_1
+  file: breaks/break_foreign_import_boto3.py
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 24
+  rationale: "import boto3 + boto3.client('s3').put_object push export blobs to S3 — boto3 appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Foreign import is in-hunk."
+  difficulty: easy
+  host_file: fastapi/encoders.py
+  host_inject_at_line: 348
+- id: foreign_import_sentry_1
+  file: breaks/break_foreign_import_sentry.py
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 25
+  rationale: "import sentry_sdk + sentry_sdk.init/push_scope/capture_exception report endpoint errors to Sentry — sentry_sdk appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Foreign import is in-hunk."
+  difficulty: easy
+  host_file: fastapi/exceptions.py
+  host_inject_at_line: 257
+- id: foreign_import_pandas_1
+  file: breaks/break_foreign_import_pandas.py
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 23
+  rationale: "aliased import pandas as pd + pd.DataFrame().groupby aggregate metric rows — pandas appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Aliased foreign import in-hunk; the import scorer keys on the top-level module (pandas) regardless of the alias."
+  difficulty: medium
+  host_file: fastapi/responses.py
+  host_inject_at_line: 99
+- id: foreign_import_marshmallow_1
+  file: breaks/break_foreign_import_marshmallow.py
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 29
+  rationale: "from marshmallow import Schema, fields, ValidationError builds a marshmallow Schema to validate a payload, bypassing Pydantic — marshmallow appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Foreign submodule import (top-level marshmallow) in-hunk."
+  difficulty: medium
+  host_file: fastapi/params.py
+  host_inject_at_line: 755
+- id: foreign_import_prometheus_1
+  file: breaks/break_foreign_import_prometheus.py
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 25
+  rationale: "from prometheus_client import Counter, Histogram instrument request metrics — prometheus_client appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Foreign submodule import (top-level prometheus_client) in-hunk."
+  difficulty: medium
+  host_file: fastapi/openapi/docs.py
+  host_inject_at_line: 390
+- id: foreign_api_redis_1
+  file: breaks/break_foreign_api_redis.py
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 27
+  rationale: "import redis + redis.Redis(...).get/.setex cache API-key verification, bypassing any in-repo mechanism — redis appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. The call-receiver stage catches the unattested redis.* callees; foreign import + qualified API in-hunk."
+  difficulty: easy
+  host_file: fastapi/security/api_key.py
+  host_inject_at_line: 321
+- id: foreign_api_pymongo_1
+  file: breaks/break_foreign_api_pymongo.py
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 24
+  rationale: "from pymongo import MongoClient + MongoClient(...)[...].insert_one write audit records to MongoDB — pymongo appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. The call-receiver stage catches the unattested insert_one callee; foreign import + qualified API in-hunk."
+  difficulty: easy
+  host_file: fastapi/dependencies/utils.py
+  host_inject_at_line: 1058
+- id: foreign_api_stripe_1
+  file: breaks/break_foreign_api_stripe.py
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 26
+  rationale: "import stripe + stripe.PaymentIntent.create charge orders through the Stripe API — stripe appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. The call-receiver stage catches the unattested stripe.* callees; foreign import + qualified API in-hunk."
+  difficulty: easy
+  host_file: fastapi/param_functions.py
+  host_inject_at_line: 2461
+- id: foreign_api_cachetools_1
+  file: breaks/break_foreign_api_cachetools.py
+  category: foreign_api
+  hunk_start_line: 21
+  hunk_end_line: 30
+  rationale: "from cachetools import TTLCache (in the decoy region, OUTSIDE the scored hunk) + a bare TTLCache(...) callee memoise lookups inside the hunk — cachetools appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Medium: the scored hunk references the foreign callee bare, with the import decoyed outside the hunk range, stressing callee resolution."
+  difficulty: medium
+  host_file: fastapi/utils.py
+  host_inject_at_line: 137
+- id: foreign_api_ujson_1
+  file: breaks/break_foreign_api_ujson.py
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 25
+  rationale: "aliased import ujson as ujson_fast + ujson_fast.dumps/loads serialize payloads, bypassing FastAPI's JSON stack — ujson appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Aliased foreign import (top-level ujson) + qualified API in-hunk."
+  difficulty: medium
+  host_file: fastapi/datastructures.py
+  host_inject_at_line: 187
+- id: foreign_api_passlib_1
+  file: breaks/break_foreign_api_passlib.py
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 27
+  rationale: "from passlib.context import CryptContext + a _pwd_context receiver variable hash/verify secrets — passlib appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Foreign submodule import (top-level passlib) + receiver-variable API in-hunk."
+  difficulty: medium
+  host_file: fastapi/security/http.py
+  host_inject_at_line: 418
+- id: foreign_api_elasticsearch_1
+  file: breaks/break_foreign_api_elasticsearch.py
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 29
+  rationale: "elasticsearch loaded through importlib.import_module('elasticsearch') (importlib is attested, 159 sites) so NO static foreign top-level import appears; the only tells are the _es_module.Elasticsearch / _es.index / _es.search callees. elasticsearch appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. HARD: masked import — detection relies entirely on the call-receiver stage resolving unattested callees on a dynamically-loaded handle."
+  difficulty: hard
+  host_file: fastapi/security/oauth2.py
+  host_inject_at_line: 694
+- id: foreign_api_psycopg2_1
+  file: breaks/break_foreign_api_psycopg2.py
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 28
+  rationale: "psycopg2 loaded through importlib.import_module('psycopg2') (importlib attested) so NO static foreign import appears; the tells are _pg.connect and the leaf callees .cursor/.execute/.fetchone, whose names collide with attested cursor-style methods elsewhere in the corpus. psycopg2 appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. HARD: masked import + colliding leaf method names."
+  difficulty: hard
+  host_file: fastapi/openapi/models.py
+  host_inject_at_line: 436
+- id: foreign_api_cassandra_1
+  file: breaks/break_foreign_api_cassandra.py
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 27
+  rationale: "cassandra loaded through importlib.import_module('cassandra.cluster') + getattr(mod, 'Cluster') (importlib attested) so NO static foreign import appears; tells are the Cluster()/.connect()/.execute() callees on a dynamically-loaded handle. cassandra appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. HARD: masked submodule import via importlib + getattr."
+  difficulty: hard
+  host_file: fastapi/_compat/v2.py
+  host_inject_at_line: 481
+- id: foreign_concurrency_dramatiq_1
+  file: breaks/break_foreign_concurrency_dramatiq.py
+  category: foreign_concurrency
+  hunk_start_line: 17
+  hunk_end_line: 26
+  rationale: "import dramatiq + @dramatiq.actor with .send() offload email to a dramatiq worker, replacing FastAPI BackgroundTasks — dramatiq appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Foreign concurrency import + actor API in-hunk."
+  difficulty: easy
+  host_file: fastapi/background.py
+  host_inject_at_line: 62
+- id: foreign_concurrency_rq_1
+  file: breaks/break_foreign_concurrency_rq.py
+  category: foreign_concurrency
+  hunk_start_line: 17
+  hunk_end_line: 24
+  rationale: "import rq + rq.Queue(...).enqueue dispatch report generation to an RQ worker, replacing FastAPI BackgroundTasks — rq appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Foreign concurrency import + queue API in-hunk."
+  difficulty: easy
+  host_file: fastapi/concurrency.py
+  host_inject_at_line: 42
+- id: foreign_concurrency_arq_1
+  file: breaks/break_foreign_concurrency_arq.py
+  category: foreign_concurrency
+  hunk_start_line: 17
+  hunk_end_line: 24
+  rationale: "from arq import create_pool + from arq.connections import RedisSettings enqueue jobs on an arq pool (receiver variable) — arq appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Foreign submodule import (top-level arq) + receiver-variable enqueue_job API in-hunk."
+  difficulty: medium
+  host_file: fastapi/sse.py
+  host_inject_at_line: 223
+- id: foreign_concurrency_apscheduler_1
+  file: breaks/break_foreign_concurrency_apscheduler.py
+  category: foreign_concurrency
+  hunk_start_line: 17
+  hunk_end_line: 28
+  rationale: "from apscheduler.schedulers.background import BackgroundScheduler + scheduler.add_job/start run a periodic cleanup, replacing FastAPI's request-scoped model — apscheduler appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Foreign deep-submodule import (top-level apscheduler) + scheduler API in-hunk."
+  difficulty: medium
+  host_file: docs_src/sql_databases/tutorial001_an_py310.py
+  host_inject_at_line: 74
+- id: foreign_concurrency_celery_1
+  file: breaks/break_foreign_concurrency_celery.py
+  category: foreign_concurrency
+  hunk_start_line: 17
+  hunk_end_line: 28
+  rationale: "celery loaded through importlib.import_module('celery') (importlib attested) so NO static foreign top-level import appears; the tells are _celery_mod.Celery and the @_app.task decorator on a dynamically-loaded handle. celery appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. HARD: masked import — detection relies on the call-receiver stage."
+  difficulty: hard
+  host_file: docs_src/background_tasks/tutorial001_py310.py
+  host_inject_at_line: 16
+- id: foreign_concurrency_eventlet_1
+  file: breaks/break_foreign_concurrency_eventlet.py
+  category: foreign_concurrency
+  hunk_start_line: 17
+  hunk_end_line: 24
+  rationale: "eventlet loaded through importlib.import_module('eventlet') (importlib attested) so NO static foreign import appears; the tells are _eventlet.GreenPool and _pool.imap on a dynamically-loaded handle. eventlet appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. HARD: masked import — a foreign green-thread runtime reached only through callees."
+  difficulty: hard
+  host_file: docs_src/extra_data_types/tutorial001_an_py310.py
+  host_inject_at_line: 29
+- id: foreign_concurrency_gevent_1
+  file: breaks/break_foreign_concurrency_gevent.py
+  category: foreign_concurrency
+  hunk_start_line: 17
+  hunk_end_line: 25
+  rationale: "gevent loaded through importlib.import_module('gevent') (importlib attested) so NO static foreign import appears; the tells are _gevent.spawn/_gevent.joinall on a dynamically-loaded handle. gevent appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. HARD: masked import — a foreign coroutine runtime reached only through callees."
+  difficulty: hard
+  host_file: docs_src/body/tutorial001_py310.py
+  host_inject_at_line: 18

@@ -1,0 +1,354 @@
+corpus: jellyfin
+language: csharp
+categories:
+- foreign_import
+- foreign_api
+- foreign_concurrency
+injection_hosts:
+- pr: 0
+  sha: 8f3eb3205d61
+fixtures:
+- id: ji_automapper_1
+  file: breaks/break_automapper_1.cs
+  category: foreign_import
+  hunk_start_line: 19
+  hunk_end_line: 26
+  rationale: 'AutoMapper MapperConfiguration/CreateMap/Map (fully-qualified
+    AutoMapper.MapperConfiguration) replaces the host''s hand-written DTO field
+    copy. Verified foreign at SHA: AutoMapper = 0 grep hits in *.cs and 0
+    PackageReference/PackageVersion entries in *.csproj/*.props (Directory.Packages.props
+    lists no AutoMapper); the distinctive callees MapperConfiguration/CreateMap =
+    0 src hits (non-colliding). DtoService populates every DTO by explicit field
+    assignment, never a mapping library.'
+  difficulty: medium
+  host_file: Emby.Server.Implementations/Dto/DtoService.cs
+  host_inject_at_line: 1703
+- id: ji_fluentvalidation_1
+  file: breaks/break_fluentvalidation_1.cs
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 28
+  rationale: 'FluentValidation AbstractValidator/RuleFor (fully-qualified
+    FluentValidation.AbstractValidator) replaces the host''s inline argument
+    guard. Verified foreign at SHA: FluentValidation = 0 grep hits in *.cs and 0
+    PackageReference/PackageVersion entries repo-wide; the distinctive callees
+    AbstractValidator/FluentValidation. = 0 src hits (non-colliding). Controllers
+    validate requests through data annotations and inline checks, never a
+    validation library.'
+  difficulty: medium
+  host_file: Jellyfin.Api/Controllers/UserController.cs
+  host_inject_at_line: 640
+- id: ji_mediatr_1
+  file: breaks/break_mediatr_1.cs
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 22
+  rationale: 'MediatR IMediator.Send (fully-qualified MediatR.IMediator field)
+    dispatches an item lookup through a mediator/CQRS bus. Verified foreign at
+    SHA: MediatR = 0 grep hits in *.cs and 0 PackageReference/PackageVersion
+    entries repo-wide; the distinctive callee IMediator = 0 src hits
+    (non-colliding). Controllers depend on their managers directly via
+    constructor injection, never a mediator bus.'
+  difficulty: medium
+  host_file: Jellyfin.Api/Controllers/ItemsController.cs
+  host_inject_at_line: 1175
+- id: ja_restsharp_1
+  file: breaks/break_restsharp_1.cs
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 25
+  rationale: 'RestSharp RestClient/RestRequest (using RestSharp + fully-qualified
+    RestSharp.RestClient object creation) issues the remote artwork lookup in
+    place of the shared HttpClient. Verified foreign at SHA: RestSharp = 0 grep
+    hits in *.cs and 0 PackageReference/PackageVersion entries repo-wide; the
+    distinctive callees RestClient/RestRequest = 0 src hits (non-colliding).
+    Every provider fetches through IHttpClientFactory/HttpClient.'
+  difficulty: medium
+  host_file: MediaBrowser.Providers/Plugins/AudioDb/AudioDbArtistImageProvider.cs
+  host_inject_at_line: 154
+- id: ja_dapper_1
+  file: breaks/break_dapper_1.cs
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 22
+  rationale: 'Dapper SqlMapper.QueryAsync + DynamicParameters (using Dapper +
+    fully-qualified Dapper.SqlMapper.QueryAsync) runs a raw-SQL read in place of
+    the EF Core query. Verified foreign at SHA: Dapper = 0 grep hits in *.cs and
+    0 PackageReference/PackageVersion entries repo-wide; the distinctive callees
+    SqlMapper/DynamicParameters = 0 src hits (non-colliding). All data access
+    goes through Entity Framework Core (Microsoft.EntityFrameworkCore.* in
+    Directory.Packages.props), never a micro-ORM.'
+  difficulty: medium
+  host_file: Jellyfin.Server.Implementations/Item/BaseItemRepository.cs
+  host_inject_at_line: 234
+- id: ja_nlog_1
+  file: breaks/break_nlog_1.cs
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 21
+  rationale: 'NLog LogManager.GetCurrentClassLogger (fully-qualified
+    NLog.LogManager.GetCurrentClassLogger) acquires a separate logger beside the
+    injected ILogger. Verified foreign at SHA: NLog = 0 grep hits in *.cs and 0
+    PackageReference/PackageVersion entries repo-wide; the distinctive callee
+    GetCurrentClassLogger = 0 src hits (non-colliding). Logging flows through
+    Microsoft.Extensions.Logging / Serilog (Serilog.* in Directory.Packages.props),
+    never a second logging framework.'
+  difficulty: medium
+  host_file: Emby.Server.Implementations/ScheduledTasks/TaskManager.cs
+  host_inject_at_line: 263
+- id: jc_reactive_1
+  file: breaks/break_reactive_1.cs
+  category: foreign_concurrency
+  hunk_start_line: 16
+  hunk_end_line: 25
+  rationale: 'System.Reactive (Rx.NET) Observable.Interval + Subject (using
+    System.Reactive.Linq/System.Reactive.Subjects + foreign-namespace callees
+    Observable/Subject) drives a reactive heartbeat stream in place of the plain
+    C# event. Verified foreign at SHA: System.Reactive = 0 grep hits in *.cs and
+    0 PackageReference/PackageVersion entries repo-wide; the distinctive callees
+    Observable.Interval/Subject/IObservable = 0 src hits (non-colliding). Session
+    signalling uses C# events and Timer, never a reactive library. NOTE: the Rx
+    namespace root is System (repo-attested), so a fully-qualified
+    System.Reactive.* callee cannot trip the call-receiver foreign-namespace
+    gate; the fixture reaches Rx by short name (foreign root Observable/Subject)
+    and by the foreign using-import so it is detectable.'
+  difficulty: medium
+  host_file: Emby.Server.Implementations/Session/SessionManager.cs
+  host_inject_at_line: 2146
+- id: jc_hangfire_1
+  file: breaks/break_hangfire_1.cs
+  category: foreign_concurrency
+  hunk_start_line: 16
+  hunk_end_line: 22
+  rationale: 'Hangfire BackgroundJobClient (using Hangfire + fully-qualified
+    Hangfire.BackgroundJobClient object creation) hands the task off to a
+    Hangfire server in place of the in-process runner. Verified foreign at SHA:
+    Hangfire = 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries
+    repo-wide; the distinctive type Hangfire.BackgroundJobClient = 0 src hits
+    (non-colliding). NOTE: the bare method name Enqueue collides with 7 attested
+    repo callees, so the fixture reaches Hangfire through a foreign type
+    construction (foreign root Hangfire) rather than the Enqueue leaf. Background
+    work runs through the repo''s own ITaskManager / IScheduledTaskWorker.'
+  difficulty: medium
+  host_file: Emby.Server.Implementations/ScheduledTasks/ScheduledTaskWorker.cs
+  host_inject_at_line: 678
+- id: jc_quartz_1
+  file: breaks/break_quartz_1.cs
+  category: foreign_concurrency
+  hunk_start_line: 20
+  hunk_end_line: 24
+  rationale: 'Quartz.NET StdSchedulerFactory/IScheduler (fully-qualified
+    Quartz.Impl.StdSchedulerFactory / Quartz.IScheduler) schedules the refresh
+    job in place of the repo''s TaskTriggerInfo. Verified foreign at SHA: Quartz
+    = 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries repo-wide;
+    the distinctive callees StdSchedulerFactory/ScheduleJob = 0 src hits
+    (non-colliding). Scheduling is handled by the repo''s own ITaskManager and
+    ITaskTrigger implementations.'
+  difficulty: medium
+  host_file: Emby.Server.Implementations/ScheduledTasks/Tasks/RefreshMediaLibraryTask.cs
+  host_inject_at_line: 65
+- id: ji_redis_1
+  file: breaks/break_redis_1.cs
+  category: foreign_import
+  hunk_start_line: 16
+  hunk_end_line: 23
+  rationale: 'StackExchange.Redis ConnectionMultiplexer/IDatabase (using StackExchange.Redis
+    + short-name callees) move the live-stream cache onto a Redis server. Verified
+    foreign at SHA: StackExchange.Redis = 0 grep hits in *.cs and 0 PackageReference/PackageVersion
+    entries repo-wide; the distinctive type ConnectionMultiplexer = 0 src hits (non-colliding).
+    Stream state lives in in-process ConcurrentDictionary caches, never Redis. EASY:
+    explicit foreign using in the hunk fires the import stage.'
+  difficulty: easy
+  host_file: Emby.Server.Implementations/Library/MediaSourceManager.cs
+  host_inject_at_line: 414
+- id: ji_mongodb_1
+  file: breaks/break_mongodb_1.cs
+  category: foreign_import
+  hunk_start_line: 16
+  hunk_end_line: 23
+  rationale: 'MongoDB.Driver MongoClient/IMongoCollection (using MongoDB.Driver + short-name
+    callees) read the user document from a Mongo store. Verified foreign at SHA: MongoDB
+    = 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries repo-wide; the
+    distinctive type MongoClient = 0 src hits (non-colliding). All persistence goes
+    through Entity Framework Core. EASY: explicit foreign using in the hunk fires the
+    import stage.'
+  difficulty: easy
+  host_file: Jellyfin.Server.Implementations/Users/UserManager.cs
+  host_inject_at_line: 213
+- id: ji_grpc_1
+  file: breaks/break_grpc_1.cs
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 23
+  rationale: 'Grpc.Net.Client GrpcChannel (using Grpc.Net.Client + GrpcChannel.ForAddress)
+    opens a gRPC control channel to a tuner. Verified foreign at SHA: Grpc = 0 grep
+    hits in *.cs and 0 PackageReference/PackageVersion entries repo-wide; the distinctive
+    type GrpcChannel = 0 src hits (non-colliding). Every device call goes through IHttpClientFactory/HttpClient
+    over REST. EASY: explicit foreign using in the hunk fires the import stage.'
+  difficulty: easy
+  host_file: src/Jellyfin.LiveTv/TunerHosts/HdHomerun/HdHomerunHost.cs
+  host_inject_at_line: 345
+- id: ja_csvhelper_1
+  file: breaks/break_csvhelper_1.cs
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 23
+  rationale: 'CsvHelper CsvWriter (using CsvHelper + CsvWriter object creation) serialises
+    the physical-path export. Verified foreign at SHA: CsvHelper = 0 grep hits in *.cs
+    and 0 PackageReference/PackageVersion entries repo-wide; the distinctive type CsvWriter
+    = 0 src hits (non-colliding). The API layer emits responses through System.Text.Json
+    and inline string building, never a CSV library. EASY: explicit foreign using in
+    the hunk fires the import stage.'
+  difficulty: easy
+  host_file: Jellyfin.Api/Controllers/LibraryController.cs
+  host_inject_at_line: 535
+- id: ja_htmlagilitypack_1
+  file: breaks/break_htmlagilitypack_1.cs
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 22
+  rationale: 'HtmlAgilityPack HtmlDocument (using HtmlAgilityPack + HtmlDocument object
+    creation) scrapes a rating out of an HTML page. Verified foreign at SHA: HtmlAgilityPack
+    = 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries repo-wide; the
+    distinctive type HtmlDocument = 0 src hits (non-colliding). Providers consume structured
+    JSON via System.Text.Json, never scraped HTML. EASY: explicit foreign using in the
+    hunk fires the import stage.'
+  difficulty: easy
+  host_file: MediaBrowser.Providers/Plugins/Omdb/OmdbProvider.cs
+  host_inject_at_line: 461
+- id: jc_rabbitmq_1
+  file: breaks/break_rabbitmq_1.cs
+  category: foreign_concurrency
+  hunk_start_line: 16
+  hunk_end_line: 23
+  rationale: 'RabbitMQ.Client ConnectionFactory/IModel (using RabbitMQ.Client + ConnectionFactory
+    object creation) publish item-change events to a broker. Verified foreign at SHA:
+    RabbitMQ = 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries repo-wide;
+    the distinctive type ConnectionFactory = 0 src hits (non-colliding). Change signalling
+    uses C# events, never an external message queue. EASY: explicit foreign using in
+    the hunk fires the import stage.'
+  difficulty: easy
+  host_file: Emby.Server.Implementations/Library/LibraryManager.cs
+  host_inject_at_line: 669
+- id: ji_nodatime_1
+  file: breaks/break_nodatime_1.cs
+  category: foreign_import
+  hunk_start_line: 16
+  hunk_end_line: 21
+  rationale: 'NodaTime SystemClock/Instant reached through an ALIASED using (using Clock
+    = NodaTime;) — the adapter extracts the alias TARGET namespace NodaTime, which the
+    import stage flags. Verified foreign at SHA: NodaTime = 0 grep hits in *.cs and 0
+    PackageReference/PackageVersion entries repo-wide; the distinctive type SystemClock
+    = 0 src hits (non-colliding). Time handling uses System DateTime/DateTimeOffset.
+    MEDIUM: aliased import stresses the using-extractor alias handling rather than a
+    plain foreign using.'
+  difficulty: medium
+  host_file: Jellyfin.Api/Controllers/PlaystateController.cs
+  host_inject_at_line: 527
+- id: ja_refit_1
+  file: breaks/break_refit_1.cs
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 26
+  rationale: 'Refit RestService.For<T> builds a typed HTTP client for a remote image
+    API. Verified foreign at SHA: Refit = 0 grep hits in *.cs and 0 PackageReference/PackageVersion
+    entries repo-wide; the distinctive callee RestService = 0 src hits (non-colliding).
+    NO using Refit; in the hunk — the tell is the bare RestService.For callee whose
+    foreign root the call-receiver foreign-reach gate catches. Providers issue requests
+    through raw HttpClient. MEDIUM: bare foreign callee, no explicit import.'
+  difficulty: medium
+  host_file: MediaBrowser.Providers/Manager/ProviderManager.cs
+  host_inject_at_line: 375
+- id: ja_npgsql_1
+  file: breaks/break_npgsql_1.cs
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 23
+  rationale: 'Npgsql NpgsqlConnection/NpgsqlCommand/NpgsqlParameter run a raw Postgres
+    query through receiver variables. Verified foreign at SHA: Npgsql = 0 grep hits
+    in *.cs and 0 PackageReference/PackageVersion entries repo-wide; the distinctive
+    types NpgsqlConnection/NpgsqlCommand/NpgsqlParameter = 0 src hits (non-colliding).
+    NO using Npgsql; — the tell is the bare Npgsql* type constructions (foreign bare
+    callees). All reads go through EF Core. MEDIUM: receiver-variable foreign API, no
+    explicit import (near-miss on a single bare type — clears the bar with the three
+    Npgsql types the raw ADO.NET call naturally uses).'
+  difficulty: medium
+  host_file: Emby.Server.Implementations/Library/LibraryManager.cs
+  host_inject_at_line: 359
+- id: ja_anglesharp_1
+  file: breaks/break_anglesharp_1.cs
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 21
+  rationale: 'AngleSharp HtmlParser parses a scraped provider page through a receiver
+    variable (var parser = new HtmlParser(); parser.ParseDocument(...)). Verified foreign
+    at SHA: AngleSharp = 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries
+    repo-wide; the distinctive types HtmlParser/ParseDocument = 0 src hits (non-colliding).
+    NO using AngleSharp; — the tell is the bare HtmlParser type. Providers consume JSON,
+    never scraped DOM. MEDIUM: receiver-variable foreign API, no explicit import.'
+  difficulty: medium
+  host_file: MediaBrowser.Providers/Manager/ProviderManager.cs
+  host_inject_at_line: 297
+- id: jc_masstransit_1
+  file: breaks/break_masstransit_1.cs
+  category: foreign_concurrency
+  hunk_start_line: 16
+  hunk_end_line: 21
+  rationale: 'MassTransit Bus.Factory.CreateUsingInMemory builds an in-memory service
+    bus and publishes an item-added message. Verified foreign at SHA: MassTransit =
+    0 grep hits in *.cs and 0 PackageReference/PackageVersion entries repo-wide; the
+    distinctive callee root Bus = 0 src hits (non-colliding). NO using MassTransit;
+    — the tell is the bare Bus.Factory callee (foreign root Bus). Signalling uses C#
+    events, never a message bus. MEDIUM: bare foreign callee, no explicit import.'
+  difficulty: medium
+  host_file: Emby.Server.Implementations/Library/LibraryManager.cs
+  host_inject_at_line: 412
+- id: jc_dataflow_1
+  file: breaks/break_dataflow_1.cs
+  category: foreign_concurrency
+  hunk_start_line: 22
+  hunk_end_line: 32
+  rationale: 'System.Threading.Tasks.Dataflow ActionBlock drives a concurrent provider
+    pipeline. Verified foreign at SHA: 0 Dataflow/ActionBlock/BufferBlock grep hits
+    in *.cs and absent from Directory.Packages.props. HARD: the block is reached FULLY-QUALIFIED
+    (new System.Threading.Tasks.Dataflow.ActionBlock<...>) so the repo-attested System
+    root (attested via e.g. new System.Timers.Timer) masks it from the call-receiver
+    foreign-namespace gate; the block.Post/Complete calls sit on a local receiver; and
+    NO foreign using is added — so import and call_receiver both stay silent and detection
+    can only come from BPE surprise. Repo fans work out with Task.WhenAll / Parallel.ForEachAsync.
+    May legitimately MISS.'
+  difficulty: hard
+  host_file: MediaBrowser.Providers/Manager/ProviderManager.cs
+  host_inject_at_line: 380
+- id: ja_caching_1
+  file: breaks/break_caching_1.cs
+  category: foreign_api
+  hunk_start_line: 18
+  hunk_end_line: 24
+  rationale: 'System.Runtime.Caching MemoryCache/CacheItemPolicy hold media-source descriptors
+    with a sliding-expiration policy. Verified foreign at SHA: System.Runtime.Caching
+    = 0 grep hits in *.cs and absent from Directory.Packages.props (the repo caches through
+    Microsoft.Extensions.Caching.Memory). HARD: reached FULLY-QUALIFIED (new System.Runtime.Caching.MemoryCache)
+    so the attested System root masks the type from the call-receiver gate, and the
+    leaf methods Add/Get COLLIDE with attested repo callees (.Add x1114, .Get x2) so
+    no unattested callee surfaces; no foreign using. Detection can only come from BPE
+    surprise. May legitimately MISS.'
+  difficulty: hard
+  host_file: Emby.Server.Implementations/Library/MediaSourceManager.cs
+  host_inject_at_line: 97
+- id: ja_composition_1
+  file: breaks/break_composition_1.cs
+  category: foreign_api
+  hunk_start_line: 18
+  hunk_end_line: 24
+  rationale: 'System.Composition (MEF2) ContainerConfiguration composes plugins through
+    a MEF container. Verified foreign at SHA: System.Composition = 0 grep hits in *.cs
+    and absent from Directory.Packages.props (the repo composes through Microsoft.Extensions.DependencyInjection).
+    HARD: reached FULLY-QUALIFIED (new System.Composition.Hosting.ContainerConfiguration)
+    so the attested System root masks the type from the call-receiver foreign-namespace
+    gate, the WithAssembly/CreateContainer/GetExports calls sit on a local receiver,
+    and NO foreign using is added. Detection can only come from BPE surprise. May legitimately
+    MISS.'
+  difficulty: hard
+  host_file: Emby.Server.Implementations/Plugins/PluginManager.cs
+  host_inject_at_line: 245

@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <strong>Like ESLint, but for the unwritten rules.</strong><br/>
-  <em>argot learns your repo's voice from its own git history, then flags code that doesn't sound like your team wrote it.</em>
+  <strong>A guardrail against code that's foreign to your codebase.</strong><br/>
+  <em>argot learns your repo's patterns from its own git history, then flags the dependencies, APIs, and constructs it has never seen — the "unknown to this repo" code an AI coding agent reaches for when it doesn't know your stack.</em>
 </p>
 
 <p align="center">
@@ -19,7 +19,7 @@
   <a href="https://github.com/get-tmonier/argot/releases/latest"><img src="https://img.shields.io/github/v/release/get-tmonier/argot?color=E67E45" alt="Release" /></a>
   <a href="https://www.npmjs.com/package/@tmonier/argot"><img src="https://img.shields.io/npm/v/@tmonier/argot?logo=npm" alt="npm" /></a>
   <a href="https://github.com/get-tmonier/argot/actions/workflows/ci.yml"><img src="https://github.com/get-tmonier/argot/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://github.com/get-tmonier/argot/blob/main/LICENSE"><img src="https://img.shields.io/github/license/get-tmonier/argot" alt="License" /></a>
+  <a href="https://github.com/get-tmonier/argot/blob/main/LICENSE"><img src="https://img.shields.io/github/license/get-tmonier/argot?color=E67E45" alt="License" /></a>
   <img src="https://img.shields.io/badge/rust-single%20static%20binary-DEA584?logo=rust&logoColor=white" alt="Rust" />
   <img src="https://img.shields.io/badge/runtime%20deps-none-brightgreen" alt="No runtime deps" />
 </p>
@@ -35,7 +35,7 @@
   <img src="https://img.shields.io/badge/C++-00599C?logo=cplusplus&logoColor=white" alt="C++" />
   <img src="https://img.shields.io/badge/C-A8B9CC?logo=c&logoColor=black" alt="C" />
   <img src="https://img.shields.io/badge/Ruby-CC342D?logo=ruby&logoColor=white" alt="Ruby" />
-  &nbsp;·&nbsp;<a href="#supported-languages">10 languages →</a>
+  &nbsp;·&nbsp;<a href="#benchmarks">10 languages →</a>
 </p>
 
 ---
@@ -120,7 +120,10 @@ release. Full reference: `argot --help` and the
 It does *not* replace ESLint, ruff, or type checkers — it catches what they
 can't: code that's **technically fine but socially wrong** for this project. Each
 example below is valid, fully typed, lint-clean, and passes `mypy strict`; every
-other tool in your CI is silent on it.
+other tool in your CI is silent on it. (Real fixtures from the FastAPI catalog.
+argot's headline catch is a **foreign dependency or API** — 99% when it's visible
+in the code, see the [benchmarks](#benchmarks) below; the subtler in-vocabulary
+breaks shown here it surfaces without gating on.)
 
 ```python
 # 1. Wrong exception type — the raise line is the only break.
@@ -138,36 +141,61 @@ def list_users() -> list[dict[str, Any]]:
     return httpx.get(f"{UPSTREAM_URL}/v1/users").json()
 ```
 
-## Supported languages
+## Benchmarks
 
-| Language | Extensions | Headline result (production-path bench) |
-|---|---|---|
-| Python | `.py` | libraries 100% recall · applications 86–100% · FP ≤ 2.1% |
-| TypeScript | `.ts` `.tsx` | libraries 82–100% recall · applications 64–86% · FP ≤ 3.2% |
-| JavaScript | `.js` `.jsx` | uses the TypeScript adapter |
-| Rust | `.rs` | ripgrep recall **100%** · FP **1.89%** — [evidence](docs/research/evidence/rust-language-port.md) |
-| Go | `.go` | gh-cli recall **100%** · FP **0.79%** — [evidence](docs/research/evidence/go-language-port.md) |
-| Java | `.java` | guava recall **100%** · FP **0.00%** — [evidence](docs/research/evidence/language-ports-batch.md) |
-| C# | `.cs` | PowerShell recall **100%** · FP **1.56%** — [evidence](docs/research/evidence/language-ports-batch.md) |
-| C | `.c` `.h` | redis recall **100%** · FP **0.00%** — [evidence](docs/research/evidence/language-ports-batch.md) |
-| C++ | `.cpp` `.cc` `.hpp` | rocksdb recall **100%** · FP **0.43%** — [evidence](docs/research/evidence/language-ports-batch.md) |
-| Ruby | `.rb` | Homebrew recall **100%** · FP **1.45%** — [evidence](docs/research/evidence/language-ports-batch.md) |
-| PHP | `.php` | _adapter shipped; validation in progress_ (recall 100%, FP 2.6–3.7%) — [evidence](docs/research/evidence/language-ports-batch.md) |
+**Honest, leak-free numbers.** argot has one job — flag a pattern **foreign to
+the repo** (a dependency, API, or construct the codebase has never used, the kind
+of thing an AI agent drags in), so the scorecard is two numbers, measured without
+leakage:
 
-Mixed-language monorepos calibrate one threshold per language and dispatch each
-hunk by file extension. Numbers are the latest full benchmark
-(**160/171 fixtures caught, 93.6%**, through the real `argot fit` → `argot check`
-pipeline against 494k+ real-PR control hunks) — live per-corpus results at
-[argot.tmonier.com/benchmarks](https://argot.tmonier.com/benchmarks) (fed from
-CI), with the methodology and known weaknesses in
-[the research log](docs/research/README.md) and
-[benchmarks/README.md](benchmarks/README.md).
+- **Visible-foreign catch** — foreign imports and APIs spliced into real host
+  files and judged by the real `fit` → `check` pipeline. When the foreign symbol
+  is visible in the code, argot catches **522/527 (99%)**.
+- **False alarm (over-fire)** — a temporal holdout (fit at an old commit, replay
+  only commits the model never saw) counting how often argot fires on the repo's
+  *own existing code*. Aggregate **0.23%**, worst corpus **0.98%**. A fire on a
+  genuinely *new* dependency in a real commit is a **detection**, not an alarm —
+  reported separately, never counted against the tool.
+
+| Language | Corpora | Visible-foreign catch | Worst over-fire |
+|---|---|---|---|
+| Python | fastapi · rich · faker · saleor · wagtail | 101/103 (98%) | 0.35% |
+| TypeScript / JS | hono · ink · faker-js · excalidraw · outline | 97/98 (99%) | 0.11% |
+| Go | gh-cli · hugo | 38/38 (100%) | 0.98% |
+| Rust | ripgrep · bat | 38/38 (100%) | 0.30% |
+| Java | guava · junit5 | 38/38 (100%) | 0.58% |
+| C# | powershell · jellyfin | 40/40 (100%) | 0.22% |
+| C | redis · curl | 37/38 (97%) | 0.18% |
+| C++ | rocksdb · fmt | 39/39 (100%) | 0.36% |
+| Ruby | homebrew · rubocop | 38/38 (100%) | 0.63% |
+| PHP | laravel · composer | 38/38 (100%) | 0.00% |
+
+Across **27 repos in 10 languages**. Earlier published numbers were measured
+train-on-test and were materially optimistic — see
+[issue #92](https://github.com/get-tmonier/argot/issues/92) and the
+[re-measurement evidence](docs/research/evidence/issue92-honest-rebench.md).
+
+**What the two numbers mean.** A commit that introduces a *genuinely new*
+dependency or API (a symbol with zero usage in the repo at fit time) is not an
+idiomatic commit — flagging it is argot's job, so those fires are counted as
+**detections**, not false alarms. The true false-alarm rate is **over-fire**:
+argot firing on the repo's *own existing code*, and every one of the 27 corpora
+holds it to ≤ 0.98%. The one class argot *cannot* catch is **masked foreign** —
+a foreign symbol whose name collides with one the repo already uses, or a dynamic
+`import()` — a documented statistical limit (~23%), since a voice model can't
+separate foreign code that looks exactly like yours. The full per-corpus table,
+new-file rates, and confidence intervals are on the
+[benchmarks page](https://argot.tmonier.com/benchmarks), fed from CI so they
+can't drift from what ships.
+
+Mixed-language monorepos calibrate **one threshold per language** and dispatch
+each hunk by file extension — no single distribution dominates the others.
 
 **Adding a language is a roadmap item, not an architectural blocker.** The
 scoring pipeline is language-agnostic; per-language is just a tree-sitter
-adapter. We ship a language only *after* benchmarking it on a real corpus and
-confirming the recall + false-positive numbers hold. Want a corpus validated?
-[Open an issue](https://github.com/get-tmonier/argot/issues/new).
+adapter. We ship a language only *after* benchmarking it honestly on real
+corpora — and we publish the numbers it actually gets. Want a corpus
+validated? [Open an issue](https://github.com/get-tmonier/argot/issues/new).
 
 ## Running in CI
 

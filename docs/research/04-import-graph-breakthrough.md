@@ -1,5 +1,14 @@
 # The import-graph breakthrough (phases 13–14)
 
+> **Superseded by [issue #92](https://github.com/get-tmonier/argot/issues/92).**
+> The "100% recall, 0 FP" figures below were measured **train-on-test** (FP by
+> replaying commits the model had trained on) on **softball** recall fixtures
+> (whole new files whose only break was a foreign import — exactly what an
+> import-graph scorer catches by construction). Under the leak-free protocol
+> (temporal-holdout FP + curated hard-class recall) the honest numbers are far
+> lower; see [`evidence/issue92-honest-rebench.md`](evidence/issue92-honest-rebench.md).
+> This document is retained as the phase-13/14 historical record.
+
 > **TL;DR.** A 180-line `ImportGraphScorer` — zero training, no model,
 > just "which modules has this repo never imported?" — plus BPE in
 > series cleared the 0.80 gate with **100% recall, 0 FP** on 46 breaks

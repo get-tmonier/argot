@@ -1,5 +1,11 @@
 # Go language port — benchmark
 
+> **⚠️ Errata (2026-07, issue [#92](https://github.com/get-tmonier/argot/issues/92)):** the FP
+> control in this document replayed commits already inside the training corpus
+> (train-on-test) and the recall fixtures were scored against a threshold with
+> the same leak. Preserved as a historical record; the honest re-measurement is
+> in [issue92-honest-rebench.md](issue92-honest-rebench.md).
+
 **Status: clears the bar on gh-cli (`cli/cli`).** Recall **12/12 (100%)**, FP
 **0.79%** — both inside the ≥ 85% / ≤ 2% gate, co-measured on one substantial,
 idiomatic corpus (4332 calibration candidates). Cobra and Hugo (below) are the

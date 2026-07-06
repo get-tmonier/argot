@@ -57,8 +57,14 @@ impl ImportGraphScorer {
     }
 
     /// True if `spec` is not a known internal module specifier.
+    ///
+    /// `__future__` is a Python compiler directive available in every file, not
+    /// a third-party dependency — a repo that never wrote `from __future__
+    /// import …` must not have it read as a foreign import when a later commit
+    /// adds one. Treated as always-known.
     pub fn is_foreign(&self, spec: &str) -> bool {
-        !self.repo_modules.contains(spec)
+        spec != "__future__"
+            && !self.repo_modules.contains(spec)
             && !self
                 .repo_modules_prefixes
                 .iter()
@@ -103,5 +109,14 @@ mod tests {
         assert!(!scorer.is_foreign("numpy"));
         assert!(!scorer.is_foreign("myapp.sub")); // prefix match
         assert!(scorer.is_foreign("pandas"));
+    }
+
+    #[test]
+    fn future_is_never_foreign() {
+        // `from __future__ import annotations` is a compiler directive, not a
+        // dependency — a repo that never used it must not flag it as foreign.
+        let scorer = ImportGraphScorer::new(); // empty repo_modules
+        assert!(!scorer.is_foreign("__future__"));
+        assert!(scorer.is_foreign("requests"));
     }
 }

@@ -1,0 +1,306 @@
+corpus: rubocop
+language: ruby
+categories:
+- foreign_import
+- foreign_api
+- foreign_concurrency
+injection_hosts:
+- pr: 0
+  sha: 3c198af997d6
+fixtures:
+- id: fi_nokogiri_1
+  file: breaks/break_foreign_nokogiri_1.rb
+  category: foreign_import
+  hunk_start_line: 18
+  hunk_end_line: 27
+  rationale: 'require "nokogiri" + Nokogiri::HTML to parse and rewrite anchors in the
+    generated HTML report. Verified at pinned SHA: nokogiri is absent from rubocop.gemspec
+    (deps: json, language_server-protocol, lint_roller, parallel, parser, rainbow,
+    regexp_parser, rubocop-ast, ruby-progressbar, unicode-display_width) and the Gemfile;
+    `Nokogiri::HTML` = 0 grep hits across *.rb (Nokogiri bare = 0). The corpus emits
+    HTML via the ERB template assets/output.html.erb + cgi/escape and never parses it.'
+  difficulty: easy
+  host_file: lib/rubocop/formatter/html_formatter.rb
+  host_inject_at_line: 34
+- id: fi_httparty_1
+  file: breaks/break_foreign_httparty_1.rb
+  category: foreign_import
+  hunk_start_line: 18
+  hunk_end_line: 25
+  rationale: 'require "httparty" + HTTParty.get to fetch an inherited remote config.
+    Verified at pinned SHA: httparty is absent from rubocop.gemspec and the Gemfile;
+    `HTTParty` = 0 grep hits across *.rb. The corpus fetches remote configs with the
+    stdlib Net::HTTP client in remote_config.rb (require "net/http" at its top).'
+  difficulty: easy
+  host_file: lib/rubocop/remote_config.rb
+  host_inject_at_line: 42
+- id: fi_redis_1
+  file: breaks/break_foreign_redis_1.rb
+  category: foreign_import
+  hunk_start_line: 19
+  hunk_end_line: 25
+  rationale: 'require "redis" + Redis.new to cache offenses in a network cache server.
+    Verified at pinned SHA: redis is absent from rubocop.gemspec and the Gemfile;
+    `Redis.new` = 0 grep hits across *.rb. The corpus caches results on the local
+    filesystem under rubocop_cache (result_cache.rb / cache_config.rb), never a
+    network cache.'
+  difficulty: easy
+  host_file: lib/rubocop/result_cache.rb
+  host_inject_at_line: 105
+- id: fa_faraday_1
+  file: breaks/break_foreign_faraday_1.rb
+  category: foreign_api
+  hunk_start_line: 18
+  hunk_end_line: 26
+  rationale: 'Faraday HTTP client (Faraday::Connection.new with retry middleware,
+    rescue Faraday::ConnectionFailed) to fetch a remote config — no require, the tell
+    is the qualified foreign callee. Verified at pinned SHA: faraday is absent from
+    rubocop.gemspec and the Gemfile; `Faraday::Connection` and `Faraday::` = 0 grep
+    hits each across *.rb (non-colliding). The corpus uses the stdlib Net::HTTP client
+    in remote_config.rb.'
+  difficulty: medium
+  host_file: lib/rubocop/remote_config.rb
+  host_inject_at_line: 22
+- id: fa_sidekiq_1
+  file: breaks/break_foreign_sidekiq_1.rb
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 21
+  rationale: 'Sidekiq::Client.new.push enqueuing background autocorrect jobs — qualified
+    foreign constant, no require. Verified at pinned SHA: sidekiq is absent from
+    rubocop.gemspec and the Gemfile; `Sidekiq::Client` and `Sidekiq::` = 0 grep hits
+    each across *.rb. The corpus runs inspection in-process, parallelised via the
+    parallel gem — it has no background-job queue.'
+  difficulty: medium
+  host_file: lib/rubocop/runner.rb
+  host_inject_at_line: 68
+- id: fa_typhoeus_1
+  file: breaks/break_foreign_typhoeus_1.rb
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 26
+  rationale: 'Typhoeus parallel HTTP fetch (Typhoeus::Hydra + Typhoeus::Request) of
+    several inherited configs — qualified foreign constants, no require. Verified at
+    pinned SHA: typhoeus is absent from rubocop.gemspec and the Gemfile; `Typhoeus::Request`
+    and `Typhoeus::` = 0 grep hits each across *.rb. The corpus fetches configs one
+    at a time through the stdlib Net::HTTP client in remote_config.rb.'
+  difficulty: medium
+  host_file: lib/rubocop/remote_config.rb
+  host_inject_at_line: 42
+- id: fc_concurrent_1
+  file: breaks/break_foreign_concurrent_1.rb
+  category: foreign_concurrency
+  hunk_start_line: 16
+  hunk_end_line: 24
+  rationale: 'concurrent-ruby thread pool + promises (Concurrent::FixedThreadPool,
+    Concurrent::Promises.future_on/zip) for parallel file inspection — qualified
+    foreign constants. Verified at pinned SHA: concurrent-ruby is absent from
+    rubocop.gemspec and the Gemfile; `Concurrent::` = 0 grep hits across *.rb
+    (FixedThreadPool = 0). The corpus parallelises inspection with the parallel gem
+    (require "parallel" in runner.rb), never concurrent-ruby.'
+  difficulty: medium
+  host_file: lib/rubocop/runner.rb
+  host_inject_at_line: 68
+- id: fc_celluloid_1
+  file: breaks/break_foreign_celluloid_1.rb
+  category: foreign_concurrency
+  hunk_start_line: 16
+  hunk_end_line: 20
+  rationale: 'Celluloid actor pool (Celluloid::Pool, Celluloid::Future) for concurrent
+    cop execution — qualified foreign constants. Verified at pinned SHA: celluloid is
+    absent from rubocop.gemspec and the Gemfile; `Celluloid` = 0 grep hits across *.rb.
+    The corpus runs cops in-process and parallelises files with the parallel gem — it
+    has no actor framework.'
+  difficulty: medium
+  host_file: lib/rubocop/runner.rb
+  host_inject_at_line: 68
+# --- issue #92 difficulty-graded additions (13 new: 5 easy · 5 medium · 3 hard) ---
+- id: fi_dalli_1
+  file: breaks/break_foreign_dalli_1.rb
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 22
+  rationale: 'require "dalli" + Dalli::Client.new to cache offenses on a shared memcached
+    server. Verified foreign at the pinned SHA: dalli is absent from rubocop.gemspec and
+    the Gemfile; `Dalli` = 0 grep hits across *.rb. The corpus caches results on the local
+    filesystem under rubocop_cache (result_cache.rb / cache_config.rb), never a network
+    cache server.'
+  difficulty: easy
+  host_file: lib/rubocop/result_cache.rb
+  host_inject_at_line: 105
+- id: fi_msgpack_1
+  file: breaks/break_foreign_msgpack_1.rb
+  category: foreign_import
+  hunk_start_line: 16
+  hunk_end_line: 20
+  rationale: 'require "msgpack" + MessagePack.pack for a binary offense cache. Verified
+    foreign at the pinned SHA: msgpack is absent from rubocop.gemspec and the Gemfile;
+    `MessagePack` = 0 grep hits across *.rb. The corpus serializes cached offenses as JSON
+    via the stdlib json gem (require "json" in cached_data.rb), never MessagePack.'
+  difficulty: easy
+  host_file: lib/rubocop/cached_data.rb
+  host_inject_at_line: 12
+- id: fi_diffy_1
+  file: breaks/break_foreign_diffy_1.rb
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 21
+  rationale: 'require "diffy" + Diffy::Diff.new to render a unified diff of autocorrected
+    files. Verified foreign at the pinned SHA: diffy is absent from rubocop.gemspec and the
+    Gemfile; `Diffy` = 0 grep hits across *.rb. The corpus reports corrections as plain text
+    through its own formatters and never renders diffs.'
+  difficulty: easy
+  host_file: lib/rubocop/formatter/simple_text_formatter.rb
+  host_inject_at_line: 26
+- id: fi_pastel_1
+  file: breaks/break_foreign_pastel_1.rb
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 22
+  rationale: 'require "pastel" + Pastel.new terminal colorizer for severity highlighting.
+    Verified foreign at the pinned SHA: pastel is absent from rubocop.gemspec and the
+    Gemfile; `Pastel` = 0 grep hits across *.rb. The corpus colors output through its own
+    Colorizable mixin backed by the rainbow gem, never Pastel. (colorize was rejected — the
+    corpus has an attested #colorize method.)'
+  difficulty: easy
+  host_file: lib/rubocop/formatter/simple_text_formatter.rb
+  host_inject_at_line: 26
+- id: fi_tty_spinner_1
+  file: breaks/break_foreign_tty_spinner_1.rb
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 25
+  rationale: 'require "tty-spinner" + TTY::Spinner.new progress spinner while files are
+    inspected. Verified foreign at the pinned SHA: tty-spinner is absent from rubocop.gemspec
+    and the Gemfile; `TTY::Spinner` and `TTY::` = 0 grep hits each across *.rb. The corpus
+    shows progress with dots and the ruby-progressbar gem, never a TTY spinner.'
+  difficulty: easy
+  host_file: lib/rubocop/formatter/progress_formatter.rb
+  host_inject_at_line: 17
+- id: fa_mongo_1
+  file: breaks/break_foreign_mongo_1.rb
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 20
+  rationale: 'MongoDB-backed offense store (Mongo::Client.new + collection.update_one) —
+    qualified foreign constant, no require. Verified foreign at the pinned SHA: mongo is
+    absent from rubocop.gemspec and the Gemfile; `Mongo::` = 0 grep hits across *.rb. The
+    corpus caches results on the local filesystem under rubocop_cache (result_cache.rb),
+    never a document database.'
+  difficulty: medium
+  host_file: lib/rubocop/result_cache.rb
+  host_inject_at_line: 105
+- id: fa_aws_s3_1
+  file: breaks/break_foreign_aws_s3_1.rb
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 19
+  rationale: 'S3 offense-cache upload (Aws::S3::Client.new + put_object) — qualified foreign
+    constant, no require. Verified foreign at the pinned SHA: aws-sdk-s3 is absent from
+    rubocop.gemspec and the Gemfile; `Aws::` = 0 grep hits across *.rb. The corpus keeps its
+    cache on the local filesystem under rubocop_cache, never object storage.'
+  difficulty: medium
+  host_file: lib/rubocop/result_cache.rb
+  host_inject_at_line: 105
+- id: fa_excon_1
+  file: breaks/break_foreign_excon_1.rb
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 21
+  rationale: 'Excon HTTP client (Excon::Connection.new + connection.request) to fetch a
+    remote config — qualified foreign constant, no require. Verified foreign at the pinned
+    SHA: excon is absent from rubocop.gemspec and the Gemfile; `Excon` = 0 grep hits across
+    *.rb. The corpus fetches remote configs with the stdlib Net::HTTP client in
+    remote_config.rb.'
+  difficulty: medium
+  host_file: lib/rubocop/remote_config.rb
+  host_inject_at_line: 42
+- id: fa_oj_1
+  file: breaks/break_foreign_oj_1.rb
+  category: foreign_api
+  hunk_start_line: 19
+  hunk_end_line: 22
+  rationale: 'HARD (masked leaf-method collision): swap the stdlib json serializer for Oj
+    via its single-dot facade (Oj.dump / Oj.load). No require and no `::` namespace; the leaf
+    methods `.dump`/`.load` are ATTESTED in the corpus (JSON.dump = attested, .load = 23
+    dotted calls in lib/), so method_attested short-circuits call_receiver and the foreign
+    `Oj` constant is not flagged as namespace-foreign. Verified foreign at the pinned SHA:
+    oj is absent from rubocop.gemspec and the Gemfile; `Oj` has 0 code uses across *.rb (its
+    sole textual mention is a prose comment in cached_data.rb). Only bpe surprisal on the
+    `Oj` token could catch it — a genuine may-miss.'
+  difficulty: hard
+  host_file: lib/rubocop/cached_data.rb
+  host_inject_at_line: 12
+- id: fa_net_ssh_1
+  file: breaks/break_foreign_net_ssh_1.rb
+  category: foreign_api
+  hunk_start_line: 22
+  hunk_end_line: 26
+  rationale: 'HARD (masked: attested root namespace): fetch a remote config over SSH via
+    Net::SSH.start (net-ssh gem). The root namespace `Net` is ATTESTED — the corpus uses
+    Net::HTTP / Net::HTTPNotModified in remote_config.rb — so is_namespace_foreign treats
+    `Net::SSH` as a known module (leading segment in attested_namespaces) and call_receiver
+    does not fire the explicit-foreign-namespace path; there is no require. Verified foreign
+    at the pinned SHA: net-ssh is absent from rubocop.gemspec and the Gemfile; `Net::SSH`
+    and `net/ssh` = 0 grep hits each across *.rb (the corpus only uses the stdlib Net::HTTP
+    family). Only bpe on the `SSH` token could catch it — a genuine may-miss.'
+  difficulty: hard
+  host_file: lib/rubocop/remote_config.rb
+  host_inject_at_line: 42
+- id: fc_async_1
+  file: breaks/break_foreign_async_1.rb
+  category: foreign_concurrency
+  hunk_start_line: 17
+  hunk_end_line: 21
+  rationale: 'async gem fiber reactor (`Async { |task| ... }` + task.async) fanning out file
+    inspection — bare foreign callee, no require. Verified foreign at the pinned SHA: async
+    is absent from rubocop.gemspec and the Gemfile; `Async` = 0 grep hits across *.rb. The
+    corpus parallelises inspection with the parallel gem (require "parallel" in runner.rb),
+    never an async fiber reactor. Medium: the tell is a bare unattested foreign callee
+    (Async), caught via hunk-foreign-reach rather than an explicit `::` namespace.'
+  difficulty: medium
+  host_file: lib/rubocop/runner.rb
+  host_inject_at_line: 68
+- id: fc_timers_1
+  file: breaks/break_foreign_timers_1.rb
+  category: foreign_concurrency
+  hunk_start_line: 17
+  hunk_end_line: 21
+  rationale: 'timers gem (Timers::Group.new + group.every) driving a periodic progress tick
+    — qualified foreign constant, no require. Verified foreign at the pinned SHA: timers is
+    absent from rubocop.gemspec and the Gemfile; `Timers::` = 0 grep hits across *.rb. The
+    corpus runs synchronously and reports progress via the ruby-progressbar gem — it
+    schedules no timers.'
+  difficulty: medium
+  host_file: lib/rubocop/runner.rb
+  host_inject_at_line: 68
+- id: fc_shoryuken_1
+  file: breaks/break_foreign_shoryuken_1.rb
+  category: foreign_concurrency
+  hunk_start_line: 20
+  hunk_end_line: 23
+  rationale: 'HARD (masked leaf-method collision on `.run`): hand file inspection to a
+    Shoryuken (SQS) worker pump built through a single-dot facade — `pump = Shoryuken.new(...)`
+    then `pump.run(paths)`. No `::` namespace and no require; the leaf `.new` and the
+    follow-up `.run` (Runner#run = 26 `def run` in the corpus, `.run` = 26 dotted calls in
+    lib/) are both ATTESTED, so method_attested short-circuits call_receiver and the foreign
+    `Shoryuken` constant slips through. Verified foreign at the pinned SHA: shoryuken is
+    absent from rubocop.gemspec and the Gemfile; `Shoryuken` = 0 grep hits across *.rb. The
+    corpus runs in-process, parallelised by the parallel gem — it has no message-queue
+    worker. Only bpe on the `Shoryuken` token could catch it — a genuine may-miss.'
+  difficulty: hard
+  host_file: lib/rubocop/runner.rb
+  host_inject_at_line: 68
+- id: fc_eventmachine_1
+  file: breaks/break_foreign_eventmachine_1.rb
+  category: foreign_concurrency
+  hunk_start_line: 16
+  hunk_end_line: 21
+  rationale: 'EventMachine reactor (EventMachine.run, EventMachine::PeriodicTimer,
+    EventMachine.defer) driving a periodic progress tick — qualified foreign constant.
+    Verified at pinned SHA: eventmachine is absent from rubocop.gemspec and the Gemfile;
+    `EventMachine` = 0 grep hits across *.rb. The corpus runs synchronously and reports
+    progress via the ruby-progressbar gem — it has no reactor loop.'
+  difficulty: medium
+  host_file: lib/rubocop/runner.rb
+  host_inject_at_line: 68

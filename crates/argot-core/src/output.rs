@@ -71,6 +71,16 @@ pub struct HitRecord {
     pub evidence: Vec<String>,
 }
 
+/// Per-file count of scored hunks (below-threshold ones included), for
+/// consumers that need a denominator per file rather than the run total.
+#[derive(Debug, Clone, Serialize)]
+pub struct FileScan {
+    /// Repo-relative, `/`-separated file path.
+    pub path: String,
+    /// Hunks scored in this file during the run.
+    pub hunks: usize,
+}
+
 /// Run-level metadata shared by both machine formats.
 pub struct ReportMeta {
     /// Tool version (the workspace-shared crate version).
@@ -81,6 +91,8 @@ pub struct ReportMeta {
     pub scanned: String,
     /// Total hunks scored (including below-threshold ones).
     pub hunks_scanned: usize,
+    /// Per-file breakdown of `hunks_scanned` (JSON format only).
+    pub files_scanned: Vec<FileScan>,
     /// Combined fingerprint of the fit-time model that scored the diff.
     pub model: String,
 }
@@ -112,6 +124,7 @@ pub fn render_json(meta: &ReportMeta, hits: &[HitRecord]) -> String {
         "repo": meta.repo,
         "scanned": meta.scanned,
         "hunks_scanned": meta.hunks_scanned,
+        "files_scanned": meta.files_scanned,
         "hits": hits,
     });
     to_pretty(&doc)
@@ -218,6 +231,10 @@ mod tests {
             repo: "/tmp/repo".to_string(),
             scanned: "workdir".to_string(),
             hunks_scanned: 7,
+            files_scanned: vec![FileScan {
+                path: "src/app.py".to_string(),
+                hunks: 7,
+            }],
             model: "abc123def456".to_string(),
         }
     }
@@ -263,6 +280,8 @@ mod tests {
         assert_eq!(doc["repo"], "/tmp/repo");
         assert_eq!(doc["scanned"], "workdir");
         assert_eq!(doc["hunks_scanned"], 7);
+        assert_eq!(doc["files_scanned"][0]["path"], "src/app.py");
+        assert_eq!(doc["files_scanned"][0]["hunks"], 7);
         let h = &doc["hits"][0];
         assert_eq!(h["path"], "src/app.py");
         assert_eq!(h["line_start"], 10);

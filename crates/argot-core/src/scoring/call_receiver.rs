@@ -490,6 +490,25 @@ fn non_none_callees(source: &str, language: Language) -> Vec<String> {
         .collect()
 }
 
+/// The leading module/namespace segment of a callee — the first non-empty
+/// token when split on `.`, `::`, or `\`. A bare name (no separator) returns
+/// the whole string. `\Doctrine\ORM\X.create` → `Doctrine`,
+/// `tokio::runtime::Runtime::new` → `tokio`, `viper.GetString` → `viper`,
+/// `String::with_capacity` → `String`. Used to decide whether an unattested
+/// callee reaches into a module foreign to the repo (`tokio`) or a known /
+/// local one (`String`, `self`, a local receiver variable).
+fn leading_namespace(callee: &str) -> &str {
+    let trimmed = callee.trim_start_matches('\\');
+    let end = trimmed.find(['.', ':', '\\']).unwrap_or(trimmed.len());
+    &trimmed[..end]
+}
+
+/// Whether `callee` carries a receiver/namespace qualifier (a `.`, `::`, or
+/// `\`). A bare identifier is unqualified.
+fn is_qualified(callee: &str) -> bool {
+    callee.contains('.') || callee.contains(':') || callee.contains('\\')
+}
+
 /// Callees of every call-expression whose start line falls inside the
 /// 1-indexed inclusive `[start_line, end_line]` region of `source`.
 ///
@@ -841,6 +860,15 @@ pub struct CallReceiverScorer {
     /// though the corpus calls `.join` constantly; the method segment is
     /// what carries voice, so corpus-known methods do not alpha-fire.
     attested_methods: HashSet<String>,
+    /// Leading module/namespace segments of every attested callee — the set
+    /// of modules the repo already reaches into (`String`, `self`, `gix`,
+    /// every local receiver name). An unattested callee qualified by a
+    /// namespace *outside* this set (`tokio`, `viper`, `\Doctrine`) reaches
+    /// into a foreign module; one inside it (`String::with_capacity`,
+    /// `repository.set_resource`) is a new API on a known/local receiver.
+    attested_namespaces: HashSet<String>,
+    /// Repo-declared symbols (see [`CallReceiverModel::defined_symbols`]).
+    defined_symbols: HashSet<String>,
     pub n_skipped_data_dominant: usize,
     file_to_cluster: HashMap<PathBuf, usize>,
     cluster_attested: HashMap<usize, HashSet<String>>,
@@ -880,6 +908,9 @@ impl CallReceiverScorer {
         cluster_size_min: usize,
     ) -> Result<Self, &'static str> {
         let mut attested: HashSet<String> = HashSet::new();
+        // Symbols the repo declares (functions, methods, classes, types,
+        // namespaces) — see `CallReceiverModel::defined_symbols`.
+        let mut defined_symbols: HashSet<String> = HashSet::new();
         let mut skipped = 0usize;
         let mut files_list: Vec<PathBuf> = Vec::new();
         let mut file_bags: Vec<(PathBuf, HashSet<String>)> = Vec::new();
@@ -891,6 +922,7 @@ impl CallReceiverScorer {
                 skipped += 1;
                 continue;
             }
+            defined_symbols.extend(adapter.callable_definitions(src));
             let callees = non_none_callees(src, language);
             for c in &callees {
                 attested.insert(c.clone());
@@ -918,6 +950,10 @@ impl CallReceiverScorer {
         let attested_methods: HashSet<String> = attested
             .iter()
             .filter_map(|c| c.rsplit_once('.').map(|(_, m)| m.to_string()))
+            .collect();
+        let attested_namespaces: HashSet<String> = attested
+            .iter()
+            .map(|c| leading_namespace(c).to_string())
             .collect();
 
         let mut file_to_cluster = HashMap::new();
@@ -964,6 +1000,8 @@ impl CallReceiverScorer {
             cluster_sizes,
             callee_file_counts,
             n_corpus_files,
+            attested_namespaces,
+            defined_symbols,
             rarity_weighting: RarityWeighting::Off,
             shape_primitives: Vec::new(),
             primitive_baselines: HashMap::new(),
@@ -1009,10 +1047,13 @@ impl CallReceiverScorer {
         }
         let mut attested: Vec<String> = self.attested.iter().cloned().collect();
         attested.sort();
+        let mut defined_symbols: Vec<String> = self.defined_symbols.iter().cloned().collect();
+        defined_symbols.sort();
         CallReceiverModel {
             attested,
             n_corpus_files: self.n_corpus_files,
             clusters,
+            defined_symbols,
         }
     }
 
@@ -1030,6 +1071,7 @@ impl CallReceiverScorer {
         cluster_size_min: usize,
     ) -> Result<Self, &'static str> {
         let attested: HashSet<String> = model.attested.iter().cloned().collect();
+        let defined_symbols: HashSet<String> = model.defined_symbols.iter().cloned().collect();
         let attested_roots: HashSet<String> = attested
             .iter()
             .map(|c| c.split_once('.').map(|(h, _)| h).unwrap_or(c).to_string())
@@ -1037,6 +1079,10 @@ impl CallReceiverScorer {
         let attested_methods: HashSet<String> = attested
             .iter()
             .filter_map(|c| c.rsplit_once('.').map(|(_, m)| m.to_string()))
+            .collect();
+        let attested_namespaces: HashSet<String> = attested
+            .iter()
+            .map(|c| leading_namespace(c).to_string())
             .collect();
         let mut file_to_cluster = HashMap::new();
         let mut cluster_attested: HashMap<usize, HashSet<String>> = HashMap::new();
@@ -1076,6 +1122,8 @@ impl CallReceiverScorer {
             cluster_sizes,
             callee_file_counts,
             n_corpus_files: model.n_corpus_files,
+            attested_namespaces,
+            defined_symbols,
             rarity_weighting: RarityWeighting::Off,
             shape_primitives: Vec::new(),
             primitive_baselines: HashMap::new(),
@@ -1142,6 +1190,14 @@ impl CallReceiverScorer {
         self.n_corpus_files
     }
 
+    /// Whether `path` was one of the fit-time corpus files (repo-relative key,
+    /// the same routing key [`Self::contribution_events_impl`] resolves cluster
+    /// membership by). A path the model has never seen is a new file — `check`
+    /// judges its hunks against the new-file threshold (issue #92).
+    pub fn knows_file(&self, path: &Path) -> bool {
+        self.file_to_cluster.contains_key(path)
+    }
+
     fn root(callee: &str) -> &str {
         callee.split_once('.').map(|(h, _)| h).unwrap_or(callee)
     }
@@ -1153,6 +1209,140 @@ impl CallReceiverScorer {
             .rsplit_once('.')
             .map(|(_, m)| self.attested_methods.contains(m))
             .unwrap_or(false)
+    }
+
+    /// Whether an unattested `callee` reaches into a module/namespace foreign
+    /// to the repo. It must be *qualified* (carry a receiver/namespace) whose
+    /// leading segment is none of: a `self`/`this`-style receiver, a local
+    /// binding (a receiver variable the change itself introduced), or a
+    /// namespace the corpus already attests. `tokio::runtime::Runtime::new`
+    /// and `\Doctrine\ORM\EntityManager.create` are foreign; `String::with_capacity`
+    /// (`String` attested), `repository.set_resource` (`repository` local),
+    /// and `self.render` are not. A *bare* callee is never namespace-foreign —
+    /// a foreign bare call (`event_base_new`) is recognised by its file's
+    /// foreign import, not its name.
+    pub fn is_namespace_foreign(&self, callee: &str, local: &LocalBindings) -> bool {
+        if !is_qualified(callee) {
+            return false;
+        }
+        let lead = leading_namespace(callee);
+        if lead.is_empty() || matches!(lead, "self" | "Self" | "this" | "super" | "base" | "cls") {
+            return false;
+        }
+        if local.callables.contains(lead) || local.values.contains(lead) {
+            return false;
+        }
+        // A leading segment the repo declares (`AlignedBuffer::isAligned`,
+        // `trie_index::Register` — rocksdb's own type/namespace) is internal
+        // cross-file code, not a foreign module. A foreign namespace the repo
+        // never declares (`absl::`, `tokio::`, `\Doctrine`) still fires.
+        if self.defined_symbols.contains(lead) {
+            return false;
+        }
+        !self.attested_namespaces.contains(lead)
+    }
+
+    /// Whether `file_source` reaches into a module foreign to the repo. It
+    /// does when the file contains an unattested callee that is either
+    /// namespace-qualified into an unknown module (`\Doctrine\ORM\X.create`,
+    /// `tokio::spawn`) or a **bare** foreign symbol (`event_base_new` — a C
+    /// library function; the repo's own new functions are excluded via
+    /// `local`, which carries the change's callable and value bindings).
+    ///
+    /// This is a *file-level* signal so a foreign dependency spread across
+    /// hunks — the FQN assignment in one hunk, the calls through a local
+    /// receiver in another — flags every hunk of the file's new code, not just
+    /// the one line that names the module. A file that only reaches known
+    /// modules (`String::with_capacity`, `self.render`, a local receiver) does
+    /// not qualify, so the codebase's own new code stays quiet.
+    pub fn file_reaches_foreign(&self, file_source: &str, local: &LocalBindings) -> bool {
+        non_none_callees(file_source, self.language)
+            .iter()
+            .any(|c| self.callee_reaches_foreign(c, local))
+    }
+
+    /// [`Self::file_reaches_foreign`] robust to fragments that only parse in
+    /// their file context. When the bare `hunk` yields no callees — a PHP
+    /// method body without `<?php` parses as inert `text` — the callees are
+    /// re-derived from `file_region = (file_source, start, end)` parsed whole,
+    /// restricted to the hunk's own line span so a foreign callee elsewhere in
+    /// the file never leaks in.
+    pub fn hunk_reaches_foreign(
+        &self,
+        hunk: &str,
+        file_region: Option<(&str, usize, usize)>,
+        local: &LocalBindings,
+    ) -> bool {
+        let bare = non_none_callees(hunk, self.language);
+        let callees = match (bare.is_empty(), file_region) {
+            (true, Some((src, s, e))) => callees_in_source_region(src, self.language, s, e),
+            _ => bare,
+        };
+        callees
+            .iter()
+            .any(|c| self.callee_reaches_foreign(c, local))
+    }
+
+    /// Whether the hunk names an **explicit foreign namespace** — a callee with
+    /// a namespace separator (`::` or `\`) whose module root the repo never
+    /// attests (`\Respect\Validation\Validator::key`, `tokio::spawn`,
+    /// `\Doctrine\ORM\EntityManager::create`). This is an unambiguous
+    /// foreign-dependency reference, as strong a signal as a foreign import, so
+    /// the caller fires it regardless of the surprisal threshold — a small edit
+    /// that reaches a namespace the repo has never used must not slip under the
+    /// bar. Bare callees and single-`.` receiver forms (ambiguous globals /
+    /// member access — `$`, `Math.floor`, `client.get`) are deliberately
+    /// excluded; only an explicit multi-segment namespace qualifies. Robust to
+    /// fragments that only parse in file context (see [`Self::hunk_reaches_foreign`]).
+    pub fn hunk_names_explicit_foreign_namespace(
+        &self,
+        hunk: &str,
+        file_region: Option<(&str, usize, usize)>,
+        local: &LocalBindings,
+    ) -> bool {
+        let bare = non_none_callees(hunk, self.language);
+        let callees = match (bare.is_empty(), file_region) {
+            (true, Some((src, s, e))) => callees_in_source_region(src, self.language, s, e),
+            _ => bare,
+        };
+        callees
+            .iter()
+            .any(|c| (c.contains("::") || c.contains('\\')) && self.is_namespace_foreign(c, local))
+    }
+
+    /// Whether a single callee reaches into a foreign module. Three cases:
+    /// * **module path** (`::` or `\`, e.g. `tokio::spawn`,
+    ///   `\React\EventLoop\Loop.get`) — foreign iff its module root is unknown
+    ///   to the repo, *regardless* of whether the leaf method is a common
+    ///   attested name (`get`). The foreign namespace is the signal.
+    /// * **bare symbol** (`event_base_new`, `setcookie`, `strcat`, jQuery `$`)
+    ///   — foreign iff the repo never attested it. Many foreign APIs are called
+    ///   bare with no distinct import (C/PHP builtins, macros, globals), so this
+    ///   path is load-bearing for the foreign-API catch classes; the change's
+    ///   own new functions are excluded via `local`.
+    /// * **single-`.` receiver form** (`client.newCall`, `Type.Method`) — the
+    ///   `.` is ambiguous between a package and a plain member access, so a
+    ///   corpus-known method (fresh receiver, in-voice method) is NOT foreign;
+    ///   only an unknown method on an unknown, non-local receiver namespace is.
+    fn callee_reaches_foreign(&self, callee: &str, local: &LocalBindings) -> bool {
+        if local.attests(callee) {
+            return false;
+        }
+        if callee.contains(':') || callee.contains('\\') {
+            return self.is_namespace_foreign(callee, local);
+        }
+        if self.attested.contains(callee) || self.method_attested(callee) {
+            return false;
+        }
+        if is_qualified(callee) {
+            self.is_namespace_foreign(callee, local)
+        } else {
+            // Bare unattested callee: foreign only if the repo never declares
+            // it. A repo-declared name (`ResetState`, `rocksdb_*_create`) is
+            // internal code reached across translation units; a name the repo
+            // never declares (`event_base_new`, `strcat`) is a foreign symbol.
+            !self.defined_symbols.contains(callee)
+        }
     }
 
     fn distinct_unattested_impl(&self, hunk: &str) -> Vec<String> {
@@ -1259,6 +1449,26 @@ impl CallReceiverScorer {
         host_context: Option<(&str, usize, usize)>,
         local_bindings: &LocalBindings,
     ) -> Vec<ContributionEvent> {
+        self.contribution_events_impl(hunk, file_path, host_context, local_bindings, false)
+    }
+
+    /// As [`Self::contribution_events_for_file`], but scoring the hunk as though
+    /// its file were newly added post-fit (`as_new`): cluster routing is
+    /// disabled (a genuinely-new file is never cluster-routed at check time, so
+    /// only the global unattested/alpha branches apply) and a callee counts as
+    /// attested only when some OTHER corpus file also contains it (`df ≥ 2`) —
+    /// exact leave-one-file-out attestation, since a callee whose sole container
+    /// is this file would be unattested once the file is removed. This mirrors
+    /// how `check` scores a new file and drives the separate new-file
+    /// calibration threshold (issue #92 new-file flooding).
+    fn contribution_events_impl(
+        &self,
+        hunk: &str,
+        file_path: Option<&Path>,
+        host_context: Option<(&str, usize, usize)>,
+        local_bindings: &LocalBindings,
+        as_new: bool,
+    ) -> Vec<ContributionEvent> {
         let callees: Vec<String> = if has_root_error(hunk, self.language) {
             match host_context {
                 Some((host_source, start_line, end_line)) => {
@@ -1267,7 +1477,23 @@ impl CallReceiverScorer {
                 None => return Vec::new(),
             }
         } else {
-            non_none_callees(hunk, self.language)
+            let bare = non_none_callees(hunk, self.language);
+            // A hunk that parses to zero callees may be a fragment that needs
+            // its file's preamble to parse standalone — a PHP method body
+            // without `<?php`, which tree-sitter reads as inert `text` (no
+            // error, no calls). Recover the callees from the file parsed in
+            // context, restricted to the hunk's own line region so a foreign
+            // callee elsewhere in the file never leaks in.
+            if bare.is_empty() {
+                match host_context {
+                    Some((host_source, s, e)) => {
+                        callees_in_source_region(host_source, self.language, s, e)
+                    }
+                    None => bare,
+                }
+            } else {
+                bare
+            }
         };
         if callees.is_empty() {
             return Vec::new();
@@ -1279,8 +1505,11 @@ impl CallReceiverScorer {
         // cluster) — measured as the dominant FP driver on new-feature
         // commits. Unknown files still get the global unattested branches;
         // `nearest_cluster_for_source` remains for evidence display.
-        let cluster_id: Option<usize> =
-            file_path.and_then(|p| self.file_to_cluster.get(p).copied());
+        let cluster_id: Option<usize> = if as_new {
+            None
+        } else {
+            file_path.and_then(|p| self.file_to_cluster.get(p).copied())
+        };
         let cluster_set = cluster_id.and_then(|c| self.cluster_attested.get(&c));
         let cluster_counts = cluster_id.and_then(|c| self.cluster_callee_counts.get(&c));
 
@@ -1297,7 +1526,12 @@ impl CallReceiverScorer {
             if local_bindings.attests(&c) {
                 continue;
             }
-            let branch = if !self.attested.contains(&c) && !self.method_attested(&c) {
+            let attested_here = if as_new {
+                self.callee_file_count(&c) >= 2
+            } else {
+                self.attested.contains(&c)
+            };
+            let branch = if !attested_here && !self.method_attested(&c) {
                 if self.attested_roots.contains(Self::root(&c)) {
                     Some(ContributionBranch::UnattestedKnownRoot)
                 } else {
@@ -1397,6 +1631,42 @@ impl CallReceiverScorer {
         }
         if hunk_fired_rare {
             self.rare_branch_hunks_fired += 1;
+        }
+        weights.min(cap)
+    }
+
+    /// Call-receiver contribution for a hunk scored as though its file were
+    /// newly added post-fit (see [`Self::contribution_events_impl`]). Side-effect
+    /// free (`&self`, no fire counters, no shape primitives): it feeds only the
+    /// separate new-file calibration threshold, which is the honest operating
+    /// point for a genuinely-new file — cluster branches are off, so only the
+    /// global alpha branches contribute, exactly as `check` scores a new file.
+    #[allow(clippy::too_many_arguments)]
+    pub fn weighted_contribution_as_new(
+        &self,
+        hunk: &str,
+        file_path: Option<&Path>,
+        alpha: f64,
+        root_bonus: f64,
+        cluster_bonus: f64,
+        cap: f64,
+        host_context: Option<(&str, usize, usize)>,
+        local_bindings: &LocalBindings,
+    ) -> f64 {
+        let events =
+            self.contribution_events_impl(hunk, file_path, host_context, local_bindings, true);
+        let mut weights = 0.0;
+        for ev in &events {
+            let rarity = self
+                .rarity_weighting
+                .weight(self.callee_file_count(&ev.callee), self.n_corpus_files);
+            match ev.branch {
+                ContributionBranch::UnattestedKnownRoot => weights += alpha + root_bonus,
+                ContributionBranch::Unattested => weights += alpha,
+                ContributionBranch::ClusterAbsent | ContributionBranch::ClusterRare => {
+                    weights += cluster_bonus * rarity
+                }
+            }
         }
         weights.min(cap)
     }
@@ -1506,6 +1776,95 @@ mod tests {
         assert_eq!(cr.callee_file_count("foo"), 6);
         assert_eq!(cr.callee_file_count("rare_helper"), 1);
         assert_eq!(cr.callee_file_count("never_seen"), 0);
+    }
+
+    #[test]
+    fn as_new_fires_alpha_on_singleton_df_callees() {
+        // File-level LOO: a callee whose only corpus container is the held-out
+        // file (df == 1) is unattested once that file is treated as newly added,
+        // so it fires the global alpha branch; a widely-shared callee (df >= 2)
+        // stays attested and, with cluster routing off for new files,
+        // contributes nothing. This asymmetry lifts the new-file threshold above
+        // the existing-file one (issue #92 new-file flooding).
+        let cr = toy_scorer(RarityWeighting::Off);
+        // rare_helper has df == 1 (only rare.py) → alpha fires as-new.
+        let singleton = cr.weighted_contribution_as_new(
+            "rare_helper()\n",
+            Some(Path::new("rare.py")),
+            2.0,
+            2.0,
+            5.0,
+            5.0,
+            None,
+            &Default::default(),
+        );
+        // Alpha fires (>= 2.0), capped at 5.0. Root attestation stays global, so
+        // a singleton bare callee resolves to UnattestedKnownRoot (alpha +
+        // root_bonus = 4.0) — a bounded, conservative over-estimate that only
+        // raises the new-file bar.
+        assert!(
+            (2.0..=5.0).contains(&singleton),
+            "singleton-df callee fires alpha as-new, got {singleton}"
+        );
+        // foo has df == 6 → attested by other files → no alpha; cluster off → 0.
+        let shared = cr.weighted_contribution_as_new(
+            "foo()\n",
+            Some(Path::new("a0.py")),
+            2.0,
+            2.0,
+            5.0,
+            5.0,
+            None,
+            &Default::default(),
+        );
+        assert_eq!(
+            shared, 0.0,
+            "widely-shared callee contributes nothing as-new"
+        );
+    }
+
+    #[test]
+    fn explicit_foreign_namespace_fires_only_on_unattested_qualified_callees() {
+        use crate::scoring::adapters::php::PhpAdapter;
+        let adapter = PhpAdapter::new();
+        // The repo attests the `\Known\Ns` namespace.
+        let files: Vec<(PathBuf, String)> = (0..3)
+            .map(|i| {
+                (
+                    PathBuf::from(format!("f{i}.php")),
+                    "<?php\nfunction f() {\n    return \\Known\\Ns\\Thing::make();\n}\n"
+                        .to_string(),
+                )
+            })
+            .collect();
+        let cr =
+            CallReceiverScorer::new(&files, Language::Php, 2.0, 5, &adapter, 4, 0, 0, 0).unwrap();
+        let local = LocalBindings::default();
+        // Explicit foreign namespace the repo never uses → detected.
+        assert!(cr.hunk_names_explicit_foreign_namespace(
+            "<?php\n$v = \\Respect\\Validation\\Validator::key($a);\n",
+            None,
+            &local,
+        ));
+        // A namespace the repo attests → not foreign.
+        assert!(!cr.hunk_names_explicit_foreign_namespace(
+            "<?php\n$v = \\Known\\Ns\\Thing::make();\n",
+            None,
+            &local,
+        ));
+        // A bare call (no explicit namespace separator) never qualifies for the
+        // threshold-independent fire, ambiguous global or not.
+        assert!(!cr.hunk_names_explicit_foreign_namespace("<?php\nstrlen($x);\n", None, &local,));
+    }
+
+    #[test]
+    fn knows_file_tracks_fit_membership() {
+        let cr = toy_scorer(RarityWeighting::Off);
+        assert!(cr.knows_file(Path::new("a0.py")), "fit file is known");
+        assert!(
+            !cr.knows_file(Path::new("brand_new.py")),
+            "unseen file is a new file"
+        );
     }
 
     #[test]

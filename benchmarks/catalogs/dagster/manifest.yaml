@@ -12,6 +12,10 @@ categories:
   - data_fetching
   - routing
   - styling
+  # RUBRIC v2 gated novel-pattern classes (foreign-dependency breaks)
+  - foreign_import
+  - foreign_api
+  - foreign_concurrency
 injection_hosts:
   - pr: 0
     sha: 549b894e4ba03d5836459d58932105b77fafe242
@@ -19,19 +23,6 @@ fixtures:
   # ---------------------------------------------------------------------
   # Python — Dagster vs other-framework paradigms
   # ---------------------------------------------------------------------
-  - id: dagster_py_framework_swap_1
-    language: python
-    file: breaks/py/paradigm_break_airflow_operator.py
-    category: framework_swap
-    hunk_start_line: 15
-    hunk_end_line: 85
-    rationale: "Dagster uses @op / @job / @asset with typed Output objects and a Definitions registry; Airflow's
-      DAG, PythonOperator, default_args dict, schedule_interval, and XCom (ti.xcom_push / ti.xcom_pull)
-      are absent from the Dagster corpus — the entire wiring vocabulary is foreign"
-    difficulty: easy
-    host_file: python_modules/dagster/dagster/_core/definitions/schedule_definition.py
-    host_inject_at_line: 430
-
   - id: dagster_py_framework_swap_2
     language: python
     file: breaks/py/paradigm_break_prefect_task.py
@@ -366,3 +357,275 @@ fixtures:
     difficulty: easy
     host_file: js_modules/ui-core/src/assets/AssetLink.tsx
     host_inject_at_line: 13
+
+  # =====================================================================
+  # RUBRIC v2 foreign-dependency breaks (#92 graded recall sample)
+  # Every dependency below is verified 0-usage at the pinned SHA across the
+  # whole monorepo (source + examples/, which argot trains on) AND absent from
+  # every setup.py / pyproject.toml / package.json. Difficulty-graded per the
+  # graded-brief: easy fires via the import stage; medium stresses callee /
+  # receiver resolution but still carries a foreign-root import; hard masks the
+  # foreignness (attested root namespace, dynamic import, or a leaf name that
+  # collides with an attested method) and may honestly MISS.
+  # ---------------------------------------------------------------------
+  # Python — foreign packages (dagster is a monorepo: dask/celery/snowflake/
+  # gcp/aws/azure/duckdb/polars/pydantic/airflow/prefect are all ATTESTED and
+  # deliberately avoided).
+  # ---------------------------------------------------------------------
+  - id: dagster_py_foreign_import_temporalio
+    language: python
+    file: breaks/py/foreign_import_temporalio.py
+    category: foreign_import
+    hunk_start_line: 11
+    hunk_end_line: 47
+    rationale: "Temporal Python SDK (temporalio) @workflow.defn / @activity.defn durable-workflow
+      pipeline replacing Dagster's @op/@job. Verified 0-usage: `import/from temporalio` = 0 across
+      all *.py at SHA 549b894e (whole monorepo incl. examples/), and `temporalio` absent from every
+      setup.py/pyproject.toml. Import stage roots to the foreign `temporalio` module."
+    difficulty: easy
+    host_file: python_modules/dagster/dagster/_core/definitions/job_definition.py
+    host_inject_at_line: 96
+
+  - id: dagster_py_foreign_import_loguru
+    language: python
+    file: breaks/py/foreign_import_loguru.py
+    category: foreign_import
+    hunk_start_line: 9
+    hunk_end_line: 21
+    rationale: "loguru process-global logger (logger.add/remove/bind) replacing Dagster's
+      context.log / get_dagster_logger(). Verified 0-usage: no `import loguru` / `from loguru`
+      anywhere at SHA 549b894e; the sole `loguru` token is the string \"loguru==0.6.0\" in a Modal
+      image-requirements list (examples/), not an import, so the module is unattested. Dagster's own
+      logging is structlog-based (attested) — loguru is the foreign dep. Import stage fires on `loguru`."
+    difficulty: easy
+    host_file: python_modules/dagster/dagster/_core/definitions/op_definition.py
+    host_inject_at_line: 59
+
+  - id: dagster_py_foreign_concurrency_ray
+    language: python
+    file: breaks/py/foreign_concurrency_ray.py
+    category: foreign_concurrency
+    hunk_start_line: 9
+    hunk_end_line: 23
+    rationale: "Ray distributed runtime (@ray.remote / ray.init / ray.get) fanning steps out instead
+      of Dagster's own multiprocess_executor / StepDelegatingExecutor. Verified 0-usage: `import ray`
+      / `from ray` = 0 across all *.py at SHA 549b894e, `ray` absent from every dependency manifest
+      (no dagster-ray integration exists). Import stage roots to the foreign `ray` module."
+    difficulty: easy
+    host_file: python_modules/dagster/dagster/_core/executor/multiprocess.py
+    host_inject_at_line: 53
+
+  - id: dagster_py_foreign_concurrency_trio
+    language: python
+    file: breaks/py/foreign_concurrency_trio.py
+    category: foreign_concurrency
+    hunk_start_line: 9
+    hunk_end_line: 26
+    rationale: "trio structured-concurrency runtime (trio.open_nursery / trio.run / nursery.start_soon)
+      driving concurrent sensor evaluation instead of Dagster's daemon loop. Verified 0-usage:
+      `import trio` / `from trio` = 0 across all *.py at SHA 549b894e and absent from every dependency
+      manifest (dagster's async is asyncio/anyio, not trio). Import stage fires on the foreign `trio`."
+    difficulty: easy
+    host_file: python_modules/dagster/dagster/_core/definitions/sensor_definition.py
+    host_inject_at_line: 77
+
+  - id: dagster_py_foreign_api_pymongo
+    language: python
+    file: breaks/py/foreign_api_pymongo.py
+    category: foreign_api
+    hunk_start_line: 9
+    hunk_end_line: 36
+    rationale: "MongoDB run persistence via pymongo MongoClient (client[db][coll].insert_one /
+      find_one / update_one, reached through a receiver variable) instead of Dagster's SqlRunStorage
+      over SQLAlchemy. Verified 0-usage: `import/from pymongo` = 0 across all *.py at SHA 549b894e,
+      `pymongo` absent from every dependency manifest. Foreign-root import (pymongo) carries the tell;
+      the API is exercised through a `collection` receiver var."
+    difficulty: medium
+    host_file: python_modules/dagster/dagster/_core/storage/runs/sql_run_storage.py
+    host_inject_at_line: 85
+
+  - id: dagster_py_foreign_concurrency_gevent
+    language: python
+    file: breaks/py/foreign_concurrency_gevent.py
+    category: foreign_concurrency
+    hunk_start_line: 9
+    hunk_end_line: 22
+    rationale: "gevent greenlet Pool (gevent.pool.Pool / pool.spawn / gevent.sleep) for concurrent
+      step dispatch instead of Dagster's StepDelegatingExecutor. Verified 0-usage: no `import gevent`
+      / `from gevent` at SHA 549b894e; the only `gevent` token is a string entry in
+      docs/sphinx/conf.py (autodoc mock list), not an import, so the module is unattested. Submodule
+      import `from gevent.pool import Pool` roots to the foreign `gevent`."
+    difficulty: medium
+    host_file: python_modules/dagster/dagster/_core/executor/step_delegating/step_delegating_executor.py
+    host_inject_at_line: 30
+
+  - id: dagster_py_foreign_import_backoff
+    language: python
+    file: breaks/py/foreign_import_backoff.py
+    category: foreign_import
+    hunk_start_line: 9
+    hunk_end_line: 26
+    rationale: "Third-party `backoff` package (@backoff.on_exception(backoff.expo/fibo, ...,
+      jitter=backoff.full_jitter)) replacing Dagster's declarative RetryPolicy(backoff=Backoff.EXPONENTIAL,
+      jitter=Jitter...). Verified 0-usage: no `import backoff` / `from backoff` anywhere at SHA 549b894e
+      and `backoff` absent from every dependency manifest. The ~95 `backoff` string hits are Dagster's
+      OWN `Backoff` enum / `backoff_factor` kwargs (an attested token but NOT this module) — a genuine
+      masked case where BPE is unsurprised yet the module import is foreign. Import stage fires on `backoff`."
+    difficulty: medium
+    host_file: python_modules/dagster/dagster/_core/definitions/policy.py
+    host_inject_at_line: 10
+
+  - id: dagster_py_foreign_api_firestore
+    language: python
+    file: breaks/py/foreign_api_firestore.py
+    category: foreign_api
+    hunk_start_line: 12
+    hunk_end_line: 26
+    rationale: "HARD (masked): Google Cloud Firestore IO (google.cloud.firestore.Client().collection().
+      document().set()) reached through the ATTESTED `google` root. Verified: `google` root IS attested
+      (google.cloud.storage, google.api_core, google.protobuf, google.cloud.dataproc_v1 in dagster-gcp),
+      but `google.cloud.firestore` is 0-usage (the only `firestore` token is a doc-URL comment in
+      dagster-airbyte, not an import). Import stage keys on the `google` root (attested → silent);
+      the client is reached via a receiver var, so the leaf methods carry no foreign namespace. Genuine
+      likely-miss — reported honestly."
+    difficulty: hard
+    host_file: python_modules/libraries/dagster-gcp/dagster_gcp/gcs/io_manager.py
+    host_inject_at_line: 28
+
+  - id: dagster_py_foreign_api_cosmos
+    language: python
+    file: breaks/py/foreign_api_cosmos.py
+    category: foreign_api
+    hunk_start_line: 11
+    hunk_end_line: 31
+    rationale: "HARD (masked): Azure Cosmos DB (azure.cosmos.CosmosClient().get_database_client().
+      get_container_client().upsert_item()) reached through the ATTESTED `azure` root. Verified: `azure`
+      root IS attested (azure.storage.blob/filedatalake, azure.identity, azure.ai.ml in dagster-azure),
+      but `azure.cosmos` = 0 usage across all *.py at SHA 549b894e. Import stage keys on the `azure`
+      root (attested → silent); the client is reached via receiver vars. Genuine likely-miss — reported
+      honestly."
+    difficulty: hard
+    host_file: python_modules/libraries/dagster-azure/dagster_azure/adls2/resources.py
+    host_inject_at_line: 27
+
+  # ---------------------------------------------------------------------
+  # TypeScript — Dagit (ui-core) foreign packages. Attested and avoided:
+  # @apollo/client, recoil, styled-components, @dagster-io/ui-components, react-*,
+  # lodash, dayjs, date-fns, graphql, chart.js, @visx/*, @koale/useworker.
+  # ---------------------------------------------------------------------
+  - id: dagster_ts_foreign_import_zustand
+    language: typescript
+    file: breaks/ts/foreign_import_zustand.tsx
+    category: foreign_import
+    hunk_start_line: 5
+    hunk_end_line: 21
+    rationale: "zustand create() global store replacing Dagit's Recoil atoms (useRecoilState under
+      RecoilRoot) and useQueryPersistedState. Verified 0-usage: `zustand` = 0 across all *.ts/*.tsx in
+      js_modules at SHA 549b894e and absent from ui-core package.json. Import stage keys on the full
+      `zustand` specifier (foreign)."
+    difficulty: easy
+    host_file: js_modules/ui-core/src/runs/RunTimeline.tsx
+    host_inject_at_line: 46
+
+  - id: dagster_ts_foreign_concurrency_rxjs
+    language: typescript
+    file: breaks/ts/foreign_concurrency_rxjs.tsx
+    category: foreign_concurrency
+    hunk_start_line: 5
+    hunk_end_line: 24
+    rationale: "RxJS reactive-streams runtime (Subject / interval / pipe(switchMap).subscribe) for log
+      polling instead of Dagit's Apollo pollInterval + LiveDataPollRateContext. Verified 0-usage: `rxjs`
+      and `rxjs/operators` = 0 across all *.ts/*.tsx in js_modules and absent from ui-core package.json.
+      Import stage fires on the foreign `rxjs` specifier(s)."
+    difficulty: easy
+    host_file: js_modules/ui-core/src/asset-graph/AssetRunLogObserver.tsx
+    host_inject_at_line: 10
+
+  - id: dagster_ts_foreign_api_zod
+    language: typescript
+    file: breaks/ts/foreign_api_zod.tsx
+    category: foreign_api
+    hunk_start_line: 4
+    hunk_end_line: 22
+    rationale: "zod runtime schema validation (z.object(...).parse()/.safeParse()) for launch config
+      instead of Dagit's server-side GraphQL-typed config + the `yaml` package. Verified 0-usage: `zod`
+      = 0 across all *.ts/*.tsx in js_modules and absent from ui-core package.json. Import stage fires
+      on the foreign `zod` specifier; the z.* API is the foreign-callee surface."
+    difficulty: easy
+    host_file: js_modules/ui-core/src/launchpad/LaunchpadRoot.tsx
+    host_inject_at_line: 25
+
+  - id: dagster_ts_foreign_import_framer_motion
+    language: typescript
+    file: breaks/ts/foreign_import_framer_motion.tsx
+    category: foreign_import
+    hunk_start_line: 5
+    hunk_end_line: 21
+    rationale: "framer-motion animation runtime (<motion.div>, useAnimation controls) instead of Dagit's
+      styled-components keyframes/transition props. Verified 0-usage: `framer-motion` = 0 across all
+      *.ts/*.tsx in js_modules and absent from ui-core package.json. Import stage fires on the foreign
+      `framer-motion` specifier; the `controls` receiver var drives the API (medium)."
+    difficulty: medium
+    host_file: js_modules/ui-core/src/asset-graph/AssetNode.tsx
+    host_inject_at_line: 38
+
+  - id: dagster_ts_foreign_import_react_hook_form
+    language: typescript
+    file: breaks/ts/foreign_import_react_hook_form.tsx
+    category: foreign_import
+    hunk_start_line: 4
+    hunk_end_line: 25
+    rationale: "react-hook-form form-state library (useForm / register / handleSubmit) instead of
+      Dagit's @dagster-io/ui-components controls wired to useState / Recoil. Verified 0-usage:
+      `react-hook-form` = 0 across all *.ts/*.tsx in js_modules and absent from ui-core package.json.
+      Import stage fires on the foreign specifier; the register/handleSubmit API comes off a
+      destructured useForm() result (medium)."
+    difficulty: medium
+    host_file: js_modules/ui-core/src/sensors/SensorRoot.tsx
+    host_inject_at_line: 30
+
+  - id: dagster_ts_foreign_concurrency_comlink
+    language: typescript
+    file: breaks/ts/foreign_concurrency_comlink.ts
+    category: foreign_concurrency
+    hunk_start_line: 4
+    hunk_end_line: 21
+    rationale: "Comlink web-worker RPC bridge (Comlink.wrap<T>(worker) / proxy) for off-thread graph
+      layout instead of Dagit's worker-loader + @koale/useworker pattern. Verified 0-usage: `comlink`
+      = 0 across all *.ts/*.tsx in js_modules and absent from ui-core package.json. Import stage fires
+      on the foreign `comlink` specifier; the wrapped `api` proxy is reached via a receiver (medium)."
+    difficulty: medium
+    host_file: js_modules/ui-core/src/asset-graph/ComputeGraphData.ts
+    host_inject_at_line: 10
+
+  - id: dagster_ts_foreign_api_xlsx_dynamic
+    language: typescript
+    file: breaks/ts/foreign_api_xlsx_dynamic.tsx
+    category: foreign_api
+    hunk_start_line: 6
+    hunk_end_line: 15
+    rationale: "HARD (masked): SheetJS `xlsx` (XLSX.utils.json_to_sheet / writeFile) run-table export
+      loaded via a dynamic `await import('xlsx')` EXPRESSION — deliberately not a static import
+      statement, which the import-graph adapter (`import ... from` only) never observes. Verified
+      0-usage: `xlsx` = 0 across all *.ts/*.tsx in js_modules and absent from ui-core package.json. The
+      XLSX handle is a local const, so its leaf calls carry no foreign namespace. Genuine likely-miss
+      (import-graph blind spot) — reported honestly."
+    difficulty: hard
+    host_file: js_modules/ui-core/src/runs/RunsFeedTable.tsx
+    host_inject_at_line: 34
+
+  - id: dagster_ts_foreign_api_react_query
+    language: typescript
+    file: breaks/ts/foreign_api_react_query.tsx
+    category: foreign_api
+    hunk_start_line: 5
+    hunk_end_line: 28
+    rationale: "HARD (masked): @tanstack/react-query useQuery({queryKey, queryFn}) + QueryClient whose
+      leaf hook name `useQuery` COLLIDES with Dagit's attested Apollo useQuery (from @apollo/client).
+      Verified 0-usage: `@tanstack/react-query` = 0 across all *.ts/*.tsx in js_modules and absent from
+      ui-core package.json (only @tanstack/react-virtual is attested — a different specifier). The
+      colliding leaf name is the intended mask; the TS import stage keys on the full package specifier,
+      so this likely CATCHES despite the collision — reported honestly."
+    difficulty: hard
+    host_file: js_modules/ui-core/src/runs/RunRoot.tsx
+    host_inject_at_line: 38

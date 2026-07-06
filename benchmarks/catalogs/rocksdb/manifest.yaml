@@ -1,0 +1,497 @@
+corpus: rocksdb
+language: cpp
+categories:
+- wrong_error_discipline
+- wrong_concurrency
+- wrong_api_within_known_lib
+- naming_shape_break
+- foreign_import
+- foreign_api
+- foreign_concurrency
+injection_hosts:
+- pr: 0
+  sha: a40466d963a35d469d8b6bbf1c53724eb4f6360b
+fixtures:
+- id: err_throw_1
+  file: breaks/break_err_throw_1.cpp
+  category: wrong_error_discipline
+  hunk_start_line: 23
+  hunk_end_line: 49
+  rationale: 'throw std::runtime_error/std::invalid_argument + try/catch in a
+    write-batch helper. Verified at pinned SHA: exactly one `throw
+    std::runtime_error` in db/ (db/memtable.cc:494) and zero `} catch (` sites
+    in db/*.cc library code, vs Status returns in every db/*.cc file (git grep
+    "^Status " counts 1-8 per file). Canonical voice is rocksdb::Status
+    propagation, as in the host db/write_batch.cc.'
+  difficulty: medium
+  host_file: db/write_batch.cc
+  host_inject_at_line: 302
+- id: err_exit_1
+  file: breaks/break_err_exit_1.cpp
+  category: wrong_error_discipline
+  hunk_start_line: 19
+  hunk_end_line: 42
+  rationale: 'fprintf(stderr)+exit(1)/abort() on corruption in a table-cache
+    eviction path. Verified at pinned SHA: zero exit()/abort() call sites in
+    db/*.cc library code (git grep, tests excluded); fprintf(stderr) appears
+    only in db/forward_iterator_bench.cc (a bench tool). Repo voice is
+    Status::Corruption returns.'
+  difficulty: easy
+  host_file: db/table_cache.cc
+  host_inject_at_line: 209
+- id: err_ignored_status_1
+  file: breaks/break_err_ignored_status_1.cpp
+  category: wrong_error_discipline
+  hunk_start_line: 20
+  hunk_end_line: 41
+  rationale: 'errno-style int return codes (-1/0) and VersionEdit::DecodeFrom
+    Status results silently dropped. Verified at pinned SHA: rocksdb marks
+    intentional Status drops with PermitUncheckedError (present in
+    db/blob/blob_file_builder.cc and others) and propagates Status otherwise;
+    errno-based error signalling appears nowhere in db/ library code.'
+  difficulty: hard
+  host_file: db/version_edit.cc
+  host_inject_at_line: 269
+- id: err_swallow_catch_1
+  file: breaks/break_err_swallow_catch_1.cpp
+  category: wrong_error_discipline
+  hunk_start_line: 18
+  hunk_end_line: 40
+  rationale: 'catch(...) swallowing around DB::Delete, discarding the returned
+    Status. Verified at pinned SHA: zero `} catch (` sites in db/*.cc library
+    code; the host db/db_impl/db_impl_write.cc returns Status from every
+    write-path entry point (Delete/SingleDelete around the injection line).'
+  difficulty: medium
+  host_file: db/db_impl/db_impl_write.cc
+  host_inject_at_line: 173
+- id: conc_pthread_busywait_1
+  file: breaks/break_conc_pthread_busywait_1.cpp
+  category: wrong_concurrency
+  hunk_start_line: 20
+  hunk_end_line: 41
+  rationale: 'pthread_create + volatile-flag busy-wait with usleep(100).
+    Verified at pinned SHA: zero pthread_create and zero usleep call sites in
+    db/*.cc; rocksdb wraps threads in port::Thread (used in
+    db/compaction/compaction_job.cc:732,895) and sleeps via Env
+    SleepForMicroseconds (49 files) / InstrumentedCondVar.'
+  difficulty: easy
+  host_file: db/flush_job.cc
+  host_inject_at_line: 704
+- id: conc_detach_1
+  file: breaks/break_conc_detach_1.cpp
+  category: wrong_concurrency
+  hunk_start_line: 19
+  hunk_end_line: 39
+  rationale: 'std::thread(...).detach() fire-and-forget plus sleep_for polling
+    loop. Verified at pinned SHA: zero `.detach()` call sites in db/*.cc; the
+    host db/compaction/compaction_job.cc runs subcompactions in
+    std::vector<port::Thread> and joins every worker (lines 732, 895).'
+  difficulty: medium
+  host_file: db/compaction/compaction_job.cc
+  host_inject_at_line: 451
+- id: api_fopen_1
+  file: breaks/break_api_fopen_1.cpp
+  category: wrong_api_within_known_lib
+  hunk_start_line: 22
+  hunk_end_line: 46
+  rationale: 'FILE* fopen/fwrite/fseek/ftell direct stdio IO for blob data.
+    Verified at pinned SHA: zero fopen( call sites in db/*.cc; the host
+    db/blob/blob_file_builder.cc itself writes blobs through
+    WritableFileWriter over the FSWritableFile/FileSystem abstraction. Same
+    capability (file IO), wrong layer of a facility the repo standardizes.'
+  difficulty: medium
+  host_file: db/blob/blob_file_builder.cc
+  host_inject_at_line: 295
+- id: api_printf_log_1
+  file: breaks/break_api_printf_log_1.cpp
+  category: wrong_api_within_known_lib
+  hunk_start_line: 20
+  hunk_end_line: 36
+  rationale: 'printf/fprintf(stdout) progress and warning logging. Verified at
+    pinned SHA: the host db/wal_manager.cc has 14 ROCKS_LOG_ sites logging
+    through db_options_.info_log (68 in db/db_impl/db_impl.cc); printf-style
+    stdout logging appears only in bench tools
+    (db/forward_iterator_bench.cc), never in db/ library code.'
+  difficulty: medium
+  host_file: db/wal_manager.cc
+  host_inject_at_line: 367
+- id: api_manual_encoding_1
+  file: breaks/break_api_manual_encoding_1.cpp
+  category: wrong_api_within_known_lib
+  hunk_start_line: 20
+  hunk_end_line: 44
+  rationale: 'hand-rolled little-endian shift packing, manual varint loop, and
+    raw memcpy decode, duplicating util/coding.h. Verified at pinned SHA:
+    EncodeFixed32/64 used in 37 files and PutVarint32 in 18 files; the host
+    db/log_writer.cc itself calls EncodeFixed32 (lines 337, 347). Hand-rolled
+    duplicate of a repo utility.'
+  difficulty: hard
+  host_file: db/log_writer.cc
+  host_inject_at_line: 86
+- id: name_snake_methods_1
+  file: breaks/break_name_snake_methods_1.cpp
+  category: naming_shape_break
+  hunk_start_line: 24
+  hunk_end_line: 46
+  rationale: 'class memtable_arena_stats with snake_case type/method names
+    (add_block, get_allocated_bytes, should_flush_now) and members without
+    trailing underscore. Verified at pinned SHA: host db/memtable.cc methods
+    are PascalCase (ShouldFlushNow, ApproximateMemoryUsage, Add, Get) with
+    trailing-underscore members (approximate_memory_usage_); snake_case
+    methods and get_ accessors are foreign to the repo.'
+  difficulty: hard
+  host_file: db/memtable.cc
+  host_inject_at_line: 318
+- id: name_hungarian_1
+  file: breaks/break_name_hungarian_1.cpp
+  category: naming_shape_break
+  hunk_start_line: 19
+  hunk_end_line: 44
+  rationale: 'Hungarian notation (pszUserKey, dwFlags, nKeySize, m_iTotalKeys,
+    m_cbTotalBytes) and camelCase locals (userKeyLen). Verified at pinned SHA:
+    host db/dbformat.cc uses snake_case params/locals (ts_sz, user_key,
+    result) with PascalCase free functions (AppendUserKeyWithMaxTimestamp);
+    psz/dw/m_ prefixes appear nowhere in the corpus.'
+  difficulty: medium
+  host_file: db/dbformat.cc
+  host_inject_at_line: 105
+- id: foreign_boost_1
+  file: breaks/break_foreign_boost_1.cpp
+  category: foreign_import
+  hunk_start_line: 18
+  hunk_end_line: 29
+  rationale: 'boost::filesystem for SST file existence/size checks, #include
+    <boost/filesystem.hpp> inside the hunk. Verified at pinned SHA: zero
+    `#include <boost` sites anywhere in *.cc/*.h (git grep; only prose
+    "boost"/FileTtlBooster identifiers match the word). Repo stats files via
+    the FileSystem/Env abstraction.'
+  difficulty: easy
+  host_file: table/block_based/block_based_table_reader.cc
+  host_inject_at_line: 222
+- id: foreign_fmt_1
+  file: breaks/break_foreign_fmt_1.cpp
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 28
+  rationale: 'fmt::format/FMT_STRING for iterator error messages, #include
+    <fmt/format.h> inside the hunk. Verified at pinned SHA: zero `#include
+    <fmt` and zero fmt::format sites in *.cc/*.h (git grep). Repo builds
+    messages with std::string append/snprintf (e.g. BlobIndex error strings
+    in db/db_iter.cc).'
+  difficulty: easy
+  host_file: db/db_iter.cc
+  host_inject_at_line: 327
+- id: foreign_nlohmann_1
+  file: breaks/break_foreign_nlohmann_1.cpp
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 29
+  rationale: 'nlohmann::json debug-dump of write-batch stats, #include
+    <nlohmann/json.hpp> inside the hunk. Verified at pinned SHA: zero
+    `#include <nlohmann`, zero `nlohmann::json`, and zero `json::parse` sites
+    in db/util/table/include (git grep); the distinctive callees
+    `nlohmann::json::parse`/case-sensitive `.dump(` = 0 hits (repo''s own
+    dump helper is PascalCase `.Dump(`, 6 hits, non-colliding at exact
+    match). Repo builds debug/status strings via std::string append and
+    PutLengthPrefixedSlice, never a JSON library.'
+  difficulty: easy
+  host_file: db/write_batch.cc
+  host_inject_at_line: 302
+- id: foreign_absl_1
+  file: breaks/break_foreign_absl_1.cpp
+  category: foreign_api
+  hunk_start_line: 14
+  hunk_end_line: 30
+  rationale: 'abseil flat_hash_map + StrCat for an in-process file-number
+    debug index, #include <absl/container/flat_hash_map.h> and
+    <absl/strings/str_cat.h> inside the hunk. Verified at pinned SHA: zero
+    `#include <absl/` sites in db/util/table/include and zero
+    `absl::flat_hash_map`/`absl::StrCat` sites repo-wide (git grep,
+    non-colliding); rocksdb keys caches through Cache::Lookup/Insert over a
+    Slice and uses std::unordered_map (208 sites in db/) for plain
+    in-process maps, never abseil containers.'
+  difficulty: easy
+  host_file: db/table_cache.cc
+  host_inject_at_line: 209
+- id: foreign_grpc_1
+  file: breaks/break_foreign_grpc_1.cpp
+  category: foreign_api
+  hunk_start_line: 14
+  hunk_end_line: 30
+  rationale: 'gRPC ServerBuilder/BuildAndStart to push manifest records to a
+    remote follower, #include <grpcpp/grpcpp.h> inside the hunk. Verified at
+    pinned SHA: zero `#include <grpcpp/grpcpp`, zero `grpc::ServerBuilder`,
+    and zero `BuildAndStart` sites in db/util/table/include and repo-wide
+    (git grep, non-colliding); rocksdb''s replication/notification surface
+    is in-process callbacks (WalFilter, EventListener), never an RPC
+    transport.'
+  difficulty: easy
+  host_file: db/version_edit.cc
+  host_inject_at_line: 269
+- id: foreign_spdlog_1
+  file: breaks/break_foreign_spdlog_1.cpp
+  category: foreign_api
+  hunk_start_line: 12
+  hunk_end_line: 27
+  rationale: 'spdlog::logger/spdlog::info for an oversized-write-batch
+    warning, #include <spdlog/spdlog.h> inside the hunk. Verified at pinned
+    SHA: zero `#include <spdlog/spdlog`, zero `spdlog::logger`, and zero
+    `spdlog::info(` sites in db/util/table/include (git grep, non-colliding);
+    rocksdb logs exclusively through ROCKS_LOG_* macros over
+    db_options_.info_log (491 sites in db/), never a standalone logging
+    library.'
+  difficulty: easy
+  host_file: db/write_batch.cc
+  host_inject_at_line: 302
+- id: foreign_rapidjson_1
+  file: breaks/break_foreign_rapidjson_1.cpp
+  category: foreign_import
+  hunk_start_line: 12
+  hunk_end_line: 30
+  rationale: 'rapidjson dependency for a JSON dump of write-batch stats,
+    #include <rapidjson/document.h> inside the hunk. Verified at pinned SHA:
+    zero `#include <rapidjson` and zero `rapidjson::` sites in *.cc/*.h/*.cpp
+    (git grep). Repo formats debug/status output via std::string append and
+    PutLengthPrefixedSlice, never a JSON library. EASY: explicit foreign import.'
+  difficulty: easy
+  host_file: db/write_batch.cc
+  host_inject_at_line: 302
+- id: foreign_yamlcpp_1
+  file: breaks/break_foreign_yamlcpp_1.cpp
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 26
+  rationale: 'yaml-cpp dependency to parse an options snippet, #include
+    <yaml-cpp/yaml.h> inside the hunk. Verified at pinned SHA: zero `#include
+    <yaml-cpp` and zero `YAML::Load` sites in *.cc/*.h/*.cpp (git grep). Repo
+    parses options through its own OptionTypeInfo/ParseOptionHelper machinery,
+    never a YAML library. EASY: explicit foreign import.'
+  difficulty: easy
+  host_file: db/version_edit.cc
+  host_inject_at_line: 269
+- id: foreign_tinyxml2_1
+  file: breaks/break_foreign_tinyxml2_1.cpp
+  category: foreign_import
+  hunk_start_line: 16
+  hunk_end_line: 31
+  rationale: 'tinyxml2 dependency to serialize a WAL summary as XML, #include
+    <tinyxml2.h> inside the hunk. Verified at pinned SHA: zero `#include
+    <tinyxml2` and zero `tinyxml2::` sites in *.cc/*.h/*.cpp (git grep). Repo
+    builds textual output via std::string append and its own encoders, never
+    an XML library. EASY: explicit foreign import.'
+  difficulty: easy
+  host_file: db/wal_manager.cc
+  host_inject_at_line: 367
+- id: foreign_curl_1
+  file: breaks/break_foreign_curl_1.cpp
+  category: foreign_api
+  hunk_start_line: 12
+  hunk_end_line: 32
+  rationale: 'libcurl dependency to fetch a manifest record from a remote URL,
+    #include <curl/curl.h> plus bare curl_easy_init/setopt/perform/cleanup
+    calls inside the hunk. Verified at pinned SHA: zero `#include <curl/` and
+    zero `curl_easy_init` sites in *.cc/*.h/*.c (git grep); rocksdb''s
+    remote/replication surface is in-process (EventListener, WalFilter) over
+    the FileSystem/Env abstraction, never an HTTP client. EASY: explicit
+    foreign import + foreign bare callees.'
+  difficulty: easy
+  host_file: db/version_edit.cc
+  host_inject_at_line: 269
+- id: foreign_glog_1
+  file: breaks/break_foreign_glog_1.cpp
+  category: foreign_api
+  hunk_start_line: 12
+  hunk_end_line: 26
+  rationale: 'glog (Google logging) dependency for a WAL retention warning,
+    #include <glog/logging.h> plus google::InitGoogleLogging and LOG(WARNING)
+    inside the hunk. Verified at pinned SHA: zero `#include <glog/` and zero
+    `google::` sites anywhere in *.cc/*.h (git grep); rocksdb logs exclusively
+    through ROCKS_LOG_* macros over db_options_.info_log (491 sites in db/),
+    never a standalone logging library. EASY: explicit foreign import.'
+  difficulty: easy
+  host_file: db/wal_manager.cc
+  host_inject_at_line: 367
+- id: foreign_tbb_1
+  file: breaks/break_foreign_tbb_1.cpp
+  category: foreign_concurrency
+  hunk_start_line: 16
+  hunk_end_line: 34
+  rationale: 'Intel TBB parallel task runtime for a parallel memtable scan,
+    #include <tbb/parallel_for.h> plus tbb::parallel_for over a
+    tbb::blocked_range inside the hunk. Verified at pinned SHA: zero `#include
+    <tbb/` and zero `tbb::parallel_for` sites in *.cc/*.h/*.cpp (git grep);
+    rocksdb parallelises through its own port::Thread pools and Env, never a
+    foreign task runtime (a foreign concurrency lib, not a raw std::thread).
+    EASY: explicit foreign import.'
+  difficulty: easy
+  host_file: db/flush_job.cc
+  host_inject_at_line: 704
+- id: foreign_msgpack_1
+  file: breaks/break_foreign_msgpack_1.cpp
+  category: foreign_api
+  hunk_start_line: 12
+  hunk_end_line: 27
+  rationale: 'msgpack-c dependency to serialize write-batch stats through a
+    packer/sbuffer receiver, #include <msgpack.hpp> inside the hunk. Verified
+    at pinned SHA: zero `#include <msgpack` and zero `msgpack::` sites in
+    *.cc/*.h/*.cpp (git grep); rocksdb serializes with its own coding.h
+    (EncodeFixed*/PutVarint*/PutLengthPrefixedSlice), never msgpack. EASY:
+    explicit foreign import.'
+  difficulty: easy
+  host_file: db/write_batch.cc
+  host_inject_at_line: 302
+- id: foreign_poco_1
+  file: breaks/break_foreign_poco_1.cpp
+  category: foreign_api
+  hunk_start_line: 14
+  hunk_end_line: 32
+  rationale: 'POCO Net dependency reached through a session receiver variable
+    to POST a manifest record, submodule #include <Poco/Net/HTTPClientSession.h>
+    inside the hunk. Verified at pinned SHA: zero `#include <Poco/Net` and zero
+    `Poco::` sites in *.cc/*.h/*.cpp (git grep); rocksdb''s backup/replication
+    surface is in-process over Env/FileSystem, never an HTTP client library.
+    MEDIUM: foreign API reached through a receiver variable + submodule import.'
+  difficulty: medium
+  host_file: db/version_edit.cc
+  host_inject_at_line: 269
+- id: foreign_taskflow_1
+  file: breaks/break_foreign_taskflow_1.cpp
+  category: foreign_concurrency
+  hunk_start_line: 12
+  hunk_end_line: 26
+  rationale: 'Taskflow dependency reached through an executor receiver variable
+    to schedule subcompaction jobs, #include <taskflow/taskflow.hpp> inside the
+    hunk. Verified at pinned SHA: zero `#include <taskflow` and zero
+    `tf::Taskflow` sites in *.cc/*.h/*.cpp (git grep); rocksdb runs
+    subcompactions in a std::vector<port::Thread> and joins every worker
+    (compaction_job.cc:732,895), never a foreign scheduler (a foreign
+    concurrency lib, not a raw std::thread). MEDIUM: reached through a receiver
+    variable.'
+  difficulty: medium
+  host_file: db/compaction/compaction_job.cc
+  host_inject_at_line: 451
+- id: foreign_re2_1
+  file: breaks/break_foreign_re2_1.cpp
+  category: foreign_api
+  hunk_start_line: 12
+  hunk_end_line: 28
+  rationale: 'Google RE2 regex dependency to validate a WAL filename, reached
+    through a compiled RE2 matcher and the fully-qualified RE2::FullMatch
+    callee, #include <re2/re2.h> inside the hunk. Verified at pinned SHA: zero
+    `#include <re2/` and zero `RE2::` call sites in *.cc/*.h/*.cpp (git grep;
+    the token "RE2" matches only PPC_FEATURE2 in util/crc32c.cc, not the regex
+    library); rocksdb parses filenames with ParseFileName over its own numeric
+    scan, never regex. MEDIUM: foreign API reached through a compiled matcher +
+    namespaced callee.'
+  difficulty: medium
+  host_file: db/wal_manager.cc
+  host_inject_at_line: 367
+- id: foreign_cryptopp_1
+  file: breaks/break_foreign_cryptopp_1.cpp
+  category: foreign_api
+  hunk_start_line: 13
+  hunk_end_line: 29
+  rationale: 'Crypto++ dependency to SHA256-hash a blob, reached through the
+    fully-qualified CryptoPP::SHA256 callee with NO #include in the hunk (the
+    callee itself is the foreign reference). Verified at pinned SHA: zero
+    `CryptoPP::` and zero `#include <cryptopp` sites in *.cc/*.h/*.cpp (git
+    grep); rocksdb checksums with its own crc32c/XXH3 utilities, never a
+    foreign crypto library. MEDIUM: foreign namespaced callee, resolution via
+    call_receiver.'
+  difficulty: medium
+  host_file: db/blob/blob_file_builder.cc
+  host_inject_at_line: 295
+- id: foreign_eigen_1
+  file: breaks/break_foreign_eigen_1.cpp
+  category: foreign_api
+  hunk_start_line: 19
+  hunk_end_line: 32
+  rationale: 'Eigen linear-algebra dependency to compute cache-cost stats,
+    reached through fully-qualified Eigen::VectorXd constructors with NO
+    #include in the hunk (the callee itself is the foreign reference). Verified
+    at pinned SHA: zero `Eigen::` and zero `#include <Eigen/` sites in
+    *.cc/*.h/*.cpp (git grep); rocksdb computes stats with plain scalar loops,
+    never a matrix library. MEDIUM: foreign namespaced callee, resolution via
+    call_receiver.'
+  difficulty: medium
+  host_file: db/table_cache.cc
+  host_inject_at_line: 209
+- id: foreign_cereal_1
+  file: breaks/break_foreign_cereal_1.cpp
+  category: foreign_api
+  hunk_start_line: 13
+  hunk_end_line: 26
+  rationale: 'cereal serialization dependency reached through a binary-archive
+    receiver variable to serialize batch stats, #include
+    <cereal/archives/binary.hpp> inside the hunk. Verified at pinned SHA: zero
+    `#include <cereal` and zero `cereal::` sites in *.cc/*.h/*.cpp (git grep);
+    rocksdb serializes with its own coding.h helpers, never cereal. MEDIUM:
+    foreign API reached through a receiver variable.'
+  difficulty: medium
+  host_file: db/write_batch.cc
+  host_inject_at_line: 302
+- id: foreign_redispp_1
+  file: breaks/break_foreign_redispp_1.cpp
+  category: foreign_api
+  hunk_start_line: 13
+  hunk_end_line: 28
+  rationale: 'redis-plus-plus (a foreign cache client) reached through a
+    receiver PARAMETER whose leaf methods `.set`/`.get` collide with rocksdb''s
+    own attested vocabulary (`get` 2589 call sites, `set` attested), masking the
+    foreign API from callee resolution; the foreign type `sw::redis::Redis`
+    appears only as a parameter type so no foreign namespace is ever called.
+    Verified at pinned SHA: zero `sw::redis` and zero `#include <sw/redis` sites
+    in *.cc/*.h/*.cpp (git grep); rocksdb mirrors nothing to an external cache.
+    HARD: masked leaf collision, genuinely may miss.'
+  difficulty: hard
+  host_file: db/db_impl/db_impl_write.cc
+  host_inject_at_line: 173
+- id: foreign_httplib_1
+  file: breaks/break_foreign_httplib_1.cpp
+  category: foreign_api
+  hunk_start_line: 15
+  hunk_end_line: 31
+  rationale: 'cpp-httplib (a foreign HTTP client) reached through a receiver
+    PARAMETER whose leaf method `.Get` collides with rocksdb''s own attested
+    vocabulary (`Get` 674 call sites), masking the foreign API from callee
+    resolution; the foreign type `httplib::Client` appears only as a parameter
+    type so no foreign namespace is ever called. Verified at pinned SHA: zero
+    `httplib::` and zero `#include <httplib` sites in *.cc/*.h/*.cpp (git grep);
+    rocksdb reads blocks through its own FileSystem/RandomAccessFile
+    abstraction, never HTTP. HARD: masked leaf collision, genuinely may miss.'
+  difficulty: hard
+  host_file: table/block_based/block_based_table_reader.cc
+  host_inject_at_line: 222
+- id: foreign_leveldb_1
+  file: breaks/break_foreign_leveldb_1.cpp
+  category: foreign_api
+  hunk_start_line: 13
+  hunk_end_line: 25
+  rationale: 'LevelDB (a foreign embedded KV store, rocksdb''s own ancestor
+    API) reached through a receiver PARAMETER whose leaf method `.Get` collides
+    exactly with rocksdb''s attested vocabulary (`Get` 674 call sites); the
+    foreign types `leveldb::DB`/`leveldb::ReadOptions` appear only as parameter
+    types so no foreign namespace is ever called. Verified at pinned SHA: zero
+    `leveldb::` and zero `#include <leveldb` sites in *.cc/*.h/*.cpp (git grep);
+    rocksdb reads through its own DB, never a second embedded store. HARD: the
+    sharpest possible leaf collision, genuinely may miss.'
+  difficulty: hard
+  host_file: db/db_impl/db_impl_write.cc
+  host_inject_at_line: 173
+- id: foreign_boost_lockfree_1
+  file: breaks/break_foreign_boost_lockfree_1.cpp
+  category: foreign_concurrency
+  hunk_start_line: 15
+  hunk_end_line: 34
+  rationale: 'boost::lockfree (a foreign lock-free concurrency queue) reached
+    through a receiver PARAMETER whose leaf methods `.push`/`.pop` collide with
+    rocksdb''s own attested vocabulary (`push` 45, `pop` 49 call sites), masking
+    the foreign concurrency primitive; the foreign type `boost::lockfree::queue`
+    appears only as a parameter type so no foreign namespace is ever called.
+    Verified at pinned SHA: zero `boost::lockfree` and zero `#include
+    <boost/lockfree` sites in *.cc/*.h/*.cpp (git grep); rocksdb hands work
+    between threads through InstrumentedCondVar over std containers, never a
+    lock-free queue lib. HARD: masked leaf collision, genuinely may miss.'
+  difficulty: hard
+  host_file: db/flush_job.cc
+  host_inject_at_line: 704

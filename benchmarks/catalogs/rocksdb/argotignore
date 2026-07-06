@@ -1,0 +1,3 @@
+# What a rocksdb maintainer would mute: third-party/ is vendored (gtest, …),
+# not rocksdb' own voice.
+third-party/

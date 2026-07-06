@@ -81,6 +81,12 @@ pub struct ScoredHunk {
     /// when the scorer was built with an [`EvidenceCorpus`]; `None` otherwise
     /// (and for non-flagged / short-circuited hunks).
     pub evidence: Option<Evidence>,
+    /// Top-level modules this hunk imports that are foreign to the repo (sorted,
+    /// deduped). Backs the check-time per-changeset novel-import dedup: the same
+    /// foreign dependency added across many files of one change (a mechanical
+    /// migration) should alert once, not once per file. Empty unless the hunk
+    /// carries a foreign import.
+    pub foreign_import_modules: Vec<String>,
 }
 
 /// Blank the 1-indexed prose lines in `ranges`, preserving line count
@@ -161,6 +167,14 @@ fn content_key(source: &str) -> u64 {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     source.hash(&mut h);
     h.finish()
+}
+
+/// Identifier-like tokens in `src` (maximal `[A-Za-z0-9_]` runs). Language
+/// agnostic: used only to test whether a hunk mentions a known import binding,
+/// so `Fore.BLUE` yields `Fore` and `np.ndarray` yields `np`.
+fn identifier_tokens(src: &str) -> impl Iterator<Item = &str> {
+    src.split(|c: char| !(c.is_alphanumeric() || c == '_'))
+        .filter(|t| !t.is_empty())
 }
 
 pub struct SequentialImportBpeScorer {
@@ -354,6 +368,17 @@ impl SequentialImportBpeScorer {
         self.changeset_bindings = bindings;
     }
 
+    /// Whether `path` (repo-relative) was in the fit corpus. A path the model
+    /// never saw is a new file, judged by `check` against the new-file threshold
+    /// rather than the existing-file one (issue #92 new-file flooding). Falls
+    /// back to `true` (treat as existing) when there is no call-receiver model,
+    /// so a call-receiver-less config keeps its single-threshold behaviour.
+    pub fn is_fit_file(&self, path: &std::path::Path) -> bool {
+        self.call_receiver
+            .as_ref()
+            .is_none_or(|cr| cr.knows_file(path))
+    }
+
     /// Per-primitive fire counts from the call-receiver (bench observability).
     pub fn primitive_fire_counts(&self) -> Option<&std::collections::HashMap<String, usize>> {
         self.call_receiver
@@ -423,6 +448,26 @@ impl SequentialImportBpeScorer {
         }
     }
 
+    /// Whether `hunk_content` references a name bound by a *foreign* import in
+    /// `binding_source` (the file). Scopes the file-level foreign-import signal
+    /// to hunks that actually use the foreign dependency's symbols, so a hunk
+    /// of the repo's own code in a file that merely imports something foreign
+    /// stays quiet. Bindings come from the adapter (`import numpy as np` → `np`,
+    /// `from colorama import Fore` → `Fore`); foreignness from the import scorer.
+    fn hunk_uses_foreign_import_binding(&self, hunk_content: &str, binding_source: &str) -> bool {
+        let foreign_names: HashSet<String> = self
+            .adapter
+            .import_bindings(binding_source)
+            .into_iter()
+            .filter(|(_, module)| self.import_scorer.is_foreign(module))
+            .map(|(name, _)| name)
+            .collect();
+        if foreign_names.is_empty() {
+            return false;
+        }
+        identifier_tokens(hunk_content).any(|tok| foreign_names.contains(tok))
+    }
+
     fn zero_stage(reason: Reason, threshold: f64) -> ScoredHunk {
         ScoredHunk {
             score: 0.0,
@@ -436,6 +481,7 @@ impl SequentialImportBpeScorer {
                 convention_contribution: 0.0,
             },
             evidence: None,
+            foreign_import_modules: Vec::new(),
         }
     }
 
@@ -545,7 +591,8 @@ impl SequentialImportBpeScorer {
         let binding_source: &str = file_source
             .or(host_context.map(|(h, _, _)| h))
             .unwrap_or(hunk_content);
-        let mut local_bindings = self.file_derived(binding_source).file_bindings.clone();
+        let derived = self.file_derived(binding_source);
+        let mut local_bindings = derived.file_bindings.clone();
         local_bindings
             .callables
             .extend(self.changeset_bindings.iter().cloned());
@@ -588,7 +635,7 @@ impl SequentialImportBpeScorer {
                         (Some(fs), Some(hs), Some(he)) => Some((fs, hs, he)),
                         _ => None,
                     });
-                if conv.fires(conv.scores(hunk_content, host)) {
+                if conv.fires(&conv.scores(hunk_content, host)) {
                     self.convention_bonus
                 } else {
                     0.0
@@ -611,7 +658,59 @@ impl SequentialImportBpeScorer {
 
         let import_fired = import_score >= IMPORT_THRESHOLD;
         let bpe_fired = bpe_score > self.bpe_threshold;
-        let cr_fired = cr_active && !bpe_fired && bpe_side_score > self.bpe_threshold;
+        // Foreign-context gate for the call-receiver reason: a call-receiver
+        // contribution may flag a hunk on its own only when the hunk reaches
+        // into a module foreign to the repo — a foreign import in the hunk or
+        // its file, or an unattested callee whose namespace the repo has never
+        // used. A bare unattested callee with no foreign association is the
+        // codebase's own new code (a fresh local function/method), not foreign
+        // voice, and must not cry wolf. Evaluated lazily, only when the
+        // contribution would otherwise win.
+        let cr_would_fire = cr_active && !bpe_fired && bpe_side_score > self.bpe_threshold;
+        // Foreign reach is checked at HUNK granularity, not file: a file that
+        // reaches a foreign module in one hunk must not flag every *other* hunk
+        // whose new code is entirely the repo's own. A file-level foreign import
+        // is deliberately NOT enough on its own — a benign refactor hunk in a
+        // file that merely *has* a foreign `#include`/dependency (ink pulling
+        // `terminal-size`, a rocksdb `.cc` with one new dep) must stay quiet.
+        // Every genuine foreign symbol a break introduces (`event_base_new`,
+        // `boost::`, jQuery `$`) sits in the scored hunk itself, so hunk-level
+        // reach catches it; the hunk's own foreign import opens the gate too.
+        let hunk_foreign_reach = cr_would_fire
+            && self.call_receiver.as_ref().is_some_and(|cr| {
+                cr.hunk_reaches_foreign(hunk_content, cr_host_context, &local_bindings)
+            });
+        // A file-level foreign import (in a hunk other than this one) colours
+        // this hunk only when the hunk actually *uses* a name that import bound
+        // — colorama's `Fore`/`Style`, numpy's `np`/`default_rng`, `httpx` —
+        // reached through a receiver the hunk itself doesn't re-import. A
+        // benign refactor whose callees are all the repo's own attested code
+        // (ink's `performance.now`, bat's `.canonicalize`) never matches, so it
+        // stays quiet.
+        let hunk_uses_foreign_binding = cr_would_fire
+            && !hunk_foreign_reach
+            && import_score < IMPORT_THRESHOLD
+            && self.hunk_uses_foreign_import_binding(hunk_content, binding_source);
+        // An explicit foreign namespace (`\Respect\Validation\Validator::key`,
+        // `tokio::spawn`) is an unambiguous foreign-dependency reference — as
+        // strong a signal as a foreign import — so it fires regardless of the
+        // surprisal threshold. A tiny edit that reaches a namespace the repo
+        // has never used must not slip under the bar (the laravel PHP-FQN
+        // breaks). On real commits such a fire is a correct novel-pattern
+        // *detection* (a new namespaced dependency), not an over-fire.
+        let explicit_foreign = cr_active
+            && self.call_receiver.as_ref().is_some_and(|cr| {
+                cr.hunk_names_explicit_foreign_namespace(
+                    hunk_content,
+                    cr_host_context,
+                    &local_bindings,
+                )
+            });
+        let cr_fired = (cr_would_fire
+            && (import_score >= IMPORT_THRESHOLD
+                || hunk_foreign_reach
+                || hunk_uses_foreign_binding))
+            || explicit_foreign;
         let conv_side_score = bpe_score + convention_contribution;
         let conv_fired =
             convention_contribution > 0.0 && !bpe_fired && conv_side_score > self.bpe_threshold;
@@ -636,11 +735,19 @@ impl SequentialImportBpeScorer {
             ));
         }
         if cr_fired {
+            // An explicit foreign namespace clears the bar on its own (foreign
+            // reference, threshold-independent); otherwise the surprisal-side
+            // score already exceeded it.
+            let cr_score = if explicit_foreign {
+                adjusted_bpe.max(self.bpe_threshold)
+            } else {
+                adjusted_bpe
+            };
             candidates.push((
                 Reason::CallReceiver,
-                adjusted_bpe,
+                cr_score,
                 self.bpe_threshold,
-                adjusted_bpe / denom,
+                cr_score / denom,
             ));
         }
         if conv_fired {
@@ -651,6 +758,12 @@ impl SequentialImportBpeScorer {
                 conv_side_score / denom,
             ));
         }
+
+        let foreign_import_modules: Vec<String> = {
+            let mut v: Vec<String> = foreign.iter().cloned().collect();
+            v.sort();
+            v
+        };
 
         if !candidates.is_empty() {
             let tiebreak = |r: Reason| match r {
@@ -681,6 +794,7 @@ impl SequentialImportBpeScorer {
                 reason: winner.0,
                 stages,
                 evidence,
+                foreign_import_modules: foreign_import_modules.clone(),
             };
         }
 
@@ -691,6 +805,7 @@ impl SequentialImportBpeScorer {
             reason: Reason::None,
             stages,
             evidence: None,
+            foreign_import_modules,
         }
     }
 
@@ -913,6 +1028,106 @@ mod tests {
         assert!(
             scored.stages.call_receiver_contribution > 0.0,
             "neighbourhood-less callee still fires"
+        );
+    }
+
+    /// Foreign-context gate: the call-receiver reason may only *flag* a hunk
+    /// when the hunk reaches into a foreign module. A bare unattested callee
+    /// (the codebase's own new function) contributes but must not cry wolf; a
+    /// namespace-qualified callee into an unknown module (or a foreign import)
+    /// does flag.
+    #[test]
+    fn call_receiver_flags_only_with_foreign_context() {
+        // Threshold above both hunks' BPE surprisal, contribution (uncapped
+        // here) large enough to cross it on its own: isolates the firing
+        // decision to the gate.
+        let mut cfg = config(12.0);
+        cfg.call_receiver_alpha = 25.0;
+        cfg.call_receiver_cap = 25;
+        cfg.call_receiver_root_bonus = 0.0;
+        let files: Vec<(PathBuf, String)> = (0..4)
+            .map(|i| {
+                (
+                    PathBuf::from(format!("m{i}.py")),
+                    "import math\n\n\ndef mean(xs):\n    total = math.fsum(xs)\n    return total / len(xs)\n".to_string(),
+                )
+            })
+            .collect();
+        let mut scorer = SequentialImportBpeScorer::from_config(
+            &files,
+            GENERIC_BASELINE_JSON,
+            Box::new(PythonAdapter::new()),
+            cfg,
+        )
+        .unwrap();
+
+        // New method on a KNOWN module (`math` is attested via `math.fsum`):
+        // the repo's own new code reaching into a module it already uses —
+        // contributes, but the file reaches no foreign module, so it does not
+        // flag under the call-receiver reason.
+        let known = "def run(xs):\n    return math.newhelper(xs)";
+        let scored = scorer.score_hunk(known, None, None, None, None);
+        assert!(
+            scored.stages.call_receiver_contribution > 0.0,
+            "new method on a known module still contributes"
+        );
+        assert!(
+            !scored.flagged,
+            "new API on a known module (no foreign reach) must not flag: {scored:?}"
+        );
+
+        // Namespace-qualified callee into a module the repo never uses: foreign
+        // voice — flags under the call-receiver reason.
+        let foreign = "def run(xs):\n    return foreignlib.connect(xs)";
+        let scored = scorer.score_hunk(foreign, None, None, None, None);
+        assert_eq!(
+            scored.reason,
+            Reason::CallReceiver,
+            "namespace-foreign callee flags: {scored:?}"
+        );
+    }
+
+    /// Amplification guard: a benign refactor hunk whose callees are all the
+    /// repo's own attested code must NOT flag just because its *file* pulls a
+    /// foreign import elsewhere. Before the fix, one file-level foreign
+    /// dependency opened the call-receiver gate for every hunk in the file
+    /// (ink's `terminal-size` import lit up `performance.now()`/`clearTimeout`).
+    #[test]
+    fn file_level_foreign_import_does_not_amplify_benign_hunk() {
+        let mut cfg = config(12.0);
+        cfg.call_receiver_alpha = 25.0;
+        cfg.call_receiver_cap = 25;
+        cfg.call_receiver_root_bonus = 0.0;
+        let files: Vec<(PathBuf, String)> = (0..4)
+            .map(|i| {
+                (
+                    PathBuf::from(format!("m{i}.py")),
+                    "import math\n\n\ndef mean(xs):\n    total = math.fsum(xs)\n    return total / len(xs)\n".to_string(),
+                )
+            })
+            .collect();
+        let mut scorer = SequentialImportBpeScorer::from_config(
+            &files,
+            GENERIC_BASELINE_JSON,
+            Box::new(PythonAdapter::new()),
+            cfg,
+        )
+        .unwrap();
+
+        // The hunk's only reach is `math.newhelper` (a new method on an
+        // attested module — the repo's own code). Its *file* adds a foreign
+        // import (`requests`), but that must not open the gate for this hunk.
+        let file_src =
+            "import math\nimport requests\n\n\ndef run(xs):\n    return math.newhelper(xs)\n";
+        let hunk = "def run(xs):\n    return math.newhelper(xs)";
+        let scored = scorer.score_hunk(hunk, Some(file_src), None, None, None);
+        assert!(
+            scored.stages.call_receiver_contribution > 0.0,
+            "attested-module method still contributes"
+        );
+        assert!(
+            !scored.flagged,
+            "benign hunk must not flag on a file-level foreign import: {scored:?}"
         );
     }
 }

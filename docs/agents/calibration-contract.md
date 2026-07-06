@@ -200,6 +200,15 @@ path-route after repo-dir canonicalization, so the cal side is unaffected;
 
 ### Convention-rarity stage (asymmetric by calibrated bar)
 
+> **Off by default (issue #92).** The convention stage is secondary coverage
+> (never part of the gated novel-pattern metric) and a co-headline false-alarm
+> driver whose feature space overlaps in-voice code — its holdout FP fire at
+> the same calibrated-bar ratios as the two catches it carries, so no threshold
+> separates them. It is now gated behind `CalibrateOptions.enable_conventions`
+> (default `false`), a benchmark-only knob with no user-facing flag; production
+> `fit` never emits the model. The contract below still governs it **when
+> enabled**.
+
 The convention stage (AST node-kind surprisal + identifier-shape surprisal,
 `scoring/conventions.rs`) is an additive bonus like the cluster rules and
 follows the same contract discipline: it never feeds

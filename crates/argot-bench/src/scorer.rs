@@ -21,11 +21,11 @@ use argot_core::scoring::adapters::typescript::TypeScriptAdapter;
 use argot_core::scoring::adapters::{Language, LanguageAdapter};
 use argot_core::scoring::bpe_scorer::BpeScorer;
 use argot_core::scoring::calibration::{
-    collect_candidates, is_excluded_path, multi_seed_thresholds, sample_indices, Candidate,
-    ThresholdRunConfig,
+    calibrate_convention_bars, collect_candidates, is_excluded_path, multi_seed_thresholds,
+    sample_indices, Candidate, ThresholdRunConfig,
 };
 use argot_core::scoring::call_receiver::{CallReceiverScorer, RarityWeighting};
-use argot_core::scoring::conventions::{fit_convention_frequencies, ConventionScorer};
+use argot_core::scoring::conventions::fit_convention_frequencies;
 use argot_core::scoring::sequential::{SequentialConfig, SequentialImportBpeScorer};
 use argot_core::scoring::typicality::TypicalityModel;
 use argot_core::text::read_text_lossy;
@@ -552,9 +552,15 @@ pub fn build_scorer(
         bail!("no calibration candidates in {}", repo_dir.display());
     }
     let effective_n_cal = knobs.n_cal.min(candidates.len());
+    // Leave-one-file-out counts — mirrors run_calibrate (issue #92).
+    let per_file_counts: argot_core::scoring::calibration::PerFileTokenCounts = corpus
+        .iter()
+        .map(|(p, s)| (p.clone(), bpe.token_counts(s)))
+        .collect();
     let seed_thresholds = multi_seed_thresholds(
         &candidates,
         &bpe,
+        Some(&per_file_counts),
         &mut cal_cr,
         adapter.as_ref(),
         &typicality,
@@ -572,25 +578,13 @@ pub fn build_scorer(
     // max feature value over the multi-seed calibration sample (mirror of
     // run_calibrate; never feeds the threshold per the calibration contract).
     let convention_model = if knobs.enable_conventions {
-        // Bars over ALL candidates — deterministic max-gate (see
-        // run_calibrate; the two must stay in lock-step).
+        // Bars over ALL candidates — deterministic max-gate, shared with
+        // run_calibrate via calibrate_convention_bars so the two can't drift.
         let mut model = fit_convention_frequencies(corpus, language);
-        let conv = ConventionScorer::new(model.clone(), language);
-        let mut syntax_bar = 0.0f64;
-        let mut ident_bar = 0.0f64;
-        for c in &candidates {
-            if typicality.is_atypical(&c.hunk).0 {
-                continue;
-            }
-            let scores = conv.scores(
-                &c.hunk,
-                Some((&c.file_source, c.hunk_start_line, c.hunk_end_line)),
-            );
-            syntax_bar = syntax_bar.max(scores.syntax_surprisal);
-            ident_bar = ident_bar.max(scores.ident_surprisal);
-        }
+        let (syntax_bar, ident_bars) =
+            calibrate_convention_bars(&candidates, &model, language, &typicality);
         model.syntax_bar = syntax_bar;
-        model.ident_bar = ident_bar;
+        model.ident_bars = ident_bars;
         Some(model)
     } else {
         None

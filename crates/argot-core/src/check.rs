@@ -16,7 +16,7 @@
 use crate::git_walk::{
     open_repo, resolve_shas, walk_commits, HunkSpan, WalkItem, SUPPORTED_EXTENSIONS,
 };
-use crate::output::{render_json, render_sarif, HitRecord, OutputFormat, ReportMeta};
+use crate::output::{render_json, render_sarif, FileScan, HitRecord, OutputFormat, ReportMeta};
 use crate::scoring::adapters::c::CAdapter;
 use crate::scoring::adapters::cpp::CppAdapter;
 use crate::scoring::adapters::csharp::CSharpAdapter;
@@ -39,7 +39,7 @@ use crate::suppress::{
 use crate::text::{read_text_lossy, splitlines};
 use git2::{DiffFindOptions, Patch, Status, StatusOptions};
 use serde_json::Value;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
@@ -180,6 +180,16 @@ struct Loaded {
     /// Per-language slice thresholds (per-subdirectory / per-author voice).
     /// Empty for an unsliced fit.
     slices: HashMap<String, Vec<SliceEntry>>,
+    /// Per-language new-file thresholds. A hunk whose file was absent from the
+    /// fit corpus is judged against this (higher) bar instead of `threshold`
+    /// (issue #92 new-file flooding). Absent for configs predating the field —
+    /// then new files keep the single-threshold behaviour.
+    new_file_thresholds: HashMap<String, f64>,
+    /// Authoritative fit-corpus file set (repo-relative), including data-dominant
+    /// files. A path absent here is a new file. Empty for configs predating the
+    /// field — then new-file detection falls back to cluster membership, which
+    /// misclassifies data-dominant known files (issue #92).
+    fit_corpus_files: HashSet<String>,
     /// Repo SHA the model was fitted at (calibration meta), for the
     /// freshness warning. `None` when the config predates the field.
     fit_sha: Option<String>,
@@ -209,7 +219,10 @@ const EXT_TO_LANG: &[(&str, &str)] = &[
     (".rb", "ruby"),
 ];
 
-fn ext_to_lang(ext: &str) -> Option<&'static str> {
+/// The scoring language name for a lowercase file extension (with dot), or
+/// `None` when unsupported. Public so out-of-process consumers of `check`'s
+/// JSON (the bench, scripts) classify paths the exact way `check` routes them.
+pub fn ext_to_lang(ext: &str) -> Option<&'static str> {
     EXT_TO_LANG.iter().find(|(e, _)| *e == ext).map(|(_, l)| *l)
 }
 
@@ -230,7 +243,7 @@ fn adapter_for_language(lang: &str) -> Option<Box<dyn LanguageAdapter>> {
 }
 
 /// Python `Path(path).suffix.lower()` (`git_walk._extension`).
-fn extension(path: &str) -> String {
+pub fn extension(path: &str) -> String {
     let name = match path.rfind('/') {
         Some(i) => &path[i + 1..],
         None => path,
@@ -575,6 +588,27 @@ fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
         }
     }
 
+    // Per-language new-file thresholds (absent for configs predating the field).
+    let mut new_file_thresholds: HashMap<String, f64> = HashMap::new();
+    for (lang, lc) in languages {
+        if let Some(t) = lc.get("new_file_threshold").and_then(Value::as_f64) {
+            new_file_thresholds.insert(lang.clone(), t);
+        }
+    }
+
+    // Authoritative fit-corpus file set (repo-relative), including data-dominant
+    // files (absent for configs predating the field).
+    let fit_corpus_files: HashSet<String> = config
+        .get("corpus_files")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(Value::as_str)
+                .map(String::from)
+                .collect()
+        })
+        .unwrap_or_default();
+
     Ok(Loaded {
         scorers,
         filter_adapters,
@@ -582,6 +616,8 @@ fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
         fit_sha,
         model_hash,
         slices,
+        new_file_thresholds,
+        fit_corpus_files,
     })
 }
 
@@ -842,18 +878,28 @@ fn chain_workdir_patches(repo_path: &str) -> anyhow::Result<Vec<PatchBatch>> {
 /// Score each hunk, dispatching per language (`_score_patches`). Applies the
 /// inline-comment and suppressions.yaml surfaces per hit (path-level
 /// `.argotignore` suppression arrives pre-marked on the batch). Returns
-/// `(hits, hunk_count)`.
+/// `(hits, hunk_count, per-file hunk counts)`.
+#[allow(clippy::too_many_arguments)]
 fn score_patches(
     patches: Vec<PatchBatch>,
     scorers: &mut HashMap<String, SequentialImportBpeScorer>,
     filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
     slices: &HashMap<String, Vec<SliceEntry>>,
+    new_file_thresholds: &HashMap<String, f64>,
+    fit_corpus_files: &HashSet<String>,
     yaml_rules: &[SuppressionRule],
     stderr: &mut String,
-) -> (Vec<Hit>, usize) {
+) -> (Vec<Hit>, usize, Vec<FileScan>) {
     let mut hits: Vec<Hit> = Vec::new();
     let mut hunk_count = 0usize;
+    let mut file_counts: BTreeMap<String, usize> = BTreeMap::new();
     let mut warned: HashSet<String> = HashSet::new();
+    // Per-changeset novel-import dedup: foreign top-level modules that have
+    // already raised an import alert in this check run. The same new dependency
+    // added across many files of one change (a mechanical migration) is one
+    // decision — alert on its first appearance, dedup the rest.
+    let mut alerted_foreign_modules: HashSet<String> = HashSet::new();
+    let mut deduped_import_alerts: usize = 0;
 
     for batch in patches {
         let ext = extension(&batch.file_path);
@@ -887,6 +933,7 @@ fn score_patches(
 
         for hunk in &batch.hunks {
             hunk_count += 1;
+            *file_counts.entry(batch.file_path.clone()).or_insert(0) += 1;
             let hunk_start = hunk.new_start as i64 - 1;
             let hunk_end = hunk_start + hunk.new_lines as i64;
             if hunk_start < 0 || hunk_end > n_lines {
@@ -909,15 +956,63 @@ fn score_patches(
             let line = hunk.new_start as usize;
             let line_end = (hunk.new_start + hunk.new_lines).saturating_sub(1) as usize;
             let reason = scored.reason.as_str().to_string();
-            // Per-slice dispatch: if the file falls in a calibrated slice, judge
-            // the score against that slice's threshold instead of the whole-repo
-            // one. Foreign-import hits fire regardless of threshold.
-            let (flagged, threshold) = match ext_to_lang(&ext)
-                .and_then(|lang| slice_threshold(slices, lang, &batch.file_path))
-            {
-                Some(t) => (reason == "import" || scored.score >= t, t),
-                None => (scored.flagged, scored.threshold),
+            let lang = ext_to_lang(&ext);
+            // New-file dispatch takes precedence: a hunk whose file was absent
+            // from the fit corpus is judged against the (higher) new-file
+            // threshold — a new file gets full unattested-callee mass with no
+            // cluster routing, a systematically higher distribution than an edit
+            // to a known file (issue #92 new-file flooding). Foreign imports
+            // still fire regardless of threshold. Falls through to per-slice /
+            // whole-repo dispatch for known files, or configs without the field.
+            let is_new_file = if fit_corpus_files.is_empty() {
+                // Config predates the corpus_files snapshot: fall back to cluster
+                // membership (misclassifies data-dominant known files).
+                !scorer.is_fit_file(Path::new(&batch.file_path))
+            } else {
+                !fit_corpus_files.contains(&batch.file_path)
             };
+            let new_file_threshold = lang.and_then(|l| {
+                is_new_file
+                    .then(|| new_file_thresholds.get(l).copied())
+                    .flatten()
+            });
+            // A `none`-reason hunk fired no stage: its call-receiver
+            // contribution was *not* gated (the hunk reaches nothing foreign),
+            // so it must not count toward the new-file / slice threshold —
+            // otherwise a new file of the repo's own code (its own unattested
+            // callees) is flagged on exactly the signal the hunk-level
+            // foreign-reach gate already rejected. Judge it on token surprise
+            // alone. Firing reasons (import/bpe/call_receiver) already carry a
+            // gated score in `scored.score`.
+            let new_score = if reason == "none" {
+                scored.stages.bpe_score
+            } else {
+                scored.score
+            };
+            let (mut flagged, threshold) = match new_file_threshold {
+                Some(t) => (reason == "import" || new_score >= t, t),
+                None => match lang.and_then(|l| slice_threshold(slices, l, &batch.file_path)) {
+                    Some(t) => (reason == "import" || new_score >= t, t),
+                    None => (scored.flagged, scored.threshold),
+                },
+            };
+            // Per-changeset novel-import dedup: an import alert whose foreign
+            // modules were all already alerted in this run is the same decision
+            // seen again (one dependency spread across a migration). Alert on
+            // the first appearance; dedup the repeats. A hunk that adds a
+            // genuinely new foreign module still fires.
+            if flagged && reason == "import" && !scored.foreign_import_modules.is_empty() {
+                if scored
+                    .foreign_import_modules
+                    .iter()
+                    .all(|m| alerted_foreign_modules.contains(m))
+                {
+                    flagged = false;
+                    deduped_import_alerts += 1;
+                } else {
+                    alerted_foreign_modules.extend(scored.foreign_import_modules.iter().cloned());
+                }
+            }
             let hash = hit_hash(&batch.file_path, &reason, &hunk_content);
             let suppressed_by = if batch.ignored_by_pattern {
                 Some(SuppressedBy::ArgotIgnore)
@@ -947,8 +1042,18 @@ fn score_patches(
             });
         }
     }
+    if deduped_import_alerts > 0 {
+        stderr.push_str(&format!(
+            "[argot] {deduped_import_alerts} repeat novel-import alert(s) deduped \
+             (same dependency across the change)\n"
+        ));
+    }
 
-    (hits, hunk_count)
+    let files_scanned = file_counts
+        .into_iter()
+        .map(|(path, hunks)| FileScan { path, hunks })
+        .collect();
+    (hits, hunk_count, files_scanned)
 }
 
 /// Build the eslint-style `^^^^^` underline for one source line
@@ -1222,7 +1327,13 @@ fn hit_records(hits: &[&Hit]) -> Vec<HitRecord> {
         .collect()
 }
 
-fn report_meta(args: &CheckArgs, scanned: String, hunks_scanned: usize, model: &str) -> ReportMeta {
+fn report_meta(
+    args: &CheckArgs,
+    scanned: String,
+    hunks_scanned: usize,
+    files_scanned: Vec<FileScan>,
+    model: &str,
+) -> ReportMeta {
     ReportMeta {
         // The workspace shares one version across crates, so this matches the
         // CLI binary's version.
@@ -1230,6 +1341,7 @@ fn report_meta(args: &CheckArgs, scanned: String, hunks_scanned: usize, model: &
         repo: args.repo_path.clone(),
         scanned,
         hunks_scanned,
+        files_scanned,
         model: model.to_string(),
     }
 }
@@ -1381,6 +1493,8 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         fit_sha,
         model_hash,
         slices,
+        new_file_thresholds,
+        fit_corpus_files,
     } = match load_scorers(&args.argot_dir) {
         Ok(l) => l,
         Err((msg, code)) => return CheckOutcome::err(msg, code),
@@ -1397,6 +1511,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
                     &args,
                     format!("0 commit(s) ({})", args.reference),
                     0,
+                    Vec::new(),
                     &model_hash,
                 );
                 return CheckOutcome {
@@ -1479,11 +1594,13 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         }
     }
 
-    let (hits, hunk_count) = score_patches(
+    let (hits, hunk_count, files_scanned) = score_patches(
         filtered,
         &mut scorers,
         &filter_adapters,
         &slices,
+        &new_file_thresholds,
+        &fit_corpus_files,
         &yaml.active,
         &mut stderr,
     );
@@ -1547,7 +1664,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     // any hit is visible, 0 otherwise).
     if args.format.is_machine() {
         let records = hit_records(&visible);
-        let meta = report_meta(&args, scan_label, hunk_count, &model_hash);
+        let meta = report_meta(&args, scan_label, hunk_count, files_scanned, &model_hash);
         let exit_code = if visible.is_empty() { 0 } else { 1 };
         return CheckOutcome {
             stdout: render_machine(args.format, &meta, &records),

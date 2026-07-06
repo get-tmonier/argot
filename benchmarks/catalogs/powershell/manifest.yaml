@@ -1,0 +1,366 @@
+corpus: powershell
+language: csharp
+categories:
+- wrong_error_discipline
+- wrong_concurrency
+- wrong_api_within_known_lib
+- naming_shape_break
+- foreign_import
+- foreign_api
+- foreign_concurrency
+injection_hosts:
+- pr: 0
+  sha: 36cd02b333d7cecb89d5d336c9a798287fe4736b
+fixtures:
+- id: ps_error_exit_1
+  file: breaks/break_exit_on_error_1.cs
+  category: wrong_error_discipline
+  hunk_start_line: 22
+  hunk_end_line: 34
+  rationale: Environment.Exit + Console error print in a cmdlet helper; repo discipline
+    is WriteError/ThrowTerminatingError with ErrorRecord (host Process.cs uses ErrorRecord
+    machinery throughout).
+  difficulty: medium
+  host_file: src/Microsoft.PowerShell.Commands.Management/commands/management/Process.cs
+  host_inject_at_line: 792
+- id: ps_error_string_throw_1
+  file: breaks/break_string_throw_1.cs
+  category: wrong_error_discipline
+  hunk_start_line: 19
+  hunk_end_line: 37
+  rationale: Bare `throw new Exception("...")` mixed with errno-style -1/0 return codes;
+    repo throws typed PS exceptions via PSTraceSource.New*Exception and never signals
+    via int codes.
+  difficulty: medium
+  host_file: src/System.Management.Automation/engine/Utils.cs
+  host_inject_at_line: 496
+- id: ps_error_swallow_1
+  file: breaks/break_swallow_catch_1.cs
+  category: wrong_error_discipline
+  hunk_start_line: 19
+  hunk_end_line: 32
+  rationale: Bare `catch {}` swallow of conversion failures; the host cmdlet surfaces
+    them as ErrorRecords (WriteConversionError decoy mirrors real host discipline).
+  difficulty: medium
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/ConvertToJsonCommand.cs
+  host_inject_at_line: 44
+- id: ps_conc_async_void_1
+  file: breaks/break_async_void_1.cs
+  category: wrong_concurrency
+  hunk_start_line: 16
+  hunk_end_line: 23
+  rationale: Fire-and-forget `async void` member; the host's async surface is async
+    Task consumed via await or GetAwaiter().GetResult().
+  difficulty: hard
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/Common/InvokeRestMethodCommand.Common.cs
+  host_inject_at_line: 170
+- id: ps_conc_backgroundworker_1
+  file: breaks/break_backgroundworker_1.cs
+  category: wrong_concurrency
+  hunk_start_line: 22
+  hunk_end_line: 37
+  rationale: WinForms-era System.ComponentModel.BackgroundWorker drives event draining;
+    the host coordinates with ThreadPool.QueueUserWorkItem, locks and reset events.
+  difficulty: medium
+  host_file: src/System.Management.Automation/engine/EventManager.cs
+  host_inject_at_line: 798
+- id: ps_conc_channels_1
+  file: breaks/break_channels_1.cs
+  category: wrong_concurrency
+  hunk_start_line: 19
+  hunk_end_line: 31
+  rationale: System.Threading.Channels producer/consumer pump; the host throttle manager
+    coordinates through its own operation queue, locks and event callbacks.
+  difficulty: hard
+  host_file: src/System.Management.Automation/engine/remoting/common/throttlemanager.cs
+  host_inject_at_line: 221
+- id: ps_api_console_output_1
+  file: breaks/break_console_output_1.cs
+  category: wrong_api_within_known_lib
+  hunk_start_line: 16
+  hunk_end_line: 24
+  rationale: Console.WriteLine/Console.Write as a cmdlet's output channel; repo cmdlets
+    emit through WriteObject/WriteVerbose so output composes with the pipeline.
+  difficulty: medium
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/Var.cs
+  host_inject_at_line: 416
+- id: ps_api_json_concat_1
+  file: breaks/break_json_concat_1.cs
+  category: wrong_api_within_known_lib
+  hunk_start_line: 15
+  hunk_end_line: 43
+  rationale: Hand-rolled JSON via StringBuilder + manual escaping; the host file serializes
+    exclusively through Newtonsoft.Json (4 Newtonsoft references in JsonObject.cs at the
+    pinned SHA).
+  difficulty: medium
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/JsonObject.cs
+  host_inject_at_line: 246
+- id: ps_api_webrequest_legacy_1
+  file: breaks/break_webrequest_legacy_1.cs
+  category: wrong_api_within_known_lib
+  hunk_start_line: 20
+  hunk_end_line: 30
+  rationale: Deprecated synchronous WebRequest.Create/GetResponse pipeline; this file
+    standardizes on HttpClient/HttpRequestMessage (0 WebRequest.Create sites in the
+    WebCmdlet tree at the pinned SHA).
+  difficulty: medium
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/Common/WebRequestPSCmdlet.Common.cs
+  host_inject_at_line: 719
+- id: ps_name_snake_case_1
+  file: breaks/break_snake_case_1.cs
+  category: naming_shape_break
+  hunk_start_line: 19
+  hunk_end_line: 37
+  rationale: snake_case methods/locals and a camelCase public property; the repo is
+    PascalCase members with _camelCase/s_camelCase fields (0 snake_case method
+    declarations in *.cs at the pinned SHA).
+  difficulty: medium
+  host_file: src/System.Management.Automation/engine/Modules/AnalysisCache.cs
+  host_inject_at_line: 299
+- id: ps_name_hungarian_1
+  file: breaks/break_hungarian_1.cs
+  category: naming_shape_break
+  hunk_start_line: 19
+  hunk_end_line: 37
+  rationale: Hungarian m_/str/i/b prefixes on fields, parameters and locals; the host's
+    fields are _camelCase instance / s_camelCase static with PascalCase members.
+  difficulty: medium
+  host_file: src/Microsoft.PowerShell.ConsoleHost/host/msh/ConsoleHost.cs
+  host_inject_at_line: 791
+- id: ps_foreign_polly_1
+  file: breaks/break_polly_1.cs
+  category: foreign_import
+  hunk_start_line: 20
+  hunk_end_line: 27
+  rationale: Polly retry policy (fully-qualified Polly.Policy) around help-content
+    download; Polly is absent from the repo at the pinned SHA (0 grep hits in *.cs and
+    *.csproj) — the repo hand-rolls bounded retry loops.
+  difficulty: medium
+  host_file: src/System.Management.Automation/help/UpdatableHelpSystem.cs
+  host_inject_at_line: 481
+- id: ps_foreign_serilog_1
+  file: breaks/break_serilog_1.cs
+  category: foreign_import
+  hunk_start_line: 19
+  hunk_end_line: 27
+  rationale: Serilog file logger (fully-qualified Serilog.*) for telemetry; Serilog is
+    absent from the repo at the pinned SHA (0 grep hits) — the host telemetry goes
+    through Microsoft.ApplicationInsights.
+  difficulty: medium
+  host_file: src/System.Management.Automation/utils/Telemetry.cs
+  host_inject_at_line: 659
+- id: ps_foreign_nlog_1
+  file: breaks/break_nlog_1.cs
+  category: foreign_api
+  hunk_start_line: 14
+  hunk_end_line: 19
+  rationale: NLog structured logger (fully-qualified NLog.LogManager.GetCurrentClassLogger)
+    for process-lookup diagnostics; NLog is absent from the repo at the pinned SHA (0
+    grep hits for `NLog\.` in src/*.cs and 0 PackageReference entries in *.csproj repo-wide)
+    — the distinctive callees `LogManager`/`GetCurrentClassLogger` = 0 src hits
+    (non-colliding); the host reports diagnostics through WriteVerbose/WriteDebug.
+  difficulty: medium
+  host_file: src/Microsoft.PowerShell.Commands.Management/commands/management/Process.cs
+  host_inject_at_line: 792
+- id: ps_foreign_automapper_1
+  file: breaks/break_automapper_1.cs
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 25
+  rationale: AutoMapper object-to-object mapping (MapperConfiguration/CreateMap) for
+    module argument dictionaries; AutoMapper is absent from the repo at the pinned SHA
+    (0 grep hits for `AutoMapper\.` in src/*.cs and 0 PackageReference entries in *.csproj
+    repo-wide) — the distinctive callees `MapperConfiguration`/`CreateMap` = 0 src hits
+    (non-colliding); the host copies dictionary values by hand via direct key assignment.
+  difficulty: medium
+  host_file: src/System.Management.Automation/engine/Utils.cs
+  host_inject_at_line: 496
+- id: ps_foreign_dapper_1
+  file: breaks/break_dapper_1.cs
+  category: foreign_api
+  hunk_start_line: 28
+  hunk_end_line: 31
+  rationale: Dapper micro-ORM query helper (fully-qualified Dapper.SqlMapper.QueryAsync)
+    replacing a manual ADO.NET reader loop; Dapper is absent from the repo at the pinned
+    SHA (0 grep hits for `Dapper\.` in src/*.cs and 0 PackageReference entries in *.csproj
+    repo-wide) — the distinctive callees `SqlMapper`/`QueryAsync` = 0 src hits
+    (non-colliding); the host has no data-access layer beyond plain ADO.NET usage.
+  difficulty: medium
+  host_file: src/System.Management.Automation/engine/Utils.cs
+  host_inject_at_line: 496
+- id: ps_foreign_restsharp_1
+  file: breaks/break_restsharp_1.cs
+  category: foreign_api
+  hunk_start_line: 15
+  hunk_end_line: 22
+  rationale: RestSharp HTTP client (fully-qualified RestSharp.RestClient/RestRequest)
+    posting the converted JSON payload to a diagnostics endpoint; RestSharp is absent
+    from the repo at the pinned SHA (0 grep hits for `RestSharp\.` in src/*.cs and 0
+    PackageReference entries in *.csproj repo-wide) — the distinctive callees
+    `RestClient`/`RestRequest` = 0 src hits (non-colliding); the WebCmdlet tree issues
+    requests exclusively through HttpClient/HttpRequestMessage.
+  difficulty: medium
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/ConvertToJsonCommand.cs
+  host_inject_at_line: 44
+- id: ps_foreign_flurl_1
+  file: breaks/break_flurl_1.cs
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 18
+  rationale: 'Flurl.Http fluent HTTP client (foreign `using Flurl.Http` + endpoint.GetStringAsync) fetches the REST payload; Flurl is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — the WebCmdlet tree issues every request through HttpClient/HttpRequestMessage. Caught by the import stage (foreign using token Flurl.Http).'
+  difficulty: easy
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/Common/InvokeRestMethodCommand.Common.cs
+  host_inject_at_line: 170
+- id: ps_foreign_yamldotnet_1
+  file: breaks/break_yamldotnet_1.cs
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 19
+  rationale: 'YamlDotNet serializer (foreign `using YamlDotNet.Serialization` + new SerializerBuilder) emits a YAML rendering; YamlDotNet is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — structured output in this file is Newtonsoft.Json only. Caught by the import stage (foreign using token YamlDotNet.Serialization; SerializerBuilder also 0-usage).'
+  difficulty: easy
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/JsonObject.cs
+  host_inject_at_line: 246
+- id: ps_foreign_nodatime_1
+  file: breaks/break_nodatime_1.cs
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 18
+  rationale: 'NodaTime clock (foreign `using NodaTime` + SystemClock.Instance.GetCurrentInstant) stamps the event instant; NodaTime is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — time handling here uses System.DateTime/DateTimeOffset. Caught by the import stage (foreign using token NodaTime); SystemClock namespace also foreign.'
+  difficulty: easy
+  host_file: src/System.Management.Automation/engine/Utils.cs
+  host_inject_at_line: 496
+- id: ps_foreign_messagepack_1
+  file: breaks/break_messagepack_1.cs
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 18
+  rationale: 'MessagePack binary serializer (foreign `using MessagePack` + MessagePackSerializer.Serialize) replaces the JSON path; MessagePack is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — conversion here goes through Newtonsoft.Json. Caught by the import stage (foreign using token MessagePack).'
+  difficulty: easy
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/ConvertToJsonCommand.cs
+  host_inject_at_line: 44
+- id: ps_foreign_refit_1
+  file: breaks/break_refit_1.cs
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 18
+  rationale: 'Refit typed REST client (foreign `using Refit` + RestService.For) generates a client from an interface; Refit is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — requests here are built on HttpClient by hand. Caught by the import stage (foreign using token Refit).'
+  difficulty: easy
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/Common/WebRequestPSCmdlet.Common.cs
+  host_inject_at_line: 719
+- id: ps_foreign_scriban_1
+  file: breaks/break_scriban_1.cs
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 19
+  rationale: 'Scriban template engine (foreign `using Scriban` + Template.Parse/Render) renders the help summary; Scriban is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — help text here is composed with StringUtil.Format. Caught by the import stage (foreign using token Scriban).'
+  difficulty: easy
+  host_file: src/System.Management.Automation/help/UpdatableHelpSystem.cs
+  host_inject_at_line: 481
+- id: ps_foreign_litedb_1
+  file: breaks/break_litedb_1.cs
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 20
+  rationale: 'LiteDB embedded document store (foreign `using LiteDB` + new LiteDatabase) persists the analysis cache; LiteDB is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — this cache lives in a ConcurrentDictionary. Caught by the import stage (foreign using token LiteDB); LiteDatabase type also 0-usage.'
+  difficulty: easy
+  host_file: src/System.Management.Automation/engine/Modules/AnalysisCache.cs
+  host_inject_at_line: 299
+- id: ps_foreign_redis_1
+  file: breaks/break_redis_1.cs
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 24
+  rationale: 'StackExchange.Redis distributed cache (foreign `using StackExchange.Redis` + ConnectionMultiplexer/GetDatabase/StringGet) backs the analysis lookups; StackExchange.Redis is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — caching is a local ConcurrentDictionary. Medium: the cache is reached through a receiver variable and the leaf .Connect collides with attested repo callees (24 sites), so call_receiver''s leaf gate is masked; caught by the import stage on the foreign using token StackExchange.Redis.'
+  difficulty: medium
+  host_file: src/System.Management.Automation/engine/Modules/AnalysisCache.cs
+  host_inject_at_line: 299
+- id: ps_foreign_mongodb_1
+  file: breaks/break_mongodb_1.cs
+  category: foreign_api
+  hunk_start_line: 28
+  hunk_end_line: 34
+  rationale: 'MongoDB.Driver document client (fully-qualified new MongoDB.Driver.MongoClient, then reached through a receiver variable) reads module settings; MongoDB.Driver is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — persistence here is plain ADO.NET. The foreign type construction (root MongoDB) fires call_receiver; the receiver-variable methods (GetDatabase/CountDocuments) are masked.'
+  difficulty: medium
+  host_file: src/System.Management.Automation/engine/Utils.cs
+  host_inject_at_line: 496
+- id: ps_foreign_npgsql_1
+  file: breaks/break_npgsql_1.cs
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 23
+  rationale: 'Npgsql PostgreSQL client (foreign `using Npgsql` + new NpgsqlConnection, then receiver-variable OpenAsync/CreateCommand) loads persisted variables; Npgsql is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — this cmdlet reads variables from session state, never a database. Medium: the connection is reached through a receiver variable and the leaf .OpenAsync collides with attested callees (20 sites), so call_receiver''s leaf gate is masked; caught by the import stage on the foreign using token Npgsql (NpgsqlConnection type also 0-usage).'
+  difficulty: medium
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/Var.cs
+  host_inject_at_line: 416
+- id: ps_foreign_sharpziplib_1
+  file: breaks/break_sharpziplib_1.cs
+  category: foreign_api
+  hunk_start_line: 14
+  hunk_end_line: 20
+  rationale: 'SharpZipLib archive writer (submodule `using ICSharpCode.SharpZipLib.Zip` + new ZipOutputStream/ZipEntry) repackages the help bundle; SharpZipLib is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — archive handling uses System.IO.Compression. Caught by the import stage (foreign submodule using token ICSharpCode.SharpZipLib.Zip); ZipOutputStream/ZipEntry also 0-usage.'
+  difficulty: medium
+  host_file: src/System.Management.Automation/help/UpdatableHelpSystem.cs
+  host_inject_at_line: 481
+- id: ps_foreign_grpc_1
+  file: breaks/break_grpc_1.cs
+  category: foreign_api
+  hunk_start_line: 14
+  hunk_end_line: 18
+  rationale: 'gRPC channel (aliased `using Rpc = Grpc.Core` + new Rpc.Channel/Rpc.ChannelCredentials) replaces the HTTP call; Grpc.Core is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — remote calls here go over HttpClient/HTTP. The alias LHS is dropped so the import stage sees the foreign target namespace Grpc.Core; the aliased receiver Rpc is also unattested.'
+  difficulty: medium
+  host_file: src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/Common/InvokeRestMethodCommand.Common.cs
+  host_inject_at_line: 170
+- id: ps_foreign_nitoasyncex_1
+  file: breaks/break_nitoasyncex_1.cs
+  category: foreign_concurrency
+  hunk_start_line: 20
+  hunk_end_line: 29
+  rationale: 'Nito.AsyncEx AsyncLock (foreign `using Nito.AsyncEx` + new AsyncLock/LockAsync) serializes async event dispatch; Nito.AsyncEx is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — coordination uses lock/ThreadPool/events. Caught by the import stage (foreign using token Nito.AsyncEx); AsyncLock type also 0-usage.'
+  difficulty: medium
+  host_file: src/System.Management.Automation/engine/EventManager.cs
+  host_inject_at_line: 798
+- id: ps_foreign_quartz_1
+  file: breaks/break_quartz_1.cs
+  category: foreign_concurrency
+  hunk_start_line: 20
+  hunk_end_line: 24
+  rationale: 'Quartz.NET scheduler (fully-qualified new Quartz.Impl.StdSchedulerFactory().GetScheduler) drives throttled operations; Quartz is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — throttling is coordinated by the manager''s own queue. The foreign type construction (root Quartz) fires call_receiver via the unattested namespace.'
+  difficulty: medium
+  host_file: src/System.Management.Automation/engine/remoting/common/throttlemanager.cs
+  host_inject_at_line: 221
+- id: ps_foreign_dataflow_1
+  file: breaks/break_dataflow_1.cs
+  category: foreign_concurrency
+  hunk_start_line: 19
+  hunk_end_line: 29
+  rationale: 'TPL Dataflow ActionBlock (`using System.Threading.Tasks.Dataflow` + new ActionBlock, Post/Complete) pumps throttled operations; the Dataflow library is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — throttling uses the manager''s own queue. HARD: its namespace root is System (repo-attested) so the call_receiver namespace gate is blind; detectable only via the foreign import token System.Threading.Tasks.Dataflow (and the unattested short type ActionBlock).'
+  difficulty: hard
+  host_file: src/System.Management.Automation/engine/remoting/common/throttlemanager.cs
+  host_inject_at_line: 221
+- id: ps_foreign_reactive_1
+  file: breaks/break_reactive_1.cs
+  category: foreign_concurrency
+  hunk_start_line: 16
+  hunk_end_line: 22
+  rationale: 'System.Reactive (Rx.NET) reactive stream (fully-qualified System.Reactive.Linq.Observable.Interval + Subscribe, no using) drives a heartbeat instead of the plain event; System.Reactive is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — signalling uses C# events and Timer. HARD genuine miss: reached fully-qualified with NO using and its namespace root is System (repo-attested), so the import stage sees no foreign token and call_receiver''s namespace gate is blind; every other callee (List.Add, TimeSpan.FromSeconds, the local stream receiver) is attested/local.'
+  difficulty: hard
+  host_file: src/System.Management.Automation/engine/EventManager.cs
+  host_inject_at_line: 798
+- id: ps_foreign_msextcaching_1
+  file: breaks/break_msextcaching_1.cs
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 27
+  rationale: 'Microsoft.Extensions.Caching.Memory MemoryCache (fully-qualified new Microsoft.Extensions.Caching.Memory.MemoryCache, no using) backs the analysis cache; that package is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA (Microsoft.Extensions.Caching = 0 in *.cs and 0 PackageReference) — this cache is a ConcurrentDictionary. HARD genuine miss: reached fully-qualified with NO using and its namespace root is Microsoft (repo-attested via 4439 Microsoft.* callees), so no foreign import token appears and call_receiver''s namespace gate is blind; the receiver .TryGetValue is masked.'
+  difficulty: hard
+  host_file: src/System.Management.Automation/engine/Modules/AnalysisCache.cs
+  host_inject_at_line: 299
+- id: ps_foreign_hangfire_1
+  file: breaks/break_hangfire_1.cs
+  category: foreign_api
+  hunk_start_line: 16
+  hunk_end_line: 21
+  rationale: 'Hangfire background job client (fully-qualified new Hangfire.BackgroundJobClient, then receiver .Enqueue) hands process cleanup to a Hangfire server; Hangfire is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — work runs inline on the cmdlet thread. HARD: the leaf method Enqueue collides with attested repo callees (55 .Enqueue sites), so the fixture reaches Hangfire through its fully-qualified type (root Hangfire is foreign, firing call_receiver), not the masked leaf.'
+  difficulty: hard
+  host_file: src/Microsoft.PowerShell.Commands.Management/commands/management/Process.cs
+  host_inject_at_line: 792

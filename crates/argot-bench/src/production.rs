@@ -7,16 +7,20 @@
 //! routing). This mode closes that gap by measurement: for every catalog
 //! fixture, the fixture content is spliced into its host file **on disk**,
 //! staged with real git, and judged by `run_check --staged` against a real
-//! `argot fit` artifact — self-attestation conditions and all. The false-
-//! positive control replays the corpus's own recent commits through
-//! `run_check --commit`.
+//! `argot fit` artifact — self-attestation conditions and all. Recall only:
+//! the old false-positive control replayed commits that are ANCESTORS of the
+//! fit SHA (train-on-test; FP ~0 by construction) and was deleted — honest FP
+//! comes from the temporal-holdout mode (issue #92).
 //!
 //! The recall/FP gap between catalog mode and this mode is itself a tracked
 //! metric: it must shrink toward zero as the check path gains the signal
 //! surface the bench always had.
 
 use crate::catalog::load_catalog;
-use crate::run::{ensure_clone, ensure_sha_checked_out, fixture_scoring_input, RunOptions};
+use crate::run::{
+    ensure_clone, ensure_sha_checked_out, fixture_scoring_input, sync_corpus_argotignore,
+    RunOptions,
+};
 use crate::targets::Target;
 use anyhow::{bail, Context, Result};
 use argot_core::check::{run_check, CheckArgs, DEFAULT_HUNK_LINES};
@@ -52,15 +56,10 @@ pub struct ProductionReport {
     pub thresholds: BTreeMap<String, f64>,
     /// Per-language resolved cluster-rare thresholds from the fit artifact.
     pub resolved_rare: BTreeMap<String, u64>,
-    /// FP control: real history commits replayed through `check --commit`.
-    pub fp_commits: usize,
-    pub fp_hunks: usize,
-    pub fp_hits: usize,
-    pub fp_rate: f64,
     pub fixture_results: Vec<ProdFixtureResult>,
 }
 
-fn git_ok(repo_dir: &Path, args: &[&str]) -> Result<()> {
+pub(crate) fn git_ok(repo_dir: &Path, args: &[&str]) -> Result<()> {
     let st = Command::new("git")
         .arg("-C")
         .arg(repo_dir)
@@ -73,7 +72,7 @@ fn git_ok(repo_dir: &Path, args: &[&str]) -> Result<()> {
     Ok(())
 }
 
-fn git_stdout(repo_dir: &Path, args: &[&str]) -> Result<String> {
+pub(crate) fn git_stdout(repo_dir: &Path, args: &[&str]) -> Result<String> {
     let out = Command::new("git")
         .arg("-C")
         .arg(repo_dir)
@@ -86,7 +85,7 @@ fn git_stdout(repo_dir: &Path, args: &[&str]) -> Result<String> {
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
-fn check_args(repo_dir: &Path) -> CheckArgs {
+pub(crate) fn check_args(repo_dir: &Path) -> CheckArgs {
     CheckArgs {
         repo_path: repo_dir.to_string_lossy().into_owned(),
         reference: String::new(),
@@ -108,7 +107,7 @@ fn check_args(repo_dir: &Path) -> CheckArgs {
 
 /// `argot fit` (train → calibrate at production defaults) into the clone's
 /// `.argot/`. Returns (thresholds, resolved rare thresholds) per language.
-fn fit_clone(
+pub(crate) fn fit_clone(
     repo_dir: &Path,
     primary_sha: &str,
 ) -> Result<(BTreeMap<String, f64>, BTreeMap<String, u64>)> {
@@ -149,13 +148,9 @@ fn fit_clone(
     Ok((thresholds, resolved_rare))
 }
 
-/// Run one corpus through the production path. `fp_commits` real history
-/// commits feed the FP control (0 disables it).
-pub fn run_corpus_production(
-    target: &Target,
-    opts: &RunOptions,
-    fp_commits: usize,
-) -> Result<ProductionReport> {
+/// Run one corpus through the production path (recall only — honest FP is
+/// the temporal-holdout mode's job).
+pub fn run_corpus_production(target: &Target, opts: &RunOptions) -> Result<ProductionReport> {
     let catalog_dir = opts.catalogs_dir.join(&target.name);
     let catalog = load_catalog(&catalog_dir)?;
     let repo_dir = ensure_clone(&opts.data_dir, &target.name, &target.url)?;
@@ -167,6 +162,10 @@ pub fn run_corpus_production(
     if argot_dir.exists() {
         std::fs::remove_dir_all(&argot_dir)?;
     }
+
+    // Fit and check this corpus the way a real user of the repo would — with
+    // the per-corpus `.argotignore` (e.g. vendored trees muted).
+    sync_corpus_argotignore(&opts.catalogs_dir, &target.name, &repo_dir)?;
 
     eprintln!(
         "[{}] production fit (train → calibrate) @ {}",
@@ -231,34 +230,6 @@ pub fn run_corpus_production(
         });
     }
 
-    // --- FP control: replay real history commits through `check --commit`.
-    let mut fp_hunks = 0usize;
-    let mut fp_hits = 0usize;
-    let mut fp_checked = 0usize;
-    if fp_commits > 0 {
-        let shas = git_stdout(
-            &repo_dir,
-            &[
-                "rev-list",
-                "--no-merges",
-                "-n",
-                &fp_commits.to_string(),
-                &primary.sha,
-            ],
-        )?;
-        for sha in shas.lines().filter(|l| !l.trim().is_empty()) {
-            let mut args = check_args(&repo_dir);
-            args.commit = Some(sha.to_string());
-            let outcome = run_check(args);
-            let Ok(doc) = serde_json::from_str::<serde_json::Value>(&outcome.stdout) else {
-                continue;
-            };
-            fp_checked += 1;
-            fp_hunks += doc["hunks_scanned"].as_u64().unwrap_or(0) as usize;
-            fp_hits += doc["hits"].as_array().map(|a| a.len()).unwrap_or(0);
-        }
-    }
-
     let n_fixtures = fixture_results.len();
     let n_caught = fixture_results.iter().filter(|f| f.flagged).count();
     let uncaught: Vec<String> = fixture_results
@@ -273,14 +244,6 @@ pub fn run_corpus_production(
         uncaught,
         thresholds,
         resolved_rare,
-        fp_commits: fp_checked,
-        fp_hunks,
-        fp_hits,
-        fp_rate: if fp_hunks == 0 {
-            0.0
-        } else {
-            fp_hits as f64 / fp_hunks as f64
-        },
         fixture_results,
     })
 }
@@ -302,48 +265,144 @@ pub fn write_production_reports(
     Ok(md)
 }
 
+/// Rubric scope tier for a break class (see `benchmarks/catalogs/RUBRIC.md`):
+/// `voice` = foreign-to-repo vocabulary argot's stages detect (gated ≥85%);
+/// `semantic` = misuse of the repo's own/known vocabulary (reported, ungated —
+/// a documented fundamental limit, not a pass/fail line).
+pub fn tier_of(category: &str) -> &'static str {
+    match category {
+        // Gated foreign-symbol classes (RUBRIC v2): a foreign package/library
+        // verified 0-usage in the repo — argot's reliable capability.
+        "foreign_import" | "foreign_api" | "foreign_concurrency" => "gated",
+        "naming_shape_break" => "naming",
+        // v1 `wrong_concurrency` is mostly *attested* primitives (pthread where
+        // attested, busy-wait) — semantic, not a foreign symbol. Reported.
+        "wrong_error_discipline"
+        | "wrong_api_within_known_lib"
+        | "wrong_concurrency"
+        | "semantic_convention" => "semantic",
+        // Legacy Python/TS catalogs use an ad-hoc taxonomy predating the RUBRIC.
+        _ => "other",
+    }
+}
+
+/// Whether a break class is a **novel-pattern** class — a symbol/module/dep
+/// foreign to the repo (argot's one job), across both the RUBRIC tiers and the
+/// legacy catalogs' ad-hoc names. The RUBRIC `gated` classes qualify; so do the
+/// legacy classes that name a foreign library or a network/subprocess sink a
+/// data/UI library reaches into (jQuery, colorama, numpy, moment, mimesis,
+/// httpx/requests, XHR, etc.). Excludes the `naming`/`semantic` classes, which
+/// misuse the repo's *own* attested vocabulary and are a documented local limit.
+///
+/// This is the consistent per-corpus recall metric — every catalogued corpus
+/// gets a foreign-catch number, instead of the RUBRIC-8 showing a clean gated %
+/// while legacy corpora show a mixed aggregate dragged down by classes argot
+/// never targets. (Bench taxonomy only — enumerated legacy names live here, not
+/// in production code.)
+pub fn is_novel_pattern(category: &str) -> bool {
+    if tier_of(category) == "gated" {
+        return true;
+    }
+    matches!(
+        category,
+        "foreign_http"
+            | "foreign_rng"
+            | "framework_swap"
+            | "jquery"
+            | "numpy_random"
+            | "colorama"
+            | "termcolor"
+            | "curses"
+            | "moment_dates"
+            | "mimesis_alt"
+            | "requests_source"
+            | "runtime_fetch"
+            | "xhr_network"
+            | "http_sink"
+            | "downstream_http"
+            | "shell_out"
+            | "subprocess_shell"
+    )
+}
+
+/// `(caught, total)` over a report's fixtures in one scope tier.
+fn tier_recall(r: &ProductionReport, tier: &str) -> (usize, usize) {
+    let mut caught = 0;
+    let mut total = 0;
+    for f in &r.fixture_results {
+        if tier_of(&f.category) == tier {
+            total += 1;
+            if f.flagged {
+                caught += 1;
+            }
+        }
+    }
+    (caught, total)
+}
+
+fn pct(caught: usize, total: usize) -> f64 {
+    if total > 0 {
+        100.0 * caught as f64 / total as f64
+    } else {
+        0.0
+    }
+}
+
 pub fn production_summary_markdown(
     reports: &[ProductionReport],
-    catalog_recall: &BTreeMap<String, (usize, usize)>,
+    _catalog_recall: &BTreeMap<String, (usize, usize)>,
 ) -> String {
     let mut out = String::new();
     out.push_str("# argot-bench production-path report\n\n");
     out.push_str(
-        "| Corpus | Recall (production) | Recall (catalog) | Gap | FP rate | FP hits/hunks (commits) | Uncaught |\n\
-         |:---|---:|---:|---:|---:|---:|:---|\n",
+        "argot's one job: catch code introducing a pattern **foreign to the \
+         repo** — the \"unknown to this codebase\" thing an LLM agent drags in. \
+         The headline is **novel-pattern catch rate** (foreign import/API/dep, \
+         gated ≥85%) paired with **false-alarm rate** (temporal-holdout FP, \
+         separate run). Naming/semantic are *secondary coverage*, never gated \
+         (see `benchmarks/catalogs/RUBRIC.md`).\n\n",
     );
-    let mut total_caught = 0usize;
-    let mut total_fixtures = 0usize;
-    for r in reports {
-        total_caught += r.n_caught;
-        total_fixtures += r.n_fixtures;
-        let prod_pct = if r.n_fixtures > 0 {
-            100.0 * r.n_caught as f64 / r.n_fixtures as f64
+    let cell = |c: usize, t: usize| {
+        if t == 0 {
+            "—".to_string()
         } else {
-            0.0
-        };
-        let (cat_cell, gap_cell) = match catalog_recall.get(&r.corpus) {
-            Some((caught, total)) if *total > 0 => {
-                let cat_pct = 100.0 * *caught as f64 / *total as f64;
-                (
-                    format!("{caught}/{total} ({cat_pct:.1}%)"),
-                    format!("{:+.1}pp", prod_pct - cat_pct),
-                )
-            }
-            _ => ("—".to_string(), "—".to_string()),
+            format!("{c}/{t} ({:.0}%)", pct(c, t))
+        }
+    };
+    out.push_str(
+        "| Corpus | Novel-pattern catch (≥85%) | Naming | Semantic | Legacy | Uncaught |\n\
+         |:---|---:|---:|---:|---:|:---|\n",
+    );
+    let (mut g_c, mut g_t, mut n_c, mut n_t, mut s_c, mut s_t, mut o_c, mut o_t) =
+        (0, 0, 0, 0, 0, 0, 0, 0);
+    for r in reports {
+        let (gc, gt) = tier_recall(r, "gated");
+        let (nc, nt) = tier_recall(r, "naming");
+        let (sc, st) = tier_recall(r, "semantic");
+        let (oc, ot) = tier_recall(r, "other");
+        g_c += gc;
+        g_t += gt;
+        n_c += nc;
+        n_t += nt;
+        s_c += sc;
+        s_t += st;
+        o_c += oc;
+        o_t += ot;
+        let gate = if gt == 0 {
+            "" // legacy corpus: no gated fixtures
+        } else if pct(gc, gt) >= 85.0 {
+            " ✅"
+        } else {
+            " ❌"
         };
         out.push_str(&format!(
-            "| {} | {}/{} ({:.1}%) | {} | {} | {:.2}% | {}/{} ({}) | {} |\n",
+            "| {} | {}{} | {} | {} | {} | {} |\n",
             r.corpus,
-            r.n_caught,
-            r.n_fixtures,
-            prod_pct,
-            cat_cell,
-            gap_cell,
-            100.0 * r.fp_rate,
-            r.fp_hits,
-            r.fp_hunks,
-            r.fp_commits,
+            cell(gc, gt),
+            gate,
+            cell(nc, nt),
+            cell(sc, st),
+            cell(oc, ot),
             if r.uncaught.is_empty() {
                 "—".to_string()
             } else {
@@ -351,11 +410,15 @@ pub fn production_summary_markdown(
             },
         ));
     }
-    if total_fixtures > 0 {
-        out.push_str(&format!(
-            "\n**Total production recall: {total_caught}/{total_fixtures} ({:.1}%)**\n",
-            100.0 * total_caught as f64 / total_fixtures as f64
-        ));
-    }
+    out.push_str(&format!(
+        "\n**Novel-pattern catch rate (≥85%): {g_c}/{g_t} ({:.1}%)** — THE HEADLINE \
+         (pair with false-alarm/FP from `--mode holdout`)\n\
+         _secondary coverage (never gated): naming {n_c}/{n_t} ({:.1}%) · \
+         semantic {s_c}/{s_t} ({:.1}%) · legacy {o_c}/{o_t} ({:.1}%)_\n",
+        pct(g_c, g_t),
+        pct(n_c, n_t),
+        pct(s_c, s_t),
+        pct(o_c, o_t),
+    ));
     out
 }

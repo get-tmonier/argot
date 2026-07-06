@@ -52,7 +52,7 @@ every diff).
   <g class="d-node"><rect x="24" y="212" width="120" height="58" rx="11"></rect><text x="84" y="238" class="d-stage">diff hunk</text><text x="84" y="256" class="d-sub">changed code</text></g>
   <g class="d-node"><rect x="188" y="212" width="150" height="58" rx="11"></rect><text x="263" y="238" class="d-stage">typicality</text><text x="263" y="256" class="d-sub">skip data-dominant</text></g>
   <g class="d-node"><rect x="382" y="212" width="150" height="58" rx="11"></rect><text x="457" y="238" class="d-stage">imports</text><text x="457" y="256" class="d-sub">foreign import?</text></g>
-  <g class="d-node d-accent"><rect x="576" y="212" width="160" height="58" rx="11"></rect><text x="656" y="238" class="d-stage">BPE + penalty</text><text x="656" y="256" class="d-sub">surprise vs t</text></g>
+  <g class="d-node d-accent"><rect x="576" y="212" width="160" height="58" rx="11"></rect><text x="656" y="238" class="d-stage">BPE + penalty</text><text x="656" y="256" class="d-sub">surprise vs threshold</text></g>
   <g class="d-out d-ok"><rect x="788" y="210" width="108" height="26" rx="8"></rect><text x="842" y="227">✓ clean</text></g>
   <g class="d-out d-flag"><rect x="788" y="246" width="108" height="26" rx="8"></rect><text x="842" y="263">⚑ flagged</text></g>
   <line class="d-link" x1="144" y1="241" x2="188" y2="241" marker-end="url(#ah)"></line>
@@ -89,8 +89,9 @@ For each changed hunk, argot runs a short pipeline:
    a data-dominant file. The n-gram model would only see noise there.
 2. **Import checker** — if a hunk imports a module that's foreign to the repo's own first-party import
    set, flag it immediately (`reason: import`).
-3. **BPE scorer** — compute the max-surprise score, adjusted by a small per-callee penalty, and flag
-   the hunk if the adjusted score exceeds the calibrated threshold.
+3. **BPE scorer** — compute the max-surprise score, adjusted by a small per-callee penalty (applied
+   only when the hunk reaches into a module foreign to the repo), and flag the hunk if the adjusted
+   score exceeds the calibrated threshold.
 
 The math, in one line:
 

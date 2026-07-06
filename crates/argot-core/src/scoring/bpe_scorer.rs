@@ -136,9 +136,10 @@ impl BpeScorer {
         }
     }
 
-    /// `_bpe_score`: max token surprise over meaningful tokens (falling back
-    /// to all tokens if none are meaningful; 0.0 if empty).
-    pub fn bpe_score(&self, hunk_source: &str) -> f64 {
+    /// Shared core of [`bpe_score`]/[`bpe_score_excluding`]: max of `surprise`
+    /// over meaningful tokens (falling back to all tokens if none are
+    /// meaningful; 0.0 if empty).
+    fn max_surprise_over(&self, hunk_source: &str, surprise: impl Fn(u32) -> f64) -> f64 {
         let ids = self.tokenizer.encode(hunk_source);
         let filtered: Vec<u32> = ids
             .iter()
@@ -151,8 +152,45 @@ impl BpeScorer {
         }
         use_ids
             .iter()
-            .map(|&i| self.token_surprise(i))
+            .map(|&i| surprise(i))
             .fold(f64::NEG_INFINITY, f64::max)
+    }
+
+    /// `_bpe_score`: max token surprise over meaningful tokens (falling back
+    /// to all tokens if none are meaningful; 0.0 if empty).
+    pub fn bpe_score(&self, hunk_source: &str) -> f64 {
+        self.max_surprise_over(hunk_source, |i| self.token_surprise(i))
+    }
+
+    /// Token counts of `src` under this scorer's tokenizer — the unit
+    /// [`bpe_score_excluding`] subtracts (build one per corpus file).
+    pub fn token_counts(&self, src: &str) -> HashMap<u32, u64> {
+        let mut out: HashMap<u32, u64> = HashMap::new();
+        for id in self.tokenizer.encode(src) {
+            *out.entry(id).or_insert(0) += 1;
+        }
+        out
+    }
+
+    /// [`bpe_score`] with `exclude` subtracted from the repo distribution —
+    /// exact leave-one-file-out for this unigram count model. Calibration
+    /// scores each sampled hunk as if its file were not in the corpus;
+    /// scoring it against counts that memorized the file deflates the score
+    /// and calibrates a threshold genuinely-unseen idiomatic code exceeds
+    /// (issue #92).
+    pub fn bpe_score_excluding(&self, hunk_source: &str, exclude: &HashMap<u32, u64>) -> f64 {
+        let excluded_total: u64 = exclude.values().sum();
+        let total_repo = ((self.total_repo as u64).saturating_sub(excluded_total)).max(1) as f64;
+        self.max_surprise_over(hunk_source, |i| {
+            let g = *self.generic_baseline.get(&i).unwrap_or(&0) as f64;
+            let r = self
+                .repo_corpus
+                .get(&i)
+                .copied()
+                .unwrap_or(0)
+                .saturating_sub(exclude.get(&i).copied().unwrap_or(0)) as f64;
+            (g / self.total_generic + EPSILON).ln() - (r / total_repo + EPSILON).ln()
+        })
     }
 
     /// Access the underlying tokenizer (evidence collectors need it).
@@ -416,6 +454,53 @@ mod tests {
     fn total_generic_reflects_the_baseline_total_tokens() {
         let s = scorer(&[], 12_345, &[], 0);
         assert_eq!(s.total_generic(), 12_345.0);
+    }
+
+    #[test]
+    fn bpe_score_excluding_equals_a_scorer_trained_without_the_file() {
+        let file_a = "def alpha():\n    return mongoose_client(identifier)\n";
+        let file_b = "def beta(values):\n    return sum(values)\n";
+        let hunk = "result = mongoose_client(identifier)";
+
+        let with_both = BpeScorer::new(
+            BpeTokenizer::load(),
+            crate::train::GENERIC_BASELINE_JSON,
+            &[file_a.to_string(), file_b.to_string()],
+        )
+        .unwrap();
+        let without_a = BpeScorer::new(
+            BpeTokenizer::load(),
+            crate::train::GENERIC_BASELINE_JSON,
+            &[file_b.to_string()],
+        )
+        .unwrap();
+
+        let counts_a = with_both.token_counts(file_a);
+        // Exact LOO: subtracting file A's counts reproduces the corpus that
+        // never contained it.
+        assert_eq!(
+            with_both.bpe_score_excluding(hunk, &counts_a),
+            without_a.bpe_score(hunk)
+        );
+        // Held-out scoring can only read the hunk as at-least-as-surprising:
+        // subtracting counts never raises p_repo. (Whether it is strictly
+        // higher depends on which token attains the max.)
+        assert!(with_both.bpe_score_excluding(hunk, &counts_a) >= with_both.bpe_score(hunk));
+    }
+
+    #[test]
+    fn bpe_score_excluding_nothing_is_the_plain_score() {
+        let src = "def alpha():\n    return 1\n";
+        let s = BpeScorer::new(
+            BpeTokenizer::load(),
+            crate::train::GENERIC_BASELINE_JSON,
+            &[src.to_string()],
+        )
+        .unwrap();
+        assert_eq!(
+            s.bpe_score_excluding(src, &HashMap::new()),
+            s.bpe_score(src)
+        );
     }
 
     #[test]

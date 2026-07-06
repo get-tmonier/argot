@@ -1,0 +1,355 @@
+corpus: fmt
+language: cpp
+categories:
+- foreign_import
+- foreign_api
+- foreign_concurrency
+injection_hosts:
+- pr: 0
+  sha: 77b6ff700be3417e0a3ad9674ca306e40c451b6b
+fixtures:
+- id: foreign_nlohmann_1
+  file: breaks/break_foreign_nlohmann_1.cc
+  category: foreign_import
+  hunk_start_line: 16
+  hunk_end_line: 23
+  rationale: 'nlohmann/json dependency for a JSON dump of a format spec, #include
+    <nlohmann/json.hpp> inside the hunk. Verified at pinned SHA: zero `#include
+    <nlohmann`, zero `nlohmann::json`, and zero `json::parse` sites anywhere in
+    *.cc/*.h/*.cpp (git grep). {fmt} assembles every string through its own
+    fmt::format / memory_buffer and links no third-party JSON library.'
+  difficulty: easy
+  host_file: src/format.cc
+  host_inject_at_line: 43
+- id: foreign_spdlog_1
+  file: breaks/break_foreign_spdlog_1.cc
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 23
+  rationale: 'spdlog logging dependency for an oversized-buffer warning, #include
+    <spdlog/spdlog.h> inside the hunk. Verified at pinned SHA: zero `#include
+    <spdlog/` and zero `spdlog::` sites anywhere in *.cc/*.h/*.cpp (git grep).
+    {fmt} is a formatting library with no logging facility of its own and never
+    reaches for a standalone logging framework; the host src/os.cc reports errors
+    via its own report_system_error helper.'
+  difficulty: easy
+  host_file: src/os.cc
+  host_inject_at_line: 170
+- id: foreign_boost_filesystem_1
+  file: breaks/break_foreign_boost_filesystem_1.cc
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 24
+  rationale: 'boost::filesystem dependency for template-file existence/size
+    checks, #include <boost/filesystem.hpp> inside the hunk. Verified at pinned
+    SHA: zero `#include <boost/filesystem` sites and zero
+    `boost::filesystem::exists` / `::file_size` / `::is_regular_file` call sites
+    in *.cc/*.h/*.cpp (git grep; the bare token `boost::filesystem` appears only
+    as 2 prose comments in the vendored, muted test/gtest/gtest.h). {fmt} touches
+    the filesystem exclusively through its own os.h wrappers over POSIX/Win32
+    handles, as in the host src/os.cc.'
+  difficulty: easy
+  host_file: src/os.cc
+  host_inject_at_line: 380
+- id: foreign_boost_algorithm_1
+  file: breaks/break_foreign_boost_algorithm_1.cc
+  category: foreign_api
+  hunk_start_line: 23
+  hunk_end_line: 28
+  rationale: 'Boost string_algo API for joining/upcasing argument names, #include
+    <boost/algorithm/string.hpp> inside the hunk. Verified at pinned SHA: zero
+    `#include <boost/algorithm`, zero `boost::algorithm::join`, and zero
+    `boost::algorithm::to_upper` sites anywhere in *.cc/*.h/*.cpp (git grep).
+    {fmt} builds joined output with its own fmt::join / format_to and never calls
+    into boost::algorithm.'
+  difficulty: easy
+  host_file: src/format.cc
+  host_inject_at_line: 43
+- id: foreign_poco_1
+  file: breaks/break_foreign_poco_1.cc
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 23
+  rationale: 'POCO NumberParser API for parsing a numeric format argument,
+    #include <Poco/NumberParser.h> inside the hunk. Verified at pinned SHA: zero
+    `#include <Poco/`, zero `Poco::`, and zero `Poco::NumberParser` sites
+    anywhere in *.cc/*.h/*.cpp (git grep). {fmt} converts text through its own
+    detail parsers (parse_float / to_unsigned) and never links the POCO
+    libraries.'
+  difficulty: medium
+  host_file: src/os.cc
+  host_inject_at_line: 396
+- id: foreign_absl_1
+  file: breaks/break_foreign_absl_1.cc
+  category: foreign_api
+  hunk_start_line: 20
+  hunk_end_line: 28
+  rationale: 'abseil flat_hash_map + StrCat for an in-process label cache,
+    #include <absl/container/flat_hash_map.h> and <absl/strings/str_cat.h> inside
+    the hunk. Verified at pinned SHA: zero `absl::flat_hash_map` and zero
+    `absl::StrCat` call sites anywhere in *.cc/*.h/*.cpp (git grep). The only
+    `absl::` identifiers in the tree live under the vendored, muted
+    test/gtest/gmock-gtest-all.cc; {fmt}''s own code caches nothing in
+    third-party containers and builds strings with fmt::format, never abseil.'
+  difficulty: easy
+  host_file: src/format.cc
+  host_inject_at_line: 43
+- id: foreign_tbb_1
+  file: breaks/break_foreign_tbb_1.cc
+  category: foreign_concurrency
+  hunk_start_line: 19
+  hunk_end_line: 30
+  rationale: 'Intel TBB parallel task runtime for batch formatting, #include
+    <tbb/parallel_for.h> inside the hunk with a tbb::parallel_for over a
+    tbb::blocked_range. Verified at pinned SHA: zero `#include <tbb/`, zero
+    `tbb::parallel_for`, and zero `tbb::blocked_range` sites anywhere in
+    *.cc/*.h/*.cpp (git grep). {fmt} is a synchronous formatting library and
+    pulls in no parallel task runtime (a foreign concurrency lib, not a raw
+    std::thread).'
+  difficulty: medium
+  host_file: src/os.cc
+  host_inject_at_line: 359
+- id: foreign_asio_1
+  file: breaks/break_foreign_asio_1.cc
+  category: foreign_concurrency
+  hunk_start_line: 18
+  hunk_end_line: 29
+  rationale: 'Boost.Asio thread-pool runtime for async formatting jobs, #include
+    <boost/asio.hpp> inside the hunk with boost::asio::thread_pool +
+    boost::asio::post. Verified at pinned SHA: zero `#include <boost/asio`, zero
+    `boost::asio::thread_pool`, and zero `boost::asio::post` sites anywhere in
+    *.cc/*.h/*.cpp (git grep). {fmt} runs formatting inline on the calling thread
+    and never schedules work onto an asio executor.'
+  difficulty: medium
+  host_file: src/os.cc
+  host_inject_at_line: 384
+- id: foreign_folly_1
+  file: breaks/break_foreign_folly_1.cc
+  category: foreign_concurrency
+  hunk_start_line: 19
+  hunk_end_line: 30
+  rationale: 'Facebook folly CPUThreadPoolExecutor for parallel formatting,
+    #include <folly/executors/CPUThreadPoolExecutor.h> inside the hunk. Verified
+    at pinned SHA: zero `#include <folly/` and zero `folly::CPUThreadPoolExecutor`
+    sites anywhere in *.cc/*.h/*.cpp (git grep). {fmt} owns no executor
+    abstraction and never offloads formatting onto a folly thread pool (a foreign
+    concurrency lib, not a raw std::thread).'
+  difficulty: medium
+  host_file: src/format.cc
+  host_inject_at_line: 43
+- id: foreign_rapidjson_1
+  file: breaks/break_foreign_rapidjson_1.cc
+  category: foreign_import
+  hunk_start_line: 16
+  hunk_end_line: 30
+  rationale: 'rapidjson Document/Writer for a JSON dump of a format spec, #include
+    <rapidjson/document.h> inside the hunk. Verified at pinned SHA: zero
+    `#include <rapidjson` and zero `rapidjson` identifier sites anywhere in
+    *.cc/*.cpp/*.h/*.hpp/*.cxx (git grep = 0). {fmt} assembles every string
+    through its own fmt::format / memory_buffer and links no third-party JSON
+    library. EASY: an explicit foreign #include the import stage catches.'
+  difficulty: easy
+  host_file: src/format.cc
+  host_inject_at_line: 43
+- id: foreign_glog_1
+  file: breaks/break_foreign_glog_1.cc
+  category: foreign_import
+  hunk_start_line: 18
+  hunk_end_line: 26
+  rationale: 'Google glog logging dependency for an oversized-buffer warning,
+    #include <glog/logging.h> inside the hunk. Verified at pinned SHA: zero
+    `#include <glog/`, zero `google::InitGoogleLogging`, and zero `LOG(INFO`
+    sites anywhere in *.cc/*.cpp/*.h/*.hpp/*.cxx (git grep = 0; the whole
+    `google::` root is also 0 in the tree). {fmt} is a formatting library with no
+    logging facility and reports errors via its own report_system_error helper,
+    never glog. EASY: an explicit foreign #include the import stage catches.'
+  difficulty: easy
+  host_file: src/os.cc
+  host_inject_at_line: 170
+- id: foreign_cli11_1
+  file: breaks/break_foreign_cli11_1.cc
+  category: foreign_import
+  hunk_start_line: 16
+  hunk_end_line: 24
+  rationale: 'CLI11 command-line parser dependency for a demo entry point,
+    #include <CLI/CLI.hpp> inside the hunk. Verified at pinned SHA: zero
+    `#include <CLI/` and zero `CLI::App` sites anywhere in
+    *.cc/*.cpp/*.h/*.hpp/*.cxx (git grep = 0). {fmt} ships no command-line front
+    end and never links a third-party CLI parser. EASY: an explicit foreign
+    #include the import stage catches.'
+  difficulty: easy
+  host_file: src/format.cc
+  host_inject_at_line: 43
+- id: foreign_yamlcpp_1
+  file: breaks/break_foreign_yamlcpp_1.cc
+  category: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 23
+  rationale: 'yaml-cpp dependency to read format options from a YAML config,
+    #include <yaml-cpp/yaml.h> inside the hunk. Verified at pinned SHA: zero
+    `#include <yaml-cpp/` and zero `YAML::Load` / `YAML::` sites anywhere in
+    *.cc/*.cpp/*.h/*.hpp/*.cxx (git grep = 0). {fmt} reads no configuration files
+    and parses text only through its own detail parsers, never a third-party YAML
+    library. EASY: an explicit foreign #include the import stage catches.'
+  difficulty: easy
+  host_file: src/os.cc
+  host_inject_at_line: 396
+- id: foreign_re2_1
+  file: breaks/break_foreign_re2_1.cc
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 22
+  rationale: 'RE2 regular-expression API to validate a replacement-field spec,
+    #include <re2/re2.h> inside the hunk with a RE2::FullMatch call. Verified at
+    pinned SHA: zero `#include <re2/`, zero `RE2::FullMatch`, and zero bare `RE2`
+    word sites anywhere in *.cc/*.cpp/*.h/*.hpp/*.cxx (git grep = 0). {fmt} scans
+    replacement fields with its own detail::parse_format_specs char loop and
+    never links a regular-expression engine. EASY: an explicit foreign #include +
+    fully-qualified RE2::FullMatch call.'
+  difficulty: easy
+  host_file: src/format.cc
+  host_inject_at_line: 43
+- id: foreign_taskflow_1
+  file: breaks/break_foreign_taskflow_1.cc
+  category: foreign_concurrency
+  hunk_start_line: 20
+  hunk_end_line: 31
+  rationale: 'Taskflow parallel task-graph runtime for batch formatting, #include
+    <taskflow/taskflow.hpp> inside the hunk with tf::Executor + tf::Taskflow.
+    Verified at pinned SHA: zero `#include <taskflow/`, zero `tf::Executor`, and
+    zero `tf::Taskflow` sites anywhere in *.cc/*.cpp/*.h/*.hpp/*.cxx (git grep =
+    0). {fmt} is a synchronous formatting library and never schedules work onto a
+    task-graph executor (a foreign concurrency runtime, not a raw std::thread).
+    EASY: an explicit foreign #include the import stage catches.'
+  difficulty: easy
+  host_file: src/os.cc
+  host_inject_at_line: 359
+- id: foreign_cxxopts_1
+  file: breaks/break_foreign_cxxopts_1.cc
+  category: foreign_api
+  hunk_start_line: 17
+  hunk_end_line: 22
+  rationale: 'cxxopts option parser reached through a RECEIVER variable -- the
+    foreign type is built by a cxxopts::Options(...) call, then options are added
+    (cxxopts::value<...>) and parsed via the `options` receiver (options.parse /
+    result.count leaves collide with attested parse/count, so only the
+    cxxopts:: constructions carry the tell). No foreign #include. Verified at
+    pinned SHA: zero `cxxopts` and zero `cxxopts::Options` sites anywhere in
+    *.cc/*.cpp/*.h/*.hpp/*.cxx (git grep = 0). {fmt} has no command-line surface.
+    MEDIUM: fires on the fully-qualified constructor call, not an import.'
+  difficulty: medium
+  host_file: src/format.cc
+  host_inject_at_line: 43
+- id: foreign_msgpack_1
+  file: breaks/break_foreign_msgpack_1.cc
+  category: foreign_api
+  hunk_start_line: 20
+  hunk_end_line: 25
+  rationale: 'MessagePack serializer reached through an ALIASED namespace
+    (`namespace mp = msgpack;` sits in the decoy region; the scored hunk calls
+    mp::pack). Verified at pinned SHA: zero `msgpack` and zero `msgpack::pack`
+    sites anywhere in *.cc/*.cpp/*.h/*.hpp/*.cxx (git grep = 0). {fmt} has no
+    binary-serialization surface -- it turns values into text with fmt::format /
+    memory_buffer and never packs to a wire format. MEDIUM: the foreign module is
+    reached through an alias, stressing callee namespace resolution.'
+  difficulty: medium
+  host_file: src/format.cc
+  host_inject_at_line: 43
+- id: foreign_tomlplusplus_1
+  file: breaks/break_foreign_tomlplusplus_1.cc
+  category: foreign_api
+  hunk_start_line: 20
+  hunk_end_line: 24
+  rationale: 'toml++ config parser reached as a BARE callee -- the `#include
+    <toml++/toml.h>` and `using namespace toml;` sit in the decoy region OUTSIDE
+    the scored hunk, so the scored lines call parse_file() unqualified. Verified
+    at pinned SHA: zero `toml++`, zero `toml::parse_file`, and zero `toml::` sites
+    anywhere in *.cc/*.cpp/*.h/*.hpp/*.cxx (git grep = 0). {fmt} reads no config
+    files and parses text only through its own detail parsers. MEDIUM: a bare
+    foreign callee whose import is planted outside the hunk.'
+  difficulty: medium
+  host_file: src/os.cc
+  host_inject_at_line: 384
+- id: foreign_hpx_1
+  file: breaks/break_foreign_hpx_1.cc
+  category: foreign_concurrency
+  hunk_start_line: 18
+  hunk_end_line: 23
+  rationale: 'HPX distributed async runtime -- work is launched with hpx::async
+    and joined through the returned future receiver (f.get leaf collides with
+    attested get, so only hpx::async carries the tell). No foreign #include.
+    Verified at pinned SHA: zero `hpx::async`, zero `when_all`, and zero `hpx::`
+    sites anywhere in *.cc/*.cpp/*.h/*.hpp/*.cxx (git grep = 0). {fmt} runs every
+    format inline on the calling thread and never offloads onto an HPX executor
+    (a foreign concurrency runtime, not a raw std::thread). MEDIUM: fires on the
+    fully-qualified hpx::async call, not an import.'
+  difficulty: medium
+  host_file: src/os.cc
+  host_inject_at_line: 359
+- id: foreign_openmp_1
+  file: breaks/break_foreign_openmp_1.cc
+  category: foreign_concurrency
+  hunk_start_line: 22
+  hunk_end_line: 30
+  rationale: 'OpenMP runtime reached through BARE library calls -- the `#include
+    <omp.h>` sits in the decoy region OUTSIDE the scored hunk, so the scored
+    lines call omp_set_num_threads() / omp_get_thread_num() bare. Verified at
+    pinned SHA: zero `omp.h`, zero `omp_get_thread_num`, zero `omp_set_num_threads`,
+    and zero `pragma omp` sites anywhere in *.cc/*.cpp/*.h/*.hpp/*.cxx (git grep =
+    0). {fmt} formats synchronously and never dispatches onto the OpenMP parallel
+    runtime. MEDIUM: bare foreign runtime callees whose import is planted outside
+    the hunk.'
+  difficulty: medium
+  host_file: src/os.cc
+  host_inject_at_line: 380
+- id: foreign_icu_1
+  file: breaks/break_foreign_icu_1.cc
+  category: foreign_api
+  hunk_start_line: 20
+  hunk_end_line: 29
+  rationale: 'ICU (icu::SimpleDateFormat) drives date formatting through a
+    RECEIVER whose leaf method is `.format()` -- which collides exactly with
+    {fmt}''s own attested `format` method (60+ call sites), so the callee reads as
+    in-voice; the only foreign tokens are the icu:: TYPE names in declarations
+    (no #include, no foreign namespace CALL). Verified at pinned SHA: zero `icu::`,
+    zero `SimpleDateFormat`, and zero `UnicodeString` sites anywhere in
+    *.cc/*.cpp/*.h/*.hpp/*.cxx (git grep = 0). {fmt} formats dates through its own
+    fmt/chrono.h, never ICU. HARD: foreignness masked behind an attested method
+    leaf -- a genuine may-miss, reported honestly.'
+  difficulty: hard
+  host_file: src/format.cc
+  host_inject_at_line: 43
+- id: foreign_jsoncpp_1
+  file: breaks/break_foreign_jsoncpp_1.cc
+  category: foreign_api
+  hunk_start_line: 20
+  hunk_end_line: 25
+  rationale: 'jsoncpp (Json::Reader / Json::Value) parses a spec through a
+    RECEIVER whose leaf methods are `.parse()` and `.get()` -- both collide
+    exactly with {fmt}''s own attested `parse` (16+) and `get` (22+) methods, so
+    the callees read as in-voice; the only foreign tokens are the Json:: TYPE
+    names in declarations (no #include, no foreign namespace CALL). Verified at
+    pinned SHA: zero `Json::`, zero `Json::Reader`, and zero `json/json.h` sites
+    anywhere in *.cc/*.cpp/*.h/*.hpp/*.cxx (git grep = 0). {fmt} builds strings
+    with fmt::format and links no JSON library. HARD: foreignness masked behind
+    attested method leaves -- a genuine may-miss, reported honestly.'
+  difficulty: hard
+  host_file: src/format.cc
+  host_inject_at_line: 43
+- id: foreign_concurrentqueue_1
+  file: breaks/break_foreign_concurrentqueue_1.cc
+  category: foreign_concurrency
+  hunk_start_line: 23
+  hunk_end_line: 30
+  rationale: 'moodycamel::ConcurrentQueue (a foreign lock-free concurrency lib)
+    used only through a local RECEIVER -- the queue is a plain declaration (a
+    foreign TYPE, not a namespace CALL) and the work goes through queue.enqueue()
+    / queue.try_dequeue() on that local variable, so no foreign namespace appears
+    in a call and there is no #include. Verified at pinned SHA: zero `moodycamel`
+    and zero `ConcurrentQueue` sites anywhere in *.cc/*.cpp/*.h/*.hpp/*.cxx (git
+    grep = 0). {fmt} formats synchronously with no queue of its own. HARD:
+    foreignness masked as an ordinary local object -- a genuine may-miss,
+    reported honestly.'
+  difficulty: hard
+  host_file: src/os.cc
+  host_inject_at_line: 359

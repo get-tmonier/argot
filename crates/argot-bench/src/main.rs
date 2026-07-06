@@ -7,7 +7,7 @@
 
 use anyhow::{Context, Result};
 use argot_bench::scorer::BenchKnobs;
-use argot_bench::{production, report, run, targets};
+use argot_bench::{holdout, production, report, run, targets};
 
 /// Current time as an ISO-8601 UTC string (dashboard metadata only).
 fn iso_utc_now() -> String {
@@ -45,17 +45,27 @@ struct Cli {
     #[arg(long)]
     quick: bool,
 
-    /// Bench mode: `catalog` (in-process scorer, historical continuity),
-    /// `production` (fixtures planted on disk, real `argot fit` + `check
-    /// --staged`; the headline numbers), or `both` (adds the catalog↔
-    /// production gap column).
-    #[arg(long, default_value = "production")]
+    /// Bench mode: `honest` (the headline numbers — production-path recall
+    /// on the curated catalogs + leak-free temporal-holdout FP, merged into
+    /// one dashboard), `production` (recall only), `catalog` (in-process
+    /// scorer, historical continuity), `both` (catalog + production), or
+    /// `holdout` (temporal-holdout FP only).
+    #[arg(long, default_value = "honest")]
     mode: String,
 
-    /// Production mode: real history commits replayed through `check
-    /// --commit` as the FP control (0 disables).
-    #[arg(long, default_value_t = 30)]
-    fp_commits: usize,
+    /// Holdout mode: first-parent commits to step back from the pinned head
+    /// for the fit point (the replay window).
+    #[arg(long, default_value_t = 120)]
+    holdout_window: usize,
+
+    /// Holdout mode: minimum eligible hunks before a corpus is flagged
+    /// under-sampled.
+    #[arg(long, default_value_t = 300)]
+    min_holdout_hunks: usize,
+
+    /// Holdout mode: bootstrap resamples for the 95% CIs.
+    #[arg(long, default_value_t = 1000)]
+    bootstrap_reps: usize,
 
     #[arg(long, default_value = "benchmarks/targets.yaml")]
     targets: PathBuf,
@@ -230,12 +240,104 @@ fn real_main() -> Result<ExitCode> {
         keep_control_results: cli.keep_controls,
     };
 
+    if cli.mode == "holdout" || cli.mode == "honest" {
+        let hopts = holdout::HoldoutOptions {
+            data_dir: opts.data_dir.clone(),
+            catalogs_dir: opts.catalogs_dir.clone(),
+            window: cli.holdout_window,
+            min_hunks: cli.min_holdout_hunks,
+            bootstrap_reps: cli.bootstrap_reps,
+            seed: cli.seed,
+        };
+        let mut reports = Vec::new();
+        // Quick honest mode skips holdout (a full old-SHA fit + replay per
+        // corpus is minutes, not the PR-comment budget) — recall only.
+        let run_holdout = cli.mode == "holdout" || !cli.quick;
+        if run_holdout {
+            for target in &selected {
+                let started = std::time::Instant::now();
+                let r = holdout::run_corpus_holdout(target, &hopts)
+                    .with_context(|| format!("corpus {} (holdout)", target.name))?;
+                eprintln!(
+                    "[{}] holdout done in {:.0}s",
+                    target.name,
+                    started.elapsed().as_secs_f64()
+                );
+                reports.push(r);
+            }
+            let md = holdout::write_holdout_reports(&cli.results_dir, &reports)?;
+            print!("{md}");
+        }
+        if cli.mode == "honest" {
+            let mut prod_reports = Vec::new();
+            for target in &selected {
+                if !opts.catalogs_dir.join(&target.name).is_dir() {
+                    eprintln!("[{}] no catalog — holdout-only corpus", target.name);
+                    continue;
+                }
+                let started = std::time::Instant::now();
+                let r = production::run_corpus_production(target, &opts)
+                    .with_context(|| format!("corpus {} (production)", target.name))?;
+                eprintln!(
+                    "[{}] production done in {:.0}s",
+                    target.name,
+                    started.elapsed().as_secs_f64()
+                );
+                prod_reports.push(r);
+            }
+            let md = production::write_production_reports(
+                &cli.results_dir,
+                &prod_reports,
+                &std::collections::BTreeMap::new(),
+            )?;
+            print!("{md}");
+            let languages: std::collections::BTreeMap<String, String> = selected
+                .iter()
+                .map(|t| (t.name.clone(), t.language.clone()))
+                .collect();
+            let commit =
+                std::env::var("ARGOT_BENCH_COMMIT").unwrap_or_else(|_| "local".to_string());
+            let dash = argot_bench::dashboard::BenchDashboard::from_honest(
+                &prod_reports,
+                &reports,
+                &languages,
+                commit,
+                iso_utc_now(),
+            );
+            std::fs::write(
+                cli.results_dir.join("dashboard.json"),
+                serde_json::to_string_pretty(&dash)?,
+            )?;
+        }
+        eprintln!("results → {}", cli.results_dir.display());
+        return Ok(ExitCode::SUCCESS);
+    }
+
     let (run_catalog, run_production) = match cli.mode.as_str() {
         "catalog" => (true, false),
         "production" => (false, true),
         "both" => (true, true),
-        other => anyhow::bail!("unknown mode {other:?} (catalog | production | both)"),
+        other => {
+            anyhow::bail!("unknown mode {other:?} (honest | catalog | production | both | holdout)")
+        }
     };
+
+    // Catalog/production modes need break fixtures; holdout-only targets
+    // (language-port corpora) have none — skip them loudly, don't fail.
+    let selected: Vec<_> = selected
+        .into_iter()
+        .filter(|t| {
+            let has_catalog = opts.catalogs_dir.join(&t.name).is_dir();
+            if !has_catalog {
+                eprintln!(
+                    "[{}] no catalog under {} — holdout-only corpus, skipping",
+                    t.name,
+                    opts.catalogs_dir.display()
+                );
+            }
+            has_catalog
+        })
+        .collect();
 
     // Per-corpus catalog recall (caught, total) for the gap column. Catalog
     // reports are per (corpus, language); the production path checks whole
@@ -275,15 +377,10 @@ fn real_main() -> Result<ExitCode> {
     }
 
     if run_production {
-        let fp_commits = if cli.quick {
-            cli.fp_commits.min(5)
-        } else {
-            cli.fp_commits
-        };
         let mut prod_reports = Vec::new();
         for target in &selected {
             let started = std::time::Instant::now();
-            let r = production::run_corpus_production(target, &opts, fp_commits)
+            let r = production::run_corpus_production(target, &opts)
                 .with_context(|| format!("corpus {} (production)", target.name))?;
             eprintln!(
                 "[{}] production done in {:.0}s",
