@@ -10,7 +10,9 @@ question: *what should it learn from?* Everything hand-written stays in; anythin
 generated, vendored, or pure data should stay out — otherwise argot learns a
 voice that isn't yours and flags the wrong things.
 
-There are three ways in, fastest first.
+This is the **local path** — checking on your machine (and in a pre-commit hook).
+Just want a voice score on every PR, with no local install? That's the
+[CI path](/docs/ci/) instead. There are three ways in here, fastest first.
 
 ## 1. One command
 
@@ -56,13 +58,14 @@ These are directories that are *mostly* generated or data — strong candidates,
 but the call is yours: the report tells you exactly how much real code a rule
 would drop.
 
-## 3. Let an AI agent set it up  <span class="rec">recommended</span>
+## 3. Let an AI agent set it up locally  <span class="rec">recommended</span>
 
 Deciding what *shouldn't* shape your voice is a judgment call — a vendored
 `stripe/` client, an OpenAPI SDK, a `legacy/` module frozen years ago. An agent
 that can read your tree makes that call well, and argot's `--suggest` gives it
-hard evidence to anchor on. Paste this into Claude Code (or Cursor, Aider, any
-agent) at your repo root:
+hard evidence to anchor on. Paste this **local-setup** prompt into Claude Code
+(or Cursor, Aider, any agent) at your repo root — there's a matching
+[CI-setup prompt](/docs/ci/) for the CI path:
 
 ```text
 You are setting up **argot** for this repository. argot learns this repo's own

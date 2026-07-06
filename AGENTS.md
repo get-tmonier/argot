@@ -74,8 +74,8 @@ suppression surfaces.
 
 ## More
 
-- **Skills:** `argot-setup`, `argot-check` — install with
-  `npx skills add get-tmonier/argot`.
+- **Skills:** `argot-setup` (local), `argot-check` (per-diff), `argot-ci` (wire
+  the GitHub Action) — install with `npx skills add get-tmonier/argot`.
 - **MCP** (proactive): `argot mcp` exposes `voice_context` so you can write
   in-voice from the first token — see
   [the MCP guide](https://argot.tmonier.com/docs/mcp/).

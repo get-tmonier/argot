@@ -1,13 +1,14 @@
 # argot skills
 
-Two skills that let a coding agent (Claude Code, Cursor, Codex, …) use argot
-well — set it up, and check changes against the repo's learned voice **without
-ever blocking you**.
+Three skills that let a coding agent (Claude Code, Cursor, Codex, …) use argot
+well — set it up locally, check changes, and wire it into CI — all **without
+ever blocking you**. Pick the local path, the CI path, or both.
 
-| Skill | When it runs |
-|---|---|
-| [`argot-setup`](./argot-setup/SKILL.md) | Once per repo — fit the model and decide what shouldn't shape its voice. |
-| [`argot-check`](./argot-check/SKILL.md) | Per change — score your working diff and surface anything foreign (advisory). |
+| Skill | Path | When it runs |
+|---|---|---|
+| [`argot-setup`](./argot-setup/SKILL.md) | local | Once per repo — fit the model and decide what shouldn't shape its voice. |
+| [`argot-check`](./argot-check/SKILL.md) | local | Per change — score your working diff and surface anything foreign (advisory). |
+| [`argot-ci`](./argot-ci/SKILL.md) | CI | Wire the GitHub Action — a non-blocking voice score on every PR (no local setup needed). |
 
 ## Install
 

@@ -10,6 +10,11 @@ argot in CI is **advisory by design**. It's a statistical guardrail, so it
 — without ever gating the merge. The reviewer has the last word. (Want a hard
 gate anyway? One input flips it on.)
 
+This is the **CI path** and it's self-contained: **you don't need to install or
+set up argot locally** — the Action installs it and fits the model in CI. Prefer
+to run it on your own machine instead? See [Setup](/docs/setup/). You can do
+both.
+
 ## GitHub Action
 
 ```yaml
@@ -32,6 +37,15 @@ jobs:
       - uses: get-tmonier/argot@main
 ```
 
+argot fits the model on the PR's **base** branch and scores your changes against
+it, so a dependency the PR introduces is judged as new (not learned as normal
+first). The model is cached per base commit and only re-fit when the base moves.
+
+> **Committing the workflow:** pushing a `.github/workflows/*.yml` needs the
+> `workflow` token scope. If `git push` is rejected with *"refusing to allow an
+> OAuth App to … workflow … without 'workflow' scope"*, run
+> `gh auth refresh -s workflow` (or push over SSH).
+
 That's the whole setup. On each PR you get three things, none of which block the
 merge:
 
@@ -51,6 +65,48 @@ The card looks like this:
 > `█████████████████░░░` 83%
 >
 > > **Advisory — not a merge gate.**
+
+## Let an AI agent wire it in
+
+Prefer to hand it off? Paste this into Claude Code (or Cursor, Aider, any agent)
+at your repo root — it's the CI counterpart to the [Setup](/docs/setup/) prompt:
+
+```text
+You are adding **argot** to this repository's CI — a non-blocking voice check on
+every pull request. You do NOT need argot installed locally; the GitHub Action
+installs and fits it. Keep it advisory — never a merge gate.
+
+1. Confirm the repo is on GitHub with Actions enabled.
+
+2. Create `.github/workflows/argot.yml`:
+   name: argot
+   on: pull_request
+   permissions:
+     contents: read
+     pull-requests: write     # the sticky score comment
+     security-events: write   # SARIF code-scanning annotations
+   jobs:
+     voice:
+       runs-on: ubuntu-latest
+       steps:
+         - uses: actions/checkout@v4
+           with:
+             fetch-depth: 0
+         - uses: get-tmonier/argot@main
+
+3. If the repo already has an `.argotignore`, leave it — the Action respects it.
+   It is optional; don't invent one.
+
+4. Commit and push the workflow. Pushing a `.github/workflows/*.yml` needs the
+   `workflow` token scope — if `git push` is rejected, run
+   `gh auth refresh -s workflow` (or push over SSH).
+
+5. Do NOT add `fail-on-hits: true` unless I ask. Then tell me: on each PR I'll
+   get a non-blocking voice-score card (PR comment + Actions job summary) and
+   code-scanning annotations; it never fails the build.
+```
+
+(In Claude Code this is the **argot-ci** skill — `npx skills add get-tmonier/argot`.)
 
 ## The human keeps the last word
 

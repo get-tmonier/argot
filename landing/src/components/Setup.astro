@@ -36,6 +36,16 @@ const html = `<pre><code>${term}</code></pre>`;
       <p class="mb-3 font-mono text-xs tracking-widest text-ember uppercase">{setup.label}</p>
       <h2 class="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{setup.title}</h2>
       <p class="mt-5 leading-relaxed text-ink-dim text-pretty" set:html={emphasize(setup.body)} />
+      <p class="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+        <a
+          href="/docs/setup/"
+          class="group inline-flex items-center gap-1.5 font-medium text-ember transition-colors hover:text-ember-bright"
+        >
+          {setup.ctaLocal}
+          <span aria-hidden="true" class="transition-transform group-hover:translate-x-0.5">→</span>
+        </a>
+        <a href="/docs/ci/" class="text-muted transition-colors hover:text-ink">{setup.ctaCi} ↗</a>
+      </p>
     </div>
 
     <div class="reveal flex flex-col gap-4" style="--reveal-delay: 120ms">

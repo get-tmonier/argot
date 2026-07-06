@@ -87,30 +87,33 @@ const en: SiteContent = {
     title: 'From clone to calibrated in one line.',
     body: 'argot init learns your repo’s voice and tells you if it’s ready — no config, no annotations. Messy repo? An AI agent (or argot init --suggest) picks out the generated and vendored directories that shouldn’t shape your voice. [[The model is a build artifact — argot keeps it out of git for you.]]',
     caption: 'One command. It even keeps the rebuildable model out of your git history.',
+    ctaLocal: 'Set it up with one prompt',
+    ctaCi: 'or one prompt for CI',
   },
   agents: {
     label: 'Built for AI agents',
     title: 'Your agent writes the code. argot keeps it in voice.',
-    body: 'Most code argot judges is now written by an agent. Give the agent the guardrail: the argot-check skill surfaces anything foreign as it works — [[advisory, never blocking]] — and MCP feeds it your repo’s idioms before it writes a line.',
+    body: 'Most code argot judges is now written by an agent — so give the agent the guardrail, locally and in CI. Three skills wire it in; each surfaces anything foreign — [[advisory, never blocking]] — and MCP feeds it your repo’s idioms before it writes a line.',
     cards: [
       {
-        title: 'argot-setup',
+        title: 'argot-setup · local',
         desc: 'Fits the voice model, and picks out what shouldn’t shape it.',
       },
       {
-        title: 'argot-check',
+        title: 'argot-check · local',
         desc: 'Scores the diff as the agent works — advisory, never blocking.',
+      },
+      {
+        title: 'argot-ci · CI',
+        desc: 'Wires the GitHub Action — a voice score on every PR, no local setup.',
       },
       {
         title: 'MCP · voice_context',
         desc: 'Feeds the repo’s idioms before the agent generates a line.',
       },
-      {
-        title: 'AGENTS.md',
-        desc: 'The never-block contract, written down for any agent to read.',
-      },
     ],
-    caption: 'It never blocks a commit or rewrites your code. It surfaces — you decide.',
+    caption:
+      'Local or CI, it never blocks a commit or rewrites your code. It surfaces — you decide.',
   },
   ciScore: {
     label: 'In CI, without the friction',

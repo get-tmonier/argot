@@ -18,7 +18,6 @@
 }
 
 html {
-  scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   /* Hard backstop against any horizontal overflow. `clip` (not `hidden`) does
@@ -30,20 +29,12 @@ html {
   scroll-margin-top: 90px;
 }
 
-/* --- one section per screen ---
-   Each home section is a full-viewport panel; the page settles one-per-screen
-   as you scroll. Proximity (not mandatory) so a section taller than the
-   viewport on small phones still scrolls freely instead of trapping. */
+/* Smooth scrolling on the home page only — the nav's anchor jumps to sections
+   glide instead of teleporting. No scroll-snap: it stopped the page at every
+   section as you scrolled, which fought the reader. Kept off the docs, where
+   smooth also made long-page keyboard/anchor scrolling feel floaty. */
 html.snap {
-  scroll-snap-type: y proximity;
-}
-.snap-section {
-  scroll-snap-align: start;
-}
-@media (prefers-reduced-motion: reduce) {
-  html.snap {
-    scroll-snap-type: none;
-  }
+  scroll-behavior: smooth;
 }
 
 body {

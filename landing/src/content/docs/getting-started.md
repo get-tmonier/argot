@@ -29,7 +29,18 @@ npm install -g @tmonier/argot
 Both download the prebuilt `argot` binary for your platform (macOS arm64/Intel, Linux x64/arm64).
 Everything runs locally — no API key, no account, nothing leaves your machine.
 
-## Set up, then check
+## Two ways to run it — pick one, or both
+
+- **On your machine** — check as you work (and in a pre-commit hook). Install the
+  CLI, `argot init`, then `argot check`. Start below.
+- **In CI** — a non-blocking voice score on every pull request. Just add a GitHub
+  Actions workflow; **you don't need to set argot up locally for this** — the
+  Action installs and fits it for you. See [CI](/docs/ci/).
+
+They're independent: do the local flow, the CI flow, or both. The rest of this
+page is the local flow.
+
+## Set up locally, then check
 
 The fastest path is one command:
 

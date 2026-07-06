@@ -19,14 +19,15 @@ lives in the repo's [`AGENTS.md`](https://github.com/get-tmonier/argot/blob/main
 
 ## Skills
 
-Two agent-agnostic skills (Claude Code, Cursor, Codex, …):
+Three agent-agnostic skills (Claude Code, Cursor, Codex, …):
 
 | Skill | When it runs |
 |---|---|
-| `argot-setup` | Once per repo — fit the model and decide what shouldn't shape its voice. |
-| `argot-check` | Per change — score the working diff and surface anything foreign. |
+| `argot-setup` | Once per repo (local) — fit the model and decide what shouldn't shape its voice. |
+| `argot-check` | Per change (local) — score the working diff and surface anything foreign. |
+| `argot-ci` | Once (CI) — wire the GitHub Action for a non-blocking voice score on every PR. |
 
-In **Claude Code**, install the plugin — it bundles both skills *and* the MCP
+In **Claude Code**, install the plugin — it bundles the skills *and* the MCP
 server below in one step:
 
 ```text

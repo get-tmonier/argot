@@ -11,6 +11,11 @@ use argot_core::inspect::{inspect_model, LanguageModelView, ModelReport};
 /// Callees shown per cluster in the generated guide.
 pub const DEFAULT_TOP: usize = 8;
 
+/// A language modeled from fewer than this many files has no meaningful "voice"
+/// to describe — a lone stray file (a demo, a config) would otherwise get a full
+/// section presented as the repo's style. Such languages are omitted.
+const MIN_VOICE_FILES: usize = 3;
+
 pub fn run_describe_voice(repo: PathBuf, top: usize, out: Option<PathBuf>) -> ExitCode {
     let report = match inspect_model(&repo, top) {
         Ok(r) => r,
@@ -72,7 +77,23 @@ Code that reaches for names absent below will read as *out of voice*."
         return out;
     }
 
-    for (lang, view) in &report.languages {
+    // Only describe languages the model actually learned a voice from; a
+    // language backed by one or two stray files is noise, not style.
+    let voiced: Vec<(&String, &LanguageModelView)> = report
+        .languages
+        .iter()
+        .filter(|(_, v)| v.corpus_files >= MIN_VOICE_FILES)
+        .collect();
+    if voiced.is_empty() {
+        let _ = writeln!(
+            out,
+            "_The fitted model is too small to describe a voice (every language \
+has fewer than {MIN_VOICE_FILES} files). Fit on a larger corpus first._"
+        );
+        return out;
+    }
+
+    for (lang, view) in voiced {
         let _ = writeln!(out, "## {lang}");
         let _ = writeln!(out);
         render_language(&mut out, view);
@@ -202,6 +223,35 @@ mod tests {
         // app.get is in 90 of 100 files → strong tendency.
         assert!(md.contains("strong tendency"));
         assert!(md.contains("Model `deadbeef`"));
+    }
+
+    #[test]
+    fn single_file_language_is_omitted() {
+        // A stray demo file leaking one language into an otherwise-different repo
+        // must not get a "voice" section presented as the repo's style.
+        let mut languages = BTreeMap::new();
+        languages.insert(
+            "python".to_string(),
+            LanguageModelView {
+                threshold: 4.2,
+                model_hash: "abc".to_string(),
+                n_cal: 0,
+                distinct_tokens: 50,
+                total_tokens: 200,
+                attested_callees: 5,
+                corpus_files: 1,
+                familiar_imports: vec!["fastapi".to_string()],
+                clusters: vec![],
+            },
+        );
+        let report = ModelReport {
+            path: ".".to_string(),
+            manifest: None,
+            languages,
+        };
+        let md = render_style_md(&report);
+        assert!(!md.contains("## python"), "a 1-file language has no voice");
+        assert!(md.contains("too small to describe a voice"));
     }
 
     #[test]
