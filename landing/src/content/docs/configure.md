@@ -152,9 +152,14 @@ Review and prune what you've muted:
 
 ```text
 argot list-mutes            # every active suppression, across all three surfaces
-argot review-mutes          # report muted hits that no longer fire
-argot review-mutes --prune  # …and rewrite suppressions.yaml to drop them
+argot review-mutes          # report hash-scoped mutes whose file is gone
+argot review-mutes --prune  # …and rewrite suppressions.yaml to drop the dead ones
 ```
+
+`review-mutes` flags a hash-scoped mute as **dead** once the file it names no
+longer exists (in the working tree or `HEAD`) — the point at which it can never
+fire again. `--prune` drops only those; a mute guarding a file you still have is
+always kept.
 
 ### The `suppressions.yaml` format
 

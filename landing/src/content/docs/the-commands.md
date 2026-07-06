@@ -219,11 +219,15 @@ The suppression commands — accept a reported hit for good, then review or prun
 argot mute <hash> --reason "adopting axios repo-wide"   # append a rule to .argot/suppressions.yaml
 argot mute <hash> --reason "temporary" --expires 30d    # auto-expire after N days
 argot list-mutes             # every active suppression, across all three surfaces
-argot review-mutes           # report muted hits that no longer fire
-argot review-mutes --prune   # …and rewrite suppressions.yaml to drop them
+argot review-mutes           # report hash-scoped mutes whose file is gone
+argot review-mutes --prune   # …and rewrite suppressions.yaml to drop the dead ones
 ```
 
-`<hash>` is the `[a1b2c3d4e5f6]` from a `check` hit line. The full suppression system — inline
+`argot mute` records the exact file a hit came from, so `review-mutes` flags a
+mute as **dead** once that file no longer exists in the working tree or `HEAD` —
+the only point at which the mute can never fire again. `--prune` removes only
+those, never a mute still guarding a file you have. `<hash>` is the
+`[a1b2c3d4e5f6]` from a `check` hit line. The full suppression system — inline
 comments, `.argotignore`, and the `suppressions.yaml` format — is documented in
 [Configure](/docs/configure/).
 

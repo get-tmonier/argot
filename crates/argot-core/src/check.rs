@@ -37,7 +37,7 @@ use crate::suppress::{
     fnmatch, hit_hash, load_suppressions_file, parse_inline, write_last_check, LastCheckHit,
     PathScope, PathSuppressions, SuppressionRule, SUPPRESSIONS_FILE,
 };
-use crate::text::{read_text_lossy, splitlines};
+use crate::text::splitlines;
 use git2::{DiffFindOptions, Patch, Status, StatusOptions};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -1888,62 +1888,54 @@ pub fn run_review_mutes(
         };
     }
 
-    let Loaded { mut scorers, .. } = match load_scorers(argot_dir) {
-        Ok(l) => l,
-        Err((msg, code)) => {
-            return ReviewOutcome {
-                stdout,
-                stderr: msg,
-                exit_code: code,
-            }
-        }
-    };
-
     stdout.push_str(&format!(
         "Reviewing {} hash-scoped suppression(s)…\n",
         hash_entries.len()
     ));
-    // Hashes that still fire, computed once per distinct file.
-    let mut firing_by_file: HashMap<String, HashSet<String>> = HashMap::new();
-    let mut stale_hashes: Vec<String> = Vec::new();
+    // A hash-scoped mute names the exact file `argot mute` minted it from, and
+    // its stored hash is a one-way digest of that specific diff hunk — there is
+    // no way to recover the hunk from the hash, so re-scoring the live tree can
+    // only *guess* at staleness (and would wrongly flag every mute of an
+    // edited-but-still-present region, which `--prune` would then delete). The
+    // one thing we can assert soundly is existence: a mute can never fire again
+    // once its file is gone from both the working tree and HEAD. `--prune` acts
+    // on that alone, so it never removes a mute still guarding live code.
+    let mut dead_hashes: Vec<String> = Vec::new();
     for entry in &hash_entries {
         let hash = entry.hash.as_deref().expect("filtered on hash presence");
-        let firing = firing_by_file
-            .entry(entry.path.clone())
-            .or_insert_with(|| firing_hashes_for_file(repo_path, &entry.path, &mut scorers));
-        let fires = firing.contains(hash);
+        let present = mute_path_present(repo_path, &entry.path);
         stdout.push_str(&format!(
             "  [{hash}]  {}  {}\n",
             entry.path,
-            if fires {
-                "still fires"
+            if present {
+                "file present"
             } else {
-                "no longer fires"
+                "file gone — dead"
             }
         ));
-        if !fires {
-            stale_hashes.push(hash.to_string());
+        if !present {
+            dead_hashes.push(hash.to_string());
         }
     }
 
-    if stale_hashes.is_empty() {
-        stdout.push_str("All reviewed suppressions still fire — nothing to prune.\n");
+    if dead_hashes.is_empty() {
+        stdout.push_str("Every muted file still exists — nothing to prune.\n");
     } else if prune {
         let mut kept: Vec<SuppressionRule> = Vec::new();
         for rule in yaml.active.iter().chain(yaml.expired.iter()) {
-            let stale = rule
+            let dead = rule
                 .hash
                 .as_deref()
-                .is_some_and(|h| stale_hashes.iter().any(|s| s == h));
-            if !stale {
+                .is_some_and(|h| dead_hashes.iter().any(|s| s == h));
+            if !dead {
                 kept.push(rule.clone());
             }
         }
         let serialized = crate::suppress::rules_file::serialize_rules(&kept);
         match std::fs::write(&rules_path, serialized) {
             Ok(()) => stdout.push_str(&format!(
-                "Pruned {} stale suppression(s) from {}.\n",
-                stale_hashes.len(),
+                "Pruned {} dead suppression(s) from {}.\n",
+                dead_hashes.len(),
                 rules_path.display()
             )),
             Err(e) => {
@@ -1960,8 +1952,8 @@ pub fn run_review_mutes(
         }
     } else {
         stdout.push_str(&format!(
-            "{} stale suppression(s) — run `argot review-mutes --prune` to remove them.\n",
-            stale_hashes.len()
+            "{} dead suppression(s) (file gone) — run `argot review-mutes --prune` to remove them.\n",
+            dead_hashes.len()
         ));
     }
 
@@ -1972,54 +1964,26 @@ pub fn run_review_mutes(
     }
 }
 
-/// Hashes of the flagged hits produced by re-scoring `rel_path`'s current
-/// content: one full-file hunk (how untracked files are checked) plus each
-/// sampleable range (stable boundaries). Missing/out-of-scope files fire
-/// nothing.
-fn firing_hashes_for_file(
-    repo_path: &str,
-    rel_path: &str,
-    scorers: &mut HashMap<String, SequentialImportBpeScorer>,
-) -> HashSet<String> {
-    let mut out = HashSet::new();
-    let ext = extension(rel_path);
-    let Some(lang) = ext_to_lang(&ext) else {
-        return out;
-    };
-    let Some(scorer) = scorers.get_mut(lang) else {
-        return out;
-    };
-    let full = Path::new(repo_path).join(rel_path);
-    let Ok(source) = read_text_lossy(&full) else {
-        return out;
-    };
-    let lines = splitlines(&source);
-    if lines.is_empty() {
-        return out;
+/// Does the repo still contain the file a hash-scoped mute names? `argot mute`
+/// records the hit's exact path, so a plain path is checked against both the
+/// working tree and `HEAD` — the mute is only "gone" when the file exists in
+/// neither (a file still in HEAD can re-appear in a diff, so its mute is not
+/// yet dead). A glob path (only ever hand-edited into a hash entry) is always
+/// treated as present so `--prune` never reasons about a pattern.
+fn mute_path_present(repo_path: &str, mute_path: &str) -> bool {
+    if mute_path.contains(['*', '?', '[']) {
+        return true;
     }
-    let mut ranges = vec![(1usize, lines.len())];
-    if let Some(adapter) = adapter_for_language(lang) {
-        ranges.extend(adapter.enumerate_sampleable_ranges(&source));
+    if Path::new(repo_path).join(mute_path).is_file() {
+        return true;
     }
-    for (start, end) in ranges {
-        let s = start.saturating_sub(1);
-        let e = end.min(lines.len());
-        if s >= e {
-            continue;
-        }
-        let hunk = lines[s..e].join("\n");
-        let scored = scorer.score_hunk(
-            &hunk,
-            Some(&source),
-            Some(s + 1),
-            Some(e),
-            Some(Path::new(rel_path)),
-        );
-        if scored.flagged {
-            out.insert(hit_hash(rel_path, scored.reason.as_str(), &hunk));
-        }
-    }
-    out
+    open_repo(repo_path)
+        .ok()
+        .and_then(|repo| {
+            let tree = repo.head().ok()?.peel_to_commit().ok()?.tree().ok()?;
+            Some(tree.get_path(Path::new(mute_path)).is_ok())
+        })
+        .unwrap_or(false)
 }
 
 #[cfg(test)]

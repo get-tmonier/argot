@@ -309,29 +309,27 @@ fn review_mutes_reports_rot_and_prunes() {
     let out = run_check(args);
     assert_eq!(out.exit_code, 0, "muted → clean");
 
-    // The muted content is unchanged → the suppression still fires.
+    // The muted file still exists → the mute is live and is not pruned. (We
+    // deliberately don't try to reproduce the diff-hunk hash from the file's
+    // current content — that digest is one-way, and a false "stale" here would
+    // let --prune delete a mute still guarding live code.)
     let repo_str = repo.to_str().unwrap();
     let review = run_review_mutes(repo_str, &argot_dir, TODAY, false);
     assert_eq!(review.exit_code, 0);
-    assert!(review.stdout.contains("still fires"), "{}", review.stdout);
-    assert!(!review.stdout.contains("no longer fires"));
+    assert!(review.stdout.contains("file present"), "{}", review.stdout);
+    assert!(!review.stdout.contains("file gone"));
+    let rules = load_suppressions_file(&argot_dir.join(SUPPRESSIONS_FILE), TODAY);
+    assert_eq!(rules.active.len(), 1, "live mute kept");
 
-    // Rewrite the file benignly → the mute is rot; --prune removes it.
-    std::fs::write(
-        repo.join("integration.py"),
-        "from __future__ import annotations\nfrom stats import mean\n\n\ndef summarize_two(rows):\n    values = [len(r) for r in rows]\n    return {\"count\": len(rows), \"avg\": mean(values)}\n",
-    )
-    .unwrap();
+    // Delete the file → the mute can never fire again; --prune removes it.
+    git(&["rm", "-q", "integration.py"]);
+    git(&["commit", "-q", "-m", "drop integration.py"]);
     let review = run_review_mutes(repo_str, &argot_dir, TODAY, true);
     assert_eq!(review.exit_code, 0);
-    assert!(
-        review.stdout.contains("no longer fires"),
-        "{}",
-        review.stdout
-    );
+    assert!(review.stdout.contains("file gone"), "{}", review.stdout);
     assert!(review.stdout.contains("Pruned 1"), "{}", review.stdout);
     let rules = load_suppressions_file(&argot_dir.join(SUPPRESSIONS_FILE), TODAY);
-    assert!(rules.active.is_empty(), "stale mute removed");
+    assert!(rules.active.is_empty(), "dead mute removed");
 }
 
 #[test]

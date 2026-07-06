@@ -519,7 +519,7 @@ fn wants_json(format: &str, json_alias: bool) -> bool {
 fn print_help_banner() {
     let version = env!("CARGO_PKG_VERSION");
     println!(
-        "argot v{version}\n\nCOMMANDS\n  init          Set up argot for this repo (fit + health check; --suggest lists dirs to exclude)\n  extract       Walk git history into a training dataset (.argot/dataset.jsonl)\n  fit           Fit the voice model to this repo (= train + calibrate, one-shot)\n  check         Check changes against the fitted voice\n  review        Score a PR (or diff range) against the local voice, no checkout\n  voice-diff    PR-level out-of-voice metric + hot-spots for a ref/range\n  inspect       Report corpus composition, calibration health, and suitability\n  mute          Mute a hit by hash (appends to .argot/suppressions.yaml)\n  list-mutes    List active suppressions across all surfaces\n  review-mutes  Report (and --prune) muted hits that no longer fire\n  status        Show current repository's argot state\n  list          List all registered repositories\n  update        Update the argot CLI\n  mcp           Run an MCP server for LLM coding agents (stdio)\n  describe-voice  Generate a STYLE.md describing the repo's learned voice\n\nTypical first run: argot init && argot check\nRun `argot <command> --help` for details on any command."
+        "argot v{version}\n\nCOMMANDS\n  init          Set up argot for this repo (fit + health check; --suggest lists dirs to exclude)\n  extract       Walk git history into a training dataset (.argot/dataset.jsonl)\n  fit           Fit the voice model to this repo (= train + calibrate, one-shot)\n  check         Check changes against the fitted voice\n  review        Score a PR (or diff range) against the local voice, no checkout\n  voice-diff    PR-level out-of-voice metric + hot-spots for a ref/range\n  inspect       Report corpus composition, calibration health, and suitability\n  mute          Mute a hit by hash (appends to .argot/suppressions.yaml)\n  list-mutes    List active suppressions across all surfaces\n  review-mutes  Report (and --prune) hash-scoped mutes whose file is gone\n  status        Show current repository's argot state\n  list          List all registered repositories\n  update        Update the argot CLI\n  mcp           Run an MCP server for LLM coding agents (stdio)\n  describe-voice  Generate a STYLE.md describing the repo's learned voice\n\nTypical first run: argot init && argot check\nRun `argot <command> --help` for details on any command."
     );
 }
 
@@ -1515,7 +1515,7 @@ fn run_list_mutes() -> ExitCode {
 
 #[derive(Args)]
 struct ReviewMutesCmd {
-    /// Remove the suppressions that no longer fire (rewrites suppressions.yaml).
+    /// Remove the dead suppressions — those whose file is gone (rewrites suppressions.yaml).
     #[arg(long)]
     prune: bool,
 }
