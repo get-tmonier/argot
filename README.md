@@ -35,14 +35,12 @@
   <img src="https://img.shields.io/badge/C++-00599C?logo=cplusplus&logoColor=white" alt="C++" />
   <img src="https://img.shields.io/badge/C-A8B9CC?logo=c&logoColor=black" alt="C" />
   <img src="https://img.shields.io/badge/Ruby-CC342D?logo=ruby&logoColor=white" alt="Ruby" />
-  &nbsp;·&nbsp;<a href="#benchmarks">10 languages →</a>
+  &nbsp;·&nbsp;<a href="#benchmarks">11 languages →</a>
 </p>
 
-<!-- TODO(js-lang): JavaScript is landing as a first-class 11th language (own adapter + model). When its
-     benchmarked corpus ships, bump "10 languages" here and at the benchmarks section ("27 repos in 10
-     languages"), and split the "TypeScript / JS" rows in the benchmark table, Acknowledgements, and the
-     tree-sitter grammar list into separate TypeScript and JavaScript entries. Do not change the count until
-     the JS numbers land. -->
+<!-- TODO(js-numbers): the benchmark TABLE below (per-language rows + "N repos") still shows the
+     pre-JavaScript run; refresh it — split the TypeScript/JavaScript row and update the counts —
+     once the JS re-bench dashboard lands. -->
 
 
 ---
@@ -317,7 +315,8 @@ are affiliated with, endorse, or are endorsed by argot; each remains under its
 own license, and their histories are our ground-truth voice signal.
 
 - **Python** — [FastAPI](https://github.com/tiangolo/fastapi) · [rich](https://github.com/Textualize/rich) · [faker](https://github.com/joke2k/faker) · [Saleor](https://github.com/saleor/saleor) · [Wagtail](https://github.com/wagtail/wagtail) · [Dagster](https://github.com/dagster-io/dagster) · [Scrapy](https://github.com/scrapy/scrapy)
-- **TypeScript / JS** — [Hono](https://github.com/honojs/hono) · [Ink](https://github.com/vadimdemedes/ink) · [faker-js](https://github.com/faker-js/faker) · [Excalidraw](https://github.com/excalidraw/excalidraw) · [Outline](https://github.com/outline/outline)
+- **TypeScript** — [Hono](https://github.com/honojs/hono) · [Ink](https://github.com/vadimdemedes/ink) · [faker-js](https://github.com/faker-js/faker) · [Excalidraw](https://github.com/excalidraw/excalidraw) · [Outline](https://github.com/outline/outline)
+- **JavaScript** — [Express](https://github.com/expressjs/express) · [Commander.js](https://github.com/tj/commander.js) · [ESLint](https://github.com/eslint/eslint)
 - **Go** — [GitHub CLI](https://github.com/cli/cli) · [Hugo](https://github.com/gohugoio/hugo)
 - **Rust** — [ripgrep](https://github.com/BurntSushi/ripgrep) · [bat](https://github.com/sharkdp/bat)
 - **Java** — [Guava](https://github.com/google/guava) · [JUnit 5](https://github.com/junit-team/junit5)
@@ -328,8 +327,8 @@ own license, and their histories are our ground-truth voice signal.
 - **PHP** — [Laravel](https://github.com/laravel/framework) · [Composer](https://github.com/composer/composer)
 
 Built on [tree-sitter](https://tree-sitter.github.io/tree-sitter/) and its
-per-language grammars (Python, TypeScript/JS, Go, Rust, C, C++, Java, C#, PHP,
-Ruby), [libgit2](https://libgit2.org/) via [git2](https://docs.rs/git2/) (vendored,
+per-language grammars (Python, TypeScript, JavaScript, Go, Rust, C, C++, Java,
+C#, PHP, Ruby), [libgit2](https://libgit2.org/) via [git2](https://docs.rs/git2/) (vendored,
 no network transports), HuggingFace
 [tokenizers](https://github.com/huggingface/tokenizers) (UnixCoder BPE),
 [clap](https://docs.rs/clap/), [Serde](https://serde.rs/), and

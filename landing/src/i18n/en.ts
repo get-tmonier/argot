@@ -74,30 +74,25 @@ const en: SiteContent = {
         desc: 'On a 34k-file repo, laptop CPU. The one-time fit takes ~7 s. [[No GPU, no cloud.]]',
       },
       {
-        value: '10',
+        value: '11',
         title: 'languages, one binary',
-        desc: 'Python · TypeScript · Go · Rust · Java · C# · C · C++ · Ruby · PHP — one [[static binary]].',
+        desc: 'Python · TypeScript · JavaScript · Go · Rust · Java · C# · C · C++ · Ruby · PHP — one [[static binary]].',
       },
     ],
     finePrint:
       'Leak-free protocol (issue #92): recall from fixtures planted into real files and judged by the shipped binary; false alarms from a temporal holdout with commit-level bootstrap CIs. Full per-repo numbers on the benchmarks page.',
   },
   setup: {
-    label: 'Setup — 30 seconds',
-    title: 'Point it at your repo. Your agent, or you.',
-    body: 'argot is a CLI: [[argot init]] fits it to your code, [[argot check]] scores your diffs. Install the skill and your agent runs that same setup for you — or do it yourself in one command.',
-    caption:
-      'The skill just drives the argot binary. The fitted model stays out of your git history.',
+    label: 'Setup · built for agents',
+    title: 'A CLI your coding agent can drive.',
+    body: 'argot is the tool; the skills and MCP are the steering wheel. Install once and the agent that writes your code fits the model, checks your diffs, and pulls your idioms before it writes — running [[the same argot binary]] you would. Or set it up yourself in one command.',
     agentLane: 'Let your agent do it',
     agentNote: 'then [[/argot-setup]] in Claude Code, Cursor, or 70+ agents',
     localLane: 'Or one command yourself',
     ctaLocal: 'Set it up by hand',
     ctaCi: 'or wire CI',
-  },
-  agents: {
-    label: 'Pilot it from your editor',
-    title: 'A CLI your coding agent can drive.',
-    body: 'argot is the tool; the skills and MCP are the steering wheel — they let the agent that writes your code run [[the same argot binary]] you would. Advisory, never blocking.',
+    caption:
+      'The skill just drives the argot binary. The fitted model stays out of your git history.',
     cards: [
       {
         title: 'argot-setup · local',
@@ -116,7 +111,7 @@ const en: SiteContent = {
         desc: 'Feeds your idioms before the agent writes.',
       },
     ],
-    caption: 'It surfaces — you decide. Never blocks, never rewrites, never mutes for you.',
+    cardsCaption: 'It surfaces — you decide. Never blocks, never rewrites, never mutes for you.',
   },
   ciScore: {
     label: 'In CI, without the friction',

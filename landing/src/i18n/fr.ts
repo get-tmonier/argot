@@ -74,30 +74,25 @@ const fr: SiteContent = {
         desc: 'Sur un dépôt de 34 000 fichiers, CPU de portable. Le fit unique prend ~7 s. [[Sans GPU, sans cloud.]]',
       },
       {
-        value: '10',
+        value: '11',
         title: 'langages, un seul binaire',
-        desc: 'Python · TypeScript · Go · Rust · Java · C# · C · C++ · Ruby · PHP — un seul [[binaire statique]].',
+        desc: 'Python · TypeScript · JavaScript · Go · Rust · Java · C# · C · C++ · Ruby · PHP — un seul [[binaire statique]].',
       },
     ],
     finePrint:
       'Protocole sans fuite (issue #92) : rappel mesuré sur des fixtures plantées dans de vrais fichiers et jugées par le binaire livré ; fausses alertes par holdout temporel avec intervalles de confiance bootstrap. Chiffres complets par dépôt sur la page benchmarks.',
   },
   setup: {
-    label: 'Configuration — 30 secondes',
-    title: 'Pointez-le sur votre dépôt. Votre agent, ou vous.',
-    body: 'argot est un CLI : [[argot init]] le calibre sur votre code, [[argot check]] score vos diffs. Installez la skill et votre agent lance cette même configuration pour vous — ou faites-le vous-même en une commande.',
-    caption:
-      'La skill ne fait que piloter le binaire argot. Le modèle calibré reste hors de votre historique git.',
+    label: 'Configuration · conçu pour les agents',
+    title: 'Un CLI que votre agent peut piloter.',
+    body: 'argot est l’outil ; les skills et le MCP sont le volant. Installez-le une fois et l’agent qui écrit votre code calibre le modèle, score vos diffs et récupère vos idiomes avant d’écrire — en lançant [[le même binaire argot]] que vous. Ou configurez-le vous-même en une commande.',
     agentLane: 'Laissez votre agent le faire',
     agentNote: 'puis [[/argot-setup]] dans Claude Code, Cursor, ou 70+ agents',
     localLane: 'Ou une seule commande vous-même',
     ctaLocal: 'Configurez-le à la main',
     ctaCi: 'ou branchez la CI',
-  },
-  agents: {
-    label: 'Pilotez-le depuis votre éditeur',
-    title: 'Un CLI que votre agent peut piloter.',
-    body: 'argot est l’outil ; les skills et le MCP sont le volant — ils laissent l’agent qui écrit votre code lancer [[le même binaire argot]] que vous. Consultatif, jamais bloquant.',
+    caption:
+      'La skill ne fait que piloter le binaire argot. Le modèle calibré reste hors de votre historique git.',
     cards: [
       {
         title: 'argot-setup · local',
@@ -116,7 +111,7 @@ const fr: SiteContent = {
         desc: 'Fournit vos idiomes avant que l’agent écrive.',
       },
     ],
-    caption:
+    cardsCaption:
       'Il signale — vous décidez. Ne bloque jamais, ne réécrit jamais, ne mute jamais à votre place.',
   },
   ciScore: {

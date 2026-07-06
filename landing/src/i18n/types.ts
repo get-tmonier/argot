@@ -57,13 +57,8 @@ export interface SiteContent {
     readonly localLane: string;
     readonly ctaLocal: string;
     readonly ctaCi: string;
-  };
-  readonly agents: {
-    readonly label: string;
-    readonly title: string;
-    readonly body: string;
     readonly cards: readonly Feature[];
-    readonly caption: string;
+    readonly cardsCaption: string;
   };
   readonly ciScore: {
     readonly label: string;

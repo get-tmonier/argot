@@ -1,5 +1,4 @@
 ---
-import Agents from '#components/Agents.astro';
 import Catches from '#components/Catches.astro';
 import CiScore from '#components/CiScore.astro';
 import Cta from '#components/Cta.astro';
@@ -27,7 +26,6 @@ const { content, locale } = Astro.props;
     <Catches content={content} />
     <Proof content={content} />
     <Setup content={content} />
-    <Agents content={content} />
     <CiScore content={content} />
     <!-- CTA + footer flow by content (no forced full-viewport block) so the
          page ends tight against the last section instead of a full empty screen. -->

@@ -31,68 +31,99 @@ const html = `<pre><code>${term}</code></pre>`;
 // copy-to-clipboard chip (the Hero's `.copy-install` script wires them).
 const skillCmd = 'npx skills add get-tmonier/argot';
 const initCmd = 'argot init';
+
+// One glyph per surface card, echoing the badge convention set by Catches.astro.
+const glyphs = ['⚙', '◎', '⇄', '§'];
 ---
 
 <section id="setup" class="snap-section relative flex min-h-svh items-center">
-  <div
-    class="mx-auto grid w-full max-w-6xl grid-cols-1 gap-10 px-5 py-24 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:gap-16"
-  >
-    <div class="reveal">
-      <p class="mb-3 font-mono text-xs tracking-widest text-ember uppercase">{setup.label}</p>
-      <h2 class="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{setup.title}</h2>
-      <p class="mt-5 leading-relaxed text-ink-dim text-pretty" set:html={emphasize(setup.body)} />
+  <div class="mx-auto w-full max-w-6xl px-5 py-24">
+    <div
+      class="grid grid-cols-1 gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:gap-16"
+    >
+      <div class="reveal">
+        <p class="mb-3 font-mono text-xs tracking-widest text-ember uppercase">{setup.label}</p>
+        <h2 class="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{setup.title}</h2>
+        <p class="mt-5 leading-relaxed text-ink-dim text-pretty" set:html={emphasize(setup.body)} />
 
-      <div class="mt-7 space-y-5">
-        <div>
-          <p class="lane-label">{setup.agentLane}</p>
-          <button
-            type="button"
-            class="copy-install setup-chip group"
-            data-copy={skillCmd}
-            aria-label="Copy the skill-install command"
-          >
-            <span class="text-ember">$</span>
-            <span class="text-ink-dim">npx skills add <span class="text-ink">get-tmonier/argot</span></span>
-            <span class="copy-icon ml-auto pl-2 text-muted transition-colors group-hover:text-ink"
-              >⧉</span
+        <div class="mt-7 space-y-5">
+          <div>
+            <p class="lane-label">{setup.agentLane}</p>
+            <button
+              type="button"
+              class="copy-install setup-chip group"
+              data-copy={skillCmd}
+              aria-label="Copy the skill-install command"
             >
-          </button>
-          <p class="lane-note" set:html={emphasize(setup.agentNote)} />
-        </div>
-        <div>
-          <p class="lane-label">{setup.localLane}</p>
-          <button
-            type="button"
-            class="copy-install setup-chip group"
-            data-copy={initCmd}
-            aria-label="Copy the init command"
-          >
-            <span class="text-ember">$</span>
-            <span class="text-ink-dim">argot <span class="text-ink">init</span></span>
-            <span class="copy-icon ml-auto pl-2 text-muted transition-colors group-hover:text-ink"
-              >⧉</span
+              <span class="text-ember">$</span>
+              <span class="text-ink-dim"
+                >npx skills add <span class="text-ink">get-tmonier/argot</span></span
+              >
+              <span class="copy-icon ml-auto pl-2 text-muted transition-colors group-hover:text-ink"
+                >⧉</span
+              >
+            </button>
+            <p class="lane-note" set:html={emphasize(setup.agentNote)} />
+          </div>
+          <div>
+            <p class="lane-label">{setup.localLane}</p>
+            <button
+              type="button"
+              class="copy-install setup-chip group"
+              data-copy={initCmd}
+              aria-label="Copy the init command"
             >
-          </button>
+              <span class="text-ember">$</span>
+              <span class="text-ink-dim">argot <span class="text-ink">init</span></span>
+              <span class="copy-icon ml-auto pl-2 text-muted transition-colors group-hover:text-ink"
+                >⧉</span
+              >
+            </button>
+          </div>
         </div>
+
+        <p class="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+          <a
+            href="/docs/setup/"
+            class="group inline-flex items-center gap-1.5 font-medium text-ember transition-colors hover:text-ember-bright"
+          >
+            {setup.ctaLocal}
+            <span aria-hidden="true" class="transition-transform group-hover:translate-x-0.5">→</span
+            >
+          </a>
+          <a href="/docs/ci/" class="text-muted transition-colors hover:text-ink">{setup.ctaCi} ↗</a>
+        </p>
       </div>
 
-      <p class="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-        <a
-          href="/docs/setup/"
-          class="group inline-flex items-center gap-1.5 font-medium text-ember transition-colors hover:text-ember-bright"
-        >
-          {setup.ctaLocal}
-          <span aria-hidden="true" class="transition-transform group-hover:translate-x-0.5">→</span>
-        </a>
-        <a href="/docs/ci/" class="text-muted transition-colors hover:text-ink">{setup.ctaCi} ↗</a>
-      </p>
+      <div class="reveal flex flex-col gap-4" style="--reveal-delay: 120ms">
+        <CodeWindow html={html} title="terminal" />
+        <p
+          class="text-center text-sm text-muted italic text-pretty"
+          set:html={emphasize(setup.caption)}
+        />
+      </div>
     </div>
 
-    <div class="reveal flex flex-col gap-4" style="--reveal-delay: 120ms">
-      <CodeWindow html={html} title="terminal" />
+    <!-- What the agent gets: the four surfaces that drive argot -->
+    <div class="reveal mt-12 border-t border-line/60 pt-10" style="--reveal-delay: 200ms">
+      <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {
+          setup.cards.map((card, i) => (
+            <div class="agent-card">
+              <div class="agent-glyph" aria-hidden="true">
+                {glyphs[i]}
+              </div>
+              <h3 class="font-mono text-xs font-semibold tracking-tight text-ink sm:text-[13px]">
+                {card.title}
+              </h3>
+              <p class="mt-1.5 text-xs leading-relaxed text-ink-dim" set:html={emphasize(card.desc)} />
+            </div>
+          ))
+        }
+      </div>
       <p
-        class="text-center text-sm text-muted italic text-pretty"
-        set:html={emphasize(setup.caption)}
+        class="mt-6 text-center text-sm text-muted text-pretty"
+        set:html={emphasize(setup.cardsCaption)}
       />
     </div>
   </div>
@@ -131,5 +162,31 @@ const initCmd = 'argot init';
   }
   .setup-chip:hover {
     border-color: var(--line-2);
+  }
+  .agent-card {
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel) 30%, transparent);
+    padding: 0.85rem;
+    transition:
+      border-color 0.25s,
+      background-color 0.25s;
+  }
+  .agent-card:hover {
+    border-color: var(--line-2);
+    background: color-mix(in srgb, var(--panel) 60%, transparent);
+  }
+  .agent-glyph {
+    display: inline-flex;
+    height: 1.6rem;
+    width: 1.6rem;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.5rem;
+    border-radius: 8px;
+    border: 1px solid var(--line-2);
+    background: var(--bg-2);
+    font-size: 0.8rem;
+    color: var(--ember);
   }
 </style>

@@ -21,13 +21,13 @@ error-tolerant parser. Two properties matter here:
 
 ## Supported out of the box
 
-<!-- TODO(js-lang): JavaScript is becoming a first-class 11th language (own adapter + model, `.js`/`.jsx`).
-     When it lands and is benchmarked, split "TypeScript / JavaScript" into two, and change "ten languages"
-     below to "eleven". Do not change the count until the JS corpus numbers ship. -->
-Python, TypeScript / JavaScript, Go, Rust, Java, C#, C, C++, Ruby, and PHP —
-ten languages, each with its own tree-sitter adapter, each benchmarked on a
-real open-source corpus. We publish the leak-free per-corpus numbers — catch
-rate and false alarms, with commit-level confidence intervals — on the
+Python, TypeScript, JavaScript, Go, Rust, Java, C#, C, C++, Ruby, and PHP —
+eleven languages, each with its own tree-sitter adapter, each benchmarked on a
+real open-source corpus. TypeScript and JavaScript are **separate** adapters and
+separate models: `.ts`/`.tsx` and `.js`/`.jsx` are written differently, so argot
+learns each voice on its own (and treats a TypeScript repo's transpiled `.js`
+output as generated, not authored). We publish the leak-free per-corpus numbers —
+catch rate and false alarms, with commit-level confidence intervals — on the
 [benchmarks page](/benchmarks). Nothing is hidden.
 
 More languages are adapter-shaped work — the model and pipeline don't change.
