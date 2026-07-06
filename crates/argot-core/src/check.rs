@@ -722,6 +722,72 @@ fn committed_patches(repo_path: &str, shas: &HashSet<String>) -> anyhow::Result<
     Ok(out)
 }
 
+/// Net diff of a `base..head` range, scored as one changeset — the changes
+/// `head` introduces relative to `base` (merge-base → head, matching a pull
+/// request's diff), *not* each intervening commit. So when a later commit in the
+/// range reverts or rewrites an earlier one (e.g. a fix that drops a foreign
+/// import a prior commit added), the range shows only the net result — a fix
+/// commit clears the flag, exactly as a reviewer reading the PR's files would
+/// expect. Content is the file as `head` leaves it; source = head's short SHA.
+fn net_range_patches(
+    repo_path: &str,
+    base_ref: &str,
+    head_ref: &str,
+) -> anyhow::Result<Vec<PatchBatch>> {
+    let repo = open_repo(repo_path)?;
+    let base_commit = repo.revparse_single(base_ref)?.peel_to_commit()?;
+    let head_commit = repo.revparse_single(head_ref)?.peel_to_commit()?;
+    // Merge-base → head is what `head` adds since diverging from `base`, so a
+    // base that advanced past the branch point doesn't show as spurious changes.
+    let base_id = repo
+        .merge_base(base_commit.id(), head_commit.id())
+        .unwrap_or_else(|_| base_commit.id());
+    let base_tree = repo.find_commit(base_id)?.tree()?;
+    let head_tree = head_commit.tree()?;
+    let mut diff = repo.diff_tree_to_tree(Some(&base_tree), Some(&head_tree), None)?;
+    diff.find_similar(Some(&mut DiffFindOptions::new()))?;
+    let short: String = head_commit.id().to_string().chars().take(7).collect();
+    let mut out = Vec::new();
+    for idx in 0..diff.deltas().len() {
+        let delta = match diff.get_delta(idx) {
+            Some(d) => d,
+            None => continue,
+        };
+        let file_path = match delta.new_file().path().and_then(|p| p.to_str()) {
+            Some(p) => p.to_string(),
+            None => continue,
+        };
+        if !is_supported_ext(&file_path) {
+            continue;
+        }
+        let patch = match Patch::from_diff(&diff, idx)? {
+            Some(p) => p,
+            None => continue,
+        };
+        if patch.num_hunks() == 0 {
+            continue;
+        }
+        let hunks = hunks_from_patch(&patch)?;
+        // Post-state content: the file as it stands at `head` (deleted → skip).
+        let content = match head_tree
+            .get_path(Path::new(&file_path))
+            .ok()
+            .and_then(|e| repo.find_blob(e.id()).ok())
+        {
+            Some(b) => b.content().to_vec(),
+            None => continue,
+        };
+        out.push(PatchBatch {
+            file_path,
+            content,
+            hunks,
+            source: short.clone(),
+            ignored_by_pattern: false,
+        });
+    }
+    Ok(out)
+}
+
 fn hunks_from_patch(patch: &Patch) -> anyhow::Result<Vec<HunkSpan>> {
     let n = patch.num_hunks();
     let mut hunks = Vec::with_capacity(n);
@@ -1425,19 +1491,33 @@ fn collect_patches(args: &CheckArgs) -> Result<(Vec<PatchBatch>, String), CheckO
         let reference = args.reference.as_str();
         let repo =
             open_repo(repo_path).map_err(|e| CheckOutcome::err(format!("error: {e}\n"), 1))?;
-        if reference.contains("..") {
-            let shas = resolve_shas(&repo, reference)
+        if let Some((base_raw, head_raw)) = reference.split_once("..") {
+            // Score the *net* diff (merge-base → head), not each commit in the
+            // range: a PR's voice check must match what a reviewer sees in the
+            // files, so a fix commit clears an earlier commit's flag. Handles
+            // both `a..b` and `a...b` (leading '.' of a three-dot range trimmed);
+            // an empty side defaults to HEAD.
+            let base = if base_raw.is_empty() {
+                "HEAD"
+            } else {
+                base_raw
+            };
+            let head_trimmed = head_raw.trim_start_matches('.');
+            let head = if head_trimmed.is_empty() {
+                "HEAD"
+            } else {
+                head_trimmed
+            };
+            let patches = net_range_patches(repo_path, base, head)
                 .map_err(|e| CheckOutcome::err(format!("error: {e}\n"), 1))?;
-            if shas.is_empty() {
-                // Note: exit 0 (not 2) for an empty explicit range.
+            if patches.is_empty() {
+                // Note: exit 0 (not 2) for an empty net diff.
                 return Err(CheckOutcome::err(
-                    format!("No commits found in range '{reference}'\n"),
+                    format!("No changes in range '{reference}'\n"),
                     0,
                 ));
             }
-            let patches = committed_patches(repo_path, &shas)
-                .map_err(|e| CheckOutcome::err(format!("error: {e}\n"), 1))?;
-            return Ok((patches, format!("{} commit(s) ({reference})", shas.len())));
+            return Ok((patches, format!("net diff ({reference})")));
         }
         // Bare ref: <ref>..HEAD commits plus full workdir.
         let shas = resolve_shas(&repo, &format!("{reference}..HEAD"))
@@ -1940,6 +2020,47 @@ mod tests {
         assert_eq!(severity("bpe", t + 1.5, t), "foreign");
         assert_eq!(severity("call_receiver", t + 0.4, t), "unusual");
         assert_eq!(severity("convention", t + 1.6, t), "foreign");
+    }
+
+    #[test]
+    fn net_range_scores_the_pr_result_not_each_commit() {
+        // base → (add file with a foreign import) → (rewrite it clean). The net
+        // diff base..head is the clean file, so the reverted import must not
+        // appear in the scored range — a fix commit clears a prior flag.
+        let dir = std::env::temp_dir().join(format!("argot_netrange_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let repo = git2::Repository::init(&dir).unwrap();
+        std::fs::write(dir.join("keep.ts"), "export const x = 1\n").unwrap();
+        let base = commit_all(&repo, "base");
+        std::fs::write(
+            dir.join("h.ts"),
+            "import { Router } from 'express'\nexport const r = Router()\n",
+        )
+        .unwrap();
+        commit_all(&repo, "add express handler");
+        std::fs::write(
+            dir.join("h.ts"),
+            "import { Hono } from 'hono'\nexport const r = new Hono()\n",
+        )
+        .unwrap();
+        let head = commit_all(&repo, "rewrite in hono style");
+
+        let path = dir.to_str().unwrap();
+        let patches = net_range_patches(path, &base.to_string(), &head.to_string()).unwrap();
+        let h = patches
+            .iter()
+            .find(|p| p.file_path == "h.ts")
+            .expect("h.ts in net diff");
+        let content = String::from_utf8_lossy(&h.content);
+        assert!(
+            content.contains("Hono"),
+            "net diff should carry the head content"
+        );
+        assert!(
+            !content.contains("express"),
+            "the reverted foreign import must not survive in the net range: {content}"
+        );
     }
 
     fn commit_all(repo: &git2::Repository, msg: &str) -> git2::Oid {
