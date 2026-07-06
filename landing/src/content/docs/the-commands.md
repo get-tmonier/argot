@@ -136,7 +136,6 @@ argot check --repo ../other-repo    # check a repo other than the current direct
 | `--repo <path>` | `.` | Repository to check. |
 | `--argot-dir <path>` | `.argot` | Where to load the fitted model from. A relative path is resolved against `--repo`; an absolute path is used verbatim. |
 | `--hunk-lines <N>` | `6` | Hunk-body lines shown under each hit (`0` suppresses them; `--verbose` overrides with the full hunk). |
-| `--threshold <t>` | *calibrated* | Override the calibrated threshold. A bench/dev escape hatch — normal use relies on the fitted threshold. |
 
 Color follows the [`NO_COLOR`](https://no-color.org) convention: argot colors severity markers only when
 `NO_COLOR` is unset **and** stdout is a terminal. Machine formats are never colored.

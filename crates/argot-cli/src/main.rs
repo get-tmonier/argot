@@ -927,7 +927,7 @@ struct CheckCmd {
     #[arg(long, value_name = "GLOB")]
     exclude: Vec<String>,
     /// Override the calibrated threshold (bench/dev escape hatch).
-    #[arg(long, allow_hyphen_values = true)]
+    #[arg(long, allow_hyphen_values = true, hide = true)]
     threshold: Option<f64>,
     /// Directory containing argot artifacts.
     #[arg(long = "argot-dir", default_value = ".argot")]

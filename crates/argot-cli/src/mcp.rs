@@ -175,7 +175,7 @@ fn tool_check(args: &Value, repo: &Path, explain: bool) -> Result<Value, String>
     let mut scorers = RepoScorers::load(&argot_dir(repo))?;
     if scorers.language_for(file_path).is_none() {
         return Err(format!(
-            "unsupported file type for '{file_path}' (argot scores .py/.ts/.tsx/.js/.jsx)"
+            "unsupported file type for '{file_path}' — argot has no language adapter for this file"
         ));
     }
     let scored = scorers
