@@ -1,5 +1,6 @@
 ---
 import Base from '#layouts/Base.astro';
+import { SITE } from '#lib/site';
 
 // Build-time import of the committed dashboard history (schema v2 in
 // crates/argot-bench/src/dashboard.rs). CI appends a dated entry per run and
@@ -97,6 +98,30 @@ const det = (s: Fp | null | undefined) =>
 ---
 
 <Base title="Benchmarks · argot" description="Honest, leak-free benchmark results for argot, fed from CI.">
+  <header class="sticky top-0 z-40 border-b border-line bg-bg/80 backdrop-blur-md">
+    <div class="mx-auto flex h-16 max-w-5xl items-center justify-between gap-4 px-5">
+      <a href="/" class="flex items-center gap-2.5" aria-label="argot — home">
+        <span class="wordmark text-lg">ar<span class="g">g</span>ot</span>
+        <span class="rounded-md border border-line px-2 py-0.5 font-mono text-xs text-muted"
+          >benchmarks</span
+        >
+      </a>
+      <div class="flex items-center gap-2 sm:gap-3">
+        <a
+          href="/docs/"
+          class="rounded-md px-2 py-1.5 text-sm text-ink-dim transition-colors hover:text-ink"
+          >Docs</a
+        >
+        <a
+          href={SITE.github}
+          target="_blank"
+          rel="noopener"
+          class="rounded-md border border-line bg-panel/60 px-3 py-1.5 text-sm transition-colors hover:border-line-2"
+          >GitHub ↗</a
+        >
+      </div>
+    </div>
+  </header>
   <main class="mx-auto max-w-5xl px-5 py-16">
     <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">Benchmarks</h1>
     <p class="mt-4 leading-relaxed text-ink-dim">
