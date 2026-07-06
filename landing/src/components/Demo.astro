@@ -1,6 +1,7 @@
 ---
 import { emphasize } from '#lib/text';
 import type { SiteContent } from '#i18n/types';
+import DemoTerminal from './DemoTerminal.astro';
 
 interface Props {
   content: SiteContent;
@@ -31,15 +32,7 @@ const { demo } = Astro.props.content;
     </div>
 
     <div class="reveal flex flex-col gap-4" style="--reveal-delay: 120ms">
-      <img
-        src="/demo.gif"
-        width="1280"
-        height="470"
-        loading="lazy"
-        decoding="async"
-        alt="argot check flagging a foreign Django import in an all-FastAPI file, colored by severity"
-        class="demo-gif"
-      />
+      <DemoTerminal />
       <p class="text-center text-sm text-muted text-pretty" set:html={emphasize(demo.caption)} />
       <a
         href="/docs/real-world-scenarios/"
@@ -53,15 +46,6 @@ const { demo } = Astro.props.content;
 </section>
 
 <style>
-  .demo-gif {
-    width: 100%;
-    height: auto;
-    border-radius: 14px;
-    border: 1px solid var(--line);
-    box-shadow:
-      0 1px 0 0 rgba(255, 255, 255, 0.03) inset,
-      0 24px 60px -30px rgba(0, 0, 0, 0.8);
-  }
   .badge {
     display: inline-flex;
     min-width: 3.6rem;
