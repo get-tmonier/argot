@@ -19,7 +19,9 @@ use crate::scoring::adapters::ruby::RubyAdapter;
 use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::{Language, LanguageAdapter};
-use crate::scoring::calibration::{collect_candidates_with, language_for_filename, language_name};
+use crate::scoring::calibration::{
+    collect_candidates_with, header_is_cpp, language_for_filename_ctx, language_name,
+};
 use crate::suppress::PathSuppressions;
 use crate::text::read_text_lossy;
 use anyhow::Result;
@@ -222,6 +224,9 @@ pub(crate) fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
 /// structural filters.
 fn scan_corpus(repo_dir: &Path) -> CorpusReport {
     let path_suppressions = PathSuppressions::load(repo_dir);
+    // Route `.h` to C or C++ by the repo's translation-unit majority, matching
+    // how calibrate/check file them, so the composition and verdict agree.
+    let header_cpp = header_is_cpp(repo_dir);
     let mut total_files = 0usize;
     let mut unsupported_files = 0usize;
     let mut languages: BTreeMap<String, LanguageCorpus> = BTreeMap::new();
@@ -247,7 +252,7 @@ fn scan_corpus(repo_dir: &Path) -> CorpusReport {
                 }
                 Ok(t) if t.is_file() => {
                     total_files += 1;
-                    let language = match language_for_filename(&name) {
+                    let language = match language_for_filename_ctx(&name, header_cpp) {
                         Some(l) => l,
                         None => {
                             unsupported_files += 1;

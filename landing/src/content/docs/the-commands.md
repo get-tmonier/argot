@@ -80,8 +80,13 @@ combine; the first matching slice wins.
 
 ## check
 
-Scores changed hunks against the trained scorer, prints them grouped by file, and **exits non-zero**
-if any hunk is above the calibrated threshold — so it drops straight into CI.
+Scores changed hunks against the trained scorer and prints them grouped by file.
+
+**Exit codes:** `0` clean · `1` hits found — *something to look at, not a failure* · `2` setup/usage
+error. For CI, prefer the non-blocking [GitHub Action](/docs/ci/) over a hand-rolled
+`argot check || fail`: because a foreign import can land in any tier, gating the CLI exit code turns
+every advisory hit — down to `unusual` — into a red build. The Action posts an advisory score card
+instead, and only blocks if you explicitly ask it to.
 
 ```bash
 argot check                         # uncommitted changes — modified + staged + untracked

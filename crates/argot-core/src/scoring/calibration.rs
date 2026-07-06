@@ -168,6 +168,62 @@ fn rglob_sorted(dir: &Path, ext: &str) -> Vec<PathBuf> {
     out
 }
 
+/// Which language this repo's ambiguous `.h` headers belong to. `.h` is used by
+/// both C and C++; a header-only C++ library keeps its logic in `.h` with the
+/// translation units in `.cc`/`.cpp`, so filing every `.h` under C (the naive
+/// default) starves the C++ model and mis-scores the bulk of the code. Decide
+/// per repo by translation-unit majority — `.cpp`/`.cc`/`.cxx` (C++) vs `.c`
+/// (C). Computed identically wherever the pipeline classifies a `.h` (extract,
+/// calibrate, check) so the stages stay in lock-step.
+pub fn header_is_cpp(source_dir: &Path) -> bool {
+    fn walk(dir: &Path, root: &Path, c: &mut usize, cpp: &mut usize) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            match entry.file_type() {
+                Ok(t) if t.is_dir() => {
+                    let name = basename(&path);
+                    // Speed prune: never any authored voice in these; the
+                    // per-file `is_excluded_path` below is the correctness gate.
+                    if matches!(name.as_str(), ".git" | "node_modules" | "target" | "vendor") {
+                        continue;
+                    }
+                    walk(&path, root, c, cpp);
+                }
+                Ok(t) if t.is_file() => {
+                    if is_excluded_path(&path, root) {
+                        continue;
+                    }
+                    let name = basename(&path);
+                    if name.ends_with(".c") {
+                        *c += 1;
+                    } else if name.ends_with(".cpp")
+                        || name.ends_with(".cc")
+                        || name.ends_with(".cxx")
+                    {
+                        *cpp += 1;
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    let (mut c, mut cpp) = (0usize, 0usize);
+    walk(source_dir, source_dir, &mut c, &mut cpp);
+    cpp > c
+}
+
+/// [`language_for_filename`], but resolving the C/C++ `.h` ambiguity with a
+/// repo-level `header_is_cpp` decision so all stages agree.
+pub fn language_for_filename_ctx(name: &str, header_is_cpp: bool) -> Option<Language> {
+    match (language_for_filename(name), header_is_cpp) {
+        (Some(Language::C), true) if name.ends_with(".h") => Some(Language::Cpp),
+        (other, _) => other,
+    }
+}
+
 /// A calibration candidate: hunk text + originating file path + file source.
 /// Line bounds are 1-indexed inclusive within `file_source` and back the
 /// parse-error host fallback for callee extraction.
@@ -198,20 +254,24 @@ pub fn collect_candidates_with(
     adapter: &dyn LanguageAdapter,
     path_suppressions: &PathSuppressions,
 ) -> Vec<Candidate> {
-    let exts: &[&str] = match adapter.language() {
-        Language::Python => &[".py"],
-        Language::Typescript => &[".ts", ".tsx"],
-        Language::Go => &[".go"],
-        Language::Rust => &[".rs"],
-        Language::C => &[".c", ".h"],
-        Language::Java => &[".java"],
-        Language::CSharp => &[".cs"],
-        Language::Php => &[".php"],
-        Language::Cpp => &[".cpp", ".cc", ".hpp", ".cxx"],
-        Language::Ruby => &[".rb"],
+    // `.h` routes to whichever of C / C++ this repo predominantly is, so a
+    // header-only C++ library's headers calibrate under the C++ model, not C.
+    let exts: Vec<&str> = match adapter.language() {
+        Language::Python => vec![".py"],
+        Language::Typescript => vec![".ts", ".tsx"],
+        Language::Go => vec![".go"],
+        Language::Rust => vec![".rs"],
+        Language::C if header_is_cpp(source_dir) => vec![".c"],
+        Language::C => vec![".c", ".h"],
+        Language::Java => vec![".java"],
+        Language::CSharp => vec![".cs"],
+        Language::Php => vec![".php"],
+        Language::Cpp if header_is_cpp(source_dir) => vec![".cpp", ".cc", ".hpp", ".cxx", ".h"],
+        Language::Cpp => vec![".cpp", ".cc", ".hpp", ".cxx"],
+        Language::Ruby => vec![".rb"],
     };
     let mut out = Vec::new();
-    for ext in exts {
+    for &ext in &exts {
         for src_file in rglob_sorted(source_dir, ext) {
             if path_suppressions.is_suppressed_abs(&src_file, source_dir) {
                 continue;
@@ -864,10 +924,11 @@ pub fn run_calibrate(
         bail!("empty repo corpus");
     }
 
-    // Partition corpus by language.
+    // Partition corpus by language (routing `.h` per the repo's C/C++ majority).
+    let header_cpp = header_is_cpp(repo_dir);
     let mut by_lang: BTreeMap<&'static str, (Language, Vec<PathBuf>)> = BTreeMap::new();
     for f in &corpus_files {
-        if let Some(lang) = language_for_filename(&basename(f)) {
+        if let Some(lang) = language_for_filename_ctx(&basename(f), header_cpp) {
             by_lang
                 .entry(language_name(lang))
                 .or_insert_with(|| (lang, Vec::new()))
@@ -1315,8 +1376,47 @@ fn extract_identifiers(src: &str) -> Vec<String> {
 }
 
 #[cfg(test)]
-mod slice_tests {
+mod tests {
     use super::*;
+
+    #[test]
+    fn language_for_filename_ctx_resolves_dot_h_by_repo_majority() {
+        // `.h` follows the repo decision; nothing else moves.
+        assert_eq!(language_for_filename_ctx("x.h", true), Some(Language::Cpp));
+        assert_eq!(language_for_filename_ctx("x.h", false), Some(Language::C));
+        assert_eq!(language_for_filename_ctx("x.c", true), Some(Language::C));
+        assert_eq!(
+            language_for_filename_ctx("x.cpp", false),
+            Some(Language::Cpp)
+        );
+        assert_eq!(
+            language_for_filename_ctx("x.py", true),
+            Some(Language::Python)
+        );
+    }
+
+    #[test]
+    fn header_is_cpp_follows_translation_unit_majority() {
+        let base = std::env::temp_dir().join(format!("argot_hdr_{}", std::process::id()));
+
+        // C++-majority: more .cc than .c → headers are C++.
+        let cpp_repo = base.join("cpp");
+        std::fs::create_dir_all(&cpp_repo).unwrap();
+        for f in ["a.cc", "b.cc", "core.h", "util.c"] {
+            std::fs::write(cpp_repo.join(f), "x\n").unwrap();
+        }
+        assert!(header_is_cpp(&cpp_repo), "2 .cc vs 1 .c → C++");
+
+        // C-majority: more .c than C++ TUs → headers are C.
+        let c_repo = base.join("c");
+        std::fs::create_dir_all(&c_repo).unwrap();
+        for f in ["a.c", "b.c", "c.c", "net.h"] {
+            std::fs::write(c_repo.join(f), "x\n").unwrap();
+        }
+        assert!(!header_is_cpp(&c_repo), "3 .c vs 0 C++ TU → C");
+
+        let _ = std::fs::remove_dir_all(&base);
+    }
 
     #[test]
     fn slice_matches_by_prefix_and_exact_file() {

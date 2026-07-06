@@ -226,6 +226,17 @@ pub fn ext_to_lang(ext: &str) -> Option<&'static str> {
     EXT_TO_LANG.iter().find(|(e, _)| *e == ext).map(|(_, l)| *l)
 }
 
+/// [`ext_to_lang`], resolving the `.h` C/C++ ambiguity with the repo-level
+/// `header_is_cpp` decision (translation-unit majority) so check routes a
+/// header to the same model calibrate built it into. All other extensions are
+/// unchanged.
+pub fn ext_to_lang_ctx(ext: &str, header_is_cpp: bool) -> Option<&'static str> {
+    if header_is_cpp && ext == ".h" {
+        return Some("cpp");
+    }
+    ext_to_lang(ext)
+}
+
 fn adapter_for_language(lang: &str) -> Option<Box<dyn LanguageAdapter>> {
     match lang {
         "python" => Some(Box::new(PythonAdapter::new())),
@@ -972,6 +983,7 @@ fn score_patches(
     new_file_thresholds: &HashMap<String, f64>,
     fit_corpus_files: &HashSet<String>,
     yaml_rules: &[SuppressionRule],
+    header_cpp: bool,
     stderr: &mut String,
 ) -> (Vec<Hit>, usize, Vec<FileScan>) {
     let mut hits: Vec<Hit> = Vec::new();
@@ -987,7 +999,7 @@ fn score_patches(
 
     for batch in patches {
         let ext = extension(&batch.file_path);
-        let scorer = match ext_to_lang(&ext).and_then(|l| scorers.get_mut(l)) {
+        let scorer = match ext_to_lang_ctx(&ext, header_cpp).and_then(|l| scorers.get_mut(l)) {
             Some(s) => s,
             None => {
                 stderr.push_str(&format!(
@@ -1694,6 +1706,9 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         }
     }
 
+    // `.h` routes to the same C/C++ model calibrate built it into (repo's
+    // translation-unit majority) — computed once from the working tree.
+    let header_cpp = crate::scoring::calibration::header_is_cpp(Path::new(&args.repo_path));
     let (hits, hunk_count, files_scanned) = score_patches(
         filtered,
         &mut scorers,
@@ -1702,6 +1717,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         &new_file_thresholds,
         &fit_corpus_files,
         &yaml.active,
+        header_cpp,
         &mut stderr,
     );
 
