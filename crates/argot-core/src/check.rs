@@ -262,15 +262,33 @@ fn sev_index(s: &str) -> usize {
     SEVERITY_ORDER.iter().position(|x| *x == s).unwrap_or(0)
 }
 
-/// Classify a score into a severity tier relative to a calibrated threshold
-/// (`_severity`).
-fn severity(score: f64, threshold: f64) -> &'static str {
-    if score >= threshold + 1.5 {
-        "foreign"
-    } else if score >= threshold + 0.5 {
-        "suspicious"
-    } else {
-        "unusual"
+/// Classify a hit into a severity tier.
+///
+/// Severity expresses the *strength of the evidence that a hunk is foreign*,
+/// derived per signal-kind — not one margin rule for every reason:
+///
+/// * **Categorical foreign signals** are `foreign` by nature. A foreign import
+///   is a dependency the repo has never used (0-usage at the fit SHA) — the
+///   top-tier signal, and the one argot catches most reliably. Its score is a
+///   *count* of never-before-seen modules against a threshold of 1.0, so the
+///   additive margins below (calibrated for the BPE nat scale) would misfile a
+///   lone foreign import as `unusual` — the weakest tier — even though it *is*
+///   the definition of `foreign`.
+/// * **Distributional signals** (BPE surprise, convention rarity, unfamiliar
+///   callee) grade by margin above the calibrated threshold: the margin there
+///   genuinely measures how far outside the repo's voice the hunk sits.
+fn severity(reason: &str, score: f64, threshold: f64) -> &'static str {
+    match reason {
+        "import" => "foreign",
+        _ => {
+            if score >= threshold + 1.5 {
+                "foreign"
+            } else if score >= threshold + 0.5 {
+                "suspicious"
+            } else {
+                "unusual"
+            }
+        }
     }
 }
 
@@ -1166,7 +1184,9 @@ fn render_results(
     // Banner tier counts use the per-hit calibrated threshold.
     let mut counts: HashMap<&str, usize> = HashMap::new();
     for h in hits {
-        *counts.entry(severity(h.score, h.threshold)).or_insert(0) += 1;
+        *counts
+            .entry(severity(&h.reason, h.score, h.threshold))
+            .or_insert(0) += 1;
     }
     let total = hits.len();
     let mut tier_parts: Vec<String> = Vec::new();
@@ -1225,7 +1245,7 @@ fn render_results(
         fhits.sort_by_key(|h| h.line); // stable by line asc
 
         for h in &fhits {
-            let sev = severity(h.score, h.threshold);
+            let sev = severity(&h.reason, h.score, h.threshold);
             let color = severity_color(sev);
             let line_str = if h.line == h.line_end {
                 format!("L{}", h.line)
@@ -1308,7 +1328,7 @@ fn hit_records(hits: &[&Hit]) -> Vec<HitRecord> {
             line_end: h.line_end,
             score: h.score,
             threshold: h.threshold,
-            severity: severity(h.score, h.threshold).to_string(),
+            severity: severity(&h.reason, h.score, h.threshold).to_string(),
             reason: h.reason.clone(),
             reason_label: reason_label(&h.reason).to_string(),
             source: h.source.clone(),
@@ -1641,7 +1661,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         .copied()
         .filter(|h| {
             let t = threshold_override.unwrap_or(h.threshold);
-            sev_index(severity(h.score, t)) >= min_idx
+            sev_index(severity(&h.reason, h.score, t)) >= min_idx
         })
         .collect();
 
@@ -1899,6 +1919,28 @@ fn firing_hashes_for_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn foreign_import_tiers_as_foreign_regardless_of_margin() {
+        // The import signal is categorical: score is a count of never-before-seen
+        // modules against a threshold of 1.0, so a lone foreign import sits exactly
+        // at the bar. It must still read as `foreign` — the strongest tier — not
+        // fall through the BPE-margin logic into `unusual`.
+        assert_eq!(severity("import", 1.0, 1.0), "foreign");
+        assert_eq!(severity("import", 3.0, 1.0), "foreign");
+    }
+
+    #[test]
+    fn distributional_signals_grade_by_margin() {
+        // BPE / convention / call_receiver keep the additive-margin tiering, which
+        // is calibrated for their nat-scale scores.
+        let t = 8.0;
+        assert_eq!(severity("bpe", t, t), "unusual");
+        assert_eq!(severity("bpe", t + 0.5, t), "suspicious");
+        assert_eq!(severity("bpe", t + 1.5, t), "foreign");
+        assert_eq!(severity("call_receiver", t + 0.4, t), "unusual");
+        assert_eq!(severity("convention", t + 1.6, t), "foreign");
+    }
 
     fn commit_all(repo: &git2::Repository, msg: &str) -> git2::Oid {
         let mut index = repo.index().unwrap();
