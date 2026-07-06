@@ -27,30 +27,30 @@ const en: SiteContent = {
     label: 'The second question',
     title: 'Type checkers ask if it compiles. argot asks if it’s yours.',
     body: 'Linters and type checkers answer “is this valid?” They can’t answer “is this how this team writes things?” That used to live in code review — until an LLM could bury it under a hundred clean, type-correct PRs in an afternoon. [[argot is the layer that asks it back.]]',
-    codeTitle: 'routers/users.py',
+    codeTitle: 'routers/receipts.py',
     caption:
-      'Decorators, Depends, the typed return — all idiomatic FastAPI. The one break is a bare ValueError where this repo always raises HTTPException. mypy is happy. The linter has nothing. [[argot flags the line.]]',
+      'Every other endpoint in this repo is a typed FastAPI function with Depends. This one is a Django class-based view — View, JsonResponse, HttpResponseNotFound. Valid Python; mypy and ruff are happy. No linter knows this repo never writes Django. [[argot flags the foreign paradigm.]]',
   },
   catches: {
     label: 'What it catches',
-    title: 'Technically fine. Socially wrong.',
-    body: 'argot does not replace ESLint, ruff, or your type checker. It catches the things they can’t articulate — the patterns your team agreed on [[by repetition]], never by writing them down.',
+    title: 'Technically fine. Socially foreign.',
+    body: 'argot does not replace ESLint, ruff, or your type checker. It catches what they can’t articulate: a dependency, API, or whole paradigm [[the repo has never used]] — the code an agent reaches for when it doesn’t know your stack. And it’s honest about the one line it won’t cross.',
     items: [
       {
-        title: 'LLM paste-through',
-        desc: 'A block whose style diverges sharply from the surrounding file — fluent in the average voice of every public repo, not yours.',
-      },
-      {
         title: 'A foreign dependency',
-        desc: 'An import — a package, module, or header — the repo has never used. The signal argot is built for, and the one it catches most reliably.',
+        desc: 'An import — a package, module, or header — the repo has never used. The clearest signal, and the one argot catches most reliably.',
       },
       {
         title: 'A foreign API',
-        desc: 'A call into a library the codebase standardises away from — a different HTTP client, ORM, or logger than the rest of the repo reaches for.',
+        desc: 'A call into a library the codebase standardises away from — a different HTTP client, ORM, or serializer than the rest of the repo reaches for. The tell is the call, not just the import.',
       },
       {
-        title: 'Stylistic outlier',
-        desc: 'Code that’s correct, typed, and lint-clean — but doesn’t sound like anyone on this team wrote it.',
+        title: 'A foreign paradigm',
+        desc: 'A whole idiom from another framework — a Django-style class view, a Flask route, hand-rolled validation — dropped into a codebase that has never written that way.',
+      },
+      {
+        title: 'The line it won’t cross',
+        desc: 'A wrong exception or value where [[every token is already yours]] — a choice, not a foreign pattern. argot surfaces these only sometimes, never gates on them, and tells you so.',
       },
     ],
   },

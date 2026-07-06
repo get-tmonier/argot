@@ -53,35 +53,36 @@ trained on — this is the layer your CI is missing.
 ## Demo
 
 <p align="center">
-  <img src="docs/demo/demo.gif" alt="argot check flagging an out-of-voice hunk" width="760" />
+  <img src="docs/demo/demo.gif" alt="argot check flagging a foreign Django-style view in an all-FastAPI codebase" width="760" />
 </p>
 
-`argot check` groups hits by file, colors them by severity, and points a `↳`
-evidence line at the exact tokens carrying the score:
+Above: a PR adds a **Django-style class view** to a codebase that is entirely
+FastAPI. It's valid Python — mypy and ruff are silent — but the whole paradigm is
+foreign. `argot check` groups hits by file, colors them by severity, and points a
+`↳` evidence line at the exact callees carrying the score:
 
 ```
 argot check · 1 hunk above threshold (1 foreign)
 note: argot is a probabilistic style linter — verify before action.
 
-fastapi/receipts.py
-  !  L1-L16          6.23  foreign  · staged · rare token sequence (bpe) [e500a345aa43]
-     ↳ get_receipt (0×), ValueError (17×), resp (0×)
-  1 | import httpx
-  2 | 
-  3 | from fastapi import APIRouter, Depends
-  4 | 
-  5 | router = APIRouter()
-  6 | 
-      (+10 more lines)
+fastapi/params.py
+  !  L752-L763      10.28  foreign  · staged · unfamiliar callee (call_receiver) [43dc0fbe8401]
+     ↳ self.repo.find, HttpResponseNotFound, JsonResponse (+1 more) — 0 of 202 callees in this cluster
+       common here: FastAPI (73×), app.get (48×), app.post (32×) (+7 more)
+  ...
+  757 | # A Django-style view dropped into an all-FastAPI codebase
+  758 | class ReceiptView(View):
+  759 |     def get(self, request, user_id):
+        (+6 more lines)
 
 tip: pass --verbose (-v) to expand truncated hunks.
 ```
 
 The glyph encodes severity (`!` foreign · `?` suspicious · `.` unusual), the
-trailing `[hash]` is a stable id you can `argot mute`, and the `↳` line names
-the surprising identifiers with their repo-wide attestation counts —
-`ValueError (17×)` appears elsewhere, `resp (0×)` never does; the flag is about
-the *combination*, not the words.
+trailing `[hash]` is a stable id you can `argot mute`, and the `↳` line names the
+foreign callees with the repo's own vocabulary beside them — this codebase reaches
+for `app.get`/`app.post`, and has never called `JsonResponse` or
+`HttpResponseNotFound`. The flag is the *paradigm*, not any single word.
 
 ## Install
 
@@ -142,28 +143,34 @@ accept it with an audit trail — `argot mute <hash> --reason "…"` — or an i
 ## What it catches
 
 It does *not* replace ESLint, ruff, or type checkers — it catches what they
-can't: code that's **technically fine but socially wrong** for this project. Each
-example below is valid, fully typed, lint-clean, and passes `mypy strict`; every
-other tool in your CI is silent on it. (Real fixtures from the FastAPI catalog.
-argot's headline catch is a **foreign dependency or API** — 99% when it's visible
-in the code, see the [benchmarks](#benchmarks) below; the subtler in-vocabulary
-breaks shown here it surfaces without gating on.)
+can't: code that's **valid, typed, and lint-clean but foreign to this project**.
+argot is built for one shape — a **novel pattern** the repo has never used — and
+catches **522 of 527 (99%)** when the foreign symbol is visible in the code (the
+honest, leak-free bench; see [benchmarks](#benchmarks)). Three shapes it flags,
+each a real result from the shipped binary on the FastAPI catalog:
 
 ```python
-# 1. Wrong exception type — the raise line is the only break.
-#    The FastAPI corpus raises HTTPException(status_code=...), never bare ValueError.
-raise ValueError(f"User {user_id} not found")            # propagates as 500, not 404
+# 1. A foreign dependency — the import stage flags a module the repo never uses.
+import requests                    # this codebase standardises on httpx →  ! foreign · requests
 
-# 2. Structural shape, not vocabulary — every token exists in the corpus,
-#    but it uses response.raise_for_status(), not a manual status branch.
-if response.status_code >= 400:
-    raise HTTPException(status_code=response.status_code, detail=response.text)
+# 2. A foreign API — the call-receiver stage flags a call the corpus never attests.
+_audit.insert_one({"user": user_id})   # a Mongo call in a SQLAlchemy repo →  ? suspicious · call_receiver
 
-# 3. Wrong concurrency model — sync def + blocking I/O, structurally absent
-#    from an async codebase where every endpoint is `async def ... await`.
-def list_users() -> list[dict[str, Any]]:
-    return httpx.get(f"{UPSTREAM_URL}/v1/users").json()
+# 3. A foreign paradigm — a whole idiom from another framework.
+class ReceiptView(View):           # a Django class-view in an all-FastAPI repo
+    def get(self, request, user_id):
+        return JsonResponse(...)    # →  ! foreign · call_receiver: JsonResponse, HttpResponseNotFound
 ```
+
+**The line argot won't cross.** When a break reuses *only* vocabulary the repo
+already has — a bare `ValueError` where it usually raises `HTTPException`, a manual
+`if status_code >= 400` instead of `raise_for_status()` — every token is
+corpus-present and the mistake is a *choice*, not a foreign pattern. argot usually
+**does not** flag these and its numbers never gate on them: separating them from
+in-voice code drives false alarms (the recovery investigation measured +1 recall
+for +45 FP). It catches the danger an agent actually poses — a whole foreign
+pattern — not subtle misuse of your own vocabulary. Full, verified breakdown:
+[what it catches](https://argot.tmonier.com/docs/what-it-catches/).
 
 ### argot vs. the tools you already run
 

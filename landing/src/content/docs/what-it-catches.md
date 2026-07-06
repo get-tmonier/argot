@@ -1,103 +1,132 @@
 ---
 title: What it catches
-description: The dependable catch — a foreign dependency or API — plus the harder in-vocabulary breaks, all valid, typed, and lint-clean.
+description: The dependable catches — a foreign dependency, API, or whole paradigm the repo has never used — and an honest account of the in-vocabulary breaks it does not reliably catch.
 group: Guide
 order: 7
 ---
 
-argot catches code that is *technically fine but socially wrong* for this project. The shapes it sees,
-strongest first:
+argot catches code that is *technically fine but foreign to this project* — valid, typed, and
+lint-clean, but not how this codebase writes things. It is built for one shape above all: a **novel
+pattern**, a dependency or API or paradigm the repo has never reached for. That is the class an AI
+agent trips most, and the class the published numbers gate on.
 
-| Signal | What it means | How reliably |
-|---|---|---|
-| **Foreign dependency** | An import — package, module, header — the repo has never used | **99% visible** |
-| **Foreign API** | A call into a library the codebase standardises away from | **99% visible** |
-| **LLM paste-through** | A block whose token distribution diverges sharply from the file | secondary |
-| **Stylistic outlier** | Correct code that doesn't sound like anyone on this team wrote it | secondary |
+Everything below is a real result from the shipped binary on the FastAPI benchmark (`argot check` on a
+planted hunk, fit on the repo's own history). Where argot flags a line, the transcript is quoted
+verbatim. Where it doesn't, that's said plainly.
 
-The dependable catch is the first two — a *novel pattern*, a dependency or API the repo has never
-reached for. That is what argot is built for: across 635 fixtures in 10 languages, when the foreign
-symbol is visible in the code (an explicit import, a fully-qualified call, a distinct API name) it
-catches **522 of 527 (99%)** on the honest, leak-free bench.
+## The dependable catches
 
-## 1. A foreign dependency (the dependable catch)
+Across 635 fixtures in 10 languages, when the foreign symbol is visible in the code — an explicit
+import, a fully-qualified call, a distinct API name — argot catches **522 of 527 (99%)** on the
+honest, leak-free bench. Three shapes, strongest first.
+
+### 1. A foreign dependency
 
 ```python
-# flagged — import stage: a package this repo has never used
-import requests  # this codebase standardises on httpx + its own HTTPClient
-
-async def notify(url: str, payload: dict) -> None:
-    requests.post(url, json=payload)  # foreign HTTP client + a blocking call
+# an agent adds an outbound call — with the HTTP client it reflexively reaches for
+import requests                          # this codebase standardises on httpx
 ```
 
-Nothing here is a syntax error and `requests` is a perfectly good library — it's just *foreign to this
-repo*, which has never imported it. The import stage flags the new top-level module directly; the
-call-receiver stage flags `requests.post` as a callee the corpus never attests. This is the class the
-published numbers gate on, and the one an AI agent trips most: reaching for a dependency the codebase
-doesn't use.
+```text
+! foreign · requests
+  ↳ 0 of 74 module specifiers in this repo
+  common here: fastapi (357×), pydantic (129×), typing (129×) …
+```
 
-The three below are the **harder** end — in-vocabulary breaks where every token already lives in the
-repo. **All are syntactically valid, fully typed, lint-clean, and pass mypy strict.** argot surfaces
-them, but this is *secondary coverage* — it does not catch them reliably and its numbers don't gate on
-them (see the caveat at the end).
+`requests` is a fine library — it's just *foreign to this repo*. The **import stage** flags the new
+top-level module directly. No linter flags it without a hand-maintained banned-imports list; argot
+learned "this repo's 74 imports are fastapi, pydantic, starlette… never requests" from git history and
+shows the receipts.
 
-## 2. Wrong exception type
+### 2. A foreign API
 
 ```python
-# flagged — ValueError instead of HTTPException
+# a call into a data layer the repo standardises away from
+from pymongo import MongoClient
+_audit = MongoClient("mongodb://localhost:27017")["app"]["audit"]
+
+def record_dependency_call(name: str, resolved: bool) -> None:
+    _audit.insert_one({"dependency": name, "resolved": resolved})
+```
+
+```text
+? suspicious · unfamiliar callee (call_receiver)
+  ↳ _audit.insert_one — 0 of 927 callees in this cluster
+```
+
+The tell here isn't only the import — it's the **call**. Even where the winning signal is the
+call-receiver stage flagging `_audit.insert_one` as a callee the corpus never attests, argot is reading
+*how you use* the library, not just what you imported. A dependency-allowlist watches `package.json`;
+it cannot watch method calls. argot does.
+
+### 3. A foreign paradigm  — *the one that sells it*
+
+An agent writes a handler as a **Django class-based view** in a repo that is entirely FastAPI:
+
+```python
+class ReceiptView(View):                 # FastAPI uses function endpoints + Depends()
+    def get(self, request, user_id):
+        receipt = self.repo.find(user_id)
+        if receipt is None:
+            return HttpResponseNotFound()
+        return JsonResponse(receipt.to_dict())
+```
+
+```text
+! foreign · unfamiliar callee (call_receiver)   [score 11.05]
+  ↳ JsonResponse, HttpResponseNotFound — 0 of 927 callees in this cluster
+```
+
+Every line is valid Python. mypy is happy. ruff is happy. There is no single "bad import" to ban — it's
+the **whole paradigm** that's foreign: `View` subclasses, `JsonResponse`, `HttpResponseNotFound`, the
+request-first signature. argot flags it because that entire vocabulary of callees is absent from a
+codebase built on typed function endpoints. **No linter, type checker, or dependency policy can encode
+"we don't write Django-style views here" — argot learns it.** This is the gap between *valid* and
+*ours*, and it is the class argot is built to close.
+
+## What argot does *not* reliably catch
+
+Honesty is a feature. When a break reuses **only vocabulary the repo already has** — every token,
+callee, and import is corpus-present, and the mistake is a *choice among familiar things* — argot
+usually **does not** flag it, and the published numbers deliberately **do not gate on it**.
+
+### Wrong exception type — *usually not caught*
+
+```python
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(user_id: int, db=Depends(get_db)) -> UserResponse:
     user = db.get(user_id)
     if user is None:
-        raise ValueError(f"User {user_id} not found")  # propagates as 500, not 404
+        raise ValueError(f"User {user_id} not found")   # repo raises HTTPException
     return user
 ```
 
-Decorators, `Depends`, `response_model`, the typed return — all idiomatic FastAPI. The break is one
-token sequence: a bare `ValueError` instead of `HTTPException(status_code=...)`. The type checker is
-happy. The linter has nothing. argot catches it because the FastAPI corpus's exception vocabulary is
-`HTTPException`, not Python's built-ins.
-
-## 3. Manual status check vs `raise_for_status()`
-
-```python
-# flagged — structural shape, not vocabulary
-@router.get("/users/{user_id}")
-async def proxy_get_user(user_id: int) -> dict[str, Any]:
-    response = _http_client.get(f"/v1/users/{user_id}")
-    if response.status_code >= 400:
-        raise HTTPException(status_code=response.status_code, detail=response.text)
-    return response.json()
+```text
+All hunks scored below calibrated thresholds — looks clean.
 ```
 
-**Every individual token here exists in the corpus** — `response.status_code`, `HTTPException`,
-`response.json()`. What's missing is the *branching shape*: this corpus uses
-`response.raise_for_status()` to propagate downstream errors, not a manual `if status_code >= 400`. No
-linter can encode that preference; argot picks it up because the distribution over short token
-windows captures the structural difference.
+`ValueError` and `HTTPException` are *both* in the repo's vocabulary; only the choice is wrong.
+Separating "wrong choice" from a legitimate `ValueError` elsewhere needs semantic reasoning a no-model,
+no-runtime binary doesn't have — and forcing it drives false alarms on the repo's own code (the
+recovery investigation measured **+1 recall for +45 false positives**, blowing the ≤0.98% budget). So
+argot leaves it. Same story for a **manual `if status_code >= 400` instead of `raise_for_status()`**,
+or a **sync `def` endpoint** in an async repo: structurally non-idiomatic, but built from entirely
+attested tokens — and verified clean on the bench.
 
-## 4. Sync blocking in an async codebase
+This is a deliberate scope line, recorded in
+[`docs/research/evidence/issue92-investigation-capstone.md`](https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/issue92-investigation-capstone.md):
+argot gates on the danger an LLM actually poses — dragging in a whole foreign pattern — not on subtle
+misuse of your own vocabulary.
 
-```python
-# flagged — sync def + blocking I/O on a hot path
-@router.get("/users")
-def list_users() -> list[dict[str, Any]]:
-    response = httpx.get(f"{UPSTREAM_URL}/v1/users")  # blocks the worker thread
-    return response.json()
-```
+## The one-line summary
 
-`@router.get`, the path, the return type — all idiomatic. The break is `def` instead of `async def`,
-paired with the sync `httpx.get(...)` instead of `await client.get(...)`. The type checker is happy.
-argot picks it up because sync endpoints with blocking I/O are structurally absent from the corpus —
-which is built around `async def` + `await`.
+| argot flags | argot usually does **not** flag |
+|---|---|
+| A dependency the repo has never imported | A wrong *value* on an attested construct |
+| A call into a library the repo standardises away from | A wrong exception type where both are attested |
+| A whole foreign paradigm (Django view, Flask route, manual validation) | A structural shape built from only-familiar tokens |
+| **Reliable — 99% when the foreign symbol is visible** | **Secondary — surfaced sometimes, never gated** |
 
----
-
-One honest caveat, restated: examples 2–4 are the **harder** end. argot's dependable catch is the
-**novel-pattern** class in example 1 — a foreign import, API, or concurrency library the repo has
-*never* used (**99%** when it's visible in the code). In-vocabulary structural breaks — where every
-token already lives in the repo — are **secondary coverage**: argot surfaces them, but doesn't catch
-them reliably. Treat a hit in that class as a prompt to look, not a guarantee.
-
-The thread through all of them: **the tokens are familiar; the combination isn't.** That's the gap
-between "valid" and "ours," and it's the gap argot is built to close.
+Treat a hit as a prompt to look, never a verdict. The thread through everything argot *does* catch:
+**the foreign symbol is right there in the change** — a new import, an unattested callee, a paradigm
+the repo has never spoken.

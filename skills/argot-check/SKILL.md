@@ -34,6 +34,21 @@ Run `argot inspect` and read the verdict. If it's **Marginal** or **Not
 recommended**, the model isn't well-calibrated on this repo — down-weight every
 hit accordingly and say so.
 
+## What a hit means — and what a clean run doesn't
+
+argot reliably flags one thing: a **novel pattern** foreign to this repo — a
+dependency it has never imported, an API it never calls, or a whole paradigm
+(a Django-style view in a FastAPI repo, a different HTTP client, hand-rolled
+validation) it never writes. When the foreign symbol is in the change, it catches
+~99% of these. Trust a `foreign` hit here.
+
+It does **not** reliably catch *in-vocabulary* breaks — where every token is
+already in the repo and only the choice is wrong (a bare `ValueError` where the
+repo raises `HTTPException`; a manual status check instead of `raise_for_status()`).
+So **a clean run means "no foreign pattern found," not "this matches every
+convention."** Don't present a clean argot result as a guarantee the code is
+idiomatic — it's silent on the subtle stuff by design.
+
 ## Decision tree (never block)
 
 For each hit in the JSON (`severity`, `reason`, `evidence`, `hash`):
