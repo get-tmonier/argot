@@ -1,5 +1,4 @@
 ---
-import CodeWindow from '#components/CodeWindow.astro';
 import { emphasize } from '#lib/text';
 import type { SiteContent } from '#i18n/types';
 
@@ -7,14 +6,6 @@ interface Props {
   content: SiteContent;
 }
 const { demo } = Astro.props.content;
-
-const code = `# a Django-style view added to an all-FastAPI codebase
-class ReceiptView(View):              # every other route here is @router.get + Depends
-    def get(self, request, user_id):
-        receipt = self.repo.find(user_id)
-        if receipt is None:
-            return HttpResponseNotFound()
-        return JsonResponse(receipt.to_dict())`;
 ---
 
 <section id="demo" class="snap-section relative flex min-h-svh items-center">
@@ -40,17 +31,23 @@ class ReceiptView(View):              # every other route here is @router.get + 
     </div>
 
     <div class="reveal flex flex-col gap-4" style="--reveal-delay: 120ms">
-      <CodeWindow code={code} lang="python" title={demo.codeTitle} />
       <img
         src="/demo.gif"
         width="1280"
-        height="760"
+        height="470"
         loading="lazy"
         decoding="async"
-        alt="argot check flagging an out-of-voice hunk, colored by severity"
+        alt="argot check flagging a foreign Django import in an all-FastAPI file, colored by severity"
         class="demo-gif"
       />
       <p class="text-center text-sm text-muted text-pretty" set:html={emphasize(demo.caption)} />
+      <a
+        href="/docs/real-world-scenarios/"
+        class="group inline-flex items-center justify-center gap-1.5 text-center text-sm font-medium text-ember transition-colors hover:text-ember-bright"
+      >
+        {demo.seeLive}
+        <span aria-hidden="true" class="transition-transform group-hover:translate-x-0.5">→</span>
+      </a>
     </div>
   </div>
 </section>

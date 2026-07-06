@@ -9,7 +9,6 @@ const fr: SiteContent = {
   nav: {
     demo: 'Démo',
     catches: 'Ce qu’il détecte',
-    local: 'Local',
     docs: 'Docs',
   },
   hero: {
@@ -26,10 +25,10 @@ const fr: SiteContent = {
   demo: {
     label: 'La deuxième question',
     title: 'Le type-checker demande si ça compile. argot demande si c’est le vôtre.',
-    body: 'Les linters et type-checkers répondent à « est-ce valide ? ». Ils ne savent pas répondre à « est-ce ainsi que cette équipe écrit ? ». Cela vivait dans la revue de code — jusqu’à ce qu’un LLM puisse l’enterrer sous cent PR propres et bien typées en une après-midi. [[argot est la couche qui repose la question.]]',
-    codeTitle: 'routers/receipts.py',
+    body: 'Les linters répondent à « est-ce valide ? » — jamais à « est-ce ainsi qu’on écrit ici ? ». Cela vivait en revue de code, jusqu’à ce qu’un LLM l’enterre sous cent PR propres et bien typées. [[argot repose la question.]]',
     caption:
-      'Chaque autre endpoint de ce dépôt est une fonction FastAPI typée avec Depends. Celui-ci est une vue-classe à la Django — View, JsonResponse, HttpResponseNotFound. Python valide ; mypy et ruff sont contents. Aucun linter ne sait que ce dépôt n’écrit jamais du Django. [[argot signale le paradigme étranger.]]',
+      'Une vue à la Django dans un dépôt 100 % FastAPI — un framework que ce code n’a jamais importé. mypy et ruff passent ; aucun linter ne bronche. [[argot le signale en ~150 ms.]]',
+    seeLive: 'Voyez-le sur de vrais dépôts — FastAPI, Saleor, Hono',
   },
   catches: {
     label: 'Ce qu’il détecte',
@@ -122,63 +121,6 @@ const fr: SiteContent = {
     body: 'Comme un contrôle de sécurité, argot décore chaque pull request d’un score visuel et des points chauds — [[consultatif par défaut]]. C’est intentionnel ? Un argot mute suffit à l’accepter, avec une trace d’audit. Le relecteur garde toujours le dernier mot.',
     caption:
       'Le même score atterrit dans le résumé Actions, un commentaire de PR épinglé, et l’onglet Security.',
-  },
-  local: {
-    label: 'Comment il reste honnête',
-    title: 'Deux tables de fréquence. Aucun réseau de neurones.',
-    body: 'argot construit deux distributions de tokens — une depuis votre dépôt, une depuis une référence open-source générique — et signale les passages bien plus probables sous la générique. [[C’est tout le modèle.]] Il se calibre sur CPU en secondes et embarque son seuil par dépôt.',
-    points: [
-      {
-        title: 'Rien ne quitte votre machine',
-        desc: 'Aucun GPU, aucun cloud, aucune télémétrie. Le modèle, ce sont deux tables de fréquence et un log-ratio max — calibré en secondes, scoré en millisecondes.',
-      },
-      {
-        title: 'Calibré par dépôt',
-        desc: 'Le seuil est fixé à partir de votre propre code : « normal » veut dire normal ici — pas la moyenne de tous les dépôts publics d’un modèle.',
-      },
-      {
-        title: 'Conscient du langage, pas verrouillé',
-        desc: 'Un tokenizer tree-sitter analyse les passages partiels et invalides. Python et TypeScript d’emblée ; les monorepos mixtes ont un seuil par langage.',
-      },
-      {
-        title: 'Des preuves, pas des impressions',
-        desc: 'Chaque signalement nomme les tokens qui ont porté le score, leur fréquence dans votre dépôt, et le vocabulaire habituel ici à la place.',
-      },
-    ],
-  },
-  features: {
-    label: 'Pourquoi argot',
-    title: 'Se lit comme un linter. Pense comme un relecteur.',
-    items: [
-      {
-        title: 'Un seul binaire Rust, rapide',
-        desc: 'Un binaire unique lié statiquement — ni Python, ni Node, aucun runtime à installer, aucun modèle à télécharger. [[extract 5× plus rapide, check ~23× plus rapide]] que le moteur précédent, démarrage instantané et résultats identiques au bit près.',
-      },
-      {
-        title: 'S’intègre à la CI',
-        desc: 'Tourne à chaque PR et publie un [[score de voix visuel]] — consultatif par défaut, jamais une porte de merge. Résumé de job, commentaire épinglé, et annotations SARIF.',
-      },
-      {
-        title: 'Incrémental, pas une réécriture',
-        desc: 'Pointez-le sur un dépôt, lancez [[argot init]] une fois, puis check à l’infini. Aucune annotation, aucune config pour démarrer.',
-      },
-      {
-        title: 'Preuves par passage',
-        desc: 'Chaque hit montre les tokens fautifs et leur attestation — startedAt (0×) vs use (88×) — et le vocabulaire habituel du dépôt à la place.',
-      },
-      {
-        title: 'Une sévérité réglable',
-        desc: 'unusual · suspicious · foreign, relatifs au seuil calibré. Filtrez le bruit avec [[--min-severity]].',
-      },
-      {
-        title: 'Calibration par langage',
-        desc: 'Un monorepo Python + TypeScript reçoit un seuil par langage, dispatché par extension. Aucune distribution n’écrase l’autre.',
-      },
-      {
-        title: 'Honnête sur lui-même',
-        desc: 'Des benchmarks publics, un journal de recherche de 35 docs, et un avertissement [[linter probabiliste]] imprimé à chaque run. Vérifiez avant d’agir.',
-      },
-    ],
   },
   cta: {
     title: 'Ajoutez la couche qui manque à votre CI.',

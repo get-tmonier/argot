@@ -57,32 +57,33 @@ trained on — this is the layer your CI is missing.
 </p>
 
 Above: a PR adds a **Django-style class view** to a codebase that is entirely
-FastAPI. It's valid Python — mypy and ruff are silent — but the whole paradigm is
-foreign. `argot check` groups hits by file, colors them by severity, and points a
-`↳` evidence line at the exact callees carrying the score:
+FastAPI. It's valid Python — mypy and ruff are silent — but the framework it
+reaches for is one this repo has never imported. `argot check` groups hits by
+file, colors them by severity, and points a `↳` evidence line at the exact token
+carrying the score:
 
 ```
 argot check · 1 hunk above threshold (1 foreign)
 note: argot is a probabilistic style linter — verify before action.
 
-fastapi/params.py
-  !  L752-L763      10.28  foreign  · staged · unfamiliar callee (call_receiver) [43dc0fbe8401]
-     ↳ self.repo.find, HttpResponseNotFound, JsonResponse (+1 more) — 0 of 202 callees in this cluster
-       common here: FastAPI (73×), app.get (48×), app.post (32×) (+7 more)
-  ...
-  757 | # A Django-style view dropped into an all-FastAPI codebase
-  758 | class ReceiptView(View):
-  759 |     def get(self, request, user_id):
-        (+6 more lines)
+fastapi/receipts.py
+  !  L1-L10         1.00  foreign  · staged · foreign import (import) [94a92c256ea1]
+     ↳ django (L1) — 0 of 74 module specifiers in repo
+       common here: fastapi (357×), pydantic (129×), typing (129×) (+7 more)
+  1 | from django.views import View
+             ^^^^^^
+  2 | from django.http import JsonResponse, HttpResponseNotFound
+        (+8 more lines)
 
 tip: pass --verbose (-v) to expand truncated hunks.
 ```
 
 The glyph encodes severity (`!` foreign · `?` suspicious · `.` unusual), the
 trailing `[hash]` is a stable id you can `argot mute`, and the `↳` line names the
-foreign callees with the repo's own vocabulary beside them — this codebase reaches
-for `app.get`/`app.post`, and has never called `JsonResponse` or
-`HttpResponseNotFound`. The flag is the *paradigm*, not any single word.
+foreign symbol with the repo's own vocabulary beside it — this codebase's 74
+imports are `fastapi`, `pydantic`, `starlette`…, and it has never reached for
+`django`. No linter flags a valid import of a real framework; argot does, because
+it learned your repo's has never used it.
 
 ## Install
 

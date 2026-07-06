@@ -28,24 +28,25 @@ if [ ! -d "$WORK/.git" ]; then
 fi
 
 echo "==> fitting argot on the checkout (once; seconds)"
-git -C "$WORK" checkout --quiet -- . 2>/dev/null || true
+# HARD reset — restore tracked files AND unstage the index, so a prior run's
+# planted hunk can never contaminate the fit (a staged Django view left in the
+# tree would be learned as in-voice, and the demo would read "clean").
+git -C "$WORK" reset --hard --quiet HEAD
 git -C "$WORK" clean -fdq -e .argot
 ( cd "$WORK" && "$ARGOT" extract >/dev/null && "$ARGOT" fit >/dev/null )
 
-echo "==> injecting the out-of-voice hunk into fastapi/params.py"
-# Append the Django-style view to an existing source file so the call-receiver
-# stage scores it against that file's cluster (a new standalone file gets its own
-# cluster and the paradigm's foreign callees don't stand out). Appending at EOF
-# keeps the flagged hunk to the injected block.
-{ echo ""; echo ""; cat "$HERE/receipts.py"; } >> "$WORK/fastapi/params.py"
-git -C "$WORK" add fastapi/params.py
+echo "==> planting the out-of-voice hunk (fastapi/receipts.py)"
+# A clean, standalone Django-style view. The foreign `django` import is a
+# categorical foreign-dependency hit (score 1.0), so it fires deterministically
+# regardless of how the BPE stage calibrates — the demo can never read clean.
+cp "$HERE/receipts.py" "$WORK/fastapi/receipts.py"
+git -C "$WORK" add fastapi/receipts.py
 
 echo "==> recording demo.gif"
 cp "$HERE/demo.tape" "$WORK/demo.tape"
 ( cd "$WORK" && PATH="$(dirname "$ARGOT"):$PATH" vhs demo.tape )
 mv "$WORK/demo.gif" "$HERE/demo.gif"
-git -C "$WORK" restore --staged fastapi/params.py 2>/dev/null || true
-git -C "$WORK" checkout -- fastapi/params.py 2>/dev/null || true
-rm -f "$WORK/demo.tape"
+git -C "$WORK" reset --hard --quiet HEAD 2>/dev/null || true
+git -C "$WORK" clean -fdq -e .argot 2>/dev/null || true
 
 echo "==> wrote $HERE/demo.gif"
