@@ -256,3 +256,12 @@ targets:
     language: php
     prs:
       - { pr: 0, sha: c6c9144f1b75918cab654e8a15d3dd74c7f4af8d }
+  # Held-out generalization corpus (added 2026-07-06, never used while tuning the
+  # scorer or authoring the other catalogs) — tests whether visible-foreign catch
+  # and ~0 over-fire generalize to an unseen repo/domain (web scraping / Twisted).
+  - name: scrapy
+    url: https://github.com/scrapy/scrapy
+    language: python
+    holdout_window: 250
+    prs:
+      - { pr: 0, sha: dd10cb8e9a982fe3d311078d6e1207596e272717 }

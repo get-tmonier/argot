@@ -1,0 +1,229 @@
+corpus: scrapy
+language: python
+categories:
+- foreign_import
+- foreign_api
+- foreign_concurrency
+injection_hosts:
+- pr: 0
+  sha: dd10cb8e9a982fe3d311078d6e1207596e272717
+fixtures:
+# --- foreign_import (8): easy 5, medium 3 ---
+- id: foreign_import_structlog_1
+  file: breaks/break_foreign_import_structlog.py
+  category: foreign_import
+  hunk_start_line: 6
+  hunk_end_line: 12
+  difficulty: easy
+  rationale: "import structlog + structlog.get_logger().bind().info() emit structured crawl logs, replacing scrapy's stdlib logging voice (logging.getLogger(__name__)) — structlog appears at 0 scrapy source sites at the pinned SHA (git grep sum = 0 over '*.py') and is absent from pyproject.toml. Bare foreign import is in-hunk; the import stage catches the 0-usage top-level module."
+  host_file: scrapy/utils/log.py
+  host_inject_at_line: 276
+- id: foreign_import_loguru_1
+  file: breaks/break_foreign_import_loguru.py
+  category: foreign_import
+  hunk_start_line: 5
+  hunk_end_line: 11
+  difficulty: easy
+  rationale: "from loguru import logger + logger.add/.opt configure loguru sinks, replacing scrapy's LogFormatter / stdlib logging — loguru appears at 0 scrapy source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Foreign import (top-level loguru) is in-hunk."
+  host_file: scrapy/logformatter.py
+  host_inject_at_line: 199
+- id: foreign_import_sqlalchemy_1
+  file: breaks/break_foreign_import_sqlalchemy.py
+  category: foreign_import
+  hunk_start_line: 5
+  hunk_end_line: 16
+  difficulty: easy
+  rationale: "import sqlalchemy + from sqlalchemy import create_engine, text persist scraped items to a SQL engine, bypassing scrapy's item pipelines/exporters — sqlalchemy appears at 0 scrapy source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Bare foreign import is in-hunk."
+  host_file: scrapy/pipelines/files.py
+  host_inject_at_line: 759
+- id: foreign_import_pydantic_1
+  file: breaks/break_foreign_import_pydantic.py
+  category: foreign_import
+  hunk_start_line: 5
+  hunk_end_line: 14
+  difficulty: easy
+  rationale: "import pydantic + pydantic.BaseModel/Field/model_validate validate config, replacing scrapy's Settings — pydantic appears at 0 scrapy source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Bare foreign import is in-hunk."
+  host_file: scrapy/settings/__init__.py
+  host_inject_at_line: 732
+- id: foreign_import_jwt_1
+  file: breaks/break_foreign_import_jwt.py
+  category: foreign_import
+  hunk_start_line: 5
+  hunk_end_line: 14
+  difficulty: easy
+  rationale: "import jwt (PyJWT) + jwt.encode/decode sign bearer tokens, replacing scrapy's HttpAuthMiddleware — PyJWT appears at 0 scrapy source sites at the pinned SHA (import jwt/from jwt git grep sum = 0) and is absent from pyproject.toml. Bare foreign import is in-hunk."
+  host_file: scrapy/downloadermiddlewares/httpauth.py
+  host_inject_at_line: 90
+- id: foreign_import_arrow_1
+  file: breaks/break_foreign_import_arrow.py
+  category: foreign_import
+  hunk_start_line: 5
+  hunk_end_line: 10
+  difficulty: medium
+  rationale: "import arrow as ar (ALIASED — the import stage does not capture aliased imports, only the dotted_name form) + ar.utcnow()/ar.shift() format timestamps, replacing stdlib datetime — arrow appears at 0 scrapy source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Catch must come from the call-receiver stage on the unattested ar.* namespace, not the import stage."
+  host_file: scrapy/extensions/logstats.py
+  host_inject_at_line: 102
+- id: foreign_import_prometheus_1
+  file: breaks/break_foreign_import_prometheus.py
+  category: foreign_import
+  hunk_start_line: 5
+  hunk_end_line: 13
+  difficulty: medium
+  rationale: "from prometheus_client import Counter, Histogram instrument crawl metrics, replacing scrapy's StatsCollector — prometheus_client appears at 0 scrapy source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Foreign from-import (top-level prometheus_client 0-usage) is in-hunk; the import stage keys on the top-level module."
+  host_file: scrapy/statscollectors.py
+  host_inject_at_line: 136
+- id: foreign_import_jsonschema_1
+  file: breaks/break_foreign_import_jsonschema.py
+  category: foreign_import
+  hunk_start_line: 11
+  hunk_end_line: 15
+  difficulty: medium
+  rationale: "from jsonschema import Draft7Validator (in the decoy region, OUTSIDE the scored hunk) + a bare Draft7Validator(...) callee and _validator.iter_errors() validate items inside the hunk — jsonschema appears at 0 scrapy source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Medium: the scored hunk references the foreign callee bare, with the import decoyed outside the hunk range, stressing callee resolution."
+  host_file: scrapy/item.py
+  host_inject_at_line: 157
+# --- foreign_api (9): easy 3, medium 3, hard 3 ---
+- id: foreign_api_redis_1
+  file: breaks/break_foreign_api_redis.py
+  category: foreign_api
+  hunk_start_line: 5
+  hunk_end_line: 14
+  difficulty: easy
+  rationale: "import redis + redis.Redis(...).get/.setex cache request fingerprints, bypassing RFPDupeFilter — redis appears at 0 scrapy source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Foreign import + qualified redis.* API are in-hunk; the call-receiver stage catches the unattested redis callees."
+  host_file: scrapy/dupefilters.py
+  host_inject_at_line: 140
+- id: foreign_api_pymongo_1
+  file: breaks/break_foreign_api_pymongo.py
+  category: foreign_api
+  hunk_start_line: 5
+  hunk_end_line: 11
+  difficulty: easy
+  rationale: "from pymongo import MongoClient + MongoClient(...)[...].insert_one store spider state in MongoDB, bypassing scrapy's SpiderState extension — pymongo appears at 0 scrapy source sites at the pinned SHA (git grep sum = 0; .insert_one 0 sites) and is absent from pyproject.toml. Foreign import + receiver-variable API are in-hunk."
+  host_file: scrapy/extensions/spiderstate.py
+  host_inject_at_line: 53
+- id: foreign_api_elasticsearch_1
+  file: breaks/break_foreign_api_elasticsearch.py
+  category: foreign_api
+  hunk_start_line: 5
+  hunk_end_line: 15
+  difficulty: easy
+  rationale: "from elasticsearch import Elasticsearch + _es.index/_es.search index items directly, bypassing scrapy's item exporters — elasticsearch appears at 0 scrapy source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Foreign import + qualified API are in-hunk."
+  host_file: scrapy/exporters.py
+  host_inject_at_line: 386
+- id: foreign_api_cachetools_1
+  file: breaks/break_foreign_api_cachetools.py
+  category: foreign_api
+  hunk_start_line: 9
+  hunk_end_line: 18
+  difficulty: medium
+  rationale: "from cachetools import TTLCache (in the decoy region, OUTSIDE the scored hunk) + a bare TTLCache(...) callee memoise robots.txt inside the hunk — cachetools appears at 0 scrapy source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Medium: the import is decoyed outside the hunk range; detection relies on the call-receiver stage resolving the bare unattested TTLCache callee (the _robots_cache.get leaf collides with scrapy's heavily-attested .get)."
+  host_file: scrapy/robotstxt.py
+  host_inject_at_line: 125
+- id: foreign_api_diskcache_1
+  file: breaks/break_foreign_api_diskcache.py
+  category: foreign_api
+  hunk_start_line: 5
+  hunk_end_line: 15
+  difficulty: medium
+  rationale: "from diskcache import Cache + a _store = Cache(...) receiver variable with .set/.get back the HTTP cache, bypassing scrapy's cache storages — diskcache appears at 0 scrapy source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Foreign import (top-level diskcache) fires the import stage; the receiver-variable API stresses callee resolution. In-hunk."
+  host_file: scrapy/extensions/httpcache.py
+  host_inject_at_line: 421
+- id: foreign_api_sentry_1
+  file: breaks/break_foreign_api_sentry.py
+  category: foreign_api
+  hunk_start_line: 5
+  hunk_end_line: 12
+  difficulty: medium
+  rationale: "import sentry_sdk as sentry (ALIASED — evades the import stage, which captures only the dotted_name import form) + sentry.init/set_context/capture_exception report scrape errors, replacing the stdlib logger — sentry_sdk appears at 0 scrapy source sites at the pinned SHA (git grep sum = 0; .capture_exception 0 sites) and is absent from pyproject.toml. Catch must come from the call-receiver stage on the unattested sentry.* namespace."
+  host_file: scrapy/core/scraper.py
+  host_inject_at_line: 544
+- id: foreign_api_psycopg2_1
+  file: breaks/break_foreign_api_psycopg2.py
+  category: foreign_api
+  hunk_start_line: 5
+  hunk_end_line: 15
+  difficulty: hard
+  rationale: "psycopg2 loaded through importlib.import_module('psycopg2') (importlib is attested, 18 sites) so NO static foreign import appears; the tells are _pg.connect and the leaf callees .cursor/.execute/.commit, whose names collide with scrapy's attested methods (.connect 92, .execute 1). psycopg2 appears at 0 scrapy source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. HARD: masked import + colliding leaf method names — genuinely may miss."
+  host_file: scrapy/extensions/postprocessing.py
+  host_inject_at_line: 168
+- id: foreign_api_cassandra_1
+  file: breaks/break_foreign_api_cassandra.py
+  category: foreign_api
+  hunk_start_line: 5
+  hunk_end_line: 14
+  difficulty: hard
+  rationale: "cassandra loaded through importlib.import_module('cassandra.cluster') + getattr(mod, 'Cluster') (importlib attested) so NO static foreign import appears; the tells are the Cluster(...)/.connect()/.execute() callees on a dynamically-loaded handle, whose leaves collide with scrapy's attested .connect (92) / .execute (1). cassandra appears at 0 scrapy source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. HARD: masked submodule import via importlib+getattr — genuinely may miss."
+  host_file: scrapy/extensions/feedexport.py
+  host_inject_at_line: 735
+- id: foreign_api_pymemcache_1
+  file: breaks/break_foreign_api_pymemcache.py
+  category: foreign_api
+  hunk_start_line: 5
+  hunk_end_line: 15
+  difficulty: hard
+  rationale: "import pymemcache as _mc (ALIASED — evades the import stage) + _mc.Client(...) then a _client receiver whose only reached leaves are .get/.set — both collide with scrapy's heavily-attested methods (.get 427, .set 79), so the call-receiver method-attested check short-circuits. pymemcache appears at 0 scrapy source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. HARD: aliased import + method-name collision — expected to MISS."
+  host_file: scrapy/extensions/memusage.py
+  host_inject_at_line: 175
+# --- foreign_concurrency (7): easy 2, medium 2, hard 3 ---
+- id: foreign_concurrency_celery_1
+  file: breaks/break_foreign_concurrency_celery.py
+  category: foreign_concurrency
+  hunk_start_line: 5
+  hunk_end_line: 17
+  difficulty: easy
+  rationale: "import celery + from celery import shared_task with @shared_task and .delay() offload image processing to a Celery worker, replacing scrapy's in-pipeline synchronous processing — celery appears at 0 scrapy source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Foreign concurrency import + actor API are in-hunk."
+  host_file: scrapy/pipelines/images.py
+  host_inject_at_line: 284
+- id: foreign_concurrency_dramatiq_1
+  file: breaks/break_foreign_concurrency_dramatiq.py
+  category: foreign_concurrency
+  hunk_start_line: 5
+  hunk_end_line: 14
+  difficulty: easy
+  rationale: "import dramatiq + @dramatiq.actor with .send() send report mail off the Twisted reactor, replacing scrapy's MailSender — dramatiq appears at 0 scrapy source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Foreign concurrency import + actor API are in-hunk."
+  host_file: scrapy/mail.py
+  host_inject_at_line: 244
+- id: foreign_concurrency_apscheduler_1
+  file: breaks/break_foreign_concurrency_apscheduler.py
+  category: foreign_concurrency
+  hunk_start_line: 5
+  hunk_end_line: 12
+  difficulty: medium
+  rationale: "from apscheduler.schedulers.background import BackgroundScheduler + scheduler.add_job/.start run periodic recrawls, replacing scrapy's reactor-driven callbacks — apscheduler appears at 0 scrapy source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Deep-submodule import (top-level apscheduler 0-usage) fires the import stage; the scheduler receiver API stresses callee resolution. In-hunk."
+  host_file: scrapy/extensions/periodic_log.py
+  host_inject_at_line: 171
+- id: foreign_concurrency_kombu_1
+  file: breaks/break_foreign_concurrency_kombu.py
+  category: foreign_concurrency
+  hunk_start_line: 5
+  hunk_end_line: 12
+  difficulty: medium
+  rationale: "from kombu import Connection, Producer + a Producer receiver with .publish push requests to an AMQP broker, replacing scrapy's queuelib-backed scheduler queues — kombu appears at 0 scrapy source sites at the pinned SHA (git grep sum = 0; .publish 0 sites) and is absent from pyproject.toml. Foreign import fires the import stage; the receiver-variable publish API stresses callee resolution. In-hunk."
+  host_file: scrapy/core/scheduler.py
+  host_inject_at_line: 500
+- id: foreign_concurrency_gevent_1
+  file: breaks/break_foreign_concurrency_gevent.py
+  category: foreign_concurrency
+  hunk_start_line: 5
+  hunk_end_line: 13
+  difficulty: hard
+  rationale: "gevent loaded through importlib.import_module('gevent') (importlib attested) so NO static foreign import appears; the tells are _gevent.spawn/_gevent.joinall on a dynamically-loaded handle. gevent appears at 0 scrapy source sites at the pinned SHA (git grep sum = 0; .spawn/.joinall 0 sites) and is absent from pyproject.toml. HARD: masked import — a foreign greenlet runtime reached only through callees; detection relies on call-receiver resolving the unattested leaves."
+  host_file: scrapy/core/downloader/__init__.py
+  host_inject_at_line: 286
+- id: foreign_concurrency_eventlet_1
+  file: breaks/break_foreign_concurrency_eventlet.py
+  category: foreign_concurrency
+  hunk_start_line: 5
+  hunk_end_line: 12
+  difficulty: hard
+  rationale: "eventlet loaded through importlib.import_module('eventlet') (importlib attested) so NO static foreign import appears; the tells are _eventlet.GreenPool and pool.imap on a dynamically-loaded handle. eventlet appears at 0 scrapy source sites at the pinned SHA (git grep sum = 0; .GreenPool/.imap 0 sites) and is absent from pyproject.toml. HARD: masked import — a foreign green-thread runtime reached only through callees."
+  host_file: scrapy/core/engine.py
+  host_inject_at_line: 688
+- id: foreign_concurrency_trio_1
+  file: breaks/break_foreign_concurrency_trio.py
+  category: foreign_concurrency
+  hunk_start_line: 5
+  hunk_end_line: 11
+  difficulty: hard
+  rationale: "import trio as _trio (ALIASED — evades the import stage) drives an async crawl; the only reached foreign leaf is _trio.run, an attempted collision with scrapy's own .run (attested 29). trio appears at 0 scrapy source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. HARD: aliased import + method-name collision on the single reached leaf — genuinely may miss."
+  host_file: scrapy/crawler.py
+  host_inject_at_line: 356
