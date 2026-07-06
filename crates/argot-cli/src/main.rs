@@ -664,6 +664,25 @@ struct FitCmd {
     slice: Vec<String>,
 }
 
+/// Warn that a dirty working tree will be folded into the learned voice.
+/// argot calibrates from files as they are on disk, so uncommitted foreign
+/// code (an agent's just-written change, a vendored paste) would be laundered
+/// into "known-good" and never flagged. Advisory only — the fit still runs.
+fn warn_uncommitted(paths: &[String]) {
+    eprintln!(
+        "warning: {} uncommitted source change(s) will be learned as part of this repo's voice:",
+        paths.len()
+    );
+    for p in paths.iter().take(5) {
+        eprintln!("           {p}");
+    }
+    if paths.len() > 5 {
+        eprintln!("           … and {} more", paths.len() - 5);
+    }
+    eprintln!("         Commit or stash work in progress first — otherwise code you're about to");
+    eprintln!("         check gets baked into the baseline it's checked against.");
+}
+
 /// Train + calibrate the repo's voice model into `.argot/`, printing the
 /// two-step progress and protecting the (rebuildable, heavy) model dir from
 /// version control. Returns the scorer-config path on success. Shared by `fit`
@@ -675,6 +694,14 @@ fn fit_repo(repo: &Path, slices: &[String]) -> Result<PathBuf, ()> {
             "warning: could not protect {} from git: {e}",
             argot_dir.display()
         );
+    }
+    // argot fits from files as they are on disk. If the working tree is dirty,
+    // uncommitted code — e.g. an agent's just-written foreign change — would be
+    // folded into the learned voice and then read as familiar. Warn so the user
+    // commits/stashes first; never block (best-effort, advisory).
+    let dirty = argot_core::git_walk::uncommitted_source_paths(&repo.to_string_lossy());
+    if !dirty.is_empty() {
+        warn_uncommitted(&dirty);
     }
     let repo_corpus = argot_dir.join("repo-corpus.txt");
     let generic = argot_dir.join("generic-baseline.json");
@@ -846,21 +873,32 @@ fn render_suggestions_human(s: &IgnoreSuggestions) -> String {
 }
 
 /// Keep the rebuildable model directory — and the heavy `argot extract`
-/// dataset — out of version control. Writes a `.gitignore` that ignores the
-/// whole `.argot/` tree; never clobbers an existing one, so a user who wants to
-/// commit their model can delete it and stay in control.
+/// dataset — out of version control, while keeping the human-authored mute list
+/// (`suppressions.yaml`) tracked. Writes a `.gitignore` that ignores everything
+/// under `.argot/` **except** the mutes; never clobbers an existing one, so a
+/// user who wants to commit their model can delete it and stay in control.
 fn ensure_model_gitignored(argot_dir: &Path) -> std::io::Result<()> {
+    use argot_core::suppress::SUPPRESSIONS_FILE;
     fs::create_dir_all(argot_dir)?;
     let gitignore = argot_dir.join(".gitignore");
     if gitignore.exists() {
         return Ok(());
     }
+    // `suppressions.yaml` is not a build artifact: it's the record of hits a
+    // human deliberately accepted, with reasons. It must stay in git so a mute
+    // is a shared, reviewable audit trail — the same hit never comes back for a
+    // teammate or in CI (see the `argot mute` docs). The blanket `*` would
+    // otherwise swallow it, since it lives inside `.argot/`.
     fs::write(
         &gitignore,
-        "# argot writes a rebuildable voice model here — regenerate any time with `argot fit`.\n\
-         # The model and the heavy `argot extract` dataset are build artifacts, not source;\n\
-         # CI restores them from cache or re-fits. Delete this file to commit them yourself.\n\
-         *\n",
+        format!(
+            "# argot writes a rebuildable voice model here — regenerate any time with `argot fit`.\n\
+             # The model and the heavy `argot extract` dataset are build artifacts, not source;\n\
+             # CI restores them from cache or re-fits. Delete this file to commit them yourself.\n\
+             *\n\
+             # …but keep the mute list tracked — it's your shared audit trail of accepted hits.\n\
+             !{SUPPRESSIONS_FILE}\n"
+        ),
     )
 }
 
@@ -1316,6 +1354,10 @@ fn run_mute_cmd(c: MuteCmd) -> ExitCode {
                 expires
                     .map(|e| format!(" (expires {e})"))
                     .unwrap_or_default()
+            );
+            println!(
+                "  → commit .argot/{} to share this decision with your team and CI.",
+                argot_core::suppress::SUPPRESSIONS_FILE
             );
             ExitCode::SUCCESS
         }
@@ -1819,7 +1861,31 @@ fn main() -> ExitCode {
 
 #[cfg(test)]
 mod tests {
-    use super::{days_since_fit, is_npm_install, resolve_argot_dir, wants_json};
+    use super::{
+        days_since_fit, ensure_model_gitignored, is_npm_install, resolve_argot_dir, wants_json,
+    };
+
+    #[test]
+    fn model_gitignore_hides_the_model_but_keeps_the_mute_list_tracked() {
+        let dir = std::env::temp_dir().join(format!("argot_gitignore_test_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let argot_dir = dir.join(".argot");
+        ensure_model_gitignored(&argot_dir).expect("write .gitignore");
+        let body = std::fs::read_to_string(argot_dir.join(".gitignore")).unwrap();
+        // Rebuildable artifacts stay ignored (blanket `*`)…
+        let star = body.find("*\n").expect("blanket * ignore present");
+        // …but the human-authored mute list is re-included so it can be committed
+        // as the shared audit trail the docs promise. The `!` must come AFTER the
+        // blanket `*` (gitignore is last-match-wins) or it has no effect.
+        let unignore = body
+            .find("!suppressions.yaml")
+            .expect("mute list re-included");
+        assert!(
+            unignore > star,
+            "!suppressions.yaml must follow the blanket *"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn days_since_fit_counts_calendar_days() {
