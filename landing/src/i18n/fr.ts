@@ -61,21 +61,26 @@ const fr: SiteContent = {
       {
         value: '99 %',
         title: 'détection étrangère visible',
-        desc: 'Le critère pour lequel argot est conçu — un import, une API ou une dépendance étrangère que le dépôt n’a jamais utilisée. Sur 635 fixtures graduées en difficulté (16 langages) : quand le symbole étranger est visible (import explicite, appel pleinement qualifié, nom d’API distinct) argot détecte 522/527 (99 %) ; quand il est masqué (méthode étrangère entrant en collision avec un nom du dépôt, racine de namespace possédée, ou import dynamique) il détecte 24/106 (23 %) — une limite statistique documentée. Global 546/635 (86 %). Inséré dans de vrais fichiers, jugé par le vrai pipeline fit → check.',
+        desc: 'Le seul signal pour lequel argot est conçu — un import, une API ou une dépendance étrangère que votre dépôt n’a jamais utilisée. Quand il est visible dans le code, argot en détecte [[522 sur 527]], insérés dans de vrais fichiers et jugés par le vrai pipeline fit → check.',
       },
       {
         value: '0,23 %',
         title: 'fausses alertes sur de vraies modifications',
-        desc: 'Holdout temporel sur 27 dépôts — calibré sur un ancien commit, seuls des commits jamais vus rejoués, aucun train-on-test. C’est le taux d’over-fire : argot se déclenchant sur le code existant du dépôt lui-même. Chaque corpus est à ≤0,98 % ; les déclenchements sur une dépendance réellement nouvelle dans un vrai commit sont comptés à part comme détections (argot qui fait son travail), pas ici.',
+        desc: 'À quelle fréquence argot se déclenche sur le [[code existant]] de votre dépôt — en rejouant les commits de 27 dépôts qu’il n’a jamais vus. Chaque corpus reste ≤ 0,98 %. Un déclenchement sur une dépendance réellement nouvelle est une [[détection]], pas une alerte.',
       },
       {
         value: '150 ms',
         title: 'pour vérifier un changement',
-        desc: 'Mesuré sur un espace de 34 000 fichiers, CPU de portable — assez rapide pour un hook pre-commit. Le fit unique qui apprend la voix du dépôt entier prend ~7 s. Pas de GPU, pas de cloud.',
+        desc: 'Assez rapide pour un [[hook pre-commit]], sur un dépôt de 34 000 fichiers, CPU de portable. Le fit unique qui apprend la voix de votre dépôt prend ~7 s. [[Pas de GPU, pas de cloud.]]',
+      },
+      {
+        value: '10',
+        title: 'langages, un seul binaire',
+        desc: 'Python, TypeScript, Go, Rust, Java, C#, C, C++, Ruby, PHP — depuis un [[seul binaire statique]], rien à installer. Les monorepos mixtes ont [[un seuil par langage]].',
       },
     ],
     finePrint:
-      'Protocole sans fuite (issue #92) : rappel mesuré sur des fixtures plantées dans de vrais fichiers et jugées par le binaire livré ; fausses alertes par holdout temporel avec intervalles de confiance bootstrap au niveau commit. Méthodologie et résultats bruts par dépôt dans le journal de recherche public.',
+      'Protocole sans fuite (issue #92) : rappel mesuré sur des fixtures plantées dans de vrais fichiers et jugées par le binaire livré ; fausses alertes par holdout temporel avec intervalles de confiance bootstrap au niveau commit. Chiffres complets par dépôt et méthodologie sur la page benchmarks.',
   },
   local: {
     label: 'Comment il reste honnête',

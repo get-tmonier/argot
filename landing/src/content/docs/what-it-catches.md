@@ -10,14 +10,15 @@ strongest first:
 
 | Signal | What it means | How reliably |
 |---|---|---|
-| **Foreign dependency** | An import — package, module, header — the repo has never used | **gated · 98%** |
-| **Foreign API** | A call into a library the codebase standardises away from | **gated · 98%** |
+| **Foreign dependency** | An import — package, module, header — the repo has never used | **99% visible** |
+| **Foreign API** | A call into a library the codebase standardises away from | **99% visible** |
 | **LLM paste-through** | A block whose token distribution diverges sharply from the file | secondary |
 | **Stylistic outlier** | Correct code that doesn't sound like anyone on this team wrote it | secondary |
 
-The dependable, benchmark-**gated** catch is the first two — a *novel pattern*, a dependency or API
-the repo has never reached for. That is what argot is built for, and it lands **48 of 49 (98%)** on the
-honest, leak-free bench.
+The dependable catch is the first two — a *novel pattern*, a dependency or API the repo has never
+reached for. That is what argot is built for: across 635 fixtures in 10 languages, when the foreign
+symbol is visible in the code (an explicit import, a fully-qualified call, a distinct API name) it
+catches **522 of 527 (99%)** on the honest, leak-free bench.
 
 ## 1. A foreign dependency (the dependable catch)
 
@@ -92,12 +93,11 @@ which is built around `async def` + `await`.
 
 ---
 
-One honest caveat, restated: examples 2–4 are the **harder** end. argot's dependable, benchmark-gated
-catch is the **novel-pattern** class in example 1 — a foreign import, API, or concurrency library the
-repo has *never* used (**48 of 49 = 98%** on the honest, leak-free bench). In-vocabulary structural
-breaks — where every token already lives in the repo — are **secondary coverage**: argot surfaces
-them, but doesn't catch them reliably, and its published numbers don't gate on them. Treat a hit in
-that class as a prompt to look, not a guarantee (see [Limitations](/docs/limitations/)).
+One honest caveat, restated: examples 2–4 are the **harder** end. argot's dependable catch is the
+**novel-pattern** class in example 1 — a foreign import, API, or concurrency library the repo has
+*never* used (**99%** when it's visible in the code). In-vocabulary structural breaks — where every
+token already lives in the repo — are **secondary coverage**: argot surfaces them, but doesn't catch
+them reliably. Treat a hit in that class as a prompt to look, not a guarantee.
 
 The thread through all of them: **the tokens are familiar; the combination isn't.** That's the gap
 between "valid" and "ours," and it's the gap argot is built to close.

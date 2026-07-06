@@ -85,7 +85,7 @@ const hardPct = bd && bd.hard.total ? (100 * bd.hard.caught) / bd.hard.total : 0
 // Novel-pattern (foreign) catch for a corpus, or '—' when it has no break
 // catalog (an FP-only corpus, there only to measure false alarms).
 const catch_ = (c: Corpus) =>
-  c.foreign_caught != null && c.foreign_fixtures != null
+  typeof c.foreign_caught === 'number' && typeof c.foreign_fixtures === 'number'
     ? `${c.foreign_caught}/${c.foreign_fixtures} (${(c.foreign_recall_pct ?? 0).toFixed(0)}%)`
     : '—';
 const rate = (s: Fp | null | undefined) =>
@@ -107,35 +107,27 @@ const det = (s: Fp | null | undefined) =>
     </p>
     <ul class="mt-4 space-y-2 leading-relaxed text-ink-dim">
       <li>
-        <strong>Novel-pattern catch</strong> — of foreign patterns spliced into
-        real host files (a foreign import / API / dependency, verified 0-usage at
-        the pinned commit) and judged by the real
-        <code>argot fit</code> → <code>argot check</code> pipeline, what share
-        does argot flag? The fixtures are <strong>difficulty-graded</strong>:
-        <em>visible</em> foreign (an explicit import, a fully-qualified call, a
-        distinct API name) argot catches ~99%; <em>masked</em> foreign (a foreign
-        method whose name collides with one of your own, a namespace root your
-        repo owns, or a dynamic <code>import()</code>) is a documented
-        statistical limit — if the foreign code looks exactly like yours, a
-        voice model can't separate it. Higher is better.
+        <strong>Novel-pattern catch</strong> — foreign imports and APIs (verified
+        0-usage at the pinned commit) spliced into real files and judged by the
+        real <code>fit</code> → <code>check</code> pipeline. When the foreign
+        symbol is <em>visible</em> in the code, argot catches ~99%. <em>Masked</em>
+        foreign — a name that collides with one of your own, or a dynamic
+        <code>import()</code> — is a documented statistical limit. Higher is better.
       </li>
       <li>
         <strong>False alarm (over-fire)</strong> — a leak-free temporal holdout:
-        fit at an old commit, replay only commits argot never saw, and count how
-        often it fires on the repo's <em>own existing code</em>. That is the true
-        false-alarm rate — lower is better. Fires on a symbol <em>0-usage in the
-        repo</em> (a genuinely new dependency or API in a real commit) are argot
-        doing its job, so they are reported separately as
-        <em>detections</em>, not counted as false alarms.
+        fit at an old commit, replay only unseen commits, and count how often
+        argot fires on the repo's <em>own existing code</em>. Lower is better. A
+        fire on a genuinely new dependency is reported separately as a
+        <em>detection</em> — argot doing its job, not a false alarm.
       </li>
     </ul>
     <p class="mt-4 text-sm text-muted">
       Split existing-file vs new-file, with commit-level bootstrap 95% CIs.
-      Corpora with no break catalog show <code>—</code> for catch — they are
-      there only to measure false alarms. Numbers published before July 2026 were
-      measured train-on-test and were materially optimistic — see
+      Numbers published before July 2026 were measured train-on-test and were
+      materially optimistic — see
       <a class="underline" href="https://github.com/get-tmonier/argot/issues/92">issue #92</a>.
-      This page is fed from CI so the numbers can't drift from what ships.
+      Fed from CI, so the numbers can't drift from what ships.
     </p>
 
     {

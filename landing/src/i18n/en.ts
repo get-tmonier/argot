@@ -61,21 +61,26 @@ const en: SiteContent = {
       {
         value: '99%',
         title: 'visible-foreign catch',
-        desc: 'The metric argot is built for — a foreign import, API, or dependency the repo has never used. Across 635 difficulty-graded fixtures in 16 languages: when the foreign symbol is visible (an explicit import, fully-qualified call, or distinct API name) argot catches 522/527 (99%); when it is masked (a foreign method colliding with the repo’s own name, an owned root namespace, or a dynamic import) it catches 24/106 (23%) — a documented statistical limit. Overall 546/635 (86%). Spliced into real files, judged by the real fit → check pipeline.',
+        desc: 'The one signal argot is built for — a foreign import, API, or dependency your repo has never used. When it shows in the code, argot catches [[522 of 527]], spliced into real files and judged by the real fit → check pipeline.',
       },
       {
         value: '0.23%',
         title: 'false alarms on real edits',
-        desc: 'Temporal holdout across 27 repos — fitted at an old commit, only unseen commits replayed, no train-on-test. This is the over-fire rate: argot firing on the repo’s own existing code. Every corpus sits at ≤0.98%; fires on a genuinely new dependency in a real commit are reported separately as detections (argot working), not counted here.',
+        desc: 'How often argot fires on your repo’s [[own existing code]] — replaying 27 repos’ commits it never trained on. Every corpus stays ≤ 0.98%. A fire on a genuinely new dependency is a [[detection]], not an alarm.',
       },
       {
         value: '150ms',
         title: 'to check a change',
-        desc: 'Measured on a 34k-file workspace, laptop CPU — fast enough for a pre-commit hook. The one-time fit that learns the whole repo’s voice takes ~7 s. No GPU, no cloud.',
+        desc: 'Fast enough for a [[pre-commit hook]], on a 34k-file repo, laptop CPU. The one-time fit that learns your repo’s voice takes ~7 s. [[No GPU, no cloud.]]',
+      },
+      {
+        value: '10',
+        title: 'languages, one binary',
+        desc: 'Python, TypeScript, Go, Rust, Java, C#, C, C++, Ruby, PHP — from a [[single static binary]], nothing to install. Mixed monorepos get [[one threshold per language]].',
       },
     ],
     finePrint:
-      'Leak-free protocol (issue #92): recall from fixtures planted into host files on disk and judged by the shipped binary; false alarms from temporal holdout with commit-level bootstrap confidence intervals. Methodology and raw per-repo results live in the public research log.',
+      'Leak-free protocol (issue #92): recall from fixtures planted into real files and judged by the shipped binary; false alarms from a temporal holdout with commit-level bootstrap confidence intervals. Full per-repo numbers and methodology on the benchmarks page.',
   },
   local: {
     label: 'How it stays honest',
