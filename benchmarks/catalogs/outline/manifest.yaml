@@ -138,175 +138,175 @@ fixtures:
   difficulty: medium
   host_file: app/hooks/useAutoRefresh.ts
   host_inject_at_line: 37
-# --- #92 graded foreign fixtures (0-usage verified at 91fc3a8b: grep=0 in app/server/shared/plugins AND absent from package.json deps+devDeps) ---
+# --- #92 graded foreign fixtures (0-usage verified at 91fc3a8b: grep=0 in app/server/shared/plugins AND absent from package.json deps+devDeps; injected at each host's post-import boundary) ---
 - id: outline_foreign_import_dayjs
   file: breaks/break_dayjs.ts
   category: foreign_import
   hunk_start_line: 1
   hunk_end_line: 18
-  rationale: import dayjs + dayjs/plugin/relativeTime, then dayjs().fromNow()/format; dayjs 0 hits and not in package.json — outline dates go through date-fns. Import stage fires on the foreign module.
+  rationale: import dayjs + dayjs/plugin/relativeTime, then dayjs().fromNow()/format; dayjs 0 hits at 91fc3a8b and absent from package.json — outline formats dates with date-fns. Import stage fires on the foreign module.
   difficulty: easy
   host_file: app/stores/ViewsStore.ts
-  host_inject_at_line: 38
+  host_inject_at_line: 6
 - id: outline_foreign_import_nanoid
   file: breaks/break_nanoid.ts
   category: foreign_import
   hunk_start_line: 1
   hunk_end_line: 12
-  rationale: import { nanoid } + nanoid() id minting; nanoid 0 hits and not in package.json — outline mints ids with uuid v4. Import stage fires on the foreign module.
+  rationale: import { nanoid } + nanoid() id minting; nanoid 0 hits and absent from package.json — outline mints ids with uuid v4. Import stage fires on the foreign module.
   difficulty: easy
   host_file: app/stores/CommentsStore.ts
-  host_inject_at_line: 154
+  host_inject_at_line: 10
 - id: outline_foreign_import_classnames
   file: breaks/break_classnames.tsx
   category: foreign_import
   hunk_start_line: 1
   hunk_end_line: 19
-  rationale: import classNames + classNames() className composition; classnames 0 hits and not in package.json — outline styles with styled-components. Import stage fires on the foreign module.
+  rationale: import classNames + classNames() className composition; classnames 0 hits and absent from package.json — outline styles with styled-components. Foreign import + rare-token body fires.
   difficulty: easy
   host_file: app/components/CollectionBreadcrumb.tsx
-  host_inject_at_line: 39
+  host_inject_at_line: 11
 - id: outline_foreign_import_immer
   file: breaks/break_immer.ts
   category: foreign_import
   hunk_start_line: 1
   hunk_end_line: 14
-  rationale: import produce from immer + produce() immutable update; immer 0 hits and not in package.json — outline mutates MobX observables in place. Import stage fires on the foreign module.
+  rationale: import produce from immer + produce() immutable update; immer 0 hits and absent from package.json — outline mutates MobX observables in place. Import stage fires on the foreign module.
   difficulty: easy
   host_file: app/stores/SubscriptionsStore.ts
-  host_inject_at_line: 58
+  host_inject_at_line: 10
 - id: outline_foreign_import_yup
   file: breaks/break_yup.ts
   category: foreign_import
   hunk_start_line: 1
   hunk_end_line: 11
-  rationale: aliased import { object as yupObject, string as yupString } from yup + schema.validate(); yup 0 hits and not in package.json — outline validates with zod via the validate() middleware. Aliased import stresses callee resolution but the import stage still keys on the foreign module.
+  rationale: aliased import { object as yupObject, string as yupString } from yup + schema.validate(); yup 0 hits and absent from package.json — outline validates with zod via the validate() middleware. Aliased import stresses callee resolution; call-receiver resolves the foreign yup binding.
   difficulty: medium
   host_file: server/routes/api/accessRequests/accessRequests.ts
-  host_inject_at_line: 181
+  host_inject_at_line: 15
 - id: outline_foreign_api_luxon
   file: breaks/break_luxon.ts
   category: foreign_api
   hunk_start_line: 1
   hunk_end_line: 9
-  rationale: import { DateTime } from luxon + DateTime.fromISO().plus().toFormat(); luxon 0 hits and not in package.json — outline computes dates with date-fns. Import/call-receiver fires on the foreign API.
+  rationale: import { DateTime } from luxon + DateTime.fromISO().now().plus().toFormat(); luxon 0 hits and absent from package.json — outline computes dates with date-fns. Call-receiver fires on the foreign DateTime namespace.
   difficulty: easy
   host_file: app/utils/date.ts
-  host_inject_at_line: 116
+  host_inject_at_line: 16
 - id: outline_foreign_api_pino
   file: breaks/break_pino.ts
   category: foreign_api
   hunk_start_line: 1
   hunk_end_line: 9
-  rationale: import pino + pino({...}).info structured logger; pino 0 hits and not in package.json — outline logs through the shared winston Logger. Import stage fires on the foreign module.
+  rationale: import pino + pino({...}).info structured logger; pino 0 hits and absent from package.json — outline logs through the shared winston Logger. Call-receiver/import fires on the foreign bare callee pino.
   difficulty: easy
   host_file: server/commands/revisionCreator.ts
-  host_inject_at_line: 32
+  host_inject_at_line: 7
 - id: outline_foreign_api_joi
   file: breaks/break_joi.ts
   category: foreign_api
   hunk_start_line: 1
-  hunk_end_line: 9
-  rationale: bare Joi.object()/Joi.attempt() validation (import assumed at module top, outside the hunk) where outline validates with zod; joi 0 hits and not in package.json. Joi.attempt leaf is 0-usage so call-receiver must resolve the foreign namespace Joi.
+  hunk_end_line: 11
+  rationale: import Joi + Joi.object()/Joi.attempt() validation via a schema receiver where outline validates with zod; joi 0 hits and absent from package.json. Receiver-var mechanism; the import stage keys on the foreign joi module (leaves object/string are attested and mask the chained calls).
   difficulty: medium
   host_file: server/routes/api/comments/comments.ts
-  host_inject_at_line: 530
+  host_inject_at_line: 25
 - id: outline_foreign_api_got
   file: breaks/break_got.ts
   category: foreign_api
   hunk_start_line: 1
-  hunk_end_line: 10
-  rationale: bare got(url, {...}) HTTP client (import assumed at module top) where outline networking goes through the shared fetch-based ApiClient; got 0 hits and not in package.json. call-receiver must resolve the foreign bare callee got.
+  hunk_end_line: 12
+  rationale: import got + got(url,{...}) HTTP client where outline networking goes through the shared fetch-based ApiClient; got 0 hits and absent from package.json. Import stage fires on the foreign got module (response.body leaf is masked).
   difficulty: medium
   host_file: app/stores/UnfurlsStore.ts
-  host_inject_at_line: 103
+  host_inject_at_line: 11
 - id: outline_foreign_api_mysql2
   file: breaks/break_mysql2.ts
   category: foreign_api
   hunk_start_line: 1
   hunk_end_line: 14
-  rationale: HARD masked — mysql2 createConnection()/.query()/.end() raw parameterized SQL where outline's data layer is Sequelize; mysql2 0 hits and not in package.json. Every callee collides with attested repo vocabulary (bare createConnection 5, .query 208, .end 25 hits), so no token reads as foreign — genuine hard, may miss.
+  rationale: HARD masked — mysql2 createConnection()/.query()/.end() raw parameterized SQL where outline's data layer is Sequelize; mysql2 0 hits and absent from package.json. Every callee collides with attested repo vocabulary (bare createConnection 5, .query 208, .end 25 hits) and there is no foreign import, so no token reads as foreign — genuine hard, misses.
   difficulty: hard
   host_file: server/commands/documentImporter.ts
-  host_inject_at_line: 102
+  host_inject_at_line: 13
 - id: outline_foreign_api_ejs
   file: breaks/break_ejs.ts
   category: foreign_api
   hunk_start_line: 1
   hunk_end_line: 10
-  rationale: HARD masked — ejs render(template, data, opts) where outline renders content through its own helpers; ejs 0 hits and not in package.json. The bare callee render collides with an attested repo callee (bare render 32 hits), so it reads as in-voice — genuine hard, may miss.
+  rationale: HARD masked — ejs render(template, data, opts) where outline renders content through its own helpers; ejs 0 hits and absent from package.json. The bare callee render collides with an attested repo callee (bare render 32 hits) and there is no foreign import — genuine hard, misses.
   difficulty: hard
   host_file: server/utils/DocumentConverter.ts
-  host_inject_at_line: 574
+  host_inject_at_line: 10
 - id: outline_foreign_api_yaml
   file: breaks/break_yaml.ts
   category: foreign_api
   hunk_start_line: 1
   hunk_end_line: 7
-  rationale: HARD masked — the yaml package's parse() for frontmatter where outline parses YAML with js-yaml; the standalone yaml package has 0 hits and is not in package.json (js-yaml is). The bare callee parse collides with an attested repo callee (bare parse 2 hits) — genuine hard, may miss.
+  rationale: HARD masked — the standalone yaml package's parse() for frontmatter where outline parses YAML with js-yaml; the yaml package has 0 hits and is absent from package.json (js-yaml is present). The bare callee parse collides with an attested repo callee (bare parse 2 hits) — genuine hard, misses.
   difficulty: hard
   host_file: server/commands/collectionExporter.ts
-  host_inject_at_line: 76
+  host_inject_at_line: 13
 - id: outline_foreign_api_d3format
   file: breaks/break_d3-format.ts
   category: foreign_api
   hunk_start_line: 1
   hunk_end_line: 6
-  rationale: HARD masked — d3-format format(spec)(value) number formatting where outline formats via its own utils; d3-format 0 hits and not in package.json. The bare callee format collides with an attested repo callee (bare format 11 hits) — genuine hard, may miss.
+  rationale: HARD masked — d3-format format(spec)(value) number formatting where outline formats via its own utils; d3-format 0 hits and absent from package.json. The bare callee format collides with an attested repo callee (bare format 11 hits) — genuine hard, misses.
   difficulty: hard
   host_file: app/utils/files.ts
-  host_inject_at_line: 210
+  host_inject_at_line: 7
 - id: outline_foreign_concurrency_piscina
   file: breaks/break_piscina.ts
   category: foreign_concurrency
   hunk_start_line: 1
   hunk_end_line: 12
-  rationale: import Piscina + new Piscina({...}).run() worker pool where outline offloads background work to Bull queues; piscina 0 hits and not in package.json. Import/call-receiver fires on the foreign concurrency lib.
+  rationale: import Piscina + new Piscina({...}).run() worker pool where outline offloads background work to Bull queues; piscina 0 hits and absent from package.json. Import stage fires on the foreign concurrency lib.
   difficulty: easy
   host_file: server/queues/tasks/DocumentImportTask.ts
-  host_inject_at_line: 90
+  host_inject_at_line: 11
 - id: outline_foreign_concurrency_threads
   file: breaks/break_threads.ts
   category: foreign_concurrency
   hunk_start_line: 1
   hunk_end_line: 15
-  rationale: import { spawn, Thread, Worker } from threads + spawn(new Worker()) pool where outline runs background jobs via Bull queues; the threads package has 0 hits and is not in package.json (Worker here is the threads export, not the ambient global). Import stage fires on the foreign concurrency lib.
+  rationale: import { spawn, Thread, Worker } from threads + spawn(new Worker()) pool where outline runs background jobs via Bull queues; the threads package has 0 hits and is absent from package.json (Worker here is the threads export, not the ambient global). Import stage fires on the foreign concurrency lib.
   difficulty: easy
   host_file: server/queues/tasks/APIImportTask.ts
-  host_inject_at_line: 484
+  host_inject_at_line: 36
 - id: outline_foreign_concurrency_workerpool
   file: breaks/break_workerpool.ts
   category: foreign_concurrency
   hunk_start_line: 1
   hunk_end_line: 11
-  rationale: bare workerpool.pool().exec() worker pool (import assumed at module top) where outline runs background work via Bull queues; workerpool 0 hits and not in package.json. workerpool.pool leaf is 0-usage so call-receiver must resolve the foreign namespace workerpool.
+  rationale: bare workerpool.pool().exec() worker pool (import assumed at module top, outside the hunk) where outline runs background work via Bull queues; workerpool 0 hits and absent from package.json. Call-receiver resolves the foreign namespace workerpool (pool leaf is 0-usage).
   difficulty: medium
   host_file: server/commands/documentCreator.ts
-  host_inject_at_line: 274
+  host_inject_at_line: 10
 - id: outline_foreign_concurrency_bottleneck
   file: breaks/break_bottleneck.ts
   category: foreign_concurrency
   hunk_start_line: 1
-  hunk_end_line: 9
-  rationale: bare new Bottleneck({...}).schedule() rate limiter (import assumed at module top) where outline throttles via rate-limiter-flexible; bottleneck 0 hits and not in package.json. call-receiver must resolve the foreign bare constructor Bottleneck.
+  hunk_end_line: 11
+  rationale: import Bottleneck + new Bottleneck({...}).schedule() rate limiter via a receiver where outline throttles via rate-limiter-flexible; bottleneck 0 hits and absent from package.json. Receiver-var mechanism; import stage fires on the foreign bottleneck module (schedule leaf is attested and masks the call).
   difficulty: medium
   host_file: app/stores/IntegrationsStore.ts
-  host_inject_at_line: 47
+  host_inject_at_line: 8
 - id: outline_foreign_concurrency_comlink
   file: breaks/break_comlink.ts
   category: foreign_concurrency
   hunk_start_line: 1
-  hunk_end_line: 8
-  rationale: bare Comlink.expose()/Comlink.proxy() worker RPC (import assumed at module top) where outline offloads work through Bull queues; comlink 0 hits and not in package.json. Comlink.expose/proxy leaves are 0-usage so call-receiver must resolve the foreign namespace Comlink.
+  hunk_end_line: 10
+  rationale: import * as Comlink + Comlink.expose()/proxy() worker RPC where outline offloads work through Bull queues; comlink 0 hits and absent from package.json. Namespace-import mechanism; import stage fires on the foreign comlink module.
   difficulty: medium
   host_file: app/models/Document.ts
-  host_inject_at_line: 691
+  host_inject_at_line: 31
 - id: outline_foreign_concurrency_plimit
   file: breaks/break_p-limit.ts
   category: foreign_concurrency
   hunk_start_line: 1
-  hunk_end_line: 8
-  rationale: bare pLimit(n) concurrency limiter (import assumed at module top) where outline bounds concurrency with async-sema; p-limit 0 hits and not in package.json. call-receiver must resolve the foreign bare callee pLimit.
+  hunk_end_line: 10
+  rationale: import pLimit from p-limit + pLimit(n) concurrency limiter where outline bounds concurrency with async-sema; p-limit 0 hits and absent from package.json. Import stage fires on the foreign p-limit module.
   difficulty: medium
   host_file: server/queues/tasks/EmptyTrashTask.ts
-  host_inject_at_line: 30
+  host_inject_at_line: 6
