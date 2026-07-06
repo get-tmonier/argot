@@ -52,10 +52,9 @@ export interface SiteContent {
     readonly title: string;
     readonly body: string;
     readonly caption: string;
-    readonly agentLane: string;
-    readonly agentsLine: string;
+    readonly installLabel: string;
+    readonly skillsIntro: string;
     readonly skillDescs: readonly string[];
-    readonly localLane: string;
     readonly ctaLocal: string;
     readonly ctaCi: string;
   };

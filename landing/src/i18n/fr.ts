@@ -85,17 +85,12 @@ const fr: SiteContent = {
   setup: {
     label: 'Configuration · conçu pour les agents',
     title: 'Un CLI que votre agent peut piloter.',
-    body: 'argot est l’outil ; les skills sont le volant. Installez-les une fois et l’agent qui écrit votre code lance [[le même binaire argot]] que vous — consultatif, jamais bloquant. Ou configurez-le vous-même en une commande.',
-    agentLane: 'Laissez votre agent le faire',
-    agentsLine: 'installe trois skills — lancez-les dans Claude Code, Cursor, ou 70+ agents :',
-    skillDescs: [
-      'calibre le modèle & repère ce qui ne doit pas le façonner',
-      'score chaque diff pendant que l’agent écrit',
-      'un score de voix non bloquant sur chaque PR',
-    ],
-    localLane: 'Ou une seule commande vous-même',
+    body: 'Les skills laissent votre agent lancer argot — chacune un simple raccourci vers une commande que vous pouvez lancer vous-même. [[Consultatif, jamais bloquant.]]',
+    installLabel: 'Ajoutez les skills — Claude Code, Cursor, 70+ agents',
+    skillsIntro: 'chacune est une commande argot :',
+    skillDescs: ['calibre le modèle', 'score chaque diff', 'un score sur chaque PR'],
     ctaLocal: 'Configurez-le à la main',
-    ctaCi: 'ou branchez la CI',
+    ctaCi: 'ou le guide CI',
     caption:
       'Les skills ne font que piloter le binaire argot. Le modèle calibré reste hors de votre historique git.',
   },

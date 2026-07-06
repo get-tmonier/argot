@@ -27,80 +27,62 @@ const term = [
 ].join('\n');
 const html = `<pre><code>${term}</code></pre>`;
 
-// CLI literals — like Demo.astro's sample, kept out of i18n. Each renders as a
-// copy-to-clipboard chip (the Hero's `.copy-install` script wires them).
+// CLI literals — like Demo.astro's sample, kept out of i18n. The install line is
+// a copy-to-clipboard chip (the Hero's `.copy-install` script wires it).
 const skillCmd = 'npx skills add get-tmonier/argot';
-const initCmd = 'argot init';
 
-// The three skills the install adds, shown with their `/` prefix so it reads as
-// a slash-command, not a package name. CLI literals, paired with i18n descs.
-const skillCmds = ['/argot-setup', '/argot-check', '/argot-ci'];
+// The three skills the install adds: each is a thin wrapper over one plain argot
+// command. Shown with the `/` prefix so they read as slash-commands; the CLI
+// equivalent beside each makes the "run it yourself" path concrete.
+const skills = [
+  { cmd: '/argot-setup', cli: 'argot init' },
+  { cmd: '/argot-check', cli: 'argot check' },
+  { cmd: '/argot-ci', cli: 'the Action' },
+];
 ---
 
 <section id="setup" class="snap-section relative flex min-h-svh items-center">
-  <div class="mx-auto w-full max-w-6xl px-5 py-24">
-    <div
-      class="grid grid-cols-1 gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:gap-16"
-    >
+  <div class="mx-auto w-full max-w-6xl px-5 py-20">
+    <div class="grid grid-cols-1 gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:gap-16">
       <div class="reveal">
         <p class="mb-3 font-mono text-xs tracking-widest text-ember uppercase">{setup.label}</p>
         <h2 class="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{setup.title}</h2>
-        <p class="mt-5 leading-relaxed text-ink-dim text-pretty" set:html={emphasize(setup.body)} />
+        <p class="mt-4 leading-relaxed text-ink-dim text-pretty" set:html={emphasize(setup.body)} />
 
-        <div class="mt-7 space-y-5">
-          <div>
-            <p class="lane-label">{setup.agentLane}</p>
-            <button
-              type="button"
-              class="copy-install setup-chip group"
-              data-copy={skillCmd}
-              aria-label="Copy the skill-install command"
-            >
-              <span class="text-ember">$</span>
-              <span class="text-ink-dim"
-                >npx skills add <span class="text-ink">get-tmonier/argot</span></span
-              >
-              <span class="copy-icon ml-auto pl-2 text-muted transition-colors group-hover:text-ink"
-                >⧉</span
-              >
-            </button>
-            <p class="lane-note">{setup.agentsLine}</p>
-            <ul class="skill-list">
-              {
-                skillCmds.map((cmd, i) => (
-                  <li class="skill-row">
-                    <code class="skill-cmd">{cmd}</code>
-                    <span class="skill-desc">{setup.skillDescs[i]}</span>
-                  </li>
-                ))
-              }
-            </ul>
-          </div>
-          <div>
-            <p class="lane-label">{setup.localLane}</p>
-            <button
-              type="button"
-              class="copy-install setup-chip group"
-              data-copy={initCmd}
-              aria-label="Copy the init command"
-            >
-              <span class="text-ember">$</span>
-              <span class="text-ink-dim">argot <span class="text-ink">init</span></span>
-              <span class="copy-icon ml-auto pl-2 text-muted transition-colors group-hover:text-ink"
-                >⧉</span
-              >
-            </button>
-          </div>
-        </div>
+        <p class="lane-label mt-6">{setup.installLabel}</p>
+        <button
+          type="button"
+          class="copy-install setup-chip group"
+          data-copy={skillCmd}
+          aria-label="Copy the skill-install command"
+        >
+          <span class="text-ember">$</span>
+          <span class="text-ink-dim">npx skills add <span class="text-ink">get-tmonier/argot</span></span>
+          <span class="copy-icon ml-auto pl-2 text-muted transition-colors group-hover:text-ink"
+            >⧉</span
+          >
+        </button>
 
-        <p class="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+        <p class="lane-note">{setup.skillsIntro}</p>
+        <ul class="skill-list">
+          {
+            skills.map((s, i) => (
+              <li class="skill-row">
+                <code class="skill-cmd">{s.cmd}</code>
+                <span class="skill-desc">{setup.skillDescs[i]}</span>
+                <code class="skill-cli">{s.cli}</code>
+              </li>
+            ))
+          }
+        </ul>
+
+        <p class="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
           <a
             href="/docs/setup/"
             class="group inline-flex items-center gap-1.5 font-medium text-ember transition-colors hover:text-ember-bright"
           >
             {setup.ctaLocal}
-            <span aria-hidden="true" class="transition-transform group-hover:translate-x-0.5">→</span
-            >
+            <span aria-hidden="true" class="transition-transform group-hover:translate-x-0.5">→</span>
           </a>
           <a href="/docs/ci/" class="text-muted transition-colors hover:text-ink">{setup.ctaCi} ↗</a>
         </p>
@@ -152,26 +134,41 @@ const skillCmds = ['/argot-setup', '/argot-check', '/argot-ci'];
     border-color: var(--line-2);
   }
   .skill-list {
-    margin-top: 0.6rem;
+    margin-top: 0.55rem;
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
+    gap: 0.5rem;
   }
   .skill-row {
     display: flex;
     align-items: baseline;
-    gap: 0.6rem;
+    flex-wrap: wrap;
+    column-gap: 0.7rem;
+    row-gap: 0.1rem;
     font-size: 0.8125rem;
-    line-height: 1.35;
+    line-height: 1.3;
   }
   .skill-cmd {
     flex: none;
-    min-width: 6.6rem;
+    min-width: 6.4rem;
     font-family: var(--font-mono, ui-monospace, monospace);
     font-weight: 600;
     color: var(--ember-bright);
   }
   .skill-desc {
+    flex: 1 1 7rem;
     color: var(--ink-dim);
+  }
+  .skill-cli {
+    flex: none;
+    margin-left: auto;
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 0.72rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .skill-cli::before {
+    content: '≡ ';
+    opacity: 0.55;
   }
 </style>
