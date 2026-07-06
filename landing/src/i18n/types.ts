@@ -11,7 +11,6 @@ export interface SiteContent {
   readonly nav: {
     readonly demo: string;
     readonly catches: string;
-    readonly local: string;
     readonly docs: string;
   };
   readonly hero: {
@@ -30,6 +29,7 @@ export interface SiteContent {
     readonly body: string;
     readonly codeTitle: string;
     readonly caption: string;
+    readonly seeLive: string;
   };
   readonly catches: {
     readonly label: string;
@@ -67,17 +67,6 @@ export interface SiteContent {
     readonly title: string;
     readonly body: string;
     readonly caption: string;
-  };
-  readonly local: {
-    readonly label: string;
-    readonly title: string;
-    readonly body: string;
-    readonly points: readonly Feature[];
-  };
-  readonly features: {
-    readonly label: string;
-    readonly title: string;
-    readonly items: readonly Feature[];
   };
   readonly cta: {
     readonly title: string;

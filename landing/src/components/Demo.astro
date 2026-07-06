@@ -51,6 +51,13 @@ class ReceiptView(View):              # every other route here is @router.get + 
         class="demo-gif"
       />
       <p class="text-center text-sm text-muted text-pretty" set:html={emphasize(demo.caption)} />
+      <a
+        href="/docs/real-world-scenarios/"
+        class="group inline-flex items-center justify-center gap-1.5 text-center text-sm font-medium text-ember transition-colors hover:text-ember-bright"
+      >
+        {demo.seeLive}
+        <span aria-hidden="true" class="transition-transform group-hover:translate-x-0.5">→</span>
+      </a>
     </div>
   </div>
 </section>
