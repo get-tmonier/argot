@@ -1,5 +1,4 @@
 ---
-import Logo from '#components/Logo.astro';
 import TmonierMark from '#components/TmonierMark.astro';
 import { SITE, localePath } from '#lib/site';
 import type { SiteContent } from '#i18n/types';
@@ -24,7 +23,6 @@ const base = locale === 'fr' ? '/fr/' : '/';
 >
   <nav class="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-5">
     <a href={base} class="group flex items-center gap-2.5" aria-label="argot — home">
-      <Logo size={30} class="transition-transform duration-500 group-hover:-rotate-[6deg]" />
       <span class="wordmark text-lg">ar<span class="g">g</span>ot</span>
     </a>
 
