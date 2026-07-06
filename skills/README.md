@@ -11,22 +11,29 @@ ever blocking you**.
 
 ## Install
 
-With the open [`skills`](https://github.com/vercel-labs/skills) installer
-(agent-agnostic):
+**Claude Code — the plugin (skills + MCP in one step):**
+
+```text
+/plugin marketplace add get-tmonier/argot
+/plugin install argot@argot
+```
+
+Installs both skills (as `/argot:argot-setup` and `/argot:argot-check`) and the
+argot MCP server together.
+
+**Any agent — the `skills` installer** ([vercel-labs/skills](https://github.com/vercel-labs/skills)):
 
 ```sh
 npx skills add get-tmonier/argot
 ```
 
-Or copy the skill folders into your agent's skills directory by hand (for Claude
-Code that's `.claude/skills/`):
+**By hand** — copy the folders into your agent's skills dir (Claude Code: `.claude/skills/`):
 
 ```sh
-mkdir -p .claude/skills
-cp -R argot-setup argot-check .claude/skills/
+mkdir -p .claude/skills && cp -R argot-setup argot-check .claude/skills/
 ```
 
-Both skills call the `argot` CLI, so install that too — see the
+Every path needs the `argot` CLI installed — see the
 [getting-started guide](https://argot.tmonier.com/docs/getting-started/).
 
 ## The one rule
@@ -39,7 +46,7 @@ full contract is in the repo's [`AGENTS.md`](../AGENTS.md).
 
 ## Prefer proactive guidance?
 
-The [MCP server](https://argot.tmonier.com/docs/mcp/) (`argot mcp`) exposes the
+The [MCP server](https://argot.tmonier.com/docs/agents/) (`argot mcp`) exposes the
 repo's idioms *before* you generate code, so an agent can write in-voice from
 the first token instead of writing-then-checking. Skills and MCP compose — use
 the skill for the commit-time safety net, MCP for up-front context.

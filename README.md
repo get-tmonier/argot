@@ -270,14 +270,32 @@ just verify      # cargo fmt --check + clippy -D warnings + cargo test
 
 ## Acknowledgements
 
-argot's scorer is only as honest as the corpora it's benchmarked against —
-thanks to the maintainers of FastAPI, rich, faker, hono, ink, faker-js, and
-Dagster, whose histories serve as our ground-truth voice signal (none are
-affiliated with or endorse argot). Built on
-[tree-sitter](https://tree-sitter.github.io/tree-sitter/),
-[libgit2](https://libgit2.org/), HuggingFace
-[tokenizers](https://github.com/huggingface/tokenizers) (UnixCoder BPE), and
-[clap](https://docs.rs/clap/).
+argot's scorer is only as honest as the corpora it's benchmarked against. We use
+these repositories as **read-only benchmark corpora** — cloned at benchmark time,
+never redistributed — to measure catch and false-alarm rates on real code. None
+are affiliated with, endorse, or are endorsed by argot; each remains under its
+own license, and their histories are our ground-truth voice signal.
+
+- **Python** — [FastAPI](https://github.com/tiangolo/fastapi) · [rich](https://github.com/Textualize/rich) · [faker](https://github.com/joke2k/faker) · [Saleor](https://github.com/saleor/saleor) · [Wagtail](https://github.com/wagtail/wagtail) · [Dagster](https://github.com/dagster-io/dagster) · [Scrapy](https://github.com/scrapy/scrapy)
+- **TypeScript / JS** — [Hono](https://github.com/honojs/hono) · [Ink](https://github.com/vadimdemedes/ink) · [faker-js](https://github.com/faker-js/faker) · [Excalidraw](https://github.com/excalidraw/excalidraw) · [Outline](https://github.com/outline/outline)
+- **Go** — [GitHub CLI](https://github.com/cli/cli) · [Hugo](https://github.com/gohugoio/hugo)
+- **Rust** — [ripgrep](https://github.com/BurntSushi/ripgrep) · [bat](https://github.com/sharkdp/bat)
+- **Java** — [Guava](https://github.com/google/guava) · [JUnit 5](https://github.com/junit-team/junit5)
+- **C#** — [PowerShell](https://github.com/PowerShell/PowerShell) · [Jellyfin](https://github.com/jellyfin/jellyfin)
+- **C** — [redis](https://github.com/redis/redis) · [curl](https://github.com/curl/curl)
+- **C++** — [RocksDB](https://github.com/facebook/rocksdb) · [fmt](https://github.com/fmtlib/fmt)
+- **Ruby** — [Homebrew](https://github.com/Homebrew/brew) · [RuboCop](https://github.com/rubocop/rubocop)
+- **PHP** — [Laravel](https://github.com/laravel/framework) · [Composer](https://github.com/composer/composer)
+
+Built on [tree-sitter](https://tree-sitter.github.io/tree-sitter/) and its
+per-language grammars (Python, TypeScript/JS, Go, Rust, C, C++, Java, C#, PHP,
+Ruby), [libgit2](https://libgit2.org/) via [git2](https://docs.rs/git2/) (vendored,
+no network transports), HuggingFace
+[tokenizers](https://github.com/huggingface/tokenizers) (UnixCoder BPE),
+[clap](https://docs.rs/clap/), [Serde](https://serde.rs/), and
+[cargo-dist](https://opensource.axo.dev/cargo-dist/) /
+[axoupdater](https://github.com/axodotdev/axoupdater) for releases and
+`argot update`.
 
 ## License
 

@@ -20,32 +20,42 @@ the semantic knowledge of the tree.
    (Ready / Marginal / Not recommended) and the corpus summary. If it's already
    **Ready**, you may be done — jump to step 6.
 
-3. **Get argot's suggestions:** `argot init --suggest --format json`. This lists
-   directories that are mostly auto-generated or data files, with counts. Strong
-   ignore candidates — but note the `included` count: that's real code a rule
-   would drop.
+3. **Identify the primary authored source** — the library or app the repo
+   actually ships. In a monorepo (multiple packages/workspaces), that's usually
+   one or a few packages; everything else is peripheral.
 
-4. **Read the tree yourself** and find directories that shouldn't shape the
-   voice but argot can't detect by name:
+4. **Get argot's suggestions:** `argot init --suggest --format json`. Lists
+   directories that are mostly auto-generated or data files, with counts. Note
+   the `included` count (real code a rule would drop) — and that `--suggest`
+   *only* finds generated/data-heavy dirs; on a monorepo it is often empty and
+   the peripheral-package call in step 5 is yours.
+
+5. **Read the tree** and find directories that shouldn't shape the voice —
+   never the primary source from step 3:
+   - peripheral monorepo members: a marketing/landing site, a playground, demo
+     or example apps, a benchmark suite, build/dev tooling
    - generated code (protobuf/gRPC, OpenAPI/GraphQL clients, `*_pb2.py`, `gen/`)
    - vendored / third-party code checked into the repo (`vendor/`, bundled SDKs)
    - large data, fixtures, snapshots, locale tables, database migrations
    - legacy or archived modules that aren't how the team writes code today
 
-   **Do not exclude the real application or library source** — that's what argot
-   must learn from. argot already excludes tests, docs, examples, and build
-   output by default, so don't add those.
+   argot already excludes tests, docs, examples, and build output by default —
+   focus on the repo-specific dirs above.
 
-5. **Write `.argotignore`** at the repo root — gitignore-style patterns, one per
-   line, each with a short `#` comment explaining why. Prefer directory patterns
-   (`src/generated/`). Then re-run `argot init` and confirm the Verdict moved
-   toward **Ready** and the corpus is dominated by the team's own code. If a
-   directory you can identify is still polluting it, refine and repeat (a few
-   rounds at most).
+6. **Write `.argotignore`** at the repo root — gitignore-style patterns, one per
+   line, each with a short `#` reason. Prefer directory patterns. Re-run
+   `argot init`.
 
-6. **Summarize** for the user: what you excluded and why, and the final Verdict.
-   Note that argot wrote a `.argot/.gitignore` so the model isn't committed
-   (regenerate any time with `argot fit`).
+7. **Verify the catch works** — the important check. In a real primary-source
+   file, add a throwaway import of a package the repo never uses (e.g.
+   `import boto3` / `import axios from "axios"`) plus a line using it, run
+   `argot check`, and confirm it's flagged. Then revert. If it is NOT flagged,
+   the voice is still diluted by non-authored code — exclude more peripheral
+   directories and repeat.
+
+8. **Summarize** for the user: what you excluded and why, and the final Verdict.
+   argot wrote a `.argot/.gitignore` so the model isn't committed (regenerate
+   with `argot fit`).
 
 ## Principles
 

@@ -1,0 +1,20 @@
+{
+  "name": "argot",
+  "owner": {
+    "name": "Damien Meur",
+    "url": "https://tmonier.com"
+  },
+  "description": "The argot marketplace — the argot voice guardrail as a Claude Code plugin (setup + check skills, plus the argot MCP server).",
+  "plugins": [
+    {
+      "name": "argot",
+      "source": "./",
+      "displayName": "argot",
+      "description": "A guardrail that flags code foreign to a repo's own patterns — learned from git history.",
+      "homepage": "https://argot.tmonier.com",
+      "repository": "https://github.com/get-tmonier/argot",
+      "license": "MIT",
+      "keywords": ["guardrail", "code-quality", "linter", "voice", "ai-code"]
+    }
+  ]
+}

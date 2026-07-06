@@ -88,6 +88,53 @@ fn date_days_from_now(days: u64) -> String {
     format!("{y:04}-{m:02}-{d:02}")
 }
 
+/// A fit older than this many days earns a soft "consider re-fitting" hint —
+/// generous on purpose (a stale model is lower-confidence, not wrong). Never
+/// affects exit codes or the verdict; it's a nudge for the "fit once, forgot"
+/// case. Internal, not a user knob.
+const STALE_FIT_DAYS: i64 = 90;
+
+/// Days since the Unix epoch for a civil date — inverse of `civil_from_days`
+/// (Howard Hinnant's `days_from_civil`).
+fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = (if y >= 0 { y } else { y - 399 }) / 400;
+    let yoe = y - era * 400;
+    let mp = if m > 2 { m - 3 } else { m + 9 };
+    let doy = (153 * mp + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146097 + doe - 719468
+}
+
+/// Whole days between a fit timestamp (ISO `YYYY-MM-DD…`) and `today`
+/// (`YYYY-MM-DD`). `None` if either can't be parsed.
+fn days_since_fit(fit_ts: &str, today: &str) -> Option<i64> {
+    let parse = |s: &str| -> Option<(i64, i64, i64)> {
+        let mut it = s.get(..10)?.split('-');
+        Some((
+            it.next()?.parse().ok()?,
+            it.next()?.parse().ok()?,
+            it.next()?.parse().ok()?,
+        ))
+    };
+    let (fy, fm, fd) = parse(fit_ts)?;
+    let (ty, tm, td) = parse(today)?;
+    Some(days_from_civil(ty, tm, td) - days_from_civil(fy, fm, fd))
+}
+
+/// The calibration timestamp from a fitted `scorer-config.json` (any language;
+/// they share the fit time). Used only for the staleness hint.
+fn fit_timestamp(argot_dir: &Path) -> Option<String> {
+    let bytes = fs::read(argot_dir.join("scorer-config.json")).ok()?;
+    let v: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
+    v.get("languages")?.as_object()?.values().find_map(|lc| {
+        lc.get("calibration")?
+            .get("timestamp_utc")?
+            .as_str()
+            .map(String::from)
+    })
+}
+
 #[derive(Parser)]
 #[command(
     name = "argot",
@@ -705,7 +752,7 @@ fn run_init_cmd(c: InitCmd) -> ExitCode {
     };
     let use_color = std::env::var_os("NO_COLOR").is_none() && std::io::stdout().is_terminal();
     println!();
-    print!("{}", render_inspect_human(&report, use_color));
+    print!("{}", render_inspect_human(&report, use_color, &today_utc()));
     println!();
 
     match report.verdict {
@@ -887,6 +934,8 @@ fn run_check_cmd(c: CheckCmd) -> ExitCode {
     // Color is enabled only when NO_COLOR is unset and stdout is a tty.
     let use_color = std::env::var_os("NO_COLOR").is_none() && std::io::stdout().is_terminal();
     let argot_dir = resolve_argot_dir(&c.repo, c.argot_dir);
+    let human = c.format == "human";
+    let today = today_utc();
     let outcome = run_check(CheckArgs {
         repo_path: c.repo.to_string_lossy().into_owned(),
         reference: c.reference,
@@ -896,7 +945,7 @@ fn run_check_cmd(c: CheckCmd) -> ExitCode {
         only: c.only,
         exclude: c.exclude,
         threshold: c.threshold,
-        argot_dir,
+        argot_dir: argot_dir.clone(),
         hunk_lines: c.hunk_lines,
         verbose: c.verbose,
         min_severity: c.min_severity,
@@ -904,10 +953,19 @@ fn run_check_cmd(c: CheckCmd) -> ExitCode {
         // The value_parser restricts input to the known names, so this is
         // always Some; default to Human defensively.
         format: OutputFormat::parse(&c.format).unwrap_or_default(),
-        today: today_utc(),
+        today: today.clone(),
     });
     print!("{}", outcome.stdout);
     eprint!("{}", outcome.stderr);
+    // Soft staleness nudge — human output only, never affects the exit code or
+    // the machine formats. Catches the "fit once, forgot for months" case.
+    if human && outcome.exit_code < 2 {
+        if let Some(days) = fit_timestamp(&argot_dir).and_then(|ts| days_since_fit(&ts, &today)) {
+            if days >= STALE_FIT_DAYS {
+                eprintln!("note: voice model fitted {days} days ago — `argot fit` to refresh.");
+            }
+        }
+    }
     ExitCode::from(outcome.exit_code as u8)
 }
 
@@ -982,7 +1040,7 @@ fn run_inspect_cmd(c: InspectCmd) -> ExitCode {
     }
     // Same color policy as `check`: NO_COLOR unset and stdout is a tty.
     let use_color = std::env::var_os("NO_COLOR").is_none() && std::io::stdout().is_terminal();
-    print!("{}", render_inspect_human(&report, use_color));
+    print!("{}", render_inspect_human(&report, use_color, &today_utc()));
     ExitCode::SUCCESS
 }
 
@@ -1000,7 +1058,7 @@ fn paint(text: &str, color: &str, use_color: bool) -> String {
     }
 }
 
-fn render_inspect_human(report: &InspectReport, use_color: bool) -> String {
+fn render_inspect_human(report: &InspectReport, use_color: bool, today: &str) -> String {
     use std::fmt::Write as _;
     let mut out = String::new();
     let _ = writeln!(out, "Inspecting {}", report.path);
@@ -1062,6 +1120,22 @@ fn render_inspect_human(report: &InspectReport, use_color: bool) -> String {
                     "    phrasing headroom: {:+.2} (BPE ceiling {:.2} + callee cap {:.0} vs threshold {:.2})",
                     lc.phrasing_headroom, lc.bpe_ceiling, lc.contribution_cap, lc.threshold
                 );
+            }
+            // Soft freshness nudge — a stale model is lower-confidence, not
+            // wrong. Advisory only; it never changes the verdict.
+            if let Some(days) = cal
+                .languages
+                .values()
+                .next()
+                .and_then(|lc| days_since_fit(&lc.timestamp_utc, today))
+            {
+                if days >= STALE_FIT_DAYS {
+                    let _ = writeln!(
+                        out,
+                        "  {} fitted {days} days ago — `argot fit` to refresh",
+                        paint("stale:", ANSI_YELLOW, use_color)
+                    );
+                }
             }
         }
         None => {
@@ -1745,7 +1819,21 @@ fn main() -> ExitCode {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_npm_install, resolve_argot_dir, wants_json};
+    use super::{days_since_fit, is_npm_install, resolve_argot_dir, wants_json};
+
+    #[test]
+    fn days_since_fit_counts_calendar_days() {
+        // Same day, ISO timestamp with a time part.
+        assert_eq!(
+            days_since_fit("2026-07-06T07:39:27+00:00", "2026-07-06"),
+            Some(0)
+        );
+        assert_eq!(days_since_fit("2026-01-01", "2026-01-31"), Some(30));
+        // A year (2024 is a leap year → 366 from mid-2024, but 2025→2026 is 365).
+        assert_eq!(days_since_fit("2025-07-06", "2026-07-06"), Some(365));
+        // Unparseable input never panics.
+        assert_eq!(days_since_fit("not-a-date", "2026-07-06"), None);
+    }
     use std::path::{Path, PathBuf};
 
     #[test]

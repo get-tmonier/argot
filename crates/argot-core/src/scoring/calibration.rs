@@ -996,18 +996,23 @@ pub fn run_calibrate(
             }
             let fire_rate = probe_cr.rare_branch_hunks_fired as f64 / hunks_scored.max(1) as f64;
             let keep_rule = fire_rate < opts.asym_fire_rate_threshold;
-            eprintln!(
-                "[{name}][auto-asym] cluster_rare probe: rare_hunks_fired={}/{} fire_rate={:.3} threshold={:.3} → {}",
-                probe_cr.rare_branch_hunks_fired,
-                hunks_scored,
-                fire_rate,
-                opts.asym_fire_rate_threshold,
-                if keep_rule {
-                    "KEEP rule"
-                } else {
-                    "DISABLE rule (rare=0)"
-                }
-            );
+            // Internal calibration diagnostic — noise on a normal `argot init`.
+            // Only surface it when debugging (ARGOT_DEBUG set); the decision it
+            // logs is already reflected in the emitted scorer-config.
+            if std::env::var_os("ARGOT_DEBUG").is_some() {
+                eprintln!(
+                    "[{name}][auto-asym] cluster_rare probe: rare_hunks_fired={}/{} fire_rate={:.3} threshold={:.3} → {}",
+                    probe_cr.rare_branch_hunks_fired,
+                    hunks_scored,
+                    fire_rate,
+                    opts.asym_fire_rate_threshold,
+                    if keep_rule {
+                        "KEEP rule"
+                    } else {
+                        "DISABLE rule (rare=0)"
+                    }
+                );
+            }
             if !keep_rule {
                 resolved_rare = 0;
             }

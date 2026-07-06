@@ -311,9 +311,13 @@ fn scan_corpus(repo_dir: &Path) -> CorpusReport {
         };
     }
 
+    // Polyglotism is judged over the *modeled* corpus (included files), not the
+    // raw scan — a repo whose only non-primary-language files are all excluded
+    // (fixtures, examples) is not "meaningfully mixed".
+    let modeled: usize = languages.values().map(|l| l.included).sum();
     let meaningfully_mixed = languages
         .values()
-        .filter(|l| l.share_of_supported > POLYGLOT_MINORITY_SHARE)
+        .filter(|l| modeled > 0 && l.included as f64 / modeled as f64 > POLYGLOT_MINORITY_SHARE)
         .count()
         >= 2;
 
@@ -466,13 +470,23 @@ pub fn compute_verdict(corpus: &CorpusReport) -> (Verdict, Vec<Reason>) {
         });
     }
 
+    // The modeled corpus: files argot actually learns from, after the
+    // recommended set and structural filters. A language with zero included
+    // files (e.g. Python fixtures under an excluded `benchmarks/` in an
+    // otherwise-Rust repo) is not part of the voice at all, so it must never
+    // drive the verdict — otherwise a healthy single-language repo reads
+    // "Not recommended" for a language it doesn't even author.
+    let modeled: usize = corpus.languages.values().map(|s| s.included).sum();
     for (lang, stats) in &corpus.languages {
-        // A trace language (a handful of stray files in an otherwise
-        // single-language repo) doesn't get calibrated and shouldn't tank
-        // the verdict; the candidate-hunk signals apply only to languages
-        // that meaningfully compose the repo.
-        let share = if corpus.supported_files > 0 {
-            stats.files as f64 / corpus.supported_files as f64
+        if stats.included == 0 {
+            continue;
+        }
+        // A trace language (a few stray modeled files in an otherwise
+        // single-language repo) doesn't get calibrated and shouldn't tank the
+        // verdict; the candidate-hunk signals apply only to languages that
+        // meaningfully compose the modeled corpus.
+        let share = if modeled > 0 {
+            stats.included as f64 / modeled as f64
         } else {
             0.0
         };
@@ -822,6 +836,40 @@ mod tests {
         assert_eq!(reason.level, ReasonLevel::Yellow);
         assert!(reason.message.contains("50% python"));
         assert!(reason.message.contains("50% typescript"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn excluded_only_language_does_not_tank_verdict() {
+        // Healthy Python voice, plus TypeScript that exists ONLY under an
+        // excluded benchmarks/ dir (0 included). The unmodeled TS must not
+        // appear in the verdict — the repo is Ready on its Python voice alone.
+        // Regression: a polyglot repo with fixture/example code in a second
+        // language used to read "Not recommended".
+        let dir = temp_repo("excluded_lang");
+        for f in 0..5 {
+            fs::write(dir.join(format!("mod_{f}.py")), py_functions(50)).unwrap();
+        }
+        fs::create_dir_all(dir.join("benchmarks")).unwrap();
+        for f in 0..5 {
+            fs::write(dir.join(format!("benchmarks/b_{f}.ts")), ts_functions(50)).unwrap();
+        }
+        let report = inspect_repo(&dir).unwrap();
+        let ts = &report.corpus.languages["typescript"];
+        assert_eq!(ts.included, 0, "all TS is under excluded benchmarks/");
+        assert!(ts.excluded_path >= 5);
+        assert!(
+            !report.corpus.meaningfully_mixed,
+            "an excluded-only language is not a meaningful mix"
+        );
+        assert_eq!(report.verdict, Verdict::Ready);
+        assert!(
+            !report
+                .reasons
+                .iter()
+                .any(|r| r.message.contains("typescript")),
+            "no verdict reason should cite the unmodeled language"
+        );
         let _ = fs::remove_dir_all(&dir);
     }
 
