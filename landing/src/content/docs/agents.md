@@ -26,7 +26,15 @@ Two agent-agnostic skills (Claude Code, Cursor, Codex, …):
 | `argot-setup` | Once per repo — fit the model and decide what shouldn't shape its voice. |
 | `argot-check` | Per change — score the working diff and surface anything foreign. |
 
-Install them with the open [`skills`](https://github.com/vercel-labs/skills)
+In **Claude Code**, install the plugin — it bundles both skills *and* the MCP
+server below in one step:
+
+```text
+/plugin marketplace add get-tmonier/argot
+/plugin install argot@argot
+```
+
+For any other agent, use the open [`skills`](https://github.com/vercel-labs/skills)
 CLI:
 
 ```sh
