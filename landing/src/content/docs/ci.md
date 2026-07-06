@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0    # argot diffs the PR range, so it needs history
-      - uses: get-tmonier/argot@v1
+      - uses: get-tmonier/argot@main
 ```
 
 That's the whole setup. On each PR you get three things, none of which block the
@@ -71,7 +71,7 @@ If you *do* want argot to fail the job on hits (e.g. a repo with a strict voice
 policy):
 
 ```yaml
-      - uses: get-tmonier/argot@v1
+      - uses: get-tmonier/argot@main
         with:
           fail-on-hits: true
 ```
@@ -88,7 +88,7 @@ it doesn't fail the commit unless you make it):
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/get-tmonier/argot
-    rev: v1
+    rev: main   # pin to a release tag (e.g. v0.2.48) once you've picked one
     hooks:
       - id: argot-check
 ```
