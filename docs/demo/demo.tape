@@ -12,15 +12,16 @@ Require argot
 Set Shell "bash"
 Set FontSize 20
 Set Width 1280
-Set Height 760
-Set Padding 24
-Set Margin 12
+# Sized to hug the output instead of a tall half-empty terminal.
+Set Height 470
+Set Padding 20
+Set Margin 10
 Set BorderRadius 10
 Set Theme "Catppuccin Mocha"
 Set TypingSpeed 45ms
 
-Sleep 600ms
+Sleep 500ms
 Type "argot check --staged"
-Sleep 700ms
+Sleep 500ms
 Enter
 Sleep 4500ms

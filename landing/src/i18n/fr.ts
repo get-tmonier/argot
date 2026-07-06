@@ -25,10 +25,9 @@ const fr: SiteContent = {
   demo: {
     label: 'La deuxième question',
     title: 'Le type-checker demande si ça compile. argot demande si c’est le vôtre.',
-    body: 'Les linters et type-checkers répondent à « est-ce valide ? ». Ils ne savent pas répondre à « est-ce ainsi que cette équipe écrit ? ». Cela vivait dans la revue de code — jusqu’à ce qu’un LLM puisse l’enterrer sous cent PR propres et bien typées en une après-midi. [[argot est la couche qui repose la question.]]',
-    codeTitle: 'routers/receipts.py',
+    body: 'Les linters répondent à « est-ce valide ? » — jamais à « est-ce ainsi qu’on écrit ici ? ». Cela vivait en revue de code, jusqu’à ce qu’un LLM l’enterre sous cent PR propres et bien typées. [[argot repose la question.]]',
     caption:
-      'Chaque autre endpoint de ce dépôt est une fonction FastAPI typée avec Depends. Celui-ci est une vue-classe à la Django — View, JsonResponse, HttpResponseNotFound. Python valide ; mypy et ruff sont contents. Aucun linter ne sait que ce dépôt n’écrit jamais du Django. [[argot signale le paradigme étranger.]]',
+      'Une vue à la Django dans un dépôt 100 % FastAPI — un framework que ce code n’a jamais importé. mypy et ruff passent ; aucun linter ne bronche. [[argot le signale en ~150 ms.]]',
     seeLive: 'Voyez-le sur de vrais dépôts — FastAPI, Saleor, Hono',
   },
   catches: {

@@ -97,15 +97,11 @@ usually **does not** flag it, and the published numbers deliberately **do not ga
 async def get_user(user_id: int, db=Depends(get_db)) -> UserResponse:
     user = db.get(user_id)
     if user is None:
-        raise ValueError(f"User {user_id} not found")   # repo raises HTTPException
+        raise ValueError(f"User {user_id} not found")   # repo always raises HTTPException — argot stays silent
     return user
 ```
 
-```text
-All hunks scored below calibrated thresholds — looks clean.
-```
-
-`ValueError` and `HTTPException` are *both* in the repo's vocabulary; only the choice is wrong.
+argot does **not** flag this. `ValueError` and `HTTPException` are *both* in the repo's vocabulary; only the choice is wrong.
 Separating "wrong choice" from a legitimate `ValueError` elsewhere needs semantic reasoning a no-model,
 no-runtime binary doesn't have — and forcing it drives false alarms on the repo's own code (the
 recovery investigation measured **+1 recall for +45 false positives**, blowing the ≤0.98% budget). So

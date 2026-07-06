@@ -96,9 +96,7 @@ $ argot check --staged
 
 $ argot mute cbc8047c9ecc --reason "RFC-42: tenacity is our chosen retry library"
 Muted [cbc8047c9ecc] — RFC-42: tenacity is our chosen retry library
-
-$ argot check --staged
-All hunks scored below calibrated thresholds — looks clean.
+# → the tenacity hit is now an accepted decision, and no longer flagged
 ```
 
 The reason lands in `.argot/suppressions.yaml` and `argot list-mutes` — the next

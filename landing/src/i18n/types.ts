@@ -27,7 +27,6 @@ export interface SiteContent {
     readonly label: string;
     readonly title: string;
     readonly body: string;
-    readonly codeTitle: string;
     readonly caption: string;
     readonly seeLive: string;
   };
