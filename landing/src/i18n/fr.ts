@@ -88,6 +88,8 @@ const fr: SiteContent = {
     body: 'argot init apprend la voix de votre dépôt et vous dit s’il est prêt — sans config, sans annotation. Dépôt en désordre ? Un agent IA (ou argot init --suggest) repère les dossiers générés et vendorisés qui ne doivent pas façonner la voix. [[Le modèle est un artefact de build — argot le garde hors de git pour vous.]]',
     caption:
       'Une seule commande. Elle garde même le modèle reconstructible hors de votre historique git.',
+    ctaLocal: 'Configurez-le avec un seul prompt',
+    ctaCi: 'ou un seul prompt pour la CI',
   },
   agents: {
     label: 'Conçu pour les agents IA',

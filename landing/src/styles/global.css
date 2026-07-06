@@ -18,7 +18,6 @@
 }
 
 html {
-  scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   /* Hard backstop against any horizontal overflow. `clip` (not `hidden`) does
@@ -36,6 +35,9 @@ html {
    viewport on small phones still scrolls freely instead of trapping. */
 html.snap {
   scroll-snap-type: y proximity;
+  /* Smooth scrolling is a home-nav nicety (anchor jumps to sections) — kept off
+     the docs, where it made long-page keyboard/anchor scrolling feel floaty. */
+  scroll-behavior: smooth;
 }
 .snap-section {
   scroll-snap-align: start;

@@ -114,6 +114,11 @@ rebuildable model stays out of git. Run `check` on every diff — `--staged`, a
 `--format json|sarif` for machines. `argot update` pulls the latest release. Full
 reference: `argot --help` and the [docs site](https://argot.tmonier.com/docs/).
 
+**Prefer to hand it off?** Paste one prompt and let your coding agent do the
+setup — there's a [local-setup prompt](https://argot.tmonier.com/docs/setup/) and
+a [CI-setup prompt](https://argot.tmonier.com/docs/ci/) (in Claude Code:
+`npx skills add get-tmonier/argot`).
+
 ## Configuration
 
 argot learns from the code *you* wrote — so it helps to keep generated, vendored,

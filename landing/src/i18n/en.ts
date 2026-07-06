@@ -87,6 +87,8 @@ const en: SiteContent = {
     title: 'From clone to calibrated in one line.',
     body: 'argot init learns your repo’s voice and tells you if it’s ready — no config, no annotations. Messy repo? An AI agent (or argot init --suggest) picks out the generated and vendored directories that shouldn’t shape your voice. [[The model is a build artifact — argot keeps it out of git for you.]]',
     caption: 'One command. It even keeps the rebuildable model out of your git history.',
+    ctaLocal: 'Set it up with one prompt',
+    ctaCi: 'or one prompt for CI',
   },
   agents: {
     label: 'Built for AI agents',
