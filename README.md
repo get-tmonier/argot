@@ -111,66 +111,38 @@ Intel), Linux (x64 + arm64), and Windows (x64). See the
 
 ## Set up
 
-argot is a CLI you point at a repo: `argot init` fits it to your code, `argot check`
-scores your changes. Deciding what should — and shouldn't — shape your repo's voice
-takes about 30 seconds. Pick a lane.
-
-**Let your coding agent do it — fastest.** Install the skills once:
+Point argot at a repo and let your coding agent drive it — the fastest path.
+Install the skills once:
 
 ```sh
-npx skills add get-tmonier/argot     # writes SKILL.md files your agent reads
+npx skills add get-tmonier/argot
 ```
 
-Then run **`/argot-setup`** in Claude Code or Cursor (Codex: `$argot-setup`). Your
-agent fits the model, decides what to ignore, and verifies the catch — driving the
-same `argot` binary you'd run by hand. `/argot-check` scores a diff as you work;
-`/argot-ci` wires the GitHub Action. Works across 70+ agents; in Claude Code you can
-also `/plugin install argot` to get the skills and the MCP server together.
+Then run **`/argot-setup`** in Claude Code, Cursor, or 70+ agents — it fits the
+model, decides what to ignore, and verifies the catch. `/argot-check` scores diffs
+as you work; `/argot-ci` wires the GitHub Action.
 
-Drop argot's [`AGENTS.md`](AGENTS.md) into your repo so any agent follows the
-never-block contract, and point tools at the machine-readable
-[`llms.txt`](https://argot.tmonier.com/llms.txt). On a large repo, an optional
-[MCP server](https://argot.tmonier.com/docs/agents/) (`argot mcp`) can also feed
-your idioms to the agent *before* it writes — see the
-[agents guide](https://argot.tmonier.com/docs/agents/).
-
-**Or run it yourself.**
+Each skill just wraps a plain command, so you can skip them and drive the CLI
+yourself:
 
 ```sh
-cd your-repo
-argot init         # learn your repo's voice, then a health check (Ready / Marginal / …)
-argot check        # score uncommitted changes (or pass a ref/range)
+argot init && argot check      # fit once, then score your changes
 ```
 
-`argot init` fits once and writes a `.argot/.gitignore` so the rebuildable model stays
-out of git. Run `check` on every diff — `--staged`, a `HEAD~5..HEAD` range,
-`--commit <sha>`, `--min-severity foreign`, or `--format json|sarif` for machines.
-`argot update` pulls the latest release.
-
-**Or drive it by hand.** To choose exactly what argot learns from, the
-[Setup guide](https://argot.tmonier.com/docs/setup/) walks through `.argotignore` and
-a copy-paste prompt for any agent. Full reference: `argot --help` and the
-[docs](https://argot.tmonier.com/docs/).
+**More in the docs:** the [Setup guide](https://argot.tmonier.com/docs/setup/)
+covers hand-picking what argot learns from and a copy-paste prompt for any agent;
+drop [`AGENTS.md`](AGENTS.md) in your repo so any agent follows the never-block
+rule; `argot --help` and the [docs site](https://argot.tmonier.com/docs/) have the
+full reference (check flags, JSON/SARIF, MCP, `argot update`).
 
 ## Configuration
 
-argot learns from the code *you* wrote — so it helps to keep generated, vendored,
-and data files out of its voice. It already skips tests, docs, examples, build
-output, and files it detects as auto-generated or data-only. For the rest, an
-`.argotignore` (gitignore-style, layered on the defaults) does the job:
-
-```gitignore
-src/generated/        # protobuf / OpenAPI stubs — not our voice
-third_party/          # vendored SDKs
-```
-
-Don't hand-guess these: `argot init --suggest` finds the generated- and
-data-heavy directories for you (with evidence), and a coding agent can name the
-vendored or legacy ones from your tree. When a *specific* hit is intentional,
-accept it with an audit trail — `argot mute <hash> --reason "…"` — or an inline
-`# argot: ignore-next-line`. Full guide:
-[Configure](https://argot.tmonier.com/docs/configure/) ·
-[Setup](https://argot.tmonier.com/docs/setup/).
+argot learns from the code *you* wrote, so it already skips tests, docs, examples,
+build output, and anything it detects as generated or data-only. Exclude the rest
+— vendored SDKs, generated stubs, legacy modules — with a root `.argotignore`
+(gitignore-style); `argot init --suggest` finds the generated- and data-heavy dirs
+for you, and you accept an intentional hit with `argot mute <hash> --reason "…"`.
+Full guide: [Configure](https://argot.tmonier.com/docs/configure/).
 
 ## What it catches
 
