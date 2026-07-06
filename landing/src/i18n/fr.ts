@@ -92,26 +92,27 @@ const fr: SiteContent = {
   agents: {
     label: 'Conçu pour les agents IA',
     title: 'Votre agent écrit le code. argot le garde dans la voix du dépôt.',
-    body: 'La majorité du code qu’argot juge est désormais écrite par un agent. Donnez-lui le garde-fou : le skill argot-check signale tout ce qui est étranger pendant qu’il travaille — [[consultatif, jamais bloquant]] — et MCP lui fournit les idiomes du dépôt avant qu’il écrive une ligne.',
+    body: 'La majorité du code qu’argot juge est désormais écrite par un agent — donnez-lui le garde-fou, en local et en CI. Trois skills l’intègrent ; chacun signale ce qui est étranger — [[consultatif, jamais bloquant]] — et MCP lui fournit les idiomes du dépôt avant qu’il écrive une ligne.',
     cards: [
       {
-        title: 'argot-setup',
+        title: 'argot-setup · local',
         desc: 'Calibre le modèle de voix, et repère ce qui ne doit pas la façonner.',
       },
       {
-        title: 'argot-check',
+        title: 'argot-check · local',
         desc: 'Score la diff pendant que l’agent travaille — consultatif, jamais bloquant.',
+      },
+      {
+        title: 'argot-ci · CI',
+        desc: 'Branche l’action GitHub — un score de voix sur chaque PR, sans setup local.',
       },
       {
         title: 'MCP · voice_context',
         desc: 'Fournit les idiomes du dépôt avant que l’agent ne génère une ligne.',
       },
-      {
-        title: 'AGENTS.md',
-        desc: 'Le contrat de non-blocage, écrit noir sur blanc pour tout agent.',
-      },
     ],
-    caption: 'Il ne bloque jamais un commit ni ne réécrit votre code. Il signale — vous décidez.',
+    caption:
+      'En local ou en CI, il ne bloque jamais un commit ni ne réécrit votre code. Il signale — vous décidez.',
   },
   ciScore: {
     label: 'En CI, sans la friction',
