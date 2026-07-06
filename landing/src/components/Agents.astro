@@ -1,0 +1,83 @@
+---
+import CodeWindow from '#components/CodeWindow.astro';
+import { emphasize } from '#lib/text';
+import type { SiteContent } from '#i18n/types';
+
+interface Props {
+  content: SiteContent;
+}
+const { agents } = Astro.props.content;
+
+// Install command is a literal CLI transcript (like Demo.astro's code sample)
+// — not marketing prose, so it stays out of i18n.
+const installCmd = 'npx skills add get-tmonier/argot';
+
+// One glyph per card, echoing the badge convention set by Catches.astro.
+const glyphs = ['⚙', '◎', '⇄', '§'];
+---
+
+<section id="agents" class="snap-section relative flex min-h-svh items-center">
+  <div
+    class="mx-auto grid w-full max-w-6xl grid-cols-1 gap-10 px-5 py-24 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:gap-16"
+  >
+    <div class="reveal">
+      <p class="mb-3 font-mono text-xs tracking-widest text-ember uppercase">{agents.label}</p>
+      <h2 class="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{agents.title}</h2>
+      <p class="mt-5 leading-relaxed text-ink-dim text-pretty" set:html={emphasize(agents.body)} />
+    </div>
+
+    <div class="reveal flex flex-col gap-5" style="--reveal-delay: 120ms">
+      <CodeWindow code={installCmd} lang="bash" title="terminal" />
+
+      <div class="grid grid-cols-2 gap-3">
+        {
+          agents.cards.map((card, i) => (
+            <div class="agent-card">
+              <div class="agent-glyph" aria-hidden="true">
+                {glyphs[i]}
+              </div>
+              <h3 class="font-mono text-xs font-semibold tracking-tight text-ink sm:text-[13px]">
+                {card.title}
+              </h3>
+              <p
+                class="mt-1.5 text-xs leading-relaxed text-ink-dim"
+                set:html={emphasize(card.desc)}
+              />
+            </div>
+          ))
+        }
+      </div>
+
+      <p class="text-center text-sm text-muted text-pretty" set:html={emphasize(agents.caption)} />
+    </div>
+  </div>
+</section>
+
+<style>
+  .agent-card {
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel) 30%, transparent);
+    padding: 0.85rem;
+    transition:
+      border-color 0.25s,
+      background-color 0.25s;
+  }
+  .agent-card:hover {
+    border-color: var(--line-2);
+    background: color-mix(in srgb, var(--panel) 60%, transparent);
+  }
+  .agent-glyph {
+    display: inline-flex;
+    height: 1.6rem;
+    width: 1.6rem;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.5rem;
+    border-radius: 8px;
+    border: 1px solid var(--line-2);
+    background: var(--bg-2);
+    font-size: 0.8rem;
+    color: var(--ember);
+  }
+</style>

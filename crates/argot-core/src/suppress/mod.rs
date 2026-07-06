@@ -21,6 +21,7 @@
 
 pub mod glob;
 pub mod hit_hash;
+pub mod ignore_suggest;
 pub mod inline;
 pub mod last_check;
 pub mod mute;
@@ -29,6 +30,7 @@ pub mod rules_file;
 
 pub use glob::fnmatch;
 pub use hit_hash::hit_hash;
+pub use ignore_suggest::{suggest_ignores, IgnoreCandidate, IgnoreSuggestions};
 pub use inline::{parse_inline, InlineRule, InlineSuppressions, InlineWarning};
 pub use last_check::{read_last_check, write_last_check, LastCheckHit, LAST_CHECK_FILE};
 pub use mute::{mute_hash, DEFAULT_MUTE_REASON, SUPPRESSIONS_FILE};

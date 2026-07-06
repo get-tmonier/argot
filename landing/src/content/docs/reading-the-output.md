@@ -2,7 +2,7 @@
 title: Reading the output
 description: Anatomy of a hit — severity tiers, sources, the reason, and the evidence line.
 group: Guide
-order: 4
+order: 6
 ---
 
 A `check` run groups hits by file. Here's a complete one:
@@ -68,6 +68,7 @@ argot won't flag **data-dominant files** — modules that are ≥80% top-level a
 vocabulary, so without this gate the scorer would fire on every line. The same predicate runs at fit
 and check time, so the model trains and scores on the same scope.
 
-Test files, config files, and a handful of conventional directories (`docs/`, `examples/`,
-`migrations/`, `scripts/`, `build/`, `dist/`) are skipped today as a placeholder default — these will
-move to user-configurable rules with the suppression surface.
+Test files, configuration files, and a set of conventional directories (`tests/`, `docs/`, `examples/`,
+`migrations/`, `build/`, `dist/`, and more) are skipped by the built-in **`argot:recommended`** set,
+and any file argot detects as auto-generated or data-dominant is skipped structurally. All of it is
+yours to change — see [Configure](/docs/configure/) for `.argotignore`, inline comments, and mutes.

@@ -2,7 +2,7 @@
 title: The commands
 description: extract, fit, and check — what each one does and the flags that matter.
 group: Guide
-order: 3
+order: 4
 ---
 
 argot is three commands. `extract` and `fit` are one-time setup; `check` is the per-diff loop.

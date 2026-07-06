@@ -2,7 +2,7 @@
 title: The scoring model
 description: The BPE log-ratio, the call-receiver penalty, file clustering, and per-corpus auto-detect.
 group: Reference
-order: 6
+order: 10
 ---
 
 This page is the deep end — the full scoring model. For the plain-English version, start with
