@@ -2,7 +2,7 @@
 title: Languages
 description: Tree-sitter tokenization, supported languages, and per-language calibration for monorepos.
 group: Reference
-order: 7
+order: 11
 ---
 
 argot is **language-agnostic by design**. All language-specific logic — import extraction, callee

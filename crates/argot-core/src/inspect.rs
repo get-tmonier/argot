@@ -201,7 +201,7 @@ pub struct ModelReport {
     pub languages: BTreeMap<String, LanguageModelView>,
 }
 
-fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
+pub(crate) fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
     match language {
         Language::Python => Box::new(PythonAdapter::new()),
         Language::Typescript => Box::new(TypeScriptAdapter::new()),

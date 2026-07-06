@@ -2,7 +2,7 @@
 title: How it works
 description: Two frequency tables, a max log-ratio, and a threshold calibrated on your own code.
 group: Start
-order: 2
+order: 3
 ---
 
 argot is deliberately simple. There is **no neural network** at scoring time — the model is two

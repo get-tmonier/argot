@@ -1,5 +1,7 @@
 ---
+import Agents from '#components/Agents.astro';
 import Catches from '#components/Catches.astro';
+import CiScore from '#components/CiScore.astro';
 import Cta from '#components/Cta.astro';
 import Demo from '#components/Demo.astro';
 import Features from '#components/Features.astro';
@@ -8,6 +10,7 @@ import Hero from '#components/Hero.astro';
 import Local from '#components/Local.astro';
 import Nav from '#components/Nav.astro';
 import Proof from '#components/Proof.astro';
+import Setup from '#components/Setup.astro';
 import Base from '#layouts/Base.astro';
 import type { SiteContent } from '#i18n/types';
 
@@ -25,6 +28,9 @@ const { content, locale } = Astro.props;
     <Demo content={content} />
     <Catches content={content} />
     <Proof content={content} />
+    <Setup content={content} />
+    <Agents content={content} />
+    <CiScore content={content} />
     <Local content={content} />
     <Features content={content} />
     <!-- final screen: the CTA fills the viewport with the footer pinned at the

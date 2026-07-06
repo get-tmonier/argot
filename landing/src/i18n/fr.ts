@@ -82,6 +82,44 @@ const fr: SiteContent = {
     finePrint:
       'Protocole sans fuite (issue #92) : rappel mesuré sur des fixtures plantées dans de vrais fichiers et jugées par le binaire livré ; fausses alertes par holdout temporel avec intervalles de confiance bootstrap au niveau commit. Chiffres complets par dépôt et méthodologie sur la page benchmarks.',
   },
+  setup: {
+    label: 'Configuration en une commande',
+    title: 'Du clone au calibrage, en une ligne.',
+    body: 'argot init apprend la voix de votre dépôt et vous dit s’il est prêt — sans config, sans annotation. Dépôt en désordre ? Un agent IA (ou argot init --suggest) repère les dossiers générés et vendorisés qui ne doivent pas façonner la voix. [[Le modèle est un artefact de build — argot le garde hors de git pour vous.]]',
+    caption:
+      'Une seule commande. Elle garde même le modèle reconstructible hors de votre historique git.',
+  },
+  agents: {
+    label: 'Conçu pour les agents IA',
+    title: 'Votre agent écrit le code. argot le garde dans la voix du dépôt.',
+    body: 'La majorité du code qu’argot juge est désormais écrite par un agent. Donnez-lui le garde-fou : le skill argot-check signale tout ce qui est étranger pendant qu’il travaille — [[consultatif, jamais bloquant]] — et MCP lui fournit les idiomes du dépôt avant qu’il écrive une ligne.',
+    cards: [
+      {
+        title: 'argot-setup',
+        desc: 'Calibre le modèle de voix, et repère ce qui ne doit pas la façonner.',
+      },
+      {
+        title: 'argot-check',
+        desc: 'Score la diff pendant que l’agent travaille — consultatif, jamais bloquant.',
+      },
+      {
+        title: 'MCP · voice_context',
+        desc: 'Fournit les idiomes du dépôt avant que l’agent ne génère une ligne.',
+      },
+      {
+        title: 'AGENTS.md',
+        desc: 'Le contrat de non-blocage, écrit noir sur blanc pour tout agent.',
+      },
+    ],
+    caption: 'Il ne bloque jamais un commit ni ne réécrit votre code. Il signale — vous décidez.',
+  },
+  ciScore: {
+    label: 'En CI, sans la friction',
+    title: 'Un score de voix sur chaque PR. Jamais une porte de merge.',
+    body: 'Comme un contrôle de sécurité, argot décore chaque pull request d’un score visuel et des points chauds — [[consultatif par défaut]]. C’est intentionnel ? Un argot mute suffit à l’accepter, avec une trace d’audit. Le relecteur garde toujours le dernier mot.',
+    caption:
+      'Le même score atterrit dans le résumé Actions, un commentaire de PR épinglé, et l’onglet Security.',
+  },
   local: {
     label: 'Comment il reste honnête',
     title: 'Deux tables de fréquence. Aucun réseau de neurones.',
@@ -115,11 +153,11 @@ const fr: SiteContent = {
       },
       {
         title: 'S’intègre à la CI',
-        desc: 'argot check tourne à chaque commit, groupe les hits par fichier et [[sort en non-zéro]] dès qu’un passage s’écarte. Câblez-le comme ESLint.',
+        desc: 'Tourne à chaque PR et publie un [[score de voix visuel]] — consultatif par défaut, jamais une porte de merge. Résumé de job, commentaire épinglé, et annotations SARIF.',
       },
       {
         title: 'Incrémental, pas une réécriture',
-        desc: 'Pointez-le sur un dépôt, lancez extract → fit [[une fois]], puis check à l’infini. Aucune annotation, aucune config pour démarrer.',
+        desc: 'Pointez-le sur un dépôt, lancez [[argot init]] une fois, puis check à l’infini. Aucune annotation, aucune config pour démarrer.',
       },
       {
         title: 'Preuves par passage',

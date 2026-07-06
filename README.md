@@ -96,24 +96,43 @@ npm install -g @tmonier/argot
 ```
 
 Both download the prebuilt binary for your platform — macOS (Apple Silicon +
-Intel) and Linux (x64 + arm64). See [docs/ci.md](docs/ci.md) and the
+Intel), Linux (x64 + arm64), and Windows (x64). See the
+[CI guide](https://argot.tmonier.com/docs/ci/) and the
 [install docs](https://argot.tmonier.com/docs/) for the full platform matrix.
 
 ## Quickstart
 
 ```sh
 cd your-repo
-argot extract      # walk git history → .argot/dataset.jsonl
-argot fit          # build the corpus + baseline, then calibrate the threshold
+argot init         # learn your repo's voice, then a health check (Ready / Marginal / …)
 argot check        # score uncommitted changes (or pass a ref/range)
 ```
 
-Run `fit` once per repo (and after major refactors); run `check` on every diff —
-`--staged`, a `HEAD~5..HEAD` range, `--commit <sha>`, `--min-severity foreign`,
-or `--format json|sarif` for machines. `argot inspect` reports corpus health and
-a Ready / Marginal / Not-recommended verdict; `argot update` pulls the latest
-release. Full reference: `argot --help` and the
-[docs site](https://argot.tmonier.com/docs/).
+`argot init` fits the model once per repo and writes a `.argot/.gitignore` so the
+rebuildable model stays out of git. Run `check` on every diff — `--staged`, a
+`HEAD~5..HEAD` range, `--commit <sha>`, `--min-severity foreign`, or
+`--format json|sarif` for machines. `argot update` pulls the latest release. Full
+reference: `argot --help` and the [docs site](https://argot.tmonier.com/docs/).
+
+## Configuration
+
+argot learns from the code *you* wrote — so it helps to keep generated, vendored,
+and data files out of its voice. It already skips tests, docs, examples, build
+output, and files it detects as auto-generated or data-only. For the rest, an
+`.argotignore` (gitignore-style, layered on the defaults) does the job:
+
+```gitignore
+src/generated/        # protobuf / OpenAPI stubs — not our voice
+third_party/          # vendored SDKs
+```
+
+Don't hand-guess these: `argot init --suggest` finds the generated- and
+data-heavy directories for you (with evidence), and a coding agent can name the
+vendored or legacy ones from your tree. When a *specific* hit is intentional,
+accept it with an audit trail — `argot mute <hash> --reason "…"` — or an inline
+`# argot: ignore-next-line`. Full guide:
+[Configure](https://argot.tmonier.com/docs/configure/) ·
+[Setup](https://argot.tmonier.com/docs/setup/).
 
 ## What it catches
 
@@ -140,6 +159,19 @@ if response.status_code >= 400:
 def list_users() -> list[dict[str, Any]]:
     return httpx.get(f"{UPSTREAM_URL}/v1/users").json()
 ```
+
+### argot vs. the tools you already run
+
+|  | Type checker | Linter · ESLint/ruff | argot |
+|---|:---:|:---:|:---:|
+| Catches invalid code | ✅ | ✅ | — |
+| Enforces a rule you wrote down | — | ✅ | — |
+| Flags what's foreign to *this repo* | ❌ | ❌ | ✅ |
+| Learns from your history — no rules to write | ❌ | ❌ | ✅ |
+
+argot is additive: it sits *after* your type checker and linter and catches the
+one thing they structurally can't — code that's valid and lint-clean but unlike
+anything your team has written.
 
 ## Benchmarks
 
@@ -202,11 +234,15 @@ validated? [Open an issue](https://github.com/get-tmonier/argot/issues/new).
 `argot check` emits `--format json` (stable schema) and `--format sarif`
 (SARIF 2.1.0 for GitHub code scanning). A composite GitHub Action ships at the
 repo root (`uses: get-tmonier/argot@main`), and `.pre-commit-hooks.yaml`
-registers an `argot-check` hook. Copy-paste setups: [docs/ci.md](docs/ci.md).
+registers an `argot-check` hook. It's non-blocking by default — a visual voice
+score on every PR. Copy-paste setups: [the CI guide](https://argot.tmonier.com/docs/ci/).
 
-For LLM coding agents, `argot mcp` runs a Model Context Protocol server so an
-agent can ask for the repo's voice *before* generating and score hunks *after* —
-setup for Claude Code, Cursor, and generic clients in [docs/mcp.md](docs/mcp.md).
+For LLM coding agents, install the `argot-setup` / `argot-check` skills
+(`npx skills add get-tmonier/argot`) or run the `argot mcp` server for proactive
+voice context — see [the agents guide](https://argot.tmonier.com/docs/agents/).
+Drop argot's [`AGENTS.md`](AGENTS.md) into your repo so any agent follows the
+never-block contract, and point agents at the machine-readable
+[`llms.txt`](https://argot.tmonier.com/llms.txt).
 
 ## How it works
 

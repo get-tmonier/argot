@@ -2,7 +2,7 @@
 title: What it catches
 description: The dependable catch — a foreign dependency or API — plus the harder in-vocabulary breaks, all valid, typed, and lint-clean.
 group: Guide
-order: 5
+order: 7
 ---
 
 argot catches code that is *technically fine but socially wrong* for this project. The shapes it sees,

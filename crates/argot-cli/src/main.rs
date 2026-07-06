@@ -38,6 +38,7 @@ use argot_core::scoring::adapters::typescript::TypeScriptAdapter;
 use argot_core::scoring::adapters::{Language, LanguageAdapter};
 use argot_core::scoring::calibration::{run_calibrate, CalibrateOptions};
 use argot_core::scoring::sequential::{SequentialConfig, SequentialImportBpeScorer};
+use argot_core::suppress::{suggest_ignores, IgnoreSuggestions};
 use argot_core::text::read_text_lossy;
 use argot_core::train::run_train;
 
@@ -100,6 +101,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Set up argot for this repo: fit the voice model and report its health
+    /// (`--suggest` lists directories you may want to exclude first).
+    Init(InitCmd),
     /// Extract dataset from git history.
     Extract(ExtractArgs),
     /// Collect the repo corpus + generic baseline. Plumbing behind `fit`; hidden.
@@ -467,7 +471,7 @@ fn wants_json(format: &str, json_alias: bool) -> bool {
 fn print_help_banner() {
     let version = env!("CARGO_PKG_VERSION");
     println!(
-        "argot v{version}\n\nCOMMANDS\n  extract       Walk git history into a training dataset (.argot/dataset.jsonl)\n  fit           Fit the voice model to this repo (= train + calibrate, one-shot)\n  check         Check changes against the fitted voice\n  review        Score a PR (or diff range) against the local voice, no checkout\n  voice-diff    PR-level out-of-voice metric + hot-spots for a ref/range\n  inspect       Report corpus composition, calibration health, and suitability\n  mute          Mute a hit by hash (appends to .argot/suppressions.yaml)\n  list-mutes    List active suppressions across all surfaces\n  review-mutes  Report (and --prune) muted hits that no longer fire\n  status        Show current repository's argot state\n  list          List all registered repositories\n  update        Update the argot CLI\n  mcp           Run an MCP server for LLM coding agents (stdio)\n  describe-voice  Generate a STYLE.md describing the repo's learned voice\n\nTypical first run: argot extract && argot fit && argot check\nRun `argot <command> --help` for details on any command."
+        "argot v{version}\n\nCOMMANDS\n  init          Set up argot for this repo (fit + health check; --suggest lists dirs to exclude)\n  extract       Walk git history into a training dataset (.argot/dataset.jsonl)\n  fit           Fit the voice model to this repo (= train + calibrate, one-shot)\n  check         Check changes against the fitted voice\n  review        Score a PR (or diff range) against the local voice, no checkout\n  voice-diff    PR-level out-of-voice metric + hot-spots for a ref/range\n  inspect       Report corpus composition, calibration health, and suitability\n  mute          Mute a hit by hash (appends to .argot/suppressions.yaml)\n  list-mutes    List active suppressions across all surfaces\n  review-mutes  Report (and --prune) muted hits that no longer fire\n  status        Show current repository's argot state\n  list          List all registered repositories\n  update        Update the argot CLI\n  mcp           Run an MCP server for LLM coding agents (stdio)\n  describe-voice  Generate a STYLE.md describing the repo's learned voice\n\nTypical first run: argot init && argot check\nRun `argot <command> --help` for details on any command."
     );
 }
 
@@ -613,16 +617,26 @@ struct FitCmd {
     slice: Vec<String>,
 }
 
-fn run_fit_cmd(c: FitCmd) -> ExitCode {
-    let argot_dir = c.repo.join(".argot");
+/// Train + calibrate the repo's voice model into `.argot/`, printing the
+/// two-step progress and protecting the (rebuildable, heavy) model dir from
+/// version control. Returns the scorer-config path on success. Shared by `fit`
+/// and `init`; failures are always setup errors (exit 2).
+fn fit_repo(repo: &Path, slices: &[String]) -> Result<PathBuf, ()> {
+    let argot_dir = repo.join(".argot");
+    if let Err(e) = ensure_model_gitignored(&argot_dir) {
+        eprintln!(
+            "warning: could not protect {} from git: {e}",
+            argot_dir.display()
+        );
+    }
     let repo_corpus = argot_dir.join("repo-corpus.txt");
     let generic = argot_dir.join("generic-baseline.json");
     let scorer_config = argot_dir.join("scorer-config.json");
 
     println!("Step 1/2: training voice model …");
-    if let Err(e) = run_train(&c.repo, &repo_corpus, &generic) {
+    if let Err(e) = run_train(repo, &repo_corpus, &generic) {
         eprintln!("error: {e}");
-        return ExitCode::from(2);
+        return Err(());
     }
 
     println!("Step 2/2: calibrating threshold …");
@@ -630,22 +644,177 @@ fn run_fit_cmd(c: FitCmd) -> ExitCode {
         Ok(b) => b,
         Err(_) => {
             eprintln!("error: generic baseline missing after train");
-            return ExitCode::from(2);
+            return Err(());
         }
     };
-    let repo_sha = head_sha(&c.repo.to_string_lossy()).unwrap_or_else(|| "unknown".to_string());
+    let repo_sha = head_sha(&repo.to_string_lossy()).unwrap_or_else(|| "unknown".to_string());
     let opts = CalibrateOptions {
         repo_sha,
         timestamp_utc: iso_now(),
-        slices: c.slice.clone(),
+        slices: slices.to_vec(),
         ..CalibrateOptions::default()
     };
-    if let Err(e) = run_calibrate(&c.repo, &repo_corpus, &generic_bytes, &scorer_config, &opts) {
+    if let Err(e) = run_calibrate(repo, &repo_corpus, &generic_bytes, &scorer_config, &opts) {
         eprintln!("error: {e}");
-        return ExitCode::from(2);
+        return Err(());
     }
-    println!("Done. Scorer config: {}", scorer_config.display());
+    Ok(scorer_config)
+}
+
+fn run_fit_cmd(c: FitCmd) -> ExitCode {
+    match fit_repo(&c.repo, &c.slice) {
+        Ok(scorer_config) => {
+            println!("Done. Scorer config: {}", scorer_config.display());
+            ExitCode::SUCCESS
+        }
+        Err(()) => ExitCode::from(2),
+    }
+}
+
+#[derive(Args)]
+struct InitCmd {
+    /// Path to the repository.
+    #[arg(long, default_value = ".")]
+    repo: PathBuf,
+    /// Don't fit — instead list directories you may want to add to
+    /// `.argotignore` first (statistical evidence only; you decide).
+    #[arg(long)]
+    suggest: bool,
+    /// Output format for `--suggest`: human (terminal) or json (stable,
+    /// machine-readable — consumed by the setup skill).
+    #[arg(long, default_value = "human", value_parser = ["human", "json"])]
+    format: String,
+}
+
+fn run_init_cmd(c: InitCmd) -> ExitCode {
+    if c.suggest {
+        return run_init_suggest(&c);
+    }
+
+    let scorer_config = match fit_repo(&c.repo, &[]) {
+        Ok(p) => p,
+        Err(()) => return ExitCode::from(2),
+    };
+
+    let report = match inspect_repo(&c.repo) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let use_color = std::env::var_os("NO_COLOR").is_none() && std::io::stdout().is_terminal();
+    println!();
+    print!("{}", render_inspect_human(&report, use_color));
+    println!();
+
+    match report.verdict {
+        Verdict::Ready => {
+            println!("Voice model fitted → {}", scorer_config.display());
+            println!("Next:  argot check          # score your working changes");
+        }
+        Verdict::Marginal | Verdict::NotRecommended => {
+            println!("Voice model fitted → {}", scorer_config.display());
+            println!(
+                "The corpus looks {}. Next steps:",
+                verdict_word(report.verdict)
+            );
+            println!(
+                "  • argot init --suggest    # directories you may want to exclude from the voice"
+            );
+            println!("  • edit .argotignore, then re-run  argot init");
+            println!("  • argot check             # score your working changes");
+        }
+    }
     ExitCode::SUCCESS
+}
+
+fn verdict_word(v: Verdict) -> &'static str {
+    match v {
+        Verdict::Ready => "ready",
+        Verdict::Marginal => "marginal",
+        Verdict::NotRecommended => "not recommended yet",
+    }
+}
+
+fn run_init_suggest(c: &InitCmd) -> ExitCode {
+    let suggestions = suggest_ignores(&c.repo);
+    if wants_json(&c.format, false) {
+        match serde_json::to_string_pretty(&suggestions) {
+            Ok(json) => {
+                println!("{json}");
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        }
+    } else {
+        print!("{}", render_suggestions_human(&suggestions));
+        ExitCode::SUCCESS
+    }
+}
+
+fn render_suggestions_human(s: &IgnoreSuggestions) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    if s.candidates.is_empty() {
+        let _ = writeln!(out, "No directories stood out as generated- or data-heavy.");
+        let _ = writeln!(out);
+        let _ = writeln!(
+            out,
+            "argot already skips test/docs/build directories (argot:recommended) and drops"
+        );
+        let _ = writeln!(
+            out,
+            "auto-generated or data-dominant files on its own. If a vendored, legacy, or"
+        );
+        let _ = writeln!(
+            out,
+            "third-party directory shouldn't shape your repo's voice, add it to .argotignore"
+        );
+        let _ = writeln!(out, "by hand — see the Configure guide.");
+        return out;
+    }
+    let _ = writeln!(
+        out,
+        "Directories you may want to add to .argotignore (evidence only — you decide;"
+    );
+    let _ = writeln!(
+        out,
+        "any ordinary code in these directories would then be dropped from the voice):"
+    );
+    let _ = writeln!(out);
+    for c in &s.candidates {
+        let _ = writeln!(out, "  {}", c.path);
+        let _ = writeln!(out, "    {} · {}", c.reason, c.detail);
+    }
+    let _ = writeln!(out);
+    let _ = writeln!(
+        out,
+        "Add the lines you agree with to .argotignore, then re-run  argot init"
+    );
+    out
+}
+
+/// Keep the rebuildable model directory — and the heavy `argot extract`
+/// dataset — out of version control. Writes a `.gitignore` that ignores the
+/// whole `.argot/` tree; never clobbers an existing one, so a user who wants to
+/// commit their model can delete it and stay in control.
+fn ensure_model_gitignored(argot_dir: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(argot_dir)?;
+    let gitignore = argot_dir.join(".gitignore");
+    if gitignore.exists() {
+        return Ok(());
+    }
+    fs::write(
+        &gitignore,
+        "# argot writes a rebuildable voice model here — regenerate any time with `argot fit`.\n\
+         # The model and the heavy `argot extract` dataset are build artifacts, not source;\n\
+         # CI restores them from cache or re-fits. Delete this file to commit them yourself.\n\
+         *\n",
+    )
 }
 
 #[derive(Args)]
@@ -761,8 +930,9 @@ struct VoiceDiffCmd {
     /// Path to the repository.
     #[arg(long, default_value = ".")]
     repo: PathBuf,
-    /// Output format: human or json.
-    #[arg(long, default_value = "human", value_parser = ["human", "json"])]
+    /// Output format: human, json, or markdown (a PR-comment / job-summary
+    /// score card).
+    #[arg(long, default_value = "human", value_parser = ["human", "json", "markdown"])]
     format: String,
     /// Hot-spots to list.
     #[arg(long = "top", value_name = "N", default_value_t = voice_diff::DEFAULT_TOP)]
@@ -1469,6 +1639,11 @@ fn run_extract(a: ExtractArgs) -> ExitCode {
 
     if let Some(parent) = a.out.parent() {
         let _ = fs::create_dir_all(parent);
+        // The dataset is heavy and rebuildable — keep the default `.argot/`
+        // model dir out of version control (leave custom --out paths alone).
+        if parent.file_name().is_some_and(|n| n == ".argot") {
+            let _ = ensure_model_gitignored(parent);
+        }
     }
 
     // Atomic write: stream to a per-PID tmp file, then rename.
@@ -1541,6 +1716,7 @@ fn main() -> ExitCode {
             print_help_banner();
             ExitCode::SUCCESS
         }
+        Some(Command::Init(c)) => run_init_cmd(c),
         Some(Command::Extract(a)) => run_extract(a),
         Some(Command::Train(c)) => run_train_cmd(c),
         Some(Command::Calibrate(c)) => run_calibrate_cmd(c),

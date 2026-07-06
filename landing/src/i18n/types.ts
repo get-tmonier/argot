@@ -47,6 +47,25 @@ export interface SiteContent {
     }[];
     readonly finePrint: string;
   };
+  readonly setup: {
+    readonly label: string;
+    readonly title: string;
+    readonly body: string;
+    readonly caption: string;
+  };
+  readonly agents: {
+    readonly label: string;
+    readonly title: string;
+    readonly body: string;
+    readonly cards: readonly Feature[];
+    readonly caption: string;
+  };
+  readonly ciScore: {
+    readonly label: string;
+    readonly title: string;
+    readonly body: string;
+    readonly caption: string;
+  };
   readonly local: {
     readonly label: string;
     readonly title: string;

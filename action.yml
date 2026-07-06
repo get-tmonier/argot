@@ -1,5 +1,9 @@
 # Composite GitHub Action for argot — voice linter that learns a repo's voice
-# from git history. See docs/ci.md for copy-paste workflow examples.
+# from git history. See https://argot.tmonier.com/docs/ci/ for copy-paste workflows.
+#
+# It is advisory by default: argot is a statistical guardrail, so it informs the
+# PR with a visual score and inline annotations without gating the merge. The
+# reviewer has the last word (opt into `fail-on-hits` for a hard gate).
 #
 # What it does:
 #   1. Downloads the prebuilt `argot` binary from this repo's GitHub Releases
@@ -7,7 +11,9 @@
 #   2. Restores/caches the `.argot/` model directory keyed on the tracked
 #      source files and the argot version; runs `argot fit` on a cache miss.
 #   3. Runs `argot check --format <format>` and writes the document to a file.
-#   4. Optionally uploads the SARIF file to GitHub code scanning.
+#   4. Renders a non-blocking "voice score" card into the Actions job summary,
+#      and (on pull requests) into a single sticky PR comment.
+#   5. Optionally uploads the SARIF file to GitHub code scanning.
 #
 # Supported runners: Linux (x64/arm64), macOS (arm64/x64), and Windows (x64) —
 # the targets argot publishes prebuilt binaries for.
@@ -16,7 +22,7 @@
 # Use `actions/checkout` with `fetch-depth: 0`.
 
 name: "argot"
-description: "Run the argot voice linter and (optionally) upload SARIF results to GitHub code scanning."
+description: "Score a PR against the repo's learned voice — a non-blocking visual score card, PR comment, and SARIF code-scanning annotations."
 branding:
   icon: "mic"
   color: "purple"
@@ -52,10 +58,18 @@ inputs:
     description: "Upload the SARIF file to GitHub code scanning (requires format: sarif and `security-events: write`)."
     required: false
     default: "true"
-  fail-on-hits:
-    description: "Fail the job when argot finds hunks above the calibrated threshold."
+  comment-pr:
+    description: "Post/update a non-blocking voice-score comment on the pull request (requires `pull-requests: write`)."
     required: false
     default: "true"
+  fail-on-hits:
+    description: >-
+      Fail the job when argot finds hunks above the calibrated threshold.
+      Off by default: argot is a statistical guardrail, so it informs the PR
+      (score card + code-scanning annotations) without gating the merge. Opt in
+      only if you deliberately want a hard gate.
+    required: false
+    default: "false"
 
 outputs:
   exit-code:
@@ -155,6 +169,65 @@ runs:
         else
           echo "argot check clean."
         fi
+
+    - name: Voice score card
+      id: card
+      shell: bash
+      env:
+        ARGOT_PATH: ${{ inputs.path }}
+        ARGOT_REF: ${{ inputs.ref }}
+      run: |
+        set -euo pipefail
+        # The range to summarize: explicit ref wins, else base..HEAD on PRs,
+        # else the head commit vs its parent on pushes.
+        if [ -n "$ARGOT_REF" ]; then
+          range="$ARGOT_REF"
+        elif [ -n "${GITHUB_BASE_REF:-}" ]; then
+          range="origin/${GITHUB_BASE_REF}..HEAD"
+        elif git -C "$ARGOT_PATH" rev-parse --verify -q HEAD~1 >/dev/null; then
+          range="HEAD~1..HEAD"
+        else
+          range=""
+        fi
+        if [ -z "$range" ]; then
+          echo "No diff range to score — skipping the voice card."
+          echo "card=" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        card="${RUNNER_TEMP}/argot-voice-card.md"
+        # Advisory: never let card rendering fail the job.
+        if argot voice-diff "$range" --repo "$ARGOT_PATH" --format markdown > "$card" 2>/dev/null; then
+          # Rich score card in the Actions run UI — no extra permissions, fork-safe.
+          cat "$card" >> "$GITHUB_STEP_SUMMARY"
+          echo "card=$card" >> "$GITHUB_OUTPUT"
+        else
+          echo "voice-diff could not score '$range' (is the model fitted?) — skipping card."
+          echo "card=" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Comment voice score on the PR
+      if: ${{ inputs.comment-pr == 'true' && github.event_name == 'pull_request' && steps.card.outputs.card != '' }}
+      uses: actions/github-script@v7
+      env:
+        ARGOT_CARD: ${{ steps.card.outputs.card }}
+      with:
+        github-token: ${{ github.token }}
+        script: |
+          const fs = require('fs');
+          const marker = '<!-- argot-voice-check -->';
+          const body = marker + '\n' + fs.readFileSync(process.env.ARGOT_CARD, 'utf8');
+          const { owner, repo } = context.repo;
+          const issue_number = context.payload.pull_request.number;
+          // Sticky comment: update the one we already posted, or create it once.
+          const comments = await github.paginate(github.rest.issues.listComments, {
+            owner, repo, issue_number,
+          });
+          const existing = comments.find((c) => c.body && c.body.includes(marker));
+          if (existing) {
+            await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+          } else {
+            await github.rest.issues.createComment({ owner, repo, issue_number, body });
+          }
 
     - name: Upload SARIF to code scanning
       if: ${{ inputs.upload-sarif == 'true' && inputs.format == 'sarif' }}

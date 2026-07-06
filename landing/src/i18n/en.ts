@@ -82,6 +82,43 @@ const en: SiteContent = {
     finePrint:
       'Leak-free protocol (issue #92): recall from fixtures planted into real files and judged by the shipped binary; false alarms from a temporal holdout with commit-level bootstrap confidence intervals. Full per-repo numbers and methodology on the benchmarks page.',
   },
+  setup: {
+    label: 'Setup in one command',
+    title: 'From clone to calibrated in one line.',
+    body: 'argot init learns your repo’s voice and tells you if it’s ready — no config, no annotations. Messy repo? An AI agent (or argot init --suggest) picks out the generated and vendored directories that shouldn’t shape your voice. [[The model is a build artifact — argot keeps it out of git for you.]]',
+    caption: 'One command. It even keeps the rebuildable model out of your git history.',
+  },
+  agents: {
+    label: 'Built for AI agents',
+    title: 'Your agent writes the code. argot keeps it in voice.',
+    body: 'Most code argot judges is now written by an agent. Give the agent the guardrail: the argot-check skill surfaces anything foreign as it works — [[advisory, never blocking]] — and MCP feeds it your repo’s idioms before it writes a line.',
+    cards: [
+      {
+        title: 'argot-setup',
+        desc: 'Fits the voice model, and picks out what shouldn’t shape it.',
+      },
+      {
+        title: 'argot-check',
+        desc: 'Scores the diff as the agent works — advisory, never blocking.',
+      },
+      {
+        title: 'MCP · voice_context',
+        desc: 'Feeds the repo’s idioms before the agent generates a line.',
+      },
+      {
+        title: 'AGENTS.md',
+        desc: 'The never-block contract, written down for any agent to read.',
+      },
+    ],
+    caption: 'It never blocks a commit or rewrites your code. It surfaces — you decide.',
+  },
+  ciScore: {
+    label: 'In CI, without the friction',
+    title: 'A voice score on every PR. Never a merge gate.',
+    body: 'Like a security check, argot decorates each pull request with a visual score and the hot-spots — [[advisory by default]]. Intentional? One argot mute accepts it, with an audit trail. The reviewer always has the last word.',
+    caption:
+      'The same score lands in the Actions summary, a sticky PR comment, and the Security tab.',
+  },
   local: {
     label: 'How it stays honest',
     title: 'Two frequency tables. No neural network.',
@@ -115,11 +152,11 @@ const en: SiteContent = {
       },
       {
         title: 'Drops into CI',
-        desc: 'argot check runs on every commit, groups hits by file, and [[exits non-zero]] when something diverges. Wire it in like ESLint.',
+        desc: 'Runs on every PR and posts a [[visual voice score]] — advisory by default, never a merge gate. Job summary, sticky comment, and SARIF annotations.',
       },
       {
         title: 'Incremental, not a rewrite',
-        desc: 'Point it at a repo, run extract → fit [[once]], then check forever. No annotations, no config to get started.',
+        desc: 'Point it at a repo, run [[argot init]] once, then check forever. No annotations, no config to get started.',
       },
       {
         title: 'Per-hunk evidence',

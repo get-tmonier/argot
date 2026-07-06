@@ -19,6 +19,8 @@ pub struct HitScore {
     pub line_end: usize,
     pub score: f64,
     pub severity: String,
+    /// Content-based hit hash — `argot mute <hash>` accepts the hunk.
+    pub hash: String,
 }
 
 /// Additive-smoothing denominator: pulls tiny diffs toward 0% so a lone
@@ -36,6 +38,8 @@ pub struct HotSpot {
     pub line_end: usize,
     pub score: f64,
     pub severity: String,
+    /// Content-based hit hash — `argot mute <hash>` accepts the hunk.
+    pub hash: String,
 }
 
 #[derive(Serialize)]
@@ -82,6 +86,7 @@ pub fn summarize(hits: &[HitScore], hunks_total: usize, top_n: usize) -> VoiceDi
             line_end: h.line_end,
             score: h.score,
             severity: h.severity.clone(),
+            hash: h.hash.clone(),
         })
         .collect();
     VoiceDiffSummary {
@@ -140,6 +145,11 @@ pub fn summary_for_ref(repo: &Path, reference: &str, top_n: usize) -> Option<Voi
                         .and_then(Value::as_str)
                         .unwrap_or("")
                         .to_string(),
+                    hash: h
+                        .get("hash")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_string(),
                 })
                 .collect()
         })
@@ -155,6 +165,83 @@ pub fn one_liner(s: &VoiceDiffSummary) -> String {
     )
 }
 
+/// A GitHub-flavoured markdown "voice score" card — for a PR comment or an
+/// Actions job summary. Deliberately framed as advisory: it reports a score and
+/// hot-spots and offers the `argot mute` escape hatch, but never speaks in terms
+/// of pass/fail or blocking. The reviewer decides.
+pub fn markdown_card(s: &VoiceDiffSummary) -> String {
+    use std::fmt::Write as _;
+    let in_voice = (100.0 - s.out_of_voice_pct).clamp(0.0, 100.0);
+    let filled = ((in_voice / 100.0) * 20.0).round() as usize;
+    let bar: String = "█".repeat(filled) + &"░".repeat(20 - filled);
+
+    let mut out = String::new();
+    let _ = writeln!(out, "### 🎙️ argot voice check\n");
+
+    if s.hunks_flagged == 0 {
+        let _ = writeln!(
+            out,
+            "**100% in-voice** — this diff sounds like the rest of the repo. ✅\n"
+        );
+        let _ = writeln!(out, "`{bar}` 100%\n");
+        let _ = writeln!(
+            out,
+            "<sub>argot is a statistical guardrail — advisory only, it never blocks a merge.</sub>"
+        );
+        return out;
+    }
+
+    let _ = writeln!(
+        out,
+        "**{in_voice:.0}% in-voice** · {} of {} scored hunks look foreign to this repo's patterns · strongest signal: **{}**",
+        s.hunks_flagged, s.hunks_total, s.max_severity
+    );
+    let _ = writeln!(out, "\n`{bar}` {in_voice:.0}%\n");
+    let _ = writeln!(
+        out,
+        "> **Advisory — not a merge gate.** argot is statistical and can be wrong; treat these as prompts to review, not errors.\n"
+    );
+
+    let _ = writeln!(out, "| | Location | Signal | Score | Accept |");
+    let _ = writeln!(out, "|---|---|---|--:|---|");
+    for h in &s.hot_spots {
+        let glyph = match h.severity.as_str() {
+            "foreign" => "🔴",
+            "suspicious" => "🟡",
+            _ => "⚪",
+        };
+        let loc = if h.line_start == h.line_end {
+            format!("{}:{}", h.file, h.line_start)
+        } else {
+            format!("{}:{}-{}", h.file, h.line_start, h.line_end)
+        };
+        let accept = if h.hash.is_empty() {
+            String::new()
+        } else {
+            format!("`argot mute {}`", h.hash)
+        };
+        let _ = writeln!(
+            out,
+            "| {glyph} | `{loc}` | {} | {:.1} | {accept} |",
+            h.severity, h.score
+        );
+    }
+    let _ = writeln!(out);
+    let _ = writeln!(
+        out,
+        "**Intentional?** Accept a hit so it stops flagging (and leaves an audit trail):\n"
+    );
+    let _ = writeln!(
+        out,
+        "```\nargot mute <hash> --reason \"why this is on purpose\"\n```"
+    );
+    let _ = writeln!(
+        out,
+        "<sub>argot never blocks a merge — the reviewer has the last word. · [What this means](https://argot.tmonier.com/docs/reading-the-output/)</sub>"
+    );
+    out
+}
+
 pub fn run_voice_diff(target: &str, repo: PathBuf, format: &str, top_n: usize) -> ExitCode {
     let Some(summary) = summary_for_ref(&repo, target, top_n) else {
         eprintln!("error: could not score '{target}' — run `argot fit` first?");
@@ -165,6 +252,10 @@ pub fn run_voice_diff(target: &str, repo: PathBuf, format: &str, top_n: usize) -
             "{}",
             serde_json::to_string_pretty(&summary).unwrap_or_default()
         );
+        return ExitCode::SUCCESS;
+    }
+    if format == "markdown" {
+        print!("{}", markdown_card(&summary));
         return ExitCode::SUCCESS;
     }
     println!("{}", one_liner(&summary));
@@ -198,6 +289,7 @@ mod tests {
             line_end: line,
             score,
             severity: sev.to_string(),
+            hash: "deadbeef".to_string(),
         }
     }
 
@@ -237,6 +329,29 @@ mod tests {
             hit("c.py", 3, 5.5, "suspicious"),
         ];
         assert_eq!(summarize(&hits, 20, 10).max_severity, "foreign");
+    }
+
+    #[test]
+    fn markdown_card_is_advisory_and_offers_mute() {
+        let hits = vec![hit("src/http.ts", 42, 8.2, "foreign")];
+        let card = markdown_card(&summarize(&hits, 40, 10));
+        assert!(card.contains("in-voice"), "reports a score");
+        assert!(card.contains("not a merge gate"), "framed advisory");
+        assert!(
+            card.contains("argot mute deadbeef"),
+            "offers the accept command"
+        );
+        assert!(
+            !card.to_lowercase().contains("fail"),
+            "never speaks of failing"
+        );
+    }
+
+    #[test]
+    fn markdown_card_clean_diff_is_100_percent() {
+        let card = markdown_card(&summarize(&[], 30, 10));
+        assert!(card.contains("100% in-voice"));
+        assert!(card.contains("never blocks"));
     }
 
     #[test]

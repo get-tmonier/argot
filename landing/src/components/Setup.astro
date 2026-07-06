@@ -1,0 +1,49 @@
+---
+import CodeWindow from '#components/CodeWindow.astro';
+import { emphasize } from '#lib/text';
+import type { SiteContent } from '#i18n/types';
+
+interface Props {
+  content: SiteContent;
+}
+const { setup } = Astro.props.content;
+
+/**
+ * Hand-colored terminal output (not run through Shiki) so "Ready" can carry
+ * the jade success color — see CodeWindow's `html` prop. Kept out of i18n
+ * like Demo.astro's code sample: this is a literal CLI transcript, not prose.
+ */
+const term = [
+  `<span style="color:var(--muted)">$ </span><span style="color:var(--ink);font-weight:600">argot init</span>`,
+  `<span style="color:var(--ink-dim)">Step 1/2: training voice model …</span>`,
+  `<span style="color:var(--ink-dim)">Step 2/2: calibrating threshold …</span>`,
+  ``,
+  `<span style="color:var(--ink);font-weight:600">Corpus</span>`,
+  `<span style="color:var(--ink-dim)">  1129 files · 503 learned · 626 tests/docs skipped</span>`,
+  `<span style="color:var(--muted)">Verdict: </span><span style="color:var(--jade);font-weight:700">Ready</span>`,
+  ``,
+  `<span style="color:var(--muted)">Voice model fitted → .argot/scorer-config.json</span>`,
+  `<span style="color:var(--muted)">Next:  </span><span style="color:var(--ember-bright)">argot check</span>`,
+].join('\n');
+const html = `<pre><code>${term}</code></pre>`;
+---
+
+<section id="setup" class="snap-section relative flex min-h-svh items-center">
+  <div
+    class="mx-auto grid w-full max-w-6xl grid-cols-1 gap-10 px-5 py-24 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:gap-16"
+  >
+    <div class="reveal">
+      <p class="mb-3 font-mono text-xs tracking-widest text-ember uppercase">{setup.label}</p>
+      <h2 class="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{setup.title}</h2>
+      <p class="mt-5 leading-relaxed text-ink-dim text-pretty" set:html={emphasize(setup.body)} />
+    </div>
+
+    <div class="reveal flex flex-col gap-4" style="--reveal-delay: 120ms">
+      <CodeWindow html={html} title="terminal" />
+      <p
+        class="text-center text-sm text-muted italic text-pretty"
+        set:html={emphasize(setup.caption)}
+      />
+    </div>
+  </div>
+</section>
