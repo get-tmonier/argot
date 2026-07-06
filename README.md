@@ -87,7 +87,8 @@ The glyph encodes severity (`!` foreign · `?` suspicious · `.` unusual), the
 `[hash]` is a stable id you can `argot mute`, and the `↳` line names the foreign
 symbol with the repo's own vocabulary beside it — 74 imports of `fastapi`,
 `pydantic`, `starlette`…, and never once `django`. No linter flags a valid import
-of a real framework; argot does — because this repo never has.
+of a real framework; argot does — because this repo never has. Full anatomy:
+[Reading the output](https://argot.tmonier.com/docs/reading-the-output/).
 
 ## Install
 
@@ -129,11 +130,11 @@ yourself:
 argot init && argot check      # fit once, then score your changes
 ```
 
-**More in the docs:** the [Setup guide](https://argot.tmonier.com/docs/setup/)
-covers hand-picking what argot learns from and a copy-paste prompt for any agent;
-drop [`AGENTS.md`](AGENTS.md) in your repo so any agent follows the never-block
-rule; `argot --help` and the [docs site](https://argot.tmonier.com/docs/) have the
-full reference (check flags, JSON/SARIF, MCP, `argot update`).
+**More in the docs:** [Setup](https://argot.tmonier.com/docs/setup/) covers
+hand-picking what argot learns from and a copy-paste prompt for any agent;
+[Agents](https://argot.tmonier.com/docs/agents/) covers the skills, `AGENTS.md`,
+and the optional MCP server; [The commands](https://argot.tmonier.com/docs/the-commands/)
+has every flag (JSON/SARIF, ranges, `argot update`).
 
 ## Configuration
 
@@ -262,8 +263,9 @@ likely is this hunk's token distribution under a generic open-source baseline
 than under your repo?), and a **call-receiver penalty** (does it call things
 this kind of file never calls?). The model is two frequency tables plus a
 callee-cluster partition — no neural network, learned entirely from your
-history. The full scoring math, calibration protocol, and the experiment log
-that got here live in [docs/research/](docs/research/README.md).
+history. Full detail on the website: [How it works](https://argot.tmonier.com/docs/how-it-works/)
+and [The scoring model](https://argot.tmonier.com/docs/the-scoring-model/); the
+experiment log that got here lives in [docs/research/](docs/research/README.md).
 
 ## Contributing
 
