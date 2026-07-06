@@ -706,10 +706,16 @@ impl SequentialImportBpeScorer {
                     &local_bindings,
                 )
             });
-        let cr_fired = (cr_would_fire
-            && (import_score >= IMPORT_THRESHOLD
-                || hunk_foreign_reach
-                || hunk_uses_foreign_binding))
+        // The call-receiver *reason* carries a hunk only on a genuine foreign
+        // callee signal (reach / foreign binding / explicit namespace). A foreign
+        // *import* in the hunk opens the surprisal gate, but the Import reason
+        // already names that dependency — so it must NOT also make call-receiver a
+        // competing candidate. Otherwise an import-gated call-receiver, riding on
+        // the repo's own attested callees (a Django view that imports `django`
+        // AND calls `self.repo.find`), wins the ratio tiebreak yet resolves to
+        // empty callee evidence, dropping the whole hit and losing the valid
+        // foreign-import flag. Genuine foreign callees are caught by hunk reach.
+        let cr_fired = (cr_would_fire && (hunk_foreign_reach || hunk_uses_foreign_binding))
             || explicit_foreign;
         let conv_side_score = bpe_score + convention_contribution;
         let conv_fired =
@@ -1128,6 +1134,54 @@ mod tests {
         assert!(
             !scored.flagged,
             "benign hunk must not flag on a file-level foreign import: {scored:?}"
+        );
+    }
+
+    /// A hunk that both imports a foreign module AND calls the repo's own
+    /// attested methods must resolve to the **Import** reason — not an
+    /// import-gated call-receiver. Before the fix, the foreign import opened the
+    /// call-receiver gate, an import-gated call-receiver (riding on the attested
+    /// callee's contribution) won the ratio tiebreak, and — resolving to empty
+    /// callee evidence at check time — the whole hit was dropped, losing the
+    /// valid foreign-import flag (a Django view that imports `django` AND calls
+    /// `self.repo.find` read clean).
+    #[test]
+    fn foreign_import_wins_over_import_gated_call_receiver() {
+        let mut cfg = config(12.0);
+        cfg.call_receiver_alpha = 25.0;
+        cfg.call_receiver_cap = 25;
+        cfg.call_receiver_root_bonus = 0.0;
+        let files: Vec<(PathBuf, String)> = (0..4)
+            .map(|i| {
+                (
+                    PathBuf::from(format!("m{i}.py")),
+                    "import math\n\n\ndef mean(xs):\n    total = math.fsum(xs)\n    return total / len(xs)\n".to_string(),
+                )
+            })
+            .collect();
+        let mut scorer = SequentialImportBpeScorer::from_config(
+            &files,
+            GENERIC_BASELINE_JSON,
+            Box::new(PythonAdapter::new()),
+            cfg,
+        )
+        .unwrap();
+
+        // Foreign import (`foreignlib`, 0-usage) + a new method on an *attested*
+        // module (`math.newhelper` → a call-receiver contribution that reaches no
+        // foreign module). The import fires; the import-gated call-receiver must
+        // not steal the reason.
+        let hunk = "import foreignlib\n\n\ndef run(xs):\n    return math.newhelper(xs)";
+        let scored = scorer.score_hunk(hunk, None, None, None, None);
+        assert!(
+            scored.stages.call_receiver_contribution > 0.0,
+            "the attested-module method still contributes: {scored:?}"
+        );
+        assert!(scored.flagged, "a foreign import must flag: {scored:?}");
+        assert_eq!(
+            scored.reason,
+            Reason::Import,
+            "the foreign import — not an import-gated call-receiver — carries the hit: {scored:?}"
         );
     }
 }
