@@ -85,34 +85,19 @@ const fr: SiteContent = {
   setup: {
     label: 'Configuration · conçu pour les agents',
     title: 'Un CLI que votre agent peut piloter.',
-    body: 'argot est l’outil ; les skills et le MCP sont le volant. Installez-le une fois et l’agent qui écrit votre code calibre le modèle, score vos diffs et récupère vos idiomes avant d’écrire — en lançant [[le même binaire argot]] que vous. Ou configurez-le vous-même en une commande.',
+    body: 'argot est l’outil ; les skills sont le volant. Installez-les une fois et l’agent qui écrit votre code lance [[le même binaire argot]] que vous — consultatif, jamais bloquant. Ou configurez-le vous-même en une commande.',
     agentLane: 'Laissez votre agent le faire',
-    agentNote: 'puis [[/argot-setup]] dans Claude Code, Cursor, ou 70+ agents',
+    agentsLine: 'installe trois skills — lancez-les dans Claude Code, Cursor, ou 70+ agents :',
+    skillDescs: [
+      'calibre le modèle & repère ce qui ne doit pas le façonner',
+      'score chaque diff pendant que l’agent écrit',
+      'un score de voix non bloquant sur chaque PR',
+    ],
     localLane: 'Ou une seule commande vous-même',
     ctaLocal: 'Configurez-le à la main',
     ctaCi: 'ou branchez la CI',
     caption:
-      'La skill ne fait que piloter le binaire argot. Le modèle calibré reste hors de votre historique git.',
-    cards: [
-      {
-        title: 'argot-setup · local',
-        desc: 'Calibre le modèle ; repère ce qui ne doit pas le façonner.',
-      },
-      {
-        title: 'argot-check · local',
-        desc: 'Score la diff pendant que l’agent travaille.',
-      },
-      {
-        title: 'argot-ci · CI',
-        desc: 'Branche l’Action — un score sur chaque PR.',
-      },
-      {
-        title: 'MCP · voice_context',
-        desc: 'Fournit vos idiomes avant que l’agent écrive.',
-      },
-    ],
-    cardsCaption:
-      'Il signale — vous décidez. Ne bloque jamais, ne réécrit jamais, ne mute jamais à votre place.',
+      'Les skills ne font que piloter le binaire argot. Le modèle calibré reste hors de votre historique git.',
   },
   ciScore: {
     label: 'En CI, sans la friction',

@@ -32,8 +32,9 @@ const html = `<pre><code>${term}</code></pre>`;
 const skillCmd = 'npx skills add get-tmonier/argot';
 const initCmd = 'argot init';
 
-// One glyph per surface card, echoing the badge convention set by Catches.astro.
-const glyphs = ['⚙', '◎', '⇄', '§'];
+// The three skills the install adds, shown with their `/` prefix so it reads as
+// a slash-command, not a package name. CLI literals, paired with i18n descs.
+const skillCmds = ['/argot-setup', '/argot-check', '/argot-ci'];
 ---
 
 <section id="setup" class="snap-section relative flex min-h-svh items-center">
@@ -63,7 +64,17 @@ const glyphs = ['⚙', '◎', '⇄', '§'];
                 >⧉</span
               >
             </button>
-            <p class="lane-note" set:html={emphasize(setup.agentNote)} />
+            <p class="lane-note">{setup.agentsLine}</p>
+            <ul class="skill-list">
+              {
+                skillCmds.map((cmd, i) => (
+                  <li class="skill-row">
+                    <code class="skill-cmd">{cmd}</code>
+                    <span class="skill-desc">{setup.skillDescs[i]}</span>
+                  </li>
+                ))
+              }
+            </ul>
           </div>
           <div>
             <p class="lane-label">{setup.localLane}</p>
@@ -103,29 +114,6 @@ const glyphs = ['⚙', '◎', '⇄', '§'];
         />
       </div>
     </div>
-
-    <!-- What the agent gets: the four surfaces that drive argot -->
-    <div class="reveal mt-12 border-t border-line/60 pt-10" style="--reveal-delay: 200ms">
-      <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {
-          setup.cards.map((card, i) => (
-            <div class="agent-card">
-              <div class="agent-glyph" aria-hidden="true">
-                {glyphs[i]}
-              </div>
-              <h3 class="font-mono text-xs font-semibold tracking-tight text-ink sm:text-[13px]">
-                {card.title}
-              </h3>
-              <p class="mt-1.5 text-xs leading-relaxed text-ink-dim" set:html={emphasize(card.desc)} />
-            </div>
-          ))
-        }
-      </div>
-      <p
-        class="mt-6 text-center text-sm text-muted text-pretty"
-        set:html={emphasize(setup.cardsCaption)}
-      />
-    </div>
   </div>
 </section>
 
@@ -163,30 +151,27 @@ const glyphs = ['⚙', '◎', '⇄', '§'];
   .setup-chip:hover {
     border-color: var(--line-2);
   }
-  .agent-card {
-    border-radius: 14px;
-    border: 1px solid var(--line);
-    background: color-mix(in srgb, var(--panel) 30%, transparent);
-    padding: 0.85rem;
-    transition:
-      border-color 0.25s,
-      background-color 0.25s;
+  .skill-list {
+    margin-top: 0.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
   }
-  .agent-card:hover {
-    border-color: var(--line-2);
-    background: color-mix(in srgb, var(--panel) 60%, transparent);
+  .skill-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    font-size: 0.8125rem;
+    line-height: 1.35;
   }
-  .agent-glyph {
-    display: inline-flex;
-    height: 1.6rem;
-    width: 1.6rem;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 0.5rem;
-    border-radius: 8px;
-    border: 1px solid var(--line-2);
-    background: var(--bg-2);
-    font-size: 0.8rem;
-    color: var(--ember);
+  .skill-cmd {
+    flex: none;
+    min-width: 6.6rem;
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-weight: 600;
+    color: var(--ember-bright);
+  }
+  .skill-desc {
+    color: var(--ink-dim);
   }
 </style>

@@ -5,13 +5,17 @@ group: Guide
 order: 8
 ---
 
-Most code argot judges is now written by an AI agent. There are two ways to put
-argot in that loop, and they compose:
+Most code argot judges is now written by an AI agent, so the natural place for
+argot is inside that agent's loop.
 
-- **Skills** — a commit-time safety net. The agent runs `argot check` on what it
-  just wrote and interprets the result.
-- **MCP** — proactive context. The agent asks argot for the repo's idioms
-  *before* generating, so it writes in-voice from the first token.
+- **Skills** — the primary path, and all most repos need. A commit-time safety
+  net: the agent runs `argot check` on what it just wrote and interprets the
+  result.
+- **MCP** — *optional.* A proactive surface that lets the agent ask argot for the
+  repo's idioms *before* generating. It mostly earns its keep on a **large repo**
+  the agent can't hold in context — argot's statistical summary is a cheap stand-in
+  for reading hundreds of files. On a repo the agent already sees whole, the skills
+  alone are enough.
 
 Both follow one rule: **argot is advisory and never blocks.** A hit is a prompt
 to think, not a gate — the human always has the last word. The full contract

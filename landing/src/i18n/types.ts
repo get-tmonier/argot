@@ -53,12 +53,11 @@ export interface SiteContent {
     readonly body: string;
     readonly caption: string;
     readonly agentLane: string;
-    readonly agentNote: string;
+    readonly agentsLine: string;
+    readonly skillDescs: readonly string[];
     readonly localLane: string;
     readonly ctaLocal: string;
     readonly ctaCi: string;
-    readonly cards: readonly Feature[];
-    readonly cardsCaption: string;
   };
   readonly ciScore: {
     readonly label: string;

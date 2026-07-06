@@ -85,33 +85,19 @@ const en: SiteContent = {
   setup: {
     label: 'Setup · built for agents',
     title: 'A CLI your coding agent can drive.',
-    body: 'argot is the tool; the skills and MCP are the steering wheel. Install once and the agent that writes your code fits the model, checks your diffs, and pulls your idioms before it writes — running [[the same argot binary]] you would. Or set it up yourself in one command.',
+    body: 'argot is the tool; the skills are the steering wheel. Install them once and the agent that writes your code runs [[the same argot binary]] you would — advisory, never blocking. Or set it up yourself in one command.',
     agentLane: 'Let your agent do it',
-    agentNote: 'then [[/argot-setup]] in Claude Code, Cursor, or 70+ agents',
+    agentsLine: 'installs three skills — run them in Claude Code, Cursor, or 70+ agents:',
+    skillDescs: [
+      'fit the model & pick what shouldn’t shape it',
+      'score each diff as the agent writes',
+      'a non-blocking voice score on every PR',
+    ],
     localLane: 'Or one command yourself',
     ctaLocal: 'Set it up by hand',
     ctaCi: 'or wire CI',
     caption:
-      'The skill just drives the argot binary. The fitted model stays out of your git history.',
-    cards: [
-      {
-        title: 'argot-setup · local',
-        desc: 'Fits the model; picks what shouldn’t shape it.',
-      },
-      {
-        title: 'argot-check · local',
-        desc: 'Scores the diff as the agent works.',
-      },
-      {
-        title: 'argot-ci · CI',
-        desc: 'Wires the Action — a score on every PR.',
-      },
-      {
-        title: 'MCP · voice_context',
-        desc: 'Feeds your idioms before the agent writes.',
-      },
-    ],
-    cardsCaption: 'It surfaces — you decide. Never blocks, never rewrites, never mutes for you.',
+      'The skills just drive the argot binary. The fitted model stays out of your git history.',
   },
   ciScore: {
     label: 'In CI, without the friction',

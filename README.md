@@ -127,12 +127,12 @@ same `argot` binary you'd run by hand. `/argot-check` scores a diff as you work;
 `/argot-ci` wires the GitHub Action. Works across 70+ agents; in Claude Code you can
 also `/plugin install argot` to get the skills and the MCP server together.
 
-For proactive context — feeding your repo's idioms to the agent *before* it writes,
-not just checking after — add the MCP server:
-`claude mcp add argot -- argot mcp --repo .`. Drop argot's [`AGENTS.md`](AGENTS.md)
-into your repo so any agent follows the never-block contract, point tools at the
-machine-readable [`llms.txt`](https://argot.tmonier.com/llms.txt), and see the
-[agents guide](https://argot.tmonier.com/docs/agents/) for the full loop.
+Drop argot's [`AGENTS.md`](AGENTS.md) into your repo so any agent follows the
+never-block contract, and point tools at the machine-readable
+[`llms.txt`](https://argot.tmonier.com/llms.txt). On a large repo, an optional
+[MCP server](https://argot.tmonier.com/docs/agents/) (`argot mcp`) can also feed
+your idioms to the agent *before* it writes — see the
+[agents guide](https://argot.tmonier.com/docs/agents/).
 
 **Or run it yourself.**
 
