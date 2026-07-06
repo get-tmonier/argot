@@ -118,11 +118,37 @@ reconsider the default exit-code tier.
    `fit`/`mute`/CI should be one click away from the front door.
 8. **Two-name confusion** (#12) and `.argotignore` vs `.argot/.gitignore` (#9).
 
-## Shipped this pass
+## Shipped this pass (`fix/dogfood-v1`, PR #103)
 
-- `fix/dogfood-v1`: #1 + #2 (guard) with unit tests; `just verify` green.
-- Doc-alignment pass: #7, #8, #9 (see the docs commits).
+- **#1** mute-commit + **#2** dirty-fit warning + **#4** root fix (`HeadSource`: calibrate from
+  committed HEAD, so a tracked file's uncommitted edit is not learned) — unit tests, `just verify`
+  green. Verified: fitting with an uncommitted `import requests` no longer adds it to the vocab and
+  `check` still flags it; bench (redis/curl/rocksdb/fmt) matches the pre-change baseline (recall
+  identical, over-fire identical — fmt A+B == main).
+- **#3 `.h`→C++** (translation-unit-majority classification, threaded through extract /
+  calibrate / check / inspect). **Bench-verified no regression** (see below).
+- **#5** exit-code footgun — docs fix (`the-commands.md`): exit `1` = "look, not fail"; gate via the
+  non-blocking Action, not `check || fail`.
+- **#7/#8/#9** doc alignment (getting-started reframe, fit/mute discoverability, `.argotignore` vs
+  `.argot/.gitignore`); landing home cut to bare-minimum text + an in-house animated terminal
+  replacing the demo GIF.
 
-## Recommended, pending a nod
+### Bench verification for #3 (`.h`→C++)
 
-- #3 (`.h`→C++), #4 (calibrate-from-HEAD), #5 (exit-code/min-severity), #6 (wording), #10–#12.
+Branch (`.h`→C++) vs main (`.h`→C), identical honest-bench config, the two corpora `.h`
+classification actually changes (C-majority repos are a provable no-op — redis 472 `.c` vs 7 C++,
+curl 745 vs 2 — so `.h` stays C and their models are byte-identical):
+
+| corpus | main catch / over-fire | branch catch / over-fire | delta |
+|---|---|---|---|
+| rocksdb | 19/23 · 1.88% (43/2285) · cpp 1.36% | 19/23 · 1.88% (43/2285) · cpp 1.36% | byte-identical |
+| fmt | 20/23 · 2.32% (22/948) · verdict **Not recommended** | 20/23 · **2.22%** (21/948) · verdict **Ready** | same recall, fewer false alarms, verdict fixed |
+
+Zero recall regression, over-fire equal-or-better, parity goldens all pass (no `.h` in fixtures).
+fmt (a header-only C++ lib) no longer gets a discouraging first-run verdict: `.h` consolidated into
+cpp → 19 files / 434 calibration candidates (was 15 misfiled under C, C++ starved).
+
+## Recommended follow-ups (not in this PR)
+
+- Minor: #6 "0 commit(s)" wording, #10 `--suggest --format json` reasoning, #11 machine "suppressed"
+  field, #12 `@tmonier` vs `get-tmonier` naming.
