@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/argot-core", "crates/argot-cli", "crates/argot-bench"]
 
 [workspace.package]
-version = "0.2.48"
+version = "0.2.49"
 edition = "2021"
 # Transitive deps of git2 (url → idna → ICU4X) target edition2024; 1.85 is the
 # floor to build the tree. The pinned toolchain lives in rust-toolchain.toml.
