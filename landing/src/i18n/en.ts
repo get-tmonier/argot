@@ -33,23 +33,23 @@ const en: SiteContent = {
   catches: {
     label: 'What it catches',
     title: 'Technically fine. Socially foreign.',
-    body: 'argot does not replace ESLint, ruff, or your type checker. It catches what they can’t articulate: a dependency, API, or whole paradigm [[the repo has never used]] — the code an agent reaches for when it doesn’t know your stack. And it’s honest about the one line it won’t cross.',
+    body: 'Not a replacement for ESLint, ruff, or your type checker — it catches what they can’t articulate: a dependency, API, or paradigm [[the repo has never used]]. And it’s honest about the one line it won’t cross.',
     items: [
       {
         title: 'A foreign dependency',
-        desc: 'An import — a package, module, or header — the repo has never used. The clearest signal, and the one argot catches most reliably.',
+        desc: 'An import the repo has never used. The clearest signal — and the one argot catches most reliably.',
       },
       {
         title: 'A foreign API',
-        desc: 'A call into a library the codebase standardises away from — a different HTTP client, ORM, or serializer than the rest of the repo reaches for. The tell is the call, not just the import.',
+        desc: 'A call into a library the codebase avoids — a different HTTP client, ORM, or serializer than the rest of the repo. The tell is the call, not just the import.',
       },
       {
         title: 'A foreign paradigm',
-        desc: 'A whole idiom from another framework — a Django-style class view, a Flask route, hand-rolled validation — dropped into a codebase that has never written that way.',
+        desc: 'A whole idiom from elsewhere — a Django-style view, a Flask route, hand-rolled validation — in a codebase that never writes that way.',
       },
       {
         title: 'The line it won’t cross',
-        desc: 'A wrong exception or value where [[every token is already yours]] — a choice, not a foreign pattern. argot surfaces these only sometimes, never gates on them, and tells you so.',
+        desc: 'A wrong exception where [[every token is already yours]] — a choice, not a foreign pattern. argot won’t reliably catch these, never gates on them, and says so.',
       },
     ],
   },
@@ -60,22 +60,22 @@ const en: SiteContent = {
       {
         value: '99%',
         title: 'visible-foreign catch',
-        desc: 'The one signal argot is built for — a foreign import, API, or dependency your repo has never used. When it shows in the code, argot catches [[522 of 527]], spliced into real files and judged by the real fit → check pipeline.',
+        desc: 'The signal argot is built for. Foreign imports and APIs spliced into real files, judged by the shipped binary: [[522 of 527]] caught.',
       },
       {
         value: '0.23%',
         title: 'false alarms on real edits',
-        desc: 'How often argot fires on your repo’s [[own existing code]] — replaying 27 repos’ commits it never trained on. Every corpus stays ≤ 0.98%. A fire on a genuinely new dependency is a [[detection]], not an alarm.',
+        desc: 'How often argot fires on your repo’s [[own existing code]] — replaying 27 repos it never trained on. Every corpus stays ≤ 0.98%.',
       },
       {
         value: '150ms',
         title: 'to check a change',
-        desc: 'Fast enough for a [[pre-commit hook]], on a 34k-file repo, laptop CPU. The one-time fit that learns your repo’s voice takes ~7 s. [[No GPU, no cloud.]]',
+        desc: 'On a 34k-file repo, laptop CPU — fast enough for a [[pre-commit hook]]. The one-time fit takes ~7 s. [[No GPU, no cloud.]]',
       },
       {
         value: '10',
         title: 'languages, one binary',
-        desc: 'Python, TypeScript, Go, Rust, Java, C#, C, C++, Ruby, PHP — from a [[single static binary]], nothing to install. Mixed monorepos get [[one threshold per language]].',
+        desc: 'Python, TypeScript, Go, Rust, Java, C#, C, C++, Ruby, PHP — one [[static binary]]. Mixed monorepos get [[a threshold per language]].',
       },
     ],
     finePrint:
@@ -84,7 +84,7 @@ const en: SiteContent = {
   setup: {
     label: 'Setup in one command',
     title: 'From clone to calibrated in one line.',
-    body: 'argot init learns your repo’s voice and tells you if it’s ready — no config, no annotations. Messy repo? An AI agent (or argot init --suggest) picks out the generated and vendored directories that shouldn’t shape your voice. [[The model is a build artifact — argot keeps it out of git for you.]]',
+    body: 'argot init learns your repo and tells you if it’s ready — no config, no annotations. Messy repo? argot init --suggest (or an agent) picks out the generated and vendored dirs that shouldn’t shape it. [[The model is a build artifact — argot keeps it out of git for you.]]',
     caption: 'One command. It even keeps the rebuildable model out of your git history.',
     ctaLocal: 'Set it up with one prompt',
     ctaCi: 'or one prompt for CI',
@@ -92,7 +92,7 @@ const en: SiteContent = {
   agents: {
     label: 'Built for AI agents',
     title: 'Your agent writes the code. argot keeps it in voice.',
-    body: 'Most code argot judges is now written by an agent — so give the agent the guardrail, locally and in CI. Three skills wire it in; each surfaces anything foreign — [[advisory, never blocking]] — and MCP feeds it your repo’s idioms before it writes a line.',
+    body: 'Most code argot judges is now written by an agent — so give the agent the guardrail. Three skills wire it in, [[advisory, never blocking]]; MCP feeds it your repo’s idioms before it writes a line.',
     cards: [
       {
         title: 'argot-setup · local',
@@ -117,7 +117,7 @@ const en: SiteContent = {
   ciScore: {
     label: 'In CI, without the friction',
     title: 'A voice score on every PR. Never a merge gate.',
-    body: 'Like a security check, argot decorates each pull request with a visual score and the hot-spots — [[advisory by default]]. Intentional? One argot mute accepts it, with an audit trail. The reviewer always has the last word.',
+    body: 'Like a security check, argot decorates each PR with a visual score and the hot-spots — [[advisory by default]]. Intentional? One argot mute accepts it, with a committed audit trail. The reviewer has the last word.',
     caption:
       'The same score lands in the Actions summary, a sticky PR comment, and the Security tab.',
   },

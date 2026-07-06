@@ -33,23 +33,23 @@ const fr: SiteContent = {
   catches: {
     label: 'Ce qu’il détecte',
     title: 'Techniquement correct. Socialement étranger.',
-    body: 'argot ne remplace ni ESLint, ni ruff, ni votre type-checker. Il attrape ce qu’ils ne savent pas formuler : une dépendance, une API ou tout un paradigme [[que le dépôt n’a jamais utilisés]] — le code qu’un agent invoque quand il ne connaît pas votre stack. Et il est honnête sur la seule limite qu’il ne franchit pas.',
+    body: 'Ni un remplaçant d’ESLint, de ruff ou de votre type-checker — il attrape ce qu’ils ne savent pas formuler : une dépendance, une API ou un paradigme [[que le dépôt n’a jamais utilisés]]. Et il est honnête sur la seule limite qu’il ne franchit pas.',
     items: [
       {
         title: 'Une dépendance étrangère',
-        desc: 'Un import — un paquet, un module, un header — que le dépôt n’a jamais utilisé. Le signal le plus net, et celui qu’argot détecte le plus fiablement.',
+        desc: 'Un import que le dépôt n’a jamais utilisé. Le signal le plus net — et celui qu’argot détecte le plus fiablement.',
       },
       {
         title: 'Une API étrangère',
-        desc: 'Un appel vers une bibliothèque dont le code s’écarte — un autre client HTTP, ORM ou sérialiseur que celui du reste du dépôt. Le signe, c’est l’appel, pas seulement l’import.',
+        desc: 'Un appel vers une bibliothèque que le code évite — un autre client HTTP, ORM ou sérialiseur que celui du reste du dépôt. Le signe, c’est l’appel, pas seulement l’import.',
       },
       {
         title: 'Un paradigme étranger',
-        desc: 'Tout un idiome venu d’un autre framework — une vue-classe à la Django, une route Flask, une validation à la main — parachuté dans un dépôt qui n’a jamais écrit ainsi.',
+        desc: 'Tout un idiome venu d’ailleurs — une vue à la Django, une route Flask, une validation à la main — dans un dépôt qui n’écrit jamais ainsi.',
       },
       {
         title: 'La limite qu’il ne franchit pas',
-        desc: 'Une mauvaise exception ou valeur alors que [[tout le vocabulaire est déjà le vôtre]] — un choix, pas un motif étranger. argot ne les signale que parfois, ne s’y engage jamais, et vous le dit.',
+        desc: 'Une mauvaise exception alors que [[tout le vocabulaire est déjà le vôtre]] — un choix, pas un motif étranger. argot ne les détecte pas de façon fiable, ne s’y engage jamais, et le dit.',
       },
     ],
   },
@@ -60,22 +60,22 @@ const fr: SiteContent = {
       {
         value: '99 %',
         title: 'détection étrangère visible',
-        desc: 'Le seul signal pour lequel argot est conçu — un import, une API ou une dépendance étrangère que votre dépôt n’a jamais utilisée. Quand il est visible dans le code, argot en détecte [[522 sur 527]], insérés dans de vrais fichiers et jugés par le vrai pipeline fit → check.',
+        desc: 'Le signal pour lequel argot est conçu. Imports et API étrangers insérés dans de vrais fichiers, jugés par le binaire livré : [[522 sur 527]] détectés.',
       },
       {
         value: '0,23 %',
         title: 'fausses alertes sur de vraies modifications',
-        desc: 'À quelle fréquence argot se déclenche sur le [[code existant]] de votre dépôt — en rejouant les commits de 27 dépôts qu’il n’a jamais vus. Chaque corpus reste ≤ 0,98 %. Un déclenchement sur une dépendance réellement nouvelle est une [[détection]], pas une alerte.',
+        desc: 'À quelle fréquence argot se déclenche sur le [[code existant]] de votre dépôt — en rejouant 27 dépôts qu’il n’a jamais vus. Chaque corpus reste ≤ 0,98 %.',
       },
       {
         value: '150 ms',
         title: 'pour vérifier un changement',
-        desc: 'Assez rapide pour un [[hook pre-commit]], sur un dépôt de 34 000 fichiers, CPU de portable. Le fit unique qui apprend la voix de votre dépôt prend ~7 s. [[Pas de GPU, pas de cloud.]]',
+        desc: 'Sur un dépôt de 34 000 fichiers, CPU de portable — assez rapide pour un [[hook pre-commit]]. Le fit unique prend ~7 s. [[Pas de GPU, pas de cloud.]]',
       },
       {
         value: '10',
         title: 'langages, un seul binaire',
-        desc: 'Python, TypeScript, Go, Rust, Java, C#, C, C++, Ruby, PHP — depuis un [[seul binaire statique]], rien à installer. Les monorepos mixtes ont [[un seuil par langage]].',
+        desc: 'Python, TypeScript, Go, Rust, Java, C#, C, C++, Ruby, PHP — un [[binaire statique]]. Les monorepos mixtes ont [[un seuil par langage]].',
       },
     ],
     finePrint:
@@ -84,7 +84,7 @@ const fr: SiteContent = {
   setup: {
     label: 'Configuration en une commande',
     title: 'Du clone au calibrage, en une ligne.',
-    body: 'argot init apprend la voix de votre dépôt et vous dit s’il est prêt — sans config, sans annotation. Dépôt en désordre ? Un agent IA (ou argot init --suggest) repère les dossiers générés et vendorisés qui ne doivent pas façonner la voix. [[Le modèle est un artefact de build — argot le garde hors de git pour vous.]]',
+    body: 'argot init apprend votre dépôt et vous dit s’il est prêt — sans config, sans annotation. Dépôt en désordre ? argot init --suggest (ou un agent) repère les dossiers générés et vendorisés qui ne doivent pas le façonner. [[Le modèle est un artefact de build — argot le garde hors de git pour vous.]]',
     caption:
       'Une seule commande. Elle garde même le modèle reconstructible hors de votre historique git.',
     ctaLocal: 'Configurez-le avec un seul prompt',
@@ -93,7 +93,7 @@ const fr: SiteContent = {
   agents: {
     label: 'Conçu pour les agents IA',
     title: 'Votre agent écrit le code. argot le garde dans la voix du dépôt.',
-    body: 'La majorité du code qu’argot juge est désormais écrite par un agent — donnez-lui le garde-fou, en local et en CI. Trois skills l’intègrent ; chacun signale ce qui est étranger — [[consultatif, jamais bloquant]] — et MCP lui fournit les idiomes du dépôt avant qu’il écrive une ligne.',
+    body: 'La majorité du code qu’argot juge est désormais écrite par un agent — donnez-lui le garde-fou. Trois skills l’intègrent, [[consultatif, jamais bloquant]] ; MCP lui fournit les idiomes du dépôt avant qu’il écrive une ligne.',
     cards: [
       {
         title: 'argot-setup · local',
@@ -118,7 +118,7 @@ const fr: SiteContent = {
   ciScore: {
     label: 'En CI, sans la friction',
     title: 'Un score de voix sur chaque PR. Jamais une porte de merge.',
-    body: 'Comme un contrôle de sécurité, argot décore chaque pull request d’un score visuel et des points chauds — [[consultatif par défaut]]. C’est intentionnel ? Un argot mute suffit à l’accepter, avec une trace d’audit. Le relecteur garde toujours le dernier mot.',
+    body: 'Comme un contrôle de sécurité, argot décore chaque PR d’un score visuel et des points chauds — [[consultatif par défaut]]. Intentionnel ? Un argot mute suffit à l’accepter, avec une trace d’audit versionnée. Le relecteur garde le dernier mot.',
     caption:
       'Le même score atterrit dans le résumé Actions, un commentaire de PR épinglé, et l’onglet Security.',
   },

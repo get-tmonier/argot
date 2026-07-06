@@ -5,9 +5,10 @@ group: Start
 order: 1
 ---
 
-**argot** is a voice linter. It learns your repo's voice from its own git history, then flags the
-hunks whose token distribution diverges from the learned norm — the code that's valid, typed, and
-lint-clean, but doesn't sound like anyone on your team wrote it. No model, no cloud, no GPU.
+**argot** learns your repo's patterns from its own git history, then flags code **foreign to your
+codebase** — a dependency, API, or whole construct it has never used. It's the "unknown to this
+repo" code an AI agent reaches for when it doesn't know your stack: valid, typed, and lint-clean,
+but not how anything here is actually built. No model, no cloud, no GPU.
 
 > **Status: alpha.** argot is a probabilistic style linter — treat every flag as a prompt to look,
 > and verify before you gate CI on it. It ships honest, leak-free benchmarks and a public research log.
@@ -68,15 +69,24 @@ src/utils/http-helpers.ts
 ## What argot is — and isn't
 
 - It **does not** replace ESLint, ruff, or your type checker. Those answer *"is this valid?"*
-- It **does** answer the second question — *"is this how this team writes things?"* — the one that
-  used to live in code review.
+- It **reliably** catches what they can't articulate: a **foreign dependency, API, or paradigm** —
+  something the repo has never used. When the foreign symbol is in the diff, it catches ~99% of them.
+- It is **honest about its limit**: it does *not* reliably flag an *in-vocabulary* choice — a bare
+  `ValueError` where you'd raise `HTTPException`, when every token is already yours. So a clean run
+  means "no foreign pattern found," **not** "this matches every convention." argot never gates on
+  those subtle cases.
 
 If your team ships LLM-assisted code, this is the layer your CI is missing.
+
+> **One setup note:** argot learns from your files *as they are on disk*, so fit on a **clean
+> working tree** — commit or stash work in progress first, or uncommitted foreign code gets learned
+> as normal. `argot init`/`fit` warns you when the tree is dirty.
 
 ## Where to next
 
 - [Setup](/docs/setup/) — configure what argot should (and shouldn't) learn from.
+- [Configure](/docs/configure/) — `.argotignore`, inline comments, and durable `argot mute`.
 - [How it works](/docs/how-it-works/) — the two-phase pipeline, in plain terms.
-- [The commands](/docs/the-commands/) — `init`, `check`, and the rest in detail.
+- [The commands](/docs/the-commands/) — `init`, `check`, `fit`, `mute`, and the rest in detail.
 - [Reading the output](/docs/reading-the-output/) — severity tiers, sources, and the evidence line.
 - [What it catches](/docs/what-it-catches/) — three real examples every other tool stays silent on.
