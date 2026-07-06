@@ -42,9 +42,9 @@
 
 Type checkers and linters answer *"is this valid?"* argot answers the question
 that used to live in code review: *"is this how **we** write things here?"* It
-builds a statistical model of your codebase's voice from its git history — no
-LLM, no GPU, no cloud, no telemetry — and flags hunks whose token shape diverges
-from the learned norm. Fits in seconds, checks in milliseconds.
+learns your codebase's patterns from its git history — no LLM, no GPU, no cloud,
+no telemetry — and flags code **foreign to this repo**: a dependency, API, or
+whole construct it has never used. Fits in seconds, checks in milliseconds.
 
 If your team ships LLM-assisted code — syntactically perfect, type-correct,
 lint-clean, and written in the average voice of every public repo the model
@@ -79,11 +79,10 @@ tip: pass --verbose (-v) to expand truncated hunks.
 ```
 
 The glyph encodes severity (`!` foreign · `?` suspicious · `.` unusual), the
-trailing `[hash]` is a stable id you can `argot mute`, and the `↳` line names the
-foreign symbol with the repo's own vocabulary beside it — this codebase's 74
-imports are `fastapi`, `pydantic`, `starlette`…, and it has never reached for
-`django`. No linter flags a valid import of a real framework; argot does, because
-it learned your repo's has never used it.
+`[hash]` is a stable id you can `argot mute`, and the `↳` line names the foreign
+symbol with the repo's own vocabulary beside it — 74 imports of `fastapi`,
+`pydantic`, `starlette`…, and never once `django`. No linter flags a valid import
+of a real framework; argot does — because this repo never has.
 
 ## Install
 
