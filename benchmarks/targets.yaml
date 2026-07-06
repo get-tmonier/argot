@@ -265,3 +265,31 @@ targets:
     holdout_window: 250
     prs:
       - { pr: 0, sha: dd10cb8e9a982fe3d311078d6e1207596e272717 }
+
+  # JavaScript corpora (added 2026-07-06 with first-class JS support). All three
+  # verified JS-authored — hand-written `.js`, no TS→JS transpile step, no real
+  # `.ts` source (babel was rejected: it migrated to TypeScript). Distinct voices:
+  # a Node backend framework (CommonJS), a CLI library (ESM), a linter (tooling).
+  - name: express
+    url: https://github.com/expressjs/express
+    language: javascript
+    prs:
+      - { pr: 0, sha: ba006766fb964571723138708eacaba0f55759cd }
+      - { pr: 4893, sha: 18e5985b8a9d5e8423db0a9121f22bdaecd5b120 }
+      - { pr: 7233, sha: 59e205a57a04fced6bb7b8ec0b5dec29461a9996 }
+
+  - name: commander
+    url: https://github.com/tj/commander.js
+    language: javascript
+    prs:
+      - { pr: 0, sha: ba6d13ddb4243e5913367734f8c159089ffe7834 }
+      - { pr: 2521, sha: a752ed909f179e3a5dcae31a890a89fb748473c4 }
+      - { pr: 2520, sha: 74d5dfe9b7e199d98e2269ecf88dcf771c260983 }
+
+  - name: eslint
+    url: https://github.com/eslint/eslint
+    language: javascript
+    prs:
+      - { pr: 0, sha: 04174cbfaac1f9555400b5332d69056e6aab9cc6 }
+      - { pr: 21059, sha: 7ea106ddcb6af7db8f36d62a28dbaba94d33598e }
+      - { pr: 21058, sha: 75ec753226010867270787b412f3dae412e421e6 }

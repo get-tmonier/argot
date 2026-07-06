@@ -16,6 +16,7 @@ fn new_parser(language: Language) -> Parser {
     let lang: tree_sitter::Language = match language {
         Language::Python => tree_sitter_python::LANGUAGE.into(),
         Language::Typescript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+        Language::Javascript => tree_sitter_javascript::LANGUAGE.into(),
         Language::Go => tree_sitter_go::LANGUAGE.into(),
         Language::Rust => tree_sitter_rust::LANGUAGE.into(),
         Language::C => tree_sitter_c::LANGUAGE.into(),
@@ -34,6 +35,7 @@ fn new_parser(language: Language) -> Parser {
 thread_local! {
     static PY_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Python));
     static TS_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Typescript));
+    static JS_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Javascript));
     static GO_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Go));
     static RUST_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Rust));
     static C_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::C));
@@ -49,6 +51,7 @@ pub fn parse(source: &str, language: Language) -> Option<Tree> {
     match language {
         Language::Python => PY_PARSER.with(|p| p.borrow_mut().parse(source, None)),
         Language::Typescript => TS_PARSER.with(|p| p.borrow_mut().parse(source, None)),
+        Language::Javascript => JS_PARSER.with(|p| p.borrow_mut().parse(source, None)),
         Language::Go => GO_PARSER.with(|p| p.borrow_mut().parse(source, None)),
         Language::Rust => RUST_PARSER.with(|p| p.borrow_mut().parse(source, None)),
         Language::C => C_PARSER.with(|p| p.borrow_mut().parse(source, None)),

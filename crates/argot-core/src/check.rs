@@ -22,6 +22,7 @@ use crate::scoring::adapters::cpp::CppAdapter;
 use crate::scoring::adapters::csharp::CSharpAdapter;
 use crate::scoring::adapters::go::GoAdapter;
 use crate::scoring::adapters::java::JavaAdapter;
+use crate::scoring::adapters::javascript::JavaScriptAdapter;
 use crate::scoring::adapters::php::PhpAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::ruby::RubyAdapter;
@@ -198,13 +199,13 @@ struct Loaded {
     model_hash: String,
 }
 
-/// Extension → language name (`_EXT_TO_LANG`). JS/JSX route to TypeScript.
+/// Extension → language name (`_EXT_TO_LANG`).
 const EXT_TO_LANG: &[(&str, &str)] = &[
     (".py", "python"),
     (".ts", "typescript"),
     (".tsx", "typescript"),
-    (".js", "typescript"),
-    (".jsx", "typescript"),
+    (".js", "javascript"),
+    (".jsx", "javascript"),
     (".go", "go"),
     (".rs", "rust"),
     (".c", "c"),
@@ -241,6 +242,7 @@ fn adapter_for_language(lang: &str) -> Option<Box<dyn LanguageAdapter>> {
     match lang {
         "python" => Some(Box::new(PythonAdapter::new())),
         "typescript" => Some(Box::new(TypeScriptAdapter::new())),
+        "javascript" => Some(Box::new(JavaScriptAdapter::new())),
         "go" => Some(Box::new(GoAdapter::new())),
         "rust" => Some(Box::new(RustAdapter::new())),
         "c" => Some(Box::new(CAdapter::new())),

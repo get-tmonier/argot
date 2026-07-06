@@ -1,0 +1,160 @@
+corpus: eslint
+language: javascript
+categories:
+- foreign_import
+- foreign_api
+- foreign_concurrency
+- naming_shape_break
+- semantic_convention
+injection_hosts:
+- pr: 0
+  sha: 04174cbfaac1f9555400b5332d69056e6aab9cc6
+- pr: 21059
+  sha: 7ea106ddcb6af7db8f36d62a28dbaba94d33598e
+- pr: 21058
+  sha: 75ec753226010867270787b412f3dae412e421e6
+fixtures:
+- id: eslint_foreign_import_jsyaml
+  file: breaks/break_foreign_import_jsyaml.js
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 20
+  rationale: "require('js-yaml') at line 1 + yaml.load() loading a sibling '.eslint-overrides.yml' file inside ConfigLoader's config-discovery helpers. Verified foreign at SHA 04174cbf: 'js-yaml' and 'yaml' are 0 git-grep hits across lib/ and absent from package.json (dependencies list ends at 'optionator', no yaml package) — ESLint's flat config only ever resolves FLAT_CONFIG_FILENAMES = eslint.config.{js,mjs,cjs,ts,mts,cts} (lib/config/config-loader.js:43-49), never a YAML document. EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: lib/config/config-loader.js
+  host_inject_at_line: 97
+- id: eslint_foreign_import_chalk
+  file: breaks/break_foreign_import_chalk.js
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 17
+  rationale: "require('chalk') at line 1 + chalk.red()/chalk.yellow() colorizing a console preview inside the html formatter. Verified foreign at SHA 04174cbf: 'chalk' is 0 git-grep hits across lib/ and absent from package.json — the sibling stylish formatter (lib/cli-engine/formatters/stylish.js:11-27) does its terminal styling through Node's own util.styleText, and no formatter reaches for a third-party color library. EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: lib/cli-engine/formatters/html.js
+  host_inject_at_line: 334
+- id: eslint_foreign_import_lodash
+  file: breaks/break_foreign_import_lodash.js
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 20
+  rationale: "require('lodash') at line 1 (destructured merge) + merge({}, first, second) as a fast path ahead of the file's own recursive deepMergeObjects. Verified foreign at SHA 04174cbf: 'lodash' is 0 git-grep hits across lib/ and absent from package.json — lib/shared/deep-merge-arrays.js hand-rolls deepMergeObjects/deepMergeArrays instead of depending on a utility library. EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: lib/shared/deep-merge-arrays.js
+  host_inject_at_line: 61
+- id: eslint_foreign_import_babelparser
+  file: breaks/break_foreign_import_babelparser.js
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 23
+  rationale: "aliased destructured import { parse: parseWithBabel } from '@babel/parser' at line 1 + parseWithBabel(code).program.body sniffing an eval() argument for a nested eval call. Verified foreign at SHA 04174cbf: '@babel/parser' is 0 git-grep hits across lib/ and absent from package.json — every rule that needs an AST uses the SourceCode already produced by ESLint's own espree-backed Language plugin (lib/languages/js), never a second, standalone parser. MEDIUM: the import is aliased, but the top-level specifier '@babel/parser' is still foreign so the import scorer fires."
+  difficulty: medium
+  host_file: lib/rules/no-eval.js
+  host_inject_at_line: 29
+- id: eslint_foreign_import_uuid
+  file: breaks/break_foreign_import_uuid.js
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 15
+  rationale: "aliased destructured import { v4: uuidv4 } from 'uuid' at line 1 + uuidv4() appended to a cache key. Verified foreign at SHA 04174cbf: 'uuid' is 0 git-grep hits across lib/ and absent from package.json — lib/cli-engine/hash.js's own imurmurhash-based hash() (murmur(str).result().toString(36)) is the repo's single hashing convention for cache keys, never a UUID generator. MEDIUM: the import is aliased, but the top-level specifier 'uuid' is still foreign so the import scorer fires."
+  difficulty: medium
+  host_file: lib/cli-engine/hash.js
+  host_inject_at_line: 30
+- id: eslint_foreign_api_winston
+  file: breaks/break_foreign_api_winston.js
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 22
+  rationale: "winston.createLogger({...}) + new winston.transports.Console() reached module-qualified with NO import in the hunk (only the file's own console.* cover functions surround it). Verified foreign at SHA 04174cbf: 'winston' is 0 git-grep hits across lib/ and absent from package.json; 'createLogger' and '.transports' are each 0 hits elsewhere in lib/ (non-colliding) — lib/shared/logging.js's info/warn/error covers over console.log/warn/error are the repo's only logging path. MEDIUM: no foreign import — the unattested foreign namespace/constructors must be caught by call-receiver."
+  difficulty: medium
+  host_file: lib/shared/logging.js
+  host_inject_at_line: 9
+- id: eslint_foreign_api_axios
+  file: breaks/break_foreign_api_axios.js
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 20
+  rationale: "axios.get('https://registry.npmjs.org/eslint/latest') reached through a bare 'axios' namespace with NO import in the hunk. Verified foreign at SHA 04174cbf: 'axios' is 0 git-grep hits across lib/ and absent from package.json — lib/shared/runtime-info.js's only outbound process is cross-spawn (execCommand -> spawn.sync, used by getBinVersion/getNpmPackageVersion just below), never an HTTP client; ESLint makes no network calls anywhere in lib/. HARD (masked, leaf collision): '.get' is attested 121 times elsewhere in lib/ (Map/cache/config .get(key) sites), so call-receiver's method-attested guard may resolve the foreign receiver as in-voice and this break may MISS."
+  difficulty: hard
+  host_file: lib/shared/runtime-info.js
+  host_inject_at_line: 168
+- id: eslint_foreign_api_typescript
+  file: breaks/break_foreign_api_typescript.js
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 26
+  rationale: "ts.createSourceFile(filePath, text, ts.ScriptTarget.Latest, true).getText() reached through a bare 'ts' namespace with NO import in the hunk. Verified foreign at SHA 04174cbf: 'typescript' is a devDependency only (package.json: \"typescript\": \"^6.0.3\", used to tsc-typecheck this repo's own JSDoc-typed JS) — the compiler API itself (createSourceFile/ScriptTarget) is 0 git-grep hits across lib/; ESLint always parses through its own Language plugin over espree/acorn (lib/languages/js), never the TypeScript compiler. HARD (masked, leaf collision): '.getText' is attested 86 times elsewhere in lib/ (sourceCode.getText() call sites), so call-receiver's method-attested guard may resolve the foreign receiver as in-voice and this break may MISS."
+  difficulty: hard
+  host_file: lib/services/parser-service.js
+  host_inject_at_line: 16
+- id: eslint_foreign_api_jsdom
+  file: breaks/break_foreign_api_jsdom.js
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 18
+  rationale: "new JSDOM(html) + dom.window.document.querySelectorAll(...) reached through a bare 'JSDOM' constructor with NO import in the hunk. Verified foreign at SHA 04174cbf: 'jsdom' is 0 git-grep hits across lib/ and absent from package.json; '.window'/'.document' have 0 real call/member sites elsewhere in lib/ (the only '.window' hits are comments in no-eval.js/no-restricted-globals.js describing global-object detection, not DOM access) — the html formatter builds markup with plain template strings (pageTemplate/resultTemplate/messageTemplate) and never parses or re-validates it through a DOM implementation. MEDIUM: no foreign import — the unattested foreign constructor and non-colliding accessors must be caught by call-receiver."
+  difficulty: medium
+  host_file: lib/cli-engine/formatters/html.js
+  host_inject_at_line: 334
+- id: eslint_foreign_concurrency_piscina
+  file: breaks/break_foreign_concurrency_piscina.js
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 22
+  rationale: "require('piscina') at line 1 + new Piscina({...}).run(...) offered as an alternative multi-file lint runner. Verified foreign at SHA 04174cbf: 'piscina' is 0 git-grep hits across lib/ and absent from package.json — lib/eslint/eslint.js hand-rolls its own worker pool directly over node:worker_threads (runWorkers/calculateWorkerCount, lines 448-545, using new Worker(workerURL, workerOptions) with a SharedArrayBuffer index and an AbortController), never a third-party pool abstraction. EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: lib/eslint/eslint.js
+  host_inject_at_line: 546
+- id: eslint_foreign_concurrency_plimit
+  file: breaks/break_foreign_concurrency_plimit.js
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 21
+  rationale: "require('p-limit') at line 1 + pLimit(20) bounding the per-file lint fan-out. Verified foreign at SHA 04174cbf: 'p-limit' is 0 git-grep hits across lib/ and absent from package.json — lintFilesWithoutMultithreading (lib/eslint/eslint.js:605-654) already bounds concurrency with the repo's own @humanwhocodes/retry Retrier (`new Retrier(..., { concurrency: 100 })`), never a third-party limiter. EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: lib/eslint/eslint.js
+  host_inject_at_line: 655
+- id: eslint_foreign_concurrency_bullmq
+  file: breaks/break_foreign_concurrency_bullmq.js
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 18
+  rationale: "statsQueue.add('file-stats', stat) reached through a bare 'statsQueue' receiver with NO import in the hunk, enqueuing a bullmq background job. Verified foreign at SHA 04174cbf: 'bullmq' is 0 git-grep hits across lib/ and absent from package.json — calculateStatsPerFile (lib/shared/message-counts.js, this file) returns its stat object synchronously in-process and ESLint has no background-job runtime anywhere in lib/. HARD (masked, leaf collision): '.add' is attested 128 times elsewhere in lib/ (Set/Map/array .add(...) sites), so call-receiver's method-attested guard may resolve the foreign receiver as in-voice and this break may MISS."
+  difficulty: hard
+  host_file: lib/shared/message-counts.js
+  host_inject_at_line: 43
+- id: eslint_naming_snakecase
+  file: breaks/break_naming_snakecase.js
+  category: naming_shape_break
+  hunk_start_line: 1
+  hunk_end_line: 15
+  rationale: "snake_case function name (find_token_before) and snake_case parameters (source_code, target_node, match_filter) dropped into ast-utils.js. Verified at SHA 04174cbf: `function [a-z]+_[a-z]+\\(` = 0 sites and `(const|let|var) [a-z]+_[a-z]+ ?=` = 0 sites across all of lib/; every helper in ast-utils.js (2880 lines) is camelCase (isSpecificMemberAccess, getStaticStringValue, skipChainExpression, needsPrecedingSemicolon, ...) — method/variable morphology is uniformly camelCase repo-wide."
+  difficulty: easy
+  host_file: lib/rules/utils/ast-utils.js
+  host_inject_at_line: 1480
+- id: eslint_naming_hungarian
+  file: breaks/break_naming_hungarian.js
+  category: naming_shape_break
+  hunk_start_line: 1
+  hunk_end_line: 22
+  rationale: "Hungarian-prefixed locals/params (objInput, objOriginal, arrKeys, bIsEqual, strKey) dropped next to containsDifferentProperty (this file), which uses plain camelCase (input, original, inputKeys, originalKeys) for the identical shape of logic. Verified at SHA 04174cbf: 0 boolean-prefixed locals matching `b[A-Z][a-zA-Z]* =` exist anywhere in lib/; isolated single-prefix compounds exist in a few unrelated files (arrA/arrB comparator pairs in no-dupe-else-if.js/no-unreachable-loop.js, strNode in prefer-numeric-literals.js, objName in rule-tester.js/func-name-matching.js) but never two or more type-prefixed identifiers co-occurring in the same function as here — a distinctly more systematic Hungarian pattern than anything attested in the repo."
+  difficulty: medium
+  host_file: lib/shared/option-utils.js
+  host_inject_at_line: 60
+- id: eslint_semantic_processexit
+  file: breaks/break_semantic_processexit.js
+  category: semantic_convention
+  hunk_start_line: 1
+  hunk_end_line: 16
+  rationale: "process.exit(1) called directly from a write-failure path in lib/cli.js. Verified at SHA 04174cbf: lib/cli.js's own top-of-file comment (lines 8-11) states 'The CLI object should *not* call process.exit() directly. It should only return exit codes' — and the repo ships its own no-process-exit rule (lib/rules/no-process-exit.js) whose message is literally 'Don't use process.exit(); throw an error instead.' `process.exit(` = 0 real call sites anywhere in lib/ (all git-grep hits are comments/rule text/rule metadata); the sibling printResults() function (lines 108-143, same file) handles the identical output-write failure by calling log.error() and returning `false`. Attested builtin (process.exit) misused against the repo's own explicit, documented convention — not a foreign symbol, so the import/call-receiver stages have no foreign token to key on."
+  difficulty: uncaught
+  host_file: lib/cli.js
+  host_inject_at_line: 144
+- id: eslint_semantic_consoleerror
+  file: breaks/break_semantic_consoleerror.js
+  category: semantic_convention
+  hunk_start_line: 1
+  hunk_end_line: 17
+  rationale: "console.error(...) called directly in lib/shared/runtime-info.js, a few lines above/below its own getBinVersion/getNpmPackageVersion functions which both go through log.error (this file requires '../shared/logging' at line 15 and uses it exclusively for error reporting). Verified at SHA 04174cbf: console.error/console.warn/console.log have 0 unguarded call sites in production lib/ code outside of lib/shared/logging.js itself; the sole other console.* site (lib/linter/timing.js:128) carries an explicit `// eslint-disable-line no-console -- Debugging function` marking it a deliberate, documented escape hatch. Attested builtin (console.error) misused against the repo's own logging convention — not a foreign symbol, so the import/call-receiver stages have no foreign token to key on."
+  difficulty: uncaught
+  host_file: lib/shared/runtime-info.js
+  host_inject_at_line: 64

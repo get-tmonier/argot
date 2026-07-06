@@ -30,6 +30,7 @@ use argot_core::scoring::adapters::cpp::CppAdapter;
 use argot_core::scoring::adapters::csharp::CSharpAdapter;
 use argot_core::scoring::adapters::go::GoAdapter;
 use argot_core::scoring::adapters::java::JavaAdapter;
+use argot_core::scoring::adapters::javascript::JavaScriptAdapter;
 use argot_core::scoring::adapters::php::PhpAdapter;
 use argot_core::scoring::adapters::python::PythonAdapter;
 use argot_core::scoring::adapters::ruby::RubyAdapter;
@@ -1480,6 +1481,7 @@ fn run_list_mutes() -> ExitCode {
         let adapter: Box<dyn LanguageAdapter> = match language {
             Language::Python => Box::new(PythonAdapter::new()),
             Language::Typescript => Box::new(TypeScriptAdapter::new()),
+            Language::Javascript => Box::new(JavaScriptAdapter::new()),
             Language::Go => Box::new(GoAdapter::new()),
             Language::Rust => Box::new(RustAdapter::new()),
             Language::C => Box::new(CAdapter::new()),
@@ -1627,6 +1629,7 @@ fn run_score_cmd(c: ScoreCmd) -> ExitCode {
     let adapter: Box<dyn LanguageAdapter> = match language {
         Language::Python => Box::new(PythonAdapter::new()),
         Language::Typescript => Box::new(TypeScriptAdapter::new()),
+        Language::Javascript => Box::new(JavaScriptAdapter::new()),
         Language::Go => Box::new(GoAdapter::new()),
         Language::Rust => Box::new(RustAdapter::new()),
         Language::C => Box::new(CAdapter::new()),

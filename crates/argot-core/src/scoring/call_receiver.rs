@@ -454,6 +454,7 @@ pub fn extract_callees(source: &str, language: Language) -> Vec<Option<String>> 
     let is_call = match language {
         Language::Python => py_call_types as fn(&str) -> bool,
         Language::Typescript => ts_call_types as fn(&str) -> bool,
+        Language::Javascript => ts_call_types as fn(&str) -> bool,
         Language::Go => go_call_types as fn(&str) -> bool,
         Language::Rust => rust_call_types as fn(&str) -> bool,
         Language::C => c_call_types as fn(&str) -> bool,
@@ -466,6 +467,7 @@ pub fn extract_callees(source: &str, language: Language) -> Vec<Option<String>> 
     let extractor = match language {
         Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Typescript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::Javascript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Go => extract_go_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Rust => extract_rust_callee as fn(Node, &[u8]) -> Option<String>,
         Language::C => extract_c_callee as fn(Node, &[u8]) -> Option<String>,
@@ -529,6 +531,7 @@ pub fn callees_in_source_region(
     let is_call = match language {
         Language::Python => py_call_types as fn(&str) -> bool,
         Language::Typescript => ts_call_types as fn(&str) -> bool,
+        Language::Javascript => ts_call_types as fn(&str) -> bool,
         Language::Go => go_call_types as fn(&str) -> bool,
         Language::Rust => rust_call_types as fn(&str) -> bool,
         Language::C => c_call_types as fn(&str) -> bool,
@@ -541,6 +544,7 @@ pub fn callees_in_source_region(
     let extractor = match language {
         Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Typescript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::Javascript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Go => extract_go_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Rust => extract_rust_callee as fn(Node, &[u8]) -> Option<String>,
         Language::C => extract_c_callee as fn(Node, &[u8]) -> Option<String>,

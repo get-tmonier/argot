@@ -414,9 +414,10 @@ fn quick_fixture_subset(fixtures: &[Fixture], multi: bool) -> Vec<&Fixture> {
 fn record_matches_language(rec: &HunkRec, lang: Language) -> bool {
     match lang {
         Language::Python => rec.language == "python",
-        // JS records score against the TypeScript scorer, matching extract's
-        // language routing.
-        Language::Typescript => rec.language == "typescript" || rec.language == "javascript",
+        // JavaScript is its own first-class language now (own adapter + model),
+        // so a `.js` record scores under the javascript scorer, not typescript.
+        Language::Typescript => rec.language == "typescript",
+        Language::Javascript => rec.language == "javascript",
         Language::Go => rec.language == "go",
         Language::Rust => rec.language == "rust",
         Language::C => rec.language == "c",
@@ -442,7 +443,7 @@ pub fn run_corpus(target: &Target, opts: &RunOptions) -> Result<Vec<CorpusReport
 
     let languages: Vec<Language> = if catalog.language == "multi" {
         let mut langs = Vec::new();
-        for cand in ["python", "typescript"] {
+        for cand in ["python", "typescript", "javascript"] {
             if catalog
                 .fixtures
                 .iter()
@@ -486,6 +487,7 @@ pub fn run_corpus(target: &Target, opts: &RunOptions) -> Result<Vec<CorpusReport
         let lang_name = match language {
             Language::Python => "python",
             Language::Typescript => "typescript",
+            Language::Javascript => "javascript",
             Language::Go => "go",
             Language::Rust => "rust",
             Language::C => "c",

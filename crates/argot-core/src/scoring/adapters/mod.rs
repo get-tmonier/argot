@@ -9,6 +9,7 @@ pub mod cpp;
 pub mod csharp;
 pub mod go;
 pub mod java;
+pub mod javascript;
 pub mod php;
 pub mod python;
 pub mod ruby;
@@ -18,13 +19,14 @@ pub mod typescript;
 use std::collections::HashSet;
 use std::path::Path;
 
-/// Scoring-side language tag. JavaScript routes to the TypeScript adapter, so
-/// scoring distinguishes Python, TypeScript, Go, Rust, C, Java, C#, PHP, C++,
-/// and Ruby.
+/// Scoring-side language tag. JavaScript is a first-class language with its own
+/// adapter and model, so scoring distinguishes Python, TypeScript, JavaScript,
+/// Go, Rust, C, Java, C#, PHP, C++, and Ruby.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Language {
     Python,
     Typescript,
+    Javascript,
     Go,
     Rust,
     C,

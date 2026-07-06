@@ -21,6 +21,7 @@ fn handler_kind(language: Language) -> Option<&'static str> {
     match language {
         Language::Python => Some("except_clause"),
         Language::Typescript
+        | Language::Javascript
         | Language::Java
         | Language::CSharp
         | Language::Cpp

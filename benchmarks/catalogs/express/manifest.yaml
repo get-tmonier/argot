@@ -1,0 +1,160 @@
+corpus: express
+language: javascript
+categories:
+- foreign_import
+- foreign_api
+- foreign_concurrency
+- naming_shape_break
+- semantic_convention
+injection_hosts:
+- pr: 0
+  sha: ba006766fb964571723138708eacaba0f55759cd
+- pr: 4893
+  sha: 18e5985b8a9d5e8423db0a9121f22bdaecd5b120
+- pr: 7233
+  sha: 59e205a57a04fced6bb7b8ec0b5dec29461a9996
+fixtures:
+- id: express_foreign_import_1
+  file: breaks/break_foreign_import_1.js
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 13
+  rationale: "require('axios') at line 1 + axios.get() to resolve a canonical host before a redirect; 'axios' is 0-usage in the express repo at SHA ba006766 (git grep 0, absent from package.json) — the repo has no HTTP client dependency of its own. EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: lib/response.js
+  host_inject_at_line: 796
+- id: express_foreign_import_2
+  file: breaks/break_foreign_import_2.js
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 14
+  rationale: "require('winston') at line 1 + winston.createLogger()/winston.transports.Console request-dispatch tracer; 'winston' is 0-usage in the express repo at SHA ba006766 (git grep 0, absent from package.json) — the repo traces internals via its own debug() package. EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: lib/application.js
+  host_inject_at_line: 179
+- id: express_foreign_import_3
+  file: breaks/break_foreign_import_3.js
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 11
+  rationale: "require('lodash/merge') at line 1 (submodule path) + merge() options composition; 'lodash' is 0-usage in the express repo at SHA ba006766 (git grep 0, absent from package.json) — the repo composes settings via plain object spread. MEDIUM: submodule import path, but the foreign module specifier still fires the import stage."
+  difficulty: medium
+  host_file: lib/utils.js
+  host_inject_at_line: 129
+- id: express_foreign_import_4
+  file: breaks/break_foreign_import_4.js
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 10
+  rationale: "require('mysql2/promise') at line 1 + mysql.createPool()/pool.query() SQL; 'mysql2' is 0-usage in the express repo at SHA ba006766 (git grep 0, absent from package.json) — the repo has no database layer. MEDIUM: foreign namespace reached through a promise submodule path."
+  difficulty: medium
+  host_file: lib/application.js
+  host_inject_at_line: 607
+- id: express_foreign_api_1
+  file: breaks/break_foreign_api_1.js
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 8
+  rationale: "require('knex')({...}) at line 1 + knex('users').where().select() query builder chain; 'knex' is 0-usage in the express repo at SHA ba006766 (git grep 0, absent from package.json) — the repo has no ORM/query-builder dependency. EASY: explicit foreign import + foreign call chain."
+  difficulty: easy
+  host_file: lib/application.js
+  host_inject_at_line: 335
+- id: express_foreign_api_2
+  file: breaks/break_foreign_api_2.js
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 10
+  rationale: "require('ioredis') at line 1 + new Redis()/.setex() cache write; 'ioredis' is 0-usage in the express repo at SHA ba006766 (git grep 0, absent from package.json) — the repo has no cache-store dependency. EASY: explicit foreign import + foreign constructor."
+  difficulty: easy
+  host_file: lib/response.js
+  host_inject_at_line: 605
+- id: express_foreign_api_3
+  file: breaks/break_foreign_api_3.js
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 9
+  rationale: "mongoose.model() + Model.findById() reached with NO require() in the hunk; 'mongoose' is 0-usage in the express repo at SHA ba006766 (git grep 0, absent from package.json) — the repo has no database layer. MEDIUM: no foreign import in the hunk — the unattested mongoose namespace must be caught by call-receiver."
+  difficulty: medium
+  host_file: lib/request.js
+  host_inject_at_line: 213
+- id: express_foreign_api_4
+  file: breaks/break_foreign_api_4.js
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 11
+  rationale: "pino() logger factory reached with NO require() in the hunk; 'pino' is 0-usage in the express repo at SHA ba006766 (git grep 0, absent from package.json) — the repo has no logging dependency (traces via its own debug() package instead). MEDIUM: no foreign import — the unattested factory callee pino must be caught by call-receiver."
+  difficulty: medium
+  host_file: lib/view.js
+  host_inject_at_line: 96
+- id: express_foreign_api_5
+  file: breaks/break_foreign_api_5.js
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 12
+  rationale: "got.get() foreign HTTP client reached through an ambient 'got' singleton with NO require() in the hunk; 'got' is 0-usage in the express repo at SHA ba006766 (no require('got'), absent from package.json — the repo has no HTTP client dependency). HARD: got's leaf method .get collides with the repo's heavily attested req.get/res.get/app.get, so call-receiver's method-attested check masks the foreign namespace and the hunk carries no foreign import — a genuine foreign break that may MISS."
+  difficulty: hard
+  host_file: lib/request.js
+  host_inject_at_line: 268
+- id: express_foreign_concurrency_1
+  file: breaks/break_foreign_concurrency_1.js
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 11
+  rationale: "require('async') at line 1 + async.parallel() plugin bootstrap; the caolan 'async' package is 0-usage in the express repo at SHA ba006766 (git grep 0 for require('async') across all of lib/*.js, absent from package.json) — the repo bundles no concurrency/task-runner dependency. EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: lib/application.js
+  host_inject_at_line: 259
+- id: express_foreign_concurrency_2
+  file: breaks/break_foreign_concurrency_2.js
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 14
+  rationale: "bluebird.map() concurrency-limited fan-out reached through an ambient 'bluebird' singleton with NO require() in the hunk; 'bluebird' is 0-usage in the express repo at SHA ba006766 (git grep 0, absent from package.json) — the repo uses plain callbacks/native promises. HARD: bluebird's leaf method .map collides with the repo's own attested Array.prototype.map call sites (utils.js, response.js), so call-receiver's method-attested check masks the foreign namespace and the hunk carries no foreign import — a genuine foreign break that may MISS."
+  difficulty: hard
+  host_file: lib/response.js
+  host_inject_at_line: 372
+- id: express_foreign_concurrency_3
+  file: breaks/break_foreign_concurrency_3.js
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 13
+  rationale: "require('p-limit') at line 1, bound to the aliased local 'limitConcurrency', + limitConcurrency(4) middleware throttle; 'p-limit' is 0-usage in the express repo at SHA ba006766 (git grep 0, absent from package.json) — the repo ships no concurrency-limiting dependency. MEDIUM: the aliased binding hides the 'pLimit' callee name, but the foreign module specifier still fires the import stage."
+  difficulty: medium
+  host_file: lib/application.js
+  host_inject_at_line: 483
+- id: express_naming_shape_break_1
+  file: breaks/break_naming_shape_break_1.js
+  category: naming_shape_break
+  hunk_start_line: 3
+  hunk_end_line: 15
+  rationale: 'snake_case function and locals (get_forwarded_chain, proxy_hops) in a strictly camelCase repo. Canonical: express identifiers are uniformly camelCase across lib/*.js (req.acceptsCharsets, req.acceptsLanguages, defineGetter callbacks subdomains/hostname/protocol); verified zero other snake_case function/variable declarations in lib/*.js at the pinned SHA, aside from one incidental exception — the inner closure `mounted_app` in application.js''s app.use. Secondary, reported for interest only.'
+  difficulty: medium
+  host_file: lib/request.js
+  host_inject_at_line: 339
+- id: express_naming_shape_break_2
+  file: breaks/break_naming_shape_break_2.js
+  category: naming_shape_break
+  hunk_start_line: 1
+  hunk_end_line: 10
+  rationale: 'Hungarian-notation locals (strType, nSepIndex, bHasCharset) in a content-type helper. Canonical: express locals are short, un-prefixed lowercase (acceptParams a few lines above uses length, colonIndex, index, ret, key, value); verified zero Hungarian-style (str/n/b-prefixed) local declarations anywhere in lib/*.js at the pinned SHA. Secondary, reported for interest only.'
+  difficulty: medium
+  host_file: lib/utils.js
+  host_inject_at_line: 224
+- id: express_semantic_convention_1
+  file: breaks/break_semantic_convention_1.js
+  category: semantic_convention
+  hunk_start_line: 1
+  hunk_end_line: 13
+  rationale: "console.log trace statements instead of the module's own debug() tracer (var debug = require('debug')('express:application')). console.log is 0-usage anywhere in lib/*.js at the pinned SHA — the only console.* call in lib/ is the single console.error fallback inside application.js's logerror(). Misuse of the repo's own attested logging construct, not a foreign dependency. Secondary, never gated."
+  difficulty: uncaught
+  host_file: lib/application.js
+  host_inject_at_line: 404
+- id: express_semantic_convention_2
+  file: breaks/break_semantic_convention_2.js
+  category: semantic_convention
+  hunk_start_line: 1
+  hunk_end_line: 10
+  rationale: "legacy `new Buffer(str, encoding)` constructor instead of the module's own attested Buffer.from/Buffer.isBuffer (used a few lines below in createETagGenerator, and everywhere else Buffer is touched in the repo). `new Buffer(` is 0-usage anywhere in lib/*.js at the pinned SHA. A deprecated, unsafe API of an already-imported built-in — not a foreign dependency. Secondary, never gated."
+  difficulty: uncaught
+  host_file: lib/utils.js
+  host_inject_at_line: 248

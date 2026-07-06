@@ -14,6 +14,7 @@ use crate::scoring::adapters::cpp::CppAdapter;
 use crate::scoring::adapters::csharp::CSharpAdapter;
 use crate::scoring::adapters::go::GoAdapter;
 use crate::scoring::adapters::java::JavaAdapter;
+use crate::scoring::adapters::javascript::JavaScriptAdapter;
 use crate::scoring::adapters::php::PhpAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::ruby::RubyAdapter;
@@ -338,6 +339,7 @@ pub fn collect_candidates_with(
     let exts: Vec<&str> = match adapter.language() {
         Language::Python => vec![".py"],
         Language::Typescript => vec![".ts", ".tsx"],
+        Language::Javascript => vec![".js", ".jsx"],
         Language::Go => vec![".go"],
         Language::Rust => vec![".rs"],
         Language::C if header_is_cpp(source_dir) => vec![".c"],
@@ -360,7 +362,10 @@ pub fn collect_candidates_with(
                 Some(s) => s,
                 None => continue,
             };
-            if adapter.is_data_dominant(&source) {
+            // Generated code (transpiled JS, protobuf stubs, `// Code generated`)
+            // is not authored voice — exclude it from calibration, matching what
+            // `inspect` reports and how `check` skips it.
+            if adapter.is_data_dominant(&source) || adapter.is_auto_generated(&source) {
                 continue;
             }
             let lines = splitlines(&source);
@@ -636,6 +641,7 @@ fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
     match language {
         Language::Python => Box::new(PythonAdapter::new()),
         Language::Typescript => Box::new(TypeScriptAdapter::new()),
+        Language::Javascript => Box::new(JavaScriptAdapter::new()),
         Language::Go => Box::new(GoAdapter::new()),
         Language::Rust => Box::new(RustAdapter::new()),
         Language::C => Box::new(CAdapter::new()),
@@ -653,6 +659,7 @@ pub fn language_name(language: Language) -> &'static str {
     match language {
         Language::Python => "python",
         Language::Typescript => "typescript",
+        Language::Javascript => "javascript",
         Language::Go => "go",
         Language::Rust => "rust",
         Language::C => "c",
@@ -665,8 +672,8 @@ pub fn language_name(language: Language) -> &'static str {
 }
 
 /// Extension → language routing used to partition the corpus (`.py` → python;
-/// `.ts`/`.tsx`/`.js`/`.jsx` → typescript; `.cs` → csharp). Public so `inspect`
-/// classifies files with exactly the calibration routing.
+/// `.ts`/`.tsx` → typescript; `.js`/`.jsx` → javascript; `.cs` → csharp).
+/// Public so `inspect` classifies files with exactly the calibration routing.
 pub fn language_for_filename(name: &str) -> Option<Language> {
     let ext = match name.rfind('.') {
         Some(i) => &name[i..],
@@ -674,7 +681,8 @@ pub fn language_for_filename(name: &str) -> Option<Language> {
     };
     match ext {
         ".py" => Some(Language::Python),
-        ".ts" | ".tsx" | ".js" | ".jsx" => Some(Language::Typescript),
+        ".ts" | ".tsx" => Some(Language::Typescript),
+        ".js" | ".jsx" => Some(Language::Javascript),
         ".go" => Some(Language::Go),
         ".rs" => Some(Language::Rust),
         ".c" | ".h" => Some(Language::C),
@@ -1050,17 +1058,20 @@ pub fn run_calibrate(
             .iter()
             .filter_map(|p| head.read(p).map(|s| (p.clone(), s)))
             .collect();
-        // exclude_data_dominant filter.
+        // Exclude data-dominant AND auto-generated files (transpiled output,
+        // generated stubs) — the model learns authored voice only.
         let filtered: Vec<(PathBuf, String)> = repo_files
             .iter()
-            .filter(|(_, s)| !adapter.is_data_dominant(s))
+            .filter(|(_, s)| !adapter.is_data_dominant(s) && !adapter.is_auto_generated(s))
             .cloned()
             .collect();
-        let corpus = if filtered.is_empty() {
-            &repo_files
-        } else {
-            &filtered
-        };
+        // No authored voice for this language — every file is data-dominant or
+        // generated (e.g. a TS repo's transpiled `.js`). Emit no model rather
+        // than fall back to learning generated code as the repo's voice.
+        if filtered.is_empty() {
+            continue;
+        }
+        let corpus = &filtered;
         let sources: Vec<String> = corpus.iter().map(|(_, s)| s.clone()).collect();
         per_lang_files.insert(name.to_string(), corpus.len());
         total_lines += sources.iter().map(|s| s.lines().count()).sum::<usize>();

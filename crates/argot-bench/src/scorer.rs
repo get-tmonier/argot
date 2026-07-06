@@ -13,6 +13,7 @@ use argot_core::scoring::adapters::cpp::CppAdapter;
 use argot_core::scoring::adapters::csharp::CSharpAdapter;
 use argot_core::scoring::adapters::go::GoAdapter;
 use argot_core::scoring::adapters::java::JavaAdapter;
+use argot_core::scoring::adapters::javascript::JavaScriptAdapter;
 use argot_core::scoring::adapters::php::PhpAdapter;
 use argot_core::scoring::adapters::python::PythonAdapter;
 use argot_core::scoring::adapters::ruby::RubyAdapter;
@@ -132,6 +133,7 @@ pub fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
     match language {
         Language::Python => Box::new(PythonAdapter::new()),
         Language::Typescript => Box::new(TypeScriptAdapter::new()),
+        Language::Javascript => Box::new(JavaScriptAdapter::new()),
         Language::Go => Box::new(GoAdapter::new()),
         Language::Rust => Box::new(RustAdapter::new()),
         Language::C => Box::new(CAdapter::new()),
@@ -147,6 +149,7 @@ pub fn parse_language(name: &str) -> Result<Language> {
     match name {
         "python" => Ok(Language::Python),
         "typescript" => Ok(Language::Typescript),
+        "javascript" => Ok(Language::Javascript),
         "go" => Ok(Language::Go),
         "rust" => Ok(Language::Rust),
         "c" => Ok(Language::C),
@@ -166,6 +169,7 @@ pub fn source_files(repo_dir: &Path, language: Language) -> Vec<PathBuf> {
     let exts: &[&str] = match language {
         Language::Python => &[".py"],
         Language::Typescript => &[".ts", ".tsx"],
+        Language::Javascript => &[".js", ".jsx"],
         Language::Go => &[".go"],
         Language::Rust => &[".rs"],
         Language::C => &[".c", ".h"],
@@ -332,6 +336,7 @@ pub fn collect_diff_candidates(
     let lang_ok = |l: &str| match language {
         Language::Python => l == "python",
         Language::Typescript => l == "typescript",
+        Language::Javascript => l == "javascript",
         Language::Go => l == "go",
         Language::Rust => l == "rust",
         Language::C => l == "c",
