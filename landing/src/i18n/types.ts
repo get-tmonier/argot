@@ -22,6 +22,7 @@ export interface SiteContent {
     readonly ctaSecondary: string;
     readonly install: string;
     readonly installNote: string;
+    readonly installAlt: string;
   };
   readonly demo: {
     readonly label: string;

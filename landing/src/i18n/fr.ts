@@ -20,7 +20,8 @@ const fr: SiteContent = {
     ctaPrimary: 'Lire la doc',
     ctaSecondary: 'Star sur GitHub',
     install: 'npm i -g @tmonier/argot',
-    installNote: 'MIT · binaire statique unique · macOS & Linux · zéro dépendance',
+    installNote: 'MIT · binaire statique unique · macOS · Linux · Windows · zéro dépendance',
+    installAlt: 'ou installer sans npm',
   },
   demo: {
     label: 'La deuxième question',

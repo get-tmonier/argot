@@ -96,14 +96,17 @@ of a real framework; argot does — because this repo never has.
 argot is a **single static binary** — no Python, no Node, no runtime to install.
 
 ```sh
-# curl (recommended)
+# macOS / Linux (curl)
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.sh | sh
 
-# npm
+# Windows (PowerShell)
+powershell -c "irm https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.ps1 | iex"
+
+# npm (any platform)
 npm install -g @tmonier/argot
 ```
 
-Both download the prebuilt binary for your platform — macOS (Apple Silicon +
+All three download the prebuilt binary for your platform — macOS (Apple Silicon +
 Intel), Linux (x64 + arm64), and Windows (x64). See the
 [CI guide](https://argot.tmonier.com/docs/ci/) and the
 [install docs](https://argot.tmonier.com/docs/) for the full platform matrix.

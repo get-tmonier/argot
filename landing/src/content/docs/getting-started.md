@@ -17,17 +17,25 @@ but not how anything here is actually built. No model, no cloud, no GPU.
 
 argot is a **single static binary** — no Python, no Node, nothing else to install.
 
+**macOS / Linux** — package-manager-free installer:
+
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.sh | sh
 ```
 
-Prefer a package manager?
+**Windows** — the PowerShell equivalent:
+
+```powershell
+powershell -c "irm https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.ps1 | iex"
+```
+
+**Any platform** — prefer a package manager?
 
 ```bash
 npm install -g @tmonier/argot
 ```
 
-Both download the prebuilt `argot` binary for your platform (macOS arm64/Intel, Linux x64/arm64,
+All three download the prebuilt `argot` binary for your platform (macOS arm64/Intel, Linux x64/arm64,
 Windows x64). Everything runs locally — no API key, no account, nothing leaves your machine.
 
 ## Two ways to run it — pick one, or both

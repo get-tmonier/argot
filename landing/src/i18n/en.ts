@@ -20,7 +20,8 @@ const en: SiteContent = {
     ctaPrimary: 'Read the docs',
     ctaSecondary: 'Star on GitHub',
     install: 'npm i -g @tmonier/argot',
-    installNote: 'MIT · single static binary · macOS & Linux · no runtime deps',
+    installNote: 'MIT · single static binary · macOS · Linux · Windows · no runtime deps',
+    installAlt: 'or install without npm',
   },
   demo: {
     label: 'The second question',
