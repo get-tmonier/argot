@@ -32,13 +32,20 @@ const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
         <span class="wordmark text-lg">ar<span class="g">g</span>ot</span>
         <span class="rounded-md border border-line px-2 py-0.5 font-mono text-xs text-muted">docs</span>
       </a>
-      <a
-        href={SITE.github}
-        target="_blank"
-        rel="noopener"
-        class="rounded-md border border-line bg-panel/60 px-3 py-1.5 text-sm transition-colors hover:border-line-2"
-        >GitHub ↗</a
-      >
+      <div class="flex items-center gap-2 sm:gap-3">
+        <a
+          href="/benchmarks"
+          class="rounded-md px-2 py-1.5 text-sm text-ink-dim transition-colors hover:text-ink"
+          >Benchmarks</a
+        >
+        <a
+          href={SITE.github}
+          target="_blank"
+          rel="noopener"
+          class="rounded-md border border-line bg-panel/60 px-3 py-1.5 text-sm transition-colors hover:border-line-2"
+          >GitHub ↗</a
+        >
+      </div>
     </div>
   </header>
 
@@ -88,6 +95,15 @@ const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
               </div>
             ))
           }
+          <div class="border-t border-line pt-5">
+            <a
+              href="/benchmarks"
+              class="flex items-center gap-1.5 pl-4 text-sm font-medium text-ember transition-colors hover:text-ember-bright"
+            >
+              Benchmarks
+              <span aria-hidden="true">↗</span>
+            </a>
+          </div>
         </nav>
       </details>
     </aside>
