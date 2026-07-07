@@ -16,7 +16,7 @@ type Fp = {
   ci95_pct: [number, number] | null;
 };
 type Tier = { caught: number; total: number; pct?: number };
-type ByDifficulty = { easy: Tier; medium: Tier; hard: Tier };
+type ByDifficulty = { easy: Tier; medium: Tier; hard: Tier; uncaught?: Tier };
 type Corpus = {
   corpus: string;
   language: string;
@@ -81,7 +81,11 @@ const bd = latest?.totals.foreign_by_difficulty;
 const visCaught = bd ? bd.easy.caught + bd.medium.caught : 0;
 const visTotal = bd ? bd.easy.total + bd.medium.total : 0;
 const visPct = visTotal ? (100 * visCaught) / visTotal : 0;
-const hardPct = bd && bd.hard.total ? (100 * bd.hard.caught) / bd.hard.total : 0;
+// Masked foreign = hard + the "uncaught"-tagged fixtures (name collisions,
+// dynamic imports, attested root namespaces) — the documented statistical limit.
+const maskedCaught = bd ? bd.hard.caught + (bd.uncaught?.caught ?? 0) : 0;
+const maskedTotal = bd ? bd.hard.total + (bd.uncaught?.total ?? 0) : 0;
+const maskedPct = maskedTotal ? (100 * maskedCaught) / maskedTotal : 0;
 
 // Novel-pattern (foreign) catch for a corpus, or '—' when it has no break
 // catalog (an FP-only corpus, there only to measure false alarms).
@@ -218,7 +222,7 @@ const det = (s: Fp | null | undefined) =>
               catch by difficulty across {latest.totals.foreign_fixtures} graded fixtures / {latest.corpora.filter((c) => c.foreign_fixtures).length} corpora:
               <span class="text-ink-dim"> easy {bd.easy.caught}/{bd.easy.total} ({((100 * bd.easy.caught) / bd.easy.total).toFixed(0)}%)</span> ·
               <span class="text-ink-dim"> medium {bd.medium.caught}/{bd.medium.total} ({((100 * bd.medium.caught) / bd.medium.total).toFixed(0)}%)</span> ·
-              <span class="text-ink-dim"> hard {bd.hard.caught}/{bd.hard.total} ({hardPct.toFixed(0)}%) — masked foreign, documented limit</span>
+              <span class="text-ink-dim"> masked {maskedCaught}/{maskedTotal} ({maskedPct.toFixed(0)}%) — name collisions & dynamic imports, documented limit</span>
             </p>
           )}
           <p class="mt-3 text-sm text-muted">
