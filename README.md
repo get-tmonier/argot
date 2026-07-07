@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <strong>A guardrail against code that's foreign to your codebase.</strong><br/>
-  <em>argot learns your repo's patterns from its own git history, then flags the dependencies, APIs, and constructs it has never seen — the "unknown to this repo" code an AI coding agent reaches for when it doesn't know your stack.</em>
+  <strong>Your codebase has a voice. argot makes AI code speak it.</strong><br/>
+  <em>A local guardrail that catches AI-written code that doesn't fit your repo — a dependency you've never used, a function you already wrote, logic in the wrong place. Learned from your git history. Backed by a code-embedding model that runs on your laptop — no cloud, no GPU, no LLM API.</em>
 </p>
 
 <p align="center">
@@ -21,7 +21,7 @@
   <a href="https://github.com/get-tmonier/argot/actions/workflows/ci.yml"><img src="https://github.com/get-tmonier/argot/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://github.com/get-tmonier/argot/blob/main/LICENSE"><img src="https://img.shields.io/github/license/get-tmonier/argot?color=E67E45" alt="License" /></a>
   <img src="https://img.shields.io/badge/rust-single%20static%20binary-DEA584?logo=rust&logoColor=white" alt="Rust" />
-  <img src="https://img.shields.io/badge/runtime%20deps-none-brightgreen" alt="No runtime deps" />
+  <img src="https://img.shields.io/badge/100%25-local%20%C2%B7%20no%20cloud-brightgreen" alt="100% local, no cloud" />
 </p>
 
 <p align="center">
@@ -45,15 +45,25 @@
 
 ---
 
-Type checkers and linters answer *"is this valid?"* argot answers the question
-that used to live in code review: *"is this how **we** write things here?"* It
-learns your codebase's patterns from its git history — no LLM, no GPU, no cloud,
-no telemetry — and flags code **foreign to this repo**: a dependency, API, or
-whole construct it has never used. Fits in seconds, checks in milliseconds.
+Type checkers ask *"is this valid?"* argot asks the question that used to live in code review: *"is this how **we** do it here?"* — and catches AI code that's flawless, type-correct, lint-clean, and still doesn't belong.
 
-If your team ships LLM-assisted code — syntactically perfect, type-correct,
-lint-clean, and written in the average voice of every public repo the model
-trained on — this is the layer your CI is missing.
+### Three ways AI code fails to fit — invisible to every linter
+
+|  |  |  |
+| :-- | :-- | :-- |
+| 🚫 **Foreign** | a dependency, API, or idiom your repo has **never used** | *"we don't do it this way here"* |
+| ♻️ **Redundant** | a new function that **reinvents one you already have** | *"you already have this"* |
+| 📍 **Misplaced** | the right code, filed in the **wrong place** | *"this doesn't belong here"* |
+
+Copilot, ESLint, SAST — every tool judges by one *global* idea of good code. argot learns **yours**, from your git history, and judges each AI diff against it. That per-repo judgment can't be copied by a bigger model — only by knowing your codebase.
+
+### Semantic — on your laptop, not in the cloud
+
+- ⚡ **Rust · single static binary** — fits in seconds, checks a diff in ~150 ms
+- 🧠 **Backed by a code-embedding model** (`jina-code`) running **locally** — real semantic understanding, no cloud LLM, no API key, no GPU
+- 🪶 **~100 MB model, CPU-first** (Metal-accelerated on Macs) — a few hundred MB of RAM, not the gigabytes a served model needs
+- 🔒 **Nothing leaves your machine** — no telemetry, no account, local by default
+- 📊 **Honest, leak-free benchmarks** — **98%** foreign catch · **0.22%** false alarms · 31 repos · 11 languages
 
 ## Demo
 
@@ -151,48 +161,54 @@ Full guide: [Configure](https://argot.tmonier.com/docs/configure/).
 
 ## What it catches
 
-It does *not* replace ESLint, ruff, or type checkers — it catches what they
-can't: code that's **valid, typed, and lint-clean but foreign to this project**.
-argot is built for one shape — a **novel pattern** the repo has never used — and
-catches **565 of 574 (98%)** when the foreign symbol is visible in the code (the
-honest, leak-free bench; see [benchmarks](#benchmarks)). Three shapes it flags,
-each a real result from the shipped binary on the FastAPI catalog:
+Not a replacement for ESLint, ruff, or type checkers — argot catches what they
+**structurally can't**: code that's valid, typed, and lint-clean but doesn't fit
+*this* repo. Three axes.
+
+**1 · Foreign** — a pattern the repo has never used. The statistical voice model,
+**98%** catch when the symbol is visible ([benchmarks](#benchmarks)):
 
 ```python
-# 1. A foreign dependency — the import stage flags a module the repo never uses.
-import requests                    # this codebase standardises on httpx →  ! foreign · requests
-
-# 2. A foreign API — the call-receiver stage flags a call the corpus never attests.
-_audit.insert_one({"user": user_id})   # a Mongo call in a SQLAlchemy repo →  ? suspicious · call_receiver
-
-# 3. A foreign paradigm — a whole idiom from another framework.
-class ReceiptView(View):           # a Django class-view in an all-FastAPI repo
-    def get(self, request, user_id):
-        return JsonResponse(...)    # →  ! foreign · call_receiver: JsonResponse, HttpResponseNotFound
+import requests                       # repo standardises on httpx       →  ! foreign · requests
+_audit.insert_one({"user": uid})      # a Mongo call in a SQLAlchemy repo →  ? suspicious · call_receiver
+class ReceiptView(View):              # a Django view in an all-FastAPI repo →  ! foreign · paradigm
 ```
 
-**The line argot won't cross.** When a break reuses *only* vocabulary the repo
-already has — a bare `ValueError` where it usually raises `HTTPException`, a manual
-`if status_code >= 400` instead of `raise_for_status()` — every token is
-corpus-present and the mistake is a *choice*, not a foreign pattern. argot usually
-**does not** flag these and its numbers never gate on them: separating them from
-in-voice code drives false alarms (the recovery investigation measured +1 recall
-for +45 FP). It catches the danger an agent actually poses — a whole foreign
-pattern — not subtle misuse of your own vocabulary. Full, verified breakdown:
-[what it catches](https://argot.tmonier.com/docs/what-it-catches/).
+**2 · Redundant** — a new function that reinvents one you already have. The
+embedding index finds the original and shows you exactly where it lives:
+
+```
+  .  already implemented here (redundant)
+     ↳ duplicates slugify (src/utils/text.py:1) — similarity 0.86
+```
+
+**3 · Misplaced** — the right code, filed in the wrong package:
+
+```
+  .  unusual location (misplaced)
+     ↳ looks like core/downloader code filed under commands/
+```
+
+*Redundant* and *misplaced* are **advisory** — real repos hold real duplication
+and cross-cutting helpers, so argot shows the nearest existing code and lets you
+judge. And there's a **line it won't cross**: when a break reuses only vocabulary
+you already have (a bare `ValueError` where you'd raise `HTTPException`), the
+mistake is a *choice*, not a foreign pattern — argot won't gate on it, and says so.
+Full, verified breakdown: [what it catches](https://argot.tmonier.com/docs/what-it-catches/).
 
 ### argot vs. the tools you already run
 
-|  | Type checker | Linter · ESLint/ruff | argot |
-|---|:---:|:---:|:---:|
-| Catches invalid code | ✅ | ✅ | — |
-| Enforces a rule you wrote down | — | ✅ | — |
-| Flags what's foreign to *this repo* | ❌ | ❌ | ✅ |
-| Learns from your history — no rules to write | ❌ | ❌ | ✅ |
+|  | Type checker | Linter | Copilot · SAST | argot |
+|---|:---:|:---:|:---:|:---:|
+| Catches invalid code | ✅ | ✅ | ~ | — |
+| Flags what's foreign to *this* repo | ❌ | ❌ | ❌ | ✅ |
+| Flags a function you **already have** | ❌ | ❌ | ❌ | ✅ |
+| Flags code filed in the **wrong place** | ❌ | ❌ | ❌ | ✅ |
+| Learns from *your* history · runs 100% local | ❌ | ❌ | ❌ | ✅ |
 
 argot is additive: it sits *after* your type checker and linter and catches the
-one thing they structurally can't — code that's valid and lint-clean but unlike
-anything your team has written.
+one thing they can't — code that's valid and lint-clean but unlike anything your
+team has written.
 
 ## Benchmarks
 
@@ -261,15 +277,25 @@ or run `/argot-setup-ci` (see [Set up](#set-up)).
 
 ## How it works
 
-A three-stage scorer runs on each diff hunk: an **import check** (is any
-imported module foreign to this repo?), a **BPE surprise** score (how much more
-likely is this hunk's token distribution under a generic open-source baseline
-than under your repo?), and a **call-receiver penalty** (does it call things
-this kind of file never calls?). The model is two frequency tables plus a
-callee-cluster partition — no neural network, learned entirely from your
-history. Full detail on the website: [How it works](https://argot.tmonier.com/docs/how-it-works/)
-and [The scoring model](https://argot.tmonier.com/docs/the-scoring-model/); the
-experiment log that got here lives in [docs/research/](docs/research/README.md).
+**Two senses, both learned entirely from your git history.**
+
+*The voice model — statistical.* A scorer runs on each diff hunk: an **import
+check** (any module foreign to this repo?), a **BPE surprise** score (how much
+likelier is this hunk's tokens under a generic open-source baseline than under
+*your* repo?), and a **call-receiver penalty** (does it call things this kind of
+file never calls?). Two frequency tables plus a callee-cluster partition — no
+neural net, fits in seconds, scores in milliseconds.
+
+*The semantic index — embeddings.* At fit, argot embeds every function with a
+local **code-embedding model** (`jina-code`, ~100 MB, statically linked via
+llama.cpp — CPU-first, Metal on Macs). At check, it embeds each new function and
+asks two things a linter can't: *is there already one just like it?* (reinvention)
+and *do its nearest neighbours live somewhere else?* (placement). No prompt, no
+generation, nothing leaves your machine.
+
+Full detail: [How it works](https://argot.tmonier.com/docs/how-it-works/) and
+[The scoring model](https://argot.tmonier.com/docs/the-scoring-model/); the
+experiment log is in [docs/research/](docs/research/README.md).
 
 ## Contributing
 
