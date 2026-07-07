@@ -2,9 +2,9 @@ import type { SiteContent } from './types';
 
 const fr: SiteContent = {
   meta: {
-    title: 'argot — lintez les règles que personne n’a écrites',
+    title: 'argot — détectez le code IA qui ne colle pas à votre dépôt',
     description:
-      'argot est un garde-fou pour le code écrit par IA. Il apprend les motifs de votre dépôt depuis son historique git, puis signale les dépendances, API et constructions qu’il n’a jamais utilisées. Aucun modèle, aucun cloud, aucun GPU.',
+      'argot est un garde-fou local pour le code écrit par IA. Il apprend les motifs de votre dépôt depuis son historique git, puis signale le code qui n’a pas sa place — une dépendance jamais utilisée, une fonction que vous avez déjà, du code au mauvais endroit. Propulsé par un modèle d’embeddings de code qui tourne sur votre machine. Sans cloud, sans GPU, sans API LLM.',
   },
   nav: {
     demo: 'Démo',
@@ -12,15 +12,15 @@ const fr: SiteContent = {
     docs: 'Docs',
   },
   hero: {
-    eyebrow: 'Local · un seul binaire Rust · sans LLM',
+    eyebrow: 'Local · Rust · sémantique — sans LLM cloud',
     titleLead: 'Lintez les règles',
     titleGradient: 'que personne n’a écrites.',
     subtitle:
-      'Il signale le code étranger à votre dépôt — les dépendances et idiomes qu’une IA écrit et que votre code n’a [[jamais utilisés]].',
+      'Il signale le code IA qui ne colle pas à votre dépôt — une dépendance jamais utilisée, une fonction que vous [[avez déjà]], du code au mauvais endroit.',
     ctaPrimary: 'Lire la doc',
     ctaSecondary: 'Star sur GitHub',
     install: 'npm i -g @tmonier/argot',
-    installNote: 'MIT · binaire statique unique · macOS · Linux · Windows · zéro dépendance',
+    installNote: 'MIT · binaire statique unique · macOS · Linux · Windows · 100 % local',
     installAlt: 'ou installer sans npm',
   },
   demo: {
@@ -33,24 +33,24 @@ const fr: SiteContent = {
   },
   catches: {
     label: 'Ce qu’il détecte',
-    title: 'Techniquement correct. Socialement étranger.',
-    body: 'Ce qu’ESLint, ruff et les type-checkers ne savent pas formuler : une dépendance, une API ou un paradigme [[que le dépôt n’a jamais utilisés]].',
+    title: 'Ça compile. C’est typé. Ça ne colle toujours pas.',
+    body: 'Trois façons dont le code IA ne s’intègre pas à [[ce]] dépôt — invisibles pour ESLint, ruff ou un type-checker.',
     items: [
       {
-        title: 'Une dépendance étrangère',
-        desc: 'Un import que le dépôt n’a jamais utilisé. Le signal le plus net — le mieux détecté.',
+        title: 'Étranger',
+        desc: 'Une dépendance, une API ou un idiome [[que le dépôt n’a jamais utilisés]]. Le signal le plus net — le mieux détecté.',
       },
       {
-        title: 'Une API étrangère',
-        desc: 'Un appel vers une bibliothèque que le reste du code évite.',
+        title: 'Redondant',
+        desc: 'Une fonction qui [[réinvente ce que vous avez déjà]]. argot retrouve l’originale et vous montre où elle vit.',
       },
       {
-        title: 'Un paradigme étranger',
-        desc: 'Tout un idiome venu d’ailleurs — une vue Django dans un dépôt FastAPI.',
+        title: 'Mal placé',
+        desc: 'Le bon code, rangé dans le [[mauvais paquet]] — ses plus proches voisins vivent ailleurs.',
       },
       {
         title: 'La limite qu’il ne franchit pas',
-        desc: 'Une mauvaise exception alors que [[tout le vocabulaire est déjà le vôtre]]. argot ne s’engage pas sur un choix — et le dit.',
+        desc: 'Un mauvais choix alors que [[tout le vocabulaire est déjà le vôtre]]. argot ne s’engage pas sur un choix — et le dit.',
       },
     ],
   },

@@ -2,9 +2,9 @@ import type { SiteContent } from './types';
 
 const en: SiteContent = {
   meta: {
-    title: 'argot — lint the rules you never wrote down',
+    title: 'argot — catch the AI code that doesn’t fit your codebase',
     description:
-      'argot is a guardrail for AI-written code. It learns your repo’s patterns from its own git history, then flags the dependencies, APIs, and constructs it has never used — the “unknown to this repo” code an AI agent reaches for. No model, no cloud, no GPU.',
+      'argot is a local guardrail for AI-written code. It learns your repo’s patterns from its own git history, then flags code that doesn’t belong — a dependency you’ve never used, a function you already wrote, logic in the wrong place. Backed by a code-embedding model that runs on your laptop. No cloud, no GPU, no LLM API.',
   },
   nav: {
     demo: 'Demo',
@@ -12,15 +12,15 @@ const en: SiteContent = {
     docs: 'Docs',
   },
   hero: {
-    eyebrow: 'Local · single Rust binary · no LLM',
+    eyebrow: 'Local · Rust · semantic — no cloud LLM',
     titleLead: 'Lint the rules',
     titleGradient: 'you never wrote down.',
     subtitle:
-      'It flags code foreign to your repo — the dependencies and idioms an AI writes that your codebase has [[never used]].',
+      'It flags the AI code that doesn’t fit your repo — a dependency you’ve never used, a function you [[already have]], logic in the wrong place.',
     ctaPrimary: 'Read the docs',
     ctaSecondary: 'Star on GitHub',
     install: 'npm i -g @tmonier/argot',
-    installNote: 'MIT · single static binary · macOS · Linux · Windows · no runtime deps',
+    installNote: 'MIT · single static binary · macOS · Linux · Windows · 100% local',
     installAlt: 'or install without npm',
   },
   demo: {
@@ -33,24 +33,24 @@ const en: SiteContent = {
   },
   catches: {
     label: 'What it catches',
-    title: 'Technically fine. Socially foreign.',
-    body: 'What ESLint, ruff, and type checkers can’t articulate: a dependency, API, or paradigm [[the repo has never used]].',
+    title: 'It compiles. It’s typed. It still doesn’t fit.',
+    body: 'Three ways AI code fails to fit [[this]] codebase — none of them visible to ESLint, ruff, or a type checker.',
     items: [
       {
-        title: 'A foreign dependency',
-        desc: 'An import the repo has never used. The clearest signal — caught most reliably.',
+        title: 'Foreign',
+        desc: 'A dependency, API, or idiom [[the repo has never used]]. The clearest signal — caught most reliably.',
       },
       {
-        title: 'A foreign API',
-        desc: 'A call into a library the rest of the codebase avoids.',
+        title: 'Redundant',
+        desc: 'A new function that [[reinvents one you already have]]. argot finds the original and shows you where it lives.',
       },
       {
-        title: 'A foreign paradigm',
-        desc: 'A whole idiom from elsewhere — a Django view in a FastAPI repo.',
+        title: 'Misplaced',
+        desc: 'The right code, filed in the [[wrong package]] — its nearest kin all live somewhere else.',
       },
       {
         title: 'The line it won’t cross',
-        desc: 'A wrong exception where [[every token is already yours]]. argot won’t gate on a choice — and says so.',
+        desc: 'A wrong choice where [[every token is already yours]]. argot won’t gate on a choice — and says so.',
       },
     ],
   },
