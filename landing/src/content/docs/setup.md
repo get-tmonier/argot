@@ -99,9 +99,10 @@ not demos, generated code, vendored dependencies, or config. Configure what
 argot ignores, confirm the model is healthy, and verify it catches a foreign
 import.
 
-First, work on a clean tree: `argot init` learns from files as they are, so
-commit or stash any work in progress (uncommitted foreign code would be baked
-into the voice).
+argot fits from the **committed** tree (HEAD), so an uncommitted edit to an
+existing file won't pollute the voice — you don't need a pristine tree. A
+brand-new file you haven't committed is still read from disk, though, so commit
+or remove any throwaway files first.
 
 1. Confirm argot is installed: `argot --version`. If missing, tell me how to
    install it and stop.
@@ -110,7 +111,9 @@ into the voice).
    ships. In a monorepo (multiple packages/workspaces), that's usually one or a
    few packages; everything else is peripheral.
 
-3. Fit and check health: `argot init`. Read the "Verdict" and corpus summary.
+3. Fit and check health: `argot init`. Read the "Verdict" and corpus summary. If
+   it's already **Ready** with a clean corpus, you may not need to exclude
+   anything — but still verify the catch (step 7).
 
 4. Get argot's statistical suggestions: `argot init --suggest --format json` —
    directories that are mostly auto-generated or data files, with counts. Note:

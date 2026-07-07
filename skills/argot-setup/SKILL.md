@@ -10,19 +10,24 @@ not generated code, vendored dependencies, or pure data. Deciding what to
 exclude is a judgment call; argot gives you statistical evidence, and you bring
 the semantic knowledge of the tree.
 
+argot fits from the **committed** tree (HEAD), so uncommitted edits to tracked
+files are ignored — you don't need a pristine tree. A brand-new untracked file is
+still read from disk, so commit or remove throwaway files first.
+
 ## Steps
 
 1. **Confirm argot is installed:** `argot --version`. If missing, tell the user
    how to install it (<https://argot.tmonier.com/docs/getting-started/>) and
    stop.
 
-2. **Fit and check health:** `argot init`. Read the **Verdict** line
-   (Ready / Marginal / Not recommended) and the corpus summary. If it's already
-   **Ready**, you may be done — jump to step 6.
-
-3. **Identify the primary authored source** — the library or app the repo
+2. **Identify the primary authored source** — the library or app the repo
    actually ships. In a monorepo (multiple packages/workspaces), that's usually
    one or a few packages; everything else is peripheral.
+
+3. **Fit and check health:** `argot init`. Read the **Verdict** line
+   (Ready / Marginal / Not recommended) and the corpus summary. If it's already
+   **Ready** with a clean corpus, you may not need to exclude anything — but
+   still do step 7 (verify the catch).
 
 4. **Get argot's suggestions:** `argot init --suggest --format json`. Lists
    directories that are mostly auto-generated or data files, with counts. Note

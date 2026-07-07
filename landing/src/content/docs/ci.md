@@ -95,7 +95,9 @@ installs and fits it. Keep it advisory — never a merge gate.
          - uses: get-tmonier/argot@main
 
 3. If the repo already has an `.argotignore`, leave it — the Action respects it.
-   It is optional; don't invent one.
+   It is optional; don't invent one. (On a monorepo with peripheral packages,
+   running the local `argot-setup` flow first to commit a good `.argotignore`
+   makes the CI voice sharper, but isn't required.)
 
 4. Commit and push the workflow. Pushing a `.github/workflows/*.yml` needs the
    `workflow` token scope — if `git push` is rejected, run
