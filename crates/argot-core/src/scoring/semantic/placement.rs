@@ -13,7 +13,7 @@
 //! fires only on *strong* disagreement, calibrated against each area's own
 //! typical locality (`index::calibrate_area_norms`).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use super::index::{FunctionRef, SemanticIndex};
 
@@ -51,6 +51,15 @@ pub fn area_of(path: &str, depth: usize) -> String {
     dirs[..dirs.len().min(depth)].join("/")
 }
 
+/// The directory a repo-relative path lives in (everything before the last `/`),
+/// or `""` for a top-level file. Finer than `area_of` — the exact location.
+fn parent_dir(path: &str) -> &str {
+    match path.rfind('/') {
+        Some(i) => &path[..i],
+        None => "",
+    }
+}
+
 /// A fired placement finding: where the function looks like it belongs.
 #[derive(Debug, Clone)]
 pub struct MisplacedFinding {
@@ -68,16 +77,37 @@ pub struct PlacementScorer<'a> {
     index: &'a SemanticIndex,
     /// Per-area calibrated "belongs" fraction (typical in-area neighbour share).
     area_norms: &'a HashMap<String, f32>,
+    /// Every directory that held an indexed function at fit time (full dir path,
+    /// not the coarse area). Placement can only judge a location with precedent.
+    index_dirs: HashSet<String>,
 }
 
 impl<'a> PlacementScorer<'a> {
     pub fn new(index: &'a SemanticIndex, area_norms: &'a HashMap<String, f32>) -> Self {
-        Self { index, area_norms }
+        let index_dirs = index
+            .entries
+            .iter()
+            .map(|e| parent_dir(&e.path).to_string())
+            .collect();
+        Self {
+            index,
+            area_norms,
+            index_dirs,
+        }
     }
 
     /// Evaluate one diff-defined function; `Some` when it looks misplaced.
     pub fn evaluate(&self, func: &FunctionRef, query: &[f32]) -> Option<MisplacedFinding> {
         if super::redundant::is_test_path(&func.path) {
+            return None;
+        }
+        // A function in a directory that did NOT exist at fit time is *new*, not
+        // *misplaced* — a brand-new feature/util dir has no same-area precedent, so
+        // its functions inevitably embed near their functional peers elsewhere and
+        // look "misplaced". Placement can only judge a location the repo already
+        // has an opinion about. (A real misplacement adds code to an EXISTING wrong
+        // dir, which is still judged.) This is the dominant clean-commit F2 FP.
+        if !self.index_dirs.contains(parent_dir(&func.path)) {
             return None;
         }
         // Exclude only the function itself (a new diff function isn't in the
@@ -239,5 +269,30 @@ mod tests {
         assert!(scorer
             .evaluate(&func("load_row", "src/db/models/new.py"), &q)
             .is_none());
+    }
+
+    #[test]
+    fn abstains_on_a_brand_new_directory() {
+        let idx = index();
+        let norms = norms();
+        let scorer = PlacementScorer::new(&idx, &norms);
+        // Same DB-flavoured query that fires when filed under the existing src/ui,
+        // but here it lives in a directory the index has never seen. A new location
+        // can't be judged misplaced — abstain (this is the dominant clean-commit FP:
+        // a new feature/util dir whose functions embed near their peers elsewhere).
+        let q = unit(vec![1.0, 0.03, 0.0]);
+        assert!(scorer
+            .evaluate(&func("load_row", "src/brand_new_feature/impl.py"), &q)
+            .is_none());
+        // Control: the SAME function in an existing dir still fires.
+        assert!(scorer
+            .evaluate(&func("load_row", "src/ui/widgets.py"), &q)
+            .is_some());
+    }
+
+    #[test]
+    fn parent_dir_extracts_directory() {
+        assert_eq!(parent_dir("src/ui/widgets.py"), "src/ui");
+        assert_eq!(parent_dir("main.py"), "");
     }
 }
