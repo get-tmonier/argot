@@ -77,15 +77,16 @@ fixtures:
   difficulty: hard
   host_file: lib/shared/runtime-info.js
   host_inject_at_line: 168
-- id: eslint_foreign_api_typescript
-  file: breaks/break_foreign_api_typescript.js
+- id: eslint_foreign_api_zod
+  file: breaks/break_foreign_api_zod.js
   category: foreign_api
   hunk_start_line: 1
-  hunk_end_line: 26
-  rationale: "ts.createSourceFile(filePath, text, ts.ScriptTarget.Latest, true).getText() reached through a bare 'ts' namespace with NO import in the hunk. Verified foreign at SHA 04174cbf: 'typescript' is a devDependency only (package.json: \"typescript\": \"^6.0.3\", used to tsc-typecheck this repo's own JSDoc-typed JS) — the compiler API itself (createSourceFile/ScriptTarget) is 0 git-grep hits across lib/; ESLint always parses through its own Language plugin over espree/acorn (lib/languages/js), never the TypeScript compiler. HARD (masked, leaf collision): '.getText' is attested 86 times elsewhere in lib/ (sourceCode.getText() call sites), so call-receiver's method-attested guard may resolve the foreign receiver as in-voice and this break may MISS."
-  difficulty: hard
-  host_file: lib/services/parser-service.js
-  host_inject_at_line: 16
+  hunk_end_line: 20
+  rationale: "z.strictObject({...}) / z.record(z.string(), z.unknown()) / .safeParse(config) reached through a bare 'z' namespace with NO import in the hunk. Verified foreign at SHA 04174cbf: 'zod' is 0 git-grep hits across lib/ and absent from package.json — ESLint validates flat config with its own hand-written schema (lib/config/flat-config-schema.js), never a schema library. MEDIUM: no foreign import — the unattested foreign namespace z.strictObject / .record / .safeParse (0 sites elsewhere in lib/) must be caught by call-receiver."
+  difficulty: medium
+  host_file: lib/config/flat-config-schema.js
+  host_inject_at_line: 13
+
 - id: eslint_foreign_api_jsdom
   file: breaks/break_foreign_api_jsdom.js
   category: foreign_api

@@ -88,6 +88,26 @@ pub struct DashboardCorpus {
     pub threshold: f64,
 }
 
+/// Caught / total for one difficulty tier.
+#[derive(Serialize, Default, Clone, Copy)]
+pub struct DifficultyCount {
+    pub caught: usize,
+    pub total: usize,
+}
+
+/// Foreign (novel-pattern) recall split by fixture difficulty. `easy` + `medium`
+/// is the **visible-foreign** catch (the reliable-capability headline); `hard`
+/// and `uncaught` are masked foreign — a name colliding with the repo's own, a
+/// dynamic import, an attested root namespace — the documented statistical limit
+/// a voice model can't separate from in-voice code.
+#[derive(Serialize, Default)]
+pub struct ForeignByDifficulty {
+    pub easy: DifficultyCount,
+    pub medium: DifficultyCount,
+    pub hard: DifficultyCount,
+    pub uncaught: DifficultyCount,
+}
+
 #[derive(Serialize)]
 pub struct DashboardTotals {
     pub caught: usize,
@@ -112,6 +132,9 @@ pub struct DashboardTotals {
     /// detections on real commits). This is the number to keep near zero.
     pub worst_fp_existing_overfire_pct: f64,
     pub worst_fp_new_overfire_pct: f64,
+    /// Foreign recall split by difficulty (visible = easy+medium). Aggregated
+    /// across every catalogued corpus's novel-pattern fixtures.
+    pub foreign_by_difficulty: ForeignByDifficulty,
 }
 
 /// The compact, versioned dashboard payload.
@@ -172,6 +195,32 @@ fn foreign_recall(r: &ProductionReport) -> Option<(usize, usize)> {
     }
     let caught = foreign.iter().filter(|f| f.flagged).count();
     Some((caught, foreign.len()))
+}
+
+/// Aggregate foreign (novel-pattern) fixtures across all production reports,
+/// split by difficulty. Untagged fixtures (legacy catalogs) are skipped from the
+/// split — the visible/masked framing only applies to difficulty-tagged corpora.
+fn foreign_difficulty_split(reports: &[ProductionReport]) -> ForeignByDifficulty {
+    let mut out = ForeignByDifficulty::default();
+    for r in reports {
+        for f in &r.fixture_results {
+            if !crate::production::is_novel_pattern(&f.category) {
+                continue;
+            }
+            let bucket = match f.difficulty.as_deref() {
+                Some("easy") => &mut out.easy,
+                Some("medium") => &mut out.medium,
+                Some("hard") => &mut out.hard,
+                Some("uncaught") => &mut out.uncaught,
+                _ => continue,
+            };
+            bucket.total += 1;
+            if f.flagged {
+                bucket.caught += 1;
+            }
+        }
+    }
+    out
 }
 
 fn fp(split: &crate::holdout::SplitFp) -> DashboardFp {
@@ -236,7 +285,12 @@ impl BenchDashboard {
                 }
             })
             .collect();
-        Self::finalize(corpora, commit, generated_at)
+        Self::finalize(
+            corpora,
+            foreign_difficulty_split(production),
+            commit,
+            generated_at,
+        )
     }
 
     /// Catalog-mode aggregation (historical continuity; recall only).
@@ -266,7 +320,12 @@ impl BenchDashboard {
                 threshold: r.threshold,
             })
             .collect();
-        Self::finalize(corpora, commit, generated_at)
+        Self::finalize(
+            corpora,
+            ForeignByDifficulty::default(),
+            commit,
+            generated_at,
+        )
     }
 
     /// Production-path recall only (quick bench; no holdout FP).
@@ -309,11 +368,21 @@ impl BenchDashboard {
                 }
             })
             .collect();
-        Self::finalize(corpora, commit, generated_at)
+        Self::finalize(
+            corpora,
+            foreign_difficulty_split(reports),
+            commit,
+            generated_at,
+        )
     }
 
     /// Shared totals assembly.
-    fn finalize(corpora: Vec<DashboardCorpus>, commit: String, generated_at: String) -> Self {
+    fn finalize(
+        corpora: Vec<DashboardCorpus>,
+        foreign_by_difficulty: ForeignByDifficulty,
+        commit: String,
+        generated_at: String,
+    ) -> Self {
         let caught: usize = corpora.iter().filter_map(|c| c.caught).sum();
         let fixtures: usize = corpora.iter().filter_map(|c| c.fixtures).sum();
         let gated_caught: usize = corpora.iter().filter_map(|c| c.gated_caught).sum();
@@ -350,6 +419,7 @@ impl BenchDashboard {
                 worst_fp_new_file_pct: worst(|c| c.fp_new_file.as_ref()),
                 worst_fp_existing_overfire_pct: worst(|c| c.fp_existing_overfire.as_ref()),
                 worst_fp_new_overfire_pct: worst(|c| c.fp_new_overfire.as_ref()),
+                foreign_by_difficulty,
             },
             corpora,
         }

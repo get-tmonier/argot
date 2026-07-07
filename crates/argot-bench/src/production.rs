@@ -39,6 +39,9 @@ pub struct ProdFixtureResult {
     pub id: String,
     pub category: String,
     pub language: Option<String>,
+    /// `easy` / `medium` / `hard` — drives the visible-vs-masked difficulty
+    /// split reported in the dashboard.
+    pub difficulty: Option<String>,
     pub flagged: bool,
     /// Winning reasons of the hits on the host file (empty when uncaught).
     pub reasons: Vec<String>,
@@ -224,6 +227,7 @@ pub fn run_corpus_production(target: &Target, opts: &RunOptions) -> Result<Produ
             id: fx.id.clone(),
             category: fx.category.clone(),
             language: fx.language.clone(),
+            difficulty: fx.difficulty.clone(),
             flagged: !hits.is_empty(),
             reasons,
             max_score,
