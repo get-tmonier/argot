@@ -291,10 +291,20 @@ fn review_mutes_reports_rot_and_prunes() {
     // Fit at HEAD~1 (the evidence-parity dance) so integration.py genuinely
     // flags with the calibrated threshold — review needs a real flagged hit.
     let repo = build_fixture_repo("review");
+    // Pin an explicit committer identity: the fixture build sets it via env
+    // vars (not repo config), so a `git commit` here would otherwise fall back
+    // to the runner's auto-derived ident — empty on some CI runners
+    // (`fatal: empty ident name`).
     let git = |args: &[&str]| {
         let status = Command::new("git")
             .arg("-C")
             .arg(&repo)
+            .args([
+                "-c",
+                "user.name=Argot Fixture",
+                "-c",
+                "user.email=fixture@argot.test",
+            ])
             .args(args)
             .status()
             .expect("git");
