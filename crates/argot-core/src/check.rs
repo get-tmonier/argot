@@ -1207,6 +1207,7 @@ fn semantic_hits(
     argot_dir: &Path,
     filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
     mute_rules: &[SuppressionRule],
+    detect: &DetectConfig,
     header_cpp: bool,
     stderr: &mut String,
 ) -> Vec<Hit> {
@@ -1246,6 +1247,16 @@ fn semantic_hits(
             continue;
         };
         let source = String::from_utf8_lossy(&batch.content);
+        // Mirror the index scope (calibration's `filtered`): a data-dominant or
+        // auto-generated file (unicode tables, transpiled output, generated stubs)
+        // is not authored voice — its functions are neither reinvention candidates
+        // nor placement candidates. Skips the F2 over-fire clean-commit measurement
+        // caught on generated data modules (e.g. rich/_unicode_data).
+        if adapter.is_data_dominant(&source, detect.data_threshold)
+            || adapter.is_auto_generated(&source, &detect.generated_markers)
+        {
+            continue;
+        }
         let mut added: HashSet<usize> = HashSet::new();
         for h in &batch.hunks {
             for l in h.new_start..(h.new_start + h.new_lines) {
@@ -2047,6 +2058,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         &args.argot_dir,
         &filter_adapters,
         &mutes.active,
+        &config.detect,
         header_cpp,
         &mut stderr,
     );
