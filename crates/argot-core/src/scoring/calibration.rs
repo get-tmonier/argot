@@ -1061,6 +1061,17 @@ pub fn run_calibrate(
     // against. Byte-identical to a working-tree read on a clean checkout.
     let head = HeadSource::new(repo_dir);
 
+    // Semantic layer: acquire the embedder once for the whole fit (lazy model
+    // load / one-time fetch). `None` when the model is unavailable (offline) —
+    // the fit still produces the full statistical model, just no semantic index.
+    #[cfg(feature = "semantic")]
+    let embedder = crate::scoring::semantic::embedder::Embedder::ready()
+        .ok()
+        .flatten();
+    #[cfg(feature = "semantic")]
+    let mut semantic_artifact =
+        crate::scoring::semantic::index::SemanticArtifact::new(opts.repo_sha.clone());
+
     for (name, (language, lang_files)) in by_lang {
         let adapter = adapter_for(language);
 
@@ -1310,6 +1321,41 @@ pub fn run_calibrate(
         };
         let model_hash = model.hash();
 
+        // Semantic index for this language: embed every corpus function (the
+        // same `callable_bodies` extraction check uses on the diff). Skipped
+        // silently when no embedder is available — advisory, never load-bearing.
+        #[cfg(feature = "semantic")]
+        if let Some(emb) = embedder.as_ref() {
+            let mut funcs = Vec::new();
+            for (path, source) in corpus {
+                let rel = rel_to_repo(path, repo_dir);
+                funcs.extend(crate::scoring::semantic::index::functions_in_file(
+                    adapter.as_ref(),
+                    &rel,
+                    source,
+                ));
+            }
+            if !funcs.is_empty() {
+                eprintln!(
+                    "argot: building semantic index for {name} ({} functions)…",
+                    funcs.len()
+                );
+                match crate::scoring::semantic::index::SemanticIndex::build(emb, &funcs) {
+                    Ok(idx) if !idx.is_empty() => {
+                        use crate::scoring::semantic::index as sem_index;
+                        let bar = sem_index::calibrate_margin_bar(&idx);
+                        let area_norms = sem_index::calibrate_area_norms(
+                            &idx,
+                            crate::scoring::semantic::placement::AREA_DEPTH,
+                        );
+                        semantic_artifact.insert(name, &idx, bar, area_norms);
+                    }
+                    Ok(_) => {}
+                    Err(e) => eprintln!("argot: semantic index for {name} failed: {e}"),
+                }
+            }
+        }
+
         thresholds_out.push((name.to_string(), threshold));
         languages.insert(
             name.to_string(),
@@ -1360,6 +1406,22 @@ pub fn run_calibrate(
     }
     let json = serde_json::to_string_pretty(&config)?;
     std::fs::write(output, &json)?;
+
+    // Semantic index artifact, alongside scorer-config.json. Kept in its own
+    // file so scorer-config.json (and its model hash) stay byte-for-byte
+    // unchanged whether or not the semantic layer is compiled in.
+    #[cfg(feature = "semantic")]
+    if !semantic_artifact.is_empty() {
+        let sem_path = output.with_file_name(crate::scoring::semantic::SEMANTIC_INDEX_FILE);
+        match semantic_artifact.to_json_string() {
+            Ok(sem_json) => {
+                if let Err(e) = std::fs::write(&sem_path, sem_json) {
+                    eprintln!("argot: writing semantic index failed: {e}");
+                }
+            }
+            Err(e) => eprintln!("argot: serializing semantic index failed: {e}"),
+        }
+    }
 
     // Emit the inspectable model manifest alongside the config.
     let per_lang_model_hash: BTreeMap<String, String> = config

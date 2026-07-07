@@ -14,6 +14,11 @@ pub mod evidence;
 pub mod filters;
 pub mod import_graph;
 pub mod model;
+/// The semantic layer — per-repo code embeddings powering advisory reinvention,
+/// placement and nearest-code-evidence findings. Feature-gated: absent (and
+/// zero-cost) unless built with `--features semantic`.
+#[cfg(feature = "semantic")]
+pub mod semantic;
 pub mod sequential;
 pub mod shape_primitive;
 pub mod shape_primitives;

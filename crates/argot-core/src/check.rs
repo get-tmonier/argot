@@ -168,6 +168,32 @@ struct Hit {
     hash: String,
     /// Set when a suppression surface muted this hit.
     suppressed_by: Option<SuppressedBy>,
+    /// Advisory evidence for a semantic finding (reinvention / placement).
+    /// Feature-gated so the base build has no extra field and stays byte-for-byte
+    /// identical; base statistical Hits carry `None` when the feature is on.
+    #[cfg(feature = "semantic")]
+    semantic: Option<SemanticHitEvidence>,
+}
+
+/// The nearest-existing-code evidence attached to a semantic finding (F4). Held
+/// as structured data so every output format renders it its own way.
+#[cfg(feature = "semantic")]
+#[derive(Debug, Clone)]
+enum SemanticHitEvidence {
+    /// F1 reinvention: the existing function this one duplicates.
+    Redundant {
+        nearest_symbol: String,
+        nearest_path: String,
+        nearest_line: usize,
+        similarity: f32,
+    },
+    /// F2 placement: the area this function looks like it belongs in.
+    Misplaced {
+        neighbor_area: String,
+        actual_area: String,
+        /// Nearest peers (symbol, path:line) that voted for `neighbor_area`.
+        peers: Vec<(String, String, usize)>,
+    },
 }
 
 /// One calibrated slice for check-time dispatch: its threshold applies to hunks
@@ -297,6 +323,10 @@ fn sev_index(s: &str) -> usize {
 fn severity(reason: &str, score: f64, threshold: f64) -> &'static str {
     match reason {
         "import" => "foreign",
+        // Semantic findings are advisory — the mildest tier. They surface real,
+        // linter-invisible structure (a duplicate, a misplacement) for the author
+        // to judge, not a "this is foreign" verdict.
+        "redundant" | "misplaced" => "unusual",
         _ => {
             if score >= threshold + 1.5 {
                 "foreign"
@@ -315,6 +345,8 @@ fn reason_label(reason: &str) -> &str {
         "bpe" => "rare token sequence",
         "call_receiver" => "unfamiliar callee",
         "import" => "foreign import",
+        "redundant" => "already implemented here",
+        "misplaced" => "unusual location",
         other => other,
     }
 }
@@ -1143,6 +1175,8 @@ fn score_patches(
                 evidence: scored.evidence,
                 hash,
                 suppressed_by,
+                #[cfg(feature = "semantic")]
+                semantic: None,
             });
         }
     }
@@ -1158,6 +1192,251 @@ fn score_patches(
         .map(|(path, hunks)| FileScan { path, hunks })
         .collect();
     (hits, hunk_count, files_scanned)
+}
+
+/// The semantic pass (F1 reinvention today; F2 placement next) — additive
+/// advisory `Hit`s from the per-repo embedding index. It runs *alongside* the
+/// statistical scorers, never through them: it reads `.argot/semantic-index.json`
+/// plus the embedder, finds the functions the diff *defines*, and flags any that
+/// reinvent existing code. Returns extra hits to merge into the report. Empty
+/// (a clean graceful degrade) when the index or model is unavailable, so the
+/// base guardrail is entirely unaffected.
+#[cfg(feature = "semantic")]
+fn semantic_hits(
+    patches: &[PatchBatch],
+    argot_dir: &Path,
+    filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
+    mute_rules: &[SuppressionRule],
+    header_cpp: bool,
+    stderr: &mut String,
+) -> Vec<Hit> {
+    use crate::scoring::semantic::embedder::Embedder;
+    use crate::scoring::semantic::index::{
+        functions_in_file, FunctionRef, LoadedIndex, SemanticArtifact,
+    };
+    use crate::scoring::semantic::placement::PlacementScorer;
+    use crate::scoring::semantic::redundant::RedundantScorer;
+    use crate::scoring::semantic::SEMANTIC_INDEX_FILE;
+
+    // Load the fit-time index artifact; its absence just means no semantic layer.
+    let Ok(raw) = std::fs::read_to_string(argot_dir.join(SEMANTIC_INDEX_FILE)) else {
+        return Vec::new();
+    };
+    let artifact = match SemanticArtifact::from_json_str(&raw) {
+        Ok(a) => a,
+        Err(e) => {
+            stderr.push_str(&format!("[argot] semantic index unreadable: {e}\n"));
+            return Vec::new();
+        }
+    };
+
+    // Gather the functions this diff defines: a function whose definition line is
+    // among the diff's added lines is newly added (its whole body, incl. the def,
+    // is in an added hunk) — the reinvention candidates.
+    let mut candidates: Vec<(usize, &'static str, FunctionRef)> = Vec::new();
+    for (bi, batch) in patches.iter().enumerate() {
+        if batch.ignored_by_pattern {
+            continue;
+        }
+        let ext = extension(&batch.file_path);
+        let Some(lang) = ext_to_lang_ctx(&ext, header_cpp) else {
+            continue;
+        };
+        let Some(adapter) = filter_adapters.get(lang) else {
+            continue;
+        };
+        let source = String::from_utf8_lossy(&batch.content);
+        let mut added: HashSet<usize> = HashSet::new();
+        for h in &batch.hunks {
+            for l in h.new_start..(h.new_start + h.new_lines) {
+                added.insert(l as usize);
+            }
+        }
+        for f in functions_in_file(adapter.as_ref(), &batch.file_path, &source) {
+            if added.contains(&f.line) {
+                candidates.push((bi, lang, f));
+            }
+        }
+    }
+    if candidates.is_empty() {
+        return Vec::new();
+    }
+
+    // Load only the indices we actually need.
+    let mut loaded: HashMap<&'static str, LoadedIndex> = HashMap::new();
+    for (_, lang, _) in &candidates {
+        if loaded.contains_key(lang) {
+            continue;
+        }
+        match artifact.load(lang) {
+            Ok(Some(li)) => {
+                loaded.insert(lang, li);
+            }
+            Ok(None) => {}
+            Err(e) => stderr.push_str(&format!("[argot] semantic index for {lang}: {e}\n")),
+        }
+    }
+    candidates.retain(|(_, lang, _)| loaded.contains_key(lang));
+    if candidates.is_empty() {
+        return Vec::new();
+    }
+
+    // Acquire the embedder once; unavailable model → degrade (no semantic hits).
+    let embedder = match Embedder::ready() {
+        Ok(Some(e)) => e,
+        Ok(None) => {
+            stderr.push_str("[argot] semantic model unavailable — skipping reinvention findings\n");
+            return Vec::new();
+        }
+        Err(e) => {
+            stderr.push_str(&format!("[argot] semantic model load failed: {e}\n"));
+            return Vec::new();
+        }
+    };
+
+    // Embed all candidate functions in one batch.
+    let texts: Vec<&str> = candidates.iter().map(|(_, _, f)| f.text.as_str()).collect();
+    let vecs = match embedder.embed(&texts) {
+        Ok(v) => v,
+        Err(e) => {
+            stderr.push_str(&format!("[argot] semantic embedding failed: {e}\n"));
+            return Vec::new();
+        }
+    };
+
+    let mut hits = Vec::new();
+    for ((bi, lang, f), vec) in candidates.iter().zip(&vecs) {
+        let li = &loaded[lang];
+        let batch = &patches[*bi];
+        // F1 first: a duplicate isn't "misplaced", it's "redundant" — the
+        // stronger signal wins, one finding per function.
+        if let Some(found) = RedundantScorer::new(&li.index, li.margin_bar).evaluate(f, vec) {
+            hits.push(build_semantic_hit(
+                batch,
+                f,
+                "redundant",
+                found.margin as f64,
+                li.margin_bar as f64,
+                SemanticHitEvidence::Redundant {
+                    nearest_symbol: found.nearest_symbol,
+                    nearest_path: found.nearest_path,
+                    nearest_line: found.nearest_line,
+                    similarity: found.similarity,
+                },
+                filter_adapters,
+                mute_rules,
+            ));
+            continue;
+        }
+        // F2 placement.
+        if let Some(m) = PlacementScorer::new(&li.index, &li.area_norms).evaluate(f, vec) {
+            let score = (m.expected_fraction - m.in_area_fraction).max(0.0) as f64;
+            hits.push(build_semantic_hit(
+                batch,
+                f,
+                "misplaced",
+                score,
+                m.expected_fraction as f64,
+                SemanticHitEvidence::Misplaced {
+                    neighbor_area: m.neighbor_area,
+                    actual_area: m.actual_area,
+                    peers: m.peers,
+                },
+                filter_adapters,
+                mute_rules,
+            ));
+        }
+    }
+    hits
+}
+
+/// Build one advisory semantic `Hit`, applying the mute + inline suppression
+/// surfaces exactly as base hits do. `reason` is `"redundant"` / `"misplaced"`.
+#[cfg(feature = "semantic")]
+#[allow(clippy::too_many_arguments)]
+fn build_semantic_hit(
+    batch: &PatchBatch,
+    f: &crate::scoring::semantic::index::FunctionRef,
+    reason: &str,
+    score: f64,
+    threshold: f64,
+    sem: SemanticHitEvidence,
+    filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
+    mute_rules: &[SuppressionRule],
+) -> Hit {
+    let hunk_content = f.text.clone();
+    let hash = hit_hash(&batch.file_path, reason, &hunk_content);
+    let inline = ext_to_lang(&extension(&batch.file_path))
+        .and_then(|l| filter_adapters.get(l))
+        .map(|a| {
+            let src = String::from_utf8_lossy(&batch.content);
+            parse_inline(&src, a.line_comment_prefix())
+        });
+    let suppressed_by = if inline
+        .as_ref()
+        .is_some_and(|i| i.suppresses(f.line, f.end_line, reason))
+    {
+        Some(SuppressedBy::Inline)
+    } else if mute_rules
+        .iter()
+        .any(|r| r.matches(&batch.file_path, reason, &hash))
+    {
+        Some(SuppressedBy::Mute)
+    } else {
+        None
+    };
+    Hit {
+        score,
+        file_path: batch.file_path.clone(),
+        line: f.line,
+        line_end: f.end_line,
+        source: batch.source.clone(),
+        reason: reason.to_string(),
+        flagged: true,
+        threshold,
+        hunk_content,
+        evidence: None,
+        hash,
+        suppressed_by,
+        semantic: Some(sem),
+    }
+}
+
+/// Render the nearest-existing-code evidence for a semantic finding as `↳` lines
+/// (F4 — retrieval + template, no LLM).
+#[cfg(feature = "semantic")]
+fn format_semantic_evidence(sem: &SemanticHitEvidence, use_color: bool) -> Vec<String> {
+    match sem {
+        SemanticHitEvidence::Redundant {
+            nearest_symbol,
+            nearest_path,
+            nearest_line,
+            similarity,
+        } => {
+            let body = format!(
+                "    ↳ duplicates {nearest_symbol} ({nearest_path}:{nearest_line}) — similarity {similarity:.2}"
+            );
+            vec![paint(&body, C_DIM, use_color)]
+        }
+        SemanticHitEvidence::Misplaced {
+            neighbor_area,
+            actual_area,
+            peers,
+        } => {
+            let filed = if actual_area.is_empty() {
+                "the repo root".to_string()
+            } else {
+                actual_area.clone()
+            };
+            let head = format!("    ↳ looks like {neighbor_area} code filed under {filed}");
+            let mut lines = vec![paint(&head, C_DIM, use_color)];
+            if let Some((sym, path, line)) = peers.first() {
+                let peer = format!("      nearest peer: {sym} ({path}:{line})");
+                lines.push(paint(&peer, C_DIM, use_color));
+            }
+            lines
+        }
+    }
 }
 
 /// Build the eslint-style `^^^^^` underline for one source line
@@ -1367,6 +1646,16 @@ fn render_results(
             // evidence render `(L7)` file-line annotations.
             if let Some(ev) = &h.evidence {
                 for line in format_evidence(ev, use_color, h.line) {
+                    out.push_str(&line);
+                    out.push('\n');
+                }
+            }
+            // Semantic findings render nearest-existing-code evidence (F4) — a
+            // retrieval lookup, no LLM. Turns the statistic into "here's the
+            // closest thing you already have."
+            #[cfg(feature = "semantic")]
+            if let Some(sem) = &h.semantic {
+                for line in format_semantic_evidence(sem, use_color) {
                     out.push_str(&line);
                     out.push('\n');
                 }
@@ -1733,6 +2022,20 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     // `.h` routes to the same C/C++ model calibrate built it into (repo's
     // translation-unit majority) — computed once from the working tree.
     let header_cpp = crate::scoring::calibration::header_is_cpp(Path::new(&args.repo_path));
+
+    // Additive semantic pass over the same scoped batches (borrowed before
+    // score_patches consumes them). Produces advisory reinvention/placement hits;
+    // a no-op without the feature or when the index/model is unavailable.
+    #[cfg(feature = "semantic")]
+    let semantic_extra = semantic_hits(
+        &filtered,
+        &args.argot_dir,
+        &filter_adapters,
+        &mutes.active,
+        header_cpp,
+        &mut stderr,
+    );
+
     let (hits, hunk_count, files_scanned) = score_patches(
         filtered,
         &mut scorers,
@@ -1744,6 +2047,15 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         header_cpp,
         &mut stderr,
     );
+
+    // Merge the advisory semantic hits (rebind rather than `mut` so the base
+    // build has no unused-mut and stays byte-for-byte identical).
+    #[cfg(feature = "semantic")]
+    let hits = {
+        let mut hits = hits;
+        hits.extend(semantic_extra);
+        hits
+    };
 
     // Display gate: --threshold widens to every hit >= N; otherwise show flagged.
     let threshold_override = args.threshold;
