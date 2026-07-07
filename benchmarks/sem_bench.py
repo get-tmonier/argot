@@ -14,9 +14,12 @@ ARGOT = os.environ.get("ARGOT", "/Users/damienmeur/projects/argot/target/release
 CORPUS = sys.argv[1]
 REIMPLS = sys.argv[2]
 LANG = "py"
-for a in sys.argv[3:]:
-    if a.startswith("--lang"):
-        LANG = a.split("=")[-1] if "=" in a else "py"
+_args = sys.argv[3:]
+for i, a in enumerate(_args):
+    if a.startswith("--lang="):
+        LANG = a.split("=", 1)[1]
+    elif a == "--lang" and i + 1 < len(_args):
+        LANG = _args[i + 1]
 
 BENCH_DIR = os.path.join(CORPUS, "_sembench")
 
