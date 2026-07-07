@@ -85,14 +85,18 @@ const en: SiteContent = {
   setup: {
     label: 'Setup · built for agents',
     title: 'A CLI your coding agent can drive.',
-    body: 'The skills let your agent run argot — each a thin wrapper over one plain command you can run yourself. [[Advisory, never blocking.]]',
+    body: 'The skills run argot [[and bring the judgment]]: /argot-setup reads your repo to decide what shouldn’t shape its voice — a vendored SDK, a generated dir — writes a .argotignore, fits, and verifies the catch. Advisory, never blocking.',
     installLabel: 'Add the skills — Claude Code, Cursor, 70+ agents',
-    skillsIntro: 'each is one argot command:',
-    skillDescs: ['fit the model', 'score each diff', 'a score on every PR'],
-    ctaLocal: 'Set it up by hand',
-    ctaCi: 'or the CI guide',
+    skillsIntro: 'three slash-commands your agent runs:',
+    skillDescs: [
+      'reads your tree, writes .argotignore, verifies the catch',
+      'scores each diff, flags what’s foreign — never blocks',
+      'a non-blocking voice score on every PR',
+    ],
+    ctaLocal: 'Or drive the CLI by hand',
+    ctaCi: 'the CI guide',
     caption:
-      'The skills just drive the argot binary. The fitted model stays out of your git history.',
+      'The skills bring the exclude-what-isn’t-yours judgment; the fitted model stays out of your git history.',
   },
   ciScore: {
     label: 'In CI, without the friction',

@@ -31,14 +31,10 @@ const html = `<pre><code>${term}</code></pre>`;
 // a copy-to-clipboard chip (the Hero's `.copy-install` script wires it).
 const skillCmd = 'npx skills add get-tmonier/argot';
 
-// The three skills the install adds: each is a thin wrapper over one plain argot
-// command. Shown with the `/` prefix so they read as slash-commands; the CLI
-// equivalent beside each makes the "run it yourself" path concrete.
-const skills = [
-  { cmd: '/argot-setup', cli: 'argot init' },
-  { cmd: '/argot-check', cli: 'argot check' },
-  { cmd: '/argot-ci', cli: 'the Action' },
-];
+// The three slash-command skills the install adds. Shown with the `/` prefix so
+// they read as slash-commands; the description says what each *does* (the skills
+// bring judgment — reading the tree, writing .argotignore — not just a command).
+const skillCmds = ['/argot-setup', '/argot-check', '/argot-ci'];
 ---
 
 <section id="setup" class="snap-section relative flex min-h-svh items-center">
@@ -66,11 +62,10 @@ const skills = [
         <p class="lane-note">{setup.skillsIntro}</p>
         <ul class="skill-list">
           {
-            skills.map((s, i) => (
+            skillCmds.map((cmd, i) => (
               <li class="skill-row">
-                <code class="skill-cmd">{s.cmd}</code>
+                <code class="skill-cmd">{cmd}</code>
                 <span class="skill-desc">{setup.skillDescs[i]}</span>
-                <code class="skill-cli">{s.cli}</code>
               </li>
             ))
           }
@@ -158,17 +153,5 @@ const skills = [
   .skill-desc {
     flex: 1 1 7rem;
     color: var(--ink-dim);
-  }
-  .skill-cli {
-    flex: none;
-    margin-left: auto;
-    font-family: var(--font-mono, ui-monospace, monospace);
-    font-size: 0.72rem;
-    color: var(--muted);
-    white-space: nowrap;
-  }
-  .skill-cli::before {
-    content: '≡ ';
-    opacity: 0.55;
   }
 </style>

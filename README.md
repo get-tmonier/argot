@@ -119,16 +119,18 @@ Install the skills once:
 npx skills add get-tmonier/argot
 ```
 
-Then run **`/argot-setup`** in Claude Code, Cursor, or 70+ agents — it fits the
-model, decides what to ignore, and verifies the catch. `/argot-check` scores diffs
-as you work; `/argot-ci` wires the GitHub Action.
+Then run **`/argot-setup`** in Claude Code, Cursor, or 70+ agents. This is where
+the skill earns its keep: it **reads your codebase** to decide what should and
+shouldn't shape the repo's voice — a vendored SDK, a generated `gen/`, a docs
+site — writes a `.argotignore` for it, fits the model, and verifies argot
+actually catches a foreign import. Deciding what to exclude is a judgment call an
+LLM makes well; the raw `argot init` leaves it to you. `/argot-check` then scores
+each diff and reads the result advisorily (never blocks); `/argot-ci` wires the
+GitHub Action.
 
-Each skill just wraps a plain command, so you can skip them and drive the CLI
-yourself:
-
-```sh
-argot init && argot check      # fit once, then score your changes
-```
+Prefer to drive it by hand? `argot init && argot check` runs the pipeline
+directly — you make the what-to-exclude calls yourself (see
+[Setup](https://argot.tmonier.com/docs/setup/)).
 
 **More in the docs:** [Setup](https://argot.tmonier.com/docs/setup/) covers
 hand-picking what argot learns from and a copy-paste prompt for any agent;
