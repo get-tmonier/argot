@@ -1697,18 +1697,8 @@ fn render_results(
 /// the human path prints, with layout indentation stripped.
 fn hit_records(hits: &[&Hit]) -> Vec<HitRecord> {
     hits.iter()
-        .map(|h| HitRecord {
-            path: h.file_path.clone(),
-            line_start: h.line,
-            line_end: h.line_end,
-            score: h.score,
-            threshold: h.threshold,
-            severity: severity(&h.reason, h.score, h.threshold).to_string(),
-            reason: h.reason.clone(),
-            reason_label: reason_label(&h.reason).to_string(),
-            source: h.source.clone(),
-            hash: h.hash.clone(),
-            evidence: h
+        .map(|h| {
+            let evidence: Vec<String> = h
                 .evidence
                 .as_ref()
                 .map(|ev| {
@@ -1717,7 +1707,31 @@ fn hit_records(hits: &[&Hit]) -> Vec<HitRecord> {
                         .map(|l| l.trim().to_string())
                         .collect()
                 })
-                .unwrap_or_default(),
+                .unwrap_or_default();
+            // Semantic findings carry their nearest-code evidence here too, so
+            // JSON and SARIF consumers (GitHub code scanning) get it for free.
+            // Rebind (not `mut`) so the base build stays warning-clean.
+            #[cfg(feature = "semantic")]
+            let evidence = match &h.semantic {
+                Some(sem) => format_semantic_evidence(sem, false)
+                    .into_iter()
+                    .map(|l| l.trim().to_string())
+                    .collect(),
+                None => evidence,
+            };
+            HitRecord {
+                path: h.file_path.clone(),
+                line_start: h.line,
+                line_end: h.line_end,
+                score: h.score,
+                threshold: h.threshold,
+                severity: severity(&h.reason, h.score, h.threshold).to_string(),
+                reason: h.reason.clone(),
+                reason_label: reason_label(&h.reason).to_string(),
+                source: h.source.clone(),
+                hash: h.hash.clone(),
+                evidence,
+            }
         })
         .collect()
 }
@@ -2309,6 +2323,38 @@ fn mute_path_present(repo_path: &str, mute_path: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn semantic_reasons_have_labels_and_advisory_severity() {
+        assert_eq!(reason_label("redundant"), "already implemented here");
+        assert_eq!(reason_label("misplaced"), "unusual location");
+        // Advisory findings are the mildest tier regardless of score.
+        assert_eq!(severity("redundant", 5.0, 0.1), "unusual");
+        assert_eq!(severity("misplaced", 5.0, 0.1), "unusual");
+    }
+
+    #[cfg(feature = "semantic")]
+    #[test]
+    fn semantic_evidence_renders_nearest_code() {
+        let redundant = SemanticHitEvidence::Redundant {
+            nearest_symbol: "slugify".into(),
+            nearest_path: "src/utils/text.py".into(),
+            nearest_line: 1,
+            similarity: 0.86,
+        };
+        let lines = format_semantic_evidence(&redundant, false);
+        assert!(lines[0].contains("duplicates slugify (src/utils/text.py:1)"));
+        assert!(lines[0].contains("0.86"));
+
+        let misplaced = SemanticHitEvidence::Misplaced {
+            neighbor_area: "src/db".into(),
+            actual_area: "src/ui".into(),
+            peers: vec![("load_row".into(), "src/db/models.py".into(), 12)],
+        };
+        let lines = format_semantic_evidence(&misplaced, false);
+        assert!(lines[0].contains("looks like src/db code filed under src/ui"));
+        assert!(lines[1].contains("load_row (src/db/models.py:12)"));
+    }
 
     #[test]
     fn foreign_import_tiers_as_foreign_regardless_of_margin() {

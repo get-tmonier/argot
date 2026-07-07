@@ -73,6 +73,19 @@ jobs:
       - name: Clippy self-update feature (release-only code)
         if: matrix.os == 'ubuntu-latest'
         run: cargo clippy -p argot --all-targets --features self-update -- -D warnings
+      # The semantic layer links llama.cpp (needs cmake + a C++ toolchain) and is
+      # only built in release + this job — lint and test it on Linux so it can't
+      # rot. The model-dependent embedder tests skip cleanly when no GGUF is
+      # present (no network in CI); the pure-logic scorer/index/adapter tests run.
+      - name: Install cmake (llama.cpp build)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y cmake
+      - name: Clippy semantic feature
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo clippy -p argot-core --all-targets --features semantic -- -D warnings
+      - name: Test semantic feature
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo test -p argot-core --features semantic
       - name: Test (incl. Python-parity golden suites)
         env:
           # On Windows `bash` resolves to the WSL stub (System32, no distro

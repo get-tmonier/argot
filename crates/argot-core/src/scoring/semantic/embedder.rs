@@ -253,13 +253,20 @@ mod tests {
         a.iter().zip(b).map(|(x, y)| x * y).sum()
     }
 
-    /// Load an embedder if a model is locally available (env or verified cache);
-    /// otherwise `None` so the test skips instead of downloading 90 MB in CI.
+    /// Load an embedder iff a model is already on disk (env override or a
+    /// present cache file). Never calls `resolve_model_path` — a unit test must
+    /// not hit the network, so on CI (no model, no download) it returns `None`
+    /// and the model-dependent tests skip.
     fn local_embedder() -> Option<Embedder> {
-        resolve_model_path().ok().flatten().and_then(|p| {
-            // Only use a real, verified local file — never trigger a download.
-            Embedder::load(&p).ok()
-        })
+        let path = std::env::var(MODEL_ENV)
+            .ok()
+            .map(PathBuf::from)
+            .filter(|p| p.exists())
+            .or_else(|| {
+                let cached = cache_dir().ok()?.join("models").join(MODEL_FILENAME);
+                cached.exists().then_some(cached)
+            })?;
+        Embedder::load(&path).ok()
     }
 
     #[test]
