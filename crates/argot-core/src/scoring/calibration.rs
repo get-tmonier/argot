@@ -1328,6 +1328,15 @@ pub fn run_calibrate(
         if let Some(emb) = embedder.as_ref() {
             let mut funcs = Vec::new();
             for (path, source) in corpus {
+                // Mirror the check-time candidate scope (`batch.ignored_by_pattern`):
+                // never index code the check would skip — tests, docs, examples,
+                // scripts, migrations, generated (`argot:recommended` + `[exclude]`).
+                // A reinvention target must be *canonical* repo code, not a tutorial
+                // or fixture; indexing those both mis-points findings and inflates
+                // self-similarity on duplication-heavy example trees.
+                if path_suppressions.is_suppressed_abs(path, repo_dir) {
+                    continue;
+                }
                 let rel = rel_to_repo(path, repo_dir);
                 funcs.extend(crate::scoring::semantic::index::functions_in_file(
                     adapter.as_ref(),

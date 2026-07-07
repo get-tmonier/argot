@@ -66,30 +66,22 @@ pub struct RedundantFinding {
 
 /// Scores diff-defined functions against a repo's existing functions. Holds the
 /// corpus subtoken IDF (built once from the index), so subtoken overlap weights
-/// rare, domain-specific vocabulary and discounts ubiquitous tokens.
+/// rare, domain-specific vocabulary and discounts ubiquitous tokens (`self`,
+/// `get`, `return`) without any hand-tuned stop-list.
 pub struct RedundantScorer<'a> {
     index: &'a SemanticIndex,
-    idf: HashMap<String, f32>,
-    /// IDF for a subtoken not seen in the corpus (df = 0) — the maximum weight.
+    subtoken_idf: HashMap<String, f32>,
+    /// IDF for a subtoken not seen in the corpus (df = 0) — the max weight.
     default_idf: f32,
 }
 
 impl<'a> RedundantScorer<'a> {
     pub fn new(index: &'a SemanticIndex) -> Self {
         let n_docs = index.entries.len().max(1) as f64;
-        let mut df: HashMap<&str, u32> = HashMap::new();
-        for e in &index.entries {
-            for t in &e.subtokens {
-                *df.entry(t.as_str()).or_insert(0) += 1;
-            }
-        }
-        let idf = df
-            .iter()
-            .map(|(t, &c)| ((*t).to_string(), idf_of(c, n_docs)))
-            .collect();
+        let subtoken_idf = corpus_idf(index.entries.iter().map(|e| &e.subtokens), n_docs);
         Self {
             index,
-            idf,
+            subtoken_idf,
             default_idf: idf_of(0, n_docs),
         }
     }
@@ -111,6 +103,15 @@ impl<'a> RedundantScorer<'a> {
         // A near-duplicate that keeps the *same name* in another file is almost
         // always a move/rename, not a reinvention — don't flag refactors.
         if eq_ignore_ascii_case(&best_entry.symbol, &func.symbol) {
+            return None;
+        }
+        // Composition, not reinvention: if either function calls the other, the
+        // new code *uses* the existing one rather than duplicating it. Common in
+        // well-factored families (a `pointOnPolygon` that calls `pointOnLineSegment`
+        // shares its vocabulary but is not a reinvention of it).
+        if func.callees.iter().any(|c| c == &best_entry.symbol)
+            || best_entry.callees.iter().any(|c| c == &func.symbol)
+        {
             return None;
         }
         let cos = best.cosine;
@@ -137,34 +138,74 @@ impl<'a> RedundantScorer<'a> {
         })
     }
 
-    /// IDF-weighted Jaccard over two subtoken sets: shared *rare* subtokens count
-    /// heavily, shared ubiquitous ones ~nothing. A subtoken unseen in the corpus
-    /// gets the maximum (default) weight. Both inputs are sorted + deduped.
+    /// IDF-weighted Jaccard over two subtoken sets (shared *rare* subtokens count
+    /// heavily, shared ubiquitous ones ~nothing).
     fn subtoken_jaccard(&self, a: &[String], b: &[String]) -> f32 {
-        if a.is_empty() && b.is_empty() {
-            return 0.0;
+        weighted_jaccard(a, b, &self.subtoken_idf, self.default_idf)
+    }
+}
+
+/// Plain Jaccard overlap of two callee sets (sorted, deduped). 0 when both empty.
+/// Callees are *not* IDF-weighted: unlike identifier subtokens, a shared callee
+/// is already a strong structural signal, and weighting cost recall for no net
+/// false-alarm gain (the residual over-fire it targets is genuine duplication).
+fn callee_jaccard(a: &[String], b: &[String]) -> f32 {
+    if a.is_empty() && b.is_empty() {
+        return 0.0;
+    }
+    let sa: BTreeSet<&str> = a.iter().map(String::as_str).collect();
+    let sb: BTreeSet<&str> = b.iter().map(String::as_str).collect();
+    let union = sa.union(&sb).count();
+    if union == 0 {
+        0.0
+    } else {
+        sa.intersection(&sb).count() as f32 / union as f32
+    }
+}
+
+/// Build the corpus IDF map for a family of per-function token sets.
+fn corpus_idf<'a>(
+    sets: impl Iterator<Item = &'a Vec<String>>,
+    n_docs: f64,
+) -> HashMap<String, f32> {
+    let mut df: HashMap<&str, u32> = HashMap::new();
+    for set in sets {
+        for t in set {
+            *df.entry(t.as_str()).or_insert(0) += 1;
         }
-        let sa: BTreeSet<&str> = a.iter().map(String::as_str).collect();
-        let sb: BTreeSet<&str> = b.iter().map(String::as_str).collect();
-        let mut inter_w = 0.0f32;
-        let mut union_w = 0.0f32;
-        for t in sa.union(&sb) {
-            let w = *self.idf.get(*t).unwrap_or(&self.default_idf);
-            union_w += w;
-            if sa.contains(t) && sb.contains(t) {
-                inter_w += w;
-            }
+    }
+    df.iter()
+        .map(|(t, &c)| ((*t).to_string(), idf_of(c, n_docs)))
+        .collect()
+}
+
+/// IDF-weighted Jaccard: shared *rare* tokens dominate, shared ubiquitous ones
+/// carry ~nothing. A token unseen in the corpus gets the maximum (default)
+/// weight. Both inputs are sorted + deduped.
+fn weighted_jaccard(a: &[String], b: &[String], idf: &HashMap<String, f32>, default: f32) -> f32 {
+    if a.is_empty() && b.is_empty() {
+        return 0.0;
+    }
+    let sa: BTreeSet<&str> = a.iter().map(String::as_str).collect();
+    let sb: BTreeSet<&str> = b.iter().map(String::as_str).collect();
+    let mut inter_w = 0.0f32;
+    let mut union_w = 0.0f32;
+    for t in sa.union(&sb) {
+        let w = *idf.get(*t).unwrap_or(&default);
+        union_w += w;
+        if sa.contains(t) && sb.contains(t) {
+            inter_w += w;
         }
-        if union_w > 0.0 {
-            inter_w / union_w
-        } else {
-            0.0
-        }
+    }
+    if union_w > 0.0 {
+        inter_w / union_w
+    } else {
+        0.0
     }
 }
 
 /// Smoothed inverse document frequency: `ln((N+1)/(df+1)) + 1`. Monotone-
-/// decreasing in `df`, always ≥ 1, so a shared rare subtoken outweighs a shared
+/// decreasing in `df`, always ≥ 1, so a shared rare token outweighs a shared
 /// common one without any hand-tuned stop-list.
 fn idf_of(df: u32, n_docs: f64) -> f32 {
     (((n_docs + 1.0) / (df as f64 + 1.0)).ln() + 1.0) as f32
@@ -172,23 +213,6 @@ fn idf_of(df: u32, n_docs: f64) -> f32 {
 
 fn eq_ignore_ascii_case(a: &str, b: &str) -> bool {
     a.len() == b.len() && a.eq_ignore_ascii_case(b)
-}
-
-/// Jaccard overlap of two callee sets (both are sorted, deduped). 0 when both
-/// are empty.
-fn callee_jaccard(a: &[String], b: &[String]) -> f32 {
-    if a.is_empty() && b.is_empty() {
-        return 0.0;
-    }
-    let sa: std::collections::BTreeSet<&str> = a.iter().map(String::as_str).collect();
-    let sb: std::collections::BTreeSet<&str> = b.iter().map(String::as_str).collect();
-    let inter = sa.intersection(&sb).count();
-    let union = sa.union(&sb).count();
-    if union == 0 {
-        0.0
-    } else {
-        inter as f32 / union as f32
-    }
 }
 
 /// Whether a diff-defined function is a candidate for reinvention flagging.

@@ -20,6 +20,21 @@ for a in sys.argv[3:]:
 
 BENCH_DIR = os.path.join(CORPUS, "_sembench")
 
+# argot:recommended excluded top-dirs — a fixture whose ORIGINAL target lives
+# here can never validly fire (the index no longer contains it), so it's not a
+# valid reinvention fixture. Skip it rather than count it as a miss.
+_EXCLUDED_DIRS = {"test", "tests", "testdata", "testing", "__tests__", "doc", "docs",
+                  "example", "examples", "migration", "migrations", "benchmark",
+                  "benchmarks", "fixtures", "scripts", "build", "dist"}
+
+
+def target_excluded(raw):
+    """True if the fixture's `# ID: <path>:<line>` target sits in an excluded dir."""
+    m = re.search(r"#\s*ID:\s*(\S+?):", raw)
+    if not m:
+        return False
+    return any(part in _EXCLUDED_DIRS for part in m.group(1).split("/"))
+
 
 def rename_fn(code, new_name):
     """Rename the (first) top-level def to new_name; return (code, orig_name)."""
@@ -41,6 +56,8 @@ def main():
         if not fn.endswith(ext):
             continue
         raw = open(os.path.join(REIMPLS, fn)).read()
+        if target_excluded(raw):  # fixture targets excluded (non-canonical) code
+            continue
         # strip the "# ID: path:line" header, keep the body
         body = "\n".join(l for l in raw.splitlines() if not l.strip().startswith("# ID:"))
         orig_from_name = fn.split("__")[0]

@@ -97,27 +97,28 @@ def main():
         return len(a & b) / len(a | b) if (a or b) else 0.0
 
     # --- corpus subtoken IDF (mirror RedundantScorer::new) ---
-    df = Counter()
+    sdf = Counter()
     for s in subtoks:
         for t in s:
-            df[t] += 1
+            sdf[t] += 1
     N = max(1, n)
-
-    def idf(t):
-        return math.log((N + 1) / (df.get(t, 0) + 1)) + 1.0
 
     def wsub(a, b):
         union = a | b
         if not union:
             return 0.0
-        wu = sum(idf(t) for t in union)
-        wi = sum(idf(t) for t in (a & b))
+        w = lambda t: math.log((N + 1) / (sdf.get(t, 0) + 1)) + 1.0
+        wu = sum(w(t) for t in union)
+        wi = sum(w(t) for t in (a & b))
         return wi / wu if wu else 0.0
 
     def fires(candi, matchi):
         """Two-tier production rule between candidate index cand vs match."""
+        # calls-the-match gate: composition, not reinvention.
+        if syms[matchi] in callees[candi] or syms[candi] in callees[matchi]:
+            return False
         c = cos(vecs[candi], vecs[matchi])
-        cj = jac(callees[candi], callees[matchi])
+        cj = jac(callees[candi], callees[matchi])  # plain callee jaccard
         sj = wsub(subtoks[candi], subtoks[matchi])
         both = lambda m: len(callees[candi]) >= m and len(callees[matchi]) >= m
         normal = c >= NORMAL_SIM and ((both(NORMAL_MIN_CALLEES) and cj >= NORMAL_CALLEE) or sj >= NORMAL_SUB)
