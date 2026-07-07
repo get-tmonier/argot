@@ -31,21 +31,21 @@ const html = `<pre><code>${term}</code></pre>`;
 // a copy-to-clipboard chip (the Hero's `.copy-install` script wires it).
 const skillCmd = 'npx skills add get-tmonier/argot';
 
-// The three slash-command skills the install adds. Shown with the `/` prefix so
+// The four slash-command skills the install adds. Shown with the `/` prefix so
 // they read as slash-commands; the description says what each *does* (the skills
-// bring judgment — reading the tree, writing .argotignore — not just a command).
-const skillCmds = ['/argot-setup', '/argot-check', '/argot-ci'];
+// bring judgment — reading the tree, writing argot.toml — not just a command).
+const skillCmds = ['/argot-setup', '/argot-check', '/argot-review-pr', '/argot-setup-ci'];
 ---
 
-<section id="setup" class="snap-section relative flex min-h-svh items-center">
-  <div class="mx-auto w-full max-w-6xl px-5 py-20">
-    <div class="grid grid-cols-1 gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:gap-16">
+<section id="setup" class="snap-section relative flex md:min-h-svh items-center">
+  <div class="mx-auto w-full max-w-6xl px-5 py-12 md:py-20">
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:gap-16">
       <div class="reveal">
         <p class="mb-3 font-mono text-xs tracking-widest text-ember uppercase">{setup.label}</p>
         <h2 class="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{setup.title}</h2>
         <p class="mt-4 leading-relaxed text-ink-dim text-pretty" set:html={emphasize(setup.body)} />
 
-        <p class="lane-label mt-6">{setup.installLabel}</p>
+        <p class="lane-label mt-5">{setup.installLabel}</p>
         <button
           type="button"
           class="copy-install setup-chip group"
@@ -71,7 +71,7 @@ const skillCmds = ['/argot-setup', '/argot-check', '/argot-ci'];
           }
         </ul>
 
-        <p class="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+        <p class="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
           <a
             href="/docs/setup/"
             class="group inline-flex items-center gap-1.5 font-medium text-ember transition-colors hover:text-ember-bright"

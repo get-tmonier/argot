@@ -137,6 +137,7 @@ fn new_code_cannot_attest_its_own_callees() {
         import_modules: Vec::new(),
         import_module_prefixes: Vec::new(),
         evidence_corpus: None,
+        detect: argot_core::config::DetectConfig::default(),
     };
     let baseline = std::fs::read(repo.join(".argot/generic-baseline.json")).unwrap();
 

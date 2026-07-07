@@ -122,10 +122,11 @@ npx skills add get-tmonier/argot
 Then run **`/argot-setup`** in Claude Code, Cursor, or 70+ agents. This is where
 the skill earns its keep: it **reads your codebase** to decide what should and
 shouldn't shape the repo's voice — a vendored SDK, a generated `gen/`, a docs
-site — writes a `.argotignore` for it, fits the model, and verifies argot
+site — writes an `argot.toml` for it, fits the model, and verifies argot
 actually catches a foreign import. Deciding what to exclude is a judgment call an
 LLM makes well; the raw `argot init` leaves it to you. `/argot-check` then scores
-each diff and reads the result advisorily (never blocks); `/argot-ci` wires the
+each diff and reads the result advisorily (never blocks); `/argot-review-pr`
+reviews a whole PR against your repo's voice; `/argot-setup-ci` wires the
 GitHub Action.
 
 Prefer to drive it by hand? `argot init && argot check` runs the pipeline
@@ -142,9 +143,10 @@ has every flag (JSON/SARIF, ranges, `argot update`).
 
 argot learns from the code *you* wrote, so it already skips tests, docs, examples,
 build output, and anything it detects as generated or data-only. Exclude the rest
-— vendored SDKs, generated stubs, legacy modules — with a root `.argotignore`
-(gitignore-style); `argot init --suggest` finds the generated- and data-heavy dirs
-for you, and you accept an intentional hit with `argot mute <hash> --reason "…"`.
+— vendored SDKs, generated stubs, legacy modules — in `argot.toml`'s
+`[exclude].paths` (gitignore-style patterns); `argot init --suggest` finds the
+generated- and data-heavy dirs for you, and you accept an intentional hit with
+`argot mute <hash> --reason "…"`.
 Full guide: [Configure](https://argot.tmonier.com/docs/configure/).
 
 ## What it catches
@@ -152,7 +154,7 @@ Full guide: [Configure](https://argot.tmonier.com/docs/configure/).
 It does *not* replace ESLint, ruff, or type checkers — it catches what they
 can't: code that's **valid, typed, and lint-clean but foreign to this project**.
 argot is built for one shape — a **novel pattern** the repo has never used — and
-catches **522 of 527 (99%)** when the foreign symbol is visible in the code (the
+catches **565 of 574 (98%)** when the foreign symbol is visible in the code (the
 honest, leak-free bench; see [benchmarks](#benchmarks)). Three shapes it flags,
 each a real result from the shipped binary on the FastAPI catalog:
 
@@ -201,27 +203,27 @@ leakage:
 
 - **Visible-foreign catch** — foreign imports and APIs spliced into real host
   files and judged by the real `fit` → `check` pipeline. When the foreign symbol
-  is visible in the code, argot catches **522/527 (99%)**.
+  is visible in the code, argot catches **565/574 (98%)**.
 - **False alarm (over-fire)** — a temporal holdout (fit at an old commit, replay
   only commits the model never saw) counting how often argot fires on the repo's
-  *own existing code*. Aggregate **0.23%**, worst corpus **0.98%**. A fire on a
+  *own existing code*. Aggregate **0.22%**, worst corpus **1.17%**. A fire on a
   genuinely *new* dependency in a real commit is a **detection**, not an alarm —
   reported separately, never counted against the tool.
 
 | Language | Corpora | Visible-foreign catch | Worst over-fire |
 |---|---|---|---|
-| Python | fastapi · rich · faker · saleor · wagtail | 101/103 (98%) | 0.35% |
-| TypeScript / JS | hono · ink · faker-js · excalidraw · outline | 97/98 (99%) | 0.11% |
-| Go | gh-cli · hugo | 38/38 (100%) | 0.98% |
+| Python | fastapi · rich · faker · saleor · wagtail · dagster · scrapy | 137/140 (98%) | 0.92% |
+| TypeScript / JS | hono · ink · faker-js · excalidraw · outline · commander · express · eslint | 126/127 (99%) | 0.11% |
+| Go | gh-cli · hugo | 37/38 (97%) | 1.17% |
 | Rust | ripgrep · bat | 38/38 (100%) | 0.30% |
-| Java | guava · junit5 | 38/38 (100%) | 0.58% |
-| C# | powershell · jellyfin | 40/40 (100%) | 0.22% |
+| Java | guava · junit5 | 38/38 (100%) | 0.82% |
+| C# | powershell · jellyfin | 38/40 (95%) | 0.06% |
 | C | redis · curl | 37/38 (97%) | 0.18% |
-| C++ | rocksdb · fmt | 39/39 (100%) | 0.36% |
+| C++ | rocksdb · fmt | 38/39 (97%) | 0.22% |
 | Ruby | homebrew · rubocop | 38/38 (100%) | 0.63% |
 | PHP | laravel · composer | 38/38 (100%) | 0.00% |
 
-Across **27 repos in 10 languages**. Earlier published numbers were measured
+Across **31 repos in 11 languages**. Earlier published numbers were measured
 train-on-test and were materially optimistic — see
 [issue #92](https://github.com/get-tmonier/argot/issues/92) and the
 [re-measurement evidence](docs/research/evidence/issue92-honest-rebench.md).
@@ -230,10 +232,10 @@ train-on-test and were materially optimistic — see
 dependency or API (a symbol with zero usage in the repo at fit time) is not an
 idiomatic commit — flagging it is argot's job, so those fires are counted as
 **detections**, not false alarms. The true false-alarm rate is **over-fire**:
-argot firing on the repo's *own existing code*, and every one of the 27 corpora
-holds it to ≤ 0.98%. The one class argot *cannot* catch is **masked foreign** —
+argot firing on the repo's *own existing code*, and every one of the 31 corpora
+holds it to ≤ 1.17%. The one class argot *cannot* catch is **masked foreign** —
 a foreign symbol whose name collides with one the repo already uses, or a dynamic
-`import()` — a documented statistical limit (~23%), since a voice model can't
+`import()` — a documented statistical limit (~17%), since a voice model can't
 separate foreign code that looks exactly like yours. The full per-corpus table,
 new-file rates, and confidence intervals are on the
 [benchmarks page](https://argot.tmonier.com/benchmarks), fed from CI so they
@@ -255,7 +257,7 @@ validated? [Open an issue](https://github.com/get-tmonier/argot/issues/new).
 repo root (`uses: get-tmonier/argot@main`), and `.pre-commit-hooks.yaml`
 registers an `argot-check` hook. It's non-blocking by default — a visual voice
 score on every PR. Copy-paste setups: [the CI guide](https://argot.tmonier.com/docs/ci/),
-or run `/argot-ci` (see [Set up](#set-up)).
+or run `/argot-setup-ci` (see [Set up](#set-up)).
 
 ## How it works
 

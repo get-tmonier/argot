@@ -94,9 +94,9 @@ installs and fits it. Keep it advisory — never a merge gate.
              fetch-depth: 0
          - uses: get-tmonier/argot@main
 
-3. If the repo already has an `.argotignore`, leave it — the Action respects it.
+3. If the repo already has an `argot.toml`, leave it — the Action respects it.
    It is optional; don't invent one. (On a monorepo with peripheral packages,
-   running the local `argot-setup` flow first to commit a good `.argotignore`
+   running the local `argot-setup` flow first to commit a good `argot.toml`
    makes the CI voice sharper, but isn't required.)
 
 4. Commit and push the workflow. Pushing a `.github/workflows/*.yml` needs the
@@ -108,7 +108,7 @@ installs and fits it. Keep it advisory — never a merge gate.
    code-scanning annotations; it never fails the build.
 ```
 
-(In Claude Code this is the **argot-ci** skill — `npx skills add get-tmonier/argot`.)
+(In Claude Code this is the **argot-setup-ci** skill — `npx skills add get-tmonier/argot`.)
 
 ## The human keeps the last word
 

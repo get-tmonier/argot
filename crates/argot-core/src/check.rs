@@ -13,6 +13,7 @@
 //! glyph + tier, dim on secondary detail); syntax highlighting of hunk bodies
 //! remains deferred.
 
+use crate::config::{ArgotConfig, DetectConfig};
 use crate::git_walk::{
     open_repo, resolve_shas, walk_commits, HunkSpan, WalkItem, SUPPORTED_EXTENSIONS,
 };
@@ -34,8 +35,8 @@ use crate::scoring::evidence::{evidence_caret_spans, evidence_lines_of_interest,
 use crate::scoring::model::LanguageModel;
 use crate::scoring::sequential::{ScoredHunk, SequentialConfig, SequentialImportBpeScorer};
 use crate::suppress::{
-    fnmatch, hit_hash, load_suppressions_file, parse_inline, write_last_check, LastCheckHit,
-    PathScope, PathSuppressions, SuppressionRule, SUPPRESSIONS_FILE,
+    fnmatch, hit_hash, parse_inline, write_last_check, LastCheckHit, PathScope, PathSuppressions,
+    SuppressionRule,
 };
 use crate::text::splitlines;
 use git2::{DiffFindOptions, Patch, Status, StatusOptions};
@@ -127,7 +128,7 @@ struct PatchBatch {
     content: Vec<u8>,
     hunks: Vec<HunkSpan>,
     source: String,
-    /// The file matched a user `.argotignore` pattern: still scored (so the
+    /// The file matched a user `[exclude].paths` pattern: still scored (so the
     /// suppression is countable), but every hit is dropped from output and
     /// exit-code consideration.
     ignored_by_pattern: bool,
@@ -136,9 +137,12 @@ struct PatchBatch {
 /// Which suppression surface muted a hit (`None` = reported normally).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SuppressedBy {
-    ArgotIgnore,
+    /// An `argot.toml` `[exclude].paths` pattern.
+    Exclude,
+    /// An inline `# argot: ignore` comment.
     Inline,
-    Yaml,
+    /// An `argot.toml` `[[mute]]` entry.
+    Mute,
 }
 
 /// One above-threshold hunk plus everything needed to explain it (`_Hit`).
@@ -385,7 +389,7 @@ fn py_repr(v: &Value) -> String {
 /// scoring must judge new code against the voice as it was learned, not as
 /// the new code just rewrote it (issue #79).
 /// On failure returns the exact stderr message and exit code.
-fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
+fn load_scorers(argot_dir: &Path, detect: &DetectConfig) -> Result<Loaded, (String, i32)> {
     let generic_baseline_json = argot_dir.join("generic-baseline.json");
     let config_json = argot_dir.join("scorer-config.json");
 
@@ -519,6 +523,7 @@ fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
             evidence_corpus: lc
                 .get("evidence_corpus")
                 .and_then(EvidenceCorpus::from_json),
+            detect: detect.clone(),
         };
 
         let adapter = match adapter_for_language(lang) {
@@ -682,10 +687,11 @@ pub struct RepoScorers {
 }
 
 impl RepoScorers {
-    /// Load from a repo's `.argot/`. The error carries a human-readable message
-    /// (e.g. "run `argot fit` first").
-    pub fn load(argot_dir: &Path) -> std::result::Result<Self, String> {
-        let loaded = load_scorers(argot_dir).map_err(|(msg, _)| msg)?;
+    /// Load from a repo's `.argot/`. `detect` is the repo's `[detect]` config
+    /// (governs the check-time auto-generated skip). The error carries a
+    /// human-readable message (e.g. "run `argot fit` first").
+    pub fn load(argot_dir: &Path, detect: &DetectConfig) -> std::result::Result<Self, String> {
+        let loaded = load_scorers(argot_dir, detect).map_err(|(msg, _)| msg)?;
         Ok(RepoScorers {
             scorers: loaded.scorers,
             model_hash: loaded.model_hash,
@@ -973,8 +979,8 @@ fn chain_workdir_patches(repo_path: &str) -> anyhow::Result<Vec<PatchBatch>> {
 }
 
 /// Score each hunk, dispatching per language (`_score_patches`). Applies the
-/// inline-comment and suppressions.yaml surfaces per hit (path-level
-/// `.argotignore` suppression arrives pre-marked on the batch). Returns
+/// inline-comment and `[[mute]]` surfaces per hit (path-level `[exclude].paths`
+/// suppression arrives pre-marked on the batch). Returns
 /// `(hits, hunk_count, per-file hunk counts)`.
 #[allow(clippy::too_many_arguments)]
 fn score_patches(
@@ -984,7 +990,7 @@ fn score_patches(
     slices: &HashMap<String, Vec<SliceEntry>>,
     new_file_thresholds: &HashMap<String, f64>,
     fit_corpus_files: &HashSet<String>,
-    yaml_rules: &[SuppressionRule],
+    mute_rules: &[SuppressionRule],
     header_cpp: bool,
     stderr: &mut String,
 ) -> (Vec<Hit>, usize, Vec<FileScan>) {
@@ -1113,14 +1119,14 @@ fn score_patches(
             }
             let hash = hit_hash(&batch.file_path, &reason, &hunk_content);
             let suppressed_by = if batch.ignored_by_pattern {
-                Some(SuppressedBy::ArgotIgnore)
+                Some(SuppressedBy::Exclude)
             } else if inline.suppresses(line, line_end, &reason) {
                 Some(SuppressedBy::Inline)
-            } else if yaml_rules
+            } else if mute_rules
                 .iter()
                 .any(|r| r.matches(&batch.file_path, &reason, &hash))
             {
-                Some(SuppressedBy::Yaml)
+                Some(SuppressedBy::Mute)
             } else {
                 None
             };
@@ -1608,6 +1614,11 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         );
     }
 
+    // argot.toml config: excludes + `[detect]` heuristics + `[[mute]]`. Loaded
+    // once here — the `[detect]` markers gate the check-time auto-generated skip
+    // built into each scorer, so they must be in place before load_scorers.
+    let config = ArgotConfig::load(Path::new(&args.repo_path));
+
     let Loaded {
         mut scorers,
         filter_adapters,
@@ -1617,7 +1628,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         slices,
         new_file_thresholds,
         fit_corpus_files,
-    } = match load_scorers(&args.argot_dir) {
+    } = match load_scorers(&args.argot_dir, &config.detect) {
         Ok(l) => l,
         Err((msg, code)) => return CheckOutcome::err(msg, code),
     };
@@ -1668,12 +1679,15 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         }
     }
 
-    // Suppression surfaces: the resolved path set (recommended built-ins +
-    // `.argotignore`, the same set calibration samples from) and the
-    // suppressions.yaml rules (expiry measured against `args.today`).
-    let path_suppressions = PathSuppressions::load(Path::new(&args.repo_path));
-    let yaml = load_suppressions_file(&args.argot_dir.join(SUPPRESSIONS_FILE), &args.today);
-    for w in &yaml.warnings {
+    // Suppression surfaces from argot.toml (config loaded above): the resolved
+    // path set (recommended built-ins + `[exclude].paths`, the same set
+    // calibration samples from) and the `[[mute]]` rules (expiry vs `args.today`).
+    for w in &config.warnings {
+        stderr.push_str(&format!("[argot] {w}\n"));
+    }
+    let path_suppressions = config.path_suppressions();
+    let mutes = config.mutes(&args.today);
+    for w in &mutes.warnings {
         stderr.push_str(&format!("[argot] {w}\n"));
     }
 
@@ -1726,7 +1740,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         &slices,
         &new_file_thresholds,
         &fit_corpus_files,
-        &yaml.active,
+        &mutes.active,
         header_cpp,
         &mut stderr,
     );
@@ -1752,11 +1766,11 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
                 .count()
         };
         stderr.push_str(&format!(
-            "{} hits suppressed ({} by .argotignore, {} inline, {} by suppressions.yaml)\n",
+            "{} hits suppressed ({} by argot.toml excludes, {} inline, {} by argot.toml mutes)\n",
             suppressed.len(),
-            count(SuppressedBy::ArgotIgnore),
+            count(SuppressedBy::Exclude),
             count(SuppressedBy::Inline),
-            count(SuppressedBy::Yaml),
+            count(SuppressedBy::Mute),
         ));
     }
 
@@ -1846,7 +1860,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
 }
 
 /// Outcome of `argot review-mutes` — mute-rot cleanup over the hash-scoped
-/// suppressions.yaml entries.
+/// `argot.toml` `[[mute]]` entries.
 pub struct ReviewOutcome {
     pub stdout: String,
     pub stderr: String,
@@ -1854,31 +1868,30 @@ pub struct ReviewOutcome {
 }
 
 /// Re-run the check scoring over the files behind the currently-muted
-/// hash-scoped suppressions and report which suppressions no longer fire.
-/// With `prune`, stale hash entries are removed from suppressions.yaml
-/// (the file is rewritten; expired and non-hash entries are kept).
+/// hash-scoped mutes and report which no longer fire. With `prune`, stale hash
+/// entries are removed from `argot.toml` (the `[[mute]]` array is rewritten;
+/// expired and non-hash entries, and every other section, are kept).
 ///
-/// A suppression "still fires" when re-scoring the file's current content
-/// (as one full-file hunk plus each sampleable range — stable, reproducible
-/// hunk boundaries) yields a flagged hit with the entry's hash. Hits muted
-/// from transient diff hunks whose boundaries no longer exist resolve as
-/// "no longer fires" — which is exactly mute-rot.
-pub fn run_review_mutes(
-    repo_path: &str,
-    argot_dir: &Path,
-    today: &str,
-    prune: bool,
-) -> ReviewOutcome {
+/// A mute "still fires" when re-scoring the file's current content (as one
+/// full-file hunk plus each sampleable range — stable, reproducible hunk
+/// boundaries) yields a flagged hit with the entry's hash. Hits muted from
+/// transient diff hunks whose boundaries no longer exist resolve as "no longer
+/// fires" — which is exactly mute-rot.
+pub fn run_review_mutes(repo_path: &str, today: &str, prune: bool) -> ReviewOutcome {
     let mut stdout = String::new();
     let mut stderr = String::new();
 
-    let rules_path = argot_dir.join(SUPPRESSIONS_FILE);
-    let yaml = load_suppressions_file(&rules_path, today);
-    for w in &yaml.warnings {
+    let repo_root = Path::new(repo_path);
+    let config = ArgotConfig::load(repo_root);
+    for w in &config.warnings {
+        stderr.push_str(&format!("[argot] {w}\n"));
+    }
+    let mutes = config.mutes(today);
+    for w in &mutes.warnings {
         stderr.push_str(&format!("[argot] {w}\n"));
     }
     let hash_entries: Vec<&SuppressionRule> =
-        yaml.active.iter().filter(|r| r.hash.is_some()).collect();
+        mutes.active.iter().filter(|r| r.hash.is_some()).collect();
     if hash_entries.is_empty() {
         stdout.push_str("No hash-scoped suppressions to review.\n");
         return ReviewOutcome {
@@ -1922,7 +1935,7 @@ pub fn run_review_mutes(
         stdout.push_str("Every muted file still exists — nothing to prune.\n");
     } else if prune {
         let mut kept: Vec<SuppressionRule> = Vec::new();
-        for rule in yaml.active.iter().chain(yaml.expired.iter()) {
+        for rule in mutes.active.iter().chain(mutes.expired.iter()) {
             let dead = rule
                 .hash
                 .as_deref()
@@ -1931,18 +1944,13 @@ pub fn run_review_mutes(
                 kept.push(rule.clone());
             }
         }
-        let serialized = crate::suppress::rules_file::serialize_rules(&kept);
-        match std::fs::write(&rules_path, serialized) {
+        match crate::config::write_mutes(repo_root, &kept) {
             Ok(()) => stdout.push_str(&format!(
-                "Pruned {} dead suppression(s) from {}.\n",
-                dead_hashes.len(),
-                rules_path.display()
+                "Pruned {} dead mute(s) from argot.toml.\n",
+                dead_hashes.len()
             )),
             Err(e) => {
-                stderr.push_str(&format!(
-                    "error: cannot write {}: {e}\n",
-                    rules_path.display()
-                ));
+                stderr.push_str(&format!("error: {e}\n"));
                 return ReviewOutcome {
                     stdout,
                     stderr,
@@ -1952,7 +1960,7 @@ pub fn run_review_mutes(
         }
     } else {
         stdout.push_str(&format!(
-            "{} dead suppression(s) (file gone) — run `argot review-mutes --prune` to remove them.\n",
+            "{} dead mute(s) (file gone) — run `argot review-mutes --prune` to remove them.\n",
             dead_hashes.len()
         ));
     }

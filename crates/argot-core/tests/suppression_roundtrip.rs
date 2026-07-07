@@ -1,6 +1,6 @@
 //! Round-trip integration tests for the suppression surfaces (issue #57):
-//! fixture repo → fit → check finds hits → suppress via each of the three
-//! surfaces (`.argotignore`, inline comments, `suppressions.yaml`) → check
+//! fixture repo → fit → check finds hits → suppress via each surface
+//! (`argot.toml` `[exclude]`, inline comments, `argot.toml` `[[mute]]`) → check
 //! again → hit gone, exit code clean, stderr summary counts it.
 //!
 //! Reuses the deterministic `check` fixture repo (fixed authors/dates →
@@ -10,13 +10,12 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use argot_core::check::{run_check, run_review_mutes, CheckArgs};
+use argot_core::config::ArgotConfig;
 use argot_core::scoring::adapters::python::PythonAdapter;
 use argot_core::scoring::calibration::{
     collect_candidates, collect_candidates_with, run_calibrate, CalibrateOptions,
 };
-use argot_core::suppress::{
-    load_suppressions_file, mute_hash, read_last_check, PathSuppressions, SUPPRESSIONS_FILE,
-};
+use argot_core::suppress::{mute_hash, read_last_check};
 
 const TODAY: &str = "2026-07-02";
 
@@ -103,8 +102,8 @@ fn range_args(repo: &Path) -> CheckArgs {
 }
 
 #[test]
-fn argotignore_suppresses_hits_and_reports_summary() {
-    let repo = prepare_repo("argotignore");
+fn exclude_paths_suppress_hits_and_report_summary() {
+    let repo = prepare_repo("exclude");
 
     // Baseline: two hits; stderr names the model that scored the diff but
     // carries no suppression traffic.
@@ -121,14 +120,18 @@ fn argotignore_suppresses_hits_and_reports_summary() {
         "no suppression traffic on the baseline run"
     );
 
-    // Path-level mute via .argotignore.
-    std::fs::write(repo.join(".argotignore"), "integration.py\npipeline.py\n").unwrap();
+    // Path-level mute via argot.toml [exclude].paths.
+    std::fs::write(
+        repo.join("argot.toml"),
+        "[exclude]\npaths = [\"integration.py\", \"pipeline.py\"]\n",
+    )
+    .unwrap();
     let out = run_check(range_args(&repo));
     assert_eq!(out.exit_code, 0, "all hits suppressed → clean exit");
     assert!(!out.stdout.contains("integration.py"));
     assert!(out
         .stderr
-        .contains("2 hits suppressed (2 by .argotignore, 0 inline, 0 by suppressions.yaml)"));
+        .contains("2 hits suppressed (2 by argot.toml excludes, 0 inline, 0 by argot.toml mutes)"));
 }
 
 #[test]
@@ -149,7 +152,7 @@ fn inline_comment_suppresses_workdir_hit() {
     assert_eq!(out.exit_code, 0, "inline comment mutes the only hit");
     assert!(out
         .stderr
-        .contains("1 hits suppressed (0 by .argotignore, 1 inline, 0 by suppressions.yaml)"));
+        .contains("1 hits suppressed (0 by argot.toml excludes, 1 inline, 0 by argot.toml mutes)"));
 }
 
 #[test]
@@ -172,7 +175,7 @@ fn inline_comment_without_reason_warns_and_does_not_suppress() {
 }
 
 #[test]
-fn mute_roundtrip_via_last_check_and_suppressions_yaml() {
+fn mute_roundtrip_via_last_check_and_argot_toml() {
     let repo = prepare_repo("mute");
     let argot_dir = repo.join(".argot");
 
@@ -195,7 +198,7 @@ fn mute_roundtrip_via_last_check_and_suppressions_yaml() {
         .iter()
         .find(|h| h.path == "integration.py")
         .expect("integration.py hit");
-    let rule = mute_hash(&argot_dir, &integration.hash, None, None, TODAY).expect("mute");
+    let rule = mute_hash(&repo, &argot_dir, &integration.hash, None, None, TODAY).expect("mute");
     assert_eq!(rule.path, "integration.py");
 
     let out = run_check(range_args(&repo));
@@ -204,27 +207,35 @@ fn mute_roundtrip_via_last_check_and_suppressions_yaml() {
     assert!(out.stdout.contains("pipeline.py"));
     assert!(out
         .stderr
-        .contains("1 hits suppressed (0 by .argotignore, 0 inline, 1 by suppressions.yaml)"));
+        .contains("1 hits suppressed (0 by argot.toml excludes, 0 inline, 1 by argot.toml mutes)"));
 
     // Mute the remaining hit (its hash is in the fresh last-check cache).
     let hits = read_last_check(&argot_dir).expect("cache rewritten");
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].path, "pipeline.py");
-    mute_hash(&argot_dir, &hits[0].hash, Some("known-good"), None, TODAY).expect("mute 2");
+    mute_hash(
+        &repo,
+        &argot_dir,
+        &hits[0].hash,
+        Some("known-good"),
+        None,
+        TODAY,
+    )
+    .expect("mute 2");
 
     let out = run_check(range_args(&repo));
     assert_eq!(out.exit_code, 0, "everything muted → clean exit");
     assert!(out
         .stderr
-        .contains("2 hits suppressed (0 by .argotignore, 0 inline, 2 by suppressions.yaml)"));
+        .contains("2 hits suppressed (0 by argot.toml excludes, 0 inline, 2 by argot.toml mutes)"));
 }
 
 #[test]
-fn expired_yaml_entry_is_ignored_with_stderr_note() {
+fn expired_mute_entry_is_ignored_with_stderr_note() {
     let repo = prepare_repo("expired");
     std::fs::write(
-        repo.join(".argot").join(SUPPRESSIONS_FILE),
-        "- path: integration.py\n  expires: 2020-01-01\n  reason: long gone\n",
+        repo.join("argot.toml"),
+        "[[mute]]\npath = \"integration.py\"\nexpires = \"2020-01-01\"\nreason = \"long gone\"\n",
     )
     .unwrap();
 
@@ -236,13 +247,13 @@ fn expired_yaml_entry_is_ignored_with_stderr_note() {
 }
 
 #[test]
-fn yaml_path_glob_with_scorer_scope() {
+fn mute_path_glob_with_scorer_scope() {
     let repo = prepare_repo("glob");
     // The fixture hits carry reason "none" (visible via --threshold); a rule
     // scoped to another scorer must not match, a path-wide rule must.
     std::fs::write(
-        repo.join(".argot").join(SUPPRESSIONS_FILE),
-        "- path: \"integration.*\"\n  scorer: bpe\n  reason: wrong scope\n",
+        repo.join("argot.toml"),
+        "[[mute]]\npath = \"integration.*\"\nscorer = \"bpe\"\nreason = \"wrong scope\"\n",
     )
     .unwrap();
     let out = run_check(range_args(&repo));
@@ -253,15 +264,15 @@ fn yaml_path_glob_with_scorer_scope() {
     );
 
     std::fs::write(
-        repo.join(".argot").join(SUPPRESSIONS_FILE),
-        "- path: \"integration.*\"\n  reason: path-wide mute\n",
+        repo.join("argot.toml"),
+        "[[mute]]\npath = \"integration.*\"\nreason = \"path-wide mute\"\n",
     )
     .unwrap();
     let out = run_check(range_args(&repo));
     assert!(!out.stdout.contains("integration.py"), "path glob matches");
     assert!(out
         .stderr
-        .contains("1 hits suppressed (0 by .argotignore, 0 inline, 1 by suppressions.yaml)"));
+        .contains("1 hits suppressed (0 by argot.toml excludes, 0 inline, 1 by argot.toml mutes)"));
 }
 
 #[test]
@@ -302,7 +313,7 @@ fn review_mutes_reports_rot_and_prunes() {
     let hits = read_last_check(&argot_dir).expect("cache");
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].path, "integration.py");
-    mute_hash(&argot_dir, &hits[0].hash, None, None, TODAY).expect("mute");
+    mute_hash(&repo, &argot_dir, &hits[0].hash, None, None, TODAY).expect("mute");
 
     let mut args = base_args(&repo);
     args.reference = "HEAD~1..HEAD".to_string();
@@ -314,29 +325,29 @@ fn review_mutes_reports_rot_and_prunes() {
     // current content — that digest is one-way, and a false "stale" here would
     // let --prune delete a mute still guarding live code.)
     let repo_str = repo.to_str().unwrap();
-    let review = run_review_mutes(repo_str, &argot_dir, TODAY, false);
+    let review = run_review_mutes(repo_str, TODAY, false);
     assert_eq!(review.exit_code, 0);
     assert!(review.stdout.contains("file present"), "{}", review.stdout);
     assert!(!review.stdout.contains("file gone"));
-    let rules = load_suppressions_file(&argot_dir.join(SUPPRESSIONS_FILE), TODAY);
+    let rules = ArgotConfig::load(&repo).mutes(TODAY);
     assert_eq!(rules.active.len(), 1, "live mute kept");
 
     // Delete the file → the mute can never fire again; --prune removes it.
     git(&["rm", "-q", "integration.py"]);
     git(&["commit", "-q", "-m", "drop integration.py"]);
-    let review = run_review_mutes(repo_str, &argot_dir, TODAY, true);
+    let review = run_review_mutes(repo_str, TODAY, true);
     assert_eq!(review.exit_code, 0);
     assert!(review.stdout.contains("file gone"), "{}", review.stdout);
     assert!(review.stdout.contains("Pruned 1"), "{}", review.stdout);
-    let rules = load_suppressions_file(&argot_dir.join(SUPPRESSIONS_FILE), TODAY);
+    let rules = ArgotConfig::load(&repo).mutes(TODAY);
     assert!(rules.active.is_empty(), "dead mute removed");
 }
 
 #[test]
-fn calibration_scope_stays_in_lock_step_with_argotignore() {
+fn calibration_scope_stays_in_lock_step_with_exclude_paths() {
     // collect_candidates (bench seam) keeps recommended-only semantics;
-    // collect_candidates_with(load(...)) resolves `.argotignore` on top —
-    // the same set check filters against.
+    // collect_candidates_with(config.path_suppressions()) resolves the
+    // `[exclude].paths` on top — the same set check filters against.
     let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("suppress_lockstep");
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
@@ -347,7 +358,11 @@ fn calibration_scope_stays_in_lock_step_with_argotignore() {
     };
     std::fs::write(dir.join("app.py"), body("app_fn")).unwrap();
     std::fs::write(dir.join("vendored.py"), body("vendored_fn")).unwrap();
-    std::fs::write(dir.join(".argotignore"), "vendored.py\n").unwrap();
+    std::fs::write(
+        dir.join("argot.toml"),
+        "[exclude]\npaths = [\"vendored.py\"]\n",
+    )
+    .unwrap();
 
     let adapter = PythonAdapter::new();
     let legacy = collect_candidates(&dir, &adapter);
@@ -357,8 +372,14 @@ fn calibration_scope_stays_in_lock_step_with_argotignore() {
         "recommended-only view still sees both files"
     );
 
-    let resolved = collect_candidates_with(&dir, &adapter, &PathSuppressions::load(&dir));
-    assert_eq!(resolved.len(), 1, ".argotignore drops the vendored file");
+    let suppressions = ArgotConfig::load(&dir).path_suppressions();
+    let resolved = collect_candidates_with(
+        &dir,
+        &adapter,
+        &suppressions,
+        &argot_core::config::DetectConfig::default(),
+    );
+    assert_eq!(resolved.len(), 1, "[exclude].paths drops the vendored file");
     assert!(resolved[0].file_path.ends_with("app.py"));
     let _ = std::fs::remove_dir_all(&dir);
 }

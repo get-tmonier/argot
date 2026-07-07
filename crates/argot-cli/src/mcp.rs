@@ -172,7 +172,8 @@ fn tool_check(args: &Value, repo: &Path, explain: bool) -> Result<Value, String>
         .ok_or("hunk_content is required")?;
     let file_source = args.get("file_source").and_then(Value::as_str);
 
-    let mut scorers = RepoScorers::load(&argot_dir(repo))?;
+    let detect = argot_core::config::ArgotConfig::load(repo).detect;
+    let mut scorers = RepoScorers::load(&argot_dir(repo), &detect)?;
     if scorers.language_for(file_path).is_none() {
         return Err(format!(
             "unsupported file type for '{file_path}' — argot has no language adapter for this file"
@@ -218,7 +219,8 @@ fn tool_voice_context(args: &Value, repo: &Path) -> Result<Value, String> {
         .map(|n| n as usize)
         .unwrap_or(10);
 
-    let scorers = RepoScorers::load(&argot_dir(repo))?;
+    let detect = argot_core::config::ArgotConfig::load(repo).detect;
+    let scorers = RepoScorers::load(&argot_dir(repo), &detect)?;
     let language = scorers
         .language_for(file_path)
         .ok_or_else(|| format!("unsupported file type for '{file_path}'"))?;

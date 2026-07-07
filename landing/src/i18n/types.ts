@@ -45,7 +45,9 @@ export interface SiteContent {
       readonly title: string;
       readonly desc: string;
     }[];
+    readonly languages: string;
     readonly finePrint: string;
+    readonly benchmarksCta: string;
   };
   readonly setup: {
     readonly label: string;

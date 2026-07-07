@@ -68,6 +68,7 @@ fn score_hunk_matches_python_golden_no_cr() {
         import_modules: golden.import_modules.clone(),
         import_module_prefixes: vec![],
         evidence_corpus: None,
+        detect: argot_core::config::DetectConfig::default(),
     };
     let mut scorer = SequentialImportBpeScorer::from_config(
         &repo_files,

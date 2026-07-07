@@ -82,14 +82,15 @@ suppression surfaces.
 
 - Never block, fail, or gate on an argot hit.
 - Never mute without a real, human-meaningful reason just to silence output.
-- Never add whole source directories to `.argotignore` to make it quiet — only
-  exclude what genuinely isn't the repo's authored voice (generated, vendored,
-  data). When unsure, ask the human.
+- Never add whole source directories to `argot.toml`'s `[exclude]` to make it
+  quiet — only exclude what genuinely isn't the repo's authored voice (generated,
+  vendored, data). When unsure, ask the human.
 
 ## More
 
-- **Skills:** `argot-setup` (local), `argot-check` (per-diff), `argot-ci` (wire
-  the GitHub Action) — install with `npx skills add get-tmonier/argot`.
+- **Skills:** `argot-setup` (local), `argot-check` (per-diff), `argot-review-pr`
+  (review one PR against the repo's voice), `argot-setup-ci` (wire the GitHub
+  Action) — install with `npx skills add get-tmonier/argot`.
 - **MCP** (proactive): `argot mcp` exposes `voice_context` so you can write
   in-voice from the first token — see
   [the agents guide](https://argot.tmonier.com/docs/agents/).

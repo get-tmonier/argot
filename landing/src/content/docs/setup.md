@@ -20,9 +20,9 @@ judgment call to your coding agent; the rest are yours to drive.
 Deciding what *shouldn't* shape your voice is a judgment call — a vendored
 `stripe/` client, an OpenAPI SDK, a `legacy/` module frozen years ago. The
 **argot-setup** skill hands that call to the agent already reading your tree: it
-runs `argot init`, weighs the `--suggest` evidence, writes a `.argotignore`, and
-verifies the catch — driving the same `argot` binary you would, with nothing to
-copy-paste. Install it once:
+runs `argot init`, weighs the `--suggest` evidence, writes the excludes into
+`argot.toml`'s `[exclude].paths`, and verifies the catch — driving the same
+`argot` binary you would, with nothing to copy-paste. Install it once:
 
 ```text
 npx skills add get-tmonier/argot
@@ -56,9 +56,10 @@ Next:  argot check          # score your working changes
 Out of the box argot already ignores tests, docs, examples, build output, and
 any file it detects as auto-generated or data-only (the built-in
 `argot:recommended` set — see [Configure](/docs/configure/)). For a lot of repos
-that's all you need. If the verdict is **Ready**, you're done. `init` also drops a
-`.argot/.gitignore` so the fitted model — a rebuildable artifact — never lands in
-version control.
+that's all you need. If the verdict is **Ready**, you're done. `init` also writes
+an `argot.toml` with the effective `[exclude]`, `[detect]`, and `[[mute]]` sections
+spelled out (so nothing is hidden), and drops a `.argot/.gitignore` so the fitted
+model — a rebuildable artifact — never lands in version control.
 
 ### If the verdict isn't Ready
 
@@ -71,7 +72,7 @@ argot init --suggest
 ```
 
 ```text
-Directories you may want to add to .argotignore (evidence only — you decide):
+Directories you may want to add to argot.toml [exclude].paths (evidence only — you decide):
 
   src/generated
     auto-generated · 214 files · 214 auto-generated (100%)
@@ -81,8 +82,8 @@ Directories you may want to add to .argotignore (evidence only — you decide):
 
 These are directories that are *mostly* generated or data — strong candidates,
 but the call is yours: the report tells you exactly how much real code a rule
-would drop. Add the ones you agree with to a `.argotignore` (§4) and re-run
-`argot init`.
+would drop. Add the ones you agree with to `argot.toml`'s `[exclude].paths` (§4)
+and re-run `argot init`.
 
 ## 3. The copy-paste prompt
 
@@ -135,8 +136,10 @@ or remove any throwaway files first.
    argot already excludes tests, docs, examples, and build output by default, so
    focus on the repo-specific directories above.
 
-6. Write a `.argotignore` at the repo root (gitignore-style, one pattern per
-   line, each with a short `#` reason). Prefer directory patterns. Re-run
+6. Edit `argot.toml`'s `[exclude].paths` at the repo root — add each directory
+   as a gitignore-style pattern (one per array entry, each with a trailing
+   `# reason` comment). Prefer directory patterns. If the repo has its own
+   codegen banner, add it to `[detect].generated-markers` too. Re-run
    `argot init`.
 
 7. VERIFY the catch works — the important check. In a real primary-source file,
@@ -151,17 +154,17 @@ Don't chase a green "Ready". If the verdict stays **Marginal** only because the
 repo is small (few candidate hunks), that's fine — Marginal is usable and
 excluding more won't help. Keep excluding only when the corpus is polluted by
 non-authored code (step 7 reveals this). Keep it minimal and reversible — every
-`.argotignore` line is a decision I can undo.
+`[exclude].paths` entry is a decision I can undo.
 ```
 
 The agent runs the same commands you would; it just brings the semantic
 judgment argot deliberately leaves to a human. When it finishes you'll have a
-committed `.argotignore` that documents every exclusion, and a **Ready** model.
+committed `argot.toml` that documents every exclusion, and a **Ready** model.
 
 ## 4. By hand
 
 Prefer to drive it yourself? [Configure](/docs/configure/) documents
-`.argotignore`, the `argot:recommended` defaults, inline comments, and durable
+`argot.toml`, the `argot:recommended` defaults, inline comments, and durable
 mutes in full. The whole system is plain text — nothing here needs an agent.
 
 ---

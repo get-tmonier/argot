@@ -11,28 +11,48 @@ const { proof } = Astro.props.content;
 <!-- KPI row of stat tiles: hero figures wear ink (text tokens), identity is
      carried by the section's ember rule like every other section — numbers
      are content, not decoration. Bare stat tiles: no plot, no hover layer. -->
-<section id="proof" class="snap-section relative flex min-h-svh items-center">
-  <div class="mx-auto w-full max-w-6xl px-5 py-20">
+<section id="proof" class="snap-section relative flex md:min-h-svh items-center">
+  <div class="mx-auto w-full max-w-6xl px-5 py-14 md:py-20">
     <div class="reveal mx-auto max-w-2xl text-center">
       <p class="mb-3 font-mono text-xs tracking-widest text-ember uppercase">{proof.label}</p>
       <h2 class="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{proof.title}</h2>
     </div>
 
-    <div class="mt-12 grid grid-cols-1 gap-x-10 gap-y-10 sm:grid-cols-2 md:mt-16 lg:grid-cols-4">
+    <div class="mt-10 grid grid-cols-2 gap-x-5 gap-y-8 sm:gap-x-10 sm:gap-y-10 md:mt-16 lg:grid-cols-4">
       {
         proof.stats.map((stat, i) => (
           <div class="reveal min-w-0" style={`--reveal-delay: ${(i % 4) * 90}ms`}>
             <span class="block h-px w-8 bg-gradient-to-r from-ember to-ember-deep" />
-            <p class="mt-4 text-5xl font-bold tracking-tight text-ink tabular-nums">{stat.value}</p>
-            <h3 class="mt-2 font-semibold tracking-tight text-ink">{stat.title}</h3>
-            <p class="mt-2 text-sm leading-relaxed text-ink-dim" set:html={emphasize(stat.desc)} />
+            <p class="mt-3 text-4xl font-bold tracking-tight text-ink tabular-nums sm:mt-4 sm:text-5xl">
+              {stat.value}
+            </p>
+            <h3 class="mt-2 text-sm font-semibold tracking-tight text-ink sm:text-base">{stat.title}</h3>
+            <p
+              class="mt-1.5 text-xs leading-relaxed text-ink-dim sm:mt-2 sm:text-sm"
+              set:html={emphasize(stat.desc)}
+            />
           </div>
         ))
       }
     </div>
 
-    <p class="reveal mx-auto mt-12 max-w-2xl text-center font-mono text-xs leading-relaxed text-ink-dim/80">
+    <p
+      class="reveal mx-auto mt-10 max-w-2xl text-center text-sm leading-relaxed text-ink-dim md:mt-12"
+      set:html={emphasize(proof.languages)}
+    />
+
+    <p class="reveal mx-auto mt-6 max-w-2xl text-center font-mono text-xs leading-relaxed text-ink-dim/80">
       {proof.finePrint}
+    </p>
+
+    <p class="reveal mt-3 text-center">
+      <a
+        href="/benchmarks"
+        class="group inline-flex items-center gap-1 text-xs font-medium text-ember transition-colors hover:text-ember-bright"
+      >
+        {proof.benchmarksCta.replace(/\s*→$/, '')}
+        <span aria-hidden="true" class="transition-transform group-hover:translate-x-0.5">→</span>
+      </a>
     </p>
   </div>
 </section>

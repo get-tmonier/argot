@@ -57,6 +57,11 @@ sha2 = "0.10"
 # `.argot/suppressions.yaml` loader — pure Rust (unsafe-libyaml), keeps the
 # single-static-binary story.
 serde_yaml = "0.9"
+# `argot.toml` config surface: `toml` for serde reads, `toml_edit` for
+# format-preserving writes (mute append / prune keep the user's hand edits and
+# comments). Pure Rust — no effect on the parity-pinned deps.
+toml = "0.8"
+toml_edit = "0.22"
 # `argot update` self-update: reads the install receipt written by the
 # cargo-dist shell installer and re-runs the latest release's installer.
 axoupdater = { version = "0.10", default-features = false, features = ["github_releases", "blocking"] }

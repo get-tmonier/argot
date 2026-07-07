@@ -216,11 +216,11 @@ serves programmatically).
 The suppression commands — accept a reported hit for good, then review or prune what you've muted:
 
 ```bash
-argot mute <hash> --reason "adopting axios repo-wide"   # append a rule to .argot/suppressions.yaml
+argot mute <hash> --reason "adopting axios repo-wide"   # append a [[mute]] to argot.toml
 argot mute <hash> --reason "temporary" --expires 30d    # auto-expire after N days
-argot list-mutes             # every active suppression, across all three surfaces
+argot list-mutes             # every active suppression, across all surfaces
 argot review-mutes           # report hash-scoped mutes whose file is gone
-argot review-mutes --prune   # …and rewrite suppressions.yaml to drop the dead ones
+argot review-mutes --prune   # …and rewrite the [[mute]] tables to drop the dead ones
 ```
 
 `argot mute` records the exact file a hit came from, so `review-mutes` flags a
@@ -228,7 +228,7 @@ mute as **dead** once that file no longer exists in the working tree or `HEAD` �
 the only point at which the mute can never fire again. `--prune` removes only
 those, never a mute still guarding a file you have. `<hash>` is the
 `[a1b2c3d4e5f6]` from a `check` hit line. The full suppression system — inline
-comments, `.argotignore`, and the `suppressions.yaml` format — is documented in
+comments, `argot.toml`'s `[exclude]`, and the `[[mute]]` format — is documented in
 [Configure](/docs/configure/).
 
 ## mcp

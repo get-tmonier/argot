@@ -60,13 +60,16 @@ fn python_adapter_matches_golden() {
         );
 
         assert_eq!(
-            adapter.is_data_dominant(&sample.src),
+            adapter.is_data_dominant(&sample.src, 0.65),
             sample.is_data_dominant,
             "[{name}] is_data_dominant mismatch"
         );
 
         assert_eq!(
-            adapter.is_auto_generated(&sample.src),
+            adapter.is_auto_generated(
+                &sample.src,
+                &argot_core::config::default_generated_markers()
+            ),
             sample.is_auto_generated,
             "[{name}] is_auto_generated mismatch"
         );

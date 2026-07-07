@@ -19,6 +19,11 @@ pub mod typescript;
 use std::collections::HashSet;
 use std::path::Path;
 
+/// How many head lines of a file are scanned for generated-file markers. Shared
+/// by every adapter's `is_auto_generated` (a marker below this is treated as an
+/// ordinary comment, not a machine-authorship banner).
+pub(crate) const HEADER_LINE_LIMIT: usize = 20;
+
 /// Scoring-side language tag. JavaScript is a first-class language with its own
 /// adapter and model, so scoring distinguishes Python, TypeScript, JavaScript,
 /// Go, Rust, C, Java, C#, PHP, C++, and Ruby.
@@ -45,7 +50,10 @@ pub trait LanguageAdapter {
     fn extract_imports(&self, source: &str) -> HashSet<String>;
     fn extract_imports_with_spans(&self, source: &str) -> Vec<(String, usize, usize, usize)>;
     fn resolve_repo_modules(&self, repo_root: &Path) -> RepoModules;
-    fn is_data_dominant(&self, source: &str) -> bool;
+    /// True if the file is overwhelmingly static data literals — `threshold` is
+    /// the fraction of non-blank lines that must be data (from
+    /// `[detect].data-threshold`).
+    fn is_data_dominant(&self, source: &str, threshold: f64) -> bool;
     /// 1-indexed line numbers covered by static data-literal spans — the
     /// row-granular view behind `is_data_dominant`, used to skip data-row
     /// hunks while still judging code rows in the same file.
@@ -71,7 +79,10 @@ pub trait LanguageAdapter {
     /// consts/vars, parameters). Attests bare calls only — calling a value
     /// you just bound is neighbourhood behaviour, not foreign voice.
     fn value_bindings(&self, source: &str) -> HashSet<String>;
-    fn is_auto_generated(&self, source: &str) -> bool;
+    /// True if the file's head comments flag it as generated — `markers` is the
+    /// configured comment-marker set (from `[detect].generated-markers`).
+    /// Language-structural detectors (Go/Rust/C#) ignore `markers`.
+    fn is_auto_generated(&self, source: &str, markers: &[String]) -> bool;
     fn enumerate_sampleable_ranges(&self, source: &str) -> Vec<(usize, usize)>;
     fn prose_line_ranges(&self, source: &str) -> HashSet<usize>;
     fn identifier_noise(&self) -> &HashSet<String>;
@@ -95,8 +106,8 @@ impl LanguageAdapter for python::PythonAdapter {
         // time; there are no exact/prefix rules.
         RepoModules::default()
     }
-    fn is_data_dominant(&self, source: &str) -> bool {
-        python::PythonAdapter::is_data_dominant(self, source)
+    fn is_data_dominant(&self, source: &str, threshold: f64) -> bool {
+        python::PythonAdapter::is_data_dominant(self, source, threshold)
     }
     fn data_literal_lines(&self, source: &str) -> HashSet<usize> {
         python::PythonAdapter::data_literal_lines(self, source)
@@ -113,8 +124,8 @@ impl LanguageAdapter for python::PythonAdapter {
     fn value_bindings(&self, source: &str) -> HashSet<String> {
         python::PythonAdapter::value_bindings(self, source)
     }
-    fn is_auto_generated(&self, source: &str) -> bool {
-        python::PythonAdapter::is_auto_generated(self, source)
+    fn is_auto_generated(&self, source: &str, markers: &[String]) -> bool {
+        python::PythonAdapter::is_auto_generated(self, source, markers)
     }
     fn enumerate_sampleable_ranges(&self, source: &str) -> Vec<(usize, usize)> {
         python::PythonAdapter::enumerate_sampleable_ranges(self, source)
@@ -143,8 +154,8 @@ impl LanguageAdapter for go::GoAdapter {
     fn resolve_repo_modules(&self, repo_root: &Path) -> RepoModules {
         go::GoAdapter::resolve_repo_modules(self, repo_root)
     }
-    fn is_data_dominant(&self, source: &str) -> bool {
-        go::GoAdapter::is_data_dominant(self, source)
+    fn is_data_dominant(&self, source: &str, threshold: f64) -> bool {
+        go::GoAdapter::is_data_dominant(self, source, threshold)
     }
     fn data_literal_lines(&self, source: &str) -> HashSet<usize> {
         go::GoAdapter::data_literal_lines(self, source)
@@ -158,8 +169,8 @@ impl LanguageAdapter for go::GoAdapter {
     fn value_bindings(&self, source: &str) -> HashSet<String> {
         go::GoAdapter::value_bindings(self, source)
     }
-    fn is_auto_generated(&self, source: &str) -> bool {
-        go::GoAdapter::is_auto_generated(self, source)
+    fn is_auto_generated(&self, source: &str, markers: &[String]) -> bool {
+        go::GoAdapter::is_auto_generated(self, source, markers)
     }
     fn enumerate_sampleable_ranges(&self, source: &str) -> Vec<(usize, usize)> {
         go::GoAdapter::enumerate_sampleable_ranges(self, source)
@@ -192,8 +203,8 @@ impl LanguageAdapter for rust::RustAdapter {
         // Cargo.toml today.
         RepoModules::default()
     }
-    fn is_data_dominant(&self, source: &str) -> bool {
-        rust::RustAdapter::is_data_dominant(self, source)
+    fn is_data_dominant(&self, source: &str, threshold: f64) -> bool {
+        rust::RustAdapter::is_data_dominant(self, source, threshold)
     }
     fn data_literal_lines(&self, source: &str) -> HashSet<usize> {
         rust::RustAdapter::data_literal_lines(self, source)
@@ -207,8 +218,8 @@ impl LanguageAdapter for rust::RustAdapter {
     fn value_bindings(&self, source: &str) -> HashSet<String> {
         rust::RustAdapter::value_bindings(self, source)
     }
-    fn is_auto_generated(&self, source: &str) -> bool {
-        rust::RustAdapter::is_auto_generated(self, source)
+    fn is_auto_generated(&self, source: &str, markers: &[String]) -> bool {
+        rust::RustAdapter::is_auto_generated(self, source, markers)
     }
     fn enumerate_sampleable_ranges(&self, source: &str) -> Vec<(usize, usize)> {
         rust::RustAdapter::enumerate_sampleable_ranges(self, source)
@@ -239,8 +250,8 @@ impl LanguageAdapter for cpp::CppAdapter {
         // quoted `#include "..."` targets, surfaced via internal_import_bindings.
         RepoModules::default()
     }
-    fn is_data_dominant(&self, source: &str) -> bool {
-        cpp::CppAdapter::is_data_dominant(self, source)
+    fn is_data_dominant(&self, source: &str, threshold: f64) -> bool {
+        cpp::CppAdapter::is_data_dominant(self, source, threshold)
     }
     fn data_literal_lines(&self, source: &str) -> HashSet<usize> {
         cpp::CppAdapter::data_literal_lines(self, source)
@@ -254,8 +265,8 @@ impl LanguageAdapter for cpp::CppAdapter {
     fn value_bindings(&self, source: &str) -> HashSet<String> {
         cpp::CppAdapter::value_bindings(self, source)
     }
-    fn is_auto_generated(&self, source: &str) -> bool {
-        cpp::CppAdapter::is_auto_generated(self, source)
+    fn is_auto_generated(&self, source: &str, markers: &[String]) -> bool {
+        cpp::CppAdapter::is_auto_generated(self, source, markers)
     }
     fn enumerate_sampleable_ranges(&self, source: &str) -> Vec<(usize, usize)> {
         cpp::CppAdapter::enumerate_sampleable_ranges(self, source)
@@ -286,8 +297,8 @@ impl LanguageAdapter for ruby::RubyAdapter {
         // at fit time; there are no exact/prefix rules from a manifest.
         RepoModules::default()
     }
-    fn is_data_dominant(&self, source: &str) -> bool {
-        ruby::RubyAdapter::is_data_dominant(self, source)
+    fn is_data_dominant(&self, source: &str, threshold: f64) -> bool {
+        ruby::RubyAdapter::is_data_dominant(self, source, threshold)
     }
     fn data_literal_lines(&self, source: &str) -> HashSet<usize> {
         ruby::RubyAdapter::data_literal_lines(self, source)
@@ -301,8 +312,8 @@ impl LanguageAdapter for ruby::RubyAdapter {
     fn value_bindings(&self, source: &str) -> HashSet<String> {
         ruby::RubyAdapter::value_bindings(self, source)
     }
-    fn is_auto_generated(&self, source: &str) -> bool {
-        ruby::RubyAdapter::is_auto_generated(self, source)
+    fn is_auto_generated(&self, source: &str, markers: &[String]) -> bool {
+        ruby::RubyAdapter::is_auto_generated(self, source, markers)
     }
     fn enumerate_sampleable_ranges(&self, source: &str) -> Vec<(usize, usize)> {
         ruby::RubyAdapter::enumerate_sampleable_ranges(self, source)

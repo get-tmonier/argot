@@ -48,6 +48,12 @@ __pycache__/
 # argot output
 .argot/
 **/.argot/
+# argot dogfoods itself with the built-in defaults (its tests/docs/benchmarks
+# are the recommended set), so a root config written by `just dogfood` is
+# throwaway. Anchored to root so the tracked benchmarks/catalogs/*/argot.toml
+# corpus configs are unaffected.
+/argot.toml
+/argot.local.toml
 
 # claude-code worktrees (parallel-agent fan-out)
 .claude/worktrees/

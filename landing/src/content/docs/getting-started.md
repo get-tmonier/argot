@@ -78,7 +78,7 @@ src/utils/http-helpers.ts
 
 - It **does not** replace ESLint, ruff, or your type checker. Those answer *"is this valid?"*
 - It **reliably** catches what they can't articulate: a **foreign dependency, API, or paradigm** —
-  something the repo has never used. When the foreign symbol is in the diff, it catches ~99% of them.
+  something the repo has never used. When the foreign symbol is in the diff, it catches ~98% of them.
 - It is **honest about its limit**: it does *not* reliably flag an *in-vocabulary* choice — a bare
   `ValueError` where you'd raise `HTTPException`, when every token is already yours. So a clean run
   means "no foreign pattern found," **not** "this matches every convention." argot never gates on
@@ -93,7 +93,7 @@ If your team ships LLM-assisted code, this is the layer your CI is missing.
 ## Where to next
 
 - [Setup](/docs/setup/) — configure what argot should (and shouldn't) learn from.
-- [Configure](/docs/configure/) — `.argotignore`, inline comments, and durable `argot mute`.
+- [Configure](/docs/configure/) — `argot.toml`, inline comments, and durable `argot mute`.
 - [How it works](/docs/how-it-works/) — the two-phase pipeline, in plain terms.
 - [The commands](/docs/the-commands/) — `init`, `check`, `fit`, `mute`, and the rest in detail.
 - [Reading the output](/docs/reading-the-output/) — severity tiers, sources, and the evidence line.

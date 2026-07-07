@@ -435,7 +435,7 @@ pub fn build_scorer(
     // scorer builds its clusters from.
     let filtered: Vec<(PathBuf, String)> = repo_files
         .iter()
-        .filter(|(_, s)| !adapter.is_data_dominant(s))
+        .filter(|(_, s)| !adapter.is_data_dominant(s, 0.65))
         .cloned()
         .collect();
     let corpus: &[(PathBuf, String)] = if filtered.is_empty() {
@@ -480,6 +480,7 @@ pub fn build_scorer(
             knobs.cluster_seed,
             resolved_rare,
             knobs.cluster_size_min,
+            argot_core::config::DEFAULT_DATA_THRESHOLD,
         )
         .map_err(anyhow::Error::msg)?
         .with_rarity_weighting(knobs.rarity_weighting);
@@ -543,6 +544,7 @@ pub fn build_scorer(
         knobs.cluster_seed,
         cal_rare,
         knobs.cluster_size_min,
+        argot_core::config::DEFAULT_DATA_THRESHOLD,
     )
     .map_err(anyhow::Error::msg)?
     .with_rarity_weighting(knobs.rarity_weighting);
@@ -633,6 +635,7 @@ pub fn build_scorer(
             import_modules,
             import_module_prefixes,
             evidence_corpus: None,
+            detect: argot_core::config::DetectConfig::default(),
         },
     )
     .context("building bench scorer")?;

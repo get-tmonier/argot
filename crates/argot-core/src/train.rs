@@ -53,9 +53,9 @@ fn is_test_filename(name: &str) -> bool {
 /// Recursively collect production source files under `repo_path`, mirroring
 /// `_collect_source_files`: keep `.py/.ts/.tsx`, drop any path with an
 /// excluded directory component, drop test/spec files, and drop paths the
-/// user muted in `.argotignore` (user patterns only — the built-in
+/// user muted in `[exclude].paths` (user patterns only — the built-in
 /// `argot:recommended` set governs calibration/check scope, not corpus
-/// collection, so a repo without an `.argotignore` gets exactly the corpus
+/// collection, so a repo without an `argot.toml` gets exactly the corpus
 /// it always did). Vendored trees (`repos/`, editor-history dirs, …) would
 /// otherwise attest their own voice into the model.
 ///
@@ -64,7 +64,8 @@ fn is_test_filename(name: &str) -> bool {
 /// build order-independent counters, so sorting is a justified, score-neutral
 /// divergence.
 pub fn collect_source_files(repo_path: &Path) -> Vec<PathBuf> {
-    collect_source_files_with(repo_path, &PathSuppressions::load(repo_path))
+    let suppressions = crate::config::ArgotConfig::load(repo_path).path_suppressions();
+    collect_source_files_with(repo_path, &suppressions)
 }
 
 /// [`collect_source_files`] against an already-resolved suppression set.
@@ -224,7 +225,7 @@ mod tests {
     }
 
     #[test]
-    fn argotignore_user_patterns_prune_corpus() {
+    fn exclude_paths_prune_corpus() {
         let tmp = std::env::temp_dir().join(format!("argot_train_ignore_{}", std::process::id()));
         let _ = fs::remove_dir_all(&tmp);
         fs::create_dir_all(tmp.join("src")).unwrap();
@@ -234,12 +235,12 @@ mod tests {
         fs::write(tmp.join("repos/vendored/lib.py"), "x=1").unwrap();
         fs::write(tmp.join("docs/example.py"), "x=1").unwrap();
 
-        // Without .argotignore: repos/ and docs/ are in the corpus (train's
+        // Without argot.toml: repos/ and docs/ are in the corpus (train's
         // own exclude list never covered them).
         let before = collect_source_files(&tmp);
         assert_eq!(before.len(), 3);
 
-        fs::write(tmp.join(".argotignore"), "repos/\n").unwrap();
+        fs::write(tmp.join("argot.toml"), "[exclude]\npaths = [\"repos/\"]\n").unwrap();
         let after = collect_source_files(&tmp);
         let names: Vec<String> = after
             .iter()

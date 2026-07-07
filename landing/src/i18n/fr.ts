@@ -59,38 +59,42 @@ const fr: SiteContent = {
     title: 'Des chiffres honnêtes, sans fuite par construction.',
     stats: [
       {
-        value: '99 %',
+        value: '98 %',
         title: 'détection étrangère visible',
-        desc: 'Imports et API étrangers insérés dans de vrais fichiers, jugés par le binaire livré : [[522 sur 527]].',
+        desc: 'Quand le symbole étranger est [[visible]] dans le diff — un import ou un appel explicite — jugé par le binaire livré : 565 sur 574.',
       },
       {
-        value: '0,23 %',
+        value: '85 %',
+        title: 'détection sur toutes les fixtures',
+        desc: 'Chaque cassure plantée, facile → difficile — le reste est de l’[[étranger masqué]] qu’un modèle de voix ne peut structurellement pas voir : 591 sur 694.',
+      },
+      {
+        value: '0,22 %',
         title: 'fausses alertes sur de vraies modifications',
-        desc: 'À quelle fréquence argot se déclenche sur le [[code existant]] — 27 dépôts, chacun ≤ 0,98 %.',
+        desc: 'À quelle fréquence argot se déclenche sur le [[code existant]] — 31 dépôts, chacun ≤ 1,17 %.',
       },
       {
         value: '150 ms',
         title: 'pour vérifier un changement',
         desc: 'Sur un dépôt de 34 000 fichiers, CPU de portable. Le fit unique prend ~7 s. [[Sans GPU, sans cloud.]]',
       },
-      {
-        value: '11',
-        title: 'langages, un seul binaire',
-        desc: 'Python · TypeScript · JavaScript · Go · Rust · Java · C# · C · C++ · Ruby · PHP — un seul [[binaire statique]].',
-      },
     ],
+    languages:
+      'Un seul [[binaire statique]], 11 langages : Python · TypeScript · JavaScript · Go · Rust · Java · C# · C · C++ · Ruby · PHP.',
     finePrint:
-      'Protocole sans fuite (issue #92) : rappel mesuré sur des fixtures plantées dans de vrais fichiers et jugées par le binaire livré ; fausses alertes par holdout temporel avec intervalles de confiance bootstrap. Chiffres complets par dépôt sur la page benchmarks.',
+      'Sans fuite par construction : rappel sur des motifs étrangers plantés dans de vrais fichiers ; fausses alertes par holdout temporel.',
+    benchmarksCta: 'Tous les chiffres par dépôt →',
   },
   setup: {
     label: 'Configuration · conçu pour les agents',
     title: 'Un CLI que votre agent peut piloter.',
-    body: 'Les skills lancent argot [[et apportent le jugement]] : /argot-setup lit votre dépôt pour décider ce qui ne doit pas façonner sa voix — un SDK vendorisé, un dossier généré — écrit un .argotignore, calibre, et vérifie la détection. Consultatif, jamais bloquant.',
+    body: 'Les skills lancent argot [[et apportent le jugement]] : /argot-setup lit votre dépôt pour décider ce qui ne doit pas façonner sa voix — un SDK vendorisé, un dossier généré — écrit un argot.toml, calibre, et vérifie la détection. Consultatif, jamais bloquant.',
     installLabel: 'Ajoutez les skills — Claude Code, Cursor, 70+ agents',
-    skillsIntro: 'trois slash-commands que votre agent lance :',
+    skillsIntro: 'quatre slash-commands que votre agent lance :',
     skillDescs: [
-      'lit votre arbre, écrit .argotignore, vérifie la détection',
+      'lit votre arbre, écrit argot.toml, vérifie la détection',
       'score chaque diff, signale l’étranger — ne bloque jamais',
+      'examine une PR selon la voix de votre dépôt, sans checkout',
       'un score de voix non bloquant sur chaque PR',
     ],
     ctaLocal: 'Ou pilotez le CLI à la main',

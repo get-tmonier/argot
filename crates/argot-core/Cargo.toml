@@ -29,6 +29,8 @@ tokenizers.workspace = true
 md-5.workspace = true
 sha2.workspace = true
 serde_yaml.workspace = true
+toml.workspace = true
+toml_edit.workspace = true
 
 [dev-dependencies]
 serde.workspace = true

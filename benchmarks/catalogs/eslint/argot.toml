@@ -2,4 +2,5 @@
 # (js-yaml, etc.) — peripheral tooling, not the linter's authored library voice.
 # A real setup excludes it; the fit corpus should be lib/ + packages/, not the
 # marketing/docs site.
-docs/
+[exclude]
+paths = ["docs/"]

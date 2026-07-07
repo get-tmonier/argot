@@ -121,4 +121,4 @@ and check time, so the model trains and scores on the same scope.
 Test files, configuration files, and a set of conventional directories (`tests/`, `docs/`, `examples/`,
 `migrations/`, `build/`, `dist/`, and more) are skipped by the built-in **`argot:recommended`** set,
 and any file argot detects as auto-generated or data-dominant is skipped structurally. All of it is
-yours to change — see [Configure](/docs/configure/) for `.argotignore`, inline comments, and mutes.
+yours to change — see [Configure](/docs/configure/) for `argot.toml`, inline comments, and mutes.

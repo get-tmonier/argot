@@ -23,7 +23,6 @@ use crate::scoring::adapters::{Language, LanguageAdapter};
 use crate::scoring::calibration::{
     collect_candidates_with, header_is_cpp, language_for_filename_ctx, language_name,
 };
-use crate::suppress::PathSuppressions;
 use crate::text::read_text_lossy;
 use anyhow::Result;
 use serde::Serialize;
@@ -222,10 +221,12 @@ pub(crate) fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
 
 /// Walk the repo and classify every file the way calibration would: extension
 /// routing, then the resolved path-suppression set (recommended built-ins +
-/// `.argotignore` — the same set calibrate and check consult), then the
+/// `[exclude].paths` — the same set calibrate and check consult), then the
 /// structural filters.
 fn scan_corpus(repo_dir: &Path) -> CorpusReport {
-    let path_suppressions = PathSuppressions::load(repo_dir);
+    let config = crate::config::ArgotConfig::load(repo_dir);
+    let path_suppressions = config.path_suppressions();
+    let detect = &config.detect;
     // Route `.h` to C or C++ by the repo's translation-unit majority, matching
     // how calibrate/check file them, so the composition and verdict agree.
     let header_cpp = header_is_cpp(repo_dir);
@@ -276,9 +277,9 @@ fn scan_corpus(repo_dir: &Path) -> CorpusReport {
                         }
                     };
                     let adapter = adapters.entry(key).or_insert_with(|| adapter_for(language));
-                    if adapter.is_auto_generated(&source) {
+                    if adapter.is_auto_generated(&source, &detect.generated_markers) {
                         stats.auto_generated += 1;
-                    } else if adapter.is_data_dominant(&source) {
+                    } else if adapter.is_data_dominant(&source, detect.data_threshold) {
                         stats.data_dominant += 1;
                     } else {
                         stats.included += 1;
@@ -311,7 +312,7 @@ fn scan_corpus(repo_dir: &Path) -> CorpusReport {
             .entry(language_name(language))
             .or_insert_with(|| adapter_for(language));
         stats.candidate_hunks =
-            collect_candidates_with(repo_dir, adapter.as_ref(), &path_suppressions).len();
+            collect_candidates_with(repo_dir, adapter.as_ref(), &path_suppressions, detect).len();
         stats.share_of_supported = if supported_files == 0 {
             0.0
         } else {

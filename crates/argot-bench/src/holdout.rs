@@ -19,7 +19,7 @@
 //! correlated, so hunk-level resampling would understate the interval).
 
 use crate::production::{check_args, fit_clone, git_stdout};
-use crate::run::{ensure_clone, ensure_sha_checked_out, sync_corpus_argotignore};
+use crate::run::{ensure_clone, ensure_sha_checked_out, sync_corpus_config};
 use crate::targets::Target;
 use anyhow::{bail, Context, Result};
 use argot_core::check::{ext_to_lang, extension, run_check};
@@ -34,7 +34,7 @@ const MAX_KEPT_HITS: usize = 1000;
 #[derive(Debug, Clone)]
 pub struct HoldoutOptions {
     pub data_dir: PathBuf,
-    /// Per-corpus `.argotignore` source root (`<catalogs_dir>/<corpus>/argotignore`),
+    /// Per-corpus `argot.toml` source root (`<catalogs_dir>/<corpus>/argot.toml`),
     /// so holdout fits each corpus with the same real-user config as production.
     pub catalogs_dir: PathBuf,
     /// First-parent commits to step back from the pinned head for the fit
@@ -316,7 +316,7 @@ pub fn run_corpus_holdout(target: &Target, opts: &HoldoutOptions) -> Result<Hold
     if argot_dir.exists() {
         std::fs::remove_dir_all(&argot_dir)?;
     }
-    sync_corpus_argotignore(&opts.catalogs_dir, &target.name, &repo_dir)?;
+    sync_corpus_config(&opts.catalogs_dir, &target.name, &repo_dir)?;
     let (thresholds, _) = fit_clone(&repo_dir, &fit_sha)?;
 
     let mut commits: Vec<CommitFp> = Vec::new();

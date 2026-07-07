@@ -50,4 +50,4 @@ scoring:
   fixtures, generated lookups). The same structural predicate runs at fit and check time.
 - **Comments and docstrings** — blanked before scoring, so prose doesn't inflate the surprise signal.
 - **Test files and conventional directories** — skipped by the built-in `argot:recommended` set, which
-  you can extend or replace with `.argotignore`. See [Configure](/docs/configure/).
+  you can extend or replace with `argot.toml`'s `[exclude]`. See [Configure](/docs/configure/).

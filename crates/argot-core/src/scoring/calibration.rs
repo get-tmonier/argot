@@ -322,7 +322,12 @@ pub struct Candidate {
 /// The production calibrator resolves `.argotignore` on top via
 /// [`collect_candidates_with`].
 pub fn collect_candidates(source_dir: &Path, adapter: &dyn LanguageAdapter) -> Vec<Candidate> {
-    collect_candidates_with(source_dir, adapter, &PathSuppressions::recommended())
+    collect_candidates_with(
+        source_dir,
+        adapter,
+        &PathSuppressions::recommended(),
+        &crate::config::DetectConfig::default(),
+    )
 }
 
 /// [`collect_candidates`] against a fully resolved path-suppression set
@@ -333,6 +338,7 @@ pub fn collect_candidates_with(
     source_dir: &Path,
     adapter: &dyn LanguageAdapter,
     path_suppressions: &PathSuppressions,
+    detect: &crate::config::DetectConfig,
 ) -> Vec<Candidate> {
     // `.h` routes to whichever of C / C++ this repo predominantly is, so a
     // header-only C++ library's headers calibrate under the C++ model, not C.
@@ -365,7 +371,9 @@ pub fn collect_candidates_with(
             // Generated code (transpiled JS, protobuf stubs, `// Code generated`)
             // is not authored voice — exclude it from calibration, matching what
             // `inspect` reports and how `check` skips it.
-            if adapter.is_data_dominant(&source) || adapter.is_auto_generated(&source) {
+            if adapter.is_data_dominant(&source, detect.data_threshold)
+                || adapter.is_auto_generated(&source, &detect.generated_markers)
+            {
                 continue;
             }
             let lines = splitlines(&source);
@@ -1042,9 +1050,12 @@ pub fn run_calibrate(
     let mut per_lang_files: BTreeMap<String, usize> = BTreeMap::new();
     let mut total_lines: usize = 0;
 
-    // Resolved path-suppression set (recommended built-ins + `.argotignore`) —
-    // the same set `check` filters against (lock-step principle).
-    let path_suppressions = PathSuppressions::load(repo_dir);
+    // Resolved config: the path-suppression set (recommended built-ins +
+    // `[exclude].paths`) and the `[detect]` heuristics — the same values `check`
+    // consults (lock-step principle).
+    let config = crate::config::ArgotConfig::load(repo_dir);
+    let path_suppressions = config.path_suppressions();
+    let detect = &config.detect;
     // Fit from committed HEAD, not the working tree — an uncommitted foreign
     // edit must not be learned as part of the voice it's about to be checked
     // against. Byte-identical to a working-tree read on a clean checkout.
@@ -1062,7 +1073,10 @@ pub fn run_calibrate(
         // generated stubs) — the model learns authored voice only.
         let filtered: Vec<(PathBuf, String)> = repo_files
             .iter()
-            .filter(|(_, s)| !adapter.is_data_dominant(s) && !adapter.is_auto_generated(s))
+            .filter(|(_, s)| {
+                !adapter.is_data_dominant(s, detect.data_threshold)
+                    && !adapter.is_auto_generated(s, &detect.generated_markers)
+            })
             .cloned()
             .collect();
         // No authored voice for this language — every file is data-dominant or
@@ -1101,11 +1115,13 @@ pub fn run_calibrate(
             CR_CLUSTER_SEED,
             0,
             0,
+            detect.data_threshold,
         )
         .map_err(anyhow::Error::msg)?;
 
         // Candidates for sampling.
-        let candidates = collect_candidates_with(repo_dir, adapter.as_ref(), &path_suppressions);
+        let candidates =
+            collect_candidates_with(repo_dir, adapter.as_ref(), &path_suppressions, detect);
         let effective_n_cal = opts.n_cal.min(candidates.len());
         let typicality = TypicalityModel::new(language);
 
@@ -1128,6 +1144,7 @@ pub fn run_calibrate(
                 CR_CLUSTER_SEED,
                 resolved_rare,
                 opts.cluster_size_min,
+                detect.data_threshold,
             )
             .map_err(anyhow::Error::msg)?;
             let idx = sample_indices(candidates.len(), effective_n_cal, opts.seed);

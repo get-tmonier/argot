@@ -59,38 +59,42 @@ const en: SiteContent = {
     title: 'Honest numbers, leak-free by construction.',
     stats: [
       {
-        value: '99%',
+        value: '98%',
         title: 'visible-foreign catch',
-        desc: 'Foreign imports and APIs spliced into real files, judged by the shipped binary: [[522 of 527]].',
+        desc: 'When the foreign symbol is [[visible]] in the diff — an explicit import or call — judged by the shipped binary: 565 of 574.',
       },
       {
-        value: '0.23%',
+        value: '85%',
+        title: 'catch across every fixture',
+        desc: 'Every planted break, easy → hard — the rest are [[masked foreign]] a voice model structurally can’t see: 591 of 694.',
+      },
+      {
+        value: '0.22%',
         title: 'false alarms on real edits',
-        desc: 'How often argot fires on your repo’s [[own existing code]] — 27 repos, every one ≤ 0.98%.',
+        desc: 'How often argot fires on your repo’s [[own existing code]] — 31 repos, every one ≤ 1.17%.',
       },
       {
         value: '150ms',
         title: 'to check a change',
         desc: 'On a 34k-file repo, laptop CPU. The one-time fit takes ~7 s. [[No GPU, no cloud.]]',
       },
-      {
-        value: '11',
-        title: 'languages, one binary',
-        desc: 'Python · TypeScript · JavaScript · Go · Rust · Java · C# · C · C++ · Ruby · PHP — one [[static binary]].',
-      },
     ],
+    languages:
+      'One [[static binary]], 11 languages: Python · TypeScript · JavaScript · Go · Rust · Java · C# · C · C++ · Ruby · PHP.',
     finePrint:
-      'Leak-free protocol (issue #92): recall from fixtures planted into real files and judged by the shipped binary; false alarms from a temporal holdout with commit-level bootstrap CIs. Full per-repo numbers on the benchmarks page.',
+      'Leak-free by construction: recall on foreign patterns planted in real files; false alarms on a temporal holdout.',
+    benchmarksCta: 'Full per-repo numbers →',
   },
   setup: {
     label: 'Setup · built for agents',
     title: 'A CLI your coding agent can drive.',
-    body: 'The skills run argot [[and bring the judgment]]: /argot-setup reads your repo to decide what shouldn’t shape its voice — a vendored SDK, a generated dir — writes a .argotignore, fits, and verifies the catch. Advisory, never blocking.',
+    body: 'The skills run argot [[and bring the judgment]]: /argot-setup reads your repo to decide what shouldn’t shape its voice — a vendored SDK, a generated dir — writes an argot.toml, fits, and verifies the catch. Advisory, never blocking.',
     installLabel: 'Add the skills — Claude Code, Cursor, 70+ agents',
-    skillsIntro: 'three slash-commands your agent runs:',
+    skillsIntro: 'four slash-commands your agent runs:',
     skillDescs: [
-      'reads your tree, writes .argotignore, verifies the catch',
+      'reads your tree, writes argot.toml, verifies the catch',
       'scores each diff, flags what’s foreign — never blocks',
+      'reviews one PR against your repo’s voice, no checkout',
       'a non-blocking voice score on every PR',
     ],
     ctaLocal: 'Or drive the CLI by hand',

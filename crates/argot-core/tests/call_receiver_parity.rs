@@ -106,10 +106,11 @@ fn weighted_contribution_matches_python_golden_n_clusters_1() {
         2.0,
         5,
         &adapter,
-        1, // n_clusters
-        0, // cluster_seed
-        0, // cluster_rare_threshold
-        0, // cluster_size_min
+        1,    // n_clusters
+        0,    // cluster_seed
+        0,    // cluster_rare_threshold
+        0,    // cluster_size_min
+        0.65, // data_threshold
     )
     .unwrap();
 
