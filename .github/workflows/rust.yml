@@ -1,10 +1,19 @@
 name: rust
 
-# Builds + tests the single-binary Rust engine on Linux and macOS. The Linux
-# run doubles as the cross-platform parity gate: the golden/parity suites under
-# crates/argot-core/tests/ compare Rust output to fixtures captured from the
-# Python engine, so a green Linux run proves Rust == Python on Linux (parity was
-# developed/verified on macOS; this confirms it holds on the release platform).
+# Builds + tests the single-binary Rust engine.
+#
+# Cost split: PRs verify on **Linux only** (the cheapest runner, and the parity
+# gate — the golden/parity suites under crates/argot-core/tests/ compare Rust
+# output to fixtures captured from the Python engine, so a green Linux run proves
+# Rust == Python). Push to main and manual runs fan out to **all three**
+# (Linux · macOS · Windows), so any macOS/Windows-specific regression is caught
+# on main before a release is cut from it — without paying macOS (10x) and
+# Windows (2x) Actions minutes on every PR.
+#
+# Branch protection: require the single `verify result` gate job below, NOT the
+# per-OS `verify (…)` legs — those don't exist on PRs (Linux-only matrix), so
+# requiring them would block every merge. The gate reports one stable status
+# that is green iff every leg that actually ran passed.
 
 on:
   push:
@@ -31,7 +40,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # PR → Linux only; push to main / manual → all three. (Expression form
+        # because a matrix list can't be conditioned with `if:` directly.)
+        os: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-latest"]' || '["ubuntu-latest", "macos-latest", "windows-latest"]') }}
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -75,3 +86,18 @@ jobs:
         run: |
           cargo run -p argot -- extract --repo .
           test -s .argot/dataset.jsonl && echo "OK — dataset.jsonl non-empty"
+
+  # Single required status check for branch protection, independent of how the
+  # matrix expanded (Linux-only on PRs, all three on main). Green iff every leg
+  # that ran succeeded — so require THIS job on main, not the per-OS `verify (…)`
+  # legs (which are absent on PRs and would otherwise block every merge).
+  verify-result:
+    name: verify result
+    if: always()
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate on the matrix result
+        run: |
+          echo "verify matrix result: ${{ needs.verify.result }}"
+          test "${{ needs.verify.result }}" = "success"
