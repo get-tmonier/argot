@@ -19,6 +19,10 @@ checks — *reinvention* (a function the repo already has) and *placement* (a fu
 wrong area). No cloud, no GPU, no text generation; turn a function into a vector, look up its
 neighbours. Offline, it simply no-ops and the base guardrail still runs.
 
+The embedding model is [jina-embeddings-v2-base-code](https://huggingface.co/jinaai/jina-embeddings-v2-base-code)
+by Jina AI (Apache-2.0), run via [llama.cpp](https://github.com/ggml-org/llama.cpp) (MIT). argot
+is not affiliated with Jina AI.
+
 ## The mental model
 
 > A regex catches what you can write down. A type checker catches what you can prove. **argot catches

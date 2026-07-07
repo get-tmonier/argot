@@ -338,7 +338,16 @@ no network transports), HuggingFace
 [clap](https://docs.rs/clap/), [Serde](https://serde.rs/), and
 [cargo-dist](https://opensource.axo.dev/cargo-dist/) /
 [axoupdater](https://github.com/axodotdev/axoupdater) for releases and
-`argot update`.
+`argot update`. The semantic layer links [llama.cpp](https://github.com/ggml-org/llama.cpp)
+(MIT) statically via [`llama-cpp-2`](https://crates.io/crates/llama-cpp-2).
+
+The semantic layer's code-embedding model is
+[**jina-embeddings-v2-base-code**](https://huggingface.co/jinaai/jina-embeddings-v2-base-code)
+by [Jina AI](https://jina.ai/), used under the **Apache License 2.0**. argot
+fetches it on first use and redistributes the `Q4_K_M` GGUF quantization (a
+derivative work under Apache-2.0 §4 — weights quantized, architecture unchanged)
+from its [`semantic-model-v1`](https://github.com/get-tmonier/argot/releases/tag/semantic-model-v1)
+release. argot is not affiliated with, nor endorsed by, Jina AI.
 
 ## License
 
