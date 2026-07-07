@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>Your codebase has a voice. argot makes AI code speak it.</strong><br/>
-  <em>A local guardrail that catches AI-written code that doesn't fit your repo — a dependency you've never used, a function you already wrote, logic in the wrong place. Learned from your git history. Backed by a code-embedding model that runs on your laptop — no cloud, no GPU, no LLM API.</em>
+  <em>A local guardrail that catches AI-written code that doesn't fit your repo — a dependency you've never used, a function you already wrote, logic in the wrong place. Learned from your git history. Backed by a code-embedding model that runs on your laptop — no LLM, no cloud, no GPU.</em>
 </p>
 
 <p align="center">
@@ -57,10 +57,10 @@ Type checkers ask *"is this valid?"* argot asks the question that used to live i
 
 Copilot, ESLint, SAST — every tool judges by one *global* idea of good code. argot learns **yours**, from your git history, and judges each AI diff against it. That per-repo judgment can't be copied by a bigger model — only by knowing your codebase.
 
-### Semantic — on your laptop, not in the cloud
+### Real semantic understanding — no LLM, no cloud, no GPU
 
 - ⚡ **Rust · single static binary** — fits in seconds, checks a diff in ~150 ms
-- 🧠 **Backed by a code-embedding model** (`jina-code`) running **locally** — real semantic understanding, no cloud LLM, no API key, no GPU
+- 🧠 **A local code-embedding model** (`jina-code`) — semantic understanding from an encoder that turns code into vectors, **not an LLM**: no generation, no API key, no GPU
 - 🪶 **~100 MB model, CPU-first** (Metal-accelerated on Macs) — a few hundred MB of RAM, not the gigabytes a served model needs
 - 🔒 **Nothing leaves your machine** — no telemetry, no account, local by default
 - 📊 **Honest, leak-free benchmarks** — **98%** foreign catch · **0.22%** false alarms · 31 repos · 11 languages
