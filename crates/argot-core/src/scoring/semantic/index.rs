@@ -34,7 +34,9 @@ const ARTIFACT_VERSION: u32 = 1;
 /// near-duplicate noise and never make a meaningful reinvention target.
 const MIN_BODY_LINES: usize = 3;
 
-/// One indexed function: its embedding plus where it lives.
+/// One indexed function: its embedding plus where it lives, and the set of
+/// functions it calls (its callees) — the structural confirmation that turns a
+/// near-embedding-match into a confident reinvention.
 #[derive(Debug, Clone)]
 pub struct IndexEntry {
     pub symbol: String,
@@ -44,9 +46,12 @@ pub struct IndexEntry {
     pub line: usize,
     /// L2-normalised embedding (dot product == cosine).
     pub vec: Vec<f32>,
+    /// Sorted, deduped callee names — used for callee-Jaccard confirmation.
+    pub callees: Vec<String>,
 }
 
-/// A function to index or query: identity plus the source text to embed.
+/// A function to index or query: identity plus the source text to embed, and its
+/// callee set (extracted once, at fit and at check, by the same path).
 #[derive(Debug, Clone)]
 pub struct FunctionRef {
     pub symbol: String,
@@ -56,6 +61,8 @@ pub struct FunctionRef {
     /// 1-indexed last line of the definition (for check-time finding spans).
     pub end_line: usize,
     pub text: String,
+    /// Sorted, deduped callee names within this function.
+    pub callees: Vec<String>,
 }
 
 /// A scored neighbour returned by [`SemanticIndex::nearest`].
@@ -102,6 +109,7 @@ impl SemanticIndex {
                 path: f.path.clone(),
                 line: f.line,
                 vec,
+                callees: f.callees.clone(),
             })
             .collect();
         Ok(Self {
@@ -152,6 +160,7 @@ impl SemanticIndex {
             vectors_b64: base64::engine::general_purpose::STANDARD.encode(&bytes),
             margin_bar,
             area_norms,
+            callees: self.entries.iter().map(|e| e.callees.clone()).collect(),
         }
     }
 
@@ -185,6 +194,7 @@ impl SemanticIndex {
                 path: j.paths[i].clone(),
                 line: j.lines[i],
                 vec,
+                callees: j.callees.get(i).cloned().unwrap_or_default(),
             });
         }
         Ok(Self {
@@ -219,25 +229,41 @@ pub fn functions_in_file(
         if s >= e {
             continue;
         }
+        let text = lines[s..e].join("\n");
+        let callees = callee_set(&text, adapter.language());
         out.push(FunctionRef {
             symbol: body.symbol,
             path: rel_path.to_string(),
             line: body.start_line,
             end_line: e,
-            text: lines[s..e].join("\n"),
+            text,
+            callees,
         });
     }
     out
 }
 
+/// The sorted, deduped callee names within a function's source — the structural
+/// fingerprint the reinvention scorer confirms against. Reuses the base
+/// call-receiver extraction, so "what counts as a call" matches the rest of argot.
+fn callee_set(source: &str, language: crate::scoring::adapters::Language) -> Vec<String> {
+    // BTreeSet dedups and sorts → a deterministic callee fingerprint.
+    crate::scoring::call_receiver::extract_callees(source, language)
+        .into_iter()
+        .flatten()
+        .collect::<std::collections::BTreeSet<String>>()
+        .into_iter()
+        .collect()
+}
+
 /// Percentile of the corpus's own cross-file self-margins used as the F1 firing
 /// bar: a diff function fires only if its margin exceeds this — i.e. it stands
 /// out as a duplicate more strongly than ~all of the repo's own functions do.
-/// Tuned to 0.97 against rich + scrapy production indices (blind-reimpl recall
-/// 18–30% at ~3% raw self-over-fire, retrieval 96–100%; see
-/// `.scratch/semantic-layer/P5-tuning.md`). The raw over-fire is a conservative
-/// upper bound — real diffs add few, mostly-novel functions and the gates prune
-/// boilerplate, so production firing is rarer.
+/// Tuned to 0.97 against rich + scrapy. This is the *margin* path (a distinct
+/// standout dup); the callee-confirm path in `redundant.rs` does the heavy
+/// lifting now (combined recall ~60–70% at ~1% over-fire — see
+/// `.scratch/semantic-layer/P5-tuning.md`). Kept as an OR path for callee-less
+/// standouts.
 const MARGIN_BAR_PERCENTILE: f64 = 0.97;
 /// Cap on functions sampled for the margin distribution (bounds fit-time cost;
 /// the high tail is stable well below this).
@@ -330,6 +356,11 @@ struct LanguageIndexJson {
     /// field (placement then falls back to the check-time default norm).
     #[serde(default)]
     area_norms: BTreeMap<String, f32>,
+    /// Per-function callee sets (aligned with `symbols`/`paths`) — the structural
+    /// fingerprint the F1 scorer confirms against. Empty for indices written
+    /// before this field (F1 then falls back to the margin path only).
+    #[serde(default)]
+    callees: Vec<Vec<String>>,
 }
 
 /// A language's loaded index plus its calibrated bars.
@@ -408,6 +439,7 @@ mod tests {
             path: path.into(),
             line,
             vec,
+            callees: Vec::new(),
         }
     }
 

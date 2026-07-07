@@ -1,13 +1,16 @@
 //! F1 · reinvention — "you already have this".
 //!
 //! For a function introduced by the diff, ask the [`SemanticIndex`] for its
-//! nearest **cross-file** existing function and the **margin** by which that
-//! neighbour stands out (`cos₁ − cos₂`). A high margin means one existing
-//! function is distinctly the closest — a near-duplicate — rather than the query
-//! merely resembling a cluster of peers. Absolute cosine can't do this job:
-//! code embeddings are anisotropic (everything sits at cos 0.8–1.0), so the
-//! *standout* margin is the signal, calibrated per-repo (see the fit-time bar in
-//! `index::calibrate_margin_bar`).
+//! nearest **cross-file** existing function and fire on either of two signals:
+//!
+//! - **callee-confirm** (the workhorse): the nearest neighbour is very close
+//!   (`cos₁ ≥ 0.85`) AND they share a meaningful fraction of **callees**. Code
+//!   embeddings are anisotropic (everything sits at cos 0.8–1.0), so absolute
+//!   cosine alone over-fires; the shared-callee overlap confirms it's a real
+//!   reinvention (genuinely-new code shares ~0 callees with its nearest match, a
+//!   reinvention ~half). This lifts recall from ~20% to ~60–70% at ~1% over-fire.
+//! - **margin** (secondary): the neighbour stands out distinctly (`cos₁ − cos₂`
+//!   above a per-repo bar) — catches callee-less standouts the first path misses.
 //!
 //! This module is pure scoring: it takes an embedding and returns a finding or
 //! nothing. Extraction, embedding and `Hit` construction live in the check flow.
@@ -17,10 +20,24 @@
 
 use super::index::{FunctionRef, SemanticIndex};
 
-/// Minimum nearest-cosine for a "you already have this" claim. Anisotropy keeps
-/// almost all code above this, so the margin bar is the real gate — this only
-/// rejects the degenerate case where even the closest match is genuinely far.
+/// Minimum nearest-cosine for the *margin* path — a "you already have this"
+/// claim needs a genuinely close match. Anisotropy keeps most code above this,
+/// so on the margin path the bar is the real gate.
 const ABS_SIMILARITY_FLOOR: f32 = 0.80;
+
+/// The **callee-confirm** path (the frontier-breaker): embedding retrieves the
+/// candidate, shared callees confirm it's a real reinvention rather than an
+/// anisotropy near-match. A diff function fires if its nearest neighbour is very
+/// close AND they call a meaningful fraction of the same functions — genuinely-
+/// new code shares ~0 callees with its nearest match, a reinvention ~half.
+/// Absolute bars (stable across corpora): validated on rich + scrapy at ~71–80%
+/// recall / ~1–2% over-fire vs the margin path's ~20% (see `P5-tuning.md`).
+const CONFIRM_SIMILARITY: f32 = 0.85;
+const CALLEE_OVERLAP_BAR: f32 = 0.15;
+/// A function with fewer callees than this can't form a reliable callee-Jaccard
+/// (a 1-callee fn matching a 1-callee fn is 100% overlap by luck), so the
+/// callee-confirm path needs both sides to have at least this many callees.
+const MIN_CALLEES_FOR_CONFIRM: usize = 2;
 
 /// A fired reinvention finding: the existing function this one duplicates.
 #[derive(Debug, Clone)]
@@ -64,12 +81,19 @@ impl<'a> RedundantScorer<'a> {
         if eq_ignore_ascii_case(&best_entry.symbol, &func.symbol) {
             return None;
         }
-        if best.cosine < ABS_SIMILARITY_FLOOR {
-            return None;
-        }
         let second = neigh.get(1).map(|n| n.cosine).unwrap_or(0.0);
         let margin = best.cosine - second;
-        if margin < self.margin_bar {
+        // Margin path: the nearest neighbour stands out distinctly. Callee-confirm
+        // path: it's very close AND shares a meaningful fraction of callees. Either
+        // fires; the callee path recovers the reinventions the margin misses when
+        // the repo already has near-duplicate clusters (diluted margin).
+        let margin_fires = best.cosine >= ABS_SIMILARITY_FLOOR && margin >= self.margin_bar;
+        let callee_jac = callee_jaccard(&func.callees, &best_entry.callees);
+        let callee_fires = best.cosine >= CONFIRM_SIMILARITY
+            && func.callees.len() >= MIN_CALLEES_FOR_CONFIRM
+            && best_entry.callees.len() >= MIN_CALLEES_FOR_CONFIRM
+            && callee_jac >= CALLEE_OVERLAP_BAR;
+        if !margin_fires && !callee_fires {
             return None;
         }
         Some(RedundantFinding {
@@ -84,6 +108,23 @@ impl<'a> RedundantScorer<'a> {
 
 fn eq_ignore_ascii_case(a: &str, b: &str) -> bool {
     a.len() == b.len() && a.eq_ignore_ascii_case(b)
+}
+
+/// Jaccard overlap of two callee sets (both are sorted, deduped). 0 when both
+/// are empty.
+fn callee_jaccard(a: &[String], b: &[String]) -> f32 {
+    if a.is_empty() && b.is_empty() {
+        return 0.0;
+    }
+    let sa: std::collections::BTreeSet<&str> = a.iter().map(String::as_str).collect();
+    let sb: std::collections::BTreeSet<&str> = b.iter().map(String::as_str).collect();
+    let inter = sa.intersection(&sb).count();
+    let union = sa.union(&sb).count();
+    if union == 0 {
+        0.0
+    } else {
+        inter as f32 / union as f32
+    }
 }
 
 /// Whether a diff-defined function is a candidate for reinvention flagging.
@@ -133,21 +174,31 @@ mod tests {
     }
 
     fn entry(symbol: &str, path: &str, vec: Vec<f32>) -> IndexEntry {
+        entry_c(symbol, path, vec, &[])
+    }
+
+    fn entry_c(symbol: &str, path: &str, vec: Vec<f32>, callees: &[&str]) -> IndexEntry {
         IndexEntry {
             symbol: symbol.into(),
             path: path.into(),
             line: 1,
             vec: unit(vec),
+            callees: callees.iter().map(|s| s.to_string()).collect(),
         }
     }
 
     fn func(symbol: &str, path: &str) -> FunctionRef {
+        func_c(symbol, path, &[])
+    }
+
+    fn func_c(symbol: &str, path: &str, callees: &[&str]) -> FunctionRef {
         FunctionRef {
             symbol: symbol.into(),
             path: path.into(),
             line: 10,
             end_line: 15,
             text: String::new(),
+            callees: callees.iter().map(|s| s.to_string()).collect(),
         }
     }
 
@@ -218,5 +269,70 @@ mod tests {
         // Not a test file despite containing "test" in a component.
         assert!(is_reinvention_candidate("helper", "src/testing_utils.py"));
         assert!(is_reinvention_candidate("normalize", "src/utils/text.py"));
+    }
+
+    /// Two near-duplicate existing functions dilute the margin below the bar, so
+    /// the margin path stays quiet — but the candidate shares the original's
+    /// callees, so the callee-confirm path fires. This is the frontier-breaker.
+    fn diluted_index() -> SemanticIndex {
+        SemanticIndex {
+            dim: 3,
+            entries: vec![
+                entry_c(
+                    "format_price",
+                    "src/money.py",
+                    vec![1.0, 0.0, 0.0],
+                    &["round", "currency", "symbol"],
+                ),
+                entry_c(
+                    "format_amount",
+                    "src/money.py",
+                    vec![0.99, 0.02, 0.0],
+                    &["round", "currency"],
+                ),
+            ],
+        }
+    }
+
+    #[test]
+    fn callee_confirmation_fires_when_margin_is_diluted() {
+        let idx = diluted_index();
+        let scorer = RedundantScorer::new(&idx, 0.5); // bar high → margin path can't fire
+        let q = unit(vec![0.995, 0.01, 0.0]); // cos1≈1.0, cos2≈0.99 → tiny margin
+        let f = scorer
+            .evaluate(
+                &func_c(
+                    "render_price",
+                    "src/ui/views.py",
+                    &["round", "currency", "symbol"],
+                ),
+                &q,
+            )
+            .expect("callee-confirm fires despite a diluted margin");
+        assert_eq!(f.nearest_symbol, "format_price");
+        assert!(
+            f.margin < 0.5,
+            "the margin path would NOT have fired: {}",
+            f.margin
+        );
+    }
+
+    #[test]
+    fn callee_confirm_needs_shared_callees() {
+        // Same close embedding, but no shared callees → not a reinvention, and the
+        // margin is diluted, so nothing fires.
+        let idx = diluted_index();
+        let scorer = RedundantScorer::new(&idx, 0.5);
+        let q = unit(vec![0.995, 0.01, 0.0]);
+        assert!(scorer
+            .evaluate(
+                &func_c(
+                    "compute_layout",
+                    "src/ui/views.py",
+                    &["measure", "wrap", "clamp"]
+                ),
+                &q,
+            )
+            .is_none());
     }
 }
