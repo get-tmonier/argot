@@ -30,7 +30,7 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use super::index::{FunctionRef, SemanticIndex};
+use super::index::{FunctionRef, IndexEntry, SemanticIndex};
 
 /// Normal tier — a close embedding match with *moderate* structural agreement.
 const NORMAL_SIMILARITY: f32 = 0.78;
@@ -48,6 +48,17 @@ const STRONG_SIMILARITY: f32 = 0.70;
 const STRONG_SUBTOKEN_BAR: f32 = 0.52;
 const STRONG_CALLEE_BAR: f32 = 0.30;
 const STRONG_MIN_CALLEES: usize = 3;
+
+/// Rare-callee path: a small function (1–2 callees) can't clear the callee
+/// `MIN_CALLEES` guard, and its subtokens are often generic (a geometry helper's
+/// `point`/`vector` vocabulary). But if it shares a **rare** callee with its match
+/// — a specific helper called by only a sliver of the repo — that single shared
+/// call is strong reinvention evidence (a faithful reimplementation calls the same
+/// specific helper; overlap on a rare callee is not luck the way overlap on one
+/// ubiquitous callee is). Fires at the strong-tier cosine with no min-callee count.
+/// "Rare" = called by ≤ this fraction of corpus functions (floored for tiny repos).
+const RARE_CALLEE_DF_FRACTION: f64 = 0.012;
+const RARE_CALLEE_DF_FLOOR: u32 = 4;
 
 /// The lowest cosine at which a reinvention can fire (the strong-tier floor).
 /// Exposed so the check flow can report it as the finding's informational
@@ -73,16 +84,30 @@ pub struct RedundantScorer<'a> {
     subtoken_idf: HashMap<String, f32>,
     /// IDF for a subtoken not seen in the corpus (df = 0) — the max weight.
     default_idf: f32,
+    /// Per-callee corpus document frequency (how many functions call it) and the
+    /// rarity cutoff below which a shared callee alone confirms a reinvention.
+    callee_df: HashMap<String, u32>,
+    rare_callee_df: u32,
 }
 
 impl<'a> RedundantScorer<'a> {
     pub fn new(index: &'a SemanticIndex) -> Self {
         let n_docs = index.entries.len().max(1) as f64;
         let subtoken_idf = corpus_idf(index.entries.iter().map(|e| &e.subtokens), n_docs);
+        let mut callee_df: HashMap<String, u32> = HashMap::new();
+        for e in &index.entries {
+            for c in &e.callees {
+                *callee_df.entry(c.clone()).or_insert(0) += 1;
+            }
+        }
+        let rare_callee_df =
+            ((RARE_CALLEE_DF_FRACTION * n_docs).ceil() as u32).max(RARE_CALLEE_DF_FLOOR);
         Self {
             index,
             subtoken_idf,
             default_idf: idf_of(0, n_docs),
+            callee_df,
+            rare_callee_df,
         }
     }
 
@@ -127,7 +152,10 @@ impl<'a> RedundantScorer<'a> {
         let strong = cos >= STRONG_SIMILARITY
             && ((both_callees(STRONG_MIN_CALLEES) && callee_jac >= STRONG_CALLEE_BAR)
                 || sub_jac >= STRONG_SUBTOKEN_BAR);
-        if !normal && !strong {
+        // Rare-callee path: below the min-callee guard, a single shared *rare*
+        // callee still confirms (a specific helper both functions call).
+        let rare_callee = cos >= STRONG_SIMILARITY && self.shares_rare_callee(func, best_entry);
+        if !normal && !strong && !rare_callee {
             return None;
         }
         Some(RedundantFinding {
@@ -142,6 +170,17 @@ impl<'a> RedundantScorer<'a> {
     /// heavily, shared ubiquitous ones ~nothing).
     fn subtoken_jaccard(&self, a: &[String], b: &[String]) -> f32 {
         weighted_jaccard(a, b, &self.subtoken_idf, self.default_idf)
+    }
+
+    /// True if `func` and `entry` share at least one callee that is *rare* across
+    /// the corpus (≤ `rare_callee_df` functions call it) — a discriminating shared
+    /// helper, unlike overlap on one ubiquitous callee.
+    fn shares_rare_callee(&self, func: &FunctionRef, entry: &IndexEntry) -> bool {
+        let cand: BTreeSet<&str> = func.callees.iter().map(String::as_str).collect();
+        entry.callees.iter().any(|c| {
+            cand.contains(c.as_str())
+                && self.callee_df.get(c).copied().unwrap_or(0) <= self.rare_callee_df
+        })
     }
 }
 

@@ -64,7 +64,17 @@ def main():
         # strip the "# ID: path:line" header, keep the body
         body = "\n".join(l for l in raw.splitlines() if not l.strip().startswith("# ID:"))
         orig_from_name = fn.split("__")[0]
-        code, _ = rename_fn(body, f"reinvented_{i}")
+        # Keep the fixture's own function name — a real agent reinvention has a
+        # MEANINGFUL synonym (the agents renamed to one), and that name carries
+        # domain vocabulary that is legitimate reinvention signal. Renaming to
+        # "reinvented_N" (the old behaviour) wiped it and made the test unrealistic.
+        # Only neutralise the name when the agent left it identical to the original,
+        # which would otherwise hit the same-name move gate.
+        _, cur_name = rename_fn(body, "_probe_")
+        if cur_name and cur_name.lower() == orig_from_name.lower():
+            code, _ = rename_fn(body, f"{orig_from_name}_alt")
+        else:
+            code = body
         open(os.path.join(BENCH_DIR, f"reinv_{i}{ext}"), "w").write(code.strip() + "\n")
         planted.append((f"reinv_{i}", orig_from_name))
 

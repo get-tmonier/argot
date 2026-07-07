@@ -96,12 +96,16 @@ def main():
     def jac(a, b):
         return len(a & b) / len(a | b) if (a or b) else 0.0
 
-    # --- corpus subtoken IDF (mirror RedundantScorer::new) ---
-    sdf = Counter()
+    # --- corpus subtoken IDF + callee DF (mirror RedundantScorer::new) ---
+    sdf = Counter(); cdf = Counter()
     for s in subtoks:
         for t in s:
             sdf[t] += 1
+    for cs in callees:
+        for t in cs:
+            cdf[t] += 1
     N = max(1, n)
+    rare_df = max(4, math.ceil(0.012 * N))  # RARE_CALLEE_DF_FRACTION / FLOOR
 
     def wsub(a, b):
         union = a | b
@@ -113,7 +117,7 @@ def main():
         return wi / wu if wu else 0.0
 
     def fires(candi, matchi):
-        """Two-tier production rule between candidate index cand vs match."""
+        """Two-tier + rare-callee production rule between candidate vs match."""
         # calls-the-match gate: composition, not reinvention.
         if syms[matchi] in callees[candi] or syms[candi] in callees[matchi]:
             return False
@@ -123,7 +127,9 @@ def main():
         both = lambda m: len(callees[candi]) >= m and len(callees[matchi]) >= m
         normal = c >= NORMAL_SIM and ((both(NORMAL_MIN_CALLEES) and cj >= NORMAL_CALLEE) or sj >= NORMAL_SUB)
         strong = c >= STRONG_SIM and ((both(STRONG_MIN_CALLEES) and cj >= STRONG_CALLEE) or sj >= STRONG_SUB)
-        return normal or strong
+        # rare-callee path: a single shared rare callee confirms below the guard.
+        rare = c >= STRONG_SIM and any(cdf.get(t, 0) <= rare_df for t in (callees[candi] & callees[matchi]))
+        return normal or strong or rare
 
     # --- reinvention over-fire: LOO, nearest cross-file, all production gates ---
     reinv_fire = reinv_eval = 0
