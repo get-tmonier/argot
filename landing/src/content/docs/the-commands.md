@@ -56,8 +56,12 @@ Writes three artifacts under `.argot/`:
 | `repo-corpus.txt` | the source files counted into the repo distribution |
 | `generic-baseline.json` | the bundled generic baseline reference |
 | `scorer-config.json` | the calibrated threshold(s) and scorer config |
+| `semantic-index.json` | the per-repo code-embedding index for the reinvention/placement checks |
 
-It also refreshes `.argot/manifest.json` (the hashed model record). For every file argot writes,
+`fit` also builds the **semantic index**: it embeds every function with a local code-embedding model
+(`jina-code`, ~100 MB, fetched once to a local cache on first use) and writes
+`.argot/semantic-index.json`. This is standard — there is no flag to enable it. It also refreshes
+`.argot/manifest.json` (the hashed model record). For every file argot writes,
 where it lives, and whether it's committed, see the
 [reference table in Configure](/docs/configure/#which-files-argot-writes-and-where).
 Re-run `fit` after a major refactor. Internally it runs the engine's two underlying phases (build
@@ -86,7 +90,10 @@ combine; the first matching slice wins.
 
 ## check
 
-Scores changed hunks against the trained scorer and prints them grouped by file.
+Scores changed hunks against the trained scorer and prints them grouped by file. Alongside the base
+voice model, `check` also runs the semantic layer's **reinvention** (`redundant`) and **placement**
+(`misplaced`) checks against `.argot/semantic-index.json` — automatically, no flag. (The first check
+that embeds may pause briefly to fetch the ~100 MB model to a local cache; after that it's warm.)
 
 **Exit codes:** `0` clean · `1` hits found — *something to look at, not a failure* · `2` setup/usage
 error. For CI, prefer the non-blocking [GitHub Action](/docs/ci/) over a hand-rolled

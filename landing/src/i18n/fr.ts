@@ -4,7 +4,7 @@ const fr: SiteContent = {
   meta: {
     title: 'argot — détectez le code IA qui ne colle pas à votre dépôt',
     description:
-      'argot est un garde-fou local pour le code écrit par IA. Il apprend les motifs de votre dépôt depuis son historique git, puis signale le code qui n’a pas sa place — une dépendance jamais utilisée, une fonction que vous avez déjà, du code au mauvais endroit. Propulsé par un modèle d’embeddings de code qui tourne sur votre machine. Sans cloud, sans GPU, sans API LLM.',
+      'argot est un garde-fou local pour le code écrit par IA. Il apprend les motifs de votre dépôt depuis son historique git, puis signale le code qui n’a pas sa place — une dépendance jamais utilisée, une fonction que vous avez déjà, du code au mauvais endroit. Propulsé par un modèle d’embeddings de code qui tourne sur votre machine. Sans LLM, sans cloud, sans GPU.',
   },
   nav: {
     demo: 'Démo',
@@ -12,7 +12,7 @@ const fr: SiteContent = {
     docs: 'Docs',
   },
   hero: {
-    eyebrow: 'Local · Rust · sémantique — sans LLM cloud',
+    eyebrow: 'Modèle d’embeddings local · binaire Rust unique · sans LLM',
     titleLead: 'Lintez les règles',
     titleGradient: 'que personne n’a écrites.',
     subtitle:
@@ -28,7 +28,7 @@ const fr: SiteContent = {
     title: 'Le type-checker demande si ça compile. argot demande si c’est le vôtre.',
     body: 'Les linters demandent « est-ce valide ? » — jamais « est-ce ainsi qu’on écrit ici ? » Un LLM l’enterre sous des PR propres et bien typées. [[argot repose la question.]]',
     caption:
-      'Une vue à la Django dans un dépôt 100 % FastAPI. mypy et ruff passent — [[argot le signale en ~150 ms.]]',
+      'Deux vrais contrôles : un framework étranger, et une fonction que le dépôt [[avait déjà]]. mypy et ruff passent les deux — pas argot.',
     seeLive: 'Voyez-le sur de vrais dépôts',
   },
   catches: {

@@ -86,6 +86,11 @@ That's the documented boundary, live:
 > not catch a sync-in-an-async design decision. See
 > [what it catches](/docs/what-it-catches/).
 
+The semantic layer **narrows** this boundary — it now flags a function that
+reinvents one the repo already has (`redundant`) or code filed in the wrong package
+(`misplaced`) — but it doesn't erase it: a sync-in-async *choice* built entirely
+from FastAPI's own vocabulary is still below the line argot gates on.
+
 ## 3. Intentional foreign code — accept it, with a trail
 
 Sometimes the foreign thing is a real decision. Mute it by hash with a reason, and

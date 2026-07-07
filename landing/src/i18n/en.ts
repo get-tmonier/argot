@@ -4,7 +4,7 @@ const en: SiteContent = {
   meta: {
     title: 'argot — catch the AI code that doesn’t fit your codebase',
     description:
-      'argot is a local guardrail for AI-written code. It learns your repo’s patterns from its own git history, then flags code that doesn’t belong — a dependency you’ve never used, a function you already wrote, logic in the wrong place. Backed by a code-embedding model that runs on your laptop. No cloud, no GPU, no LLM API.',
+      'argot is a local guardrail for AI-written code. It learns your repo’s patterns from its own git history, then flags code that doesn’t belong — a dependency you’ve never used, a function you already wrote, logic in the wrong place. Backed by a code-embedding model that runs on your laptop. No LLM, no cloud, no GPU.',
   },
   nav: {
     demo: 'Demo',
@@ -12,7 +12,7 @@ const en: SiteContent = {
     docs: 'Docs',
   },
   hero: {
-    eyebrow: 'Local · Rust · semantic — no cloud LLM',
+    eyebrow: 'Local embedding model · Rust single binary · no LLM',
     titleLead: 'Lint the rules',
     titleGradient: 'you never wrote down.',
     subtitle:
@@ -28,7 +28,7 @@ const en: SiteContent = {
     title: 'Type checkers ask if it compiles. argot asks if it’s yours.',
     body: 'Linters ask “is this valid?” — never “is this how we write things?” An LLM buries that under clean, type-correct PRs. [[argot asks it back.]]',
     caption:
-      'A Django view in an all-FastAPI repo. mypy and ruff pass — [[argot flags it in ~150 ms.]]',
+      'Two real checks: a foreign framework, and a function the repo [[already had]]. mypy and ruff pass both — argot doesn’t.',
     seeLive: 'See it on real repos',
   },
   catches: {

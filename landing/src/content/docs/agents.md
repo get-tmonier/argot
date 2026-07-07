@@ -68,7 +68,7 @@ advice, read the output correctly, and mute false positives with a reason.
 ## MCP — proactive voice
 
 `argot mcp` runs a [Model Context Protocol](https://modelcontextprotocol.io)
-server over stdio, in-process against the fitted `.argot/` model — no network,
+server over stdio, in-process against the fitted `.argot/` model — local-first,
 no separate runtime. It exposes four tools:
 
 | Tool | When the agent calls it | Returns |
@@ -105,8 +105,11 @@ claude mcp add argot -- argot mcp --repo /path/to/your/repo
 ```
 
 Any MCP client works — the server speaks newline-delimited JSON-RPC 2.0 on
-stdio. It's local-only by default: it reads `.argot/` on disk and never opens a
-socket. The statistics it surfaces are derived from your own repository.
+stdio. It's local at steady state: it reads `.argot/` on disk and serves
+statistics derived from your own repository. The one exception is the semantic
+layer's **first use**, which fetches the ~100 MB code-embedding model to a local
+cache once; after that — and for everything the base voice model does — nothing
+touches the network.
 
 ## Which to use
 

@@ -1,26 +1,32 @@
 ---
 title: What it catches
-description: The dependable catches — a foreign dependency, API, or whole paradigm the repo has never used — and an honest account of the in-vocabulary breaks it does not reliably catch.
+description: The three axes argot flags — a foreign dependency/API/paradigm the repo has never used, a redundant function it already has, and misplaced code — plus an honest account of the in-vocabulary breaks it still won't gate on.
 group: Guide
 order: 7
 ---
 
-argot catches code that is *technically fine but foreign to this project* — valid, typed, and
-lint-clean, but not how this codebase writes things. It is built for one shape above all: a **novel
-pattern**, a dependency or API or paradigm the repo has never reached for. That is the class an AI
-agent trips most, and the class the published numbers gate on.
+argot catches code that is *technically fine but doesn't fit this project* — valid, typed, and
+lint-clean, but not how this codebase writes things. It works on **three axes**:
 
-Everything below is a real result from the shipped binary on the FastAPI benchmark (`argot check` on a
-planted hunk, fit on the repo's own history). Where argot flags a line, the transcript is quoted
-verbatim. Where it doesn't, that's said plainly.
+- **Foreign** — a dependency, API, or whole paradigm the repo has never reached for. The base voice
+  model (statistical, no neural net); the class an AI agent trips most, and the one the published
+  numbers gate on.
+- **Redundant** — a new function that reinvents one the repo already has. The semantic layer finds
+  the original and shows you where it lives. Advisory.
+- **Misplaced** — the right code, filed in the wrong package. Also the semantic layer. Advisory.
 
-## The dependable catches
+Everything below is a real result from the shipped binary (`argot check` on a planted hunk, fit on
+the repo's own history). Where argot flags a line, the transcript is quoted verbatim. Where it
+doesn't, that's said plainly.
+
+## Foreign — a pattern the repo has never used
 
 <!-- TODO(js-numbers): the fixture total and the "N of M" catch fraction below still show the
      pre-JavaScript run; refresh them once the JS re-bench dashboard lands. -->
-Across the whole fixture set in 11 languages, when the foreign symbol is visible in the code — an
-explicit import, a fully-qualified call, a distinct API name — argot catches **~98%** on the honest,
-leak-free bench. Three shapes, strongest first.
+This is the base voice model — statistical, no neural net. Across the whole fixture set in 11
+languages, when the foreign symbol is visible in the code — an explicit import, a fully-qualified
+call, a distinct API name — argot catches **~98%** on the honest, leak-free bench. Three shapes,
+strongest first.
 
 ### 1. A foreign dependency
 
@@ -84,7 +90,36 @@ the **whole paradigm** that's foreign: `View` subclasses, `JsonResponse`, `HttpR
 request-first signature. argot flags it because that entire vocabulary of callees is absent from a
 codebase built on typed function endpoints. **No linter, type checker, or dependency policy can encode
 "we don't write Django-style views here" — argot learns it.** This is the gap between *valid* and
-*ours*, and it is the class argot is built to close.
+*ours*, and it is the class the base voice model is built to close.
+
+## Redundant — a function you already have
+
+The **semantic layer** embeds every function at fit and indexes it. At check, a *new* function that
+duplicates one already in the repo is flagged — the nearest cross-file neighbour, with a similarity
+margin:
+
+```text
+.  already implemented here (redundant)
+   ↳ duplicates slugify (src/utils/text.py:1) — similarity 0.86
+```
+
+This is **advisory**: real repos hold real duplication, and sometimes a second `slugify` is a
+deliberate call. argot shows you the original and lets you judge. It gates CI like any other hit, but
+the framing is "look at this," not "this is wrong."
+
+## Misplaced — the right code, wrong place
+
+Also the semantic layer — a function whose nearest semantic neighbours concentrate in a *different*
+package or area than the one it was filed under:
+
+```text
+.  unusual location (misplaced)
+   ↳ looks like core/downloader code filed under commands/
+```
+
+Same posture — advisory, a nudge to check whether a helper landed in the wrong module. Both
+`redundant` and `misplaced` come from a per-repo code-embedding index (`jina-code`, ~100 MB, local,
+CPU-first — no cloud, no LLM). See [How it works](/docs/how-it-works/) for the mechanics.
 
 ## What argot does *not* reliably catch
 
@@ -104,10 +139,11 @@ async def get_user(user_id: int, db=Depends(get_db)) -> UserResponse:
 ```
 
 argot does **not** flag this. `ValueError` and `HTTPException` are *both* in the repo's vocabulary; only the choice is wrong.
-Separating "wrong choice" from a legitimate `ValueError` elsewhere needs semantic reasoning a no-model,
-no-runtime binary doesn't have — and forcing it drives false alarms on the repo's own code (the
-recovery investigation measured **+1 recall for +45 false positives**, blowing the ≤1.17% budget). So
-argot leaves it. Same story for a **manual `if status_code >= 400` instead of `raise_for_status()`**,
+The semantic layer added real code understanding — it's what powers the reinvention and placement
+checks above — but separating "wrong choice" from a legitimate `ValueError` elsewhere is a
+finer-grained call than a nearest-neighbour lookup makes, and forcing the base model to fire on it
+drives false alarms on the repo's own code (the recovery investigation measured **+1 recall for +45
+false positives**, blowing the ≤1.17% budget). So argot leaves it — a **line it won't cross**. Same story for a **manual `if status_code >= 400` instead of `raise_for_status()`**,
 or a **sync `def` endpoint** in an async repo: structurally non-idiomatic, but built from entirely
 attested tokens — and verified clean on the bench.
 
@@ -118,13 +154,15 @@ misuse of your own vocabulary.
 
 ## The one-line summary
 
-| argot flags | argot usually does **not** flag |
+| argot flags | argot won't gate on |
 |---|---|
-| A dependency the repo has never imported | A wrong *value* on an attested construct |
-| A call into a library the repo standardises away from | A wrong exception type where both are attested |
-| A whole foreign paradigm (Django view, Flask route, manual validation) | A structural shape built from only-familiar tokens |
-| **Reliable — 98% when the foreign symbol is visible** | **Secondary — surfaced sometimes, never gated** |
+| A dependency the repo has never imported *(foreign)* | A wrong *value* on an attested construct |
+| A call into a library the repo standardises away from *(foreign)* | A wrong exception type where both are attested |
+| A whole foreign paradigm — Django view, Flask route, manual validation *(foreign)* | A structural shape built from only-familiar tokens |
+| A new function that reinvents one you already have *(redundant · advisory)* | — |
+| The right code filed in the wrong package *(misplaced · advisory)* | — |
 
-Treat a hit as a prompt to look, never a verdict. The thread through everything argot *does* catch:
-**the foreign symbol is right there in the change** — a new import, an unattested callee, a paradigm
-the repo has never spoken.
+Treat a hit as a prompt to look, never a verdict. **Foreign** catches are reliable — 98% when the
+symbol is visible in the change. **Redundant** and **misplaced** are advisory: the semantic layer
+surfaces the nearest existing code and lets you judge. And there's a **line it won't cross** — a
+wrong choice built entirely from vocabulary you already have; argot won't gate on that, and says so.

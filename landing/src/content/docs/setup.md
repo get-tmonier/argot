@@ -59,7 +59,9 @@ any file it detects as auto-generated or data-only (the built-in
 that's all you need. If the verdict is **Ready**, you're done. `init` also writes
 an `argot.toml` with the effective `[exclude]`, `[detect]`, and `[[mute]]` sections
 spelled out (so nothing is hidden), and drops a `.argot/.gitignore` so the fitted
-model — a rebuildable artifact — never lands in version control.
+model — a rebuildable artifact — never lands in version control. During fit it also
+builds the semantic layer's code-embedding index (`.argot/semantic-index.json`) so
+the reinvention and placement checks are ready on your first `check` — no extra step.
 
 ### If the verdict isn't Ready
 

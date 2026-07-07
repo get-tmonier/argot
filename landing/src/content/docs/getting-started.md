@@ -5,17 +5,22 @@ group: Start
 order: 1
 ---
 
-**argot** learns your repo's patterns from its own git history, then flags code **foreign to your
-codebase** — a dependency, API, or whole construct it has never used. It's the "unknown to this
-repo" code an AI agent reaches for when it doesn't know your stack: valid, typed, and lint-clean,
-but not how anything here is actually built. No model, no cloud, no GPU.
+**argot** learns your repo's patterns from its own git history, then flags AI-written code that
+doesn't fit — on three axes: a dependency, API, or construct it has never used (**foreign**); a new
+function that reinvents one you already wrote (**redundant**); the right code filed in the wrong
+place (**misplaced**). All valid, typed, and lint-clean — but not how anything here is actually
+built. The base guardrail is model-free; the semantic layer that finds reinventions and
+misplacements runs a small local code embedder — one ~100 MB one-time download, still no cloud, no
+GPU required, nothing leaves your machine.
 
 > **Status: alpha.** argot is a probabilistic style linter — treat every flag as a prompt to look,
 > and verify before you gate CI on it. It ships honest, leak-free benchmarks and a public research log.
 
 ## Install
 
-argot is a **single static binary** — no Python, no Node, nothing else to install.
+argot is a **single static binary** — no Python, no Node, no runtime to install. (On first use the
+semantic layer fetches a ~100 MB code-embedding model to a local cache — a one-time download, and
+still nothing that leaves your machine.)
 
 **macOS / Linux** — package-manager-free installer:
 
@@ -78,7 +83,10 @@ src/utils/http-helpers.ts
 
 - It **does not** replace ESLint, ruff, or your type checker. Those answer *"is this valid?"*
 - It **reliably** catches what they can't articulate: a **foreign dependency, API, or paradigm** —
-  something the repo has never used. When the foreign symbol is in the diff, it catches ~98% of them.
+  something the repo has never used. When the foreign symbol is in the diff, the base voice model
+  catches ~98% of them.
+- It **also** flags — advisorily — a **redundant** function (one you already wrote) and **misplaced**
+  code (filed in the wrong package), via the semantic layer's per-repo code-embedding index.
 - It is **honest about its limit**: it does *not* reliably flag an *in-vocabulary* choice — a bare
   `ValueError` where you'd raise `HTTPException`, when every token is already yours. So a clean run
   means "no foreign pattern found," **not** "this matches every convention." argot never gates on

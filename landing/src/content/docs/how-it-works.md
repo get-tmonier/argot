@@ -1,13 +1,23 @@
 ---
 title: How it works
-description: Two frequency tables, a max log-ratio, and a threshold calibrated on your own code.
+description: Two senses — a statistical voice model (two frequency tables and a log-ratio) and a local code-embedding index — both learned from your git history.
 group: Start
 order: 3
 ---
 
-argot is deliberately simple. There is **no neural network** at scoring time — the model is two
-token-frequency distributions and a maximum log-likelihood ratio. That's the whole idea, and it's
-why argot fits in seconds and scores in milliseconds, entirely on CPU.
+argot has **two senses**, both learned entirely from your git history.
+
+The **base voice model** is deliberately simple: **no neural network**, just two token-frequency
+distributions and a maximum log-likelihood ratio. That's what catches *foreign* patterns — a
+dependency or API the repo has never used — and it's why argot fits in seconds and scores in
+milliseconds on CPU.
+
+The **semantic layer** is the one neural component: a per-repo code-embedding index, built at fit
+with a small local model (`jina-code`, ~100 MB, statically linked via llama.cpp — CPU-first,
+Metal-accelerated on macOS, fetched once to a local cache on first use). It powers two advisory
+checks — *reinvention* (a function the repo already has) and *placement* (a function filed in the
+wrong area). No cloud, no GPU, no text generation; turn a function into a vector, look up its
+neighbours. Offline, it simply no-ops and the base guardrail still runs.
 
 ## The mental model
 
@@ -79,7 +89,10 @@ every diff).
    and sets the threshold to the maximum score over those "normal" hunks. Per-language repos get one
    threshold per language.
 
-`argot fit` runs all three for you and writes `.argot/scorer-config.json`.
+`argot fit` runs all three for you and writes `.argot/scorer-config.json`. It then builds the
+**semantic index**: it embeds every function with the local code-embedding model and writes
+`.argot/semantic-index.json` — the per-repo vector index the reinvention and placement checks query
+at check time. (`scorer-config.json` is unchanged; the index lives in its own file.)
 
 ### Check
 
@@ -92,8 +105,13 @@ For each changed hunk, argot runs a short pipeline:
 3. **BPE scorer** — compute the max-surprise score, adjusted by a small per-callee penalty (applied
    only when the hunk reaches into a module foreign to the repo), and flag the hunk if the adjusted
    score exceeds the calibrated threshold.
+4. **Semantic checks** *(the semantic layer)* — for each new function, argot embeds it and queries
+   the index: is there already a near-identical function elsewhere (*reinvention*, reason
+   `redundant`)? Do its nearest neighbours cluster in a different package (*placement*, reason
+   `misplaced`)? Both are advisory — flagged like any hit, but framed as "look at this," since real
+   repos hold real duplication and cross-cutting helpers.
 
-The math, in one line:
+The math for the base voice model, in one line:
 
 $$
 \text{surprise}(t) = \log P_\text{baseline}(t) - \log P_\text{repo}(t)

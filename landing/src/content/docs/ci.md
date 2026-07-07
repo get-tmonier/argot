@@ -41,6 +41,23 @@ argot fits the model on the PR's **base** branch and scores your changes against
 it, so a dependency the PR introduces is judged as new (not learned as normal
 first). The model is cached per base commit and only re-fit when the base moves.
 
+> **Warming the embedding model.** The semantic layer's ~100 MB code-embedding
+> model (GGUF) is fetched on first use. The Action's `cache: true` (default)
+> already keeps the fitted `.argot/` — including `.argot/semantic-index.json` —
+> between runs, keyed on the base commit. To also skip re-downloading the model
+> itself, cache its directory (`~/.cache/argot/models`) with `actions/cache`:
+>
+> ```yaml
+>       - uses: actions/cache@v4
+>         with:
+>           path: ~/.cache/argot/models
+>           key: argot-model-v1
+> ```
+>
+> If the fetch fails (an offline or locked-down runner), the semantic checks simply
+> no-op and the **base foreign-catch guardrail still runs** — you never get a red
+> build because a model download was blocked.
+
 > **Committing the workflow:** pushing a `.github/workflows/*.yml` needs the
 > `workflow` token scope. If `git push` is rejected with *"refusing to allow an
 > OAuth App to … workflow … without 'workflow' scope"*, run

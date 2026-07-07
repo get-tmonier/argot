@@ -2,14 +2,23 @@
 // Self-contained animated terminal replacing /demo.gif: real text (legible to
 // screen readers, crisp at any zoom), not a raster capture. Content is
 // hand-authored to match a real `argot check` run byte-for-byte (see
-// Demo.astro's caption) — nothing here is generated from props.
+// Demo.astro's caption) — nothing here is generated from external data.
+//
+// Two variants, both real argot output:
+//   foreign   — a Django import in an all-FastAPI file (the base voice model)
+//   redundant — a new fn that reinvents an existing one (the semantic layer)
+interface Props {
+  variant?: 'foreign' | 'redundant';
+}
+const { variant = 'foreign' } = Astro.props;
+
+const isRedundant = variant === 'redundant';
+const ariaLabel = isRedundant
+  ? 'Example argot check output: a new function flagged as already implemented elsewhere in the repo'
+  : 'Example argot check output: a foreign Django import flagged in an all-FastAPI file';
 ---
 
-<div
-  class="demo-terminal"
-  role="group"
-  aria-label="Example argot check output: a foreign Django import flagged in an all-FastAPI file"
->
+<div class="demo-terminal" role="group" aria-label={ariaLabel} data-variant={variant}>
   <div class="term-titlebar">
     <span class="term-dot" style="background: var(--flag)" aria-hidden="true"></span>
     <span class="term-dot" style="background: var(--amber)" aria-hidden="true"></span>
@@ -23,34 +32,89 @@
       ></span>
     </div>
 
-    <div class="term-line term-file" style="--i: 1">fastapi/receipts.py</div>
+    {
+      isRedundant ? (
+        <>
+          <div class="term-line term-file" style="--i: 1">
+            src/api/handlers.py
+          </div>
 
-    <div class="term-line term-flag" style="--i: 2">
-      <span class="bang">!</span>
-      <span class="loc">L1-L10</span>
-      <span class="flag-word">foreign</span><span class="sep" aria-hidden="true">·</span><span
-        class="flag-word">foreign import</span
-      >
-      <span class="hash">[94a92c256e]</span>
-    </div>
+          <div class="term-line term-flag advisory" style="--i: 2">
+            <span class="dot">.</span>
+            <span class="loc">L13-L21</span>
+            <span class="flag-word amber">redundant</span>
+            <span class="sep" aria-hidden="true">
+              ·
+            </span>
+            <span class="flag-word amber">already implemented here</span>
+            <span class="hash">[0b14869858]</span>
+          </div>
 
-    <div class="term-line term-evidence" style="--i: 3">
-      <span aria-hidden="true">↳</span> <span class="flag-word">django</span> — 0 of 74 imports in this
-      repo
-    </div>
+          <div class="term-line term-evidence" style="--i: 3">
+            <span aria-hidden="true">↳</span> duplicates{' '}
+            <span class="flag-word amber">slugify</span> (src/utils/text.py:1)
+          </div>
 
-    <div class="term-line term-reach" style="--i: 4">repo reaches for: fastapi · pydantic · starlette</div>
+          <div class="term-line term-reach" style="--i: 4">
+            similarity 0.86 — you already have this
+          </div>
 
-    <div class="term-line term-code" style="--i: 5">
-      <div class="code-line">
-        <span class="gutter">1</span><span class="bar" aria-hidden="true"> │ </span><span class="code-text"
-          >from <span class="flag-word">django</span>.views import View</span
-        >
-      </div>
-      <div class="caret-line" aria-hidden="true">
-        <span class="ghost">1 │ from </span><span class="caret-marks">~~~~~~</span>
-      </div>
-    </div>
+          <div class="term-line term-code" style="--i: 5">
+            <div class="code-line">
+              <span class="gutter">13</span>
+              <span class="bar" aria-hidden="true">
+                {' │ '}
+              </span>
+              <span class="code-text">
+                def <span class="flag-word amber">make_slug</span>(text):
+              </span>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <div class="term-line term-file" style="--i: 1">
+            fastapi/receipts.py
+          </div>
+
+          <div class="term-line term-flag" style="--i: 2">
+            <span class="bang">!</span>
+            <span class="loc">L1-L10</span>
+            <span class="flag-word">foreign</span>
+            <span class="sep" aria-hidden="true">
+              ·
+            </span>
+            <span class="flag-word">foreign import</span>
+            <span class="hash">[94a92c256e]</span>
+          </div>
+
+          <div class="term-line term-evidence" style="--i: 3">
+            <span aria-hidden="true">↳</span> <span class="flag-word">django</span> — 0 of 74 imports
+            in this repo
+          </div>
+
+          <div class="term-line term-reach" style="--i: 4">
+            repo reaches for: fastapi · pydantic · starlette
+          </div>
+
+          <div class="term-line term-code" style="--i: 5">
+            <div class="code-line">
+              <span class="gutter">1</span>
+              <span class="bar" aria-hidden="true">
+                {' │ '}
+              </span>
+              <span class="code-text">
+                from <span class="flag-word">django</span>.views import View
+              </span>
+            </div>
+            <div class="caret-line" aria-hidden="true">
+              <span class="ghost">1 │ from </span>
+              <span class="caret-marks">~~~~~~</span>
+            </div>
+          </div>
+        </>
+      )
+    }
   </div>
 </div>
 
@@ -114,6 +178,11 @@
     margin-left: -0.6em;
     padding-left: 0.6em;
   }
+  /* The semantic (advisory) findings read in amber, not flag-red — the mildest
+     tier, a heads-up you judge, not a "this is foreign" verdict. */
+  .term-flag.advisory {
+    border-left-color: var(--amber);
+  }
   .term-evidence {
     margin-top: 0.15em;
     padding-left: 1.6em;
@@ -136,6 +205,10 @@
     color: var(--flag);
     font-weight: 700;
   }
+  .dot {
+    color: var(--amber);
+    font-weight: 700;
+  }
   .loc {
     color: var(--muted);
   }
@@ -145,6 +218,9 @@
   .flag-word {
     color: var(--flag);
     font-weight: 600;
+  }
+  .flag-word.amber {
+    color: var(--amber);
   }
   .hash {
     margin-left: auto;
@@ -206,14 +282,27 @@
     transform: none;
   }
 
-  /* The flagged line lands with a brief tint — the one verdict that matters. */
+  /* The flagged line lands with a brief tint — the one verdict that matters.
+     Foreign flashes flag-red; the advisory semantic finding flashes amber. */
   .demo-terminal.is-playing .term-flag {
     animation: flag-flash 0.9s var(--ease-out-expo);
+    animation-delay: calc(var(--i, 0) * 320ms);
+  }
+  .demo-terminal.is-playing .term-flag.advisory {
+    animation: flag-flash-amber 0.9s var(--ease-out-expo);
     animation-delay: calc(var(--i, 0) * 320ms);
   }
   @keyframes flag-flash {
     0% {
       background: color-mix(in srgb, var(--flag) 16%, transparent);
+    }
+    100% {
+      background: transparent;
+    }
+  }
+  @keyframes flag-flash-amber {
+    0% {
+      background: color-mix(in srgb, var(--amber) 16%, transparent);
     }
     100% {
       background: transparent;

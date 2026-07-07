@@ -168,8 +168,8 @@ The rules:
   warning and ignored (it's also the note your future self reads). Separate the
   reason from the directive with `—`, `-`, or `:`.
 - **`scorer=<name>`** (optional) scopes the mute to one signal — `bpe`, `import`,
-  or `call_receiver`. Omit it to mute the hunk whatever fired. An unknown scorer
-  name is a warning, and the directive is ignored.
+  `call_receiver`, `redundant`, or `misplaced`. Omit it to mute the hunk whatever
+  fired. An unknown scorer name is a warning, and the directive is ignored.
 - **`ignore-next-line`** mutes the single line below the comment.
   **`ignore-block-start` … `ignore-block-end`** mute everything between them
   (the `-end` needs no reason). An unclosed block suppresses to end of file with
@@ -214,7 +214,7 @@ Each `[[mute]]` is a TOML table. This example shows every field a rule can carry
 ```toml
 [[mute]]
 path = "src/vendored/**"     # REQUIRED — glob (fnmatch; `*` crosses `/`)
-scorer = "bpe"               # optional — bpe | import | call_receiver (scope to one signal)
+scorer = "bpe"               # optional — bpe | import | call_receiver | redundant | misplaced (scope to one signal)
 hash = "a1b2c3d4e5f6"        # optional — pin to one specific hit (argot mute writes this)
 expires = "2026-12-31"       # optional — YYYY-MM-DD; ignored ON/AFTER this date
 reason = "vendored upstream" # REQUIRED — why (surfaces in list-mutes and code review)
@@ -256,6 +256,7 @@ version control.
 | `argot.toml` *(repo root)* | `init` / `argot mute` / by hand | Config — `[exclude]`, `[detect]`, and `[[mute]]`. | **Yes** — commit it. |
 | `argot.local.toml` *(repo root)* | you | Personal overrides, merged on top. | No — gitignored. |
 | `.argot/scorer-config.json` | `fit` / `init` | The fitted voice model: calibrated threshold(s) + scorer config. | No — rebuildable. |
+| `.argot/semantic-index.json` | `fit` / `init` | The per-repo code-embedding index for the reinvention/placement checks. | No — rebuildable. |
 | `.argot/manifest.json` | `fit` / `init` | Versioned, hashed record of what was learned (model hash, fit commit, corpus size); read by `inspect --model`. | No — rebuildable. |
 | `.argot/repo-corpus.txt` | `fit` / `init` | The source files counted into the repo distribution. | No — rebuildable. |
 | `.argot/generic-baseline.json` | `fit` / `init` | The bundled generic-baseline reference. | No — rebuildable. |
@@ -265,6 +266,12 @@ version control.
 
 Want to commit the model yourself instead? Delete `.argot/.gitignore` and it
 stays out of your way — CI otherwise restores the model from cache or re-fits.
+
+> **The embedding model lives outside the repo.** The semantic layer's
+> code-embedding model (~100 MB) is fetched once to a shared user cache —
+> `~/.cache/argot/models/` on Linux, `~/Library/Caches/argot/models/` on macOS —
+> not into `.argot/`, so it's shared across every repo and never committed. The
+> `.argot/semantic-index.json` it produces is gitignored with the rest of `.argot/`.
 
 ## Which to reach for
 

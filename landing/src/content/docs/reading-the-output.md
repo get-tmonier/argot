@@ -36,8 +36,10 @@ Each hit line carries five things:
 - **the severity tier** — `unusual` / `suspicious` / `foreign` (below).
 - **the source** — `workdir`, `staged`, `untracked`, or a commit SHA, so you know where it came from.
 - **the reason** that fired — `import` (foreign import), `bpe` (rare token sequence), or `call_receiver`
-  (an unfamiliar callee tipped it over). A fourth reason, `convention`, exists in the engine but is
-  **off by default** — an internal benchmark-only knob, not something `check` normally emits.
+  (an unfamiliar callee tipped it over) from the base voice model, plus `redundant` (a function you
+  already have) and `misplaced` (code in an unusual location) from the semantic layer. A further
+  reason, `convention`, exists in the engine but is **off by default** — an internal benchmark-only
+  knob, not something `check` normally emits.
 
 ## Severity tiers
 
@@ -58,6 +60,11 @@ The `↳` line is the per-hunk evidence — *why* this hunk fired:
   not the words.
 - For **foreign-import** and **unfamiliar-callee** hits it shows the offending names plus a
   `common here:` line that orients you to the repo's typical vocabulary in that dimension.
+- For **redundant** hits it names the existing function the new one duplicates, with its location and
+  the similarity — the semantic layer's nearest-code evidence:
+  `↳ duplicates slugify (src/utils/text.py:1) — similarity 0.86`.
+- For **misplaced** hits it names where the code looks like it belongs:
+  `↳ looks like core/downloader code filed under commands/`.
 
 The score and reason are always printed, so a hit is never a black box.
 
@@ -89,7 +96,7 @@ Each entry in `hits[]`:
 | `score` | The hunk's score. |
 | `threshold` | Calibrated threshold the severity tier is measured against. |
 | `severity` | `unusual` / `suspicious` / `foreign`. |
-| `reason` | Scorer reason code: `bpe`, `import`, or `call_receiver`. |
+| `reason` | Scorer reason code: `bpe`, `import`, `call_receiver` (base voice model), `redundant`, or `misplaced` (semantic layer). |
 | `reason_label` | Human label of `reason` (e.g. `rare token sequence`, `foreign import`). |
 | `source` | `workdir` / `staged` / `untracked`, or a short commit SHA. |
 | `hash` | Content-based hit hash — paste into `argot mute <hash>`. |
@@ -97,10 +104,11 @@ Each entry in `hits[]`:
 
 ### `--format sarif`
 
-SARIF 2.1.0 for code scanning (GitHub `upload-sarif`, etc.). One rule per distinct `reason` code; each
-result carries the physical location and the raw `score` / `threshold` / `severity` / `source` / `hash` /
-`evidence` under `properties`. Severity tiers map to SARIF levels: `unusual → note`, `suspicious →
-warning`, `foreign → error`.
+SARIF 2.1.0 for code scanning (GitHub `upload-sarif`, etc.). One rule per distinct `reason` code —
+including the semantic layer's `redundant` and `misplaced`, which get their own auto-generated rules;
+each result carries the physical location and the raw `score` / `threshold` / `severity` / `source` /
+`hash` / `evidence` under `properties`. Severity tiers map to SARIF levels: `unusual → note`,
+`suspicious → warning`, `foreign → error`.
 
 The `voice-diff`, `inspect`, `status`, and `list` commands each also emit a stable `--format json`
 document — see [The commands](/docs/the-commands/).

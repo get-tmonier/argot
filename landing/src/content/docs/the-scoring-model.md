@@ -97,6 +97,29 @@ same config honest across very different repos.
 
 ## Reason attribution
 
-A hunk is flagged if the import checker fires (foreign import) **or** the adjusted BPE score exceeds
-the threshold. The reason is `call_receiver` when the penalty pushed a below-threshold BPE over the
-line, and `bpe` when raw BPE already crossed it. Scores and reasons are always included in the output.
+A hunk is flagged by the base voice model if the import checker fires (foreign import) **or** the
+adjusted BPE score exceeds the threshold. The reason is `import` for a foreign import, `call_receiver`
+when the penalty pushed a below-threshold BPE over the line, and `bpe` when raw BPE already crossed
+it. The semantic layer adds two more reasons — `redundant` and `misplaced` (below). Scores and
+reasons are always included in the output.
+
+## The semantic layer
+
+Separate from the BPE model above, argot keeps a per-repo **code-embedding index**. At fit it embeds
+every function with a small local model (`jina-embeddings-v2-base-code`, Q4 GGUF, ~100 MB, statically
+linked via llama.cpp — CPU-first, Metal-accelerated on macOS; fetched once to a local cache on first
+use, ~250 MB peak RAM while a check embeds) and stores the vectors in `.argot/semantic-index.json`.
+It turns a function into a vector — no prompt, no generation, nothing leaves your machine; offline,
+the layer no-ops and the base guardrail still runs.
+
+At check, each new function is embedded and matched against the index:
+
+- **`redundant`** — the function's nearest cross-file neighbour is a near-duplicate above a similarity
+  margin. Evidence: `↳ duplicates <symbol> (path:line) — similarity 0.86`. Retrieval 96–100%.
+- **`misplaced`** — the function's nearest semantic neighbours concentrate in a different package or
+  area than the one it was filed under. Evidence: `↳ looks like <area> code filed under <actual-area>`.
+
+Both **gate CI like any other hit** but are framed as **advisory**: real repos hold real duplication
+and cross-cutting code, so argot shows the nearest existing function and lets you judge. This channel
+is separate from the foreign-catch metric — it does not change the base model's catch or false-alarm
+numbers.
