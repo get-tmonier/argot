@@ -26,5 +26,27 @@ targets = [
     "x86_64-pc-windows-msvc",
 ]
 # Shipped binaries self-update via `argot update`; dev/CI builds skip the
-# feature (and its HTTP dependency tree) entirely.
-features = ["self-update"]
+# feature (and its HTTP dependency tree) entirely. `semantic` links llama.cpp
+# (statically) for the code-embedding layer — on in shipped binaries, off in
+# dev/CI base loops. See the semantic layer notes in CLAUDE.md.
+features = ["self-update", "semantic"]
+
+# The `semantic` build compiles llama.cpp from source, which needs cmake + a C++
+# toolchain on every release runner. Declare it per package manager so dist
+# installs it before the build (the hosted images mostly ship it already; this
+# guarantees it, incl. on the native ARM runner below).
+[dist.dependencies.apt]
+cmake = '*'
+
+[dist.dependencies.homebrew]
+cmake = '*'
+
+[dist.dependencies.chocolatey]
+cmake = '*'
+
+# Build aarch64-linux on GitHub's NATIVE ARM runner instead of cross-compiling —
+# llama.cpp's C++ then compiles natively (no cross toolchain, the real risk).
+# The other four targets already build on their own native runners (macOS x2 with
+# Metal, x86_64-linux, windows-msvc).
+[dist.github-custom-runners]
+aarch64-unknown-linux-gnu = "ubuntu-24.04-arm"
