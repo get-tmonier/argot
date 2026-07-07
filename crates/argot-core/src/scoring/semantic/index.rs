@@ -4,7 +4,7 @@
 //! diff-defined function, ask for nearest neighbours / margin / area vote).
 //!
 //! All three semantic features read this one index:
-//! - **F1 reinvention**: nearest cross-file neighbour + margin.
+//! - **F1 reinvention**: nearest cross-file neighbour + callee/subtoken confirm.
 //! - **F2 placement**: the areas of the top-k cross-file neighbours.
 //! - **F4 evidence**: the nearest existing functions, rendered on a finding.
 //!
@@ -34,8 +34,8 @@ const ARTIFACT_VERSION: u32 = 1;
 /// near-duplicate noise and never make a meaningful reinvention target.
 const MIN_BODY_LINES: usize = 3;
 
-/// One indexed function: its embedding plus where it lives, and the set of
-/// functions it calls (its callees) — the structural confirmation that turns a
+/// One indexed function: its embedding plus where it lives, and two structural
+/// fingerprints — its callees and its identifier subtokens — that turn a
 /// near-embedding-match into a confident reinvention.
 #[derive(Debug, Clone)]
 pub struct IndexEntry {
@@ -48,6 +48,9 @@ pub struct IndexEntry {
     pub vec: Vec<f32>,
     /// Sorted, deduped callee names — used for callee-Jaccard confirmation.
     pub callees: Vec<String>,
+    /// Sorted, deduped identifier subtokens — used for IDF-weighted subtoken
+    /// Jaccard confirmation (the main reinvention-recall driver).
+    pub subtokens: Vec<String>,
 }
 
 /// A function to index or query: identity plus the source text to embed, and its
@@ -63,6 +66,8 @@ pub struct FunctionRef {
     pub text: String,
     /// Sorted, deduped callee names within this function.
     pub callees: Vec<String>,
+    /// Sorted, deduped identifier subtokens within this function.
+    pub subtokens: Vec<String>,
 }
 
 /// A scored neighbour returned by [`SemanticIndex::nearest`].
@@ -110,6 +115,7 @@ impl SemanticIndex {
                 line: f.line,
                 vec,
                 callees: f.callees.clone(),
+                subtokens: f.subtokens.clone(),
             })
             .collect();
         Ok(Self {
@@ -144,7 +150,7 @@ impl SemanticIndex {
 
     // --- serialization (compact f16, its own artifact) ---
 
-    fn to_json(&self, margin_bar: f32, area_norms: BTreeMap<String, f32>) -> LanguageIndexJson {
+    fn to_json(&self, area_norms: BTreeMap<String, f32>) -> LanguageIndexJson {
         let mut bytes = Vec::with_capacity(self.entries.len() * self.dim * 2);
         for e in &self.entries {
             for &x in &e.vec {
@@ -158,9 +164,9 @@ impl SemanticIndex {
             paths: self.entries.iter().map(|e| e.path.clone()).collect(),
             lines: self.entries.iter().map(|e| e.line).collect(),
             vectors_b64: base64::engine::general_purpose::STANDARD.encode(&bytes),
-            margin_bar,
             area_norms,
             callees: self.entries.iter().map(|e| e.callees.clone()).collect(),
+            subtokens: self.entries.iter().map(|e| e.subtokens.clone()).collect(),
         }
     }
 
@@ -195,6 +201,7 @@ impl SemanticIndex {
                 line: j.lines[i],
                 vec,
                 callees: j.callees.get(i).cloned().unwrap_or_default(),
+                subtokens: j.subtokens.get(i).cloned().unwrap_or_default(),
             });
         }
         Ok(Self {
@@ -231,6 +238,7 @@ pub fn functions_in_file(
         }
         let text = lines[s..e].join("\n");
         let callees = callee_set(&text, adapter.language());
+        let subtokens = subtoken_set(&text);
         out.push(FunctionRef {
             symbol: body.symbol,
             path: rel_path.to_string(),
@@ -238,9 +246,74 @@ pub fn functions_in_file(
             end_line: e,
             text,
             callees,
+            subtokens,
         });
     }
     out
+}
+
+/// Language-agnostic identifier subtokens of a function's source: every
+/// identifier, split on underscores/digits and camelCase into lowercased pieces
+/// of ≥3 chars, deduped and sorted. The reinvention scorer weights these by
+/// corpus rarity (IDF), so ubiquitous pieces (`self`, `get`) carry ~0 weight and
+/// no per-language stop-list is needed. Runs at fit (per corpus fn) and check
+/// (per diff fn) by the same path, so an indexed function and its check-time
+/// re-derivation are identical.
+pub(super) fn subtoken_set(source: &str) -> Vec<String> {
+    let mut set = std::collections::BTreeSet::new();
+    let mut ident = String::new();
+    for ch in source.chars() {
+        if ch.is_ascii_alphanumeric() || ch == '_' {
+            ident.push(ch);
+        } else if !ident.is_empty() {
+            split_identifier(&ident, &mut set);
+            ident.clear();
+        }
+    }
+    if !ident.is_empty() {
+        split_identifier(&ident, &mut set);
+    }
+    set.into_iter().collect()
+}
+
+/// Split one identifier on underscores and digit runs, then camelCase each part.
+fn split_identifier(ident: &str, set: &mut std::collections::BTreeSet<String>) {
+    for part in ident.split(|c: char| c == '_' || c.is_ascii_digit()) {
+        if !part.is_empty() {
+            split_camel(part, set);
+        }
+    }
+}
+
+/// Split an alphabetic run on camelCase / acronym boundaries, emitting lowercased
+/// pieces of ≥3 chars: `HTTPServer` → `http`,`server`; `parseURL` → `parse`,`url`;
+/// `getName` → `get`,`name`.
+fn split_camel(word: &str, set: &mut std::collections::BTreeSet<String>) {
+    let chars: Vec<char> = word.chars().collect();
+    let n = chars.len();
+    let mut start = 0;
+    for i in 1..n {
+        let prev = chars[i - 1];
+        let cur = chars[i];
+        // Boundary at lower→Upper, or at the last Upper of an acronym run that is
+        // followed by a lowercase (…P|Server in HTTPServer).
+        let boundary = (prev.is_ascii_lowercase() && cur.is_ascii_uppercase())
+            || (prev.is_ascii_uppercase()
+                && cur.is_ascii_uppercase()
+                && i + 1 < n
+                && chars[i + 1].is_ascii_lowercase());
+        if boundary {
+            emit_subtoken(&chars[start..i], set);
+            start = i;
+        }
+    }
+    emit_subtoken(&chars[start..n], set);
+}
+
+fn emit_subtoken(word: &[char], set: &mut std::collections::BTreeSet<String>) {
+    if word.len() >= 3 {
+        set.insert(word.iter().collect::<String>().to_ascii_lowercase());
+    }
 }
 
 /// The sorted, deduped callee names within a function's source — the structural
@@ -254,50 +327,6 @@ fn callee_set(source: &str, language: crate::scoring::adapters::Language) -> Vec
         .collect::<std::collections::BTreeSet<String>>()
         .into_iter()
         .collect()
-}
-
-/// Percentile of the corpus's own cross-file self-margins used as the F1 firing
-/// bar: a diff function fires only if its margin exceeds this — i.e. it stands
-/// out as a duplicate more strongly than ~all of the repo's own functions do.
-/// Tuned to 0.97 against rich + scrapy. This is the *margin* path (a distinct
-/// standout dup); the callee-confirm path in `redundant.rs` does the heavy
-/// lifting now (combined recall ~60–70% at ~1% over-fire — see
-/// `.scratch/semantic-layer/P5-tuning.md`). Kept as an OR path for callee-less
-/// standouts.
-const MARGIN_BAR_PERCENTILE: f64 = 0.97;
-/// Cap on functions sampled for the margin distribution (bounds fit-time cost;
-/// the high tail is stable well below this).
-const MARGIN_SAMPLE_CAP: usize = 800;
-/// Floor on the bar so a tiny or uniform corpus can't calibrate to ~0 (which
-/// would then fire on everything).
-const MARGIN_BAR_FLOOR: f32 = 0.05;
-
-/// Calibrate the per-repo F1 margin bar from the index's own self-similarity:
-/// for a deterministic sample of functions, compute each one's cross-file margin
-/// (`cos₁ − cos₂` to its nearest other-file neighbours), then take a high
-/// percentile. Empty / single-file indices calibrate to the floor. This is the
-/// same "measure the repo against itself" discipline the base scorers use.
-pub fn calibrate_margin_bar(index: &SemanticIndex) -> f32 {
-    if index.len() < 2 {
-        return MARGIN_BAR_FLOOR;
-    }
-    let step = (index.len() / MARGIN_SAMPLE_CAP).max(1);
-    let mut margins: Vec<f32> = Vec::new();
-    for (i, e) in index.entries.iter().enumerate() {
-        if i % step != 0 {
-            continue;
-        }
-        let neigh = index.nearest(&e.vec, 2, |o| o.path != e.path);
-        if let (Some(a), Some(b)) = (neigh.first(), neigh.get(1)) {
-            margins.push(a.cosine - b.cosine);
-        }
-    }
-    if margins.is_empty() {
-        return MARGIN_BAR_FLOOR;
-    }
-    margins.sort_by(|a, b| a.total_cmp(b));
-    let rank = ((margins.len() as f64 - 1.0) * MARGIN_BAR_PERCENTILE).round() as usize;
-    margins[rank.min(margins.len() - 1)].max(MARGIN_BAR_FLOOR)
 }
 
 /// Cross-file neighbours polled when calibrating area locality (matches the
@@ -347,27 +376,25 @@ struct LanguageIndexJson {
     paths: Vec<String>,
     lines: Vec<usize>,
     vectors_b64: String,
-    /// F1 per-repo calibrated margin bar (default 0.0 for indices written before
-    /// this field, which then fall back to the check-time absolute floor only).
-    #[serde(default)]
-    margin_bar: f32,
     /// F2 per-area "belongs" fraction: the typical share of a function's nearest
     /// neighbours that share its area. Empty for indices written before this
     /// field (placement then falls back to the check-time default norm).
     #[serde(default)]
     area_norms: BTreeMap<String, f32>,
-    /// Per-function callee sets (aligned with `symbols`/`paths`) — the structural
-    /// fingerprint the F1 scorer confirms against. Empty for indices written
-    /// before this field (F1 then falls back to the margin path only).
+    /// Per-function callee sets (aligned with `symbols`/`paths`) — one of the two
+    /// structural fingerprints the F1 scorer confirms against.
     #[serde(default)]
     callees: Vec<Vec<String>>,
+    /// Per-function identifier subtokens (aligned with `symbols`/`paths`) — the
+    /// IDF-weighted fingerprint that drives most of F1's reinvention recall.
+    #[serde(default)]
+    subtokens: Vec<Vec<String>>,
 }
 
-/// A language's loaded index plus its calibrated bars.
+/// A language's loaded index plus its calibrated area norms.
 #[derive(Debug, Clone)]
 pub struct LoadedIndex {
     pub index: SemanticIndex,
-    pub margin_bar: f32,
     pub area_norms: std::collections::HashMap<String, f32>,
 }
 
@@ -390,17 +417,16 @@ impl SemanticArtifact {
         }
     }
 
-    /// Add a language's index and its calibrated bars (skipped upstream if the
-    /// index is empty).
+    /// Add a language's index and its calibrated area norms (skipped upstream if
+    /// the index is empty).
     pub fn insert(
         &mut self,
         language: &str,
         index: &SemanticIndex,
-        margin_bar: f32,
         area_norms: BTreeMap<String, f32>,
     ) {
         self.languages
-            .insert(language.to_string(), index.to_json(margin_bar, area_norms));
+            .insert(language.to_string(), index.to_json(area_norms));
     }
 
     pub fn is_empty(&self) -> bool {
@@ -412,7 +438,6 @@ impl SemanticArtifact {
         match self.languages.get(language) {
             Some(j) => Ok(Some(LoadedIndex {
                 index: SemanticIndex::from_json(j)?,
-                margin_bar: j.margin_bar,
                 area_norms: j.area_norms.clone().into_iter().collect(),
             })),
             None => Ok(None),
@@ -440,6 +465,7 @@ mod tests {
             line,
             vec,
             callees: Vec::new(),
+            subtokens: Vec::new(),
         }
     }
 
@@ -478,22 +504,25 @@ mod tests {
 
     #[test]
     fn artifact_roundtrip_preserves_index_within_f16_tolerance() {
-        let idx = tiny_index();
+        let mut idx = tiny_index();
+        idx.entries[0].callees = vec!["lower".into(), "strip".into()];
+        idx.entries[0].subtokens = vec!["normalize".into(), "slug".into()];
         let mut art = SemanticArtifact::new("deadbeef".into());
         art.insert(
             "python",
             &idx,
-            0.42,
             BTreeMap::from([("src".to_string(), 0.5f32)]),
         );
         let json = art.to_json_string().unwrap();
         let back = SemanticArtifact::from_json_str(&json).unwrap();
         assert_eq!(back.repo_sha, "deadbeef");
         let loaded = back.load("python").unwrap().unwrap();
-        assert!((loaded.margin_bar - 0.42).abs() < 1e-6);
         assert!((loaded.area_norms["src"] - 0.5).abs() < 1e-6);
         let idx2 = loaded.index;
         assert_eq!(idx2.len(), idx.len());
+        // Callee + subtoken fingerprints survive the round-trip.
+        assert_eq!(idx2.entries[0].callees, vec!["lower", "strip"]);
+        assert_eq!(idx2.entries[0].subtokens, vec!["normalize", "slug"]);
         for (a, b) in idx.entries.iter().zip(&idx2.entries) {
             assert_eq!(a.symbol, b.symbol);
             assert_eq!(a.path, b.path);
@@ -532,5 +561,28 @@ class C:
         assert_eq!(big.path, "src/m.py");
         assert_eq!(big.line, 1);
         assert!(big.text.contains("return total"));
+        // Subtokens extracted from the body identifiers (≥3 chars).
+        assert!(
+            big.subtokens.contains(&"total".to_string()),
+            "{:?}",
+            big.subtokens
+        );
+    }
+
+    #[test]
+    fn subtoken_set_splits_camel_snake_and_acronyms() {
+        let set = subtoken_set("def parseHTTPResponse(url): return read_json_body(url)");
+        // camelCase + acronym: parseHTTPResponse → parse, http, response
+        for w in ["parse", "http", "response", "url", "read", "json", "body"] {
+            assert!(set.contains(&w.to_string()), "missing {w} in {set:?}");
+        }
+        // sorted + deduped, all lowercase, all ≥3 chars.
+        assert!(
+            set.windows(2).all(|w| w[0] < w[1]),
+            "sorted+deduped: {set:?}"
+        );
+        assert!(set
+            .iter()
+            .all(|s| s.len() >= 3 && s == &s.to_ascii_lowercase()));
     }
 }

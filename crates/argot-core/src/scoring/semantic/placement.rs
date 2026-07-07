@@ -163,6 +163,8 @@ mod tests {
             path: path.into(),
             line: 1,
             vec: unit(vec),
+            callees: Vec::new(),
+            subtokens: Vec::new(),
         }
     }
 
@@ -173,6 +175,8 @@ mod tests {
             line: 10,
             end_line: 20,
             text: String::new(),
+            callees: Vec::new(),
+            subtokens: Vec::new(),
         }
     }
 

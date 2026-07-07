@@ -1343,12 +1343,11 @@ pub fn run_calibrate(
                 match crate::scoring::semantic::index::SemanticIndex::build(emb, &funcs) {
                     Ok(idx) if !idx.is_empty() => {
                         use crate::scoring::semantic::index as sem_index;
-                        let bar = sem_index::calibrate_margin_bar(&idx);
                         let area_norms = sem_index::calibrate_area_norms(
                             &idx,
                             crate::scoring::semantic::placement::AREA_DEPTH,
                         );
-                        semantic_artifact.insert(name, &idx, bar, area_norms);
+                        semantic_artifact.insert(name, &idx, area_norms);
                     }
                     Ok(_) => {}
                     Err(e) => eprintln!("argot: semantic index for {name} failed: {e}"),

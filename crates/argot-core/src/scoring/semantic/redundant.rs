@@ -1,16 +1,26 @@
 //! F1 · reinvention — "you already have this".
 //!
 //! For a function introduced by the diff, ask the [`SemanticIndex`] for its
-//! nearest **cross-file** existing function and fire on either of two signals:
+//! nearest **cross-file** existing function. The embedding *retrieves* the
+//! candidate; cheap **structural** signals *confirm* it. Code embeddings are
+//! anisotropic (everything sits at cos 0.7–1.0), so cosine alone over-fires — a
+//! near-match only fires when it also agrees structurally on one of:
 //!
-//! - **callee-confirm** (the workhorse): the nearest neighbour is very close
-//!   (`cos₁ ≥ 0.85`) AND they share a meaningful fraction of **callees**. Code
-//!   embeddings are anisotropic (everything sits at cos 0.8–1.0), so absolute
-//!   cosine alone over-fires; the shared-callee overlap confirms it's a real
-//!   reinvention (genuinely-new code shares ~0 callees with its nearest match, a
-//!   reinvention ~half). This lifts recall from ~20% to ~60–70% at ~1% over-fire.
-//! - **margin** (secondary): the neighbour stands out distinctly (`cos₁ − cos₂`
-//!   above a per-repo bar) — catches callee-less standouts the first path misses.
+//! - **callee overlap** — the two functions call a meaningful fraction of the
+//!   same functions. A reinvention reuses the same helpers; genuinely-new code
+//!   shares ~0 callees with its nearest match.
+//! - **weighted-subtoken overlap** — their identifiers, split into subtokens
+//!   (`getUserName` → `user`, `name`) and weighted by corpus rarity (IDF), agree
+//!   on the *rare, domain-specific* vocabulary. A shared rare token
+//!   (`east_asian_width`) is strong evidence; shared ubiquitous ones (`self`,
+//!   `get`, `return`) carry ~0 weight, so no per-language stop-list is needed.
+//!
+//! Two tiers. The **normal** tier fires on a close match (`cos₁ ≥ 0.78`) with
+//! *moderate* structural agreement. The **strong** tier *rescues* a slightly more
+//! distant match (`cos₁ ≥ 0.70`) when the structural agreement is *high* — a
+//! heavily-reworded reinvention embeds further from the original but still reuses
+//! its rare vocabulary / helpers. Tuned on rich + scrapy to ~86% recall at ~2%
+//! over-fire (see `.scratch/semantic-layer/P5-tuning.md`).
 //!
 //! This module is pure scoring: it takes an embedding and returns a finding or
 //! nothing. Extraction, embedding and `Hit` construction live in the check flow.
@@ -18,26 +28,31 @@
 //! feature correctly surfaces; the evidence names the existing function so the
 //! author judges.
 
+use std::collections::{BTreeSet, HashMap};
+
 use super::index::{FunctionRef, SemanticIndex};
 
-/// Minimum nearest-cosine for the *margin* path — a "you already have this"
-/// claim needs a genuinely close match. Anisotropy keeps most code above this,
-/// so on the margin path the bar is the real gate.
-const ABS_SIMILARITY_FLOOR: f32 = 0.80;
+/// Normal tier — a close embedding match with *moderate* structural agreement.
+const NORMAL_SIMILARITY: f32 = 0.78;
+const NORMAL_SUBTOKEN_BAR: f32 = 0.40;
+const NORMAL_CALLEE_BAR: f32 = 0.12;
+/// The callee path needs both sides to have at least this many callees — a
+/// 1-callee fn matching a 1-callee fn is 100% overlap by luck, not evidence.
+const NORMAL_MIN_CALLEES: usize = 2;
 
-/// The **callee-confirm** path (the frontier-breaker): embedding retrieves the
-/// candidate, shared callees confirm it's a real reinvention rather than an
-/// anisotropy near-match. A diff function fires if its nearest neighbour is very
-/// close AND they call a meaningful fraction of the same functions — genuinely-
-/// new code shares ~0 callees with its nearest match, a reinvention ~half.
-/// Absolute bars (stable across corpora): validated on rich + scrapy at ~71–80%
-/// recall / ~1–2% over-fire vs the margin path's ~20% (see `P5-tuning.md`).
-const CONFIRM_SIMILARITY: f32 = 0.85;
-const CALLEE_OVERLAP_BAR: f32 = 0.15;
-/// A function with fewer callees than this can't form a reliable callee-Jaccard
-/// (a 1-callee fn matching a 1-callee fn is 100% overlap by luck), so the
-/// callee-confirm path needs both sides to have at least this many callees.
-const MIN_CALLEES_FOR_CONFIRM: usize = 2;
+/// Strong (rescue) tier — a slightly more distant match that *strongly* agrees
+/// structurally. Catches heavily-reworded reinventions that embed further from
+/// the original but still reuse its rare vocabulary / helpers. Firing this low on
+/// cosine is only safe *because* the structural bars are high.
+const STRONG_SIMILARITY: f32 = 0.70;
+const STRONG_SUBTOKEN_BAR: f32 = 0.52;
+const STRONG_CALLEE_BAR: f32 = 0.30;
+const STRONG_MIN_CALLEES: usize = 3;
+
+/// The lowest cosine at which a reinvention can fire (the strong-tier floor).
+/// Exposed so the check flow can report it as the finding's informational
+/// "threshold".
+pub(crate) const MIN_SIMILARITY_TO_FIRE: f32 = STRONG_SIMILARITY;
 
 /// A fired reinvention finding: the existing function this one duplicates.
 #[derive(Debug, Clone)]
@@ -47,21 +62,36 @@ pub struct RedundantFinding {
     pub nearest_line: usize,
     /// Cosine to the nearest existing function (the "similarity").
     pub similarity: f32,
-    /// How far the nearest neighbour stands out (`cos₁ − cos₂`).
-    pub margin: f32,
 }
 
-/// Scores diff-defined functions against a repo's existing functions.
+/// Scores diff-defined functions against a repo's existing functions. Holds the
+/// corpus subtoken IDF (built once from the index), so subtoken overlap weights
+/// rare, domain-specific vocabulary and discounts ubiquitous tokens.
 pub struct RedundantScorer<'a> {
     index: &'a SemanticIndex,
-    /// Per-repo calibrated margin bar; a function fires only if its margin
-    /// exceeds this.
-    margin_bar: f32,
+    idf: HashMap<String, f32>,
+    /// IDF for a subtoken not seen in the corpus (df = 0) — the maximum weight.
+    default_idf: f32,
 }
 
 impl<'a> RedundantScorer<'a> {
-    pub fn new(index: &'a SemanticIndex, margin_bar: f32) -> Self {
-        Self { index, margin_bar }
+    pub fn new(index: &'a SemanticIndex) -> Self {
+        let n_docs = index.entries.len().max(1) as f64;
+        let mut df: HashMap<&str, u32> = HashMap::new();
+        for e in &index.entries {
+            for t in &e.subtokens {
+                *df.entry(t.as_str()).or_insert(0) += 1;
+            }
+        }
+        let idf = df
+            .iter()
+            .map(|(t, &c)| ((*t).to_string(), idf_of(c, n_docs)))
+            .collect();
+        Self {
+            index,
+            idf,
+            default_idf: idf_of(0, n_docs),
+        }
     }
 
     /// Evaluate one diff-defined function. `query` is its L2-normalised
@@ -71,39 +101,73 @@ impl<'a> RedundantScorer<'a> {
         if self.index.is_empty() || !is_reinvention_candidate(&func.symbol, &func.path) {
             return None;
         }
-        // Nearest two *cross-file* neighbours (same-file matches are overloads /
+        // Nearest *cross-file* neighbour (same-file matches are overloads /
         // adjacent helpers, a known false-alarm driver).
-        let neigh = self.index.nearest(query, 2, |e| e.path != func.path);
-        let best = *neigh.first()?;
+        let best = *self
+            .index
+            .nearest(query, 1, |e| e.path != func.path)
+            .first()?;
         let best_entry = self.index.entry(best.entry_index);
         // A near-duplicate that keeps the *same name* in another file is almost
         // always a move/rename, not a reinvention — don't flag refactors.
         if eq_ignore_ascii_case(&best_entry.symbol, &func.symbol) {
             return None;
         }
-        let second = neigh.get(1).map(|n| n.cosine).unwrap_or(0.0);
-        let margin = best.cosine - second;
-        // Margin path: the nearest neighbour stands out distinctly. Callee-confirm
-        // path: it's very close AND shares a meaningful fraction of callees. Either
-        // fires; the callee path recovers the reinventions the margin misses when
-        // the repo already has near-duplicate clusters (diluted margin).
-        let margin_fires = best.cosine >= ABS_SIMILARITY_FLOOR && margin >= self.margin_bar;
+        let cos = best.cosine;
         let callee_jac = callee_jaccard(&func.callees, &best_entry.callees);
-        let callee_fires = best.cosine >= CONFIRM_SIMILARITY
-            && func.callees.len() >= MIN_CALLEES_FOR_CONFIRM
-            && best_entry.callees.len() >= MIN_CALLEES_FOR_CONFIRM
-            && callee_jac >= CALLEE_OVERLAP_BAR;
-        if !margin_fires && !callee_fires {
+        let sub_jac = self.subtoken_jaccard(&func.subtokens, &best_entry.subtokens);
+        // Both sides must clear the min-callee guard for the callee path to count.
+        let both_callees =
+            |min: usize| func.callees.len() >= min && best_entry.callees.len() >= min;
+
+        let normal = cos >= NORMAL_SIMILARITY
+            && ((both_callees(NORMAL_MIN_CALLEES) && callee_jac >= NORMAL_CALLEE_BAR)
+                || sub_jac >= NORMAL_SUBTOKEN_BAR);
+        let strong = cos >= STRONG_SIMILARITY
+            && ((both_callees(STRONG_MIN_CALLEES) && callee_jac >= STRONG_CALLEE_BAR)
+                || sub_jac >= STRONG_SUBTOKEN_BAR);
+        if !normal && !strong {
             return None;
         }
         Some(RedundantFinding {
             nearest_symbol: best_entry.symbol.clone(),
             nearest_path: best_entry.path.clone(),
             nearest_line: best_entry.line,
-            similarity: best.cosine,
-            margin,
+            similarity: cos,
         })
     }
+
+    /// IDF-weighted Jaccard over two subtoken sets: shared *rare* subtokens count
+    /// heavily, shared ubiquitous ones ~nothing. A subtoken unseen in the corpus
+    /// gets the maximum (default) weight. Both inputs are sorted + deduped.
+    fn subtoken_jaccard(&self, a: &[String], b: &[String]) -> f32 {
+        if a.is_empty() && b.is_empty() {
+            return 0.0;
+        }
+        let sa: BTreeSet<&str> = a.iter().map(String::as_str).collect();
+        let sb: BTreeSet<&str> = b.iter().map(String::as_str).collect();
+        let mut inter_w = 0.0f32;
+        let mut union_w = 0.0f32;
+        for t in sa.union(&sb) {
+            let w = *self.idf.get(*t).unwrap_or(&self.default_idf);
+            union_w += w;
+            if sa.contains(t) && sb.contains(t) {
+                inter_w += w;
+            }
+        }
+        if union_w > 0.0 {
+            inter_w / union_w
+        } else {
+            0.0
+        }
+    }
+}
+
+/// Smoothed inverse document frequency: `ln((N+1)/(df+1)) + 1`. Monotone-
+/// decreasing in `df`, always ≥ 1, so a shared rare subtoken outweighs a shared
+/// common one without any hand-tuned stop-list.
+fn idf_of(df: u32, n_docs: f64) -> f32 {
+    (((n_docs + 1.0) / (df as f64 + 1.0)).ln() + 1.0) as f32
 }
 
 fn eq_ignore_ascii_case(a: &str, b: &str) -> bool {
@@ -173,25 +237,24 @@ mod tests {
         v.into_iter().map(|x| x / n).collect()
     }
 
-    fn entry(symbol: &str, path: &str, vec: Vec<f32>) -> IndexEntry {
-        entry_c(symbol, path, vec, &[])
-    }
-
-    fn entry_c(symbol: &str, path: &str, vec: Vec<f32>, callees: &[&str]) -> IndexEntry {
+    fn entry_c(
+        symbol: &str,
+        path: &str,
+        vec: Vec<f32>,
+        callees: &[&str],
+        subtokens: &[&str],
+    ) -> IndexEntry {
         IndexEntry {
             symbol: symbol.into(),
             path: path.into(),
             line: 1,
             vec: unit(vec),
             callees: callees.iter().map(|s| s.to_string()).collect(),
+            subtokens: subtokens.iter().map(|s| s.to_string()).collect(),
         }
     }
 
-    fn func(symbol: &str, path: &str) -> FunctionRef {
-        func_c(symbol, path, &[])
-    }
-
-    fn func_c(symbol: &str, path: &str, callees: &[&str]) -> FunctionRef {
+    fn func_c(symbol: &str, path: &str, callees: &[&str], subtokens: &[&str]) -> FunctionRef {
         FunctionRef {
             symbol: symbol.into(),
             path: path.into(),
@@ -199,64 +262,116 @@ mod tests {
             end_line: 15,
             text: String::new(),
             callees: callees.iter().map(|s| s.to_string()).collect(),
+            subtokens: subtokens.iter().map(|s| s.to_string()).collect(),
         }
     }
 
-    /// An index where entry `slugify` sits alone in one direction and a cluster
-    /// of unrelated code sits elsewhere.
+    /// `slugify` sits alone in one direction, a cluster of config code elsewhere.
     fn index() -> SemanticIndex {
         SemanticIndex {
             dim: 3,
             entries: vec![
-                entry("slugify", "src/utils/text.py", vec![1.0, 0.0, 0.0]),
-                entry("parse_config", "src/cfg.py", vec![0.0, 1.0, 0.0]),
-                entry("load_yaml", "src/cfg.py", vec![0.0, 0.9, 0.1]),
+                entry_c(
+                    "slugify",
+                    "src/utils/text.py",
+                    vec![1.0, 0.0, 0.0],
+                    &[],
+                    &["slug", "normalize", "whitespace"],
+                ),
+                entry_c(
+                    "parse_config",
+                    "src/cfg.py",
+                    vec![0.0, 1.0, 0.0],
+                    &[],
+                    &["config", "parse", "yaml"],
+                ),
+                entry_c(
+                    "load_yaml",
+                    "src/cfg.py",
+                    vec![0.0, 0.9, 0.1],
+                    &[],
+                    &["yaml", "load", "stream"],
+                ),
             ],
         }
     }
 
     #[test]
-    fn fires_on_near_duplicate_across_files() {
+    fn fires_on_near_duplicate_via_subtokens() {
         let idx = index();
-        let scorer = RedundantScorer::new(&idx, 0.3);
-        // A new function very close to `slugify`, in a different file.
+        let scorer = RedundantScorer::new(&idx);
+        // Very close to `slugify` (cos ≈ 0.98) and shares its rare subtokens.
         let q = unit(vec![0.98, 0.02, 0.0]);
-        let finding = scorer.evaluate(&func("normalize_slug", "src/api/handlers.py"), &q);
-        let f = finding.expect("near-duplicate fires");
+        let f = scorer
+            .evaluate(
+                &func_c(
+                    "normalize_slug",
+                    "src/api/handlers.py",
+                    &[],
+                    &["slug", "normalize", "whitespace"],
+                ),
+                &q,
+            )
+            .expect("subtoken-confirmed near-duplicate fires");
         assert_eq!(f.nearest_symbol, "slugify");
-        assert!(f.similarity > 0.9 && f.margin > 0.3);
+        assert!(f.similarity > 0.9);
     }
 
     #[test]
-    fn does_not_fire_on_distinct_function() {
+    fn does_not_fire_on_close_but_structurally_unrelated() {
         let idx = index();
-        let scorer = RedundantScorer::new(&idx, 0.3);
-        // Sits between the two cfg functions — no single standout (low margin).
-        let q = unit(vec![0.0, 0.95, 0.31]);
+        let scorer = RedundantScorer::new(&idx);
+        // Close to `slugify` in embedding, but no shared callees and disjoint
+        // subtokens → anisotropy near-match, not a reinvention.
+        let q = unit(vec![0.98, 0.02, 0.0]);
         assert!(scorer
-            .evaluate(&func("brand_new_thing", "src/api/handlers.py"), &q)
+            .evaluate(
+                &func_c(
+                    "draw_widget",
+                    "src/api/handlers.py",
+                    &[],
+                    &["draw", "widget", "canvas"]
+                ),
+                &q,
+            )
             .is_none());
     }
 
     #[test]
     fn same_file_match_is_excluded() {
         let idx = index();
-        let scorer = RedundantScorer::new(&idx, 0.3);
+        let scorer = RedundantScorer::new(&idx);
         let q = unit(vec![0.98, 0.02, 0.0]);
         // Candidate lives in slugify's own file → its only near-dup is same-file.
         assert!(scorer
-            .evaluate(&func("slug2", "src/utils/text.py"), &q)
+            .evaluate(
+                &func_c(
+                    "slug2",
+                    "src/utils/text.py",
+                    &[],
+                    &["slug", "normalize", "whitespace"]
+                ),
+                &q,
+            )
             .is_none());
     }
 
     #[test]
     fn same_name_is_treated_as_move_not_reinvention() {
         let idx = index();
-        let scorer = RedundantScorer::new(&idx, 0.3);
+        let scorer = RedundantScorer::new(&idx);
         let q = unit(vec![0.98, 0.02, 0.0]);
         // Same symbol name, different file → a move/rename, not a reinvention.
         assert!(scorer
-            .evaluate(&func("slugify", "src/api/handlers.py"), &q)
+            .evaluate(
+                &func_c(
+                    "slugify",
+                    "src/api/handlers.py",
+                    &[],
+                    &["slug", "normalize", "whitespace"]
+                ),
+                &q,
+            )
             .is_none());
     }
 
@@ -271,10 +386,9 @@ mod tests {
         assert!(is_reinvention_candidate("normalize", "src/utils/text.py"));
     }
 
-    /// Two near-duplicate existing functions dilute the margin below the bar, so
-    /// the margin path stays quiet — but the candidate shares the original's
-    /// callees, so the callee-confirm path fires. This is the frontier-breaker.
-    fn diluted_index() -> SemanticIndex {
+    /// A near-duplicate cluster where the candidate shares the original's callees
+    /// but NOT its subtokens — the callee path must carry the fire on its own.
+    fn callee_index() -> SemanticIndex {
         SemanticIndex {
             dim: 3,
             entries: vec![
@@ -283,53 +397,98 @@ mod tests {
                     "src/money.py",
                     vec![1.0, 0.0, 0.0],
                     &["round", "currency", "symbol"],
+                    &["price", "format"],
                 ),
                 entry_c(
                     "format_amount",
                     "src/money.py",
                     vec![0.99, 0.02, 0.0],
                     &["round", "currency"],
+                    &["amount", "format"],
                 ),
             ],
         }
     }
 
     #[test]
-    fn callee_confirmation_fires_when_margin_is_diluted() {
-        let idx = diluted_index();
-        let scorer = RedundantScorer::new(&idx, 0.5); // bar high → margin path can't fire
-        let q = unit(vec![0.995, 0.01, 0.0]); // cos1≈1.0, cos2≈0.99 → tiny margin
+    fn callee_overlap_fires_without_subtoken_overlap() {
+        let idx = callee_index();
+        let scorer = RedundantScorer::new(&idx);
+        let q = unit(vec![0.995, 0.01, 0.0]); // cos ≈ 1.0 to format_price
         let f = scorer
             .evaluate(
                 &func_c(
                     "render_price",
                     "src/ui/views.py",
-                    &["round", "currency", "symbol"],
+                    &["round", "currency", "symbol"], // full callee overlap
+                    &["render", "view"],              // disjoint subtokens
                 ),
                 &q,
             )
-            .expect("callee-confirm fires despite a diluted margin");
+            .expect("callee overlap alone confirms the reinvention");
         assert_eq!(f.nearest_symbol, "format_price");
-        assert!(
-            f.margin < 0.5,
-            "the margin path would NOT have fired: {}",
-            f.margin
-        );
     }
 
     #[test]
-    fn callee_confirm_needs_shared_callees() {
-        // Same close embedding, but no shared callees → not a reinvention, and the
-        // margin is diluted, so nothing fires.
-        let idx = diluted_index();
-        let scorer = RedundantScorer::new(&idx, 0.5);
+    fn no_structural_overlap_does_not_fire() {
+        // Same close embedding, but disjoint callees AND disjoint subtokens.
+        let idx = callee_index();
+        let scorer = RedundantScorer::new(&idx);
         let q = unit(vec![0.995, 0.01, 0.0]);
         assert!(scorer
             .evaluate(
                 &func_c(
                     "compute_layout",
                     "src/ui/views.py",
-                    &["measure", "wrap", "clamp"]
+                    &["measure", "wrap", "clamp"],
+                    &["layout", "compute", "grid"],
+                ),
+                &q,
+            )
+            .is_none());
+    }
+
+    #[test]
+    fn strong_tier_rescues_distant_match_with_high_subtoken_overlap() {
+        let idx = index();
+        let scorer = RedundantScorer::new(&idx);
+        // cos ≈ 0.72 to slugify — below the normal 0.78 floor — but identical
+        // rare subtokens. The strong tier rescues it; the normal tier would not.
+        let q = unit(vec![0.72, 0.69, 0.0]);
+        let f = scorer
+            .evaluate(
+                &func_c(
+                    "make_slug",
+                    "src/api/handlers.py",
+                    &[],
+                    &["slug", "normalize", "whitespace"],
+                ),
+                &q,
+            )
+            .expect("strong tier rescues a distant but structurally-identical match");
+        assert_eq!(f.nearest_symbol, "slugify");
+        assert!(
+            f.similarity < NORMAL_SIMILARITY,
+            "sim {} below normal floor",
+            f.similarity
+        );
+        assert!(f.similarity >= STRONG_SIMILARITY);
+    }
+
+    #[test]
+    fn distant_match_with_weak_overlap_does_not_fire() {
+        let idx = index();
+        let scorer = RedundantScorer::new(&idx);
+        // Same cos ≈ 0.72, but only partial subtoken overlap (1 of 3 shared) →
+        // below the strong bar, and too distant for the normal tier. No fire.
+        let q = unit(vec![0.72, 0.69, 0.0]);
+        assert!(scorer
+            .evaluate(
+                &func_c(
+                    "make_slug",
+                    "src/api/handlers.py",
+                    &[],
+                    &["slug", "trim", "pad"]
                 ),
                 &q,
             )

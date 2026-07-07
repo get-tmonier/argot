@@ -1310,18 +1310,19 @@ fn semantic_hits(
         let batch = &patches[*bi];
         // F1 first: a duplicate isn't "misplaced", it's "redundant" — the
         // stronger signal wins, one finding per function.
-        if let Some(found) = RedundantScorer::new(&li.index, li.margin_bar).evaluate(f, vec) {
+        if let Some(found) = RedundantScorer::new(&li.index).evaluate(f, vec) {
+            let similarity = found.similarity;
             hits.push(build_semantic_hit(
                 batch,
                 f,
                 "redundant",
-                found.margin as f64,
-                li.margin_bar as f64,
+                similarity as f64,
+                crate::scoring::semantic::redundant::MIN_SIMILARITY_TO_FIRE as f64,
                 SemanticHitEvidence::Redundant {
                     nearest_symbol: found.nearest_symbol,
                     nearest_path: found.nearest_path,
                     nearest_line: found.nearest_line,
-                    similarity: found.similarity,
+                    similarity,
                 },
                 filter_adapters,
                 mute_rules,
