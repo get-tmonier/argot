@@ -30,12 +30,35 @@ crates/
     scoring/        # scorers (SequentialImportBpeScorer, call_receiver, filters,
                     #   typicality), adapters (python/typescript), calibration,
                     #   numpy_sampler (numpy-exact RNG for threshold parity)
+      semantic/     # OPT-COMPILE (`--features semantic`): per-repo code
+                    #   embeddings — embedder (llama.cpp/jina-code), index,
+                    #   redundant (F1), placement (F2). See "Semantic layer".
     git_walk.rs · tokenize.rs · extract.rs · train.rs · check.rs · dataset.rs · stats.rs
     data/           # embedded unixcoder tokenizer + generic BPE baseline (include_bytes!)
   argot-cli/        # clap CLI → the single `argot` binary (package name: argot)
 ```
 
 The full pipeline is `extract` → `train` → `calibrate` → `check` (or `fit` = train + calibrate). Everything runs in-process in the one binary — no subprocess, no external files.
+
+### Semantic layer (`--features semantic`)
+
+A second, embedding-based sense layered on the base statistical guardrail. It
+builds a per-repo `SemanticIndex` (embed every function at fit, query at check)
+and emits three **advisory** findings: `redundant` (F1 reinvention — "you already
+have this"), `misplaced` (F2 placement — "this doesn't belong here"), and
+nearest-code evidence (F4) on both. Embedder = llama.cpp statically linked via
+`llama-cpp-2` (same in-process C-dep shape as git2/tree-sitter), model =
+jina-embeddings-v2-base-code Q4 GGUF fetched-on-first-use to the cache.
+
+**Binding invariant:** the whole layer is behind `feature = "semantic"` (a
+build-time gate, default off). With it off the base guardrail is byte-for-byte
+unchanged, builds pure-Rust with zero new deps, and pays no cost. The shipped
+binary is built with it **on** (release enables the feature) — it is *not* a user
+opt-in and has no runtime toggle; the model auto-downloads on first use and the
+layer no-ops gracefully offline. The index lives in its own
+`.argot/semantic-index.json` so `scorer-config.json` is untouched. Findings are
+advisory — never claim they move the base catch/false-alarm metric. Dev/CI test
+with `ARGOT_SEMANTIC_MODEL=<gguf path>` to skip the download.
 
 Production code lives under `crates/argot-core/src/scoring/`. Production symbols (types, files, functions) must be named after domain concepts — never after research artefacts (`era`, `phase`, `PhaseNa…`, etc.); those labels belong in eval/research code only.
 
