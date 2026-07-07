@@ -13,6 +13,7 @@
 //! glyph + tier, dim on secondary detail); syntax highlighting of hunk bodies
 //! remains deferred.
 
+use crate::config::{ArgotConfig, DetectConfig};
 use crate::git_walk::{
     open_repo, resolve_shas, walk_commits, HunkSpan, WalkItem, SUPPORTED_EXTENSIONS,
 };
@@ -22,6 +23,7 @@ use crate::scoring::adapters::cpp::CppAdapter;
 use crate::scoring::adapters::csharp::CSharpAdapter;
 use crate::scoring::adapters::go::GoAdapter;
 use crate::scoring::adapters::java::JavaAdapter;
+use crate::scoring::adapters::javascript::JavaScriptAdapter;
 use crate::scoring::adapters::php::PhpAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::ruby::RubyAdapter;
@@ -33,10 +35,10 @@ use crate::scoring::evidence::{evidence_caret_spans, evidence_lines_of_interest,
 use crate::scoring::model::LanguageModel;
 use crate::scoring::sequential::{ScoredHunk, SequentialConfig, SequentialImportBpeScorer};
 use crate::suppress::{
-    fnmatch, hit_hash, load_suppressions_file, parse_inline, write_last_check, LastCheckHit,
-    PathScope, PathSuppressions, SuppressionRule, SUPPRESSIONS_FILE,
+    fnmatch, hit_hash, parse_inline, write_last_check, LastCheckHit, PathScope, PathSuppressions,
+    SuppressionRule,
 };
-use crate::text::{read_text_lossy, splitlines};
+use crate::text::splitlines;
 use git2::{DiffFindOptions, Patch, Status, StatusOptions};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -126,7 +128,7 @@ struct PatchBatch {
     content: Vec<u8>,
     hunks: Vec<HunkSpan>,
     source: String,
-    /// The file matched a user `.argotignore` pattern: still scored (so the
+    /// The file matched a user `[exclude].paths` pattern: still scored (so the
     /// suppression is countable), but every hit is dropped from output and
     /// exit-code consideration.
     ignored_by_pattern: bool,
@@ -135,9 +137,12 @@ struct PatchBatch {
 /// Which suppression surface muted a hit (`None` = reported normally).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SuppressedBy {
-    ArgotIgnore,
+    /// An `argot.toml` `[exclude].paths` pattern.
+    Exclude,
+    /// An inline `# argot: ignore` comment.
     Inline,
-    Yaml,
+    /// An `argot.toml` `[[mute]]` entry.
+    Mute,
 }
 
 /// One above-threshold hunk plus everything needed to explain it (`_Hit`).
@@ -198,13 +203,13 @@ struct Loaded {
     model_hash: String,
 }
 
-/// Extension → language name (`_EXT_TO_LANG`). JS/JSX route to TypeScript.
+/// Extension → language name (`_EXT_TO_LANG`).
 const EXT_TO_LANG: &[(&str, &str)] = &[
     (".py", "python"),
     (".ts", "typescript"),
     (".tsx", "typescript"),
-    (".js", "typescript"),
-    (".jsx", "typescript"),
+    (".js", "javascript"),
+    (".jsx", "javascript"),
     (".go", "go"),
     (".rs", "rust"),
     (".c", "c"),
@@ -226,10 +231,22 @@ pub fn ext_to_lang(ext: &str) -> Option<&'static str> {
     EXT_TO_LANG.iter().find(|(e, _)| *e == ext).map(|(_, l)| *l)
 }
 
+/// [`ext_to_lang`], resolving the `.h` C/C++ ambiguity with the repo-level
+/// `header_is_cpp` decision (translation-unit majority) so check routes a
+/// header to the same model calibrate built it into. All other extensions are
+/// unchanged.
+pub fn ext_to_lang_ctx(ext: &str, header_is_cpp: bool) -> Option<&'static str> {
+    if header_is_cpp && ext == ".h" {
+        return Some("cpp");
+    }
+    ext_to_lang(ext)
+}
+
 fn adapter_for_language(lang: &str) -> Option<Box<dyn LanguageAdapter>> {
     match lang {
         "python" => Some(Box::new(PythonAdapter::new())),
         "typescript" => Some(Box::new(TypeScriptAdapter::new())),
+        "javascript" => Some(Box::new(JavaScriptAdapter::new())),
         "go" => Some(Box::new(GoAdapter::new())),
         "rust" => Some(Box::new(RustAdapter::new())),
         "c" => Some(Box::new(CAdapter::new())),
@@ -372,7 +389,7 @@ fn py_repr(v: &Value) -> String {
 /// scoring must judge new code against the voice as it was learned, not as
 /// the new code just rewrote it (issue #79).
 /// On failure returns the exact stderr message and exit code.
-fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
+fn load_scorers(argot_dir: &Path, detect: &DetectConfig) -> Result<Loaded, (String, i32)> {
     let generic_baseline_json = argot_dir.join("generic-baseline.json");
     let config_json = argot_dir.join("scorer-config.json");
 
@@ -506,6 +523,7 @@ fn load_scorers(argot_dir: &Path) -> Result<Loaded, (String, i32)> {
             evidence_corpus: lc
                 .get("evidence_corpus")
                 .and_then(EvidenceCorpus::from_json),
+            detect: detect.clone(),
         };
 
         let adapter = match adapter_for_language(lang) {
@@ -669,10 +687,11 @@ pub struct RepoScorers {
 }
 
 impl RepoScorers {
-    /// Load from a repo's `.argot/`. The error carries a human-readable message
-    /// (e.g. "run `argot fit` first").
-    pub fn load(argot_dir: &Path) -> std::result::Result<Self, String> {
-        let loaded = load_scorers(argot_dir).map_err(|(msg, _)| msg)?;
+    /// Load from a repo's `.argot/`. `detect` is the repo's `[detect]` config
+    /// (governs the check-time auto-generated skip). The error carries a
+    /// human-readable message (e.g. "run `argot fit` first").
+    pub fn load(argot_dir: &Path, detect: &DetectConfig) -> std::result::Result<Self, String> {
+        let loaded = load_scorers(argot_dir, detect).map_err(|(msg, _)| msg)?;
         Ok(RepoScorers {
             scorers: loaded.scorers,
             model_hash: loaded.model_hash,
@@ -960,8 +979,8 @@ fn chain_workdir_patches(repo_path: &str) -> anyhow::Result<Vec<PatchBatch>> {
 }
 
 /// Score each hunk, dispatching per language (`_score_patches`). Applies the
-/// inline-comment and suppressions.yaml surfaces per hit (path-level
-/// `.argotignore` suppression arrives pre-marked on the batch). Returns
+/// inline-comment and `[[mute]]` surfaces per hit (path-level `[exclude].paths`
+/// suppression arrives pre-marked on the batch). Returns
 /// `(hits, hunk_count, per-file hunk counts)`.
 #[allow(clippy::too_many_arguments)]
 fn score_patches(
@@ -971,7 +990,8 @@ fn score_patches(
     slices: &HashMap<String, Vec<SliceEntry>>,
     new_file_thresholds: &HashMap<String, f64>,
     fit_corpus_files: &HashSet<String>,
-    yaml_rules: &[SuppressionRule],
+    mute_rules: &[SuppressionRule],
+    header_cpp: bool,
     stderr: &mut String,
 ) -> (Vec<Hit>, usize, Vec<FileScan>) {
     let mut hits: Vec<Hit> = Vec::new();
@@ -987,7 +1007,7 @@ fn score_patches(
 
     for batch in patches {
         let ext = extension(&batch.file_path);
-        let scorer = match ext_to_lang(&ext).and_then(|l| scorers.get_mut(l)) {
+        let scorer = match ext_to_lang_ctx(&ext, header_cpp).and_then(|l| scorers.get_mut(l)) {
             Some(s) => s,
             None => {
                 stderr.push_str(&format!(
@@ -1099,14 +1119,14 @@ fn score_patches(
             }
             let hash = hit_hash(&batch.file_path, &reason, &hunk_content);
             let suppressed_by = if batch.ignored_by_pattern {
-                Some(SuppressedBy::ArgotIgnore)
+                Some(SuppressedBy::Exclude)
             } else if inline.suppresses(line, line_end, &reason) {
                 Some(SuppressedBy::Inline)
-            } else if yaml_rules
+            } else if mute_rules
                 .iter()
                 .any(|r| r.matches(&batch.file_path, &reason, &hash))
             {
-                Some(SuppressedBy::Yaml)
+                Some(SuppressedBy::Mute)
             } else {
                 None
             };
@@ -1519,9 +1539,17 @@ fn collect_patches(args: &CheckArgs) -> Result<(Vec<PatchBatch>, String), CheckO
             }
             return Ok((patches, format!("net diff ({reference})")));
         }
-        // Bare ref: <ref>..HEAD commits plus full workdir.
+        // Bare ref: <ref>..HEAD commits plus full workdir. Validate the ref
+        // first — otherwise `resolve_shas` treats an unknown start as "since the
+        // beginning of history" and silently scores the whole tree as if clean.
+        if repo.revparse_single(reference).is_err() {
+            return Err(CheckOutcome::err(
+                format!("error: unknown revision '{reference}' — not a commit, branch, or tag.\n"),
+                2,
+            ));
+        }
         let shas = resolve_shas(&repo, &format!("{reference}..HEAD"))
-            .map_err(|e| CheckOutcome::err(format!("error: {e}\n"), 1))?;
+            .map_err(|e| CheckOutcome::err(format!("error: {e}\n"), 2))?;
         let workdir = chain_workdir_patches(repo_path)
             .map_err(|e| CheckOutcome::err(format!("error: {e}\n"), 1))?;
         if !shas.is_empty() {
@@ -1586,6 +1614,11 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         );
     }
 
+    // argot.toml config: excludes + `[detect]` heuristics + `[[mute]]`. Loaded
+    // once here — the `[detect]` markers gate the check-time auto-generated skip
+    // built into each scorer, so they must be in place before load_scorers.
+    let config = ArgotConfig::load(Path::new(&args.repo_path));
+
     let Loaded {
         mut scorers,
         filter_adapters,
@@ -1595,7 +1628,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         slices,
         new_file_thresholds,
         fit_corpus_files,
-    } = match load_scorers(&args.argot_dir) {
+    } = match load_scorers(&args.argot_dir, &config.detect) {
         Ok(l) => l,
         Err((msg, code)) => return CheckOutcome::err(msg, code),
     };
@@ -1646,12 +1679,15 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         }
     }
 
-    // Suppression surfaces: the resolved path set (recommended built-ins +
-    // `.argotignore`, the same set calibration samples from) and the
-    // suppressions.yaml rules (expiry measured against `args.today`).
-    let path_suppressions = PathSuppressions::load(Path::new(&args.repo_path));
-    let yaml = load_suppressions_file(&args.argot_dir.join(SUPPRESSIONS_FILE), &args.today);
-    for w in &yaml.warnings {
+    // Suppression surfaces from argot.toml (config loaded above): the resolved
+    // path set (recommended built-ins + `[exclude].paths`, the same set
+    // calibration samples from) and the `[[mute]]` rules (expiry vs `args.today`).
+    for w in &config.warnings {
+        stderr.push_str(&format!("[argot] {w}\n"));
+    }
+    let path_suppressions = config.path_suppressions();
+    let mutes = config.mutes(&args.today);
+    for w in &mutes.warnings {
         stderr.push_str(&format!("[argot] {w}\n"));
     }
 
@@ -1694,6 +1730,9 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         }
     }
 
+    // `.h` routes to the same C/C++ model calibrate built it into (repo's
+    // translation-unit majority) — computed once from the working tree.
+    let header_cpp = crate::scoring::calibration::header_is_cpp(Path::new(&args.repo_path));
     let (hits, hunk_count, files_scanned) = score_patches(
         filtered,
         &mut scorers,
@@ -1701,7 +1740,8 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         &slices,
         &new_file_thresholds,
         &fit_corpus_files,
-        &yaml.active,
+        &mutes.active,
+        header_cpp,
         &mut stderr,
     );
 
@@ -1726,11 +1766,11 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
                 .count()
         };
         stderr.push_str(&format!(
-            "{} hits suppressed ({} by .argotignore, {} inline, {} by suppressions.yaml)\n",
+            "{} hits suppressed ({} by argot.toml excludes, {} inline, {} by argot.toml mutes)\n",
             suppressed.len(),
-            count(SuppressedBy::ArgotIgnore),
+            count(SuppressedBy::Exclude),
             count(SuppressedBy::Inline),
-            count(SuppressedBy::Yaml),
+            count(SuppressedBy::Mute),
         ));
     }
 
@@ -1820,7 +1860,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
 }
 
 /// Outcome of `argot review-mutes` — mute-rot cleanup over the hash-scoped
-/// suppressions.yaml entries.
+/// `argot.toml` `[[mute]]` entries.
 pub struct ReviewOutcome {
     pub stdout: String,
     pub stderr: String,
@@ -1828,31 +1868,30 @@ pub struct ReviewOutcome {
 }
 
 /// Re-run the check scoring over the files behind the currently-muted
-/// hash-scoped suppressions and report which suppressions no longer fire.
-/// With `prune`, stale hash entries are removed from suppressions.yaml
-/// (the file is rewritten; expired and non-hash entries are kept).
+/// hash-scoped mutes and report which no longer fire. With `prune`, stale hash
+/// entries are removed from `argot.toml` (the `[[mute]]` array is rewritten;
+/// expired and non-hash entries, and every other section, are kept).
 ///
-/// A suppression "still fires" when re-scoring the file's current content
-/// (as one full-file hunk plus each sampleable range — stable, reproducible
-/// hunk boundaries) yields a flagged hit with the entry's hash. Hits muted
-/// from transient diff hunks whose boundaries no longer exist resolve as
-/// "no longer fires" — which is exactly mute-rot.
-pub fn run_review_mutes(
-    repo_path: &str,
-    argot_dir: &Path,
-    today: &str,
-    prune: bool,
-) -> ReviewOutcome {
+/// A mute "still fires" when re-scoring the file's current content (as one
+/// full-file hunk plus each sampleable range — stable, reproducible hunk
+/// boundaries) yields a flagged hit with the entry's hash. Hits muted from
+/// transient diff hunks whose boundaries no longer exist resolve as "no longer
+/// fires" — which is exactly mute-rot.
+pub fn run_review_mutes(repo_path: &str, today: &str, prune: bool) -> ReviewOutcome {
     let mut stdout = String::new();
     let mut stderr = String::new();
 
-    let rules_path = argot_dir.join(SUPPRESSIONS_FILE);
-    let yaml = load_suppressions_file(&rules_path, today);
-    for w in &yaml.warnings {
+    let repo_root = Path::new(repo_path);
+    let config = ArgotConfig::load(repo_root);
+    for w in &config.warnings {
+        stderr.push_str(&format!("[argot] {w}\n"));
+    }
+    let mutes = config.mutes(today);
+    for w in &mutes.warnings {
         stderr.push_str(&format!("[argot] {w}\n"));
     }
     let hash_entries: Vec<&SuppressionRule> =
-        yaml.active.iter().filter(|r| r.hash.is_some()).collect();
+        mutes.active.iter().filter(|r| r.hash.is_some()).collect();
     if hash_entries.is_empty() {
         stdout.push_str("No hash-scoped suppressions to review.\n");
         return ReviewOutcome {
@@ -1862,69 +1901,56 @@ pub fn run_review_mutes(
         };
     }
 
-    let Loaded { mut scorers, .. } = match load_scorers(argot_dir) {
-        Ok(l) => l,
-        Err((msg, code)) => {
-            return ReviewOutcome {
-                stdout,
-                stderr: msg,
-                exit_code: code,
-            }
-        }
-    };
-
     stdout.push_str(&format!(
         "Reviewing {} hash-scoped suppression(s)…\n",
         hash_entries.len()
     ));
-    // Hashes that still fire, computed once per distinct file.
-    let mut firing_by_file: HashMap<String, HashSet<String>> = HashMap::new();
-    let mut stale_hashes: Vec<String> = Vec::new();
+    // A hash-scoped mute names the exact file `argot mute` minted it from, and
+    // its stored hash is a one-way digest of that specific diff hunk — there is
+    // no way to recover the hunk from the hash, so re-scoring the live tree can
+    // only *guess* at staleness (and would wrongly flag every mute of an
+    // edited-but-still-present region, which `--prune` would then delete). The
+    // one thing we can assert soundly is existence: a mute can never fire again
+    // once its file is gone from both the working tree and HEAD. `--prune` acts
+    // on that alone, so it never removes a mute still guarding live code.
+    let mut dead_hashes: Vec<String> = Vec::new();
     for entry in &hash_entries {
         let hash = entry.hash.as_deref().expect("filtered on hash presence");
-        let firing = firing_by_file
-            .entry(entry.path.clone())
-            .or_insert_with(|| firing_hashes_for_file(repo_path, &entry.path, &mut scorers));
-        let fires = firing.contains(hash);
+        let present = mute_path_present(repo_path, &entry.path);
         stdout.push_str(&format!(
             "  [{hash}]  {}  {}\n",
             entry.path,
-            if fires {
-                "still fires"
+            if present {
+                "file present"
             } else {
-                "no longer fires"
+                "file gone — dead"
             }
         ));
-        if !fires {
-            stale_hashes.push(hash.to_string());
+        if !present {
+            dead_hashes.push(hash.to_string());
         }
     }
 
-    if stale_hashes.is_empty() {
-        stdout.push_str("All reviewed suppressions still fire — nothing to prune.\n");
+    if dead_hashes.is_empty() {
+        stdout.push_str("Every muted file still exists — nothing to prune.\n");
     } else if prune {
         let mut kept: Vec<SuppressionRule> = Vec::new();
-        for rule in yaml.active.iter().chain(yaml.expired.iter()) {
-            let stale = rule
+        for rule in mutes.active.iter().chain(mutes.expired.iter()) {
+            let dead = rule
                 .hash
                 .as_deref()
-                .is_some_and(|h| stale_hashes.iter().any(|s| s == h));
-            if !stale {
+                .is_some_and(|h| dead_hashes.iter().any(|s| s == h));
+            if !dead {
                 kept.push(rule.clone());
             }
         }
-        let serialized = crate::suppress::rules_file::serialize_rules(&kept);
-        match std::fs::write(&rules_path, serialized) {
+        match crate::config::write_mutes(repo_root, &kept) {
             Ok(()) => stdout.push_str(&format!(
-                "Pruned {} stale suppression(s) from {}.\n",
-                stale_hashes.len(),
-                rules_path.display()
+                "Pruned {} dead mute(s) from argot.toml.\n",
+                dead_hashes.len()
             )),
             Err(e) => {
-                stderr.push_str(&format!(
-                    "error: cannot write {}: {e}\n",
-                    rules_path.display()
-                ));
+                stderr.push_str(&format!("error: {e}\n"));
                 return ReviewOutcome {
                     stdout,
                     stderr,
@@ -1934,8 +1960,8 @@ pub fn run_review_mutes(
         }
     } else {
         stdout.push_str(&format!(
-            "{} stale suppression(s) — run `argot review-mutes --prune` to remove them.\n",
-            stale_hashes.len()
+            "{} dead mute(s) (file gone) — run `argot review-mutes --prune` to remove them.\n",
+            dead_hashes.len()
         ));
     }
 
@@ -1946,54 +1972,26 @@ pub fn run_review_mutes(
     }
 }
 
-/// Hashes of the flagged hits produced by re-scoring `rel_path`'s current
-/// content: one full-file hunk (how untracked files are checked) plus each
-/// sampleable range (stable boundaries). Missing/out-of-scope files fire
-/// nothing.
-fn firing_hashes_for_file(
-    repo_path: &str,
-    rel_path: &str,
-    scorers: &mut HashMap<String, SequentialImportBpeScorer>,
-) -> HashSet<String> {
-    let mut out = HashSet::new();
-    let ext = extension(rel_path);
-    let Some(lang) = ext_to_lang(&ext) else {
-        return out;
-    };
-    let Some(scorer) = scorers.get_mut(lang) else {
-        return out;
-    };
-    let full = Path::new(repo_path).join(rel_path);
-    let Ok(source) = read_text_lossy(&full) else {
-        return out;
-    };
-    let lines = splitlines(&source);
-    if lines.is_empty() {
-        return out;
+/// Does the repo still contain the file a hash-scoped mute names? `argot mute`
+/// records the hit's exact path, so a plain path is checked against both the
+/// working tree and `HEAD` — the mute is only "gone" when the file exists in
+/// neither (a file still in HEAD can re-appear in a diff, so its mute is not
+/// yet dead). A glob path (only ever hand-edited into a hash entry) is always
+/// treated as present so `--prune` never reasons about a pattern.
+fn mute_path_present(repo_path: &str, mute_path: &str) -> bool {
+    if mute_path.contains(['*', '?', '[']) {
+        return true;
     }
-    let mut ranges = vec![(1usize, lines.len())];
-    if let Some(adapter) = adapter_for_language(lang) {
-        ranges.extend(adapter.enumerate_sampleable_ranges(&source));
+    if Path::new(repo_path).join(mute_path).is_file() {
+        return true;
     }
-    for (start, end) in ranges {
-        let s = start.saturating_sub(1);
-        let e = end.min(lines.len());
-        if s >= e {
-            continue;
-        }
-        let hunk = lines[s..e].join("\n");
-        let scored = scorer.score_hunk(
-            &hunk,
-            Some(&source),
-            Some(s + 1),
-            Some(e),
-            Some(Path::new(rel_path)),
-        );
-        if scored.flagged {
-            out.insert(hit_hash(rel_path, scored.reason.as_str(), &hunk));
-        }
-    }
-    out
+    open_repo(repo_path)
+        .ok()
+        .and_then(|repo| {
+            let tree = repo.head().ok()?.peel_to_commit().ok()?.tree().ok()?;
+            Some(tree.get_path(Path::new(mute_path)).is_ok())
+        })
+        .unwrap_or(false)
 }
 
 #[cfg(test)]

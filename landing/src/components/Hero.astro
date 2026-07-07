@@ -71,6 +71,12 @@ const { hero } = content;
         <span class="copy-icon pl-2 text-muted transition-colors group-hover:text-ink">⧉</span>
       </button>
       <p class="text-xs text-muted">{hero.installNote}</p>
+      <a
+        href={localePath('/docs/#install', locale)}
+        class="text-xs text-muted underline decoration-dotted underline-offset-4 transition-colors hover:text-ink"
+      >
+        {hero.installAlt} ↗
+      </a>
     </div>
 
     <HeroFormula />

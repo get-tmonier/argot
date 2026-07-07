@@ -12,9 +12,35 @@ voice that isn't yours and flags the wrong things.
 
 This is the **local path** — checking on your machine (and in a pre-commit hook).
 Just want a voice score on every PR, with no local install? That's the
-[CI path](/docs/ci/) instead. There are three ways in here, fastest first.
+[CI path](/docs/ci/) instead. Four ways in, fastest first — the first hands the
+judgment call to your coding agent; the rest are yours to drive.
 
-## 1. One command
+## 1. Let your agent set it up  <span class="rec">recommended</span>
+
+Deciding what *shouldn't* shape your voice is a judgment call — a vendored
+`stripe/` client, an OpenAPI SDK, a `legacy/` module frozen years ago. The
+**argot-setup** skill hands that call to the agent already reading your tree: it
+runs `argot init`, weighs the `--suggest` evidence, writes the excludes into
+`argot.toml`'s `[exclude].paths`, and verifies the catch — driving the same
+`argot` binary you would, with nothing to copy-paste. Install it once:
+
+```text
+npx skills add get-tmonier/argot
+```
+
+Then run **`/argot-setup`** in Claude Code or Cursor (Codex: `$argot-setup`; the
+skill works across 70+ agents). In Claude Code you can instead install the
+plugin, which bundles the skills *and* the MCP server:
+
+```text
+/plugin marketplace add get-tmonier/argot
+/plugin install argot
+```
+
+The skill runs the exact prompt in §3 for you — reach for that prompt directly
+only on an agent where you can't install the skill.
+
+## 2. One command yourself
 
 ```text
 argot init
@@ -30,23 +56,23 @@ Next:  argot check          # score your working changes
 Out of the box argot already ignores tests, docs, examples, build output, and
 any file it detects as auto-generated or data-only (the built-in
 `argot:recommended` set — see [Configure](/docs/configure/)). For a lot of repos
-that's all you need. If the verdict is **Ready**, you're done.
+that's all you need. If the verdict is **Ready**, you're done. `init` also writes
+an `argot.toml` with the effective `[exclude]`, `[detect]`, and `[[mute]]` sections
+spelled out (so nothing is hidden), and drops a `.argot/.gitignore` so the fitted
+model — a rebuildable artifact — never lands in version control.
 
-`init` also drops a `.argot/.gitignore` so the fitted model — a rebuildable
-artifact — never lands in version control.
+### If the verdict isn't Ready
 
-## 2. See what stands out
-
-If the verdict is **Marginal** or **Not recommended**, the corpus is usually
-either too small or polluted by generated/data directories argot can't recognize
-by name. Ask for evidence:
+If it's **Marginal** or **Not recommended**, the corpus is usually either too
+small or polluted by generated/data directories argot can't recognize by name.
+Ask for evidence:
 
 ```text
 argot init --suggest
 ```
 
 ```text
-Directories you may want to add to .argotignore (evidence only — you decide):
+Directories you may want to add to argot.toml [exclude].paths (evidence only — you decide):
 
   src/generated
     auto-generated · 214 files · 214 auto-generated (100%)
@@ -56,16 +82,15 @@ Directories you may want to add to .argotignore (evidence only — you decide):
 
 These are directories that are *mostly* generated or data — strong candidates,
 but the call is yours: the report tells you exactly how much real code a rule
-would drop.
+would drop. Add the ones you agree with to `argot.toml`'s `[exclude].paths` (§4)
+and re-run `argot init`.
 
-## 3. Let an AI agent set it up locally  <span class="rec">recommended</span>
+## 3. The copy-paste prompt
 
-Deciding what *shouldn't* shape your voice is a judgment call — a vendored
-`stripe/` client, an OpenAPI SDK, a `legacy/` module frozen years ago. An agent
-that can read your tree makes that call well, and argot's `--suggest` gives it
-hard evidence to anchor on. Paste this **local-setup** prompt into Claude Code
-(or Cursor, Aider, any agent) at your repo root — there's a matching
-[CI-setup prompt](/docs/ci/) for the CI path:
+No skills CLI on your agent? Paste this **local-setup** prompt into Claude Code
+(or Cursor, Aider, any agent) at your repo root — it's exactly what the
+`argot-setup` skill (§1) runs for you, so use it only when you can't install the
+skill. There's a matching [CI-setup prompt](/docs/ci/) for the CI path:
 
 ```text
 You are setting up **argot** for this repository. argot learns this repo's own
@@ -75,9 +100,10 @@ not demos, generated code, vendored dependencies, or config. Configure what
 argot ignores, confirm the model is healthy, and verify it catches a foreign
 import.
 
-First, work on a clean tree: `argot init` learns from files as they are, so
-commit or stash any work in progress (uncommitted foreign code would be baked
-into the voice).
+argot fits from the **committed** tree (HEAD), so an uncommitted edit to an
+existing file won't pollute the voice — you don't need a pristine tree. A
+brand-new file you haven't committed is still read from disk, though, so commit
+or remove any throwaway files first.
 
 1. Confirm argot is installed: `argot --version`. If missing, tell me how to
    install it and stop.
@@ -86,7 +112,9 @@ into the voice).
    ships. In a monorepo (multiple packages/workspaces), that's usually one or a
    few packages; everything else is peripheral.
 
-3. Fit and check health: `argot init`. Read the "Verdict" and corpus summary.
+3. Fit and check health: `argot init`. Read the "Verdict" and corpus summary. If
+   it's already **Ready** with a clean corpus, you may not need to exclude
+   anything — but still verify the catch (step 7).
 
 4. Get argot's statistical suggestions: `argot init --suggest --format json` —
    directories that are mostly auto-generated or data files, with counts. Note:
@@ -98,14 +126,20 @@ into the voice).
    - peripheral monorepo members: a marketing/landing site, a playground, demo
      or example apps, a benchmark suite, build/dev tooling
    - generated code (protobuf/gRPC, OpenAPI/GraphQL clients, `*_pb2.py`, `gen/`)
+   - transpiled / built JavaScript in a TypeScript repo — compiled `.js` output
+     (`dist/`/`lib/`/`esm/`/`cjs/`/`out/`); it is generated, not authored voice.
+     argot auto-excludes the `.js` carrying a `sourceMappingURL`/`__esModule`
+     tell, but a plain-`tsc`-into-`lib/` build with none of those is ours to name
    - vendored / third-party code checked in (`vendor/`, bundled SDKs)
    - large data, fixtures, snapshots, locale tables, database migrations
    - legacy or archived modules that aren't how we write code today
    argot already excludes tests, docs, examples, and build output by default, so
    focus on the repo-specific directories above.
 
-6. Write a `.argotignore` at the repo root (gitignore-style, one pattern per
-   line, each with a short `#` reason). Prefer directory patterns. Re-run
+6. Edit `argot.toml`'s `[exclude].paths` at the repo root — add each directory
+   as a gitignore-style pattern (one per array entry, each with a trailing
+   `# reason` comment). Prefer directory patterns. If the repo has its own
+   codegen banner, add it to `[detect].generated-markers` too. Re-run
    `argot init`.
 
 7. VERIFY the catch works — the important check. In a real primary-source file,
@@ -120,17 +154,17 @@ Don't chase a green "Ready". If the verdict stays **Marginal** only because the
 repo is small (few candidate hunks), that's fine — Marginal is usable and
 excluding more won't help. Keep excluding only when the corpus is polluted by
 non-authored code (step 7 reveals this). Keep it minimal and reversible — every
-`.argotignore` line is a decision I can undo.
+`[exclude].paths` entry is a decision I can undo.
 ```
 
 The agent runs the same commands you would; it just brings the semantic
 judgment argot deliberately leaves to a human. When it finishes you'll have a
-committed `.argotignore` that documents every exclusion, and a **Ready** model.
+committed `argot.toml` that documents every exclusion, and a **Ready** model.
 
 ## 4. By hand
 
 Prefer to drive it yourself? [Configure](/docs/configure/) documents
-`.argotignore`, the `argot:recommended` defaults, inline comments, and durable
+`argot.toml`, the `argot:recommended` defaults, inline comments, and durable
 mutes in full. The whole system is plain text — nothing here needs an agent.
 
 ---

@@ -1,6 +1,7 @@
 ---
 import { emphasize } from '#lib/text';
 import type { SiteContent } from '#i18n/types';
+import DemoTerminal from './DemoTerminal.astro';
 
 interface Props {
   content: SiteContent;
@@ -8,16 +9,16 @@ interface Props {
 const { demo } = Astro.props.content;
 ---
 
-<section id="demo" class="snap-section relative flex min-h-svh items-center">
+<section id="demo" class="snap-section relative flex md:min-h-svh items-center">
   <div
-    class="mx-auto grid w-full max-w-6xl grid-cols-1 gap-10 px-5 py-24 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:gap-16"
+    class="mx-auto grid w-full max-w-6xl grid-cols-1 gap-6 px-5 py-12 md:py-24 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:gap-16"
   >
     <div class="reveal">
       <p class="mb-3 font-mono text-xs tracking-widest text-ember uppercase">{demo.label}</p>
       <h2 class="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{demo.title}</h2>
-      <p class="mt-5 leading-relaxed text-ink-dim text-pretty" set:html={emphasize(demo.body)} />
+      <p class="mt-4 leading-relaxed text-ink-dim text-pretty sm:mt-5" set:html={emphasize(demo.body)} />
 
-      <ul class="mt-7 flex flex-col gap-2.5 text-sm">
+      <ul class="mt-5 flex flex-col gap-2.5 text-sm sm:mt-7">
         <li class="flex items-center gap-3">
           <span class="badge ok">mypy</span><span class="text-muted">strict — passes</span>
         </li>
@@ -31,15 +32,7 @@ const { demo } = Astro.props.content;
     </div>
 
     <div class="reveal flex flex-col gap-4" style="--reveal-delay: 120ms">
-      <img
-        src="/demo.gif"
-        width="1280"
-        height="470"
-        loading="lazy"
-        decoding="async"
-        alt="argot check flagging a foreign Django import in an all-FastAPI file, colored by severity"
-        class="demo-gif"
-      />
+      <DemoTerminal />
       <p class="text-center text-sm text-muted text-pretty" set:html={emphasize(demo.caption)} />
       <a
         href="/docs/real-world-scenarios/"
@@ -53,15 +46,6 @@ const { demo } = Astro.props.content;
 </section>
 
 <style>
-  .demo-gif {
-    width: 100%;
-    height: auto;
-    border-radius: 14px;
-    border: 1px solid var(--line);
-    box-shadow:
-      0 1px 0 0 rgba(255, 255, 255, 0.03) inset,
-      0 24px 60px -30px rgba(0, 0, 0, 0.8);
-  }
   .badge {
     display: inline-flex;
     min-width: 3.6rem;

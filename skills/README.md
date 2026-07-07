@@ -1,14 +1,15 @@
 # argot skills
 
-Three skills that let a coding agent (Claude Code, Cursor, Codex, …) use argot
-well — set it up locally, check changes, and wire it into CI — all **without
-ever blocking you**. Pick the local path, the CI path, or both.
+Four skills that let a coding agent (Claude Code, Cursor, Codex, …) use argot
+well — set it up locally, check changes, review a PR, and wire it into CI — all
+**without ever blocking you**. Pick the local path, the CI path, or both.
 
 | Skill | Path | When it runs |
 |---|---|---|
-| [`argot-setup`](./argot-setup/SKILL.md) | local | Once per repo — fit the model and decide what shouldn't shape its voice. |
+| [`argot-setup`](./argot-setup/SKILL.md) | local | Once per repo — fit the model and decide what shouldn't shape its voice (writes `argot.toml`). |
 | [`argot-check`](./argot-check/SKILL.md) | local | Per change — score your working diff and surface anything foreign (advisory). |
-| [`argot-ci`](./argot-ci/SKILL.md) | CI | Wire the GitHub Action — a non-blocking voice score on every PR (no local setup needed). |
+| [`argot-review-pr`](./argot-review-pr/SKILL.md) | local | On demand — review a specific PR (or range) against the repo's local voice, no checkout. |
+| [`argot-setup-ci`](./argot-setup-ci/SKILL.md) | CI | Wire the GitHub Action — a non-blocking voice score on every PR (no local setup needed). |
 
 ## Install
 
@@ -19,8 +20,9 @@ ever blocking you**. Pick the local path, the CI path, or both.
 /plugin install argot@argot
 ```
 
-Installs both skills (as `/argot:argot-setup` and `/argot:argot-check`) and the
-argot MCP server together.
+Installs all four skills (as `/argot:argot-setup`, `/argot:argot-check`,
+`/argot:argot-review-pr`, `/argot:argot-setup-ci`) and the argot MCP server
+together.
 
 **Any agent — the `skills` installer** ([vercel-labs/skills](https://github.com/vercel-labs/skills)):
 
@@ -31,7 +33,7 @@ npx skills add get-tmonier/argot
 **By hand** — copy the folders into your agent's skills dir (Claude Code: `.claude/skills/`):
 
 ```sh
-mkdir -p .claude/skills && cp -R argot-setup argot-check .claude/skills/
+mkdir -p .claude/skills && cp -R argot-setup argot-check argot-review-pr argot-setup-ci .claude/skills/
 ```
 
 Every path needs the `argot` CLI installed — see the

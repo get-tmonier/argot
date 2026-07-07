@@ -1,0 +1,248 @@
+---
+// Self-contained animated terminal replacing /demo.gif: real text (legible to
+// screen readers, crisp at any zoom), not a raster capture. Content is
+// hand-authored to match a real `argot check` run byte-for-byte (see
+// Demo.astro's caption) — nothing here is generated from props.
+---
+
+<div
+  class="demo-terminal"
+  role="group"
+  aria-label="Example argot check output: a foreign Django import flagged in an all-FastAPI file"
+>
+  <div class="term-titlebar">
+    <span class="term-dot" style="background: var(--flag)" aria-hidden="true"></span>
+    <span class="term-dot" style="background: var(--amber)" aria-hidden="true"></span>
+    <span class="term-dot" style="background: var(--jade)" aria-hidden="true"></span>
+    <span class="term-title">argot check</span>
+  </div>
+
+  <div class="term-body">
+    <div class="term-line term-prompt" style="--i: 0">
+      <span class="dim" aria-hidden="true">$</span> argot check<span class="cursor" aria-hidden="true"
+      ></span>
+    </div>
+
+    <div class="term-line term-file" style="--i: 1">fastapi/receipts.py</div>
+
+    <div class="term-line term-flag" style="--i: 2">
+      <span class="bang">!</span>
+      <span class="loc">L1-L10</span>
+      <span class="flag-word">foreign</span><span class="sep" aria-hidden="true">·</span><span
+        class="flag-word">foreign import</span
+      >
+      <span class="hash">[94a92c256e]</span>
+    </div>
+
+    <div class="term-line term-evidence" style="--i: 3">
+      <span aria-hidden="true">↳</span> <span class="flag-word">django</span> — 0 of 74 imports in this
+      repo
+    </div>
+
+    <div class="term-line term-reach" style="--i: 4">repo reaches for: fastapi · pydantic · starlette</div>
+
+    <div class="term-line term-code" style="--i: 5">
+      <div class="code-line">
+        <span class="gutter">1</span><span class="bar" aria-hidden="true"> │ </span><span class="code-text"
+          >from <span class="flag-word">django</span>.views import View</span
+        >
+      </div>
+      <div class="caret-line" aria-hidden="true">
+        <span class="ghost">1 │ from </span><span class="caret-marks">~~~~~~</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .demo-terminal {
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel) 80%, #000);
+    overflow: hidden;
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.03) inset,
+      0 24px 60px -30px rgba(0, 0, 0, 0.8);
+  }
+
+  .term-titlebar {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel-2) 60%, transparent);
+  }
+  .term-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 999px;
+    opacity: 0.85;
+  }
+  .term-title {
+    margin-left: 8px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .term-body {
+    overflow-x: auto;
+    padding: clamp(14px, 3.6vw, 22px);
+    font-family: var(--font-mono);
+    font-size: clamp(11px, 3.1vw, 14px);
+    line-height: 1.9;
+    white-space: nowrap;
+  }
+
+  .term-line {
+    display: block;
+  }
+  .term-file {
+    margin-top: 0.9em;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .term-flag {
+    margin-top: 0.5em;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.15em 0.55em;
+    white-space: normal;
+    border-left: 2px solid var(--flag);
+    margin-left: -0.6em;
+    padding-left: 0.6em;
+  }
+  .term-evidence {
+    margin-top: 0.15em;
+    padding-left: 1.6em;
+    color: var(--ink-dim);
+    white-space: normal;
+  }
+  .term-reach {
+    padding-left: 2.3em;
+    color: var(--muted);
+    white-space: normal;
+  }
+  .term-code {
+    margin-top: 0.9em;
+  }
+
+  .dim {
+    color: var(--muted);
+  }
+  .bang {
+    color: var(--flag);
+    font-weight: 700;
+  }
+  .loc {
+    color: var(--muted);
+  }
+  .sep {
+    color: var(--muted);
+  }
+  .flag-word {
+    color: var(--flag);
+    font-weight: 600;
+  }
+  .hash {
+    margin-left: auto;
+    border-radius: 6px;
+    border: 1px solid var(--line-2);
+    padding: 0.05em 0.5em;
+    font-size: 0.85em;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .code-line,
+  .caret-line {
+    color: var(--ink);
+  }
+  .gutter,
+  .bar {
+    color: var(--muted);
+  }
+  .ghost {
+    visibility: hidden;
+  }
+  .caret-marks {
+    color: var(--flag);
+  }
+
+  /* --- the blinking prompt cursor: real-terminal feel, bounded so it settles
+     rather than looping forever. Reuses global.css's `blink` keyframe. --- */
+  .cursor::after {
+    content: '';
+    display: inline-block;
+    width: 0.55ch;
+    height: 1em;
+    margin-left: 2px;
+    vertical-align: -0.15em;
+    background: var(--ember);
+  }
+  :global(.js) .demo-terminal.is-playing .cursor::after {
+    animation: blink 0.9s step-end 6;
+  }
+
+  /* --- reveal cascade: hidden only once JS confirms it can play it (progressive
+     enhancement, same gating convention as the site-wide `.reveal` utility).
+     Plays once via IntersectionObserver in the inline script below; reduced-motion
+     and no-IO browsers skip straight to `.is-done` with no transition. --- */
+  :global(.js) .demo-terminal:not(.is-playing):not(.is-done) .term-line {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  .demo-terminal.is-playing .term-line {
+    transition:
+      opacity 0.45s var(--ease-out-expo),
+      transform 0.45s var(--ease-out-expo);
+    transition-delay: calc(var(--i, 0) * 320ms);
+  }
+  .demo-terminal.is-playing .term-line,
+  .demo-terminal.is-done .term-line {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* The flagged line lands with a brief tint — the one verdict that matters. */
+  .demo-terminal.is-playing .term-flag {
+    animation: flag-flash 0.9s var(--ease-out-expo);
+    animation-delay: calc(var(--i, 0) * 320ms);
+  }
+  @keyframes flag-flash {
+    0% {
+      background: color-mix(in srgb, var(--flag) 16%, transparent);
+    }
+    100% {
+      background: transparent;
+    }
+  }
+</style>
+
+<script>
+  const terminals = document.querySelectorAll<HTMLElement>('.demo-terminal');
+
+  for (const root of terminals) {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (reduced || !('IntersectionObserver' in window)) {
+      root.classList.add('is-done');
+      continue;
+    }
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            root.classList.add('is-playing');
+            io.unobserve(entry.target);
+          }
+        }
+      },
+      { rootMargin: '0px 0px -10% 0px', threshold: 0.3 },
+    );
+    io.observe(root);
+  }
+</script>

@@ -18,8 +18,7 @@
 
 use crate::catalog::load_catalog;
 use crate::run::{
-    ensure_clone, ensure_sha_checked_out, fixture_scoring_input, sync_corpus_argotignore,
-    RunOptions,
+    ensure_clone, ensure_sha_checked_out, fixture_scoring_input, sync_corpus_config, RunOptions,
 };
 use crate::targets::Target;
 use anyhow::{bail, Context, Result};
@@ -31,7 +30,7 @@ use std::path::Path;
 use std::process::Command;
 
 /// Fixed "today" for suppression expiry — production checks are date-driven
-/// only through suppressions.yaml, which the bench clones never carry.
+/// only through argot.toml [[mute]] entries, which the bench clones never carry.
 const BENCH_TODAY: &str = "2026-01-01";
 
 #[derive(Debug, Clone, Serialize)]
@@ -39,6 +38,9 @@ pub struct ProdFixtureResult {
     pub id: String,
     pub category: String,
     pub language: Option<String>,
+    /// `easy` / `medium` / `hard` — drives the visible-vs-masked difficulty
+    /// split reported in the dashboard.
+    pub difficulty: Option<String>,
     pub flagged: bool,
     /// Winning reasons of the hits on the host file (empty when uncaught).
     pub reasons: Vec<String>,
@@ -164,8 +166,8 @@ pub fn run_corpus_production(target: &Target, opts: &RunOptions) -> Result<Produ
     }
 
     // Fit and check this corpus the way a real user of the repo would — with
-    // the per-corpus `.argotignore` (e.g. vendored trees muted).
-    sync_corpus_argotignore(&opts.catalogs_dir, &target.name, &repo_dir)?;
+    // the per-corpus `argot.toml` (e.g. vendored trees excluded).
+    sync_corpus_config(&opts.catalogs_dir, &target.name, &repo_dir)?;
 
     eprintln!(
         "[{}] production fit (train → calibrate) @ {}",
@@ -224,6 +226,7 @@ pub fn run_corpus_production(target: &Target, opts: &RunOptions) -> Result<Produ
             id: fx.id.clone(),
             category: fx.category.clone(),
             language: fx.language.clone(),
+            difficulty: fx.difficulty.clone(),
             flagged: !hits.is_empty(),
             reasons,
             max_score,

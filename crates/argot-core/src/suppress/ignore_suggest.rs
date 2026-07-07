@@ -19,7 +19,6 @@
 use crate::inspect::adapter_for;
 use crate::scoring::adapters::{Language, LanguageAdapter};
 use crate::scoring::calibration::language_for_filename;
-use crate::suppress::path_rules::PathSuppressions;
 use crate::text::read_text_lossy;
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
@@ -118,15 +117,17 @@ pub struct IgnoreSuggestions {
     pub candidates: Vec<IgnoreCandidate>,
 }
 
-/// Walk `repo_dir` and propose directories to add to `.argotignore`, based
+/// Walk `repo_dir` and propose directories to add to `[exclude].paths`, based
 /// solely on how densely the repo's own structural filters skip their files.
 ///
 /// Files already excluded by the resolved path-suppression set (built-in
-/// `argot:recommended` plus any existing `.argotignore`) are not re-counted, so
-/// re-running after writing entries converges — a suggested directory stops
+/// `argot:recommended` plus any existing `[exclude].paths`) are not re-counted,
+/// so re-running after writing entries converges — a suggested directory stops
 /// appearing once it is ignored.
 pub fn suggest_ignores(repo_dir: &Path) -> IgnoreSuggestions {
-    let path_suppressions = PathSuppressions::load(repo_dir);
+    let config = crate::config::ArgotConfig::load(repo_dir);
+    let path_suppressions = config.path_suppressions();
+    let detect = &config.detect;
     let mut adapters: HashMap<Language, Box<dyn LanguageAdapter>> = HashMap::new();
     // Recursive per-directory tallies, keyed by forward-slashed relative path.
     // The repo root ("") is tallied but never emitted.
@@ -177,9 +178,9 @@ pub fn suggest_ignores(repo_dir: &Path) -> IgnoreSuggestions {
                         .entry(language)
                         .or_insert_with(|| adapter_for(language));
                     let classify = |t: &mut DirTally| {
-                        if adapter.is_auto_generated(&source) {
+                        if adapter.is_auto_generated(&source, &detect.generated_markers) {
                             t.auto_generated += 1;
-                        } else if adapter.is_data_dominant(&source) {
+                        } else if adapter.is_data_dominant(&source, detect.data_threshold) {
                             t.data_dominant += 1;
                         } else {
                             t.included += 1;
@@ -491,7 +492,7 @@ mod tests {
         for i in 0..4 {
             fs::write(dir.join(format!("gen/mod_{i}.py")), generated_py(i)).unwrap();
         }
-        fs::write(dir.join(".argotignore"), "gen/\n").unwrap();
+        fs::write(dir.join("argot.toml"), "[exclude]\npaths = [\"gen/\"]\n").unwrap();
         let s = suggest_ignores(&dir);
         assert!(
             s.candidates.iter().all(|c| c.path != "gen"),

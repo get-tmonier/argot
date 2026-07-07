@@ -454,6 +454,7 @@ pub fn extract_callees(source: &str, language: Language) -> Vec<Option<String>> 
     let is_call = match language {
         Language::Python => py_call_types as fn(&str) -> bool,
         Language::Typescript => ts_call_types as fn(&str) -> bool,
+        Language::Javascript => ts_call_types as fn(&str) -> bool,
         Language::Go => go_call_types as fn(&str) -> bool,
         Language::Rust => rust_call_types as fn(&str) -> bool,
         Language::C => c_call_types as fn(&str) -> bool,
@@ -466,6 +467,7 @@ pub fn extract_callees(source: &str, language: Language) -> Vec<Option<String>> 
     let extractor = match language {
         Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Typescript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::Javascript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Go => extract_go_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Rust => extract_rust_callee as fn(Node, &[u8]) -> Option<String>,
         Language::C => extract_c_callee as fn(Node, &[u8]) -> Option<String>,
@@ -529,6 +531,7 @@ pub fn callees_in_source_region(
     let is_call = match language {
         Language::Python => py_call_types as fn(&str) -> bool,
         Language::Typescript => ts_call_types as fn(&str) -> bool,
+        Language::Javascript => ts_call_types as fn(&str) -> bool,
         Language::Go => go_call_types as fn(&str) -> bool,
         Language::Rust => rust_call_types as fn(&str) -> bool,
         Language::C => c_call_types as fn(&str) -> bool,
@@ -541,6 +544,7 @@ pub fn callees_in_source_region(
     let extractor = match language {
         Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Typescript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::Javascript => extract_typescript_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Go => extract_go_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Rust => extract_rust_callee as fn(Node, &[u8]) -> Option<String>,
         Language::C => extract_c_callee as fn(Node, &[u8]) -> Option<String>,
@@ -896,6 +900,7 @@ impl CallReceiverScorer {
     /// Fit over `repo_files` (path + already-read source). `adapter` is used
     /// only for `is_data_dominant`.
     #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         repo_files: &[(PathBuf, String)],
         language: Language,
@@ -906,6 +911,7 @@ impl CallReceiverScorer {
         cluster_seed: u64,
         cluster_rare_threshold: usize,
         cluster_size_min: usize,
+        data_threshold: f64,
     ) -> Result<Self, &'static str> {
         let mut attested: HashSet<String> = HashSet::new();
         // Symbols the repo declares (functions, methods, classes, types,
@@ -918,7 +924,7 @@ impl CallReceiverScorer {
 
         let mut callee_file_counts: HashMap<String, usize> = HashMap::new();
         for (path, src) in repo_files {
-            if adapter.is_data_dominant(src) {
+            if adapter.is_data_dominant(src, data_threshold) {
                 skipped += 1;
                 continue;
             }
@@ -1148,13 +1154,14 @@ impl CallReceiverScorer {
         primitives: Vec<Box<dyn ShapePrimitive>>,
         repo_files: &[(PathBuf, String)],
         adapter: &dyn LanguageAdapter,
+        data_threshold: f64,
     ) -> Self {
         if primitives.is_empty() {
             return self;
         }
         let mut cluster_files: HashMap<usize, Vec<(PathBuf, String)>> = HashMap::new();
         for (path, src) in repo_files {
-            if adapter.is_data_dominant(src) {
+            if adapter.is_data_dominant(src, data_threshold) {
                 continue;
             }
             if let Some(&cid) = self.file_to_cluster.get(path) {
@@ -1764,7 +1771,7 @@ mod tests {
             PathBuf::from("rare.py"),
             "def h():\n    rare_helper()\n".to_string(),
         ));
-        CallReceiverScorer::new(&files, Language::Python, 2.0, 5, &adapter, 4, 0, 0, 0)
+        CallReceiverScorer::new(&files, Language::Python, 2.0, 5, &adapter, 4, 0, 0, 0, 0.65)
             .unwrap()
             .with_rarity_weighting(weighting)
     }
@@ -1837,8 +1844,8 @@ mod tests {
                 )
             })
             .collect();
-        let cr =
-            CallReceiverScorer::new(&files, Language::Php, 2.0, 5, &adapter, 4, 0, 0, 0).unwrap();
+        let cr = CallReceiverScorer::new(&files, Language::Php, 2.0, 5, &adapter, 4, 0, 0, 0, 0.65)
+            .unwrap();
         let local = LocalBindings::default();
         // Explicit foreign namespace the repo never uses → detected.
         assert!(cr.hunk_names_explicit_foreign_namespace(

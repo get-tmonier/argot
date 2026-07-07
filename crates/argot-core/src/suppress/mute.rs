@@ -1,24 +1,24 @@
-//! `argot mute <hit-hash>` — append a hash-scoped rule to
-//! `.argot/suppressions.yaml`, resolving the hash against the last check run's
-//! cache (`.argot/last-check.json`).
+//! `argot mute <hit-hash>` — append a hash-scoped `[[mute]]` to `argot.toml`,
+//! resolving the hash against the last check run's cache
+//! (`.argot/last-check.json`).
 //!
-//! The append is textual (one serialized list item) so hand-edited YAML —
-//! comments included — is never rewritten by a mute.
+//! The append is a format-preserving TOML edit ([`crate::config::append_mute`]),
+//! so hand-edited config — comments included — is never rewritten by a mute.
 
+use crate::config::{append_mute, ArgotConfig};
 use crate::suppress::last_check::read_last_check;
-use crate::suppress::rules_file::{load_suppressions_file, SuppressionRule};
+use crate::suppress::rules_file::SuppressionRule;
 use std::path::Path;
-
-/// File name of the rules file inside the argot dir.
-pub const SUPPRESSIONS_FILE: &str = "suppressions.yaml";
 
 /// Default reason recorded when `argot mute` is run without `--reason`.
 pub const DEFAULT_MUTE_REASON: &str = "muted via argot mute";
 
-/// Append a hash-scoped suppression for `hash`. `expires` is an optional
-/// `YYYY-MM-DD` date (already resolved by the caller); `today` gates the
-/// duplicate check against active rules. Returns the written rule.
+/// Append a hash-scoped mute for `hash` to `<repo_root>/argot.toml`. The hit's
+/// path/hash come from the last check cached under `argot_dir`. `expires` is an
+/// optional `YYYY-MM-DD` date (already resolved by the caller); `today` gates
+/// the duplicate check against active rules. Returns the written rule.
 pub fn mute_hash(
+    repo_root: &Path,
     argot_dir: &Path,
     hash: &str,
     reason: Option<&str>,
@@ -35,16 +35,14 @@ pub fn mute_hash(
         format!("hit hash '{hash}' not found in the last check results — run `argot check` and copy a [hash] from a hit")
     })?;
 
-    let rules_path = argot_dir.join(SUPPRESSIONS_FILE);
-    let existing = load_suppressions_file(&rules_path, today);
-    if existing
+    let config = ArgotConfig::load(repo_root);
+    if config
+        .mutes(today)
         .active
         .iter()
         .any(|r| r.hash.as_deref() == Some(hash))
     {
-        return Err(format!(
-            "hit '{hash}' is already muted in {SUPPRESSIONS_FILE}"
-        ));
+        return Err(format!("hit '{hash}' is already muted in argot.toml"));
     }
 
     let rule = SuppressionRule {
@@ -59,17 +57,7 @@ pub fn mute_hash(
             .to_string(),
     };
 
-    let item = serde_yaml::to_string(std::slice::from_ref(&rule))
-        .map_err(|e| format!("failed to serialize suppression entry: {e}"))?;
-    let mut content = std::fs::read_to_string(&rules_path).unwrap_or_default();
-    if !content.is_empty() && !content.ends_with('\n') {
-        content.push('\n');
-    }
-    content.push_str(&item);
-    std::fs::create_dir_all(argot_dir)
-        .map_err(|e| format!("cannot create {}: {e}", argot_dir.display()))?;
-    std::fs::write(&rules_path, content)
-        .map_err(|e| format!("cannot write {}: {e}", rules_path.display()))?;
+    append_mute(repo_root, &rule)?;
     Ok(rule)
 }
 
@@ -81,11 +69,13 @@ mod tests {
 
     const TODAY: &str = "2026-07-02";
 
-    fn argot_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("argot_mute_{name}_{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
+    /// A scratch repo root with an `.argot/` dir inside it.
+    fn scratch(name: &str) -> (PathBuf, PathBuf) {
+        let root = std::env::temp_dir().join(format!("argot_mute_{name}_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let argot_dir = root.join(".argot");
+        std::fs::create_dir_all(&argot_dir).unwrap();
+        (root, argot_dir)
     }
 
     fn seed_last_check(dir: &Path) {
@@ -104,77 +94,79 @@ mod tests {
 
     #[test]
     fn mute_appends_hash_scoped_rule_with_default_reason() {
-        let dir = argot_dir("append");
-        seed_last_check(&dir);
-        let rule = mute_hash(&dir, "abc123def456", None, None, TODAY).unwrap();
+        let (root, argot_dir) = scratch("append");
+        seed_last_check(&argot_dir);
+        let rule = mute_hash(&root, &argot_dir, "abc123def456", None, None, TODAY).unwrap();
         assert_eq!(rule.path, "src/app.py");
         assert_eq!(rule.hash.as_deref(), Some("abc123def456"));
         assert_eq!(rule.reason, DEFAULT_MUTE_REASON);
 
-        let loaded = load_suppressions_file(&dir.join(SUPPRESSIONS_FILE), TODAY);
+        let loaded = ArgotConfig::load(&root).mutes(TODAY);
         assert_eq!(loaded.active, vec![rule]);
-        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
-    fn mute_preserves_existing_file_content_textually() {
-        let dir = argot_dir("preserve");
-        seed_last_check(&dir);
+    fn mute_preserves_existing_config_textually() {
+        let (root, argot_dir) = scratch("preserve");
+        seed_last_check(&argot_dir);
         std::fs::write(
-            dir.join(SUPPRESSIONS_FILE),
-            "# hand-written\n- path: keep.py\n  reason: manual rule\n",
+            root.join("argot.toml"),
+            "# hand-written\n[exclude]\npaths = [\"keep/\"]  # manual\n",
         )
         .unwrap();
         mute_hash(
-            &dir,
+            &root,
+            &argot_dir,
             "abc123def456",
             Some("noisy vendored hunk"),
             None,
             TODAY,
         )
         .unwrap();
-        let content = std::fs::read_to_string(dir.join(SUPPRESSIONS_FILE)).unwrap();
+        let content = std::fs::read_to_string(root.join("argot.toml")).unwrap();
         assert!(content.starts_with("# hand-written\n"), "comment preserved");
-        assert!(content.contains("keep.py"));
+        assert!(content.contains("keep/"));
         assert!(content.contains("noisy vendored hunk"));
-        let loaded = load_suppressions_file(&dir.join(SUPPRESSIONS_FILE), TODAY);
-        assert_eq!(loaded.active.len(), 2);
-        let _ = std::fs::remove_dir_all(&dir);
+        let loaded = ArgotConfig::load(&root).mutes(TODAY);
+        assert_eq!(loaded.active.len(), 1);
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn mute_unknown_hash_errors() {
-        let dir = argot_dir("unknown");
-        seed_last_check(&dir);
-        let err = mute_hash(&dir, "000000000000", None, None, TODAY).unwrap_err();
+        let (root, argot_dir) = scratch("unknown");
+        seed_last_check(&argot_dir);
+        let err = mute_hash(&root, &argot_dir, "000000000000", None, None, TODAY).unwrap_err();
         assert!(err.contains("not found in the last check results"));
-        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn mute_without_last_check_errors() {
-        let dir = argot_dir("nocache");
-        let err = mute_hash(&dir, "abc123def456", None, None, TODAY).unwrap_err();
+        let (root, argot_dir) = scratch("nocache");
+        let err = mute_hash(&root, &argot_dir, "abc123def456", None, None, TODAY).unwrap_err();
         assert!(err.contains("run `argot check` first"));
-        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn duplicate_mute_errors() {
-        let dir = argot_dir("dup");
-        seed_last_check(&dir);
-        mute_hash(&dir, "abc123def456", None, None, TODAY).unwrap();
-        let err = mute_hash(&dir, "abc123def456", None, None, TODAY).unwrap_err();
+        let (root, argot_dir) = scratch("dup");
+        seed_last_check(&argot_dir);
+        mute_hash(&root, &argot_dir, "abc123def456", None, None, TODAY).unwrap();
+        let err = mute_hash(&root, &argot_dir, "abc123def456", None, None, TODAY).unwrap_err();
         assert!(err.contains("already muted"));
-        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn mute_with_expiry_records_date() {
-        let dir = argot_dir("expiry");
-        seed_last_check(&dir);
+        let (root, argot_dir) = scratch("expiry");
+        seed_last_check(&argot_dir);
         let rule = mute_hash(
-            &dir,
+            &root,
+            &argot_dir,
             "abc123def456",
             None,
             Some("2026-08-01".to_string()),
@@ -182,6 +174,6 @@ mod tests {
         )
         .unwrap();
         assert_eq!(rule.expires.as_deref(), Some("2026-08-01"));
-        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

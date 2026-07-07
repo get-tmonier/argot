@@ -31,6 +31,7 @@ pub struct Target {
 const TARGET_LANGUAGES: &[&str] = &[
     "python",
     "typescript",
+    "javascript",
     "go",
     "rust",
     "c",

@@ -14,6 +14,7 @@ use crate::scoring::adapters::cpp::CppAdapter;
 use crate::scoring::adapters::csharp::CSharpAdapter;
 use crate::scoring::adapters::go::GoAdapter;
 use crate::scoring::adapters::java::JavaAdapter;
+use crate::scoring::adapters::javascript::JavaScriptAdapter;
 use crate::scoring::adapters::php::PhpAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::ruby::RubyAdapter;
@@ -26,7 +27,7 @@ use crate::scoring::conventions::{fit_convention_frequencies, ConventionScorer};
 use crate::scoring::model::{ConventionModel, LanguageModel};
 use crate::scoring::typicality::TypicalityModel;
 use crate::suppress::PathSuppressions;
-use crate::text::{read_text_lossy, splitlines, splitlines_keepends};
+use crate::text::{read_text_lossy, splitlines, splitlines_keepends, universal_newlines};
 use anyhow::{bail, Result};
 use md5::{Digest, Md5};
 use serde::Serialize;
@@ -168,6 +169,141 @@ fn rglob_sorted(dir: &Path, ext: &str) -> Vec<PathBuf> {
     out
 }
 
+/// Which language this repo's ambiguous `.h` headers belong to. `.h` is used by
+/// both C and C++; a header-only C++ library keeps its logic in `.h` with the
+/// translation units in `.cc`/`.cpp`, so filing every `.h` under C (the naive
+/// default) starves the C++ model and mis-scores the bulk of the code. Decide
+/// per repo by translation-unit majority — `.cpp`/`.cc`/`.cxx` (C++) vs `.c`
+/// (C). Computed identically wherever the pipeline classifies a `.h` (extract,
+/// calibrate, check) so the stages stay in lock-step.
+pub fn header_is_cpp(source_dir: &Path) -> bool {
+    fn walk(dir: &Path, root: &Path, c: &mut usize, cpp: &mut usize) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            match entry.file_type() {
+                Ok(t) if t.is_dir() => {
+                    let name = basename(&path);
+                    // Speed prune: never any authored voice in these; the
+                    // per-file `is_excluded_path` below is the correctness gate.
+                    if matches!(name.as_str(), ".git" | "node_modules" | "target" | "vendor") {
+                        continue;
+                    }
+                    walk(&path, root, c, cpp);
+                }
+                Ok(t) if t.is_file() => {
+                    if is_excluded_path(&path, root) {
+                        continue;
+                    }
+                    let name = basename(&path);
+                    if name.ends_with(".c") {
+                        *c += 1;
+                    } else if name.ends_with(".cpp")
+                        || name.ends_with(".cc")
+                        || name.ends_with(".cxx")
+                    {
+                        *cpp += 1;
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    let (mut c, mut cpp) = (0usize, 0usize);
+    walk(source_dir, source_dir, &mut c, &mut cpp);
+    cpp > c
+}
+
+/// [`language_for_filename`], but resolving the C/C++ `.h` ambiguity with a
+/// repo-level `header_is_cpp` decision so all stages agree.
+pub fn language_for_filename_ctx(name: &str, header_is_cpp: bool) -> Option<Language> {
+    match (language_for_filename(name), header_is_cpp) {
+        (Some(Language::C), true) if name.ends_with(".h") => Some(Language::Cpp),
+        (other, _) => other,
+    }
+}
+
+/// Reads source content the way a fit *should* see it: from the committed HEAD
+/// blob, not the working tree. On a clean checkout the two are byte-identical
+/// (both normalize newlines via [`universal_newlines`]); on a dirty tree this
+/// ignores uncommitted edits, so foreign code an agent just wrote isn't
+/// laundered into the learned voice. Files absent from HEAD (untracked / newly
+/// added) resolve to `None` — they're uncommitted, so calibration excludes
+/// them. Outside a git repo, or on an unborn HEAD, every read falls back to the
+/// working-tree file, preserving today's behaviour for non-repo callers.
+struct HeadSource {
+    // (repo, relpath → blob oid, workdir). `None` → always fall back to disk.
+    inner: Option<(
+        git2::Repository,
+        std::collections::HashMap<String, git2::Oid>,
+        PathBuf,
+    )>,
+}
+
+impl HeadSource {
+    fn new(dir: &Path) -> Self {
+        let Ok(repo) = crate::git_walk::open_repo(&dir.to_string_lossy()) else {
+            return Self { inner: None };
+        };
+        // Canonicalize the workdir so it compares equal to canonicalized file
+        // paths in `read` — macOS symlinks the temp/`/var` root to `/private/var`,
+        // and git2 reports the resolved form, so a raw prefix check would miss.
+        let Some(workdir) = repo
+            .workdir()
+            .map(|w| std::fs::canonicalize(w).unwrap_or_else(|_| w.to_path_buf()))
+        else {
+            return Self { inner: None };
+        };
+        let mut blobs: std::collections::HashMap<String, git2::Oid> =
+            std::collections::HashMap::new();
+        {
+            let Ok(head) = repo.head() else {
+                return Self { inner: None };
+            };
+            let Ok(tree) = head.peel_to_tree() else {
+                return Self { inner: None };
+            };
+            let _ = tree.walk(git2::TreeWalkMode::PreOrder, |root, entry| {
+                if entry.kind() == Some(git2::ObjectType::Blob) {
+                    if let Some(name) = entry.name() {
+                        blobs.insert(format!("{root}{name}"), entry.id());
+                    }
+                }
+                0 // continue the walk
+            });
+        }
+        Self {
+            inner: Some((repo, blobs, workdir)),
+        }
+    }
+
+    /// Source text for `path` as a fit should see it. A **tracked** file resolves
+    /// to its committed HEAD blob — so a working-tree modification (an agent's
+    /// just-added foreign import in an existing file) is *not* learned. Anything
+    /// not in HEAD (a new/untracked file, or a path outside this repo) is read
+    /// as-is from disk, so nested and non-repo callers behave exactly as before.
+    /// Byte-identical to a working-tree read on a clean checkout (both normalize
+    /// newlines). `None` only when the disk read itself fails.
+    fn read(&self, path: &Path) -> Option<String> {
+        if let Some((repo, blobs, workdir)) = &self.inner {
+            // Match the canonicalized workdir (resolves the `/var` symlink etc.).
+            let canon = std::fs::canonicalize(path);
+            let lookup = canon.as_deref().unwrap_or(path);
+            if let Ok(rel) = lookup.strip_prefix(workdir) {
+                let rel = rel.to_string_lossy().replace('\\', "/");
+                if let Some(oid) = blobs.get(&rel) {
+                    if let Ok(blob) = repo.find_blob(*oid) {
+                        return Some(universal_newlines(&String::from_utf8_lossy(blob.content())));
+                    }
+                }
+            }
+        }
+        read_text_lossy(path).ok()
+    }
+}
+
 /// A calibration candidate: hunk text + originating file path + file source.
 /// Line bounds are 1-indexed inclusive within `file_source` and back the
 /// parse-error host fallback for callee extraction.
@@ -186,7 +322,12 @@ pub struct Candidate {
 /// The production calibrator resolves `.argotignore` on top via
 /// [`collect_candidates_with`].
 pub fn collect_candidates(source_dir: &Path, adapter: &dyn LanguageAdapter) -> Vec<Candidate> {
-    collect_candidates_with(source_dir, adapter, &PathSuppressions::recommended())
+    collect_candidates_with(
+        source_dir,
+        adapter,
+        &PathSuppressions::recommended(),
+        &crate::config::DetectConfig::default(),
+    )
 }
 
 /// [`collect_candidates`] against a fully resolved path-suppression set
@@ -197,30 +338,42 @@ pub fn collect_candidates_with(
     source_dir: &Path,
     adapter: &dyn LanguageAdapter,
     path_suppressions: &PathSuppressions,
+    detect: &crate::config::DetectConfig,
 ) -> Vec<Candidate> {
-    let exts: &[&str] = match adapter.language() {
-        Language::Python => &[".py"],
-        Language::Typescript => &[".ts", ".tsx"],
-        Language::Go => &[".go"],
-        Language::Rust => &[".rs"],
-        Language::C => &[".c", ".h"],
-        Language::Java => &[".java"],
-        Language::CSharp => &[".cs"],
-        Language::Php => &[".php"],
-        Language::Cpp => &[".cpp", ".cc", ".hpp", ".cxx"],
-        Language::Ruby => &[".rb"],
+    // `.h` routes to whichever of C / C++ this repo predominantly is, so a
+    // header-only C++ library's headers calibrate under the C++ model, not C.
+    let exts: Vec<&str> = match adapter.language() {
+        Language::Python => vec![".py"],
+        Language::Typescript => vec![".ts", ".tsx"],
+        Language::Javascript => vec![".js", ".jsx"],
+        Language::Go => vec![".go"],
+        Language::Rust => vec![".rs"],
+        Language::C if header_is_cpp(source_dir) => vec![".c"],
+        Language::C => vec![".c", ".h"],
+        Language::Java => vec![".java"],
+        Language::CSharp => vec![".cs"],
+        Language::Php => vec![".php"],
+        Language::Cpp if header_is_cpp(source_dir) => vec![".cpp", ".cc", ".hpp", ".cxx", ".h"],
+        Language::Cpp => vec![".cpp", ".cc", ".hpp", ".cxx"],
+        Language::Ruby => vec![".rb"],
     };
+    let head = HeadSource::new(source_dir);
     let mut out = Vec::new();
-    for ext in exts {
+    for &ext in &exts {
         for src_file in rglob_sorted(source_dir, ext) {
             if path_suppressions.is_suppressed_abs(&src_file, source_dir) {
                 continue;
             }
-            let source = match read_text_lossy(&src_file) {
-                Ok(s) => s,
-                Err(_) => continue,
+            let source = match head.read(&src_file) {
+                Some(s) => s,
+                None => continue,
             };
-            if adapter.is_data_dominant(&source) {
+            // Generated code (transpiled JS, protobuf stubs, `// Code generated`)
+            // is not authored voice — exclude it from calibration, matching what
+            // `inspect` reports and how `check` skips it.
+            if adapter.is_data_dominant(&source, detect.data_threshold)
+                || adapter.is_auto_generated(&source, &detect.generated_markers)
+            {
                 continue;
             }
             let lines = splitlines(&source);
@@ -496,6 +649,7 @@ fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
     match language {
         Language::Python => Box::new(PythonAdapter::new()),
         Language::Typescript => Box::new(TypeScriptAdapter::new()),
+        Language::Javascript => Box::new(JavaScriptAdapter::new()),
         Language::Go => Box::new(GoAdapter::new()),
         Language::Rust => Box::new(RustAdapter::new()),
         Language::C => Box::new(CAdapter::new()),
@@ -513,6 +667,7 @@ pub fn language_name(language: Language) -> &'static str {
     match language {
         Language::Python => "python",
         Language::Typescript => "typescript",
+        Language::Javascript => "javascript",
         Language::Go => "go",
         Language::Rust => "rust",
         Language::C => "c",
@@ -525,8 +680,8 @@ pub fn language_name(language: Language) -> &'static str {
 }
 
 /// Extension → language routing used to partition the corpus (`.py` → python;
-/// `.ts`/`.tsx`/`.js`/`.jsx` → typescript; `.cs` → csharp). Public so `inspect`
-/// classifies files with exactly the calibration routing.
+/// `.ts`/`.tsx` → typescript; `.js`/`.jsx` → javascript; `.cs` → csharp).
+/// Public so `inspect` classifies files with exactly the calibration routing.
 pub fn language_for_filename(name: &str) -> Option<Language> {
     let ext = match name.rfind('.') {
         Some(i) => &name[i..],
@@ -534,7 +689,8 @@ pub fn language_for_filename(name: &str) -> Option<Language> {
     };
     match ext {
         ".py" => Some(Language::Python),
-        ".ts" | ".tsx" | ".js" | ".jsx" => Some(Language::Typescript),
+        ".ts" | ".tsx" => Some(Language::Typescript),
+        ".js" | ".jsx" => Some(Language::Javascript),
         ".go" => Some(Language::Go),
         ".rs" => Some(Language::Rust),
         ".c" | ".h" => Some(Language::C),
@@ -864,10 +1020,11 @@ pub fn run_calibrate(
         bail!("empty repo corpus");
     }
 
-    // Partition corpus by language.
+    // Partition corpus by language (routing `.h` per the repo's C/C++ majority).
+    let header_cpp = header_is_cpp(repo_dir);
     let mut by_lang: BTreeMap<&'static str, (Language, Vec<PathBuf>)> = BTreeMap::new();
     for f in &corpus_files {
-        if let Some(lang) = language_for_filename(&basename(f)) {
+        if let Some(lang) = language_for_filename_ctx(&basename(f), header_cpp) {
             by_lang
                 .entry(language_name(lang))
                 .or_insert_with(|| (lang, Vec::new()))
@@ -893,9 +1050,16 @@ pub fn run_calibrate(
     let mut per_lang_files: BTreeMap<String, usize> = BTreeMap::new();
     let mut total_lines: usize = 0;
 
-    // Resolved path-suppression set (recommended built-ins + `.argotignore`) —
-    // the same set `check` filters against (lock-step principle).
-    let path_suppressions = PathSuppressions::load(repo_dir);
+    // Resolved config: the path-suppression set (recommended built-ins +
+    // `[exclude].paths`) and the `[detect]` heuristics — the same values `check`
+    // consults (lock-step principle).
+    let config = crate::config::ArgotConfig::load(repo_dir);
+    let path_suppressions = config.path_suppressions();
+    let detect = &config.detect;
+    // Fit from committed HEAD, not the working tree — an uncommitted foreign
+    // edit must not be learned as part of the voice it's about to be checked
+    // against. Byte-identical to a working-tree read on a clean checkout.
+    let head = HeadSource::new(repo_dir);
 
     for (name, (language, lang_files)) in by_lang {
         let adapter = adapter_for(language);
@@ -903,19 +1067,25 @@ pub fn run_calibrate(
         // Read corpus sources once (shared by BPE + call-receiver + evidence).
         let repo_files: Vec<(PathBuf, String)> = lang_files
             .iter()
-            .filter_map(|p| read_text_lossy(p).ok().map(|s| (p.clone(), s)))
+            .filter_map(|p| head.read(p).map(|s| (p.clone(), s)))
             .collect();
-        // exclude_data_dominant filter.
+        // Exclude data-dominant AND auto-generated files (transpiled output,
+        // generated stubs) — the model learns authored voice only.
         let filtered: Vec<(PathBuf, String)> = repo_files
             .iter()
-            .filter(|(_, s)| !adapter.is_data_dominant(s))
+            .filter(|(_, s)| {
+                !adapter.is_data_dominant(s, detect.data_threshold)
+                    && !adapter.is_auto_generated(s, &detect.generated_markers)
+            })
             .cloned()
             .collect();
-        let corpus = if filtered.is_empty() {
-            &repo_files
-        } else {
-            &filtered
-        };
+        // No authored voice for this language — every file is data-dominant or
+        // generated (e.g. a TS repo's transpiled `.js`). Emit no model rather
+        // than fall back to learning generated code as the repo's voice.
+        if filtered.is_empty() {
+            continue;
+        }
+        let corpus = &filtered;
         let sources: Vec<String> = corpus.iter().map(|(_, s)| s.clone()).collect();
         per_lang_files.insert(name.to_string(), corpus.len());
         total_lines += sources.iter().map(|s| s.lines().count()).sum::<usize>();
@@ -945,11 +1115,13 @@ pub fn run_calibrate(
             CR_CLUSTER_SEED,
             0,
             0,
+            detect.data_threshold,
         )
         .map_err(anyhow::Error::msg)?;
 
         // Candidates for sampling.
-        let candidates = collect_candidates_with(repo_dir, adapter.as_ref(), &path_suppressions);
+        let candidates =
+            collect_candidates_with(repo_dir, adapter.as_ref(), &path_suppressions, detect);
         let effective_n_cal = opts.n_cal.min(candidates.len());
         let typicality = TypicalityModel::new(language);
 
@@ -972,6 +1144,7 @@ pub fn run_calibrate(
                 CR_CLUSTER_SEED,
                 resolved_rare,
                 opts.cluster_size_min,
+                detect.data_threshold,
             )
             .map_err(anyhow::Error::msg)?;
             let idx = sample_indices(candidates.len(), effective_n_cal, opts.seed);
@@ -1107,6 +1280,7 @@ pub fn run_calibrate(
             adapter.as_ref(),
             &call_receiver,
             opts.evidence_top_n,
+            &head,
         );
 
         // Convention-rarity model: corpus frequencies plus firing bars set at
@@ -1233,6 +1407,7 @@ fn build_evidence_corpus(
     adapter: &dyn LanguageAdapter,
     call_receiver: &CallReceiverScorer,
     top_n: usize,
+    head: &HeadSource,
 ) -> EvidenceCorpusJson {
     use std::collections::HashMap;
     // imports: per-file distinct specifiers.
@@ -1240,9 +1415,9 @@ fn build_evidence_corpus(
     let mut identifier_counts: HashMap<String, usize> = HashMap::new();
     let noise = adapter.identifier_noise();
     for path in files {
-        let source = match read_text_lossy(path) {
-            Ok(s) => s,
-            Err(_) => continue,
+        let source = match head.read(path) {
+            Some(s) => s,
+            None => continue,
         };
         for spec in adapter.extract_imports(&source) {
             *import_counts.entry(spec).or_insert(0) += 1;
@@ -1315,8 +1490,83 @@ fn extract_identifiers(src: &str) -> Vec<String> {
 }
 
 #[cfg(test)]
-mod slice_tests {
+mod tests {
     use super::*;
+
+    #[test]
+    fn language_for_filename_ctx_resolves_dot_h_by_repo_majority() {
+        // `.h` follows the repo decision; nothing else moves.
+        assert_eq!(language_for_filename_ctx("x.h", true), Some(Language::Cpp));
+        assert_eq!(language_for_filename_ctx("x.h", false), Some(Language::C));
+        assert_eq!(language_for_filename_ctx("x.c", true), Some(Language::C));
+        assert_eq!(
+            language_for_filename_ctx("x.cpp", false),
+            Some(Language::Cpp)
+        );
+        assert_eq!(
+            language_for_filename_ctx("x.py", true),
+            Some(Language::Python)
+        );
+    }
+
+    #[test]
+    fn header_is_cpp_follows_translation_unit_majority() {
+        let base = std::env::temp_dir().join(format!("argot_hdr_{}", std::process::id()));
+
+        // C++-majority: more .cc than .c → headers are C++.
+        let cpp_repo = base.join("cpp");
+        std::fs::create_dir_all(&cpp_repo).unwrap();
+        for f in ["a.cc", "b.cc", "core.h", "util.c"] {
+            std::fs::write(cpp_repo.join(f), "x\n").unwrap();
+        }
+        assert!(header_is_cpp(&cpp_repo), "2 .cc vs 1 .c → C++");
+
+        // C-majority: more .c than C++ TUs → headers are C.
+        let c_repo = base.join("c");
+        std::fs::create_dir_all(&c_repo).unwrap();
+        for f in ["a.c", "b.c", "c.c", "net.h"] {
+            std::fs::write(c_repo.join(f), "x\n").unwrap();
+        }
+        assert!(!header_is_cpp(&c_repo), "3 .c vs 0 C++ TU → C");
+
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn head_source_reads_committed_version_ignoring_working_tree_edits() {
+        use std::process::Command;
+        let dir = std::env::temp_dir().join(format!("argot_headsrc_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let git = |args: &[&str]| {
+            Command::new("git")
+                .args(args)
+                .current_dir(&dir)
+                .output()
+                .expect("git");
+        };
+        git(&["init", "-q"]);
+        git(&["config", "user.email", "t@t.co"]);
+        git(&["config", "user.name", "t"]);
+        std::fs::write(dir.join("a.py"), "import json\n").unwrap();
+        git(&["add", "-A"]);
+        git(&["commit", "-qm", "init"]);
+        // Working-tree edit to a tracked file + a brand-new untracked file.
+        std::fs::write(dir.join("a.py"), "import json\nimport requests\n").unwrap();
+        std::fs::write(dir.join("b.py"), "import os\n").unwrap();
+
+        let head = HeadSource::new(&dir);
+        // Tracked file → its committed HEAD version, NOT the uncommitted edit.
+        assert_eq!(
+            head.read(&dir.join("a.py")).as_deref(),
+            Some("import json\n"),
+            "a modified tracked file must fit from HEAD, not the working tree"
+        );
+        // Untracked file → read as-is from disk (nested/non-repo callers unchanged).
+        assert_eq!(head.read(&dir.join("b.py")).as_deref(), Some("import os\n"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn slice_matches_by_prefix_and_exact_file() {

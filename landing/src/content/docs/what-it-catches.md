@@ -16,9 +16,11 @@ verbatim. Where it doesn't, that's said plainly.
 
 ## The dependable catches
 
-Across 635 fixtures in 10 languages, when the foreign symbol is visible in the code — an explicit
-import, a fully-qualified call, a distinct API name — argot catches **522 of 527 (99%)** on the
-honest, leak-free bench. Three shapes, strongest first.
+<!-- TODO(js-numbers): the fixture total and the "N of M" catch fraction below still show the
+     pre-JavaScript run; refresh them once the JS re-bench dashboard lands. -->
+Across the whole fixture set in 11 languages, when the foreign symbol is visible in the code — an
+explicit import, a fully-qualified call, a distinct API name — argot catches **~98%** on the honest,
+leak-free bench. Three shapes, strongest first.
 
 ### 1. A foreign dependency
 
@@ -104,7 +106,7 @@ async def get_user(user_id: int, db=Depends(get_db)) -> UserResponse:
 argot does **not** flag this. `ValueError` and `HTTPException` are *both* in the repo's vocabulary; only the choice is wrong.
 Separating "wrong choice" from a legitimate `ValueError` elsewhere needs semantic reasoning a no-model,
 no-runtime binary doesn't have — and forcing it drives false alarms on the repo's own code (the
-recovery investigation measured **+1 recall for +45 false positives**, blowing the ≤0.98% budget). So
+recovery investigation measured **+1 recall for +45 false positives**, blowing the ≤1.17% budget). So
 argot leaves it. Same story for a **manual `if status_code >= 400` instead of `raise_for_status()`**,
 or a **sync `def` endpoint** in an async repo: structurally non-idiomatic, but built from entirely
 attested tokens — and verified clean on the bench.
@@ -121,7 +123,7 @@ misuse of your own vocabulary.
 | A dependency the repo has never imported | A wrong *value* on an attested construct |
 | A call into a library the repo standardises away from | A wrong exception type where both are attested |
 | A whole foreign paradigm (Django view, Flask route, manual validation) | A structural shape built from only-familiar tokens |
-| **Reliable — 99% when the foreign symbol is visible** | **Secondary — surfaced sometimes, never gated** |
+| **Reliable — 98% when the foreign symbol is visible** | **Secondary — surfaced sometimes, never gated** |
 
 Treat a hit as a prompt to look, never a verdict. The thread through everything argot *does* catch:
 **the foreign symbol is right there in the change** — a new import, an unattested callee, a paradigm

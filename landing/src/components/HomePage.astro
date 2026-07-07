@@ -1,5 +1,4 @@
 ---
-import Agents from '#components/Agents.astro';
 import Catches from '#components/Catches.astro';
 import CiScore from '#components/CiScore.astro';
 import Cta from '#components/Cta.astro';
@@ -27,14 +26,10 @@ const { content, locale } = Astro.props;
     <Catches content={content} />
     <Proof content={content} />
     <Setup content={content} />
-    <Agents content={content} />
     <CiScore content={content} />
-    <!-- final screen: the CTA fills the viewport with the footer pinned at the
-         bottom. Deliberately NOT a snap target — the page settles naturally at
-         the document end so the footer is always reachable (no snap-back). -->
-    <div class="flex min-h-svh flex-col">
-      <Cta content={content} locale={locale} />
-      <Footer content={content} locale={locale} />
-    </div>
+    <!-- CTA + footer flow by content (no forced full-viewport block) so the
+         page ends tight against the last section instead of a full empty screen. -->
+    <Cta content={content} locale={locale} />
+    <Footer content={content} locale={locale} />
   </main>
 </Base>

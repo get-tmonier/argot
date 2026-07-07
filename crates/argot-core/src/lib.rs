@@ -10,6 +10,7 @@
 
 pub mod bpe;
 pub mod check;
+pub mod config;
 pub mod dataset;
 pub mod extract;
 pub mod git_walk;

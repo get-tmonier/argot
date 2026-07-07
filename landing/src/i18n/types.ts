@@ -22,6 +22,7 @@ export interface SiteContent {
     readonly ctaSecondary: string;
     readonly install: string;
     readonly installNote: string;
+    readonly installAlt: string;
   };
   readonly demo: {
     readonly label: string;
@@ -44,22 +45,20 @@ export interface SiteContent {
       readonly title: string;
       readonly desc: string;
     }[];
+    readonly languages: string;
     readonly finePrint: string;
+    readonly benchmarksCta: string;
   };
   readonly setup: {
     readonly label: string;
     readonly title: string;
     readonly body: string;
     readonly caption: string;
+    readonly installLabel: string;
+    readonly skillsIntro: string;
+    readonly skillDescs: readonly string[];
     readonly ctaLocal: string;
     readonly ctaCi: string;
-  };
-  readonly agents: {
-    readonly label: string;
-    readonly title: string;
-    readonly body: string;
-    readonly cards: readonly Feature[];
-    readonly caption: string;
   };
   readonly ciScore: {
     readonly label: string;

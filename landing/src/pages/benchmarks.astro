@@ -1,5 +1,6 @@
 ---
 import Base from '#layouts/Base.astro';
+import { SITE } from '#lib/site';
 
 // Build-time import of the committed dashboard history (schema v2 in
 // crates/argot-bench/src/dashboard.rs). CI appends a dated entry per run and
@@ -15,7 +16,7 @@ type Fp = {
   ci95_pct: [number, number] | null;
 };
 type Tier = { caught: number; total: number; pct?: number };
-type ByDifficulty = { easy: Tier; medium: Tier; hard: Tier };
+type ByDifficulty = { easy: Tier; medium: Tier; hard: Tier; uncaught?: Tier };
 type Corpus = {
   corpus: string;
   language: string;
@@ -80,7 +81,11 @@ const bd = latest?.totals.foreign_by_difficulty;
 const visCaught = bd ? bd.easy.caught + bd.medium.caught : 0;
 const visTotal = bd ? bd.easy.total + bd.medium.total : 0;
 const visPct = visTotal ? (100 * visCaught) / visTotal : 0;
-const hardPct = bd && bd.hard.total ? (100 * bd.hard.caught) / bd.hard.total : 0;
+// Masked foreign = hard + the "uncaught"-tagged fixtures (name collisions,
+// dynamic imports, attested root namespaces) — the documented statistical limit.
+const maskedCaught = bd ? bd.hard.caught + (bd.uncaught?.caught ?? 0) : 0;
+const maskedTotal = bd ? bd.hard.total + (bd.uncaught?.total ?? 0) : 0;
+const maskedPct = maskedTotal ? (100 * maskedCaught) / maskedTotal : 0;
 
 // Novel-pattern (foreign) catch for a corpus, or '—' when it has no break
 // catalog (an FP-only corpus, there only to measure false alarms).
@@ -97,35 +102,86 @@ const det = (s: Fp | null | undefined) =>
 ---
 
 <Base title="Benchmarks · argot" description="Honest, leak-free benchmark results for argot, fed from CI.">
+  <header class="sticky top-0 z-40 border-b border-line bg-bg/80 backdrop-blur-md">
+    <div class="mx-auto flex h-16 max-w-5xl items-center justify-between gap-4 px-5">
+      <a href="/" class="flex items-center gap-2.5" aria-label="argot — home">
+        <span class="wordmark text-lg">ar<span class="g">g</span>ot</span>
+        <span class="rounded-md border border-line px-2 py-0.5 font-mono text-xs text-muted"
+          >benchmarks</span
+        >
+      </a>
+      <div class="flex items-center gap-2 sm:gap-3">
+        <a
+          href="/docs/"
+          class="rounded-md px-2 py-1.5 text-sm text-ink-dim transition-colors hover:text-ink"
+          >Docs</a
+        >
+        <a
+          href={SITE.github}
+          target="_blank"
+          rel="noopener"
+          class="rounded-md border border-line bg-panel/60 px-3 py-1.5 text-sm transition-colors hover:border-line-2"
+          >GitHub ↗</a
+        >
+      </div>
+    </div>
+  </header>
   <main class="mx-auto max-w-5xl px-5 py-16">
     <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">Benchmarks</h1>
     <p class="mt-4 leading-relaxed text-ink-dim">
       argot has one job: flag code that introduces a pattern <strong>foreign to
       the repo</strong> — a dependency, API, or construct the codebase has never
-      used — the kind of thing an AI agent drags in. So the scorecard is two
-      numbers.
+      used, the kind of thing an AI agent drags in. Two questions decide whether it
+      works: <strong>does it catch the foreign pattern</strong>, and <strong>does
+      it stay quiet on the code you already have</strong>.
     </p>
-    <ul class="mt-4 space-y-2 leading-relaxed text-ink-dim">
+    <ul class="mt-5 space-y-3 leading-relaxed text-ink-dim">
       <li>
-        <strong>Novel-pattern catch</strong> — foreign imports and APIs (verified
-        0-usage at the pinned commit) spliced into real files and judged by the
-        real <code>fit</code> → <code>check</code> pipeline. When the foreign
-        symbol is <em>visible</em> in the code, argot catches ~99%. <em>Masked</em>
-        foreign — a name that collides with one of your own, or a dynamic
-        <code>import()</code> — is a documented statistical limit. Higher is better.
+        <strong>Catch rate</strong> — foreign imports and APIs (verified 0-usage at
+        the pinned commit) spliced into real files and judged by the real
+        <code>fit</code> → <code>check</code> pipeline. When the foreign symbol is
+        <em>visible</em> in the diff, argot catches ~98%; <em>masked</em> foreign (a
+        name colliding with one of your own, or a dynamic <code>import()</code>) is a
+        documented statistical limit. <strong>Higher is better.</strong>
       </li>
       <li>
-        <strong>False alarm (over-fire)</strong> — a leak-free temporal holdout:
-        fit at an old commit, replay only unseen commits, and count how often
-        argot fires on the repo's <em>own existing code</em>. Lower is better. A
-        fire on a genuinely new dependency is reported separately as a
-        <em>detection</em> — argot doing its job, not a false alarm.
+        <strong>False-alarm rate</strong> — a leak-free temporal holdout: fit at an
+        old commit, replay only commits the model never saw, and measure how often
+        argot fires. <strong>Lower is better.</strong>
       </li>
     </ul>
+
+    <div class="mt-5 rounded-xl border border-line bg-panel/30 p-5 text-sm leading-relaxed text-ink-dim">
+      <p class="font-medium text-ink">How to read the false-alarm numbers</p>
+      <p class="mt-2">
+        <strong>A fire is not automatically a false alarm.</strong> We split every
+        one two ways:
+      </p>
+      <ul class="mt-2 space-y-1.5">
+        <li>
+          <strong>Over-fire</strong> — argot fired on code that introduced
+          <em>nothing</em> new to the repo. That's the true false alarm, and it's the
+          number shown in each column. This is what "will it nag me?" means.
+        </li>
+        <li>
+          <strong>Detection</strong> <span class="text-muted">(shown muted, “+x% detections”)</span>
+          — argot fired on code that genuinely introduced a 0-usage symbol: a real new
+          dependency or API. That's argot <em>doing its job</em>, not crying wolf, so
+          it never counts against the score.
+        </li>
+      </ul>
+      <p class="mt-3">
+        And we split by <em>where</em> the change lands. <strong>Existing files</strong>
+        is the "does it stay quiet on my stable code?" number — the one that matters
+        most. <strong>New files</strong> introduce new dependencies far more often, so
+        most new-file fires are detections; the new-file <em>over-fire</em> column
+        (true false alarms) stays near zero.
+      </p>
+    </div>
+
     <p class="mt-4 text-sm text-muted">
-      Split existing-file vs new-file, with commit-level bootstrap 95% CIs.
-      Numbers published before July 2026 were measured train-on-test and were
-      materially optimistic — see
+      Commit-level bootstrap 95% CIs. Numbers published before July 2026 were
+      measured train-on-test and were materially optimistic — see
       <a class="underline" href="https://github.com/get-tmonier/argot/issues/92">issue #92</a>.
       Fed from CI, so the numbers can't drift from what ships.
     </p>
@@ -166,7 +222,7 @@ const det = (s: Fp | null | undefined) =>
               catch by difficulty across {latest.totals.foreign_fixtures} graded fixtures / {latest.corpora.filter((c) => c.foreign_fixtures).length} corpora:
               <span class="text-ink-dim"> easy {bd.easy.caught}/{bd.easy.total} ({((100 * bd.easy.caught) / bd.easy.total).toFixed(0)}%)</span> ·
               <span class="text-ink-dim"> medium {bd.medium.caught}/{bd.medium.total} ({((100 * bd.medium.caught) / bd.medium.total).toFixed(0)}%)</span> ·
-              <span class="text-ink-dim"> hard {bd.hard.caught}/{bd.hard.total} ({hardPct.toFixed(0)}%) — masked foreign, documented limit</span>
+              <span class="text-ink-dim"> masked {maskedCaught}/{maskedTotal} ({maskedPct.toFixed(0)}%) — name collisions & dynamic imports, documented limit</span>
             </p>
           )}
           <p class="mt-3 text-sm text-muted">

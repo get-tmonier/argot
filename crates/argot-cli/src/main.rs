@@ -30,6 +30,7 @@ use argot_core::scoring::adapters::cpp::CppAdapter;
 use argot_core::scoring::adapters::csharp::CSharpAdapter;
 use argot_core::scoring::adapters::go::GoAdapter;
 use argot_core::scoring::adapters::java::JavaAdapter;
+use argot_core::scoring::adapters::javascript::JavaScriptAdapter;
 use argot_core::scoring::adapters::php::PhpAdapter;
 use argot_core::scoring::adapters::python::PythonAdapter;
 use argot_core::scoring::adapters::ruby::RubyAdapter;
@@ -170,10 +171,10 @@ enum Command {
     VoiceDiff(VoiceDiffCmd),
     /// Report corpus composition, calibration health, and repo suitability.
     Inspect(InspectCmd),
-    /// Mute a hit by hash (appends to .argot/suppressions.yaml).
+    /// Mute a hit by hash (appends a [[mute]] to argot.toml).
     Mute(MuteCmd),
-    /// List active suppressions across .argotignore, inline comments, and
-    /// suppressions.yaml.
+    /// List active suppressions across argot.toml [exclude], inline comments,
+    /// and argot.toml [[mute]].
     #[command(name = "list-mutes")]
     ListMutes,
     /// Re-score muted files and report which suppressions no longer fire.
@@ -518,7 +519,7 @@ fn wants_json(format: &str, json_alias: bool) -> bool {
 fn print_help_banner() {
     let version = env!("CARGO_PKG_VERSION");
     println!(
-        "argot v{version}\n\nCOMMANDS\n  init          Set up argot for this repo (fit + health check; --suggest lists dirs to exclude)\n  extract       Walk git history into a training dataset (.argot/dataset.jsonl)\n  fit           Fit the voice model to this repo (= train + calibrate, one-shot)\n  check         Check changes against the fitted voice\n  review        Score a PR (or diff range) against the local voice, no checkout\n  voice-diff    PR-level out-of-voice metric + hot-spots for a ref/range\n  inspect       Report corpus composition, calibration health, and suitability\n  mute          Mute a hit by hash (appends to .argot/suppressions.yaml)\n  list-mutes    List active suppressions across all surfaces\n  review-mutes  Report (and --prune) muted hits that no longer fire\n  status        Show current repository's argot state\n  list          List all registered repositories\n  update        Update the argot CLI\n  mcp           Run an MCP server for LLM coding agents (stdio)\n  describe-voice  Generate a STYLE.md describing the repo's learned voice\n\nTypical first run: argot init && argot check\nRun `argot <command> --help` for details on any command."
+        "argot v{version}\n\nCOMMANDS\n  init          Set up argot for this repo (fit + health check; --suggest lists dirs to exclude)\n  extract       Walk git history into a training dataset (.argot/dataset.jsonl)\n  fit           Fit the voice model to this repo (= train + calibrate, one-shot)\n  check         Check changes against the fitted voice\n  review        Score a PR (or diff range) against the local voice, no checkout\n  voice-diff    PR-level out-of-voice metric + hot-spots for a ref/range\n  inspect       Report corpus composition, calibration health, and suitability\n  mute          Mute a hit by hash (appends a [[mute]] to argot.toml)\n  list-mutes    List active suppressions across all surfaces\n  review-mutes  Report (and --prune) hash-scoped mutes whose file is gone\n  status        Show current repository's argot state\n  list          List all registered repositories\n  update        Update the argot CLI\n  mcp           Run an MCP server for LLM coding agents (stdio)\n  describe-voice  Generate a STYLE.md describing the repo's learned voice\n\nTypical first run: argot init && argot check\nRun `argot <command> --help` for details on any command."
     );
 }
 
@@ -664,6 +665,25 @@ struct FitCmd {
     slice: Vec<String>,
 }
 
+/// Warn that a dirty working tree will be folded into the learned voice.
+/// argot calibrates from files as they are on disk, so uncommitted foreign
+/// code (an agent's just-written change, a vendored paste) would be laundered
+/// into "known-good" and never flagged. Advisory only — the fit still runs.
+fn warn_uncommitted(paths: &[String]) {
+    eprintln!(
+        "warning: {} uncommitted source change(s) will be learned as part of this repo's voice:",
+        paths.len()
+    );
+    for p in paths.iter().take(5) {
+        eprintln!("           {p}");
+    }
+    if paths.len() > 5 {
+        eprintln!("           … and {} more", paths.len() - 5);
+    }
+    eprintln!("         Commit or stash work in progress first — otherwise code you're about to");
+    eprintln!("         check gets baked into the baseline it's checked against.");
+}
+
 /// Train + calibrate the repo's voice model into `.argot/`, printing the
 /// two-step progress and protecting the (rebuildable, heavy) model dir from
 /// version control. Returns the scorer-config path on success. Shared by `fit`
@@ -675,6 +695,20 @@ fn fit_repo(repo: &Path, slices: &[String]) -> Result<PathBuf, ()> {
             "warning: could not protect {} from git: {e}",
             argot_dir.display()
         );
+    }
+    // Surface the effective config: write a default argot.toml (excludes +
+    // mutes, today's built-in values made explicit) when absent, and keep the
+    // personal-override file out of version control.
+    if let Err(e) = ensure_config_present(repo) {
+        eprintln!("warning: could not write argot.toml: {e}");
+    }
+    // argot fits from files as they are on disk. If the working tree is dirty,
+    // uncommitted code — e.g. an agent's just-written foreign change — would be
+    // folded into the learned voice and then read as familiar. Warn so the user
+    // commits/stashes first; never block (best-effort, advisory).
+    let dirty = argot_core::git_walk::uncommitted_source_paths(&repo.to_string_lossy());
+    if !dirty.is_empty() {
+        warn_uncommitted(&dirty);
     }
     let repo_corpus = argot_dir.join("repo-corpus.txt");
     let generic = argot_dir.join("generic-baseline.json");
@@ -769,7 +803,7 @@ fn run_init_cmd(c: InitCmd) -> ExitCode {
             println!(
                 "  • argot init --suggest    # directories you may want to exclude from the voice"
             );
-            println!("  • edit .argotignore, then re-run  argot init");
+            println!("  • edit argot.toml [exclude], then re-run  argot init");
             println!("  • argot check             # score your working changes");
         }
     }
@@ -819,14 +853,17 @@ fn render_suggestions_human(s: &IgnoreSuggestions) -> String {
         );
         let _ = writeln!(
             out,
-            "third-party directory shouldn't shape your repo's voice, add it to .argotignore"
+            "third-party directory shouldn't shape your repo's voice, add it to the"
         );
-        let _ = writeln!(out, "by hand — see the Configure guide.");
+        let _ = writeln!(
+            out,
+            "argot.toml [exclude].paths by hand — see the Configure guide."
+        );
         return out;
     }
     let _ = writeln!(
         out,
-        "Directories you may want to add to .argotignore (evidence only — you decide;"
+        "Directories you may want to add to argot.toml [exclude].paths (evidence only —"
     );
     let _ = writeln!(
         out,
@@ -840,15 +877,17 @@ fn render_suggestions_human(s: &IgnoreSuggestions) -> String {
     let _ = writeln!(out);
     let _ = writeln!(
         out,
-        "Add the lines you agree with to .argotignore, then re-run  argot init"
+        "Add the entries you agree with to argot.toml [exclude].paths, then re-run  argot init"
     );
     out
 }
 
 /// Keep the rebuildable model directory — and the heavy `argot extract`
-/// dataset — out of version control. Writes a `.gitignore` that ignores the
-/// whole `.argot/` tree; never clobbers an existing one, so a user who wants to
-/// commit their model can delete it and stay in control.
+/// dataset — out of version control. Everything under `.argot/` is now a build
+/// artifact (the human-authored config and mutes moved to the committed
+/// `argot.toml` at the repo root), so the whole directory is ignored. Never
+/// clobbers an existing `.gitignore`, so a user who wants to commit their model
+/// can delete it and stay in control.
 fn ensure_model_gitignored(argot_dir: &Path) -> std::io::Result<()> {
     fs::create_dir_all(argot_dir)?;
     let gitignore = argot_dir.join(".gitignore");
@@ -860,8 +899,40 @@ fn ensure_model_gitignored(argot_dir: &Path) -> std::io::Result<()> {
         "# argot writes a rebuildable voice model here — regenerate any time with `argot fit`.\n\
          # The model and the heavy `argot extract` dataset are build artifacts, not source;\n\
          # CI restores them from cache or re-fits. Delete this file to commit them yourself.\n\
+         # (Your excludes and mutes live in argot.toml at the repo root — that one is committed.)\n\
          *\n",
     )
+}
+
+/// Surface the effective config on fit: write a default `argot.toml` when
+/// absent (idempotent), and keep the personal-override `argot.local.toml` out
+/// of version control. Best-effort; a read-only tree must not fail the fit.
+fn ensure_config_present(repo: &Path) -> Result<(), String> {
+    argot_core::config::write_default_if_absent(repo)?;
+    ensure_local_config_gitignored(repo);
+    Ok(())
+}
+
+/// Add `argot.local.toml` to the repo-root `.gitignore` when not already
+/// covered — the local overrides are personal and uncommitted by design.
+fn ensure_local_config_gitignored(repo: &Path) {
+    use argot_core::config::LOCAL_CONFIG_FILE;
+    let gitignore = repo.join(".gitignore");
+    let existing = fs::read_to_string(&gitignore).unwrap_or_default();
+    if existing
+        .lines()
+        .any(|l| l.trim() == LOCAL_CONFIG_FILE || l.trim() == format!("/{LOCAL_CONFIG_FILE}"))
+    {
+        return;
+    }
+    let mut content = existing;
+    if !content.is_empty() && !content.ends_with('\n') {
+        content.push('\n');
+    }
+    content.push_str(&format!(
+        "\n# argot personal config overrides — not shared with the team.\n{LOCAL_CONFIG_FILE}\n"
+    ));
+    let _ = fs::write(&gitignore, content);
 }
 
 #[derive(Args)]
@@ -888,7 +959,7 @@ struct CheckCmd {
     #[arg(long, value_name = "GLOB")]
     exclude: Vec<String>,
     /// Override the calibrated threshold (bench/dev escape hatch).
-    #[arg(long, allow_hyphen_values = true)]
+    #[arg(long, allow_hyphen_values = true, hide = true)]
     threshold: Option<f64>,
     /// Directory containing argot artifacts.
     #[arg(long = "argot-dir", default_value = ".argot")]
@@ -1281,7 +1352,7 @@ fn render_model_human(report: &ModelReport, use_color: bool) -> String {
 struct MuteCmd {
     /// Hit hash from `argot check` output (the `[abc123def456]` on a hit line).
     hash: String,
-    /// Why this hit is muted (recorded in suppressions.yaml).
+    /// Why this hit is muted (recorded in argot.toml [[mute]]).
     #[arg(long)]
     reason: Option<String>,
     /// Auto-expire the mute after N days (e.g. `30d`).
@@ -1299,8 +1370,10 @@ fn parse_expires_days(s: &str) -> Result<u64, String> {
 
 fn run_mute_cmd(c: MuteCmd) -> ExitCode {
     let ctx = resolve_context();
+    let repo_root = PathBuf::from(&ctx.git_root);
     let expires = c.expires.map(date_days_from_now);
     match argot_core::suppress::mute_hash(
+        &repo_root,
         &ctx.argot_dir,
         &c.hash,
         c.reason.as_deref(),
@@ -1317,6 +1390,7 @@ fn run_mute_cmd(c: MuteCmd) -> ExitCode {
                     .map(|e| format!(" (expires {e})"))
                     .unwrap_or_default()
             );
+            println!("  → commit argot.toml to share this decision with your team and CI.");
             ExitCode::SUCCESS
         }
         Err(e) => {
@@ -1360,43 +1434,44 @@ fn supported_files(root: &std::path::Path) -> Vec<PathBuf> {
 }
 
 fn run_list_mutes() -> ExitCode {
+    use argot_core::config::ArgotConfig;
     use argot_core::scoring::calibration::language_for_filename;
-    use argot_core::suppress::{
-        load_suppressions_file, parse_inline, PathSuppressions, SUPPRESSIONS_FILE,
-    };
+    use argot_core::suppress::parse_inline;
 
     let ctx = resolve_context();
     let repo_root = PathBuf::from(&ctx.git_root);
     let today = today_utc();
 
-    // 1. Path-level mutes (.argotignore + the built-in recommended set).
-    let paths = PathSuppressions::load(&repo_root);
-    println!(".argotignore");
-    println!(
-        "  recommended set: {}",
-        if paths.recommended_active() {
-            "active (built-in test/docs/examples/… exclusions)"
-        } else {
-            "disabled (!argot:recommended)"
-        }
-    );
-    if paths.from_file {
-        let patterns = paths.user_patterns();
-        if patterns.is_empty() {
-            println!("  patterns: (none)");
-        } else {
-            for p in patterns {
-                println!("  pattern: {p}");
-            }
-        }
-    } else {
-        println!("  no .argotignore file at repo root");
+    let config = ArgotConfig::load(&repo_root);
+    for w in &config.warnings {
+        eprintln!("[argot] {w}");
     }
 
-    // 2. suppressions.yaml rules, with expiry status.
-    let rules_path = ctx.argot_dir.join(SUPPRESSIONS_FILE);
-    let rules = load_suppressions_file(&rules_path, &today);
-    println!("\nsuppressions.yaml ({})", rules_path.display());
+    // 1. Path-level excludes: argot.toml [exclude] (recommended set + paths).
+    println!("argot.toml  [exclude]");
+    if config.exclude.recommended.is_empty() {
+        println!("  recommended set: disabled (empty list)");
+    } else {
+        println!(
+            "  recommended set: {} pattern(s) — {}",
+            config.exclude.recommended.len(),
+            config.exclude.recommended.join(" ")
+        );
+    }
+    if config.exclude.paths.is_empty() {
+        println!("  paths: (none)");
+    } else {
+        for p in &config.exclude.paths {
+            println!("  path: {p}");
+        }
+    }
+    if !config.from_file {
+        println!("  (no argot.toml at repo root — using built-in defaults)");
+    }
+
+    // 2. Durable [[mute]] entries, with expiry status.
+    let rules = config.mutes(&today);
+    println!("\nargot.toml  [[mute]]");
     if rules.active.is_empty() && rules.expired.is_empty() {
         println!("  (no entries)");
     }
@@ -1438,6 +1513,7 @@ fn run_list_mutes() -> ExitCode {
         let adapter: Box<dyn LanguageAdapter> = match language {
             Language::Python => Box::new(PythonAdapter::new()),
             Language::Typescript => Box::new(TypeScriptAdapter::new()),
+            Language::Javascript => Box::new(JavaScriptAdapter::new()),
             Language::Go => Box::new(GoAdapter::new()),
             Language::Rust => Box::new(RustAdapter::new()),
             Language::C => Box::new(CAdapter::new()),
@@ -1471,15 +1547,14 @@ fn run_list_mutes() -> ExitCode {
 
 #[derive(Args)]
 struct ReviewMutesCmd {
-    /// Remove the suppressions that no longer fire (rewrites suppressions.yaml).
+    /// Remove the dead mutes — those whose file is gone (rewrites argot.toml [[mute]]).
     #[arg(long)]
     prune: bool,
 }
 
 fn run_review_mutes_cmd(c: ReviewMutesCmd) -> ExitCode {
     let ctx = resolve_context();
-    let outcome =
-        argot_core::check::run_review_mutes(&ctx.git_root, &ctx.argot_dir, &today_utc(), c.prune);
+    let outcome = argot_core::check::run_review_mutes(&ctx.git_root, &today_utc(), c.prune);
     print!("{}", outcome.stdout);
     eprint!("{}", outcome.stderr);
     ExitCode::from(outcome.exit_code as u8)
@@ -1585,6 +1660,7 @@ fn run_score_cmd(c: ScoreCmd) -> ExitCode {
     let adapter: Box<dyn LanguageAdapter> = match language {
         Language::Python => Box::new(PythonAdapter::new()),
         Language::Typescript => Box::new(TypeScriptAdapter::new()),
+        Language::Javascript => Box::new(JavaScriptAdapter::new()),
         Language::Go => Box::new(GoAdapter::new()),
         Language::Rust => Box::new(RustAdapter::new()),
         Language::C => Box::new(CAdapter::new()),
@@ -1633,6 +1709,13 @@ fn run_score_cmd(c: ScoreCmd) -> ExitCode {
         import_module_prefixes,
         // Bench feature extraction reads `stages.bpe_score`; no evidence needed.
         evidence_corpus: None,
+        // Bench corpora don't customize [detect]; the built-in defaults match
+        // how production fits (data-threshold 0.65 + the standard markers).
+        detect: c
+            .repo_root
+            .as_ref()
+            .map(|r| argot_core::config::ArgotConfig::load(r).detect)
+            .unwrap_or_default(),
     };
     let mut scorer =
         match SequentialImportBpeScorer::from_config(&repo_files, &generic, adapter, cfg) {
@@ -1819,7 +1902,41 @@ fn main() -> ExitCode {
 
 #[cfg(test)]
 mod tests {
-    use super::{days_since_fit, is_npm_install, resolve_argot_dir, wants_json};
+    use super::{
+        days_since_fit, ensure_local_config_gitignored, ensure_model_gitignored, is_npm_install,
+        resolve_argot_dir, wants_json,
+    };
+
+    #[test]
+    fn model_gitignore_hides_the_whole_model_dir() {
+        let dir = std::env::temp_dir().join(format!("argot_gitignore_test_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let argot_dir = dir.join(".argot");
+        ensure_model_gitignored(&argot_dir).expect("write .gitignore");
+        let body = std::fs::read_to_string(argot_dir.join(".gitignore")).unwrap();
+        // The whole `.argot/` dir is rebuildable now — config and mutes moved to
+        // the committed argot.toml at the repo root, so nothing is re-included.
+        assert!(body.contains("*\n"), "blanket * ignore present");
+        assert!(!body.contains('!'), "nothing re-included from .argot/");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn local_config_is_added_to_root_gitignore() {
+        let dir = std::env::temp_dir().join(format!("argot_local_gi_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join(".gitignore"), "target/\n").unwrap();
+        ensure_local_config_gitignored(&dir);
+        let body = std::fs::read_to_string(dir.join(".gitignore")).unwrap();
+        assert!(body.contains("target/"), "existing entries preserved");
+        assert!(body.contains("argot.local.toml"), "local config ignored");
+        // Idempotent — a second call adds nothing.
+        ensure_local_config_gitignored(&dir);
+        let body2 = std::fs::read_to_string(dir.join(".gitignore")).unwrap();
+        assert_eq!(body, body2, "second call is a no-op");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn days_since_fit_counts_calendar_days() {

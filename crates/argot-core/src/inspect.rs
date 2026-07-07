@@ -13,14 +13,16 @@ use crate::scoring::adapters::cpp::CppAdapter;
 use crate::scoring::adapters::csharp::CSharpAdapter;
 use crate::scoring::adapters::go::GoAdapter;
 use crate::scoring::adapters::java::JavaAdapter;
+use crate::scoring::adapters::javascript::JavaScriptAdapter;
 use crate::scoring::adapters::php::PhpAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::ruby::RubyAdapter;
 use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::{Language, LanguageAdapter};
-use crate::scoring::calibration::{collect_candidates_with, language_for_filename, language_name};
-use crate::suppress::PathSuppressions;
+use crate::scoring::calibration::{
+    collect_candidates_with, header_is_cpp, language_for_filename_ctx, language_name,
+};
 use crate::text::read_text_lossy;
 use anyhow::Result;
 use serde::Serialize;
@@ -205,6 +207,7 @@ pub(crate) fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
     match language {
         Language::Python => Box::new(PythonAdapter::new()),
         Language::Typescript => Box::new(TypeScriptAdapter::new()),
+        Language::Javascript => Box::new(JavaScriptAdapter::new()),
         Language::Go => Box::new(GoAdapter::new()),
         Language::Rust => Box::new(RustAdapter::new()),
         Language::C => Box::new(CAdapter::new()),
@@ -218,10 +221,15 @@ pub(crate) fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
 
 /// Walk the repo and classify every file the way calibration would: extension
 /// routing, then the resolved path-suppression set (recommended built-ins +
-/// `.argotignore` — the same set calibrate and check consult), then the
+/// `[exclude].paths` — the same set calibrate and check consult), then the
 /// structural filters.
 fn scan_corpus(repo_dir: &Path) -> CorpusReport {
-    let path_suppressions = PathSuppressions::load(repo_dir);
+    let config = crate::config::ArgotConfig::load(repo_dir);
+    let path_suppressions = config.path_suppressions();
+    let detect = &config.detect;
+    // Route `.h` to C or C++ by the repo's translation-unit majority, matching
+    // how calibrate/check file them, so the composition and verdict agree.
+    let header_cpp = header_is_cpp(repo_dir);
     let mut total_files = 0usize;
     let mut unsupported_files = 0usize;
     let mut languages: BTreeMap<String, LanguageCorpus> = BTreeMap::new();
@@ -247,7 +255,7 @@ fn scan_corpus(repo_dir: &Path) -> CorpusReport {
                 }
                 Ok(t) if t.is_file() => {
                     total_files += 1;
-                    let language = match language_for_filename(&name) {
+                    let language = match language_for_filename_ctx(&name, header_cpp) {
                         Some(l) => l,
                         None => {
                             unsupported_files += 1;
@@ -269,9 +277,9 @@ fn scan_corpus(repo_dir: &Path) -> CorpusReport {
                         }
                     };
                     let adapter = adapters.entry(key).or_insert_with(|| adapter_for(language));
-                    if adapter.is_auto_generated(&source) {
+                    if adapter.is_auto_generated(&source, &detect.generated_markers) {
                         stats.auto_generated += 1;
-                    } else if adapter.is_data_dominant(&source) {
+                    } else if adapter.is_data_dominant(&source, detect.data_threshold) {
                         stats.data_dominant += 1;
                     } else {
                         stats.included += 1;
@@ -289,6 +297,7 @@ fn scan_corpus(repo_dir: &Path) -> CorpusReport {
     for (key, stats) in &mut languages {
         let language = match key.as_str() {
             "python" => Language::Python,
+            "javascript" => Language::Javascript,
             "go" => Language::Go,
             "rust" => Language::Rust,
             "c" => Language::C,
@@ -303,7 +312,7 @@ fn scan_corpus(repo_dir: &Path) -> CorpusReport {
             .entry(language_name(language))
             .or_insert_with(|| adapter_for(language));
         stats.candidate_hunks =
-            collect_candidates_with(repo_dir, adapter.as_ref(), &path_suppressions).len();
+            collect_candidates_with(repo_dir, adapter.as_ref(), &path_suppressions, detect).len();
         stats.share_of_supported = if supported_files == 0 {
             0.0
         } else {

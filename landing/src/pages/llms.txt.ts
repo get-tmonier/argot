@@ -38,7 +38,7 @@ export const GET: APIRoute = async () => {
     '',
     '## What it catches (and what it does not)',
     '',
-    '**Catches — reliably (~99% when the foreign symbol is visible in the change):** ' +
+    '**Catches — reliably (~98% when the foreign symbol is visible in the change):** ' +
       'a foreign dependency (an import the repo has never used), a foreign API (a call ' +
       'into a library it standardises away from), or a whole foreign paradigm (a ' +
       'Django-style view in a FastAPI repo, hand-rolled validation, a different HTTP ' +
@@ -62,7 +62,7 @@ export const GET: APIRoute = async () => {
     '',
     `- [AGENTS.md](${SITE.github}/blob/main/AGENTS.md): the canonical contract for using argot with a coding agent — the never-block rule, how to read \`argot check\` output, and muting false positives with a reason.`,
     `- [README](${SITE.github}/blob/main/README.md): install, quickstart, what it catches, and the honest benchmarks.`,
-    `- [Skills](${SITE.github}/tree/main/skills): the \`argot-setup\` and \`argot-check\` agent skills — \`npx skills add get-tmonier/argot\`.`,
+    `- [Skills](${SITE.github}/tree/main/skills): the \`argot-setup\`, \`argot-check\`, \`argot-review-pr\`, and \`argot-setup-ci\` agent skills — \`npx skills add get-tmonier/argot\`.`,
     `- [Benchmarks](${SITE.domain}/benchmarks): per-repo catch and false-alarm numbers, fed from CI.`,
     '',
   ];

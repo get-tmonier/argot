@@ -61,6 +61,56 @@ The `↳` line is the per-hunk evidence — *why* this hunk fired:
 
 The score and reason are always printed, so a hit is never a black box.
 
+## Machine-readable output
+
+`argot check --format json` and `--format sarif` write **only** the document to stdout (progress and
+warnings stay on stderr), so they pipe cleanly. Both are stable contracts.
+
+### `--format json`
+
+argot's own schema. The top-level object carries:
+
+| Field | Meaning |
+|---|---|
+| `tool` | `{ name, version }` — the argot build. |
+| `model` | Combined fingerprint of the fitted model that scored the diff. |
+| `repo` | Repository path, as passed on the CLI. |
+| `scanned` | Human label of what was scored (e.g. `workdir`, `3 commit(s) (a..b)`). |
+| `hunks_scanned` | Total hunks scored, including below-threshold ones. |
+| `files_scanned` | Per-file `{ path, hunks }` — a denominator per file. |
+| `hits` | The above-threshold hits (below). |
+
+Each entry in `hits[]`:
+
+| Field | Meaning |
+|---|---|
+| `path` | Repo-relative, `/`-separated file path. |
+| `line_start`, `line_end` | 1-based hunk line range. |
+| `score` | The hunk's score. |
+| `threshold` | Calibrated threshold the severity tier is measured against. |
+| `severity` | `unusual` / `suspicious` / `foreign`. |
+| `reason` | Scorer reason code: `bpe`, `import`, or `call_receiver`. |
+| `reason_label` | Human label of `reason` (e.g. `rare token sequence`, `foreign import`). |
+| `source` | `workdir` / `staged` / `untracked`, or a short commit SHA. |
+| `hash` | Content-based hit hash — paste into `argot mute <hash>`. |
+| `evidence` | Rendered evidence lines (empty when the scorer had none). |
+
+### `--format sarif`
+
+SARIF 2.1.0 for code scanning (GitHub `upload-sarif`, etc.). One rule per distinct `reason` code; each
+result carries the physical location and the raw `score` / `threshold` / `severity` / `source` / `hash` /
+`evidence` under `properties`. Severity tiers map to SARIF levels: `unusual → note`, `suspicious →
+warning`, `foreign → error`.
+
+The `voice-diff`, `inspect`, `status`, and `list` commands each also emit a stable `--format json`
+document — see [The commands](/docs/the-commands/).
+
+## Color
+
+argot colors the severity markers only when [`NO_COLOR`](https://no-color.org) is **unset** and stdout
+is a terminal. Set `NO_COLOR=1`, or redirect stdout to a file/pipe, for plain text. The machine
+formats above are never colored.
+
 ## Files argot stays silent on
 
 argot won't flag **data-dominant files** — modules that are ≥80% top-level array/object literals
@@ -71,4 +121,4 @@ and check time, so the model trains and scores on the same scope.
 Test files, configuration files, and a set of conventional directories (`tests/`, `docs/`, `examples/`,
 `migrations/`, `build/`, `dist/`, and more) are skipped by the built-in **`argot:recommended`** set,
 and any file argot detects as auto-generated or data-dominant is skipped structurally. All of it is
-yours to change — see [Configure](/docs/configure/) for `.argotignore`, inline comments, and mutes.
+yours to change — see [Configure](/docs/configure/) for `argot.toml`, inline comments, and mutes.

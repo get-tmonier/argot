@@ -1,75 +1,88 @@
-//! Path-level suppressions: the built-in `argot:recommended` set plus
-//! `.argotignore` (gitignore-style patterns at the repo root).
+//! Path-level suppressions: the built-in `argot:recommended` set plus the
+//! `argot.toml` `[exclude].paths` patterns (gitignore-style).
 //!
 //! Lock-step principle: calibration sampling, the check-time scope filter, and
 //! `argot inspect`'s corpus walk all consult one resolved [`PathSuppressions`]
 //! so the three surfaces always agree on what is in scope.
 //!
-//! Resolution:
-//! - no `.argotignore` → the recommended set applies exactly as it always has
-//!   (byte-identical behaviour; the parity suites depend on it);
-//! - `.argotignore` present → its patterns ADD to the recommended set;
-//! - a line consisting of `!argot:recommended` drops the built-ins for users
-//!   who want full control.
+//! Both halves of `[exclude]` are gitignore-style pattern lists; they differ
+//! only in how a match is treated (see [`PathScope`]):
+//! - `[exclude].recommended` (default [`DEFAULT_RECOMMENDED_PATTERNS`]) →
+//!   silently dropped, as if the file weren't there;
+//! - `[exclude].paths` → still scored, but its hits are dropped from output and
+//!   counted, so the exclusion stays auditable.
+//!
+//! Editing the `recommended` list is the fine-grained way to change the
+//! built-ins (remove `test*/` to learn from tests, add a repo-wide directory);
+//! an empty list turns the recommended set off entirely.
 
 use crate::suppress::glob::{fnmatch, segments_match};
 use std::path::Path;
+use std::sync::OnceLock;
 
-/// The magic `.argotignore` line that disables the built-in recommended set.
-pub const RECOMMENDED_TOKEN: &str = "argot:recommended";
-
-/// Built-in `argot:recommended` directory exclusions (formerly the hardcoded
-/// calibration list — test/docs/examples/migrations/etc.).
-pub const RECOMMENDED_EXCLUDE_DIRS: &[&str] = &[
-    "test",
-    "tests",
-    "doc",
-    "docs",
-    "examples",
-    "example",
-    "migrations",
-    "migration",
-    "benchmarks",
-    "benchmark",
-    "fixtures",
-    "scripts",
-    "build",
-    "dist",
-    "__pycache__",
-    ".git",
-    ".history",
-    ".tox",
-    ".eggs",
+/// The built-in `argot:recommended` exclusions, as gitignore-style patterns.
+/// `init` writes these into `[exclude].recommended` so they are visible and
+/// editable; the code carries no other default. The set covers the directories
+/// and files that are almost never a repo's authored voice.
+pub const DEFAULT_RECOMMENDED_PATTERNS: &[&str] = &[
+    // Directories (matched at any depth).
+    "test*/", // test/, tests/, testdata/, testing/, … (any dir starting "test")
+    "__tests__/",
+    "doc/",
+    "docs/",
+    "example/",
+    "examples/",
+    "migration/",
+    "migrations/",
+    "benchmark/",
+    "benchmarks/",
+    "fixtures/",
+    "scripts/",
+    "build/",
+    "dist/",
+    "__pycache__/",
+    ".git/",
+    ".history/",
+    ".tox/",
+    ".eggs/",
+    // Files.
+    "test_*", // test_foo.py
+    "conftest.py",
+    "*.test.*",   // x.test.ts
+    "*.spec.*",   // x.spec.js
+    "*.config.*", // vite.config.ts
+    ".*rc.*",     // .babelrc.js
 ];
 
-/// The built-in `argot:recommended` path exclusion. `rel_path` is
-/// repo-relative and `/`-separated. Exact port of the original
-/// `is_excluded_path` semantics (directory names, `test*` prefixes,
-/// `test_*`/`conftest.py` filenames, `.test.`/`.spec.`/`.config.` infixes,
-/// dotfile `rc.` configs).
+/// The built-in recommended set as owned strings — the resolved default when
+/// `[exclude].recommended` is absent.
+pub fn default_recommended_patterns() -> Vec<String> {
+    DEFAULT_RECOMMENDED_PATTERNS
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
+}
+
+/// The default recommended patterns, parsed once.
+fn default_recommended_ignore() -> &'static [IgnorePattern] {
+    static PARSED: OnceLock<Vec<IgnorePattern>> = OnceLock::new();
+    PARSED.get_or_init(|| {
+        DEFAULT_RECOMMENDED_PATTERNS
+            .iter()
+            .filter_map(|l| IgnorePattern::parse(l))
+            .collect()
+    })
+}
+
+/// True if `rel_path` (repo-relative, `/`-separated) matches the built-in
+/// `argot:recommended` set — the *default* patterns only, ignoring any repo
+/// `[exclude].recommended` override. The benchmark harness applies this
+/// default-recommended scope to real-PR control hunks.
 pub fn recommended_excluded(rel_path: &str) -> bool {
     let parts: Vec<&str> = rel_path.split('/').collect();
-    if parts.len() >= 2 {
-        for part in &parts[..parts.len() - 1] {
-            if RECOMMENDED_EXCLUDE_DIRS.contains(part)
-                || part.starts_with("test")
-                || *part == "__tests__"
-            {
-                return true;
-            }
-        }
-    }
-    let name = *parts.last().unwrap_or(&rel_path);
-    if name.starts_with("test_") || name == "conftest.py" {
-        return true;
-    }
-    if name.contains(".test.") || name.contains(".spec.") {
-        return true;
-    }
-    if name.contains(".config.") {
-        return true;
-    }
-    name.starts_with('.') && name.get(1..).map(|r| r.contains("rc.")).unwrap_or(false)
+    default_recommended_ignore()
+        .iter()
+        .any(|p| p.matches(&parts))
 }
 
 /// Repo-relative `/`-separated form of `path` under `root`. `None` when the
@@ -87,7 +100,7 @@ pub fn rel_string(path: &Path, root: &Path) -> Option<String> {
     Some(comps.join("/"))
 }
 
-/// One parsed `.argotignore` pattern (gitignore-style subset: `*`/`?`/`[...]`
+/// One parsed `[exclude].paths` pattern (gitignore-style subset: `*`/`?`/`[...]`
 /// within a segment, `**` across segments, leading `/` anchors, trailing `/`
 /// is directory-only, leading `!` re-includes).
 #[derive(Debug, Clone)]
@@ -165,86 +178,73 @@ pub enum PathScope {
     InScope,
     /// Excluded by the built-in `argot:recommended` set (silent, as always).
     Recommended,
-    /// Suppressed by a user `.argotignore` pattern.
+    /// Suppressed by a user `[exclude].paths` pattern.
     UserIgnored,
 }
 
-/// The resolved path-level suppression set: recommended built-ins plus
-/// `.argotignore` patterns.
+/// The resolved path-level suppression set: the `argot.toml` `[exclude]`
+/// `recommended` patterns (dropped silently) plus the `paths` patterns (scored
+/// but reported).
 #[derive(Debug, Clone)]
 pub struct PathSuppressions {
-    recommended_active: bool,
+    recommended: Vec<IgnorePattern>,
     patterns: Vec<IgnorePattern>,
-    /// True when an `.argotignore` file was found by [`PathSuppressions::load`].
+    /// True when an `argot.toml` backed these values (for display surfaces).
     pub from_file: bool,
 }
 
+fn parse_patterns(lines: &[String]) -> Vec<IgnorePattern> {
+    lines
+        .iter()
+        .filter_map(|line| IgnorePattern::parse(line.trim()))
+        .collect()
+}
+
 impl PathSuppressions {
-    /// The built-in set only — the behaviour of a repo with no `.argotignore`.
+    /// The built-in recommended set only — the behaviour of a repo with no
+    /// `argot.toml`.
     pub fn recommended() -> Self {
         PathSuppressions {
-            recommended_active: true,
+            recommended: default_recommended_ignore().to_vec(),
             patterns: Vec::new(),
             from_file: false,
         }
     }
 
-    /// Load `<repo_root>/.argotignore` when present; otherwise the recommended
-    /// set applies exactly as before.
-    pub fn load(repo_root: &Path) -> Self {
-        match std::fs::read_to_string(repo_root.join(".argotignore")) {
-            Ok(content) => {
-                let mut s = Self::parse(&content);
-                s.from_file = true;
-                s
-            }
-            Err(_) => Self::recommended(),
-        }
-    }
-
-    /// Parse `.argotignore` content. Blank lines and `#` comments are skipped;
-    /// `!argot:recommended` drops the built-in set.
-    pub fn parse(content: &str) -> Self {
-        let mut recommended_active = true;
-        let mut patterns = Vec::new();
-        for line in content.lines() {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') {
-                continue;
-            }
-            if line == format!("!{RECOMMENDED_TOKEN}") {
-                recommended_active = false;
-                continue;
-            }
-            if let Some(p) = IgnorePattern::parse(line) {
-                patterns.push(p);
-            }
-        }
+    /// Build from resolved `argot.toml` `[exclude]` values: the `recommended`
+    /// patterns (dropped silently) and the `paths` patterns (scored, reported).
+    /// `from_file` records whether a config file backed these values.
+    pub fn from_parts(recommended: &[String], patterns: &[String], from_file: bool) -> Self {
         PathSuppressions {
-            recommended_active,
-            patterns,
-            from_file: false,
+            recommended: parse_patterns(recommended),
+            patterns: parse_patterns(patterns),
+            from_file,
         }
     }
 
-    /// Is the built-in recommended set active?
+    /// Is the built-in recommended set active (non-empty)?
     pub fn recommended_active(&self) -> bool {
-        self.recommended_active
+        !self.recommended.is_empty()
     }
 
-    /// The user-supplied `.argotignore` patterns (raw lines, for display).
+    /// The `[exclude].recommended` patterns (raw lines, for display).
+    pub fn recommended_patterns(&self) -> Vec<&str> {
+        self.recommended.iter().map(|p| p.raw.as_str()).collect()
+    }
+
+    /// The `[exclude].paths` patterns (raw lines, for display).
     pub fn user_patterns(&self) -> Vec<&str> {
         self.patterns.iter().map(|p| p.raw.as_str()).collect()
     }
 
-    /// Classify a repo-relative `/`-separated path. Recommended-set exclusions
-    /// win (they were always silent scope, and stay so); user patterns apply
-    /// gitignore semantics — the last matching pattern decides, `!` re-includes.
+    /// Classify a repo-relative `/`-separated path. A `recommended` match wins
+    /// (silent drop); otherwise `paths` apply gitignore semantics — the last
+    /// matching pattern decides, `!` re-includes.
     pub fn classify(&self, rel_path: &str) -> PathScope {
-        if self.recommended_active && recommended_excluded(rel_path) {
+        let parts: Vec<&str> = rel_path.split('/').collect();
+        if self.recommended.iter().any(|p| p.matches(&parts)) {
             return PathScope::Recommended;
         }
-        let parts: Vec<&str> = rel_path.split('/').collect();
         let mut ignored = false;
         for p in &self.patterns {
             if p.matches(&parts) {
@@ -258,7 +258,7 @@ impl PathSuppressions {
         }
     }
 
-    /// True when a user `.argotignore` pattern mutes this path, regardless of
+    /// True when a user `[exclude].paths` pattern mutes this path, regardless of
     /// whether the recommended set also covers it (gitignore last-match-wins
     /// over the user patterns only). Corpus collection uses this: a user who
     /// mutes a directory the recommended set happens to cover must still see
@@ -392,13 +392,37 @@ mod tests {
         }
     }
 
+    fn from_lines(recommended: bool, lines: &[&str]) -> PathSuppressions {
+        let rec = if recommended {
+            default_recommended_patterns()
+        } else {
+            Vec::new()
+        };
+        let patterns: Vec<String> = lines.iter().map(|s| s.to_string()).collect();
+        PathSuppressions::from_parts(&rec, &patterns, true)
+    }
+
     #[test]
-    fn no_argotignore_resolves_to_recommended_exactly() {
-        let dir =
-            std::env::temp_dir().join(format!("argot_pathrules_nofile_{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        let loaded = PathSuppressions::load(&dir);
+    fn recommended_list_is_editable_per_entry() {
+        // Drop just `test*/` from the recommended set → tests/ is learned again,
+        // but docs/ is still dropped. This is the win over the old on/off toggle.
+        let rec: Vec<String> = default_recommended_patterns()
+            .into_iter()
+            .filter(|p| p != "test*/")
+            .collect();
+        let s = PathSuppressions::from_parts(&rec, &[], true);
+        assert!(!s.is_suppressed("tests/app.py"), "tests/ now in scope");
+        assert!(s.is_suppressed("docs/x.py"), "docs/ still dropped");
+        // Adding a repo-wide dir to the recommended set drops it silently.
+        let mut rec2 = default_recommended_patterns();
+        rec2.push("vendor/".to_string());
+        let s2 = PathSuppressions::from_parts(&rec2, &[], true);
+        assert_eq!(s2.classify("vendor/lib.rs"), PathScope::Recommended);
+    }
+
+    #[test]
+    fn no_config_resolves_to_recommended_exactly() {
+        let loaded = PathSuppressions::recommended();
         assert!(!loaded.from_file);
         for path in MATRIX {
             assert_eq!(
@@ -407,12 +431,11 @@ mod tests {
                 "divergence on {path}"
             );
         }
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
-    fn argotignore_patterns_add_to_recommended() {
-        let s = PathSuppressions::parse("vendored/\n*.gen.py\n");
+    fn exclude_paths_add_to_recommended() {
+        let s = from_lines(true, &["vendored/", "*.gen.py"]);
         // Recommended set still applies…
         assert!(s.is_suppressed("tests/app.py"));
         // …and the new patterns add to it.
@@ -424,8 +447,8 @@ mod tests {
     }
 
     #[test]
-    fn bang_recommended_drops_builtins() {
-        let s = PathSuppressions::parse("!argot:recommended\nvendored/\n");
+    fn recommended_false_drops_builtins() {
+        let s = from_lines(false, &["vendored/"]);
         assert!(!s.recommended_active());
         assert!(!s.is_suppressed("tests/app.py"), "built-ins dropped");
         assert!(
@@ -436,15 +459,16 @@ mod tests {
 
     #[test]
     fn gitignore_style_matching() {
-        let s = PathSuppressions::parse(
-            "# comment\n\
-             \n\
-             /generated.py\n\
-             legacy/\n\
-             **/snapshots/**\n\
-             src/*.tmp.ts\n\
-             *.min.js\n\
-             !keep.min.js\n",
+        let s = from_lines(
+            true,
+            &[
+                "/generated.py",
+                "legacy/",
+                "**/snapshots/**",
+                "src/*.tmp.ts",
+                "*.min.js",
+                "!keep.min.js",
+            ],
         );
         // Leading slash anchors to the root.
         assert!(s.is_suppressed("generated.py"));

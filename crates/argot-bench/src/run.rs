@@ -103,18 +103,18 @@ pub fn ensure_clone(data_dir: &Path, corpus: &str, url: &str) -> Result<PathBuf>
     Ok(repo_dir)
 }
 
-/// Install the per-corpus `.argotignore` a real user of this repo would write,
+/// Install the per-corpus `argot.toml` a real user of this repo would write,
 /// so the bench fits and checks each corpus the way it would actually be used
 /// (e.g. redis' vendored `deps/` tree is out of the voice model). The config
-/// lives at `catalogs_dir/<corpus>/argotignore`; when absent, any stale
-/// `.argotignore` in the clone is removed so the corpus runs against the
-/// built-in defaults. Corpus-specific knowledge stays here in the bench, never
-/// in the production core.
-pub fn sync_corpus_argotignore(catalogs_dir: &Path, corpus: &str, repo_dir: &Path) -> Result<()> {
-    let src = catalogs_dir.join(corpus).join("argotignore");
-    let dst = repo_dir.join(".argotignore");
+/// lives at `catalogs_dir/<corpus>/argot.toml`; when absent, any stale
+/// `argot.toml` in the clone is removed so the corpus runs against the built-in
+/// defaults. Corpus-specific knowledge stays here in the bench, never in the
+/// production core.
+pub fn sync_corpus_config(catalogs_dir: &Path, corpus: &str, repo_dir: &Path) -> Result<()> {
+    let src = catalogs_dir.join(corpus).join("argot.toml");
+    let dst = repo_dir.join("argot.toml");
     if src.exists() {
-        std::fs::copy(&src, &dst).with_context(|| format!("installing {corpus} .argotignore"))?;
+        std::fs::copy(&src, &dst).with_context(|| format!("installing {corpus} argot.toml"))?;
     } else if dst.exists() {
         std::fs::remove_file(&dst)?;
     }
@@ -414,9 +414,10 @@ fn quick_fixture_subset(fixtures: &[Fixture], multi: bool) -> Vec<&Fixture> {
 fn record_matches_language(rec: &HunkRec, lang: Language) -> bool {
     match lang {
         Language::Python => rec.language == "python",
-        // JS records score against the TypeScript scorer, matching extract's
-        // language routing.
-        Language::Typescript => rec.language == "typescript" || rec.language == "javascript",
+        // JavaScript is its own first-class language now (own adapter + model),
+        // so a `.js` record scores under the javascript scorer, not typescript.
+        Language::Typescript => rec.language == "typescript",
+        Language::Javascript => rec.language == "javascript",
         Language::Go => rec.language == "go",
         Language::Rust => rec.language == "rust",
         Language::C => rec.language == "c",
@@ -442,7 +443,7 @@ pub fn run_corpus(target: &Target, opts: &RunOptions) -> Result<Vec<CorpusReport
 
     let languages: Vec<Language> = if catalog.language == "multi" {
         let mut langs = Vec::new();
-        for cand in ["python", "typescript"] {
+        for cand in ["python", "typescript", "javascript"] {
             if catalog
                 .fixtures
                 .iter()
@@ -486,6 +487,7 @@ pub fn run_corpus(target: &Target, opts: &RunOptions) -> Result<Vec<CorpusReport
         let lang_name = match language {
             Language::Python => "python",
             Language::Typescript => "typescript",
+            Language::Javascript => "javascript",
             Language::Go => "go",
             Language::Rust => "rust",
             Language::C => "c",

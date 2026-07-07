@@ -5,13 +5,17 @@ group: Guide
 order: 8
 ---
 
-Most code argot judges is now written by an AI agent. There are two ways to put
-argot in that loop, and they compose:
+Most code argot judges is now written by an AI agent, so the natural place for
+argot is inside that agent's loop.
 
-- **Skills** — a commit-time safety net. The agent runs `argot check` on what it
-  just wrote and interprets the result.
-- **MCP** — proactive context. The agent asks argot for the repo's idioms
-  *before* generating, so it writes in-voice from the first token.
+- **Skills** — the primary path, and all most repos need. A commit-time safety
+  net: the agent runs `argot check` on what it just wrote and interprets the
+  result.
+- **MCP** — *optional.* A proactive surface that lets the agent ask argot for the
+  repo's idioms *before* generating. It mostly earns its keep on a **large repo**
+  the agent can't hold in context — argot's statistical summary is a cheap stand-in
+  for reading hundreds of files. On a repo the agent already sees whole, the skills
+  alone are enough.
 
 Both follow one rule: **argot is advisory and never blocks.** A hit is a prompt
 to think, not a gate — the human always has the last word. The full contract
@@ -19,13 +23,14 @@ lives in the repo's [`AGENTS.md`](https://github.com/get-tmonier/argot/blob/main
 
 ## Skills
 
-Three agent-agnostic skills (Claude Code, Cursor, Codex, …):
+Four agent-agnostic skills (Claude Code, Cursor, Codex, …):
 
 | Skill | When it runs |
 |---|---|
 | `argot-setup` | Once per repo (local) — fit the model and decide what shouldn't shape its voice. |
 | `argot-check` | Per change (local) — score the working diff and surface anything foreign. |
-| `argot-ci` | Once (CI) — wire the GitHub Action for a non-blocking voice score on every PR. |
+| `argot-review-pr` | On demand (local) — review one PR or diff range against the repo's voice, no checkout. |
+| `argot-setup-ci` | Once (CI) — wire the GitHub Action for a non-blocking voice score on every PR. |
 
 In **Claude Code**, install the plugin — it bundles the skills *and* the MCP
 server below in one step:
@@ -72,6 +77,15 @@ no separate runtime. It exposes four tools:
 | `argot.check` | on a generated hunk | whether it's out of voice, the score, the reason, and evidence |
 | `argot.explain` | to understand a hit | the reason plus the full evidence trail |
 | `argot.fit_status` | to gauge trust | corpus composition, calibration freshness, and a Ready / Marginal / Not-recommended verdict |
+
+**Tool inputs and responses.** `argot.check` and `argot.explain` take `file_path` and `hunk_content`
+(both required) plus optional `file_source` (the full file, for better context); they return
+`out_of_voice`, `score`, `threshold`, `reason`, `model`, and — on a hit, or always for `explain` —
+`evidence`. `argot.voice_context` takes `file_path` (required) and optional `top` (default 10), and
+returns `typical_callees_by_cluster`, `familiar_imports`, and the resolved `language`.
+`argot.fit_status` takes no arguments and returns the full `inspect` report (corpus, calibration,
+verdict, reasons). Tool-level failures come back as an `isError` text result the agent can read, not a
+protocol error.
 
 The point is **writing in-voice from the first token** instead of
 writing-then-fixing. Fit the repo first (`argot init`), then wire it up:

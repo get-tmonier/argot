@@ -2,4 +2,5 @@
 # (hiredis, jemalloc, lua, linenoise, hdr_histogram, fpconv, tre, xxhash) —
 # not redis' own voice. Attesting it makes bundled libraries (e.g. libevent,
 # via hiredis' example adapters) look like patterns the repo already uses.
-deps/
+[exclude]
+paths = ["deps/"]

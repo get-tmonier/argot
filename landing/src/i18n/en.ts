@@ -4,7 +4,7 @@ const en: SiteContent = {
   meta: {
     title: 'argot — lint the rules you never wrote down',
     description:
-      'argot is a guardrail for AI-written code. It learns your repo’s patterns from its own git history, then flags the dependencies, APIs, and constructs it has never seen — the “unknown to this repo” code an AI agent reaches for when it doesn’t know your stack. No model, no cloud, no GPU.',
+      'argot is a guardrail for AI-written code. It learns your repo’s patterns from its own git history, then flags the dependencies, APIs, and constructs it has never used — the “unknown to this repo” code an AI agent reaches for. No model, no cloud, no GPU.',
   },
   nav: {
     demo: 'Demo',
@@ -16,40 +16,41 @@ const en: SiteContent = {
     titleLead: 'Lint the rules',
     titleGradient: 'you never wrote down.',
     subtitle:
-      'argot learns your repo’s patterns from its own git history, then flags code foreign to your codebase — the dependencies and APIs an AI agent drags in that your repo has never used. [[No model. No cloud. No GPU.]]',
+      'It flags code foreign to your repo — the dependencies and idioms an AI writes that your codebase has [[never used]].',
     ctaPrimary: 'Read the docs',
     ctaSecondary: 'Star on GitHub',
     install: 'npm i -g @tmonier/argot',
-    installNote: 'MIT · single static binary · macOS & Linux · no runtime deps',
+    installNote: 'MIT · single static binary · macOS · Linux · Windows · no runtime deps',
+    installAlt: 'or install without npm',
   },
   demo: {
     label: 'The second question',
     title: 'Type checkers ask if it compiles. argot asks if it’s yours.',
-    body: 'Linters answer “is this valid?” — never “is this how we write things?” That lived in code review, until an LLM could bury it under a hundred clean, type-correct PRs. [[argot asks it back.]]',
+    body: 'Linters ask “is this valid?” — never “is this how we write things?” An LLM buries that under clean, type-correct PRs. [[argot asks it back.]]',
     caption:
-      'A Django-style view in an all-FastAPI repo — a framework this codebase has never imported. mypy and ruff pass; no linter says a word. [[argot flags it in ~150 ms.]]',
-    seeLive: 'See it work on real repos — FastAPI, Saleor, Hono',
+      'A Django view in an all-FastAPI repo. mypy and ruff pass — [[argot flags it in ~150 ms.]]',
+    seeLive: 'See it on real repos',
   },
   catches: {
     label: 'What it catches',
     title: 'Technically fine. Socially foreign.',
-    body: 'argot does not replace ESLint, ruff, or your type checker. It catches what they can’t articulate: a dependency, API, or whole paradigm [[the repo has never used]] — the code an agent reaches for when it doesn’t know your stack. And it’s honest about the one line it won’t cross.',
+    body: 'What ESLint, ruff, and type checkers can’t articulate: a dependency, API, or paradigm [[the repo has never used]].',
     items: [
       {
         title: 'A foreign dependency',
-        desc: 'An import — a package, module, or header — the repo has never used. The clearest signal, and the one argot catches most reliably.',
+        desc: 'An import the repo has never used. The clearest signal — caught most reliably.',
       },
       {
         title: 'A foreign API',
-        desc: 'A call into a library the codebase standardises away from — a different HTTP client, ORM, or serializer than the rest of the repo reaches for. The tell is the call, not just the import.',
+        desc: 'A call into a library the rest of the codebase avoids.',
       },
       {
         title: 'A foreign paradigm',
-        desc: 'A whole idiom from another framework — a Django-style class view, a Flask route, hand-rolled validation — dropped into a codebase that has never written that way.',
+        desc: 'A whole idiom from elsewhere — a Django view in a FastAPI repo.',
       },
       {
         title: 'The line it won’t cross',
-        desc: 'A wrong exception or value where [[every token is already yours]] — a choice, not a foreign pattern. argot surfaces these only sometimes, never gates on them, and tells you so.',
+        desc: 'A wrong exception where [[every token is already yours]]. argot won’t gate on a choice — and says so.',
       },
     ],
   },
@@ -58,72 +59,58 @@ const en: SiteContent = {
     title: 'Honest numbers, leak-free by construction.',
     stats: [
       {
-        value: '99%',
+        value: '98%',
         title: 'visible-foreign catch',
-        desc: 'The one signal argot is built for — a foreign import, API, or dependency your repo has never used. When it shows in the code, argot catches [[522 of 527]], spliced into real files and judged by the real fit → check pipeline.',
+        desc: 'When the foreign symbol is [[visible]] in the diff — an explicit import or call — judged by the shipped binary: 565 of 574.',
       },
       {
-        value: '0.23%',
+        value: '85%',
+        title: 'catch across every fixture',
+        desc: 'Every planted break, easy → hard — the rest are [[masked foreign]] a voice model structurally can’t see: 591 of 694.',
+      },
+      {
+        value: '0.22%',
         title: 'false alarms on real edits',
-        desc: 'How often argot fires on your repo’s [[own existing code]] — replaying 27 repos’ commits it never trained on. Every corpus stays ≤ 0.98%. A fire on a genuinely new dependency is a [[detection]], not an alarm.',
+        desc: 'How often argot fires on your repo’s [[own existing code]] — 31 repos, every one ≤ 1.17%.',
       },
       {
         value: '150ms',
         title: 'to check a change',
-        desc: 'Fast enough for a [[pre-commit hook]], on a 34k-file repo, laptop CPU. The one-time fit that learns your repo’s voice takes ~7 s. [[No GPU, no cloud.]]',
-      },
-      {
-        value: '10',
-        title: 'languages, one binary',
-        desc: 'Python, TypeScript, Go, Rust, Java, C#, C, C++, Ruby, PHP — from a [[single static binary]], nothing to install. Mixed monorepos get [[one threshold per language]].',
+        desc: 'On a 34k-file repo, laptop CPU. The one-time fit takes ~7 s. [[No GPU, no cloud.]]',
       },
     ],
+    languages:
+      'One [[static binary]], 11 languages: Python · TypeScript · JavaScript · Go · Rust · Java · C# · C · C++ · Ruby · PHP.',
     finePrint:
-      'Leak-free protocol (issue #92): recall from fixtures planted into real files and judged by the shipped binary; false alarms from a temporal holdout with commit-level bootstrap confidence intervals. Full per-repo numbers and methodology on the benchmarks page.',
+      'Leak-free by construction: recall on foreign patterns planted in real files; false alarms on a temporal holdout.',
+    benchmarksCta: 'Full per-repo numbers →',
   },
   setup: {
-    label: 'Setup in one command',
-    title: 'From clone to calibrated in one line.',
-    body: 'argot init learns your repo’s voice and tells you if it’s ready — no config, no annotations. Messy repo? An AI agent (or argot init --suggest) picks out the generated and vendored directories that shouldn’t shape your voice. [[The model is a build artifact — argot keeps it out of git for you.]]',
-    caption: 'One command. It even keeps the rebuildable model out of your git history.',
-    ctaLocal: 'Set it up with one prompt',
-    ctaCi: 'or one prompt for CI',
-  },
-  agents: {
-    label: 'Built for AI agents',
-    title: 'Your agent writes the code. argot keeps it in voice.',
-    body: 'Most code argot judges is now written by an agent — so give the agent the guardrail, locally and in CI. Three skills wire it in; each surfaces anything foreign — [[advisory, never blocking]] — and MCP feeds it your repo’s idioms before it writes a line.',
-    cards: [
-      {
-        title: 'argot-setup · local',
-        desc: 'Fits the voice model, and picks out what shouldn’t shape it.',
-      },
-      {
-        title: 'argot-check · local',
-        desc: 'Scores the diff as the agent works — advisory, never blocking.',
-      },
-      {
-        title: 'argot-ci · CI',
-        desc: 'Wires the GitHub Action — a voice score on every PR, no local setup.',
-      },
-      {
-        title: 'MCP · voice_context',
-        desc: 'Feeds the repo’s idioms before the agent generates a line.',
-      },
+    label: 'Setup · built for agents',
+    title: 'A CLI your coding agent can drive.',
+    body: 'The skills run argot [[and bring the judgment]]: /argot-setup reads your repo to decide what shouldn’t shape its voice — a vendored SDK, a generated dir — writes an argot.toml, fits, and verifies the catch. Advisory, never blocking.',
+    installLabel: 'Add the skills — Claude Code, Cursor, 70+ agents',
+    skillsIntro: 'four slash-commands your agent runs:',
+    skillDescs: [
+      'reads your tree, writes argot.toml, verifies the catch',
+      'scores each diff, flags what’s foreign — never blocks',
+      'reviews one PR against your repo’s voice, no checkout',
+      'a non-blocking voice score on every PR',
     ],
+    ctaLocal: 'Or drive the CLI by hand',
+    ctaCi: 'the CI guide',
     caption:
-      'Local or CI, it never blocks a commit or rewrites your code. It surfaces — you decide.',
+      'The skills bring the exclude-what-isn’t-yours judgment; the fitted model stays out of your git history.',
   },
   ciScore: {
     label: 'In CI, without the friction',
     title: 'A voice score on every PR. Never a merge gate.',
-    body: 'Like a security check, argot decorates each pull request with a visual score and the hot-spots — [[advisory by default]]. Intentional? One argot mute accepts it, with an audit trail. The reviewer always has the last word.',
-    caption:
-      'The same score lands in the Actions summary, a sticky PR comment, and the Security tab.',
+    body: 'A visual score and the hot-spots on each PR — [[advisory by default]]. Intentional? One argot mute, committed as an audit trail.',
+    caption: 'Lands in the Actions summary, a sticky PR comment, and the Security tab.',
   },
   cta: {
     title: 'Add the layer your CI is missing.',
-    body: 'argot is MIT and alpha. Calibrate it on your repo in a couple of minutes, then see what it flags.',
+    body: 'MIT · alpha. Calibrate on your repo in two minutes, then see what it flags.',
     primary: 'Get started',
     secondary: 'View on GitHub',
   },

@@ -332,6 +332,9 @@ fn node_type_sets(language: Language) -> (HashSet<&'static str>, HashSet<&'stati
     let (literal, control) = match language {
         Language::Python => (PY_LITERAL_NODE_TYPES, PY_CONTROL_NODE_TYPES),
         Language::Typescript => (TS_LITERAL_NODE_TYPES, TS_CONTROL_NODE_TYPES),
+        // JavaScript shares TypeScript's literal/control node kinds (JS is a
+        // syntactic subset).
+        Language::Javascript => (TS_LITERAL_NODE_TYPES, TS_CONTROL_NODE_TYPES),
         Language::Go => (GO_LITERAL_NODE_TYPES, GO_CONTROL_NODE_TYPES),
         Language::Rust => (RUST_LITERAL_NODE_TYPES, RUST_CONTROL_NODE_TYPES),
         Language::C => (C_LITERAL_NODE_TYPES, C_CONTROL_NODE_TYPES),

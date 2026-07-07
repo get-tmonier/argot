@@ -1,9 +1,9 @@
 ---
-name: argot-ci
-description: Wire argot into a repository's GitHub Actions as a non-blocking voice check on every pull request — a visual voice-score card plus code-scanning annotations. Use when the user wants argot "in CI", "on PRs", "as a GitHub Action", or asks to "set up argot CI". Distinct from argot-setup, which configures local checking on the user's machine.
+name: argot-setup-ci
+description: Wire argot into a repository's GitHub Actions as a non-blocking voice check on every pull request — a visual voice-score card plus code-scanning annotations. Use when the user wants argot "in CI", "on PRs", "as a GitHub Action", or asks to "set up argot CI". Distinct from argot-setup (local checking) and argot-review-pr (reviewing one PR on demand).
 ---
 
-# argot-ci
+# argot-setup-ci
 
 Add argot to a repository's CI as an **advisory** voice check on every pull
 request. You do **not** need to set argot up locally first — the Action installs
@@ -34,10 +34,11 @@ argot and fits the model in CI. Never make it block the merge.
          - uses: get-tmonier/argot@main
    ```
 
-3. If the repo already has an `.argotignore` (from local setup or by hand), leave
+3. If the repo already has an `argot.toml` (from local setup or by hand), leave
    it — the Action respects it. It's optional; for a monorepo with peripheral
-   packages, running the **argot-setup** flow first to commit a good `.argotignore`
-   makes the CI voice sharper, but isn't required.
+   packages, running the **argot-setup** flow first to commit a good `argot.toml`
+   (excludes + any project-specific generated-file markers) makes the CI voice
+   sharper, but isn't required.
 
 4. Commit and push the workflow. Pushing a `.github/workflows/*.yml` needs the
    `workflow` token scope — if `git push` is rejected with *"refusing to allow an

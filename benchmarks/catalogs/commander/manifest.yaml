@@ -1,0 +1,151 @@
+corpus: commander
+language: javascript
+categories:
+- foreign_import
+- foreign_api
+- foreign_concurrency
+- naming_shape_break
+- semantic_convention
+injection_hosts:
+- pr: 0
+  sha: ba6d13ddb4243e5913367734f8c159089ffe7834
+- pr: 2521
+  sha: a752ed909f179e3a5dcae31a890a89fb748473c4
+- pr: 2520
+  sha: 74d5dfe9b7e199d98e2269ecf88dcf771c260983
+fixtures:
+- id: commander_foreign_import_1
+  file: breaks/break_foreign_import_1.js
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 13
+  rationale: "import yargs from 'yargs' + yargs(hideBin(...)).command(...).parse() alternate CLI-argv parser; 'yargs'/'hideBin' are 0-usage in the commander corpus at SHA ba6d13d (git grep 0, absent from package.json — commander is its own arg parser and has zero runtime dependencies). EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: lib/argument.js
+  host_inject_at_line: 41
+- id: commander_foreign_import_2
+  file: breaks/break_foreign_import_2.js
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 15
+  rationale: "import inquirer from 'inquirer' + inquirer.prompt([...]) interactive list prompt; 'inquirer' is 0-usage in the commander corpus at SHA ba6d13d (git grep 0, absent from package.json) — commander has no interactive-prompt dependency. EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: lib/help.js
+  host_inject_at_line: 21
+- id: commander_foreign_import_3
+  file: breaks/break_foreign_import_3.js
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 11
+  rationale: "import boxen from 'boxen' + boxen(message, {...}) terminal box framing for a suggestion string; 'boxen' is 0-usage in the commander corpus at SHA ba6d13d (git grep 0, absent from package.json) — suggestSimilar formats suggestions as plain strings. EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: lib/suggestSimilar.js
+  host_inject_at_line: 47
+- id: commander_foreign_import_4
+  file: breaks/break_foreign_import_4.js
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 9
+  rationale: "import { formatISO as isoStamp, subDays as sinceDays } from 'date-fns' at line 1 (aliased) + isoStamp()/sinceDays() date-window formatting; 'date-fns' is 0-usage in the commander corpus at SHA ba6d13d (git grep 0, absent from package.json) — commander has no date-formatting dependency at all. MEDIUM: aliased import hides the callee names, but the foreign module specifier still fires the import stage."
+  difficulty: medium
+  host_file: lib/option.js
+  host_inject_at_line: 38
+- id: commander_foreign_api_1
+  file: breaks/break_foreign_api_1.js
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 16
+  rationale: "import ora from 'ora' + ora(label).start()/.succeed()/.fail() spinner wrapping subcommand execution; 'ora' is 0-usage in the commander corpus at SHA ba6d13d (git grep 0, absent from package.json) — commander reports subcommand failures through CommanderError, not a terminal spinner. EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: lib/command.js
+  host_inject_at_line: 2710
+- id: commander_foreign_api_2
+  file: breaks/break_foreign_api_2.js
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 13
+  rationale: "import { z } from 'zod' + z.object({...}).parse(rawOpts) schema validation of option values; 'zod' is 0-usage in the commander corpus at SHA ba6d13d (git grep 0, absent from package.json) — commander validates option values through Option#argParser/choices, never a schema library. EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: lib/option.js
+  host_inject_at_line: 259
+- id: commander_foreign_api_3
+  file: breaks/break_foreign_api_3.js
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 15
+  rationale: "TOML.parse(text) reached as an ambient global with NO foreign import in the hunk (only the existing local './error.js' import); 'toml'/TOML are 0-usage in the commander corpus at SHA ba6d13d (git grep 0, absent from package.json) — commander has no config-file parser, only its own option/env machinery. HARD: TOML.parse's leaf name .parse collides with Command's own attested .parse (program.parse()/parseAsync() is commander's headline API, exercised throughout Readme.md/examples/tests), so call-receiver's method-attested check may mask the foreign namespace and the hunk carries no foreign import — a genuine foreign break that may MISS."
+  difficulty: hard
+  host_file: lib/command.js
+  host_inject_at_line: 1759
+- id: commander_foreign_api_4
+  file: breaks/break_foreign_api_4.js
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 13
+  rationale: "pino({...}) foreign logger factory reached as an ambient global with NO foreign import in the hunk (only the existing local './error.js' import); 'pino' is 0-usage in the commander corpus at SHA ba6d13d (git grep 0, absent from package.json) — commander writes errors via Command#error/_outputConfiguration, never a logging dependency. MEDIUM: no foreign import to fire the import stage — the unattested foreign factory callee pino must be caught by call-receiver."
+  difficulty: medium
+  host_file: lib/command.js
+  host_inject_at_line: 2175
+- id: commander_foreign_concurrency_1
+  file: breaks/break_foreign_concurrency_1.js
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 10
+  rationale: "import pLimit from 'p-limit' + pLimit(4) concurrency-limited fan-out over action callbacks; 'p-limit' is 0-usage in the commander corpus at SHA ba6d13d (git grep 0, absent from package.json) — commander runs one action per parse, sequentially chained via _chainOrCall*, never a concurrency-limiter dependency. EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: lib/command.js
+  host_inject_at_line: 556
+- id: commander_foreign_concurrency_2
+  file: breaks/break_foreign_concurrency_2.js
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 12
+  rationale: "import Piscina from 'piscina' + new Piscina({...})/pool.run() worker-thread pool offloading a heavy action handler; 'piscina' is 0-usage in the commander corpus at SHA ba6d13d (git grep 0, absent from package.json) — commander executes subcommands as child processes via node:child_process (childProcess.spawn), never a worker-thread pool library. EASY: explicit foreign import + foreign constructor, caught by the import stage."
+  difficulty: easy
+  host_file: lib/command.js
+  host_inject_at_line: 2761
+- id: commander_foreign_concurrency_3
+  file: breaks/break_foreign_concurrency_3.js
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 15
+  rationale: "new Worker('cli-jobs', ...) bullmq job-queue worker reached as an ambient global with NO foreign import in the hunk (only the existing local './lib/error.js' import); 'bullmq' is 0-usage in the commander corpus at SHA ba6d13d (git grep 0, absent from package.json) — commander has no job-queue runtime. HARD: the worker's leaf event method .on collides with Command's own attested EventEmitter .on usage (this.on(...)/process.on(...)/proc.on(...) throughout lib/command.js), so call-receiver's method-attested check may mask the foreign namespace and the hunk carries no foreign import — a genuine foreign break that may MISS."
+  difficulty: hard
+  host_file: index.js
+  host_inject_at_line: 21
+- id: commander_naming_shape_1
+  file: breaks/break_naming_shape_1.js
+  category: naming_shape_break
+  hunk_start_line: 1
+  hunk_end_line: 7
+  rationale: "get_argument_default/argument_instance/default_value/is_variadic snake_case identifiers spliced into lib/argument.js, whose own vocabulary is exclusively camelCase (argChoices, defaultValue, parseArg, humanReadableArgName). Secondary coverage only — not gated."
+  difficulty: medium
+  host_file: lib/argument.js
+  host_inject_at_line: 134
+- id: commander_naming_shape_2
+  file: breaks/break_naming_shape_2.js
+  category: naming_shape_break
+  hunk_start_line: 1
+  hunk_end_line: 9
+  rationale: "Hungarian-notation locals (bIsFatal, nExitCode, strCode) spliced into lib/error.js, whose own CommanderError fields (exitCode, code, message) carry no type-prefix convention. Secondary coverage only — not gated."
+  difficulty: uncaught
+  host_file: lib/error.js
+  host_inject_at_line: 21
+- id: commander_semantic_convention_1
+  file: breaks/break_semantic_convention_1.js
+  category: semantic_convention
+  hunk_start_line: 1
+  hunk_end_line: 10
+  rationale: "Raw process.exit(1) (plus console.error) bypassing Command's own error convention — every commander exit path is routed through Command#error/_exit so _exitCallback and CommanderError still fire; this skips that machinery entirely. Misuse of the repo's own attested exitCode/CommanderError convention, not a foreign dependency. Secondary coverage only — not gated, and a proven hard case for local detection (era-15/RUBRIC capstone)."
+  difficulty: uncaught
+  host_file: lib/command.js
+  host_inject_at_line: 2208
+- id: commander_semantic_convention_2
+  file: breaks/break_semantic_convention_2.js
+  category: semantic_convention
+  hunk_start_line: 1
+  hunk_end_line: 11
+  rationale: "A bare `throw new Error(...)` where Option/Argument's own attested convention is `throw new InvalidArgumentError(...)` from a parseArg/choices callback, so commander can route it through Command#error with the right exit code instead of an uncaught generic Error. Misuse of the repo's own attested error vocabulary. Secondary coverage only — not gated."
+  difficulty: medium
+  host_file: lib/option.js
+  host_inject_at_line: 109

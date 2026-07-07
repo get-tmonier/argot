@@ -20,6 +20,7 @@ fn func_kinds(language: Language) -> &'static [&'static str] {
     match language {
         Language::Python => &["function_definition"],
         Language::Typescript => &["function_declaration"],
+        Language::Javascript => &["function_declaration"],
         Language::Go => &["function_declaration", "method_declaration"],
         Language::Rust => &["function_item"],
         Language::C => &["function_definition"],

@@ -34,14 +34,15 @@ tutorial examples — is 454. Left in, the learned voice is ~90% example code:
 $ argot init                              # FastAPI, default
   python: 1119 files · 496 included       # ← 90% is docs_src tutorial code
 
-$ echo "docs_src/" > .argotignore && argot init
+# add  paths = ["docs_src/"]  to [exclude] in argot.toml, then:
+$ argot init
   python: 1119 files · 48 included        # ← now it's the library's own voice
 ```
 
 `--suggest` can't make this call for you — example code isn't *generated*, it's a
 *semantic* question ("is our tutorial code part of our voice?"). A library
 contributor excludes it; an app author building *on* the framework keeps it. This
-is exactly the [`.argotignore`](/docs/configure/) moment an agent or human owns.
+is exactly the [`argot.toml` `[exclude]`](/docs/configure/) moment an agent or human owns.
 
 ## 2. The local dev loop — argot as a reviewer, before CI
 
@@ -99,7 +100,7 @@ Muted [cbc8047c9ecc] — RFC-42: tenacity is our chosen retry library
 # → the tenacity hit is now an accepted decision, and no longer flagged
 ```
 
-The reason lands in `.argot/suppressions.yaml` and `argot list-mutes` — the next
+The reason lands in `argot.toml` (as a `[[mute]]`) and `argot list-mutes` — the next
 reviewer sees *why*, not just that it was silenced.
 
 ## 4. Prevention — before a line is written

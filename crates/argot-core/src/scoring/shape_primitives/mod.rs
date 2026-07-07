@@ -34,6 +34,7 @@ pub(crate) fn parse(source: &str, language: Language) -> Option<Tree> {
     let lang: tree_sitter::Language = match language {
         Language::Python => tree_sitter_python::LANGUAGE.into(),
         Language::Typescript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+        Language::Javascript => tree_sitter_javascript::LANGUAGE.into(),
         Language::Go => tree_sitter_go::LANGUAGE.into(),
         Language::Rust => tree_sitter_rust::LANGUAGE.into(),
         Language::C => tree_sitter_c::LANGUAGE.into(),
@@ -68,6 +69,7 @@ pub(crate) fn is_call_kind(kind: &str, language: Language) -> bool {
     match language {
         Language::Python => kind == "call",
         Language::Typescript => kind == "call_expression" || kind == "new_expression",
+        Language::Javascript => kind == "call_expression" || kind == "new_expression",
         Language::Go => kind == "call_expression",
         // Macros (`println!`, `vec!`) are part of Rust's call surface, matching
         // the callee extractor in `call_receiver.rs`.

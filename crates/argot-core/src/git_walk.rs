@@ -6,7 +6,7 @@
 //! the identical commit visitation order.
 
 use anyhow::{Context, Result};
-use git2::{DiffFindOptions, Oid, Patch, Repository, RepositoryOpenFlags, Sort};
+use git2::{DiffFindOptions, Oid, Patch, Repository, RepositoryOpenFlags, Sort, StatusOptions};
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::ops::ControlFlow;
@@ -76,6 +76,52 @@ pub fn repo_workdir(path: &str) -> Option<String> {
     let workdir = repo.workdir()?;
     let s = workdir.to_string_lossy();
     Some(s.trim_end_matches(['/', '\\']).to_string())
+}
+
+/// Working-tree paths whose uncommitted content would feed the voice model —
+/// modified-tracked or newly-added untracked source files (supported
+/// extensions only). Excludes `.argot/` (argot's own rebuildable artifacts) and
+/// anything gitignored.
+///
+/// `argot fit`/`init` calibrate from files as they are on disk, so uncommitted
+/// foreign code — an agent's just-written change, say — would be baked into the
+/// learned "voice" and then read as familiar. Callers warn on a non-empty
+/// result. Best effort: an unreadable status returns empty (never blocks a fit).
+pub fn uncommitted_source_paths(path: &str) -> Vec<String> {
+    let Ok(repo) = open_repo(path) else {
+        return Vec::new();
+    };
+    let mut opts = StatusOptions::new();
+    opts.include_untracked(true)
+        .recurse_untracked_dirs(true)
+        .include_ignored(false)
+        .exclude_submodules(true);
+    let Ok(statuses) = repo.statuses(Some(&mut opts)) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for entry in statuses.iter() {
+        let s = entry.status();
+        // Only content calibration would read: a modified or newly-added file.
+        // Pure deletions or renames introduce no new voice, so they don't warn.
+        let introduces_content =
+            s.is_wt_modified() || s.is_wt_new() || s.is_index_modified() || s.is_index_new();
+        if !introduces_content {
+            continue;
+        }
+        let Some(p) = entry.path() else { continue };
+        // argot's own rebuildable model/dataset are not the repo's voice.
+        if p == ".argot" || p.starts_with(".argot/") {
+            continue;
+        }
+        // Only files argot actually trains on are worth warning about.
+        if !SUPPORTED_EXTENSIONS.iter().any(|ext| p.ends_with(ext)) {
+            continue;
+        }
+        out.push(p.to_string());
+    }
+    out.sort();
+    out
 }
 
 fn is_supported_ext(path: &str) -> bool {
@@ -369,6 +415,41 @@ mod tests {
         // temp_dir itself may sit inside a repo on some CI images; assert the
         // positive case above and that a non-repo path also resolves cleanly.
         let _ = repo_workdir(plain.to_str().unwrap());
+    }
+
+    #[test]
+    fn uncommitted_source_paths_flags_dirty_source_but_not_clean_or_argot_artifacts() {
+        let repo = TempRepo::new("dirty");
+        repo.write("app.py", "import json\nx = 1\n");
+        repo.commit_all("initial");
+        // Clean tree → nothing to warn about.
+        assert!(uncommitted_source_paths(repo.path()).is_empty());
+
+        // Modify a tracked source file + add a new untracked one.
+        repo.write("app.py", "import json\nimport requests\nx = 1\n");
+        repo.write("new_mod.py", "y = 2\n");
+        // argot's own rebuildable artifacts must never count as the repo's voice.
+        repo.write(".argot/scorer-config.json", "{}\n");
+        // A dirty non-source file is not something argot trains on.
+        repo.write("README.md", "docs\n");
+
+        let dirty = uncommitted_source_paths(repo.path());
+        assert!(
+            dirty.contains(&"app.py".to_string()),
+            "modified tracked source: {dirty:?}"
+        );
+        assert!(
+            dirty.contains(&"new_mod.py".to_string()),
+            "new untracked source: {dirty:?}"
+        );
+        assert!(
+            !dirty.iter().any(|p| p.starts_with(".argot")),
+            "argot artifacts excluded: {dirty:?}"
+        );
+        assert!(
+            !dirty.contains(&"README.md".to_string()),
+            "non-source excluded: {dirty:?}"
+        );
     }
 
     #[test]
