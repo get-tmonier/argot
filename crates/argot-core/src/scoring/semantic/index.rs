@@ -368,6 +368,21 @@ fn emit_subtoken(word: &[char], set: &mut std::collections::BTreeSet<String>) {
 /// fingerprint the reinvention scorer confirms against. Reuses the base
 /// call-receiver extraction, so "what counts as a call" matches the rest of argot.
 fn callee_set(source: &str, language: crate::scoring::adapters::Language) -> Vec<String> {
+    use crate::scoring::adapters::Language;
+    // PHP quirk: a method/function body sliced out of its file has no leading
+    // `<?php` tag, and tree-sitter-php then reads the whole thing as inert HTML
+    // `text` — so `extract_callees` finds *zero* calls and the callee-confirmation
+    // path dies for every PHP function (the base scorer never hits this because it
+    // parses whole files). Re-add the tag so the body parses as PHP. We only take
+    // callee *names*, so the one-line shift is irrelevant; other languages parse a
+    // bare function body fine and are left untouched.
+    let php_wrapped;
+    let source = if language == Language::Php && !source.trim_start().starts_with("<?php") {
+        php_wrapped = format!("<?php\n{source}");
+        php_wrapped.as_str()
+    } else {
+        source
+    };
     // BTreeSet dedups and sorts → a deterministic callee fingerprint.
     crate::scoring::call_receiver::extract_callees(source, language)
         .into_iter()
@@ -615,6 +630,23 @@ class C:
             "{:?}",
             big.subtokens
         );
+    }
+
+    #[test]
+    fn callee_set_parses_bare_php_method_body() {
+        use crate::scoring::adapters::Language;
+        // A PHP method sliced out of its class has no `<?php` tag; without the
+        // re-added tag tree-sitter reads it as inert HTML and finds no calls.
+        let body = "public static function slug($t) {\n    $t = preg_replace('/x/', '', $t);\n    return str_replace('a', 'b', $t);\n}";
+        let callees = callee_set(body, Language::Php);
+        // Without the re-added `<?php` tag this is empty (tree-sitter reads it as
+        // HTML). Plain function calls are captured (scoped `static::` calls are not,
+        // which is fine — the plain callees carry the fingerprint).
+        assert!(
+            callees.iter().any(|c| c == "preg_replace"),
+            "bare PHP method yields plain callees: {callees:?}"
+        );
+        assert!(callees.iter().any(|c| c == "str_replace"), "{callees:?}");
     }
 
     #[test]
