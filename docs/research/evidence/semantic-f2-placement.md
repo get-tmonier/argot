@@ -71,5 +71,9 @@ principled fix (e.g. abstain when the function's own area holds too few indexed
 functions to establish a locality norm) was considered but not shipped: the rate is
 already within the ≤2% band on all but cohesive-multi-module corpora, F2 recall is
 already conservative, and chasing the residual risks that recall for a sub-2% gain on
-an ADVISORY channel. F2 ships as the noisier of the two advisory senses, honestly
-labelled. (Full per-corpus recall + FP table: benchmarks page.)
+an ADVISORY channel. F2 ships as the lower-recall but far quieter of the two advisory
+senses (0.78%/hunk vs reinvention's ~5%), honestly labelled. Like `redundant`, a
+`misplaced` finding is advisory — never folded into the gated catch/over-fire metric —
+but it fires at the mildest (`unusual`) tier and so still contributes to the exit code
+(mute or raise `--min-severity` to drop it from the gate). (Full per-corpus recall + FP
+table: benchmarks page.)

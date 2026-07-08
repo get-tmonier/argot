@@ -214,10 +214,13 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
     <p class="mt-5 text-sm leading-relaxed text-ink-dim">
       <strong>Gated vs advisory.</strong> Detector 1 is the quality gate — its catch
       and over-fire numbers are what argot is judged on. Detectors 2 &amp; 3 are a
-      separate <strong>advisory</strong> channel: reported on every hit for a human to
-      judge, never folded into the gate's numbers. Every catch number is held-out;
-      every false-alarm number is a leak-free temporal holdout (fit at an old commit,
-      replay only unseen commits). <strong>Higher catch, lower false-alarm.</strong>
+      separate <strong>advisory</strong> channel: a prompt to review, never folded into
+      the gated catch/over-fire numbers above. They still fire at the mildest
+      (<code class="text-xs">unusual</code>) tier, so a reinvention- or misplacement-only
+      hunk does exit non-zero — raise <code class="text-xs">--min-severity</code> or mute
+      to drop them from the gate. Every catch number is held-out; every false-alarm
+      number is a leak-free temporal holdout (fit at an old commit, replay only unseen
+      commits). <strong>Higher catch, lower false-alarm.</strong>
     </p>
 
     <h2 id="foreign" class="mt-14 scroll-mt-20 text-2xl font-bold tracking-tight">1 · Foreign-pattern detection <span class="align-middle text-sm font-normal text-emerald-500">· the gate</span></h2>
@@ -376,8 +379,11 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
             sibling interface methods that merely <em>look</em> alike; about a third of the
             false alarms are structurally indistinguishable from a real reinvention — same
             helpers, same vocabulary, different intent. That is exactly why
-            <code class="text-xs">redundant</code> is <strong>advisory, never a gate</strong>:
-            argot names the nearest existing function and lets you decide.
+            <code class="text-xs">redundant</code> is <strong>advisory</strong> — a review
+            prompt, never folded into the gated catch/over-fire numbers: argot names the
+            nearest existing function and lets you decide. (It does fire at the mildest tier,
+            so a redundant-only hunk still exits non-zero; mute or raise
+            <code class="text-xs">--min-severity</code> to silence it.)
           </p>
           <div class="mt-6 overflow-x-auto">
             <table class="w-full min-w-[34rem] border-collapse text-sm">
@@ -412,7 +418,8 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
             hunks that fired <code>redundant</code> (fires / hunks scanned); the muted line
             is the <strong>judged-true</strong> rate after three independent reviewers
             removed the genuine reinventions (majority vote, default false-alarm). Shown for
-            every corpus; window 150, leak-free holdout. Advisory — never gates.
+            every corpus; window 150, leak-free holdout. Advisory — never folded into the
+            gated catch/over-fire metric (it does fire at the mildest tier).
           </p>
 
           <h2 id="misplacement" class="mt-16 scroll-mt-20 text-2xl font-bold tracking-tight">3 · Misplacement <span class="align-middle text-sm font-normal text-muted">· advisory · reason <code class="text-xs">misplaced</code></span></h2>
@@ -460,7 +467,8 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
             single-package repo (commander, express) with no foreign area to transplant into —
             its false-fire is still measured and shown. <strong>False-fire / hunk</strong> =
             replayed-commit hunks that fired <code>misplaced</code> (fires / hunks scanned),
-            window 150. Advisory — never gates.
+            window 150. Advisory — never folded into the gated catch/over-fire metric
+            (it does fire at the mildest tier).
           </p>
 
           <section class="mt-16 rounded-xl border border-line bg-panel/30 p-5">

@@ -165,13 +165,16 @@ prior labelling run on 28 of 29 shared corpora (only laravel's replay set shrank
 53 → 36 fires), so the 3-judge genuine-rates transfer faithfully; sampled corpora are
 marked as such in `semantic.json`.
 
-**Verdict.** The reinvention sense has HIGH recall (≥85 % catching planted reimpls)
-but MODEST, corpus-dependent clean-commit precision (≈ few-% to ~30 % of real-commit
-fires are genuine), and ~a third of the false alarms are structurally
-indistinguishable from genuine reinvention. It is therefore an **advisory** channel —
-"here is code that looks like something you already have, take a look" — not a
-pass/fail gate. The base statistical guardrail's gated catch/false-alarm numbers are
-untouched. The full per-corpus before/after table is on the benchmarks page.
+**Verdict.** The reinvention sense has HIGH recall (≥80 %, median 95 %, catching
+planted reimpls) but LOW, corpus-dependent clean-commit precision (~12 % of
+real-commit fires genuine in aggregate, 0–67 % by repo), and ~a third of the false
+alarms are structurally indistinguishable from genuine reinvention. It is therefore
+an **advisory** channel — "here is code that looks like something you already have,
+take a look" — reported alongside hits and **never folded into the gated
+catch/false-alarm metric**, which is untouched. Note the shipped behaviour: a
+`redundant` finding still fires at the mildest (`unusual`) tier and so contributes to
+the exit code — a reinvention-only hunk exits non-zero unless muted or dropped with
+`--min-severity`. The full per-corpus table is on the benchmarks page.
 
 _(Per-corpus before→after numbers finalised from the validation sweep; see
 `benchmarks/` harnesses and `landing/src/data/semantic.json`.)_

@@ -215,10 +215,12 @@ parallel modules, sync/async twins and sibling interface methods that merely *lo
 alike; about a third of the false alarms are structurally indistinguishable from a
 real reinvention — the same helpers, the same vocabulary, different intent — so no
 retrieval-plus-structure signal can separate them. That's why *redundant* (and the
-quieter *misplaced*, ~0.8% of hunks) are **advisory**: argot names the nearest
-existing code and lets you judge, and **neither gates the check nor the base numbers
-above**. The full per-repo catch **and false-fire** rates — for both senses — are on
-the [benchmarks page](https://argot.tmonier.com/benchmarks).
+quieter *misplaced*, ~0.8% of hunks) are **advisory** — a prompt to review, never
+folded into the gated catch/over-fire numbers above. They do fire at the mildest
+(`unusual`) tier, so a reinvention- or misplacement-only hunk still exits non-zero;
+mute them or raise `--min-severity` to drop them from the gate. The full per-repo
+catch **and false-fire** rates — for both senses — are on the
+[benchmarks page](https://argot.tmonier.com/benchmarks).
 
 ### argot vs. the tools you already run
 
