@@ -520,6 +520,16 @@ const NOISE: &[&str] = &[
 mod tests {
     use super::*;
 
+    #[cfg(feature = "semantic")]
+    #[test]
+    fn callable_bodies_covers_methods_and_singletons() {
+        let a = RubyAdapter::new();
+        let src = "def slugify(s)\n  t = s.downcase\n  t.strip\nend\n\ndef self.build(x)\n  x * 2\nend\n";
+        let names: Vec<String> = a.callable_bodies(src).into_iter().map(|b| b.symbol).collect();
+        assert!(names.contains(&"slugify".to_string()), "{names:?}");
+        assert!(names.contains(&"build".to_string()), "singleton method: {names:?}");
+    }
+
     #[test]
     fn require_family_yields_top_segment() {
         let adapter = RubyAdapter::new();

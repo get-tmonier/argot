@@ -518,6 +518,16 @@ const NOISE: &[&str] = &[
 mod tests {
     use super::*;
 
+    #[cfg(feature = "semantic")]
+    #[test]
+    fn callable_bodies_covers_functions_and_methods() {
+        let a = PhpAdapter::new();
+        let src = "<?php\nfunction slugify($s) {\n    $t = strtolower($s);\n    return trim($t);\n}\nclass C {\n    public function run($x) {\n        return $x * 2;\n    }\n}\n";
+        let names: Vec<String> = a.callable_bodies(src).into_iter().map(|b| b.symbol).collect();
+        assert!(names.contains(&"slugify".to_string()), "{names:?}");
+        assert!(names.contains(&"run".to_string()), "{names:?}");
+    }
+
     const SRC: &str = r#"<?php
 namespace App\Service;
 

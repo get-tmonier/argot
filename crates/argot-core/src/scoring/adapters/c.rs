@@ -661,6 +661,17 @@ const NOISE: &[&str] = &[
 mod tests {
     use super::*;
 
+    #[cfg(feature = "semantic")]
+    #[test]
+    fn callable_bodies_covers_definitions_not_prototypes() {
+        let a = CAdapter::new();
+        let src = "static int add(int a, int b) {\n    int s = a + b;\n    return s;\n}\n\nvoid noop(void);\n";
+        let names: Vec<String> = a.callable_bodies(src).into_iter().map(|b| b.symbol).collect();
+        assert!(names.contains(&"add".to_string()), "{names:?}");
+        // A bodiless prototype is not an embeddable function body.
+        assert!(!names.contains(&"noop".to_string()), "{names:?}");
+    }
+
     #[test]
     fn system_includes_are_imports_internal_ones_are_not() {
         let adapter = CAdapter::new();

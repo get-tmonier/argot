@@ -519,6 +519,16 @@ const NOISE: &[&str] = &[
 mod tests {
     use super::*;
 
+    #[cfg(feature = "semantic")]
+    #[test]
+    fn callable_bodies_covers_funcs_and_methods() {
+        let a = GoAdapter::new();
+        let src = "package p\n\nfunc Add(a, b int) int {\n\tsum := a + b\n\treturn sum\n}\n\nfunc (r Repo) Save(x int) error {\n\tr.store(x)\n\treturn nil\n}\n";
+        let names: Vec<String> = a.callable_bodies(src).into_iter().map(|b| b.symbol).collect();
+        assert!(names.contains(&"Add".to_string()), "{names:?}");
+        assert!(names.contains(&"Save".to_string()), "{names:?}");
+    }
+
     #[test]
     fn resolve_repo_modules_reads_go_mod_module_paths() {
         let dir = std::env::temp_dir().join(format!("argot_go_mod_test_{}", std::process::id()));
