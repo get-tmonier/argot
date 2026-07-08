@@ -44,6 +44,16 @@ bench-quick:
     cargo build --release -p argot-bench
     ./target/release/argot-bench --corpus ink --quick --results-dir benchmarks/results/quick
 
+# Semantic-layer bench (F1 reinvention + F2 placement: recall AND clean-commit FP)
+# over every corpus with fixtures. Builds the semantic binary (feature is off in
+# dev/CI, on only for shipped builds), then runs the unified driver. Pass corpora
+# to scope (`just bench-semantic rich hono`); needs numpy (benchmarks/requirements.txt)
+# and the jina GGUF (auto-downloaded, or ARGOT_SEMANTIC_MODEL=<path>). Robust: each
+# fit is timeout+retry-guarded so one huge corpus (e.g. dagster, 14.8k fns) can't stall.
+bench-semantic *corpora:
+    cargo build --release -p argot --features semantic
+    python3 benchmarks/sem_all.py {{corpora}}
+
 # --- checks ---
 
 # Format check + clippy-as-errors + tests. Canonical CI gate.

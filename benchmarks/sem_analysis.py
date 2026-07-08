@@ -20,6 +20,7 @@ at a time and aggregated by eval count. Usage: sem_analysis.py <corpus_repo> [--
 """
 import json, base64, struct, math, sys, random, os
 from collections import Counter
+import numpy as np
 
 random.seed(0)
 REPO = sys.argv[1].rstrip("/")
@@ -142,15 +143,21 @@ def analyse_lang(vecs, paths, norms, callees, subtoks, syms):
         rare = c >= STRONG_SIM and any(cdf.get(t, 0) <= rare_df for t in (callees[candi] & callees[matchi]))
         return normal or strong or rare
 
+    # numpy neighbour search (identical semantics to the sorted-generator scan,
+    # just vectorised so large corpora finish in seconds). Vectors are already
+    # L2-normalised, so V @ V[qi] is the cosine row.
+    V = np.asarray(vecs, dtype=np.float32)
+    path_arr = np.asarray(paths)
+
     reinv_fire = reinv_eval = 0
     for qi in sample:
         if not is_reinvention_candidate(syms[qi], paths[qi]):
             continue
-        sims = sorted(((cos(vecs[qi], vecs[j]), j) for j in range(n)
-                       if paths[j] != paths[qi]), reverse=True)[:1]
-        if not sims:
+        s = V @ V[qi]
+        s[path_arr == paths[qi]] = -1e30  # nearest *cross-file*
+        bi = int(np.argmax(s))
+        if s[bi] <= -1e29:
             continue
-        bi = sims[0][1]
         reinv_eval += 1
         if syms[qi].lower() == syms[bi].lower():
             continue
@@ -161,9 +168,12 @@ def analyse_lang(vecs, paths, norms, callees, subtoks, syms):
     place_recall_fire = place_of_fire = place_eval = 0
     if len(areas) >= 2:
         for qi in sample:
-            sims = sorted(((cos(vecs[qi], vecs[j]), j) for j in range(n) if j != qi),
-                          reverse=True)[:K]
-            nb = [area_of(paths[sims[k][1]]) for k in range(len(sims))]
+            s = V @ V[qi]
+            s[qi] = -1e30
+            kk = min(K, n - 1)
+            top = np.argpartition(s, -kk)[-kk:]
+            top = top[np.argsort(s[top])[::-1]]  # descending cosine
+            nb = [area_of(paths[int(j)]) for j in top]
             if len(nb) < MIN_NEIGH:
                 continue
             place_eval += 1
