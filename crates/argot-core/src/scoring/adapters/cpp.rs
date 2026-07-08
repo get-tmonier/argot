@@ -578,7 +578,11 @@ mod tests {
     fn callable_bodies_covers_free_and_member_fns() {
         let a = CppAdapter::new();
         let src = "int add(int a, int b) {\n    return a + b;\n}\n\nstruct S {\n    int run(int x) {\n        return x * 2;\n    }\n};\n";
-        let names: Vec<String> = a.callable_bodies(src).into_iter().map(|b| b.symbol).collect();
+        let names: Vec<String> = a
+            .callable_bodies(src)
+            .into_iter()
+            .map(|b| b.symbol)
+            .collect();
         assert!(names.contains(&"add".to_string()), "{names:?}");
         assert!(names.contains(&"run".to_string()), "{names:?}");
     }

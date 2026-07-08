@@ -637,7 +637,11 @@ mod tests {
     fn callable_bodies_covers_methods_and_constructors() {
         let a = JavaAdapter::new();
         let src = "class Foo {\n    Foo(int x) {\n        this.x = x;\n    }\n    int add(int a, int b) {\n        return a + b;\n    }\n}\n";
-        let names: Vec<String> = a.callable_bodies(src).into_iter().map(|b| b.symbol).collect();
+        let names: Vec<String> = a
+            .callable_bodies(src)
+            .into_iter()
+            .map(|b| b.symbol)
+            .collect();
         assert!(names.contains(&"add".to_string()), "{names:?}");
         assert!(names.contains(&"Foo".to_string()), "constructor: {names:?}");
     }

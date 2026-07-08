@@ -512,7 +512,11 @@ mod tests {
     fn callable_bodies_covers_free_and_impl_fns() {
         let a = RustAdapter::new();
         let src = "fn parse(s: &str) -> usize {\n    let n = s.len();\n    n + 1\n}\n\nstruct T;\nimpl T {\n    fn run(&self, x: i32) -> i32 {\n        x * 2\n    }\n}\n";
-        let names: Vec<String> = a.callable_bodies(src).into_iter().map(|b| b.symbol).collect();
+        let names: Vec<String> = a
+            .callable_bodies(src)
+            .into_iter()
+            .map(|b| b.symbol)
+            .collect();
         assert!(names.contains(&"parse".to_string()), "{names:?}");
         assert!(names.contains(&"run".to_string()), "{names:?}");
     }

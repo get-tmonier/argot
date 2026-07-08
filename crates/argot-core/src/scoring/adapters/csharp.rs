@@ -676,7 +676,11 @@ mod tests {
     fn callable_bodies_covers_methods_and_constructors() {
         let a = CSharpAdapter::new();
         let src = "class Foo {\n    public Foo(int x) { this.x = x; }\n    public int Add(int a, int b) {\n        return a + b;\n    }\n}\n";
-        let names: Vec<String> = a.callable_bodies(src).into_iter().map(|b| b.symbol).collect();
+        let names: Vec<String> = a
+            .callable_bodies(src)
+            .into_iter()
+            .map(|b| b.symbol)
+            .collect();
         assert!(names.contains(&"Add".to_string()), "{names:?}");
         assert!(names.contains(&"Foo".to_string()), "constructor: {names:?}");
     }

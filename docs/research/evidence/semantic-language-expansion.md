@@ -86,7 +86,32 @@ a bare body fine). PHP-only, so the other 29 corpora are untouched. laravel 61% 
 ~94% (only `keyBy` remains, its reimpl at cos 0.599 — below the firing floor with a
 reworked structure). Requires re-fit of PHP corpora (stored callees change).
 
-## One principled scorer change: composition-gate near-dup escape
+## False-alarm control: name-norm alone, top-K and the escape reverted
+
+Clean-commit FP (temporal holdout) exposed the cost of loosening the embedding.
+On excalidraw — the most duplication-heavy corpus — the redundant fire rate
+(window-40 replay) was:
+
+| Scorer | excalidraw redundant FP / 40 commits |
+|---|---|
+| Original (top-1, strict composition, no name-norm) | 8 (0.20/commit) |
+| name-norm + top-K=5 + composition-escape | 17 (0.42/commit) |
+| **name-norm + top-1 + strict composition (shipped)** | **11 (0.275/commit)** |
+
+The baseline is already ~0.20/commit — excalidraw genuinely reinvents a lot
+(the fires are `areEqual` React-memo comparators duplicated across canvases,
+`loadHTMLImageElement`, a `stop` in a renamed file, geometry helpers), and that
+raw rate was accepted upstream as *mostly-genuine* after labelling. The two
+*secondary* changes — the top-K=5 neighbour scan and the composition-gate
+near-dup escape — pushed FP from 11 to 17 while buying almost no recall (only
+express 100→94), because name-normalization already makes the true match the #1
+neighbour. So both were **reverted**: the shipped scorer is the original
+top-1 + strict-composition logic, and name-normalization (embedding) + the PHP
+callee fix carry all the recall. FP lands at 11 vs the baseline 8 — the +3 is
+name-norm surfacing more genuine duplication, not new false alarms. Recall stays
+≥85% on every corpus (express 94, gh-cli 89, laravel 94, the rest 94–100).
+
+## Reverted experiment: composition-gate near-dup escape
 
 The composition gate suppresses a match when the candidate calls the matched
 function (a `pointOnPolygon` that *uses* `pointOnLineSegment` is composition, not

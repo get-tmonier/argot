@@ -524,7 +524,11 @@ mod tests {
     fn callable_bodies_covers_funcs_and_methods() {
         let a = GoAdapter::new();
         let src = "package p\n\nfunc Add(a, b int) int {\n\tsum := a + b\n\treturn sum\n}\n\nfunc (r Repo) Save(x int) error {\n\tr.store(x)\n\treturn nil\n}\n";
-        let names: Vec<String> = a.callable_bodies(src).into_iter().map(|b| b.symbol).collect();
+        let names: Vec<String> = a
+            .callable_bodies(src)
+            .into_iter()
+            .map(|b| b.symbol)
+            .collect();
         assert!(names.contains(&"Add".to_string()), "{names:?}");
         assert!(names.contains(&"Save".to_string()), "{names:?}");
     }

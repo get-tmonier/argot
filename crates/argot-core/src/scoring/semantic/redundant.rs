@@ -65,29 +65,6 @@ const RARE_CALLEE_DF_FLOOR: u32 = 4;
 /// "threshold".
 pub(crate) const MIN_SIMILARITY_TO_FIRE: f32 = STRONG_SIMILARITY;
 
-/// How many nearest cross-file neighbours to consider a diff-defined function a
-/// reinvention of. The single closest neighbour is not always the true match:
-/// dense codebases cluster many similar functions, so a sibling can edge out the
-/// real duplicate for the top slot (Go's URL/error-handling families were the
-/// tell — a near-verbatim `DisplayURL` reimpl sat quiet because a neighbour held
-/// the #1 slot). Scanning a small window recovers those without materially moving
-/// false alarms — the per-neighbour structural bars still gate every fire, and
-/// genuinely-new code shares ~0 rare vocabulary/callees with *any* neighbour.
-const K_REINVENTION: usize = 5;
-
-/// Composition-gate escape hatch. The composition gate suppresses a match when
-/// the candidate calls (or is called by) the matched function — a well-factored
-/// family (`pointOnPolygon` calling `pointOnLineSegment`) reuses vocabulary while
-/// *using*, not duplicating, the helper. But that family case is a genuinely
-/// different function: it agrees on the match only *moderately*. When the
-/// candidate instead agrees *strongly* — a high cosine AND high rare-vocabulary
-/// (subtoken) overlap — it is a near-copy, and the shared call is a name
-/// coincidence (typically the reinvention wraps an *imported* helper that happens
-/// to share the matched function's name: a `fresh()` wrapper calling the `fresh`
-/// npm module, not the repo's `fresh`). Suppressing that would miss a true
-/// duplicate, so the gate steps aside above both bars.
-const COMPOSITION_NEAR_DUP_SIM: f32 = 0.82;
-
 /// A fired reinvention finding: the existing function this one duplicates.
 #[derive(Debug, Clone)]
 pub struct RedundantFinding {
@@ -141,74 +118,52 @@ impl<'a> RedundantScorer<'a> {
         if self.index.is_empty() || !is_reinvention_candidate(&func.symbol, &func.path) {
             return None;
         }
-        // Scan the nearest *cross-file* neighbours (same-file matches are overloads
-        // / adjacent helpers, a known false-alarm driver). "You already have this"
-        // fires if *any* nearby existing function is a confirmed duplicate — the
-        // single closest neighbour is not always the true match, because dense
-        // codebases (Go's URL/error-handling families, say) cluster many similar
-        // functions and a sibling can edge out the real duplicate for the top slot.
-        // Neighbours come back sorted by descending cosine.
-        let neighbors = self.index.nearest(query, K_REINVENTION, |e| e.path != func.path);
-        // The very closest neighbour keeping the *same name* is a move/rename, not a
-        // reinvention — don't flag refactors. (A genuine duplicate embeds closest, so
-        // this move test belongs on the top neighbour.)
-        if let Some(top) = neighbors.first() {
-            if eq_ignore_ascii_case(&self.index.entry(top.entry_index).symbol, &func.symbol) {
-                return None;
-            }
+        // Nearest *cross-file* neighbour (same-file matches are overloads /
+        // adjacent helpers, a known false-alarm driver).
+        let best = *self
+            .index
+            .nearest(query, 1, |e| e.path != func.path)
+            .first()?;
+        let best_entry = self.index.entry(best.entry_index);
+        // A near-duplicate that keeps the *same name* in another file is almost
+        // always a move/rename, not a reinvention — don't flag refactors.
+        if eq_ignore_ascii_case(&best_entry.symbol, &func.symbol) {
+            return None;
         }
-        for cand in neighbors {
-            let cos = cand.cosine;
-            // Sorted descending: once below the firing floor, no later neighbour
-            // can fire either.
-            if cos < MIN_SIMILARITY_TO_FIRE {
-                break;
-            }
-            let entry = self.index.entry(cand.entry_index);
-            // A same-name neighbour further down the list is that function moved —
-            // skip it and keep looking for a differently-named duplicate.
-            if eq_ignore_ascii_case(&entry.symbol, &func.symbol) {
-                continue;
-            }
-            // Composition, not reinvention: if either function calls the other, the
-            // new code *uses* the existing one rather than duplicating it (a
-            // `pointOnPolygon` that calls `pointOnLineSegment`). Skipped for a
-            // near-identical body (cos ≥ COMPOSITION_NEAR_DUP_SIM): at that
-            // similarity the call is a name coincidence (a wrapper over a same-named
-            // *imported* helper), not composition. If this neighbour is composition,
-            // try the next — the candidate may still duplicate a different function.
-            if cos < COMPOSITION_NEAR_DUP_SIM
-                && (func.callees.iter().any(|c| c == &entry.symbol)
-                    || entry.callees.iter().any(|c| c == &func.symbol))
-            {
-                continue;
-            }
-            let callee_jac = callee_jaccard(&func.callees, &entry.callees);
-            let sub_jac = self.subtoken_jaccard(&func.subtokens, &entry.subtokens);
-            // Both sides must clear the min-callee guard for the callee path to count.
-            let both_callees =
-                |min: usize| func.callees.len() >= min && entry.callees.len() >= min;
+        // Composition, not reinvention: if either function calls the other, the
+        // new code *uses* the existing one rather than duplicating it. Common in
+        // well-factored families (a `pointOnPolygon` that calls `pointOnLineSegment`
+        // shares its vocabulary but is not a reinvention of it).
+        if func.callees.iter().any(|c| c == &best_entry.symbol)
+            || best_entry.callees.iter().any(|c| c == &func.symbol)
+        {
+            return None;
+        }
+        let cos = best.cosine;
+        let callee_jac = callee_jaccard(&func.callees, &best_entry.callees);
+        let sub_jac = self.subtoken_jaccard(&func.subtokens, &best_entry.subtokens);
+        // Both sides must clear the min-callee guard for the callee path to count.
+        let both_callees =
+            |min: usize| func.callees.len() >= min && best_entry.callees.len() >= min;
 
-            let normal = cos >= NORMAL_SIMILARITY
-                && ((both_callees(NORMAL_MIN_CALLEES) && callee_jac >= NORMAL_CALLEE_BAR)
-                    || sub_jac >= NORMAL_SUBTOKEN_BAR);
-            let strong = cos >= STRONG_SIMILARITY
-                && ((both_callees(STRONG_MIN_CALLEES) && callee_jac >= STRONG_CALLEE_BAR)
-                    || sub_jac >= STRONG_SUBTOKEN_BAR);
-            // Rare-callee path: below the min-callee guard, a single shared *rare*
-            // callee still confirms (a specific helper both functions call).
-            let rare_callee =
-                cos >= STRONG_SIMILARITY && self.shares_rare_callee(func, entry);
-            if normal || strong || rare_callee {
-                return Some(RedundantFinding {
-                    nearest_symbol: entry.symbol.clone(),
-                    nearest_path: entry.path.clone(),
-                    nearest_line: entry.line,
-                    similarity: cos,
-                });
-            }
+        let normal = cos >= NORMAL_SIMILARITY
+            && ((both_callees(NORMAL_MIN_CALLEES) && callee_jac >= NORMAL_CALLEE_BAR)
+                || sub_jac >= NORMAL_SUBTOKEN_BAR);
+        let strong = cos >= STRONG_SIMILARITY
+            && ((both_callees(STRONG_MIN_CALLEES) && callee_jac >= STRONG_CALLEE_BAR)
+                || sub_jac >= STRONG_SUBTOKEN_BAR);
+        // Rare-callee path: below the min-callee guard, a single shared *rare*
+        // callee still confirms (a specific helper both functions call).
+        let rare_callee = cos >= STRONG_SIMILARITY && self.shares_rare_callee(func, best_entry);
+        if !normal && !strong && !rare_callee {
+            return None;
         }
-        None
+        Some(RedundantFinding {
+            nearest_symbol: best_entry.symbol.clone(),
+            nearest_path: best_entry.path.clone(),
+            nearest_line: best_entry.line,
+            similarity: cos,
+        })
     }
 
     /// IDF-weighted Jaccard over two subtoken sets (shared *rare* subtokens count
@@ -516,89 +471,6 @@ mod tests {
                 ),
             ],
         }
-    }
-
-    #[test]
-    fn fires_when_true_duplicate_is_not_the_closest_neighbour() {
-        // A dense cluster: the candidate's *closest* cross-file neighbour is a
-        // structurally-unrelated sibling (higher cosine, but disjoint vocabulary),
-        // while the true duplicate sits a little further out. Scanning only the
-        // top-1 would miss it; the top-K scan finds it.
-        let idx = SemanticIndex {
-            dim: 3,
-            entries: vec![
-                // Sibling: closest to the query, but shares no rare vocabulary.
-                entry_c(
-                    "unrelated_sibling",
-                    "src/a.py",
-                    vec![1.0, 0.0, 0.0],
-                    &[],
-                    &["parse", "token", "stream"],
-                ),
-                // True duplicate: a bit further, but identical rare subtokens.
-                entry_c(
-                    "slugify",
-                    "src/b.py",
-                    vec![0.9, 0.436, 0.0],
-                    &[],
-                    &["slug", "normalize", "whitespace"],
-                ),
-            ],
-        };
-        let scorer = RedundantScorer::new(&idx);
-        // Closest to the sibling (cos ≈ 0.999) but shares slugify's vocabulary.
-        let q = unit(vec![1.0, 0.05, 0.0]);
-        let f = scorer
-            .evaluate(
-                &func_c(
-                    "make_slug",
-                    "src/c.py",
-                    &[],
-                    &["slug", "normalize", "whitespace"],
-                ),
-                &q,
-            )
-            .expect("true duplicate past the #1 neighbour still fires");
-        assert_eq!(f.nearest_symbol, "slugify");
-    }
-
-    #[test]
-    fn composition_gate_suppresses_family_but_not_near_duplicate() {
-        let idx = index();
-        let scorer = RedundantScorer::new(&idx);
-        // A moderately-distant match (cos ≈ 0.75, below the near-dup escape) that
-        // calls the matched symbol `slugify` — composition (a larger function that
-        // *uses* slugify), suppressed even though its subtokens would otherwise fire.
-        let q_family = unit(vec![0.75, 0.66, 0.0]);
-        assert!(
-            scorer
-                .evaluate(
-                    &func_c(
-                        "build_page_url",
-                        "src/api/handlers.py",
-                        &["slugify", "join"],
-                        &["slug", "normalize", "whitespace"],
-                    ),
-                    &q_family,
-                )
-                .is_none(),
-            "composition (cos<0.90) is suppressed"
-        );
-        // A near-identical body (cos ≈ 0.98) that happens to call a same-named
-        // helper (e.g. an imported `slugify`) is a true duplicate — still fires.
-        let q_dup = unit(vec![0.995, 0.02, 0.0]);
-        let f = scorer
-            .evaluate(
-                &func_c(
-                    "make_slug",
-                    "src/api/handlers.py",
-                    &["slugify", "strip"],
-                    &["slug", "normalize", "whitespace"],
-                ),
-                &q_dup,
-            )
-            .expect("near-identical body fires despite same-named callee");
-        assert_eq!(f.nearest_symbol, "slugify");
     }
 
     #[test]

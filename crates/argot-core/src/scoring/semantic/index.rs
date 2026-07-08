@@ -655,9 +655,15 @@ class C:
         let got = normalize_own_name("def slugify(s): return slugify(s) + slugifyish", "slugify");
         assert_eq!(got, "def f(s): return f(s) + slugifyish");
         // A different function's body is untouched.
-        assert_eq!(normalize_own_name("return address(x)", "add"), "return address(x)");
+        assert_eq!(
+            normalize_own_name("return address(x)", "add"),
+            "return address(x)"
+        );
         // Two functions differing only in name normalise to the same embed text.
-        let a = normalize_own_name("func DisplayURL(u string) string { return u }", "DisplayURL");
+        let a = normalize_own_name(
+            "func DisplayURL(u string) string { return u }",
+            "DisplayURL",
+        );
         let b = normalize_own_name("func ShrinkURL(u string) string { return u }", "ShrinkURL");
         assert_eq!(a, b);
     }
