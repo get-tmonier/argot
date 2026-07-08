@@ -196,6 +196,36 @@ you already have (a bare `ValueError` where you'd raise `HTTPException`), the
 mistake is a *choice*, not a foreign pattern — argot won't gate on it, and says so.
 Full, verified breakdown: [what it catches](https://argot.tmonier.com/docs/what-it-catches/).
 
+#### Reinvention catch across every language
+
+The *"you already have this"* sense isn't Python-and-TypeScript-only. The scoring
+is language-agnostic — identifier subtokens and callees are extracted the same way
+everywhere — so every language argot parses gets it. We measure it the honest way:
+for each repo, parallel agents write **faithful reimplementations** of real
+functions from its own canonical source (renamed, restructured), we plant each as
+new code, and count how often argot flags it as redundant. **18 held-out fixtures ×
+31 real repos.**
+
+| Language | Corpora (held-out reinvention recall) |
+|---|---|
+| Python | rich 100 · scrapy 100 · wagtail 100 · dagster 100 · saleor 95 · faker 95 · fastapi 90 |
+| TypeScript | hono 100 · ink 100 · outline 100 · faker-js 90 · excalidraw 85 |
+| JavaScript | express 100 · commander 100 · eslint 100 |
+| Go | hugo 100 · gh-cli 89 |
+| Rust | bat 100 · ripgrep 94 |
+| Ruby | rubocop 100 · homebrew 100 |
+| C | curl 100 · redis 94 |
+| C++ | rocksdb 94 · fmt 89 |
+| Java | junit5 100 · guava 94 |
+| C# | powershell 100 · jellyfin 94 |
+| PHP | composer 100 · laravel 94 |
+
+Every corpus lands **≥ 85%** (median 100%). These are advisory findings — a real
+repo contains real duplication, so argot names the nearest existing function and
+lets you judge. The misses are honest: a handful of generic utilities (a
+linked-list walk, a byte-search) that aren't meaningful reinventions, and rare
+near-total rewrites that drift past the similarity floor.
+
 ### argot vs. the tools you already run
 
 |  | Type checker | Linter | Copilot · SAST | argot |

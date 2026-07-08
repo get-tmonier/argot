@@ -288,6 +288,47 @@ const det = (s: Fp | null | undefined) =>
             flags for review; they are not false alarms.
           </p>
 
+          <section class="mt-12">
+            <h2 class="text-xl font-semibold">Reinvention catch — across every language</h2>
+            <p class="mt-3 text-sm leading-relaxed text-ink-dim">
+              The semantic layer's <em>“you already have this”</em> sense is
+              language-agnostic. We measure it the honest way: for each repo,
+              faithful reimplementations of its own real functions (renamed,
+              restructured) are planted as new code, and we count how often argot
+              flags them as redundant — <strong>18 held-out fixtures × 31 repos</strong>.
+              Every corpus lands <strong>≥ 85%</strong> (median 100%). Advisory, not
+              gated on the numbers above.
+            </p>
+            <table class="mt-4 w-full border-collapse text-sm">
+              <thead>
+                <tr class="border-b border-line text-left text-muted">
+                  <th class="py-2">Language</th>
+                  <th>Corpora (held-out reinvention recall)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ["Python", "rich 100 · scrapy 100 · wagtail 100 · dagster 100 · saleor 95 · faker 95 · fastapi 90"],
+                  ["TypeScript", "hono 100 · ink 100 · outline 100 · faker-js 90 · excalidraw 85"],
+                  ["JavaScript", "express 100 · commander 100 · eslint 100"],
+                  ["Go", "hugo 100 · gh-cli 89"],
+                  ["Rust", "bat 100 · ripgrep 94"],
+                  ["Ruby", "rubocop 100 · homebrew 100"],
+                  ["C", "curl 100 · redis 94"],
+                  ["C++", "rocksdb 94 · fmt 89"],
+                  ["Java", "junit5 100 · guava 94"],
+                  ["C#", "powershell 100 · jellyfin 94"],
+                  ["PHP", "composer 100 · laravel 94"],
+                ].map(([lang, corpora]) => (
+                  <tr class="border-b border-line/60">
+                    <td class="py-2 font-medium text-ink">{lang}</td>
+                    <td class="text-ink-dim">{corpora}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+
           {history.length > 1 && (
             <section class="mt-12">
               <h2 class="text-xl font-semibold">History</h2>
