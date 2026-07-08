@@ -332,6 +332,29 @@ impl CAdapter {
     /// names, top-level prototype `declaration`s, `typedef` names, and named
     /// `struct` specifiers. Feeds local-binding attestation: code calling what
     /// it defines is not foreign voice.
+    /// Function definitions with their line ranges — the embeddable units for the
+    /// semantic index. Only `function_definition` (a declarator plus a body);
+    /// bodiless prototypes (`declaration`) and type/struct specifiers are skipped.
+    #[cfg(feature = "semantic")]
+    pub fn callable_bodies(&self, source: &str) -> Vec<super::CallableBody> {
+        let tree = parse(source);
+        let mut out = Vec::new();
+        for node in descendants(tree.root_node()) {
+            if node.kind() == "function_definition" {
+                if let Some(decl) = node.child_by_field_name("declarator") {
+                    if let Some(symbol) = declared_function_name(decl, source) {
+                        out.push(super::CallableBody {
+                            symbol,
+                            start_line: node.start_position().row + 1,
+                            end_line: node.end_position().row + 1,
+                        });
+                    }
+                }
+            }
+        }
+        out
+    }
+
     pub fn callable_definitions(&self, source: &str) -> HashSet<String> {
         let tree = parse(source);
         let mut out = HashSet::new();
@@ -541,6 +564,10 @@ impl LanguageAdapter for CAdapter {
     }
     fn callable_definitions(&self, source: &str) -> HashSet<String> {
         CAdapter::callable_definitions(self, source)
+    }
+    #[cfg(feature = "semantic")]
+    fn callable_bodies(&self, source: &str) -> Vec<super::CallableBody> {
+        CAdapter::callable_bodies(self, source)
     }
     fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
         CAdapter::internal_import_bindings(self, source)

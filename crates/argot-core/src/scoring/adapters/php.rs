@@ -162,6 +162,27 @@ impl PhpAdapter {
     /// Names the source binds to callable definitions — functions, methods,
     /// classes, interfaces, traits, enums. Feeds local-binding attestation:
     /// code calling what it defines is not foreign voice.
+    /// Function/method definitions with their line ranges — the embeddable units
+    /// for the semantic index. Free `function_definition`s and class
+    /// `method_declaration`s; class/interface/trait/enum containers are skipped.
+    #[cfg(feature = "semantic")]
+    pub fn callable_bodies(&self, source: &str) -> Vec<super::CallableBody> {
+        let tree = parse(source);
+        let mut out = Vec::new();
+        for node in descendants(tree.root_node()) {
+            if matches!(node.kind(), "function_definition" | "method_declaration") {
+                if let Some(name) = node.child_by_field_name("name") {
+                    out.push(super::CallableBody {
+                        symbol: node_text(name, source).to_string(),
+                        start_line: node.start_position().row + 1,
+                        end_line: node.end_position().row + 1,
+                    });
+                }
+            }
+        }
+        out
+    }
+
     pub fn callable_definitions(&self, source: &str) -> HashSet<String> {
         let tree = parse(source);
         let mut out = HashSet::new();
@@ -385,6 +406,10 @@ impl LanguageAdapter for PhpAdapter {
     }
     fn callable_definitions(&self, source: &str) -> HashSet<String> {
         PhpAdapter::callable_definitions(self, source)
+    }
+    #[cfg(feature = "semantic")]
+    fn callable_bodies(&self, source: &str) -> Vec<super::CallableBody> {
+        PhpAdapter::callable_bodies(self, source)
     }
     fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
         PhpAdapter::internal_import_bindings(self, source)

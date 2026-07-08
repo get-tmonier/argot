@@ -289,6 +289,30 @@ impl CppAdapter {
     /// Names the source binds to callable definitions — free functions,
     /// methods (`Class::method`), classes, and structs. Feeds local-binding
     /// attestation: code calling what it defines is not foreign voice.
+    /// Function/method definitions with their line ranges — the embeddable units
+    /// for the semantic index. `function_definition` covers free functions, member
+    /// functions defined in-class, and out-of-line `Class::method` bodies (the
+    /// declarator carries the qualified name); type specifiers are skipped.
+    #[cfg(feature = "semantic")]
+    pub fn callable_bodies(&self, source: &str) -> Vec<super::CallableBody> {
+        let tree = parse(source);
+        let mut out = Vec::new();
+        for node in descendants(tree.root_node()) {
+            if node.kind() == "function_definition" {
+                if let Some(decl) = node.child_by_field_name("declarator") {
+                    if let Some(symbol) = declarator_name(decl, source) {
+                        out.push(super::CallableBody {
+                            symbol,
+                            start_line: node.start_position().row + 1,
+                            end_line: node.end_position().row + 1,
+                        });
+                    }
+                }
+            }
+        }
+        out
+    }
+
     pub fn callable_definitions(&self, source: &str) -> HashSet<String> {
         let tree = parse(source);
         let mut out = HashSet::new();

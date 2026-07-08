@@ -14,14 +14,25 @@ ARGOT = os.environ.get("ARGOT", "/Users/damienmeur/projects/argot/target/release
 CORPUS = sys.argv[1]
 REIMPLS = sys.argv[2]
 LANG = "py"
+# Where to plant the reimpl files (relative to the repo root). Default is a
+# `_sembench/` dir at the repo root; override with --plant-dir for repos whose
+# root .gitignore ignores everything except a source subtree (e.g. homebrew's
+# `/*` + `!/Library`), which would otherwise hide root-level planted files from
+# `argot check` (0 hunks scanned). The planted dir must sit inside the tracked
+# source tree but is still cross-file from every fixture's target.
+PLANT_REL = "_sembench"
 _args = sys.argv[3:]
 for i, a in enumerate(_args):
     if a.startswith("--lang="):
         LANG = a.split("=", 1)[1]
     elif a == "--lang" and i + 1 < len(_args):
         LANG = _args[i + 1]
+    elif a.startswith("--plant-dir="):
+        PLANT_REL = a.split("=", 1)[1]
+    elif a == "--plant-dir" and i + 1 < len(_args):
+        PLANT_REL = _args[i + 1]
 
-BENCH_DIR = os.path.join(CORPUS, "_sembench")
+BENCH_DIR = os.path.join(CORPUS, PLANT_REL)
 
 # argot:recommended excluded top-dirs — a fixture whose ORIGINAL target lives
 # here can never validly fire (the index no longer contains it), so it's not a
@@ -39,10 +50,29 @@ def target_excluded(raw):
     return any(part in _EXCLUDED_DIRS for part in m.group(1).split("/"))
 
 
+# Per-language file extension + a best-effort "first definition name" regex.
+# The regex only powers the same-name neutralisation edge case (below); fixtures
+# are authored with a synonym name, so it rarely fires. Extension is what matters:
+# argot detects language by extension, so the planted file must carry the right one.
+LANG_SPEC = {
+    "py":     (".py",   r"^\s*def\s+(\w+)\s*\("),
+    "ts":     (".ts",   r"(?:function\s+(\w+)|const\s+(\w+)\s*=)"),
+    "js":     (".js",   r"(?:function\s+(\w+)|(?:const|let|var)\s+(\w+)\s*=|(?:exports|module\.exports|\w+(?:\.\w+)+)\.(\w+)\s*=\s*function)"),
+    "go":     (".go",   r"func\s+(?:\([^)]*\)\s*)?(\w+)\s*\("),
+    "rust":   (".rs",   r"fn\s+(\w+)\s*[<(]"),
+    "c":      (".c",    r"^\s*(?:[\w\*\s]+?)\b(\w+)\s*\([^;]*\)\s*\{"),
+    "cpp":    (".cc",   r"^\s*(?:[\w\*\s:<>,]+?)\b(\w+)\s*\([^;]*\)\s*\{"),
+    "java":   (".java", r"(?:public|private|protected|static|final|\s)+[\w\<\>\[\]]+\s+(\w+)\s*\("),
+    "csharp": (".cs",   r"(?:public|private|protected|internal|static|virtual|override|\s)+[\w\<\>\[\]]+\s+(\w+)\s*\("),
+    "php":    (".php",  r"function\s+(\w+)\s*\("),
+    "ruby":   (".rb",   r"^\s*def\s+(?:self\.)?(\w+)"),
+}
+
+
 def rename_fn(code, new_name):
     """Rename the (first) top-level def to new_name; return (code, orig_name)."""
-    m = re.search(r"^\s*def\s+(\w+)\s*\(", code, re.M) if LANG == "py" else \
-        re.search(r"(?:function\s+(\w+)|const\s+(\w+)\s*=)", code)
+    pattern = LANG_SPEC.get(LANG, LANG_SPEC["ts"])[1]
+    m = re.search(pattern, code, re.M)
     if not m:
         return code, None
     orig = next(g for g in m.groups() if g)
@@ -50,7 +80,7 @@ def rename_fn(code, new_name):
 
 
 def main():
-    ext = ".py" if LANG == "py" else ".ts"
+    ext = LANG_SPEC.get(LANG, LANG_SPEC["ts"])[0]
     shutil.rmtree(BENCH_DIR, ignore_errors=True)
     os.makedirs(BENCH_DIR, exist_ok=True)
 

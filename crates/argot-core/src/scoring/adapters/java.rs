@@ -305,6 +305,30 @@ impl JavaAdapter {
     /// Names the source binds to callable definitions — methods, constructors,
     /// and type declarations (class/interface/enum/record). Feeds local-binding
     /// attestation: code calling what it defines is not foreign voice.
+    /// Method/constructor definitions with their line ranges — the embeddable
+    /// units for the semantic index. Type declarations (class/interface/enum/
+    /// record) are containers, not function bodies, so they are skipped.
+    #[cfg(feature = "semantic")]
+    pub fn callable_bodies(&self, source: &str) -> Vec<super::CallableBody> {
+        let tree = parse(source);
+        let mut out = Vec::new();
+        for node in descendants(tree.root_node()) {
+            if matches!(
+                node.kind(),
+                "method_declaration" | "constructor_declaration"
+            ) {
+                if let Some(name) = node.child_by_field_name("name") {
+                    out.push(super::CallableBody {
+                        symbol: node_text(name, source).to_string(),
+                        start_line: node.start_position().row + 1,
+                        end_line: node.end_position().row + 1,
+                    });
+                }
+            }
+        }
+        out
+    }
+
     pub fn callable_definitions(&self, source: &str) -> HashSet<String> {
         let tree = parse(source);
         let mut out = HashSet::new();
@@ -517,6 +541,10 @@ impl LanguageAdapter for JavaAdapter {
     }
     fn callable_definitions(&self, source: &str) -> HashSet<String> {
         JavaAdapter::callable_definitions(self, source)
+    }
+    #[cfg(feature = "semantic")]
+    fn callable_bodies(&self, source: &str) -> Vec<super::CallableBody> {
+        JavaAdapter::callable_bodies(self, source)
     }
     fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
         JavaAdapter::internal_import_bindings(self, source)

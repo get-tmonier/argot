@@ -133,6 +133,52 @@ fn get_js_rhs(node: Node) -> Option<Node> {
     None
 }
 
+/// The name to attribute to a function value passed as a call argument, taken
+/// from the nearest preceding string-literal argument in the same call — the
+/// `defineGetter(req, 'host', function(){…})` / `Object.defineProperty(o, 'x',
+/// {…})` idiom, where the property name lives in a sibling string. Returns
+/// `None` unless that string is a plain identifier-shaped name (so ordinary
+/// callbacks like `arr.map(fn)` or `test('desc…', fn)` are not misnamed).
+#[cfg(feature = "semantic")]
+fn call_arg_string_name(func_node: Node, source: &str) -> Option<String> {
+    let args = func_node.parent()?;
+    if args.kind() != "arguments" {
+        return None;
+    }
+    let mut last_string: Option<Node> = None;
+    for child in children(args) {
+        if child.id() == func_node.id() {
+            break;
+        }
+        if child.kind() == "string" {
+            last_string = Some(child);
+        }
+    }
+    let name = strip_quotes(node_text(last_string?, source));
+    let ok = !name.is_empty()
+        && name.len() <= 40
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$');
+    ok.then(|| name.to_string())
+}
+
+/// The name to attribute to a CommonJS `LHS = function(){…}` definition: the
+/// last property of a member-expression target (`res.status` → `status`,
+/// `Foo.prototype.bar` → `bar`) or a bare identifier target (`handler` →
+/// `handler`). Subscript/computed targets (`obj[k] = …`) have no stable name.
+#[cfg(feature = "semantic")]
+fn assignment_target_name(lhs: Node, source: &str) -> Option<String> {
+    match lhs.kind() {
+        "identifier" => Some(node_text(lhs, source).to_string()),
+        "member_expression" => lhs
+            .child_by_field_name("property")
+            .filter(|p| p.kind() == "property_identifier" || p.kind() == "identifier")
+            .map(|p| node_text(p, source).to_string()),
+        _ => None,
+    }
+}
+
 /// True if ≥80% of the node's immediate values are literal data. Empty
 /// containers and unknown types return true (conservative — allow).
 fn is_js_value_literal_dominant(node: Node) -> bool {
@@ -481,6 +527,88 @@ impl JavaScriptAdapter {
                     }
                 }
                 _ => {}
+            }
+            for i in (0..node.child_count()).rev() {
+                if let Some(c) = node.child(i) {
+                    stack.push(c);
+                }
+            }
+        }
+        out
+    }
+
+    /// Function/method definitions with their line ranges — the embeddable units
+    /// for the semantic index. Covers `function`/generator declarations, class
+    /// `method_definition`s, function-valued `const`/`let`/`var` bindings (arrows,
+    /// function expressions), and the CommonJS prototype idiom
+    /// `res.status = function status(){…}` / `proto.foo = () => {…}` — an
+    /// `assignment_expression` whose right side is a function value. That last
+    /// form is JavaScript-specific (TypeScript code overwhelmingly uses classes
+    /// and `const` arrows), so it is not mirrored back to the TS adapter, whose
+    /// recall is already validated; here it recovers the bulk of an Express-style
+    /// module's real functions.
+    #[cfg(feature = "semantic")]
+    pub fn callable_bodies(&self, source: &str) -> Vec<super::CallableBody> {
+        let tree = parse(source);
+        let mut out = Vec::new();
+        let mut stack = vec![tree.root_node()];
+        while let Some(node) = stack.pop() {
+            let name: Option<String> = match node.kind() {
+                "function_declaration" | "generator_function_declaration" | "method_definition" => {
+                    node.child_by_field_name("name")
+                        .map(|n| node_text(n, source).to_string())
+                }
+                "variable_declarator" => match get_js_rhs(node) {
+                    Some(rhs)
+                        if JS_FUNCTION_VALUE_TYPES.contains(&rhs.kind())
+                            && node
+                                .child_by_field_name("name")
+                                .is_some_and(|n| n.kind() == "identifier") =>
+                    {
+                        node.child_by_field_name("name")
+                            .map(|n| node_text(n, source).to_string())
+                    }
+                    _ => None,
+                },
+                // CommonJS `res.status = function status(){…}` / `proto.x = () => {…}`.
+                "assignment_expression" => match node.child_by_field_name("right") {
+                    Some(rhs) if JS_FUNCTION_VALUE_TYPES.contains(&rhs.kind()) => {
+                        // Prefer the function expression's own name, else the last
+                        // property of the assignment target (`res.status` → `status`).
+                        rhs.child_by_field_name("name")
+                            .map(|n| node_text(n, source).to_string())
+                            .or_else(|| {
+                                node.child_by_field_name("left")
+                                    .and_then(|lhs| assignment_target_name(lhs, source))
+                            })
+                    }
+                    _ => None,
+                },
+                // Function expressions that aren't a declarator/assignment RHS
+                // (those arms already own them): a named getter expression
+                // (`defineGetter(req, 'host', function host(){…})`) keeps its own
+                // name; an anonymous one takes its name from a sibling string
+                // argument (`defineGetter(req, 'fresh', function(){…})`).
+                "function_expression" | "generator_function" => {
+                    let bound_rhs = node.parent().is_some_and(|p| {
+                        matches!(p.kind(), "variable_declarator" | "assignment_expression")
+                    });
+                    if bound_rhs {
+                        None
+                    } else {
+                        node.child_by_field_name("name")
+                            .map(|n| node_text(n, source).to_string())
+                            .or_else(|| call_arg_string_name(node, source))
+                    }
+                }
+                _ => None,
+            };
+            if let Some(symbol) = name {
+                out.push(super::CallableBody {
+                    symbol,
+                    start_line: node.start_position().row + 1,
+                    end_line: node.end_position().row + 1,
+                });
             }
             for i in (0..node.child_count()).rev() {
                 if let Some(c) = node.child(i) {
@@ -918,6 +1046,10 @@ impl LanguageAdapter for JavaScriptAdapter {
     fn callable_definitions(&self, source: &str) -> HashSet<String> {
         JavaScriptAdapter::callable_definitions(self, source)
     }
+    #[cfg(feature = "semantic")]
+    fn callable_bodies(&self, source: &str) -> Vec<super::CallableBody> {
+        JavaScriptAdapter::callable_bodies(self, source)
+    }
     fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
         JavaScriptAdapter::internal_import_bindings(self, source)
     }
@@ -994,6 +1126,90 @@ const NOISE: &[&str] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "semantic")]
+    #[test]
+    fn callable_bodies_covers_declarations_methods_and_arrow_consts() {
+        let adapter = JavaScriptAdapter::new();
+        let src = "\
+function parseHeader(line) {
+  const [k, v] = line.split(':');
+  return { key: k.trim(), value: v.trim() };
+}
+
+const buildUrl = (base, path) => {
+  return base.replace(/\\/$/, '') + '/' + path;
+};
+
+class Router {
+  addRoute(method, handler) {
+    this.routes.push({ method, handler });
+    return this;
+  }
+}
+";
+        let bodies = adapter.callable_bodies(src);
+        let names: Vec<&str> = bodies.iter().map(|b| b.symbol.as_str()).collect();
+        assert!(names.contains(&"parseHeader"), "fn decl: {names:?}");
+        assert!(names.contains(&"buildUrl"), "arrow const: {names:?}");
+        assert!(names.contains(&"addRoute"), "class method: {names:?}");
+        // Line ranges are 1-indexed and span the whole body.
+        let ph = bodies.iter().find(|b| b.symbol == "parseHeader").unwrap();
+        assert_eq!(ph.start_line, 1);
+        assert_eq!(ph.end_line, 4);
+    }
+
+    #[cfg(feature = "semantic")]
+    #[test]
+    fn callable_bodies_covers_commonjs_prototype_assignment() {
+        let adapter = JavaScriptAdapter::new();
+        let src = "\
+res.status = function status(code) {
+  this.statusCode = code;
+  return this;
+};
+
+app.prototype.render = function (name, options, callback) {
+  const cache = this.cache;
+  return cache[name] || callback();
+};
+
+exports.compile = (src) => {
+  const ast = parse(src);
+  return ast;
+};
+
+defineGetter(req, 'host', function host() {
+  const forwarded = this.get('X-Forwarded-Host');
+  return forwarded || this.get('Host');
+});
+
+defineGetter(req, 'fresh', function () {
+  const method = this.method;
+  return method === 'GET' && checkFresh(this.headers);
+});
+";
+        let names: Vec<String> = adapter
+            .callable_bodies(src)
+            .into_iter()
+            .map(|b| b.symbol)
+            .collect();
+        // Named function expression keeps its own name.
+        assert!(names.contains(&"status".to_string()), "{names:?}");
+        // Anonymous RHS takes the target's last property.
+        assert!(names.contains(&"render".to_string()), "{names:?}");
+        // Arrow assigned to `exports.compile`.
+        assert!(names.contains(&"compile".to_string()), "{names:?}");
+        // Named getter function expression keeps its own name; each real
+        // function is emitted exactly once (no double-count from the arms).
+        assert_eq!(
+            names.iter().filter(|n| *n == "host").count(),
+            1,
+            "{names:?}"
+        );
+        // Anonymous getter takes the sibling string-literal property name.
+        assert!(names.contains(&"fresh".to_string()), "{names:?}");
+    }
 
     #[test]
     fn transpiled_output_is_detected_as_auto_generated() {

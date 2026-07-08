@@ -188,6 +188,10 @@ impl LanguageAdapter for go::GoAdapter {
     fn callable_definitions(&self, source: &str) -> HashSet<String> {
         go::GoAdapter::callable_definitions(self, source)
     }
+    #[cfg(feature = "semantic")]
+    fn callable_bodies(&self, source: &str) -> Vec<CallableBody> {
+        go::GoAdapter::callable_bodies(self, source)
+    }
     fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
         go::GoAdapter::internal_import_bindings(self, source)
     }
@@ -237,6 +241,10 @@ impl LanguageAdapter for rust::RustAdapter {
     fn callable_definitions(&self, source: &str) -> HashSet<String> {
         rust::RustAdapter::callable_definitions(self, source)
     }
+    #[cfg(feature = "semantic")]
+    fn callable_bodies(&self, source: &str) -> Vec<CallableBody> {
+        rust::RustAdapter::callable_bodies(self, source)
+    }
     fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
         rust::RustAdapter::internal_import_bindings(self, source)
     }
@@ -284,6 +292,10 @@ impl LanguageAdapter for cpp::CppAdapter {
     fn callable_definitions(&self, source: &str) -> HashSet<String> {
         cpp::CppAdapter::callable_definitions(self, source)
     }
+    #[cfg(feature = "semantic")]
+    fn callable_bodies(&self, source: &str) -> Vec<CallableBody> {
+        cpp::CppAdapter::callable_bodies(self, source)
+    }
     fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
         cpp::CppAdapter::internal_import_bindings(self, source)
     }
@@ -330,6 +342,10 @@ impl LanguageAdapter for ruby::RubyAdapter {
     }
     fn callable_definitions(&self, source: &str) -> HashSet<String> {
         ruby::RubyAdapter::callable_definitions(self, source)
+    }
+    #[cfg(feature = "semantic")]
+    fn callable_bodies(&self, source: &str) -> Vec<CallableBody> {
+        ruby::RubyAdapter::callable_bodies(self, source)
     }
     fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
         ruby::RubyAdapter::internal_import_bindings(self, source)

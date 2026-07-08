@@ -65,6 +65,19 @@ const RARE_CALLEE_DF_FLOOR: u32 = 4;
 /// "threshold".
 pub(crate) const MIN_SIMILARITY_TO_FIRE: f32 = STRONG_SIMILARITY;
 
+/// Composition-gate escape hatch. The composition gate suppresses a match when
+/// the candidate calls (or is called by) the matched function — a well-factored
+/// family (`pointOnPolygon` calling `pointOnLineSegment`) reuses vocabulary while
+/// *using*, not duplicating, the helper. But that family case is a genuinely
+/// different function: it agrees on the match only *moderately*. When the
+/// candidate instead agrees *strongly* — a high cosine AND high rare-vocabulary
+/// (subtoken) overlap — it is a near-copy, and the shared call is a name
+/// coincidence (typically the reinvention wraps an *imported* helper that happens
+/// to share the matched function's name: a `fresh()` wrapper calling the `fresh`
+/// npm module, not the repo's `fresh`). Suppressing that would miss a true
+/// duplicate, so the gate steps aside above both bars.
+const COMPOSITION_NEAR_DUP_SIM: f32 = 0.82;
+
 /// A fired reinvention finding: the existing function this one duplicates.
 #[derive(Debug, Clone)]
 pub struct RedundantFinding {
@@ -130,16 +143,20 @@ impl<'a> RedundantScorer<'a> {
         if eq_ignore_ascii_case(&best_entry.symbol, &func.symbol) {
             return None;
         }
+        let cos = best.cosine;
         // Composition, not reinvention: if either function calls the other, the
         // new code *uses* the existing one rather than duplicating it. Common in
         // well-factored families (a `pointOnPolygon` that calls `pointOnLineSegment`
-        // shares its vocabulary but is not a reinvention of it).
-        if func.callees.iter().any(|c| c == &best_entry.symbol)
-            || best_entry.callees.iter().any(|c| c == &func.symbol)
+        // shares its vocabulary but is not a reinvention of it). Skipped for a
+        // near-identical body (cos ≥ COMPOSITION_NEAR_DUP_SIM): at that similarity
+        // the call is a name coincidence (a wrapper over a same-named *imported*
+        // helper), not composition, and suppressing it would miss a true duplicate.
+        if cos < COMPOSITION_NEAR_DUP_SIM
+            && (func.callees.iter().any(|c| c == &best_entry.symbol)
+                || best_entry.callees.iter().any(|c| c == &func.symbol))
         {
             return None;
         }
-        let cos = best.cosine;
         let callee_jac = callee_jaccard(&func.callees, &best_entry.callees);
         let sub_jac = self.subtoken_jaccard(&func.subtokens, &best_entry.subtokens);
         // Both sides must clear the min-callee guard for the callee path to count.
@@ -471,6 +488,45 @@ mod tests {
                 ),
             ],
         }
+    }
+
+    #[test]
+    fn composition_gate_suppresses_family_but_not_near_duplicate() {
+        let idx = index();
+        let scorer = RedundantScorer::new(&idx);
+        // A moderately-distant match (cos ≈ 0.75, below the near-dup escape) that
+        // calls the matched symbol `slugify` — composition (a larger function that
+        // *uses* slugify), suppressed even though its subtokens would otherwise fire.
+        let q_family = unit(vec![0.75, 0.66, 0.0]);
+        assert!(
+            scorer
+                .evaluate(
+                    &func_c(
+                        "build_page_url",
+                        "src/api/handlers.py",
+                        &["slugify", "join"],
+                        &["slug", "normalize", "whitespace"],
+                    ),
+                    &q_family,
+                )
+                .is_none(),
+            "composition (cos<0.90) is suppressed"
+        );
+        // A near-identical body (cos ≈ 0.98) that happens to call a same-named
+        // helper (e.g. an imported `slugify`) is a true duplicate — still fires.
+        let q_dup = unit(vec![0.995, 0.02, 0.0]);
+        let f = scorer
+            .evaluate(
+                &func_c(
+                    "make_slug",
+                    "src/api/handlers.py",
+                    &["slugify", "strip"],
+                    &["slug", "normalize", "whitespace"],
+                ),
+                &q_dup,
+            )
+            .expect("near-identical body fires despite same-named callee");
+        assert_eq!(f.nearest_symbol, "slugify");
     }
 
     #[test]

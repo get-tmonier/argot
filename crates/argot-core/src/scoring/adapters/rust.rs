@@ -350,6 +350,28 @@ impl RustAdapter {
     /// signatures (trait methods), and `let name = |…| …` closure bindings.
     /// Local-binding attestation: code calling what it defines is not foreign
     /// voice.
+    /// Function/method definitions with their line ranges — the embeddable units
+    /// for the semantic index. `function_item` covers free functions, `impl`
+    /// methods, and trait default methods; bodiless `function_signature_item`
+    /// (trait declarations) is skipped as it has nothing to embed.
+    #[cfg(feature = "semantic")]
+    pub fn callable_bodies(&self, source: &str) -> Vec<super::CallableBody> {
+        let tree = parse(source);
+        let mut out = Vec::new();
+        for node in descendants(tree.root_node()) {
+            if node.kind() == "function_item" {
+                if let Some(name) = node.child_by_field_name("name") {
+                    out.push(super::CallableBody {
+                        symbol: node_text(name, source).to_string(),
+                        start_line: node.start_position().row + 1,
+                        end_line: node.end_position().row + 1,
+                    });
+                }
+            }
+        }
+        out
+    }
+
     pub fn callable_definitions(&self, source: &str) -> HashSet<String> {
         let tree = parse(source);
         let mut out = HashSet::new();

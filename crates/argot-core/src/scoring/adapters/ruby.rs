@@ -228,6 +228,27 @@ impl RubyAdapter {
     /// Names the source binds to callable definitions — `def`/`def self.`
     /// methods and `class`/`module` constants. Local-binding attestation: code
     /// calling what it defines is not foreign voice.
+    /// Method definitions with their line ranges — the embeddable units for the
+    /// semantic index. `method` (`def foo`) and `singleton_method` (`def self.foo`
+    /// / `def obj.foo`); class/module containers are skipped.
+    #[cfg(feature = "semantic")]
+    pub fn callable_bodies(&self, source: &str) -> Vec<super::CallableBody> {
+        let tree = parse(source);
+        let mut out = Vec::new();
+        for node in descendants(tree.root_node()) {
+            if matches!(node.kind(), "method" | "singleton_method") {
+                if let Some(name) = node.child_by_field_name("name") {
+                    out.push(super::CallableBody {
+                        symbol: node_text(name, source).to_string(),
+                        start_line: node.start_position().row + 1,
+                        end_line: node.end_position().row + 1,
+                    });
+                }
+            }
+        }
+        out
+    }
+
     pub fn callable_definitions(&self, source: &str) -> HashSet<String> {
         let tree = parse(source);
         let mut out = HashSet::new();
