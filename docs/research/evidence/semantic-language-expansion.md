@@ -99,11 +99,19 @@ On excalidraw — the most duplication-heavy corpus — the redundant fire rate
 | **name-norm + top-1 + strict composition (shipped)** | **11 (0.275/commit)** |
 
 Clean-commit FP is **window-sensitive** — a larger `--window` fits further back
-and replays a larger, older commit set, so absolute rates aren't comparable across
-windows (shipped config at window-100: excalidraw 0.52/commit, wagtail 0.32). The
-honest, apples-to-apples read is the *same-window* baseline-vs-shipped above
-(window-40, excalidraw): **8 → 11**, a modest +37%, well inside the regime the
-original scorer already ships in. The +3 is name-norm surfacing *more of the same
+and replays a larger, older commit set. Measured at the *same* window (100) on
+excalidraw:
+
+| Scorer | redundant/commit | commits with ≥1 fire |
+|---|---|---|
+| Original (baseline) | 0.35 | 22% |
+| Shipped (name-norm) | 0.52 | **24%** |
+
+The baseline is *already* 0.35/commit — excalidraw genuinely reinvents a lot — and
+name-norm's increase is modest on the "will it nag me?" metric: **commit_fp_rate
++2pp (22% → 24%)**. The extra raw fires land mostly on commits that already fired;
+they are name-norm surfacing *more of the same genuine duplication*, not new false
+alarms. (Window-40 tells the same story: baseline 8 → shipped 11.) The +3 is name-norm surfacing *more of the same
 genuine internal duplication*, not new false alarms — these are advisory findings
 and the base guardrail's gated over-fire metric is untouched.
 
