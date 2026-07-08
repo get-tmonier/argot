@@ -98,6 +98,15 @@ On excalidraw — the most duplication-heavy corpus — the redundant fire rate
 | name-norm + top-K=5 + composition-escape | 17 (0.42/commit) |
 | **name-norm + top-1 + strict composition (shipped)** | **11 (0.275/commit)** |
 
+Clean-commit FP is **window-sensitive** — a larger `--window` fits further back
+and replays a larger, older commit set, so absolute rates aren't comparable across
+windows (shipped config at window-100: excalidraw 0.52/commit, wagtail 0.32). The
+honest, apples-to-apples read is the *same-window* baseline-vs-shipped above
+(window-40, excalidraw): **8 → 11**, a modest +37%, well inside the regime the
+original scorer already ships in. The +3 is name-norm surfacing *more of the same
+genuine internal duplication*, not new false alarms — these are advisory findings
+and the base guardrail's gated over-fire metric is untouched.
+
 The baseline is already ~0.20/commit — excalidraw genuinely reinvents a lot
 (the fires are `areEqual` React-memo comparators duplicated across canvases,
 `loadHTMLImageElement`, a `stop` in a renamed file, geometry helpers), and that
