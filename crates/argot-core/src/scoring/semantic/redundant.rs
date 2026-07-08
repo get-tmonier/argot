@@ -36,9 +36,6 @@ use super::index::{FunctionRef, IndexEntry, SemanticIndex};
 const NORMAL_SIMILARITY: f32 = 0.78;
 const NORMAL_SUBTOKEN_BAR: f32 = 0.40;
 const NORMAL_CALLEE_BAR: f32 = 0.12;
-/// The callee path needs both sides to have at least this many callees — a
-/// 1-callee fn matching a 1-callee fn is 100% overlap by luck, not evidence.
-const NORMAL_MIN_CALLEES: usize = 2;
 
 /// Strong (rescue) tier — a slightly more distant match that *strongly* agrees
 /// structurally. Catches heavily-reworded reinventions that embed further from
@@ -47,17 +44,30 @@ const NORMAL_MIN_CALLEES: usize = 2;
 const STRONG_SIMILARITY: f32 = 0.70;
 const STRONG_SUBTOKEN_BAR: f32 = 0.52;
 const STRONG_CALLEE_BAR: f32 = 0.30;
-const STRONG_MIN_CALLEES: usize = 3;
 
-/// Rare-callee path: a small function (1–2 callees) can't clear the callee
-/// `MIN_CALLEES` guard, and its subtokens are often generic (a geometry helper's
-/// `point`/`vector` vocabulary). But if it shares a **rare** callee with its match
-/// — a specific helper called by only a sliver of the repo — that single shared
-/// call is strong reinvention evidence (a faithful reimplementation calls the same
-/// specific helper; overlap on a rare callee is not luck the way overlap on one
-/// ubiquitous callee is). Fires at the strong-tier cosine with no min-callee count.
-/// "Rare" = called by ≤ this fraction of corpus functions (floored for tiny repos).
-const RARE_CALLEE_DF_FRACTION: f64 = 0.012;
+/// The callee path needs at least this many **shared** callees. One shared callee
+/// — even at a high Jaccard when both fns are small — is coincidence, not evidence:
+/// clean-commit labelling showed the dominant F1 false alarm is two short functions
+/// (deprecation shims, sync/async twins, sibling interface methods) that share a
+/// single *common* framework helper (`warn`, `deferred_from_coro`). A genuine
+/// reinvention reuses *several* of the original's helpers (labelled catches share
+/// 4–8), so requiring ≥2 shared callees keeps the catches and drops the idiom
+/// coincidences. The single-rare-helper case (a tiny pure-logic reimpl) is carried
+/// by the rare-callee path below.
+const MIN_SHARED_CALLEES: usize = 2;
+
+/// Rare-callee path: a small function (1–2 callees) can't clear the shared-callee
+/// count, and its subtokens are often generic (a geometry helper's `point`/`vector`
+/// vocabulary). But if it shares a **rare** callee with its match — a specific
+/// helper called by only a sliver of the repo — that single shared call is strong
+/// reinvention evidence (a faithful reimplementation calls the same specific helper;
+/// overlap on a rare callee is not luck the way overlap on one ubiquitous callee
+/// is). Fires at the strong-tier cosine with no min-callee count. "Rare" = called by
+/// ≤ this fraction of corpus functions (floored for tiny repos). Tightened from
+/// 0.012 after labelling: at 1.2% the "rare" band still admitted borderline framework
+/// utilities (`deferred_from_coro`, df ~1%), which drove ~40% of one corpus's false
+/// fires; a genuinely distinctive helper sits far below that.
+const RARE_CALLEE_DF_FRACTION: f64 = 0.004;
 const RARE_CALLEE_DF_FLOOR: u32 = 4;
 
 /// The lowest cosine at which a reinvention can fire (the strong-tier floor).
@@ -142,16 +152,16 @@ impl<'a> RedundantScorer<'a> {
         let cos = best.cosine;
         let callee_jac = callee_jaccard(&func.callees, &best_entry.callees);
         let sub_jac = self.subtoken_jaccard(&func.subtokens, &best_entry.subtokens);
-        // Both sides must clear the min-callee guard for the callee path to count.
-        let both_callees =
-            |min: usize| func.callees.len() >= min && best_entry.callees.len() >= min;
+        // The callee path needs several *shared* callees: one shared helper (even at
+        // a high Jaccard) is coincidence, not reinvention evidence.
+        let shared_callees = shared_callee_count(&func.callees, &best_entry.callees);
+        let callee_confirms =
+            |bar: f32| shared_callees >= MIN_SHARED_CALLEES && callee_jac >= bar;
 
         let normal = cos >= NORMAL_SIMILARITY
-            && ((both_callees(NORMAL_MIN_CALLEES) && callee_jac >= NORMAL_CALLEE_BAR)
-                || sub_jac >= NORMAL_SUBTOKEN_BAR);
+            && (callee_confirms(NORMAL_CALLEE_BAR) || sub_jac >= NORMAL_SUBTOKEN_BAR);
         let strong = cos >= STRONG_SIMILARITY
-            && ((both_callees(STRONG_MIN_CALLEES) && callee_jac >= STRONG_CALLEE_BAR)
-                || sub_jac >= STRONG_SUBTOKEN_BAR);
+            && (callee_confirms(STRONG_CALLEE_BAR) || sub_jac >= STRONG_SUBTOKEN_BAR);
         // Rare-callee path: below the min-callee guard, a single shared *rare*
         // callee still confirms (a specific helper both functions call).
         let rare_callee = cos >= STRONG_SIMILARITY && self.shares_rare_callee(func, best_entry);
@@ -182,6 +192,13 @@ impl<'a> RedundantScorer<'a> {
                 && self.callee_df.get(c).copied().unwrap_or(0) <= self.rare_callee_df
         })
     }
+}
+
+/// Number of callees the two functions share (set intersection size).
+fn shared_callee_count(a: &[String], b: &[String]) -> usize {
+    let sa: BTreeSet<&str> = a.iter().map(String::as_str).collect();
+    let sb: BTreeSet<&str> = b.iter().map(String::as_str).collect();
+    sa.intersection(&sb).count()
 }
 
 /// Plain Jaccard overlap of two callee sets (sorted, deduped). 0 when both empty.
@@ -506,6 +523,47 @@ mod tests {
                     &["measure", "wrap", "clamp"],
                     &["layout", "compute", "grid"],
                 ),
+                &q,
+            )
+            .is_none());
+    }
+
+    /// The dominant clean-commit false alarm: two functions that share a single
+    /// *common* framework callee (a shim/twin calling `log`/`deferred_from_coro`)
+    /// but no real logic. One shared common callee is coincidence — must not fire.
+    fn common_callee_index() -> SemanticIndex {
+        let mut entries = Vec::new();
+        // Eight unrelated functions all call `log` → df(log) is well above the rare
+        // floor, so a lone shared `log` is *not* the rare-callee path either.
+        for i in 0..8 {
+            entries.push(entry_c(
+                &format!("misc_{i}"),
+                &format!("src/m{i}.py"),
+                vec![0.0, 1.0, 0.01 * i as f32],
+                &["log"],
+                &[&format!("misc{i}"), "helper"],
+            ));
+        }
+        entries.push(entry_c(
+            "apply_discount",
+            "src/pricing.py",
+            vec![1.0, 0.0, 0.0],
+            &["log", "round", "clamp"],
+            &["discount", "apply"],
+        ));
+        SemanticIndex { dim: 3, entries }
+    }
+
+    #[test]
+    fn single_common_shared_callee_does_not_fire() {
+        let idx = common_callee_index();
+        let scorer = RedundantScorer::new(&idx);
+        // cos ≈ 1.0 to apply_discount, but shares only `log` (common) and no
+        // subtokens — the shim/twin false-alarm shape. Must stay quiet.
+        let q = unit(vec![0.99, 0.02, 0.0]);
+        assert!(scorer
+            .evaluate(
+                &func_c("charge_card", "src/api.py", &["log"], &["charge", "card"]),
                 &q,
             )
             .is_none());
