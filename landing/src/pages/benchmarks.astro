@@ -1,6 +1,23 @@
 ---
 import Base from '#layouts/Base.astro';
 import { SITE } from '#lib/site';
+// The semantic layer (advisory) — reinvention (F1) + misplacement (F2), measured
+// by the same leak-free clean-commit holdout (window 150). A SEPARATE advisory
+// channel: reported alongside every hit, never folded into the base metrics above.
+import semanticData from '../data/semantic.json';
+// Foreign detector, per signal: catch per class (foreign_import / foreign_api /
+// foreign_concurrency, from argot-bench --mode production) + false-alarm (over-fire
+// vs detection) from the CI dashboard.
+import foreignData from '../data/foreign.json';
+type FClass = { caught: number; total: number; pct: number | null; visible: string; masked: string; reason: string | null } | null;
+type ForeignRow = {
+  corpus: string; language: string;
+  classes: { foreign_import: FClass; foreign_api: FClass; foreign_concurrency: FClass };
+  overfire_existing_pct: number | null; detection_existing_pct: number | null;
+  overfire_new_pct: number | null; under_sampled: boolean;
+};
+const foreignRows = (foreignData.corpora ?? []) as ForeignRow[];
+const fClassCell = (c: FClass) => (c ? `${c.pct}% (${c.caught}/${c.total})` : '—');
 
 // Build-time import of the committed dashboard history (schema v2 in
 // crates/argot-bench/src/dashboard.rs). CI appends a dated entry per run and
@@ -99,6 +116,40 @@ const ci = (s: Fp | null | undefined) =>
   s?.ci95_pct ? `${s.ci95_pct[0].toFixed(1)}–${s.ci95_pct[1].toFixed(1)}%` : '';
 const det = (s: Fp | null | undefined) =>
   s && s.hits > 0 ? `+${s.rate_pct.toFixed(2)}% detections` : '';
+
+// Both advisory senses share ONE row shape so their tables are column-for-column
+// identical: catch (recall + count) · clean-commit false-fire (fires/hunks + %) ·
+// judged-true (where the fires were labelled). '—' appears ONLY on a genuine
+// measurement gap (fit error), never as a formatting shortcut.
+type SemF1 = {
+  corpus: string; language: string;
+  recall_pct: number | null; recall_caught: number | null; recall_total: number | null;
+  fp_fires: number | null; fp_hunks: number | null; fp_per_hunk_pct: number | null;
+  fp_genuine: number | null; fp_true: number | null; fp_true_per_hunk_pct: number | null;
+  fp_labeled: number | null; fp_sampled: boolean; errors: string[];
+};
+type SemF2 = {
+  corpus: string; language: string;
+  recall_pct: number | null; recall_eval: number | null; overfire_pct: number | null;
+  fp_fires: number | null; fp_hunks: number | null; fp_per_hunk_pct: number | null;
+  errors: string[];
+};
+const semF1 = (semanticData.reinvention ?? []) as SemF1[];
+const semF2 = (semanticData.misplacement ?? []) as SemF2[];
+const semWindow = (semanticData as { window?: number }).window ?? 200;
+// recall summary (min / median across corpora with a recall number).
+const med = (xs: number[]) => (xs.length ? xs.slice().sort((a, b) => a - b)[Math.floor(xs.length / 2)] : null);
+const f1Recalls = semF1.map((r) => r.recall_pct).filter((x): x is number => x != null);
+const f1RecallMin = f1Recalls.length ? Math.min(...f1Recalls) : null;
+const f1RecallMed = med(f1Recalls);
+const f2Recalls = semF2.map((r) => r.recall_pct).filter((x): x is number => x != null);
+const f2RecallMed = med(f2Recalls);
+// Uniform cells (every row, same fields):
+// catch = "Z% (caught/total)"; false-fire = "Y% (fires/hunks)".
+const recallCell = (p: number | null, a: number | null, b: number | null) =>
+  p == null ? '—' : b != null ? `${p}% (${a}/${b})` : `${p}%`;
+const fireCell = (fires: number | null, hunks: number | null, pct: number | null) =>
+  pct == null || fires == null || hunks == null ? '—' : `${pct.toFixed(2)}% (${fires}/${hunks})`;
 ---
 
 <Base title="Benchmarks · argot" description="Honest, leak-free benchmark results for argot, fed from CI.">
@@ -129,30 +180,58 @@ const det = (s: Fp | null | undefined) =>
   <main class="mx-auto max-w-5xl px-5 py-16">
     <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">Benchmarks</h1>
     <p class="mt-4 leading-relaxed text-ink-dim">
-      This scorecard measures argot's <strong>base voice model</strong>: flagging
-      a pattern <strong>foreign to the repo</strong> — a dependency, API, or
-      construct the codebase has never used, the kind of thing an AI agent drags
-      in. Two questions decide whether it works: <strong>does it catch the foreign
-      pattern</strong>, and <strong>does it stay quiet on the code you already
-      have</strong>. argot's <strong>semantic layer</strong> — the reinvention and
-      misplacement checks — is a separate advisory channel; it is reported on every
-      hit, but it is not folded into these numbers.
+      argot flags what a linter structurally can't: code that is valid, typed and
+      lint-clean but doesn't fit <em>this</em> repo — the kind of thing an AI agent
+      drags in. It has <strong>three distinct detectors</strong>, and each gets its
+      own scorecard below, with its own catch metric and its own false-alarm metric.
     </p>
-    <ul class="mt-5 space-y-3 leading-relaxed text-ink-dim">
-      <li>
-        <strong>Catch rate</strong> — foreign imports and APIs (verified 0-usage at
-        the pinned commit) spliced into real files and judged by the real
-        <code>fit</code> → <code>check</code> pipeline. When the foreign symbol is
-        <em>visible</em> in the diff, argot catches ~98%; <em>masked</em> foreign (a
-        name colliding with one of your own, or a dynamic <code>import()</code>) is a
-        documented statistical limit. <strong>Higher is better.</strong>
-      </li>
-      <li>
-        <strong>False-alarm rate</strong> — a leak-free temporal holdout: fit at an
-        old commit, replay only commits the model never saw, and measure how often
-        argot fires. <strong>Lower is better.</strong>
-      </li>
-    </ul>
+    <div class="mt-6 grid gap-3 sm:grid-cols-3">
+      <a href="#foreign" class="rounded-xl border border-line bg-panel/30 p-4 transition-colors hover:border-line-2">
+        <div class="flex items-center gap-2">
+          <span class="font-semibold text-ink">1 · Foreign</span>
+          <span class="rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-emerald-500">gated</span>
+        </div>
+        <p class="mt-1.5 text-sm text-ink-dim">A dependency, API or runtime the repo has
+          never used. The statistical voice model — the headline guardrail.</p>
+      </a>
+      <a href="#reinvention" class="rounded-xl border border-line bg-panel/30 p-4 transition-colors hover:border-line-2">
+        <div class="flex items-center gap-2">
+          <span class="font-semibold text-ink">2 · Reinvention</span>
+          <span class="rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-muted">advisory</span>
+        </div>
+        <p class="mt-1.5 text-sm text-ink-dim">A function that reimplements one you already
+          have. The local code-embedding index.</p>
+      </a>
+      <a href="#misplacement" class="rounded-xl border border-line bg-panel/30 p-4 transition-colors hover:border-line-2">
+        <div class="flex items-center gap-2">
+          <span class="font-semibold text-ink">3 · Misplacement</span>
+          <span class="rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-muted">advisory</span>
+        </div>
+        <p class="mt-1.5 text-sm text-ink-dim">The right code filed in the wrong package —
+          its nearest peers live elsewhere.</p>
+      </a>
+    </div>
+    <p class="mt-5 text-sm leading-relaxed text-ink-dim">
+      <strong>Gated vs advisory.</strong> Detector 1 is the quality gate — its catch
+      and over-fire numbers are what argot is judged on. Detectors 2 &amp; 3 are a
+      separate <strong>advisory</strong> channel: reported on every hit for a human to
+      judge, never folded into the gate's numbers. Every catch number is held-out;
+      every false-alarm number is a leak-free temporal holdout (fit at an old commit,
+      replay only unseen commits). <strong>Higher catch, lower false-alarm.</strong>
+    </p>
+
+    <h2 id="foreign" class="mt-14 scroll-mt-20 text-2xl font-bold tracking-tight">1 · Foreign-pattern detection <span class="align-middle text-sm font-normal text-emerald-500">· the gate</span></h2>
+    <p class="mt-3 leading-relaxed text-ink-dim">
+      The base voice model, learned entirely from your git history. It fires on three
+      gated classes of 0-usage foreign pattern: a <strong>foreign import</strong> (a
+      package the repo never imports — the import stage catches it by construction), a
+      <strong>foreign API / unfamiliar callee</strong> (a call into a foreign library —
+      the call-receiver stage), and a <strong>foreign concurrency runtime</strong> (an
+      unattested async/parallel lib). Catch is <em>visible</em> (~98%, the foreign
+      symbol is in the diff) vs <em>masked</em> (a name colliding with one of your own,
+      or a dynamic <code>import()</code> — a documented statistical limit). Numbers are
+      per-corpus, fed from CI so they can't drift from what ships.
+    </p>
 
     <div class="mt-5 rounded-xl border border-line bg-panel/30 p-5 text-sm leading-relaxed text-ink-dim">
       <p class="font-medium text-ink">How to read the false-alarm numbers</p>
@@ -234,99 +313,168 @@ const det = (s: Fp | null | undefined) =>
             over-fire on the repo's own code; novel-pattern detections shown muted
           </p>
 
-          <table class="mt-10 w-full border-collapse text-sm">
-            <thead>
-              <tr class="border-b border-line text-left text-muted">
-                <th class="py-2">Corpus</th>
-                <th>Language</th>
-                <th class="text-right">Novel-pattern catch</th>
-                <th class="text-right">False alarm · existing</th>
-                <th class="text-right">False alarm · new-file</th>
-              </tr>
-            </thead>
-            <tbody>
-              {latest.corpora.map((c) => (
-                <tr class="border-b border-line/50 align-top">
-                  <td class="py-2 font-medium">
-                    {c.corpus}
-                    {c.under_sampled ? ' ⚠️' : ''}
-                  </td>
-                  <td class="text-muted">{c.language}</td>
-                  <td class="text-right">{catch_(c)}</td>
-                  <td class="text-right">
-                    {rate(c.fp_existing_overfire ?? c.fp_existing)}
-                    <span class="text-muted"> {ci(c.fp_existing_overfire ?? c.fp_existing)}</span>
-                    {det(c.fp_existing_detection) && (
-                      <div class="text-xs text-muted">{det(c.fp_existing_detection)}</div>
-                    )}
-                  </td>
-                  <td class="text-right">
-                    {rate(c.fp_new_overfire ?? c.fp_new_file)}
-                    <span class="text-muted"> {ci(c.fp_new_overfire ?? c.fp_new_file)}</span>
-                    {det(c.fp_new_detection) && (
-                      <div class="text-xs text-muted">{det(c.fp_new_detection)}</div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <p class="mt-4 text-xs text-muted">
-            <strong>Novel-pattern catch</strong> counts the foreign classes
-            (foreign import / API / dependency, plus the legacy catalogs' foreign
-            names) — the base voice model's target, and the only class this metric
-            gates on. Reinvention (a function the repo already has) and misplacement
-            (the right code, wrong package) are scored by a separate advisory
-            channel — the semantic layer, a local code-embedding index — reported
-            alongside these hits but never folded into this number. The one class
-            nothing gates on is subtle in-vocabulary misuse — a wrong choice among a
-            library the repo already uses — a documented limit, not the danger an
-            LLM poses.
-            <strong>Detections</strong> (muted) are fires on a symbol 0-usage in
-            the repo at fit — a real new dependency or API — which argot correctly
-            flags for review; they are not false alarms.
-          </p>
-
-          <section class="mt-12">
-            <h2 class="text-xl font-semibold">Reinvention catch — across every language</h2>
-            <p class="mt-3 text-sm leading-relaxed text-ink-dim">
-              The semantic layer's <em>“you already have this”</em> sense is
-              language-agnostic. We measure it the honest way: for each repo,
-              faithful reimplementations of its own real functions (renamed,
-              restructured) are planted as new code, and we count how often argot
-              flags them as redundant — <strong>18 held-out fixtures × 31 repos</strong>.
-              Every corpus lands <strong>≥ 85%</strong> (median 100%). Advisory, not
-              gated on the numbers above.
-            </p>
-            <table class="mt-4 w-full border-collapse text-sm">
+          <div class="mt-10 overflow-x-auto">
+            <table class="w-full min-w-[52rem] border-collapse text-sm">
               <thead>
-                <tr class="border-b border-line text-left text-muted">
-                  <th class="py-2">Language</th>
-                  <th>Corpora (held-out reinvention recall)</th>
+                <tr class="border-b border-line text-muted">
+                  <th class="py-2 text-left">Corpus</th>
+                  <th class="text-left">Language</th>
+                  <th class="text-right" title="foreign import — the import stage">Import catch</th>
+                  <th class="text-right" title="foreign API / unfamiliar callee — the call-receiver stage">API catch</th>
+                  <th class="text-right" title="foreign concurrency runtime — call-receiver stage">Concurr. catch</th>
+                  <th class="text-right">Over-fire · existing</th>
+                  <th class="text-right">Over-fire · new-file</th>
                 </tr>
               </thead>
               <tbody>
-                {[
-                  ["Python", "rich 100 · scrapy 100 · wagtail 100 · dagster 100 · saleor 95 · faker 95 · fastapi 90"],
-                  ["TypeScript", "hono 100 · ink 100 · outline 100 · faker-js 90 · excalidraw 85"],
-                  ["JavaScript", "express 100 · commander 100 · eslint 100"],
-                  ["Go", "hugo 100 · gh-cli 89"],
-                  ["Rust", "bat 100 · ripgrep 94"],
-                  ["Ruby", "rubocop 100 · homebrew 100"],
-                  ["C", "curl 100 · redis 94"],
-                  ["C++", "rocksdb 94 · fmt 89"],
-                  ["Java", "junit5 100 · guava 94"],
-                  ["C#", "powershell 100 · jellyfin 94"],
-                  ["PHP", "composer 100 · laravel 94"],
-                ].map(([lang, corpora]) => (
-                  <tr class="border-b border-line/60">
-                    <td class="py-2 font-medium text-ink">{lang}</td>
-                    <td class="text-ink-dim">{corpora}</td>
+                {foreignRows.map((r) => (
+                  <tr class="border-b border-line/50 align-top">
+                    <td class="py-2 font-medium">{r.corpus}{r.under_sampled ? ' ⚠️' : ''}</td>
+                    <td class="text-muted">{r.language}</td>
+                    <td class="text-right">{fClassCell(r.classes.foreign_import)}</td>
+                    <td class="text-right">{fClassCell(r.classes.foreign_api)}</td>
+                    <td class="text-right">{fClassCell(r.classes.foreign_concurrency)}</td>
+                    <td class="text-right">
+                      {r.overfire_existing_pct != null ? `${r.overfire_existing_pct.toFixed(2)}%` : '—'}
+                      {r.detection_existing_pct != null && r.detection_existing_pct > 0 && (
+                        <div class="text-xs text-muted">+{r.detection_existing_pct.toFixed(2)}% detections</div>
+                      )}
+                    </td>
+                    <td class="text-right">{r.overfire_new_pct != null ? `${r.overfire_new_pct.toFixed(2)}%` : '—'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+
+          <p class="mt-4 text-xs text-muted">
+            <strong>Novel-pattern catch</strong> aggregates the three gated foreign
+            classes (foreign import / foreign API / foreign concurrency, plus the legacy
+            catalogs' foreign names) — this is the metric argot gates on.
+            <strong>False alarm</strong> is <em>over-fire</em>: a fire on the repo's own
+            existing code (0 new symbols) — the true false alarm, held near zero.
+            <strong>Detections</strong> (muted, “+x%”) are fires on a symbol that is
+            0-usage at fit — a real new dependency or API argot correctly flags for
+            review — so they never count against the score. Reinvention and misplacement
+            (below) are the separate advisory channel and are not folded into these
+            numbers. ⚠️ marks corpora under the 300-hunk sample bar.
+          </p>
+
+          <h2 id="reinvention" class="mt-16 scroll-mt-20 text-2xl font-bold tracking-tight">2 · Reinvention <span class="align-middle text-sm font-normal text-muted">· advisory · reason <code class="text-xs">redundant</code></span></h2>
+          <p class="mt-3 leading-relaxed text-ink-dim">
+            A local code-embedding index (jina-code, ~100 MB, runs on your machine) finds
+            a new function that reimplements one the repo already has.
+            <strong>Catch is high</strong> — parallel agents write faithful reimplementations
+            of a repo's own functions (renamed, restructured); planted as new code, argot
+            flags them <code class="text-xs">redundant</code>
+            {f1RecallMin != null && (<> at <strong>≥ {f1RecallMin}% on every corpus</strong> (median {f1RecallMed}%)</>)}.
+            <strong> Precision is low, and we show it straight.</strong> On a leak-free replay
+            of real developer commits the sense fires on <strong>~5% of hunks</strong>, and
+            when three independent reviewers labelled those fires — defaulting to false-alarm
+            when unsure — only <strong>~12% were genuine</strong> reinventions (0% on some
+            repos, up to 67% on others). The rest are parallel modules, sync/async twins and
+            sibling interface methods that merely <em>look</em> alike; about a third of the
+            false alarms are structurally indistinguishable from a real reinvention — same
+            helpers, same vocabulary, different intent. That is exactly why
+            <code class="text-xs">redundant</code> is <strong>advisory, never a gate</strong>:
+            argot names the nearest existing function and lets you decide.
+          </p>
+          <div class="mt-6 overflow-x-auto">
+            <table class="w-full min-w-[34rem] border-collapse text-sm">
+              <thead>
+                <tr class="border-b border-line text-left text-muted">
+                  <th class="py-2">Corpus</th>
+                  <th>Language</th>
+                  <th class="text-right">Catch (recall)</th>
+                  <th class="text-right">False-fire / hunk</th>
+                </tr>
+              </thead>
+              <tbody>
+                {semF1.map((r) => (
+                  <tr class="border-b border-line/50 align-top">
+                    <td class="py-2 font-medium">{r.corpus}{r.errors?.length ? ' ⚠️' : ''}</td>
+                    <td class="text-muted">{r.language}</td>
+                    <td class="text-right">{recallCell(r.recall_pct, r.recall_caught, r.recall_total)}</td>
+                    <td class="text-right">
+                      {fireCell(r.fp_fires, r.fp_hunks, r.fp_per_hunk_pct)}
+                      {r.fp_true_per_hunk_pct != null && (r.fp_fires ?? 0) > 0 && (
+                        <div class="text-xs text-muted">{r.fp_true_per_hunk_pct}% judged true{r.fp_sampled ? ' (sampled)' : ''}</div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p class="mt-4 text-xs text-muted">
+            <strong>Catch</strong> = recall over planted faithful reimplementations
+            (caught/total). <strong>False-fire / hunk</strong> = share of replayed-commit
+            hunks that fired <code>redundant</code> (fires / hunks scanned); the muted line
+            is the <strong>judged-true</strong> rate after three independent reviewers
+            removed the genuine reinventions (majority vote, default false-alarm). Shown for
+            every corpus; window 150, leak-free holdout. Advisory — never gates.
+          </p>
+
+          <h2 id="misplacement" class="mt-16 scroll-mt-20 text-2xl font-bold tracking-tight">3 · Misplacement <span class="align-middle text-sm font-normal text-muted">· advisory · reason <code class="text-xs">misplaced</code></span></h2>
+          <p class="mt-3 leading-relaxed text-ink-dim">
+            The same index judges <em>where</em> a function belongs: if its nearest peers
+            nearly all live in a different package than the one it's filed under, it's
+            probably misplaced. <strong>Catch</strong> = transplant recall: a real function
+            re-filed into a foreign but existing package should fire <code class="text-xs">misplaced</code>
+            {f2RecallMed != null && (<> — median <strong>{f2RecallMed}%</strong> across every language</>)}
+            (two single-package repos, commander and express, have no second area to measure
+            against). <strong> False-fire</strong> = the same leak-free clean-commit holdout:
+            <strong>0.78% of hunks in aggregate</strong>, at or below ~2% on 27 of 31 repos.
+            It rises on a tiny-diff sample (fmt) and on cohesive multi-module monorepos
+            (junit5, homebrew) where sibling packages intentionally parallel each other —
+            the inherent limit of judging placement from neighbours alone. Lower catch than
+            reinvention, but far quieter; both are advisory.
+          </p>
+          <div class="mt-6 overflow-x-auto">
+            <table class="w-full min-w-[34rem] border-collapse text-sm">
+              <thead>
+                <tr class="border-b border-line text-left text-muted">
+                  <th class="py-2">Corpus</th>
+                  <th>Language</th>
+                  <th class="text-right">Catch (transplant recall)</th>
+                  <th class="text-right">False-fire / hunk</th>
+                </tr>
+              </thead>
+              <tbody>
+                {semF2.map((r) => (
+                  <tr class="border-b border-line/50 align-top">
+                    <td class="py-2 font-medium">{r.corpus}{r.errors?.length ? ' ⚠️' : ''}</td>
+                    <td class="text-muted">{r.language}</td>
+                    <td class="text-right">
+                      {r.recall_pct != null ? `${r.recall_pct}%` : '—'}
+                      {r.recall_eval != null && <span class="text-muted"> (n={r.recall_eval})</span>}
+                    </td>
+                    <td class="text-right">{fireCell(r.fp_fires, r.fp_hunks, r.fp_per_hunk_pct)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p class="mt-4 text-xs text-muted">
+            <strong>Catch</strong> = transplant recall (n = functions sampled); “—” marks a
+            single-package repo (commander, express) with no foreign area to transplant into —
+            its false-fire is still measured and shown. <strong>False-fire / hunk</strong> =
+            replayed-commit hunks that fired <code>misplaced</code> (fires / hunks scanned),
+            window 150. Advisory — never gates.
+          </p>
+
+          <section class="mt-16 rounded-xl border border-line bg-panel/30 p-5">
+            <h2 class="text-base font-semibold text-ink">What argot deliberately does <em>not</em> gate on</h2>
+            <p class="mt-2 text-sm leading-relaxed text-ink-dim">
+              Two more classes are reported for interest but <strong>never gated</strong> —
+              they are a documented local limit, and not the danger an LLM poses (an agent
+              drags in a whole foreign pattern; it doesn't subtly misuse your own vocabulary):
+              <strong>naming-shape breaks</strong> (camelCase in a snake_case repo) and
+              <strong>in-vocabulary misuse</strong> (a bare <code>ValueError</code> where the
+              repo raises <code>HTTPException</code>; <code>die</code> vs <code>throw</code>) —
+              a wrong choice among constructs the repo already uses. See
+              <a class="underline" href="/docs/what-it-catches/">what it catches</a>.
+            </p>
           </section>
 
           {history.length > 1 && (

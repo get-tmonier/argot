@@ -1,0 +1,8 @@
+{
+ "corpus": "ripgrep",
+ "reason": "redundant",
+ "genuine": 2,
+ "true_fp": 30,
+ "raw_fires": 32,
+ "sampled": true
+}

@@ -53,6 +53,7 @@ bench-quick:
 bench-semantic *corpora:
     cargo build --release -p argot --features semantic
     python3 benchmarks/sem_all.py {{corpora}}
+    python3 benchmarks/sem_consolidate.py   # → landing/src/data/semantic.json
 
 # --- checks ---
 

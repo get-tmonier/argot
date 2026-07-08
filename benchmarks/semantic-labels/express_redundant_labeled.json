@@ -1,0 +1,8 @@
+{
+ "corpus": "express",
+ "reason": "redundant",
+ "genuine": 1,
+ "true_fp": 12,
+ "raw_fires": 13,
+ "sampled": true
+}

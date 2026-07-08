@@ -1,0 +1,8 @@
+{
+ "corpus": "rich",
+ "reason": "redundant",
+ "genuine": 3,
+ "true_fp": 2,
+ "raw_fires": 5,
+ "sampled": true
+}

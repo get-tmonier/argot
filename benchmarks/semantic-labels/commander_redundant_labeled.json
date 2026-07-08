@@ -1,0 +1,8 @@
+{
+ "corpus": "commander",
+ "reason": "redundant",
+ "genuine": 4,
+ "true_fp": 2,
+ "raw_fires": 6,
+ "sampled": true
+}

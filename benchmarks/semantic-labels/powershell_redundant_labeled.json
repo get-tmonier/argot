@@ -1,0 +1,8 @@
+{
+ "corpus": "powershell",
+ "reason": "redundant",
+ "genuine": 0,
+ "true_fp": 2,
+ "raw_fires": 2,
+ "sampled": true
+}

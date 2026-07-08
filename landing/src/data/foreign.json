@@ -1,0 +1,1313 @@
+{
+ "generated_at": "2026-07-08",
+ "corpora": [
+  {
+   "corpus": "bat",
+   "language": "Rust",
+   "classes": {
+    "foreign_import": {
+     "caught": 7,
+     "total": 7,
+     "pct": 100,
+     "visible": "7/7",
+     "masked": "0/0",
+     "reason": "call_receiver"
+    },
+    "foreign_api": {
+     "caught": 6,
+     "total": 8,
+     "pct": 75,
+     "visible": "6/6",
+     "masked": "0/2",
+     "reason": "call_receiver"
+    },
+    "foreign_concurrency": {
+     "caught": 6,
+     "total": 7,
+     "pct": 86,
+     "visible": "6/6",
+     "masked": "0/1",
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.3,
+   "detection_existing_pct": 6.8,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "commander",
+   "language": "JavaScript",
+   "classes": {
+    "foreign_import": {
+     "caught": 4,
+     "total": 4,
+     "pct": 100,
+     "visible": "4/4",
+     "masked": "0/0",
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 3,
+     "total": 4,
+     "pct": 75,
+     "visible": "3/3",
+     "masked": "0/1",
+     "reason": "call_receiver"
+    },
+    "foreign_concurrency": {
+     "caught": 3,
+     "total": 3,
+     "pct": 100,
+     "visible": "2/2",
+     "masked": "1/1",
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 2,
+     "pct": 0,
+     "visible": "0/1",
+     "masked": "0/1",
+     "reason": null
+    },
+    "semantic_convention": {
+     "caught": 1,
+     "total": 2,
+     "pct": 50,
+     "visible": "0/1",
+     "masked": "1/1",
+     "reason": "call_receiver"
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 4.87,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "composer",
+   "language": "PHP",
+   "classes": {
+    "foreign_import": {
+     "caught": 6,
+     "total": 7,
+     "pct": 86,
+     "visible": "6/6",
+     "masked": "0/1",
+     "reason": "call_receiver"
+    },
+    "foreign_api": {
+     "caught": 7,
+     "total": 8,
+     "pct": 88,
+     "visible": "7/7",
+     "masked": "0/1",
+     "reason": "call_receiver"
+    },
+    "foreign_concurrency": {
+     "caught": 6,
+     "total": 7,
+     "pct": 86,
+     "visible": "6/6",
+     "masked": "0/1",
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.21,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "curl",
+   "language": "C",
+   "classes": {
+    "foreign_import": {
+     "caught": 6,
+     "total": 7,
+     "pct": 86,
+     "visible": "6/7",
+     "masked": "0/0",
+     "reason": "call_receiver"
+    },
+    "foreign_api": {
+     "caught": 6,
+     "total": 8,
+     "pct": 75,
+     "visible": "6/6",
+     "masked": "0/2",
+     "reason": "call_receiver"
+    },
+    "foreign_concurrency": {
+     "caught": 6,
+     "total": 7,
+     "pct": 86,
+     "visible": "6/6",
+     "masked": "0/1",
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.0,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "dagster",
+   "language": "Python",
+   "classes": {
+    "foreign_import": {
+     "caught": 6,
+     "total": 6,
+     "pct": 100,
+     "visible": "6/6",
+     "masked": "0/0",
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 13,
+     "total": 27,
+     "pct": 48,
+     "visible": "9/18",
+     "masked": "4/9",
+     "reason": "import"
+    },
+    "foreign_concurrency": {
+     "caught": 7,
+     "total": 7,
+     "pct": 100,
+     "visible": "6/6",
+     "masked": "1/1",
+     "reason": "import"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.14,
+   "detection_existing_pct": 0.0,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "eslint",
+   "language": "JavaScript",
+   "classes": {
+    "foreign_import": {
+     "caught": 5,
+     "total": 5,
+     "pct": 100,
+     "visible": "5/5",
+     "masked": "0/0",
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 4,
+     "total": 4,
+     "pct": 100,
+     "visible": "3/3",
+     "masked": "1/1",
+     "reason": "call_receiver"
+    },
+    "foreign_concurrency": {
+     "caught": 2,
+     "total": 3,
+     "pct": 67,
+     "visible": "2/2",
+     "masked": "0/1",
+     "reason": "import"
+    }
+   },
+   "secondary": {
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 2,
+     "pct": 0,
+     "visible": "0/2",
+     "masked": "0/0",
+     "reason": null
+    },
+    "semantic_convention": {
+     "caught": 0,
+     "total": 2,
+     "pct": 0,
+     "visible": "0/0",
+     "masked": "0/2",
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.0,
+   "overfire_new_pct": 0.0,
+   "under_sampled": true
+  },
+  {
+   "corpus": "excalidraw",
+   "language": "TypeScript",
+   "classes": {
+    "foreign_import": {
+     "caught": 7,
+     "total": 7,
+     "pct": 100,
+     "visible": "7/7",
+     "masked": "0/0",
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 11,
+     "total": 20,
+     "pct": 55,
+     "visible": "10/15",
+     "masked": "1/5",
+     "reason": "import"
+    },
+    "foreign_concurrency": {
+     "caught": 4,
+     "total": 4,
+     "pct": 100,
+     "visible": "3/3",
+     "masked": "1/1",
+     "reason": "import"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.6,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "express",
+   "language": "JavaScript",
+   "classes": {
+    "foreign_import": {
+     "caught": 4,
+     "total": 4,
+     "pct": 100,
+     "visible": "4/4",
+     "masked": "0/0",
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 4,
+     "total": 5,
+     "pct": 80,
+     "visible": "4/4",
+     "masked": "0/1",
+     "reason": "call_receiver"
+    },
+    "foreign_concurrency": {
+     "caught": 2,
+     "total": 3,
+     "pct": 67,
+     "visible": "2/2",
+     "masked": "0/1",
+     "reason": "import"
+    }
+   },
+   "secondary": {
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 2,
+     "pct": 0,
+     "visible": "0/2",
+     "masked": "0/0",
+     "reason": null
+    },
+    "semantic_convention": {
+     "caught": 0,
+     "total": 2,
+     "pct": 0,
+     "visible": "0/0",
+     "masked": "0/2",
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 15.38,
+   "overfire_new_pct": 0.0,
+   "under_sampled": true
+  },
+  {
+   "corpus": "faker",
+   "language": "Python",
+   "classes": {
+    "foreign_import": {
+     "caught": 4,
+     "total": 4,
+     "pct": 100,
+     "visible": "4/4",
+     "masked": "0/0",
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 12,
+     "total": 16,
+     "pct": 75,
+     "visible": "9/10",
+     "masked": "3/6",
+     "reason": "import"
+    },
+    "foreign_concurrency": {
+     "caught": 5,
+     "total": 6,
+     "pct": 83,
+     "visible": "4/4",
+     "masked": "1/2",
+     "reason": "import"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.92,
+   "detection_existing_pct": 0.0,
+   "overfire_new_pct": 0.0,
+   "under_sampled": true
+  },
+  {
+   "corpus": "faker-js",
+   "language": "TypeScript",
+   "classes": {
+    "foreign_import": {
+     "caught": 6,
+     "total": 6,
+     "pct": 100,
+     "visible": "6/6",
+     "masked": "0/0",
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 10,
+     "total": 12,
+     "pct": 83,
+     "visible": "8/8",
+     "masked": "2/4",
+     "reason": "import"
+    },
+    "foreign_concurrency": {
+     "caught": 7,
+     "total": 8,
+     "pct": 88,
+     "visible": "6/6",
+     "masked": "1/2",
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 0,
+     "total": 10,
+     "pct": 0,
+     "visible": "0/1",
+     "masked": "0/9",
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.0,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "fastapi",
+   "language": "Python",
+   "classes": {
+    "foreign_import": {
+     "caught": 8,
+     "total": 8,
+     "pct": 100,
+     "visible": "8/8",
+     "masked": "0/0",
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 21,
+     "total": 38,
+     "pct": 55,
+     "visible": "19/27",
+     "masked": "2/11",
+     "reason": "import"
+    },
+    "foreign_concurrency": {
+     "caught": 5,
+     "total": 10,
+     "pct": 50,
+     "visible": "4/6",
+     "masked": "1/4",
+     "reason": "import"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.35,
+   "detection_existing_pct": 0.87,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "fmt",
+   "language": "C++",
+   "classes": {
+    "foreign_import": {
+     "caught": 7,
+     "total": 7,
+     "pct": 100,
+     "visible": "7/7",
+     "masked": "0/0",
+     "reason": "call_receiver"
+    },
+    "foreign_api": {
+     "caught": 6,
+     "total": 9,
+     "pct": 67,
+     "visible": "6/7",
+     "masked": "0/2",
+     "reason": "call_receiver"
+    },
+    "foreign_concurrency": {
+     "caught": 6,
+     "total": 7,
+     "pct": 86,
+     "visible": "6/6",
+     "masked": "0/1",
+     "reason": "import"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 3.7,
+   "overfire_new_pct": 0.0,
+   "under_sampled": true
+  },
+  {
+   "corpus": "gh-cli",
+   "language": "Go",
+   "classes": {
+    "foreign_import": {
+     "caught": 6,
+     "total": 6,
+     "pct": 100,
+     "visible": "6/6",
+     "masked": "0/0",
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 9,
+     "total": 16,
+     "pct": 56,
+     "visible": "9/12",
+     "masked": "0/4",
+     "reason": "import"
+    },
+    "foreign_concurrency": {
+     "caught": 6,
+     "total": 7,
+     "pct": 86,
+     "visible": "6/6",
+     "masked": "0/1",
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 0,
+     "total": 3,
+     "pct": 0,
+     "visible": "0/3",
+     "masked": "0/0",
+     "reason": null
+    },
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 2,
+     "pct": 0,
+     "visible": "0/0",
+     "masked": "0/2",
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.0,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "guava",
+   "language": "Java",
+   "classes": {
+    "foreign_import": {
+     "caught": 7,
+     "total": 7,
+     "pct": 100,
+     "visible": "7/7",
+     "masked": "0/0",
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 9,
+     "total": 13,
+     "pct": 69,
+     "visible": "8/9",
+     "masked": "1/4",
+     "reason": "bpe"
+    },
+    "foreign_concurrency": {
+     "caught": 5,
+     "total": 10,
+     "pct": 50,
+     "visible": "5/8",
+     "masked": "0/2",
+     "reason": "import"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 0,
+     "total": 4,
+     "pct": 0,
+     "visible": "0/4",
+     "masked": "0/0",
+     "reason": null
+    },
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 2,
+     "pct": 0,
+     "visible": "0/2",
+     "masked": "0/0",
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.82,
+   "detection_existing_pct": 0.16,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "homebrew",
+   "language": "Ruby",
+   "classes": {
+    "foreign_import": {
+     "caught": 8,
+     "total": 8,
+     "pct": 100,
+     "visible": "7/7",
+     "masked": "1/1",
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 12,
+     "total": 14,
+     "pct": 86,
+     "visible": "9/10",
+     "masked": "3/4",
+     "reason": "import"
+    },
+    "foreign_concurrency": {
+     "caught": 5,
+     "total": 7,
+     "pct": 71,
+     "visible": "4/6",
+     "masked": "1/1",
+     "reason": "import"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 0,
+     "total": 4,
+     "pct": 0,
+     "visible": "0/3",
+     "masked": "0/1",
+     "reason": null
+    },
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 2,
+     "pct": 0,
+     "visible": "0/2",
+     "masked": "0/0",
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.22,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "hono",
+   "language": "TypeScript",
+   "classes": {
+    "foreign_import": {
+     "caught": 7,
+     "total": 7,
+     "pct": 100,
+     "visible": "7/7",
+     "masked": "0/0",
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 13,
+     "total": 23,
+     "pct": 57,
+     "visible": "12/15",
+     "masked": "1/8",
+     "reason": "import"
+    },
+    "foreign_concurrency": {
+     "caught": 8,
+     "total": 10,
+     "pct": 80,
+     "visible": "8/8",
+     "masked": "0/2",
+     "reason": "import"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.0,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "hugo",
+   "language": "Go",
+   "classes": {
+    "foreign_import": {
+     "caught": 7,
+     "total": 7,
+     "pct": 100,
+     "visible": "7/7",
+     "masked": "0/0",
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 7,
+     "total": 9,
+     "pct": 78,
+     "visible": "7/7",
+     "masked": "0/2",
+     "reason": "call_receiver"
+    },
+    "foreign_concurrency": {
+     "caught": 6,
+     "total": 6,
+     "pct": 100,
+     "visible": "5/5",
+     "masked": "1/1",
+     "reason": "import"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 1.17,
+   "detection_existing_pct": 0.39,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "ink",
+   "language": "TypeScript",
+   "classes": {
+    "foreign_import": {
+     "caught": 6,
+     "total": 6,
+     "pct": 100,
+     "visible": "6/6",
+     "masked": "0/0",
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 19,
+     "total": 21,
+     "pct": 90,
+     "visible": "17/17",
+     "masked": "2/4",
+     "reason": "bpe"
+    },
+    "foreign_concurrency": {
+     "caught": 5,
+     "total": 6,
+     "pct": 83,
+     "visible": "5/5",
+     "masked": "0/1",
+     "reason": "import"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 3,
+     "total": 3,
+     "pct": 100,
+     "visible": "3/3",
+     "masked": "0/0",
+     "reason": "bpe"
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 6.08,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "jellyfin",
+   "language": "C#",
+   "classes": {
+    "foreign_import": {
+     "caught": 7,
+     "total": 7,
+     "pct": 100,
+     "visible": "7/7",
+     "masked": "0/0",
+     "reason": "call_receiver"
+    },
+    "foreign_api": {
+     "caught": 7,
+     "total": 10,
+     "pct": 70,
+     "visible": "7/8",
+     "masked": "0/2",
+     "reason": "import"
+    },
+    "foreign_concurrency": {
+     "caught": 5,
+     "total": 6,
+     "pct": 83,
+     "visible": "5/5",
+     "masked": "0/1",
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.45,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "junit5",
+   "language": "Java",
+   "classes": {
+    "foreign_import": {
+     "caught": 6,
+     "total": 6,
+     "pct": 100,
+     "visible": "6/6",
+     "masked": "0/0",
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 7,
+     "total": 8,
+     "pct": 88,
+     "visible": "7/7",
+     "masked": "0/1",
+     "reason": "call_receiver"
+    },
+    "foreign_concurrency": {
+     "caught": 6,
+     "total": 8,
+     "pct": 75,
+     "visible": "6/6",
+     "masked": "0/2",
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.53,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "laravel",
+   "language": "PHP",
+   "classes": {
+    "foreign_import": {
+     "caught": 6,
+     "total": 6,
+     "pct": 100,
+     "visible": "6/6",
+     "masked": "0/0",
+     "reason": "call_receiver"
+    },
+    "foreign_api": {
+     "caught": 13,
+     "total": 18,
+     "pct": 72,
+     "visible": "12/13",
+     "masked": "1/5",
+     "reason": "call_receiver"
+    },
+    "foreign_concurrency": {
+     "caught": 4,
+     "total": 5,
+     "pct": 80,
+     "visible": "4/5",
+     "masked": "0/0",
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 0,
+     "total": 3,
+     "pct": 0,
+     "visible": "0/2",
+     "masked": "0/1",
+     "reason": null
+    },
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 2,
+     "pct": 0,
+     "visible": "0/1",
+     "masked": "0/1",
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.63,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "outline",
+   "language": "TypeScript",
+   "classes": {
+    "foreign_import": {
+     "caught": 5,
+     "total": 5,
+     "pct": 100,
+     "visible": "5/5",
+     "masked": "0/0",
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 11,
+     "total": 22,
+     "pct": 50,
+     "visible": "11/15",
+     "masked": "0/7",
+     "reason": "import"
+    },
+    "foreign_concurrency": {
+     "caught": 6,
+     "total": 6,
+     "pct": 100,
+     "visible": "6/6",
+     "masked": "0/0",
+     "reason": "import"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.11,
+   "detection_existing_pct": 0.43,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "powershell",
+   "language": "C#",
+   "classes": {
+    "foreign_import": {
+     "caught": 9,
+     "total": 9,
+     "pct": 100,
+     "visible": "9/9",
+     "masked": "0/0",
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 9,
+     "total": 14,
+     "pct": 64,
+     "visible": "8/12",
+     "masked": "1/2",
+     "reason": "call_receiver"
+    },
+    "foreign_concurrency": {
+     "caught": 3,
+     "total": 7,
+     "pct": 43,
+     "visible": "2/3",
+     "masked": "1/4",
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 0,
+     "total": 3,
+     "pct": 0,
+     "visible": "0/3",
+     "masked": "0/0",
+     "reason": null
+    },
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 2,
+     "pct": 0,
+     "visible": "0/2",
+     "masked": "0/0",
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.06,
+   "detection_existing_pct": 0.22,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "redis",
+   "language": "C",
+   "classes": {
+    "foreign_import": {
+     "caught": 8,
+     "total": 8,
+     "pct": 100,
+     "visible": "7/7",
+     "masked": "1/1",
+     "reason": "call_receiver"
+    },
+    "foreign_api": {
+     "caught": 9,
+     "total": 13,
+     "pct": 69,
+     "visible": "9/10",
+     "masked": "0/3",
+     "reason": "call_receiver"
+    },
+    "foreign_concurrency": {
+     "caught": 5,
+     "total": 8,
+     "pct": 62,
+     "visible": "4/6",
+     "masked": "1/2",
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 0,
+     "total": 4,
+     "pct": 0,
+     "visible": "0/3",
+     "masked": "0/1",
+     "reason": null
+    },
+    "naming_shape_break": {
+     "caught": 1,
+     "total": 2,
+     "pct": 50,
+     "visible": "1/2",
+     "masked": "0/0",
+     "reason": "call_receiver"
+    }
+   },
+   "overfire_existing_pct": 0.18,
+   "detection_existing_pct": 0.18,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "rich",
+   "language": "Python",
+   "classes": {
+    "foreign_import": {
+     "caught": 5,
+     "total": 5,
+     "pct": 100,
+     "visible": "5/5",
+     "masked": "0/0",
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 14,
+     "total": 22,
+     "pct": 64,
+     "visible": "13/16",
+     "masked": "1/6",
+     "reason": "import"
+    },
+    "foreign_concurrency": {
+     "caught": 3,
+     "total": 3,
+     "pct": 100,
+     "visible": "3/3",
+     "masked": "0/0",
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.51,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "ripgrep",
+   "language": "Rust",
+   "classes": {
+    "foreign_import": {
+     "caught": 6,
+     "total": 6,
+     "pct": 100,
+     "visible": "6/6",
+     "masked": "0/0",
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 8,
+     "total": 14,
+     "pct": 57,
+     "visible": "8/11",
+     "masked": "0/3",
+     "reason": "call_receiver"
+    },
+    "foreign_concurrency": {
+     "caught": 6,
+     "total": 8,
+     "pct": 75,
+     "visible": "6/7",
+     "masked": "0/1",
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 0,
+     "total": 4,
+     "pct": 0,
+     "visible": "0/3",
+     "masked": "0/1",
+     "reason": null
+    },
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 2,
+     "pct": 0,
+     "visible": "0/2",
+     "masked": "0/0",
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.63,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "rocksdb",
+   "language": "C++",
+   "classes": {
+    "foreign_import": {
+     "caught": 5,
+     "total": 5,
+     "pct": 100,
+     "visible": "5/5",
+     "masked": "0/0",
+     "reason": "call_receiver"
+    },
+    "foreign_api": {
+     "caught": 13,
+     "total": 18,
+     "pct": 72,
+     "visible": "13/14",
+     "masked": "0/4",
+     "reason": "call_receiver"
+    },
+    "foreign_concurrency": {
+     "caught": 2,
+     "total": 5,
+     "pct": 40,
+     "visible": "2/4",
+     "masked": "0/1",
+     "reason": "import"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 0,
+     "total": 4,
+     "pct": 0,
+     "visible": "0/3",
+     "masked": "0/1",
+     "reason": null
+    },
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 2,
+     "pct": 0,
+     "visible": "0/1",
+     "masked": "0/1",
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.22,
+   "detection_existing_pct": 0.9,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "rubocop",
+   "language": "Ruby",
+   "classes": {
+    "foreign_import": {
+     "caught": 8,
+     "total": 8,
+     "pct": 100,
+     "visible": "8/8",
+     "masked": "0/0",
+     "reason": "call_receiver"
+    },
+    "foreign_api": {
+     "caught": 6,
+     "total": 8,
+     "pct": 75,
+     "visible": "6/6",
+     "masked": "0/2",
+     "reason": "call_receiver"
+    },
+    "foreign_concurrency": {
+     "caught": 5,
+     "total": 6,
+     "pct": 83,
+     "visible": "5/5",
+     "masked": "0/1",
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.63,
+   "detection_existing_pct": 0.51,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "saleor",
+   "language": "Python",
+   "classes": {
+    "foreign_import": {
+     "caught": 7,
+     "total": 7,
+     "pct": 100,
+     "visible": "7/7",
+     "masked": "0/0",
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 12,
+     "total": 17,
+     "pct": 71,
+     "visible": "12/14",
+     "masked": "0/3",
+     "reason": "import"
+    },
+    "foreign_concurrency": {
+     "caught": 8,
+     "total": 11,
+     "pct": 73,
+     "visible": "8/9",
+     "masked": "0/2",
+     "reason": "import"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 0,
+     "total": 1,
+     "pct": 0,
+     "visible": "0/1",
+     "masked": "0/0",
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.0,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "scrapy",
+   "language": "Python",
+   "classes": {
+    "foreign_import": {
+     "caught": 8,
+     "total": 8,
+     "pct": 100,
+     "visible": "8/8",
+     "masked": "0/0",
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 6,
+     "total": 9,
+     "pct": 67,
+     "visible": "6/6",
+     "masked": "0/3",
+     "reason": "import"
+    },
+    "foreign_concurrency": {
+     "caught": 4,
+     "total": 7,
+     "pct": 57,
+     "visible": "4/4",
+     "masked": "0/3",
+     "reason": "import"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.68,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "wagtail",
+   "language": "Python",
+   "classes": {
+    "foreign_import": {
+     "caught": 7,
+     "total": 7,
+     "pct": 100,
+     "visible": "7/7",
+     "masked": "0/0",
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 16,
+     "total": 19,
+     "pct": 84,
+     "visible": "15/15",
+     "masked": "1/4",
+     "reason": "import"
+    },
+    "foreign_concurrency": {
+     "caught": 10,
+     "total": 11,
+     "pct": 91,
+     "visible": "8/9",
+     "masked": "2/2",
+     "reason": "import"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 0,
+     "total": 1,
+     "pct": 0,
+     "visible": "0/1",
+     "masked": "0/0",
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.19,
+   "detection_existing_pct": 0.19,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  }
+ ]
+}

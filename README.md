@@ -196,35 +196,29 @@ you already have (a bare `ValueError` where you'd raise `HTTPException`), the
 mistake is a *choice*, not a foreign pattern — argot won't gate on it, and says so.
 Full, verified breakdown: [what it catches](https://argot.tmonier.com/docs/what-it-catches/).
 
-#### Reinvention catch across every language
+#### Reinvention across every language — and its honest limits
 
 The *"you already have this"* sense isn't Python-and-TypeScript-only. The scoring
 is language-agnostic — identifier subtokens and callees are extracted the same way
-everywhere — so every language argot parses gets it. We measure it the honest way:
-for each repo, parallel agents write **faithful reimplementations** of real
-functions from its own canonical source (renamed, restructured), we plant each as
-new code, and count how often argot flags it as redundant. **18 held-out fixtures ×
-31 real repos.**
+everywhere — so every language argot parses gets it, benchmarked on **31 real repos
+across 11 languages**.
 
-| Language | Corpora (held-out reinvention recall) |
-|---|---|
-| Python | rich 100 · scrapy 100 · wagtail 100 · dagster 100 · saleor 95 · faker 95 · fastapi 90 |
-| TypeScript | hono 100 · ink 100 · outline 100 · faker-js 90 · excalidraw 85 |
-| JavaScript | express 100 · commander 100 · eslint 100 |
-| Go | hugo 100 · gh-cli 89 |
-| Rust | bat 100 · ripgrep 94 |
-| Ruby | rubocop 100 · homebrew 100 |
-| C | curl 100 · redis 94 |
-| C++ | rocksdb 94 · fmt 89 |
-| Java | junit5 100 · guava 94 |
-| C# | powershell 100 · jellyfin 94 |
-| PHP | composer 100 · laravel 94 |
+**Catch is high.** Planting faithful reimplementations of a repo's own functions
+(renamed, restructured) as new code, argot flags them redundant at **≥ 80% on every
+corpus** (median 95%).
 
-Every corpus lands **≥ 85%** (median 100%). These are advisory findings — a real
-repo contains real duplication, so argot names the nearest existing function and
-lets you judge. The misses are honest: a handful of generic utilities (a
-linked-list walk, a byte-search) that aren't meaningful reinventions, and rare
-near-total rewrites that drift past the similarity floor.
+**Precision is low — and we don't pretend otherwise.** On a leak-free replay of real
+developer commits, the reinvention sense fires on **~5% of hunks**, and three
+independent reviewers (majority vote, default false-alarm) found only **~12% of those
+fires are genuine** reinventions — 0% on some repos, up to 67% on others. The rest are
+parallel modules, sync/async twins and sibling interface methods that merely *look*
+alike; about a third of the false alarms are structurally indistinguishable from a
+real reinvention — the same helpers, the same vocabulary, different intent — so no
+retrieval-plus-structure signal can separate them. That's why *redundant* (and the
+quieter *misplaced*, ~0.8% of hunks) are **advisory**: argot names the nearest
+existing code and lets you judge, and **neither gates the check nor the base numbers
+above**. The full per-repo catch **and false-fire** rates — for both senses — are on
+the [benchmarks page](https://argot.tmonier.com/benchmarks).
 
 ### argot vs. the tools you already run
 

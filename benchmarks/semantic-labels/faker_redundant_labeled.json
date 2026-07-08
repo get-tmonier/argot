@@ -1,0 +1,8 @@
+{
+ "corpus": "faker",
+ "reason": "redundant",
+ "genuine": 0,
+ "true_fp": 1,
+ "raw_fires": 1,
+ "sampled": true
+}

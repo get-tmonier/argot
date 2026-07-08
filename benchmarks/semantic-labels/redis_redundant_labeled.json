@@ -1,0 +1,8 @@
+{
+ "corpus": "redis",
+ "reason": "redundant",
+ "genuine": 1,
+ "true_fp": 33,
+ "raw_fires": 34,
+ "sampled": true
+}

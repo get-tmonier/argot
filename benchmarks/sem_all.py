@@ -182,7 +182,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("corpora", nargs="*", help="corpora to run (default: all with fixtures)")
     ap.add_argument("--only", choices=["recall", "fp"], default=None)
-    ap.add_argument("--window", type=int, default=200)
+    ap.add_argument("--window", type=int, default=150)
     ap.add_argument("--fit-timeout", type=int, default=2400)
     ap.add_argument("--step-timeout", type=int, default=1800)
     ap.add_argument("--out", default=os.path.join(ROOT, "benchmarks", "results", "sem_all.jsonl"))

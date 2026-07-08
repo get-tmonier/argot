@@ -1,0 +1,8 @@
+{
+ "corpus": "guava",
+ "reason": "redundant",
+ "genuine": 0,
+ "true_fp": 34,
+ "raw_fires": 34,
+ "sampled": true
+}
