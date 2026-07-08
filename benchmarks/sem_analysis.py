@@ -42,10 +42,11 @@ DEFAULT_NORM = 0.3
 NORMAL_SIM = 0.78
 NORMAL_SUB = 0.40
 NORMAL_CALLEE = 0.12
+NORMAL_MIN_CALLEES = 2
 STRONG_SIM = 0.70
 STRONG_SUB = 0.52
 STRONG_CALLEE = 0.30
-MIN_SHARED_CALLEES = 2  # callee path needs >=2 shared callees (one is coincidence)
+STRONG_MIN_CALLEES = 3
 
 
 def area_of(p, depth=AREA_DEPTH):
@@ -135,10 +136,9 @@ def analyse_lang(vecs, paths, norms, callees, subtoks, syms):
         c = cos(vecs[candi], vecs[matchi])
         cj = jac(callees[candi], callees[matchi])
         sj = wsub(subtoks[candi], subtoks[matchi])
-        shared = len(callees[candi] & callees[matchi])
-        callee_ok = lambda bar: shared >= MIN_SHARED_CALLEES and cj >= bar
-        normal = c >= NORMAL_SIM and (callee_ok(NORMAL_CALLEE) or sj >= NORMAL_SUB)
-        strong = c >= STRONG_SIM and (callee_ok(STRONG_CALLEE) or sj >= STRONG_SUB)
+        both = lambda m: len(callees[candi]) >= m and len(callees[matchi]) >= m
+        normal = c >= NORMAL_SIM and ((both(NORMAL_MIN_CALLEES) and cj >= NORMAL_CALLEE) or sj >= NORMAL_SUB)
+        strong = c >= STRONG_SIM and ((both(STRONG_MIN_CALLEES) and cj >= STRONG_CALLEE) or sj >= STRONG_SUB)
         rare = c >= STRONG_SIM and any(cdf.get(t, 0) <= rare_df for t in (callees[candi] & callees[matchi]))
         return normal or strong or rare
 

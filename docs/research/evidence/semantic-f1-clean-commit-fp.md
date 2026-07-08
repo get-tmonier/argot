@@ -90,24 +90,33 @@ Two firing paths admit them:
    could clear `callee_jac ≥ 0.12`. Genuine catches share **several** helpers
    (Jaccard 0.71, 4–8 shared).
 
-## The fix (principled, not threshold-hacking)
+## The fix (principled, and bounded by the recall frontier)
 
 Both leaks are the same mistake: **treating a shared _common_ helper as reinvention
-evidence.** Two changes in `redundant.rs`, each encoding a distinctness/substance
-requirement the labelled data supports:
+evidence.** Two candidate changes were considered; only one survived the recall test.
 
-1. **`MIN_SHARED_CALLEES = 2`** — the callee-Jaccard path now needs ≥2 **shared**
-   callees. One shared helper is coincidence; a reinvention reuses several of the
-   original's helpers. The single-rare-helper case (a tiny pure-logic reimpl) is
-   still carried by the rare-callee path.
-2. **`RARE_CALLEE_DF_FRACTION 0.012 → 0.004`** — the single-shared-callee path now
-   requires a *genuinely* rare helper (≤0.4% of the repo), excluding borderline
-   framework utilities while keeping distinctive domain helpers.
+**Shipped — `RARE_CALLEE_DF_FRACTION 0.012 → 0.004`.** The single-shared-callee path
+now requires a *genuinely* rare helper (≤0.4 % of the repo, an order of magnitude
+below the old 1.2 %), excluding borderline framework utilities (`deferred_from_coro`,
+df ~1 %) that drove ~40 % of scrapy's clean-commit false fires while keeping the
+distinctive domain helpers a real reimplementation reuses. Recall-neutral: the
+genuine single-rare-helper reimpls this path carries share helpers at df ~1–2, far
+below the new bar (validated — no corpus regressed below 85 %).
+
+**Tried and reverted — `MIN_SHARED_CALLEES = 2`** (the callee-Jaccard path needs ≥2
+*shared* callees). This is the natural reading of the data — genuine catches share
+4–8 callees, false alarms ~1.5 — and it roughly halved scrapy's FP. But it hit the
+**recall frontier from the other side**: faker's data-generator library reuses a
+*single common* helper (`arrayElement`, `datatype.number`) per generator, which is
+structurally *identical* to the dominant false alarm. The rule can't separate them,
+so it dropped **faker-js recall 90 → 75 %** for ~13 fewer scrapy FPs (0.9 % of hunks)
+— a bad trade that violates the ≥85 % floor. Reverted; the FP it targeted (a single
+shared *common* callee) is left to the advisory framing, since suppressing it
+necessarily suppresses genuine same-shape reinventions.
 
 The subtoken path and the tier cosines are unchanged (the subtoken path carries
 renamed reimpls and is not the leak — FP subtoken Jaccard 0.24–0.37 sits below the
-0.40 bar). Mirrored in `benchmarks/sem_analysis.py`; unit test
-`single_common_shared_callee_does_not_fire` locks the dominant FP shape.
+0.40 bar). Mirrored in `benchmarks/sem_analysis.py`.
 
 ## The irreducible floor (honest limit)
 
