@@ -237,18 +237,66 @@ pub fn functions_in_file(
             continue;
         }
         let text = lines[s..e].join("\n");
+        // Callees and subtokens are read from the *original* text (they already
+        // discount a function's own name via IDF). The embedding, however, uses a
+        // copy with the function's own name replaced by a neutral placeholder: a
+        // reinvention keeps the body and *renames* the function, and some models
+        // (jina-code Q4 on Go especially) let that one identifier dominate a short
+        // function's embedding — a name-only rename dropped a Go pair from ~1.0 to
+        // ~0.6 while the same edit left Python at ~0.94. Normalising the own-name
+        // makes a renamed reimplementation embed next to its original regardless of
+        // the model's name sensitivity, and cannot pull unrelated bodies together
+        // (their bodies still differ).
         let callees = callee_set(&text, adapter.language());
         let subtokens = subtoken_set(&text);
+        let embed_text = normalize_own_name(&text, &body.symbol);
         out.push(FunctionRef {
             symbol: body.symbol,
             path: rel_path.to_string(),
             line: body.start_line,
             end_line: e,
-            text,
+            text: embed_text,
             callees,
             subtokens,
         });
     }
+    out
+}
+
+/// The neutral token a function's own name is rewritten to before embedding.
+/// Constant across all functions, so it carries no discriminating signal — it
+/// only removes the renamed identifier that would otherwise dominate a short
+/// function's embedding.
+const OWN_NAME_PLACEHOLDER: &str = "f";
+
+/// Replace whole-identifier occurrences of `symbol` in `text` with
+/// [`OWN_NAME_PLACEHOLDER`]. Only exact identifier tokens match (`add` inside
+/// `address` is left alone), and recursive self-calls are normalised the same
+/// way so an original and its renamed reinvention embed identically at the name.
+fn normalize_own_name(text: &str, symbol: &str) -> String {
+    if symbol.is_empty() {
+        return text.to_string();
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut ident = String::new();
+    for ch in text.chars() {
+        if ch.is_ascii_alphanumeric() || ch == '_' {
+            ident.push(ch);
+        } else {
+            out.push_str(if ident == symbol {
+                OWN_NAME_PLACEHOLDER
+            } else {
+                &ident
+            });
+            ident.clear();
+            out.push(ch);
+        }
+    }
+    out.push_str(if ident == symbol {
+        OWN_NAME_PLACEHOLDER
+    } else {
+        &ident
+    });
     out
 }
 
@@ -567,6 +615,19 @@ class C:
             "{:?}",
             big.subtokens
         );
+    }
+
+    #[test]
+    fn normalize_own_name_replaces_whole_identifier_only() {
+        // Own name + recursive self-call both normalised; substring matches left alone.
+        let got = normalize_own_name("def slugify(s): return slugify(s) + slugifyish", "slugify");
+        assert_eq!(got, "def f(s): return f(s) + slugifyish");
+        // A different function's body is untouched.
+        assert_eq!(normalize_own_name("return address(x)", "add"), "return address(x)");
+        // Two functions differing only in name normalise to the same embed text.
+        let a = normalize_own_name("func DisplayURL(u string) string { return u }", "DisplayURL");
+        let b = normalize_own_name("func ShrinkURL(u string) string { return u }", "ShrinkURL");
+        assert_eq!(a, b);
     }
 
     #[test]
