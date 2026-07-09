@@ -105,7 +105,40 @@ and TypeScript, and the reversal∪sink tell stays **≤2.4% FP**. Catch is more
 per-language extractor via `import_graph.rs` will do better). Verdict: the cheap probe cleared the
 bar to justify a full validation.
 
-## Next (if pursued)
+## Decisive: REAL temporal-holdout FP (not a file split) — `arch_graph_temporal.py`
+
+The clincher. Fit the layer graph at `HEAD~150`, replay every non-merge commit after it,
+attribute the edges each commit *adds* (file edges at `sha` minus at `sha^`), count those that
+are the clean tell (reversal ∪ sink) vs the fit graph. Commit-level over-fire = the honest
+false-alarm rate a maintainer feels:
+
+| corpus | real commits | clean-tell fires | over-fire% |
+|---|--:|--:|--:|
+| scrapy | 200 | 2 | 1.0% |
+| rich | 305 | 0 | 0.0% |
+| faker | 150 | 0 | 0.0% |
+| fastapi | 150 | 0 | 0.0% |
+| wagtail | 150 | 0 | 0.0% |
+| saleor | 151 | 3 | 2.0% |
+| **total** | **1106** | **5** | **~0.5%** |
+
+**The low FP holds under a real temporal holdout** — 0–2% per corpus, ~0.5% aggregate over 1106
+actual clean commits. The file-split proxy (~1.2%) was accurate, not optimistic. This is a
+genuinely gatable false-alarm profile — the property the node-kind shape gate never had (30–97%).
+
+## Standing evidence summary
+
+| property | shape gate (closed) | **architecture graph** |
+|---|---|---|
+| signal exists | weak (small alphabet) | **strong — 90–100% directional, 3 langs** |
+| real-holdout FP | 30–97% | **0–2% (~0.5% agg over 1106 commits)** |
+| catch @ that FP | 8–13% | **~76% (realistic coverage model)** |
+| generalizes | — | **Python + Go + TS confirmed** |
+
+The one number still estimated (not measured) is **catch/recall on real violations** — the
+coverage model, not injected fixtures. That is what the full Rust port + bench measures next.
+
+## Next — build (green-lit by the de-risk)
 
 Mirror the structural validation but on the graph: (1) authored/synthetic architectural-violation
 fixtures for a true catch number; (2) real temporal-holdout FP on clean commits; (3) cross-language
