@@ -93,69 +93,84 @@ def show(repo, sha, path):
     return r.stdout if r.returncode == 0 else None
 
 
-def main():
-    print(f"{'corpus':10} {'commits':>8} {'fires':>6} {'over-fire%':>11} "
-          f"{'(rev/sink)':>12}")
-    print("-" * 52)
-    for corp in CORPORA:
-        repo = os.path.join(DATA, corp, ".repo")
-        head = git(repo, "rev-parse", "HEAD").strip()
-        fit = git(repo, "rev-parse", f"{head}~{WINDOW}").strip()
-        if not fit:
-            print(f"{corp:10}  (history < window)")
-            continue
-        roots = package_roots_at(repo, fit)
-        pkg_names = set(roots.values())
-        # build fit graph from the fit tree
-        fit_files = [f for f in git(repo, "ls-tree", "-r", "--name-only", fit).splitlines()
-                     if f.endswith(".py") and "test" not in f.lower()
-                     and "/migrations/" not in f]
-        G = set()
-        for f in fit_files:
-            c = show(repo, fit, f)
-            if c:
-                G |= file_edges(f, c, roots, pkg_names)
-        # sinks + reversibles from the fit graph
-        out_deg, in_deg = Counter(), Counter()
-        for (a, b) in G:
-            out_deg[a] += 1
-            in_deg[b] += 1
-        sinks = {l for l in (set(out_deg) | set(in_deg)) if in_deg[l] > 0 and out_deg[l] == 0}
+def build(repo, corp, near, ratio=0.25):
+    """Return (fit graph, sinks, replay, pkg_names, roots, head) for a corpus."""
+    head = git(repo, "rev-parse", "HEAD").strip()
+    fit = git(repo, "rev-parse", f"{head}~{WINDOW}").strip()
+    if not fit:
+        return None
+    roots = package_roots_at(repo, fit)
+    pkg_names = set(roots.values())
+    fit_files = [f for f in git(repo, "ls-tree", "-r", "--name-only", fit).splitlines()
+                 if f.endswith(".py") and "test" not in f.lower()
+                 and "/migrations/" not in f]
+    G = Counter()
+    for f in fit_files:
+        c = show(repo, fit, f)
+        if c:
+            for e in file_edges(f, c, roots, pkg_names):
+                G[e] += 1
+    out_m, in_m = Counter(), Counter()
+    for (a, b), c in G.items():
+        out_m[a] += c
+        in_m[b] += c
+    layers = {l for e in G for l in e}
+    if near:
+        sinks = {l for l in layers if in_m[l] > 0 and out_m[l] / (in_m[l] + out_m[l]) <= ratio}
+    else:
+        sinks = {l for l in layers if in_m[l] > 0 and out_m[l] == 0}
+    replay = git(repo, "rev-list", "--no-merges", "--reverse", f"{fit}..{head}").split()
+    return set(G), sinks, replay, pkg_names, roots, head
 
-        replay = git(repo, "rev-list", "--no-merges", "--reverse",
-                     f"{fit}..{head}").split()
-        fires = 0
-        rev_n = sink_n = 0
-        for sha in replay:
-            changed = git(repo, "diff-tree", "--no-commit-id", "--name-only", "-r",
-                          sha).splitlines()
-            fired = False
-            for path in changed:
-                if not path.endswith(".py") or "test" in path.lower() or "/migrations/" in path:
+
+def real_fp(repo, corp, near, ratio=0.25):
+    b = build(repo, corp, near, ratio)
+    if b is None:
+        return None
+    G, sinks, replay, pkg_names, roots, head = b
+    fires = 0
+    for sha in replay:
+        changed = git(repo, "diff-tree", "--no-commit-id", "--name-only", "-r", sha).splitlines()
+        fired = False
+        for path in changed:
+            if not path.endswith(".py") or "test" in path.lower() or "/migrations/" in path:
+                continue
+            cur = show(repo, sha, path)
+            if cur is None:
+                continue
+            par = show(repo, f"{sha}~1", path) or ""
+            added = file_edges(path, cur, roots, pkg_names) - file_edges(path, par, roots, pkg_names)
+            for (a, b) in added:
+                if (a, b) in G:
                     continue
-                cur = show(repo, sha, path)
-                if cur is None:
-                    continue
-                par = show(repo, f"{sha}~1", path) or ""
-                added = file_edges(path, cur, roots, pkg_names) - file_edges(path, par, roots, pkg_names)
-                for (a, b) in added:
-                    if (a, b) in G:
-                        continue
-                    is_rev = (b, a) in G
-                    is_sink = a in sinks
-                    if is_rev or is_sink:
-                        fired = True
-                        if is_rev:
-                            rev_n += 1
-                        elif is_sink:
-                            sink_n += 1
-            if fired:
-                fires += 1
-        n = len(replay)
-        pct = 100 * fires / n if n else 0
-        print(f"{corp:10} {n:8d} {fires:6d} {pct:10.1f}% {f'{rev_n}/{sink_n}':>12}")
-    print("\nover-fire% = share of real clean commits that introduce a "
-          "direction-reversal or sink-out edge (the gatable tell). Want ≤5%.")
+                if (b, a) in G or a in sinks:
+                    fired = True
+        if fired:
+            fires += 1
+    n = len(replay)
+    return (n, fires, 100 * fires / n if n else 0)
+
+
+def main():
+    print(f"{'rule':22} {'commits':>8} {'fires':>6} {'agg-FP%':>8} {'worst%':>7}")
+    print("-" * 54)
+    for near, ratio in [(False, 0.0), (True, 0.25), (True, 0.4), (True, 0.5)]:
+        tag = "strict-sink" if not near else f"near-sink r={ratio}"
+        tot_c = tot_f = 0
+        worst = 0.0
+        for corp in CORPORA:
+            repo = os.path.join(DATA, corp, ".repo")
+            r = real_fp(repo, corp, near, ratio)
+            if r is None:
+                continue
+            n, f, pct = r
+            tot_c += n
+            tot_f += f
+            worst = max(worst, pct)
+        agg = 100 * tot_f / tot_c if tot_c else 0
+        print(f"{tag:22} {tot_c:8d} {tot_f:6d} {agg:7.2f}% {worst:6.1f}%")
+    print("\nREAL temporal over-fire (per-commit) — pick the most aggressive near-sink "
+          "ratio whose worst-corpus FP stays ≤5%; that maximizes catch.")
 
 
 if __name__ == "__main__":

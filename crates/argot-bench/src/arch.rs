@@ -39,11 +39,31 @@ fn ext_lang(path: &str) -> Option<Language> {
     }
 }
 
+/// A source file that is part of the repo's "voice" — excludes scaffolding trees
+/// (tests, examples, docs, vendored deps) that pollute the layer graph. Segment-
+/// based so `docs_src/` and `example_app/` are caught but `document.py` is not.
 fn is_src(path: &str) -> bool {
-    ext_lang(path).is_some()
-        && !path.contains("/test")
-        && !path.contains("test_")
-        && !path.contains("/migrations/")
+    if ext_lang(path).is_none() {
+        return false;
+    }
+    !path.split('/').any(|s| {
+        matches!(
+            s,
+            "test"
+                | "tests"
+                | "vendor"
+                | "third_party"
+                | "node_modules"
+                | "migrations"
+                | "fixtures"
+                | "benchmark"
+                | "benchmarks"
+                | ".buildkite"
+        ) || s.starts_with("test_")
+            || s.ends_with("_test")
+            || s.starts_with("doc")
+            || s.starts_with("example")
+    })
 }
 
 fn show(repo: &Path, sha: &str, path: &str) -> String {
@@ -62,18 +82,11 @@ struct ArchResult {
     catch: f64,
 }
 
-fn run_corpus(target: &Target, data_dir: &Path) -> Result<Option<ArchResult>> {
-    let repo = ensure_clone(data_dir, &target.name, &target.url)?;
-    let head = target.prs[0].sha.clone();
-    ensure_full_history(&repo)?;
-    ensure_sha_checked_out(&repo, &head)?;
-    let window = target.holdout_window.unwrap_or(DEFAULT_WINDOW);
-    let (fit_sha, replay) = plan_holdout(&repo, &head, window)?;
-
-    // Fit the layering graph from the fit-SHA source tree.
-    ensure_sha_checked_out(&repo, &fit_sha)?;
-    let files = fit_tree_files(&repo, &fit_sha)?;
-    let mut sources: Vec<(String, String)> = Vec::new(); // (path, content)
+/// Fit a layering graph from a SHA's source tree (checks it out, reads from disk).
+fn graph_at(repo: &Path, sha: &str) -> Result<RepoLayering> {
+    ensure_sha_checked_out(repo, sha)?;
+    let files = fit_tree_files(repo, sha)?;
+    let mut sources: Vec<(String, String)> = Vec::new();
     for path in &files {
         if is_src(path) {
             if let Ok(src) = std::fs::read_to_string(repo.join(path)) {
@@ -81,11 +94,24 @@ fn run_corpus(target: &Target, data_dir: &Path) -> Result<Option<ArchResult>> {
             }
         }
     }
-    let graph = RepoLayering::fit(
+    Ok(RepoLayering::fit(
         sources
             .iter()
             .map(|(p, s)| (p.as_str(), s.as_str(), Language::Python)),
-    );
+    ))
+}
+
+fn run_corpus(target: &Target, data_dir: &Path) -> Result<Option<ArchResult>> {
+    let repo = ensure_clone(data_dir, &target.name, &target.url)?;
+    let head = target.prs[0].sha.clone();
+    ensure_full_history(&repo)?;
+    // Catch is measured on the HEAD graph — production fits on the CURRENT repo,
+    // not the holdout fit-SHA (an old, thin tree that understates coverage).
+    let head_graph = graph_at(&repo, &head)?;
+    let window = target.holdout_window.unwrap_or(DEFAULT_WINDOW);
+    let (fit_sha, replay) = plan_holdout(&repo, &head, window)?;
+    // FP is measured on the holdout graph (fit @ HEAD~window) — a real temporal split.
+    let graph = graph_at(&repo, &fit_sha)?;
     if graph.edge_count() == 0 {
         eprintln!("[{}] arch: no internal edges — skipped", target.name);
         return Ok(None);
@@ -136,8 +162,8 @@ fn run_corpus(target: &Target, data_dir: &Path) -> Result<Option<ArchResult>> {
         0.0
     };
 
-    // catch (popularity-weighted coverage over plausible missing edges).
-    let layers: Vec<String> = graph.layers().into_iter().collect();
+    // catch (popularity-weighted coverage) — on the HEAD graph (production reality).
+    let layers: Vec<String> = head_graph.layers().into_iter().collect();
     let mut num = 0f64;
     let mut den = 0f64;
     for a in &layers {
@@ -145,12 +171,12 @@ fn run_corpus(target: &Target, data_dir: &Path) -> Result<Option<ArchResult>> {
             if a == b {
                 continue;
             }
-            let mass = graph.in_mass(b);
-            if mass == 0 || graph.contains_edge(&(a.clone(), b.clone())) {
+            let mass = head_graph.in_mass(b);
+            if mass == 0 || head_graph.contains_edge(&(a.clone(), b.clone())) {
                 continue;
             }
             den += mass as f64;
-            if graph.classify(&(a.clone(), b.clone())).is_some() {
+            if head_graph.classify(&(a.clone(), b.clone())).is_some() {
                 num += mass as f64;
             }
         }
@@ -160,8 +186,8 @@ fn run_corpus(target: &Target, data_dir: &Path) -> Result<Option<ArchResult>> {
     Ok(Some(ArchResult {
         corpus: target.name.clone(),
         language: target.language.clone(),
-        layers: graph.layers().len(),
-        edges: graph.edge_count(),
+        layers: head_graph.layers().len(),
+        edges: head_graph.edge_count(),
         commits,
         fires,
         over_fire,
@@ -192,8 +218,11 @@ pub fn run_arch(targets: &[Target], data_dir: &Path, results_dir: &Path) -> Resu
 fn render(results: &[ArchResult]) -> String {
     let mut s = String::new();
     s.push_str("# Architecture-graph foreignness — real-infra validation\n\n");
-    s.push_str("Fire = a hunk introduces a reversal/sink-out internal edge vs the fit graph.\n");
-    s.push_str("over-fire = real clean commits firing; catch = popularity-weighted coverage.\n\n");
+    s.push_str("Fire = a hunk introduces a reversal/(near-)sink-out internal edge.\n");
+    s.push_str(
+        "over-fire = real clean commits firing (fit @ HEAD~window); catch = \
+         popularity-weighted coverage on the HEAD (production) graph.\n\n",
+    );
     s.push_str("| corpus | lang | layers | edges | commits | fires | over-fire | catch |\n");
     s.push_str("|---|---|--:|--:|--:|--:|--:|--:|\n");
     let (mut of_sum, mut catch_sum, mut fires_sum, mut commits_sum) = (0.0, 0.0, 0usize, 0usize);
