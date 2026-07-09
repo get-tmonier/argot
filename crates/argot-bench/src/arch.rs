@@ -15,8 +15,9 @@
 //!     does NOT have (target imported by someone), the share the reversal/sink
 //!     rule flags if an LLM created it — via the real `classify`.
 //!
-//! v1 resolves Python imports (the validated corpus set); non-Python corpora
-//! produce an empty graph and are skipped — a graceful no-op.
+//! Resolves internal imports across the supported languages (see `corpus_lang`);
+//! a corpus with no resolver (or a polyglot `multi` repo) produces an empty graph
+//! and is skipped — a graceful no-op.
 
 use std::path::Path;
 
@@ -42,6 +43,13 @@ fn corpus_lang(target: &Target) -> Option<Language> {
         "go" => Language::Go,
         "typescript" => Language::Typescript,
         "javascript" => Language::Javascript,
+        "rust" => Language::Rust,
+        "java" => Language::Java,
+        "php" => Language::Php,
+        "csharp" => Language::CSharp,
+        "ruby" => Language::Ruby,
+        "c" => Language::C,
+        "cpp" => Language::Cpp,
         _ => return None,
     })
 }
@@ -54,7 +62,13 @@ fn lang_files(language: Language) -> (&'static [&'static str], &'static [&'stati
         Language::Go => (&["go"], &["go.mod"]),
         Language::Typescript => (&["ts", "tsx"], &[]),
         Language::Javascript => (&["js", "jsx", "mjs", "cjs"], &[]),
-        _ => (&[], &[]),
+        Language::Rust => (&["rs"], &[]),
+        Language::Java => (&["java"], &[]),
+        Language::Php => (&["php"], &[]),
+        Language::CSharp => (&["cs"], &[]),
+        Language::Ruby => (&["rb"], &[]),
+        Language::C => (&["c", "h"], &[]),
+        Language::Cpp => (&["cc", "cpp", "cxx", "hpp", "hh", "h"], &[]),
     }
 }
 

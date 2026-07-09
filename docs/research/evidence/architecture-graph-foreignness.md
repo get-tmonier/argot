@@ -216,6 +216,30 @@ violations" that the repo actually has as dependencies, which the detector corre
 same discrimination that gives it 0% control-FP. This replaces the coverage estimate as the
 headline catch number and is measured with the same rigour as the base gate's fixtures.
 
+## Multi-language: all 11 resolvers + full bench (25/31 corpora)
+
+The architecture-graph is now language-agnostic (per-language resolver behind a shared
+`detect_context` + `<lang>_targets` seam): Python, Go, TypeScript/JS, Rust, Java, PHP, C#, Ruby,
+C/C++. Full `argot-bench --mode arch` over every corpus (real temporal holdout):
+
+**Over-fire is uniformly excellent across every language — 0.25% aggregate over 6343 real commits,
+≤2.7% worst per corpus.** The FP discipline holds regardless of language. Coverage tracks how
+*layered* the repo is:
+
+| tier | corpora (catch coverage) |
+|---|---|
+| strong | ripgrep 98% · bat 97% (rust) · rich 99 · fastapi 94 · scrapy 90 · saleor 88 (py) · curl 95 (c) · composer 84 (php) · rubocop 84 (ruby) · eslint 84 (js) · rocksdb 81 (c++) · faker-js 79 (ts) · gh-cli 75 (go) |
+| moderate | hugo 68 · excalidraw 70 · redis 86(small) · hono 48 · laravel 24 |
+| weak/flat (few layers) | ink · outline · fmt · commander · express — small/flat repos with little layering to violate (honest) |
+
+**Gap found (the "evaluate" step): 5 corpora produced NO edges** — guava/junit5 (Java),
+powershell/jellyfin (C#), homebrew (Ruby):
+- **Java/C# — a real multi-module bug.** guava has *two* src trees (`android/guava/src/…` and
+  `guava/src/…`); the base-package detection ("longest common package prefix") collapses to empty,
+  so no layers form. Fix: detect the base package **per src-root**, not globally.
+- **Ruby — inherent.** Zeitwerk/Rails autoloading means few explicit `require`s (rubocop, which
+  uses requires, works at 84%; homebrew, autoloaded, is empty). Honest weak spot.
+
 ## Status + honest remaining work
 
 **Validated:** the signal exists (90–100% directional, 3 langs), real-holdout FP is 0–2.7% (proxy +

@@ -37,10 +37,20 @@
 //!
 //! # Language support
 //!
-//! v1 resolves internal imports for **Python** (the best-validated corpus set);
-//! other languages return no edges — a graceful no-op (no findings), exactly like
-//! the semantic layer shipped Python+TS first. Go / TypeScript / … plug in via
-//! [`Language`]-dispatch in [`RepoLayering::file_edges`].
+//! Resolves internal imports for **Python, Go, TypeScript/JavaScript, Rust, Java,
+//! PHP, C#, Ruby, C, and C++**. Each language plugs in via [`Language`]-dispatch
+//! in [`RepoLayering::file_edges`] (per-language `*_targets`) plus a `detect_context`
+//! arm (roots / internal names / module prefix). Two layer families:
+//!
+//! - **Path-anchored** (Python/Go/TS/JS/Rust/Ruby/C/C++): the layer is the first
+//!   path component under a source root, resolved straight off the file path.
+//! - **Namespace-anchored** (Java/PHP/C#): the layer is the first namespace
+//!   component after the base package/root namespace. Because the package tree
+//!   mirrors the directory tree (Maven layout, PSR-4, C# project namespaces), the
+//!   source roots are *learned* at fit so `layer_of(path)` yields the same layer —
+//!   the resolver only supplies the import's target layer from its namespace.
+//!
+//! A language with no resolver returns no edges — a graceful no-op (no findings).
 
 use std::collections::{HashMap, HashSet};
 
@@ -216,23 +226,7 @@ impl RepoLayering {
     /// An empty root (`""`) = repo root and matches any path (Go-style, layer =
     /// first path component). Language-agnostic.
     pub fn layer_of(&self, path: &str) -> Option<String> {
-        let dir = parent_dir(path);
-        let root = self
-            .roots
-            .iter()
-            .filter(|r| r.is_empty() || dir == r.as_str() || dir.starts_with(&format!("{r}/")))
-            .max_by_key(|r| r.len())?;
-        let rel = if root.is_empty() {
-            path
-        } else {
-            path[root.len()..].trim_start_matches('/')
-        };
-        let parts: Vec<&str> = rel.split('/').collect();
-        Some(if parts.len() > 1 {
-            parts[0].to_string()
-        } else {
-            "__root__".to_string()
-        })
+        layer_under(&self.roots, path)
     }
 
     /// The `roots`-relative path components of a file (for relative-import climbs).
@@ -261,8 +255,12 @@ impl RepoLayering {
             Language::Python => self.py_targets(path, source),
             Language::Go => self.go_targets(source),
             Language::Typescript | Language::Javascript => self.ts_targets(path, source),
-            // Other resolvers plug in here (Java/Rust/PHP/C#/Ruby/C/C++).
-            _ => Vec::new(),
+            Language::Rust => self.rust_targets(source),
+            Language::Java => self.java_targets(source),
+            Language::Php => self.php_targets(source),
+            Language::CSharp => self.cs_targets(source),
+            Language::Ruby => self.ruby_targets(path, source),
+            Language::C | Language::Cpp => self.c_targets(path, source),
         };
         targets
             .into_iter()
@@ -339,6 +337,124 @@ impl RepoLayering {
             if let Some(l) = self.layer_of(&resolved) {
                 out.push(l);
             }
+        }
+        out
+    }
+
+    /// Target layers of a Rust file's internal imports: `use crate::<layer>::…`
+    /// and `use <workspace_crate>::<layer>::…` (the crate is a known internal
+    /// member). `super`/`self`/`std`/external crates are skipped.
+    fn rust_targets(&self, source: &str) -> Vec<String> {
+        let mut out = Vec::new();
+        for spec in rust_use_paths(source) {
+            let (head, rest) = match spec.split_once("::") {
+                Some((h, r)) => (h.trim(), r.trim()),
+                None => continue, // `use foo;` — no sub-path, no layer
+            };
+            // The head must anchor the import on the repo's own code.
+            if head != "crate" && !self.internal.contains(head) {
+                continue;
+            }
+            for layer in rust_path_layers(rest) {
+                out.push(layer);
+            }
+        }
+        out
+    }
+
+    /// Target layers of a Java file's internal imports: the package component
+    /// after the base package (`import <base>.<layer>.…`).
+    fn java_targets(&self, source: &str) -> Vec<String> {
+        let Some(base) = self.module_path.as_deref() else {
+            return Vec::new();
+        };
+        let base_parts: Vec<&str> = base.split('.').filter(|s| !s.is_empty()).collect();
+        let mut out = Vec::new();
+        for pkg in java_import_packages(source) {
+            let parts: Vec<&str> = pkg.split('.').filter(|s| !s.is_empty()).collect();
+            if parts.len() >= base_parts.len() && parts[..base_parts.len()] == base_parts[..] {
+                out.push(after_prefix_layer(&parts[base_parts.len()..]));
+            }
+        }
+        out
+    }
+
+    /// Target layers of a PHP file's internal imports: `use <root>\<layer>\…`
+    /// where `<root>` is a repo-observed root namespace (in `internal`).
+    fn php_targets(&self, source: &str) -> Vec<String> {
+        let mut out = Vec::new();
+        for spec in php_use_names(source) {
+            let parts: Vec<&str> = spec.split('\\').filter(|s| !s.is_empty()).collect();
+            let Some(head) = parts.first() else { continue };
+            if !self.internal.contains(*head) {
+                continue; // foreign namespace — the base gate's job
+            }
+            out.push(after_prefix_layer(&parts[1..]));
+        }
+        out
+    }
+
+    /// Target layers of a C# file's internal imports: the namespace component
+    /// after the base namespace (`using <base>.<layer>.…`).
+    fn cs_targets(&self, source: &str) -> Vec<String> {
+        let Some(base) = self.module_path.as_deref() else {
+            return Vec::new();
+        };
+        let base_parts: Vec<&str> = base.split('.').filter(|s| !s.is_empty()).collect();
+        let mut out = Vec::new();
+        for spec in cs_using_names(source) {
+            let parts: Vec<&str> = spec.split('.').filter(|s| !s.is_empty()).collect();
+            if parts.len() >= base_parts.len() && parts[..base_parts.len()] == base_parts[..] {
+                out.push(after_prefix_layer(&parts[base_parts.len()..]));
+            }
+        }
+        out
+    }
+
+    /// Target layers of a Ruby file's internal requires: `require_relative "…"`
+    /// resolved against the file dir, and `require "<layer>/…"` whose head is a
+    /// repo layer. Ruby leans on autoloading, so graphs are expectedly sparse.
+    fn ruby_targets(&self, path: &str, source: &str) -> Vec<String> {
+        let mut out = Vec::new();
+        for (method, spec) in ruby_requires(source) {
+            if method == "require_relative" {
+                let resolved = normalize_join(parent_dir(path), &spec);
+                if let Some(l) = self.layer_of(&resolved) {
+                    out.push(l);
+                }
+            } else {
+                // require/load "x/y" — resolves via the load path (usually a root);
+                // its head is an internal layer only if the repo has that layer.
+                let head = spec.split('/').next().unwrap_or("");
+                if self.internal.contains(head) {
+                    out.push(head.to_string());
+                }
+            }
+        }
+        out
+    }
+
+    /// Target layers of a C/C++ file's internal `#include "…"` (quoted). System
+    /// (`<…>`) includes are external and skipped. A dotted-relative include is
+    /// resolved against the file dir; a project-relative one contributes its first
+    /// path component as the target layer.
+    fn c_targets(&self, path: &str, source: &str) -> Vec<String> {
+        let mut out = Vec::new();
+        for (is_system, header) in c_includes(source, self.language) {
+            if is_system {
+                continue;
+            }
+            if header.starts_with('.') {
+                let resolved = normalize_join(parent_dir(path), &header);
+                if let Some(l) = self.layer_of(&resolved) {
+                    out.push(l);
+                }
+            } else if let Some((first, _)) = header.split_once('/') {
+                if !first.is_empty() {
+                    out.push(first.to_string());
+                }
+            }
+            // else: a bare `"foo.h"` is a same-directory include — no cross-layer edge.
         }
         out
     }
@@ -434,6 +550,28 @@ impl RepoLayering {
 
 // --- path helpers (repo-root-relative, `/`-separated) ---
 
+/// The layer of `path` under `roots`: the first path component below the longest
+/// matching root (`""` = repo root, matches anything). A file sitting directly in
+/// a root (no sub-component) is `__root__`. The path-anchored layer primitive.
+fn layer_under(roots: &[String], path: &str) -> Option<String> {
+    let dir = parent_dir(path);
+    let root = roots
+        .iter()
+        .filter(|r| r.is_empty() || dir == r.as_str() || dir.starts_with(&format!("{r}/")))
+        .max_by_key(|r| r.len())?;
+    let rel = if root.is_empty() {
+        path
+    } else {
+        path[root.len()..].trim_start_matches('/')
+    };
+    let parts: Vec<&str> = rel.split('/').collect();
+    Some(if parts.len() > 1 {
+        parts[0].to_string()
+    } else {
+        "__root__".to_string()
+    })
+}
+
 fn parent_dir(path: &str) -> &str {
     match path.rfind('/') {
         Some(i) => &path[..i],
@@ -495,8 +633,231 @@ fn detect_context(
         Language::Typescript | Language::Javascript => {
             (ts_source_roots(paths), HashSet::new(), None)
         }
-        _ => (vec![String::new()], HashSet::new(), None),
+        Language::Rust => detect_rust_context(paths),
+        Language::Java => detect_java_context(paths),
+        Language::Php => detect_php_context(files),
+        Language::CSharp => detect_csharp_context(files),
+        Language::Ruby => detect_ruby_context(paths),
+        Language::C | Language::Cpp => (c_source_roots(paths), HashSet::new(), None),
     }
+}
+
+/// Rust: roots are the crate source dirs (a `src` component); the layer is the
+/// first path component under `src`. `internal` collects workspace-member crate
+/// names (the dir owning each `src`, normalized `-`→`_`) so `use <crate>::<layer>`
+/// resolves like `use crate::<layer>`.
+fn detect_rust_context(paths: &[&str]) -> (Vec<String>, HashSet<String>, Option<String>) {
+    let mut roots: HashSet<String> = HashSet::new();
+    let mut internal: HashSet<String> = HashSet::new();
+    for p in paths {
+        let comps: Vec<&str> = p.split('/').collect();
+        if let Some(i) = comps.iter().position(|c| *c == "src") {
+            roots.insert(comps[..=i].join("/"));
+            if i >= 1 {
+                internal.insert(comps[i - 1].replace('-', "_"));
+            }
+        }
+    }
+    (sorted_roots(roots), internal, None)
+}
+
+/// Java: roots are `<src-root>/<base-package-path>` so `layer_of` yields the
+/// package component after the base package. Test roots are skipped. The base
+/// package (the longest common package-dir prefix across main sources) is stored
+/// dotted in `module_path` for import matching.
+fn detect_java_context(paths: &[&str]) -> (Vec<String>, HashSet<String>, Option<String>) {
+    let mut entries: Vec<(String, Vec<String>)> = Vec::new(); // (src_root, package dirs)
+    for p in paths {
+        let comps: Vec<&str> = p.split('/').collect();
+        let (root, is_test) = java_src_root(&comps);
+        if is_test {
+            continue;
+        }
+        let root_len = if root.is_empty() {
+            0
+        } else {
+            root.split('/').count()
+        };
+        if comps.len() <= root_len + 1 {
+            continue; // file sits directly at the root — no package
+        }
+        let pkg: Vec<String> = comps[root_len..comps.len() - 1]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        entries.push((root, pkg));
+    }
+    let base = longest_common_prefix(entries.iter().map(|(_, p)| p.as_slice()));
+    let module_path = (!base.is_empty()).then(|| base.join("."));
+    let mut roots: HashSet<String> = HashSet::new();
+    for (root, _) in &entries {
+        roots.insert(join_root(root, &base.join("/")));
+    }
+    (sorted_roots(roots), HashSet::new(), module_path)
+}
+
+/// PHP (PSR-4): the root namespace maps to a source dir, so the second namespace
+/// component (the layer) equals the first path component under that dir. Learn
+/// each file's source root from its `namespace` vs. its path; `internal` collects
+/// the observed root namespaces for import matching.
+fn detect_php_context(files: &[(&str, &str)]) -> (Vec<String>, HashSet<String>, Option<String>) {
+    let mut roots: HashSet<String> = HashSet::new();
+    let mut internal: HashSet<String> = HashSet::new();
+    for (p, src) in files {
+        let Some(ns) = php_namespace(src) else {
+            continue;
+        };
+        let parts: Vec<&str> = ns.split('\\').filter(|s| !s.is_empty()).collect();
+        let Some(head) = parts.first() else { continue };
+        internal.insert((*head).to_string());
+        roots.insert(namespace_source_root(p, parts.len()));
+    }
+    (sorted_roots(roots), internal, None)
+}
+
+/// C#: the base namespace (longest common prefix of file namespaces) maps to a
+/// project source dir, so the component after it (the layer) equals the first path
+/// component under that dir. Learn each root from namespace vs. path; the base
+/// namespace is stored dotted in `module_path` for import matching.
+fn detect_csharp_context(files: &[(&str, &str)]) -> (Vec<String>, HashSet<String>, Option<String>) {
+    let mut namespaced: Vec<(&str, Vec<String>)> = Vec::new();
+    for (p, src) in files {
+        if let Some(ns) = cs_namespace(src) {
+            let parts: Vec<String> = ns
+                .split('.')
+                .filter(|s| !s.is_empty())
+                .map(String::from)
+                .collect();
+            if !parts.is_empty() {
+                namespaced.push((p, parts));
+            }
+        }
+    }
+    let base = longest_common_prefix(namespaced.iter().map(|(_, p)| p.as_slice()));
+    let module_path = (!base.is_empty()).then(|| base.join("."));
+    let mut roots: HashSet<String> = HashSet::new();
+    for (p, parts) in &namespaced {
+        // The base namespace maps to the source-root dir(s); the trailing path
+        // components are the sub-namespace dirs beyond the base plus the filename.
+        let trailing = parts.len().saturating_sub(base.len()) + 1;
+        roots.insert(namespace_source_root(p, trailing));
+    }
+    (sorted_roots(roots), HashSet::new(), module_path)
+}
+
+/// Ruby: roots are the repo root plus any top-level `lib`/`app`; the layer is the
+/// first component under a root. `internal` collects those layer names so a
+/// load-path `require "<layer>/…"` resolves to a repo layer.
+fn detect_ruby_context(paths: &[&str]) -> (Vec<String>, HashSet<String>, Option<String>) {
+    let mut roots: HashSet<String> = HashSet::from([String::new()]);
+    for p in paths {
+        let top = p.split('/').next().unwrap_or("");
+        if matches!(top, "lib" | "app") && p.contains('/') {
+            roots.insert(top.to_string());
+        }
+    }
+    let roots = sorted_roots(roots);
+    let mut internal: HashSet<String> = HashSet::new();
+    for p in paths {
+        if let Some(layer) = layer_under(&roots, p) {
+            if layer != "__root__" {
+                internal.insert(layer);
+            }
+        }
+    }
+    (roots, internal, None)
+}
+
+/// The source root of a namespace-anchored file: drop `trailing` path components
+/// (the sub-namespace dirs beyond the root/base + the filename) so the remaining
+/// prefix is the dir the root/base namespace maps to. Too few components ⇒ repo
+/// root. Works whether the base maps to one dir (`src`) or many (`Acme/App`).
+fn namespace_source_root(path: &str, trailing: usize) -> String {
+    let comps: Vec<&str> = path.split('/').collect();
+    if comps.len() > trailing {
+        comps[..comps.len() - trailing].join("/")
+    } else {
+        String::new()
+    }
+}
+
+/// Join a source root with a `/`-separated sub-path, handling empty operands.
+fn join_root(root: &str, sub: &str) -> String {
+    match (root.is_empty(), sub.is_empty()) {
+        (true, _) => sub.to_string(),
+        (false, true) => root.to_string(),
+        (false, false) => format!("{root}/{sub}"),
+    }
+}
+
+/// Sort roots longest-first (so `layer_under` prefers the most specific) into a Vec.
+fn sorted_roots(roots: HashSet<String>) -> Vec<String> {
+    let mut v: Vec<String> = roots.into_iter().collect();
+    v.sort_by_key(|d| std::cmp::Reverse(d.len()));
+    v
+}
+
+/// The layer name for the path components below a namespace prefix: the first, or
+/// `__root__` when the file sits directly in the prefix.
+fn after_prefix_layer(rest: &[&str]) -> String {
+    rest.first()
+        .map(|s| (*s).to_string())
+        .unwrap_or_else(|| "__root__".to_string())
+}
+
+/// Longest common prefix of a set of component slices.
+fn longest_common_prefix<'a, I>(mut iter: I) -> Vec<String>
+where
+    I: Iterator<Item = &'a [String]>,
+{
+    let Some(first) = iter.next() else {
+        return Vec::new();
+    };
+    let mut prefix: Vec<String> = first.to_vec();
+    for pkg in iter {
+        let n = prefix.iter().zip(pkg).take_while(|(a, b)| a == b).count();
+        prefix.truncate(n);
+        if prefix.is_empty() {
+            break;
+        }
+    }
+    prefix
+}
+
+/// The Java source root of a path and whether it is a *test* root. Recognises
+/// `src/main/java`, `src/test/java` (test), and a bare `src`; else the repo root.
+fn java_src_root(comps: &[&str]) -> (String, bool) {
+    for i in 0..comps.len() {
+        if comps[i] != "src" {
+            continue;
+        }
+        if i + 2 < comps.len() && comps[i + 1] == "main" && comps[i + 2] == "java" {
+            return (comps[..=i + 2].join("/"), false);
+        }
+        if i + 2 < comps.len() && comps[i + 1] == "test" && comps[i + 2] == "java" {
+            return (comps[..=i + 2].join("/"), true);
+        }
+        return (comps[..=i].join("/"), false);
+    }
+    (String::new(), false)
+}
+
+/// Distinct C/C++ source roots: the deepest `src`/`include`/`lib` component of
+/// each path, else the repo root. The layer is the first dir below the root.
+fn c_source_roots(paths: &[&str]) -> Vec<String> {
+    let mut roots: HashSet<String> = HashSet::new();
+    for p in paths {
+        let comps: Vec<&str> = p.split('/').collect();
+        if let Some(i) = comps
+            .iter()
+            .rposition(|c| matches!(*c, "src" | "include" | "lib"))
+        {
+            roots.insert(comps[..=i].join("/"));
+        } else {
+            roots.insert(String::new());
+        }
+    }
+    sorted_roots(roots)
 }
 
 /// Distinct TS/JS source roots (a file's layer is the first dir under one): the
@@ -682,6 +1043,249 @@ fn node_text(node: tree_sitter::Node, bytes: &[u8]) -> String {
     String::from_utf8_lossy(&bytes[node.start_byte()..node.end_byte()]).into_owned()
 }
 
+/// Depth-first named-node walk of a parse over `source` for `language`, invoking
+/// `visit` on each node. Shared spine for the per-language import extractors.
+fn walk_named(source: &str, language: Language, mut visit: impl FnMut(tree_sitter::Node, &[u8])) {
+    let Some(tree) = ts_parse::parse(source, language) else {
+        return;
+    };
+    let bytes = source.as_bytes();
+    let mut stack = vec![tree.root_node()];
+    while let Some(node) = stack.pop() {
+        visit(node, bytes);
+        let mut c = node.walk();
+        for ch in node.named_children(&mut c) {
+            stack.push(ch);
+        }
+    }
+}
+
+/// The `use`-path text of each `use_declaration` (the `argument` field, e.g.
+/// `crate::foo::bar` or `crate::{a, b}`), visibility and `;` excluded.
+fn rust_use_paths(source: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    walk_named(source, Language::Rust, |node, bytes| {
+        if node.kind() == "use_declaration" {
+            if let Some(arg) = node.child_by_field_name("argument") {
+                out.push(node_text(arg, bytes));
+            }
+        }
+    });
+    out
+}
+
+/// The layer name(s) a `use`-path tail (everything after `crate::`/`<crate>::`)
+/// contributes: `foo::bar` → `foo`; a brace group `{foo, bar::baz}` → `foo`,
+/// `bar`. `self`/`*` and empty segments are ignored.
+fn rust_path_layers(rest: &str) -> Vec<String> {
+    let rest = rest.trim();
+    if let Some(inner) = rest.strip_prefix('{').and_then(|r| r.strip_suffix('}')) {
+        // A group directly under the crate root: each element heads its own layer.
+        return split_top_level_commas(inner)
+            .into_iter()
+            .filter_map(|e| rust_first_segment(e.trim()))
+            .collect();
+    }
+    rust_first_segment(rest).into_iter().collect()
+}
+
+/// The leading path segment of a `use` element (up to the first `::` or `{`),
+/// filtering non-layer heads (`self`, `*`, empty).
+fn rust_first_segment(s: &str) -> Option<String> {
+    let head = s
+        .split("::")
+        .next()
+        .unwrap_or(s)
+        .split('{')
+        .next()
+        .unwrap_or(s)
+        .trim();
+    if head.is_empty() || head == "self" || head == "*" {
+        None
+    } else {
+        Some(head.to_string())
+    }
+}
+
+/// Split on commas that are not nested inside `{ … }` (Rust `use` groups).
+fn split_top_level_commas(s: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut depth = 0i32;
+    let mut start = 0usize;
+    for (i, ch) in s.char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => depth -= 1,
+            ',' if depth == 0 => {
+                out.push(&s[start..i]);
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    out.push(&s[start..]);
+    out
+}
+
+/// The package (dotted) of each Java `import_declaration`: the `scoped_identifier`
+/// FQN, dropping the trailing type name for a plain import, kept whole for a
+/// wildcard (`import a.b.*` → `a.b`).
+fn java_import_packages(source: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    walk_named(source, Language::Java, |node, bytes| {
+        if node.kind() != "import_declaration" {
+            return;
+        }
+        let mut fqn: Option<String> = None;
+        let mut wildcard = false;
+        let mut c = node.walk();
+        for ch in node.named_children(&mut c) {
+            match ch.kind() {
+                "scoped_identifier" | "identifier" => fqn = Some(node_text(ch, bytes)),
+                "asterisk" => wildcard = true,
+                _ => {}
+            }
+        }
+        if let Some(fqn) = fqn {
+            if wildcard {
+                out.push(fqn);
+            } else if let Some(i) = fqn.rfind('.') {
+                out.push(fqn[..i].to_string());
+            }
+        }
+    });
+    out
+}
+
+/// The `namespace X\Y\…;` of a PHP file (the `name` of its `namespace_definition`).
+fn php_namespace(source: &str) -> Option<String> {
+    let mut found = None;
+    walk_named(source, Language::Php, |node, bytes| {
+        if found.is_none() && node.kind() == "namespace_definition" {
+            if let Some(name) = node.child_by_field_name("name") {
+                found = Some(node_text(name, bytes));
+            }
+        }
+    });
+    found
+}
+
+/// The imported namespace text of each PHP `use` clause (`Root\Layer\Class`).
+fn php_use_names(source: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    walk_named(source, Language::Php, |node, bytes| {
+        if node.kind() != "namespace_use_clause" {
+            return;
+        }
+        let mut c = node.walk();
+        for ch in node.named_children(&mut c) {
+            if matches!(ch.kind(), "qualified_name" | "name") {
+                out.push(node_text(ch, bytes));
+                break;
+            }
+        }
+    });
+    out
+}
+
+/// The declared namespace of a C# file (block or file-scoped form).
+fn cs_namespace(source: &str) -> Option<String> {
+    let mut found = None;
+    walk_named(source, Language::CSharp, |node, bytes| {
+        if found.is_none()
+            && matches!(
+                node.kind(),
+                "namespace_declaration" | "file_scoped_namespace_declaration"
+            )
+        {
+            if let Some(name) = node.child_by_field_name("name") {
+                found = Some(node_text(name, bytes));
+            }
+        }
+    });
+    found
+}
+
+/// The imported namespace of each C# `using_directive` (the `qualified_name` /
+/// `identifier` that is not the alias LHS carried in the `name` field).
+fn cs_using_names(source: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    walk_named(source, Language::CSharp, |node, bytes| {
+        if node.kind() != "using_directive" {
+            return;
+        }
+        let alias = node.child_by_field_name("name");
+        let mut c = node.walk();
+        for ch in node.named_children(&mut c) {
+            if Some(ch) == alias {
+                continue; // alias LHS, not the imported namespace
+            }
+            if matches!(ch.kind(), "qualified_name" | "identifier") {
+                out.push(node_text(ch, bytes));
+                break;
+            }
+        }
+    });
+    out
+}
+
+/// `(method, spec)` for each top-level `require` / `require_relative` / `load`
+/// call in a Ruby file (receiver-less `call` with a string argument).
+fn ruby_requires(source: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    walk_named(source, Language::Ruby, |node, bytes| {
+        if node.kind() != "call" || node.child_by_field_name("receiver").is_some() {
+            return;
+        }
+        let Some(method) = node.child_by_field_name("method") else {
+            return;
+        };
+        let m = node_text(method, bytes);
+        if !matches!(m.as_str(), "require" | "require_relative" | "load") {
+            return;
+        }
+        let Some(args) = node.child_by_field_name("arguments") else {
+            return;
+        };
+        let mut ac = args.walk();
+        for a in args.named_children(&mut ac) {
+            if a.kind() != "string" {
+                continue;
+            }
+            let mut sc = a.walk();
+            for s in a.named_children(&mut sc) {
+                if s.kind() == "string_content" {
+                    out.push((m.clone(), node_text(s, bytes)));
+                }
+            }
+        }
+    });
+    out
+}
+
+/// `(is_system, header)` for each `#include` in a C/C++ file: `is_system` for
+/// `<…>` (external, empty header), else the quoted path with quotes stripped.
+fn c_includes(source: &str, language: Language) -> Vec<(bool, String)> {
+    let mut out = Vec::new();
+    walk_named(source, language, |node, bytes| {
+        if node.kind() != "preproc_include" {
+            return;
+        }
+        let Some(path) = node.child_by_field_name("path") else {
+            return;
+        };
+        match path.kind() {
+            "system_lib_string" => out.push((true, String::new())),
+            "string_literal" => {
+                let inner = node_text(path, bytes).trim_matches('"').to_string();
+                out.push((false, inner));
+            }
+            _ => {}
+        }
+    });
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -750,14 +1354,180 @@ mod tests {
     }
 
     #[test]
-    fn unimplemented_language_is_graceful_noop() {
-        // Rust has no resolver yet → an empty graph, no edges — a graceful no-op.
+    fn external_only_imports_yield_empty_graph() {
+        // A repo whose imports are all external (std / third-party crates) has no
+        // internal edges — a graceful empty graph, no findings.
         let g = RepoLayering::fit(
-            vec![("src/main.rs", "use crate::foo::bar;")],
+            vec![("src/main.rs", "use std::fmt;\nuse serde::Serialize;\n")],
             Language::Rust,
         );
         assert_eq!(g.edge_count(), 0);
-        assert!(g.file_edges("src/lib.rs", "use crate::x::y;").is_empty());
+    }
+
+    #[test]
+    fn rust_resolver_builds_directional_graph() {
+        // crate src; api -> core (via `use crate::core`), core is a sink.
+        let files = vec![
+            ("src/api/handler.rs", "use crate::core::db;\n"),
+            ("src/core/db.rs", "pub fn query() {}\n"),
+        ];
+        let g = RepoLayering::fit(files, Language::Rust);
+        assert!(g.contains_edge(&("api".into(), "core".into())));
+        assert!(g.is_sink("core"));
+        // a core file importing api reverses the attested direction.
+        assert_eq!(
+            g.fires("src/core/db.rs", "use crate::api::handler;\n"),
+            Some(Violation::Reversal)
+        );
+    }
+
+    #[test]
+    fn rust_workspace_crate_import_is_internal() {
+        // `use argot_core::…` where crate `argot-core` is a workspace member
+        // (owns a `src/`) resolves like `crate::` — an internal cross-layer edge.
+        let files = vec![
+            ("crates/cli/src/app/run.rs", "use argot_core::scoring::x;\n"),
+            ("crates/argot-core/src/scoring/x.rs", "pub fn x() {}\n"),
+        ];
+        let g = RepoLayering::fit(files, Language::Rust);
+        assert!(g.contains_edge(&("app".into(), "scoring".into())));
+    }
+
+    #[test]
+    fn java_resolver_builds_directional_graph() {
+        // base package com.x; web -> core (attested), core is a sink.
+        let files = vec![
+            (
+                "src/main/java/com/x/web/Ctrl.java",
+                "package com.x.web;\nimport com.x.core.Service;\n",
+            ),
+            (
+                "src/main/java/com/x/core/Service.java",
+                "package com.x.core;\npublic class Service {}\n",
+            ),
+        ];
+        let g = RepoLayering::fit(files, Language::Java);
+        assert!(g.contains_edge(&("web".into(), "core".into())));
+        assert!(g.is_sink("core"));
+        assert_eq!(
+            g.fires(
+                "src/main/java/com/x/core/Service.java",
+                "import com.x.web.Ctrl;\n"
+            ),
+            Some(Violation::Reversal)
+        );
+    }
+
+    #[test]
+    fn php_resolver_builds_directional_graph() {
+        // PSR-4 root namespace App; Http -> Models (attested), Models is a sink.
+        let files = vec![
+            (
+                "src/Http/Kernel.php",
+                "<?php\nnamespace App\\Http;\nuse App\\Models\\User;\n",
+            ),
+            (
+                "src/Models/User.php",
+                "<?php\nnamespace App\\Models;\nclass User {}\n",
+            ),
+        ];
+        let g = RepoLayering::fit(files, Language::Php);
+        assert!(g.contains_edge(&("Http".into(), "Models".into())));
+        assert!(g.is_sink("Models"));
+        // src layer comes from the path (the PSR-4 root is learned at fit), so the
+        // hunk needs no `namespace` line to reverse the attested direction — only the
+        // `<?php` tag the whole engine requires to parse PHP into non-inert nodes.
+        assert_eq!(
+            g.fires("src/Models/User.php", "<?php\nuse App\\Http\\Kernel;\n"),
+            Some(Violation::Reversal)
+        );
+    }
+
+    #[test]
+    fn csharp_resolver_builds_directional_graph() {
+        // base namespace Acme.App; Web -> Core (attested), Core is a sink.
+        let files = vec![
+            (
+                "src/Web/Controller.cs",
+                "namespace Acme.App.Web;\nusing Acme.App.Core;\nclass Controller {}\n",
+            ),
+            (
+                "src/Core/Service.cs",
+                "namespace Acme.App.Core;\nclass Service {}\n",
+            ),
+        ];
+        let g = RepoLayering::fit(files, Language::CSharp);
+        assert!(g.contains_edge(&("Web".into(), "Core".into())));
+        assert!(g.is_sink("Core"));
+        assert_eq!(
+            g.fires("src/Core/Service.cs", "using Acme.App.Web;\n"),
+            Some(Violation::Reversal)
+        );
+    }
+
+    #[test]
+    fn ruby_resolver_resolves_relative_requires() {
+        // app/controllers -> app/models via `require_relative`; models is a sink.
+        let files = vec![
+            (
+                "app/controllers/users.rb",
+                "require_relative \"../models/user\"\n",
+            ),
+            ("app/models/user.rb", "class User\nend\n"),
+        ];
+        let g = RepoLayering::fit(files, Language::Ruby);
+        assert!(g.contains_edge(&("controllers".into(), "models".into())));
+        assert!(g.is_sink("models"));
+        assert_eq!(
+            g.fires(
+                "app/models/user.rb",
+                "require_relative \"../controllers/users\"\n"
+            ),
+            Some(Violation::Reversal)
+        );
+    }
+
+    #[test]
+    fn c_resolver_builds_directional_graph_from_includes() {
+        // src/net -> src/core via a quoted include; core is a sink.
+        let files = vec![
+            (
+                "src/net/conn.c",
+                "#include \"core/alloc.h\"\n#include <stdio.h>\n",
+            ),
+            ("src/core/alloc.c", "int alloc(void) { return 0; }\n"),
+            ("src/core/alloc.h", "int alloc(void);\n"),
+        ];
+        let g = RepoLayering::fit(files, Language::C);
+        assert!(g.contains_edge(&("net".into(), "core".into())));
+        assert!(g.is_sink("core"));
+        // a core file including net reverses the attested direction.
+        assert_eq!(
+            g.fires("src/core/alloc.c", "#include \"net/conn.h\"\n"),
+            Some(Violation::Reversal)
+        );
+        // a system include never fires.
+        assert_eq!(g.fires("src/core/alloc.c", "#include <stdlib.h>\n"), None);
+    }
+
+    #[test]
+    fn cpp_resolver_builds_directional_graph_from_includes() {
+        // src/render -> src/scene via a quoted include; scene is a sink.
+        let files = vec![
+            (
+                "src/render/pass.cpp",
+                "#include \"scene/node.hpp\"\n#include <vector>\n",
+            ),
+            ("src/scene/node.cpp", "int node() { return 0; }\n"),
+            ("src/scene/node.hpp", "int node();\n"),
+        ];
+        let g = RepoLayering::fit(files, Language::Cpp);
+        assert!(g.contains_edge(&("render".into(), "scene".into())));
+        assert!(g.is_sink("scene"));
+        assert_eq!(
+            g.fires("src/scene/node.cpp", "#include \"render/pass.hpp\"\n"),
+            Some(Violation::Reversal)
+        );
     }
 
     #[test]
