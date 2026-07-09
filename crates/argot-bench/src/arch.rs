@@ -85,6 +85,8 @@ struct ArchResult {
     corpus: String,
     language: String,
     layers: usize,
+    /// Layers that map to a real source file — the authorable-violation space.
+    host_layers: usize,
     edges: usize,
     commits: usize,
     fires: usize,
@@ -189,6 +191,16 @@ fn run_corpus(target: &Target, data_dir: &Path, catalogs_dir: &Path) -> Result<O
     // Catch is measured on the HEAD graph — production fits on the CURRENT repo,
     // not the holdout fit-SHA (an old, thin tree that understates coverage).
     let head_graph = graph_at(&repo, &head, language)?;
+    // Host-mapped layers = layers a real HEAD file lives in (the authorable-violation
+    // space). MUST be computed now, while the working tree is still checked out at
+    // HEAD — the holdout `graph_at(fit_sha)` below moves the tree to an older sha.
+    let host_layers: std::collections::HashSet<String> = collect_source_files(&repo)
+        .iter()
+        .filter_map(|abs| abs.strip_prefix(&repo).ok())
+        .map(|rel| rel.to_string_lossy().replace('\\', "/"))
+        .filter(|rel| has_ext(rel, exts))
+        .filter_map(|rel| head_graph.layer_of(&rel))
+        .collect();
     let window = target.holdout_window.unwrap_or(DEFAULT_WINDOW);
     let (fit_sha, replay) = plan_holdout(&repo, &head, window)?;
     // FP is measured on the holdout graph (fit @ HEAD~window) — a real temporal split.
@@ -244,10 +256,19 @@ fn run_corpus(target: &Target, data_dir: &Path, catalogs_dir: &Path) -> Result<O
     };
 
     // catch (popularity-weighted coverage) — on the HEAD graph (production reality).
+    // Restrict the SOURCE layer `a` to layers that actually map to a real source
+    // file (a hunk can only introduce a violation FROM a file that exists). Without
+    // this, the estimate counts (a→b) pairs whose `a` is a target-only namespace
+    // layer no file lives in — inflating catch where layer ≠ directory (notably C#,
+    // where every source can collapse to one bucket). `host_layers` records how many
+    // layers are authorable so the render can flag a thin real-violation space.
     let layers: Vec<String> = head_graph.layers().into_iter().collect();
     let mut num = 0f64;
     let mut den = 0f64;
     for a in &layers {
+        if !host_layers.contains(a) {
+            continue; // no source file lives in this layer — not authorable
+        }
         for b in &layers {
             if a == b {
                 continue;
@@ -306,6 +327,7 @@ fn run_corpus(target: &Target, data_dir: &Path, catalogs_dir: &Path) -> Result<O
         corpus: target.name.clone(),
         language: target.language.clone(),
         layers: head_graph.layers().len(),
+        host_layers: host_layers.len(),
         edges: head_graph.edge_count(),
         commits,
         fires,
@@ -450,7 +472,13 @@ fn render(results: &[ArchResult]) -> String {
     s.push_str("Fire = a hunk introduces a reversal/(near-)sink-out internal edge.\n");
     s.push_str(
         "over-fire = real clean commits firing (fit @ HEAD~window); catch = \
-         popularity-weighted coverage on the HEAD (production) graph.\n\n",
+         popularity-weighted coverage over the HEAD graph, restricted to SOURCE \
+         layers with a real file (authorable violations only).\n",
+    );
+    s.push_str(
+        "`layers` = host-mapped / total; a low ratio means the resolver splits \
+         source and target vocabularies (layer ≠ directory) — a thin authorable \
+         space and an unreliable catch.\n\n",
     );
     s.push_str(
         "| corpus | lang | layers | edges | commits | over-fire | catch(cov) | \
@@ -483,8 +511,17 @@ fn render(results: &[ArchResult]) -> String {
             "—".to_string()
         };
         s.push_str(&format!(
-            "| {} | {} | {} | {} | {} | {:.1}% | {:.0}% | {} | {} |\n",
-            r.corpus, r.language, r.layers, r.edges, r.commits, r.over_fire, r.catch, recall, ctrl
+            "| {} | {} | {}/{} | {} | {} | {:.1}% | {:.0}% | {} | {} |\n",
+            r.corpus,
+            r.language,
+            r.host_layers,
+            r.layers,
+            r.edges,
+            r.commits,
+            r.over_fire,
+            r.catch,
+            recall,
+            ctrl
         ));
         of_sum += r.over_fire;
         catch_sum += r.catch;
