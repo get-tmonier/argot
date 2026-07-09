@@ -407,9 +407,18 @@ pub fn run_arch_candidates(
             }
         }
         cands.sort_by_key(|c| std::cmp::Reverse(c.3));
+        // How many source layers actually have a host file? If few layers map to a
+        // real file (e.g. C# namespace ≠ directory), the population of authorable
+        // violations is small even when edge/layer counts look large — surface it.
+        let host_layers = layers.iter().filter(|l| host.contains_key(*l)).count();
         let mut out = format!(
-            "# {} ({}) — 0-usage reversal/sink candidates (host in `src` imports `tgt`)\n\n",
-            t.name, t.language
+            "# {} ({}) — 0-usage reversal/sink candidates (host in `src` imports `tgt`)\n\n\
+             {} layers · {} with a host file · {} host-backed candidates\n\n",
+            t.name,
+            t.language,
+            layers.len(),
+            host_layers,
+            cands.len()
         );
         out.push_str("| src layer | tgt layer | kind | tgt popularity | sample host file |\n|---|---|---|--:|---|\n");
         for (a, b, kind, pop) in cands.iter().take(60) {
@@ -424,9 +433,11 @@ pub fn run_arch_candidates(
         }
         std::fs::write(results_dir.join(format!("candidates-{}.md", t.name)), &out).ok();
         summary.push_str(&format!(
-            "- {}: {} host-backed reversal/sink candidates\n",
+            "- {}: {} candidates · {}/{} layers host-mapped\n",
             t.name,
-            cands.len()
+            cands.len(),
+            host_layers,
+            layers.len()
         ));
     }
     std::fs::write(results_dir.join("candidates.md"), &summary).ok();
