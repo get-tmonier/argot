@@ -380,3 +380,47 @@ signal (its defensible strength) with **modest, uneven catch** that is partly su
 fixable resolver layer-assignment bugs and cannot be honestly quantified until fixtures are
 re-authored against the dumper. It is not, on honest measurement, the "≥85/≤5 gatable win" the
 pre-correction sections claim.
+
+## After the resolver fixes (2026-07-09) — C# + Rust layer assignment
+
+The two layer-assignment bugs are fixed (`fix(arch): namespace/module-derived source layer`):
+
+- **C#** — the source layer now comes from the file's *namespace* (via the same `layer_after_base`
+  used for targets), stored in a fit-time file→layer map (persisted; new files parse the hunk).
+  Flat-dotted .NET directories no longer collapse to `src`. Regression test:
+  `csharp_flat_dotted_dirs_use_namespace_layer_not_directory`.
+- **Rust** — a *file* module directly under `src` (`src/color.rs`) is layer `color`, matching the
+  `use crate::color::…` target vocabulary, not `__root__`. Regression test:
+  `rust_file_modules_use_stem_layer_not_root`.
+
+Re-measured (12 corpora; `layers` = host-mapped-in-graph / total after the display fix):
+
+| corpus | lang | layers | edges | over-fire | **catch (host-backed)** | recall(fixtures) | ctrl-FP |
+|---|---|--:|--:|--:|--:|--:|--:|
+| saleor | python | 30/35 | 306 | 2.7% | 84% | 2/2 (10 inv)* | 0/5 |
+| scrapy | python | 15/36 | 123 | 0.0% | 41% | 9/11 = 82% | 0/5 |
+| wagtail | python | 22/40 | 162 | 0.0% | 46% | 10/12 = 83% | 0/5 |
+| composer | php | 25/36 | 228 | 1.8% | 69% | — | 0/5 |
+| **ripgrep** | rust | **41/56** | 107 | 0.0% | **62%** | **9/10 = 90%** | 0/5 |
+| **bat** | rust | 24/32 | 72 | 0.0% | **68%** | — | — |
+| guava | java | 7/39 | 60 | 0.0% | 19% | — | — |
+| **powershell** | csharp | 5/38 | 90 | 0.0% | **37%** | — | — |
+| **jellyfin** | csharp | 17/18 | 81 | 0.0% | **73%** | — | — |
+| rubocop | ruby | 5/5 | 7 | 0.0% | 84% | — | — |
+| gh-cli | go | 8/9 | 21 | 1.1% | 66% | — | — |
+| excalidraw | typescript | 17/20 | 52 | 1.3% | 57% | — | — |
+| **mean** | | | | **0.6%** | **~59%** | 30/35 = 86% | **0/25 = 0%** |
+
+holdout 12/3309 commits = **0.36%** (worst 2.7%). *saleor's Python fixtures are still the stale
+absolute-grep set (10/12 attested); Rust's ripgrep fixtures became genuinely valid once the vocab
+aligned → real 90% recall — a second measured language.
+
+**What the fixes bought:** mean catch **52% → 59%**; Rust from a broken 3/55-host-mapped 50% to
+**43/56, 62–68% catch and 90% real fixture recall**; C# from a hard **0% to 37–73%**. Over-fire and
+control-FP are unchanged (0.6% mean, 0% control-FP) — the fixes only recovered suppressed catch,
+they did not touch the false-positive profile. **Remaining:** (1) re-author the Python fixtures
+against the dumper (task #18) for a refreshed Python recall — the coverage suggests ~high-40s to
+80s depending on how loosely layered the repo is; (2) **guava/Java 19%** (7/39 host-mapped) looks
+like the *same* class of layer-assignment issue — Java's self-layer could also be package-derived;
+worth a look. Honest headline now: **strong low-FP (0% control-FP, ≤2.7% over-fire), ~59% mean
+authorable catch, 90% measured recall on the one re-validated non-Python language (Rust).**

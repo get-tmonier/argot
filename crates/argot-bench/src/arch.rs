@@ -326,8 +326,11 @@ fn run_corpus(target: &Target, data_dir: &Path, catalogs_dir: &Path) -> Result<O
     Ok(Some(ArchResult {
         corpus: target.name.clone(),
         language: target.language.clone(),
-        layers: head_graph.layers().len(),
-        host_layers: host_layers.len(),
+        layers: layers.len(),
+        // Host-mapped layers that also participate in the edge graph — the
+        // authorable AND connected space (a file-only layer with no edges can't be
+        // a violation source). Intersecting with `layers` keeps the ratio ≤ 1.
+        host_layers: layers.iter().filter(|l| host_layers.contains(*l)).count(),
         edges: head_graph.edge_count(),
         commits,
         fires,
