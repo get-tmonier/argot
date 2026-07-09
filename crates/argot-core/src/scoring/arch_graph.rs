@@ -586,12 +586,18 @@ impl RepoLayering {
 
     /// Synthesize an import line that, added to `host_path`, creates the
     /// cross-layer edge `host_layer → target_layer` — VERIFIED through the real
-    /// resolver (`file_edges`). Returns `None` if no synthesis resolves (notably
-    /// the relative-import languages TS/JS/Ruby/C, which need a concrete target
-    /// file). Lets fixtures be authored valid-by-construction, closing the
-    /// text-grep gap. The imported symbol is a placeholder — the resolver keys on
-    /// the module path, not the symbol.
-    pub fn example_import(&self, host_path: &str, target_layer: &str) -> Option<String> {
+    /// resolver (`file_edges`). Returns `None` if no synthesis resolves. Prefix-
+    /// import languages (Python/PHP/C#/Java/Go/Rust) need only the target layer;
+    /// relative-import languages (TS/JS/Ruby) need a concrete `target_file` in the
+    /// target layer to build a relative specifier from. Lets fixtures be authored
+    /// valid-by-construction, closing the text-grep gap. The imported symbol is a
+    /// placeholder — the resolver keys on the module path, not the symbol.
+    pub fn example_import(
+        &self,
+        host_path: &str,
+        target_layer: &str,
+        target_file: Option<&str>,
+    ) -> Option<String> {
         let src = self.layer_of(host_path)?;
         if src == *target_layer {
             return None;
@@ -631,13 +637,22 @@ impl RepoLayering {
                     candidates.push(format!("use {c}::{target_layer}::ArgotFixture;\n"));
                 }
             }
-            // Relative-import languages need a concrete target file — not synthesizable
-            // from the layer name alone.
-            Language::Typescript
-            | Language::Javascript
-            | Language::Ruby
-            | Language::C
-            | Language::Cpp => {}
+            // Relative-import languages: build a relative specifier from the host
+            // file's directory to a concrete target file in the target layer.
+            Language::Typescript | Language::Javascript => {
+                if let Some(tf) = target_file {
+                    let spec = relative_spec(parent_dir(host_path), tf);
+                    candidates.push(format!("import {{ ArgotFixture }} from '{spec}';\n"));
+                }
+            }
+            Language::Ruby => {
+                if let Some(tf) = target_file {
+                    let spec = relative_spec(parent_dir(host_path), tf);
+                    candidates.push(format!("require_relative \"{spec}\"\n"));
+                }
+            }
+            // C/C++ includes are also relative but rarely a clean layer signal — skip.
+            Language::C | Language::Cpp => {}
         }
         let want = (src, target_layer.to_string());
         candidates
@@ -775,6 +790,28 @@ fn parent_dir(path: &str) -> &str {
         Some(i) => &path[..i],
         None => "",
     }
+}
+
+/// A `./`-relative specifier from `from_dir` to `to_file` with its extension
+/// stripped (the form TS/JS/Ruby relative imports use). Inverse of
+/// [`normalize_join`]: `normalize_join(from_dir, relative_spec(from_dir, f))`
+/// re-derives `f` (sans extension).
+fn relative_spec(from_dir: &str, to_file: &str) -> String {
+    let to_noext = match to_file.rfind('.') {
+        Some(i) if !to_file[i..].contains('/') => &to_file[..i],
+        _ => to_file,
+    };
+    let from: Vec<&str> = from_dir.split('/').filter(|s| !s.is_empty()).collect();
+    let to: Vec<&str> = to_noext.split('/').filter(|s| !s.is_empty()).collect();
+    let common = from.iter().zip(&to).take_while(|(a, b)| a == b).count();
+    let ups = from.len() - common;
+    let mut spec = if ups == 0 {
+        "./".to_string()
+    } else {
+        "../".repeat(ups)
+    };
+    spec.push_str(&to[common..].join("/"));
+    spec
 }
 
 /// Resolve `spec` (a `.`/`..` relative path) against directory `dir`, normalizing.
@@ -1765,6 +1802,33 @@ mod tests {
             ),
             Some(Violation::Reversal)
         );
+    }
+
+    #[test]
+    fn relative_spec_round_trips_through_normalize_join() {
+        // sibling layer
+        let s = relative_spec("src/components", "src/data/store.ts");
+        assert_eq!(s, "../data/store");
+        assert_eq!(normalize_join("src/components", &s), "src/data/store");
+        // deeper host
+        let s = relative_spec("src/a/b", "src/x/y.tsx");
+        assert_eq!(normalize_join("src/a/b", &s), "src/x/y");
+    }
+
+    #[test]
+    fn typescript_example_import_synthesizes_relative_edge() {
+        let files = vec![
+            ("src/ui/App.tsx", "import { store } from '../data/store';\n"),
+            ("src/data/store.ts", "export const store = {};\n"),
+        ];
+        let g = RepoLayering::fit(files, Language::Typescript);
+        // ui -> data attested; synthesize the reverse (data importing ui) → a real edge.
+        let line = g
+            .example_import("src/data/store.ts", "ui", Some("src/ui/App.tsx"))
+            .expect("should synthesize a relative import to layer ui");
+        assert!(g
+            .file_edges("src/data/store.ts", &line)
+            .contains(&("data".into(), "ui".into())));
     }
 
     #[test]

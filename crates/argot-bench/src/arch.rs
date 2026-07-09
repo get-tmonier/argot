@@ -435,8 +435,10 @@ pub fn run_arch_candidates(
                     Some(Violation::SinkOut) => "sink_out",
                     None => "forward",
                 };
-                let Some(import_line) = graph.example_import(host_file, b) else {
-                    continue; // can't synthesize a resolvable import (relative langs)
+                let Some(import_line) =
+                    graph.example_import(host_file, b, host.get(b).map(|s| s.as_str()))
+                else {
+                    continue; // can't synthesize a resolvable import
                 };
                 cands.push((kind, a, b, graph.in_mass(b), host_file.clone(), import_line));
             }
