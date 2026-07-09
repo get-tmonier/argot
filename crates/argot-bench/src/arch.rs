@@ -145,6 +145,56 @@ fn fixture_outcome(graph: &RepoLayering, fix: &ArchFix) -> FixOutcome {
     }
 }
 
+/// Fixture scores for one corpus: (`v_caught`, `v_invalid`, `violations`,
+/// `c_fired`, `controls`). Shared by the full bench and the fast `arch-verify`.
+struct FixtureScore {
+    v_caught: usize,
+    v_invalid: usize,
+    violations: usize,
+    c_fired: usize,
+    controls: usize,
+}
+
+fn score_fixtures(graph: &RepoLayering, catalogs_dir: &Path, corpus: &str) -> FixtureScore {
+    let fx_path = catalogs_dir.join(corpus).join("arch_violations.yaml");
+    let fx: ArchFixtures = std::fs::read_to_string(&fx_path)
+        .ok()
+        .and_then(|s| serde_yaml::from_str(&s).ok())
+        .unwrap_or_default();
+    let (mut v_caught, mut v_invalid) = (0usize, 0usize);
+    for f in &fx.violations {
+        match fixture_outcome(graph, f) {
+            FixOutcome::Fired => v_caught += 1,
+            FixOutcome::NovelMissed => {
+                eprintln!("  [{corpus}] MISS (novel forward): {}", f.host_file);
+            }
+            FixOutcome::Attested => {
+                v_invalid += 1;
+                eprintln!(
+                    "  [{corpus}] INVALID (edge already attested — not 0-usage): {} :: {}",
+                    f.host_file, f.import_line
+                );
+            }
+            FixOutcome::NoEdge => {
+                v_invalid += 1;
+                eprintln!("  [{corpus}] INVALID (no internal edge): {}", f.host_file);
+            }
+        }
+    }
+    let c_fired = fx
+        .controls
+        .iter()
+        .filter(|f| matches!(fixture_outcome(graph, f), FixOutcome::Fired))
+        .count();
+    FixtureScore {
+        v_caught,
+        v_invalid,
+        violations: fx.violations.len(),
+        c_fired,
+        controls: fx.controls.len(),
+    }
+}
+
 /// Fit a `language` layering graph from a SHA's tree, using the SAME voice-file
 /// collection production uses (`train::collect_source_files` — honors
 /// EXCLUDE_DIRS, `.argotignore`, `[exclude].paths`) plus the manifest files the
@@ -287,41 +337,8 @@ fn run_corpus(target: &Target, data_dir: &Path, catalogs_dir: &Path) -> Result<O
 
     // Authored-fixture recall (real recall, not the coverage estimate): score each
     // violation/control through the resolver on the HEAD graph.
-    let fx_path = catalogs_dir.join(&target.name).join("arch_violations.yaml");
-    let fx: ArchFixtures = std::fs::read_to_string(&fx_path)
-        .ok()
-        .and_then(|s| serde_yaml::from_str(&s).ok())
-        .unwrap_or_default();
-    let (mut v_caught, mut v_missed, mut v_invalid) = (0usize, 0usize, 0usize);
-    for f in &fx.violations {
-        match fixture_outcome(&head_graph, f) {
-            FixOutcome::Fired => v_caught += 1,
-            FixOutcome::NovelMissed => {
-                v_missed += 1;
-                eprintln!("  [{}] MISS (novel forward): {}", target.name, f.host_file);
-            }
-            FixOutcome::Attested => {
-                v_invalid += 1;
-                eprintln!(
-                    "  [{}] INVALID (edge already attested — not 0-usage): {} :: {}",
-                    target.name, f.host_file, f.import_line
-                );
-            }
-            FixOutcome::NoEdge => {
-                v_invalid += 1;
-                eprintln!(
-                    "  [{}] INVALID (no internal edge): {}",
-                    target.name, f.host_file
-                );
-            }
-        }
-    }
-    let c_fired = fx
-        .controls
-        .iter()
-        .filter(|f| matches!(fixture_outcome(&head_graph, f), FixOutcome::Fired))
-        .count();
-    let _ = v_missed;
+    let fs = score_fixtures(&head_graph, catalogs_dir, &target.name);
+    let (v_caught, v_invalid, c_fired) = (fs.v_caught, fs.v_invalid, fs.c_fired);
 
     Ok(Some(ArchResult {
         corpus: target.name.clone(),
@@ -336,12 +353,62 @@ fn run_corpus(target: &Target, data_dir: &Path, catalogs_dir: &Path) -> Result<O
         fires,
         over_fire,
         catch,
-        violations: fx.violations.len(),
+        violations: fs.violations,
         v_caught,
         v_invalid,
-        controls: fx.controls.len(),
+        controls: fs.controls,
         c_fired,
     }))
+}
+
+/// `--mode arch-verify`: fast fixture-recall guard — fit each corpus at HEAD and
+/// score its authored fixtures, skipping the (slow) temporal-holdout replay and
+/// coverage loop. For CI regression detection and quick fixture iteration; the
+/// full `--mode arch` still measures over-fire.
+pub fn run_arch_verify(targets: &[Target], data_dir: &Path, catalogs_dir: &Path) -> Result<String> {
+    let mut out = String::from("# Architecture-graph — fast fixture-recall verify\n\n");
+    out.push_str("| corpus | lang | recall | invalid | ctrl-FP |\n|---|---|--:|--:|--:|\n");
+    let (mut tot_caught, mut tot_valid, mut tot_cfired, mut tot_ctrl) = (0usize, 0usize, 0, 0);
+    for t in targets {
+        let Some(language) = corpus_lang(t) else {
+            continue;
+        };
+        if !catalogs_dir
+            .join(&t.name)
+            .join("arch_violations.yaml")
+            .exists()
+        {
+            continue; // no fixtures — skip
+        }
+        let repo = ensure_clone(data_dir, &t.name, &t.url)?;
+        let head = t.prs[0].sha.clone();
+        sync_corpus_config(catalogs_dir, &t.name, &repo)?;
+        let graph = graph_at(&repo, &head, language)?;
+        let fs = score_fixtures(&graph, catalogs_dir, &t.name);
+        let valid = fs.violations.saturating_sub(fs.v_invalid);
+        tot_caught += fs.v_caught;
+        tot_valid += valid;
+        tot_cfired += fs.c_fired;
+        tot_ctrl += fs.controls;
+        let pct = if valid > 0 {
+            format!("{:.0}%", 100.0 * fs.v_caught as f64 / valid as f64)
+        } else {
+            "—".to_string()
+        };
+        out.push_str(&format!(
+            "| {} | {} | {}/{} = {} | {} | {}/{} |\n",
+            t.name, t.language, fs.v_caught, valid, pct, fs.v_invalid, fs.c_fired, fs.controls
+        ));
+    }
+    let agg = if tot_valid > 0 {
+        100.0 * tot_caught as f64 / tot_valid as f64
+    } else {
+        0.0
+    };
+    out.push_str(&format!(
+        "\n**recall {tot_caught}/{tot_valid} = {agg:.0}% · control-FP {tot_cfired}/{tot_ctrl}**\n"
+    ));
+    Ok(out)
 }
 
 pub fn run_arch(

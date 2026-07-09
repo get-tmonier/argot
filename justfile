@@ -75,6 +75,16 @@ bench-arch *args:
     ./target/release/argot-bench --mode arch --results-dir benchmarks/results/arch \
       {{ if args == "" { "--corpus saleor,scrapy,wagtail,fastapi,faker,composer,laravel,ripgrep,bat,guava,junit5,powershell,jellyfin,rubocop,gh-cli,hugo,hono,eslint,excalidraw,faker-js" } else { args } }}
 
+# Fast fixture-recall guard (`--mode arch-verify`): fit each corpus at HEAD and
+# score its authored fixtures, skipping the slow holdout replay (~25s for all 20
+# corpora vs ~12min). Use as a regression check when the resolver changes — any
+# `invalid` count or recall drop means fixtures rotted. Full over-fire is in
+# `just bench-arch`.
+arch-verify *args:
+    cargo build --release -p argot-bench --features arch
+    ./target/release/argot-bench --mode arch-verify \
+      {{ if args == "" { "--corpus saleor,scrapy,wagtail,fastapi,faker,composer,laravel,ripgrep,bat,guava,junit5,powershell,jellyfin,rubocop,gh-cli,hugo,hono,eslint,excalidraw,faker-js" } else { args } }}
+
 # Dump the resolver-verified 0-usage candidate menu (`--mode arch-candidates`) —
 # ready-to-author fixture rows (host_file + verified import_line) per corpus.
 bench-arch-candidates *args:
