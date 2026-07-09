@@ -1410,13 +1410,22 @@ fn semantic_hits(
         }
     };
 
+    // Dev-only feature capture (`ARGOT_SEM_DUMP=<path>`): append one JSON line
+    // per candidate — its structural features, nearest neighbours and the fire
+    // outcome — so bench sweeps can re-evaluate rule variants offline against a
+    // saved index copy without re-running fit/check. Inert without the env var.
+    let dump_path = std::env::var_os("ARGOT_SEM_DUMP");
+    let mut dump_lines: Vec<String> = Vec::new();
+
     let mut hits = Vec::new();
     for ((bi, lang, f), vec) in candidates.iter().zip(&vecs) {
         let li = &loaded[lang];
         let batch = &patches[*bi];
+        let mut fired: Option<&'static str> = None;
         // F1 first: a duplicate isn't "misplaced", it's "redundant" — the
         // stronger signal wins, one finding per function.
         if let Some(found) = RedundantScorer::new(&li.index).evaluate(f, vec) {
+            fired = Some("redundant");
             let similarity = found.similarity;
             hits.push(build_semantic_hit(
                 batch,
@@ -1433,28 +1442,85 @@ fn semantic_hits(
                 filter_adapters,
                 mute_rules,
             ));
-            continue;
         }
-        // F2 placement.
-        if let Some(m) = PlacementScorer::new(&li.index, &li.area_norms).evaluate(f, vec) {
-            let score = (m.expected_fraction - m.in_area_fraction).max(0.0) as f64;
-            hits.push(build_semantic_hit(
-                batch,
-                f,
-                "misplaced",
-                score,
-                m.expected_fraction as f64,
-                SemanticHitEvidence::Misplaced {
-                    neighbor_area: m.neighbor_area,
-                    actual_area: m.actual_area,
-                    peers: m.peers,
-                },
-                filter_adapters,
-                mute_rules,
-            ));
+        // F2 placement (only when F1 didn't already claim the function).
+        if fired.is_none() {
+            if let Some(m) = PlacementScorer::new(&li.index, &li.area_norms).evaluate(f, vec) {
+                fired = Some("misplaced");
+                let score = (m.expected_fraction - m.in_area_fraction).max(0.0) as f64;
+                hits.push(build_semantic_hit(
+                    batch,
+                    f,
+                    "misplaced",
+                    score,
+                    m.expected_fraction as f64,
+                    SemanticHitEvidence::Misplaced {
+                        neighbor_area: m.neighbor_area,
+                        actual_area: m.actual_area,
+                        peers: m.peers,
+                    },
+                    filter_adapters,
+                    mute_rules,
+                ));
+            }
+        }
+        if dump_path.is_some() {
+            dump_lines.push(dump_semantic_candidate(lang, f, vec, li, fired));
+        }
+    }
+    if let (Some(p), false) = (dump_path, dump_lines.is_empty()) {
+        use std::io::Write as _;
+        if let Ok(mut fh) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&p)
+        {
+            let _ = writeln!(fh, "{}", dump_lines.join("\n"));
         }
     }
     hits
+}
+
+/// One JSON line for the `ARGOT_SEM_DUMP` capture: the candidate's identity and
+/// structural features, its f16 embedding, its top nearest index neighbours
+/// (unfiltered — offline analysis applies its own same-file / cross-file rules
+/// by joining `entry_index` with a saved copy of the index), and the production
+/// fire outcome (to validate offline re-implementations against the binary).
+#[cfg(feature = "semantic")]
+fn dump_semantic_candidate(
+    lang: &str,
+    f: &crate::scoring::semantic::index::FunctionRef,
+    vec: &[f32],
+    li: &crate::scoring::semantic::index::LoadedIndex,
+    fired: Option<&str>,
+) -> String {
+    use base64::Engine as _;
+    /// Neighbours captured per candidate — enough headroom over the check-time
+    /// k=10 for offline variants to re-filter (same-file, deeper k) losslessly.
+    const DUMP_NEIGHBORS: usize = 40;
+    let neighbors: Vec<serde_json::Value> = li
+        .index
+        .nearest(vec, DUMP_NEIGHBORS, |_| true)
+        .iter()
+        .map(|n| serde_json::json!([n.entry_index, n.cosine]))
+        .collect();
+    let vec_f16: Vec<u8> = vec
+        .iter()
+        .flat_map(|x| half::f16::from_f32(*x).to_le_bytes())
+        .collect();
+    serde_json::json!({
+        "lang": lang,
+        "path": f.path,
+        "symbol": f.symbol,
+        "line": f.line,
+        "body_lines": f.text.lines().count(),
+        "callees": f.callees,
+        "subtokens": f.subtokens,
+        "vec_b64": base64::engine::general_purpose::STANDARD.encode(vec_f16),
+        "neighbors": neighbors,
+        "fired": fired,
+    })
+    .to_string()
 }
 
 /// Build one advisory semantic `Hit`, applying the mute + inline suppression
