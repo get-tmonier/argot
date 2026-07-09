@@ -53,6 +53,57 @@ struct ArchResult {
     fires: usize,
     over_fire: f64,
     catch: f64,
+    /// Authored-fixture recall: violations caught / valid, control fires / total.
+    violations: usize,
+    v_caught: usize,
+    v_invalid: usize,
+    controls: usize,
+    c_fired: usize,
+}
+
+/// Authored architectural-violation fixtures (`arch_violations.yaml`): a real
+/// import line added to a real host file, scored through the actual resolver.
+#[derive(serde::Deserialize, Default)]
+struct ArchFixtures {
+    #[serde(default)]
+    violations: Vec<ArchFix>,
+    #[serde(default)]
+    controls: Vec<ArchFix>,
+}
+
+#[derive(serde::Deserialize)]
+struct ArchFix {
+    host_file: String,
+    import_line: String,
+}
+
+/// Outcome of scoring one fixture through the real resolver.
+enum FixOutcome {
+    /// The edge fires (reversal/near-sink) — a violation caught.
+    Fired,
+    /// The edge is 0-usage but not a reversal/sink (forward-cross) — a real miss.
+    NovelMissed,
+    /// The edge already exists in the repo — the fixture is NOT 0-usage (invalid),
+    /// e.g. the source layer already imports the target via a relative import the
+    /// author's absolute grep missed. Excluded from recall.
+    Attested,
+    /// The import didn't resolve to an internal cross-layer edge (bad fixture).
+    NoEdge,
+}
+
+fn fixture_outcome(graph: &RepoLayering, fix: &ArchFix) -> FixOutcome {
+    let edges = graph.file_edges(&fix.host_file, &fix.import_line, Language::Python);
+    if edges.is_empty() {
+        return FixOutcome::NoEdge;
+    }
+    // fires if ANY edge fires; else if ANY edge is attested → Attested; else missed.
+    if edges.iter().any(|e| graph.classify(e).is_some()) {
+        FixOutcome::Fired
+    } else if edges.iter().any(|e| graph.contains_edge(e)) {
+        FixOutcome::Attested
+    } else {
+        FixOutcome::NovelMissed
+    }
 }
 
 /// Fit a layering graph from a SHA's tree, using the SAME voice-file collection
@@ -167,6 +218,44 @@ fn run_corpus(target: &Target, data_dir: &Path, catalogs_dir: &Path) -> Result<O
     }
     let catch = if den > 0.0 { 100.0 * num / den } else { 0.0 };
 
+    // Authored-fixture recall (real recall, not the coverage estimate): score each
+    // violation/control through the resolver on the HEAD graph.
+    let fx_path = catalogs_dir.join(&target.name).join("arch_violations.yaml");
+    let fx: ArchFixtures = std::fs::read_to_string(&fx_path)
+        .ok()
+        .and_then(|s| serde_yaml::from_str(&s).ok())
+        .unwrap_or_default();
+    let (mut v_caught, mut v_missed, mut v_invalid) = (0usize, 0usize, 0usize);
+    for f in &fx.violations {
+        match fixture_outcome(&head_graph, f) {
+            FixOutcome::Fired => v_caught += 1,
+            FixOutcome::NovelMissed => {
+                v_missed += 1;
+                eprintln!("  [{}] MISS (novel forward): {}", target.name, f.host_file);
+            }
+            FixOutcome::Attested => {
+                v_invalid += 1;
+                eprintln!(
+                    "  [{}] INVALID (edge already attested — not 0-usage): {} :: {}",
+                    target.name, f.host_file, f.import_line
+                );
+            }
+            FixOutcome::NoEdge => {
+                v_invalid += 1;
+                eprintln!(
+                    "  [{}] INVALID (no internal edge): {}",
+                    target.name, f.host_file
+                );
+            }
+        }
+    }
+    let c_fired = fx
+        .controls
+        .iter()
+        .filter(|f| matches!(fixture_outcome(&head_graph, f), FixOutcome::Fired))
+        .count();
+    let _ = v_missed;
+
     Ok(Some(ArchResult {
         corpus: target.name.clone(),
         language: target.language.clone(),
@@ -176,6 +265,11 @@ fn run_corpus(target: &Target, data_dir: &Path, catalogs_dir: &Path) -> Result<O
         fires,
         over_fire,
         catch,
+        violations: fx.violations.len(),
+        v_caught,
+        v_invalid,
+        controls: fx.controls.len(),
+        c_fired,
     }))
 }
 
@@ -212,20 +306,49 @@ fn render(results: &[ArchResult]) -> String {
         "over-fire = real clean commits firing (fit @ HEAD~window); catch = \
          popularity-weighted coverage on the HEAD (production) graph.\n\n",
     );
-    s.push_str("| corpus | lang | layers | edges | commits | fires | over-fire | catch |\n");
-    s.push_str("|---|---|--:|--:|--:|--:|--:|--:|\n");
+    s.push_str(
+        "| corpus | lang | layers | edges | commits | over-fire | catch(cov) | \
+         **recall(fixtures)** | ctrl-FP |\n",
+    );
+    s.push_str("|---|---|--:|--:|--:|--:|--:|--:|--:|\n");
     let (mut of_sum, mut catch_sum, mut fires_sum, mut commits_sum) = (0.0, 0.0, 0usize, 0usize);
     let mut worst_of = 0.0f64;
+    let (mut vc, mut vt, mut cf, mut ct) = (0usize, 0usize, 0usize, 0usize);
     for r in results {
+        let valid = r.violations.saturating_sub(r.v_invalid);
+        let recall = if valid > 0 {
+            format!(
+                "{}/{} = {:.0}%{}",
+                r.v_caught,
+                valid,
+                100.0 * r.v_caught as f64 / valid as f64,
+                if r.v_invalid > 0 {
+                    format!(" ({}inv)", r.v_invalid)
+                } else {
+                    String::new()
+                }
+            )
+        } else {
+            "—".to_string()
+        };
+        let ctrl = if r.controls > 0 {
+            format!("{}/{}", r.c_fired, r.controls)
+        } else {
+            "—".to_string()
+        };
         s.push_str(&format!(
-            "| {} | {} | {} | {} | {} | {} | {:.1}% | {:.0}% |\n",
-            r.corpus, r.language, r.layers, r.edges, r.commits, r.fires, r.over_fire, r.catch
+            "| {} | {} | {} | {} | {} | {:.1}% | {:.0}% | {} | {} |\n",
+            r.corpus, r.language, r.layers, r.edges, r.commits, r.over_fire, r.catch, recall, ctrl
         ));
         of_sum += r.over_fire;
         catch_sum += r.catch;
         fires_sum += r.fires;
         commits_sum += r.commits;
         worst_of = worst_of.max(r.over_fire);
+        vc += r.v_caught;
+        vt += r.violations.saturating_sub(r.v_invalid); // valid violations only
+        cf += r.c_fired;
+        ct += r.controls;
     }
     let n = results.len().max(1) as f64;
     let agg_of = if commits_sum > 0 {
@@ -234,7 +357,7 @@ fn render(results: &[ArchResult]) -> String {
         0.0
     };
     s.push_str(&format!(
-        "\n**MEAN** over-fire {:.1}% · catch {:.0}%  |  **aggregate** {}/{} commits = {:.2}% · **worst** {:.1}%\n",
+        "\n**MEAN** over-fire {:.1}% · catch(cov) {:.0}%  |  **holdout** {}/{} commits = {:.2}% (worst {:.1}%)\n",
         of_sum / n,
         catch_sum / n,
         fires_sum,
@@ -242,9 +365,15 @@ fn render(results: &[ArchResult]) -> String {
         agg_of,
         worst_of,
     ));
+    if vt > 0 {
+        s.push_str(&format!(
+            "**FIXTURE recall** {}/{} = {:.0}% caught · **control-FP** {}/{} = {:.1}%  (real recall on authored violations)\n",
+            vc, vt, 100.0 * vc as f64 / vt as f64, cf, ct, 100.0 * cf as f64 / ct.max(1) as f64,
+        ));
+    }
     s.push_str(
-        "\n(gatable ⇒ over-fire ≤5% on every corpus. catch is a coverage estimate, \
-         not injected-fixture recall.)\n",
+        "\n(gatable ⇒ over-fire ≤5% every corpus. catch(cov) = popularity-weighted coverage \
+         estimate; recall(fixtures) = real recall on authored 0-usage-verified violations.)\n",
     );
     s
 }
