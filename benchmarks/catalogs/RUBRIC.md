@@ -52,16 +52,16 @@ at the pinned SHA.
 
 | Class | Count | Tier | What it is |
 |---|---|---|---|
-| `foreign_import` | ≥ 3 | **gated** | A dependency the repo does not import (0-usage at the pinned SHA): a foreign package `use`/`import`/`require`/`#include`. The import stage catches this by design. |
-| `foreign_api` | ≥ 3 | **gated** | A call into a **foreign library's** API — the hunk references a callee/symbol that is 0-usage in the repo (a foreign HTTP client, DB driver, serializer, logger, template engine) where the repo standardises on its own. The call-receiver stage catches the unattested callee. |
-| `foreign_concurrency` | ≥ 2 | **gated** | A **foreign concurrency library/runtime** the repo does not use (a foreign thread pool, async runtime, parallel/coroutine lib) — an unattested foreign callee, not a raw language builtin. |
+| `foreign_import` | ≥ 3 | **gated** | A dependency the repo does not import (0-usage at the pinned SHA): a foreign package `use`/`import`/`require`/`#include`. The import stage catches this by design. **A foreign concurrency library/runtime** (a foreign thread pool, async runtime, parallel/coroutine lib the repo never depends on) folds in here — it is just a foreign dep, caught the same way; it gave no distinct signal as its own class (a flat ~100% redundant with import). Keep the descriptive `category: foreign_concurrency` for reporting, but its scoring `class` is `foreign_import`. |
+| `foreign_api` | ≥ 3 | **gated** | A call into a **foreign library's** API — the hunk references a callee/symbol that is 0-usage in the repo (a foreign HTTP client, DB driver, serializer, logger, template engine) where the repo standardises on its own — and is **not** an explicit import (the harder call-receiver path). |
 | `naming_shape_break` | ≥ 2 | *secondary* | Identifier morphology foreign to the repo (camelCase in a snake_case repo, Hungarian). Reported for interest, never gated. |
 | `semantic_convention` | ≥ 2 | *secondary* | Misuse of the repo's **own / attested** vocabulary: a builtin the repo avoids (`die`/`exit`), a wrong value on an attested construct (`E_USER_ERROR`), or a deprecated API of an already-imported lib. A proven local limit; reported, never gated. |
 
-**The metric = the novel-pattern classes** (`foreign_import` + `foreign_api` +
-`foreign_concurrency`): each fixture's tell is a symbol (import or callee)
-verified **0-usage in the repo at the pinned SHA** — genuinely foreign
-vocabulary, exactly the "unknown to this codebase" thing an LLM drags in. Gate:
+**The metric = the novel-pattern classes** (`foreign_import` + `foreign_api`;
+foreign concurrency libs fold into `foreign_import`): each fixture's tell is a
+symbol (import or callee) verified **0-usage in the repo at the pinned SHA** —
+genuinely foreign vocabulary, exactly the "unknown to this codebase" thing an LLM
+drags in. Gate:
 **catch rate ≥ 85%**, at **over-fire ≈ 0** (existing-file temporal-holdout, the
 false-alarm half of the split above).
 The two `secondary` classes are reported but never gated — they are neither the

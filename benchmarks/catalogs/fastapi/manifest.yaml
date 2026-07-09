@@ -530,6 +530,7 @@ fixtures:
 - id: foreign_concurrency_dramatiq_1
   file: breaks/break_foreign_concurrency_dramatiq.py
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 17
   hunk_end_line: 26
   rationale: "import dramatiq + @dramatiq.actor with .send() offload email to a dramatiq worker, replacing FastAPI BackgroundTasks — dramatiq appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Foreign concurrency import + actor API in-hunk."
@@ -539,6 +540,7 @@ fixtures:
 - id: foreign_concurrency_rq_1
   file: breaks/break_foreign_concurrency_rq.py
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 17
   hunk_end_line: 24
   rationale: "import rq + rq.Queue(...).enqueue dispatch report generation to an RQ worker, replacing FastAPI BackgroundTasks — rq appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Foreign concurrency import + queue API in-hunk."
@@ -548,6 +550,7 @@ fixtures:
 - id: foreign_concurrency_arq_1
   file: breaks/break_foreign_concurrency_arq.py
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 17
   hunk_end_line: 24
   rationale: "from arq import create_pool + from arq.connections import RedisSettings enqueue jobs on an arq pool (receiver variable) — arq appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Foreign submodule import (top-level arq) + receiver-variable enqueue_job API in-hunk."
@@ -557,6 +560,7 @@ fixtures:
 - id: foreign_concurrency_apscheduler_1
   file: breaks/break_foreign_concurrency_apscheduler.py
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 17
   hunk_end_line: 28
   rationale: "from apscheduler.schedulers.background import BackgroundScheduler + scheduler.add_job/start run a periodic cleanup, replacing FastAPI's request-scoped model — apscheduler appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Foreign deep-submodule import (top-level apscheduler) + scheduler API in-hunk."
@@ -566,6 +570,7 @@ fixtures:
 - id: foreign_concurrency_celery_1
   file: breaks/break_foreign_concurrency_celery.py
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 17
   hunk_end_line: 28
   rationale: "celery loaded through importlib.import_module('celery') (importlib attested) so NO static foreign top-level import appears; the tells are _celery_mod.Celery and the @_app.task decorator on a dynamically-loaded handle. celery appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. HARD: masked import — detection relies on the call-receiver stage."
@@ -575,6 +580,7 @@ fixtures:
 - id: foreign_concurrency_eventlet_1
   file: breaks/break_foreign_concurrency_eventlet.py
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 17
   hunk_end_line: 24
   rationale: "eventlet loaded through importlib.import_module('eventlet') (importlib attested) so NO static foreign import appears; the tells are _eventlet.GreenPool and _pool.imap on a dynamically-loaded handle. eventlet appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. HARD: masked import — a foreign green-thread runtime reached only through callees."
@@ -584,6 +590,7 @@ fixtures:
 - id: foreign_concurrency_gevent_1
   file: breaks/break_foreign_concurrency_gevent.py
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 17
   hunk_end_line: 25
   rationale: "gevent loaded through importlib.import_module('gevent') (importlib attested) so NO static foreign import appears; the tells are _gevent.spawn/_gevent.joinall on a dynamically-loaded handle. gevent appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. HARD: masked import — a foreign coroutine runtime reached only through callees."

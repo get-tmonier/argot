@@ -89,6 +89,7 @@ fixtures:
 - id: foreign_ants_1
   file: breaks/break_foreign_ants_1.go
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 19
   hunk_end_line: 44
   rationale: 'github.com/panjf2000/ants/v2 goroutine pool (ants.NewPool/pool.Submit/pool.Release)
@@ -102,6 +103,7 @@ fixtures:
 - id: foreign_conc_1
   file: breaks/break_foreign_conc_1.go
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 18
   hunk_end_line: 35
   rationale: 'github.com/sourcegraph/conc structured-concurrency pool
@@ -116,6 +118,7 @@ fixtures:
 - id: foreign_pond_1
   file: breaks/break_foreign_pond_1.go
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 15
   hunk_end_line: 32
   rationale: 'github.com/alitto/pond worker pool (pond.New/pool.Submit/pool.StopAndWait)
@@ -182,6 +185,7 @@ fixtures:
 - id: foreign_workerpool_1
   file: breaks/break_foreign_workerpool_1.go
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 18
   hunk_end_line: 35
   rationale: 'github.com/gammazero/workerpool worker pool (workerpool.New/Submit/
@@ -260,6 +264,7 @@ fixtures:
 - id: foreign_tunny_1
   file: breaks/break_foreign_tunny_1.go
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 18
   hunk_end_line: 36
   rationale: 'github.com/Jeffail/tunny reached via a package-qualified constructor
@@ -311,6 +316,7 @@ fixtures:
 - id: foreign_semaphore_1
   file: breaks/break_foreign_semaphore_1.go
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 18
   hunk_end_line: 40
   rationale: 'github.com/marusama/semaphore/v2 reached through a receiver variable —

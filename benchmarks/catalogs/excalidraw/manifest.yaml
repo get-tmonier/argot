@@ -308,6 +308,7 @@ fixtures:
 - id: excalidraw_foreign_concurrency_plimit
   file: breaks/break_foreign_plimit_concurrency.ts
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 14
   rationale: "import pLimit from 'p-limit' at line 1 (inside the hunk) + const
@@ -321,6 +322,7 @@ fixtures:
 - id: excalidraw_foreign_concurrency_comlink
   file: breaks/break_foreign_comlink_concurrency.ts
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 18
   rationale: "import * as Comlink from 'comlink' at line 1 (inside the hunk) +
@@ -334,6 +336,7 @@ fixtures:
 - id: excalidraw_foreign_concurrency_rxjs
   file: breaks/break_foreign_rxjs_concurrency.ts
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 13
   rationale: "import { Subject } from 'rxjs' + submodule import rxjs/operators (both
@@ -397,6 +400,7 @@ fixtures:
 - id: excalidraw_foreign_concurrency_pusher
   file: breaks/break_foreign_pusher_concurrency.ts
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 19
   rationale: "pusher-js realtime presence runtime lazy-loaded via
@@ -415,6 +419,7 @@ fixtures:
 - id: excalidraw_foreign_concurrency_piscina
   file: breaks/break_foreign_piscina_concurrency.ts
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 14
   rationale: "import Piscina from 'piscina' at line 1 (inside the hunk) + new
@@ -432,6 +437,7 @@ fixtures:
 - id: excalidraw_foreign_concurrency_pqueue
   file: breaks/break_foreign_pqueue_concurrency.ts
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 11
   rationale: "import PQueue from 'p-queue' at line 1 (inside the hunk) + new

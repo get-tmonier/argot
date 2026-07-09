@@ -323,6 +323,7 @@ fixtures:
 - id: foreign_tbb_1
   file: breaks/break_foreign_tbb_1.cpp
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 16
   hunk_end_line: 34
   rationale: 'Intel TBB parallel task runtime for a parallel memtable scan,
@@ -366,6 +367,7 @@ fixtures:
 - id: foreign_taskflow_1
   file: breaks/break_foreign_taskflow_1.cpp
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 12
   hunk_end_line: 26
   rationale: 'Taskflow dependency reached through an executor receiver variable
@@ -490,6 +492,7 @@ fixtures:
 - id: foreign_boost_lockfree_1
   file: breaks/break_foreign_boost_lockfree_1.cpp
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 15
   hunk_end_line: 34
   rationale: 'boost::lockfree (a foreign lock-free concurrency queue) reached
@@ -507,6 +510,7 @@ fixtures:
 - id: foreign_openmp_1
   file: breaks/break_foreign_openmp_1.cpp
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 16
   hunk_end_line: 30
   rationale: 'OpenMP runtime for a parallel checksum fold over table blocks,
@@ -522,6 +526,7 @@ fixtures:
 - id: foreign_moodycamel_1
   file: breaks/break_foreign_moodycamel_1.cpp
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 17
   hunk_end_line: 35
   rationale: 'moodycamel::ConcurrentQueue, a foreign lock-free MPMC queue, to hand
@@ -539,6 +544,7 @@ fixtures:
 - id: foreign_asio_pool_1
   file: breaks/break_foreign_asio_pool_1.cpp
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 14
   hunk_end_line: 28
   rationale: 'boost::asio::thread_pool, a foreign thread-pool runtime, to run flush

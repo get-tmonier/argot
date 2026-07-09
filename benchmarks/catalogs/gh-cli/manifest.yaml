@@ -288,6 +288,7 @@ fixtures:
 - id: foreign_ants_1
   file: breaks/break_foreign_ants_1.go
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 8
   hunk_end_line: 30
   rationale: 'github.com/panjf2000/ants/v2 goroutine pool (ants.NewPool/pool.Submit/pool.Release)
@@ -301,6 +302,7 @@ fixtures:
 - id: foreign_conc_1
   file: breaks/break_foreign_conc_1.go
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 7
   hunk_end_line: 21
   rationale: 'github.com/sourcegraph/conc structured-concurrency pool
@@ -398,6 +400,7 @@ fixtures:
 - id: foreign_pond_1
   file: breaks/break_foreign_pond_1.go
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 7
   hunk_end_line: 21
   rationale: 'github.com/alitto/pond worker pool imported inside the hunk and reached
@@ -412,6 +415,7 @@ fixtures:
 - id: foreign_tunny_1
   file: breaks/break_foreign_tunny_1.go
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 7
   hunk_end_line: 19
   rationale: 'github.com/Jeffail/tunny reached through a BARE tunny.NewFunc(...) call
@@ -457,6 +461,7 @@ fixtures:
 - id: foreign_ratelimit_1
   file: breaks/break_foreign_ratelimit_1.go
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 7
   hunk_end_line: 16
   rationale: 'go.uber.org/ratelimit reached ONLY through a ratelimit.Limiter

@@ -248,6 +248,7 @@ fixtures:
 - id: foreign_concurrency_gevent_1
   file: breaks/break_foreign_concurrency_gevent_1.py
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 14
   hunk_end_line: 22
   difficulty: easy
@@ -257,6 +258,7 @@ fixtures:
 - id: foreign_concurrency_eventlet_2
   file: breaks/break_foreign_concurrency_eventlet_2.py
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 15
   hunk_end_line: 20
   difficulty: medium
@@ -266,6 +268,7 @@ fixtures:
 - id: foreign_concurrency_trio_3
   file: breaks/break_foreign_concurrency_trio_3.py
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 14
   hunk_end_line: 22
   difficulty: hard
@@ -311,6 +314,7 @@ fixtures:
 - id: foreign_concurrency_greenlet_4
   file: breaks/break_foreign_concurrency_greenlet_4.py
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 14
   hunk_end_line: 29
   difficulty: easy
@@ -320,6 +324,7 @@ fixtures:
 - id: foreign_concurrency_joblib_5
   file: breaks/break_foreign_concurrency_joblib_5.py
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 15
   hunk_end_line: 20
   difficulty: medium
@@ -329,6 +334,7 @@ fixtures:
 - id: foreign_concurrency_dask_6
   file: breaks/break_foreign_concurrency_dask_6.py
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 14
   hunk_end_line: 21
   difficulty: easy

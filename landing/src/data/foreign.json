@@ -6,13 +6,13 @@
    "language": "Rust",
    "classes": {
     "foreign_import": {
-     "caught": 7,
-     "total": 7,
+     "caught": 13,
+     "total": 13,
      "pct": 100,
      "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 93,
      "reason": "call_receiver"
     },
     "foreign_api": {
@@ -23,16 +23,6 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 75,
-     "reason": "call_receiver"
-    },
-    "foreign_concurrency": {
-     "caught": 6,
-     "total": 6,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 1,
-     "masked_pct": 0,
-     "overall_pct": 86,
      "reason": "call_receiver"
     }
    },
@@ -47,14 +37,14 @@
    "language": "JavaScript",
    "classes": {
     "foreign_import": {
-     "caught": 6,
-     "total": 6,
+     "caught": 11,
+     "total": 11,
      "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
+     "masked_caught": 1,
+     "masked_total": 1,
+     "masked_pct": 100,
      "overall_pct": 100,
-     "reason": "import"
+     "reason": "call_receiver"
     },
     "foreign_api": {
      "caught": 5,
@@ -64,16 +54,6 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 83,
-     "reason": "call_receiver"
-    },
-    "foreign_concurrency": {
-     "caught": 5,
-     "total": 5,
-     "pct": 100,
-     "masked_caught": 1,
-     "masked_total": 1,
-     "masked_pct": 100,
-     "overall_pct": 100,
      "reason": "call_receiver"
     }
    },
@@ -109,11 +89,11 @@
    "language": "PHP",
    "classes": {
     "foreign_import": {
-     "caught": 6,
-     "total": 6,
+     "caught": 12,
+     "total": 12,
      "pct": 100,
      "masked_caught": 0,
-     "masked_total": 1,
+     "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 86,
      "reason": "call_receiver"
@@ -126,16 +106,6 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 88,
-     "reason": "call_receiver"
-    },
-    "foreign_concurrency": {
-     "caught": 6,
-     "total": 6,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 1,
-     "masked_pct": 0,
-     "overall_pct": 86,
      "reason": "call_receiver"
     }
    },
@@ -150,12 +120,12 @@
    "language": "C",
    "classes": {
     "foreign_import": {
-     "caught": 6,
-     "total": 7,
-     "pct": 86,
+     "caught": 12,
+     "total": 13,
+     "pct": 92,
      "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
+     "masked_total": 1,
+     "masked_pct": 0,
      "overall_pct": 86,
      "reason": "call_receiver"
     },
@@ -167,16 +137,6 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 75,
-     "reason": "call_receiver"
-    },
-    "foreign_concurrency": {
-     "caught": 6,
-     "total": 6,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 1,
-     "masked_pct": 0,
-     "overall_pct": 86,
      "reason": "call_receiver"
     }
    },
@@ -191,8 +151,8 @@
    "language": "Python",
    "classes": {
     "foreign_import": {
-     "caught": 6,
-     "total": 6,
+     "caught": 11,
+     "total": 11,
      "pct": 100,
      "masked_caught": 0,
      "masked_total": 0,
@@ -208,16 +168,6 @@
      "masked_total": 7,
      "masked_pct": 43,
      "overall_pct": 59,
-     "reason": "import"
-    },
-    "foreign_concurrency": {
-     "caught": 5,
-     "total": 5,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
      "reason": "import"
     }
    },
@@ -253,13 +203,13 @@
    "language": "JavaScript",
    "classes": {
     "foreign_import": {
-     "caught": 6,
-     "total": 6,
+     "caught": 11,
+     "total": 11,
      "pct": 100,
      "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 92,
      "reason": "import"
     },
     "foreign_api": {
@@ -271,16 +221,6 @@
      "masked_pct": 100,
      "overall_pct": 100,
      "reason": "call_receiver"
-    },
-    "foreign_concurrency": {
-     "caught": 5,
-     "total": 5,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 1,
-     "masked_pct": 0,
-     "overall_pct": 83,
-     "reason": "import"
     }
    },
    "secondary": {
@@ -315,12 +255,12 @@
    "language": "TypeScript",
    "classes": {
     "foreign_import": {
-     "caught": 7,
-     "total": 7,
+     "caught": 12,
+     "total": 12,
      "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
+     "masked_caught": 1,
+     "masked_total": 1,
+     "masked_pct": 100,
      "overall_pct": 100,
      "reason": "import"
     },
@@ -332,16 +272,6 @@
      "masked_total": 3,
      "masked_pct": 0,
      "overall_pct": 71,
-     "reason": "import"
-    },
-    "foreign_concurrency": {
-     "caught": 5,
-     "total": 5,
-     "pct": 100,
-     "masked_caught": 1,
-     "masked_total": 1,
-     "masked_pct": 100,
-     "overall_pct": 100,
      "reason": "import"
     }
    },
@@ -367,13 +297,13 @@
    "language": "JavaScript",
    "classes": {
     "foreign_import": {
-     "caught": 6,
-     "total": 6,
+     "caught": 11,
+     "total": 11,
      "pct": 100,
      "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 92,
      "reason": "import"
     },
     "foreign_api": {
@@ -385,16 +315,6 @@
      "masked_pct": 0,
      "overall_pct": 83,
      "reason": "call_receiver"
-    },
-    "foreign_concurrency": {
-     "caught": 5,
-     "total": 5,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 1,
-     "masked_pct": 0,
-     "overall_pct": 83,
-     "reason": "import"
     }
    },
    "secondary": {
@@ -429,13 +349,13 @@
    "language": "Python",
    "classes": {
     "foreign_import": {
-     "caught": 6,
-     "total": 6,
+     "caught": 11,
+     "total": 11,
      "pct": 100,
      "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 92,
      "reason": "import"
     },
     "foreign_api": {
@@ -446,16 +366,6 @@
      "masked_total": 6,
      "masked_pct": 50,
      "overall_pct": 78,
-     "reason": "import"
-    },
-    "foreign_concurrency": {
-     "caught": 5,
-     "total": 5,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 1,
-     "masked_pct": 0,
-     "overall_pct": 83,
      "reason": "import"
     }
    },
@@ -481,13 +391,13 @@
    "language": "TypeScript",
    "classes": {
     "foreign_import": {
-     "caught": 6,
-     "total": 6,
+     "caught": 10,
+     "total": 10,
      "pct": 100,
      "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 91,
      "reason": "import"
     },
     "foreign_api": {
@@ -499,16 +409,6 @@
      "masked_pct": 33,
      "overall_pct": 82,
      "reason": "import"
-    },
-    "foreign_concurrency": {
-     "caught": 4,
-     "total": 4,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 1,
-     "masked_pct": 0,
-     "overall_pct": 80,
-     "reason": "call_receiver"
     }
    },
    "secondary": {
@@ -533,13 +433,13 @@
    "language": "Python",
    "classes": {
     "foreign_import": {
-     "caught": 8,
-     "total": 8,
+     "caught": 12,
+     "total": 12,
      "pct": 100,
      "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
+     "masked_total": 3,
+     "masked_pct": 0,
+     "overall_pct": 80,
      "reason": "import"
     },
     "foreign_api": {
@@ -550,16 +450,6 @@
      "masked_total": 6,
      "masked_pct": 0,
      "overall_pct": 53,
-     "reason": "import"
-    },
-    "foreign_concurrency": {
-     "caught": 4,
-     "total": 4,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 3,
-     "masked_pct": 0,
-     "overall_pct": 57,
      "reason": "import"
     }
    },
@@ -585,13 +475,13 @@
    "language": "C++",
    "classes": {
     "foreign_import": {
-     "caught": 7,
-     "total": 7,
+     "caught": 13,
+     "total": 13,
      "pct": 100,
      "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 93,
      "reason": "call_receiver"
     },
     "foreign_api": {
@@ -603,16 +493,6 @@
      "masked_pct": 0,
      "overall_pct": 67,
      "reason": "call_receiver"
-    },
-    "foreign_concurrency": {
-     "caught": 6,
-     "total": 6,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 1,
-     "masked_pct": 0,
-     "overall_pct": 86,
-     "reason": "import"
     }
    },
    "secondary": {},
@@ -626,13 +506,13 @@
    "language": "Go",
    "classes": {
     "foreign_import": {
-     "caught": 6,
-     "total": 6,
+     "caught": 10,
+     "total": 10,
      "pct": 100,
      "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 91,
      "reason": "import"
     },
     "foreign_api": {
@@ -644,16 +524,6 @@
      "masked_pct": 0,
      "overall_pct": 67,
      "reason": "import"
-    },
-    "foreign_concurrency": {
-     "caught": 4,
-     "total": 4,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 1,
-     "masked_pct": 0,
-     "overall_pct": 80,
-     "reason": "call_receiver"
     }
    },
    "secondary": {
@@ -688,13 +558,13 @@
    "language": "Java",
    "classes": {
     "foreign_import": {
-     "caught": 7,
-     "total": 7,
+     "caught": 12,
+     "total": 12,
      "pct": 100,
      "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 86,
      "reason": "import"
     },
     "foreign_api": {
@@ -706,16 +576,6 @@
      "masked_pct": 33,
      "overall_pct": 80,
      "reason": "bpe"
-    },
-    "foreign_concurrency": {
-     "caught": 5,
-     "total": 5,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 2,
-     "masked_pct": 0,
-     "overall_pct": 71,
-     "reason": "import"
     }
    },
    "secondary": {
@@ -750,11 +610,11 @@
    "language": "Ruby",
    "classes": {
     "foreign_import": {
-     "caught": 7,
-     "total": 7,
+     "caught": 11,
+     "total": 11,
      "pct": 100,
-     "masked_caught": 1,
-     "masked_total": 1,
+     "masked_caught": 2,
+     "masked_total": 2,
      "masked_pct": 100,
      "overall_pct": 100,
      "reason": "import"
@@ -765,16 +625,6 @@
      "pct": 100,
      "masked_caught": 3,
      "masked_total": 3,
-     "masked_pct": 100,
-     "overall_pct": 100,
-     "reason": "import"
-    },
-    "foreign_concurrency": {
-     "caught": 4,
-     "total": 4,
-     "pct": 100,
-     "masked_caught": 1,
-     "masked_total": 1,
      "masked_pct": 100,
      "overall_pct": 100,
      "reason": "import"
@@ -812,13 +662,13 @@
    "language": "TypeScript",
    "classes": {
     "foreign_import": {
-     "caught": 7,
-     "total": 7,
+     "caught": 12,
+     "total": 12,
      "pct": 100,
      "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 86,
      "reason": "import"
     },
     "foreign_api": {
@@ -829,16 +679,6 @@
      "masked_total": 5,
      "masked_pct": 20,
      "overall_pct": 75,
-     "reason": "import"
-    },
-    "foreign_concurrency": {
-     "caught": 5,
-     "total": 5,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 2,
-     "masked_pct": 0,
-     "overall_pct": 71,
      "reason": "import"
     }
    },
@@ -864,12 +704,12 @@
    "language": "Go",
    "classes": {
     "foreign_import": {
-     "caught": 7,
-     "total": 7,
+     "caught": 12,
+     "total": 12,
      "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
+     "masked_caught": 1,
+     "masked_total": 1,
+     "masked_pct": 100,
      "overall_pct": 100,
      "reason": "import"
     },
@@ -882,16 +722,6 @@
      "masked_pct": 0,
      "overall_pct": 78,
      "reason": "call_receiver"
-    },
-    "foreign_concurrency": {
-     "caught": 5,
-     "total": 5,
-     "pct": 100,
-     "masked_caught": 1,
-     "masked_total": 1,
-     "masked_pct": 100,
-     "overall_pct": 100,
-     "reason": "import"
     }
    },
    "secondary": {},
@@ -905,13 +735,13 @@
    "language": "TypeScript",
    "classes": {
     "foreign_import": {
-     "caught": 6,
-     "total": 6,
+     "caught": 11,
+     "total": 11,
      "pct": 100,
      "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 92,
      "reason": "import"
     },
     "foreign_api": {
@@ -923,16 +753,6 @@
      "masked_pct": 100,
      "overall_pct": 100,
      "reason": "call_receiver"
-    },
-    "foreign_concurrency": {
-     "caught": 5,
-     "total": 5,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 1,
-     "masked_pct": 0,
-     "overall_pct": 83,
-     "reason": "import"
     }
    },
    "secondary": {
@@ -957,13 +777,13 @@
    "language": "C#",
    "classes": {
     "foreign_import": {
-     "caught": 7,
-     "total": 7,
+     "caught": 12,
+     "total": 12,
      "pct": 100,
      "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 92,
      "reason": "call_receiver"
     },
     "foreign_api": {
@@ -975,16 +795,6 @@
      "masked_pct": 0,
      "overall_pct": 70,
      "reason": "import"
-    },
-    "foreign_concurrency": {
-     "caught": 5,
-     "total": 5,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 1,
-     "masked_pct": 0,
-     "overall_pct": 83,
-     "reason": "call_receiver"
     }
    },
    "secondary": {},
@@ -998,14 +808,14 @@
    "language": "Java",
    "classes": {
     "foreign_import": {
-     "caught": 6,
-     "total": 6,
+     "caught": 12,
+     "total": 12,
      "pct": 100,
      "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
-     "reason": "import"
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 86,
+     "reason": "call_receiver"
     },
     "foreign_api": {
      "caught": 7,
@@ -1015,16 +825,6 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 88,
-     "reason": "call_receiver"
-    },
-    "foreign_concurrency": {
-     "caught": 6,
-     "total": 6,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 2,
-     "masked_pct": 0,
-     "overall_pct": 75,
      "reason": "call_receiver"
     }
    },
@@ -1039,8 +839,8 @@
    "language": "PHP",
    "classes": {
     "foreign_import": {
-     "caught": 6,
-     "total": 6,
+     "caught": 12,
+     "total": 12,
      "pct": 100,
      "masked_caught": 0,
      "masked_total": 0,
@@ -1056,16 +856,6 @@
      "masked_total": 4,
      "masked_pct": 25,
      "overall_pct": 79,
-     "reason": "call_receiver"
-    },
-    "foreign_concurrency": {
-     "caught": 6,
-     "total": 6,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
      "reason": "call_receiver"
     }
    },
@@ -1101,8 +891,8 @@
    "language": "TypeScript",
    "classes": {
     "foreign_import": {
-     "caught": 5,
-     "total": 5,
+     "caught": 11,
+     "total": 11,
      "pct": 100,
      "masked_caught": 0,
      "masked_total": 0,
@@ -1118,16 +908,6 @@
      "masked_total": 6,
      "masked_pct": 0,
      "overall_pct": 50,
-     "reason": "import"
-    },
-    "foreign_concurrency": {
-     "caught": 6,
-     "total": 6,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
      "reason": "import"
     }
    },
@@ -1153,14 +933,14 @@
    "language": "C#",
    "classes": {
     "foreign_import": {
-     "caught": 9,
-     "total": 9,
+     "caught": 13,
+     "total": 13,
      "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
-     "reason": "import"
+     "masked_caught": 1,
+     "masked_total": 2,
+     "masked_pct": 50,
+     "overall_pct": 93,
+     "reason": "call_receiver"
     },
     "foreign_api": {
      "caught": 8,
@@ -1170,16 +950,6 @@
      "masked_total": 2,
      "masked_pct": 50,
      "overall_pct": 82,
-     "reason": "call_receiver"
-    },
-    "foreign_concurrency": {
-     "caught": 4,
-     "total": 4,
-     "pct": 100,
-     "masked_caught": 1,
-     "masked_total": 2,
-     "masked_pct": 50,
-     "overall_pct": 83,
      "reason": "call_receiver"
     }
    },
@@ -1215,13 +985,13 @@
    "language": "C",
    "classes": {
     "foreign_import": {
-     "caught": 7,
-     "total": 7,
+     "caught": 11,
+     "total": 11,
      "pct": 100,
-     "masked_caught": 1,
-     "masked_total": 1,
-     "masked_pct": 100,
-     "overall_pct": 100,
+     "masked_caught": 2,
+     "masked_total": 3,
+     "masked_pct": 67,
+     "overall_pct": 93,
      "reason": "call_receiver"
     },
     "foreign_api": {
@@ -1232,16 +1002,6 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 89,
-     "reason": "call_receiver"
-    },
-    "foreign_concurrency": {
-     "caught": 4,
-     "total": 4,
-     "pct": 100,
-     "masked_caught": 1,
-     "masked_total": 2,
-     "masked_pct": 50,
-     "overall_pct": 83,
      "reason": "call_receiver"
     }
    },
@@ -1277,8 +1037,8 @@
    "language": "Python",
    "classes": {
     "foreign_import": {
-     "caught": 6,
-     "total": 6,
+     "caught": 12,
+     "total": 12,
      "pct": 100,
      "masked_caught": 0,
      "masked_total": 0,
@@ -1295,16 +1055,6 @@
      "masked_pct": 25,
      "overall_pct": 75,
      "reason": "import"
-    },
-    "foreign_concurrency": {
-     "caught": 6,
-     "total": 6,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
-     "reason": "call_receiver"
     }
    },
    "secondary": {
@@ -1329,14 +1079,14 @@
    "language": "Rust",
    "classes": {
     "foreign_import": {
-     "caught": 6,
-     "total": 6,
+     "caught": 11,
+     "total": 11,
      "pct": 100,
      "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
-     "reason": "import"
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 92,
+     "reason": "call_receiver"
     },
     "foreign_api": {
      "caught": 8,
@@ -1346,16 +1096,6 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 80,
-     "reason": "call_receiver"
-    },
-    "foreign_concurrency": {
-     "caught": 5,
-     "total": 5,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 1,
-     "masked_pct": 0,
-     "overall_pct": 83,
      "reason": "call_receiver"
     }
    },
@@ -1391,14 +1131,14 @@
    "language": "C++",
    "classes": {
     "foreign_import": {
-     "caught": 5,
-     "total": 5,
+     "caught": 9,
+     "total": 9,
      "pct": 100,
      "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
-     "reason": "call_receiver"
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 82,
+     "reason": "import"
     },
     "foreign_api": {
      "caught": 12,
@@ -1409,16 +1149,6 @@
      "masked_pct": 0,
      "overall_pct": 80,
      "reason": "call_receiver"
-    },
-    "foreign_concurrency": {
-     "caught": 4,
-     "total": 4,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 2,
-     "masked_pct": 0,
-     "overall_pct": 67,
-     "reason": "import"
     }
    },
    "secondary": {
@@ -1453,13 +1183,13 @@
    "language": "Ruby",
    "classes": {
     "foreign_import": {
-     "caught": 8,
-     "total": 8,
+     "caught": 13,
+     "total": 13,
      "pct": 100,
      "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 93,
      "reason": "call_receiver"
     },
     "foreign_api": {
@@ -1470,16 +1200,6 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 75,
-     "reason": "call_receiver"
-    },
-    "foreign_concurrency": {
-     "caught": 5,
-     "total": 5,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 1,
-     "masked_pct": 0,
-     "overall_pct": 83,
      "reason": "call_receiver"
     }
    },
@@ -1494,13 +1214,13 @@
    "language": "Python",
    "classes": {
     "foreign_import": {
-     "caught": 7,
-     "total": 7,
+     "caught": 13,
+     "total": 13,
      "pct": 100,
      "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 93,
      "reason": "import"
     },
     "foreign_api": {
@@ -1511,16 +1231,6 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 75,
-     "reason": "import"
-    },
-    "foreign_concurrency": {
-     "caught": 6,
-     "total": 6,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 1,
-     "masked_pct": 0,
-     "overall_pct": 86,
      "reason": "import"
     }
    },
@@ -1546,13 +1256,13 @@
    "language": "Python",
    "classes": {
     "foreign_import": {
-     "caught": 8,
-     "total": 8,
+     "caught": 12,
+     "total": 12,
      "pct": 100,
      "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
+     "masked_total": 3,
+     "masked_pct": 0,
+     "overall_pct": 80,
      "reason": "import"
     },
     "foreign_api": {
@@ -1563,16 +1273,6 @@
      "masked_total": 3,
      "masked_pct": 0,
      "overall_pct": 67,
-     "reason": "import"
-    },
-    "foreign_concurrency": {
-     "caught": 4,
-     "total": 4,
-     "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 3,
-     "masked_pct": 0,
-     "overall_pct": 57,
      "reason": "import"
     }
    },
@@ -1587,12 +1287,12 @@
    "language": "Python",
    "classes": {
     "foreign_import": {
-     "caught": 7,
-     "total": 7,
+     "caught": 13,
+     "total": 13,
      "pct": 100,
-     "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
+     "masked_caught": 1,
+     "masked_total": 1,
+     "masked_pct": 100,
      "overall_pct": 100,
      "reason": "import"
     },
@@ -1604,16 +1304,6 @@
      "masked_total": 3,
      "masked_pct": 0,
      "overall_pct": 80,
-     "reason": "import"
-    },
-    "foreign_concurrency": {
-     "caught": 6,
-     "total": 6,
-     "pct": 100,
-     "masked_caught": 1,
-     "masked_total": 1,
-     "masked_pct": 100,
-     "overall_pct": 100,
      "reason": "import"
     }
    },

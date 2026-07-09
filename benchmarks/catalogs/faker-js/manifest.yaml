@@ -219,6 +219,7 @@ fixtures:
 - id: faker_js_foreign_concurrency_1
   file: breaks/break_foreign_concurrency_1.ts
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 12
   rationale: import Piscina from 'piscina' plus a new Piscina(...) worker pool inside the color module; piscina has 0 hits in the corpus (.ts) at 6c2a0abd and is absent from package.json — faker-js runs synchronously; import/call-receiver fires on the foreign concurrency lib
@@ -228,6 +229,7 @@ fixtures:
 - id: faker_js_foreign_concurrency_2
   file: breaks/break_foreign_concurrency_2.ts
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 12
   rationale: import { spawn, Thread, Worker } from 'threads' plus spawn(new Worker(...)) inside the science module; the threads package has 0 hits in the corpus (.ts) at 6c2a0abd and is absent from package.json — faker-js is synchronous; import/call-receiver fires on the foreign concurrency lib
@@ -279,6 +281,7 @@ fixtures:
 - id: faker_js_foreign_concurrency_tinypool
   file: breaks/break_foreign_concurrency_tinypool.ts
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 16
   rationale: "import Tinypool from 'tinypool' + new Tinypool(...).run(...) parallelising price generation inside the commerce module. Verified foreign at SHA 6c2a0abd: tinypool = 0 git-grep hits across *.ts and absent from package.json — faker runs synchronously on the main thread. Import scorer fires on the foreign concurrency lib."
@@ -315,6 +318,7 @@ fixtures:
 - id: faker_js_foreign_concurrency_plimit_decoy
   file: breaks/break_foreign_concurrency_plimit_decoy.ts
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 14
   hunk_end_line: 20
   rationale: "import pLimit from 'p-limit' lives in the decoy region (line 1, OUTSIDE the scored hunk); the scored hunk (manyDataUris) uses the bare foreign callee pLimit(4) to throttle image generation. Verified foreign at SHA 6c2a0abd: p-limit = 0 git-grep hits across *.ts and absent from package.json — faker builds data URIs synchronously. Medium: import-outside-hunk stresses callee resolution; in production the whole planted block is diffed so the import scorer still fires."
@@ -351,6 +355,7 @@ fixtures:
 - id: faker_js_foreign_concurrency_rxjs_leafcollision
   file: breaks/break_foreign_concurrency_rxjs_leafcollision.ts
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 12
   rationale: "rxjs.from(seeds).pipe(rxjs.map(...)) builds a reactive async-streams pipeline over generated seeds — a foreign runtime. Verified foreign at SHA 6c2a0abd: rxjs = 0 git-grep hits across *.ts and absent from package.json. HARD (masked): NO foreign import line (import assumed pre-existing); the foreign leaf methods from (11 sites) / map (12 sites) collide with faker's attested .from/.map, and .pipe runs through a local receiver variable (stream), so call-receiver never marks the callees foreign. Expected to MISS unless BPE surprises on the novel 'rxjs' token — an honest hard break."

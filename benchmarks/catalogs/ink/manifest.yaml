@@ -238,6 +238,7 @@ fixtures:
 - id: ink_foreign_concurrency_workerpool
   file: breaks/break_foreign_workerpool_concurrency.tsx
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 18
   hunk_end_line: 36
   rationale: "import workerpool from 'workerpool' inside the hunk + workerpool.pool()
@@ -251,6 +252,7 @@ fixtures:
 - id: ink_foreign_concurrency_bullmq
   file: breaks/break_foreign_bullmq_concurrency.tsx
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 17
   hunk_end_line: 27
   rationale: "import { Queue } from 'bullmq' inside the hunk + new Queue(...).add
@@ -315,6 +317,7 @@ fixtures:
 - id: ink_foreign_concurrency_piscina
   file: breaks/break_foreign_piscina_concurrency.tsx
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 14
   hunk_end_line: 28
   rationale: "import Piscina from 'piscina' inside the hunk + new Piscina()/pool.run()
@@ -368,6 +371,7 @@ fixtures:
 - id: ink_foreign_concurrency_rxjs
   file: breaks/break_foreign_rxjs_concurrency.tsx
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 18
   hunk_end_line: 24
   rationale: "new Subject()/.subscribe()/.next() reactive stream inside the scored hunk
@@ -381,6 +385,7 @@ fixtures:
 - id: ink_foreign_concurrency_pretry
   file: breaks/break_foreign_pretry_concurrency.tsx
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 18
   hunk_end_line: 20
   rationale: "bare pRetry(task, {retries}) callee inside the scored hunk with a static
@@ -429,6 +434,7 @@ fixtures:
 - id: ink_foreign_concurrency_eventemitter3
   file: breaks/break_foreign_eventemitter3_concurrency.tsx
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 16
   hunk_end_line: 24
   rationale: "MASKED hard case: eventemitter3 is reached through a dynamic import()

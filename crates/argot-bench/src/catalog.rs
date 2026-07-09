@@ -5,14 +5,18 @@ use anyhow::{bail, Context, Result};
 use serde::Deserialize;
 use std::path::Path;
 
-/// The five canonical RUBRIC scoring classes. A fixture's `class()` must be one
-/// of these; the descriptive `category` (jquery, xhr_network, …) is free-text for
-/// reporting only. Gating is decided purely from the canonical class, so no code
-/// ever needs to know a corpus's ad-hoc category vocabulary.
-pub const CANONICAL_CLASSES: [&str; 5] = [
+/// The four canonical RUBRIC scoring classes. A fixture's `class()` must be one
+/// of these; the descriptive `category` (jquery, xhr_network, foreign_concurrency,
+/// …) is free-text for reporting only. Gating is decided purely from the canonical
+/// class, so no code ever needs to know a corpus's ad-hoc category vocabulary.
+///
+/// Two gated foreign capabilities: `foreign_import` (a foreign package/dep — the
+/// import stage; foreign concurrency libs fold in here, they are just deps) and
+/// `foreign_api` (a foreign callee that is not an explicit import — the harder
+/// call-receiver path). Plus two ungated secondary classes.
+pub const CANONICAL_CLASSES: [&str; 4] = [
     "foreign_import",
     "foreign_api",
-    "foreign_concurrency",
     "naming_shape_break",
     "semantic_convention",
 ];

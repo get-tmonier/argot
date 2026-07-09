@@ -286,6 +286,7 @@ fixtures:
 - id: foreign_threadpool_1
   file: breaks/break_foreign_threadpool_1.rs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 26
   hunk_end_line: 38
   rationale: 'threadpool::ThreadPool::new() + pool.execute() fanning per-file
@@ -301,6 +302,7 @@ fixtures:
 - id: foreign_smol_1
   file: breaks/break_foreign_smol_1.rs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 24
   hunk_end_line: 38
   rationale: 'smol::block_on() + smol::spawn() driving the slice-by-line sink
@@ -371,6 +373,7 @@ fixtures:
 - id: foreign_flume_1
   file: breaks/break_foreign_flume_1.rs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 25
   hunk_end_line: 35
   rationale: 'flume::unbounded() MPMC channel fanning per-file outcomes back from
@@ -385,6 +388,7 @@ fixtures:
 - id: foreign_parking_lot_1
   file: breaks/break_foreign_parking_lot_1.rs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 25
   hunk_end_line: 34
   rationale: 'use parking_lot::Mutex as PlMutex (aliased import) guarding the shared
@@ -442,6 +446,7 @@ fixtures:
 - id: foreign_async_std_1
   file: breaks/break_foreign_async_std_1.rs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 29
   hunk_end_line: 43
   rationale: 'async-std runtime driving the slice-by-line sink concurrently via a
@@ -472,6 +477,7 @@ fixtures:
 - id: foreign_dashmap_1
   file: breaks/break_foreign_dashmap_1.rs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 30
   hunk_end_line: 39
   rationale: 'HARD (masked): dashmap concurrent map named only as a

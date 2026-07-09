@@ -96,6 +96,7 @@ fixtures:
 - id: composer_foreign_amp_1
   file: breaks/break_foreign_amp_1.php
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 28
   hunk_end_line: 37
   rationale: 'Amp async runtime via FQN (\Amp\async + \Amp\Future\await) to run a job
@@ -109,6 +110,7 @@ fixtures:
 - id: composer_foreign_swoole_1
   file: breaks/break_foreign_swoole_1.php
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 28
   hunk_end_line: 38
   rationale: 'Swoole coroutine runtime via FQN (\Swoole\Coroutine\run + \Swoole\Coroutine::create
@@ -123,6 +125,7 @@ fixtures:
 - id: composer_foreign_parallel_1
   file: breaks/break_foreign_parallel_1.php
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 28
   hunk_end_line: 42
   rationale: 'ext-parallel worker threads via FQN (new \parallel\Runtime + Runtime->run
@@ -177,6 +180,7 @@ fixtures:
 - id: composer_foreign_spatieasync_1
   file: breaks/break_foreign_spatieasync_1.php
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 28
   hunk_end_line: 37
   rationale: 'spatie/async process pool via FQN (\Spatie\Async\Pool::create + $pool->add
@@ -249,6 +253,7 @@ fixtures:
 - id: composer_foreign_revolt_1
   file: breaks/break_foreign_revolt_1.php
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 30
   hunk_end_line: 37
   rationale: 'revolt/event-loop cooperative runtime reached through a submodule import
@@ -263,6 +268,7 @@ fixtures:
 - id: composer_foreign_openswoole_1
   file: breaks/break_foreign_openswoole_1.php
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 30
   hunk_end_line: 40
   rationale: 'openswoole coroutine runtime reached through a submodule import (use OpenSwoole\Coroutine;
@@ -315,6 +321,7 @@ fixtures:
 - id: composer_foreign_spatiefork_1
   file: breaks/break_foreign_spatiefork_1.php
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 28
   hunk_end_line: 36
   rationale: 'HARD (leaf-method collision). spatie/fork process forking reached only through

@@ -99,6 +99,7 @@ fixtures:
 - id: eslint_foreign_concurrency_piscina
   file: breaks/break_foreign_concurrency_piscina.js
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 22
   rationale: "require('piscina') at line 1 + new Piscina({...}).run(...) offered as an alternative multi-file lint runner. Verified foreign at SHA 04174cbf: 'piscina' is 0 git-grep hits across lib/ and absent from package.json — lib/eslint/eslint.js hand-rolls its own worker pool directly over node:worker_threads (runWorkers/calculateWorkerCount, lines 448-545, using new Worker(workerURL, workerOptions) with a SharedArrayBuffer index and an AbortController), never a third-party pool abstraction. EASY: explicit foreign import, caught by the import stage."
@@ -108,6 +109,7 @@ fixtures:
 - id: eslint_foreign_concurrency_plimit
   file: breaks/break_foreign_concurrency_plimit.js
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 21
   rationale: "require('p-limit') at line 1 + pLimit(20) bounding the per-file lint fan-out. Verified foreign at SHA 04174cbf: 'p-limit' is 0 git-grep hits across lib/ and absent from package.json — lintFilesWithoutMultithreading (lib/eslint/eslint.js:605-654) already bounds concurrency with the repo's own @humanwhocodes/retry Retrier (`new Retrier(..., { concurrency: 100 })`), never a third-party limiter. EASY: explicit foreign import, caught by the import stage."
@@ -117,6 +119,7 @@ fixtures:
 - id: eslint_foreign_concurrency_bullmq
   file: breaks/break_foreign_concurrency_bullmq.js
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 18
   rationale: "statsQueue.add('file-stats', stat) reached through a bare 'statsQueue' receiver with NO import in the hunk, enqueuing a bullmq background job. Verified foreign at SHA 04174cbf: 'bullmq' is 0 git-grep hits across lib/ and absent from package.json — calculateStatsPerFile (lib/shared/message-counts.js, this file) returns its stat object synchronously in-process and ESLint has no background-job runtime anywhere in lib/. HARD (masked, leaf collision): '.add' is attested 128 times elsewhere in lib/ (Set/Map/array .add(...) sites), so call-receiver's method-attested guard may resolve the foreign receiver as in-voice and this break may MISS."
@@ -153,6 +156,7 @@ fixtures:
 - id: eslint_foreign_concurrency_workerpool
   file: breaks/break_foreign_concurrency_workerpool.js
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 25
   rationale: "require('workerpool') at line 1 + workerpool.pool(...).exec(...) offered as an alternative lint runner. Verified foreign at SHA 04174cbf: 'workerpool' is 0 git-grep hits across lib/ (and the whole repo excl. lockfile) and absent from package.json — runWorkers (lib/eslint/eslint.js:456-545, this file) hand-rolls its own worker pool directly over node:worker_threads (a SharedArrayBuffer index and an AbortController), never a third-party pool abstraction. EASY: explicit foreign import, caught by the import stage."
@@ -162,6 +166,7 @@ fixtures:
 - id: eslint_foreign_concurrency_pqueue
   file: breaks/break_foreign_concurrency_pqueue.js
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 27
   rationale: "require('p-queue') at line 1 + new PQueue({...}) bounding the concurrent glob-pattern resolution. Verified foreign at SHA 04174cbf: 'p-queue' is 0 git-grep hits across lib/ (and the whole repo excl. lockfile) and absent from package.json — findFiles (lib/eslint/eslint-helpers.js:518-640, this file) resolves every stat()/globMultiSearch call through a plain Promise.all with no concurrency limiter, and the repo's one bounded-concurrency convention (lintFilesWithoutMultithreading in lib/eslint/eslint.js) uses its own @humanwhocodes/retry Retrier, never a third-party queue. EASY: explicit foreign import, caught by the import stage."
@@ -171,6 +176,7 @@ fixtures:
 - id: eslint_foreign_concurrency_fastq
   file: breaks/break_foreign_concurrency_fastq.js
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 19
   rationale: "require('fastq') at line 1 + fastq.promise(...) offered as an alternative task queue for per-file lint work. Verified foreign at SHA 04174cbf: 'fastq' is 0 git-grep hits across lib/ (and the whole repo excl. lockfile) and absent from package.json — the worker's own file-distribution loop (lib/eslint/worker.js:115-157, the `for (;;)` loop just below this hunk's injection point) claims work by atomically incrementing filePathIndexArray over a SharedArrayBuffer via node:worker_threads, never a third-party task queue. EASY: explicit foreign import, caught by the import stage."

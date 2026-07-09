@@ -418,6 +418,7 @@ fixtures:
 - id: fc_celluloid_1
   file: breaks/break_fc_celluloid_1.rb
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 19
   hunk_end_line: 29
   rationale: 'require "celluloid/current" + the Celluloid actor framework (include Celluloid,
@@ -431,6 +432,7 @@ fixtures:
 - id: fc_eventmachine_1
   file: breaks/break_fc_eventmachine_1.rb
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 19
   hunk_end_line: 29
   rationale: 'require "eventmachine" + the EventMachine reactor (EventMachine.run,
@@ -444,6 +446,7 @@ fixtures:
 - id: fc_parallel_1
   file: breaks/break_fc_parallel_1.rb
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 22
   hunk_end_line: 27
   rationale: 'The `parallel` gem''s Parallel.map for concurrent dependency resolution —
@@ -458,6 +461,7 @@ fixtures:
 - id: fc_sucker_punch_1
   file: breaks/break_fc_sucker_punch_1.rb
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 20
   hunk_end_line: 34
   rationale: 'require "sucker_punch" + a SuckerPunch::Job actor enqueued via `perform_async`
@@ -471,6 +475,7 @@ fixtures:
 - id: fc_async_1
   file: breaks/break_fc_async_1.rb
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 22
   hunk_end_line: 29
   rationale: 'HARD: the socketry `async` gem''s reactor (Async { |task| task.async }).

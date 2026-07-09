@@ -322,6 +322,7 @@ fixtures:
 - id: ps_foreign_nitoasyncex_1
   file: breaks/break_nitoasyncex_1.cs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 20
   hunk_end_line: 29
   rationale: 'Nito.AsyncEx AsyncLock (foreign `using Nito.AsyncEx` + new AsyncLock/LockAsync) serializes async event dispatch; Nito.AsyncEx is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — coordination uses lock/ThreadPool/events. Caught by the import stage (foreign using token Nito.AsyncEx); AsyncLock type also 0-usage.'
@@ -331,6 +332,7 @@ fixtures:
 - id: ps_foreign_quartz_1
   file: breaks/break_quartz_1.cs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 20
   hunk_end_line: 24
   rationale: 'Quartz.NET scheduler (fully-qualified new Quartz.Impl.StdSchedulerFactory().GetScheduler) drives throttled operations; Quartz is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — throttling is coordinated by the manager''s own queue. The foreign type construction (root Quartz) fires call_receiver via the unattested namespace.'
@@ -340,6 +342,7 @@ fixtures:
 - id: ps_foreign_dataflow_1
   file: breaks/break_dataflow_1.cs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 19
   hunk_end_line: 29
   rationale: 'TPL Dataflow ActionBlock (`using System.Threading.Tasks.Dataflow` + new ActionBlock, Post/Complete) pumps throttled operations; the Dataflow library is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — throttling uses the manager''s own queue. HARD: its namespace root is System (repo-attested) so the call_receiver namespace gate is blind; detectable only via the foreign import token System.Threading.Tasks.Dataflow (and the unattested short type ActionBlock).'
@@ -349,6 +352,7 @@ fixtures:
 - id: ps_foreign_reactive_1
   file: breaks/break_reactive_1.cs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 16
   hunk_end_line: 22
   rationale: 'System.Reactive (Rx.NET) reactive stream (fully-qualified System.Reactive.Linq.Observable.Interval + Subscribe, no using) drives a heartbeat instead of the plain event; System.Reactive is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — signalling uses C# events and Timer. HARD genuine miss: reached fully-qualified with NO using and its namespace root is System (repo-attested), so the import stage sees no foreign token and call_receiver''s namespace gate is blind; every other callee (List.Add, TimeSpan.FromSeconds, the local stream receiver) is attested/local.'
@@ -376,6 +380,7 @@ fixtures:
 - id: ps_foreign_akka_1
   file: breaks/break_akka_1.cs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 19
   hunk_end_line: 23
   rationale: 'Akka.NET actor system (foreign `using Akka.Actor` + ActorSystem.Create/ActorOf/Tell) dispatches job execution in a single fluent chain; Akka.NET is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — job execution here goes entirely through JobSourceAdapter/Job2, never an actor model. Caught by the import stage (foreign using token Akka.Actor); ActorSystem/Props also 0-usage. EASY: explicit foreign import, no receiver variable.'
@@ -385,6 +390,7 @@ fixtures:
 - id: ps_foreign_disruptor_1
   file: breaks/break_disruptor_1.cs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 20
   hunk_end_line: 25
   rationale: 'LMAX Disruptor ring buffer (fully-qualified new Disruptor.Dsl.Disruptor<T>, then reached through a receiver variable) pumps queued runspace work; Disruptor-net is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — this pool coordinates queued work through its own _syncObject locks, not a lock-free ring buffer. The foreign type construction (root Disruptor) fires call_receiver via the unattested namespace; the receiver-variable methods (HandleEventsWith/Start) are masked. MEDIUM: reached through a receiver variable.'

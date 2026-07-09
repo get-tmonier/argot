@@ -258,6 +258,7 @@ fixtures:
 - id: laravel_foreign_amp_1
   file: breaks/break_foreign_amp_1.php
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 19
   hunk_end_line: 38
   rationale: 'amphp/amp async futures (\Amp\async / \Amp\delay / \Amp\Future\await via
@@ -270,6 +271,7 @@ fixtures:
 - id: laravel_foreign_revolt_1
   file: breaks/break_foreign_revolt_1.php
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 18
   hunk_end_line: 32
   rationale: 'revolt/event-loop fiber scheduler (\Revolt\EventLoop::repeat / ::run via
@@ -282,6 +284,7 @@ fixtures:
 - id: laravel_foreign_ampparallel_1
   file: breaks/break_foreign_ampparallel_1.php
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 23
   hunk_end_line: 42
   rationale: 'amphp/parallel worker pool (DefaultWorkerPool reached by short name, driven
@@ -458,6 +461,7 @@ fixtures:
 - id: laravel_foreign_spatieasync_1
   file: breaks/break_foreign_spatieasync_1.php
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 19
   hunk_end_line: 36
   rationale: 'spatie/async worker pool (\Spatie\Async\Pool::create()/->add()/->wait()
@@ -473,6 +477,7 @@ fixtures:
 - id: laravel_foreign_swoolecoroutine_1
   file: breaks/break_foreign_swoolecoroutine_1.php
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 21
   hunk_end_line: 38
   rationale: 'ext-swoole coroutine wait group (Swoole\Coroutine\WaitGroup reached
@@ -488,6 +493,7 @@ fixtures:
 - id: laravel_foreign_parallelruntime_1
   file: breaks/break_foreign_parallelruntime_1.php
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 19
   hunk_end_line: 38
   rationale: 'ext-parallel runtime pool (new \parallel\Runtime()/->run() via FQN).

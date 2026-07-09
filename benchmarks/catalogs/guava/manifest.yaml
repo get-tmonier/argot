@@ -326,6 +326,7 @@ fixtures:
 - id: foreign_rxjava_1
   file: breaks/break_foreign_rxjava_1.java
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 18
   hunk_end_line: 20
   rationale: 'import io.reactivex.rxjava3.core.Flowable + Flowable.fromIterable(items).forEach
@@ -340,6 +341,7 @@ fixtures:
 - id: foreign_netty_1
   file: breaks/break_foreign_netty_1.java
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 17
   hunk_end_line: 19
   rationale: 'import io.netty.channel.nio.NioEventLoopGroup + new NioEventLoopGroup(threads)
@@ -367,6 +369,7 @@ fixtures:
 - id: foreign_reactor_1
   file: breaks/break_foreign_reactor_1.java
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 17
   hunk_end_line: 19
   rationale: 'Wildcard-family import reactor.core.publisher.Flux + Flux.fromIterable(source).collectList().block()
@@ -395,6 +398,7 @@ fixtures:
 - id: foreign_disruptor_1
   file: breaks/break_foreign_disruptor_1.java
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 24
   hunk_end_line: 26
   rationale: 'Foreign type Disruptor<Runnable> as a parameter with disruptor.start()
@@ -425,6 +429,7 @@ fixtures:
 - id: foreign_hazelcast_1
   file: breaks/break_foreign_hazelcast_1.java
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 18
   hunk_end_line: 21
   rationale: 'import com.hazelcast.core.Hazelcast/HazelcastInstance + Hazelcast.newHazelcastInstance()
@@ -486,6 +491,7 @@ fixtures:
 - id: foreign_jctools_1
   file: breaks/break_foreign_jctools_1.java
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 16
   hunk_end_line: 23
   rationale: 'org.jctools.queues.MpscArrayQueue reached only through a variable-type
@@ -501,6 +507,7 @@ fixtures:
 - id: foreign_quartz_1
   file: breaks/break_foreign_quartz_1.java
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 17
   hunk_end_line: 20
   rationale: 'org.quartz.Scheduler reached only through a cast, with scheduler.start()

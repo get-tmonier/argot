@@ -97,6 +97,7 @@ fixtures:
 - id: foreign_tbb_1
   file: breaks/break_foreign_tbb_1.cc
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 19
   hunk_end_line: 30
   rationale: 'Intel TBB parallel task runtime for batch formatting, #include
@@ -112,6 +113,7 @@ fixtures:
 - id: foreign_asio_1
   file: breaks/break_foreign_asio_1.cc
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 18
   hunk_end_line: 29
   rationale: 'Boost.Asio thread-pool runtime for async formatting jobs, #include
@@ -126,6 +128,7 @@ fixtures:
 - id: foreign_folly_1
   file: breaks/break_foreign_folly_1.cc
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 19
   hunk_end_line: 30
   rationale: 'Facebook folly CPUThreadPoolExecutor for parallel formatting,
@@ -212,6 +215,7 @@ fixtures:
 - id: foreign_taskflow_1
   file: breaks/break_foreign_taskflow_1.cc
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 20
   hunk_end_line: 31
   rationale: 'Taskflow parallel task-graph runtime for batch formatting, #include
@@ -273,6 +277,7 @@ fixtures:
 - id: foreign_hpx_1
   file: breaks/break_foreign_hpx_1.cc
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 18
   hunk_end_line: 23
   rationale: 'HPX distributed async runtime -- work is launched with hpx::async
@@ -289,6 +294,7 @@ fixtures:
 - id: foreign_openmp_1
   file: breaks/break_foreign_openmp_1.cc
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 22
   hunk_end_line: 30
   rationale: 'OpenMP runtime reached through BARE library calls -- the `#include
@@ -339,6 +345,7 @@ fixtures:
 - id: foreign_concurrentqueue_1
   file: breaks/break_foreign_concurrentqueue_1.cc
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 23
   hunk_end_line: 30
   rationale: 'moodycamel::ConcurrentQueue (a foreign lock-free concurrency lib)

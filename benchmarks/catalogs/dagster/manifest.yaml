@@ -428,6 +428,7 @@ fixtures:
     language: python
     file: breaks/py/foreign_concurrency_ray.py
     category: foreign_concurrency
+    class: foreign_import
     hunk_start_line: 9
     hunk_end_line: 23
     rationale: "Ray distributed runtime (@ray.remote / ray.init / ray.get) fanning steps out instead
@@ -442,6 +443,7 @@ fixtures:
     language: python
     file: breaks/py/foreign_concurrency_trio.py
     category: foreign_concurrency
+    class: foreign_import
     hunk_start_line: 9
     hunk_end_line: 26
     rationale: "trio structured-concurrency runtime (trio.open_nursery / trio.run / nursery.start_soon)
@@ -471,6 +473,7 @@ fixtures:
     language: python
     file: breaks/py/foreign_concurrency_gevent.py
     category: foreign_concurrency
+    class: foreign_import
     hunk_start_line: 9
     hunk_end_line: 22
     rationale: "gevent greenlet Pool (gevent.pool.Pool / pool.spawn / gevent.sleep) for concurrent
@@ -554,6 +557,7 @@ fixtures:
     language: typescript
     file: breaks/ts/foreign_concurrency_rxjs.tsx
     category: foreign_concurrency
+    class: foreign_import
     hunk_start_line: 5
     hunk_end_line: 24
     rationale: "RxJS reactive-streams runtime (Subject / interval / pipe(switchMap).subscribe) for log
@@ -611,6 +615,7 @@ fixtures:
     language: typescript
     file: breaks/ts/foreign_concurrency_comlink.ts
     category: foreign_concurrency
+    class: foreign_import
     hunk_start_line: 4
     hunk_end_line: 21
     rationale: "Comlink web-worker RPC bridge (Comlink.wrap<T>(worker) / proxy) for off-thread graph

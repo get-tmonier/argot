@@ -278,9 +278,10 @@ pub fn write_production_reports(
 /// a documented fundamental limit, not a pass/fail line).
 pub fn tier_of(class: &str) -> &'static str {
     match class {
-        // Gated foreign-symbol classes (RUBRIC): a foreign package/library/API
+        // Gated foreign-symbol classes (RUBRIC): a foreign package/dep (import
+        // stage; foreign concurrency libs fold in here) or a foreign callee (API)
         // verified 0-usage in the repo — argot's reliable capability.
-        "foreign_import" | "foreign_api" | "foreign_concurrency" => "gated",
+        "foreign_import" | "foreign_api" => "gated",
         "naming_shape_break" => "naming",
         // Misuse of the repo's own attested vocabulary / a builtin it avoids
         // (die/exit, raw pthread, bare except, hand-rolled validation) — a

@@ -24,7 +24,10 @@ OUT = os.path.join(ROOT, "landing", "src", "data", "foreign.json")
 LL = {"python": "Python", "typescript": "TypeScript", "javascript": "JavaScript",
       "go": "Go", "rust": "Rust", "ruby": "Ruby", "c": "C", "cpp": "C++",
       "java": "Java", "csharp": "C#", "php": "PHP", "multi": "Python"}
-GATED = ["foreign_import", "foreign_api", "foreign_concurrency"]
+# Two gated foreign capabilities. `foreign_concurrency` was folded into
+# `foreign_import` (a foreign concurrency lib is just a foreign dep, caught by the
+# same import stage — its own column was a redundant flat ~100%; see the evidence).
+GATED = ["foreign_import", "foreign_api"]
 SECONDARY = {"naming_shape_break", "semantic_convention"}
 
 

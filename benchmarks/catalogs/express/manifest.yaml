@@ -98,6 +98,7 @@ fixtures:
 - id: express_foreign_concurrency_1
   file: breaks/break_foreign_concurrency_1.js
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 11
   rationale: "require('async') at line 1 + async.parallel() plugin bootstrap; the caolan 'async' package is 0-usage in the express repo at SHA ba006766 (git grep 0 for require('async') across all of lib/*.js, absent from package.json) — the repo bundles no concurrency/task-runner dependency. EASY: explicit foreign import, caught by the import stage."
@@ -107,6 +108,7 @@ fixtures:
 - id: express_foreign_concurrency_2
   file: breaks/break_foreign_concurrency_2.js
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 14
   rationale: "bluebird.map() concurrency-limited fan-out reached through an ambient 'bluebird' singleton with NO require() in the hunk; 'bluebird' is 0-usage in the express repo at SHA ba006766 (git grep 0, absent from package.json) — the repo uses plain callbacks/native promises. HARD: bluebird's leaf method .map collides with the repo's own attested Array.prototype.map call sites (utils.js, response.js), so call-receiver's method-attested check masks the foreign namespace and the hunk carries no foreign import — a genuine foreign break that may MISS."
@@ -116,6 +118,7 @@ fixtures:
 - id: express_foreign_concurrency_3
   file: breaks/break_foreign_concurrency_3.js
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 13
   rationale: "require('p-limit') at line 1, bound to the aliased local 'limitConcurrency', + limitConcurrency(4) middleware throttle; 'p-limit' is 0-usage in the express repo at SHA ba006766 (git grep 0, absent from package.json) — the repo ships no concurrency-limiting dependency. MEDIUM: the aliased binding hides the 'pLimit' callee name, but the foreign module specifier still fires the import stage."
@@ -188,6 +191,7 @@ fixtures:
 - id: express_foreign_concurrency_4
   file: breaks/break_foreign_concurrency_4.js
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 10
   rationale: "require('bullmq').Queue at line 1 + new Queue()/queue.add() background-job enqueue in app.enqueueJob; 'bullmq' is 0-usage in the express repo at SHA ba006766 (git grep -i 0 across the full repo tree, absent from package.json) — the repo bundles no job-queue/concurrency dependency. EASY: explicit foreign import, caught by the import stage."
@@ -197,6 +201,7 @@ fixtures:
 - id: express_foreign_concurrency_5
   file: breaks/break_foreign_concurrency_5.js
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 15
   rationale: "require('workerpool') at line 1 + workerpool.pool()/pool.exec() thread-pool offload in res.sendCompressed; 'workerpool' is 0-usage in the express repo at SHA ba006766 (git grep -i 0 across the full repo tree, absent from package.json) — the repo has no worker-thread pool dependency. EASY: explicit foreign import, caught by the import stage."
@@ -206,6 +211,7 @@ fixtures:
 - id: express_foreign_concurrency_6
   file: breaks/break_foreign_concurrency_6.js
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 11
   rationale: "new Piscina() worker-thread-pool construction + pool.run() reached in View.prototype.renderAsync with NO require() in the hunk; 'piscina' is 0-usage in the express repo at SHA ba006766 (git grep -i 0 across the full repo tree, absent from package.json) — the repo renders synchronously through the engine registered via app.engine. MEDIUM: no foreign import in the hunk — the unattested Piscina namespace must be caught by call-receiver."

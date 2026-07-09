@@ -63,3 +63,19 @@ documented and left for a base-scorer investigation, not chased here.
 
 Base guardrail untouched (argot-core/cli unchanged); bench + consolidation + manifests
 only. `just verify` green; argot-bench clippy-clean.
+
+## Follow-on: `foreign_concurrency` folded into `foreign_import` (5 → 4 classes)
+
+Surfacing the masked tier per-corpus made a second thing obvious: gated
+`foreign_concurrency` was a **flat 100% on all 31 corpora** — because a foreign
+concurrency lib is a foreign *import* (`import trio`, `#include <tbb>`,
+`using Akka`), caught by the same import stage that makes `foreign_import` ~100%.
+It measured nothing distinct from import (the only gated class with real spread is
+`foreign_api`, 70–100%, the callee path). So the class was folded: the 194
+concurrency fixtures now carry `class: foreign_import` (descriptive
+`category: foreign_concurrency` kept, so the concurrency slice stays recoverable),
+`CANONICAL_CLASSES` drops to 4, and the landing shows **two** gated columns —
+*foreign import / dep* (99.7% visible) and *foreign API* (94.9%) — under one
+headline, **foreign-pattern catch ≈ 98% visible** (argot's one job). The masked
+(hard) tier is surfaced on every cell so no column reads as a clean 100% while its
+hard cases miss (import/dep ~22%, API ~20% masked). RUBRIC.md updated.

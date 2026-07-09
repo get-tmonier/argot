@@ -352,6 +352,7 @@ fixtures:
 - id: foreign_openmp_1
   file: breaks/break_foreign_openmp_1.c
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 19
   hunk_end_line: 32
   rationale: 'OpenMP data-parallel checksum of the keyspace across worker
@@ -368,6 +369,7 @@ fixtures:
 - id: foreign_gcd_1
   file: breaks/break_foreign_gcd_1.c
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 17
   hunk_end_line: 31
   rationale: 'Grand Central Dispatch fan-out of lazy-free jobs onto a concurrent
@@ -400,6 +402,7 @@ fixtures:
 - id: foreign_libaio_1
   file: breaks/break_foreign_libaio_1.c
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 19
   hunk_end_line: 29
   rationale: 'Linux libaio submitting RDB writes asynchronously through an io
@@ -433,6 +436,7 @@ fixtures:
 - id: foreign_nsync_1
   file: breaks/break_foreign_nsync_1.c
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 18
   hunk_end_line: 27
   rationale: 'nsync mutex + condition variable guarding a shared eviction
@@ -511,6 +515,7 @@ fixtures:
 - id: foreign_ck_includefar_1
   file: breaks/break_foreign_ck_includefar_1.c
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 30
   hunk_end_line: 38
   rationale: 'HARD (include far away): Concurrency Kit lock-free SPSC ring
@@ -529,6 +534,7 @@ fixtures:
 - id: foreign_pthreadpool_indirect_1
   file: breaks/break_foreign_pthreadpool_indirect_1.c
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 19
   hunk_end_line: 23
   rationale: 'HARD (masked): pthreadpool (a foreign fork-join parallel runtime)
