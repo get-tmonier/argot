@@ -495,3 +495,50 @@ fixtures:
   difficulty: hard
   host_file: db/flush_job.cc
   host_inject_at_line: 704
+- id: foreign_openmp_1
+  file: breaks/break_foreign_openmp_1.cpp
+  category: foreign_concurrency
+  hunk_start_line: 16
+  hunk_end_line: 30
+  rationale: 'OpenMP runtime for a parallel checksum fold over table blocks,
+    #include <omp.h> plus omp_set_num_threads and a #pragma omp parallel for
+    reduction inside the hunk. Verified at pinned SHA: zero `#include <omp.h>`,
+    zero `pragma omp` and zero `omp_set_num_threads`/`omp_get_thread_num` sites
+    in *.cc/*.h/*.cpp (git grep); rocksdb parallelises through its own
+    port::Thread pools and Env, never the OpenMP runtime. EASY: explicit foreign
+    import.'
+  difficulty: easy
+  host_file: db/flush_job.cc
+  host_inject_at_line: 704
+- id: foreign_moodycamel_1
+  file: breaks/break_foreign_moodycamel_1.cpp
+  category: foreign_concurrency
+  hunk_start_line: 17
+  hunk_end_line: 35
+  rationale: 'moodycamel::ConcurrentQueue, a foreign lock-free MPMC queue, to hand
+    subcompaction job ids between worker threads, #include "concurrentqueue.h"
+    plus a moodycamel::ConcurrentQueue with .enqueue/.try_dequeue inside the hunk.
+    Verified at pinned SHA: zero `moodycamel` and zero `#include "concurrentqueue`
+    sites in *.cc/*.h/*.cpp (git grep); rocksdb passes work between threads through
+    an InstrumentedCondVar over std containers, never a foreign queue lib. HARD:
+    masked by a quoted include ("concurrentqueue.h") that reads as a local project
+    header rather than a foreign <> system dependency, so the import stage does not
+    flag it — a genuine miss to report, not softened.'
+  difficulty: hard
+  host_file: db/compaction/compaction_job.cc
+  host_inject_at_line: 451
+- id: foreign_asio_pool_1
+  file: breaks/break_foreign_asio_pool_1.cpp
+  category: foreign_concurrency
+  hunk_start_line: 14
+  hunk_end_line: 28
+  rationale: 'boost::asio::thread_pool, a foreign thread-pool runtime, to run flush
+    callbacks in parallel, #include <boost/asio/thread_pool.hpp> plus
+    boost::asio::post over the pool inside the hunk. Verified at pinned SHA: zero
+    `boost::asio`, zero `#include <boost/asio` and zero boost includes at all in
+    *.cc/*.h/*.cpp (git grep); rocksdb schedules background work through its own
+    Env thread pools, never a foreign asio runtime. EASY: explicit foreign
+    import.'
+  difficulty: easy
+  host_file: db/flush_job.cc
+  host_inject_at_line: 704
