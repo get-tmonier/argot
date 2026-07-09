@@ -85,6 +85,14 @@ pub struct MisplacedFinding {
     pub peers: Vec<(String, String, usize)>,
 }
 
+/// A repo with fewer than this many distinct areas has too little architectural
+/// separation for neighbour-based placement to mean anything — every function's
+/// neighbours necessarily span most of the (tiny) area set, so any location reads
+/// as "misplaced". Abstaining wholesale kills the false-fire storm on header-only
+/// / single-package repos (fmt 2 areas → 20% F2 FP) with no cost on real repos,
+/// which have many areas. Placement needs an architecture to judge against.
+const MIN_DISTINCT_AREAS: usize = 4;
+
 /// Scores diff-defined functions for architectural misplacement.
 pub struct PlacementScorer<'a> {
     index: &'a SemanticIndex,
@@ -93,24 +101,38 @@ pub struct PlacementScorer<'a> {
     /// Every directory that held an indexed function at fit time (full dir path,
     /// not the coarse area). Placement can only judge a location with precedent.
     index_dirs: HashSet<String>,
+    /// Distinct coarse areas (`AREA_DEPTH`) the fit repo has. Below
+    /// [`MIN_DISTINCT_AREAS`] placement abstains entirely.
+    n_areas: usize,
 }
 
 impl<'a> PlacementScorer<'a> {
     pub fn new(index: &'a SemanticIndex, area_norms: &'a HashMap<String, f32>) -> Self {
-        let index_dirs = index
+        let index_dirs: HashSet<String> = index
             .entries
             .iter()
             .map(|e| parent_dir(&e.path).to_string())
             .collect();
+        let n_areas = index
+            .entries
+            .iter()
+            .map(|e| area_of(&e.path, AREA_DEPTH))
+            .collect::<HashSet<_>>()
+            .len();
         Self {
             index,
             area_norms,
             index_dirs,
+            n_areas,
         }
     }
 
     /// Evaluate one diff-defined function; `Some` when it looks misplaced.
     pub fn evaluate(&self, func: &FunctionRef, query: &[f32]) -> Option<MisplacedFinding> {
+        // Too few areas → the repo has no architecture to judge placement against.
+        if self.n_areas < MIN_DISTINCT_AREAS {
+            return None;
+        }
         if super::redundant::is_test_path(&func.path) {
             return None;
         }
@@ -234,6 +256,9 @@ mod tests {
     /// A dozen DB-flavoured functions in `src/db`, plus two UI ones in `src/ui`
     /// — enough that a DB-flavoured query's top-10 neighbours are all DB (the UI
     /// pair ranks below the cut), mirroring a real transplant's ~0 in-area share.
+    /// Two extra areas (`src/net`, `src/util`) on unrelated axes give the index the
+    /// ≥ [`MIN_DISTINCT_AREAS`] separation placement needs — without them the whole
+    /// scorer abstains (see `abstains_when_too_few_areas`).
     fn index() -> SemanticIndex {
         let mut entries = Vec::new();
         for i in 0..12 {
@@ -241,12 +266,26 @@ mod tests {
             entries.push(entry(
                 &format!("db_{i}"),
                 &format!("src/db/models/m{i}.py"),
-                vec![1.0, 0.02 * i as f32, 0.0],
+                vec![1.0, 0.02 * i as f32, 0.0, 0.0],
             ));
         }
-        entries.push(entry("render_a", "src/ui/views.py", vec![0.0, 1.0, 0.0]));
-        entries.push(entry("render_b", "src/ui/views.py", vec![0.0, 0.98, 0.05]));
-        SemanticIndex { dim: 3, entries }
+        entries.push(entry("render_a", "src/ui/views.py", vec![0.0, 1.0, 0.0, 0.0]));
+        entries.push(entry("render_b", "src/ui/views.py", vec![0.0, 0.98, 0.05, 0.0]));
+        // Two more areas on unrelated axes (z, w) — far from the db/ui query, so
+        // they never enter a db query's top-k, but they make the repo ≥ 4 areas.
+        for i in 0..4 {
+            entries.push(entry(
+                &format!("net_{i}"),
+                &format!("src/net/http/h{i}.py"),
+                vec![0.0, 0.0, 1.0, 0.02 * i as f32],
+            ));
+            entries.push(entry(
+                &format!("util_{i}"),
+                &format!("src/util/x{i}.py"),
+                vec![0.0, 0.0, 0.02 * i as f32, 1.0],
+            ));
+        }
+        SemanticIndex { dim: 4, entries }
     }
 
     fn norms() -> HashMap<String, f32> {
@@ -254,6 +293,8 @@ mod tests {
         HashMap::from([
             ("src/db/models".to_string(), 0.6f32),
             ("src/ui".to_string(), 0.6f32),
+            ("src/net/http".to_string(), 0.6f32),
+            ("src/util".to_string(), 0.6f32),
         ])
     }
 
@@ -263,7 +304,7 @@ mod tests {
         let norms = norms();
         let scorer = PlacementScorer::new(&idx, &norms);
         // A DB-flavoured function (axis x) but filed under src/ui.
-        let q = unit(vec![1.0, 0.03, 0.0]);
+        let q = unit(vec![1.0, 0.03, 0.0, 0.0]);
         let f = scorer
             .evaluate(&func("load_row", "src/ui/widgets.py"), &q)
             .expect("misplaced db-in-ui fires");
@@ -278,7 +319,7 @@ mod tests {
         let norms = norms();
         let scorer = PlacementScorer::new(&idx, &norms);
         // A DB-flavoured function correctly filed under src/db.
-        let q = unit(vec![1.0, 0.03, 0.0]);
+        let q = unit(vec![1.0, 0.03, 0.0, 0.0]);
         assert!(scorer
             .evaluate(&func("load_row", "src/db/models/new.py"), &q)
             .is_none());
@@ -293,7 +334,7 @@ mod tests {
         // but here it lives in a directory the index has never seen. A new location
         // can't be judged misplaced — abstain (this is the dominant clean-commit FP:
         // a new feature/util dir whose functions embed near their peers elsewhere).
-        let q = unit(vec![1.0, 0.03, 0.0]);
+        let q = unit(vec![1.0, 0.03, 0.0, 0.0]);
         assert!(scorer
             .evaluate(&func("load_row", "src/brand_new_feature/impl.py"), &q)
             .is_none());
@@ -301,6 +342,30 @@ mod tests {
         assert!(scorer
             .evaluate(&func("load_row", "src/ui/widgets.py"), &q)
             .is_some());
+    }
+
+    #[test]
+    fn abstains_when_too_few_areas() {
+        // A repo with only 2 areas (src/db, src/ui) — below MIN_DISTINCT_AREAS.
+        // Even a clearly-misplaced db-in-ui function abstains: with so little
+        // architectural separation the placement signal is noise (fmt's 20% F2 FP).
+        let mut entries = Vec::new();
+        for i in 0..12 {
+            entries.push(entry(
+                &format!("db_{i}"),
+                &format!("src/db/models/m{i}.py"),
+                vec![1.0, 0.02 * i as f32, 0.0, 0.0],
+            ));
+        }
+        entries.push(entry("render_a", "src/ui/views.py", vec![0.0, 1.0, 0.0, 0.0]));
+        entries.push(entry("render_b", "src/ui/views.py", vec![0.0, 0.98, 0.05, 0.0]));
+        let idx = SemanticIndex { dim: 4, entries };
+        let norms = norms();
+        let scorer = PlacementScorer::new(&idx, &norms);
+        let q = unit(vec![1.0, 0.03, 0.0, 0.0]);
+        assert!(scorer
+            .evaluate(&func("load_row", "src/ui/widgets.py"), &q)
+            .is_none());
     }
 
     #[test]
