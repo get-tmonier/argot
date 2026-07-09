@@ -269,8 +269,16 @@ mod tests {
                 vec![1.0, 0.02 * i as f32, 0.0, 0.0],
             ));
         }
-        entries.push(entry("render_a", "src/ui/views.py", vec![0.0, 1.0, 0.0, 0.0]));
-        entries.push(entry("render_b", "src/ui/views.py", vec![0.0, 0.98, 0.05, 0.0]));
+        entries.push(entry(
+            "render_a",
+            "src/ui/views.py",
+            vec![0.0, 1.0, 0.0, 0.0],
+        ));
+        entries.push(entry(
+            "render_b",
+            "src/ui/views.py",
+            vec![0.0, 0.98, 0.05, 0.0],
+        ));
         // Two more areas on unrelated axes (z, w) — far from the db/ui query, so
         // they never enter a db query's top-k, but they make the repo ≥ 4 areas.
         for i in 0..4 {
@@ -357,8 +365,16 @@ mod tests {
                 vec![1.0, 0.02 * i as f32, 0.0, 0.0],
             ));
         }
-        entries.push(entry("render_a", "src/ui/views.py", vec![0.0, 1.0, 0.0, 0.0]));
-        entries.push(entry("render_b", "src/ui/views.py", vec![0.0, 0.98, 0.05, 0.0]));
+        entries.push(entry(
+            "render_a",
+            "src/ui/views.py",
+            vec![0.0, 1.0, 0.0, 0.0],
+        ));
+        entries.push(entry(
+            "render_b",
+            "src/ui/views.py",
+            vec![0.0, 0.98, 0.05, 0.0],
+        ));
         let idx = SemanticIndex { dim: 4, entries };
         let norms = norms();
         let scorer = PlacementScorer::new(&idx, &norms);
