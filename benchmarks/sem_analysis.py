@@ -165,11 +165,8 @@ def analyse_lang(vecs, paths, norms, callees, subtoks, syms):
             reinv_fire += 1
 
     areas = sorted({area_of(p) for p in paths})
-    # Mirror placement.rs MIN_DISTINCT_AREAS: below this the repo has too little
-    # architectural separation for neighbour-based placement — abstain wholesale.
-    MIN_DISTINCT_AREAS = 4
     place_recall_fire = place_of_fire = place_eval = 0
-    if len(areas) >= MIN_DISTINCT_AREAS:
+    if len(areas) >= 2:
         for qi in sample:
             s = V @ V[qi]
             s[qi] = -1e30
