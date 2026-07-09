@@ -146,8 +146,9 @@ violations:
       "config" to "utils" under the resolver's layer vocabulary. utils is a
       near-sink (providers imports it in 5 files against its own 2 out-edges); a
       near-sink reaching out into the config layer is a placement mistake — the
-      only real consumers of config today are sphinx and contrib (feature/tooling
-      layers), never a shared-utility leaf.
+      only NON-__root__ consumers of config today are sphinx and contrib
+      (feature/tooling layers reading locale settings), never a shared-utility
+      leaf.
 
   - host_file: "faker/utils/__init__.py"
     source_layer: "utils"
@@ -162,18 +163,6 @@ violations:
       utils is a near-sink; reaching out into factory — the class that assembles a
       Faker instance from providers — is a mistake no shared-utility file makes
       today.
-
-  - host_file: "faker/decode/__init__.py"
-    source_layer: "decode"
-    import_line: "from faker.factory import ArgotFixture"
-    target_layer: "factory"
-    kind: "sink_out"
-    rationale: >-
-      decode importing the Factory module. `git grep -nE '^\s*(from|import)
-      faker\.factory' -- faker/decode/` returns nothing -> 0-usage. Not a
-      reversal: factory.py never imports decode. decode is a strict sink;
-      reaching out into the top-level factory assembly code from the low-level
-      unicode-decode helper is a clear placement mistake.
 
   - host_file: "faker/utils/__init__.py"
     source_layer: "utils"
@@ -257,9 +246,12 @@ controls:
     import_line: "from faker.generator import ArgotFixture"
     target_layer: "generator"
     rationale: >-
-      sphinx's documentor already imports `.generator` (Generator) via a relative
-      import to introspect dynamically-added provider methods for doc generation.
-      A sibling sphinx module (autodoc.py/docstring.py) doing the equivalent
-      absolute `from faker.generator import ...` is the same established
-      relationship, just a new file in the same direction — legit growth, not a
-      violation.
+      sphinx already reaches into config (2 files: AVAILABLE_LOCALES,
+      DEFAULT_LOCALE, PROVIDERS) and providers (BaseProvider) to build
+      documentation. The separate, root-level faker/documentor.py — the legacy
+      doc-string generator — already imports `.generator` (Generator) for the
+      same introspection purpose (dynamically-added provider methods). A sphinx
+      module doing the equivalent `from faker.generator import ...` follows the
+      same "doc-generation code introspects Generator" precedent, just from the
+      newer sphinx-based tooling instead of the legacy one — ordinary growth, not
+      a violation.
