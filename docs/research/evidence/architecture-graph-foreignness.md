@@ -1,5 +1,22 @@
 # Architecture-graph foreignness: a discrete, low-FP "has no place here" signal
 
+> **⚠️ CORRECTION (2026-07-09, later) — the headline catch numbers below are SUPERSEDED.**
+> A host-backed re-measurement found the published catch (85–90%) was **coverage-inflated**:
+> the coverage loop counted `(a→b)` pairs whose SOURCE layer `a` is a *target-only namespace
+> layer no file lives in* — violations no real hunk can introduce. Restricting the coverage to
+> SOURCE layers that map to a real HEAD file (the *authorable* space) drops mean catch to
+> **~52%** (10 corpora, one per language). Two further findings: (1) the Python fixtures that
+> gave "84% real recall" were authored with the OLD `py_file_edges` resolver, which *missed*
+> relative/grouped cross-package imports; the more-correct multi-language resolver
+> (`py_targets`) resolves them, so those edges are attested and the fixtures are now **invalid**
+> (saleor 10/12) — the same text-grep gap that invalidated the multi-lang fixtures, now known to
+> hit Python too. (2) Rust (`ripgrep` 3/55 host-mapped) and C# (`powershell` 54/91 but
+> source/target vocabularies disjoint) read artificially-low catch because their layer
+> assignment splits (layer ≠ directory) — a resolver bug, not signal absence.
+> **What HELD:** over-fire ≤2.7%/corpus (0.49% agg, 2656 commits) and control-FP **0/25 = 0%**.
+> The low-false-positive property is real and robust; the *catch* is modest and uneven.
+> See the "Host-backed re-measurement" section at the bottom for the corrected table + diagnosis.
+
 **Date:** 2026-07-09 · **Branch:** `feat/semantic-layer` · status: **VALIDATED — ported
 non-gating into argot-core; real-holdout over-fire ≤2.7% on 2690 commits, mean catch 85% out-of-box / 88% with realistic
 per-corpus argot.toml (coverage, mute-system voice files, NO hardcoded excludes) — ≥85/≤5 met.
@@ -290,3 +307,76 @@ argot-core; base byte-for-byte unchanged, `just verify` green.
 **Reproduce:** real module — `cargo build --release -p argot-bench --features arch &&
 ./target/release/argot-bench --mode arch`. Cheap probes —
 `python benchmarks/arch_graph_{probe,xlang,temporal}.py`.
+
+---
+
+## Host-backed re-measurement — the honest catch (2026-07-09, supersedes the above)
+
+The catch numbers above are **coverage over ALL layer-pairs**. Building the resolver-grounded
+0-usage candidate dumper (`argot-bench --mode arch-candidates`) surfaced the flaw: the coverage
+loop iterates `(a, b)` over *every* layer in the graph, but a real hunk can only introduce an
+edge **from a file that exists** — i.e. from a SOURCE layer that maps to a real source file.
+Many layers in `graph.layers()` are *target-only* (a namespace/vendored package some file
+imports, but no source file lives in). Counting `(target-only-a → b)` pairs inflates catch,
+badly where the resolver splits source and target vocabularies (layer ≠ directory).
+
+**Fix:** restrict the coverage numerator/denominator to SOURCE layers that map to a real HEAD
+file (`host_layers`), computed while the tree is at HEAD (before the holdout `graph_at(fit_sha)`
+moves it). The `layers` column is now `host-mapped / total`.
+
+| corpus | lang | layers (host/total) | edges | over-fire | **catch (host-backed)** | recall(fixtures) | ctrl-FP |
+|---|---|--:|--:|--:|--:|--:|--:|
+| saleor | python | 30/35 | 306 | 2.7% | 84% | 2/2 (10 **invalid**) | 0/5 |
+| scrapy | python | 15/36 | 123 | 0.0% | 41% | 9/11 = 82% (1 inv) | 0/5 |
+| wagtail | python | 23/40 | 162 | 0.0% | 46% | 10/12 = 83% | 0/5 |
+| composer | php | 25/36 | 228 | 1.8% | 69% | — | 0/5 |
+| ripgrep | rust | **3/55** | 57 | 0.7% | 50% | 0/1 (9 inv) | 0/5 |
+| guava | java | **7/39** | 60 | 0.0% | 19% | — | — |
+| powershell | csharp | 54/91† | 570 | 0.0% | **0%** | — | — |
+| rubocop | ruby | 5/5 | 7 | 0.0% | 84% | — | — |
+| gh-cli | go | 9/9 | 21 | 1.1% | 66% | — | — |
+| excalidraw | typescript | 19/20 | 52 | 1.3% | 57% | — | — |
+| **mean** | | | | **0.7%** | **~52%** | 21/26 = 81%‡ | **0/25 = 0%** |
+
+holdout 13/2656 commits = **0.49%** (worst 2.7%).
+
+† powershell is host-mapped for 54/91 layers, yet catch is 0: its .NET flat-dotted directories
+(`src/Microsoft.Management.Infrastructure.CimCmdlets/` — one dir, dotted name) make
+`namespace_source_root` overshoot, collapsing *every* source file to layer `src`; the source
+layer `src` is not a sink and nothing imports it, so no host-mapped layer participates in a
+reversal/sink. ‡ the fixture recall is on a badly-thinned valid set (saleor 10/12 now invalid) —
+not a reliable number until fixtures are re-authored against the dumper.
+
+### What this changes
+
+1. **FP discipline is the real, robust win** — over-fire ≤2.7%/corpus (0.49% agg over 2656 real
+   clean commits), control-FP **0/25 = 0%** across 6 languages. The reversal/sink discrimination
+   genuinely does not false-fire. This is the hard part and it holds honestly.
+2. **Catch is modest (~52% mean) and uneven**, NOT the 85–90% previously published — that number
+   counted non-authorable target-only pairs. On an honest, authorable-only basis the gate does
+   **not** clear ≥85% catch on most corpora.
+3. **Two resolver bugs suppress catch** (fixable, filed as work items):
+   - **C# (`namespace_source_root`)** collapses flat-dotted .NET projects to one source layer →
+     0% authorable catch. Needs namespace-derived source-layer assignment (a fit-time path→layer
+     map), consistent with how `cs_targets` derives target layers.
+   - **Rust (`ripgrep` 3/55)** — a cargo workspace (`crates/*/src/**`) maps almost no layers to
+     files under the current root detection. Same class of layer≠directory split.
+4. **Fixtures are stale** — the more-correct resolver invalidated the absolute-grep-authored
+   fixtures (Python included). Real recall must be re-measured by authoring fixtures against
+   `--mode arch-candidates` (resolver-grounded 0-usage), mixing realistic reversal/sink/forward
+   so the number stays non-circular.
+
+### The dumper (`--mode arch-candidates`)
+
+Enumerates every cross-layer non-edge the *real resolver* classifies as reversal/sink-out, keeps
+only those with a real host file in the source layer, writes a popularity-sorted menu per corpus
+(`candidates-<corpus>.md`) plus `N layers · M host-mapped · K candidates`. This closes the
+text-grep gap: fixtures target edges the resolver *actually* sees as 0-usage. Host-backed counts:
+composer 418, ripgrep 54, excalidraw 130, hugo 677, guava 42, gh-cli 29, rubocop 11, outline 4,
+**powershell 0** (the C# collapse).
+
+**Verdict for the "evaluate" step:** the architecture-graph is a **genuinely low-false-positive**
+signal (its defensible strength) with **modest, uneven catch** that is partly suppressed by two
+fixable resolver layer-assignment bugs and cannot be honestly quantified until fixtures are
+re-authored against the dumper. It is not, on honest measurement, the "≥85/≤5 gatable win" the
+pre-correction sections claim.
