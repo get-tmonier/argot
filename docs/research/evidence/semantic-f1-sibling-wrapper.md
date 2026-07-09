@@ -75,3 +75,37 @@ identical." This is the documented irreducible floor of a retrieval-plus-structu
 sense: ~⅓ of the false alarms cannot be separated from genuine reinvention without
 semantic understanding, which a name/structure guardrail (no LLM, <100 MB binary) does
 not have. Advisory; base guardrail untouched.
+
+## Post-hoc: two more levers tried on the 3 residuals — both rejected (2026-07-09)
+
+Before closing the residuals as irreducible, two additional language-agnostic signals
+were tested against the captured per-fire features (`feats/*_fp.tsv` vs
+`*_recall.tsv`, no rebuild):
+
+1. **Unconditional very-high-df tier** (kill any match to a symbol defined ≥30–50×,
+   *without* the callee-overlap exemption). Exhausted: curl and redis residuals carry
+   **zero** high-df fires (unique-named parallel backends); junit5/jellyfin's high-df
+   fires (`assertNotEquals` df 123, `GetMetadata` df 20) are **already** killed by the
+   existing `VERY_FAMILIAR_SYMBOL_DF` filter. No residual left to cut.
+
+2. **Directory-relationship filter.** The residual false fires are overwhelmingly
+   **same-directory** (curl 22/28) or same/sibling/nested (jellyfin 37/57), while every
+   planted recall fixture reads as *far-dir* — so a "suppress same-dir matches" rule
+   scores **0 measured recall loss** and would push all three corpora ≤5 %. **Rejected
+   as eval-overfitting:** the recall harness plants every fixture in one `_sembench/`
+   dir at the repo root (`sem_bench.py`), so it *structurally cannot* place a
+   reimplementation in the same directory as its target — the "0 recall loss" is a
+   blind spot, not a result. An *unconditional* same-dir suppression would also blind
+   the sense to the most catchable real reinvention (an agent copying a helper into a
+   neighbouring file, high overlap: curl's `ssh_pollset` cos 1.00/callee 1.00 lives in
+   sibling ssh backends). The defensible narrow form (same-dir **and** weak overlap)
+   catches only ~half the residuals (curl 10/22) — not enough to clear the bar. Cutting
+   the rest would mean gaming a metric the harness can't adjudicate, which the project
+   forbids.
+
+**Verdict:** the 3 residuals are same-directory structural twins of a *local family*
+pattern (parallel backends, provider twins). By argot's own north star — "code foreign
+to the repo's own patterns" — a same-directory near-identical sibling is the
+*least*-foreign shape there is, so flagging it is closer to a definitional edge than a
+tunable bug. No non-LLM feature separates it from genuine same-directory reinvention
+without an eval blind spot. Floor confirmed; prod code unchanged.
