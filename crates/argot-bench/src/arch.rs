@@ -409,59 +409,73 @@ pub fn run_arch_candidates(
                 }
             }
         }
-        // Enumerate 0-usage reversal/sink candidates, popularity-sorted. Only keep
-        // ones whose SOURCE layer has a real host file — a fixture author needs a
-        // concrete file to add the import to; target-only namespace layers (vendored
-        // deps, etc.) with no source file are useless for authoring.
+        // Enumerate 0-usage cross-layer candidates whose SOURCE layer has a real
+        // host file, with a resolver-VERIFIED import line (so a fixture built from
+        // a row is valid by construction — no text-grep gap). Both catchable
+        // (reversal/transitive/sink) and `forward` (not-a-violation) pools are
+        // emitted: forward rows author controls + realistic non-catchable misses,
+        // keeping any authored recall non-circular.
         let layers: Vec<String> = graph.layers().into_iter().collect();
-        let mut cands: Vec<(&String, &String, &'static str, u32)> = Vec::new();
+        // (kind, src, tgt, popularity, host_file, verified import line)
+        let mut cands: Vec<(&'static str, &String, &String, u32, String, String)> = Vec::new();
         for a in &layers {
-            if !host.contains_key(a) {
+            let Some(host_file) = host.get(a) else {
                 continue; // no source file to host the added import
-            }
+            };
             for b in &layers {
                 if a == b || graph.contains_edge(&(a.clone(), b.clone())) {
                     continue;
+                }
+                if graph.in_mass(b) == 0 {
+                    continue; // unpopular target — not a realistic violation
                 }
                 let kind = match graph.classify(&(a.clone(), b.clone())) {
                     Some(Violation::Reversal) => "reversal",
                     Some(Violation::TransitiveReversal) => "transitive_reversal",
                     Some(Violation::SinkOut) => "sink_out",
-                    None => continue, // forward — not a catchable violation
+                    None => "forward",
                 };
-                cands.push((a, b, kind, graph.in_mass(b)));
+                let Some(import_line) = graph.example_import(host_file, b) else {
+                    continue; // can't synthesize a resolvable import (relative langs)
+                };
+                cands.push((kind, a, b, graph.in_mass(b), host_file.clone(), import_line));
             }
         }
         cands.sort_by_key(|c| std::cmp::Reverse(c.3));
-        // How many source layers actually have a host file? If few layers map to a
-        // real file (e.g. C# namespace ≠ directory), the population of authorable
-        // violations is small even when edge/layer counts look large — surface it.
         let host_layers = layers.iter().filter(|l| host.contains_key(*l)).count();
+        let n_catch = cands.iter().filter(|c| c.0 != "forward").count();
+        let n_fwd = cands.len() - n_catch;
         let mut out = format!(
-            "# {} ({}) — 0-usage reversal/sink candidates (host in `src` imports `tgt`)\n\n\
-             {} layers · {} with a host file · {} host-backed candidates\n\n",
+            "# {} ({}) — resolver-verified 0-usage fixture candidates\n\n\
+             {} layers · {} host-mapped · {} catchable + {} forward candidates \
+             (each import line VERIFIED to create the src→tgt edge)\n\n",
             t.name,
             t.language,
             layers.len(),
             host_layers,
-            cands.len()
+            n_catch,
+            n_fwd
         );
-        out.push_str("| src layer | tgt layer | kind | tgt popularity | sample host file |\n|---|---|---|--:|---|\n");
-        for (a, b, kind, pop) in cands.iter().take(60) {
+        out.push_str(
+            "| kind | src | tgt | pop | host_file | import_line |\n|---|---|---|--:|---|---|\n",
+        );
+        for (kind, a, b, pop, hf, line) in cands.iter().take(80) {
             out.push_str(&format!(
-                "| {} | {} | {} | {} | {} |\n",
+                "| {} | {} | {} | {} | `{}` | `{}` |\n",
+                kind,
                 a,
                 b,
-                kind,
                 pop,
-                host.get(*a).map(|s| s.as_str()).unwrap_or("(no host)")
+                hf,
+                line.replace('\n', "\\n")
             ));
         }
         std::fs::write(results_dir.join(format!("candidates-{}.md", t.name)), &out).ok();
         summary.push_str(&format!(
-            "- {}: {} candidates · {}/{} layers host-mapped\n",
+            "- {}: {} catchable + {} forward verified candidates · {}/{} layers host-mapped\n",
             t.name,
-            cands.len(),
+            n_catch,
+            n_fwd,
             host_layers,
             layers.len()
         ));

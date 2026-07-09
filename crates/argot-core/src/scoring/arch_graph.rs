@@ -578,6 +578,67 @@ impl RepoLayering {
             .next()
     }
 
+    /// Synthesize an import line that, added to `host_path`, creates the
+    /// cross-layer edge `host_layer → target_layer` — VERIFIED through the real
+    /// resolver (`file_edges`). Returns `None` if no synthesis resolves (notably
+    /// the relative-import languages TS/JS/Ruby/C, which need a concrete target
+    /// file). Lets fixtures be authored valid-by-construction, closing the
+    /// text-grep gap. The imported symbol is a placeholder — the resolver keys on
+    /// the module path, not the symbol.
+    pub fn example_import(&self, host_path: &str, target_layer: &str) -> Option<String> {
+        let src = self.layer_of(host_path)?;
+        if src == *target_layer {
+            return None;
+        }
+        let mut candidates: Vec<String> = Vec::new();
+        match self.language {
+            Language::Python => {
+                for pkg in &self.internal {
+                    candidates.push(format!("from {pkg}.{target_layer} import ArgotFixture\n"));
+                }
+            }
+            Language::Php => {
+                for root in &self.internal {
+                    candidates.push(format!(
+                        "<?php\nuse {root}\\{target_layer}\\ArgotFixture;\n"
+                    ));
+                }
+            }
+            Language::CSharp => {
+                for base in &self.internal {
+                    candidates.push(format!("using {base}.{target_layer};\n"));
+                }
+            }
+            Language::Java => {
+                for base in &self.internal {
+                    candidates.push(format!("import {base}.{target_layer}.ArgotFixture;\n"));
+                }
+            }
+            Language::Go => {
+                if let Some(m) = &self.module_path {
+                    candidates.push(format!("import \"{m}/{target_layer}\"\n"));
+                }
+            }
+            Language::Rust => {
+                candidates.push(format!("use crate::{target_layer}::ArgotFixture;\n"));
+                for c in &self.internal {
+                    candidates.push(format!("use {c}::{target_layer}::ArgotFixture;\n"));
+                }
+            }
+            // Relative-import languages need a concrete target file — not synthesizable
+            // from the layer name alone.
+            Language::Typescript
+            | Language::Javascript
+            | Language::Ruby
+            | Language::C
+            | Language::Cpp => {}
+        }
+        let want = (src, target_layer.to_string());
+        candidates
+            .into_iter()
+            .find(|line| self.file_edges(host_path, line).contains(&want))
+    }
+
     pub fn edge_count(&self) -> usize {
         self.edges.len()
     }
