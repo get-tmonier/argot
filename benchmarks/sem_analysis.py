@@ -32,7 +32,7 @@ for i, a in enumerate(sys.argv[2:]):
         OUT = a.split("=", 1)[1] if "=" in a else sys.argv[2:][i + 1]
 
 # placement constants (mirror crates/argot-core/src/scoring/semantic/placement.rs)
-AREA_DEPTH = 3
+AREA_DEPTH = 2
 K = 10
 MIN_NEIGH = 5
 MISPLACED_FACTOR = 0.3

@@ -17,8 +17,13 @@ use std::collections::{HashMap, HashSet};
 
 use super::index::{FunctionRef, SemanticIndex};
 
-/// Directory depth defining an "area" (exploration slightly favoured 3 over 2).
-pub const AREA_DEPTH: usize = 3;
+/// Directory depth defining an "area". Depth 2 (the major package, `src/db` rather
+/// than `src/db/models`) is both the more meaningful granularity for "this code is in
+/// the wrong package" and materially higher recall: coarser areas let a transplanted
+/// function's neighbours concentrate, so more genuine misplacements clear the gate —
+/// at *lower* in-place over-fire than depth 3 (a function's own neighbours are more
+/// often in-area). Swept over 10 corpora (scratchpad/f2sweep2.py).
+pub const AREA_DEPTH: usize = 2;
 /// Cross-file neighbours polled for the area vote.
 const K_NEIGHBORS: usize = 10;
 /// Minimum neighbours required to vote at all (too few → no signal, abstain).
@@ -36,6 +41,14 @@ const ABS_IN_AREA_CEILING: f32 = 0.05;
 /// cross-cutting helper scatters across many areas. Tuned on rich + scrapy:
 /// over-fire ~2.5% (scrapy) / 0.7% (rich) at ~41% transplant recall, down from
 /// ~15% at the untuned thresholds; see `.scratch/semantic-layer/P5-tuning.md`.
+/// Kept at 0.8 (the concentration that keeps in-place over-fire low); the recall
+/// gain this era comes from the depth-2 area, which is also a large clean-commit
+/// misplaced-FP *win* on cohesive monorepos (sibling packages collapse into one area
+/// and stop reading as misplaced: laravel 34→1, homebrew 22→0, fmt 20%→3%). Some
+/// corpora (hono/ink/jellyfin) still land below 85% transplant recall — a function
+/// whose semantic peers are genuinely scattered across many packages cannot be shown
+/// to be *mis*placed; an inherent limit of neighbour-based placement (and the
+/// transplant metric is itself a lower bound, since generic utils relocate freely).
 const MIN_TOP2_CONCENTRATION: f32 = 0.8;
 /// Fallback belongs-norm for an area unseen at calibration.
 const DEFAULT_NORM: f32 = 0.3;
@@ -255,7 +268,7 @@ mod tests {
             .evaluate(&func("load_row", "src/ui/widgets.py"), &q)
             .expect("misplaced db-in-ui fires");
         assert_eq!(f.actual_area, "src/ui");
-        assert_eq!(f.neighbor_area, "src/db/models");
+        assert_eq!(f.neighbor_area, "src/db"); // depth-2 area (major package)
         assert!(f.in_area_fraction < 0.2);
     }
 
