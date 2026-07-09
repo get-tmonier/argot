@@ -27,3 +27,7 @@ serde_yaml = "0.9"
 # which drives argot-core's feature-gated `structural` sense over real corpora +
 # real temporal-holdout. Off by default: the base bench never depends on it.
 structural = ["argot-core/structural"]
+
+# Enables the architecture-graph floor/gate validation (`--mode arch`), which drives
+# argot-core's feature-gated `arch_graph` sense over real corpora + real holdout.
+arch = ["argot-core/arch"]

@@ -69,6 +69,13 @@ semantic = ["dep:llama-cpp-2", "dep:ureq", "dep:half", "dep:base64"]
 # is not gatable.
 structural = []
 
+# The architecture-graph sense: a repo's module-dependency topology + the
+# reversal/sink-out fire rule (the relationship analog of the vocabulary gate).
+# Pure-Rust, NO new deps; a build-time boundary so the base guardrail stays
+# byte-for-byte unchanged and the layer stays advisory / measurement-only (never
+# wired into the gating exit code). Enabled by the bench; not (yet) in releases.
+arch = []
+
 [dev-dependencies]
 serde.workspace = true
 serde_json.workspace = true

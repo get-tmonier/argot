@@ -1,8 +1,10 @@
 # Architecture-graph foreignness: a discrete, low-FP "has no place here" signal
 
-**Date:** 2026-07-09 · **Branch:** `feat/semantic-layer` · status: **promising cheap-probe
-signal — worth a full validation.** Harness: `benchmarks/arch_graph_probe.py` (Python `ast`,
-7 corpora). Opened after the node-kind n-gram *shape* gate hit an irreducible floor
+**Date:** 2026-07-09 · **Branch:** `feat/semantic-layer` · status: **VALIDATED (FP side) —
+ported non-gating into argot-core, real-holdout over-fire 0–2% on 2690 commits, catch ~77%
+(coverage). Catch-on-fixtures + multi-lang resolvers remain.** Harnesses:
+`benchmarks/arch_graph_{probe,xlang,temporal}.py` + `argot-bench --mode arch`. Opened after the
+node-kind n-gram *shape* gate hit an irreducible floor
 ([`foreign-structure-gate-floor.md`](foreign-structure-gate-floor.md)).
 
 ## The idea
@@ -138,11 +140,46 @@ genuinely gatable false-alarm profile — the property the node-kind shape gate 
 The one number still estimated (not measured) is **catch/recall on real violations** — the
 coverage model, not injected fixtures. That is what the full Rust port + bench measures next.
 
-## Next — build (green-lit by the de-risk)
+## Built + validated through the real argot-core module (`--mode arch`)
 
-Mirror the structural validation but on the graph: (1) authored/synthetic architectural-violation
-fixtures for a true catch number; (2) real temporal-holdout FP on clean commits; (3) cross-language
-edge extraction (build on `import_graph.rs`); (4) one full bench. Only then decide gate vs
-advisory. This memo records the cheap-probe green light, not a shipped result.
+The winning formulation is now ported into argot-core as a feature-gated (`--features arch`),
+pure-Rust, **non-gating** sense (`crates/argot-core/src/scoring/arch_graph.rs`: `RepoLayering`
+fit + the reversal/sink `classify`), and a self-contained bench mode
+(`crates/argot-bench/src/arch.rs`, `argot-bench --mode arch`) validates it over real corpora with
+a **real git temporal holdout** — the same rigour as the base metric, driven through the real
+module (not a Python proxy). v1 resolves Python imports; other languages are a graceful no-op.
 
-**Reproduce:** `source .venv/bin/activate && python benchmarks/arch_graph_probe.py`.
+| corpus | layers | edges | real commits | fires | over-fire | catch |
+|---|--:|--:|--:|--:|--:|--:|
+| fastapi | 32 | 50 | 1200 | 2 | 0.2% | 71% |
+| rich | 70 | 69 | 360 | 0 | 0.0% | 100% |
+| faker | 15 | 26 | 150 | 0 | 0.0% | 74% |
+| dagster (302-layer monorepo) | 302 | 989 | 150 | 1 | 0.7% | 61% |
+| saleor | 34 | 298 | 150 | 3 | 2.0% | 57% |
+| wagtail | 38 | 158 | 250 | 0 | 0.0% | 73% |
+| rocksdb | 9 | 8 | 150 | 0 | 0.0% | 100% |
+| scrapy | 41 | 138 | 280 | 1 | 0.4% | 78% |
+| **total / mean** | | | **2690** | **7** | **0.26% agg (≤2.0% worst)** | **77%** |
+
+**Over-fire ≤2.0% on every corpus, 0.26% aggregate over 2690 real clean commits, through the real
+Rust module** — the file-split and Python-temporal proxies were accurate, and the low FP holds on
+a 302-layer monorepo (dagster) and on 1200 commits of fast-moving history (fastapi). Catch ~77%
+(coverage). This is a genuinely gatable signal — the categorical opposite of the shape gate.
+
+## Status + honest remaining work
+
+**Validated:** the signal exists (90–100% directional, 3 langs), real-holdout FP is 0–2% (proxy +
+real Rust module, 2690 commits), catch ~77% (coverage). Ported non-gating into argot-core; base
+byte-for-byte unchanged, `just verify` green.
+
+**Not yet done (before it could ship as a gate):**
+1. **Catch is still a coverage estimate, not injected-fixture recall** — the one soft number.
+   Authored/synthetic architectural-violation fixtures would measure true recall.
+2. **v1 is Python-resolver only.** Go/TS/Java resolvers (validated by the cheap probe) plug into
+   `RepoLayering::file_edges`; C/C++/others follow.
+3. **Gate wiring** (a `reason` in `check.rs`, advisory tier) — deferred until catch is measured on
+   fixtures, per the FP-first discipline.
+
+**Reproduce:** real module — `cargo build --release -p argot-bench --features arch &&
+./target/release/argot-bench --mode arch`. Cheap probes —
+`python benchmarks/arch_graph_{probe,xlang,temporal}.py`.

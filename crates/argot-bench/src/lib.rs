@@ -1,6 +1,10 @@
 //! argot-bench library surface — shared by the `argot-bench` binary and the
 //! research scout binaries under `src/bin/`.
 
+/// Architecture-graph floor/gate validation (`--mode arch`). Feature-gated:
+/// drives argot-core's `arch_graph` sense over real corpora + real holdout.
+#[cfg(feature = "arch")]
+pub mod arch;
 pub mod catalog;
 pub mod dashboard;
 pub mod holdout;

@@ -6,6 +6,14 @@
 //! `sequential::SequentialImportBpeScorer`.
 
 pub mod adapters;
+/// The architecture-graph sense — a repo's module-dependency topology; flags an
+/// internal edge that reverses an established direction or leaves a sink layer
+/// (the relationship analog of the foreign-vocabulary gate). Feature-gated
+/// (`--features arch`), advisory / measurement-only, pure-Rust: absent and
+/// zero-cost off, never wired into the base gating path, base byte-unchanged.
+/// See the module docs + `docs/research/evidence/architecture-graph-foreignness.md`.
+#[cfg(feature = "arch")]
+pub mod arch_graph;
 pub mod bpe_scorer;
 pub mod calibration;
 pub mod call_receiver;
