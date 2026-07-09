@@ -297,20 +297,26 @@ impl RepoLayering {
         }
     }
 
-    /// Whether this language derives a file's source layer from its namespace
-    /// declaration rather than its directory. C# .NET projects commonly use flat
-    /// dotted directories (`src/Company.Product.Module/`), so the directory's
-    /// first component is a single bucket, not the layer — the namespace is.
+    /// Whether this language derives a file's source layer from its namespace/
+    /// package declaration rather than its directory. C# .NET projects use flat
+    /// dotted directories (`src/Company.Product.Module/`); Java's directory mirrors
+    /// the package but the base-package split is ambiguous from the path alone — in
+    /// both, deriving the layer from the declaration (with the same base-stripping
+    /// as target resolution) keeps source and target vocabularies aligned.
     fn namespace_self_layer(&self) -> bool {
-        matches!(self.language, Language::CSharp)
+        matches!(self.language, Language::CSharp | Language::Java)
     }
 
-    /// The source layer of a file from its own namespace, using the SAME
+    /// The source layer of a file from its own namespace/package, using the SAME
     /// base-stripping as target derivation (`layer_after_base`) so source and
-    /// target vocabularies align. `None` if the file has no namespace under a
+    /// target vocabularies align. `None` if the file has no declaration under a
     /// known base. Only meaningful when [`namespace_self_layer`] is true.
     fn derive_self_layer(&self, source: &str) -> Option<String> {
-        let ns = cs_namespace(source)?;
+        let ns = match self.language {
+            Language::CSharp => cs_namespace(source)?,
+            Language::Java => java_package(source)?,
+            _ => return None,
+        };
         let parts: Vec<&str> = ns.split('.').filter(|s| !s.is_empty()).collect();
         layer_after_base(&parts, &self.internal, '.')
     }
@@ -887,14 +893,81 @@ fn detect_java_context(paths: &[&str]) -> (Vec<String>, HashSet<String>, Option<
     let mut roots: HashSet<String> = HashSet::new();
     let mut internal: HashSet<String> = HashSet::new();
     for (root, pkgs) in &by_root {
-        let base = longest_common_prefix(pkgs.iter().map(|p| p.as_slice()));
-        if base.is_empty() {
-            continue; // a divergent single tree — no shared base, skip
+        // A single LCP collapses when a root ships sibling top-level namespaces
+        // (guava: `com.google.common.*` + `com.google.thirdparty.*` → base
+        // `com.google`, bucketing everything into layer `common`). `detect_bases`
+        // descends single-child and *dominant*-child chains, splitting minority
+        // siblings into their own bases, so the layer is the package after the
+        // *right* base (`common.collect` → `collect`, `thirdparty.publicsuffix`
+        // → `publicsuffix`).
+        for base in detect_bases(pkgs) {
+            if base.is_empty() {
+                continue;
+            }
+            internal.insert(base.join("."));
+            roots.insert(join_root(root, &base.join("/")));
         }
-        internal.insert(base.join("."));
-        roots.insert(join_root(root, &base.join("/")));
     }
     (sorted_roots(roots), internal, None)
+}
+
+/// Detect the base package prefix(es) of a set of package-component vectors — the
+/// prefix(es) below which the next component is a *layer*. Descends single-child
+/// chains (`com`→`google`) and, at a fan-out, descends the **dominant** child
+/// (≥70% of files) while splitting each **minority** sibling into its own base, so
+/// a repo with one big package root plus a small sibling (guava's `common` +
+/// `thirdparty`) yields both bases instead of collapsing to their short common
+/// prefix. A *balanced* fan-out (no dominant child, e.g. junit's
+/// `jupiter`/`platform`/`vintage`) stops — that prefix is the base, its children
+/// are the layers.
+fn detect_bases(pkgs: &[Vec<String>]) -> Vec<Vec<String>> {
+    fn recurse(pkgs: Vec<Vec<String>>, prefix: Vec<String>, out: &mut Vec<Vec<String>>) {
+        let depth = prefix.len();
+        let mut children: HashMap<String, Vec<Vec<String>>> = HashMap::new();
+        for p in pkgs.iter() {
+            if p.len() > depth {
+                children
+                    .entry(p[depth].clone())
+                    .or_default()
+                    .push(p.clone());
+            }
+        }
+        if children.is_empty() {
+            if !prefix.is_empty() {
+                out.push(prefix);
+            }
+            return;
+        }
+        if children.len() == 1 {
+            let (c, sub) = children.into_iter().next().unwrap();
+            let mut np = prefix;
+            np.push(c);
+            recurse(sub, np, out);
+            return;
+        }
+        let total = pkgs.len();
+        let dominant = children
+            .iter()
+            .find(|(_, v)| v.len() * 100 >= total * 70)
+            .map(|(k, _)| k.clone());
+        match dominant {
+            Some(dom) => {
+                for (c, sub) in children {
+                    let mut np = prefix.clone();
+                    np.push(c.clone());
+                    if c == dom {
+                        recurse(sub, np, out); // descend the dominant root for deeper branches
+                    } else {
+                        out.push(np); // minority sibling is its own base; its children are layers
+                    }
+                }
+            }
+            None => out.push(prefix), // balanced fan-out: prefix is the base, children are layers
+        }
+    }
+    let mut out = Vec::new();
+    recurse(pkgs.to_vec(), Vec::new(), &mut out);
+    out
 }
 
 /// PHP (PSR-4): the root namespace maps to a source dir, so the second namespace
@@ -1383,6 +1456,23 @@ fn java_import_packages(source: &str) -> Vec<String> {
     out
 }
 
+/// The `package a.b.c;` declaration of a Java file (dotted).
+fn java_package(source: &str) -> Option<String> {
+    let mut found = None;
+    walk_named(source, Language::Java, |node, bytes| {
+        if found.is_none() && node.kind() == "package_declaration" {
+            let mut c = node.walk();
+            for ch in node.named_children(&mut c) {
+                if matches!(ch.kind(), "scoped_identifier" | "identifier") {
+                    found = Some(node_text(ch, bytes));
+                    break;
+                }
+            }
+        }
+    });
+    found
+}
+
 /// The `namespace X\Y\…;` of a PHP file (the `name` of its `namespace_definition`).
 fn php_namespace(source: &str) -> Option<String> {
     let mut found = None;
@@ -1675,6 +1765,79 @@ mod tests {
             ),
             Some(Violation::Reversal)
         );
+    }
+
+    #[test]
+    fn detect_bases_splits_dominant_and_minority_roots() {
+        // guava shape: com.google.common.* (dominant) + com.google.thirdparty.* (minority).
+        let p = |s: &str| s.split('.').map(String::from).collect::<Vec<_>>();
+        let mut pkgs = vec![p("com.google.thirdparty.publicsuffix")];
+        for layer in ["collect", "base", "cache", "io", "math", "net", "hash"] {
+            pkgs.push(p(&format!("com.google.common.{layer}")));
+            pkgs.push(p(&format!("com.google.common.{layer}"))); // weight the dominant root
+        }
+        let mut bases: Vec<String> = detect_bases(&pkgs).iter().map(|b| b.join(".")).collect();
+        bases.sort();
+        assert_eq!(bases, vec!["com.google.common", "com.google.thirdparty"]);
+
+        // junit shape: balanced fan-out under org.junit → single base, children are layers.
+        let jpkgs = vec![
+            p("org.junit.jupiter.api"),
+            p("org.junit.platform.engine"),
+            p("org.junit.vintage.runner"),
+        ];
+        assert_eq!(
+            detect_bases(&jpkgs)
+                .iter()
+                .map(|b| b.join("."))
+                .collect::<Vec<_>>(),
+            vec!["org.junit".to_string()]
+        );
+    }
+
+    #[test]
+    fn java_multi_base_repo_does_not_collapse_layers() {
+        // A repo shipping a dominant package root plus a minority sibling (guava's
+        // common + thirdparty). Layers must be the package after the RIGHT base, not
+        // the short common prefix — else everything buckets into one layer.
+        let mut files = vec![
+            (
+                "guava/src/com/google/common/collect/Lists.java".to_string(),
+                "package com.google.common.collect;\nimport com.google.common.base.Preconditions;\n"
+                    .to_string(),
+            ),
+            (
+                "guava/src/com/google/common/base/Preconditions.java".to_string(),
+                "package com.google.common.base;\npublic class Preconditions {}\n".to_string(),
+            ),
+            (
+                "guava/src/com/google/thirdparty/publicsuffix/TrieParser.java".to_string(),
+                "package com.google.thirdparty.publicsuffix;\npublic class TrieParser {}\n"
+                    .to_string(),
+            ),
+        ];
+        // Weight `common` so it is the dominant root (≥70%), as in real guava.
+        for layer in ["io", "math", "net", "hash", "cache", "escape"] {
+            files.push((
+                format!("guava/src/com/google/common/{layer}/X.java"),
+                format!("package com.google.common.{layer};\npublic class X {{}}\n"),
+            ));
+        }
+        let g = RepoLayering::fit(
+            files.iter().map(|(p, s)| (p.as_str(), s.as_str())),
+            Language::Java,
+        );
+        assert_eq!(
+            g.layer_of("guava/src/com/google/common/collect/Lists.java")
+                .as_deref(),
+            Some("collect")
+        );
+        assert_eq!(
+            g.layer_of("guava/src/com/google/thirdparty/publicsuffix/TrieParser.java")
+                .as_deref(),
+            Some("publicsuffix")
+        );
+        assert!(g.contains_edge(&("collect".into(), "base".into())));
     }
 
     #[test]
