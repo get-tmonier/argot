@@ -57,6 +57,27 @@ const fForeign = (() => {
   };
 })();
 
+// Architecture-graph layer (gated): an internal module-dependency EDGE foreign
+// to the repo's own layering — a dependency direction it reverses, a cycle it
+// closes, or an edge out of a sink layer. The relational analog of Foreign
+// above (which catches a foreign import); this catches a foreign edge between
+// the repo's OWN modules. Gates at the same "unusual" tier as the base gate.
+import archData from '../data/arch.json';
+type ArchRow = {
+  corpus: string; language: string;
+  recall_caught: number; recall_total: number; recall_pct: number;
+  control_fired: number; control_total: number; over_fire_pct: number;
+  layers: number; edges: number; commits: number;
+};
+type ArchAggregate = {
+  recall_caught: number; recall_total: number; recall_pct: number;
+  control_fired: number; control_total: number;
+  over_fire_mean_pct: number; over_fire_worst_pct: number;
+  languages: number; corpora: number;
+};
+const archRows = (archData.corpora ?? []) as ArchRow[];
+const archAgg = archData.aggregate as ArchAggregate;
+
 // Build-time import of the committed dashboard history (schema v2 in
 // crates/argot-bench/src/dashboard.rs). CI appends a dated entry per run and
 // overwrites latest.json. v2 (issue #92): false positives come from the
@@ -220,10 +241,10 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
     <p class="mt-4 leading-relaxed text-ink-dim">
       argot flags what a linter structurally can't: code that is valid, typed and
       lint-clean but doesn't fit <em>this</em> repo — the kind of thing an AI agent
-      drags in. It has <strong>three distinct detectors</strong>, and each gets its
+      drags in. It has <strong>four distinct detectors</strong>, and each gets its
       own scorecard below, with its own catch metric and its own false-alarm metric.
     </p>
-    <div class="mt-6 grid gap-3 sm:grid-cols-3">
+    <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <a href="#foreign" class="rounded-xl border border-line bg-panel/30 p-4 transition-colors hover:border-line-2">
         <div class="flex items-center gap-2">
           <span class="font-semibold text-ink">1 · Foreign</span>
@@ -248,10 +269,18 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
         <p class="mt-1.5 text-sm text-ink-dim">The right code filed in the wrong package —
           its nearest peers live elsewhere.</p>
       </a>
+      <a href="#architecture" class="rounded-xl border border-line bg-panel/30 p-4 transition-colors hover:border-line-2">
+        <div class="flex items-center gap-2">
+          <span class="font-semibold text-ink">4 · Architecture</span>
+          <span class="rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-emerald-500">gated</span>
+        </div>
+        <p class="mt-1.5 text-sm text-ink-dim">A module edge foreign to the repo's own
+          layering — a reversed dependency, a cycle, or an edge out of a sink.</p>
+      </a>
     </div>
     <p class="mt-5 text-sm leading-relaxed text-ink-dim">
-      <strong>Gated vs advisory.</strong> Detector 1 is the quality gate — its catch
-      and over-fire numbers are what argot is judged on. Detectors 2 &amp; 3 are a
+      <strong>Gated vs advisory.</strong> Detectors 1 &amp; 4 are the quality gate — their
+      catch and over-fire numbers are what argot is judged on. Detectors 2 &amp; 3 are a
       separate <strong>advisory</strong> channel: a prompt to review, never folded into
       the gated catch/over-fire numbers above. They still fire at the mildest
       (<code class="text-xs">unusual</code>) tier, so a reinvention- or misplacement-only
@@ -575,6 +604,76 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
             replayed-commit hunks that fired <code>misplaced</code> (fires / hunks scanned),
             window 150. Advisory — never folded into the gated catch/over-fire metric
             (it does fire at the mildest tier).
+          </p>
+
+          <h2 id="architecture" class="mt-16 scroll-mt-20 text-2xl font-bold tracking-tight">4 · Architecture <span class="align-middle text-sm font-normal text-emerald-500">· gated</span></h2>
+          <p class="mt-3 leading-relaxed text-ink-dim">
+            argot builds a directed graph of the repo's own internal module dependencies at
+            fit time — which layer is allowed to import which — and learns the layering the
+            repo actually follows. At check time it flags a module-dependency <strong>edge</strong>
+            that breaks it: a <strong>reversed dependency</strong> (a low-level module reaching
+            back up into a caller), a <strong>cycle</strong> the edge closes, or an edge
+            <strong> out of a sink</strong> layer (a <code class="text-xs">models/</code> file
+            importing <code class="text-xs">views/</code>, a utility reaching into the app
+            layer). It's the relational analog of Foreign-pattern detection above — Foreign
+            catches a foreign <em>import</em>; this catches a foreign <em>edge between the
+            repo's own modules</em>, the shape an agent produces when it wires code together
+            without noticing how the repo is layered. Pure-Rust, no added runtime dependency,
+            and it gates at the same mildest (<code class="text-xs">unusual</code>) tier as
+            Foreign above.
+          </p>
+
+          <div class="mt-8 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-5">
+            <div class="flex items-baseline gap-3">
+              <div class="text-3xl font-bold text-ink">{archAgg.recall_pct}%</div>
+              <div class="text-sm text-muted">
+                <strong class="text-ink">real recall</strong> · a planted foreign layering
+                edge, caught on replay
+                <span class="ml-1">— {archAgg.recall_caught}/{archAgg.recall_total} across all corpora</span>
+              </div>
+            </div>
+            <p class="mt-2 text-xs text-muted">
+              <strong class="text-ink">0% false positives</strong> on held-out clean edges
+              ({archAgg.control_fired}/{archAgg.control_total} controls fired) ·
+              <strong class="text-ink"> {archAgg.over_fire_mean_pct}% mean over-fire</strong> on
+              replayed history (worst {archAgg.over_fire_worst_pct}%) ·
+              {archAgg.corpora} corpora across {archAgg.languages} languages.
+            </p>
+          </div>
+
+          <div class="mt-6 overflow-x-auto">
+            <table class="w-full min-w-[40rem] border-collapse text-sm">
+              <thead>
+                <tr class="border-b border-line text-left text-muted">
+                  <th class="py-2">Corpus</th>
+                  <th>Language</th>
+                  <th class="text-right">Real recall</th>
+                  <th class="text-right">Control-FP</th>
+                  <th class="text-right">Over-fire</th>
+                </tr>
+              </thead>
+              <tbody>
+                {archRows.map((r) => (
+                  <tr class="border-b border-line/50 align-top">
+                    <td class="py-2 font-medium">{r.corpus}</td>
+                    <td class="text-muted">{r.language}</td>
+                    <td class="text-right">{r.recall_pct}% ({r.recall_caught}/{r.recall_total})</td>
+                    <td class="text-right">{r.control_fired}/{r.control_total}</td>
+                    <td class="text-right">{r.over_fire_pct.toFixed(2)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p class="mt-4 text-xs text-muted">
+            <strong>Real recall</strong> = planted foreign layering-edge fixtures caught /
+            total (caught/total). <strong>Control-FP</strong> = planted clean, in-layering
+            edges that should <em>not</em> fire, fires / total —
+            {archAgg.control_fired}/{archAgg.control_total} across every corpus.
+            <strong> Over-fire</strong> = false-alarm rate on the repo's own replayed history
+            (leak-free holdout, same protocol as Foreign above). Fed from CI so the numbers
+            can't drift from what ships; gated at the mildest
+            (<code class="text-xs">unusual</code>) tier.
           </p>
 
           <section class="mt-16 rounded-xl border border-line bg-panel/30 p-5">
