@@ -1,0 +1,323 @@
+# Architecture-graph violation fixtures for dagster.
+#
+# dagster is a Python monorepo (`python_modules/`), not a single package. A
+# "layer" = the first path component under a package's import root (e.g.
+# python_modules/dagster/dagster/_core/... -> layer "_core";
+# python_modules/libraries/dagster-shared/dagster_shared/serdes/... -> layer
+# "serdes"). The primary package is python_modules/dagster/dagster/, with
+# layers _core (the execution engine: definitions, instance, execution,
+# storage, workspace...), _check/_time/_record/_serdes/_loggers/
+# _symbol_annotations/_generate/_vendored (small foundational helpers, several
+# of them literal re-export shims of the shared library below), and
+# _legacy/_experimental/deprecated/preview (compat/staging namespaces). A
+# second, closely-related foundational layer lives one level up in
+# python_modules/libraries/dagster-shared/dagster_shared/ (serdes, check,
+# record, telemetry, ...) — dagster's own extracted "no internal deps allowed"
+# base library that dagster/dagster/_check, _record, and _serdes re-export
+# from. _core/_grpc/_daemon are the high-level engine; _utils/_serdes/_check/
+# dagster_shared.* are foundational and are supposed to be depended ON, never
+# to depend on the engine themselves.
+#
+# Provenance: every row below is copied VERBATIM (host_file + import_line)
+# from the resolver-verified candidate menu (`argot-bench --mode
+# arch-candidates`, captured at /tmp/arch-gap2/candidates-dagster.md), which
+# classifies each 0-usage source_layer -> target_layer edge by running it
+# through the SAME production resolver (`RepoLayering::classify`,
+# crates/argot-core/src/scoring/arch_graph.rs) the scorer uses at check time.
+# `ArgotFixture` is a placeholder import name — the resolver only needs the
+# dotted module path to classify the edge, not a real symbol, so the name
+# carries no meaning. `pop` (kept in the row comments below where relevant) is
+# the target layer's import-weight (in-mass) in the learned graph.
+#
+# kind (assigned by RepoLayering::classify):
+#   reversal             - the direct reverse edge target->source is already
+#                          attested in the graph; this would create the exact
+#                          circular dependency the repo's layering avoids.
+#   transitive_reversal  - no direct reverse edge, but the target layer
+#                          already transitively reaches the source layer
+#                          (b ->* a) via some path in the learned graph, so
+#                          this new edge would close a cycle against
+#                          established flow.
+#   sink_out             - the source layer is a (near-)sink (net importee); a
+#                          brand-new outward edge leaks out of a layer that's
+#                          supposed to only be depended ON.
+#   forward              - a novel edge the resolver does NOT flag (clean
+#                          organic growth). NEVER used as a `violations` row
+#                          here — every forward candidate available in this
+#                          menu (a compat namespace or codegen tool reaching
+#                          into a foundational assertion helper) reads as
+#                          ordinary, unremarkable usage by domain judgment
+#                          too, not a "wrong direction" mistake, so there is
+#                          no honest forward-kind violation to author for this
+#                          corpus. `forward` rows are used ONLY as `controls`.
+#
+# violations: all reversal / transitive_reversal / sink_out — foundational
+# helpers (dagster/dagster's own _check/_time/_record/_serdes/_loggers/
+# _symbol_annotations/_generate/_vendored, and dagster-shared's serdes/check/
+# record/telemetry) reaching up into dagster's high-level engine (_core). Each
+# reversal is backed by a real, heavily-attested reverse edge (e.g. _core
+# imports dagster._check in 277 files; dagster_shared.serdes in 66;
+# dagster_shared.record in 33) — genuinely the kind of import an LLM asked to
+# "add a helper" in a foundational module might reach for without realizing
+# it inverts the dependency the whole module exists to avoid.
+# controls: `forward` edges from the same menu that the resolver's own
+# classify() does NOT flag — a compat/staging namespace or codegen tool
+# importing a foundational assertion helper (ordinary, expected use), and
+# unrelated packages/tests/libraries importing dagster's foundational _utils
+# module (ordinary cross-package growth in the established direction).
+
+violations:
+  # ---- reversal (7): direct reverse edge (target->source) is attested ----
+
+  - host_file: "python_modules/dagster/dagster/_check/__init__.py"
+    source_layer: "_check"
+    import_line: "from dagster_gcp_tests._core import ArgotFixture\n"
+    target_layer: "_core"
+    kind: "reversal"
+    rationale: >-
+      _check is dagster's foundational assertion/validation helper (itself a
+      migration shim re-exporting dagster_shared.check). Resolver-verified
+      0-usage edge _check->_core (pop 568). The reverse, _core importing
+      _check, IS attested and pervasive: `git grep -c "\._check\b" --
+      python_modules/dagster/dagster/_core/` hits 277 files. _check reaching
+      up into the engine it's meant to validate directly reverses that
+      established direction — Reversal.
+
+  - host_file: "python_modules/dagster/dagster/_time/__init__.py"
+    source_layer: "_time"
+    import_line: "from dagster_gcp_tests._core import ArgotFixture\n"
+    target_layer: "_core"
+    kind: "reversal"
+    rationale: >-
+      _time is a small foundational timestamp/timezone utility (it itself
+      only imports `dagster._check` and `dagster._vendored.dateutil`).
+      Resolver-verified 0-usage edge _time->_core (pop 568), while _core
+      imports _time widely for scheduling/run timestamps (attested reverse).
+      A low-level time helper reaching into the execution engine reverses the
+      established direction — Reversal.
+
+  - host_file: "python_modules/dagster/dagster/_record/__init__.py"
+    source_layer: "_record"
+    import_line: "from dagster_gcp_tests._core import ArgotFixture\n"
+    target_layer: "_core"
+    kind: "reversal"
+    rationale: >-
+      _record is a migration shim re-exporting dagster_shared.record (the
+      lightweight immutable-record base class used across the codebase).
+      Resolver-verified 0-usage edge _record->_core (pop 568); the reverse is
+      heavily attested (_core alone references dagster_shared.record in 33
+      files, on top of dagster._record directly). A record base class
+      importing the engine it's a building block for reverses the
+      established direction — Reversal.
+
+  - host_file: "python_modules/libraries/dagster-shared/dagster_shared/serdes/__init__.py"
+    source_layer: "serdes"
+    import_line: "from dagster_gcp_tests._core import ArgotFixture\n"
+    target_layer: "_core"
+    kind: "reversal"
+    rationale: >-
+      dagster_shared.serdes is the base serialization library that
+      dagster/dagster/_serdes re-exports; dagster-shared is explicitly the
+      "no internal deps" foundation package. Resolver-verified 0-usage edge
+      serdes->_core (pop 568). The reverse is pervasive: `_core` alone
+      references dagster_shared.serdes in 66 files (definitions, storage
+      records, and run configs are all serialized through it). The shared
+      serializer reaching up into the engine it serializes reverses the
+      established direction — Reversal.
+
+  - host_file: "python_modules/libraries/dagster-shared/dagster_shared/check/__init__.py"
+    source_layer: "check"
+    import_line: "from dagster_gcp_tests._core import ArgotFixture\n"
+    target_layer: "_core"
+    kind: "reversal"
+    rationale: >-
+      dagster_shared.check is the base assertion library dagster/dagster/
+      _check re-exports. Resolver-verified 0-usage edge check->_core (pop
+      568); _core references dagster_shared.check directly in 4 files on top
+      of the near-universal `dagster._check` re-export path. The base
+      assertion helper reaching into the engine it validates reverses the
+      established direction — Reversal.
+
+  - host_file: "python_modules/libraries/dagster-shared/dagster_shared/record/__init__.py"
+    source_layer: "record"
+    import_line: "from dagster_gcp_tests._core import ArgotFixture\n"
+    target_layer: "_core"
+    kind: "reversal"
+    rationale: >-
+      dagster_shared.record is the base immutable-record library
+      dagster/dagster/_record re-exports. Resolver-verified 0-usage edge
+      record->_core (pop 568), while _core imports dagster_shared.record
+      directly in 33 files. The base record class reaching into the engine
+      that builds on it reverses the established direction — Reversal.
+
+  - host_file: "python_modules/libraries/dagster-shared/dagster_shared/telemetry/__init__.py"
+    source_layer: "telemetry"
+    import_line: "from dagster_gcp_tests._core import ArgotFixture\n"
+    target_layer: "_core"
+    kind: "reversal"
+    rationale: >-
+      dagster_shared.telemetry is a low-level, side-effect usage-reporting
+      helper (fire-and-forget event logging), not something the engine's
+      definitions should depend back on. Resolver-verified 0-usage edge
+      telemetry->_core (pop 568); the reverse (dagster/dagster importing
+      dagster_shared.telemetry to report engine events) is attested. A
+      telemetry shim reaching into the engine it instruments reverses the
+      established direction — Reversal.
+
+  # ---- transitive_reversal (2): no direct reverse edge, but the target
+  #      already transitively reaches the source in the learned graph ----
+
+  - host_file: "python_modules/dagster/dagster/_generate/__init__.py"
+    source_layer: "_generate"
+    import_line: "from dagster_gcp_tests._core import ArgotFixture\n"
+    target_layer: "_core"
+    kind: "transitive_reversal"
+    rationale: >-
+      _generate is the `dagster project scaffold` codegen tool (renders
+      starter-project templates); it has no business importing the execution
+      engine. Resolver-verified 0-usage edge _generate->_core (pop 568).
+      _core doesn't import _generate directly, but _core already
+      transitively reaches _generate through the learned graph (the CLI
+      layer that wires both together), so _generate->_core would close a
+      cycle against established flow — TransitiveReversal.
+
+  - host_file: "python_modules/dagster/dagster/_vendored/__init__.py"
+    source_layer: "_vendored"
+    import_line: "from dagster_gcp_tests._core import ArgotFixture\n"
+    target_layer: "_core"
+    kind: "transitive_reversal"
+    rationale: >-
+      _vendored holds vendored third-party code (dateutil, etc.) and is
+      empty of its own logic (`python_modules/dagster/dagster/_vendored/
+      __init__.py` has zero lines) — it exists purely to be imported FROM,
+      never to import internal dagster code itself. Resolver-verified
+      0-usage edge _vendored->_core (pop 568); _core already transitively
+      reaches _vendored in the learned graph, so this would close a cycle —
+      TransitiveReversal.
+
+  # ---- sink_out (3): a near-sink layer sprouts a brand-new outward edge ----
+
+  - host_file: "python_modules/dagster/dagster/_loggers/__init__.py"
+    source_layer: "_loggers"
+    import_line: "from dagster_gcp_tests._check import ArgotFixture\n"
+    target_layer: "_check"
+    kind: "sink_out"
+    rationale: >-
+      _loggers defines the built-in LoggerDefinitions (colored_console_logger
+      etc.) and is consumed by _core (referenced in 12 files) but has a
+      narrow, fixed set of its own imports. Resolver-verified 0-usage edge
+      _loggers->_check (pop 462). Neither direction is attested for this
+      specific pair, so RepoLayering::classify returns SinkOut, not Reversal:
+      a near-sink logging layer sprouting a brand-new outward edge to the
+      assertion helper is a placement mistake (it should reach the shared
+      dagster_shared.check it already transitively has, not a fresh direct
+      edge to dagster._check).
+
+  - host_file: "python_modules/dagster/dagster/_serdes/__init__.py"
+    source_layer: "_serdes"
+    import_line: "from dagster_gcp_tests._check import ArgotFixture\n"
+    target_layer: "_check"
+    kind: "sink_out"
+    rationale: >-
+      _serdes is dagster's serialization shim (re-exporting dagster_shared.
+      serdes), consumed widely (`_core` references it in 99 files) but with a
+      tight, fixed import surface of its own. Resolver-verified 0-usage edge
+      _serdes->_check (pop 462); neither direction is attested for this
+      specific pair, so this is SinkOut: a near-sink serialization layer
+      sprouting a fresh outward edge is a placement mistake.
+
+  - host_file: "python_modules/dagster/dagster/_symbol_annotations/__init__.py"
+    source_layer: "_symbol_annotations"
+    import_line: "from dagster_gcp_tests._check import ArgotFixture\n"
+    target_layer: "_check"
+    kind: "sink_out"
+    rationale: >-
+      _symbol_annotations holds the @deprecated/@preview/@beta/@superseded
+      annotation helpers, consumed by _core (5 files) but otherwise
+      self-contained. Resolver-verified 0-usage edge _symbol_annotations->
+      _check (pop 462); neither direction is attested for this pair, so this
+      is SinkOut: a near-sink annotation-helper layer leaking a new outward
+      edge is a placement mistake.
+
+controls:
+  # `forward` edges from the resolver-verified menu: novel (0-usage) but the
+  # resolver's own classify() does NOT flag them — a compat/staging namespace
+  # or codegen tool importing the foundational assertion helper (ordinary,
+  # expected use of `check` from anywhere in the codebase), and
+  # unrelated packages/tests/libraries importing dagster's foundational
+  # _utils module in the established forward direction.
+
+  - host_file: "python_modules/dagster/dagster/preview/__init__.py"
+    source_layer: "preview"
+    import_line: "from dagster_gcp_tests._check import ArgotFixture\n"
+    target_layer: "_check"
+    rationale: >-
+      forward, pop 462. `preview` is the staging namespace for
+      not-yet-stable public APIs; reaching for dagster's universal assertion
+      helper (`_check`) from anywhere in the codebase, including a staging
+      namespace, is completely ordinary and expected. Not flagged.
+
+  - host_file: "python_modules/dagster/dagster/deprecated/__init__.py"
+    source_layer: "deprecated"
+    import_line: "from dagster_gcp_tests._check import ArgotFixture\n"
+    target_layer: "_check"
+    rationale: >-
+      forward, pop 462. `deprecated` is the compat namespace for removed
+      public APIs; it importing the assertion helper to validate legacy
+      call-sites is unremarkable, expected usage. Not flagged.
+
+  - host_file: "python_modules/dagster/dagster/_legacy/__init__.py"
+    source_layer: "_legacy"
+    import_line: "from dagster_gcp_tests._check import ArgotFixture\n"
+    target_layer: "_check"
+    rationale: >-
+      forward, pop 462. `_legacy` re-exports old pre-1.0 APIs for backward
+      compatibility; using `_check` there is the same ordinary usage every
+      other layer makes of it. Not flagged.
+
+  - host_file: "python_modules/dagster/dagster/_experimental/__init__.py"
+    source_layer: "_experimental"
+    import_line: "from dagster_gcp_tests._check import ArgotFixture\n"
+    target_layer: "_check"
+    rationale: >-
+      forward, pop 462. `_experimental` is the staging namespace for new
+      unstable APIs; importing the assertion helper is ordinary growth, not
+      a layering mistake. Not flagged.
+
+  - host_file: "python_modules/dagster/dagster_tests/freshness_tests/__init__.py"
+    source_layer: "freshness_tests"
+    import_line: "from dagster_gcp_tests._utils import ArgotFixture\n"
+    target_layer: "_utils"
+    rationale: >-
+      forward, pop 366. dagster's own test suite importing dagster._utils
+      (the foundational general-purpose utility module) is exactly the
+      expected forward direction — tests consume utility helpers. Not
+      flagged.
+
+  - host_file: "python_modules/libraries/dagster-aws/dagster_aws/cloudwatch/__init__.py"
+    source_layer: "cloudwatch"
+    import_line: "from dagster_gcp_tests._utils import ArgotFixture\n"
+    target_layer: "_utils"
+    rationale: >-
+      forward, pop 366. dagster-aws is a downstream integration library;
+      reaching into dagster._utils for shared helpers is the normal
+      direction every integration library uses. Not flagged.
+
+  - host_file: "python_modules/automation/automation/eval/__init__.py"
+    source_layer: "eval"
+    import_line: "from dagster_gcp_tests._utils import ArgotFixture\n"
+    target_layer: "_utils"
+    rationale: >-
+      forward, pop 366. `automation` is repo-internal tooling (release
+      scripts, docs generation); its eval subcommand pulling in
+      dagster._utils is ordinary tooling-consumes-library usage. Not
+      flagged.
+
+  - host_file: "python_modules/dagster-webserver/dagster_webserver_tests/stress/__init__.py"
+    source_layer: "stress"
+    import_line: "from dagster_gcp_tests._utils import ArgotFixture\n"
+    target_layer: "_utils"
+    rationale: >-
+      forward, pop 366. The webserver's stress-test suite importing
+      dagster._utils is the same expected tests-consume-utils direction as
+      freshness_tests above. Not flagged.
