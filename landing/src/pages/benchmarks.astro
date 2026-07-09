@@ -26,7 +26,11 @@ type ForeignRow = {
   overfire_new_pct: number | null; under_sampled: boolean;
 };
 const foreignRows = (foreignData.corpora ?? []) as ForeignRow[];
-const fClassCell = (c: FClass) => (c && c.pct != null ? `${c.pct}% (${c.caught}/${c.total})` : '—');
+// Visible-tier (easy/medium) catch — the headline. Masked (hard) is surfaced as a
+// second line so a column can't read as a flat 100% while its hard cases quietly miss.
+const fVis = (c: FClass) => (c && c.pct != null ? `${c.pct}% (${c.caught}/${c.total})` : '—');
+const fMasked = (c: FClass) =>
+  c && c.masked_total > 0 ? `${c.masked_caught}/${c.masked_total} hard` : null;
 // aggregate visible catch per signal (the honest per-signal headline).
 const fAgg = (k: 'foreign_import' | 'foreign_api' | 'foreign_concurrency') => {
   let cc = 0, tt = 0, mc = 0, mt = 0;
@@ -354,6 +358,18 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
             name-based guardrail. In-vocabulary <em>misuse</em> of a library the repo already
             uses is a separate, deliberately-ungated class (below), not counted here.
           </p>
+          <p class="mt-3 text-sm leading-relaxed text-ink-dim">
+            <strong>Read the columns honestly.</strong> A foreign <em>import</em> and a foreign
+            <em>concurrency</em> lib are both caught by the same import stage, so their visible
+            catch is near-100% on nearly every repo — expected, not a separate feat, and the
+            two columns largely measure the same easy capability. The column that actually
+            varies is <strong>foreign API</strong> (70–100%): catching a foreign <em>callee</em>
+            that isn't an explicit import is the harder job. And each cell's second line
+            (<span class="text-muted">“N/M hard”</span>) is the masked tier — where the real
+            difficulty hides: concurrency, for instance, is a flat 100% visible but only ~19%
+            on its hard cases. We surface it so no column reads as a clean 100% while its hard
+            cases quietly miss.
+          </p>
 
           <div class="mt-8 overflow-x-auto">
             <table class="w-full min-w-[52rem] border-collapse text-sm">
@@ -373,9 +389,18 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
                   <tr class="border-b border-line/50 align-top">
                     <td class="py-2 font-medium">{r.corpus}{r.under_sampled ? ' ⚠️' : ''}</td>
                     <td class="text-muted">{r.language}</td>
-                    <td class="text-right">{fClassCell(r.classes.foreign_import)}</td>
-                    <td class="text-right">{fClassCell(r.classes.foreign_api)}</td>
-                    <td class="text-right">{fClassCell(r.classes.foreign_concurrency)}</td>
+                    <td class="text-right">
+                      {fVis(r.classes.foreign_import)}
+                      {fMasked(r.classes.foreign_import) && <div class="text-xs text-muted">{fMasked(r.classes.foreign_import)}</div>}
+                    </td>
+                    <td class="text-right">
+                      {fVis(r.classes.foreign_api)}
+                      {fMasked(r.classes.foreign_api) && <div class="text-xs text-muted">{fMasked(r.classes.foreign_api)}</div>}
+                    </td>
+                    <td class="text-right">
+                      {fVis(r.classes.foreign_concurrency)}
+                      {fMasked(r.classes.foreign_concurrency) && <div class="text-xs text-muted">{fMasked(r.classes.foreign_concurrency)}</div>}
+                    </td>
                     <td class="text-right">
                       {r.overfire_existing_pct != null ? `${r.overfire_existing_pct.toFixed(2)}%` : '—'}
                       {r.detection_existing_pct != null && r.detection_existing_pct > 0 && (
