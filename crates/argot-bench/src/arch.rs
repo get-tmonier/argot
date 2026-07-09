@@ -344,6 +344,95 @@ pub fn run_arch(
     Ok(md)
 }
 
+/// `--mode arch-candidates`: for each corpus, dump the resolver's GENUINE 0-usage
+/// reversal/sink candidate edges (with a sample host file per source layer), so
+/// fixtures target edges the resolver actually sees as 0-usage — closing the gap
+/// where text-`git grep` misses relative/grouped imports the resolver counts.
+pub fn run_arch_candidates(
+    targets: &[Target],
+    data_dir: &Path,
+    catalogs_dir: &Path,
+    results_dir: &Path,
+) -> Result<String> {
+    use argot_core::scoring::arch_graph::Violation;
+    use std::collections::HashMap;
+    std::fs::create_dir_all(results_dir).ok();
+    let mut summary =
+        String::from("# Architecture-graph — resolver-grounded 0-usage candidates\n\n");
+    for t in targets {
+        let Some(language) = corpus_lang(t) else {
+            continue;
+        };
+        let repo = ensure_clone(data_dir, &t.name, &t.url)?;
+        let head = t.prs[0].sha.clone();
+        ensure_full_history(&repo)?;
+        sync_corpus_config(catalogs_dir, &t.name, &repo)?;
+        let graph = graph_at(&repo, &head, language)?;
+        if graph.edge_count() == 0 {
+            continue;
+        }
+        // sample host file per source layer (first seen)
+        let (exts, _) = lang_files(language);
+        let mut host: HashMap<String, String> = HashMap::new();
+        for abs in collect_source_files(&repo) {
+            if let Ok(rel) = abs.strip_prefix(&repo) {
+                let rel = rel.to_string_lossy().replace('\\', "/");
+                if has_ext(&rel, exts) {
+                    if let Some(l) = graph.layer_of(&rel) {
+                        host.entry(l).or_insert(rel);
+                    }
+                }
+            }
+        }
+        // Enumerate 0-usage reversal/sink candidates, popularity-sorted. Only keep
+        // ones whose SOURCE layer has a real host file — a fixture author needs a
+        // concrete file to add the import to; target-only namespace layers (vendored
+        // deps, etc.) with no source file are useless for authoring.
+        let layers: Vec<String> = graph.layers().into_iter().collect();
+        let mut cands: Vec<(&String, &String, &'static str, u32)> = Vec::new();
+        for a in &layers {
+            if !host.contains_key(a) {
+                continue; // no source file to host the added import
+            }
+            for b in &layers {
+                if a == b || graph.contains_edge(&(a.clone(), b.clone())) {
+                    continue;
+                }
+                let kind = match graph.classify(&(a.clone(), b.clone())) {
+                    Some(Violation::Reversal) => "reversal",
+                    Some(Violation::SinkOut) => "sink_out",
+                    None => continue, // forward — not a catchable violation
+                };
+                cands.push((a, b, kind, graph.in_mass(b)));
+            }
+        }
+        cands.sort_by_key(|c| std::cmp::Reverse(c.3));
+        let mut out = format!(
+            "# {} ({}) — 0-usage reversal/sink candidates (host in `src` imports `tgt`)\n\n",
+            t.name, t.language
+        );
+        out.push_str("| src layer | tgt layer | kind | tgt popularity | sample host file |\n|---|---|---|--:|---|\n");
+        for (a, b, kind, pop) in cands.iter().take(60) {
+            out.push_str(&format!(
+                "| {} | {} | {} | {} | {} |\n",
+                a,
+                b,
+                kind,
+                pop,
+                host.get(*a).map(|s| s.as_str()).unwrap_or("(no host)")
+            ));
+        }
+        std::fs::write(results_dir.join(format!("candidates-{}.md", t.name)), &out).ok();
+        summary.push_str(&format!(
+            "- {}: {} host-backed reversal/sink candidates\n",
+            t.name,
+            cands.len()
+        ));
+    }
+    std::fs::write(results_dir.join("candidates.md"), &summary).ok();
+    Ok(summary)
+}
+
 fn render(results: &[ArchResult]) -> String {
     let mut s = String::new();
     s.push_str("# Architecture-graph foreignness — real-infra validation\n\n");
