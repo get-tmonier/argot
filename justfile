@@ -64,6 +64,23 @@ bench-structural *args:
     cargo build --release -p argot-bench --features structural
     ./target/release/argot-bench --mode structural --results-dir benchmarks/results/structural {{args}}
 
+# Architecture-graph bench (`--features arch`): real recall on authored 0-usage
+# violation fixtures + real-holdout over-fire, across the 20 corpora with
+# meaningful layering. 8 languages; every corpus ≥88% real recall / 0% control-FP
+# (docs/research/evidence/architecture-graph-foreignness.md). Feature-gated,
+# NON-GATING in dev/CI, base guardrail byte-for-byte unchanged. Pass corpora to
+# scope (`just bench-arch --corpus guava,ripgrep`); default runs the full set.
+bench-arch *args:
+    cargo build --release -p argot-bench --features arch
+    ./target/release/argot-bench --mode arch --results-dir benchmarks/results/arch \
+      {{ if args == "" { "--corpus saleor,scrapy,wagtail,fastapi,faker,composer,laravel,ripgrep,bat,guava,junit5,powershell,jellyfin,rubocop,gh-cli,hugo,hono,eslint,excalidraw,faker-js" } else { args } }}
+
+# Dump the resolver-verified 0-usage candidate menu (`--mode arch-candidates`) —
+# ready-to-author fixture rows (host_file + verified import_line) per corpus.
+bench-arch-candidates *args:
+    cargo build --release -p argot-bench --features arch
+    ./target/release/argot-bench --mode arch-candidates --results-dir benchmarks/results/arch {{args}}
+
 # --- checks ---
 
 # Format check + clippy-as-errors + tests. Canonical CI gate.
