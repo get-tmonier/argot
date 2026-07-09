@@ -1,0 +1,223 @@
+# Architecture-graph violation fixtures for curl (C).
+#
+# curl is a single top-level library (lib/) plus a command-line tool (src/).
+# A "layer" here is one of the host-mapped subdirectories the resolver formed
+# edges from: lib/vtls (TLS backend abstraction: apple, gtls, mbedtls,
+# openssl, rustls, schannel, wolfssl), lib/vauth (generic protocol auth
+# mechanisms: digest, ntlm, krb5, spnego, oauth2, cleartext), lib/vquic (QUIC
+# / HTTP-3 connection filters: ngtcp2, quiche, capsule), lib/vssh (SSH
+# transport backends: libssh, libssh2 — protocol handlers, not part of the
+# TLS/auth stack), lib/curlx (portable low-level utilities: base64, dynbuf,
+# strparse, timeval, ... — curl's "stdlib"), and toolx (src/toolx/ — a tiny
+# debug-timing helper private to the curl command-line tool, not part of
+# libcurl at all). The edge forms from a `#include "<layer>/<header>"`.
+#
+# Layer roles, from ground truth (`git grep` against the corpus HEAD
+# 84ecfb3ecc793c0087ed9700bdc2a1475ab53ff9):
+#   curlx  is the most widely depended-upon layer (77 files include it
+#          corpus-wide) and is a pure leaf itself — curlx/base64.c imports
+#          nothing but its own header.
+#   vtls   depends on both vauth (gtls.c/openssl.c include vauth/vauth.h,
+#          wiring SSPI/GSSAPI credentials into the TLS handshake) and curlx
+#          (35 hits, e.g. gtls.c pulls curlx/strdup.h, curlx/fopen.h).
+#   vauth  depends on curlx (digest.c includes curlx/base64.h,
+#          curlx/strparse.h) but never reaches into vtls, vquic or vssh.
+#          vauth/cleartext.c (the plaintext auth mechanism) imports nothing
+#          beyond its own header — a pure leaf for outgoing edges.
+#   vquic  depends on vtls (cf-ngtcp2-cmn.c includes vtls/openssl.h,
+#          vtls/gtls.h, vtls/wolfssl.h to drive the QUIC handshake) and, via
+#          vtls, transitively on vauth.
+#   vssh   is self-contained: libssh/libssh2 bundle their own crypto and
+#          auth, so vssh/libssh.c reaches only into curlx (base64, strparse)
+#          and generic lib/ plumbing (sendf, url, cfilters, ...) — it has
+#          zero edges, in either direction, to vtls, vauth or vquic.
+#   toolx  is a two-file leaf private to src/ (the CLI tool binary), only
+#          consumed by src/tool_cb_dbg.c; it is architecturally outside
+#          libcurl and has no legitimate reason to be imported by, or to
+#          import, any lib/ internal layer.
+#
+# Every host_file / import_line pair below is copied verbatim from the
+# resolver-verified 0-usage candidate menu (/tmp/arch-gap/candidates-curl.md,
+# 21 catchable + 3 forward candidates over these 7 layers); source_layer,
+# target_layer and kind are taken directly from that row. `pop` in the menu
+# tracks how often the target layer already appears as an established import
+# elsewhere in the graph (curlx=127 highest ... toolx=1 lowest), used below
+# only for the reversal/sink_out narrative, not copied into the fixture.
+
+violations:
+  # ---- reversal (4): reverse edge target->source is attested; the fixture
+  #      edge source->target is 0-usage in either direction ----
+
+  - host_file: "lib/vauth/cleartext.c"
+    source_layer: "vauth"
+    import_line: "#include \"vtls/argot_fixture.h\"\n"
+    target_layer: "vtls"
+    kind: "reversal"
+    rationale: >-
+      vtls->vauth is attested (lib/vtls/gtls.c:50 and lib/vtls/openssl.c:45
+      both `#include "vauth/vauth.h"`, wiring SSPI/GSSAPI credentials into
+      the TLS handshake). cleartext.c, the simplest vauth mechanism, imports
+      nothing beyond its own header today; having it reach up into the TLS
+      backend layer reverses the real vtls->vauth dependency — the kind of
+      "let me just include the TLS header for good measure" move an
+      unfamiliar agent might make when touching an auth file that already
+      deals with credentials.
+
+  - host_file: "lib/curlx/base64.c"
+    source_layer: "curlx"
+    import_line: "#include \"vtls/argot_fixture.h\"\n"
+    target_layer: "vtls"
+    kind: "reversal"
+    rationale: >-
+      vtls->curlx is heavily attested (35 hits across 12 files; e.g. gtls.c
+      pulls curlx/strdup.h and curlx/fopen.h). curlx is corpus-wide the most
+      depended-upon layer and base64.c is a pure leaf (imports only its own
+      header) — a foundational string-utility file has no reason to reach up
+      into a TLS backend. Doing so reverses the established vtls->curlx
+      edge.
+
+  - host_file: "lib/curlx/base64.c"
+    source_layer: "curlx"
+    import_line: "#include \"vauth/argot_fixture.h\"\n"
+    target_layer: "vauth"
+    kind: "reversal"
+    rationale: >-
+      vauth->curlx is attested (lib/vauth/digest.c:33/37 includes
+      curlx/base64.h and curlx/strparse.h). Same leaf file, same direction
+      mistake: curlx sits below vauth in the real dependency graph, so
+      base64.c importing the auth-mechanism layer reverses vauth->curlx.
+
+  - host_file: "lib/vtls/apple.c"
+    source_layer: "vtls"
+    import_line: "#include \"vquic/argot_fixture.h\"\n"
+    target_layer: "vquic"
+    kind: "reversal"
+    rationale: >-
+      vquic->vtls is attested (lib/vquic/cf-ngtcp2-cmn.c:39/42/45 includes
+      vtls/openssl.h, vtls/gtls.h and vtls/wolfssl.h to drive the QUIC TLS
+      handshake). apple.c (the Secure Transport backend) currently imports
+      only its own layer plus generic plumbing (urldata.h, cfilters.h,
+      curl_trc.h) — a TLS backend has no business reaching up into the QUIC
+      connection-filter layer that depends on it. Reverses vquic->vtls.
+
+  # ---- transitive_reversal (1): no direct edge exists, but a real
+  #      multi-hop path (vquic -> vtls -> vauth) makes the fixture edge a
+  #      layer-skip in the wrong direction ----
+
+  - host_file: "lib/vauth/cleartext.c"
+    source_layer: "vauth"
+    import_line: "#include \"vquic/argot_fixture.h\"\n"
+    target_layer: "vquic"
+    kind: "transitive_reversal"
+    rationale: >-
+      There is no direct vquic<->vauth edge, but vquic->vtls (attested) and
+      vtls->vauth (attested) compose into a real transitive path
+      vquic -> vtls -> vauth: vauth already sits two hops below vquic. An
+      auth mechanism reaching straight up into the QUIC transport layer
+      skips over vtls entirely and inverts that transitive dependency — the
+      layer-skipping mistake a coding agent makes when it sees "vquic needs
+      credentials somewhere" and imports the wrong layer directly instead of
+      going through vtls.
+
+  # ---- sink_out (4): a layer normally isolated from the target sprouts a
+  #      new outgoing edge into it; 0-usage in both directions ----
+
+  - host_file: "src/toolx/tool_time.c"
+    source_layer: "toolx"
+    import_line: "#include \"curlx/argot_fixture.h\"\n"
+    target_layer: "curlx"
+    kind: "sink_out"
+    rationale: >-
+      toolx is a two-file leaf private to the command-line tool (tool_time.c
+      imports only its own tool_time.h) whose only consumer is
+      src/tool_cb_dbg.c — it has never reached into any lib/ internal layer.
+      curlx is corpus-wide the most depended-upon utility layer (77 files),
+      which makes it a tempting, plausible-looking reach, but for this
+      specific narrow debug-timer file it is a new, unattested edge into
+      library internals from what should be a self-contained CLI helper.
+
+  - host_file: "lib/vssh/libssh.c"
+    source_layer: "vssh"
+    import_line: "#include \"vtls/argot_fixture.h\"\n"
+    target_layer: "vtls"
+    kind: "sink_out"
+    rationale: >-
+      libssh/libssh2 bundle their own TLS/crypto; lib/vssh/libssh.c already
+      reaches into curlx (curlx/strparse.h, curlx/base64.h) for portable
+      helpers but has zero references, in either direction, to the vtls
+      backend-abstraction layer. Pulling in vtls from the SSH transport is
+      the "I need crypto so I'll grab the TLS layer" mistake — SSH's crypto
+      path never runs through curl's TLS backends.
+
+  - host_file: "lib/vssh/libssh.c"
+    source_layer: "vssh"
+    import_line: "#include \"vauth/argot_fixture.h\"\n"
+    target_layer: "vauth"
+    kind: "sink_out"
+    rationale: >-
+      SSH authentication (pubkey, password, keyboard-interactive) is handled
+      entirely inside libssh/libssh2 — vssh has never imported curl's
+      generic protocol-auth mechanisms in lib/vauth (digest, ntlm, krb5,
+      spnego are for HTTP/IMAP/SMTP/POP3, not SSH). A new libssh.c edge into
+      vauth is a foreign reach with no established edge in either direction.
+
+  - host_file: "lib/vauth/cleartext.c"
+    source_layer: "vauth"
+    import_line: "#include \"vssh/argot_fixture.h\"\n"
+    target_layer: "vssh"
+    kind: "sink_out"
+    rationale: >-
+      Mirror of the previous case from the other side: vauth's generic
+      protocol-auth mechanisms have never been used by, or reached into, the
+      self-contained SSH transport backend (0-usage in both directions). A
+      cleartext-auth file suddenly importing the vssh layer is an
+      unexplained cross-protocol reach a domain owner would immediately
+      question.
+
+  # ---- forward (1): the fixture edge follows the pop-rank "high layer
+  #      imports low layer" direction (so a pure edge-direction signal will
+  #      not flag it), but the specific pairing has no domain justification
+  #      — included as an honesty check on the direction-only signal, not a
+  #      claim about what the structural check alone can catch ----
+
+  - host_file: "lib/vquic/capsule.c"
+    source_layer: "vquic"
+    import_line: "#include \"toolx/argot_fixture.h\"\n"
+    target_layer: "toolx"
+    kind: "forward"
+    rationale: >-
+      capsule.c implements CONNECT-UDP/MASQUE capsule parsing for the QUIC
+      connection-filter layer; its only lib/ dependency today is curlx
+      (curlx/dynbuf.h) plus generic plumbing (cfilters.h, bufq.h). toolx is
+      lower pop-rank than vquic, so on a bare edge-direction heuristic this
+      reads as "high layer imports low helper" and would not be caught by
+      the reversal/sink_out signal alone — but toolx is a debug-timing
+      helper private to the src/ command-line tool, architecturally outside
+      libcurl entirely. A library-internal QUIC file has no legitimate path
+      to a CLI-tool debug header; lib/ depending on src/ inverts the real
+      application-uses-library relationship. Included to keep the recall
+      measurement honest about what direction-only checks miss.
+
+controls:
+  # Realistic NEW imports that RESPECT the established layer direction —
+  # copied from the menu's one domain-plausible `forward` row (the other two
+  # forward rows, vquic->vssh and vquic->toolx, have no legitimate story:
+  # vquic has zero relationship to the SSH backend, and vquic->toolx is
+  # actually the reverse of the true app-uses-library direction, so it is
+  # used above as a `forward`-kind violation instead; the menu only offers 3
+  # `forward` candidates total, so this catalog has 1 control, not ~5 — see
+  # task summary).
+
+  - host_file: "lib/vquic/capsule.c"
+    source_layer: "vquic"
+    import_line: "#include \"vauth/argot_fixture.h\"\n"
+    target_layer: "vauth"
+    rationale: >-
+      capsule.c is part of curl's CONNECT-UDP/MASQUE proxy-capsule handling
+      for QUIC, and lib/http_proxy.c — curl's HTTP proxy-tunnel connection
+      code — already includes vauth/vauth.h (line 37) specifically to
+      authenticate proxy CONNECT tunnels (Basic/NTLM/Negotiate). A QUIC
+      proxy-tunnel capsule file reaching for the same proxy-auth helper is
+      the same real pattern one layer over, not a new architectural
+      relationship: a connection/tunnel-establishment file pulling in
+      curl's generic proxy-authentication mechanism. Not a violation.
