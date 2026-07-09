@@ -240,6 +240,31 @@ powershell/jellyfin (C#), homebrew (Ruby):
 - **Ruby — inherent.** Zeitwerk/Rails autoloading means few explicit `require`s (rubocop, which
   uses requires, works at 84%; homebrew, autoloaded, is empty). Honest weak spot.
 
+## Multi-language fixtures — a methodology finding (the "evaluate" step)
+
+Authored violation fixtures for composer (PHP), eslint (JS), ripgrep (Rust) — same method as the
+Python ones (0-usage verified by `git grep`). Scored through the real resolver:
+
+| corpus | lang | valid violations | control-FP | note |
+|---|---|---|---|---|
+| composer | php | 0/10 (10 invalid) | 0/5 | every authored "violation" edge already exists |
+| eslint | js | 0/10 (10 invalid) | 0/5 | " |
+| ripgrep | rust | 0-caught/1 valid (9 invalid) | 0/5 | " |
+
+**Finding:** text `git grep` verification does **not** match the resolver's edge detection — the
+resolver counts edges from **relative imports** (`use super::`, `../x`) and **grouped imports**
+(`use crate::{a, b}`, `use App\{A, B}`) that the authors' absolute greps miss, so the "0-usage"
+edges are actually attested. (Same cause as saleor's 10/12 invalid.) So **real recall is measured
+only on Python (84%)**; PHP/JS/Rust fixtures need **resolver-grounded 0-usage verification** (dump
+the resolver's actual 0-usage reversible/sink edges, author against those) — a bench helper to add.
+
+**What IS validated multi-language:** coverage (composer 84 · eslint 84 · ripgrep 98) and,
+importantly, **control-FP = 0/30 = 0% across PHP/JS/Rust/Python** — the detector correctly stays
+silent on legit new edges in every language (the no-false-positive property generalizes).
+
+**Also still open:** the Java/C# multi-module resolver fix (an agent attempted it but its changes
+did not persist) and the weak-corpus investigation (laravel/hono).
+
 ## Status + honest remaining work
 
 **Validated:** the signal exists (90–100% directional, 3 langs), real-holdout FP is 0–2.7% (proxy +

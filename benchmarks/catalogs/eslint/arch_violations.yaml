@@ -1,0 +1,212 @@
+# Architecture-graph violation fixtures for eslint (JavaScript). Each `import_line`
+# added to `host_file` creates the internal edge (source layer -> target layer).
+# Violations cross a boundary the repo never crosses; controls respect the
+# established direction.
+#
+# Layer = first path component under the source root `lib/` (e.g. `lib/rules/x.js`
+# -> layer `rules`; `lib/languages/js/index.js` -> layer `languages`). Edges are
+# formed from RELATIVE imports only (specifier starts with `.`); bare specifiers
+# are external and do not count. Both `require('../linter/x')` and
+# `import { X } from '../linter/x.js'` create the edge. Mind the `../` depth: from
+# a depth-2 host `lib/config/config.js`, `'../linter/x'` resolves to `lib/linter/x`
+# (layer linter); from a depth-3 host `lib/languages/js/index.js` you need
+# `'../../config/x'` to reach `lib/config/x`.
+#
+# Topology at HEAD (from resolving every relative import in `lib/**/*.js` to its
+# target layer, counting distinct source files per edge):
+#   - `shared` is the universal SINK: 7 layers import it (rules 10, linter 5,
+#     languages 3, cli-engine 2, config 2, eslint 2, services 1) and it imports NO
+#     other layer (fan_out = 0). Every `shared -> X` edge is 0-usage and sink-leaving.
+#   - `eslint` is the top APP layer: it imports services (3), config (2), linter (2),
+#     shared (2), cli-engine (1); only the root `lib/*.js` files import eslint back.
+#     So every `<lower> -> eslint` edge reverses an attested `eslint -> <lower>`.
+#   - `rule-tester` is a near-sink test layer (fan_in = 0): config/linter/languages
+#     each import it, it imports none of them back.
+#   - `rules` (304 files) is an isolated source: it imports only `shared`, and
+#     nothing imports `rules`. So `rules -> <engine>` crosses a boundary that never
+#     exists in either direction.
+# Verification per fixture: the (source -> target) edge is confirmed 0-usage with
+#   git -C benchmarks/data/eslint/.repo grep -lE "(require\(|from )['\"](\.\./)+<target>/" -- lib/<source>/
+# (returns nothing). The pattern catches both require- and import-style relative
+# imports at any `../` depth.
+
+violations:
+  # ---- reversals (attested B->A, so A->B reverses an established direction) ----
+  - host_file: "lib/services/parser-service.js"
+    source_layer: "services"
+    import_line: "import { ESLint } from '../eslint/eslint.js';"
+    target_layer: "eslint"
+    kind: "reversal"
+    rationale: >-
+      A low-level parser service reaching up into the top-level ESLint façade —
+      the canonical LLM layering mistake. `git -C benchmarks/data/eslint/.repo grep
+      -lE "(require\(|from )['\"](\.\./)+eslint/" -- lib/services/` returns nothing
+      -> edge services->eslint is 0-usage. Reverse strongly attested: eslint->services
+      (3 files: eslint-helpers.js, eslint.js, worker.js). Reverses that direction.
+
+  - host_file: "lib/config/config-loader.js"
+    source_layer: "config"
+    import_line: "import { ESLint } from '../eslint/eslint.js';"
+    target_layer: "eslint"
+    kind: "reversal"
+    rationale: >-
+      The config loader importing the ESLint façade it is supposed to feed.
+      `git -C benchmarks/data/eslint/.repo grep -lE "(require\(|from )['\"](\.\./)+eslint/"
+      -- lib/config/` returns nothing -> config->eslint is 0-usage. Reverse attested:
+      eslint->config (2 files: eslint-helpers.js, eslint.js). Reverses the established
+      eslint->config direction (config is consumed by eslint, not the other way).
+
+  - host_file: "lib/linter/linter.js"
+    source_layer: "linter"
+    import_line: "import { ESLint } from '../eslint/eslint.js';"
+    target_layer: "eslint"
+    kind: "reversal"
+    rationale: >-
+      The core Linter engine importing the higher-level ESLint orchestrator that
+      wraps it. `git -C benchmarks/data/eslint/.repo grep -lE
+      "(require\(|from )['\"](\.\./)+eslint/" -- lib/linter/` returns nothing ->
+      linter->eslint is 0-usage. Reverse attested: eslint->linter (2 files: eslint.js,
+      worker.js) — eslint drives the linter, never the reverse. Reverses that direction.
+
+  - host_file: "lib/config/config.js"
+    source_layer: "config"
+    import_line: "import { Linter } from '../linter/linter.js';"
+    target_layer: "linter"
+    kind: "reversal"
+    rationale: >-
+      A config object pulling in the Linter engine. `git -C benchmarks/data/eslint/.repo
+      grep -lE "(require\(|from )['\"](\.\./)+linter/" -- lib/config/` returns nothing
+      -> config->linter is 0-usage. Reverse attested: linter->config (2 files:
+      apply-disable-directives.js, linter.js) — the linter reads config, config does not
+      import the linter. Reverses the established linter->config direction.
+
+  - host_file: "lib/languages/js/index.js"
+    source_layer: "languages"
+    import_line: "import { Config } from '../../config/config.js';"
+    target_layer: "config"
+    kind: "reversal"
+    rationale: >-
+      The JS language plugin reaching into the config layer. Host is depth-3
+      (lib/languages/js/index.js), so `'../../config/config.js'` resolves to
+      lib/config/config.js. `git -C benchmarks/data/eslint/.repo grep -lE
+      "(require\(|from )['\"](\.\./)+config/" -- lib/languages/` returns nothing ->
+      languages->config is 0-usage. Reverse attested: config->languages (1 file:
+      default-config.js binds the JS language). Reverses that direction.
+
+  - host_file: "lib/config/flat-config-array.js"
+    source_layer: "config"
+    import_line: "import RuleTester from '../rule-tester/rule-tester.js';"
+    target_layer: "rule-tester"
+    kind: "reversal"
+    rationale: >-
+      A production config module importing the test-only RuleTester. `git -C
+      benchmarks/data/eslint/.repo grep -lE "(require\(|from )['\"](\.\./)+rule-tester/"
+      -- lib/config/` returns nothing -> config->rule-tester is 0-usage. Reverse
+      attested: rule-tester->config (1 file: rule-tester.js consumes FlatConfigArray).
+      Reverses the direction — the tester depends on config, not config on the tester.
+
+  - host_file: "lib/linter/source-code-fixer.js"
+    source_layer: "linter"
+    import_line: "import RuleTester from '../rule-tester/rule-tester.js';"
+    target_layer: "rule-tester"
+    kind: "reversal"
+    rationale: >-
+      The linter's source-code fixer pulling in the test-only RuleTester. `git -C
+      benchmarks/data/eslint/.repo grep -lE "(require\(|from )['\"](\.\./)+rule-tester/"
+      -- lib/linter/` returns nothing -> linter->rule-tester is 0-usage. Reverse
+      attested: rule-tester->linter (1 file: rule-tester.js drives the Linter). Reverses
+      that direction — production linter code must not depend on its own test harness.
+
+  # ---- sink_out (shared is the universal SINK: fan_in=9, fan_out=0 — any edge OUT is suspect) ----
+  - host_file: "lib/shared/ast-utils.js"
+    source_layer: "shared"
+    import_line: "import noUnusedVars from '../rules/no-unused-vars.js';"
+    target_layer: "rules"
+    kind: "sink_out"
+    rationale: >-
+      shared is the universal sink (imported by 7 layers, imports none). A shared
+      AST utility reaching down into a concrete rule inverts the whole dependency spine.
+      `git -C benchmarks/data/eslint/.repo grep -lE "(require\(|from )['\"](\.\./)+rules/"
+      -- lib/shared/` returns nothing -> shared->rules is 0-usage, and shared leaving its
+      sink position is the signal (rules->shared is attested, 10 files).
+
+  - host_file: "lib/shared/traverser.js"
+    source_layer: "shared"
+    import_line: "import { Linter } from '../linter/linter.js';"
+    target_layer: "linter"
+    kind: "sink_out"
+    rationale: >-
+      A shared AST traverser importing the Linter engine. `git -C
+      benchmarks/data/eslint/.repo grep -lE "(require\(|from )['\"](\.\./)+linter/"
+      -- lib/shared/` returns nothing -> shared->linter is 0-usage. shared is a sink
+      (fan_out=0), so any outbound edge is anomalous; linter->shared is separately
+      attested (5 files), never the reverse.
+
+  # ---- forward_cross (0-usage, reverse NOT attested — crosses a boundary the repo never crosses) ----
+  - host_file: "lib/rules/no-unused-vars.js"
+    source_layer: "rules"
+    import_line: "import { Linter } from '../linter/linter.js';"
+    target_layer: "linter"
+    kind: "forward_cross"
+    rationale: >-
+      An individual rule reaching straight into the Linter engine that runs it.
+      `git -C benchmarks/data/eslint/.repo grep -lE "(require\(|from )['\"](\.\./)+linter/"
+      -- lib/rules/` returns nothing -> rules->linter is 0-usage; the reverse
+      linter->rules is ALSO 0 (not a reversal). Rules are isolated leaves — they import
+      only `shared` and nothing imports them — so wiring a rule to the linter crosses a
+      boundary the topology never crosses in either direction.
+
+controls:
+  - host_file: "lib/rules/camelcase.js"
+    source_layer: "rules"
+    import_line: "import { getStaticPropertyName } from '../shared/ast-utils.js';"
+    target_layer: "shared"
+    rationale: >-
+      rules->shared is THE dominant established direction (10 rule files already import
+      shared; shared imports nothing back). A rule pulling another shared AST helper is
+      legit growth, not a violation. `git -C benchmarks/data/eslint/.repo grep -lE
+      "(require\(|from )['\"](\.\./)+shared/" -- lib/rules/` shows rules->shared heavily
+      attested; shared->rules is 0, so direction is respected. Detector must stay quiet.
+
+  - host_file: "lib/linter/linter.js"
+    source_layer: "linter"
+    import_line: "import ok from '../shared/assert.js';"
+    target_layer: "shared"
+    rationale: >-
+      linter->shared is established (5 linter files import shared; the reverse
+      shared->linter is 0). A new linter->shared assert import respects the spine.
+      `git -C benchmarks/data/eslint/.repo grep -lE "(require\(|from )['\"](\.\./)+shared/"
+      -- lib/linter/` confirms linter->shared is attested; must not fire.
+
+  - host_file: "lib/eslint/eslint.js"
+    source_layer: "eslint"
+    import_line: "import { WarningService } from '../services/warning-service.js';"
+    target_layer: "services"
+    rationale: >-
+      eslint->services is established (3 eslint files import services; the reverse
+      services->eslint is 0). The top app layer wiring in another service is exactly the
+      established app->service shape. `git -C benchmarks/data/eslint/.repo grep -lE
+      "(require\(|from )['\"](\.\./)+services/" -- lib/eslint/` confirms eslint->services
+      is attested; legit growth, not a violation.
+
+  - host_file: "lib/config/config.js"
+    source_layer: "config"
+    import_line: "import { deepMergeArrays } from '../shared/deep-merge-arrays.js';"
+    target_layer: "shared"
+    rationale: >-
+      config->shared is established (2 config files import shared; the reverse
+      shared->config is 0). Importing a shared merge helper into a config module is the
+      established direction. `git -C benchmarks/data/eslint/.repo grep -lE
+      "(require\(|from )['\"](\.\./)+shared/" -- lib/config/` confirms config->shared is
+      attested; the detector must stay silent.
+
+  - host_file: "lib/linter/linter.js"
+    source_layer: "linter"
+    import_line: "import { FlatConfigArray } from '../config/flat-config-array.js';"
+    target_layer: "config"
+    rationale: >-
+      linter->config is established (2 linter files import config; the reverse
+      config->linter is 0 — and is itself a violation fixture above). The linter reading
+      a config array is exactly the attested direction. `git -C benchmarks/data/eslint/.repo
+      grep -lE "(require\(|from )['\"](\.\./)+config/" -- lib/linter/` confirms
+      linter->config is attested; legit growth, not a violation.

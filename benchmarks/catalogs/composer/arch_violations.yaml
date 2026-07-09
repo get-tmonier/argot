@@ -1,0 +1,178 @@
+# Architecture-graph violation fixtures for composer (PHP, PSR-4 namespace Composer\<Layer>).
+# Each `import_line` added to `host_file` creates the internal edge (source layer -> target
+# layer). Violations cross a boundary the repo never crosses; controls respect the established
+# direction.
+#
+# Layer = the SECOND namespace component of a file's `namespace Composer\<Layer>\...;` decl,
+# i.e. its directory under `src/Composer/`. An `use Composer\<LayerB>\Class;` in a file whose
+# namespace is `Composer\<LayerA>` forms the edge (LayerA -> LayerB).
+#
+# Topology at HEAD (from `git grep -h 'use Composer\<X>\' -- src/Composer/<source>/`, counting
+# only internal src/Composer/ layers; external composer/* vendor namespaces like Pcre, Semver,
+# Spdx are excluded):
+#   - `Command` is the top APP/entry layer: it imports Repository/Package/Util/Console/Plugin/
+#     Json/IO/DependencyResolver/Downloader/... (huge fan_out); almost nothing imports Command.
+#     So every `<lib-layer> -> Command` edge reverses an attested `Command -> <lib-layer>`.
+#   - `Util`, `IO`, `Json` are near-SINKS: widely imported, they import out to very few layers
+#     (Util -> {IO,Downloader,Package,Json,Repository,Exception}; IO -> {Util,Question};
+#     Json -> {Util,Repository,IO,Downloader}). Any edge OUT of them to a non-listed layer is
+#     anomalous and sink-leaving.
+#   - `DependencyResolver -> Package` (attested, many files), `Autoload -> Package`,
+#     `Installer -> Downloader` are one-directional spines; the reverse is never used.
+# Verification method per fixture: the (source -> target) edge is confirmed 0-usage with
+#   git -C benchmarks/data/composer/.repo grep -l 'use Composer\<target>\' -- 'src/Composer/<source>/'
+# returning nothing (0 files).
+
+violations:
+  # ---- reversals (attested LayerB->LayerA, so LayerA->LayerB reverses an established direction) ----
+  - host_file: "src/Composer/Package/BasePackage.php"
+    source_layer: "Package"
+    import_line: "use Composer\\Command\\InstallCommand;"
+    target_layer: "Command"
+    kind: "reversal"
+    rationale: >-
+      A Package value object reaching up into a console Command — the canonical LLM layering
+      mistake. `git grep -l 'use Composer\Command\' -- src/Composer/Package/` returns 0 files
+      -> edge Package->Command is 0-usage. Reverse strongly attested: Command->Package (22 files),
+      so this reverses the established Command->Package direction.
+
+  - host_file: "src/Composer/Repository/ComposerRepository.php"
+    source_layer: "Repository"
+    import_line: "use Composer\\Command\\UpdateCommand;"
+    target_layer: "Command"
+    kind: "reversal"
+    rationale: >-
+      A repository implementation importing a console Command. `git grep -l 'use Composer\Command\'
+      -- src/Composer/Repository/` returns 0 files -> Repository->Command is 0-usage. Reverse
+      attested: Command->Repository (18 files) — Command drives Repository, never the reverse.
+
+  - host_file: "src/Composer/DependencyResolver/DefaultPolicy.php"
+    source_layer: "DependencyResolver"
+    import_line: "use Composer\\Command\\RequireCommand;"
+    target_layer: "Command"
+    kind: "reversal"
+    rationale: >-
+      The solver policy pulling in a console Command. `git grep -l 'use Composer\Command\' --
+      src/Composer/DependencyResolver/` returns 0 files -> DependencyResolver->Command is 0-usage.
+      Reverse attested: Command->DependencyResolver (6 files). Reverses that direction.
+
+  - host_file: "src/Composer/Downloader/DownloadManager.php"
+    source_layer: "Downloader"
+    import_line: "use Composer\\Command\\InstallCommand;"
+    target_layer: "Command"
+    kind: "reversal"
+    rationale: >-
+      The download manager importing the install Command. `git grep -l 'use Composer\Command\' --
+      src/Composer/Downloader/` returns 0 files -> Downloader->Command is 0-usage. Reverse attested:
+      Command->Downloader (3 files) — Command orchestrates Downloader, not the reverse.
+
+  - host_file: "src/Composer/Package/AliasPackage.php"
+    source_layer: "Package"
+    import_line: "use Composer\\DependencyResolver\\Solver;"
+    target_layer: "DependencyResolver"
+    kind: "reversal"
+    rationale: >-
+      A Package model importing the dependency Solver inverts the spine. `git grep -l
+      'use Composer\DependencyResolver\' -- src/Composer/Package/` returns 0 files ->
+      Package->DependencyResolver is 0-usage. Reverse strongly attested: DependencyResolver->Package
+      (18 files) — the solver consumes Package, never the other way. Reverses that direction.
+
+  - host_file: "src/Composer/Downloader/FileDownloader.php"
+    source_layer: "Downloader"
+    import_line: "use Composer\\Installer\\InstallationManager;"
+    target_layer: "Installer"
+    kind: "reversal"
+    rationale: >-
+      A downloader reaching up into the InstallationManager. `git grep -l 'use Composer\Installer\'
+      -- src/Composer/Downloader/` returns 0 files -> Downloader->Installer is 0-usage. Reverse
+      attested: Installer->Downloader (3 files) — Installer drives Downloader. Reverses that direction.
+
+  - host_file: "src/Composer/Package/RootPackage.php"
+    source_layer: "Package"
+    import_line: "use Composer\\Autoload\\AutoloadGenerator;"
+    target_layer: "Autoload"
+    kind: "reversal"
+    rationale: >-
+      A Package model importing the AutoloadGenerator. `git grep -l 'use Composer\Autoload\' --
+      src/Composer/Package/` returns 0 files -> Package->Autoload is 0-usage. Reverse attested:
+      Autoload->Package (1 file) — the autoload generator reads Package, never the reverse.
+
+  # ---- sink_out (Util/IO/Json are near-sinks; any outbound edge to a non-attested layer is suspect) ----
+  - host_file: "src/Composer/Util/Filesystem.php"
+    source_layer: "Util"
+    import_line: "use Composer\\Command\\InstallCommand;"
+    target_layer: "Command"
+    kind: "sink_out"
+    rationale: >-
+      Util is a near-sink (imported by nearly every layer; imports out only to IO/Downloader/
+      Package/Json/Repository/Exception). A low-level Filesystem helper importing a console Command
+      inverts the spine. `git grep -l 'use Composer\Command\' -- src/Composer/Util/` returns 0 files
+      -> Util->Command is 0-usage; Command->Util is separately attested (23 files), never the reverse.
+
+  - host_file: "src/Composer/IO/ConsoleIO.php"
+    source_layer: "IO"
+    import_line: "use Composer\\Repository\\ComposerRepository;"
+    target_layer: "Repository"
+    kind: "sink_out"
+    rationale: >-
+      IO is a sink (imports out only to Util and Question). An IO implementation reaching into a
+      Repository is anomalous. `git grep -l 'use Composer\Repository\' -- src/Composer/IO/` returns
+      0 files -> IO->Repository is 0-usage. Reverse attested: Repository->IO (18 files) — Repository
+      consumes IO for output, never the reverse.
+
+  - host_file: "src/Composer/Json/JsonFile.php"
+    source_layer: "Json"
+    import_line: "use Composer\\Command\\ValidateCommand;"
+    target_layer: "Command"
+    kind: "sink_out"
+    rationale: >-
+      Json is a near-sink (imports out only to Util/Repository/IO/Downloader). The JSON file
+      abstraction importing a console Command inverts the spine. `git grep -l 'use Composer\Command\'
+      -- src/Composer/Json/` returns 0 files -> Json->Command is 0-usage; Command->Json is attested
+      (14 files), never the reverse.
+
+controls:
+  - host_file: "src/Composer/Command/AboutCommand.php"
+    source_layer: "Command"
+    import_line: "use Composer\\Repository\\RepositoryFactory;"
+    target_layer: "Repository"
+    rationale: >-
+      Command importing Repository is THE established direction; Command->Repository is heavily
+      attested (18 files). Adding another such import is legit growth. `git grep -l
+      'use Composer\Repository\' -- src/Composer/Command/` shows Command->Repository is attested,
+      so the detector must stay quiet.
+
+  - host_file: "src/Composer/Command/ArchiveCommand.php"
+    source_layer: "Command"
+    import_line: "use Composer\\Util\\Filesystem;"
+    target_layer: "Util"
+    rationale: >-
+      Command->Util is the dominant established direction (23 Command files import Util; Util->Command
+      is 0). A new Command file importing a Util helper respects the spine and must not fire.
+
+  - host_file: "src/Composer/DependencyResolver/Decisions.php"
+    source_layer: "DependencyResolver"
+    import_line: "use Composer\\Package\\CompletePackageInterface;"
+    target_layer: "Package"
+    rationale: >-
+      DependencyResolver->Package is established (18 files); the reverse Package->DependencyResolver
+      is 0. Importing a Package type into the solver is exactly the established direction — no flag.
+
+  - host_file: "src/Composer/Repository/ArrayRepository.php"
+    source_layer: "Repository"
+    import_line: "use Composer\\Package\\CompletePackageInterface;"
+    target_layer: "Package"
+    rationale: >-
+      Repository->Package is established (18 Repository files import Package). Repositories build
+      and hand back Package objects, so importing a Package type is exactly the attested direction.
+      `git grep -l 'use Composer\Package\' -- src/Composer/Repository/` confirms the edge exists;
+      a new Package import here is legit growth and must not fire.
+
+  - host_file: "src/Composer/Downloader/GitDownloader.php"
+    source_layer: "Downloader"
+    import_line: "use Composer\\Util\\Filesystem;"
+    target_layer: "Util"
+    rationale: >-
+      Downloader->Util is established (13 Downloader files import Util; Util->Downloader is the
+      only reverse and is itself attested as the sink-forward). A new Util helper import in a
+      downloader is legit growth in the established direction, not a violation.
