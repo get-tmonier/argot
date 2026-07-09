@@ -15,6 +15,7 @@ fixtures:
 - id: raw_sql_1
   file: breaks/break_raw_sql_1.py
   category: raw_sql
+  class: foreign_api
   hunk_start_line: 21
   hunk_end_line: 58
   difficulty: medium
@@ -24,6 +25,7 @@ fixtures:
 - id: raw_sql_2
   file: breaks/break_raw_sql_2.py
   category: raw_sql
+  class: semantic_convention
   hunk_start_line: 17
   hunk_end_line: 39
   difficulty: hard
@@ -42,6 +44,7 @@ fixtures:
 - id: foreign_http_2
   file: breaks/break_foreign_http_2.py
   category: foreign_http
+  class: foreign_api
   hunk_start_line: 16
   hunk_end_line: 37
   difficulty: medium
@@ -51,6 +54,7 @@ fixtures:
 - id: thread_background_1
   file: breaks/break_thread_background_1.py
   category: thread_background
+  class: semantic_convention
   hunk_start_line: 16
   hunk_end_line: 42
   difficulty: medium
@@ -60,6 +64,7 @@ fixtures:
 - id: thread_background_2
   file: breaks/break_thread_background_2.py
   category: thread_background
+  class: semantic_convention
   hunk_start_line: 18
   hunk_end_line: 42
   difficulty: medium
@@ -69,6 +74,7 @@ fixtures:
 - id: framework_swap_1
   file: breaks/break_framework_swap_1.py
   category: framework_swap
+  class: foreign_api
   hunk_start_line: 16
   hunk_end_line: 40
   difficulty: easy
@@ -78,6 +84,7 @@ fixtures:
 - id: framework_swap_2
   file: breaks/break_framework_swap_2.py
   category: framework_swap
+  class: foreign_api
   hunk_start_line: 16
   hunk_end_line: 41
   difficulty: medium
@@ -87,6 +94,7 @@ fixtures:
 - id: print_debug_1
   file: breaks/break_print_debug_1.py
   category: print_debug
+  class: semantic_convention
   hunk_start_line: 16
   hunk_end_line: 40
   difficulty: easy
@@ -96,6 +104,7 @@ fixtures:
 - id: print_debug_2
   file: breaks/break_print_debug_2.py
   category: print_debug
+  class: semantic_convention
   hunk_start_line: 16
   hunk_end_line: 39
   difficulty: medium
@@ -105,6 +114,7 @@ fixtures:
 - id: sleep_polling_1
   file: breaks/break_sleep_polling_1.py
   category: sleep_polling
+  class: semantic_convention
   hunk_start_line: 16
   hunk_end_line: 39
   difficulty: medium
@@ -114,6 +124,7 @@ fixtures:
 - id: sleep_polling_2
   file: breaks/break_sleep_polling_2.py
   category: sleep_polling
+  class: semantic_convention
   hunk_start_line: 18
   hunk_end_line: 41
   difficulty: hard
@@ -123,6 +134,7 @@ fixtures:
 - id: shell_out_1
   file: breaks/break_shell_out_1.py
   category: shell_out
+  class: semantic_convention
   hunk_start_line: 16
   hunk_end_line: 32
   difficulty: easy
@@ -132,6 +144,7 @@ fixtures:
 - id: shell_out_2
   file: breaks/break_shell_out_2.py
   category: shell_out
+  class: semantic_convention
   hunk_start_line: 16
   hunk_end_line: 41
   difficulty: medium

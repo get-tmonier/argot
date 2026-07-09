@@ -201,13 +201,13 @@
      "reason": "import"
     },
     "foreign_api": {
-     "caught": 9,
-     "total": 18,
-     "pct": 50,
-     "masked_caught": 4,
-     "masked_total": 9,
-     "masked_pct": 44,
-     "overall_pct": 48,
+     "caught": 7,
+     "total": 10,
+     "pct": 70,
+     "masked_caught": 3,
+     "masked_total": 7,
+     "masked_pct": 43,
+     "overall_pct": 59,
      "reason": "import"
     },
     "foreign_concurrency": {
@@ -223,14 +223,24 @@
    },
    "secondary": {
     "semantic_convention": {
-     "caught": 1,
-     "total": 1,
-     "pct": 100,
-     "masked_caught": 1,
-     "masked_total": 1,
-     "masked_pct": 100,
-     "overall_pct": 100,
+     "caught": 3,
+     "total": 8,
+     "pct": 38,
+     "masked_caught": 2,
+     "masked_total": 3,
+     "masked_pct": 67,
+     "overall_pct": 45,
      "reason": "import"
+    },
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 1,
+     "pct": 0,
+     "masked_caught": 0,
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 0,
+     "reason": null
     }
    },
    "overfire_existing_pct": 0.14,
@@ -316,12 +326,12 @@
     },
     "foreign_api": {
      "caught": 10,
-     "total": 15,
-     "pct": 67,
-     "masked_caught": 1,
-     "masked_total": 5,
-     "masked_pct": 20,
-     "overall_pct": 55,
+     "total": 11,
+     "pct": 91,
+     "masked_caught": 0,
+     "masked_total": 3,
+     "masked_pct": 0,
+     "overall_pct": 71,
      "reason": "import"
     },
     "foreign_concurrency": {
@@ -335,7 +345,18 @@
      "reason": "import"
     }
    },
-   "secondary": {},
+   "secondary": {
+    "semantic_convention": {
+     "caught": 0,
+     "total": 4,
+     "pct": 0,
+     "masked_caught": 1,
+     "masked_total": 2,
+     "masked_pct": 50,
+     "overall_pct": 17,
+     "reason": "call_receiver"
+    }
+   },
    "overfire_existing_pct": 0.0,
    "detection_existing_pct": 0.6,
    "overfire_new_pct": 0.0,
@@ -473,10 +494,10 @@
      "caught": 8,
      "total": 8,
      "pct": 100,
-     "masked_caught": 2,
-     "masked_total": 4,
-     "masked_pct": 50,
-     "overall_pct": 83,
+     "masked_caught": 1,
+     "masked_total": 3,
+     "masked_pct": 33,
+     "overall_pct": 82,
      "reason": "import"
     },
     "foreign_concurrency": {
@@ -495,10 +516,10 @@
      "caught": 2,
      "total": 3,
      "pct": 67,
-     "masked_caught": 1,
-     "masked_total": 10,
-     "masked_pct": 10,
-     "overall_pct": 23,
+     "masked_caught": 2,
+     "masked_total": 11,
+     "masked_pct": 18,
+     "overall_pct": 29,
      "reason": "call_receiver"
     }
    },
@@ -522,13 +543,13 @@
      "reason": "import"
     },
     "foreign_api": {
-     "caught": 19,
-     "total": 27,
-     "pct": 70,
-     "masked_caught": 2,
-     "masked_total": 11,
-     "masked_pct": 18,
-     "overall_pct": 55,
+     "caught": 8,
+     "total": 9,
+     "pct": 89,
+     "masked_caught": 0,
+     "masked_total": 6,
+     "masked_pct": 0,
+     "overall_pct": 53,
      "reason": "import"
     },
     "foreign_concurrency": {
@@ -544,14 +565,14 @@
    },
    "secondary": {
     "semantic_convention": {
-     "caught": 0,
-     "total": 2,
-     "pct": 0,
-     "masked_caught": 1,
-     "masked_total": 1,
-     "masked_pct": 100,
-     "overall_pct": 33,
-     "reason": "import"
+     "caught": 11,
+     "total": 20,
+     "pct": 55,
+     "masked_caught": 3,
+     "masked_total": 6,
+     "masked_pct": 50,
+     "overall_pct": 54,
+     "reason": "call_receiver"
     }
    },
    "overfire_existing_pct": 0.35,
@@ -801,13 +822,13 @@
      "reason": "import"
     },
     "foreign_api": {
-     "caught": 12,
-     "total": 15,
-     "pct": 80,
+     "caught": 11,
+     "total": 11,
+     "pct": 100,
      "masked_caught": 1,
-     "masked_total": 8,
-     "masked_pct": 12,
-     "overall_pct": 57,
+     "masked_total": 5,
+     "masked_pct": 20,
+     "overall_pct": 75,
      "reason": "import"
     },
     "foreign_concurrency": {
@@ -823,13 +844,13 @@
    },
    "secondary": {
     "semantic_convention": {
-     "caught": 3,
-     "total": 3,
-     "pct": 100,
+     "caught": 4,
+     "total": 7,
+     "pct": 57,
      "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
+     "masked_total": 3,
+     "masked_pct": 0,
+     "overall_pct": 40,
      "reason": "import"
     }
    },
@@ -894,14 +915,14 @@
      "reason": "import"
     },
     "foreign_api": {
-     "caught": 17,
-     "total": 17,
+     "caught": 9,
+     "total": 9,
      "pct": 100,
      "masked_caught": 2,
-     "masked_total": 4,
-     "masked_pct": 50,
-     "overall_pct": 90,
-     "reason": "bpe"
+     "masked_total": 2,
+     "masked_pct": 100,
+     "overall_pct": 100,
+     "reason": "call_receiver"
     },
     "foreign_concurrency": {
      "caught": 5,
@@ -916,13 +937,13 @@
    },
    "secondary": {
     "semantic_convention": {
-     "caught": 3,
-     "total": 3,
+     "caught": 11,
+     "total": 11,
      "pct": 100,
      "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 100,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 85,
      "reason": "bpe"
     }
    },
@@ -1090,11 +1111,11 @@
      "reason": "import"
     },
     "foreign_api": {
-     "caught": 11,
-     "total": 15,
-     "pct": 73,
+     "caught": 8,
+     "total": 10,
+     "pct": 80,
      "masked_caught": 0,
-     "masked_total": 7,
+     "masked_total": 6,
      "masked_pct": 0,
      "overall_pct": 50,
      "reason": "import"
@@ -1110,7 +1131,18 @@
      "reason": "import"
     }
    },
-   "secondary": {},
+   "secondary": {
+    "semantic_convention": {
+     "caught": 3,
+     "total": 5,
+     "pct": 60,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 50,
+     "reason": "import"
+    }
+   },
    "overfire_existing_pct": 0.11,
    "detection_existing_pct": 0.43,
    "overfire_new_pct": 0.0,
@@ -1255,13 +1287,13 @@
      "reason": "import"
     },
     "foreign_api": {
-     "caught": 13,
-     "total": 16,
-     "pct": 81,
+     "caught": 8,
+     "total": 8,
+     "pct": 100,
      "masked_caught": 1,
-     "masked_total": 6,
-     "masked_pct": 17,
-     "overall_pct": 64,
+     "masked_total": 4,
+     "masked_pct": 25,
+     "overall_pct": 75,
      "reason": "import"
     },
     "foreign_concurrency": {
@@ -1275,7 +1307,18 @@
      "reason": "call_receiver"
     }
    },
-   "secondary": {},
+   "secondary": {
+    "semantic_convention": {
+     "caught": 5,
+     "total": 8,
+     "pct": 62,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 50,
+     "reason": "import"
+    }
+   },
    "overfire_existing_pct": 0.0,
    "detection_existing_pct": 0.51,
    "overfire_new_pct": 0.0,
@@ -1461,13 +1504,13 @@
      "reason": "import"
     },
     "foreign_api": {
-     "caught": 12,
-     "total": 14,
-     "pct": 86,
+     "caught": 9,
+     "total": 10,
+     "pct": 90,
      "masked_caught": 0,
-     "masked_total": 3,
+     "masked_total": 2,
      "masked_pct": 0,
-     "overall_pct": 71,
+     "overall_pct": 75,
      "reason": "import"
     },
     "foreign_concurrency": {
@@ -1483,14 +1526,14 @@
    },
    "secondary": {
     "semantic_convention": {
-     "caught": 2,
-     "total": 4,
-     "pct": 50,
+     "caught": 5,
+     "total": 8,
+     "pct": 62,
      "masked_caught": 0,
-     "masked_total": 1,
+     "masked_total": 2,
      "masked_pct": 0,
-     "overall_pct": 40,
-     "reason": "call_receiver"
+     "overall_pct": 50,
+     "reason": "import"
     }
    },
    "overfire_existing_pct": 0.0,
@@ -1554,13 +1597,13 @@
      "reason": "import"
     },
     "foreign_api": {
-     "caught": 15,
-     "total": 15,
+     "caught": 12,
+     "total": 12,
      "pct": 100,
-     "masked_caught": 1,
-     "masked_total": 4,
-     "masked_pct": 25,
-     "overall_pct": 84,
+     "masked_caught": 0,
+     "masked_total": 3,
+     "masked_pct": 0,
+     "overall_pct": 80,
      "reason": "import"
     },
     "foreign_concurrency": {
@@ -1576,13 +1619,13 @@
    },
    "secondary": {
     "semantic_convention": {
-     "caught": 2,
-     "total": 4,
-     "pct": 50,
-     "masked_caught": 1,
-     "masked_total": 1,
+     "caught": 5,
+     "total": 7,
+     "pct": 71,
+     "masked_caught": 2,
+     "masked_total": 2,
      "masked_pct": 100,
-     "overall_pct": 60,
+     "overall_pct": 78,
      "reason": "import"
     }
    },

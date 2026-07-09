@@ -15,6 +15,7 @@ fixtures:
 - id: excalidraw_jquery_1
   file: breaks/break_jquery_1.tsx
   category: jquery
+  class: foreign_api
   hunk_start_line: 1
   hunk_end_line: 21
   rationale: import $ from 'jquery' at line 1 plus $-chained DOM mutation in a
@@ -26,6 +27,7 @@ fixtures:
 - id: excalidraw_jquery_2
   file: breaks/break_jquery_2.tsx
   category: jquery
+  class: foreign_api
   hunk_start_line: 12
   hunk_end_line: 18
   rationale: jQuery event delegation ($(...).on / .slideDown / .hide) inside a
@@ -37,6 +39,7 @@ fixtures:
 - id: excalidraw_xhr_network_1
   file: breaks/break_xhr_network_1.ts
   category: xhr_network
+  class: semantic_convention
   hunk_start_line: 9
   hunk_end_line: 25
   rationale: raw XMLHttpRequest with onreadystatechange to load a scene from
@@ -48,6 +51,7 @@ fixtures:
 - id: excalidraw_xhr_network_2
   file: breaks/break_xhr_network_2.ts
   category: xhr_network
+  class: semantic_convention
   hunk_start_line: 9
   hunk_end_line: 18
   rationale: XMLHttpRequest upload with progress events and status callbacks
@@ -59,6 +63,7 @@ fixtures:
 - id: excalidraw_legacy_lifecycle_1
   file: breaks/break_legacy_lifecycle_1.tsx
   category: legacy_lifecycle
+  class: semantic_convention
   hunk_start_line: 8
   hunk_end_line: 22
   rationale: componentWillMount + componentWillReceiveProps legacy lifecycle
@@ -70,6 +75,7 @@ fixtures:
 - id: excalidraw_legacy_lifecycle_2
   file: breaks/break_legacy_lifecycle_2.tsx
   category: legacy_lifecycle
+  class: semantic_convention
   hunk_start_line: 8
   hunk_end_line: 21
   rationale: UNSAFE_componentWillMount / UNSAFE_componentWillUpdate deriving
@@ -81,6 +87,7 @@ fixtures:
 - id: excalidraw_redux_store_1
   file: breaks/break_redux_store_1.tsx
   category: redux_store
+  class: foreign_api
   hunk_start_line: 1
   hunk_end_line: 15
   rationale: import { useSelector, useDispatch } from 'react-redux' at line 1;
@@ -92,6 +99,7 @@ fixtures:
 - id: excalidraw_redux_store_2
   file: breaks/break_redux_store_2.ts
   category: redux_store
+  class: foreign_api
   hunk_start_line: 9
   hunk_end_line: 27
   rationale: redux reducer with switch-on-action-type plus a global
@@ -103,6 +111,7 @@ fixtures:
 - id: excalidraw_moment_dates_1
   file: breaks/break_moment_dates_1.ts
   category: moment_dates
+  class: foreign_api
   hunk_start_line: 1
   hunk_end_line: 13
   rationale: import moment at line 1 with chained .utc().startOf().format()
@@ -114,6 +123,7 @@ fixtures:
 - id: excalidraw_moment_dates_2
   file: breaks/break_moment_dates_2.ts
   category: moment_dates
+  class: foreign_api
   hunk_start_line: 10
   hunk_end_line: 16
   rationale: moment chained date arithmetic (.isAfter(moment().subtract(...)),
@@ -125,6 +135,7 @@ fixtures:
 - id: excalidraw_callback_pyramid_1
   file: breaks/break_callback_pyramid_1.ts
   category: callback_pyramid
+  class: semantic_convention
   hunk_start_line: 9
   hunk_end_line: 32
   rationale: error-first callback pyramid (blob -> parse -> restore, three
@@ -136,6 +147,7 @@ fixtures:
 - id: excalidraw_callback_pyramid_2
   file: breaks/break_callback_pyramid_2.ts
   category: callback_pyramid
+  class: semantic_convention
   hunk_start_line: 12
   hunk_end_line: 31
   rationale: onSuccess/onError continuation callbacks with nested rollback
@@ -147,6 +159,7 @@ fixtures:
 - id: excalidraw_vue_idioms_1
   file: breaks/break_vue_idioms_1.ts
   category: vue_idioms
+  class: foreign_api
   hunk_start_line: 5
   hunk_end_line: 23
   rationale: Vue Composition API reactivity (ref/computed/watch with .value)
@@ -158,6 +171,7 @@ fixtures:
 - id: excalidraw_vue_idioms_2
   file: breaks/break_vue_idioms_2.tsx
   category: vue_idioms
+  class: foreign_api
   hunk_start_line: 3
   hunk_end_line: 29
   rationale: Vue options-object component (props/data()/computed/methods with

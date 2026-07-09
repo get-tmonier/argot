@@ -61,10 +61,10 @@ pub struct DashboardCorpus {
     pub gated_caught: Option<usize>,
     pub gated_fixtures: Option<usize>,
     pub gated_recall_pct: Option<f64>,
-    /// Broad **novel-pattern (foreign) catch** — recall over every foreign
-    /// class (RUBRIC gated + legacy foreign names; `production::is_novel_pattern`),
-    /// the consistent per-corpus number that excludes the naming/semantic
-    /// classes argot never targets. `None` for FP-only corpora (no catalog).
+    /// Broad **novel-pattern (foreign) catch** — recall over the gated foreign
+    /// classes (`production::is_novel_pattern`), the consistent per-corpus number
+    /// that excludes the naming/semantic classes argot never targets. `None` for
+    /// FP-only corpora (no catalog).
     /// This is what the per-corpus "catch" column should show; `recall_pct`
     /// (the raw aggregate over *all* classes) is retained only for history.
     pub foreign_caught: Option<usize>,
@@ -169,7 +169,7 @@ fn gated_recall(r: &ProductionReport) -> Option<(usize, usize)> {
     let gated: Vec<_> = r
         .fixture_results
         .iter()
-        .filter(|f| crate::production::tier_of(&f.category) == "gated")
+        .filter(|f| crate::production::tier_of(&f.class) == "gated")
         .collect();
     if gated.is_empty() {
         return None;
@@ -179,16 +179,16 @@ fn gated_recall(r: &ProductionReport) -> Option<(usize, usize)> {
 }
 
 /// Broad novel-pattern (foreign) recall: `(caught, total)` over every fixture
-/// whose class names a foreign symbol/dep — RUBRIC gated classes plus the
-/// legacy catalogs' foreign names (see `production::is_novel_pattern`). This is
-/// the consistent per-corpus foreign-catch number; unlike `recall_pct` it does
-/// not average in the naming/semantic classes argot never targets. `None` when
-/// the corpus has no foreign fixtures (FP-only corpora).
+/// whose canonical class is a gated foreign class (see
+/// `production::is_novel_pattern`). This is the consistent per-corpus
+/// foreign-catch number; unlike `recall_pct` it does not average in the
+/// naming/semantic classes argot never targets. `None` when the corpus has no
+/// foreign fixtures (FP-only corpora).
 fn foreign_recall(r: &ProductionReport) -> Option<(usize, usize)> {
     let foreign: Vec<_> = r
         .fixture_results
         .iter()
-        .filter(|f| crate::production::is_novel_pattern(&f.category))
+        .filter(|f| crate::production::is_novel_pattern(&f.class))
         .collect();
     if foreign.is_empty() {
         return None;
@@ -204,7 +204,7 @@ fn foreign_difficulty_split(reports: &[ProductionReport]) -> ForeignByDifficulty
     let mut out = ForeignByDifficulty::default();
     for r in reports {
         for f in &r.fixture_results {
-            if !crate::production::is_novel_pattern(&f.category) {
+            if !crate::production::is_novel_pattern(&f.class) {
                 continue;
             }
             let bucket = match f.difficulty.as_deref() {

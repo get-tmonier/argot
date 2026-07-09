@@ -15,6 +15,7 @@ fixtures:
 - id: ps_error_exit_1
   file: breaks/break_exit_on_error_1.cs
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 22
   hunk_end_line: 34
   rationale: Environment.Exit + Console error print in a cmdlet helper; repo discipline
@@ -26,6 +27,7 @@ fixtures:
 - id: ps_error_string_throw_1
   file: breaks/break_string_throw_1.cs
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 19
   hunk_end_line: 37
   rationale: Bare `throw new Exception("...")` mixed with errno-style -1/0 return codes;
@@ -37,6 +39,7 @@ fixtures:
 - id: ps_error_swallow_1
   file: breaks/break_swallow_catch_1.cs
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 19
   hunk_end_line: 32
   rationale: Bare `catch {}` swallow of conversion failures; the host cmdlet surfaces
@@ -47,6 +50,7 @@ fixtures:
 - id: ps_conc_async_void_1
   file: breaks/break_async_void_1.cs
   category: wrong_concurrency
+  class: semantic_convention
   hunk_start_line: 16
   hunk_end_line: 23
   rationale: Fire-and-forget `async void` member; the host's async surface is async
@@ -57,6 +61,7 @@ fixtures:
 - id: ps_conc_backgroundworker_1
   file: breaks/break_backgroundworker_1.cs
   category: wrong_concurrency
+  class: semantic_convention
   hunk_start_line: 22
   hunk_end_line: 37
   rationale: WinForms-era System.ComponentModel.BackgroundWorker drives event draining;
@@ -67,6 +72,7 @@ fixtures:
 - id: ps_conc_channels_1
   file: breaks/break_channels_1.cs
   category: wrong_concurrency
+  class: semantic_convention
   hunk_start_line: 19
   hunk_end_line: 31
   rationale: System.Threading.Channels producer/consumer pump; the host throttle manager
@@ -77,6 +83,7 @@ fixtures:
 - id: ps_api_console_output_1
   file: breaks/break_console_output_1.cs
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 16
   hunk_end_line: 24
   rationale: Console.WriteLine/Console.Write as a cmdlet's output channel; repo cmdlets
@@ -87,6 +94,7 @@ fixtures:
 - id: ps_api_json_concat_1
   file: breaks/break_json_concat_1.cs
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 15
   hunk_end_line: 43
   rationale: Hand-rolled JSON via StringBuilder + manual escaping; the host file serializes
@@ -98,6 +106,7 @@ fixtures:
 - id: ps_api_webrequest_legacy_1
   file: breaks/break_webrequest_legacy_1.cs
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 20
   hunk_end_line: 30
   rationale: Deprecated synchronous WebRequest.Create/GetResponse pipeline; this file

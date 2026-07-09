@@ -16,6 +16,7 @@ fixtures:
 - id: mimesis_alt_1
   file: breaks/break_mimesis_alt_1.py
   category: mimesis_alt
+  class: foreign_api
   hunk_start_line: 19
   hunk_end_line: 46
   difficulty: easy
@@ -25,6 +26,7 @@ fixtures:
 - id: threading_provider_1
   file: breaks/break_threading_provider_1.py
   category: threading_provider
+  class: semantic_convention
   hunk_start_line: 19
   hunk_end_line: 53
   difficulty: easy
@@ -34,6 +36,7 @@ fixtures:
 - id: sqlalchemy_sink_1
   file: breaks/break_sqlalchemy_sink_1.py
   category: sqlalchemy_sink
+  class: foreign_api
   hunk_start_line: 17
   hunk_end_line: 49
   difficulty: easy
@@ -43,6 +46,7 @@ fixtures:
 - id: numpy_random_1
   file: breaks/break_numpy_random_1.py
   category: numpy_random
+  class: foreign_api
   hunk_start_line: 19
   hunk_end_line: 46
   difficulty: easy
@@ -52,6 +56,7 @@ fixtures:
 - id: requests_source_1
   file: breaks/break_requests_source_1.py
   category: requests_source
+  class: foreign_api
   hunk_start_line: 17
   hunk_end_line: 47
   difficulty: easy
@@ -61,6 +66,7 @@ fixtures:
 - id: mimesis_alt_2
   file: breaks/break_mimesis_alt_2.py
   category: mimesis_alt
+  class: foreign_api
   hunk_start_line: 16
   hunk_end_line: 33
   difficulty: medium
@@ -71,6 +77,7 @@ fixtures:
 - id: threading_provider_2
   file: breaks/break_threading_provider_2.py
   category: threading_provider
+  class: semantic_convention
   hunk_start_line: 15
   hunk_end_line: 22
   difficulty: medium
@@ -80,6 +87,7 @@ fixtures:
 - id: threading_provider_3
   file: breaks/break_threading_provider_3.py
   category: threading_provider
+  class: semantic_convention
   hunk_start_line: 15
   hunk_end_line: 29
   difficulty: hard
@@ -90,6 +98,7 @@ fixtures:
 - id: sqlalchemy_sink_2
   file: breaks/break_sqlalchemy_sink_2.py
   category: sqlalchemy_sink
+  class: foreign_api
   hunk_start_line: 16
   hunk_end_line: 28
   difficulty: medium
@@ -99,6 +108,7 @@ fixtures:
 - id: sqlalchemy_sink_3
   file: breaks/break_sqlalchemy_sink_3.py
   category: sqlalchemy_sink
+  class: foreign_api
   hunk_start_line: 15
   hunk_end_line: 30
   difficulty: hard
@@ -109,6 +119,7 @@ fixtures:
 - id: numpy_random_2
   file: breaks/break_numpy_random_2.py
   category: numpy_random
+  class: foreign_api
   hunk_start_line: 15
   hunk_end_line: 28
   difficulty: medium
@@ -118,6 +129,7 @@ fixtures:
 - id: numpy_random_3
   file: breaks/break_numpy_random_3.py
   category: numpy_random
+  class: foreign_api
   hunk_start_line: 15
   hunk_end_line: 32
   difficulty: hard
@@ -128,6 +140,7 @@ fixtures:
 - id: requests_source_2
   file: breaks/break_requests_source_2.py
   category: requests_source
+  class: foreign_api
   hunk_start_line: 15
   hunk_end_line: 25
   difficulty: medium
@@ -137,6 +150,7 @@ fixtures:
 - id: requests_source_3
   file: breaks/break_requests_source_3.py
   category: requests_source
+  class: foreign_api
   hunk_start_line: 16
   hunk_end_line: 31
   difficulty: hard
@@ -147,6 +161,7 @@ fixtures:
 - id: synthetic_formula_1
   file: breaks/break_synthetic_formula_1.py
   category: numpy_random
+  class: foreign_api
   hunk_start_line: 18
   hunk_end_line: 28
   rationale: 'string-formula synthesis (f-string concat) instead of faker.email()/faker.name(); no foreign import in hunk; era-6 limit: call_receiver has no target, BPE tokens (f-string, str, int format)

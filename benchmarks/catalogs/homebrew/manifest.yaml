@@ -15,6 +15,7 @@ fixtures:
 - id: ed_exit_bang_1
   file: breaks/break_ed_exit_bang_1.rb
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 20
   hunk_end_line: 38
   rationale: 'exit! + $stderr.puts for an ordinary tap-validation error path. Verified
@@ -28,6 +29,7 @@ fixtures:
 - id: ed_abort_mid_library_1
   file: breaks/break_ed_abort_mid_library_1.rb
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 18
   hunk_end_line: 34
   rationale: 'Kernel#abort for failure handling mid-library. Verified at pinned SHA:
@@ -40,6 +42,7 @@ fixtures:
 - id: ed_rescue_swallow_1
   file: breaks/break_ed_rescue_swallow_1.rb
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 19
   hunk_end_line: 35
   rationale: 'Bare `rescue Exception` blocks that silently swallow all errors with
@@ -53,6 +56,7 @@ fixtures:
 - id: ed_puts_error_report_1
   file: breaks/break_ed_puts_error_report_1.rb
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 20
   hunk_end_line: 38
   rationale: 'Error/warning reporting via plain puts of "ERROR:"/"WARNING:" strings
@@ -66,6 +70,7 @@ fixtures:
 - id: wc_thread_sleep_poll_1
   file: breaks/break_wc_thread_sleep_poll_1.rb
   category: wrong_concurrency
+  class: semantic_convention
   hunk_start_line: 19
   hunk_end_line: 37
   rationale: 'Raw Thread.new fan-out with a busy-wait `sleep 0.1 until` poll on a shared
@@ -81,6 +86,7 @@ fixtures:
 - id: wc_fork_parallel_map_1
   file: breaks/break_wc_fork_parallel_map_1.rb
   category: wrong_concurrency
+  class: semantic_convention
   hunk_start_line: 20
   hunk_end_line: 40
   rationale: 'fork-per-item data parallelism with IO.pipe result collection and
@@ -94,6 +100,7 @@ fixtures:
 - id: api_net_http_1
   file: breaks/break_api_net_http_1.rb
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 19
   hunk_end_line: 38
   rationale: 'Raw Net::HTTP.start/Net::HTTP::Get request plumbing with manual redirect
@@ -108,6 +115,7 @@ fixtures:
 - id: api_backticks_1
   file: breaks/break_api_backticks_1.rb
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 18
   hunk_end_line: 34
   rationale: 'Kernel backticks with $CHILD_STATUS checks for git plumbing. Verified
@@ -122,6 +130,7 @@ fixtures:
 - id: api_system_interp_1
   file: breaks/break_api_system_interp_1.rb
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 18
   hunk_end_line: 28
   rationale: 'system() called with single-string shell interpolation ("hdiutil detach

@@ -28,37 +28,34 @@ GATED = ["foreign_import", "foreign_api", "foreign_concurrency"]
 SECONDARY = {"naming_shape_break", "semantic_convention"}
 
 
-def norm_class(cat):
-    """Canonical class for a fixture category string (catalogs use many specific
-    break types that roll up into the three gated classes + two secondary ones)."""
-    c = (cat or "").lower()
-    # In-vocabulary MISUSE of a library the repo already uses (calling a known
-    # library's wrong/less-common method) is the ungated semantic_convention class
-    # — argot deliberately does not gate it (it is not a *foreign* dependency/API,
-    # and it is not the danger an LLM poses). Route it out of foreign_api.
-    if "wrong_api_within_known" in c:
-        return "semantic_convention"
-    for k in set(GATED) | SECONDARY:
-        if k in c:
-            return k
-    if "import" in c:
-        return "foreign_import"
-    # A concurrency-flavoured category that is NOT literally `foreign_concurrency`
-    # (which the GATED loop above already routed) is a RAW-BUILTIN misuse antipattern
-    # — raw pthread/thread instead of the repo's own wrapper, a blocking call in async
-    # code, busy-wait sleep-polling, the threading stdlib. Per RUBRIC.md that is the
-    # SECONDARY `semantic_convention` class ("a builtin the repo avoids"), a proven
-    # local limit, reported but NEVER gated — the same treatment as the
-    # `wrong_api_within_known` builtin-misuse routed above. It is NOT a foreign
-    # library, so it does not belong in the gated foreign_concurrency catch rate.
-    if "concurren" in c or "async" in c or "thread" in c or "schedul" in c or "sleep" in c:
-        return "semantic_convention"
-    if "naming" in c or "shape" in c:
-        return "naming_shape_break"
-    if "error" in c or "discipline" in c or "convention" in c:
-        return "semantic_convention"
-    # everything else that is a foreign dependency/API call
-    return "foreign_api"
+# The gated-vs-secondary decision is NOT inferred here. Each fixture's canonical
+# scoring class is authored in its manifest (`class:` — see benchmarks/catalogs/*/
+# manifest.yaml, validated canonical by argot-bench at load) and written into every
+# result by the Rust bench. This consolidation just reads it — no category-name
+# heuristics, no corpus-specific lists. See docs/research/evidence/
+# foreign-classification-decoupled.md.
+_CLASS_MAP = None  # lazy {(corpus, fixture_id): canonical_class} fallback
+
+
+def _class_map():
+    """Manifest-authored (corpus, id) → canonical class. Lazy + yaml-only-on-demand:
+    used only for result files written before the bench emitted the `class` field."""
+    global _CLASS_MAP
+    if _CLASS_MAP is None:
+        import yaml  # dev/bench dependency; only needed for pre-refactor results
+        _CLASS_MAP = {}
+        cat_dir = os.path.join(ROOT, "benchmarks", "catalogs")
+        for mf in glob.glob(os.path.join(cat_dir, "*", "manifest.yaml")):
+            m = yaml.safe_load(open(mf))
+            for fx in m.get("fixtures", []):
+                _CLASS_MAP[(m["corpus"], fx["id"])] = fx.get("class") or fx.get("category")
+    return _CLASS_MAP
+
+
+def fixture_class(corpus, f):
+    """Canonical scoring class of a result fixture: the `class` the bench wrote,
+    else the manifest-authored class (never a name heuristic)."""
+    return f.get("class") or _class_map().get((corpus, f["id"]))
 
 
 def catch_by_class(prod_dir):
@@ -68,7 +65,7 @@ def catch_by_class(prod_dir):
         by = defaultdict(lambda: {"caught": 0, "total": 0, "vis_c": 0, "vis_t": 0,
                                   "mask_c": 0, "mask_t": 0, "reasons": Counter()})
         for f in d.get("fixture_results", []):
-            b = by[norm_class(f.get("category"))]
+            b = by[fixture_class(d["corpus"], f)]
             b["total"] += 1
             visible = (f.get("difficulty") or "").lower() in ("easy", "medium")
             b["vis_t" if visible else "mask_t"] += 1

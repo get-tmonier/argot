@@ -15,6 +15,7 @@ fixtures:
 - id: err_throw_1
   file: breaks/break_err_throw_1.cpp
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 23
   hunk_end_line: 49
   rationale: 'throw std::runtime_error/std::invalid_argument + try/catch in a
@@ -29,6 +30,7 @@ fixtures:
 - id: err_exit_1
   file: breaks/break_err_exit_1.cpp
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 19
   hunk_end_line: 42
   rationale: 'fprintf(stderr)+exit(1)/abort() on corruption in a table-cache
@@ -42,6 +44,7 @@ fixtures:
 - id: err_ignored_status_1
   file: breaks/break_err_ignored_status_1.cpp
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 20
   hunk_end_line: 41
   rationale: 'errno-style int return codes (-1/0) and VersionEdit::DecodeFrom
@@ -55,6 +58,7 @@ fixtures:
 - id: err_swallow_catch_1
   file: breaks/break_err_swallow_catch_1.cpp
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 18
   hunk_end_line: 40
   rationale: 'catch(...) swallowing around DB::Delete, discarding the returned
@@ -67,6 +71,7 @@ fixtures:
 - id: conc_pthread_busywait_1
   file: breaks/break_conc_pthread_busywait_1.cpp
   category: wrong_concurrency
+  class: semantic_convention
   hunk_start_line: 20
   hunk_end_line: 41
   rationale: 'pthread_create + volatile-flag busy-wait with usleep(100).
@@ -80,6 +85,7 @@ fixtures:
 - id: conc_detach_1
   file: breaks/break_conc_detach_1.cpp
   category: wrong_concurrency
+  class: semantic_convention
   hunk_start_line: 19
   hunk_end_line: 39
   rationale: 'std::thread(...).detach() fire-and-forget plus sleep_for polling
@@ -92,6 +98,7 @@ fixtures:
 - id: api_fopen_1
   file: breaks/break_api_fopen_1.cpp
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 22
   hunk_end_line: 46
   rationale: 'FILE* fopen/fwrite/fseek/ftell direct stdio IO for blob data.
@@ -105,6 +112,7 @@ fixtures:
 - id: api_printf_log_1
   file: breaks/break_api_printf_log_1.cpp
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 20
   hunk_end_line: 36
   rationale: 'printf/fprintf(stdout) progress and warning logging. Verified at
@@ -118,6 +126,7 @@ fixtures:
 - id: api_manual_encoding_1
   file: breaks/break_api_manual_encoding_1.cpp
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 20
   hunk_end_line: 44
   rationale: 'hand-rolled little-endian shift packing, manual varint loop, and

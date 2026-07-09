@@ -15,6 +15,7 @@ fixtures:
 - id: err_exit_1
   file: breaks/break_err_exit_1.java
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 34
   hunk_end_line: 55
   rationale: 'System.err.println + System.exit(2) + int error-code returns for argument
@@ -28,6 +29,7 @@ fixtures:
 - id: err_swallow_1
   file: breaks/break_err_swallow_1.java
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 32
   hunk_end_line: 56
   rationale: 'Swallowed checked IOException (empty catch, sentinel empty-array/false
@@ -40,6 +42,7 @@ fixtures:
 - id: err_null_return_1
   file: breaks/break_err_null_return_1.java
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 29
   hunk_end_line: 50
   rationale: 'Returns null on invalid/out-of-range index instead of throwing. Verified
@@ -52,6 +55,7 @@ fixtures:
 - id: err_printstacktrace_1
   file: breaks/break_err_printstacktrace_1.java
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 24
   hunk_end_line: 41
   rationale: 'catch (Exception e) { e.printStackTrace(); return null; } print-and-continue
@@ -65,6 +69,7 @@ fixtures:
 - id: conc_raw_thread_1
   file: breaks/break_conc_raw_thread_1.java
   category: wrong_concurrency
+  class: semantic_convention
   hunk_start_line: 40
   hunk_end_line: 66
   rationale: 'Raw new Thread() spawn plus volatile-flag busy-wait with Thread.sleep(10)
@@ -78,6 +83,7 @@ fixtures:
 - id: conc_busywait_1
   file: breaks/break_conc_busywait_1.java
   category: wrong_concurrency
+  class: semantic_convention
   hunk_start_line: 32
   hunk_end_line: 56
   rationale: 'synchronized block with wait(50)/notifyAll() polling loop guarding
@@ -91,6 +97,7 @@ fixtures:
 - id: conc_spinpoll_1
   file: breaks/break_conc_spinpoll_1.java
   category: wrong_concurrency
+  class: semantic_convention
   hunk_start_line: 39
   hunk_end_line: 58
   rationale: 'Busy-wait spin polling: while(!done.get()) Thread.yield() and a Thread.sleep(1)
@@ -104,6 +111,7 @@ fixtures:
 - id: api_nullcheck_1
   file: breaks/break_api_nullcheck_1.java
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 22
   hunk_end_line: 44
   rationale: 'Hand-rolled if-null-throw-NullPointerException and if-throw-IllegalArgumentException
@@ -117,6 +125,7 @@ fixtures:
 - id: api_stringjoin_1
   file: breaks/break_api_stringjoin_1.java
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 29
   hunk_end_line: 51
   rationale: 'Manual StringBuilder joining with first-flag separator bookkeeping
@@ -129,6 +138,7 @@ fixtures:
 - id: api_manualcopy_1
   file: breaks/break_api_manualcopy_1.java
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 26
   hunk_end_line: 38
   rationale: 'Hand-rolled defensive copies — entry-loop into new HashMap / ArrayList.addAll
