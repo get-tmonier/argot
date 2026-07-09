@@ -365,15 +365,11 @@ impl RepoLayering {
     /// Target layers of a Java file's internal imports: the package component
     /// after the base package (`import <base>.<layer>.…`).
     fn java_targets(&self, source: &str) -> Vec<String> {
-        let Some(base) = self.module_path.as_deref() else {
-            return Vec::new();
-        };
-        let base_parts: Vec<&str> = base.split('.').filter(|s| !s.is_empty()).collect();
         let mut out = Vec::new();
         for pkg in java_import_packages(source) {
             let parts: Vec<&str> = pkg.split('.').filter(|s| !s.is_empty()).collect();
-            if parts.len() >= base_parts.len() && parts[..base_parts.len()] == base_parts[..] {
-                out.push(after_prefix_layer(&parts[base_parts.len()..]));
+            if let Some(layer) = layer_after_base(&parts, &self.internal, '.') {
+                out.push(layer);
             }
         }
         out
@@ -397,15 +393,11 @@ impl RepoLayering {
     /// Target layers of a C# file's internal imports: the namespace component
     /// after the base namespace (`using <base>.<layer>.…`).
     fn cs_targets(&self, source: &str) -> Vec<String> {
-        let Some(base) = self.module_path.as_deref() else {
-            return Vec::new();
-        };
-        let base_parts: Vec<&str> = base.split('.').filter(|s| !s.is_empty()).collect();
         let mut out = Vec::new();
         for spec in cs_using_names(source) {
             let parts: Vec<&str> = spec.split('.').filter(|s| !s.is_empty()).collect();
-            if parts.len() >= base_parts.len() && parts[..base_parts.len()] == base_parts[..] {
-                out.push(after_prefix_layer(&parts[base_parts.len()..]));
+            if let Some(layer) = layer_after_base(&parts, &self.internal, '.') {
+                out.push(layer);
             }
         }
         out
@@ -666,7 +658,12 @@ fn detect_rust_context(paths: &[&str]) -> (Vec<String>, HashSet<String>, Option<
 /// package (the longest common package-dir prefix across main sources) is stored
 /// dotted in `module_path` for import matching.
 fn detect_java_context(paths: &[&str]) -> (Vec<String>, HashSet<String>, Option<String>) {
-    let mut entries: Vec<(String, Vec<String>)> = Vec::new(); // (src_root, package dirs)
+    // Group each file's package-dir vector BY its src-root. A monorepo has several
+    // src trees (e.g. guava's `android/guava/src` + `guava/src` + module variants);
+    // a GLOBAL common-prefix collapses to empty as soon as two trees diverge. So
+    // compute the base package PER src-root, and keep every base namespace in
+    // `internal` (dotted) so an import matching ANY base resolves.
+    let mut by_root: HashMap<String, Vec<Vec<String>>> = HashMap::new();
     for p in paths {
         let comps: Vec<&str> = p.split('/').collect();
         let (root, is_test) = java_src_root(&comps);
@@ -685,15 +682,19 @@ fn detect_java_context(paths: &[&str]) -> (Vec<String>, HashSet<String>, Option<
             .iter()
             .map(|s| s.to_string())
             .collect();
-        entries.push((root, pkg));
+        by_root.entry(root).or_default().push(pkg);
     }
-    let base = longest_common_prefix(entries.iter().map(|(_, p)| p.as_slice()));
-    let module_path = (!base.is_empty()).then(|| base.join("."));
     let mut roots: HashSet<String> = HashSet::new();
-    for (root, _) in &entries {
+    let mut internal: HashSet<String> = HashSet::new();
+    for (root, pkgs) in &by_root {
+        let base = longest_common_prefix(pkgs.iter().map(|p| p.as_slice()));
+        if base.is_empty() {
+            continue; // a divergent single tree — no shared base, skip
+        }
+        internal.insert(base.join("."));
         roots.insert(join_root(root, &base.join("/")));
     }
-    (sorted_roots(roots), HashSet::new(), module_path)
+    (sorted_roots(roots), internal, None)
 }
 
 /// PHP (PSR-4): the root namespace maps to a source dir, so the second namespace
@@ -720,7 +721,10 @@ fn detect_php_context(files: &[(&str, &str)]) -> (Vec<String>, HashSet<String>, 
 /// component under that dir. Learn each root from namespace vs. path; the base
 /// namespace is stored dotted in `module_path` for import matching.
 fn detect_csharp_context(files: &[(&str, &str)]) -> (Vec<String>, HashSet<String>, Option<String>) {
-    let mut namespaced: Vec<(&str, Vec<String>)> = Vec::new();
+    // Group by the top namespace component (the project root); a multi-project repo
+    // (powershell/jellyfin) has several, and a GLOBAL common-prefix collapses to
+    // empty. Compute the base namespace PER group, keep every base in `internal`.
+    let mut by_head: HashMap<String, Vec<(&str, Vec<String>)>> = HashMap::new();
     for (p, src) in files {
         if let Some(ns) = cs_namespace(src) {
             let parts: Vec<String> = ns
@@ -728,21 +732,25 @@ fn detect_csharp_context(files: &[(&str, &str)]) -> (Vec<String>, HashSet<String
                 .filter(|s| !s.is_empty())
                 .map(String::from)
                 .collect();
-            if !parts.is_empty() {
-                namespaced.push((p, parts));
+            if let Some(head) = parts.first().cloned() {
+                by_head.entry(head).or_default().push((*p, parts));
             }
         }
     }
-    let base = longest_common_prefix(namespaced.iter().map(|(_, p)| p.as_slice()));
-    let module_path = (!base.is_empty()).then(|| base.join("."));
     let mut roots: HashSet<String> = HashSet::new();
-    for (p, parts) in &namespaced {
-        // The base namespace maps to the source-root dir(s); the trailing path
-        // components are the sub-namespace dirs beyond the base plus the filename.
-        let trailing = parts.len().saturating_sub(base.len()) + 1;
-        roots.insert(namespace_source_root(p, trailing));
+    let mut internal: HashSet<String> = HashSet::new();
+    for group in by_head.values() {
+        let base = longest_common_prefix(group.iter().map(|(_, p)| p.as_slice()));
+        if base.is_empty() {
+            continue;
+        }
+        internal.insert(base.join("."));
+        for (p, parts) in group {
+            let trailing = parts.len().saturating_sub(base.len()) + 1;
+            roots.insert(namespace_source_root(p, trailing));
+        }
     }
-    (sorted_roots(roots), HashSet::new(), module_path)
+    (sorted_roots(roots), internal, None)
 }
 
 /// Ruby: roots are the repo root plus any top-level `lib`/`app`; the layer is the
@@ -803,6 +811,24 @@ fn after_prefix_layer(rest: &[&str]) -> String {
     rest.first()
         .map(|s| (*s).to_string())
         .unwrap_or_else(|| "__root__".to_string())
+}
+
+/// Given a segmented FQN (`parts`) and a set of base namespaces (each `sep`-joined),
+/// find the LONGEST base that is a strict prefix of `parts` and return the component
+/// after it (the layer). `None` if no base matches or it consumes the whole path.
+/// Handles multi-module repos where each src-root/project has its own base namespace.
+fn layer_after_base(parts: &[&str], bases: &HashSet<String>, sep: char) -> Option<String> {
+    let mut best: Option<usize> = None;
+    for base in bases {
+        let bparts: Vec<&str> = base.split(sep).filter(|s| !s.is_empty()).collect();
+        if bparts.len() < parts.len()
+            && parts[..bparts.len()] == bparts[..]
+            && best.is_none_or(|b| bparts.len() > b)
+        {
+            best = Some(bparts.len());
+        }
+    }
+    best.map(|n| after_prefix_layer(&parts[n..]))
 }
 
 /// Longest common prefix of a set of component slices.
@@ -1571,6 +1597,39 @@ mod tests {
             g.fires(
                 "src/helper/cookie.ts",
                 "import { x } from '../middleware/auth';\n"
+            ),
+            Some(Violation::Reversal)
+        );
+    }
+
+    #[test]
+    fn java_multi_module_shares_base_package() {
+        // Two src trees (android/guava/src + guava/src) sharing base com.google.common
+        // — the GLOBAL common prefix collapses, but per-src-root detection works.
+        let files = vec![
+            (
+                "android/guava/src/com/google/common/collect/Lists.java",
+                "package com.google.common.collect;\nimport com.google.common.base.Preconditions;\n",
+            ),
+            (
+                "guava/src/com/google/common/base/Preconditions.java",
+                "package com.google.common.base;\n",
+            ),
+            (
+                "guava/src/com/google/common/collect/Sets.java",
+                "package com.google.common.collect;\nimport com.google.common.base.Objects;\n",
+            ),
+        ];
+        let g = RepoLayering::fit(files, Language::Java);
+        assert!(
+            g.contains_edge(&("collect".into(), "base".into())),
+            "collect->base must be attested across both src trees"
+        );
+        // base importing collect reverses the attested direction.
+        assert_eq!(
+            g.fires(
+                "guava/src/com/google/common/base/Preconditions.java",
+                "import com.google.common.collect.Lists;\n"
             ),
             Some(Violation::Reversal)
         );
