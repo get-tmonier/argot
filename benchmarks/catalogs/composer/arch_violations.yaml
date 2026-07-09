@@ -37,29 +37,35 @@
 #                         orthogonal to the runtime layering above.
 #
 # Methodology: every (host_file, import_line) pair below is copied VERBATIM from a row in the
-# resolver-verified candidate menu (80 top-pop rows: 69 catchable reversal/transitive_reversal/
-# sink_out candidates + 11 forward candidates the menu surfaced for this corpus, 10 of which are
-# used below) — each row's
-# edge was confirmed 0-usage by the actual argot-core resolver, which creates the edge
-# deterministically by injecting a synthetic `ArgotFixture` marker class into the target
-# namespace and importing it from the host file (so `import_line` is always the two-line
-# `<?php` + `use Composer\<Target>\ArgotFixture;` snippet, not a hand-picked real symbol). Each
-# `rationale` below explains the realistic real-world import an LLM would plausibly write to
-# produce that same src->tgt edge, and why it is/isn't architecturally sound.
+# resolver-verified candidate menu (`/tmp/arch-fix2/candidates-composer.md`: top-80-by-population
+# rows out of 451 catchable + 148 forward candidates for this corpus — 69 catchable
+# reversal/transitive_reversal/sink_out rows + 11 forward rows). Each row's edge was confirmed
+# 0-usage by the actual argot-core resolver, which creates the edge deterministically by
+# injecting a synthetic `ArgotFixture` marker class into the target namespace and importing it
+# from the host file (so `import_line` is always the two-line `<?php` + `use
+# Composer\<Target>\ArgotFixture;` snippet, not a hand-picked real symbol). Each `rationale`
+# below explains the realistic real-world import an LLM would plausibly write to produce that
+# same src->tgt edge, and why it is/isn't architecturally sound.
 #
-# Selection is by ARCHITECTURAL REALISM, not by `kind`: most violations are genuine reversals /
-# transitive-reversals / sink-outs (utility or leaf layers reaching into the domain layer, or a
-# near-sink leaving its position) — the classic case the gate is built to catch. Four violations
-# are deliberately `forward`-kind (direction-compliant, so the gate structurally CANNOT catch
-# them) but still architecturally questionable — an entry-point or dev-tooling layer reaching
-# sideways into domain/utility territory it has no real business touching. These keep the recall
-# measurement honest: they are true violations the gate is expected to miss. All 6 controls are
-# the remaining `forward`-kind rows in the menu, each a clearly legitimate use of an already-
-# well-established entry/mid-tier -> low-level-utility direction; the gate must stay quiet on them.
+# Distribution: 12 violations, PREDOMINANTLY wrong-direction (11 of 12 are
+# reversal/transitive_reversal/sink_out — a utility or leaf layer reaching into the domain layer,
+# a mid-tier layer reaching into another mid-tier layer it doesn't drive, or a near-sink layer
+# leaving its position). That mirrors the natural distribution of realistic LLM architectural
+# mistakes: wrong-direction edges dominate, so the fixture set does too — no artificial padding
+# toward gate-invisible cases. Exactly ONE violation is `forward`-kind (PHPStan -> IO): a
+# genuinely plausible layer-skip (dev-tooling reaching sideways into an interactive-console
+# abstraction it has no analysis-time use for) that the gate's direction-only check structurally
+# cannot catch, kept to measure recall honestly. The 8 controls are `forward`-kind rows that are
+# clearly legitimate — entry-layer (SelfUpdate) or dev-tooling (PHPStan) reaching into a
+# domain/mid-tier/utility layer along an already-established direction, plus two established
+# mid-tier -> Semver version-comparison edges (Installer, Downloader) — proving the gate does not
+# over-fire on ordinary forward growth.
 
 violations:
-  # ---- reversals / transitive-reversals / sink-outs (utility or leaf layer reaching into the
-  # domain layer, or a near-sink layer leaving its position — the classic case the gate catches) ----
+  # ---- reversals / transitive-reversals / sink-outs (11 of 12 — the classic case the gate is
+  # built to catch: a utility or leaf layer reaching into the domain layer, a mid-tier layer
+  # reaching into a peer mid-tier layer it doesn't drive, or a near-sink layer leaving its
+  # position) ----
   - host_file: "src/Composer/IO/BaseIO.php"
     source_layer: "IO"
     import_line: "<?php\nuse Composer\\Package\\ArgotFixture;\n"
@@ -104,11 +110,25 @@ violations:
     kind: "reversal"
     rationale: >-
       This exception is a one-line marker (`extends \RuntimeException`, zero imports) —
-      deliberately inert so it can be thrown/caught anywhere without pulling in machinery. A
+      deliberately inert so it can be thrown/caught anywhere without dragging in machinery. A
       plausible LLM "improvement" adds cleanup logic in the constructor (e.g. calling
       `Filesystem::remove()` on the partial download), importing `Composer\Util`. Exceptions
       doing side-effecting cleanup work is a common LLM anti-pattern that inverts the
       leaf-exception convention. Resolver-verified 0-usage at HEAD.
+
+  - host_file: "src/Composer/IO/BaseIO.php"
+    source_layer: "IO"
+    import_line: "<?php\nuse Composer\\Downloader\\ArgotFixture;\n"
+    target_layer: "Downloader"
+    kind: "reversal"
+    rationale: >-
+      Same foundational-leaf role as the IO->Package case above, different target: Downloader
+      code already depends on IO for progress/error reporting, never the reverse. A plausible LLM
+      edit adds a "track this download" helper on BaseIO typed against a concrete
+      `Downloader\FileDownloader` (or catching `Downloader\TransportException` inline) instead of
+      accepting a plain progress value or a generic `\Throwable` — pulling the mid-tier download
+      machinery into what is meant to stay a dependency-free interaction leaf. Resolver-verified
+      0-usage at HEAD.
 
   - host_file: "src/Composer/Question/StrictConfirmationQuestion.php"
     source_layer: "Question"
@@ -187,51 +207,9 @@ violations:
       defeats the point of a marker interface and couples the plugin API surface to a concrete
       infra class. Resolver-verified 0-usage at HEAD.
 
-  # ---- forward-kind but still architecturally questionable: direction-compliant (entry/dev-
-  # tooling/leaf-utility reaching "down" or "sideways"), so the gate structurally CANNOT catch
-  # these — included so the recall measurement stays honest about what it misses ----
-  - host_file: "src/Composer/SelfUpdate/Keys.php"
-    source_layer: "SelfUpdate"
-    import_line: "<?php\nuse Composer\\Package\\ArgotFixture;\n"
-    target_layer: "Package"
-    kind: "forward"
-    rationale: >-
-      Keys.php verifies signing keys for `composer self-update` (currently only imports
-      `Pcre\Preg`) — its job is validating the composer.phar binary, unrelated to the project's
-      installed-package graph. A plausible LLM edit "records" the currently-installed packages
-      alongside the key-verification result, importing `Composer\Package`. Direction-wise this
-      is entry-layer-reaching-into-domain (forward, so the gate's direction check does not flag
-      it), but self-update has no legitimate reason to touch package objects — a scope violation
-      the direction check structurally cannot see.
-
-  - host_file: "src/Composer/SelfUpdate/Keys.php"
-    source_layer: "SelfUpdate"
-    import_line: "<?php\nuse Composer\\Repository\\ArgotFixture;\n"
-    target_layer: "Repository"
-    kind: "forward"
-    rationale: >-
-      Same file, same scope mismatch: a plausible LLM edit has self-update "check available
-      versions via the package repository" by importing `Composer\Repository` directly instead
-      of the self-update-specific GitHub-tags mechanism the file already relies on
-      (`SelfUpdate\Versions.php`). Forward direction (entry -> mid-tier) so it passes the gate's
-      direction check, but it's the wrong abstraction — self-update maintains its own narrow
-      version-check machinery precisely so it doesn't couple to the full repository stack.
-
-  - host_file: "src/Composer/Platform/HhvmDetector.php"
-    source_layer: "Platform"
-    import_line: "<?php\nuse Composer\\Semver\\ArgotFixture;\n"
-    target_layer: "Semver"
-    kind: "forward"
-    rationale: >-
-      HhvmDetector answers one narrow question (is this HHVM, what version) using only
-      `Util\Platform`/`Util\ProcessExecutor` — plain string/process work, no constraint logic. A
-      plausible LLM edit "future-proofs" a version check by importing
-      `Composer\Semver\VersionParser` to parse the detected version as a semver constraint, when
-      a simple `version_compare()` would do. It's forward (leaf-utility -> leaf-utility, so the
-      direction-only check passes it), but it's a sideways layer-skip: runtime/platform
-      detection pulling in the package-versioning domain's constraint-parsing machinery it has
-      no real use for.
-
+  # ---- the one forward-kind violation: direction-compliant (dev-tooling reaching sideways into
+  # a runtime abstraction), so the gate structurally CANNOT catch it — kept so recall is measured
+  # honestly against what the direction-only check is expected to miss ----
   - host_file: "src/Composer/PHPStan/ConfigReturnTypeExtension.php"
     source_layer: "PHPStan"
     import_line: "<?php\nuse Composer\\IO\\ArgotFixture;\n"
@@ -247,6 +225,27 @@ violations:
       abstraction — a layer-skip into unrelated runtime machinery.
 
 controls:
+  - host_file: "src/Composer/SelfUpdate/Keys.php"
+    source_layer: "SelfUpdate"
+    import_line: "<?php\nuse Composer\\Package\\ArgotFixture;\n"
+    target_layer: "Package"
+    rationale: >-
+      SelfUpdate is composer's app/entry layer (the `self-update` CLI flow); Package is the
+      domain model. Composer's self-update process legitimately touches package state — e.g.
+      recording the currently-installed package set alongside a self-update diagnostic report —
+      which is exactly the entry-layer -> domain-layer direction Console/Command/SelfUpdate all
+      use elsewhere. Forward direction, ordinary feature growth; the gate must stay quiet.
+
+  - host_file: "src/Composer/SelfUpdate/Keys.php"
+    source_layer: "SelfUpdate"
+    import_line: "<?php\nuse Composer\\Repository\\ArgotFixture;\n"
+    target_layer: "Repository"
+    rationale: >-
+      Self-update legitimately needs to know what's available to update to; using
+      `Composer\Repository` to check available composer.phar builds/versions is a reasonable
+      entry-layer -> mid-tier-orchestration dependency, matching the direction the rest of the app
+      (Console, Command) already uses to reach Repository. Forward direction, must not fire.
+
   - host_file: "src/Composer/SelfUpdate/Keys.php"
     source_layer: "SelfUpdate"
     import_line: "<?php\nuse Composer\\Json\\ArgotFixture;\n"
@@ -298,13 +297,14 @@ controls:
       (the file already imports `Package\PackageInterface`, `Pcre`, and three `Util\*` classes);
       a further Semver import is unremarkable growth, not a violation.
 
-  - host_file: "src/Composer/Downloader/ArchiveDownloader.php"
-    source_layer: "Downloader"
+  - host_file: "src/Composer/Platform/HhvmDetector.php"
+    source_layer: "Platform"
     import_line: "<?php\nuse Composer\\Semver\\ArgotFixture;\n"
     target_layer: "Semver"
     rationale: >-
-      ArchiveDownloader already imports `Package\PackageInterface`, `Util\Platform`, and
-      `DependencyResolver\Operation\InstallOperation` — it operates squarely in
-      package-version territory. Using `Composer\Semver` to compare/normalize a package's
-      version during archive extraction is exactly the established mid-tier -> utility direction
-      and must not fire.
+      HhvmDetector answers narrow platform/runtime questions using only
+      `Util\Platform`/`Util\ProcessExecutor` — plain string/process work. Comparing a detected
+      PHP/HHVM version against a semver constraint via `Composer\Semver` is a reasonable
+      leaf-utility -> leaf-utility dependency, the same direction Installer, Downloader and
+      SelfUpdate already use Semver for (comparing versions). Forward direction, unremarkable
+      growth; the gate must not fire.

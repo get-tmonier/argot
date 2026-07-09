@@ -1,0 +1,298 @@
+# Architecture-graph violation fixtures for excalidraw (TypeScript monorepo).
+# Each `import_line` added to `host_file` creates the internal edge
+# (source layer -> target layer). Violations cross a boundary the repo's
+# established direction never crosses; controls respect that direction.
+#
+# Layer = first path component under a source root. This monorepo has several
+# source roots, each with its own layer set:
+#   - `packages/excalidraw/` (the app package): components, actions, hooks,
+#     scene, data, renderer, context, fonts, subset, wysiwyg, lasso, eraser, ...
+#   - `packages/element/src/` (a separate npm workspace, `@excalidraw/element`,
+#     that `packages/excalidraw` depends on — see packages/excalidraw/package.json:88
+#     `"@excalidraw/element": "0.18.0"`): arrows, ...
+#   - `dev-docs/src/` (the docs site, its own workspace): pages, components.
+#   - `examples/with-nextjs/src/` (a consumer app, its own workspace): app, pages,
+#     and `__root__` for files sitting directly under `src/` with no
+#     subdirectory (e.g. `excalidrawWrapper.tsx`, a sibling of `app/`/`pages/`).
+#   - `examples/` itself (covering `with-script-in-browser/**`) is tracked as a
+#     single `examples` layer at monorepo scope.
+# Edges are formed from RELATIVE imports only (specifier starts with `.`);
+# bare/workspace-package specifiers (`@excalidraw/element`, `@excalidraw/common`)
+# are external and do not count.
+#
+# Topology inside `packages/excalidraw/` (from resolving every relative import
+# under packages/excalidraw/** to its layer, HEAD):
+#   - `context` is the layer's near-universal SINK: 0 outbound relative imports
+#     to any other tracked layer (`grep -rlE "from ['\"]\.\./(actions|hooks|scene|
+#     data|renderer|...)" context/` returns nothing), yet 28 files import it —
+#     e.g. `hooks/useCreatePortalContainer.ts:6` imports `../context/ui-appState`.
+#     Every edge OUT of context (`context -> X`) inverts this.
+#   - `actions` (user-invoked commands) both consumes and is consumed: it reaches
+#     into `scene` (actionExport.tsx:29-30, actionCanvas.tsx:45-47), `data`
+#     (actionExport.tsx:22-26, actionClipboard.tsx:17) and `hooks`
+#     (actionHistory.tsx:17), while `components` reaches into `actions` (~30
+#     files). `hooks`/`scene`/`data`/`renderer` reaching UP into `actions`
+#     reverses the direction those files themselves establish.
+#   - `hooks` -> `data` is attested the other way: `data/library.ts:31` imports
+#     `../hooks/useLibraryItemSvg`. `hooks -> data` reverses it.
+#   - `fonts` and `subset` are the deepest leaves: `subset` (harfbuzz WASM
+#     bindings) has 0 outbound edges and is imported by exactly 1 file
+#     (`fonts/ExcalidrawFontFace.ts`); `fonts` itself is imported by only 2
+#     files (index.tsx, FontPicker). Neither should reach into engine/app layers.
+#   - `wysiwyg` (in-canvas text editor) is imported by exactly 1 file
+#     (`components/App.tsx`) — its natural position is a thin feature layer
+#     sitting just below `components`, not a peer of `scene`'s engine internals.
+#   - `lasso` and `eraser` are self-contained tool-feature modules: each already
+#     imports `../components/App` (type-only) and other engine layers directly —
+#     i.e. they already sit in the "feature module consumes shared engine
+#     infrastructure" position. A new import of another engine layer
+#     (context/actions/hooks/scene/data/renderer) from these files is exactly
+#     that same established direction — these make the controls.
+#   - `packages/element` is a workspace *dependency* of `packages/excalidraw`
+#     (package.json:88), never the reverse — a file under `packages/element/src/`
+#     reaching into `packages/excalidraw`'s internals inverts the workspace
+#     dependency graph. Likewise `dev-docs/` and `examples/` are consumer
+#     workspaces that use the published `@excalidraw/excalidraw` package API;
+#     a relative import from them into `packages/excalidraw`'s internal layer
+#     files (bypassing the package boundary) inverts that consumer direction.
+#
+# Every (kind, host_file, import_line) below is copied verbatim from the
+# resolver-verified candidate menu (`/tmp/arch-tsrb/candidates-excalidraw.md`),
+# which independently confirmed each edge is 0-usage in the given direction.
+
+violations:
+  # ---- reversals (direct pairwise reverse attested within packages/excalidraw) ----
+  - host_file: "packages/excalidraw/scene/Renderer.ts"
+    source_layer: "scene"
+    import_line: "import { ArgotFixture } from '../actions/actionAddToLibrary';\n"
+    target_layer: "actions"
+    kind: "reversal"
+    rationale: >-
+      The scene layer (canvas scene-graph engine internals) reaching up into a
+      user-invoked action handler. Reverse is attested: `actions/actionExport.tsx:29-30`
+      imports `../scene` and `../scene/export`, and `actions/actionCanvas.tsx:45-47`
+      imports `../scene`, `../scene/scroll`, `../scene/zoom` — actions consumes
+      scene, never the other way. scene->actions is 0-usage; this reverses the
+      established actions->scene direction.
+
+  - host_file: "packages/excalidraw/context/tunnels.ts"
+    source_layer: "context"
+    import_line: "import { ArgotFixture } from '../hooks/useAppStateValue';\n"
+    target_layer: "hooks"
+    kind: "reversal"
+    rationale: >-
+      context is the layer's near-universal sink (0 outbound edges to any
+      tracked layer, 28 files import it). Reverse attested directly:
+      `hooks/useCreatePortalContainer.ts:6` imports `../context/ui-appState`.
+      context->hooks is 0-usage; a sink layer reaching back out into one of its
+      own consumers is the canonical inversion.
+
+  - host_file: "packages/excalidraw/hooks/useAppStateValue.ts"
+    source_layer: "hooks"
+    import_line: "import { ArgotFixture } from '../data/EditorLocalStorage';\n"
+    target_layer: "data"
+    kind: "reversal"
+    rationale: >-
+      A React state-access hook reaching into the local-storage persistence
+      layer. Reverse attested: `data/library.ts:31` imports
+      `../hooks/useLibraryItemSvg` — data already depends on hooks, not the
+      reverse. hooks->data is 0-usage; this reverses the established
+      data->hooks direction.
+
+  - host_file: "packages/excalidraw/data/EditorLocalStorage.ts"
+    source_layer: "data"
+    import_line: "import { ArgotFixture } from '../actions/actionAddToLibrary';\n"
+    target_layer: "actions"
+    kind: "reversal"
+    rationale: >-
+      A local-storage persistence module reaching up into a user action
+      handler. Reverse attested: `actions/actionExport.tsx:22-26,36` imports
+      `../data`, `../data/blob`, `../data/filesystem`, `../data/resave`,
+      `../data/json`, and `actions/actionClipboard.tsx:17` imports
+      `../data/index` — actions consumes data extensively, never the reverse.
+      data->actions is 0-usage; this reverses that established direction.
+
+  - host_file: "examples/with-nextjs/src/excalidrawWrapper.tsx"
+    source_layer: "__root__"
+    import_line: "import { ArgotFixture } from '../../../packages/excalidraw/context/tunnels';\n"
+    target_layer: "context"
+    kind: "reversal"
+    rationale: >-
+      The Next.js consumer app's own wrapper component reaching past the
+      published `@excalidraw/excalidraw` package API straight into the
+      package's internal `context/tunnels` module via a relative import.
+      Consumer workspaces use the package export surface (`@excalidraw/excalidraw`,
+      as this same file does two lines above), never a relative path into the
+      package's internals — 0-usage, and it inverts the workspace consumer
+      direction (examples depends on the package, not on its private layers).
+
+  # ---- transitive_reversal (no direct pairwise attestation, but the target
+  #      is reached only via an already-attested multi-hop chain, or a
+  #      workspace-boundary rank the repo never crosses in this direction) ----
+  - host_file: "packages/excalidraw/renderer/animation.ts"
+    source_layer: "renderer"
+    import_line: "import { ArgotFixture } from '../context/tunnels';\n"
+    target_layer: "context"
+    kind: "transitive_reversal"
+    rationale: >-
+      The canvas renderer reaching into the context sink. renderer is
+      consumed by scene (`scene/export.ts`, `scene/Renderer.ts`) which is
+      itself consumed by actions/components, both of which sit above context
+      in the same rank order as the direct actions->context/hooks->context
+      edges above; renderer has no direct outbound edge to context today.
+      renderer->context is 0-usage and, via that chain, still inverts the
+      sink's established consumer direction.
+
+  - host_file: "packages/excalidraw/actions/actionAddToLibrary.ts"
+    source_layer: "actions"
+    import_line: "import { ArgotFixture } from '../renderer/animation';\n"
+    target_layer: "renderer"
+    kind: "transitive_reversal"
+    rationale: >-
+      An action handler reaching directly into low-level renderer internals,
+      bypassing the scene layer that normally mediates between them (actions
+      talks to scene; scene talks to renderer — see scene->actions evidence
+      above). actions->renderer is 0-usage; wiring around the mediating layer
+      inverts the established actions -> scene -> renderer chain.
+
+  - host_file: "packages/excalidraw/wysiwyg/textWysiwyg.tsx"
+    source_layer: "wysiwyg"
+    import_line: "import { ArgotFixture } from '../scene/Renderer';\n"
+    target_layer: "scene"
+    kind: "transitive_reversal"
+    rationale: >-
+      wysiwyg (the in-canvas text-editing overlay) is imported by exactly one
+      file, `components/App.tsx` — its established position is a thin feature
+      layer sitting just below components, not a peer of scene's canvas
+      engine internals. wysiwyg->scene is 0-usage; reaching into scene directly
+      skips the layer boundary wysiwyg has always respected.
+
+  - host_file: "packages/excalidraw/subset/harfbuzz/harfbuzz-bindings.ts"
+    source_layer: "subset"
+    import_line: "import { ArgotFixture } from '../../data/EditorLocalStorage';\n"
+    target_layer: "data"
+    kind: "transitive_reversal"
+    rationale: >-
+      subset (harfbuzz WASM font-subsetting bindings) is the deepest leaf in
+      the fonts chain: 0 outbound edges to any tracked layer, imported by
+      exactly 1 file (`fonts/ExcalidrawFontFace.ts`). A leaf this deep reaching
+      into the data/persistence layer several ranks above it is 0-usage and
+      inverts the whole subset <- fonts <- {index.tsx, FontPicker} chain.
+
+  - host_file: "packages/element/src/arrows/focus.ts"
+    source_layer: "arrows"
+    import_line: "import { ArgotFixture } from '../../../excalidraw/actions/actionAddToLibrary';\n"
+    target_layer: "actions"
+    kind: "transitive_reversal"
+    rationale: >-
+      `packages/element` is a workspace dependency of `packages/excalidraw`
+      (`packages/excalidraw/package.json:88` pins `@excalidraw/element`),
+      consumed only via the published `@excalidraw/element` entry point —
+      never the reverse. A file under `packages/element/src/arrows/` reaching
+      via a relative import straight into `packages/excalidraw`'s internal
+      actions layer is 0-usage and inverts the workspace dependency direction.
+
+  - host_file: "examples/with-script-in-browser/components/CustomFooter.tsx"
+    source_layer: "examples"
+    import_line: "import { ArgotFixture } from '../../../packages/excalidraw/context/tunnels';\n"
+    target_layer: "context"
+    kind: "transitive_reversal"
+    rationale: >-
+      A demo-app footer component reaching past the package boundary into
+      `packages/excalidraw`'s internal context sink. Like the with-nextjs
+      example above, this workspace only ever consumes the published package
+      API; examples->context is 0-usage and inverts the established
+      consumer-workspace -> published-package-API direction.
+
+  - host_file: "packages/excalidraw/fonts/Cascadia/index.ts"
+    source_layer: "fonts"
+    import_line: "import { ArgotFixture } from '../../../../examples/with-nextjs/src/excalidrawWrapper';\n"
+    target_layer: "__root__"
+    kind: "reversal"
+    rationale: >-
+      A font-loading leaf module (imported by only 2 files in its own package)
+      reaching all the way out into a downstream consumer app's wrapper
+      component. fonts->__root__(examples/with-nextjs) is 0-usage; a package
+      internal importing from one of its own consumer applications is the
+      most direct possible inversion of the dependency direction — the
+      opposite is attested instead (the Next.js wrapper imports the published
+      package, which internally loads fonts).
+
+controls:
+  - host_file: "packages/excalidraw/lasso/index.ts"
+    source_layer: "lasso"
+    import_line: "import { ArgotFixture } from '../context/tunnels';\n"
+    target_layer: "context"
+    rationale: >-
+      lasso already imports `../components/App` (type-only) and
+      `../animatedTrail` — it is a self-contained feature module sitting in
+      the "consumes shared app/engine infrastructure" position. context is
+      the layer's dominant sink (28 existing importers); a lasso file adding
+      one more `context` import is exactly that established direction, just a
+      new specific pairing. Must not fire.
+
+  - host_file: "packages/excalidraw/lasso/index.ts"
+    source_layer: "lasso"
+    import_line: "import { ArgotFixture } from '../scene/Renderer';\n"
+    target_layer: "scene"
+    rationale: >-
+      Same feature module, same direction: lasso (a selection-tool feature
+      under packages/excalidraw) reaching into scene (the canvas scene-graph
+      engine) mirrors the attested actions->scene edges
+      (actionExport.tsx/actionCanvas.tsx) — a higher-level feature consuming
+      the shared engine layer. New pairing, established direction. Must not fire.
+
+  - host_file: "packages/excalidraw/lasso/index.ts"
+    source_layer: "lasso"
+    import_line: "import { ArgotFixture } from '../data/EditorLocalStorage';\n"
+    target_layer: "data"
+    rationale: >-
+      lasso reaching into data mirrors the attested actions->data edges
+      (actionExport.tsx, actionClipboard.tsx) — a feature module consuming
+      the persistence layer is the normal shape here. Must not fire.
+
+  - host_file: "packages/excalidraw/lasso/index.ts"
+    source_layer: "lasso"
+    import_line: "import { ArgotFixture } from '../renderer/animation';\n"
+    target_layer: "renderer"
+    rationale: >-
+      lasso already renders an animated trail (`../animatedTrail`, which
+      itself imports renderer); a lasso file also importing renderer directly
+      is continuous with that existing usage, not a new direction. Must not fire.
+
+  - host_file: "packages/excalidraw/eraser/index.ts"
+    source_layer: "eraser"
+    import_line: "import { ArgotFixture } from '../context/tunnels';\n"
+    target_layer: "context"
+    rationale: >-
+      eraser is lasso's sibling tool-feature module — same established
+      position (already imports `../components/App` type-only and
+      `../animatedTrail`). Adding a `context` import matches the 28
+      already-attested context importers. Must not fire.
+
+  - host_file: "packages/excalidraw/eraser/index.ts"
+    source_layer: "eraser"
+    import_line: "import { ArgotFixture } from '../actions/actionAddToLibrary';\n"
+    target_layer: "actions"
+    rationale: >-
+      eraser reaching into actions matches the attested components->actions
+      and wysiwyg->actions edges — a feature module wiring itself into the
+      command layer is the established shape for this package. Must not fire.
+
+  - host_file: "packages/excalidraw/eraser/index.ts"
+    source_layer: "eraser"
+    import_line: "import { ArgotFixture } from '../hooks/useAppStateValue';\n"
+    target_layer: "hooks"
+    rationale: >-
+      eraser reaching into hooks mirrors components' own extensive hooks
+      usage (21 importers) — a UI-adjacent feature module consuming a React
+      state hook is unremarkable, not a boundary crossing. Must not fire.
+
+  - host_file: "packages/excalidraw/eraser/index.ts"
+    source_layer: "eraser"
+    import_line: "import { ArgotFixture } from '../data/EditorLocalStorage';\n"
+    target_layer: "data"
+    rationale: >-
+      eraser reaching into data mirrors the attested actions->data edges —
+      the same "feature module consumes persistence layer" shape used
+      throughout packages/excalidraw. Must not fire.

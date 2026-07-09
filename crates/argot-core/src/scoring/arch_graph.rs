@@ -641,18 +641,24 @@ impl RepoLayering {
             // file's directory to a concrete target file in the target layer.
             Language::Typescript | Language::Javascript => {
                 if let Some(tf) = target_file {
-                    let spec = relative_spec(parent_dir(host_path), tf);
+                    let spec = relative_spec(parent_dir(host_path), tf, true);
                     candidates.push(format!("import {{ ArgotFixture }} from '{spec}';\n"));
                 }
             }
             Language::Ruby => {
                 if let Some(tf) = target_file {
-                    let spec = relative_spec(parent_dir(host_path), tf);
+                    let spec = relative_spec(parent_dir(host_path), tf, true);
                     candidates.push(format!("require_relative \"{spec}\"\n"));
                 }
             }
-            // C/C++ includes are also relative but rarely a clean layer signal — skip.
-            Language::C | Language::Cpp => {}
+            Language::C | Language::Cpp => {
+                // project-relative include: first path component is the layer.
+                candidates.push(format!("#include \"{target_layer}/argot_fixture.h\"\n"));
+                if let Some(tf) = target_file {
+                    let spec = relative_spec(parent_dir(host_path), tf, false);
+                    candidates.push(format!("#include \"{spec}\"\n"));
+                }
+            }
         }
         let want = (src, target_layer.to_string());
         candidates
@@ -792,14 +798,17 @@ fn parent_dir(path: &str) -> &str {
     }
 }
 
-/// A `./`-relative specifier from `from_dir` to `to_file` with its extension
-/// stripped (the form TS/JS/Ruby relative imports use). Inverse of
-/// [`normalize_join`]: `normalize_join(from_dir, relative_spec(from_dir, f))`
-/// re-derives `f` (sans extension).
-fn relative_spec(from_dir: &str, to_file: &str) -> String {
-    let to_noext = match to_file.rfind('.') {
-        Some(i) if !to_file[i..].contains('/') => &to_file[..i],
-        _ => to_file,
+/// A `./`-relative specifier from `from_dir` to `to_file`. TS/JS/Ruby imports
+/// drop the extension (`strip_ext`); C/C++ `#include` keeps it. Inverse of
+/// [`normalize_join`] on the path components.
+fn relative_spec(from_dir: &str, to_file: &str, strip_ext: bool) -> String {
+    let to_noext = if strip_ext {
+        match to_file.rfind('.') {
+            Some(i) if !to_file[i..].contains('/') => &to_file[..i],
+            _ => to_file,
+        }
+    } else {
+        to_file
     };
     let from: Vec<&str> = from_dir.split('/').filter(|s| !s.is_empty()).collect();
     let to: Vec<&str> = to_noext.split('/').filter(|s| !s.is_empty()).collect();
@@ -1807,11 +1816,11 @@ mod tests {
     #[test]
     fn relative_spec_round_trips_through_normalize_join() {
         // sibling layer
-        let s = relative_spec("src/components", "src/data/store.ts");
+        let s = relative_spec("src/components", "src/data/store.ts", true);
         assert_eq!(s, "../data/store");
         assert_eq!(normalize_join("src/components", &s), "src/data/store");
         // deeper host
-        let s = relative_spec("src/a/b", "src/x/y.tsx");
+        let s = relative_spec("src/a/b", "src/x/y.tsx", true);
         assert_eq!(normalize_join("src/a/b", &s), "src/x/y");
     }
 

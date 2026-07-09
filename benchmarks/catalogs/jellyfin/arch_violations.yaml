@@ -1,264 +1,290 @@
 # Architecture-graph violation fixtures for jellyfin (C#). Each `import_line`
 # added to `host_file` creates the internal edge (source layer -> target
-# layer). Violations cross a boundary the repo never crosses; controls
-# respect the established direction.
+# layer). Violations cross a boundary the repo never crosses in the
+# wrong-direction shape a coding agent would plausibly introduce; controls
+# respect the established direction so the detector must stay quiet on them.
 #
-# Layer = project/assembly. Topology reconstructed from each project's
-# ProjectReference graph (`.csproj` files) at the corpus HEAD, cross-checked
-# against the resolver's namespace-level import graph
-# (`/tmp/arch-fix/candidates-jellyfin.md`, 126 catchable + 82 forward
-# resolver-verified 0-usage candidates):
-#   - `Jellyfin.Extensions` (Extensions) and `Jellyfin.Database.Implementations`
-#     (Database) are the two leaf/sink layers: zero outbound ProjectReferences.
-#     Extensions is a generic C# helper-method library; Database is the EF Core
-#     persistence implementation. Anything they import outward is anomalous.
-#   - `Jellyfin.Data` (Data, entity attributes/enums) -> Database.
-#   - `MediaBrowser.Model` (Model, client-facing DTOs) -> Data, Extensions.
-#   - `MediaBrowser.Common` (Common, plugin/system interfaces) -> Model.
-#   - `Emby.Naming` (Naming, filename/media-name parsing) -> Common, Model.
-#   - `MediaBrowser.Controller` (Controller, core domain entities + service
-#     interfaces, e.g. BaseItem) -> Naming, Model, Common. This is the spine
-#     every feature layer below depends on.
-#   - `MediaBrowser.MediaEncoding`, `Jellyfin.Networking`, `Jellyfin.Drawing`,
-#     `Emby.Photos`, `MediaBrowser.XbmcMetadata`, `MediaBrowser.Providers`,
-#     `MediaBrowser.LocalMetadata`, `Jellyfin.LiveTv` are sibling feature
-#     layers (MediaEncoding/Networking/Drawing/Photos/XbmcMetadata/Providers/
-#     LocalMetadata/LiveTv) that all depend on Controller (+ Model/Common) and
-#     nothing else in this set — an edge between two of them is a lateral leak.
-#   - `Jellyfin.Api` (Api, REST controllers/attributes) is the top presentation
-#     layer -> Controller, MediaEncoding, Networking.
+# Layer = project/assembly (first path component under the corpus root):
+#   MediaBrowser.Model, MediaBrowser.Controller, MediaBrowser.Common,
+#   MediaBrowser.MediaEncoding, MediaBrowser.Providers,
+#   MediaBrowser.XbmcMetadata, MediaBrowser.LocalMetadata, Emby.Naming,
+#   Emby.Photos, Jellyfin.Data, Jellyfin.Api, src/Jellyfin.Database,
+#   src/Jellyfin.Drawing, src/Jellyfin.LiveTv, src/Jellyfin.Extensions,
+#   src/Jellyfin.Networking. Controller/Api sit at the presentation/entry
+#   end of the graph; Model/Data/Database are the domain+persistence end,
+#   most-depended-upon and meant to depend on nothing above them;
+#   MediaEncoding/Networking/Providers/Naming/Drawing/LiveTv/Photos/
+#   XbmcMetadata/LocalMetadata are sibling feature layers that sit under
+#   Controller.
 #
-# Method: every fixture below copies an exact host_file + import_line pair
-# from the resolver-verified candidate menu (each row there confirms the
-# import is 0-usage today and states whether it reverses an attested
-# direction / exits a sink layer / is a fresh forward edge). Fixtures were
-# picked for architectural realism, not by the menu's `kind` column: the
-# violation set mixes true reversals/sink-exits with forward-kind edges that
-# are still questionable (metadata-provider leaf layers reaching past
-# Controller straight into the Database implementation — a layer-skip an LLM
-# would plausibly write when it "just wants the DB context"). Controls are
-# forward-kind edges that respect the real ProjectReference direction
-# (Api -> its established dependencies; feature layers -> the shared,
-# widely-depended-on Naming/Common utility layers one level below Controller).
+# Every fixture below copies an EXACT host_file + import_line pair from the
+# resolver-VERIFIED candidate menu at `/tmp/arch-fix2/candidates-jellyfin.md`
+# (18 layers, 126 catchable + 82 forward 0-usage candidates; each row's
+# import_line was confirmed to actually create the stated src->tgt edge).
+# This supersedes an earlier hand-authored version of this file that used
+# unverified `using Jellyfin.<Layer>;` import lines guessed from directory
+# names rather than real namespaces (some didn't match the corpus's actual
+# C# namespaces, e.g. `MediaBrowser.Model`/`MediaBrowser.Controller` were
+# written as `Jellyfin.Model`/`Jellyfin.Controller`) — every line here is
+# copied verbatim from the verified menu instead.
+#
+# Fixture selection is by domain judgment, not by exhaustively walking the
+# menu: violations are picked to reflect the NATURAL distribution of
+# realistic LLM layering mistakes, which are predominantly wrong-direction
+# (`reversal` / `transitive_reversal` / `sink_out` — a low-level Data/
+# Database/Model/Extensions/Common file, or a Controller-tier feature file,
+# reaching into a higher-tier layer it has no business importing). Exactly
+# one violation below is a `forward`-kind layer-skip included deliberately
+# to keep the set honest about what the gate does NOT catch (forward-
+# direction edges pass by design). Controls are `forward`-kind edges that
+# extend an already-attested top-down direction, several deliberately
+# sharing a host_file/source layer with a violation above to prove the
+# detector discriminates on edge direction, not file or layer identity.
 
 violations:
-  # ---- reversals / sink-exits (resolver-verified 0-usage, reverse direction attested) ----
-  - host_file: "src/Jellyfin.Extensions/CopyToExtensions.cs"
-    source_layer: "Extensions"
-    import_line: "using Jellyfin.Controller;"
-    target_layer: "Controller"
-    kind: "reversal"
-    rationale: >-
-      Extensions is a zero-dependency generic C# helper-method library (no
-      ProjectReferences at all) — every other layer may import it, it imports
-      nothing. A copy/extension helper reaching up into the core domain
-      entities of Controller is the canonical "utility grabs domain logic"
-      mistake. 0-usage today (pop 525 measures how strongly the reverse
-      Controller-consumes-Extensions-shaped direction is attested elsewhere).
-
-  - host_file: "src/Jellyfin.Database/Jellyfin.Database.Implementations/DbConfiguration/CustomDatabaseOption.cs"
-    source_layer: "Database"
-    import_line: "using Jellyfin.Model;"
+  # ---- reversals: low-level Data/Database/Model/Common/Extensions files reaching UP into Controller/Api ----
+  - host_file: "Jellyfin.Data/Attributes/OpenApiIgnoreEnumAttribute.cs"
+    source_layer: "Data"
+    import_line: "using MediaBrowser.Model;"
     target_layer: "Model"
     kind: "reversal"
     rationale: >-
-      Database (Jellyfin.Database.Implementations) is the EF Core persistence
-      implementation and, like Extensions, has zero outbound ProjectReferences
-      — it is a pure leaf the rest of the app builds on. A DB configuration
-      option class importing the client-facing DTO layer (Model) inverts that:
-      persistence code should never need to know about the API-shaped DTOs
-      built on top of it. 0-usage (pop 731, the strongest signal in the menu).
+      A raw EF entity-attribute class (Data, the lowest persistence-adjacent
+      layer) importing the client-facing DTO layer (Model). Verified 0-usage
+      today (menu pop 731, the strongest reverse signal in the corpus): Model
+      is attested to reach into Data, never the other way, so this inverts
+      the established direction — the classic "low-level file grabs the
+      layer above it" LLM mistake.
 
-  - host_file: "Jellyfin.Data/Attributes/OpenApiIgnoreEnumAttribute.cs"
-    source_layer: "Data"
-    import_line: "using Jellyfin.Controller;"
+  - host_file: "src/Jellyfin.Database/Jellyfin.Database.Implementations/DbConfiguration/CustomDatabaseOption.cs"
+    source_layer: "Database"
+    import_line: "using MediaBrowser.Controller;"
     target_layer: "Controller"
     kind: "reversal"
     rationale: >-
-      Data holds raw EF entity attributes/enums and depends only on Database.
-      An entity-attribute class reaching into MediaBrowser.Controller's domain
-      entities/service interfaces is a low-level persistence primitive pulling
-      in business logic several layers above it — the same shape as saleor's
-      "order model imports its own graphql type" fixture. 0-usage (pop 525).
+      A DB configuration-option class (Database, the EF Core persistence
+      implementation) importing MediaBrowser.Controller — the domain/service
+      spine that sits at the presentation/entry end of the graph. Persistence
+      config should never need to know about service-layer contracts built
+      on top of it. Verified 0-usage (menu pop 525); the reverse direction is
+      attested.
 
   - host_file: "MediaBrowser.Model/Activity/ActivityLogEntry.cs"
     source_layer: "Model"
-    import_line: "using Jellyfin.Api;"
-    target_layer: "Api"
+    import_line: "using MediaBrowser.Controller;"
+    target_layer: "Controller"
     kind: "reversal"
     rationale: >-
-      Model is the client-facing DTO layer (depends only on Data, Extensions).
-      An activity-log DTO importing REST attributes from Api — the top
-      presentation layer three levels above it — is a textbook inversion: DTOs
-      are supposed to be consumed by the API layer, never the reverse.
-      0-usage (pop 11).
+      An activity-log DTO (Model) importing MediaBrowser.Controller directly.
+      DTOs are supposed to be consumed BY the controller/service layer, never
+      the reverse — a textbook inversion an agent makes when it wants a
+      service-layer helper from inside a data-transfer type. Verified
+      0-usage (menu pop 525).
 
-  - host_file: "Emby.Naming/Audio/AlbumParser.cs"
-    source_layer: "Naming"
-    import_line: "using Jellyfin.Database;"
-    target_layer: "Database"
-    kind: "sink_out"
+  - host_file: "src/Jellyfin.Extensions/CopyToExtensions.cs"
+    source_layer: "Extensions"
+    import_line: "using MediaBrowser.Controller;"
+    target_layer: "Controller"
+    kind: "reversal"
     rationale: >-
-      Naming is a filename/media-name parsing utility (depends on Common,
-      Model) — it has no legitimate reason to touch persistence. An album
-      parser reaching straight into the Database implementation, bypassing
-      Controller, Model, and Data entirely, is exactly the kind of shortcut an
-      LLM takes when it "just wants to read the DB" from deep utility code.
-      0-usage (pop 255).
+      Extensions is a generic, zero-dependency C# helper-method library —
+      everything else may import it, it should import nothing domain-shaped.
+      A copy/extension helper reaching up into Controller's service
+      interfaces is exactly the "utility grabs domain logic" shortcut an
+      agent takes when it wants a type from deep in a helper file. Verified
+      0-usage (menu pop 525).
 
   - host_file: "MediaBrowser.Common/Api/Policies.cs"
     source_layer: "Common"
-    import_line: "using Jellyfin.Data;"
-    target_layer: "Data"
-    kind: "transitive_reversal"
-    rationale: >-
-      Common holds plugin/system interfaces and depends only on Model. A
-      policy class importing raw persistence entities from Data reaches two
-      layers below its real dependency (Model), pulling EF entities into code
-      that's supposed to stay at the DTO/interface level. 0-usage (pop 271).
-
-  - host_file: "MediaBrowser.Controller/Authentication/AuthenticationException.cs"
-    source_layer: "Controller"
-    import_line: "using Jellyfin.Api;"
+    import_line: "using MediaBrowser.Api;"
     target_layer: "Api"
     kind: "reversal"
     rationale: >-
-      Controller is the domain spine every feature layer and Api itself
-      depends on (Api -> Controller is a real, attested ProjectReference). A
-      domain exception type reaching up into Api's REST attributes is the
-      exact inverse of that established direction — business logic should
-      never know about the HTTP layer built on top of it. 0-usage (pop 11).
+      Common holds plugin/system-level interfaces consumed by everything
+      above it; a policy class importing Jellyfin.Api — the top REST
+      presentation layer — reaches to the opposite end of the graph from
+      where Common sits. Verified 0-usage (menu pop 11); the attested
+      direction runs Api-ward-consumes-Common, not the reverse.
 
+  # ---- sink-exit: a near-universal sink layer making an outbound edge ----
+  - host_file: "MediaBrowser.Controller/Authentication/AuthenticationException.cs"
+    source_layer: "Controller"
+    import_line: "using MediaBrowser.Naming;"
+    target_layer: "Naming"
+    kind: "sink_out"
+    rationale: >-
+      Controller is consumed by nearly every feature layer in the corpus and
+      has no legitimate reason to reach back down into a leaf parsing
+      utility (Naming). An authentication-exception type importing
+      Emby.Naming is Controller leaving its sink position — the same shape
+      as "core imports a domain module" in the saleor fixtures. Verified
+      0-usage (menu pop 24).
+
+  - host_file: "Jellyfin.Data/Attributes/OpenApiIgnoreEnumAttribute.cs"
+    source_layer: "Data"
+    import_line: "using MediaBrowser.Extensions;"
+    target_layer: "Extensions"
+    kind: "sink_out"
+    rationale: >-
+      The same OpenAPI attribute class as above, this time reaching into
+      MediaBrowser.Extensions instead of Model — a second, independent
+      synthetic mistake in the same low-level host file. Data sits near the
+      bottom of the graph and this edge is 0-usage (menu pop 190) with the
+      reverse direction attested, so it registers as an anomalous outbound
+      edge from a layer that should only ever be imported, not import out.
+
+  # ---- feature-layer (Controller-tier) files reaching UP into Api, forming a cycle ----
   - host_file: "MediaBrowser.MediaEncoding/Attachments/AttachmentExtractor.cs"
     source_layer: "MediaEncoding"
-    import_line: "using Jellyfin.Networking;"
-    target_layer: "Networking"
-    kind: "transitive_reversal"
+    import_line: "using MediaBrowser.Api;"
+    target_layer: "Api"
+    kind: "reversal"
     rationale: >-
-      MediaEncoding and Networking are siblings — both depend only on
-      Common/Controller and nothing in this set imports the other. A
-      transcoding attachment extractor reaching sideways into
-      network-discovery code (both only ever consumed together via Api, never
-      directly) is a lateral leak between unrelated feature layers. 0-usage
-      (pop 3).
-
-  # ---- forward-kind but still questionable: leaf metadata-provider layers ----
-  # ---- skipping the Controller abstraction to hit Database directly ----
-  - host_file: "MediaBrowser.XbmcMetadata/Configuration/NfoConfigurationExtension.cs"
-    source_layer: "XbmcMetadata"
-    import_line: "using Jellyfin.Database;"
-    target_layer: "Database"
-    kind: "forward"
-    rationale: >-
-      XbmcMetadata (the NFO metadata provider) depends only on Model and
-      Controller — Controller is exactly the abstraction meant to mediate
-      persistence access. A configuration extension reaching past it straight
-      into the Database implementation is a layer-skip: technically
-      "downward" in raw depth, but it bypasses the one interface this layer is
-      supposed to go through. 0-usage (pop 255); forward-kind by the menu, but
-      an LLM reaching for "just wire up the DbContext" here would be wrong.
+      MediaEncoding is a Controller-tier feature layer; Api is the top REST
+      layer that calls INTO feature layers like this one, not the other way
+      around. An attachment-extraction service reaching up into Api closes a
+      cycle back to its own caller — a plausible mistake when an agent
+      wants a request/response type it thinks lives in Api. Verified
+      0-usage (menu pop 11).
 
   - host_file: "MediaBrowser.Providers/Books/AudioBookMetadataService.cs"
     source_layer: "Providers"
-    import_line: "using Jellyfin.Database;"
-    target_layer: "Database"
-    kind: "forward"
+    import_line: "using MediaBrowser.Api;"
+    target_layer: "Api"
+    kind: "transitive_reversal"
     rationale: >-
-      Same shape as XbmcMetadata: Providers depends only on Controller and
-      Model. An audiobook metadata service bypassing Controller to touch the
-      Database implementation directly skips the repository/service
-      abstraction the rest of the provider layers respect. 0-usage (pop 255).
-
-  - host_file: "MediaBrowser.LocalMetadata/BaseXmlProvider.cs"
-    source_layer: "LocalMetadata"
-    import_line: "using Jellyfin.Database;"
-    target_layer: "Database"
-    kind: "forward"
-    rationale: >-
-      LocalMetadata (local XML/NFO provider) also depends only on Controller
-      and Model. The base XML provider reaching straight into Database
-      implementation code — instead of asking Controller for the data —
-      is the same layer-skip pattern as the other two metadata providers.
-      0-usage (pop 255).
-
-  - host_file: "Emby.Photos/PhotoProvider.cs"
-    source_layer: "Photos"
-    import_line: "using Jellyfin.Database;"
-    target_layer: "Database"
-    kind: "forward"
-    rationale: >-
-      Photos depends only on Controller and Model, same as the other
-      metadata providers above. A photo provider going straight to Database
-      instead of through Controller is the fourth instance of this exact
-      layer-skip — common enough across sibling provider layers that it's
-      worth testing as a group. 0-usage (pop 255).
-
-controls:
-  - host_file: "Jellyfin.Api/Attributes/AcceptsFileAttribute.cs"
-    source_layer: "Api"
-    import_line: "using Jellyfin.Networking;"
-    target_layer: "Networking"
-    rationale: >-
-      Api -> Networking is a real, attested ProjectReference
-      (Jellyfin.Api.csproj directly references Jellyfin.Networking.csproj) —
-      Api is the top presentation layer and Networking is one of its
-      established direct dependencies. This exact file-level import is
-      0-usage today, but the layer edge is fully legitimate top-down growth
-      and must not fire.
-
-  - host_file: "Jellyfin.Api/Attributes/AcceptsFileAttribute.cs"
-    source_layer: "Api"
-    import_line: "using Jellyfin.Providers;"
-    target_layer: "Providers"
-    rationale: >-
-      Api already directly consumes sibling feature layers at Providers'
-      exact tier — MediaEncoding and Networking are both real
-      ProjectReferences of Jellyfin.Api.csproj. A new Api -> Providers import
-      fits that same established shape (top layer reaching directly into a
-      Controller-level feature layer) even though this specific edge is
-      0-usage; it should read as legitimate growth, not a violation.
-
-  - host_file: "src/Jellyfin.Networking/AutoDiscoveryHost.cs"
-    source_layer: "Networking"
-    import_line: "using Jellyfin.Naming;"
-    target_layer: "Naming"
-    rationale: >-
-      Networking's real dependency is Controller, which itself depends on
-      Naming — so Networking -> Naming is a single-level skip toward a
-      widely shared, low-level utility (Naming has no dependents of its own
-      and is already consumed by Controller). A network-discovery host
-      wanting name-parsing helpers directly is unremarkable growth, not a
-      layering mistake. 0-usage (pop 24).
-
-  - host_file: "src/Jellyfin.Drawing/ImageProcessor.cs"
-    source_layer: "Drawing"
-    import_line: "using Jellyfin.Naming;"
-    target_layer: "Naming"
-    rationale: >-
-      Same pattern as Networking above: Drawing depends on Controller (which
-      depends on Naming), so an image processor reaching directly for
-      naming/parsing helpers is a benign one-level skip toward a shared
-      utility layer, not an inversion. 0-usage (pop 24).
+      Same cycle shape as MediaEncoding above: Providers is a metadata-
+      provider feature layer that Api calls into. An audiobook metadata
+      service importing MediaBrowser.Api transitively reverses the
+      established Api -> Providers direction. Deliberately paired with the
+      Providers -> Database control below (same host file): the detector
+      must flag THIS edge and stay quiet on that one. Verified 0-usage
+      (menu pop 11).
 
   - host_file: "src/Jellyfin.LiveTv/Channels/ChannelDynamicMediaSourceProvider.cs"
     source_layer: "LiveTv"
-    import_line: "using Jellyfin.Naming;"
-    target_layer: "Naming"
+    import_line: "using MediaBrowser.Api;"
+    target_layer: "Api"
+    kind: "transitive_reversal"
     rationale: >-
-      LiveTv depends on Controller (-> Naming). A live-TV channel/media-source
-      provider wanting to parse recording or show names via Naming is a
-      natural, direction-respecting use of the shared utility layer — the
-      clearest-motivated of the three Naming controls. 0-usage (pop 24).
+      LiveTv is a Controller-tier feature layer (channel/media-source
+      providers); Api is its caller. A dynamic media-source provider
+      reaching up into Api closes the same kind of cycle as MediaEncoding
+      and Providers above. Deliberately paired with the LiveTv -> Naming
+      control below (same host file): one edge is a genuine cycle, the other
+      benign forward growth. Verified 0-usage (menu pop 11).
+
+  # ---- naming/parsing utility reaching UP into Controller ----
+  - host_file: "Emby.Naming/Audio/AlbumParser.cs"
+    source_layer: "Naming"
+    import_line: "using MediaBrowser.Controller;"
+    target_layer: "Controller"
+    kind: "transitive_reversal"
+    rationale: >-
+      Emby.Naming is a filename/media-name parsing utility with no
+      legitimate reason to reach into MediaBrowser.Controller's service
+      contracts. An album-name parser importing Controller transitively
+      reverses the attested Controller-consumes-Naming direction. Verified
+      0-usage (menu pop 525).
+
+  # ---- the one deliberately-included forward layer-skip (NOT caught by design; keeps the set honest) ----
+  - host_file: "src/Jellyfin.Drawing/ImageProcessor.cs"
+    source_layer: "Drawing"
+    import_line: "using MediaBrowser.MediaEncoding;"
+    target_layer: "MediaEncoding"
+    kind: "forward"
+    rationale: >-
+      Drawing (image/thumbnail processing) reaching directly into
+      MediaEncoding (audio/video transcoding orchestration) instead of going
+      through Controller — a plausible "these both process media" mistake
+      an agent could make, but the resolver classifies it `forward` (an
+      already-attested fan-out direction elsewhere in the graph), so the
+      arch-graph gate will NOT catch it. Included on purpose: forward-
+      direction edges are a known, deliberate limitation of this gate, and
+      the fixture set should say so honestly rather than only stacking
+      guaranteed catches. Verified 0-usage (menu pop 6).
+
+controls:
+  - host_file: "src/Jellyfin.Drawing/ImageProcessor.cs"
+    source_layer: "Drawing"
+    import_line: "using MediaBrowser.Data;"
+    target_layer: "Data"
+    rationale: >-
+      Same host file as the Drawing -> MediaEncoding violation above, but
+      this edge (Drawing -> Data) is `forward`-kind and 0-usage in the
+      opposite, legitimate direction of travel (menu pop 271) — a feature
+      layer pulling a persistence-adjacent type it's entitled to use. Must
+      not fire; proves the detector discriminates per-edge within one file.
+
+  - host_file: "src/Jellyfin.Networking/AutoDiscoveryHost.cs"
+    source_layer: "Networking"
+    import_line: "using MediaBrowser.Database;"
+    target_layer: "Database"
+    rationale: >-
+      Networking is a Controller-tier feature layer; Database sits at the
+      persistence end that feature layers are entitled to reach for. This
+      specific import is 0-usage (menu pop 255, forward-kind) but respects
+      the established top-down direction, so the detector must stay quiet.
+
+  - host_file: "MediaBrowser.Providers/Books/AudioBookMetadataService.cs"
+    source_layer: "Providers"
+    import_line: "using MediaBrowser.Database;"
+    target_layer: "Database"
+    rationale: >-
+      Same host file as the Providers -> Api violation above. This edge
+      (Providers -> Database, forward-kind, menu pop 255) is the legitimate
+      direction — a metadata service reaching down toward persistence, not
+      up into its own caller. Deliberately paired to test per-edge
+      discrimination within a single file.
 
   - host_file: "Emby.Photos/PhotoProvider.cs"
     source_layer: "Photos"
-    import_line: "using Jellyfin.Common;"
+    import_line: "using MediaBrowser.Common;"
     target_layer: "Common"
     rationale: >-
-      Photos depends on Controller, which depends on Common — so Photos ->
-      Common is the same benign single-level skip as the Naming controls
-      above, just one layer higher. Deliberately paired with the
-      Photos -> Database violation above in the same host file: one import
-      (Database) is a genuine layer-skip past Controller, the other (Common)
-      is a shallow, direction-respecting skip. The detector must tell these
-      apart per-edge, not flag the whole file. 0-usage (pop 227).
+      Photos is a Controller-tier feature layer; Common is a shared,
+      widely-depended-upon utility layer beneath Controller. A photo
+      provider importing Common respects the established top-down shape.
+      0-usage (menu pop 227, forward-kind); must not fire.
+
+  - host_file: "MediaBrowser.LocalMetadata/BaseXmlProvider.cs"
+    source_layer: "LocalMetadata"
+    import_line: "using MediaBrowser.Database;"
+    target_layer: "Database"
+    rationale: >-
+      LocalMetadata (local XML/NFO provider) reaching down into Database is
+      the same legitimate top-down shape as the other metadata-provider
+      controls in this file. 0-usage (menu pop 255, forward-kind); the
+      reverse (Database -> LocalMetadata) is not attested and Database is
+      not left in a sink-exit position, so the detector must stay quiet.
+
+  - host_file: "MediaBrowser.XbmcMetadata/Configuration/NfoConfigurationExtension.cs"
+    source_layer: "XbmcMetadata"
+    import_line: "using MediaBrowser.Database;"
+    target_layer: "Database"
+    rationale: >-
+      XbmcMetadata (the NFO metadata provider) reaching into Database
+      mirrors LocalMetadata and Providers above — a sibling metadata-
+      provider layer using persistence in the established forward
+      direction. 0-usage (menu pop 255, forward-kind); must not fire.
+
+  - host_file: "Jellyfin.Api/Attributes/AcceptsFileAttribute.cs"
+    source_layer: "Api"
+    import_line: "using MediaBrowser.Naming;"
+    target_layer: "Naming"
+    rationale: >-
+      Api is the top presentation layer; Naming is a shared, low-level
+      parsing utility every layer beneath Api may use. An upload-attribute
+      class importing Naming is ordinary top-down growth, not a violation.
+      0-usage (menu pop 24, forward-kind); must not fire.
+
+  - host_file: "src/Jellyfin.LiveTv/Channels/ChannelDynamicMediaSourceProvider.cs"
+    source_layer: "LiveTv"
+    import_line: "using MediaBrowser.Naming;"
+    target_layer: "Naming"
+    rationale: >-
+      Same host file as the LiveTv -> Api violation above. This edge
+      (LiveTv -> Naming, forward-kind, menu pop 24) is a channel/media-
+      source provider using the shared naming/parsing utility — benign,
+      direction-respecting growth. Deliberately paired to prove the
+      detector tells the two edges in this file apart.

@@ -1,0 +1,220 @@
+# Architecture-graph violation fixtures for powershell (PowerShell/PowerShell Core, C#).
+# Each `import_line` added to `host_file` creates the internal edge (source layer ->
+# target layer). Violations cross a boundary the repo never crosses in the wrong
+# direction; controls respect the established direction.
+#
+# Layer = the project a `using SMA.<Layer>;` candidate resolves into, where `SMA` is
+# the alias `using SMA = System.Management.Automation;` already defined project-wide
+# in this codebase (e.g. src/System.Management.Automation/engine/remoting/common/
+# RemoteSessionHyperVSocket.cs:13). The arch-candidate resolver enumerates 38 layers
+# total; only 5 are host-mapped (have a source file the resolver can attribute an
+# edge to), so this fixture set draws only from those 5:
+#   - `Diagnostics`  -> src/Microsoft.PowerShell.CoreCLR.Eventing (low-level ETW /
+#     event-descriptor plumbing). Behaves like a near-sink: every candidate edge
+#     OUT of it is 0-usage, and it never appears as a target of an inbound edge in
+#     this menu — a `Diagnostics -> X` edge is anomalous regardless of X.
+#   - `Powershell`   -> src/Microsoft.PowerShell.Commands.Diagnostics (the
+#     Get-Counter/PDH cmdlet module; host file PdhHelper.cs). Its legitimate
+#     direction is downward into BCL-style utility namespaces (`forward`); reaching
+#     up into `Management` (the CIM/engine infrastructure layer) skips the intended
+#     path and is a `transitive_reversal`.
+#   - `Management`   -> src/Microsoft.Management.Infrastructure.CimCmdlets (the CIM
+#     cmdlet surface; host file CimAsyncOperation.cs). Legitimate direction is
+#     downward into BCL utilities; reaching into `Powershell` (a sibling leaf
+#     command module) is a `transitive_reversal`.
+#   - `WSMan`        -> src/Microsoft.WSMan.Management (remoting host; host file
+#     ConfigProvider.cs). Every candidate edge from WSMan in the menu is `forward`
+#     — including straight into the `PowerShell` engine surface — so WSMan supplies
+#     the cleanest "higher command layer -> foundational engine" control examples.
+#   - `PowerShell`   -> src/Microsoft.Management.UI.Internal (ShowCommand UI; host
+#     file AllModulesControl.xaml.cs). Single candidate, `forward`.
+#
+# `kind` is copied verbatim from the resolver menu
+# (/tmp/arch-fix2/candidates-powershell.md): `reversal` and `transitive_reversal`
+# reverse an attested opposite-direction edge; `sink_out` is an outbound edge from a
+# layer that otherwise only ever receives (never sends); `forward` matches the
+# established/attested direction, so the arch-graph gate — which only flags
+# direction reversals and sink-leaving edges — does NOT catch it. All host_file +
+# import_line pairs below are copied exactly from that menu; none are invented.
+#
+# Fixture count note: the powershell candidate pool has only ~31 catchable
+# (non-forward) edges total, almost all funneled through two host files
+# (EventDescriptor.cs for Diagnostics, PdhHelper.cs for Powershell). The 9
+# wrong-direction violations below are the realistic, non-redundant subset — every
+# distinct (kind, target) pair the menu actually verifies, not a padded duplicate
+# list. One `forward` entry is included deliberately (see bottom of `violations`)
+# to keep the fixture set honest about what the gate structurally cannot catch,
+# per the "measure real recall" goal of this exercise.
+
+violations:
+  # ---- reversal (Diagnostics reaching up into the engine/command layers it should never touch) ----
+  - host_file: "src/Microsoft.PowerShell.CoreCLR.Eventing/DotNetCode/Eventing/EventDescriptor.cs"
+    source_layer: "Diagnostics"
+    import_line: "using SMA.Management;"
+    target_layer: "Management"
+    kind: "reversal"
+    rationale: >-
+      The low-level ETW event-descriptor struct reaching into the CIM/management
+      engine layer. Diagnostics never appears as a target of an inbound edge in the
+      verified menu, and the opposite direction is the one that would make sense
+      architecturally (engine code instrumenting itself via Diagnostics, not the
+      reverse) — this is the canonical "leaf infra reaches up" LLM mistake.
+
+  - host_file: "src/Microsoft.PowerShell.CoreCLR.Eventing/DotNetCode/Eventing/EventDescriptor.cs"
+    source_layer: "Diagnostics"
+    import_line: "using SMA.PowerShell;"
+    target_layer: "PowerShell"
+    kind: "reversal"
+    rationale: >-
+      Same event-descriptor file reaching into the PowerShell (ShowCommand UI)
+      surface — a low-level tracing primitive pulling in a high-level command UI
+      layer. 0-usage in the verified menu; Diagnostics has no legitimate reason to
+      depend on any command-facing layer.
+
+  - host_file: "src/Microsoft.PowerShell.CoreCLR.Eventing/DotNetCode/Eventing/EventDescriptor.cs"
+    source_layer: "Diagnostics"
+    import_line: "using SMA.Powershell;"
+    target_layer: "Powershell"
+    kind: "reversal"
+    rationale: >-
+      Same pattern, targeting the Commands.Diagnostics (`Powershell`) layer
+      instead — the namespace-casing sibling of the row above. Diagnostics
+      reaching into the Get-Counter cmdlet module it is meant to be instrumented
+      by, not depend on, inverts the intended relationship.
+
+  # ---- transitive_reversal (a command-surface layer skipping past its intended path) ----
+  - host_file: "src/Microsoft.PowerShell.Commands.Diagnostics/PdhHelper.cs"
+    source_layer: "Powershell"
+    import_line: "using SMA.Management;"
+    target_layer: "Management"
+    kind: "transitive_reversal"
+    rationale: >-
+      The Get-Counter/PDH helper reaching directly into the CIM management
+      infrastructure layer, bypassing whatever intermediate abstraction is meant
+      to mediate between a leaf cmdlet module and the CIM engine surface. 0-usage
+      in the verified menu; this is the highest-pop candidate in the whole set
+      (393), so it is the single most realistic "reach straight for the engine"
+      mistake an LLM would make here.
+
+  - host_file: "src/Microsoft.Management.Infrastructure.CimCmdlets/CimAsyncOperation.cs"
+    source_layer: "Management"
+    import_line: "using SMA.Powershell;"
+    target_layer: "Powershell"
+    kind: "transitive_reversal"
+    rationale: >-
+      The CIM async-operation plumbing reaching sideways into the sibling
+      Get-Counter cmdlet module. CIM cmdlets and Get-Counter cmdlets are both
+      command-surface layers over the engine; there is no attested edge between
+      them in either direction, and Management pulling in a sibling leaf module
+      instead of depending only downward is the violation.
+
+  # ---- sink_out (Diagnostics fanning out into BCL-style utility namespaces it has no business touching) ----
+  - host_file: "src/Microsoft.PowerShell.CoreCLR.Eventing/DotNetCode/Eventing/EventDescriptor.cs"
+    source_layer: "Diagnostics"
+    import_line: "using SMA.IO;"
+    target_layer: "IO"
+    kind: "sink_out"
+    rationale: >-
+      Diagnostics only ever appears as a source of 0-usage outbound edges in the
+      verified menu, never as a legitimate importer — it behaves like a sink layer
+      that should have near-zero fan-out. Reaching into IO utilities from an
+      event-descriptor struct is scope creep an LLM would plausibly introduce
+      while "just adding a helper."
+
+  - host_file: "src/Microsoft.PowerShell.CoreCLR.Eventing/DotNetCode/Eventing/EventDescriptor.cs"
+    source_layer: "Diagnostics"
+    import_line: "using SMA.Linq;"
+    target_layer: "Linq"
+    kind: "sink_out"
+    rationale: >-
+      Same host file, same sink-leaving pattern, targeting Linq instead of IO —
+      the second-highest-pop sink_out candidate (177). Included alongside the IO
+      row to show the pattern recurs across targets, not a one-off.
+
+  - host_file: "src/Microsoft.PowerShell.CoreCLR.Eventing/DotNetCode/Eventing/EventDescriptor.cs"
+    source_layer: "Diagnostics"
+    import_line: "using SMA.Reflection;"
+    target_layer: "Reflection"
+    kind: "sink_out"
+    rationale: >-
+      Diagnostics reaching into Reflection is a materially different (and more
+      alarming) kind of scope creep than a Linq/IO utility reach — reflection use
+      from a struct meant to describe ETW events suggests dynamic type
+      inspection creeping into what should be inert plumbing.
+
+  - host_file: "src/Microsoft.PowerShell.CoreCLR.Eventing/DotNetCode/Eventing/EventDescriptor.cs"
+    source_layer: "Diagnostics"
+    import_line: "using SMA.Windows;"
+    target_layer: "Windows"
+    kind: "sink_out"
+    rationale: >-
+      Diagnostics reaching into Windows-specific management APIs pulls
+      platform-specific surface into cross-plat event-descriptor plumbing — a
+      realistic mistake given PowerShell Core's cross-platform constraints, and
+      the kind of edge that should never originate from this layer.
+
+  # ---- forward (attested direction — NOT caught by the arch gate; included once, deliberately ----
+  # ---- for honest recall measurement, not padding the "caught" count) ----
+  - host_file: "src/Microsoft.PowerShell.Commands.Diagnostics/PdhHelper.cs"
+    source_layer: "Powershell"
+    import_line: "using SMA.ComponentModel;"
+    target_layer: "ComponentModel"
+    kind: "forward"
+    rationale: >-
+      A leaf command module (Get-Counter/PDH helper) reaching straight past the
+      engine into a base type-descriptor namespace it has no direct business
+      with. Direction-wise this matches the layer's other attested/candidate
+      edges (Powershell -> BCL-utility is its established shape), so the
+      direction-only arch gate cannot distinguish it from a legitimate import —
+      it is a real "skip the intended layering" mistake an LLM could make that
+      the gate structurally misses. Kept as exactly one entry so the fixture set
+      does not overstate recall on this corpus.
+
+controls:
+  - host_file: "src/Microsoft.WSMan.Management/ConfigProvider.cs"
+    source_layer: "WSMan"
+    import_line: "using SMA.PowerShell;"
+    target_layer: "PowerShell"
+    rationale: >-
+      The remoting-host config provider reaching into the PowerShell engine
+      surface is exactly the "higher command layer imports the foundational
+      engine" shape — WSMan hosts remote PowerShell sessions, so depending
+      forward on the PowerShell layer is legitimate growth, not a violation.
+      Every WSMan candidate edge in the verified menu is `forward`; none reverse
+      an attested direction.
+
+  - host_file: "src/Microsoft.WSMan.Management/ConfigProvider.cs"
+    source_layer: "WSMan"
+    import_line: "using SMA.Windows;"
+    target_layer: "Windows"
+    rationale: >-
+      WSMan config code depending on Windows management APIs is squarely within
+      its remit (WS-Management is a Windows-centric remoting protocol). Forward,
+      0-usage-but-established-direction — the detector must stay quiet.
+
+  - host_file: "src/Microsoft.PowerShell.Commands.Diagnostics/PdhHelper.cs"
+    source_layer: "Powershell"
+    import_line: "using SMA.Security;"
+    target_layer: "Security"
+    rationale: >-
+      The Get-Counter/PDH helper depending on Security utilities is a normal
+      forward reach into a BCL-style layer, matching this file's other attested
+      candidate edges (Text, IO, Threading, ...). Not a boundary the repo avoids.
+
+  - host_file: "src/Microsoft.Management.Infrastructure.CimCmdlets/CimAsyncOperation.cs"
+    source_layer: "Management"
+    import_line: "using SMA.ServiceProcess;"
+    target_layer: "ServiceProcess"
+    rationale: >-
+      CIM cmdlets legitimately manage Windows services, so the async-operation
+      plumbing depending on ServiceProcess is domain-appropriate forward growth,
+      not a reach into a layer this module has no business touching.
+
+  - host_file: "src/Microsoft.Management.UI.Internal/ShowCommand/Controls/AllModulesControl.xaml.cs"
+    source_layer: "PowerShell"
+    import_line: "using SMA.Scripting;"
+    target_layer: "Scripting"
+    rationale: >-
+      The ShowCommand UI control depending on Scripting utilities is a normal
+      forward edge for a UI layer that renders module/command metadata — matches
+      the established direction, so the detector must not flag it.
