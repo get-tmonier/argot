@@ -27,7 +27,8 @@ use super::embedder::{Embedder, EMBED_DIM};
 use crate::scoring::adapters::LanguageAdapter;
 
 /// Artifact format version (bump on any breaking on-disk change).
-const ARTIFACT_VERSION: u32 = 1;
+/// v2: `area_norms` replaced by the self-calibrated `placement` block.
+const ARTIFACT_VERSION: u32 = 2;
 
 /// Functions shorter than this (in lines) are skipped when indexing: one- and
 /// two-line bodies are boilerplate (getters, trivial wrappers) that only add
@@ -150,7 +151,7 @@ impl SemanticIndex {
 
     // --- serialization (compact f16, its own artifact) ---
 
-    fn to_json(&self, area_norms: BTreeMap<String, f32>) -> LanguageIndexJson {
+    fn to_json(&self, placement: super::placement::PlacementConfig) -> LanguageIndexJson {
         let mut bytes = Vec::with_capacity(self.entries.len() * self.dim * 2);
         for e in &self.entries {
             for &x in &e.vec {
@@ -164,7 +165,7 @@ impl SemanticIndex {
             paths: self.entries.iter().map(|e| e.path.clone()).collect(),
             lines: self.entries.iter().map(|e| e.line).collect(),
             vectors_b64: base64::engine::general_purpose::STANDARD.encode(&bytes),
-            area_norms,
+            placement,
             callees: self.entries.iter().map(|e| e.callees.clone()).collect(),
             subtokens: self.entries.iter().map(|e| e.subtokens.clone()).collect(),
         }
@@ -392,43 +393,6 @@ fn callee_set(source: &str, language: crate::scoring::adapters::Language) -> Vec
         .collect()
 }
 
-/// Cross-file neighbours polled when calibrating area locality (matches the
-/// check-time `K_NEIGHBORS`).
-const AREA_K_NEIGHBORS: usize = 10;
-
-/// Calibrate the per-area "belongs" fraction: for every corpus function, the
-/// share of its nearest cross-file neighbours that share its area, averaged per
-/// area. Areas whose functions naturally scatter (a catch-all package) get a low
-/// norm — so placement fires there only on extreme disagreement — while focused
-/// packages get a high norm. Uses the same depth-N area as the check-time scorer.
-pub fn calibrate_area_norms(index: &SemanticIndex, area_depth: usize) -> BTreeMap<String, f32> {
-    let mut sums: BTreeMap<String, (f32, usize)> = BTreeMap::new();
-    for e in &index.entries {
-        let area = super::placement::area_of(&e.path, area_depth);
-        // Exclude only this exact entry (keep same-file siblings — see the
-        // check-time scorer for why placement includes them).
-        let neigh = index.nearest(&e.vec, AREA_K_NEIGHBORS, |o| {
-            !(o.path == e.path && o.line == e.line)
-        });
-        if neigh.len() < 2 {
-            continue;
-        }
-        let in_area = neigh
-            .iter()
-            .filter(|n| {
-                super::placement::area_of(&index.entry(n.entry_index).path, area_depth) == area
-            })
-            .count() as f32
-            / neigh.len() as f32;
-        let slot = sums.entry(area).or_insert((0.0, 0));
-        slot.0 += in_area;
-        slot.1 += 1;
-    }
-    sums.into_iter()
-        .map(|(area, (sum, n))| (area, sum / n as f32))
-        .collect()
-}
-
 // --- the on-disk artifact (`.argot/semantic-index.json`) ---
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -439,11 +403,11 @@ struct LanguageIndexJson {
     paths: Vec<String>,
     lines: Vec<usize>,
     vectors_b64: String,
-    /// F2 per-area "belongs" fraction: the typical share of a function's nearest
-    /// neighbours that share its area. Empty for indices written before this
-    /// field (placement then falls back to the check-time default norm).
+    /// F2 self-calibrated placement configuration (adaptive areas, entangled
+    /// merges, vote parameters, or disabled). Default (disabled) for indices
+    /// written before this field — placement then abstains.
     #[serde(default)]
-    area_norms: BTreeMap<String, f32>,
+    placement: super::placement::PlacementConfig,
     /// Per-function callee sets (aligned with `symbols`/`paths`) — one of the two
     /// structural fingerprints the F1 scorer confirms against.
     #[serde(default)]
@@ -454,11 +418,11 @@ struct LanguageIndexJson {
     subtokens: Vec<Vec<String>>,
 }
 
-/// A language's loaded index plus its calibrated area norms.
+/// A language's loaded index plus its self-calibrated placement config.
 #[derive(Debug, Clone)]
 pub struct LoadedIndex {
     pub index: SemanticIndex,
-    pub area_norms: std::collections::HashMap<String, f32>,
+    pub placement: super::placement::PlacementConfig,
 }
 
 /// The whole-repo semantic artifact: one index per language, plus the fit's
@@ -480,16 +444,16 @@ impl SemanticArtifact {
         }
     }
 
-    /// Add a language's index and its calibrated area norms (skipped upstream if
-    /// the index is empty).
+    /// Add a language's index and its self-calibrated placement config
+    /// (skipped upstream if the index is empty).
     pub fn insert(
         &mut self,
         language: &str,
         index: &SemanticIndex,
-        area_norms: BTreeMap<String, f32>,
+        placement: super::placement::PlacementConfig,
     ) {
         self.languages
-            .insert(language.to_string(), index.to_json(area_norms));
+            .insert(language.to_string(), index.to_json(placement));
     }
 
     pub fn is_empty(&self) -> bool {
@@ -501,7 +465,7 @@ impl SemanticArtifact {
         match self.languages.get(language) {
             Some(j) => Ok(Some(LoadedIndex {
                 index: SemanticIndex::from_json(j)?,
-                area_norms: j.area_norms.clone().into_iter().collect(),
+                placement: j.placement.clone(),
             })),
             None => Ok(None),
         }
@@ -571,16 +535,19 @@ mod tests {
         idx.entries[0].callees = vec!["lower".into(), "strip".into()];
         idx.entries[0].subtokens = vec!["normalize".into(), "slug".into()];
         let mut art = SemanticArtifact::new("deadbeef".into());
-        art.insert(
-            "python",
-            &idx,
-            BTreeMap::from([("src".to_string(), 0.5f32)]),
-        );
+        let mut plc = crate::scoring::semantic::placement::PlacementConfig::default();
+        plc.enabled = true;
+        plc.k = 10;
+        plc.z = 1;
+        plc.area_map = BTreeMap::from([("src".to_string(), "src".to_string())]);
+        art.insert("python", &idx, plc);
         let json = art.to_json_string().unwrap();
         let back = SemanticArtifact::from_json_str(&json).unwrap();
         assert_eq!(back.repo_sha, "deadbeef");
         let loaded = back.load("python").unwrap().unwrap();
-        assert!((loaded.area_norms["src"] - 0.5).abs() < 1e-6);
+        assert!(loaded.placement.enabled);
+        assert_eq!(loaded.placement.k, 10);
+        assert_eq!(loaded.placement.area_map["src"], "src");
         let idx2 = loaded.index;
         assert_eq!(idx2.len(), idx.len());
         // Callee + subtoken fingerprints survive the round-trip.

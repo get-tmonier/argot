@@ -1351,12 +1351,12 @@ pub fn run_calibrate(
                 );
                 match crate::scoring::semantic::index::SemanticIndex::build(emb, &funcs) {
                     Ok(idx) if !idx.is_empty() => {
-                        use crate::scoring::semantic::index as sem_index;
-                        let area_norms = sem_index::calibrate_area_norms(
-                            &idx,
-                            crate::scoring::semantic::placement::AREA_DEPTH,
-                        );
-                        semantic_artifact.insert(name, &idx, area_norms);
+                        // Self-calibrate the placement sense on the fresh index
+                        // (adaptive areas, entangled merges, vote parameters —
+                        // or disabled when the repo's areas aren't separable).
+                        let placement =
+                            crate::scoring::semantic::placement::calibrate_placement(&idx);
+                        semantic_artifact.insert(name, &idx, placement);
                     }
                     Ok(_) => {}
                     Err(e) => eprintln!("argot: semantic index for {name} failed: {e}"),

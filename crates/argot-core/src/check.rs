@@ -1445,7 +1445,7 @@ fn semantic_hits(
         }
         // F2 placement (only when F1 didn't already claim the function).
         if fired.is_none() {
-            if let Some(m) = PlacementScorer::new(&li.index, &li.area_norms).evaluate(f, vec) {
+            if let Some(m) = PlacementScorer::new(&li.index, &li.placement).evaluate(f, vec) {
                 fired = Some("misplaced");
                 let score = (m.expected_fraction - m.in_area_fraction).max(0.0) as f64;
                 hits.push(build_semantic_hit(

@@ -31,6 +31,7 @@
 use std::collections::{BTreeSet, HashMap};
 
 use super::index::{FunctionRef, IndexEntry, SemanticIndex};
+use super::placement::parent_dir;
 
 /// Normal tier — a close embedding match with *moderate* structural agreement.
 const NORMAL_SIMILARITY: f32 = 0.78;
@@ -38,6 +39,11 @@ const NORMAL_SUBTOKEN_BAR: f32 = 0.40;
 const NORMAL_CALLEE_BAR: f32 = 0.12;
 /// The callee path needs both sides to have at least this many callees — a
 /// 1-callee fn matching a 1-callee fn is 100% overlap by luck, not evidence.
+/// Exception: when both sides have EXACTLY ONE callee and it is the *same*
+/// one (identical single-callee sets at normal-tier cosine), the overlap is
+/// no longer luck — both functions are built around the same specific helper.
+/// Recovers small util reimplementations (geometry helpers wrapping one
+/// primitive) at zero measured clean-commit cost (all-gates sweep).
 const NORMAL_MIN_CALLEES: usize = 2;
 
 /// Strong (rescue) tier — a slightly more distant match that *strongly* agrees
@@ -77,9 +83,21 @@ pub(crate) const MIN_SIMILARITY_TO_FIRE: f32 = STRONG_SIMILARITY;
 //
 /// Substance floor: a function this short is a thin wrapper / delegator / accessor
 /// (`fn lower(&self){ self.floor() }`). Matching one is never a meaningful "you
-/// already have this". Genuine reimplementations are longer (the shortest planted
-/// reinvention across 31 corpora is ~7 lines).
+/// already have this". Applied UNCONDITIONALLY at 5 lines (clean-commit stub
+/// false fires — `assertTrue` overloads, `isDone` accessors — are 3–4 lines and
+/// fired through the strong-overlap paths the old weak-overlap-only floor never
+/// gated; the shortest genuine planted reimplementation across 31 corpora is
+/// 5 lines). The stricter 6-line floor still applies under weak overlap.
+const MIN_BODY_LINES_ANY: usize = 5;
 const MIN_REINVENTION_BODY_LINES: usize = 6;
+/// A same-directory near-match must also *stand out* from the rest of the
+/// neighbourhood: co-located wrapper/API families (`cf_h3_proxy_*` next to
+/// `cf_h2_proxy_*`, protocol-variant ports) are the dominant clean-commit false
+/// fire on flat-layout repos, and they sit in a crowd of near-equal neighbours
+/// (margin cos₁−cos₂ ≈ 0.01–0.06), while a genuine reinvention matches ONE
+/// original (median margin 0.17). Same-file exclusion logic, one level up, as a
+/// margin bar instead of a hard exclusion.
+const SAME_DIR_MIN_MARGIN: f32 = 0.10;
 /// A symbol name defined at least this many times across the repo is an *interface
 /// / family method* (`on_send` in a linter's cops, `ReadMetadata` across providers)
 /// — you cannot reinvent a method every sibling class already implements. A genuine
@@ -98,12 +116,11 @@ const DENSE_CLUSTER_NEIGHBORS: usize = 3;
 /// A *very* dense cluster (this many near-identical neighbours) is a family member
 /// regardless of overlap strength — even a strong match to one member is just "the
 /// next sibling in a large family", not a reinvention. Applied unconditionally.
-/// Set one above the densest genuine reinvention observed by subtoken/vocabulary
-/// alone (a `password` generator at 6) so it never suppresses a real reimplementation.
-const VERY_DENSE_NEIGHBORS: usize = 7;
-/// …and a very-dense candidate that reuses its match's *exact* helpers this strongly
-/// is a genuine reimplementation of one specific member, not just the next sibling.
-const VERY_DENSE_CALLEE_EXEMPT: f32 = 0.50;
+/// Tightened 7→5 together with the exemption change below: locale/provider
+/// families (`romanized_name` across per-locale providers) sat at 4–6 neighbours
+/// with callee_jac 1.0 on *generic* shared helpers and slipped the old
+/// callee-strength exemption; genuine planted reimplantations sit at 1–3.
+const VERY_DENSE_NEIGHBORS: usize = 5;
 const CLUSTER_COSINE_BAND: f32 = 0.05;
 /// Cross-file neighbours retrieved to measure family density.
 const NEIGHBORHOOD: usize = 10;
@@ -205,32 +222,53 @@ impl<'a> RedundantScorer<'a> {
         // Both sides must clear the min-callee guard for the callee path to count.
         let both_callees =
             |min: usize| func.callees.len() >= min && best_entry.callees.len() >= min;
+        // Identical single-callee sets: both built around the same one helper.
+        let single_shared_callee =
+            func.callees.len() == 1 && best_entry.callees.len() == 1 && callee_jac >= 1.0;
 
         let normal = cos >= NORMAL_SIMILARITY
             && ((both_callees(NORMAL_MIN_CALLEES) && callee_jac >= NORMAL_CALLEE_BAR)
-                || sub_jac >= NORMAL_SUBTOKEN_BAR);
+                || sub_jac >= NORMAL_SUBTOKEN_BAR
+                || single_shared_callee);
         let strong = cos >= STRONG_SIMILARITY
             && ((both_callees(STRONG_MIN_CALLEES) && callee_jac >= STRONG_CALLEE_BAR)
                 || sub_jac >= STRONG_SUBTOKEN_BAR);
         // Rare-callee path: below the min-callee guard, a single shared *rare*
         // callee still confirms (a specific helper both functions call).
-        let rare_callee = cos >= STRONG_SIMILARITY && self.shares_rare_callee(func, best_entry);
-        if !normal && !strong && !rare_callee {
+        let rare_callee = self.shares_rare_callee(func, best_entry);
+        if !normal && !strong && !(cos >= STRONG_SIMILARITY && rare_callee) {
             return None;
+        }
+        // Substance floor (unconditional): stubs and accessors are never a
+        // meaningful "you already have this", however strong the overlap.
+        if func.text.lines().count() < MIN_BODY_LINES_ANY {
+            return None;
+        }
+        // Same-directory matches must stand out from the neighbourhood (see
+        // SAME_DIR_MIN_MARGIN): a co-located protocol-variant / wrapper family
+        // member sits in a crowd; a genuine reinvention matches one original.
+        if parent_dir(&func.path) == parent_dir(&best_entry.path) {
+            let margin = neighbors
+                .get(1)
+                .map(|n2| cos - n2.cosine)
+                .unwrap_or(f32::MAX);
+            if margin < SAME_DIR_MIN_MARGIN {
+                return None;
+            }
         }
         // Sibling / wrapper filters — reject the non-reinvention shapes that embed
         // close but dominate clean-commit false fires (see the constants + evidence).
         let match_df = self.symbol_df.get(&best_entry.symbol).copied().unwrap_or(1);
         // Family tiers (unconditional). A candidate that matches a *very* dense cluster
-        // (7+ near-identical cross-file neighbours) or a *very* common name (defined
+        // (5+ near-identical cross-file neighbours) or a *very* common name (defined
         // 20+ times across the repo) is a family member — a new command handler /
         // provider method / assertion overload, not a unique reinvention. It fires
-        // anyway only when it reuses its match's *exact* helpers (callee ≥ 0.50): a
-        // genuine reimplementation of one specific member (a bit-rotation that calls
-        // the same primitives) does that; a parallel sibling shares only a fraction.
-        if callee_jac < VERY_DENSE_CALLEE_EXEMPT
-            && (n_near >= VERY_DENSE_NEIGHBORS || match_df >= VERY_FAMILIAR_SYMBOL_DF)
-        {
+        // anyway only when it shares a *rare* callee with its match: a genuine
+        // reimplementation of one specific member calls the same distinctive helper;
+        // a parallel sibling shares only the family's generic ones (callee-Jaccard
+        // alone proved too weak an exemption — per-locale provider families overlap
+        // 100% on generic helpers).
+        if !rare_callee && (n_near >= VERY_DENSE_NEIGHBORS || match_df >= VERY_FAMILIAR_SYMBOL_DF) {
             return None;
         }
         // The remaining filters apply only when the structural overlap with the match
@@ -654,23 +692,31 @@ mod tests {
 
     /// A large family of near-identical functions (an interface implemented across
     /// many files) all embed together. A new sibling that only *loosely* resembles
-    /// one of them is a family member, not a reinvention; one that reuses a member's
-    /// exact helpers is a genuine reimplementation and still fires.
+    /// one of them is a family member, not a reinvention; one that shares a member's
+    /// *rare* helper is a genuine reimplementation of that member and still fires.
     #[test]
-    fn sibling_in_a_dense_family_is_filtered_unless_it_reuses_exact_helpers() {
+    fn sibling_in_a_dense_family_is_filtered_unless_it_shares_a_rare_helper() {
         let mut entries = Vec::new();
         for i in 0..8 {
+            // One member owns a distinctive helper (`rotl64`, df=1 → rare); the
+            // family's shared helpers (`base`, `emit`, df=8) are generic.
+            let callees: &[&str] = if i == 0 {
+                &["base", "emit", "rotl64"]
+            } else {
+                &["base", "emit"]
+            };
             entries.push(entry_c(
                 "handle",
                 &format!("src/mod{i}/h.rs"),
                 vec![1.0, 0.004 * i as f32, 0.0],
-                &["base", "emit"],
+                callees,
                 &["handle", "event"],
             ));
         }
         let idx = SemanticIndex { dim: 3, entries };
         let scorer = RedundantScorer::new(&idx);
-        let q = unit(vec![0.999, 0.01, 0.0]);
+        // Nearest member is mod0 — the one with the distinctive helper.
+        let q = unit(vec![1.0, 0.0, 0.0]);
         // Loosely-resembling new sibling: fires the callee tier (shares `base`) but
         // weak overlap in a very dense neighbourhood → filtered as a family member.
         let weak = func_c(
@@ -680,15 +726,129 @@ mod tests {
             &["route", "path"],
         );
         assert!(scorer.evaluate(&weak, &q).is_none());
-        // Genuine reimplementation of one member: reuses its exact helpers (high
-        // callee overlap) → exempt from the family filter, fires.
-        let genuine = func_c(
+        // Full generic-callee overlap is NOT an exemption any more (per-locale
+        // provider families overlap 100% on generic helpers) — still filtered.
+        let generic = func_c(
             "route",
             "src/new/h.rs",
             &["base", "emit"],
             &["route", "path"],
         );
+        assert!(scorer.evaluate(&generic, &q).is_none());
+        // Sharing the one member's RARE helper is genuine reimplementation
+        // evidence → exempt from the family filter, fires.
+        let genuine = func_c(
+            "route",
+            "src/new/h.rs",
+            &["base", "emit", "rotl64"],
+            &["route", "path"],
+        );
         assert!(scorer.evaluate(&genuine, &q).is_some());
+    }
+
+    /// Same-directory near-matches need to stand out from the neighbourhood: a
+    /// co-located protocol-variant family member (tiny cos₁−cos₂ margin) is
+    /// filtered; the same candidate in another directory fires.
+    #[test]
+    fn same_dir_match_requires_margin() {
+        let idx = SemanticIndex {
+            dim: 3,
+            entries: vec![
+                entry_c(
+                    "h2_go_state",
+                    "lib/proxy.py",
+                    vec![1.0, 0.0, 0.0],
+                    &[],
+                    &["tunnel", "go", "state"],
+                ),
+                // A second neighbour almost as close → margin ≈ 0.
+                entry_c(
+                    "h2_reset",
+                    "lib/other.py",
+                    vec![0.999, 0.03, 0.0],
+                    &[],
+                    &["tunnel", "reset"],
+                ),
+            ],
+        };
+        let scorer = RedundantScorer::new(&idx);
+        let q = unit(vec![1.0, 0.01, 0.0]);
+        // Same dir as the match (lib/) and margin ~0 → filtered.
+        let same_dir = func_c(
+            "h3_go_state",
+            "lib/proxy_h3.py",
+            &[],
+            &["tunnel", "go", "state"],
+        );
+        assert!(scorer.evaluate(&same_dir, &q).is_none());
+        // Identical candidate in a different directory → fires.
+        let elsewhere = func_c(
+            "h3_go_state",
+            "src/http/proxy_h3.py",
+            &[],
+            &["tunnel", "go", "state"],
+        );
+        assert!(scorer.evaluate(&elsewhere, &q).is_some());
+    }
+
+    /// The substance floor applies unconditionally: a 4-line stub never fires,
+    /// even with perfect structural overlap.
+    #[test]
+    fn short_stub_never_fires_even_with_strong_overlap() {
+        let idx = index();
+        let scorer = RedundantScorer::new(&idx);
+        let q = unit(vec![0.98, 0.02, 0.0]);
+        let stub = FunctionRef {
+            symbol: "normalize_slug".into(),
+            path: "src/api/handlers.py".into(),
+            line: 1,
+            end_line: 4,
+            text: "def normalize_slug(s):\n    a = s.strip()\n    b = a.lower()\n    return b"
+                .into(),
+            callees: vec![],
+            subtokens: vec!["slug".into(), "normalize".into(), "whitespace".into()],
+        };
+        assert!(scorer.evaluate(&stub, &q).is_none());
+    }
+
+    /// Both sides built around the same single helper: the identical-single-callee
+    /// path confirms at normal-tier cosine (util reimplementations wrapping one
+    /// primitive have exactly one callee and generic subtokens).
+    #[test]
+    fn identical_single_callee_confirms_at_normal_cosine() {
+        let idx = SemanticIndex {
+            dim: 3,
+            entries: vec![
+                entry_c(
+                    "point_rotate",
+                    "src/math/point.py",
+                    vec![1.0, 0.0, 0.0],
+                    &["rotate_rads"],
+                    &["point", "rotate"],
+                ),
+                entry_c(
+                    "unrelated",
+                    "src/cfg.py",
+                    vec![0.0, 1.0, 0.0],
+                    &["load"],
+                    &["config"],
+                ),
+            ],
+        };
+        let scorer = RedundantScorer::new(&idx);
+        let q = unit(vec![1.0, 0.05, 0.0]);
+        let f = scorer
+            .evaluate(
+                &func_c(
+                    "rotate_point",
+                    "src/geometry/util.py",
+                    &["rotate_rads"],    // same single callee
+                    &["vector", "spin"], // disjoint subtokens
+                ),
+                &q,
+            )
+            .expect("identical single callee confirms");
+        assert_eq!(f.nearest_symbol, "point_rotate");
     }
 
     /// A thin delegator/wrapper is too short to be a meaningful reinvention when it

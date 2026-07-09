@@ -31,14 +31,38 @@ for i, a in enumerate(sys.argv[2:]):
     if a.startswith("--out"):
         OUT = a.split("=", 1)[1] if "=" in a else sys.argv[2:][i + 1]
 
-# placement constants (mirror crates/argot-core/src/scoring/semantic/placement.rs)
-AREA_DEPTH = 2
-K = 10
+# placement v2 (mirror crates/argot-core/src/scoring/semantic/placement.rs):
+# adaptive areas + entangled merges + (k, z) come SELF-CALIBRATED from the
+# artifact's per-language `placement` block; the fire rule is the k-NN area
+# vote (modal != claimed AND own-area count <= z). A disabled block = the repo
+# abstains (placement N/A).
 MIN_NEIGH = 5
-MISPLACED_FACTOR = 0.3
-ABS_CEILING = 0.05
-MIN_TOP2 = 0.8
-DEFAULT_NORM = 0.3
+MAX_CONTAINER_FRAC = 0.5
+MIN_AREA_FNS = 8
+
+
+def area_walk(paths):
+    """Mirror placement.rs::AreaWalk — adaptive base area for any path."""
+    from collections import Counter as _C
+    counts = _C()
+    for p in paths:
+        dirs = p.split("/")[:-1]
+        for i in range(len(dirs) + 1):
+            counts["/".join(dirs[:i])] += 1
+
+    def area(path):
+        dirs = path.split("/")[:-1]
+        prefix = ""
+        for d in dirs:
+            nxt = f"{prefix}/{d}" if prefix else d
+            if counts.get(nxt, 0) > MAX_CONTAINER_FRAC * counts.get(prefix, 0):
+                prefix = nxt
+                continue
+            if counts.get(nxt, 0) >= MIN_AREA_FNS:
+                return nxt
+            return prefix
+        return prefix
+    return area
 # reinvention two-tier fire rule (mirror redundant.rs)
 NORMAL_SIM = 0.78
 NORMAL_SUB = 0.40
@@ -48,11 +72,6 @@ STRONG_SIM = 0.70
 STRONG_SUB = 0.52
 STRONG_CALLEE = 0.30
 STRONG_MIN_CALLEES = 3
-
-
-def area_of(p, depth=AREA_DEPTH):
-    c = p.split("/")
-    return "/".join(c[:-1][:depth]) if len(c) > 1 else ""
 
 
 def parent_dir(p):
@@ -80,7 +99,7 @@ def is_reinvention_candidate(sym, path):
 
 
 def load_langs(path):
-    """Yield (lang, vecs, paths, area_norms, callees, subtoks, symbols) per language."""
+    """Yield (lang, vecs, paths, placement_cfg, callees, subtoks, symbols) per language."""
     d = json.load(open(path))["languages"]
     for lang, ld in d.items():
         raw = base64.b64decode(ld["vectors_b64"])
@@ -96,14 +115,14 @@ def load_langs(path):
         vecs = [norm(list(flat[i * dim:(i + 1) * dim])) for i in range(cnt)]
         callees = [set(c) for c in ld.get("callees", [[]] * cnt)]
         subtoks = [set(s) for s in ld.get("subtokens", [[]] * cnt)]
-        yield lang, vecs, ld["paths"], ld.get("area_norms", {}), callees, subtoks, ld["symbols"]
+        yield lang, vecs, ld["paths"], ld.get("placement", {}), callees, subtoks, ld["symbols"]
 
 
 def cos(a, b):
     return sum(x * y for x, y in zip(a, b))
 
 
-def analyse_lang(vecs, paths, norms, callees, subtoks, syms):
+def analyse_lang(vecs, paths, placement, callees, subtoks, syms):
     n = len(vecs)
     step = max(1, n // 500)
     sample = list(range(0, n, step))
@@ -138,7 +157,10 @@ def analyse_lang(vecs, paths, norms, callees, subtoks, syms):
         cj = jac(callees[candi], callees[matchi])
         sj = wsub(subtoks[candi], subtoks[matchi])
         both = lambda m: len(callees[candi]) >= m and len(callees[matchi]) >= m
-        normal = c >= NORMAL_SIM and ((both(NORMAL_MIN_CALLEES) and cj >= NORMAL_CALLEE) or sj >= NORMAL_SUB)
+        single = (len(callees[candi]) == 1 and len(callees[matchi]) == 1
+                  and callees[candi] == callees[matchi])
+        normal = c >= NORMAL_SIM and ((both(NORMAL_MIN_CALLEES) and cj >= NORMAL_CALLEE)
+                                      or sj >= NORMAL_SUB or single)
         strong = c >= STRONG_SIM and ((both(STRONG_MIN_CALLEES) and cj >= STRONG_CALLEE) or sj >= STRONG_SUB)
         rare = c >= STRONG_SIM and any(cdf.get(t, 0) <= rare_df for t in (callees[candi] & callees[matchi]))
         return normal or strong or rare
@@ -164,47 +186,51 @@ def analyse_lang(vecs, paths, norms, callees, subtoks, syms):
         if fires(qi, bi):
             reinv_fire += 1
 
-    areas = sorted({area_of(p) for p in paths})
     place_recall_fire = place_of_fire = place_eval = 0
-    if len(areas) >= 2:
+    n_areas = 0
+    if placement.get("enabled"):
+        k = placement["k"]
+        z = placement["z"]
+        amap = placement.get("area_map", {})
+        walk = area_walk(paths)
+        fn_area = [amap.get(walk(p), walk(p)) for p in paths]
+        uniq = sorted(set(fn_area))
+        n_areas = len(uniq)
+    if n_areas >= 2:
         for qi in sample:
             s = V @ V[qi]
             s[qi] = -1e30
-            kk = min(K, n - 1)
+            kk = min(k, n - 1)
             top = np.argpartition(s, -kk)[-kk:]
             top = top[np.argsort(s[top])[::-1]]  # descending cosine
-            nb = [area_of(paths[int(j)]) for j in top]
+            nb = [fn_area[int(j)] for j in top]
             if len(nb) < MIN_NEIGH:
                 continue
             place_eval += 1
-            actual = area_of(paths[qi])
+            cnt = Counter(nb)
+            mx = max(cnt.values())
+            modal = min(a for a, c in cnt.items() if c == mx)
 
             def place_fires(claimed, claimed_dir):
                 # prod gate: placement can only judge a location with precedent.
                 if claimed_dir not in index_dirs:
                     return False
-                in_area = sum(1 for a in nb if a == claimed) / len(nb)
-                counts = Counter(nb).most_common()
-                modal = counts[0][0]
-                top2 = sum(c for _, c in counts[:2]) / len(nb)
-                if modal == claimed:
-                    return False
-                nrm = norms.get(claimed, DEFAULT_NORM)
-                return in_area <= ABS_CEILING and in_area < nrm * MISPLACED_FACTOR and top2 >= MIN_TOP2
+                return modal != claimed and sum(1 for a in nb if a == claimed) <= z
 
+            actual = fn_area[qi]
             if place_fires(actual, parent_dir(paths[qi])):  # in-place → over-fire
                 place_of_fire += 1
             # transplant into a random foreign area, reusing a real dir of that area
             # so the prod new-dir gate is satisfied (relocation, not a new dir).
-            foreign_areas = [a for a in areas if a != actual]
-            foreign = random.choice(foreign_areas)
-            foreign_dir = next((parent_dir(p) for p in paths if area_of(p) == foreign), foreign)
+            foreign = random.choice([a for a in uniq if a != actual])
+            foreign_dir = next((parent_dir(p) for p, fa in zip(paths, fn_area)
+                                if fa == foreign and "/" in p), foreign)
             if place_fires(foreign, foreign_dir):           # transplanted → recall
                 place_recall_fire += 1
 
     return {"functions": n, "reinv_fire": reinv_fire, "reinv_eval": reinv_eval,
             "place_recall_fire": place_recall_fire, "place_of_fire": place_of_fire,
-            "place_eval": place_eval, "n_areas": len(areas)}
+            "place_eval": place_eval, "n_areas": n_areas}
 
 
 def main():
@@ -212,8 +238,8 @@ def main():
         print(f"no index at {IDX}", file=sys.stderr); sys.exit(1)
     agg = Counter()
     langs = []
-    for lang, vecs, paths, norms, callees, subtoks, syms in load_langs(IDX):
-        r = analyse_lang(vecs, paths, norms, callees, subtoks, syms)
+    for lang, vecs, paths, placement, callees, subtoks, syms in load_langs(IDX):
+        r = analyse_lang(vecs, paths, placement, callees, subtoks, syms)
         langs.append(lang)
         for k in ("functions", "reinv_fire", "reinv_eval", "place_recall_fire",
                   "place_of_fire", "place_eval"):

@@ -1,85 +1,158 @@
 //! F2 · placement — "this doesn't belong here".
 //!
-//! A function's *area* is the top-level package directory it lives in. If a
-//! function's nearest existing neighbours nearly all live in a **different**
-//! area than the one it's filed under — and its own area is under-represented
-//! among them relative to what's normal for that area — the function is probably
-//! misplaced (DB logic in a UI file, a parser in the HTTP layer). This is k-NN
-//! area voting, which beat mean-to-centroid in exploration (AUC 0.71 → 0.88):
-//! a function belongs where its *nearest* peers are, not where it's close on
-//! average.
+//! A function's *area* is found adaptively: walking down from the repo root, a
+//! directory holding more than half of its parent's functions is a *container*
+//! (`src/`, `src/Illuminate/`) — the walk descends into it; the first
+//! non-dominant directory is the area. Areas therefore sit at mixed depths and
+//! match each repo's real package granularity (fixes the fixed-depth failure
+//! where `src/Composer` swallowed a whole corpus into one area).
 //!
-//! Cross-cutting helpers legitimately span areas, so this stays advisory and
-//! fires only on *strong* disagreement, calibrated against each area's own
-//! typical locality (`index::calibrate_area_norms`).
+//! Areas that are semantically *entangled* — a large share of one area's
+//! nearest neighbours land in the other (`src/` vs `include/fmt` in a
+//! header-only library) — are merged: placement between them is not judgeable.
+//!
+//! The fire rule is a k-NN area vote: a function is misplaced when the modal
+//! area of its nearest neighbours differs from the area it's filed under AND
+//! at most `z` of those neighbours share its area. `(merge τ, k, z)` are
+//! **self-calibrated at fit time** per repo: a transplant simulation (every
+//! sampled function claimed into every foreign area) plus an in-place
+//! over-fire measurement pick the config with the highest simulated recall
+//! under a hard over-fire cap — and when no config reaches usable recall, the
+//! repo's placement sense is *disabled* (a repo whose areas the embedding
+//! cannot separate — flat single-package layouts, header-only libraries —
+//! gets a clean abstain, not noise).
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
+
+use serde::{Deserialize, Serialize};
 
 use super::index::{FunctionRef, SemanticIndex};
 
-/// Directory depth defining an "area". Depth 2 (the major package, `src/db` rather
-/// than `src/db/models`) is both the more meaningful granularity for "this code is in
-/// the wrong package" and materially higher recall: coarser areas let a transplanted
-/// function's neighbours concentrate, so more genuine misplacements clear the gate —
-/// at *lower* in-place over-fire than depth 3 (a function's own neighbours are more
-/// often in-area). Swept over 10 corpora (scratchpad/f2sweep2.py).
-pub const AREA_DEPTH: usize = 2;
-/// Cross-file neighbours polled for the area vote.
-const K_NEIGHBORS: usize = 10;
+/// A directory holding more than this share of its parent's functions is a
+/// container, not an area — the adaptive walk descends into it.
+const MAX_CONTAINER_FRAC: f64 = 0.5;
+/// An area smaller than this merges up into its parent container.
+const MIN_AREA_FNS: usize = 8;
+/// Candidate merge thresholds for entangled-area flow, descending. The first
+/// entry is the MANDATORY floor: pairs with ≥30% cross-flow are always merged;
+/// calibration may only merge *more* aggressively, never less.
+const MERGE_TAUS: [f64; 6] = [0.30, 0.25, 0.20, 0.15, 0.12, 0.10];
+/// Neighbour-count grid for the area vote.
+const CAL_KS: [usize; 3] = [10, 15, 20];
+/// Allowed own-area neighbours grid.
+const CAL_ZS: [usize; 2] = [0, 1];
+/// Hard cap on simulated in-place over-fire during calibration.
+const CAL_OVERFIRE_CAP: f64 = 0.025;
+/// Minimum simulated transplant recall for placement to be enabled at all.
+const CAL_MIN_RECALL: f64 = 0.85;
+/// Calibration samples at most this many functions (stride sampling) — bounds
+/// the O(sample × index) neighbour scan on very large corpora.
+const CAL_MAX_SAMPLE: usize = 8000;
+/// Neighbours used for the entanglement flow matrix.
+const FLOW_K: usize = 10;
 /// Minimum neighbours required to vote at all (too few → no signal, abstain).
 const MIN_NEIGHBORS: usize = 5;
-/// A candidate fires only if its in-area neighbour fraction is below this share
-/// of its area's calibrated norm — "far below normal locality".
-const MISPLACED_FACTOR: f32 = 0.3;
-/// And at or below this absolute ceiling, so a high-locality area can't fire on
-/// a merely slightly-below-norm function.
-const ABS_IN_AREA_CEILING: f32 = 0.05;
-/// And the function's neighbours must **concentrate** — the top two areas
-/// together holding at least this share. Concentration (not single-area
-/// plurality) is the right signal: a real misplacement's home can split across
-/// sibling dirs (`core/downloader` + `downloadermiddlewares`), while a genuine
-/// cross-cutting helper scatters across many areas. Tuned on rich + scrapy:
-/// over-fire ~2.5% (scrapy) / 0.7% (rich) at ~41% transplant recall, down from
-/// ~15% at the untuned thresholds; see `.scratch/semantic-layer/P5-tuning.md`.
-/// Kept at 0.8 (the concentration that keeps in-place over-fire low); the recall
-/// gain this era comes from the depth-2 area, which is also a large clean-commit
-/// misplaced-FP *win* on cohesive monorepos (sibling packages collapse into one area
-/// and stop reading as misplaced: laravel 34→1, homebrew 22→0, fmt 20%→3%). Some
-/// corpora (hono/ink/jellyfin) still land below 85% transplant recall — a function
-/// whose semantic peers are genuinely scattered across many packages cannot be shown
-/// to be *mis*placed; an inherent limit of neighbour-based placement (and the
-/// transplant metric is itself a lower bound, since generic utils relocate freely).
-const MIN_TOP2_CONCENTRATION: f32 = 0.8;
-/// Fallback belongs-norm for an area unseen at calibration.
-const DEFAULT_NORM: f32 = 0.3;
-
-/// The area (top-level package dir) a repo-relative path belongs to: its first
-/// `depth` directory components. A top-level file has area `""` (the root).
-pub fn area_of(path: &str, depth: usize) -> String {
-    let comps: Vec<&str> = path.split('/').collect();
-    if comps.len() <= 1 {
-        return String::new(); // top-level file
-    }
-    let dirs = &comps[..comps.len() - 1]; // drop the filename
-    dirs[..dirs.len().min(depth)].join("/")
-}
+/// Placement candidate substance floor: a stub's nearest neighbours are noise —
+/// you cannot judge the architectural home of a 5-line delegator.
+const MIN_PLACEMENT_BODY_LINES: usize = 6;
 
 /// The directory a repo-relative path lives in (everything before the last `/`),
-/// or `""` for a top-level file. Finer than `area_of` — the exact location.
-fn parent_dir(path: &str) -> &str {
+/// or `""` for a top-level file. Shared with the F1 scorer (same-directory
+/// margin bar).
+pub(super) fn parent_dir(path: &str) -> &str {
     match path.rfind('/') {
         Some(i) => &path[..i],
         None => "",
     }
 }
 
+/// The adaptive area walk: per-directory function counts from the indexed
+/// paths, so any path (indexed or new candidate) maps to its base area.
+pub struct AreaWalk {
+    /// Function count per directory prefix ("" = repo root).
+    counts: HashMap<String, usize>,
+}
+
+impl AreaWalk {
+    pub fn new<'a>(paths: impl Iterator<Item = &'a str>) -> Self {
+        let mut counts: HashMap<String, usize> = HashMap::new();
+        for p in paths {
+            let dirs: Vec<&str> = {
+                let mut c: Vec<&str> = p.split('/').collect();
+                c.pop(); // drop the filename
+                c
+            };
+            let mut prefix = String::new();
+            *counts.entry(prefix.clone()).or_insert(0) += 1;
+            for d in dirs {
+                if !prefix.is_empty() {
+                    prefix.push('/');
+                }
+                prefix.push_str(d);
+                *counts.entry(prefix.clone()).or_insert(0) += 1;
+            }
+        }
+        Self { counts }
+    }
+
+    /// The base area of a repo-relative path: descend through containers,
+    /// stop at the first non-dominant directory; tiny areas merge up into
+    /// their container.
+    pub fn area(&self, path: &str) -> String {
+        let dirs: Vec<&str> = {
+            let mut c: Vec<&str> = path.split('/').collect();
+            c.pop();
+            c
+        };
+        let mut prefix = String::new();
+        for d in dirs {
+            let next = if prefix.is_empty() {
+                d.to_string()
+            } else {
+                format!("{prefix}/{d}")
+            };
+            let parent_n = self.counts.get(&prefix).copied().unwrap_or(0);
+            let next_n = self.counts.get(&next).copied().unwrap_or(0);
+            if (next_n as f64) > MAX_CONTAINER_FRAC * parent_n as f64 {
+                prefix = next; // container: descend
+                continue;
+            }
+            if next_n >= MIN_AREA_FNS {
+                return next;
+            }
+            return prefix; // tiny: merge up into the container
+        }
+        prefix // file directly in a container dir
+    }
+}
+
+/// The per-repo, per-language placement configuration produced by fit-time
+/// self-calibration and stored in the semantic artifact.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PlacementConfig {
+    /// False when no calibrated config reached usable simulated recall — the
+    /// placement sense abstains entirely on this repo.
+    pub enabled: bool,
+    /// Neighbours polled for the area vote.
+    pub k: usize,
+    /// Own-area neighbours tolerated before "misplaced".
+    pub z: usize,
+    /// Base area → merged area label (the merged label is the largest member).
+    pub area_map: BTreeMap<String, String>,
+    /// Diagnostics: the simulated transplant recall / in-place over-fire the
+    /// calibration selected this config at.
+    pub sim_recall: f32,
+    pub sim_overfire: f32,
+}
+
 /// A fired placement finding: where the function looks like it belongs.
 #[derive(Debug, Clone)]
 pub struct MisplacedFinding {
     pub actual_area: String,
-    /// The modal (most common) area among the nearest neighbours.
+    /// The modal (most common) merged area among the nearest neighbours.
     pub neighbor_area: String,
     pub in_area_fraction: f32,
+    /// The modal area's share of the vote — what "belonging" looks like here.
     pub expected_fraction: f32,
     /// Nearest peers (symbol, path, line) for evidence.
     pub peers: Vec<(String, String, usize)>,
@@ -88,15 +161,26 @@ pub struct MisplacedFinding {
 /// Scores diff-defined functions for architectural misplacement.
 pub struct PlacementScorer<'a> {
     index: &'a SemanticIndex,
-    /// Per-area calibrated "belongs" fraction (typical in-area neighbour share).
-    area_norms: &'a HashMap<String, f32>,
-    /// Every directory that held an indexed function at fit time (full dir path,
-    /// not the coarse area). Placement can only judge a location with precedent.
+    cfg: &'a PlacementConfig,
+    walk: AreaWalk,
+    /// Merged area per index entry (aligned with `index.entries`).
+    entry_areas: Vec<String>,
+    /// Every directory that held an indexed function at fit time. Placement can
+    /// only judge a location with precedent.
     index_dirs: HashSet<String>,
 }
 
 impl<'a> PlacementScorer<'a> {
-    pub fn new(index: &'a SemanticIndex, area_norms: &'a HashMap<String, f32>) -> Self {
+    pub fn new(index: &'a SemanticIndex, cfg: &'a PlacementConfig) -> Self {
+        let walk = AreaWalk::new(index.entries.iter().map(|e| e.path.as_str()));
+        let entry_areas = index
+            .entries
+            .iter()
+            .map(|e| {
+                let base = walk.area(&e.path);
+                cfg.area_map.get(&base).cloned().unwrap_or(base)
+            })
+            .collect();
         let index_dirs = index
             .entries
             .iter()
@@ -104,57 +188,47 @@ impl<'a> PlacementScorer<'a> {
             .collect();
         Self {
             index,
-            area_norms,
+            cfg,
+            walk,
+            entry_areas,
             index_dirs,
         }
     }
 
     /// Evaluate one diff-defined function; `Some` when it looks misplaced.
     pub fn evaluate(&self, func: &FunctionRef, query: &[f32]) -> Option<MisplacedFinding> {
-        if super::redundant::is_test_path(&func.path) {
+        if !self.cfg.enabled || super::redundant::is_test_path(&func.path) {
+            return None;
+        }
+        // Substance floor: a stub's neighbours are noise, not placement evidence.
+        if func.text.lines().count() < MIN_PLACEMENT_BODY_LINES {
             return None;
         }
         // A function in a directory that did NOT exist at fit time is *new*, not
-        // *misplaced* — a brand-new feature/util dir has no same-area precedent, so
-        // its functions inevitably embed near their functional peers elsewhere and
-        // look "misplaced". Placement can only judge a location the repo already
-        // has an opinion about. (A real misplacement adds code to an EXISTING wrong
-        // dir, which is still judged.) This is the dominant clean-commit F2 FP.
+        // *misplaced* — placement can only judge a location the repo already has
+        // an opinion about. (This is the dominant clean-commit F2 FP.)
         if !self.index_dirs.contains(parent_dir(&func.path)) {
             return None;
         }
+        let base = self.walk.area(&func.path);
+        let claimed = self.cfg.area_map.get(&base).cloned()?;
         // Exclude only the function itself (a new diff function isn't in the
-        // index, so this is a no-op at check) — same-file siblings are legitimate
-        // area evidence, and keeping them makes placement work even in repos where
-        // an area is a single file. F1, by contrast, must drop same-file matches.
-        let neigh = self.index.nearest(query, K_NEIGHBORS, |e| {
+        // index, so this is a no-op at check) — same-file siblings are
+        // legitimate area evidence.
+        let neigh = self.index.nearest(query, self.cfg.k, |e| {
             !(e.path == func.path && e.line == func.line)
         });
         if neigh.len() < MIN_NEIGHBORS {
             return None;
         }
-        let actual = area_of(&func.path, AREA_DEPTH);
-        let neighbor_areas: Vec<String> = neigh
+        let areas: Vec<&str> = neigh
             .iter()
-            .map(|n| area_of(&self.index.entry(n.entry_index).path, AREA_DEPTH))
+            .map(|n| self.entry_areas[n.entry_index].as_str())
             .collect();
-        let n = neighbor_areas.len() as f32;
-        let in_area = neighbor_areas.iter().filter(|a| **a == actual).count() as f32 / n;
-        let counts = area_counts(&neighbor_areas);
-        let modal = counts[0].0.clone();
-        let top2: usize = counts.iter().take(2).map(|(_, c)| *c).sum();
-        let top2_frac = top2 as f32 / n;
-        // Strong disagreement: peers concentrate elsewhere (top-2 areas), and this
-        // function's own area is far below its calibrated locality norm.
-        if modal == actual || top2_frac < MIN_TOP2_CONCENTRATION {
-            return None;
-        }
-        let norm = self
-            .area_norms
-            .get(&actual)
-            .copied()
-            .unwrap_or(DEFAULT_NORM);
-        if in_area > ABS_IN_AREA_CEILING || in_area >= norm * MISPLACED_FACTOR {
+        let counts = area_counts(&areas);
+        let (modal, modal_n) = (&counts[0].0, counts[0].1);
+        let own = areas.iter().filter(|a| **a == claimed).count();
+        if *modal == claimed || own > self.cfg.z {
             return None;
         }
         let peers = neigh
@@ -166,21 +240,21 @@ impl<'a> PlacementScorer<'a> {
             })
             .collect();
         Some(MisplacedFinding {
-            actual_area: actual,
-            neighbor_area: modal,
-            in_area_fraction: in_area,
-            expected_fraction: norm,
+            actual_area: claimed,
+            neighbor_area: modal.clone(),
+            in_area_fraction: own as f32 / areas.len() as f32,
+            expected_fraction: modal_n as f32 / areas.len() as f32,
             peers,
         })
     }
 }
 
 /// Area → neighbour count, sorted by descending count then area name (so the
-/// modal area and top-2 concentration are deterministic on ties).
-fn area_counts(areas: &[String]) -> Vec<(String, usize)> {
+/// modal area is deterministic on ties).
+fn area_counts(areas: &[&str]) -> Vec<(String, usize)> {
     let mut counts: HashMap<&str, usize> = HashMap::new();
     for a in areas {
-        *counts.entry(a.as_str()).or_insert(0) += 1;
+        *counts.entry(a).or_insert(0) += 1;
     }
     let mut v: Vec<(String, usize)> = counts
         .into_iter()
@@ -188,6 +262,196 @@ fn area_counts(areas: &[String]) -> Vec<(String, usize)> {
         .collect();
     v.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
     v
+}
+
+// --- fit-time self-calibration --------------------------------------------
+
+/// Union-find over area ids.
+struct Dsu(Vec<usize>);
+impl Dsu {
+    fn new(n: usize) -> Self {
+        Dsu((0..n).collect())
+    }
+    fn find(&mut self, mut x: usize) -> usize {
+        while self.0[x] != x {
+            self.0[x] = self.0[self.0[x]];
+            x = self.0[x];
+        }
+        x
+    }
+    fn union(&mut self, a: usize, b: usize) {
+        let (ra, rb) = (self.find(a), self.find(b));
+        if ra != rb {
+            self.0[ra] = rb;
+        }
+    }
+}
+
+/// Self-calibrate the placement sense on a freshly built index. See the module
+/// docs for the design; mirrors the all-gates offline validation exactly.
+pub fn calibrate_placement(index: &SemanticIndex) -> PlacementConfig {
+    let n = index.len();
+    let disabled = PlacementConfig::default();
+    if n < MIN_AREA_FNS * 2 {
+        return disabled;
+    }
+    let walk = AreaWalk::new(index.entries.iter().map(|e| e.path.as_str()));
+    let base_areas: Vec<String> = index.entries.iter().map(|e| walk.area(&e.path)).collect();
+    let mut uniq: Vec<String> = {
+        let s: HashSet<&String> = base_areas.iter().collect();
+        s.into_iter().cloned().collect()
+    };
+    uniq.sort();
+    if uniq.len() < 2 {
+        return disabled;
+    }
+    let area_id: HashMap<&str, usize> = uniq
+        .iter()
+        .enumerate()
+        .map(|(i, a)| (a.as_str(), i))
+        .collect();
+    let fn_area: Vec<usize> = base_areas.iter().map(|a| area_id[a.as_str()]).collect();
+    let mut area_fns = vec![0usize; uniq.len()];
+    for &a in &fn_area {
+        area_fns[a] += 1;
+    }
+
+    // Stride-sampled neighbour cache: top max(CAL_KS) per sampled function,
+    // excluding only the function itself.
+    let step = n.div_ceil(CAL_MAX_SAMPLE).max(1);
+    let kmax = *CAL_KS.iter().max().unwrap();
+    let sample: Vec<usize> = (0..n).step_by(step).collect();
+    let mut neigh: Vec<Vec<usize>> = Vec::with_capacity(sample.len());
+    for &qi in &sample {
+        let e = index.entry(qi);
+        let ns = index.nearest(&e.vec, kmax, |o| !(o.path == e.path && o.line == e.line));
+        neigh.push(ns.into_iter().map(|x| x.entry_index).collect());
+    }
+
+    // Entanglement flow between base areas, from the sampled top-FLOW_K votes.
+    let m = uniq.len();
+    let mut flow = vec![vec![0f64; m]; m];
+    let mut outdeg = vec![0f64; m];
+    for (si, &qi) in sample.iter().enumerate() {
+        let a = fn_area[qi];
+        for &j in neigh[si].iter().take(FLOW_K) {
+            flow[a][fn_area[j]] += 1.0;
+            outdeg[a] += 1.0;
+        }
+    }
+    for a in 0..m {
+        if outdeg[a] > 0.0 {
+            for b in 0..m {
+                flow[a][b] /= outdeg[a];
+            }
+        }
+    }
+
+    // Grid search: merge threshold × (k, z), best simulated recall under the
+    // over-fire cap.
+    let mut best: Option<(PlacementConfig, f64)> = None;
+    for &tau in &MERGE_TAUS {
+        // Merge every pair with cross-flow ≥ tau (mandatory floor included,
+        // since MERGE_TAUS starts at the floor).
+        let mut dsu = Dsu::new(m);
+        for a in 0..m {
+            for b in (a + 1)..m {
+                if flow[a][b] >= tau || flow[b][a] >= tau {
+                    dsu.union(a, b);
+                }
+            }
+        }
+        // Merged label per group = biggest member area.
+        let mut group_best: HashMap<usize, usize> = HashMap::new();
+        for a in 0..m {
+            let g = dsu.find(a);
+            let cur = group_best.entry(g).or_insert(a);
+            if area_fns[a] > area_fns[*cur] {
+                *cur = a;
+            }
+        }
+        let merged_of: Vec<usize> = (0..m).map(|a| group_best[&dsu.find(a)]).collect();
+        let merged_areas: HashSet<usize> = merged_of.iter().copied().collect();
+        if merged_areas.len() < 2 {
+            continue;
+        }
+        let merged_list: Vec<usize> = {
+            let mut v: Vec<usize> = merged_areas.into_iter().collect();
+            v.sort();
+            v
+        };
+        for &k in &CAL_KS {
+            for &z in &CAL_ZS {
+                let mut rec = 0usize;
+                let mut rec_ev = 0usize;
+                let mut of = 0usize;
+                let mut of_ev = 0usize;
+                for (si, &qi) in sample.iter().enumerate() {
+                    let votes: Vec<usize> = neigh[si]
+                        .iter()
+                        .take(k)
+                        .map(|&j| merged_of[fn_area[j]])
+                        .collect();
+                    if votes.len() < MIN_NEIGHBORS {
+                        continue;
+                    }
+                    // Modal merged area (deterministic on ties: lowest id wins
+                    // among equal counts — ids are sorted labels).
+                    let mut counts: HashMap<usize, usize> = HashMap::new();
+                    for &v in &votes {
+                        *counts.entry(v).or_insert(0) += 1;
+                    }
+                    let modal = *counts
+                        .iter()
+                        .max_by(|x, y| x.1.cmp(y.1).then_with(|| y.0.cmp(x.0)))
+                        .unwrap()
+                        .0;
+                    let actual = merged_of[fn_area[qi]];
+                    let fires = |claimed: usize| {
+                        modal != claimed && votes.iter().filter(|&&v| v == claimed).count() <= z
+                    };
+                    of_ev += 1;
+                    if fires(actual) {
+                        of += 1;
+                    }
+                    for &foreign in &merged_list {
+                        if foreign == actual {
+                            continue;
+                        }
+                        rec_ev += 1;
+                        if fires(foreign) {
+                            rec += 1;
+                        }
+                    }
+                }
+                if rec_ev == 0 || of_ev == 0 {
+                    continue;
+                }
+                let r = rec as f64 / rec_ev as f64;
+                let o = of as f64 / of_ev as f64;
+                if o <= CAL_OVERFIRE_CAP && best.as_ref().map(|(_, br)| r > *br).unwrap_or(true) {
+                    let area_map: BTreeMap<String, String> = (0..m)
+                        .map(|a| (uniq[a].clone(), uniq[merged_of[a]].clone()))
+                        .collect();
+                    best = Some((
+                        PlacementConfig {
+                            enabled: true,
+                            k,
+                            z,
+                            area_map,
+                            sim_recall: r as f32,
+                            sim_overfire: o as f32,
+                        },
+                        r,
+                    ));
+                }
+            }
+        }
+    }
+    match best {
+        Some((cfg, r)) if r >= CAL_MIN_RECALL => cfg,
+        _ => disabled,
+    }
 }
 
 #[cfg(test)]
@@ -217,90 +481,106 @@ mod tests {
             path: path.into(),
             line: 10,
             end_line: 20,
-            text: String::new(),
+            text: "def f():\n    a\n    b\n    c\n    d\n    e\n    g".into(),
             callees: Vec::new(),
             subtokens: Vec::new(),
         }
     }
 
-    #[test]
-    fn area_of_takes_directory_prefix() {
-        assert_eq!(area_of("src/db/models/user.py", 3), "src/db/models");
-        assert_eq!(area_of("src/db/models/user.py", 2), "src/db");
-        assert_eq!(area_of("src/api/handlers.py", 3), "src/api");
-        assert_eq!(area_of("main.py", 3), "");
-    }
-
-    /// A dozen DB-flavoured functions in `src/db`, plus two UI ones in `src/ui`
-    /// — enough that a DB-flavoured query's top-10 neighbours are all DB (the UI
-    /// pair ranks below the cut), mirroring a real transplant's ~0 in-area share.
+    /// Two clean semantic clusters in two packages under a `src/` container.
     fn index() -> SemanticIndex {
         let mut entries = Vec::new();
         for i in 0..12 {
-            // db functions cluster along axis x
             entries.push(entry(
                 &format!("db_{i}"),
-                &format!("src/db/models/m{i}.py"),
+                &format!("src/db/m{i}.py"),
                 vec![1.0, 0.02 * i as f32, 0.0],
             ));
         }
-        entries.push(entry("render_a", "src/ui/views.py", vec![0.0, 1.0, 0.0]));
-        entries.push(entry("render_b", "src/ui/views.py", vec![0.0, 0.98, 0.05]));
+        for i in 0..12 {
+            entries.push(entry(
+                &format!("ui_{i}"),
+                &format!("src/ui/v{i}.py"),
+                vec![0.0, 1.0, 0.02 * i as f32],
+            ));
+        }
         SemanticIndex { dim: 3, entries }
     }
 
-    fn norms() -> HashMap<String, f32> {
-        // db area normally has high locality; ui too.
-        HashMap::from([
-            ("src/db/models".to_string(), 0.6f32),
-            ("src/ui".to_string(), 0.6f32),
-        ])
+    #[test]
+    fn adaptive_walk_descends_containers_and_stops_at_packages() {
+        let idx = index();
+        let walk = AreaWalk::new(idx.entries.iter().map(|e| e.path.as_str()));
+        // src/ holds 100% (container) → the packages are the areas.
+        assert_eq!(walk.area("src/db/m1.py"), "src/db");
+        assert_eq!(walk.area("src/ui/v3.py"), "src/ui");
+        // A new file in an unseen tiny dir merges up into the container.
+        assert_eq!(walk.area("src/new_thing/x.py"), "src");
     }
 
     #[test]
-    fn fires_on_db_function_filed_under_ui() {
+    fn calibration_enables_separable_repo_and_scorer_fires_on_transplant() {
         let idx = index();
-        let norms = norms();
-        let scorer = PlacementScorer::new(&idx, &norms);
-        // A DB-flavoured function (axis x) but filed under src/ui.
+        let cfg = calibrate_placement(&idx);
+        assert!(cfg.enabled, "clean two-cluster repo is judgeable: {cfg:?}");
+        assert!(cfg.sim_recall >= 0.85);
+        let scorer = PlacementScorer::new(&idx, &cfg);
+        // A db-flavoured function filed under src/ui → misplaced.
         let q = unit(vec![1.0, 0.03, 0.0]);
         let f = scorer
             .evaluate(&func("load_row", "src/ui/widgets.py"), &q)
             .expect("misplaced db-in-ui fires");
         assert_eq!(f.actual_area, "src/ui");
-        assert_eq!(f.neighbor_area, "src/db"); // depth-2 area (major package)
-        assert!(f.in_area_fraction < 0.2);
-    }
-
-    #[test]
-    fn does_not_fire_on_in_place_function() {
-        let idx = index();
-        let norms = norms();
-        let scorer = PlacementScorer::new(&idx, &norms);
-        // A DB-flavoured function correctly filed under src/db.
-        let q = unit(vec![1.0, 0.03, 0.0]);
+        assert_eq!(f.neighbor_area, "src/db");
+        // The same function correctly filed → quiet.
         assert!(scorer
-            .evaluate(&func("load_row", "src/db/models/new.py"), &q)
+            .evaluate(&func("load_row", "src/db/new.py"), &q)
             .is_none());
     }
 
     #[test]
-    fn abstains_on_a_brand_new_directory() {
+    fn calibration_disables_unseparable_repo() {
+        // One semantic blob spread over two dirs: every function's neighbours
+        // straddle both areas → entangled → merged → single area → disabled.
+        let mut entries = Vec::new();
+        for i in 0..24 {
+            let dir = if i % 2 == 0 { "src/a" } else { "src/b" };
+            entries.push(entry(
+                &format!("f{i}"),
+                &format!("{dir}/m{i}.py"),
+                vec![1.0, 0.001 * i as f32, 0.0],
+            ));
+        }
+        let idx = SemanticIndex { dim: 3, entries };
+        let cfg = calibrate_placement(&idx);
+        assert!(!cfg.enabled, "entangled blob must abstain: {cfg:?}");
+    }
+
+    #[test]
+    fn disabled_config_abstains() {
         let idx = index();
-        let norms = norms();
-        let scorer = PlacementScorer::new(&idx, &norms);
-        // Same DB-flavoured query that fires when filed under the existing src/ui,
-        // but here it lives in a directory the index has never seen. A new location
-        // can't be judged misplaced — abstain (this is the dominant clean-commit FP:
-        // a new feature/util dir whose functions embed near their peers elsewhere).
+        let cfg = PlacementConfig::default();
+        let scorer = PlacementScorer::new(&idx, &cfg);
         let q = unit(vec![1.0, 0.03, 0.0]);
-        assert!(scorer
-            .evaluate(&func("load_row", "src/brand_new_feature/impl.py"), &q)
-            .is_none());
-        // Control: the SAME function in an existing dir still fires.
         assert!(scorer
             .evaluate(&func("load_row", "src/ui/widgets.py"), &q)
-            .is_some());
+            .is_none());
+    }
+
+    #[test]
+    fn stub_and_new_dir_candidates_abstain() {
+        let idx = index();
+        let cfg = calibrate_placement(&idx);
+        let scorer = PlacementScorer::new(&idx, &cfg);
+        let q = unit(vec![1.0, 0.03, 0.0]);
+        // New directory (no precedent) → abstain.
+        assert!(scorer
+            .evaluate(&func("load_row", "src/brand_new/x.py"), &q)
+            .is_none());
+        // Stub (< 6 body lines) → abstain even in a judged location.
+        let mut stub = func("load_row", "src/ui/widgets.py");
+        stub.text = "def f():\n    pass".into();
+        assert!(scorer.evaluate(&stub, &q).is_none());
     }
 
     #[test]
