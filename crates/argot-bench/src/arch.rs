@@ -429,6 +429,21 @@ pub fn run_arch_candidates(
                 if graph.in_mass(b) == 0 {
                     continue; // unpopular target — not a realistic violation
                 }
+                // `__root__` (files directly under the package root) is not a nameable
+                // import target for prefix-import languages — `from pkg.__root__ import`
+                // is bogus even though it resolves. Skip it as a target there.
+                if b == "__root__"
+                    && !matches!(
+                        language,
+                        Language::Typescript
+                            | Language::Javascript
+                            | Language::Ruby
+                            | Language::C
+                            | Language::Cpp
+                    )
+                {
+                    continue;
+                }
                 let kind = match graph.classify(&(a.clone(), b.clone())) {
                     Some(Violation::Reversal) => "reversal",
                     Some(Violation::TransitiveReversal) => "transitive_reversal",
@@ -461,7 +476,7 @@ pub fn run_arch_candidates(
         out.push_str(
             "| kind | src | tgt | pop | host_file | import_line |\n|---|---|---|--:|---|---|\n",
         );
-        for (kind, a, b, pop, hf, line) in cands.iter().take(80) {
+        for (kind, a, b, pop, hf, line) in cands.iter().take(150) {
             out.push_str(&format!(
                 "| {} | {} | {} | {} | `{}` | `{}` |\n",
                 kind,
