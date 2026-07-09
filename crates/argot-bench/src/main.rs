@@ -251,7 +251,12 @@ fn real_main() -> Result<ExitCode> {
 
     #[cfg(feature = "arch")]
     if cli.mode == "arch" {
-        let md = argot_bench::arch::run_arch(&selected, &opts.data_dir, &cli.results_dir)?;
+        let md = argot_bench::arch::run_arch(
+            &selected,
+            &opts.data_dir,
+            &opts.catalogs_dir,
+            &cli.results_dir,
+        )?;
         print!("{md}");
         eprintln!("results → {}", cli.results_dir.display());
         return Ok(ExitCode::SUCCESS);

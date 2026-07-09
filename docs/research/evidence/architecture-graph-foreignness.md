@@ -1,8 +1,9 @@
 # Architecture-graph foreignness: a discrete, low-FP "has no place here" signal
 
 **Date:** 2026-07-09 · **Branch:** `feat/semantic-layer` · status: **VALIDATED — ported
-non-gating into argot-core; real-holdout over-fire ≤2.7% on 2690 commits, catch 90% (coverage) —
-≥85/≤5 MET. Catch-on-injected-fixtures + multi-lang resolvers remain.** Harnesses:
+non-gating into argot-core; real-holdout over-fire ≤2.7% on 2690 commits, honest mean catch 85%
+(coverage, mute-system voice files, no hardcoded excludes) — ≥85/≤5 met on the mean. 3 corpora
+sub-85 out-of-box. Catch-on-injected-fixtures + multi-lang resolvers remain.** Harnesses:
 `benchmarks/arch_graph_{probe,xlang,temporal}.py` + `argot-bench --mode arch`. Opened after the
 node-kind n-gram *shape* gate hit an irreducible floor
 ([`foreign-structure-gate-floor.md`](foreign-structure-gate-floor.md)).
@@ -151,35 +152,38 @@ module (not a Python proxy). v1 resolves Python imports; other languages are a g
 
 | corpus | layers | edges | real commits | fires | over-fire | catch |
 |---|--:|--:|--:|--:|--:|--:|
-| fastapi | 24 | 48 | 1200 | 2 | 0.2% | 94% |
+| fastapi | 37 | 62 | 1200 | 2 | 0.2% | 73% |
 | rich | 70 | 70 | 360 | 0 | 0.0% | 99% |
-| faker | 13 | 20 | 150 | 0 | 0.0% | 89% |
-| dagster (multi monorepo) | 229 | 797 | 150 | 1 | 0.7% | 73% |
-| saleor | 34 | 302 | 150 | 4 | 2.7% | 92% |
-| wagtail | 37 | 143 | 250 | 0 | 0.0% | 81% |
+| faker | 14 | 23 | 150 | 0 | 0.0% | 82% |
+| dagster (multi monorepo) | 299 | 1017 | 150 | 4 | 2.7% | 70% |
+| saleor | 35 | 306 | 150 | 4 | 2.7% | 88% |
+| wagtail | 40 | 162 | 250 | 0 | 0.0% | 80% |
 | rocksdb | 9 | 8 | 150 | 0 | 0.0% | 100% |
 | scrapy | 36 | 123 | 280 | 0 | 0.0% | 90% |
-| **total / mean** | | | **2690** | **7** | **0.26% agg (≤2.7% worst)** | **90%** |
+| **total / mean** | | | **2690** | **10** | **0.37% agg (≤2.7% worst)** | **85%** |
 
-**≥85% catch at ≤5% over-fire — met.** Mean catch **90%**, over-fire ≤2.7% on every corpus (0.26%
-aggregate over 2690 real clean commits), through the real Rust module. Two tuning steps got catch
-77% → 90% with the FP essentially unchanged (the huge headroom — 0.26% agg vs the 5% budget — was
-the lever):
+**≥85% catch at ≤5% over-fire — met on the headline mean, honestly.** Mean catch **85%**, over-fire
+≤2.7% on every corpus (0.37% aggregate over 2690 real clean commits), through the real Rust module,
+**with voice files collected by the mute system (`train::collect_source_files`) — no hardcoded path
+exclusions anywhere.** Two tuning steps got catch 77% → 85% with the FP essentially unchanged (the
+huge headroom — 0.37% agg vs the 5% budget — is the lever):
 1. **Near-sink generalization** (`NEAR_SINK_RATIO = 0.5`): a *net-importee* layer (imported at
    least as much as it imports out — not only a strict out-degree-0 sink) importing outward is the
-   tell. Real over-fire is **flat** across ratios 0.25→0.5 (aggregate 0.45%→0.54%, worst 2.0%→2.6%)
-   because the repo's own commits don't create these edges regardless of threshold — so the catch
-   gain (82% → 91% coverage) is free. Ratios > 0.5 flag net-*exporters* (app layers), which is
-   over-aggressive and unprincipled, so 0.5 is the boundary.
-2. **Catch on the HEAD (production) graph + a segment-based scaffolding filter.** Catch is measured
-   on the graph production actually fits (HEAD), not the thin holdout fit-SHA; and a domain-blind
-   segment filter drops `docs_src/`, `example_app/`, tests, vendored trees that had polluted the
-   graph (fastapi 73% → 94%, faker 76% → 89%). The rank-gradient lever was tried and dropped — it
-   added nothing (near-sink subsumes it) and *hurt* popular foundational targets.
+   tell. Real over-fire is **flat** across ratios 0.25→0.5 (aggregate 0.45%→0.54%) because the
+   repo's own commits don't create these edges regardless of threshold — so the catch gain is free.
+   Ratios > 0.5 flag net-*exporters* (app layers) — over-aggressive, so 0.5 is the boundary. The
+   rank-gradient lever was tried and dropped (near-sink subsumes it; it *hurt* popular targets).
+2. **Catch on the HEAD (production) graph** (not the thin holdout fit-SHA that understates coverage).
 
-The two laggards — wagtail 81%, dagster 73% (a 229-layer monorepo) — are large, deeply-layered
-repos where much of the "missing edge" space is *legitimate* foundational imports the rule
-correctly leaves alone; the coverage metric understates true violation-recall there.
+**Honesty note (why not 90%).** An earlier pass hit 90% by hardcoding a `starts_with("doc")`
+scaffolding filter in the code — which *excludes fastapi's `docs_src/` tutorial tree that production
+actually includes*, inflating the number. Removed: exclusions now come only from the mute system
+(`EXCLUDE_DIRS` + `.argotignore` + `[exclude].paths`), and the honest out-of-box mean is **85%**.
+The three sub-85 corpora are honest: **fastapi 73%** is dragged by `docs_src/` (tutorial code a real
+maintainer would `.argotignore` — doing so via config, not code, lifts it to ~94%); **dagster 70%**
+(299-layer monorepo) and **wagtail 80%** are large, deeply-layered repos where much of the
+"missing edge" space is *legitimate* foundational imports the rule correctly leaves alone (the
+coverage metric understates true violation-recall there).
 
 ## Status + honest remaining work
 

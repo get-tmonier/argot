@@ -29,10 +29,11 @@
 //!
 //! Firing on *any* novel edge over-fires (organic growth adds edges constantly,
 //! up to ~36%); the reversal/near-sink discrimination is what keeps it low. On
-//! the real bench (8 corpora, 2690 real commits, temporal holdout) this scores
-//! **~90% catch (coverage) at ≤2.7% over-fire per corpus** — a gatable signal,
-//! the categorical opposite of the node-kind shape gate. Domain-blind: "layer" =
-//! the path component under a package root, never a hardcoded layer name.
+//! the real bench (8 corpora, 2690 real commits, temporal holdout, voice files via
+//! the mute system) this scores **~85% catch (coverage) at ≤2.7% over-fire per
+//! corpus** — a gatable signal, the categorical opposite of the node-kind shape
+//! gate. Domain-blind: "layer" = the path component under a package root, never a
+//! hardcoded layer name; path exclusions come from the mute system, never here.
 //!
 //! # Language support
 //!
@@ -51,7 +52,7 @@ pub type Edge = (String, String);
 
 /// A layer counts as a (near-)sink when its outgoing import mass is at most this
 /// fraction of its total mass — the net-importee boundary. Tuned on the corpora:
-/// 0.5 lifts coverage catch 77% → 90% while real over-fire stays flat (≤2.7%; the
+/// 0.5 lifts coverage catch 77% → 85% while real over-fire stays flat (≤2.7%; the
 /// repo's own commits don't create these edges regardless of the threshold).
 /// Strict sinks (out-mass 0) are the special case.
 const NEAR_SINK_RATIO: f64 = 0.5;
@@ -95,7 +96,7 @@ impl RepoLayering {
             .collect();
         let mut py_roots: Vec<String> = Vec::new();
         for d in &init_dirs {
-            if !init_dirs.contains(parent_dir(d)) && !is_noise_path(&format!("{d}/")) {
+            if !init_dirs.contains(parent_dir(d)) {
                 py_roots.push(d.clone());
             }
         }
@@ -109,10 +110,11 @@ impl RepoLayering {
             edges: HashMap::new(),
             sinks: HashSet::new(),
         };
+        // No path exclusion here: the caller passes the repo's voice files (in
+        // production, `train::collect_source_files`, which honors EXCLUDE_DIRS +
+        // `.argotignore` + `[exclude].paths`). The scorer must not hardcode
+        // corpus/scaffolding paths — exclusions live in the mute system.
         for (path, source, lang) in &files {
-            if is_noise_path(path) {
-                continue;
-            }
             for e in me.file_edges(path, source, *lang) {
                 *me.edges.entry(e).or_insert(0) += 1;
             }
@@ -295,31 +297,6 @@ fn basename(path: &str) -> &str {
         Some(i) => &path[i + 1..],
         None => path,
     }
-}
-
-/// Scaffolding trees outside the repo's "voice" (tests, examples, docs, vendored
-/// deps) — excluded from the layer graph. Segment-based so `docs_src/` and
-/// `example_app/` are caught but a module named `document.py` is not. Domain-blind
-/// path heuristics only (the shipped product also honors the mute system).
-fn is_noise_path(path: &str) -> bool {
-    path.split('/').any(|s| {
-        matches!(
-            s,
-            "test"
-                | "tests"
-                | "vendor"
-                | "third_party"
-                | "node_modules"
-                | "migrations"
-                | "fixtures"
-                | "benchmark"
-                | "benchmarks"
-                | ".buildkite"
-        ) || s.starts_with("test_")
-            || s.ends_with("_test")
-            || s.starts_with("doc")
-            || s.starts_with("example")
-    })
 }
 
 /// Extract `(dotted_module, relative_level)` for each Python import.

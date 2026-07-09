@@ -21,49 +21,22 @@
 use std::path::Path;
 
 use anyhow::{Context, Result};
+use argot_core::config::ArgotConfig;
 use argot_core::scoring::adapters::Language;
 use argot_core::scoring::arch_graph::RepoLayering;
+use argot_core::train::{collect_source_files, is_corpus_source};
 use serde::Serialize;
 
-use crate::holdout::{ensure_full_history, fit_tree_files, plan_holdout};
+use crate::holdout::{ensure_full_history, plan_holdout};
 use crate::production::git_stdout;
-use crate::run::{ensure_clone, ensure_sha_checked_out};
+use crate::run::{ensure_clone, ensure_sha_checked_out, sync_corpus_config};
 use crate::targets::Target;
 
 const DEFAULT_WINDOW: usize = 150;
 
-fn ext_lang(path: &str) -> Option<Language> {
-    match path.rsplit('.').next()? {
-        "py" => Some(Language::Python),
-        _ => None, // v1: Python resolver only
-    }
-}
-
-/// A source file that is part of the repo's "voice" — excludes scaffolding trees
-/// (tests, examples, docs, vendored deps) that pollute the layer graph. Segment-
-/// based so `docs_src/` and `example_app/` are caught but `document.py` is not.
-fn is_src(path: &str) -> bool {
-    if ext_lang(path).is_none() {
-        return false;
-    }
-    !path.split('/').any(|s| {
-        matches!(
-            s,
-            "test"
-                | "tests"
-                | "vendor"
-                | "third_party"
-                | "node_modules"
-                | "migrations"
-                | "fixtures"
-                | "benchmark"
-                | "benchmarks"
-                | ".buildkite"
-        ) || s.starts_with("test_")
-            || s.ends_with("_test")
-            || s.starts_with("doc")
-            || s.starts_with("example")
-    })
+/// v1 resolves Python imports only; other languages have no resolver yet.
+fn is_py(path: &str) -> bool {
+    path.rsplit('.').next() == Some("py")
 }
 
 fn show(repo: &Path, sha: &str, path: &str) -> String {
@@ -82,15 +55,22 @@ struct ArchResult {
     catch: f64,
 }
 
-/// Fit a layering graph from a SHA's source tree (checks it out, reads from disk).
+/// Fit a layering graph from a SHA's tree, using the SAME voice-file collection
+/// production uses (`train::collect_source_files` — honors EXCLUDE_DIRS,
+/// `.argotignore`, `[exclude].paths`). Restricted to Python (the v1 resolver);
+/// no hardcoded scaffolding paths.
 fn graph_at(repo: &Path, sha: &str) -> Result<RepoLayering> {
     ensure_sha_checked_out(repo, sha)?;
-    let files = fit_tree_files(repo, sha)?;
+    let files = collect_source_files(repo);
     let mut sources: Vec<(String, String)> = Vec::new();
-    for path in &files {
-        if is_src(path) {
-            if let Ok(src) = std::fs::read_to_string(repo.join(path)) {
-                sources.push((path.clone(), src));
+    for abs in &files {
+        let Ok(rel) = abs.strip_prefix(repo) else {
+            continue;
+        };
+        let rel = rel.to_string_lossy().replace('\\', "/");
+        if is_py(&rel) {
+            if let Ok(src) = std::fs::read_to_string(abs) {
+                sources.push((rel, src));
             }
         }
     }
@@ -101,10 +81,14 @@ fn graph_at(repo: &Path, sha: &str) -> Result<RepoLayering> {
     ))
 }
 
-fn run_corpus(target: &Target, data_dir: &Path) -> Result<Option<ArchResult>> {
+fn run_corpus(target: &Target, data_dir: &Path, catalogs_dir: &Path) -> Result<Option<ArchResult>> {
     let repo = ensure_clone(data_dir, &target.name, &target.url)?;
     let head = target.prs[0].sha.clone();
     ensure_full_history(&repo)?;
+    // Install the per-corpus argot.toml (mute system) so exclusions come from
+    // config, never hardcoded — exactly how the base bench fits each corpus.
+    sync_corpus_config(catalogs_dir, &target.name, &repo)?;
+    let suppressions = ArgotConfig::load(&repo).path_suppressions();
     // Catch is measured on the HEAD graph — production fits on the CURRENT repo,
     // not the holdout fit-SHA (an old, thin tree that understates coverage).
     let head_graph = graph_at(&repo, &head)?;
@@ -135,7 +119,7 @@ fn run_corpus(target: &Target, data_dir: &Path) -> Result<Option<ArchResult>> {
         .unwrap_or_default();
         let mut fired = false;
         for path in changed.lines() {
-            if !is_src(path) {
+            if !is_py(path) || !is_corpus_source(path, &suppressions) {
                 continue;
             }
             let cur = show(&repo, sha, path);
@@ -195,10 +179,15 @@ fn run_corpus(target: &Target, data_dir: &Path) -> Result<Option<ArchResult>> {
     }))
 }
 
-pub fn run_arch(targets: &[Target], data_dir: &Path, results_dir: &Path) -> Result<String> {
+pub fn run_arch(
+    targets: &[Target],
+    data_dir: &Path,
+    catalogs_dir: &Path,
+    results_dir: &Path,
+) -> Result<String> {
     let mut results: Vec<ArchResult> = Vec::new();
     for t in targets {
-        match run_corpus(t, data_dir) {
+        match run_corpus(t, data_dir, catalogs_dir) {
             Ok(Some(r)) => results.push(r),
             Ok(None) => {}
             Err(e) => eprintln!("[{}] arch: skipped ({e:#})", t.name),
