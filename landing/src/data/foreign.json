@@ -211,8 +211,20 @@
      "reason": "import"
     },
     "foreign_concurrency": {
-     "caught": 6,
-     "total": 6,
+     "caught": 5,
+     "total": 5,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 100,
+     "reason": "import"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 1,
+     "total": 1,
      "pct": 100,
      "masked_caught": 1,
      "masked_total": 1,
@@ -221,7 +233,6 @@
      "reason": "import"
     }
    },
-   "secondary": {},
    "overfire_existing_pct": 0.14,
    "detection_existing_pct": 0.0,
    "overfire_new_pct": 0.0,
@@ -417,17 +428,28 @@
      "reason": "import"
     },
     "foreign_concurrency": {
-     "caught": 7,
-     "total": 7,
+     "caught": 5,
+     "total": 5,
      "pct": 100,
-     "masked_caught": 1,
-     "masked_total": 2,
-     "masked_pct": 50,
-     "overall_pct": 89,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 83,
      "reason": "import"
     }
    },
-   "secondary": {},
+   "secondary": {
+    "semantic_convention": {
+     "caught": 2,
+     "total": 2,
+     "pct": 100,
+     "masked_caught": 1,
+     "masked_total": 1,
+     "masked_pct": 100,
+     "overall_pct": 100,
+     "reason": "import"
+    }
+   },
    "overfire_existing_pct": 0.92,
    "detection_existing_pct": 0.0,
    "overfire_new_pct": 0.0,
@@ -458,26 +480,26 @@
      "reason": "import"
     },
     "foreign_concurrency": {
-     "caught": 6,
-     "total": 6,
+     "caught": 4,
+     "total": 4,
      "pct": 100,
-     "masked_caught": 1,
-     "masked_total": 2,
-     "masked_pct": 50,
-     "overall_pct": 88,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 80,
      "reason": "call_receiver"
     }
    },
    "secondary": {
     "semantic_convention": {
-     "caught": 0,
-     "total": 1,
-     "pct": 0,
-     "masked_caught": 0,
-     "masked_total": 9,
-     "masked_pct": 0,
-     "overall_pct": 0,
-     "reason": null
+     "caught": 2,
+     "total": 3,
+     "pct": 67,
+     "masked_caught": 1,
+     "masked_total": 10,
+     "masked_pct": 10,
+     "overall_pct": 23,
+     "reason": "call_receiver"
     }
    },
    "overfire_existing_pct": 0.0,
@@ -511,16 +533,27 @@
     },
     "foreign_concurrency": {
      "caught": 4,
-     "total": 6,
-     "pct": 67,
-     "masked_caught": 1,
-     "masked_total": 4,
-     "masked_pct": 25,
-     "overall_pct": 50,
+     "total": 4,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 3,
+     "masked_pct": 0,
+     "overall_pct": 57,
      "reason": "import"
     }
    },
-   "secondary": {},
+   "secondary": {
+    "semantic_convention": {
+     "caught": 0,
+     "total": 2,
+     "pct": 0,
+     "masked_caught": 1,
+     "masked_total": 1,
+     "masked_pct": 100,
+     "overall_pct": 33,
+     "reason": "import"
+    }
+   },
    "overfire_existing_pct": 0.35,
    "detection_existing_pct": 0.87,
    "overfire_new_pct": 0.0,
@@ -592,26 +625,26 @@
      "reason": "import"
     },
     "foreign_concurrency": {
-     "caught": 6,
-     "total": 6,
+     "caught": 4,
+     "total": 4,
      "pct": 100,
      "masked_caught": 0,
      "masked_total": 1,
      "masked_pct": 0,
-     "overall_pct": 86,
+     "overall_pct": 80,
      "reason": "call_receiver"
     }
    },
    "secondary": {
     "semantic_convention": {
-     "caught": 1,
-     "total": 6,
-     "pct": 17,
+     "caught": 3,
+     "total": 8,
+     "pct": 38,
      "masked_caught": 0,
      "masked_total": 1,
      "masked_pct": 0,
-     "overall_pct": 14,
-     "reason": "import"
+     "overall_pct": 33,
+     "reason": "call_receiver"
     },
     "naming_shape_break": {
      "caught": 0,
@@ -655,24 +688,24 @@
     },
     "foreign_concurrency": {
      "caught": 5,
-     "total": 8,
-     "pct": 62,
+     "total": 5,
+     "pct": 100,
      "masked_caught": 0,
      "masked_total": 2,
      "masked_pct": 0,
-     "overall_pct": 50,
+     "overall_pct": 71,
      "reason": "import"
     }
    },
    "secondary": {
     "semantic_convention": {
      "caught": 1,
-     "total": 6,
-     "pct": 17,
+     "total": 9,
+     "pct": 11,
      "masked_caught": 0,
      "masked_total": 1,
      "masked_pct": 0,
-     "overall_pct": 14,
+     "overall_pct": 10,
      "reason": "bpe"
     },
     "naming_shape_break": {
@@ -717,24 +750,24 @@
     },
     "foreign_concurrency": {
      "caught": 4,
-     "total": 6,
-     "pct": 67,
+     "total": 4,
+     "pct": 100,
      "masked_caught": 1,
      "masked_total": 1,
      "masked_pct": 100,
-     "overall_pct": 71,
+     "overall_pct": 100,
      "reason": "import"
     }
    },
    "secondary": {
     "semantic_convention": {
      "caught": 1,
-     "total": 5,
-     "pct": 20,
+     "total": 7,
+     "pct": 14,
      "masked_caught": 0,
      "masked_total": 2,
      "masked_pct": 0,
-     "overall_pct": 14,
+     "overall_pct": 11,
      "reason": "call_receiver"
     },
     "naming_shape_break": {
@@ -778,17 +811,28 @@
      "reason": "import"
     },
     "foreign_concurrency": {
-     "caught": 8,
-     "total": 8,
+     "caught": 5,
+     "total": 5,
      "pct": 100,
      "masked_caught": 0,
      "masked_total": 2,
      "masked_pct": 0,
-     "overall_pct": 80,
+     "overall_pct": 71,
      "reason": "import"
     }
    },
-   "secondary": {},
+   "secondary": {
+    "semantic_convention": {
+     "caught": 3,
+     "total": 3,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 100,
+     "reason": "import"
+    }
+   },
    "overfire_existing_pct": 0.0,
    "detection_existing_pct": 0.0,
    "overfire_new_pct": 0.0,
@@ -994,25 +1038,25 @@
      "reason": "call_receiver"
     },
     "foreign_concurrency": {
-     "caught": 7,
-     "total": 8,
-     "pct": 88,
+     "caught": 6,
+     "total": 6,
+     "pct": 100,
      "masked_caught": 0,
      "masked_total": 0,
      "masked_pct": null,
-     "overall_pct": 88,
+     "overall_pct": 100,
      "reason": "call_receiver"
     }
    },
    "secondary": {
     "semantic_convention": {
-     "caught": 2,
-     "total": 5,
-     "pct": 40,
+     "caught": 3,
+     "total": 7,
+     "pct": 43,
      "masked_caught": 0,
      "masked_total": 2,
      "masked_pct": 0,
-     "overall_pct": 29,
+     "overall_pct": 33,
      "reason": "call_receiver"
     },
     "naming_shape_break": {
@@ -1098,23 +1142,23 @@
     },
     "foreign_concurrency": {
      "caught": 4,
-     "total": 5,
-     "pct": 80,
+     "total": 4,
+     "pct": 100,
      "masked_caught": 1,
-     "masked_total": 4,
-     "masked_pct": 25,
-     "overall_pct": 56,
+     "masked_total": 2,
+     "masked_pct": 50,
+     "overall_pct": 83,
      "reason": "call_receiver"
     }
    },
    "secondary": {
     "semantic_convention": {
      "caught": 0,
-     "total": 6,
+     "total": 7,
      "pct": 0,
      "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
+     "masked_total": 2,
+     "masked_pct": 0,
      "overall_pct": 0,
      "reason": null
     },
@@ -1160,24 +1204,24 @@
     },
     "foreign_concurrency": {
      "caught": 4,
-     "total": 6,
-     "pct": 67,
+     "total": 4,
+     "pct": 100,
      "masked_caught": 1,
      "masked_total": 2,
      "masked_pct": 50,
-     "overall_pct": 62,
+     "overall_pct": 83,
      "reason": "call_receiver"
     }
    },
    "secondary": {
     "semantic_convention": {
      "caught": 1,
-     "total": 5,
-     "pct": 20,
+     "total": 7,
+     "pct": 14,
      "masked_caught": 0,
      "masked_total": 3,
      "masked_pct": 0,
-     "overall_pct": 12,
+     "overall_pct": 10,
      "reason": "call_receiver"
     },
     "naming_shape_break": {
@@ -1262,26 +1306,26 @@
      "reason": "call_receiver"
     },
     "foreign_concurrency": {
-     "caught": 6,
-     "total": 7,
-     "pct": 86,
+     "caught": 5,
+     "total": 5,
+     "pct": 100,
      "masked_caught": 0,
      "masked_total": 1,
      "masked_pct": 0,
-     "overall_pct": 75,
+     "overall_pct": 83,
      "reason": "call_receiver"
     }
    },
    "secondary": {
     "semantic_convention": {
-     "caught": 0,
-     "total": 6,
-     "pct": 0,
+     "caught": 1,
+     "total": 8,
+     "pct": 12,
      "masked_caught": 0,
      "masked_total": 2,
      "masked_pct": 0,
-     "overall_pct": 0,
-     "reason": null
+     "overall_pct": 10,
+     "reason": "call_receiver"
     },
     "naming_shape_break": {
      "caught": 0,
@@ -1325,24 +1369,24 @@
     },
     "foreign_concurrency": {
      "caught": 4,
-     "total": 6,
-     "pct": 67,
+     "total": 4,
+     "pct": 100,
      "masked_caught": 0,
      "masked_total": 2,
      "masked_pct": 0,
-     "overall_pct": 50,
+     "overall_pct": 67,
      "reason": "import"
     }
    },
    "secondary": {
     "semantic_convention": {
      "caught": 1,
-     "total": 5,
-     "pct": 20,
+     "total": 7,
+     "pct": 14,
      "masked_caught": 0,
      "masked_total": 2,
      "masked_pct": 0,
-     "overall_pct": 14,
+     "overall_pct": 11,
      "reason": "bpe"
     },
     "naming_shape_break": {
@@ -1427,26 +1471,26 @@
      "reason": "import"
     },
     "foreign_concurrency": {
-     "caught": 8,
-     "total": 9,
-     "pct": 89,
+     "caught": 6,
+     "total": 6,
+     "pct": 100,
      "masked_caught": 0,
-     "masked_total": 2,
+     "masked_total": 1,
      "masked_pct": 0,
-     "overall_pct": 73,
+     "overall_pct": 86,
      "reason": "import"
     }
    },
    "secondary": {
     "semantic_convention": {
-     "caught": 0,
-     "total": 1,
-     "pct": 0,
+     "caught": 2,
+     "total": 4,
+     "pct": 50,
      "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 0,
-     "reason": null
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 40,
+     "reason": "call_receiver"
     }
    },
    "overfire_existing_pct": 0.0,
@@ -1520,26 +1564,26 @@
      "reason": "import"
     },
     "foreign_concurrency": {
-     "caught": 8,
-     "total": 9,
-     "pct": 89,
-     "masked_caught": 2,
-     "masked_total": 2,
+     "caught": 6,
+     "total": 6,
+     "pct": 100,
+     "masked_caught": 1,
+     "masked_total": 1,
      "masked_pct": 100,
-     "overall_pct": 91,
+     "overall_pct": 100,
      "reason": "import"
     }
    },
    "secondary": {
     "semantic_convention": {
-     "caught": 0,
-     "total": 1,
-     "pct": 0,
-     "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 0,
-     "reason": null
+     "caught": 2,
+     "total": 4,
+     "pct": 50,
+     "masked_caught": 1,
+     "masked_total": 1,
+     "masked_pct": 100,
+     "overall_pct": 60,
+     "reason": "import"
     }
    },
    "overfire_existing_pct": 0.19,

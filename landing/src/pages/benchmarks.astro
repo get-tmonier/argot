@@ -532,9 +532,17 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
               they are a documented local limit, and not the danger an LLM poses (an agent
               drags in a whole foreign pattern; it doesn't subtly misuse your own vocabulary):
               <strong>naming-shape breaks</strong> (camelCase in a snake_case repo) and
-              <strong>in-vocabulary misuse</strong> (a bare <code>ValueError</code> where the
-              repo raises <code>HTTPException</code>; <code>die</code> vs <code>throw</code>) —
-              a wrong choice among constructs the repo already uses. See
+              <strong>in-vocabulary misuse</strong> — a wrong choice among constructs the repo
+              already uses: a bare <code>ValueError</code> where the repo raises
+              <code>HTTPException</code>, <code>die</code> vs <code>throw</code>, or a
+              <strong>raw-builtin concurrency antipattern</strong> (a bare
+              <code>pthread</code>/<code>Thread</code> where the repo has its own thread
+              wrapper, a blocking call inside async code, a busy-wait poll). This is the
+              distinction inside the concurrency signal: a <em>foreign concurrency library</em>
+              — an async runtime or thread pool the repo never depends on — is gated (and
+              caught 100% in the visible tier, above); misusing the concurrency
+              <em>builtins the repo already has</em> is this ungated class, caught only about
+              half the time — the same proven local limit as the other misuse breaks. See
               <a class="underline" href="/docs/what-it-catches/">what it catches</a>.
             </p>
           </section>

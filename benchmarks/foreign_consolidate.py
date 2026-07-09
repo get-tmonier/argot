@@ -43,8 +43,16 @@ def norm_class(cat):
             return k
     if "import" in c:
         return "foreign_import"
+    # A concurrency-flavoured category that is NOT literally `foreign_concurrency`
+    # (which the GATED loop above already routed) is a RAW-BUILTIN misuse antipattern
+    # — raw pthread/thread instead of the repo's own wrapper, a blocking call in async
+    # code, busy-wait sleep-polling, the threading stdlib. Per RUBRIC.md that is the
+    # SECONDARY `semantic_convention` class ("a builtin the repo avoids"), a proven
+    # local limit, reported but NEVER gated — the same treatment as the
+    # `wrong_api_within_known` builtin-misuse routed above. It is NOT a foreign
+    # library, so it does not belong in the gated foreign_concurrency catch rate.
     if "concurren" in c or "async" in c or "thread" in c or "schedul" in c or "sleep" in c:
-        return "foreign_concurrency"
+        return "semantic_convention"
     if "naming" in c or "shape" in c:
         return "naming_shape_break"
     if "error" in c or "discipline" in c or "convention" in c:
