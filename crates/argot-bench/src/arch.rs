@@ -34,9 +34,32 @@ use crate::targets::Target;
 
 const DEFAULT_WINDOW: usize = 150;
 
-/// v1 resolves Python imports only; other languages have no resolver yet.
-fn is_py(path: &str) -> bool {
-    path.rsplit('.').next() == Some("py")
+/// The corpus's primary language, mapped to a resolver. `None` = no resolver yet
+/// (skip the corpus) or a polyglot `multi` repo.
+fn corpus_lang(target: &Target) -> Option<Language> {
+    Some(match target.language.as_str() {
+        "python" => Language::Python,
+        "go" => Language::Go,
+        "typescript" => Language::Typescript,
+        "javascript" => Language::Javascript,
+        _ => return None,
+    })
+}
+
+/// Source-file extensions for a language, plus manifest files fit needs for
+/// context (go.mod for Go's module path).
+fn lang_files(language: Language) -> (&'static [&'static str], &'static [&'static str]) {
+    match language {
+        Language::Python => (&["py"], &[]),
+        Language::Go => (&["go"], &["go.mod"]),
+        Language::Typescript => (&["ts", "tsx"], &[]),
+        Language::Javascript => (&["js", "jsx", "mjs", "cjs"], &[]),
+        _ => (&[], &[]),
+    }
+}
+
+fn has_ext(path: &str, exts: &[&str]) -> bool {
+    path.rsplit('.').next().is_some_and(|e| exts.contains(&e))
 }
 
 fn show(repo: &Path, sha: &str, path: &str) -> String {
@@ -92,7 +115,7 @@ enum FixOutcome {
 }
 
 fn fixture_outcome(graph: &RepoLayering, fix: &ArchFix) -> FixOutcome {
-    let edges = graph.file_edges(&fix.host_file, &fix.import_line, Language::Python);
+    let edges = graph.file_edges(&fix.host_file, &fix.import_line);
     if edges.is_empty() {
         return FixOutcome::NoEdge;
     }
@@ -106,33 +129,42 @@ fn fixture_outcome(graph: &RepoLayering, fix: &ArchFix) -> FixOutcome {
     }
 }
 
-/// Fit a layering graph from a SHA's tree, using the SAME voice-file collection
-/// production uses (`train::collect_source_files` — honors EXCLUDE_DIRS,
-/// `.argotignore`, `[exclude].paths`). Restricted to Python (the v1 resolver);
-/// no hardcoded scaffolding paths.
-fn graph_at(repo: &Path, sha: &str) -> Result<RepoLayering> {
+/// Fit a `language` layering graph from a SHA's tree, using the SAME voice-file
+/// collection production uses (`train::collect_source_files` — honors
+/// EXCLUDE_DIRS, `.argotignore`, `[exclude].paths`) plus the manifest files the
+/// resolver needs (go.mod). No hardcoded scaffolding paths.
+fn graph_at(repo: &Path, sha: &str, language: Language) -> Result<RepoLayering> {
     ensure_sha_checked_out(repo, sha)?;
-    let files = collect_source_files(repo);
+    let (exts, manifests) = lang_files(language);
     let mut sources: Vec<(String, String)> = Vec::new();
-    for abs in &files {
-        let Ok(rel) = abs.strip_prefix(repo) else {
-            continue;
-        };
-        let rel = rel.to_string_lossy().replace('\\', "/");
-        if is_py(&rel) {
-            if let Ok(src) = std::fs::read_to_string(abs) {
-                sources.push((rel, src));
+    for abs in &collect_source_files(repo) {
+        if let Ok(rel) = abs.strip_prefix(repo) {
+            let rel = rel.to_string_lossy().replace('\\', "/");
+            if has_ext(&rel, exts) {
+                if let Ok(src) = std::fs::read_to_string(abs) {
+                    sources.push((rel, src));
+                }
             }
         }
     }
+    // Manifest files (go.mod) live outside the source-extension set — read them
+    // from disk directly so the resolver can derive the module path.
+    for m in manifests {
+        if let Ok(src) = std::fs::read_to_string(repo.join(m)) {
+            sources.push((m.to_string(), src));
+        }
+    }
     Ok(RepoLayering::fit(
-        sources
-            .iter()
-            .map(|(p, s)| (p.as_str(), s.as_str(), Language::Python)),
+        sources.iter().map(|(p, s)| (p.as_str(), s.as_str())),
+        language,
     ))
 }
 
 fn run_corpus(target: &Target, data_dir: &Path, catalogs_dir: &Path) -> Result<Option<ArchResult>> {
+    let Some(language) = corpus_lang(target) else {
+        return Ok(None); // no resolver for this language yet
+    };
+    let (exts, _) = lang_files(language);
     let repo = ensure_clone(data_dir, &target.name, &target.url)?;
     let head = target.prs[0].sha.clone();
     ensure_full_history(&repo)?;
@@ -142,11 +174,11 @@ fn run_corpus(target: &Target, data_dir: &Path, catalogs_dir: &Path) -> Result<O
     let suppressions = ArgotConfig::load(&repo).path_suppressions();
     // Catch is measured on the HEAD graph — production fits on the CURRENT repo,
     // not the holdout fit-SHA (an old, thin tree that understates coverage).
-    let head_graph = graph_at(&repo, &head)?;
+    let head_graph = graph_at(&repo, &head, language)?;
     let window = target.holdout_window.unwrap_or(DEFAULT_WINDOW);
     let (fit_sha, replay) = plan_holdout(&repo, &head, window)?;
     // FP is measured on the holdout graph (fit @ HEAD~window) — a real temporal split.
-    let graph = graph_at(&repo, &fit_sha)?;
+    let graph = graph_at(&repo, &fit_sha, language)?;
     if graph.edge_count() == 0 {
         eprintln!("[{}] arch: no internal edges — skipped", target.name);
         return Ok(None);
@@ -170,7 +202,7 @@ fn run_corpus(target: &Target, data_dir: &Path, catalogs_dir: &Path) -> Result<O
         .unwrap_or_default();
         let mut fired = false;
         for path in changed.lines() {
-            if !is_py(path) || !is_corpus_source(path, &suppressions) {
+            if !has_ext(path, exts) || !is_corpus_source(path, &suppressions) {
                 continue;
             }
             let cur = show(&repo, sha, path);
@@ -178,8 +210,8 @@ fn run_corpus(target: &Target, data_dir: &Path, catalogs_dir: &Path) -> Result<O
                 continue;
             }
             let parent = show(&repo, &format!("{sha}~1"), path);
-            let cur_e = graph.file_edges(path, &cur, Language::Python);
-            let par_e = graph.file_edges(path, &parent, Language::Python);
+            let cur_e = graph.file_edges(path, &cur);
+            let par_e = graph.file_edges(path, &parent);
             for e in cur_e.difference(&par_e) {
                 if graph.classify(e).is_some() {
                     fired = true;

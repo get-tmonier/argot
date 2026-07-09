@@ -1211,7 +1211,6 @@ fn arch_hits(
     mute_rules: &[SuppressionRule],
     stderr: &mut String,
 ) -> Vec<Hit> {
-    use crate::scoring::adapters::Language;
     use crate::scoring::arch_graph::{RepoLayering, LAYERING_FILE};
     let Ok(raw) = std::fs::read_to_string(argot_dir.join(LAYERING_FILE)) else {
         return Vec::new();
@@ -1246,7 +1245,7 @@ fn arch_hits(
         }
         // Fire if the added imports create a novel reversal/sink-out edge.
         let fired = graph
-            .file_edges(&batch.file_path, &added, Language::Python)
+            .file_edges(&batch.file_path, &added)
             .iter()
             .any(|e| graph.classify(e).is_some());
         if !fired {

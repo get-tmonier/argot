@@ -59,10 +59,51 @@ pub const LAYERING_FILE: &str = "layering.json";
 #[derive(serde::Serialize, serde::Deserialize)]
 struct LayeringArtifact {
     repo_sha: String,
-    py_packages: Vec<String>,
-    py_roots: Vec<String>,
+    /// Language whose resolver built this graph (drives check-time dispatch).
+    #[serde(default)]
+    language: String,
+    /// Top-level internal package/module names (for internal-import detection).
+    internal: Vec<String>,
+    /// Dirs a file's layer is computed relative to (package/source roots).
+    roots: Vec<String>,
+    /// Module/namespace prefix for languages that anchor internal imports on one
+    /// (Go module path, PHP/C# root namespace); `None` for path-relative langs.
+    #[serde(default)]
+    module_path: Option<String>,
     edges: Vec<(String, String, u32)>,
     sinks: Vec<String>,
+}
+
+fn lang_tag(l: Language) -> &'static str {
+    match l {
+        Language::Python => "python",
+        Language::Typescript => "typescript",
+        Language::Javascript => "javascript",
+        Language::Go => "go",
+        Language::Rust => "rust",
+        Language::C => "c",
+        Language::Java => "java",
+        Language::CSharp => "csharp",
+        Language::Php => "php",
+        Language::Cpp => "cpp",
+        Language::Ruby => "ruby",
+    }
+}
+
+fn tag_lang(s: &str) -> Language {
+    match s {
+        "typescript" => Language::Typescript,
+        "javascript" => Language::Javascript,
+        "go" => Language::Go,
+        "rust" => Language::Rust,
+        "c" => Language::C,
+        "java" => Language::Java,
+        "csharp" => Language::CSharp,
+        "php" => Language::Php,
+        "cpp" => Language::Cpp,
+        "ruby" => Language::Ruby,
+        _ => Language::Python,
+    }
 }
 
 /// A layer counts as a (near-)sink when its outgoing import mass is at most this
@@ -83,54 +124,65 @@ pub enum Violation {
 }
 
 /// The repo's module-dependency topology, fitted from its files at a pinned SHA.
-#[derive(Debug, Clone, Default)]
+/// Language-agnostic: the per-language resolver supplies the context (roots,
+/// internal names, module prefix) and the edge extraction; the graph + fire rule
+/// are shared.
+#[derive(Debug, Clone)]
 pub struct RepoLayering {
-    /// Basenames of top-level package-root dirs (for internal-import detection).
-    py_packages: HashSet<String>,
-    /// Absolute-ish package-root dir paths (for `layer_of` resolution).
-    py_roots: Vec<String>,
+    /// The language whose resolver built this graph.
+    language: Language,
+    /// Top-level internal package/module names (for internal-import detection):
+    /// Python package basenames, Go module-path last component, Java base-package
+    /// head, TS/JS: unused (relative imports).
+    internal: HashSet<String>,
+    /// Dirs a file's layer is computed relative to (package/source roots).
+    roots: Vec<String>,
+    /// Module/namespace prefix (Go module path, PHP/C# root namespace); `None`
+    /// for path-relative languages (TS/JS, C/C++).
+    module_path: Option<String>,
     /// Weighted directed cross-layer edges.
     edges: HashMap<Edge, u32>,
-    /// Layers that are pure sinks: cross-layer in-degree > 0, out-degree == 0.
+    /// Layers that are (near-)sinks: net-importees now importing outward.
     sinks: HashSet<String>,
 }
 
-impl RepoLayering {
-    /// Fit the layering graph from the repo's files (`rel_path`, `source`, lang).
-    /// `rel_path` is repo-root-relative with `/` separators.
-    pub fn fit<'a, I>(files: I) -> Self
-    where
-        I: IntoIterator<Item = (&'a str, &'a str, Language)>,
-    {
-        let files: Vec<(&str, &str, Language)> = files.into_iter().collect();
-        // Python package roots: a dir with an __init__.py whose parent has none.
-        let init_dirs: HashSet<String> = files
-            .iter()
-            .filter(|(p, _, _)| p.ends_with("__init__.py"))
-            .map(|(p, _, _)| parent_dir(p).to_string())
-            .collect();
-        let mut py_roots: Vec<String> = Vec::new();
-        for d in &init_dirs {
-            if !init_dirs.contains(parent_dir(d)) {
-                py_roots.push(d.clone());
-            }
+impl Default for RepoLayering {
+    fn default() -> Self {
+        RepoLayering {
+            language: Language::Python,
+            internal: HashSet::new(),
+            roots: Vec::new(),
+            module_path: None,
+            edges: HashMap::new(),
+            sinks: HashSet::new(),
         }
-        py_roots.sort_by_key(|d| std::cmp::Reverse(d.len())); // longest match first
-        let py_packages: HashSet<String> =
-            py_roots.iter().map(|d| basename(d).to_string()).collect();
+    }
+}
 
+impl RepoLayering {
+    /// Fit the layering graph from the repo's `language` files (`rel_path`,
+    /// `source`). `rel_path` is repo-root-relative with `/` separators. The
+    /// per-language resolver derives the context (roots / internal names / module
+    /// prefix); the graph + fire rule are language-agnostic. No path exclusion
+    /// here — the caller passes the repo's voice files (in production,
+    /// `train::collect_source_files`, honoring the mute system).
+    pub fn fit<'a, I>(files: I, language: Language) -> Self
+    where
+        I: IntoIterator<Item = (&'a str, &'a str)>,
+    {
+        let files: Vec<(&str, &str)> = files.into_iter().collect();
+        let paths: Vec<&str> = files.iter().map(|(p, _)| *p).collect();
+        let (roots, internal, module_path) = detect_context(language, &paths, &files);
         let mut me = RepoLayering {
-            py_packages,
-            py_roots,
+            language,
+            internal,
+            roots,
+            module_path,
             edges: HashMap::new(),
             sinks: HashSet::new(),
         };
-        // No path exclusion here: the caller passes the repo's voice files (in
-        // production, `train::collect_source_files`, which honors EXCLUDE_DIRS +
-        // `.argotignore` + `[exclude].paths`). The scorer must not hardcode
-        // corpus/scaffolding paths — exclusions live in the mute system.
-        for (path, source, lang) in &files {
-            for e in me.file_edges(path, source, *lang) {
+        for (path, source) in &files {
+            for e in me.file_edges(path, source) {
                 *me.edges.entry(e).or_insert(0) += 1;
             }
         }
@@ -160,15 +212,21 @@ impl RepoLayering {
             .collect();
     }
 
-    /// The layer of a file: the path component under its enclosing package root.
-    fn py_layer_of(&self, path: &str) -> Option<String> {
-        // enclosing root = longest py_root that is an ancestor dir of `path`
+    /// The layer of a file: the first path component under its enclosing root.
+    /// An empty root (`""`) = repo root and matches any path (Go-style, layer =
+    /// first path component). Language-agnostic.
+    pub fn layer_of(&self, path: &str) -> Option<String> {
         let dir = parent_dir(path);
         let root = self
-            .py_roots
+            .roots
             .iter()
-            .find(|r| dir == r.as_str() || dir.starts_with(&format!("{r}/")))?;
-        let rel = &path[root.len()..].trim_start_matches('/');
+            .filter(|r| r.is_empty() || dir == r.as_str() || dir.starts_with(&format!("{r}/")))
+            .max_by_key(|r| r.len())?;
+        let rel = if root.is_empty() {
+            path
+        } else {
+            path[root.len()..].trim_start_matches('/')
+        };
         let parts: Vec<&str> = rel.split('/').collect();
         Some(if parts.len() > 1 {
             parts[0].to_string()
@@ -177,36 +235,50 @@ impl RepoLayering {
         })
     }
 
-    /// Cross-layer edges a single file introduces (language-dispatched).
-    pub fn file_edges(&self, path: &str, source: &str, lang: Language) -> HashSet<Edge> {
-        match lang {
-            Language::Python => self.py_file_edges(path, source),
-            _ => HashSet::new(), // graceful no-op until a resolver is added
-        }
-    }
-
-    fn py_file_edges(&self, path: &str, source: &str) -> HashSet<Edge> {
-        let mut out = HashSet::new();
-        let Some(src_layer) = self.py_layer_of(path) else {
-            return out;
-        };
+    /// The `roots`-relative path components of a file (for relative-import climbs).
+    fn rel_parts(&self, path: &str) -> Vec<String> {
         let dir = parent_dir(path);
         let root = self
-            .py_roots
+            .roots
             .iter()
-            .find(|r| dir == r.as_str() || dir.starts_with(&format!("{r}/")));
-        let pkg_rel_parts: Vec<String> = match root {
-            Some(r) => path[r.len()..]
-                .trim_start_matches('/')
-                .split('/')
-                .map(|s| s.to_string())
-                .collect(),
-            None => return out,
+            .filter(|r| r.is_empty() || dir == r.as_str() || dir.starts_with(&format!("{r}/")))
+            .max_by_key(|r| r.len());
+        let rel = match root {
+            Some(r) if !r.is_empty() => path[r.len()..].trim_start_matches('/'),
+            _ => path,
         };
+        rel.split('/').map(|s| s.to_string()).collect()
+    }
+
+    /// Cross-layer edges a single file introduces, dispatched to the graph's
+    /// per-language resolver. Each resolver yields the TARGET layers of the
+    /// file's internal imports; the shared code forms `(src_layer → tgt)` edges.
+    pub fn file_edges(&self, path: &str, source: &str) -> HashSet<Edge> {
+        let Some(src) = self.layer_of(path) else {
+            return HashSet::new();
+        };
+        let targets = match self.language {
+            Language::Python => self.py_targets(path, source),
+            Language::Go => self.go_targets(source),
+            Language::Typescript | Language::Javascript => self.ts_targets(path, source),
+            // Other resolvers plug in here (Java/Rust/PHP/C#/Ruby/C/C++).
+            _ => Vec::new(),
+        };
+        targets
+            .into_iter()
+            .filter(|t| *t != src)
+            .map(|t| (src.clone(), t))
+            .collect()
+    }
+
+    /// Target layers of a Python file's internal imports.
+    fn py_targets(&self, path: &str, source: &str) -> Vec<String> {
+        let parts = self.rel_parts(path);
+        let mut out = Vec::new();
         for (module, level) in py_imports(source) {
             let tgt = if level == 0 {
                 let p: Vec<&str> = module.split('.').filter(|s| !s.is_empty()).collect();
-                if p.is_empty() || !self.py_packages.contains(p[0]) {
+                if p.is_empty() || !self.internal.contains(p[0]) {
                     continue; // external dep — the base gate's job
                 }
                 if p.len() > 1 {
@@ -215,8 +287,7 @@ impl RepoLayering {
                     "__root__".to_string()
                 }
             } else {
-                // relative: climb (level-1) from the file's package dir
-                let mut base: Vec<&str> = pkg_rel_parts[..pkg_rel_parts.len().saturating_sub(1)]
+                let mut base: Vec<&str> = parts[..parts.len().saturating_sub(1)]
                     .iter()
                     .map(|s| s.as_str())
                     .collect();
@@ -226,15 +297,47 @@ impl RepoLayering {
                 } else {
                     base.clear();
                 }
-                let tail: Vec<&str> = module.split('.').filter(|s| !s.is_empty()).collect();
-                base.extend(tail);
-                match base.first() {
-                    Some(f) => f.to_string(),
-                    None => "__root__".to_string(),
-                }
+                base.extend(module.split('.').filter(|s| !s.is_empty()));
+                base.first()
+                    .map(|f| f.to_string())
+                    .unwrap_or_else(|| "__root__".to_string())
             };
-            if tgt != src_layer {
-                out.insert((src_layer.clone(), tgt));
+            out.push(tgt);
+        }
+        out
+    }
+
+    /// Target layers of a Go file's internal imports (paths under the module).
+    fn go_targets(&self, source: &str) -> Vec<String> {
+        let Some(module) = &self.module_path else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        for spec in go_imports(source) {
+            if let Some(rest) = spec.strip_prefix(module) {
+                let rest = rest.trim_start_matches('/');
+                let tgt = rest.split('/').next().unwrap_or("");
+                out.push(if tgt.is_empty() {
+                    "__root__".to_string()
+                } else {
+                    tgt.to_string()
+                });
+            }
+        }
+        out
+    }
+
+    /// Target layers of a TS/JS file's internal (relative) imports.
+    fn ts_targets(&self, path: &str, source: &str) -> Vec<String> {
+        let mut out = Vec::new();
+        for spec in ts_imports(source) {
+            if !spec.starts_with('.') {
+                continue; // bare specifier = external / alias
+            }
+            // resolve the relative spec against the file's directory
+            let resolved = normalize_join(parent_dir(path), &spec);
+            if let Some(l) = self.layer_of(&resolved) {
+                out.push(l);
             }
         }
         out
@@ -258,8 +361,8 @@ impl RepoLayering {
 
     /// The clean-tell fire decision for a hunk: does it introduce a
     /// reversal/sink-out edge? Non-gating — the caller reports it.
-    pub fn fires(&self, path: &str, hunk: &str, lang: Language) -> Option<Violation> {
-        self.file_edges(path, hunk, lang)
+    pub fn fires(&self, path: &str, hunk: &str) -> Option<Violation> {
+        self.file_edges(path, hunk)
             .iter()
             .filter_map(|e| self.classify(e))
             .next()
@@ -283,8 +386,10 @@ impl RepoLayering {
     pub fn to_json(&self, repo_sha: &str) -> String {
         let art = LayeringArtifact {
             repo_sha: repo_sha.to_string(),
-            py_packages: self.py_packages.iter().cloned().collect(),
-            py_roots: self.py_roots.clone(),
+            language: lang_tag(self.language).to_string(),
+            internal: self.internal.iter().cloned().collect(),
+            roots: self.roots.clone(),
+            module_path: self.module_path.clone(),
             edges: self
                 .edges
                 .iter()
@@ -299,8 +404,10 @@ impl RepoLayering {
     pub fn from_json(s: &str) -> Option<Self> {
         let art: LayeringArtifact = serde_json::from_str(s).ok()?;
         Some(RepoLayering {
-            py_packages: art.py_packages.into_iter().collect(),
-            py_roots: art.py_roots,
+            language: tag_lang(&art.language),
+            internal: art.internal.into_iter().collect(),
+            roots: art.roots,
+            module_path: art.module_path,
             edges: art.edges.into_iter().map(|(a, b, w)| ((a, b), w)).collect(),
             sinks: art.sinks.into_iter().collect(),
         })
@@ -332,6 +439,173 @@ fn parent_dir(path: &str) -> &str {
         Some(i) => &path[..i],
         None => "",
     }
+}
+
+/// Resolve `spec` (a `.`/`..` relative path) against directory `dir`, normalizing.
+fn normalize_join(dir: &str, spec: &str) -> String {
+    let mut stack: Vec<&str> = if dir.is_empty() {
+        Vec::new()
+    } else {
+        dir.split('/').collect()
+    };
+    for part in spec.split('/') {
+        match part {
+            "" | "." => {}
+            ".." => {
+                stack.pop();
+            }
+            p => stack.push(p),
+        }
+    }
+    stack.join("/")
+}
+
+/// Per-language fit context: `(roots, internal-names, module-prefix)`. `roots` are
+/// the dirs a file's layer is computed relative to (`""` = repo root); `internal`
+/// are the top-level names that mark an import as repo-internal; `module_path` is
+/// the Go-module / root-namespace prefix. Extend the match to add a language.
+fn detect_context(
+    language: Language,
+    paths: &[&str],
+    files: &[(&str, &str)],
+) -> (Vec<String>, HashSet<String>, Option<String>) {
+    match language {
+        Language::Python => {
+            let init_dirs: HashSet<String> = paths
+                .iter()
+                .filter(|p| p.ends_with("__init__.py"))
+                .map(|p| parent_dir(p).to_string())
+                .collect();
+            let mut roots: Vec<String> = init_dirs
+                .iter()
+                .filter(|d| !init_dirs.contains(parent_dir(d)))
+                .cloned()
+                .collect();
+            roots.sort_by_key(|d| std::cmp::Reverse(d.len()));
+            let internal: HashSet<String> = roots.iter().map(|d| basename(d).to_string()).collect();
+            (roots, internal, None)
+        }
+        Language::Go => {
+            let module = files
+                .iter()
+                .find(|(p, _)| p.ends_with("go.mod"))
+                .and_then(|(_, s)| go_module(s));
+            (vec![String::new()], HashSet::new(), module)
+        }
+        Language::Typescript | Language::Javascript => {
+            (ts_source_roots(paths), HashSet::new(), None)
+        }
+        _ => (vec![String::new()], HashSet::new(), None),
+    }
+}
+
+/// Distinct TS/JS source roots (a file's layer is the first dir under one): the
+/// deepest `src` component of each path, else `packages/<x>`, else the repo root.
+fn ts_source_roots(paths: &[&str]) -> Vec<String> {
+    let mut roots: HashSet<String> = HashSet::new();
+    for p in paths {
+        let comps: Vec<&str> = p.split('/').collect();
+        if let Some(i) = comps.iter().rposition(|c| *c == "src") {
+            roots.insert(comps[..=i].join("/"));
+        } else if comps.first() == Some(&"packages") && comps.len() > 2 {
+            roots.insert(comps[..2].join("/"));
+        } else {
+            roots.insert(String::new());
+        }
+    }
+    let mut v: Vec<String> = roots.into_iter().collect();
+    v.sort_by_key(|d| std::cmp::Reverse(d.len()));
+    v
+}
+
+/// The `module X` line of a `go.mod`.
+fn go_module(gomod: &str) -> Option<String> {
+    gomod
+        .lines()
+        .find_map(|l| l.strip_prefix("module ").map(|m| m.trim().to_string()))
+}
+
+/// Import path strings in a Go source file (via tree-sitter `import_spec`).
+fn go_imports(source: &str) -> Vec<String> {
+    let Some(tree) = ts_parse::parse(source, Language::Go) else {
+        return Vec::new();
+    };
+    let bytes = source.as_bytes();
+    let mut out = Vec::new();
+    let mut stack = vec![tree.root_node()];
+    while let Some(node) = stack.pop() {
+        if node.kind() == "import_spec" || node.kind() == "import_declaration" {
+            let mut c = node.walk();
+            collect_go_strings(node, bytes, &mut out, &mut c);
+        }
+        let mut c = node.walk();
+        for ch in node.named_children(&mut c) {
+            stack.push(ch);
+        }
+    }
+    out
+}
+
+fn collect_go_strings(
+    node: tree_sitter::Node,
+    bytes: &[u8],
+    out: &mut Vec<String>,
+    _c: &mut tree_sitter::TreeCursor,
+) {
+    let mut cur = node.walk();
+    for ch in node.named_children(&mut cur) {
+        if ch.kind() == "interpreted_string_literal" || ch.kind() == "raw_string_literal" {
+            let t = node_text(ch, bytes);
+            out.push(t.trim_matches(|c| c == '"' || c == '`').to_string());
+        } else {
+            collect_go_strings(ch, bytes, out, _c);
+        }
+    }
+}
+
+/// Import specifier strings in a TS/JS file (`import … from "x"`, `require("x")`,
+/// `export … from "x"`) via tree-sitter string literals under import/export/call.
+fn ts_imports(source: &str) -> Vec<String> {
+    let lang = Language::Typescript;
+    let Some(tree) = ts_parse::parse(source, lang) else {
+        return Vec::new();
+    };
+    let bytes = source.as_bytes();
+    let mut out = Vec::new();
+    let mut stack = vec![tree.root_node()];
+    while let Some(node) = stack.pop() {
+        let k = node.kind();
+        if k == "import_statement" || k == "export_statement" {
+            if let Some(src) = node.child_by_field_name("source") {
+                out.push(strip_quotes(&node_text(src, bytes)));
+            }
+        } else if k == "call_expression" {
+            // require("x") / import("x")
+            let fname = node
+                .child_by_field_name("function")
+                .map(|f| node_text(f, bytes));
+            if matches!(fname.as_deref(), Some("require") | Some("import")) {
+                if let Some(args) = node.child_by_field_name("arguments") {
+                    let mut c = args.walk();
+                    for a in args.named_children(&mut c) {
+                        if a.kind() == "string" {
+                            out.push(strip_quotes(&node_text(a, bytes)));
+                        }
+                    }
+                }
+            }
+        }
+        let mut c = node.walk();
+        for ch in node.named_children(&mut c) {
+            stack.push(ch);
+        }
+    }
+    out
+}
+
+fn strip_quotes(s: &str) -> String {
+    s.trim_matches(|c| c == '"' || c == '\'' || c == '`')
+        .to_string()
 }
 
 fn basename(path: &str) -> &str {
@@ -413,23 +687,23 @@ mod tests {
     use super::*;
 
     // A tiny layered repo: views -> models (attested), models is imported-only.
-    fn fixture() -> Vec<(&'static str, &'static str, Language)> {
+    fn fixture() -> Vec<(&'static str, &'static str)> {
         vec![
-            ("app/__init__.py", "", Language::Python),
-            ("app/models/__init__.py", "", Language::Python),
-            ("app/models/user.py", "class User: pass\n", Language::Python),
-            ("app/views/__init__.py", "", Language::Python),
-            (
-                "app/views/page.py",
-                "from app.models import user\n",
-                Language::Python,
-            ),
+            ("app/__init__.py", ""),
+            ("app/models/__init__.py", ""),
+            ("app/models/user.py", "class User: pass\n"),
+            ("app/views/__init__.py", ""),
+            ("app/views/page.py", "from app.models import user\n"),
         ]
+    }
+
+    fn fit_py() -> RepoLayering {
+        RepoLayering::fit(fixture(), Language::Python)
     }
 
     #[test]
     fn fit_builds_directional_graph() {
-        let g = RepoLayering::fit(fixture());
+        let g = fit_py();
         // views -> models attested; models is a sink (imported, never imports out).
         assert!(g.contains_edge(&("views".into(), "models".into())));
         assert!(g.is_sink("models"));
@@ -438,14 +712,10 @@ mod tests {
 
     #[test]
     fn reversal_fires_sink_out_fires_forward_does_not() {
-        let g = RepoLayering::fit(fixture());
+        let g = fit_py();
         // REVERSAL: a model importing a view (reverses views->models).
         assert_eq!(
-            g.fires(
-                "app/models/user.py",
-                "from app.views import page\n",
-                Language::Python
-            ),
+            g.fires("app/models/user.py", "from app.views import page\n"),
             Some(Violation::Reversal)
         );
         // SINK-OUT: the sink layer `models` importing some other layer.
@@ -457,54 +727,88 @@ mod tests {
         assert_eq!(g.classify(&("views".into(), "controllers".into())), None);
         // Already-attested edge does not fire.
         assert_eq!(
-            g.fires(
-                "app/views/page.py",
-                "from app.models import user\n",
-                Language::Python
-            ),
+            g.fires("app/views/page.py", "from app.models import user\n"),
             None
         );
     }
 
     #[test]
     fn external_imports_are_ignored() {
-        let g = RepoLayering::fit(fixture());
+        let g = fit_py();
         // numpy is not a repo package — no internal edge, nothing fires.
-        assert_eq!(
-            g.fires(
-                "app/models/user.py",
-                "import numpy as np\n",
-                Language::Python
-            ),
-            None
-        );
+        assert_eq!(g.fires("app/models/user.py", "import numpy as np\n"), None);
     }
 
     #[test]
     fn relative_imports_resolve() {
-        let g = RepoLayering::fit(fixture());
+        let g = fit_py();
         // `from ..views import page` inside models/ -> edge models->views (reversal).
         assert_eq!(
+            g.fires("app/models/user.py", "from ..views import page\n"),
+            Some(Violation::Reversal)
+        );
+    }
+
+    #[test]
+    fn unimplemented_language_is_graceful_noop() {
+        // Rust has no resolver yet → an empty graph, no edges — a graceful no-op.
+        let g = RepoLayering::fit(
+            vec![("src/main.rs", "use crate::foo::bar;")],
+            Language::Rust,
+        );
+        assert_eq!(g.edge_count(), 0);
+        assert!(g.file_edges("src/lib.rs", "use crate::x::y;").is_empty());
+    }
+
+    #[test]
+    fn go_resolver_builds_directional_graph() {
+        // module gohugoio/hugo; tpl imports common (attested); common is a sink.
+        let files = vec![
+            ("go.mod", "module github.com/x/hugo\n\ngo 1.21\n"),
+            (
+                "tpl/tpl.go",
+                "package tpl\nimport \"github.com/x/hugo/common/loggers\"\n",
+            ),
+            ("common/loggers/log.go", "package loggers\n"),
+        ];
+        let g = RepoLayering::fit(files, Language::Go);
+        assert!(g.contains_edge(&("tpl".into(), "common".into())));
+        assert!(g.is_sink("common"));
+        // a common file importing tpl reverses the attested direction.
+        assert_eq!(
             g.fires(
-                "app/models/user.py",
-                "from ..views import page\n",
-                Language::Python
+                "common/loggers/log.go",
+                "import \"github.com/x/hugo/tpl\"\n"
             ),
             Some(Violation::Reversal)
         );
     }
 
     #[test]
-    fn non_python_is_graceful_noop() {
-        let g = RepoLayering::fit(fixture());
-        assert!(g
-            .file_edges("x.rs", "use crate::foo::bar;", Language::Rust)
-            .is_empty());
+    fn ts_resolver_resolves_relative_imports() {
+        // src/middleware imports src/helper (attested); helper is a sink.
+        let files = vec![
+            (
+                "src/middleware/auth.ts",
+                "import { cookie } from '../helper/cookie';\n",
+            ),
+            ("src/helper/cookie.ts", "export const cookie = 1;\n"),
+        ];
+        let g = RepoLayering::fit(files, Language::Typescript);
+        assert!(g.contains_edge(&("middleware".into(), "helper".into())));
+        // helper importing middleware reverses it.
+        assert_eq!(
+            g.fires(
+                "src/helper/cookie.ts",
+                "import { x } from '../middleware/auth';\n"
+            ),
+            Some(Violation::Reversal)
+        );
     }
 
     #[test]
     fn json_round_trip_preserves_edges_and_sinks() {
-        let g = RepoLayering::fit(fixture());
+        let g = fit_py();
         let restored = RepoLayering::from_json(&g.to_json("deadbeef")).expect("valid json");
         assert!(restored.contains_edge(&("views".into(), "models".into())));
         assert!(restored.is_sink("models"));

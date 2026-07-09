@@ -1451,9 +1451,8 @@ pub fn run_calibrate(
             }
         }
         let graph = RepoLayering::fit(
-            sources
-                .iter()
-                .map(|(p, s)| (p.as_str(), s.as_str(), Language::Python)),
+            sources.iter().map(|(p, s)| (p.as_str(), s.as_str())),
+            Language::Python,
         );
         if graph.edge_count() > 0 {
             let path = output.with_file_name(LAYERING_FILE);
