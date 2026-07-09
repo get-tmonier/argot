@@ -50,6 +50,9 @@ fn corpus_lang(target: &Target) -> Option<Language> {
         "ruby" => Language::Ruby,
         "c" => Language::C,
         "cpp" => Language::Cpp,
+        // Polyglot corpora (e.g. dagster) are Python-primary for the arch layer —
+        // the Python subtree carries the architecture worth measuring.
+        "multi" => Language::Python,
         _ => return None,
     })
 }
