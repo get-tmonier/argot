@@ -73,6 +73,15 @@ jobs:
       - name: Clippy self-update feature (release-only code)
         if: matrix.os == 'ubuntu-latest'
         run: cargo clippy -p argot --all-targets --features self-update -- -D warnings
+      # The architecture-graph layer (`arch`) is feature-gated + off by default,
+      # but pure-Rust (no llama.cpp), so it's cheap enough to lint + unit-test on
+      # the PR path — keeps the resolver/classify logic and its 24 tests from
+      # rotting unchecked. Corpus-backed recall lives in `just bench-arch`.
+      - name: Clippy + test arch feature (pure-Rust, feature-gated)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cargo clippy -p argot-core -p argot-bench --all-targets --features arch -- -D warnings
+          cargo test -p argot-core --features arch arch_graph::
       # The semantic layer links llama.cpp (compiling it from source via cmake is
       # a multi-minute C++ build), so it is kept OFF the PR path to keep PR CI
       # fast — it runs only on push-to-main and manual dispatch (Linux leg),
