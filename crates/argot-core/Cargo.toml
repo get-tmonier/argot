@@ -59,6 +59,16 @@ llama-cpp-2 = { workspace = true, optional = true, features = ["metal"] }
 # users — it governs how the binary is built, not whether the feature is on.
 semantic = ["dep:llama-cpp-2", "dep:ureq", "dep:half", "dep:base64"]
 
+# The structural-foreignness sense: node-kind bigrams as a repo's structural
+# vocabulary (the shape analog of the foreign-vocabulary gate). Pure-Rust, NO new
+# deps — the gate is purely a build-time boundary so the base guardrail stays
+# byte-for-byte unchanged and the layer stays advisory / measurement-only (it is
+# never wired into the gating exit code). Enabled by the bench to validate the
+# irreducible floor (docs/research/evidence/foreign-structure-gate-floor.md); NOT
+# enabled in the released binary (unlike `semantic`), because the floor proves it
+# is not gatable.
+structural = []
+
 [dev-dependencies]
 serde.workspace = true
 serde_json.workspace = true

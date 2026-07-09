@@ -1,10 +1,11 @@
 # Foreign-structure gate: the irreducible floor (lever sweep, refutation)
 
 **Date:** 2026-07-09 · **Branch:** `feat/semantic-layer` · status: **CLOSED — evidence-backed
-floor. Not gatable; not ported.** Follows
-[`foreign-structure-ast-pattern-signal.md`](foreign-structure-ast-pattern-signal.md)
-(the first-signal memo). Harnesses: `benchmarks/struct_*_probe.py`, `struct_gate_*.py`
-(Python `ast`, 7 corpora: scrapy · rich · faker · fastapi · wagtail · saleor · dagster).
+floor, validated on real infra. Ported feature-gated + NON-GATING (never shipped as a gate).**
+Follows [`foreign-structure-ast-pattern-signal.md`](foreign-structure-ast-pattern-signal.md)
+(the first-signal memo). Harnesses: Python proxy `benchmarks/struct_gate_{union,kcross}.py`
+(7 corpora) + real-infra `argot-bench --mode structural` (`just bench-structural`, 30 corpora /
+11 languages, real temporal holdout).
 
 ## Question
 
@@ -136,19 +137,76 @@ style; this is 0-usage-*pattern* detection, a different mechanism — but it lan
 place: **a real but non-gatable signal at argot's FP discipline.** The first memo's advisory-
 grade read was right; this memo proves the ceiling is a structural property, not a tuning gap.
 
+## Real-infrastructure validation (the winner ported into argot-core, full bench)
+
+The sweep above is a Python-`ast` proxy on random 70/30 splits. To validate the floor on real
+infrastructure, the winning formulation was ported into argot-core as a feature-gated
+(`--features structural`), **non-gating, pure-Rust** sense
+(`crates/argot-core/src/scoring/structural.rs`) — node-kind bigram vocabulary + the
+`bg_df`-prior fire rule, domain-blind, language-agnostic across all 11 argot grammars. A
+self-contained bench mode (`argot-bench --mode structural`,
+`crates/argot-bench/src/structural.rs`; `just bench-structural`) then measured, over **all 30
+corpora / 11 languages**, using **real tree-sitter extraction** and a **real temporal holdout**:
+fit the structural vocabulary at `HEAD~window`, and reuse each corpus's post-fit clean-commit
+added hunks as the unit — `over-fire(C)` = fire-rate of C's own clean hunks vs C's fit-SHA vocab;
+`catch(A←B)` = fire-rate of B's clean hunks vs A's vocab (same language). Prior = per-language
+leave-one-out repo document-frequency. Operating point τ=0.5, k∈{1,2,3}.
+
+**Result — the floor holds, harder, on real infra.** No `k` yields over-fire ≤5% on every corpus:
+
+| | k=1 | k=2 | k=3 |
+|---|---:|---:|---:|
+| mean over-fire | 19.6% | 7.0% | — |
+| **worst-corpus over-fire** | **96.6%** (composer) | **68.9%** (jellyfin) | **22.8%** (jellyfin) |
+| mean catch | 24.4% | 8.9% | — |
+
+- **Catch and over-fire are inseparable** — they rise and fall together across every language:
+  composer 98% catch / 97% over-fire; express 78% / 46%; and at the quiet end hugo 0.9% / 0.0%,
+  laravel 0% / 0%, saleor 2.3% / 0.9%. There is no corpus with useful catch at low over-fire.
+- **Wild corpus-dependence confirms the "voice needs a corpus" law on real data.** Mature/stable
+  repos are quiet-but-low-catch (hugo, laravel, eslint 0.1%, outline 0.4%, rich 0.6%, saleor
+  0.9%, wagtail 0.8%, homebrew 0.5%); young/small/fast-refactoring repos explode (composer 96.6%,
+  jellyfin 81%, faker-js 62%, hono 52%, commander/express 46%, ripgrep 39%, curl 34%, guava 31%).
+  The composer 96.6%→0.1% collapse from k=1→k=2 is the signature of a thin fit vocabulary: nearly
+  every clean hunk has *one* globally-common-but-locally-absent bigram, almost none have two.
+- The real temporal holdout is **harsher** than the proxy's random split (worst k=1 over-fire
+  9% → 96.6%), because a repo's genuinely-new idiomatic commits routinely use bigrams absent from
+  an earlier fit tree. The proxy, if anything, *under*-stated the FP problem.
+
+Caveat, recorded honestly: the most extreme outliers (composer, jellyfin, faker-js) partly
+reflect a thin fit vocabulary where `HEAD~window` is a large fraction of the repo's history; but
+setting them aside changes nothing — well-populated corpora (commander, express, hono, ink,
+ripgrep, curl, guava, rubocop) still over-fire far above 5% at any recall-useful `k`. Raw
+per-corpus numbers: `benchmarks/results/structural/structural.{md,json}`.
+
+## Verdict, restated with real-infra evidence
+
+The structural-foreignness gate is **not gatable at argot's FP discipline — proven on a Python
+proxy (7 corpora, full lever sweep) and re-proven on real infrastructure (30 corpora, 11
+languages, real temporal holdout).** No single (τ, k) reaches ≥85% catch at ≤5% over-fire on
+every corpus; the honest recall ceiling at ≤5%-over-fire-everywhere is single digits, and
+catch/over-fire are inseparable. Two structural causes stand: foreign idioms overwhelmingly reuse
+the repo's own node-kind bigrams, and structural-vocabulary saturation is corpus-size-dependent.
+
 ## Decision
 
-- **Do NOT port a structural gate into argot-core.** Per the method, porting is gated on the
-  cheap harness clearing ≥85%/≤5%; it did not. Shipping an 8–13%-recall gate that over-fires on
-  young repos would violate the co-headline FP discipline and the settled no-net-negative-
-  structural-signal rule. The base guardrail stays byte-for-byte untouched (no `crates/` change).
-- **No full bench run.** A full bench of a known-8%-recall signal spends the expensive resource
-  the research workflow reserves, for zero decision value. The cheap harness already decided it.
-- **Advisory variant** (surface the most structurally-foreign hunk as a non-gating F-finding,
-  like the semantic layer) is *possible* on mature repos (AUC 0.74–0.83) but was not the ask
-  (the goal wanted a gate) and duplicates the semantic layer's advisory role — left as an open
-  product question for the maintainer, not built.
+- **Ported into argot-core as a feature-gated, NON-GATING, measurement-only sense** — not a gate.
+  It is pure-Rust (no new deps), behind `--features structural`, **never wired into the base
+  gating exit code**, and **off in the shipped binary** (unlike `semantic`). The base guardrail is
+  byte-for-byte unchanged: `just verify` green, and the default build compiles none of it. This
+  satisfies "port the winner + clean-commit temporal-holdout over-fire + one full bench" while
+  respecting the co-headline FP discipline — the floor is *documented in code + validated*, not
+  shipped as a net-negative gate.
+- **Do not gate on it, and do not enable it in releases.** An 8–25%-recall signal whose over-fire
+  reaches 30–97% on ordinary corpora would violate the co-headline and the settled
+  no-net-negative-structural-signal rule. Left as a measurement harness for any future revisit.
+- **Advisory variant** (surface the single most-foreign hunk as a non-gating finding, like the
+  semantic layer) is *possible* on mature repos only and duplicates the semantic layer's advisory
+  role — left as an open product question for the maintainer, not built.
 
-**Reproduce:** `source .venv/bin/activate && python benchmarks/struct_gate_union.py` (headline
-floor) and `benchmarks/struct_gate_kcross.py` (cross-family catch). Intermediate exploratory
-probes recorded here; scripts removed per the research-workflow (evidence survives, scripts don't).
+**Reproduce:** real-infra — `just bench-structural` (all corpora) or
+`./target/release/argot-bench --mode structural --corpus rich,faker` (scoped, after
+`cargo build --release -p argot-bench --features structural`). Proxy — `python
+benchmarks/struct_gate_union.py` (headline floor) and `benchmarks/struct_gate_kcross.py`
+(cross-family catch). Intermediate exploratory probes are recorded in the tables above; their
+scripts were removed per the research-workflow (evidence survives, scripts don't).

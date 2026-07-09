@@ -240,6 +240,15 @@ fn real_main() -> Result<ExitCode> {
         keep_control_results: cli.keep_controls,
     };
 
+    #[cfg(feature = "structural")]
+    if cli.mode == "structural" {
+        let md =
+            argot_bench::structural::run_structural(&selected, &opts.data_dir, &cli.results_dir)?;
+        print!("{md}");
+        eprintln!("results → {}", cli.results_dir.display());
+        return Ok(ExitCode::SUCCESS);
+    }
+
     if cli.mode == "holdout" || cli.mode == "honest" {
         let hopts = holdout::HoldoutOptions {
             data_dir: opts.data_dir.clone(),

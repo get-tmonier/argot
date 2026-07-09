@@ -22,6 +22,14 @@ pub mod semantic;
 pub mod sequential;
 pub mod shape_primitive;
 pub mod shape_primitives;
+/// The structural-foreignness sense — node-kind bigrams as a repo's structural
+/// vocabulary, the shape analog of the foreign-vocabulary gate. Feature-gated
+/// (`--features structural`), advisory / measurement-only and pure-Rust (no new
+/// deps): absent and zero-cost off, and never wired into the base gating path,
+/// so the shipped guardrail is byte-for-byte unchanged. See the module docs and
+/// `docs/research/evidence/foreign-structure-gate-floor.md`.
+#[cfg(feature = "structural")]
+pub mod structural;
 pub mod typicality;
 
 mod minhash_params_seed0;

@@ -21,3 +21,9 @@ serde.workspace = true
 serde_json.workspace = true
 # YAML parsing for benchmarks/targets.yaml + catalog manifests (bench-only dep).
 serde_yaml = "0.9"
+
+[features]
+# Enables the structural-foreignness floor validation (`--mode structural`),
+# which drives argot-core's feature-gated `structural` sense over real corpora +
+# real temporal-holdout. Off by default: the base bench never depends on it.
+structural = ["argot-core/structural"]

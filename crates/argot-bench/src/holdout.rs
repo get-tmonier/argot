@@ -161,7 +161,7 @@ pub struct HoldoutReport {
 
 /// A shallow clone would silently truncate the training history — refuse to
 /// fit on one. `git fetch --unshallow` repairs it in place.
-fn ensure_full_history(repo_dir: &Path) -> Result<()> {
+pub fn ensure_full_history(repo_dir: &Path) -> Result<()> {
     let shallow = git_stdout(repo_dir, &["rev-parse", "--is-shallow-repository"])?;
     if shallow.trim() == "true" {
         eprintln!("[holdout] {} is shallow — unshallowing", repo_dir.display());

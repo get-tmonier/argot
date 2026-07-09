@@ -55,6 +55,15 @@ bench-semantic *corpora:
     python3 benchmarks/sem_all.py {{corpora}}
     python3 benchmarks/sem_consolidate.py   # → landing/src/data/semantic.json
 
+# Structural-foreignness floor validation over every corpus: real multi-language
+# extraction + real temporal-holdout over-fire. Pure-Rust feature (no model/deps),
+# NON-GATING and off in shipped builds — it exists to validate the irreducible
+# floor (docs/research/evidence/foreign-structure-gate-floor.md), not to gate.
+# Pass corpora to scope (`just bench-structural --corpus rich,faker`).
+bench-structural *args:
+    cargo build --release -p argot-bench --features structural
+    ./target/release/argot-bench --mode structural --results-dir benchmarks/results/structural {{args}}
+
 # --- checks ---
 
 # Format check + clippy-as-errors + tests. Canonical CI gate.
