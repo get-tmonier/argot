@@ -222,13 +222,21 @@ headline catch number and is measured with the same rigour as the base gate's fi
 real Rust module, 2690 commits), catch **90%** (coverage, ≥85% met). Ported non-gating into
 argot-core; base byte-for-byte unchanged, `just verify` green.
 
-**Not yet done (before it could ship as a gate):**
-1. **Catch is still a coverage estimate, not injected-fixture recall** — the one soft number.
-   Authored/synthetic architectural-violation fixtures would measure true recall.
-2. **v1 is Python-resolver only.** Go/TS/Java resolvers (validated by the cheap probe) plug into
+**Done since:**
+1. **Real recall measured** (84%, 0% control-FP — see the section above) — replaces the coverage
+   estimate.
+2. **Wired end-to-end** (`--features arch`): `argot fit` persists `.argot/layering.json` (built
+   from the mute-system voice files); `argot check` emits a `layering` finding (advisory
+   "unusual" tier, honors inline/mute suppression) for any added import that creates a
+   reversal/near-sink edge. Verified on a synthetic layered repo (reversal fires, legit edge quiet).
+   Base byte-for-byte unchanged (all `#[cfg(arch)]`; parity suites green).
+
+**Remaining before public release:**
+1. **v1 is Python-resolver only.** Go/TS/Java resolvers (validated by the cheap probe) plug into
    `RepoLayering::file_edges`; C/C++/others follow.
-3. **Gate wiring** (a `reason` in `check.rs`, advisory tier) — deferred until catch is measured on
-   fixtures, per the FP-first discipline.
+2. **Broaden the fixture set** (more corpora/languages) to tighten the 84% recall CI.
+3. **Turn the feature on in releases** + publish the benchmark to the landing (deferred until
+   multi-language + broader fixtures, per the earlier honesty call).
 
 **Reproduce:** real module — `cargo build --release -p argot-bench --features arch &&
 ./target/release/argot-bench --mode arch`. Cheap probes —
