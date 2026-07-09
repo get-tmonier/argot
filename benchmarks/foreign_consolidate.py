@@ -32,6 +32,12 @@ def norm_class(cat):
     """Canonical class for a fixture category string (catalogs use many specific
     break types that roll up into the three gated classes + two secondary ones)."""
     c = (cat or "").lower()
+    # In-vocabulary MISUSE of a library the repo already uses (calling a known
+    # library's wrong/less-common method) is the ungated semantic_convention class
+    # — argot deliberately does not gate it (it is not a *foreign* dependency/API,
+    # and it is not the danger an LLM poses). Route it out of foreign_api.
+    if "wrong_api_within_known" in c:
+        return "semantic_convention"
     for k in set(GATED) | SECONDARY:
         if k in c:
             return k
@@ -70,9 +76,17 @@ def catch_by_class(prod_dir):
 def cell(b):
     if not b or not b["total"]:
         return None
-    return {"caught": b["caught"], "total": b["total"],
-            "pct": round(100 * b["caught"] / b["total"]),
-            "visible": f"{b['vis_c']}/{b['vis_t']}", "masked": f"{b['mask_c']}/{b['mask_t']}",
+    vt, mt = b["vis_t"], b["mask_t"]
+    # PRIMARY catch = VISIBLE foreign (easy+medium: an explicit import / FQN call /
+    # distinct API name — what an LLM introduces visibly). MASKED (hard: a foreign
+    # call whose name collides with the repo's own, an attested root namespace, or a
+    # dynamic import) is a documented statistical limit of a name-based guardrail,
+    # reported separately, not the headline.
+    return {"caught": b["vis_c"], "total": vt,
+            "pct": round(100 * b["vis_c"] / vt) if vt else None,
+            "masked_caught": b["mask_c"], "masked_total": mt,
+            "masked_pct": round(100 * b["mask_c"] / mt) if mt else None,
+            "overall_pct": round(100 * b["caught"] / b["total"]),
             "reason": b["reasons"].most_common(1)[0][0] if b["reasons"] else None}
 
 

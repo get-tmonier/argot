@@ -62,18 +62,32 @@ app code, public entry points, subclass overrides, and new modules that legitima
 parallel an existing one. But the *rate* is low (≤2%/hunk), so the absolute nuisance
 is small, and the fires point at real architectural neighbours worth a glance.
 
-## Verdict — no placement.rs change
+## Fix — depth-2 areas (2026-07-09, commit `c084040b`)
 
-The multi-module false-fires (laravel/junit5) and the hono recall miss are two sides
-of the same inherent limit: judging placement from embedding neighbours alone cannot
-tell a *legitimately parallel* sibling module from a *misplaced* function. A
-principled fix (e.g. abstain when the function's own area holds too few indexed
-functions to establish a locality norm) was considered but not shipped: the rate is
-already within the ≤2% band on all but cohesive-multi-module corpora, F2 recall is
-already conservative, and chasing the residual risks that recall for a sub-2% gain on
-an ADVISORY channel. F2 ships as the lower-recall but far quieter of the two advisory
-senses (0.78%/hunk vs reinvention's ~5%), honestly labelled. Like `redundant`, a
-`misplaced` finding is advisory — never folded into the gated catch/over-fire metric —
-but it fires at the mildest (`unusual`) tier and so still contributes to the exit code
-(mute or raise `--min-severity` to drop it from the gate). (Full per-corpus recall + FP
-table: benchmarks page.)
+The multi-module false-fires (laravel/junit5) and the low-recall corpora (hono/ink/
+jellyfin) are two sides of one thing: the *area granularity*. At **`AREA_DEPTH = 3`**
+(`src/db/models`) a cohesive monorepo's sibling packages are *distinct* areas, so
+parallel modules read as misplaced (false-fire) and a transplanted function's
+neighbours split across too many fine areas to concentrate (recall miss). Dropping to
+**`AREA_DEPTH = 2`** — the major package (`src/db`), which is also the more meaningful
+granularity for "this code is in the wrong package" — fixes *both*:
+
+- **Clean-commit misplaced-FP collapses** on cohesive monorepos as sibling packages
+  merge into one area: **laravel 34 → 1, homebrew 22 → 0, wagtail 7 → 0, fmt 20 % → 3 %**
+  (measured, window 120–150).
+- **Transplant recall lifts** (median ~66 → ~72) as neighbours concentrate at the
+  coarser level.
+
+`MIN_TOP2_CONCENTRATION` was kept at **0.8**: relaxing it to 0.7 lifted recall further
+(median ~78) but re-inflated over-fire on small cohesive frameworks (junit5 5 → 7 %),
+and since F2 transplant recall cannot reach 85 % anyway (below), the achievable ≤5 %
+FP bar wins. **Inherent recall ceiling:** hono/ink/jellyfin still land < 85 % — a
+function whose semantic peers are genuinely scattered across many packages cannot be
+shown to be *mis*placed, and the transplant metric is itself a lower bound (a generic
+util relocates freely, so *not* firing on its transplant is correct, not a miss).
+
+F2 remains the lower-recall but quieter of the two advisory senses. Like `redundant`,
+a `misplaced` finding is advisory — never folded into the gated catch/over-fire metric
+— but it fires at the mildest (`unusual`) tier and so still contributes to the exit
+code (mute or raise `--min-severity` to drop it from the gate). (Full per-corpus
+recall + FP table: benchmarks page.)

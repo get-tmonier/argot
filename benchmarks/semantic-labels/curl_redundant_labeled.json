@@ -1,8 +1,11 @@
 {
  "corpus": "curl",
  "reason": "redundant",
+ "window": 150,
+ "raw_fires": 29,
  "genuine": 3,
- "true_fp": 31,
- "raw_fires": 34,
- "sampled": true
+ "true_fp": 26,
+ "judges": 3,
+ "method": "3-judge majority, default false-alarm",
+ "note": "labelled on the post-sibling-filter survivors"
 }

@@ -1,8 +1,11 @@
 {
  "corpus": "laravel",
  "reason": "redundant",
- "genuine": 2,
- "true_fp": 32,
- "raw_fires": 34,
- "sampled": true
+ "window": 150,
+ "raw_fires": 40,
+ "genuine": 1,
+ "true_fp": 39,
+ "judges": 3,
+ "method": "3-judge majority, default false-alarm",
+ "note": "labelled on the post-sibling-filter survivors"
 }

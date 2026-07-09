@@ -1,0 +1,8 @@
+{
+ "corpus": "junit5",
+ "reason": "redundant",
+ "genuine": 1,
+ "true_fp": 19,
+ "raw_fires": 20,
+ "sampled": true
+}

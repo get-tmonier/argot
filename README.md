@@ -207,16 +207,19 @@ across 11 languages**.
 (renamed, restructured) as new code, argot flags them redundant at **≥ 80% on every
 corpus** (median 95%).
 
-**Precision is low — and we don't pretend otherwise.** On a leak-free replay of real
-developer commits, the reinvention sense fires on **~5% of hunks**, and three
-independent reviewers (majority vote, default false-alarm) found only **~12% of those
-fires are genuine** reinventions — 0% on some repos, up to 67% on others. The rest are
-parallel modules, sync/async twins and sibling interface methods that merely *look*
-alike; about a third of the false alarms are structurally indistinguishable from a
-real reinvention — the same helpers, the same vocabulary, different intent — so no
-retrieval-plus-structure signal can separate them. That's why *redundant* (and the
-quieter *misplaced*, ~0.8% of hunks) are **advisory** — a prompt to review, never
-folded into the gated catch/over-fire numbers above. They do fire at the mildest
+**False-fire is filtered, not hidden.** The naïve sense fired on 5–14% of real-commit
+hunks on library/framework repos — but those fires were dominated by shapes that
+*aren't* reinventions: thin wrappers, interface/family methods (a linter's `on_send`
+across 271 cops), dense sibling clusters. Four cheap structural filters (body size,
+symbol frequency, embedding-neighbour density — each exempted when the candidate
+reuses the match's exact helpers) drop them with **zero recall loss**, taking the
+clean-commit false-fire to **≤5%/hunk on 28 of 31 corpora** (3-judge labelled where it
+matters). The three that remain — curl 6.2%, jellyfin 7.0%, laravel 6.6% — are
+parallel backends and sibling-module methods (openssl↔wolfssl, Illuminate/\*) that a
+skeptical human reviewer calls "not a reinvention, but structurally identical": the
+irreducible floor of a name/structure sense with no LLM. That residual is why
+*redundant* (and the quieter *misplaced*) stay **advisory** — a prompt to review,
+never folded into the gated catch/over-fire numbers above. They do fire at the mildest
 (`unusual`) tier, so a reinvention- or misplacement-only hunk still exits non-zero;
 mute them or raise `--min-severity` to drop them from the gate. The full per-repo
 catch **and false-fire** rates — for both senses — are on the

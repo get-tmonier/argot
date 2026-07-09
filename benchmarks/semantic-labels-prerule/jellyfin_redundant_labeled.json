@@ -1,0 +1,8 @@
+{
+ "corpus": "jellyfin",
+ "reason": "redundant",
+ "genuine": 6,
+ "true_fp": 28,
+ "raw_fires": 34,
+ "sampled": true
+}
