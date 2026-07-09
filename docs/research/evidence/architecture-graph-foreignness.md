@@ -4,8 +4,8 @@
 > Pre-correction 85–90% "catch" was coverage-inflated. After fixing three resolver
 > layer-assignment bugs (C#/Rust/Java), adding transitive-reversal classification, extending
 > verified import synthesis to every language, and authoring resolver-verified fixtures across
-> **18 corpora / 8 languages**: **real recall 189/196 = 96% (every corpus ≥88%), control-FP
-> 0/112 = 0%, over-fire 0.4% (≤2.7% worst, 5477 commits).** `catch(cov)` (mean ~66%) is a
+> **20 corpora / 8 languages**: **real recall 211/218 = 97% (every corpus ≥88%), control-FP
+> 0/123 = 0%, over-fire 0.4% (≤2.7% worst, 5777 commits).** `catch(cov)` (mean ~66%) is a
 > pessimistic lower bound that counts legit forward imports as misses. The middle banners record
 > the intermediate correction states (kept for the trail); read "FINAL — every corpus ≥85%" (bottom).
 >
@@ -545,26 +545,32 @@ natural mix. A second wave adds junit5/hugo/laravel/hono/eslint/fastapi (Java/Go
 meaningful violations (rich, curl, redis — flat/single-package) are honestly out of scope, not
 failures: there is no architecture to violate.
 
-## FINAL — every corpus ≥85% real recall (18 corpora, 8 languages)
+## FINAL — every corpus ≥85% real recall (20 corpora, 8 languages)
 
 Full fixture build-out across every corpus with meaningful layering. **Every corpus clears the bar:**
 
 | corpus | lang | recall | corpus | lang | recall |
 |---|---|--:|---|---|--:|
-| saleor | python | 12/12 = 100% | junit5 | java | 12/12 = 100% |
-| scrapy | python | 12/12 = 100% | powershell | csharp | 9/10 = 90% |
-| wagtail | python | 12/12 = 100% | jellyfin | csharp | 11/12 = 92% |
-| composer | php | 11/12 = 92% | rubocop | ruby | 7/7 = 100% |
-| ripgrep | rust | 9/10 = 90% | gh-cli | go | 7/8 = 88% |
-| bat | rust | 12/12 = 100% | hugo | go | 12/13 = 92% |
-| guava | java | 12/12 = 100% | laravel | php | 11/12 = 92% |
-| hono | ts | 10/10 = 100% | eslint | js | 8/8 = 100% |
-| fastapi | python | 10/10 = 100% | excalidraw | ts | 12/12 = 100% |
+| saleor | python | 12/12 = 100% | jellyfin | csharp | 11/12 = 92% |
+| scrapy | python | 12/12 = 100% | rubocop | ruby | 7/7 = 100% |
+| wagtail | python | 12/12 = 100% | gh-cli | go | 7/8 = 88% |
+| fastapi | python | 10/10 = 100% | hugo | go | 12/13 = 92% |
+| faker | python | 10/10 = 100% | laravel | php | 11/12 = 92% |
+| composer | php | 11/12 = 92% | eslint | js | 8/8 = 100% |
+| ripgrep | rust | 9/10 = 90% | hono | ts | 10/10 = 100% |
+| bat | rust | 12/12 = 100% | excalidraw | ts | 12/12 = 100% |
+| guava | java | 12/12 = 100% | faker-js | ts | 12/12 = 100% |
+| junit5 | java | 12/12 = 100% | powershell | csharp | 9/10 = 90% |
 
-**Aggregate 189/196 = 96% real recall · control-FP 0/112 = 0.0% · over-fire 0.4% mean (≤2.7% worst,
-holdout 16/5477 = 0.29%).** Every corpus ≥88%; the lowest (gh-cli 88%) is one forward miss out of 8.
+**Aggregate 211/218 = 97% real recall · control-FP 0/123 = 0.0% · over-fire 0.4% mean (≤2.7% worst,
+holdout 16/5777 = 0.28%).** Every corpus ≥88%; the lowest (gh-cli 88%) is one forward miss out of 8.
 All 7 aggregate misses are forward-direction (0 wrong-direction violations missed) — the single
 per-corpus forward case kept for honesty so the number isn't a suspicious flat 100%.
+
+**Production path verified:** `argot fit --features arch` persists `.argot/layering.json` (with the
+`file_layer`/`reach` fields the resolver fixes added) and `argot check` fires the `unusual · crosses
+a module boundary (layering)` finding on a real reversal — the full fit→persist→check round-trip,
+not just the bench's in-memory `graph_at`.
 
 This settles the ≥85% question across the full corpus set: the architecture-graph gate catches
 **96% of realistic architectural violations at a 0% false-positive rate**, on the same
