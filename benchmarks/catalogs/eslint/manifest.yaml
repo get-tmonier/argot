@@ -123,6 +123,60 @@ fixtures:
   difficulty: hard
   host_file: lib/shared/message-counts.js
   host_inject_at_line: 43
+- id: eslint_foreign_import_moment
+  file: breaks/break_foreign_import_moment.js
+  category: foreign_import
+  hunk_start_line: 1
+  hunk_end_line: 16
+  rationale: "require('moment') at line 1 + moment().format() building a 'Generated at' timestamp banner for the timing table. Verified foreign at SHA 04174cbf: 'moment' is 0 git-grep hits across lib/ (and the whole repo excl. lockfile) and absent from package.json — the timing table (lib/linter/timing.js, this file) never prints a wall-clock timestamp, and hrtime-based durations elsewhere in lib/ are formatted with plain .toFixed(3), never a date-formatting library. EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: lib/linter/timing.js
+  host_inject_at_line: 130
+- id: eslint_foreign_api_dayjs
+  file: breaks/break_foreign_api_dayjs.js
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 16
+  rationale: "require('dayjs') at line 1 + dayjs().format() formatting the HTML report's generation date. Verified foreign at SHA 04174cbf: 'dayjs' is 0 git-grep hits across lib/ (and the whole repo excl. lockfile) and absent from package.json — the sibling module.exports call a few lines below this hunk's injection point builds the identical report with a plain `new Date()` (lib/cli-engine/formatters/html.js:354), and no formatter under lib/cli-engine/formatters/ reaches for a date-formatting library. EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: lib/cli-engine/formatters/html.js
+  host_inject_at_line: 334
+- id: eslint_foreign_api_execa
+  file: breaks/break_foreign_api_execa.js
+  category: foreign_api
+  hunk_start_line: 1
+  hunk_end_line: 18
+  rationale: "require('execa') at line 1 + execa('git', [...]) shelling out to tag the environment report with the current commit. Verified foreign at SHA 04174cbf: 'execa' is 0 git-grep hits across lib/ (and the whole repo excl. lockfile) and absent from package.json — execCommand (lib/shared/runtime-info.js:46, this file) is the repo's single convention for running an external command, and it goes through cross-spawn's spawn.sync (imported at line 13 of this file), never execa. EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: lib/shared/runtime-info.js
+  host_inject_at_line: 160
+- id: eslint_foreign_concurrency_workerpool
+  file: breaks/break_foreign_concurrency_workerpool.js
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 25
+  rationale: "require('workerpool') at line 1 + workerpool.pool(...).exec(...) offered as an alternative lint runner. Verified foreign at SHA 04174cbf: 'workerpool' is 0 git-grep hits across lib/ (and the whole repo excl. lockfile) and absent from package.json — runWorkers (lib/eslint/eslint.js:456-545, this file) hand-rolls its own worker pool directly over node:worker_threads (a SharedArrayBuffer index and an AbortController), never a third-party pool abstraction. EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: lib/eslint/eslint.js
+  host_inject_at_line: 685
+- id: eslint_foreign_concurrency_pqueue
+  file: breaks/break_foreign_concurrency_pqueue.js
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 27
+  rationale: "require('p-queue') at line 1 + new PQueue({...}) bounding the concurrent glob-pattern resolution. Verified foreign at SHA 04174cbf: 'p-queue' is 0 git-grep hits across lib/ (and the whole repo excl. lockfile) and absent from package.json — findFiles (lib/eslint/eslint-helpers.js:518-640, this file) resolves every stat()/globMultiSearch call through a plain Promise.all with no concurrency limiter, and the repo's one bounded-concurrency convention (lintFilesWithoutMultithreading in lib/eslint/eslint.js) uses its own @humanwhocodes/retry Retrier, never a third-party queue. EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: lib/eslint/eslint-helpers.js
+  host_inject_at_line: 641
+- id: eslint_foreign_concurrency_fastq
+  file: breaks/break_foreign_concurrency_fastq.js
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 19
+  rationale: "require('fastq') at line 1 + fastq.promise(...) offered as an alternative task queue for per-file lint work. Verified foreign at SHA 04174cbf: 'fastq' is 0 git-grep hits across lib/ (and the whole repo excl. lockfile) and absent from package.json — the worker's own file-distribution loop (lib/eslint/worker.js:115-157, the `for (;;)` loop just below this hunk's injection point) claims work by atomically incrementing filePathIndexArray over a SharedArrayBuffer via node:worker_threads, never a third-party task queue. EASY: explicit foreign import, caught by the import stage."
+  difficulty: easy
+  host_file: lib/eslint/worker.js
+  host_inject_at_line: 68
 - id: eslint_naming_snakecase
   file: breaks/break_naming_snakecase.js
   category: naming_shape_break

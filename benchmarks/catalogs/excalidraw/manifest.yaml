@@ -398,3 +398,35 @@ fixtures:
   difficulty: hard
   host_file: excalidraw-app/collab/Collab.tsx
   host_inject_at_line: 75
+- id: excalidraw_foreign_concurrency_piscina
+  file: breaks/break_foreign_piscina_concurrency.ts
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 14
+  rationale: "import Piscina from 'piscina' at line 1 (inside the hunk) + new
+    Piscina({...}) / subsetPool.run() to run glyph subsetting on a Node.js
+    worker_threads pool, where excalidraw already offloads subsetting to its
+    own WorkerPool (packages/excalidraw/workers.ts) wrapping browser Web
+    Workers — piscina targets Node worker_threads, a runtime this browser
+    code doesn't have. Verified foreign at SHA cce5001aaafe: `piscina` = 0
+    hits (case-insensitive) across *.ts/*.tsx and absent from every
+    package.json. Medium: foreign thread-pool runtime reached through a
+    constructed receiver."
+  difficulty: medium
+  host_file: packages/excalidraw/subset/subset-main.ts
+  host_inject_at_line: 74
+- id: excalidraw_foreign_concurrency_pqueue
+  file: breaks/break_foreign_pqueue_concurrency.ts
+  category: foreign_concurrency
+  hunk_start_line: 1
+  hunk_end_line: 11
+  rationale: "import PQueue from 'p-queue' at line 1 (inside the hunk) + new
+    PQueue({...}) / broadcastQueue.add() to throttle outgoing collab
+    broadcasts, where excalidraw's Portal throttles with lodash.throttle and
+    emits synchronously over socket.io. Verified foreign at SHA
+    cce5001aaafe: `p-queue`/`PQueue` = 0 hits (case-insensitive) across
+    *.ts/*.tsx and absent from every package.json. Medium: foreign
+    promise-queue runtime reached through a constructed receiver."
+  difficulty: medium
+  host_file: excalidraw-app/collab/Portal.tsx
+  host_inject_at_line: 257

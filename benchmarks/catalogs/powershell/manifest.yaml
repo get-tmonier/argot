@@ -364,3 +364,21 @@ fixtures:
   difficulty: hard
   host_file: src/Microsoft.PowerShell.Commands.Management/commands/management/Process.cs
   host_inject_at_line: 792
+- id: ps_foreign_akka_1
+  file: breaks/break_akka_1.cs
+  category: foreign_concurrency
+  hunk_start_line: 19
+  hunk_end_line: 23
+  rationale: 'Akka.NET actor system (foreign `using Akka.Actor` + ActorSystem.Create/ActorOf/Tell) dispatches job execution in a single fluent chain; Akka.NET is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — job execution here goes entirely through JobSourceAdapter/Job2, never an actor model. Caught by the import stage (foreign using token Akka.Actor); ActorSystem/Props also 0-usage. EASY: explicit foreign import, no receiver variable.'
+  difficulty: easy
+  host_file: src/System.Management.Automation/engine/remoting/client/JobManager.cs
+  host_inject_at_line: 252
+- id: ps_foreign_disruptor_1
+  file: breaks/break_disruptor_1.cs
+  category: foreign_concurrency
+  hunk_start_line: 20
+  hunk_end_line: 25
+  rationale: 'LMAX Disruptor ring buffer (fully-qualified new Disruptor.Dsl.Disruptor<T>, then reached through a receiver variable) pumps queued runspace work; Disruptor-net is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — this pool coordinates queued work through its own _syncObject locks, not a lock-free ring buffer. The foreign type construction (root Disruptor) fires call_receiver via the unattested namespace; the receiver-variable methods (HandleEventsWith/Start) are masked. MEDIUM: reached through a receiver variable.'
+  difficulty: medium
+  host_file: src/System.Management.Automation/engine/hostifaces/RunspacePool.cs
+  host_inject_at_line: 794

@@ -288,3 +288,39 @@ fixtures:
   rationale: "client.get(...) fetches a remote emoji sheet from an httpx.Client injected by the caller — httpx appears at 0 rich production sites at the pinned SHA (git grep httpx over rich/ = 0). MASKED: no import in the block (the client is a parameter), and the leaf method .get() collides with rich's own attested get() vocabulary (49 dotted .get( call-sites), so call-receiver treats it as in-voice and does not fire. Genuine hard break — expected to MISS."
   host_file: rich/emoji.py
   host_inject_at_line: 20
+- id: foreign_concurrency_eventlet_1
+  file: breaks/break_foreign_concurrency_eventlet.py
+  category: foreign_concurrency
+  hunk_start_line: 8
+  hunk_end_line: 16
+  difficulty: easy
+  rationale: "import eventlet + eventlet.GreenPool fan spinner frame renders across green threads — eventlet appears at 0 rich production sites at the pinned SHA (git grep -w eventlet over the repo = 0; not listed in pyproject.toml/setup.py; rich's own spinner animation is a plain synchronous method). Foreign concurrency import + GreenPool.spawn/waitall API are in-hunk; import stage catches the module."
+  host_file: rich/spinner.py
+  host_inject_at_line: 114
+- id: foreign_concurrency_greenlet_1
+  file: breaks/break_foreign_concurrency_greenlet.py
+  category: foreign_concurrency
+  hunk_start_line: 8
+  hunk_end_line: 18
+  difficulty: easy
+  rationale: "import greenlet + greenlet.greenlet/getcurrent().parent.switch() drive progress bar updates via cooperative coroutine switching — greenlet appears at 0 rich production sites at the pinned SHA (git grep -w greenlet over the repo = 0; not listed in pyproject.toml/setup.py; rich's ProgressBar.update is a plain synchronous call). Foreign concurrency import + greenlet.* API are in-hunk; import stage catches the module."
+  host_file: rich/progress_bar.py
+  host_inject_at_line: 207
+- id: foreign_concurrency_aiomultiprocess_1
+  file: breaks/break_foreign_concurrency_aiomultiprocess.py
+  category: foreign_concurrency
+  hunk_start_line: 8
+  hunk_end_line: 15
+  difficulty: easy
+  rationale: "import aiomultiprocess + aiomultiprocess.Pool(...).starmap fan layout-ratio resolution across a worker process pool over asyncio — aiomultiprocess appears at 0 rich production sites at the pinned SHA (git grep -w aiomultiprocess over the repo = 0; not listed in pyproject.toml/setup.py; rich's ratio_resolve is plain synchronous fraction math). Foreign concurrency import + Pool.starmap API are in-hunk; import stage catches the module."
+  host_file: rich/_ratio.py
+  host_inject_at_line: 140
+- id: foreign_import_pydantic_1
+  file: breaks/break_foreign_import_pydantic.py
+  category: foreign_import
+  hunk_start_line: 8
+  hunk_end_line: 17
+  difficulty: easy
+  rationale: "from pydantic import BaseModel replaces rich's own __rich_repr__ protocol with a validated/serialized data model (model_dump_json) — pydantic appears at 0 rich production sites at the pinned SHA (git grep -w pydantic over the repo = 0; not listed in pyproject.toml/setup.py; rich.repr builds plain tuples via __rich_repr__). Foreign import is in-hunk; import stage catches the 0-usage module."
+  host_file: rich/repr.py
+  host_inject_at_line: 103

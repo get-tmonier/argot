@@ -47,8 +47,8 @@
    "language": "JavaScript",
    "classes": {
     "foreign_import": {
-     "caught": 4,
-     "total": 4,
+     "caught": 6,
+     "total": 6,
      "pct": 100,
      "masked_caught": 0,
      "masked_total": 0,
@@ -57,18 +57,18 @@
      "reason": "import"
     },
     "foreign_api": {
-     "caught": 3,
-     "total": 3,
+     "caught": 5,
+     "total": 5,
      "pct": 100,
      "masked_caught": 0,
      "masked_total": 1,
      "masked_pct": 0,
-     "overall_pct": 75,
+     "overall_pct": 83,
      "reason": "call_receiver"
     },
     "foreign_concurrency": {
-     "caught": 2,
-     "total": 2,
+     "caught": 5,
+     "total": 5,
      "pct": 100,
      "masked_caught": 1,
      "masked_total": 1,
@@ -232,8 +232,8 @@
    "language": "JavaScript",
    "classes": {
     "foreign_import": {
-     "caught": 5,
-     "total": 5,
+     "caught": 6,
+     "total": 6,
      "pct": 100,
      "masked_caught": 0,
      "masked_total": 0,
@@ -242,8 +242,8 @@
      "reason": "import"
     },
     "foreign_api": {
-     "caught": 3,
-     "total": 3,
+     "caught": 5,
+     "total": 5,
      "pct": 100,
      "masked_caught": 1,
      "masked_total": 1,
@@ -252,13 +252,13 @@
      "reason": "call_receiver"
     },
     "foreign_concurrency": {
-     "caught": 2,
-     "total": 2,
+     "caught": 5,
+     "total": 5,
      "pct": 100,
      "masked_caught": 0,
      "masked_total": 1,
      "masked_pct": 0,
-     "overall_pct": 67,
+     "overall_pct": 83,
      "reason": "import"
     }
    },
@@ -314,8 +314,8 @@
      "reason": "import"
     },
     "foreign_concurrency": {
-     "caught": 3,
-     "total": 3,
+     "caught": 5,
+     "total": 5,
      "pct": 100,
      "masked_caught": 1,
      "masked_total": 1,
@@ -335,8 +335,8 @@
    "language": "JavaScript",
    "classes": {
     "foreign_import": {
-     "caught": 4,
-     "total": 4,
+     "caught": 6,
+     "total": 6,
      "pct": 100,
      "masked_caught": 0,
      "masked_total": 0,
@@ -345,23 +345,23 @@
      "reason": "import"
     },
     "foreign_api": {
-     "caught": 4,
-     "total": 4,
+     "caught": 5,
+     "total": 5,
      "pct": 100,
      "masked_caught": 0,
      "masked_total": 1,
      "masked_pct": 0,
-     "overall_pct": 80,
+     "overall_pct": 83,
      "reason": "call_receiver"
     },
     "foreign_concurrency": {
-     "caught": 2,
-     "total": 2,
+     "caught": 5,
+     "total": 5,
      "pct": 100,
      "masked_caught": 0,
      "masked_total": 1,
      "masked_pct": 0,
-     "overall_pct": 67,
+     "overall_pct": 83,
      "reason": "import"
     }
    },
@@ -397,8 +397,8 @@
    "language": "Python",
    "classes": {
     "foreign_import": {
-     "caught": 4,
-     "total": 4,
+     "caught": 6,
+     "total": 6,
      "pct": 100,
      "masked_caught": 0,
      "masked_total": 0,
@@ -407,23 +407,23 @@
      "reason": "import"
     },
     "foreign_api": {
-     "caught": 9,
-     "total": 10,
-     "pct": 90,
+     "caught": 11,
+     "total": 12,
+     "pct": 92,
      "masked_caught": 3,
      "masked_total": 6,
      "masked_pct": 50,
-     "overall_pct": 75,
+     "overall_pct": 78,
      "reason": "import"
     },
     "foreign_concurrency": {
-     "caught": 4,
-     "total": 4,
+     "caught": 7,
+     "total": 7,
      "pct": 100,
      "masked_caught": 1,
      "masked_total": 2,
      "masked_pct": 50,
-     "overall_pct": 83,
+     "overall_pct": 89,
      "reason": "import"
     }
    },
@@ -994,13 +994,13 @@
      "reason": "call_receiver"
     },
     "foreign_concurrency": {
-     "caught": 4,
-     "total": 5,
-     "pct": 80,
+     "caught": 7,
+     "total": 8,
+     "pct": 88,
      "masked_caught": 0,
      "masked_total": 0,
      "masked_pct": null,
-     "overall_pct": 80,
+     "overall_pct": 88,
      "reason": "call_receiver"
     }
    },
@@ -1097,13 +1097,13 @@
      "reason": "call_receiver"
     },
     "foreign_concurrency": {
-     "caught": 2,
-     "total": 3,
-     "pct": 67,
+     "caught": 4,
+     "total": 5,
+     "pct": 80,
      "masked_caught": 1,
      "masked_total": 4,
      "masked_pct": 25,
-     "overall_pct": 43,
+     "overall_pct": 56,
      "reason": "call_receiver"
     }
    },
@@ -1201,8 +1201,8 @@
    "language": "Python",
    "classes": {
     "foreign_import": {
-     "caught": 5,
-     "total": 5,
+     "caught": 6,
+     "total": 6,
      "pct": 100,
      "masked_caught": 0,
      "masked_total": 0,
@@ -1221,8 +1221,8 @@
      "reason": "import"
     },
     "foreign_concurrency": {
-     "caught": 3,
-     "total": 3,
+     "caught": 6,
+     "total": 6,
      "pct": 100,
      "masked_caught": 0,
      "masked_total": 0,
@@ -1324,13 +1324,13 @@
      "reason": "call_receiver"
     },
     "foreign_concurrency": {
-     "caught": 2,
-     "total": 4,
-     "pct": 50,
+     "caught": 4,
+     "total": 6,
+     "pct": 67,
      "masked_caught": 0,
-     "masked_total": 1,
+     "masked_total": 2,
      "masked_pct": 0,
-     "overall_pct": 40,
+     "overall_pct": 50,
      "reason": "import"
     }
    },
