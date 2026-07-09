@@ -1,0 +1,310 @@
+# Architecture-graph violation fixtures for faker-js (TypeScript, `@faker-js/faker`).
+# Each `import_line` added to `host_file` creates the internal edge
+# (source layer -> target layer). Violations cross a boundary the repo's
+# established direction never crosses; controls respect that direction.
+#
+# Layer = first path component under `src/`, plus three non-`src` roots kept
+# as their own layers: `scripts/` (apidocs codegen tooling), `docs/`
+# (the vitepress docs site), and `__root__` (files sitting directly at the
+# repo root, e.g. `.prettierrc.d.ts` — config/tooling type declarations,
+# never part of the shipped package).
+#
+# Real, attested (HEAD) topology, established via non-barrel (deep, specific
+# file) relative imports — `errors/`, `internal/`, `utils/` and `modules/`
+# have no `index.ts` barrel, so every import that reaches them is
+# unambiguous:
+#   - `errors/faker-error.ts` is a true leaf: `export class FakerError extends
+#     Error {}`, zero imports of its own. It is consumed everywhere it's
+#     needed — `internal/date.ts:1` imports it (`internal -> errors`),
+#     `modules/commerce/index.ts:1` and `modules/commerce/upc-check-digit.ts:1`
+#     import it (`modules -> errors`), `src/faker.ts:3` imports it
+#     (root -> errors). Nothing ever imports FROM errors — it has zero
+#     outbound edges to any other tracked layer.
+#   - `internal/` (base32/base64 encoding, the mersenne RNG, `ModuleBase`,
+#     locale-proxy machinery) is consumed by `modules` (`modules/commerce/
+#     index.ts:2` and `modules/airline/index.ts:6` both import
+#     `../../internal/module-base`) and by `utils` (`utils/mersenne.ts:1-2`
+#     imports `../internal/mersenne` and `../internal/seed`). `internal` is a
+#     dependency, never a consumer, of `modules`/`utils`/`definitions`/`locales`.
+#   - `modules/` (the Faker API surface — `AirlineModule`, `CommerceModule`,
+#     etc.) is assembled by the package root (`src/faker.ts:6-29` imports
+#     every `./modules/*`) and is itself a dependency of `definitions`
+#     (`src/definitions/airline.ts:1` imports `type { Airline, Airplane,
+#     Airport }` from `../modules/airline` — definitions describes the shape
+#     of locale data using types `modules` declares). `modules` consumes
+#     `internal` and `errors`; nothing below it in that chain ever imports
+#     back into `modules`.
+#   - `utils/` (`mergeLocales`, the mersenne-randomizer re-export) is
+#     consumed only by the package root (`src/core.ts:4-5` imports
+#     `./utils/merge-locales` and `./utils/mersenne`); it is a small
+#     root-facing utility surface, not a dependency any other mid-stack
+#     layer reaches into.
+#   - The locale-assembly chain runs `locale` (per-locale `Faker` instance,
+#     e.g. `src/locale/af_ZA.ts`, which imports `../locales/af_ZA` et al.)
+#     -> `locales` (raw per-locale data, e.g. `src/locales/af_ZA/cell_phone/
+#     formats.ts`) -> `definitions` (`src/locales/af_ZA/metadata.ts:1` imports
+#     `type { PreBuiltMetadataDefinitionForCountry }` from
+#     `../../definitions/metadata`) -> `modules`. Each layer only reaches
+#     "down" this chain; nothing below reaches back up into `locale`/`locales`.
+#   - `.prettierrc.d.ts` (`__root__`) is a 4-line prettier config type
+#     declaration (`import type { Options } from 'prettier'; export =
+#     options;`) — zero relative imports, consumed by the build, never a
+#     consumer of anything under `src/`.
+#   - `docs/.vitepress/api-pages.ts` is explicitly "automatically generated"
+#     (`// Run 'pnpm run generate:api-docs' to update`) — today it has zero
+#     imports of its own; it's a static array of doc-page links produced by
+#     the apidocs pipeline, not a file that reaches into runtime source.
+#   - `scripts/apidocs/diff.ts` diffs previously-generated API-doc hash
+#     indexes (`ApiDiffHashes` loaded from local disk or fetched over HTTP);
+#     it works with generated doc output, never with live `src/modules`
+#     implementation code. `scripts` does reach into `docs` elsewhere
+#     (`scripts/shared/markdown.ts:4` imports `../../docs/.vitepress/config`)
+#     — scripts generates docs content, not the other way round.
+#
+# Every (kind, host_file, import_line) below is copied verbatim from the
+# resolver-verified candidate menu (`/tmp/arch-w3/candidates-faker-js.md`),
+# which independently confirmed each edge is 0-usage in the given direction.
+
+violations:
+  # ---- reversals (direct pairwise reverse attested) ----
+  - host_file: "src/errors/faker-error.ts"
+    source_layer: "errors"
+    import_line: "import { ArgotFixture } from '../internal/base32';\n"
+    target_layer: "internal"
+    kind: "reversal"
+    rationale: >-
+      FakerError is a dependency-free leaf (`export class FakerError extends
+      Error {}`, no imports of its own). Reverse is attested directly:
+      `internal/date.ts:1` imports `../errors/faker-error` — internal depends
+      on errors, never the reverse. errors->internal is 0-usage; the leaf
+      error class reaching into a base32-encoding helper inverts that.
+
+  - host_file: "src/errors/faker-error.ts"
+    source_layer: "errors"
+    import_line: "import { ArgotFixture } from '../modules/airline/index';\n"
+    target_layer: "modules"
+    kind: "reversal"
+    rationale: >-
+      Modules throw FakerError extensively — `modules/commerce/index.ts:1`
+      and `modules/commerce/upc-check-digit.ts:1` both import
+      `../../errors/faker-error`. errors is consumed BY modules, not a
+      consumer of modules. errors->modules is 0-usage; a leaf error class
+      importing a specific domain module (airline) is the canonical
+      inversion of "modules depends on errors."
+
+  - host_file: "src/errors/faker-error.ts"
+    source_layer: "errors"
+    import_line: "import { ArgotFixture } from '../../.prettierrc.d';\n"
+    target_layer: "__root__"
+    kind: "reversal"
+    rationale: >-
+      `.prettierrc.d.ts` is a 4-line prettier config type declaration with
+      zero relative imports of its own — it is consumed by the build
+      tooling, never a consumer of `src/`. errors is a leaf consumed
+      throughout `src` (internal, modules, root); it reaching out to a
+      repo-root tooling config file is 0-usage and has no legitimate
+      runtime reason to exist.
+
+  - host_file: "src/internal/base32.ts"
+    source_layer: "internal"
+    import_line: "import { ArgotFixture } from '../modules/airline/index';\n"
+    target_layer: "modules"
+    kind: "reversal"
+    rationale: >-
+      internal is consumed by modules (`modules/commerce/index.ts:2` and
+      `modules/airline/index.ts:6` both import `../../internal/module-base`).
+      internal->modules is 0-usage; a base32-encoding helper reaching UP
+      into a specific domain module (airline) inverts the established
+      "modules depends on internal" direction — internal has no business
+      knowing which Faker modules exist.
+
+  - host_file: ".prettierrc.d.ts"
+    source_layer: "__root__"
+    import_line: "import { ArgotFixture } from './docs/.vitepress/api-pages';\n"
+    target_layer: "docs"
+    kind: "reversal"
+    rationale: >-
+      `.prettierrc.d.ts` declares a prettier config type and exports it —
+      nothing else. It has no dependency on the docs site, generated or
+      otherwise. __root__->docs is 0-usage; a root-level tooling config
+      reaching into the vitepress docs-page list inverts the direction
+      (docs is a downstream consumer workspace of the repo, never imported
+      by root tooling config).
+
+  # ---- transitive_reversal (no direct pairwise attestation, but the
+  #      target is reached only via an already-attested multi-hop chain) ----
+  - host_file: "src/definitions/airline.ts"
+    source_layer: "definitions"
+    import_line: "import { ArgotFixture } from '../internal/base32';\n"
+    target_layer: "internal"
+    kind: "transitive_reversal"
+    rationale: >-
+      definitions is a pure type-contracts file (`export type
+      AirlineDefinition = LocaleEntry<{...}>`, zero runtime code). internal
+      is consumed by modules and utils, two layers definitions has no
+      attested relationship with at all — definitions's only known
+      dependency is modules, for types (`src/definitions/airline.ts:1`
+      imports `type { Airline, Airplane, Airport }` from
+      `../modules/airline`). definitions->internal is 0-usage and skips
+      straight past that chain into a foundational helper layer a pure
+      type-contracts file has no runtime reason to import.
+
+  - host_file: "src/modules/airline/index.ts"
+    source_layer: "modules"
+    import_line: "import { ArgotFixture } from '../../utils/merge-locales';\n"
+    target_layer: "utils"
+    kind: "transitive_reversal"
+    rationale: >-
+      utils is consumed only by the package root (`src/core.ts:4-5` imports
+      `./utils/merge-locales` and `./utils/mersenne`) — a small root-facing
+      re-export surface, not a modules dependency. modules already gets
+      what it needs from internal (`ModuleBase`) and errors (`FakerError`);
+      modules->utils is 0-usage and reaches sideways into locale-merging
+      logic that belongs to the root/locale-assembly layer, not an
+      individual domain module.
+
+  - host_file: "src/utils/merge-locales.ts"
+    source_layer: "utils"
+    import_line: "import { ArgotFixture } from '../modules/airline/index';\n"
+    target_layer: "modules"
+    kind: "transitive_reversal"
+    rationale: >-
+      utils is a root-facing re-export helper (`mergeLocales`, the mersenne
+      randomizer) with its only attested dependency being internal
+      (`utils/mersenne.ts:1-2`). modules is assembled BY root
+      (`src/faker.ts:6-29`), sitting above utils in the same chain, not
+      below it. utils->modules is 0-usage; a locale-merging utility pulling
+      in a specific domain module (airline) reverses the root -> {modules,
+      utils} fan-out into a utils -> modules dependency that has never
+      existed.
+
+  - host_file: "scripts/apidocs/diff.ts"
+    source_layer: "scripts"
+    import_line: "import { ArgotFixture } from '../../src/modules/airline/index';\n"
+    target_layer: "modules"
+    kind: "transitive_reversal"
+    rationale: >-
+      `scripts/apidocs/diff.ts` diffs previously-generated API-doc hash
+      indexes (`ApiDiffHashes`, loaded from disk or fetched over HTTP) — it
+      works with generated doc output, never live module implementation
+      code. scripts->modules is 0-usage; a doc-diffing script reaching
+      directly into `modules/airline/index.ts`'s runtime implementation
+      skips the entire generate-docs-from-modules pipeline this script is
+      part of, and imports the thing the pipeline is supposed to describe
+      rather than its generated output.
+
+  - host_file: "docs/.vitepress/api-pages.ts"
+    source_layer: "docs"
+    import_line: "import { ArgotFixture } from '../../src/modules/airline/index';\n"
+    target_layer: "modules"
+    kind: "transitive_reversal"
+    rationale: >-
+      `docs/.vitepress/api-pages.ts` is explicitly auto-generated ("Run
+      'pnpm run generate:api-docs' to update") and today has zero imports —
+      it is a static array of `{ text, link }` doc-page entries. docs
+      consumes the apidocs pipeline's generated output, never a live
+      `src/modules` implementation file directly. docs->modules is 0-usage
+      and bypasses that generation pipeline entirely.
+
+  # ---- sink_out (reaches into a near-universal leaf/sink from a layer
+  #      that has never needed it) ----
+  - host_file: "src/definitions/airline.ts"
+    source_layer: "definitions"
+    import_line: "import { ArgotFixture } from '../errors/faker-error';\n"
+    target_layer: "errors"
+    kind: "sink_out"
+    rationale: >-
+      definitions files are pure type declarations — `airline.ts` exports
+      only `AirlineDefinition`, a `LocaleEntry<{...}>` type alias, zero
+      runtime code, zero existing imports of any runtime value. errors is a
+      runtime class (`class FakerError extends Error {}`) thrown by modules
+      and internal. definitions->errors is 0-usage: a compile-time-only
+      type-contracts file has no reason to import a runtime error class it
+      will never throw or catch.
+
+  - host_file: "docs/.vitepress/api-pages.ts"
+    source_layer: "docs"
+    import_line: "import { ArgotFixture } from '../../src/errors/faker-error';\n"
+    target_layer: "errors"
+    kind: "sink_out"
+    rationale: >-
+      `docs/.vitepress/api-pages.ts` is a generated static array of
+      doc-page links with zero imports today. errors is a runtime class
+      consumed by internal/modules/root for actually throwing errors.
+      docs->errors is 0-usage; a generated docs-navigation data file has no
+      runtime code path that would ever construct or catch a `FakerError`.
+
+controls:
+  - host_file: "src/locale/af_ZA.ts"
+    source_layer: "locale"
+    import_line: "import { ArgotFixture } from '../definitions/airline';\n"
+    target_layer: "definitions"
+    rationale: >-
+      `locale/af_ZA.ts` already assembles the af_ZA `Faker` instance from
+      `locales` data (`import af_ZA from '../locales/af_ZA'`, plus `base`,
+      `en`), and `locales` data already depends on `definitions`
+      (`src/locales/af_ZA/metadata.ts:1` imports `type {
+      PreBuiltMetadataDefinitionForCountry }` from
+      `../../definitions/metadata`). locale importing definitions directly
+      is one hop up the already-attested locale -> locales -> definitions
+      chain, not a new direction. Must not fire.
+
+  - host_file: "src/locales/af_ZA/cell_phone/formats.ts"
+    source_layer: "locales"
+    import_line: "import { ArgotFixture } from '../../../internal/base32';\n"
+    target_layer: "internal"
+    rationale: >-
+      The locale-assembly chain (locale -> locales -> definitions ->
+      modules) already terminates in a dependency on internal (modules
+      imports `../../internal/module-base`). A locales data file importing
+      an internal encoding helper directly skips two layers of that same
+      chain but stays in the same "reach toward foundational helpers"
+      direction — the same shape as `modules -> internal`, just from higher
+      up the chain. Must not fire.
+
+  - host_file: "src/locales/af_ZA/cell_phone/formats.ts"
+    source_layer: "locales"
+    import_line: "import { ArgotFixture } from '../../../errors/faker-error';\n"
+    target_layer: "errors"
+    rationale: >-
+      errors is the universal leaf every mid-stack layer depends on when it
+      needs it (internal, modules, root all import
+      `errors/faker-error.ts` directly). locales reaching straight into
+      that same leaf mirrors the established "any layer may need
+      FakerError" pattern, just closer to the top of the locale-assembly
+      chain. Must not fire.
+
+  - host_file: "src/locale/af_ZA.ts"
+    source_layer: "locale"
+    import_line: "import { ArgotFixture } from '../errors/faker-error';\n"
+    target_layer: "errors"
+    rationale: >-
+      Same reasoning one layer up the chain: locale sits directly above
+      locales, which already has the same errors-leaf access pattern
+      established elsewhere in the codebase (internal/modules/root). Must
+      not fire.
+
+  - host_file: "src/utils/merge-locales.ts"
+    source_layer: "utils"
+    import_line: "import { ArgotFixture } from '../errors/faker-error';\n"
+    target_layer: "errors"
+    rationale: >-
+      utils already depends on internal (`utils/mersenne.ts:1-2` imports
+      `../internal/mersenne` and `../internal/seed`), which itself depends
+      on errors (`internal/date.ts:1` imports `../errors/faker-error`).
+      utils reaching directly into the same FakerError leaf its own
+      internal dependency already needs is the established direction, one
+      hop shorter. Must not fire.
+
+  - host_file: "src/locales/af_ZA/cell_phone/formats.ts"
+    source_layer: "locales"
+    import_line: "import { ArgotFixture } from '../../../modules/airline/index';\n"
+    target_layer: "modules"
+    rationale: >-
+      locales data ultimately types itself against definitions, and
+      definitions types are themselves defined by modules
+      (`src/definitions/airline.ts:1` imports `type { Airline, Airplane,
+      Airport }` from `../modules/airline`). locales reaching directly into
+      modules mirrors that already-attested definitions->modules
+      relationship, one hop up the same locale-assembly chain. Must not
+      fire.
