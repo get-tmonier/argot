@@ -425,6 +425,7 @@ pub fn run_arch_candidates(
                 }
                 let kind = match graph.classify(&(a.clone(), b.clone())) {
                     Some(Violation::Reversal) => "reversal",
+                    Some(Violation::TransitiveReversal) => "transitive_reversal",
                     Some(Violation::SinkOut) => "sink_out",
                     None => continue, // forward — not a catchable violation
                 };

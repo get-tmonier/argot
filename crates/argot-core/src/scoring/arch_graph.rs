@@ -132,6 +132,11 @@ const NEAR_SINK_RATIO: f64 = 0.5;
 pub enum Violation {
     /// The reverse edge is attested — this reverses an established direction.
     Reversal,
+    /// The target transitively depends on the source (`b →* a` in the learned
+    /// graph), so a novel `a → b` closes a cycle against the established flow —
+    /// a back-edge in the repo's near-DAG layering. Generalizes [`Reversal`]
+    /// (the direct `b → a` case) to any path.
+    TransitiveReversal,
     /// The source layer is a repo (near-)sink (a net-importee: imported at least
     /// as much as it imports out) now importing outward.
     SinkOut,
@@ -163,6 +168,10 @@ pub struct RepoLayering {
     /// flat dotted directories). Consulted first by [`layer_of`]. Empty for
     /// path-anchored languages.
     file_layer: HashMap<String, String>,
+    /// Transitive reachability over the edge graph: `reach[b]` = every layer `b`
+    /// can reach by following edges. Used to detect back-edges (`a → b` where
+    /// `b →* a`). Derived from `edges`; recomputed at fit and after deserialize.
+    reach: HashMap<String, HashSet<String>>,
 }
 
 impl Default for RepoLayering {
@@ -175,6 +184,7 @@ impl Default for RepoLayering {
             edges: HashMap::new(),
             sinks: HashSet::new(),
             file_layer: HashMap::new(),
+            reach: HashMap::new(),
         }
     }
 }
@@ -201,6 +211,7 @@ impl RepoLayering {
             edges: HashMap::new(),
             sinks: HashSet::new(),
             file_layer: HashMap::new(),
+            reach: HashMap::new(),
         };
         // Languages whose source layer is namespace-derived (not directory-derived)
         // need a fit-time file→layer map so `layer_of` is consistent with the edge
@@ -219,6 +230,7 @@ impl RepoLayering {
             }
         }
         me.recompute_sinks();
+        me.recompute_reach();
         me
     }
 
@@ -242,6 +254,34 @@ impl RepoLayering {
             })
             .map(|(l, _)| l.to_string())
             .collect();
+    }
+
+    /// Compute transitive reachability from the edge set: `reach[n]` = every layer
+    /// reachable from `n` by following directed edges (excluding `n` itself unless
+    /// it sits on a cycle). A DFS per node; graphs are small (layers ≪ 1000).
+    fn recompute_reach(&mut self) {
+        let mut adj: HashMap<&str, Vec<&str>> = HashMap::new();
+        for (a, b) in self.edges.keys() {
+            adj.entry(a.as_str()).or_default().push(b.as_str());
+        }
+        let nodes: HashSet<&str> = adj.keys().copied().collect();
+        let mut reach: HashMap<String, HashSet<String>> = HashMap::new();
+        for &start in &nodes {
+            let mut seen: HashSet<&str> = HashSet::new();
+            let mut stack: Vec<&str> = adj.get(start).cloned().unwrap_or_default();
+            while let Some(n) = stack.pop() {
+                if seen.insert(n) {
+                    if let Some(next) = adj.get(n) {
+                        stack.extend(next.iter().copied());
+                    }
+                }
+            }
+            reach.insert(
+                start.to_string(),
+                seen.iter().map(|s| s.to_string()).collect(),
+            );
+        }
+        self.reach = reach;
     }
 
     /// The layer of a file: the first path component under its enclosing root.
@@ -518,6 +558,10 @@ impl RepoLayering {
         let (a, b) = edge;
         if self.edges.contains_key(&(b.clone(), a.clone())) {
             Some(Violation::Reversal)
+        } else if self.reach.get(b).is_some_and(|r| r.contains(a)) {
+            // b transitively depends on a already, so a → b closes a cycle against
+            // the established near-DAG flow — a back-edge even without a direct b→a.
+            Some(Violation::TransitiveReversal)
         } else if self.sinks.contains(a) {
             Some(Violation::SinkOut)
         } else {
@@ -574,7 +618,7 @@ impl RepoLayering {
     /// Restore a fitted graph persisted by [`to_json`]. `None` on unreadable JSON.
     pub fn from_json(s: &str) -> Option<Self> {
         let art: LayeringArtifact = serde_json::from_str(s).ok()?;
-        Some(RepoLayering {
+        let mut me = RepoLayering {
             language: tag_lang(&art.language),
             internal: art.internal.into_iter().collect(),
             roots: art.roots,
@@ -582,7 +626,10 @@ impl RepoLayering {
             edges: art.edges.into_iter().map(|(a, b, w)| ((a, b), w)).collect(),
             sinks: art.sinks.into_iter().collect(),
             file_layer: art.file_layer.into_iter().collect(),
-        })
+            reach: HashMap::new(),
+        };
+        me.recompute_reach();
+        Some(me)
     }
 
     /// Import mass into `layer` (sum of incoming edge weights) — a layer's
@@ -1645,6 +1692,31 @@ mod tests {
             g.fires("src/Acme.App.Core/Service.cs", "using Acme.App.Web;\n"),
             Some(Violation::Reversal)
         );
+    }
+
+    #[test]
+    fn transitive_reversal_fires_on_back_edge_without_direct_reverse() {
+        // Chain a -> b -> c (a near-DAG layering). A novel c -> a has no *direct*
+        // reverse edge (a -> c is not attested), but a reaches c transitively, so
+        // c -> a closes a cycle — a back-edge the direct-reversal rule alone misses.
+        let files = vec![
+            ("pkg/__init__.py", ""),
+            ("pkg/a/__init__.py", ""),
+            ("pkg/a/x.py", "from pkg.b import y\n"),
+            ("pkg/b/__init__.py", ""),
+            ("pkg/b/y.py", "from pkg.c import z\n"),
+            ("pkg/c/__init__.py", ""),
+            ("pkg/c/z.py", "value = 1\n"),
+        ];
+        let g = RepoLayering::fit(files, Language::Python);
+        assert!(g.contains_edge(&("a".into(), "b".into())));
+        assert!(g.contains_edge(&("b".into(), "c".into())));
+        assert_eq!(
+            g.classify(&("c".into(), "a".into())),
+            Some(Violation::TransitiveReversal)
+        );
+        // a -> c is forward (a is upstream of c) — legit organic growth, no fire.
+        assert_eq!(g.classify(&("a".into(), "c".into())), None);
     }
 
     #[test]
