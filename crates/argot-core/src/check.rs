@@ -323,10 +323,11 @@ fn sev_index(s: &str) -> usize {
 fn severity(reason: &str, score: f64, threshold: f64) -> &'static str {
     match reason {
         "import" => "foreign",
-        // Semantic findings are advisory — the mildest tier. They surface real,
-        // linter-invisible structure (a duplicate, a misplacement) for the author
-        // to judge, not a "this is foreign" verdict.
-        "redundant" | "misplaced" => "unusual",
+        // Semantic + architecture-graph findings are advisory — the mildest tier.
+        // They surface real, linter-invisible structure (a duplicate, a
+        // misplacement, a crossed layer boundary) for the author to judge, not a
+        // "this is foreign" verdict.
+        "redundant" | "misplaced" | "layering" => "unusual",
         _ => {
             if score >= threshold + 1.5 {
                 "foreign"
@@ -347,6 +348,7 @@ fn reason_label(reason: &str) -> &str {
         "import" => "foreign import",
         "redundant" => "already implemented here",
         "misplaced" => "unusual location",
+        "layering" => "crosses a module boundary",
         other => other,
     }
 }
@@ -1192,6 +1194,100 @@ fn score_patches(
         .map(|(path, hunks)| FileScan { path, hunks })
         .collect();
     (hits, hunk_count, files_scanned)
+}
+
+/// The architecture-graph pass — additive advisory `Hit`s from the per-repo
+/// module-dependency graph (`.argot/layering.json`). For each changed file it
+/// takes the ADDED lines, resolves the internal import edges they introduce, and
+/// flags any that reverse an established layer direction or leave a (near-)sink —
+/// a boundary the repo never crosses. Runs alongside the statistical scorers,
+/// never through them; empty (graceful degrade) when the graph is absent, so the
+/// base guardrail is entirely unaffected. Reason code `layering`.
+#[cfg(feature = "arch")]
+fn arch_hits(
+    patches: &[PatchBatch],
+    argot_dir: &Path,
+    filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
+    mute_rules: &[SuppressionRule],
+    stderr: &mut String,
+) -> Vec<Hit> {
+    use crate::scoring::adapters::Language;
+    use crate::scoring::arch_graph::{RepoLayering, LAYERING_FILE};
+    let Ok(raw) = std::fs::read_to_string(argot_dir.join(LAYERING_FILE)) else {
+        return Vec::new();
+    };
+    let Some(graph) = RepoLayering::from_json(&raw) else {
+        stderr.push_str("[argot] layering graph unreadable\n");
+        return Vec::new();
+    };
+    let mut hits = Vec::new();
+    for batch in patches {
+        if batch.ignored_by_pattern || !batch.file_path.ends_with(".py") {
+            continue; // v1: Python resolver only
+        }
+        let source = String::from_utf8_lossy(&batch.content);
+        let lines: Vec<&str> = source.lines().collect();
+        // Concatenate the ADDED lines (1-indexed) — the imports the diff introduces.
+        let mut added = String::new();
+        let mut first_line = 0usize;
+        for h in &batch.hunks {
+            for l in h.new_start..(h.new_start + h.new_lines) {
+                if let Some(t) = lines.get((l as usize).saturating_sub(1)) {
+                    if first_line == 0 {
+                        first_line = l as usize;
+                    }
+                    added.push_str(t);
+                    added.push('\n');
+                }
+            }
+        }
+        if added.is_empty() {
+            continue;
+        }
+        // Fire if the added imports create a novel reversal/sink-out edge.
+        let fired = graph
+            .file_edges(&batch.file_path, &added, Language::Python)
+            .iter()
+            .any(|e| graph.classify(e).is_some());
+        if !fired {
+            continue;
+        }
+        let hunk_content = added.clone();
+        let hash = hit_hash(&batch.file_path, "layering", &hunk_content);
+        let inline = ext_to_lang(&extension(&batch.file_path))
+            .and_then(|l| filter_adapters.get(l))
+            .map(|a| parse_inline(&source, a.line_comment_prefix()));
+        let suppressed_by = if inline
+            .as_ref()
+            .is_some_and(|i| i.suppresses(first_line, first_line, "layering"))
+        {
+            Some(SuppressedBy::Inline)
+        } else if mute_rules
+            .iter()
+            .any(|r| r.matches(&batch.file_path, "layering", &hash))
+        {
+            Some(SuppressedBy::Mute)
+        } else {
+            None
+        };
+        hits.push(Hit {
+            score: 1.0,
+            file_path: batch.file_path.clone(),
+            line: first_line,
+            line_end: first_line,
+            source: batch.source.clone(),
+            reason: "layering".to_string(),
+            flagged: true,
+            threshold: 0.5,
+            hunk_content,
+            evidence: None,
+            hash,
+            suppressed_by,
+            #[cfg(feature = "semantic")]
+            semantic: None,
+        });
+    }
+    hits
 }
 
 /// The semantic pass (F1 reinvention today; F2 placement next) — additive
@@ -2063,6 +2159,16 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         &mut stderr,
     );
 
+    // Compute arch hits before `filtered` is moved into `score_patches`.
+    #[cfg(feature = "arch")]
+    let arch_extra = arch_hits(
+        &filtered,
+        &args.argot_dir,
+        &filter_adapters,
+        &mutes.active,
+        &mut stderr,
+    );
+
     let (hits, hunk_count, files_scanned) = score_patches(
         filtered,
         &mut scorers,
@@ -2081,6 +2187,14 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     let hits = {
         let mut hits = hits;
         hits.extend(semantic_extra);
+        hits
+    };
+
+    // Merge the advisory architecture-graph hits (same rebind discipline).
+    #[cfg(feature = "arch")]
+    let hits = {
+        let mut hits = hits;
+        hits.extend(arch_extra);
         hits
     };
 

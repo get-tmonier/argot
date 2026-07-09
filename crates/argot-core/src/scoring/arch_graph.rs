@@ -50,6 +50,21 @@ use crate::scoring::ts_parse;
 /// A directed layer→layer dependency edge (`from_layer`, `to_layer`).
 pub type Edge = (String, String);
 
+/// The persisted layering graph, written at fit and read at check — the same
+/// fit-time/check-time decoupling as the semantic index and the import snapshot.
+pub const LAYERING_FILE: &str = "layering.json";
+
+/// Serializable form of [`RepoLayering`] (JSON can't key a map on a tuple, so
+/// edges are a flat list). Carries the fit `repo_sha` for provenance.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct LayeringArtifact {
+    repo_sha: String,
+    py_packages: Vec<String>,
+    py_roots: Vec<String>,
+    edges: Vec<(String, String, u32)>,
+    sinks: Vec<String>,
+}
+
 /// A layer counts as a (near-)sink when its outgoing import mass is at most this
 /// fraction of its total mass — the net-importee boundary. Tuned on the corpora:
 /// 0.5 lifts coverage catch 77% → 85% while real over-fire stays flat (≤2.7%; the
@@ -264,6 +279,33 @@ impl RepoLayering {
         s
     }
 
+    /// Serialize the fitted graph for persistence in `.argot/layering.json`.
+    pub fn to_json(&self, repo_sha: &str) -> String {
+        let art = LayeringArtifact {
+            repo_sha: repo_sha.to_string(),
+            py_packages: self.py_packages.iter().cloned().collect(),
+            py_roots: self.py_roots.clone(),
+            edges: self
+                .edges
+                .iter()
+                .map(|((a, b), w)| (a.clone(), b.clone(), *w))
+                .collect(),
+            sinks: self.sinks.iter().cloned().collect(),
+        };
+        serde_json::to_string(&art).unwrap_or_default()
+    }
+
+    /// Restore a fitted graph persisted by [`to_json`]. `None` on unreadable JSON.
+    pub fn from_json(s: &str) -> Option<Self> {
+        let art: LayeringArtifact = serde_json::from_str(s).ok()?;
+        Some(RepoLayering {
+            py_packages: art.py_packages.into_iter().collect(),
+            py_roots: art.py_roots,
+            edges: art.edges.into_iter().map(|(a, b, w)| ((a, b), w)).collect(),
+            sinks: art.sinks.into_iter().collect(),
+        })
+    }
+
     /// Import mass into `layer` (sum of incoming edge weights) — a layer's
     /// popularity, i.e. how likely an LLM is to reach for it.
     pub fn in_mass(&self, layer: &str) -> u32 {
@@ -458,5 +500,17 @@ mod tests {
         assert!(g
             .file_edges("x.rs", "use crate::foo::bar;", Language::Rust)
             .is_empty());
+    }
+
+    #[test]
+    fn json_round_trip_preserves_edges_and_sinks() {
+        let g = RepoLayering::fit(fixture());
+        let restored = RepoLayering::from_json(&g.to_json("deadbeef")).expect("valid json");
+        assert!(restored.contains_edge(&("views".into(), "models".into())));
+        assert!(restored.is_sink("models"));
+        assert_eq!(
+            restored.classify(&("models".into(), "views".into())),
+            Some(Violation::Reversal)
+        );
     }
 }

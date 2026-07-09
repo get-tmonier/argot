@@ -21,6 +21,10 @@ self-update = ["dep:axoupdater"]
 # semantic is standard, always-on behaviour. Dev/CI base loops leave it off for
 # the lean pure-Rust build. Forwards to argot-core's `semantic` feature.
 semantic = ["argot-core/semantic"]
+# Compiles in the architecture-graph layer (module-dependency-boundary findings,
+# reason `layering`). Build-time gate like `semantic`; forwards to argot-core's
+# `arch` feature. Off in dev/CI and (for now) in releases.
+arch = ["argot-core/arch"]
 
 [dependencies]
 argot-core = { path = "../argot-core" }

@@ -1431,6 +1431,38 @@ pub fn run_calibrate(
         }
     }
 
+    // Architecture-graph artifact (`.argot/layering.json`), alongside
+    // scorer-config.json. Feature-gated + in its own file so the base config is
+    // byte-for-byte unchanged whether or not the layer is compiled in. Built from
+    // the same voice-file collection production fits on (config-respecting) —
+    // Python only in v1; other languages simply produce no graph.
+    #[cfg(feature = "arch")]
+    {
+        use crate::scoring::adapters::Language;
+        use crate::scoring::arch_graph::{RepoLayering, LAYERING_FILE};
+        let files = crate::train::collect_source_files(repo_dir);
+        let mut sources: Vec<(String, String)> = Vec::new();
+        for abs in &files {
+            if abs.extension().and_then(|e| e.to_str()) != Some("py") {
+                continue;
+            }
+            if let (Ok(rel), Ok(src)) = (abs.strip_prefix(repo_dir), std::fs::read_to_string(abs)) {
+                sources.push((rel.to_string_lossy().replace('\\', "/"), src));
+            }
+        }
+        let graph = RepoLayering::fit(
+            sources
+                .iter()
+                .map(|(p, s)| (p.as_str(), s.as_str(), Language::Python)),
+        );
+        if graph.edge_count() > 0 {
+            let path = output.with_file_name(LAYERING_FILE);
+            if let Err(e) = std::fs::write(&path, graph.to_json(&opts.repo_sha)) {
+                eprintln!("argot: writing layering graph failed: {e}");
+            }
+        }
+    }
+
     // Emit the inspectable model manifest alongside the config.
     let per_lang_model_hash: BTreeMap<String, String> = config
         .languages
