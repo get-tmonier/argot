@@ -82,6 +82,10 @@ struct LayeringArtifact {
     module_path: Option<String>,
     edges: Vec<(String, String, u32)>,
     sinks: Vec<String>,
+    /// Fit-time file→layer overrides for languages where the source layer is
+    /// derived from the file's namespace, not its directory (C#). Empty otherwise.
+    #[serde(default)]
+    file_layer: Vec<(String, String)>,
 }
 
 fn lang_tag(l: Language) -> &'static str {
@@ -154,6 +158,11 @@ pub struct RepoLayering {
     edges: HashMap<Edge, u32>,
     /// Layers that are (near-)sinks: net-importees now importing outward.
     sinks: HashSet<String>,
+    /// File→layer overrides for languages whose source layer comes from the
+    /// file's namespace rather than its directory (C#, where `.NET` projects use
+    /// flat dotted directories). Consulted first by [`layer_of`]. Empty for
+    /// path-anchored languages.
+    file_layer: HashMap<String, String>,
 }
 
 impl Default for RepoLayering {
@@ -165,6 +174,7 @@ impl Default for RepoLayering {
             module_path: None,
             edges: HashMap::new(),
             sinks: HashSet::new(),
+            file_layer: HashMap::new(),
         }
     }
 }
@@ -190,7 +200,19 @@ impl RepoLayering {
             module_path,
             edges: HashMap::new(),
             sinks: HashSet::new(),
+            file_layer: HashMap::new(),
         };
+        // Languages whose source layer is namespace-derived (not directory-derived)
+        // need a fit-time file→layer map so `layer_of` is consistent with the edge
+        // source layers. Populate it BEFORE building edges so `file_edges` (which
+        // reads `layer_of`) sees the override.
+        if me.namespace_self_layer() {
+            for (path, source) in &files {
+                if let Some(l) = me.derive_self_layer(source) {
+                    me.file_layer.insert((*path).to_string(), l);
+                }
+            }
+        }
         for (path, source) in &files {
             for e in me.file_edges(path, source) {
                 *me.edges.entry(e).or_insert(0) += 1;
@@ -226,7 +248,31 @@ impl RepoLayering {
     /// An empty root (`""`) = repo root and matches any path (Go-style, layer =
     /// first path component). Language-agnostic.
     pub fn layer_of(&self, path: &str) -> Option<String> {
-        layer_under(&self.roots, path)
+        if let Some(l) = self.file_layer.get(path) {
+            return Some(l.clone());
+        }
+        match self.language {
+            Language::Rust => rust_layer_under(&self.roots, path),
+            _ => layer_under(&self.roots, path),
+        }
+    }
+
+    /// Whether this language derives a file's source layer from its namespace
+    /// declaration rather than its directory. C# .NET projects commonly use flat
+    /// dotted directories (`src/Company.Product.Module/`), so the directory's
+    /// first component is a single bucket, not the layer — the namespace is.
+    fn namespace_self_layer(&self) -> bool {
+        matches!(self.language, Language::CSharp)
+    }
+
+    /// The source layer of a file from its own namespace, using the SAME
+    /// base-stripping as target derivation (`layer_after_base`) so source and
+    /// target vocabularies align. `None` if the file has no namespace under a
+    /// known base. Only meaningful when [`namespace_self_layer`] is true.
+    fn derive_self_layer(&self, source: &str) -> Option<String> {
+        let ns = cs_namespace(source)?;
+        let parts: Vec<&str> = ns.split('.').filter(|s| !s.is_empty()).collect();
+        layer_after_base(&parts, &self.internal, '.')
     }
 
     /// The `roots`-relative path components of a file (for relative-import climbs).
@@ -248,7 +294,19 @@ impl RepoLayering {
     /// per-language resolver. Each resolver yields the TARGET layers of the
     /// file's internal imports; the shared code forms `(src_layer → tgt)` edges.
     pub fn file_edges(&self, path: &str, source: &str) -> HashSet<Edge> {
-        let Some(src) = self.layer_of(path) else {
+        // Namespace-self-layer languages (C#) derive the source layer from the
+        // file's own namespace so it aligns with the target vocabulary. Use the
+        // fit-time map when the path is known; otherwise parse `source` directly
+        // (a hunk in a file not present at fit — e.g. a newly added file).
+        let src = if self.namespace_self_layer() {
+            self.file_layer
+                .get(path)
+                .cloned()
+                .or_else(|| self.derive_self_layer(source))
+        } else {
+            self.layer_of(path)
+        };
+        let Some(src) = src else {
             return HashSet::new();
         };
         let targets = match self.language {
@@ -504,6 +562,11 @@ impl RepoLayering {
                 .map(|((a, b), w)| (a.clone(), b.clone(), *w))
                 .collect(),
             sinks: self.sinks.iter().cloned().collect(),
+            file_layer: self
+                .file_layer
+                .iter()
+                .map(|(p, l)| (p.clone(), l.clone()))
+                .collect(),
         };
         serde_json::to_string(&art).unwrap_or_default()
     }
@@ -518,6 +581,7 @@ impl RepoLayering {
             module_path: art.module_path,
             edges: art.edges.into_iter().map(|(a, b, w)| ((a, b), w)).collect(),
             sinks: art.sinks.into_iter().collect(),
+            file_layer: art.file_layer.into_iter().collect(),
         })
     }
 
@@ -561,6 +625,34 @@ fn layer_under(roots: &[String], path: &str) -> Option<String> {
         parts[0].to_string()
     } else {
         "__root__".to_string()
+    })
+}
+
+/// Rust layer of a file under its crate `src` root. A directory module
+/// (`src/foo/bar.rs`) is layer `foo`, exactly like [`layer_under`]. But a *file*
+/// module directly under `src` (`src/color.rs`) is layer `color` — its module
+/// name — not `__root__`, so it aligns with the `use crate::color::…` target
+/// vocabulary. `lib.rs`/`main.rs`/`mod.rs` are the crate root (`__root__`).
+fn rust_layer_under(roots: &[String], path: &str) -> Option<String> {
+    let dir = parent_dir(path);
+    let root = roots
+        .iter()
+        .filter(|r| r.is_empty() || dir == r.as_str() || dir.starts_with(&format!("{r}/")))
+        .max_by_key(|r| r.len())?;
+    let rel = if root.is_empty() {
+        path
+    } else {
+        path[root.len()..].trim_start_matches('/')
+    };
+    let parts: Vec<&str> = rel.split('/').collect();
+    if parts.len() > 1 {
+        return Some(parts[0].to_string());
+    }
+    let stem = parts[0].strip_suffix(".rs").unwrap_or(parts[0]);
+    Some(if matches!(stem, "lib" | "main" | "mod") {
+        "__root__".to_string()
+    } else {
+        stem.to_string()
     })
 }
 
@@ -1408,6 +1500,39 @@ mod tests {
     }
 
     #[test]
+    fn rust_file_modules_use_stem_layer_not_root() {
+        // A *file* module directly under src (`src/color.rs`) is its own layer
+        // `color` — matching the `use crate::color::…` target — not `__root__`.
+        // Otherwise every top-level file collapses to one bucket and no edge forms.
+        let files = vec![
+            (
+                "crates/printer/src/printer.rs",
+                "use crate::color::Style;\n",
+            ),
+            ("crates/printer/src/color.rs", "pub struct Style;\n"),
+            (
+                "crates/printer/src/lib.rs",
+                "pub mod color;\npub mod printer;\n",
+            ),
+        ];
+        let g = RepoLayering::fit(files, Language::Rust);
+        assert_eq!(
+            g.layer_of("crates/printer/src/color.rs").as_deref(),
+            Some("color")
+        );
+        assert_eq!(
+            g.layer_of("crates/printer/src/lib.rs").as_deref(),
+            Some("__root__")
+        );
+        assert!(g.contains_edge(&("printer".into(), "color".into())));
+        assert!(g.is_sink("color"));
+        assert_eq!(
+            g.fires("crates/printer/src/color.rs", "use crate::printer::P;\n"),
+            Some(Violation::Reversal)
+        );
+    }
+
+    #[test]
     fn rust_workspace_crate_import_is_internal() {
         // `use argot_core::…` where crate `argot-core` is a workspace member
         // (owns a `src/`) resolves like `crate::` — an internal cross-layer edge.
@@ -1487,6 +1612,37 @@ mod tests {
         assert!(g.is_sink("Core"));
         assert_eq!(
             g.fires("src/Core/Service.cs", "using Acme.App.Web;\n"),
+            Some(Violation::Reversal)
+        );
+    }
+
+    #[test]
+    fn csharp_flat_dotted_dirs_use_namespace_layer_not_directory() {
+        // The .NET convention (powershell/jellyfin): each project is ONE flat dir
+        // whose name IS the dotted namespace — `src/Acme.App.Web/` not `src/Web/`.
+        // The directory's first component (`src`) is a single bucket; the layer must
+        // come from the namespace (`Web`/`Core`), or every file collapses to `src`
+        // and no cross-layer edge forms.
+        let files = vec![
+            (
+                "src/Acme.App.Web/Controller.cs",
+                "namespace Acme.App.Web;\nusing Acme.App.Core;\nclass Controller {}\n",
+            ),
+            (
+                "src/Acme.App.Core/Service.cs",
+                "namespace Acme.App.Core;\nclass Service {}\n",
+            ),
+        ];
+        let g = RepoLayering::fit(files, Language::CSharp);
+        // Source layer is namespace-derived, so the edge is Web -> Core, not src -> *.
+        assert!(g.contains_edge(&("Web".into(), "Core".into())));
+        assert_eq!(
+            g.layer_of("src/Acme.App.Web/Controller.cs").as_deref(),
+            Some("Web")
+        );
+        assert!(g.is_sink("Core"));
+        assert_eq!(
+            g.fires("src/Acme.App.Core/Service.cs", "using Acme.App.Web;\n"),
             Some(Violation::Reversal)
         );
     }
