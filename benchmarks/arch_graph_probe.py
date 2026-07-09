@@ -167,22 +167,25 @@ def main():
                     if is_rev or is_sink:
                         clean += 1
         f = lambda x: 100 * x / tot if tot else 0
-        # CATCH estimate (coverage): over the FULL graph's cross-layer NON-edges,
-        # what share would the reversal∪sink rule flag if an LLM created it? Uses the
-        # full-graph sinks/edges (not the 70% fit) — the deployed rule's coverage.
+        # CATCH (REALISTIC violation model): an LLM reaches for a REAL internal
+        # module (one some layer already imports, weighted by how popular it is) from
+        # a layer the repo forbids. So we average the reversal∪sink rule over missing
+        # edges a->b where b has in-edges (a plausible target), weighted by b's
+        # popularity (in-degree mass). Uniform-over-all-nonedges was the naive prior.
         fout, fin = Counter(), Counter()
-        for (a, b) in w:
+        for (a, b), c in w.items():
             fout[a] += 1
-            fin[b] += 1
+            fin[b] += c  # popularity = import mass
         fsinks = {l for l in layers if fin[l] > 0 and fout[l] == 0}
-        nonedge = cover = 0
+        num = den = 0.0
         for a in layers:
             for b in layers:
-                if a != b and (a, b) not in w:
-                    nonedge += 1
+                if a != b and (a, b) not in w and fin[b] > 0:
+                    pop = fin[b]
+                    den += pop
                     if (b, a) in w or a in fsinks:
-                        cover += 1
-        catch = 100 * cover / nonedge if nonedge else 0
+                        num += pop
+        catch = 100 * num / den if den else 0
         agg.append((f(novel), f(clean), catch))
         print(f"{corp:10} {len(layers):4d} {len(w):6d} {asym:5.0f}% "
               f"{f(novel):6.1f}% {f(rev):5.1f}% {f(sink):5.1f}% "

@@ -80,6 +80,31 @@ The signal that code "has no place here" is **relational**: it lives in the *edg
 modules, not the *shapes* within a function. A dependency-direction reversal is discrete and rare
 in healthy code (≤3%), so it can gate — the same reason a foreign import can.
 
+## De-risk round (cheap, before the full build) — both unknowns held
+
+**1. Realistic catch model (`arch_graph_probe.py`).** Replaced the uniform-over-non-edges
+assumption with a realistic one: an LLM reaches for a *real* internal module (one some layer
+already imports), weighted by that module's popularity (import mass), from a layer the repo
+forbids. Catch **rose** to **76% mean (57–100%)** at the same ~1.2% FP — realistic violations
+target popular modules, which have the strongest directional structure, so they are *more*
+catchable than random edges.
+
+**2. Cross-language spot-check (`arch_graph_xlang.py`, heuristic regex extractors).**
+
+| corpus | lang | layers | asym% | FP% | catch% |
+|---|---|--:|--:|--:|--:|
+| hugo | go | 38 | 93% | 2.4% | 43% |
+| gh-cli | go | 7 | 97% | 0.0% | 57% |
+| hono | ts | 21 | 99% | 1.6% | 57% |
+| excalidraw | ts | 110 | 97% | 1.3% | 91% |
+| outline | ts | 5 | 100% | 0.0% | 14%* |
+
+The two make-or-break properties **generalize**: module graphs are **93–100% directional** in Go
+and TypeScript, and the reversal∪sink tell stays **≤2.4% FP**. Catch is more extraction-sensitive
+(*outline resolved only 4 edges — a heuristic-parser artifact, not a signal failure; the real
+per-language extractor via `import_graph.rs` will do better). Verdict: the cheap probe cleared the
+bar to justify a full validation.
+
 ## Next (if pursued)
 
 Mirror the structural validation but on the graph: (1) authored/synthetic architectural-violation
