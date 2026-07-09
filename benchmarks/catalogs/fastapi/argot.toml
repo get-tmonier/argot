@@ -1,0 +1,6 @@
+# What a FastAPI maintainer would mute (see the argot-setup skill): the library
+# the repo ships is fastapi/. docs_src/ is the documentation's example apps —
+# hundreds of standalone tutorial snippets, not the framework's authored voice;
+# scripts/ is dev tooling.
+[exclude]
+paths = ["docs_src/", "scripts/"]

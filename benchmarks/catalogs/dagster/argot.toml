@@ -1,0 +1,16 @@
+# What a Dagster maintainer would mute (see the argot-setup skill): Dagster is a
+# monorepo whose authored Python code lives under python_modules/. examples/,
+# integration_tests/, helm/, .buildkite/, docs/, scripts/ and js_modules/ are
+# peripheral demo projects, deployment charts, CI tooling and the JS UI — not the
+# Python library's voice. dagster-test/ is an internal test-helper package.
+[exclude]
+paths = [
+  "examples/",
+  "integration_tests/",
+  "helm/",
+  ".buildkite/",
+  "docs/",
+  "scripts/",
+  "js_modules/",
+  "python_modules/dagster-test/",
+]

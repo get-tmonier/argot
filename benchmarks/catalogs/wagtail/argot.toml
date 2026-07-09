@@ -1,0 +1,5 @@
+# What a Wagtail maintainer would mute (see the argot-setup skill): the authored
+# Python library is wagtail/. client/ is the JS/TS front-end, docs/ the docs site,
+# scripts/ dev tooling — peripheral, not the Django app's Python voice.
+[exclude]
+paths = ["client/", "docs/", "scripts/"]
