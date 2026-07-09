@@ -1,0 +1,312 @@
+# Architecture-graph violation fixtures for laravel (PHP framework, PSR-4 namespace
+# Illuminate\<Layer>). Each `import_line` added to `host_file` creates the internal
+# edge (source layer -> target layer). Violations cross a boundary the repo's learned
+# layering never crosses; controls respect the established direction.
+#
+# Layer = the SECOND namespace component of a file's `namespace Illuminate\<Layer>\...;`
+# declaration, i.e. its directory under `src/Illuminate/`. Two synthetic layers cover
+# files outside that tree: `config` (repo-root `config/*.php`) and `__root__`
+# (top-level tooling like `rector.php`). Laravel's layers group roughly as:
+#   - Support, Contracts     near-universal foundations. Support is the utility sink
+#                            (Str, Arr, Collection helpers) — almost every other layer
+#                            depends on it, it depends on almost nothing. Contracts is
+#                            a pure-interface layer (deliberately near-zero imports) so
+#                            any component can implement/type-hint against it without
+#                            dragging in machinery.
+#   - Container              the foundational DI/service-resolution layer. Http,
+#                            Database, Console and everything else depend ON Container
+#                            to resolve services — it should have almost no fan-out of
+#                            its own.
+#   - Filesystem, Log,
+#     Encryption, Cookie,
+#     Bus, Events,
+#     Broadcasting          foundational/leaf infrastructure primitives (storage
+#                            drivers, logging context, crypto, per-request cookie jar,
+#                            queue job-batch bookkeeping, the pub/sub event dispatcher,
+#                            a minimal broadcastable-event wrapper). Higher layers call
+#                            INTO these, not the other way.
+#   - Database               the ORM/persistence domain layer — mid-tier, but the
+#                            direction attested at HEAD is that Database's own
+#                            migration/console subcomponents depend on Console/
+#                            Filesystem, not the reverse.
+#   - Console, Http          the CLI and HTTP entry-point layers — the highest-level,
+#                            broadly-wiring layers; everything else is meant to be
+#                            reachable FROM here, not to reach INTO here.
+#   - Reflection, Conditionable,
+#     JsonSchema, config,
+#     __root__, types/Managers  small orthogonal/leaf helpers (reflection utilities, a
+#                            when()/unless() trait mixin, schema deserialization, the
+#                            app's own config files, root dev-tooling, driver-manager
+#                            types) with no legitimate reason to reach into the CLI or
+#                            HTTP layers.
+#
+# Methodology: every (host_file, import_line) pair below is copied VERBATIM from a row
+# in the resolver-verified candidate menu (`/tmp/arch-w2/candidates-laravel.md`: 39
+# layers, 714 catchable + 231 forward candidates for this corpus, each edge confirmed
+# 0-usage by the actual argot-core resolver). The resolver creates each edge
+# deterministically by injecting a synthetic `ArgotFixture` marker class into the
+# target namespace and importing it from the host file (so `import_line` is always the
+# two-line `<?php` + `use Illuminate\<Target>\ArgotFixture;` snippet, not a hand-picked
+# real symbol). Each `rationale` explains the realistic real-world import an LLM would
+# plausibly write to produce that same src->tgt edge, and why it is/isn't
+# architecturally sound.
+#
+# Distribution: 12 violations, PREDOMINANTLY wrong-direction (11 of 12 are
+# reversal/transitive_reversal — a foundational or leaf infrastructure layer reaching
+# into the higher-level Console/Http/Database layers, or the mid-tier Database layer
+# reaching sideways past its established Console-registration relationship). That
+# mirrors the natural distribution of realistic LLM architectural mistakes: wrong-
+# direction edges dominate, so the fixture set does too — no artificial padding toward
+# gate-invisible cases. Exactly ONE violation is `forward`-kind (JsonSchema -> Console):
+# a genuinely plausible layer-skip (a pure schema-parsing utility reaching sideways
+# into the interactive CLI layer it has no parsing-time use for) that the gate's
+# direction-only check structurally cannot catch, kept to measure recall honestly. The
+# 8 controls are `forward`-kind rows that are clearly legitimate — orthogonal/leaf
+# helpers (Managers types, JsonSchema, Reflection, Conditionable, app config, root
+# dev-tooling) reaching into the foundational Support/Contracts/Container layers along
+# the already-established direction, proving the gate does not over-fire on ordinary
+# forward growth.
+
+violations:
+  # ---- reversals / transitive-reversals (11 of 12 — the classic case the gate is
+  # built to catch: a foundational or leaf infrastructure layer reaching into a
+  # higher-level Console/Http/Database layer, or a mid-tier layer reaching sideways
+  # past its established relationship) ----
+  - host_file: "src/Illuminate/Contracts/Auth/Access/Authorizable.php"
+    source_layer: "Contracts"
+    import_line: "<?php\nuse Illuminate\\Console\\ArgotFixture;\n"
+    target_layer: "Console"
+    kind: "reversal"
+    rationale: >-
+      Contracts is Laravel's pure-interface layer (analogous to a marker-interface
+      layer) — deliberately dependency-free so every other component can implement or
+      type-hint against it without pulling in machinery. `Authorizable` is a narrow
+      auth-check interface. A plausible LLM "improvement" adds a default
+      `authorizeViaArtisan()` helper that shells out through an injected
+      `Illuminate\Console` output stream, importing the CLI layer into a contract meant
+      to stay framework-position-agnostic. Resolver-verified 0-usage at HEAD.
+
+  - host_file: "src/Illuminate/Container/Attributes/Auth.php"
+    source_layer: "Container"
+    import_line: "<?php\nuse Illuminate\\Console\\ArgotFixture;\n"
+    target_layer: "Console"
+    kind: "reversal"
+    rationale: >-
+      Container is Laravel's foundational dependency-injection layer — Http, Database,
+      Console and everything else depend ON Container to resolve services, never the
+      reverse. `Attributes/Auth.php` is a narrow `#[Auth]` parameter-injection
+      attribute. A plausible LLM edit has the attribute's resolver emit a debug line
+      via an injected `Illuminate\Console\OutputStyle` when resolution fails, pulling
+      the CLI layer into the DI attribute-resolution path. Resolver-verified 0-usage at
+      HEAD.
+
+  - host_file: "src/Illuminate/Filesystem/AwsS3V3Adapter.php"
+    source_layer: "Filesystem"
+    import_line: "<?php\nuse Illuminate\\Console\\ArgotFixture;\n"
+    target_layer: "Console"
+    kind: "reversal"
+    rationale: >-
+      Filesystem's Flysystem adapters are low-level storage-driver leaves — Console's
+      `storage:link` and queue-worker commands depend on Filesystem, not vice versa. A
+      plausible LLM edit adds inline progress reporting during a large S3 upload via
+      `Illuminate\Console\OutputStyle`, coupling a storage-driver adapter to the
+      interactive CLI layer. Resolver-verified 0-usage at HEAD.
+
+  - host_file: "src/Illuminate/Log/Context/ContextLogProcessor.php"
+    source_layer: "Log"
+    import_line: "<?php\nuse Illuminate\\Console\\ArgotFixture;\n"
+    target_layer: "Console"
+    kind: "reversal"
+    rationale: >-
+      Log context processors are foundational infrastructure invoked from every
+      request, job and command, so they must stay framework-position-agnostic. A
+      plausible LLM edit has the processor also echo its context through
+      `Illuminate\Console\OutputStyle` "for local debugging" — Console commands attach
+      log context, not the other way around. Resolver-verified 0-usage at HEAD.
+
+  - host_file: "src/Illuminate/Bus/Batch.php"
+    source_layer: "Bus"
+    import_line: "<?php\nuse Illuminate\\Console\\ArgotFixture;\n"
+    target_layer: "Console"
+    kind: "reversal"
+    rationale: >-
+      `Batch` is Bus's core job-batch value object, tracked by queue workers; Console's
+      `queue:*` commands depend on Bus to inspect and report batches, not vice versa. A
+      plausible LLM edit has `Batch` format its own progress line via
+      `Illuminate\Console\OutputStyle` for a "watch" feature, pulling the interactive
+      CLI into the queue domain object. Resolver-verified 0-usage at HEAD.
+
+  - host_file: "src/Illuminate/Container/Attributes/Auth.php"
+    source_layer: "Container"
+    import_line: "<?php\nuse Illuminate\\Database\\ArgotFixture;\n"
+    target_layer: "Database"
+    kind: "reversal"
+    rationale: >-
+      Same foundational-DI role as the Container -> Console case above, different
+      target: Database's Eloquent models and service provider depend on Container to
+      resolve connections, never the reverse. A plausible LLM edit has the `#[Auth]`
+      attribute resolve a guard by querying `Illuminate\Database` directly (a raw user
+      lookup) instead of delegating to the auth manager, pulling the ORM into the DI
+      attribute layer. Resolver-verified 0-usage at HEAD.
+
+  - host_file: "src/Illuminate/Filesystem/AwsS3V3Adapter.php"
+    source_layer: "Filesystem"
+    import_line: "<?php\nuse Illuminate\\Database\\ArgotFixture;\n"
+    target_layer: "Database"
+    kind: "reversal"
+    rationale: >-
+      Database's migration/seeder tooling depends on Filesystem to read schema and seed
+      files, not the reverse. A plausible LLM edit has the S3 adapter log failed
+      uploads straight to a `Illuminate\Database`-backed audit table instead of
+      returning a result the caller persists, importing the ORM into a storage-driver
+      leaf. Resolver-verified 0-usage at HEAD.
+
+  - host_file: "src/Illuminate/Events/CallQueuedListener.php"
+    source_layer: "Events"
+    import_line: "<?php\nuse Illuminate\\Database\\ArgotFixture;\n"
+    target_layer: "Database"
+    kind: "reversal"
+    rationale: >-
+      Database's Eloquent model-event system depends on Events (the dispatcher) to fire
+      model lifecycle hooks — Events is the foundational pub/sub layer, not a Database
+      consumer. A plausible LLM edit has the queued-listener wrapper query
+      `Illuminate\Database` directly to log delivery status to a table instead of
+      dispatching a follow-up event, reversing the established direction.
+      Resolver-verified 0-usage at HEAD.
+
+  - host_file: "src/Illuminate/Broadcasting/AnonymousEvent.php"
+    source_layer: "Broadcasting"
+    import_line: "<?php\nuse Illuminate\\Database\\ArgotFixture;\n"
+    target_layer: "Database"
+    kind: "reversal"
+    rationale: >-
+      `AnonymousEvent` is Broadcasting's minimal ad-hoc broadcastable wrapper
+      (channel/payload only). Database's broadcast-notification channel depends on
+      Broadcasting to deliver events, not the reverse. A plausible LLM edit has the
+      anonymous event persist its own delivery record via `Illuminate\Database`,
+      folding storage concerns into what's meant to stay a transient message wrapper.
+      Resolver-verified 0-usage at HEAD.
+
+  - host_file: "src/Illuminate/Cookie/CookieJar.php"
+    source_layer: "Cookie"
+    import_line: "<?php\nuse Illuminate\\Console\\ArgotFixture;\n"
+    target_layer: "Console"
+    kind: "transitive_reversal"
+    rationale: >-
+      CookieJar is a foundational per-request HTTP primitive; Console's session/cache
+      commands depend on layers like Cookie only transitively through Http, never
+      directly, and never in this direction. A plausible LLM edit has CookieJar emit a
+      warning through `Illuminate\Console\OutputStyle` when a cookie exceeds size
+      limits "for CLI debugging," pulling the interactive CLI layer into a per-request
+      primitive. Resolver-verified 0-usage at HEAD.
+
+  - host_file: "src/Illuminate/Encryption/Encrypter.php"
+    source_layer: "Encryption"
+    import_line: "<?php\nuse Illuminate\\Http\\ArgotFixture;\n"
+    target_layer: "Http"
+    kind: "transitive_reversal"
+    rationale: >-
+      `Encrypter` is a foundational crypto primitive that Http's cookie/session
+      middleware depends on to encrypt and decrypt values — never the reverse. A
+      plausible LLM edit has `Encrypter` inspect an `Illuminate\Http\Request` directly
+      to derive a per-request key salt, instead of accepting a plain string key,
+      pulling the HTTP layer into what's meant to be a framework-position-agnostic
+      crypto primitive. Resolver-verified 0-usage at HEAD.
+
+  # ---- the one forward-kind violation: direction-compliant (a leaf utility reaching
+  # sideways into a runtime abstraction), so the gate structurally CANNOT catch it —
+  # kept so recall is measured honestly against what the direction-only check is
+  # expected to miss ----
+  - host_file: "src/Illuminate/JsonSchema/Deserializer.php"
+    source_layer: "JsonSchema"
+    import_line: "<?php\nuse Illuminate\\Console\\ArgotFixture;\n"
+    target_layer: "Console"
+    kind: "forward"
+    rationale: >-
+      `Deserializer` is JsonSchema's schema-parsing utility — it has no legitimate
+      reason to talk to the interactive CLI layer, and it currently has no established
+      precedence with Console in the learned graph, so this edge doesn't create a
+      cycle. A plausible LLM edit has the deserializer write malformed-schema warnings
+      through `Illuminate\Console\OutputStyle` "for nicer artisan output," coupling a
+      pure parsing utility to the CLI. Forward direction, so the gate's direction-only
+      check lets it through, but a schema parser has no analysis-time use for an
+      interactive console abstraction — a layer-skip kept to measure recall honestly.
+
+controls:
+  - host_file: "types/Managers/CacheManager.php"
+    source_layer: "Managers"
+    import_line: "<?php\nuse Illuminate\\Support\\ArgotFixture;\n"
+    target_layer: "Support"
+    rationale: >-
+      Support is Laravel's near-universal utility sink (Str, Arr, Collection helpers)
+      that virtually every component legitimately depends on. A manager class pulling
+      in a Support helper (e.g. `Str::studly()` to resolve a driver class name) is
+      ordinary forward growth along the established direction; must not fire.
+
+  - host_file: "src/Illuminate/JsonSchema/Deserializer.php"
+    source_layer: "JsonSchema"
+    import_line: "<?php\nuse Illuminate\\Support\\ArgotFixture;\n"
+    target_layer: "Support"
+    rationale: >-
+      Same direction as above: a schema-deserialization utility using Support's
+      string/array helpers to normalize schema keys is the expected forward-direction
+      shape of Support as a foundational sink. Must not fire.
+
+  - host_file: "src/Illuminate/Reflection/Reflector.php"
+    source_layer: "Reflection"
+    import_line: "<?php\nuse Illuminate\\Contracts\\ArgotFixture;\n"
+    target_layer: "Contracts"
+    rationale: >-
+      Contracts is designed to be implemented and type-hinted against broadly.
+      Reflector inspecting a class against `Contracts` interfaces (e.g. detecting
+      whether it implements `Arrayable`) is exactly the intended consumption
+      direction. Must not fire.
+
+  - host_file: "src/Illuminate/Conditionable/HigherOrderWhenProxy.php"
+    source_layer: "Conditionable"
+    import_line: "<?php\nuse Illuminate\\Contracts\\ArgotFixture;\n"
+    target_layer: "Contracts"
+    rationale: >-
+      The `when()`/`unless()` trait mixin type-hinting its proxy target against a
+      Contracts interface, rather than a concrete class, is the idiomatic forward use
+      of Contracts as a shared interface layer. Must not fire.
+
+  - host_file: "config/app.php"
+    source_layer: "config"
+    import_line: "<?php\nuse Illuminate\\Contracts\\ArgotFixture;\n"
+    target_layer: "Contracts"
+    rationale: >-
+      Laravel's `config/app.php` wires interface-to-implementation service bindings
+      (e.g. `Contracts\Http\Kernel::class => ...`) as part of normal service-container
+      configuration — an app-level config file referencing framework Contracts is the
+      textbook forward direction. Must not fire.
+
+  - host_file: "src/Illuminate/Reflection/Reflector.php"
+    source_layer: "Reflection"
+    import_line: "<?php\nuse Illuminate\\Container\\ArgotFixture;\n"
+    target_layer: "Container"
+    rationale: >-
+      Container is Laravel's foundational DI layer; a Reflector helper querying the
+      Container to resolve constructor-parameter types (a common reflection-plus-DI
+      pattern) is ordinary forward-direction dependency on a foundational service.
+      Must not fire.
+
+  - host_file: "types/Managers/CacheManager.php"
+    source_layer: "Managers"
+    import_line: "<?php\nuse Illuminate\\Contracts\\ArgotFixture;\n"
+    target_layer: "Contracts"
+    rationale: >-
+      CacheManager type-hinting its driver-resolution result against a Contracts
+      interface (e.g. `Contracts\Cache\Store`) rather than a concrete class is the
+      standard Laravel manager pattern — depending on Contracts is exactly what the
+      interface layer exists for. Must not fire.
+
+  - host_file: "rector.php"
+    source_layer: "__root__"
+    import_line: "<?php\nuse Illuminate\\Support\\ArgotFixture;\n"
+    target_layer: "Support"
+    rationale: >-
+      `rector.php` is the repo's root dev-tooling config (static rewrite rules).
+      Referencing a Support helper (e.g. `Str`) to configure a custom rector rule
+      targeting string-based rewrites is unremarkable dev-tooling -> foundational-
+      utility direction. Must not fire.

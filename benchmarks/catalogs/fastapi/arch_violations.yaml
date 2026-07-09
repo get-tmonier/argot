@@ -1,0 +1,269 @@
+# Architecture-graph violation fixtures for fastapi (Python).
+#
+# Package root: fastapi/ (the dir with __init__.py). Unlike a typical app repo,
+# fastapi is a small, mostly-flat package: 24 argot-detected "layers" total, but
+# only 6 of them are *packages* (a dir with its own __init__.py) that can plausibly
+# host a new top-of-file import line — the other ~18 are single-file modules
+# (fastapi/exceptions.py, fastapi/types.py, ...) that are legitimate *targets* but
+# not realistic *sources* for a hand-authored fixture (there's no package body to
+# edit). Every fixture below is therefore hosted in one of the 6 host-mapped
+# layers' __init__.py: _compat, middleware, security, dependencies, openapi, and
+# the root package itself (fastapi/__init__.py, layer "__root__").
+#
+# Established topology (learned from git HEAD, file-level import edges):
+#   dependencies -> _compat, security, types, background, concurrency,
+#                   exceptions, logger, utils           (foundational band)
+#   openapi      -> _compat, logger, encoders, dependencies, exceptions,
+#                   params, responses, sse, types, utils
+#   security     -> openapi(.models), exceptions, param_functions
+#   _compat      -> types, openapi(.constants)
+#   middleware   -> (nothing — see below)
+#   applications/routing (top composition layer, NOT host-mapped: nothing in
+#                   the package imports them back) -> _compat, datastructures,
+#                   exception_handlers, exceptions, logger, middleware(.asyncexitstack),
+#                   openapi(.docs/.utils), params, types, utils, dependencies,
+#                   encoders, sse
+# True leaves (zero outbound fastapi.* imports, confirmed by grep):
+#   types, datastructures, background, concurrency, logger, exceptions.
+# middleware is a pure *inbound* sink: applications imports
+# fastapi.middleware.asyncexitstack, but middleware/__init__.py itself only
+# re-exports from starlette — it has zero real outbound fastapi.* edges.
+# _compat is itself a foundational hub: real-imported by both dependencies and
+# openapi, the two mid-band layers that build on it.
+#
+# Candidate source: resolver-verified 0-usage edges in
+# /tmp/arch-w2/candidates-fastapi.md (built by the arch-graph dumper,
+# --mode arch-candidates, from full git history — not just HEAD). Every
+# host_file + import_line pair below is copied verbatim from that menu.
+# Independently re-verified with import-statement-anchored grep so comments /
+# string literals can't produce false matches:
+#   git -C benchmarks/data/fastapi/.repo grep -nE \
+#     "^\s*(from|import) fastapi\.<tgt>" -- "fastapi/<src>/"
+# (returns nothing == 0-usage; all violation edges below confirmed 0 hits.)
+#
+# kind semantics (per resolver):
+#   reversal            - direct reverse of an attested edge (B->A real, A->B is not)
+#   transitive_reversal - reverses a multi-hop attested chain rather than a single
+#                         direct edge (e.g. a sink layer with zero real outbound
+#                         edges reaching directly into a hub that only the
+#                         established mid-band consumers touch)
+#   sink_out            - source is itself a widely-imported hub/near-sink
+#                         reaching further out to a module that never imports it
+#                         back (neither direction attested)
+#   forward             - consistent with the real topology, i.e. NOT foreign;
+#                         used below only for controls
+
+violations:
+  # --- reversal: direct reverse of an attested edge ---
+  - host_file: "fastapi/dependencies/__init__.py"
+    source_layer: "dependencies"
+    import_line: "from fastapi.openapi import ArgotFixture"
+    target_layer: "openapi"
+    kind: "reversal"
+    rationale: >-
+      dependencies importing openapi. `git grep -nE '^\s*(from|import)
+      fastapi\.openapi' -- fastapi/dependencies/` returns nothing -> 0-usage.
+      openapi imports dependencies in 2 files (openapi/utils.py pulls
+      dependencies.models.Dependant and dependencies.utils.get_dependant to build
+      the OpenAPI schema from a route's dependency tree) — B->A is attested, so
+      dependencies reaching up into the schema-generation layer reverses the
+      established direction.
+
+  - host_file: "fastapi/security/__init__.py"
+    source_layer: "security"
+    import_line: "from fastapi.dependencies import ArgotFixture"
+    target_layer: "dependencies"
+    kind: "reversal"
+    rationale: >-
+      security importing dependencies. `git grep -nE '^\s*(from|import)
+      fastapi\.dependencies' -- fastapi/security/` returns nothing -> 0-usage.
+      dependencies imports security in 2 files (dependencies/models.py pulls
+      security.base.SecurityBase, dependencies/utils.py pulls
+      security.oauth2.SecurityScopes) — B->A is attested, so a security scheme
+      reaching down into the request-resolution layer reverses the established
+      direction.
+
+  - host_file: "fastapi/openapi/__init__.py"
+    source_layer: "openapi"
+    import_line: "from fastapi.security import ArgotFixture"
+    target_layer: "security"
+    kind: "reversal"
+    rationale: >-
+      openapi importing security. `git grep -nE '^\s*(from|import)
+      fastapi\.security' -- fastapi/openapi/` returns nothing -> 0-usage.
+      security imports openapi in 7 files (base.py, api_key.py, oauth2.py,
+      http.py, open_id_connect_url.py all pull openapi.models for their schema
+      classes) — B->A is strongly attested, so the schema-generation layer
+      reaching into a specific security scheme reverses the established
+      direction.
+
+  - host_file: "fastapi/_compat/__init__.py"
+    source_layer: "_compat"
+    import_line: "from fastapi.dependencies import ArgotFixture"
+    target_layer: "dependencies"
+    kind: "reversal"
+    rationale: >-
+      _compat importing dependencies. `git grep -nE '^\s*(from|import)
+      fastapi\.dependencies' -- fastapi/_compat/` returns nothing -> 0-usage.
+      dependencies imports _compat in 2 files (dependencies/models.py pulls
+      _compat.ModelField, dependencies/utils.py pulls several _compat helpers) —
+      B->A is attested, so the low-level pydantic-compat shim reaching up into
+      the dependency-resolution layer reverses the established direction.
+
+  # --- transitive_reversal: reverses a multi-hop attested chain, not a single direct edge ---
+  - host_file: "fastapi/middleware/__init__.py"
+    source_layer: "middleware"
+    import_line: "from fastapi._compat import ArgotFixture"
+    target_layer: "_compat"
+    kind: "transitive_reversal"
+    rationale: >-
+      middleware importing _compat. `git grep -nE '^\s*(from|import)
+      fastapi\._compat' -- fastapi/middleware/` returns nothing -> 0-usage.
+      middleware/__init__.py only re-exports starlette.middleware.Middleware — it
+      has zero real outbound fastapi.* edges (confirmed: `git grep -nE
+      '^\s*(from|import) fastapi\.' -- fastapi/middleware/` matches nothing). Both
+      established consumers of _compat (dependencies, openapi) sit in the
+      mid-band that builds on top of the foundational pydantic-compat shim;
+      middleware — a pure sink for outbound edges — reaching directly into
+      _compat skips straight to internals only that mid-band is meant to touch.
+
+  - host_file: "fastapi/security/__init__.py"
+    source_layer: "security"
+    import_line: "from fastapi._compat import ArgotFixture"
+    target_layer: "_compat"
+    kind: "transitive_reversal"
+    rationale: >-
+      security importing _compat. `git grep -nE '^\s*(from|import)
+      fastapi\._compat' -- fastapi/security/` returns nothing -> 0-usage.
+      dependencies real-imports both security (2 files) and _compat (2 files),
+      i.e. dependencies is the attested consumer that sits between them; security
+      reaching directly into _compat reverses that chain by pulling in what only
+      its own consumer (dependencies) is established to depend on.
+
+  - host_file: "fastapi/middleware/__init__.py"
+    source_layer: "middleware"
+    import_line: "from fastapi.openapi import ArgotFixture"
+    target_layer: "openapi"
+    kind: "transitive_reversal"
+    rationale: >-
+      middleware importing openapi. `git grep -nE '^\s*(from|import)
+      fastapi\.openapi' -- fastapi/middleware/` returns nothing -> 0-usage.
+      openapi is a heavy consumer built on _compat/dependencies/encoders/utils and
+      nothing in the package consumes openapi back; middleware (zero real
+      outbound edges, a pure sink) reaching into the schema-generation layer
+      reverses the direction in which the whole mid-to-top band is built.
+
+  # --- sink_out: source is a widely-imported hub reaching further out; neither direction attested ---
+  - host_file: "fastapi/_compat/__init__.py"
+    source_layer: "_compat"
+    import_line: "from fastapi.exceptions import ArgotFixture"
+    target_layer: "exceptions"
+    kind: "sink_out"
+    rationale: >-
+      _compat importing exceptions. `git grep -nE '^\s*(from|import)
+      fastapi\.exceptions' -- fastapi/_compat/` returns nothing -> 0-usage. Not a
+      reversal: exceptions.py is a true leaf with zero outbound fastapi.* imports
+      of its own (`git grep -nE '^\s*(from|import) fastapi\.' --
+      fastapi/exceptions.py` matches nothing), so it never imports _compat back.
+      _compat is itself a hub (real-imported by both dependencies and openapi);
+      a hub reaching further out into an unrelated widely-shared leaf it has
+      never touched is a placement mistake, not a strict reversal.
+
+  - host_file: "fastapi/middleware/__init__.py"
+    source_layer: "middleware"
+    import_line: "from fastapi.exceptions import ArgotFixture"
+    target_layer: "exceptions"
+    kind: "sink_out"
+    rationale: >-
+      middleware importing exceptions. `git grep -nE '^\s*(from|import)
+      fastapi\.exceptions' -- fastapi/middleware/` returns nothing -> 0-usage.
+      Not a reversal: exceptions.py never imports anything back (true leaf,
+      verified above). middleware has zero real outbound edges of its own;
+      reaching into the widely-shared exceptions module — used by
+      responses/applications/utils/encoders/routing/security/dependencies/openapi
+      already — is a placement mistake for a layer that has never needed it.
+
+  - host_file: "fastapi/_compat/__init__.py"
+    source_layer: "_compat"
+    import_line: "from fastapi.encoders import ArgotFixture"
+    target_layer: "encoders"
+    kind: "sink_out"
+    rationale: >-
+      _compat importing encoders. `git grep -nE '^\s*(from|import)
+      fastapi\.encoders' -- fastapi/_compat/` returns nothing -> 0-usage. Not a
+      reversal: encoders.py imports only exceptions and types
+      (`git grep -nE '^\s*(from|import) fastapi\._compat' --
+      fastapi/encoders.py` == 0), never _compat. _compat is a hub consumed by
+      dependencies and openapi; it currently reaches out only to types and
+      openapi.constants — pulling in encoders too (already consumed by
+      exception_handlers/routing/openapi.utils/openapi.docs) is an out-of-band
+      placement mistake for the compat shim.
+
+controls:
+  # Realistic NEW cross-layer imports drawn from the same resolver-verified
+  # menu's `forward` rows: 0-usage at this exact import line, but consistent
+  # with the real topology (the src layer already reaches into the same
+  # foundational/leaf band for other names), so these must NOT be flagged.
+  - host_file: "fastapi/security/__init__.py"
+    source_layer: "security"
+    import_line: "from fastapi.types import ArgotFixture"
+    target_layer: "types"
+    rationale: >-
+      security already reaches into the shared foundational band (openapi.models,
+      exceptions, param_functions). types.py is a true leaf with zero outbound
+      edges; a security scheme borrowing a shared type alias is ordinary growth
+      in the same direction security already depends in, not a violation.
+
+  - host_file: "fastapi/dependencies/__init__.py"
+    source_layer: "dependencies"
+    import_line: "from fastapi.datastructures import ArgotFixture"
+    target_layer: "datastructures"
+    rationale: >-
+      dependencies already imports several foundational leaves (types,
+      background, concurrency, logger, utils, _compat, security). datastructures
+      is another such leaf (consumed by applications/utils/routing/
+      param_functions/openapi.utils); a new dependencies -> datastructures edge
+      follows the same bottom-up pattern dependencies already establishes.
+
+  - host_file: "fastapi/security/__init__.py"
+    source_layer: "security"
+    import_line: "from fastapi.utils import ArgotFixture"
+    target_layer: "utils"
+    rationale: >-
+      security already depends on shared foundational modules (openapi.models,
+      exceptions, param_functions). utils.py is consumed by
+      applications/exception_handlers/routing/dependencies.utils/openapi.utils;
+      security reaching into the same shared-utility band is consistent growth,
+      not a new direction.
+
+  - host_file: "fastapi/dependencies/__init__.py"
+    source_layer: "dependencies"
+    import_line: "from fastapi.encoders import ArgotFixture"
+    target_layer: "encoders"
+    rationale: >-
+      dependencies already imports fastapi.utils directly
+      (dependencies/utils.py: `from fastapi.utils import create_model_field,
+      get_path_param_names`). encoders.py sits in the same foundational band
+      (consumed by exception_handlers/routing/openapi); dependencies picking up
+      an encoders helper too is ordinary lateral growth within that band.
+
+  - host_file: "fastapi/security/__init__.py"
+    source_layer: "security"
+    import_line: "from fastapi.logger import ArgotFixture"
+    target_layer: "logger"
+    rationale: >-
+      logger.py is a true leaf (zero outbound edges) already consumed by
+      dependencies and openapi for the same purpose (module-level logging).
+      security picking up the shared logger is unremarkable growth, not a
+      layering violation.
+
+  - host_file: "fastapi/openapi/__init__.py"
+    source_layer: "openapi"
+    import_line: "from fastapi.background import ArgotFixture"
+    target_layer: "background"
+    rationale: >-
+      openapi already imports the foundational band broadly (_compat, logger,
+      encoders, dependencies, exceptions, params, responses, sse, types, utils).
+      background.py is a true leaf with zero outbound edges; openapi adding one
+      more foundational leaf to that already-established list is ordinary
+      growth, not a new direction.

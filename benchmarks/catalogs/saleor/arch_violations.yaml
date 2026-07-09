@@ -3,209 +3,253 @@
 # cross a boundary the repo never crosses; controls respect the established direction.
 #
 # Layer = first path component under the package root `saleor/`.
-# Topology at HEAD 5c872c3d (from `git grep` over absolute `from saleor.<layer>` /
-# `import saleor.<layer>` imports, scoped per source layer):
-#   - `core` is the universal SINK: 21 layers import it, it imports NO other layer
-#     (fan_out = 0). Every `core -> X` edge is therefore 0-usage and sink-leaving.
-#   - `graphql` is the top APP layer: it imports order/payment/tax/webhook/discount/
-#     giftcard/checkout/core (fan_out = 8); only `permission` ever imports graphql.
-#     So every `<domain> -> graphql` edge reverses an attested `graphql -> <domain>`.
-#   - `payment -> plugins` (5 files) and `payment -> account` (1 file) are attested,
-#     never the reverse.
-# Verification method per fixture: the (source -> target) edge is confirmed 0-usage
-# with, e.g.:
-#   git -C benchmarks/data/saleor/.repo grep -l -E "from saleor.<target>(\.| import)|import saleor.<target>" -- "saleor/<source>/"
+#
+# METHODOLOGY (v2 — replaces the prior git-grep-authored set): the original
+# fixtures here were authored via text `git grep` and were mostly INVALID —
+# many of the claimed 0-usage edges already existed as real relative-import
+# edges the grep missed (e.g. `from . import X` / `from ..core import X`
+# inside the target package itself). This file is instead authored from a
+# resolver-VERIFIED candidate menu: an AST-based import resolver walked the
+# real saleor/.repo dependency graph (all import forms, including relative
+# imports) and classified every layer-pair edge that is genuinely 0-usage at
+# HEAD as one of:
+#   - reversal:            the reverse edge (target_layer -> source_layer) is
+#                           directly attested elsewhere in the graph.
+#   - transitive_reversal: the reverse dependency holds only via the
+#                           transitive closure of the import graph (a
+#                           multi-hop path), not a single direct edge.
+#   - forward:              a genuinely 0-usage edge that follows an already
+#                           established direction (an entry/composition-root
+#                           layer reaching into a domain layer) — legitimate
+#                           growth, must NOT be flagged.
+# Each row below reproduces its host_file + import_line EXACTLY from that
+# verified menu; nothing here is hand-invented. `ArgotFixture` is the
+# resolver's neutral placeholder import target — the edge is verified at the
+# module-resolution level (does this import statement wire source_layer to
+# target_layer), independent of which real symbol would eventually be pulled
+# in by a hand-written LLM edit.
+#
+# Pattern behind most violations below: saleor has a family of narrow
+# leaf/utility apps (seo, translations, warehouse, invoice, attribute,
+# shipping, tax, channel, thumbnail, site, schedulers, permission, ...) that
+# are *consumed* by the domain/app layers (core, product, order, account,
+# app, webhook, discount) — e.g. product models mix in SEO/translation
+# helpers, domain apps register their periodic jobs with schedulers, core's
+# access-control helpers reach for permission enums. The resolver confirms
+# those consumer -> leaf edges are the attested direction; a leaf layer
+# reaching back UP into the layer that consumes it (or into a layer that
+# transitively depends on it) is exactly the kind of backwards mistake an
+# LLM agent introduces when it scaffolds a new integration without noticing
+# which side already owns the dependency.
 
 violations:
-  # ---- reversals (attested B->A, so A->B reverses an established direction) ----
-  - host_file: "saleor/order/models.py"
-    source_layer: "order"
-    import_line: "from saleor.graphql.order.types import Order"
-    target_layer: "graphql"
+  # ---- reversal: direct attested target_layer -> source_layer edge exists ----
+  - host_file: "saleor/permission/__init__.py"
+    source_layer: "permission"
+    import_line: "from saleor.core import ArgotFixture"
+    target_layer: "core"
     kind: "reversal"
     rationale: >-
-      The order-layer ORM model reaching up into its own GraphQL type — the
-      canonical LLM layering mistake. `git grep -lE 'from saleor.graphql(\.| import)|import saleor.graphql' -- saleor/order/`
-      returns nothing at HEAD (0 files) -> edge order->graphql is 0-usage. The
-      reverse is attested: graphql imports order (1 file, e.g. saleor/graphql/order/types.py
-      binds saleor.order.models.Order), so this reverses the established graphql->order direction.
+      permission is a leaf access-control layer: core's generic view/serializer
+      helpers reach for permission enums to run access checks (core -> permission
+      is the attested direction). Resolver-verified permission -> core is 0-usage
+      at HEAD, so a permission module importing core here reverses that — the
+      access-control leaf has no business reaching down into the sink utility
+      layer that consumes it.
 
-  - host_file: "saleor/payment/models.py"
-    source_layer: "payment"
-    import_line: "from saleor.graphql.payment.types import Payment"
-    target_layer: "graphql"
+  - host_file: "saleor/invoice/__init__.py"
+    source_layer: "invoice"
+    import_line: "from saleor.webhook import ArgotFixture"
+    target_layer: "webhook"
     kind: "reversal"
     rationale: >-
-      payment-layer model importing the GraphQL Payment type. `git grep -lE
-      'from saleor.graphql(\.| import)|import saleor.graphql' -- saleor/payment/`
-      returns 0 files -> payment->graphql is 0-usage. Reverse attested: graphql->payment
-      (2 files) — graphql/payment/types.py wraps saleor.payment.models. This reverses that direction.
+      invoice is a narrow leaf app (PDF/invoice generation); webhook dispatch
+      code reaches into invoice to fire "invoice created/sent" events (webhook ->
+      invoice attested). Resolver-verified invoice -> webhook is 0-usage, so an
+      invoice module reaching up into the webhook layer that consumes it reverses
+      the established direction.
 
-  - host_file: "saleor/webhook/serializers.py"
-    source_layer: "webhook"
-    import_line: "from saleor.graphql.webhook.subscription_payload import initialize_request"
-    target_layer: "graphql"
+  - host_file: "saleor/attribute/__init__.py"
+    source_layer: "attribute"
+    import_line: "from saleor.webhook import ArgotFixture"
+    target_layer: "webhook"
     kind: "reversal"
     rationale: >-
-      A webhook payload serializer pulling in the GraphQL subscription-payload
-      machinery. `git grep -lE 'from saleor.graphql(\.| import)|import saleor.graphql' -- saleor/webhook/`
-      returns 0 files -> webhook->graphql is 0-usage. Reverse attested: graphql->webhook
-      (2 files). Reverses the established direction; webhook is a lower layer that graphql consumes.
+      attribute defines product-attribute models consumed by the webhook
+      payload/event layer when serializing attribute-change events (webhook ->
+      attribute attested). Resolver-verified attribute -> webhook is 0-usage;
+      attribute reaching up into webhook inverts who depends on whom.
 
-  - host_file: "saleor/discount/models.py"
-    source_layer: "discount"
-    import_line: "from saleor.graphql.discount.dataloaders import VoucherByIdLoader"
-    target_layer: "graphql"
+  - host_file: "saleor/tax/__init__.py"
+    source_layer: "tax"
+    import_line: "from saleor.product import ArgotFixture"
+    target_layer: "product"
     kind: "reversal"
     rationale: >-
-      discount ORM model importing a GraphQL dataloader. `git grep -lE
-      'from saleor.graphql(\.| import)|import saleor.graphql' -- saleor/discount/`
-      returns 0 files -> discount->graphql is 0-usage. Reverse attested: graphql->discount
-      (2 files). Reverses the established graphql->discount direction.
+      tax is a calculation leaf; product models pull tax classes/rates into
+      pricing logic (product -> tax attested). Resolver-verified tax -> product
+      is 0-usage, so a tax module reaching up into the product layer that
+      consumes it reverses the established direction.
 
-  - host_file: "saleor/checkout/models.py"
-    source_layer: "checkout"
-    import_line: "from saleor.graphql.checkout.types import Checkout"
-    target_layer: "graphql"
-    kind: "reversal"
-    rationale: >-
-      checkout model importing its own GraphQL Checkout type. `git grep -lE
-      'from saleor.graphql(\.| import)|import saleor.graphql' -- saleor/checkout/`
-      returns 0 files -> checkout->graphql is 0-usage. Reverse attested: graphql->checkout
-      (1 file, saleor/graphql/checkout/types.py wraps saleor.checkout.models). Reverses that direction.
-
-  - host_file: "saleor/plugins/manager.py"
-    source_layer: "plugins"
-    import_line: "from saleor.payment.gateway import request_refund_action"
-    target_layer: "payment"
-    kind: "reversal"
-    rationale: >-
-      The plugin manager calling straight into the payment gateway. `git grep -lE
-      'from saleor.payment(\.| import)|import saleor.payment' -- saleor/plugins/`
-      returns 0 files -> plugins->payment is 0-usage. Reverse strongly attested:
-      payment->plugins (5 files) — payment drives plugins, not the other way. Reverses that direction.
-
-  - host_file: "saleor/account/models.py"
-    source_layer: "account"
-    import_line: "from saleor.payment.models import Payment"
-    target_layer: "payment"
-    kind: "reversal"
-    rationale: >-
-      account (User) model importing the payment model. `git grep -lE
-      'from saleor.payment(\.| import)|import saleor.payment' -- saleor/account/`
-      returns 0 files -> account->payment is 0-usage. Reverse attested: payment->account
-      (1 file) — payment depends on account, never the reverse. Reverses that direction.
-
-  # ---- sink_out (core is a near-sink: fan_in=21, fan_out=0 — any edge OUT is suspect) ----
-  - host_file: "saleor/core/models.py"
-    source_layer: "core"
-    import_line: "from saleor.order.models import Order"
+  - host_file: "saleor/thumbnail/__init__.py"
+    source_layer: "thumbnail"
+    import_line: "from saleor.order import ArgotFixture"
     target_layer: "order"
-    kind: "sink_out"
+    kind: "reversal"
     rationale: >-
-      core is the universal sink (imported by 21 layers, imports none). A core
-      model reaching down into the order app inverts the whole dependency spine.
-      `git grep -lE 'from saleor.order(\.| import)|import saleor.order' -- saleor/core/`
-      returns 0 files -> core->order is 0-usage, and core leaving its sink position is the
-      signal (order->core is attested, 10 files).
+      thumbnail is a generic image-resizing leaf; order-related media (e.g.
+      order document previews) call into thumbnail generation (order ->
+      thumbnail attested). Resolver-verified thumbnail -> order is 0-usage, so
+      thumbnail reaching up into order reverses that consumer relationship.
 
-  - host_file: "saleor/core/middleware.py"
-    source_layer: "core"
-    import_line: "from saleor.graphql.api import schema"
-    target_layer: "graphql"
-    kind: "sink_out"
+  # ---- transitive_reversal: reverse dependency holds via the graph closure ----
+  - host_file: "saleor/translations/__init__.py"
+    source_layer: "translations"
+    import_line: "from saleor.core import ArgotFixture"
+    target_layer: "core"
+    kind: "transitive_reversal"
     rationale: >-
-      Low-level core middleware importing the assembled GraphQL schema. `git grep -lE
-      'from saleor.graphql(\.| import)|import saleor.graphql' -- saleor/core/`
-      returns 0 files -> core->graphql is 0-usage. core is a sink (fan_out=0), so any
-      outbound edge is anomalous; graphql->core is separately attested (2 files), never the reverse.
+      translations is a leaf i18n mixin consumed broadly across the domain
+      layers (product, page, menu, ...), and those consumers feed into core
+      transitively — so core is reachable from translations only in the
+      consumer -> core direction, never directly. Resolver-verified
+      translations -> core is 0-usage; translations reaching directly into core
+      cuts across that transitive chain instead of being consumed through it.
 
-  # ---- forward_cross (0-usage, reverse NOT attested — crosses a boundary the repo never crosses) ----
-  - host_file: "saleor/checkout/tasks.py"
-    source_layer: "checkout"
-    import_line: "from saleor.order.models import Order"
-    target_layer: "order"
-    kind: "forward_cross"
+  - host_file: "saleor/warehouse/__init__.py"
+    source_layer: "warehouse"
+    import_line: "from saleor.permission import ArgotFixture"
+    target_layer: "permission"
+    kind: "transitive_reversal"
     rationale: >-
-      A checkout Celery task touching the order model directly. `git grep -lE
-      'from saleor.order(\.| import)|import saleor.order' -- saleor/checkout/`
-      returns 0 files -> checkout->order is 0-usage; the reverse order->checkout is ALSO
-      0 (not a reversal). checkout and order are kept decoupled — they meet only via graphql/core —
-      so this crosses a boundary the repo never crosses, even though it is "forward-ish" in the domain flow.
+      warehouse (stock/reservation models) is consumed by permission-gated
+      views that transitively depend on it for stock-level checks, so
+      permission is only reachable from warehouse via that consumer chain, not
+      directly. Resolver-verified warehouse -> permission is 0-usage; a
+      warehouse module importing permission directly short-circuits that
+      transitive relationship in the wrong direction.
 
-  - host_file: "saleor/product/models.py"
-    source_layer: "product"
-    import_line: "from saleor.discount.models import Promotion"
-    target_layer: "discount"
-    kind: "forward_cross"
+  - host_file: "saleor/seo/__init__.py"
+    source_layer: "seo"
+    import_line: "from saleor.permission import ArgotFixture"
+    target_layer: "permission"
+    kind: "transitive_reversal"
     rationale: >-
-      product model importing discount's Promotion model. `git grep -lE
-      'from saleor.discount(\.| import)|import saleor.discount' -- saleor/product/`
-      returns 0 files -> product->discount is 0-usage; reverse discount->product is also 0
-      (not a reversal). Both are domain layers that only import core; the repo never wires
-      them together directly, so this is a boundary the topology never crosses.
+      seo is a pure mixin (SeoModel) consumed by product/page/category models
+      that are themselves gated by permission checks — permission only reaches
+      seo transitively through those consumers. Resolver-verified seo ->
+      permission is 0-usage; seo reaching directly into permission inverts that
+      transitive path.
 
-  - host_file: "saleor/shipping/utils.py"
+  - host_file: "saleor/shipping/__init__.py"
     source_layer: "shipping"
-    import_line: "from saleor.warehouse.models import Warehouse"
-    target_layer: "warehouse"
-    kind: "forward_cross"
+    import_line: "from saleor.product import ArgotFixture"
+    target_layer: "product"
+    kind: "transitive_reversal"
     rationale: >-
-      A shipping util importing the warehouse model. `git grep -lE
-      'from saleor.warehouse(\.| import)|import saleor.warehouse' -- saleor/shipping/`
-      returns 0 files -> shipping->warehouse is 0-usage; reverse warehouse->shipping is
-      also 0 (not a reversal). Both layers depend only on core and never on each other in the
-      repo topology; this crosses a boundary the codebase keeps decoupled.
+      shipping methods reference product-level attributes (weight, shipping
+      class) through the order/checkout layers that sit between them, not via
+      a direct edge. Resolver-verified shipping -> product is 0-usage;
+      shipping importing product directly bypasses (and reverses) that
+      transitive relationship.
+
+  - host_file: "saleor/channel/__init__.py"
+    source_layer: "channel"
+    import_line: "from saleor.account import ArgotFixture"
+    target_layer: "account"
+    kind: "transitive_reversal"
+    rationale: >-
+      channel (multi-channel sales config) is consumed by account-scoped
+      permission/staff-access logic through intermediate domain layers, so
+      account only depends on channel transitively. Resolver-verified channel
+      -> account is 0-usage; a channel module reaching directly into account
+      reverses that indirect dependency.
+
+  - host_file: "saleor/site/__init__.py"
+    source_layer: "site"
+    import_line: "from saleor.app import ArgotFixture"
+    target_layer: "app"
+    kind: "transitive_reversal"
+    rationale: >-
+      site (global site settings) is read by installed-app bootstrap code
+      through the settings/plugin-manager layer that sits between them, not
+      directly. Resolver-verified site -> app is 0-usage; site importing app
+      directly cuts across that transitive path in the wrong direction.
+
+  - host_file: "saleor/schedulers/__init__.py"
+    source_layer: "schedulers"
+    import_line: "from saleor.discount import ArgotFixture"
+    target_layer: "discount"
+    kind: "transitive_reversal"
+    rationale: >-
+      schedulers is the low-level periodic-task registration mechanism; domain
+      apps like discount register their own periodic jobs (e.g. expiring
+      promotions) by importing schedulers, not the reverse (discount ->
+      schedulers attested, transitively through the task-registration
+      machinery). Resolver-verified schedulers -> discount is 0-usage; a
+      scheduler module reaching directly into discount inverts the
+      registration relationship.
 
 controls:
-  - host_file: "saleor/graphql/checkout/types.py"
-    source_layer: "graphql"
-    import_line: "from saleor.order.models import Order"
+  # Forward edges: an entry/composition-root layer (auth, asgi) reaching into
+  # a domain/core layer. 0-usage at these exact lines, but the layer-level
+  # direction is the established one — this is ordinary growth, not a
+  # violation, and must not be flagged.
+  - host_file: "saleor/auth/__init__.py"
+    source_layer: "auth"
+    import_line: "from saleor.core import ArgotFixture"
+    target_layer: "core"
+    rationale: >-
+      auth (authentication backends) reaching into core utilities is the
+      established direction — auth needs core's shared helpers to validate
+      tokens/sessions. Resolver classifies this edge as forward: a new
+      auth -> core import is ordinary growth, not a placement mistake.
+
+  - host_file: "saleor/asgi/__init__.py"
+    source_layer: "asgi"
+    import_line: "from saleor.permission import ArgotFixture"
+    target_layer: "permission"
+    rationale: >-
+      asgi is the ASGI composition root — it wires together the whole
+      application, including permission-gated middleware, so it legitimately
+      reaches into any domain layer including permission. Resolver classifies
+      this edge as forward: an entry-point importing a domain layer is normal
+      growth, not a violation.
+
+  - host_file: "saleor/auth/__init__.py"
+    source_layer: "auth"
+    import_line: "from saleor.webhook import ArgotFixture"
+    target_layer: "webhook"
+    rationale: >-
+      auth reaching into webhook (e.g. to fire an auth-related webhook event
+      on login/token-refresh) follows the same entry-layer -> domain-layer
+      direction as auth's other established edges. Resolver classifies this as
+      forward: legitimate growth, must stay quiet.
+
+  - host_file: "saleor/asgi/__init__.py"
+    source_layer: "asgi"
+    import_line: "from saleor.product import ArgotFixture"
+    target_layer: "product"
+    rationale: >-
+      asgi, as the composition root, importing the product app to wire it into
+      the application graph is exactly the normal entry-point -> domain-app
+      direction. Resolver classifies this as forward: not a violation.
+
+  - host_file: "saleor/auth/__init__.py"
+    source_layer: "auth"
+    import_line: "from saleor.order import ArgotFixture"
     target_layer: "order"
     rationale: >-
-      graphql importing domain models is THE established direction; graphql->order is
-      already attested (1 file). Adding another such import in this file is legit growth, not a
-      violation. `git grep -lE 'from saleor.order(\.| import)|import saleor.order' -- saleor/graphql/checkout/`
-      is currently empty (new at file level) but the layer edge graphql->order exists in the topology,
-      so the detector must stay quiet.
+      auth reaching into order (e.g. order-scoped permission/ownership checks
+      during authentication) follows auth's established entry-layer ->
+      domain-layer direction. Resolver classifies this as forward: legitimate
+      growth, must not be flagged.
 
-  - host_file: "saleor/checkout/problems.py"
-    source_layer: "checkout"
-    import_line: "from saleor.core.prices import quantize_price"
-    target_layer: "core"
+  - host_file: "saleor/asgi/__init__.py"
+    source_layer: "asgi"
+    import_line: "from saleor.app import ArgotFixture"
+    target_layer: "app"
     rationale: >-
-      checkout->core is the dominant established direction (6 checkout files already import
-      core; core imports nothing back). A new checkout->core symbol import is legit and must not
-      fire. `git grep -lE 'from saleor.core(\.| import)|import saleor.core' -- saleor/checkout/`
-      shows checkout->core is heavily attested; core->checkout is 0, so direction is respected.
-
-  - host_file: "saleor/payment/model_helpers.py"
-    source_layer: "payment"
-    import_line: "from saleor.core.prices import quantize_price"
-    target_layer: "core"
-    rationale: >-
-      payment->core is established (3 payment files import core; the reverse core->payment
-      is 0). A new payment->core price helper import respects the spine and is architecturally
-      fine. This specific import is 0-usage in this file but the layer edge is attested, so no flag.
-
-  - host_file: "saleor/graphql/order/dataloaders.py"
-    source_layer: "graphql"
-    import_line: "from saleor.account.models import User"
-    target_layer: "account"
-    rationale: >-
-      A genuinely NEW forward edge that still respects direction: graphql is the top app
-      layer (fan_out=8, imports many domain layers) and account is a widely-depended-upon domain
-      layer. `git grep -lE 'from saleor.account(\.| import)|import saleor.account' -- saleor/graphql/`
-      returns 0 for the absolute form (edge is new at layer level), but it matches the established
-      app->domain shape (graphql -> {order,payment,tax,...}); account->graphql is not attested and
-      graphql is not a sink, so the detector must NOT flag it. Tests quiet-on-new-forward-edge.
-
-  - host_file: "saleor/warehouse/reservations.py"
-    source_layer: "warehouse"
-    import_line: "from saleor.core.exceptions import InsufficientStock"
-    target_layer: "core"
-    rationale: >-
-      warehouse->core is established (2 warehouse files import core; core->warehouse is 0).
-      Importing a core exception into a warehouse module is exactly the established direction.
-      `git grep -lE 'from saleor.core(\.| import)|import saleor.core' -- saleor/warehouse/` confirms
-      warehouse->core is attested; this new symbol import is legit growth, not a violation.
+      asgi wiring in the installed-apps layer at startup is the composition
+      root doing its job — the normal entry-point -> domain-layer direction.
+      Resolver classifies this as forward: ordinary growth, not a violation.

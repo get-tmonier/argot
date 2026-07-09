@@ -1,0 +1,347 @@
+# Architecture-graph violation fixtures for junit5 (Java). Each `import_line` added to
+# `host_file` creates the internal edge (source layer -> target layer). Violations cross a
+# boundary the repo's learned layering never crosses; controls respect the established
+# direction.
+#
+# Layer = the directory basename a file lives in (e.g. `.../commons/logging/LogRecordListener.java`
+# -> layer "logging"), same convention as the guava fixture set. junit5's repo has THREE top-level
+# module families instead of guava's single root:
+#   - platform   the foundational SPI: launcher, engine (discovery/execution abstractions), console
+#                (the CLI runner), reporting, and commons (`org.junit.platform.commons.*` — the
+#                repo-wide internal utility belt). platform is the dependency floor: jupiter and
+#                vintage both depend on it; it depends on neither.
+#   - jupiter    the modern annotation-driven API (`org.junit.jupiter.api.*`) plus its own engine
+#                (`org.junit.jupiter.engine.*`), params extension, and a migration-support module
+#                that bridges legacy JUnit4 `@Rule`s. jupiter depends on platform. CRITICALLY,
+#                *within* jupiter, `jupiter-api` (the public, engine-agnostic annotation/extension
+#                surface every test author and third-party extension compiles against) must never
+#                depend on `jupiter-engine` (the internal execution machinery) — engine depends on
+#                api, never the reverse. This api/engine split is as load-bearing inside jupiter as
+#                the platform/jupiter split is repo-wide.
+#   - vintage    the JUnit4-compatibility engine; depends on platform like jupiter does.
+#
+# Several layer basenames used below (util, support, extension, config) recur under more than one
+# module (e.g. both `org.junit.platform.commons.util` and `org.junit.jupiter.api.util` exist).
+# Per the menu's own methodology note, the resolver's layer graph groups nodes by basename, not by
+# fully-qualified package — so for realism each row below is written against ONE specific, named
+# real package, chosen deliberately per row so the "attested direction" claim in its rationale is
+# architecturally sound (not merely basename-matched). That package is spelled out in the rationale
+# even though the `target_layer`/`source_layer` fields stay short, matching the guava file's style.
+# Fixed mapping used throughout this file:
+#   util      -> org.junit.platform.commons.util        (ReflectionUtils, Preconditions, ...;
+#                                                          highest fan-in package in the repo)
+#   support   -> org.junit.platform.commons.support      (AnnotationSupport/ReflectionSupport, the
+#                                                          public wrapper extension authors use)
+#   logging   -> org.junit.platform.commons.logging      (Logger/LoggerFactory/LogRecordListener —
+#                                                          the one real package with this basename)
+#   extension -> org.junit.jupiter.api.extension          (Extension/ExtensionContext — jupiter's
+#                                                          core, most-consumed public SPI)
+#   config    -> org.junit.jupiter.engine.config          (JupiterConfiguration and friends —
+#                                                          jupiter-ENGINE-internal, not public API)
+#   execution -> org.junit.jupiter.engine.execution        (ExecutableInvoker et al. — likewise
+#                                                          jupiter-engine-internal)
+#
+# Methodology: every (host_file, import_line) pair below is copied VERBATIM from a row in the
+# resolver-verified candidate menu (`/tmp/arch-w2/candidates-junit5.md`; every row's edge confirmed
+# 0-usage by the actual argot-core resolver). As with the guava/composer precedent, junit5 has no
+# single natural "index" symbol per package, so the resolver injects a synthetic `ArgotFixture`
+# marker class into a canonical `other.<TargetLayer>` namespace and imports it from the host file;
+# `import_line` is therefore always `import other.<target>.ArgotFixture;`, not a hand-picked real
+# symbol.
+#
+# Selection is by ARCHITECTURAL REALISM, not raw `kind` frequency. All 12 violations are genuine
+# reversals / transitive-reversals / sink-outs, in three families:
+#   1. platform.commons (logging/annotation) reaching UP into jupiter's public extension SPI or
+#      jupiter-engine's internals — a foundational, repo-wide-depended-on layer acquiring a
+#      dependency on a single higher module, which real platform-commons code never does.
+#   2. jupiter-api (timeout/parallel/condition) reaching DOWN into jupiter-engine internals — the
+#      textbook api/engine boundary violation described above.
+#   3. jupiter-migrationsupport / jupiter-engine near-sinks (member, support) breaking their own
+#      deliberately narrow fan-out, including one intra-jupiter-engine cycle (support -> config).
+# No `forward`-kind violation is included: every forward-kind row available for these six targets
+# is an unremarkable jupiter/platform-internal -> foundation import (the same shape as the
+# controls below), so adding one as a "violation" would be contrived padding.
+# All 8 controls are forward-kind rows: 7 are jupiter modules (jupiter-api, jupiter-params,
+# jupiter-migrationsupport) importing a platform.commons foundational package — the dominant,
+# repo-established direction; 1 is platform-launcher importing platform.commons.logging, the same
+# direction from one module over. The gate must stay quiet on all of them.
+
+violations:
+  # ---- platform.commons reaching UP into jupiter (repo-wide foundation acquiring a dependency on
+  # a single higher module — never attested; platform.commons is depended ON, it does not depend) ----
+  - host_file: "junit-platform-commons/src/main/java/org/junit/platform/commons/annotation/Contract.java"
+    source_layer: "annotation"
+    import_line: "import other.util.ArgotFixture;\n"
+    target_layer: "util"
+    kind: "reversal"
+    rationale: >-
+      `Contract` is a tiny design-by-contract marker annotation (`@Contract("null -> fail")`) with
+      zero runtime logic — it exists purely to be read by tooling/humans, not to compute anything.
+      `org.junit.platform.commons.util` (ReflectionUtils, Preconditions, ...) is the repo's most
+      heavily-depended-on internal utility belt and — like most platform.commons classes — is
+      itself `@API`/`@Contract`-annotated, so util -> annotation is attested; the reverse has never
+      happened. A plausible LLM edit has `Contract` validate its own `value()` string against a
+      small grammar using `ReflectionUtils`-style helpers instead of leaving that to callers,
+      reversing the direction. Resolver-verified 0-usage at HEAD.
+
+  - host_file: "junit-platform-commons/src/main/java/org/junit/platform/commons/logging/LogRecordListener.java"
+    source_layer: "logging"
+    import_line: "import other.util.ArgotFixture;\n"
+    target_layer: "util"
+    kind: "reversal"
+    rationale: >-
+      `LogRecordListener` is a small `Handler` subclass that just appends captured `LogRecord`s to
+      a list for test assertions. `ReflectionUtils` and friends in `commons.util` are known
+      consumers of `commons.logging.Logger` (util -> logging is attested, e.g. util logs reflection
+      warnings), but the reverse — logging depending on the general utility belt — has never
+      happened; logging is meant to stay a minimal facade any other commons class can safely use. A
+      plausible LLM edit has `LogRecordListener` filter captured records by class name using a
+      `ReflectionUtils` helper instead of a plain string comparison, reversing the direction.
+      Resolver-verified 0-usage at HEAD.
+
+  - host_file: "junit-platform-commons/src/main/java/org/junit/platform/commons/logging/LogRecordListener.java"
+    source_layer: "logging"
+    import_line: "import other.extension.ArgotFixture;\n"
+    target_layer: "extension"
+    kind: "reversal"
+    rationale: >-
+      `org.junit.jupiter.api.extension` (Extension, ExtensionContext, callbacks) is jupiter's core
+      public SPI — jupiter-engine, jupiter-params, and migrationsupport all implement or consume it
+      extensively, and several of those consumers legitimately log through
+      `commons.logging.Logger`, so extension -> logging is attested. logging depending on jupiter's
+      extension API the other way around has never happened — platform-commons is a dependency
+      floor beneath the entire jupiter module, not a consumer of it. A plausible LLM edit has
+      `LogRecordListener` accept an optional `ExtensionContext` to scope captured records to the
+      current test, pulling jupiter's SPI into a repo-wide foundational logging facade. Resolver-
+      verified 0-usage at HEAD.
+
+  - host_file: "junit-platform-commons/src/main/java/org/junit/platform/commons/annotation/Contract.java"
+    source_layer: "annotation"
+    import_line: "import other.extension.ArgotFixture;\n"
+    target_layer: "extension"
+    kind: "transitive_reversal"
+    rationale: >-
+      Nearly every class in `jupiter.api.extension` carries `@API`/`@Contract`-style annotations
+      from platform-commons, so extension depends on annotation transitively even though no single
+      extension file imports `Contract` directly — that transitive extension ~> annotation path is
+      the attested direction. A plausible LLM edit has `Contract`'s runtime check consult an
+      `ExtensionContext.Namespace`-shaped cache key when memoizing validation results, importing
+      `jupiter.api.extension` into a marker-annotation package that must stay usable from any
+      module, including ones jupiter itself has never heard of (vintage, migrationsupport). Closes
+      a cycle at a distance. Resolver-verified 0-usage at HEAD.
+
+  - host_file: "junit-platform-commons/src/main/java/org/junit/platform/commons/logging/LogRecordListener.java"
+    source_layer: "logging"
+    import_line: "import other.config.ArgotFixture;\n"
+    target_layer: "config"
+    kind: "reversal"
+    rationale: >-
+      `org.junit.jupiter.engine.config` (JupiterConfiguration and its Caching/Default
+      implementations) is jupiter-ENGINE-internal — one specific engine's configuration-resolution
+      layer, not part of any public API. Engine configuration classes resolve their parameters via
+      `commons.logging.Logger` for diagnostics (config -> logging is attested), but the reverse —
+      a repo-wide platform-commons facade importing a single engine's private config class — has
+      never happened and would be a severe layering break (platform-commons can't know jupiter-
+      engine exists, let alone one of its internal classes). A plausible LLM edit has
+      `LogRecordListener` read a `junit.jupiter.*` configuration-parameter-shaped log-level
+      override via `JupiterConfiguration` instead of a generic mechanism. Resolver-verified
+      0-usage at HEAD.
+
+  # ---- console/launcher tool code reaching into jupiter's extension SPI (a peripheral,
+  # engine-agnostic tool acquiring a dependency on one specific test engine's public API) ----
+  - host_file: "junit-platform-console/src/main/java/org/junit/platform/console/options/AnsiColorOptionMixin.java"
+    source_layer: "options"
+    import_line: "import other.extension.ArgotFixture;\n"
+    target_layer: "extension"
+    kind: "sink_out"
+    rationale: >-
+      `AnsiColorOptionMixin` is a picocli option-parsing leaf (just a `--color` enum flag) whose
+      entire job is CLI argument shape — the console launcher is deliberately engine-agnostic,
+      talking to `platform.launcher`/`platform.engine` abstractions only, never a specific engine's
+      SPI. `jupiter.api.extension` has essentially zero reason to appear in `console.options`; a
+      plausible LLM edit has the mixin format its help text using an `ExtensionContext`-shaped
+      display-name helper "borrowed" from jupiter instead of writing its own, breaking the
+      console module's engine-neutral contract and reaching outward into a single engine's SPI it
+      has never depended on. Resolver-verified 0-usage sink_out at HEAD.
+
+  # ---- jupiter-api reaching DOWN into jupiter-engine internals (the api/engine boundary: engine
+  # depends on api, never the reverse — api is compiled against by third-party extension authors
+  # who must never be forced to pull in one specific engine's implementation classes) ----
+  - host_file: "junit-jupiter-api/src/main/java/org/junit/jupiter/api/parallel/Execution.java"
+    source_layer: "parallel"
+    import_line: "import other.config.ArgotFixture;\n"
+    target_layer: "config"
+    kind: "reversal"
+    rationale: >-
+      `Execution` is the plain `@Execution(SAME_THREAD | CONCURRENT)` annotation type in the public
+      `jupiter-api` module. `jupiter.engine.config.JupiterConfiguration` reads `@Execution`'s value
+      via reflection when resolving the effective parallel-execution mode, so config -> parallel is
+      attested and heavy; the reverse can't happen for a plain annotation type, and must not start
+      happening for anything in `jupiter-api` — api is the module third-party extension authors and
+      other test engines compile against, and it must stay engine-implementation-free. A plausible
+      LLM edit has `Execution` expose a `resolveDefault()` helper that consults
+      `JupiterConfiguration` directly, pulling an engine-internal class into the public annotation
+      module. Resolver-verified 0-usage at HEAD.
+
+  - host_file: "junit-jupiter-api/src/main/java/org/junit/jupiter/api/condition/AbstractJreCondition.java"
+    source_layer: "condition"
+    import_line: "import other.config.ArgotFixture;\n"
+    target_layer: "config"
+    kind: "transitive_reversal"
+    rationale: >-
+      `AbstractJreCondition` is the jupiter-api base class for `@EnabledOnJre`/`@DisabledOnJre`-
+      style condition evaluators. `JupiterConfiguration` transitively depends on jupiter-api's
+      condition classes several hops downstream (engine-level condition evaluation orchestrates
+      api-level condition types), even though no engine.config file imports `condition` directly —
+      that's the attested config ~> condition path. A plausible LLM edit has
+      `AbstractJreCondition` short-circuit its evaluation using a
+      `JupiterConfiguration.getRawConfigurationParameter` lookup instead of the
+      `ExtensionContext`-scoped mechanism it already uses, pulling an engine-internal class into
+      the public condition-evaluation base class and closing a cycle at a distance. Resolver-
+      verified 0-usage at HEAD.
+
+  - host_file: "junit-jupiter-api/src/main/java/org/junit/jupiter/api/timeout/PreemptiveTimeoutUtils.java"
+    source_layer: "timeout"
+    import_line: "import other.config.ArgotFixture;\n"
+    target_layer: "config"
+    kind: "transitive_reversal"
+    rationale: >-
+      `PreemptiveTimeoutUtils` is jupiter-api's internal helper for running a test method on a
+      watcher thread under `@Timeout`. Engine-side timeout handling in `JupiterConfiguration`
+      resolves the configured timeout-thread-mode transitively through api's timeout types, so
+      config ~> timeout is attested at a distance; `PreemptiveTimeoutUtils` itself has never
+      imported the engine's config package directly. A plausible LLM edit has the utility read a
+      `junit.jupiter.execution.timeout.thread.mode`-shaped default straight from
+      `JupiterConfiguration` instead of receiving it as a parameter, pulling an engine-internal
+      class into api's timeout-execution helper. Resolver-verified 0-usage at HEAD.
+
+  - host_file: "junit-jupiter-api/src/main/java/org/junit/jupiter/api/timeout/PreemptiveTimeoutUtils.java"
+    source_layer: "timeout"
+    import_line: "import other.execution.ArgotFixture;\n"
+    target_layer: "execution"
+    kind: "transitive_reversal"
+    rationale: >-
+      Same api-level timeout helper; `org.junit.jupiter.engine.execution` (DefaultExecutableInvoker
+      and friends) is jupiter-engine's method-invocation machinery, and it consumes api's timeout
+      types transitively when invoking a `@Timeout`-annotated method under the preemptive strategy —
+      execution ~> timeout is attested, `timeout` package itself has never imported engine.execution
+      directly. A plausible LLM edit has `PreemptiveTimeoutUtils` delegate its watcher-thread
+      bookkeeping to a `ParameterResolutionUtils`-style helper "reused" from
+      `jupiter.engine.execution` instead of the module's own thread-pool logic, closing a distant
+      cycle back through api's timeout package. Resolver-verified 0-usage at HEAD.
+
+  # ---- near-sinks breaking their own deliberately narrow fan-out ----
+  - host_file: "junit-jupiter-migrationsupport/src/main/java/org/junit/jupiter/migrationsupport/rules/member/AbstractTestRuleAnnotatedMember.java"
+    source_layer: "member"
+    import_line: "import other.config.ArgotFixture;\n"
+    target_layer: "config"
+    kind: "sink_out"
+    rationale: >-
+      `AbstractTestRuleAnnotatedMember` is migrationsupport's minimal reflective adapter around a
+      single JUnit4 `@Rule`-annotated field or method — its whole purpose is to stay a thin bridge
+      that touches only the legacy rule's reflective shape and the jupiter extension callbacks it
+      implements, with essentially zero other fan-out. `jupiter.engine.config.JupiterConfiguration`
+      is a specific engine's internal configuration-resolution class that a JUnit4-compatibility
+      adapter has no legitimate reason to know about. A plausible LLM edit has the adapter read a
+      configuration parameter to decide whether to wrap rule-evaluation exceptions, importing an
+      engine-internal class straight into the deliberately narrow migration-support bridge.
+      Resolver-verified 0-usage sink_out at HEAD.
+
+  - host_file: "junit-jupiter-engine/src/main/java/org/junit/jupiter/engine/support/JupiterThrowableCollectorFactory.java"
+    source_layer: "support"
+    import_line: "import other.config.ArgotFixture;\n"
+    target_layer: "config"
+    kind: "reversal"
+    rationale: >-
+      `JupiterThrowableCollectorFactory` is a small jupiter-engine-internal factory that just picks
+      the right `ThrowableCollector` strategy for a test. `JupiterConfiguration` (engine.config) is
+      itself built via factory/support helpers during engine bootstrap — config -> support is the
+      attested intra-engine direction, both packages being siblings under `jupiter.engine`. The
+      reverse, `engine.support` reaching back into `engine.config`, has never happened: the
+      throwable-collector factory has no reason to know about configuration resolution. A plausible
+      LLM edit has the factory pick its collector strategy based on a
+      `JupiterConfiguration.getDefaultTestInstantiationLifecycle()`-shaped config lookup instead of
+      a fixed strategy, closing an intra-engine cycle between two sibling internal packages.
+      Resolver-verified 0-usage at HEAD.
+
+controls:
+  - host_file: "junit-jupiter-api/src/testFixtures/java/org/junit/jupiter/api/fixtures/TrackLogRecords.java"
+    source_layer: "fixtures"
+    import_line: "import other.util.ArgotFixture;\n"
+    target_layer: "util"
+    rationale: >-
+      `TrackLogRecords` is a jupiter-api test-fixtures-source-set extension used by jupiter's own
+      test suite; jupiter-api already depends on platform-commons broadly, and reaching for
+      `org.junit.platform.commons.util`'s reflection/collection helpers while wiring up a log-
+      capturing extension is the ordinary, well-attested forward direction (jupiter -> platform's
+      foundational utility belt). Must not fire.
+
+  - host_file: "junit-jupiter-api/src/testFixtures/java/org/junit/jupiter/api/fixtures/TrackLogRecords.java"
+    source_layer: "fixtures"
+    import_line: "import other.support.ArgotFixture;\n"
+    target_layer: "support"
+    rationale: >-
+      Same fixture-support extension; `org.junit.platform.commons.support` (AnnotationSupport,
+      ReflectionSupport) is the public-facing wrapper platform-commons offers specifically for
+      third-party and jupiter-internal code to use instead of the raw `commons.util` internals —
+      jupiter code importing it while implementing an extension is the textbook forward case. Must
+      not fire.
+
+  - host_file: "junit-jupiter-api/src/main/java/org/junit/jupiter/api/timeout/PreemptiveTimeoutUtils.java"
+    source_layer: "timeout"
+    import_line: "import other.logging.ArgotFixture;\n"
+    target_layer: "logging"
+    rationale: >-
+      `PreemptiveTimeoutUtils` already manages watcher threads and thread-interruption edge cases;
+      logging a diagnostic via `org.junit.platform.commons.logging.Logger` while doing so is the
+      same forward direction every jupiter-api internal class takes toward platform-commons's
+      logging facade. Must not fire.
+
+  - host_file: "junit-jupiter-migrationsupport/src/main/java/org/junit/jupiter/migrationsupport/rules/adapter/AbstractTestRuleAdapter.java"
+    source_layer: "adapter"
+    import_line: "import other.logging.ArgotFixture;\n"
+    target_layer: "logging"
+    rationale: >-
+      `AbstractTestRuleAdapter` bridges a legacy JUnit4 `Statement`/`TestRule` into jupiter's
+      callback model; logging a warning via `commons.logging.Logger` when a legacy rule throws
+      during evaluation is unremarkable growth in the same forward direction the rest of jupiter
+      already takes toward platform-commons. Must not fire.
+
+  - host_file: "junit-jupiter-params/src/main/java/org/junit/jupiter/params/converter/AnnotationBasedArgumentConverter.java"
+    source_layer: "converter"
+    import_line: "import other.logging.ArgotFixture;\n"
+    target_layer: "logging"
+    rationale: >-
+      `AnnotationBasedArgumentConverter` already reflects over converter annotations to build
+      argument values; logging a conversion failure diagnostic via `commons.logging.Logger` is the
+      ordinary forward direction from a jupiter-params internal class toward platform-commons.
+      Must not fire.
+
+  - host_file: "junit-jupiter-params/src/main/java/org/junit/jupiter/params/aggregator/AggregateWith.java"
+    source_layer: "aggregator"
+    import_line: "import other.logging.ArgotFixture;\n"
+    target_layer: "logging"
+    rationale: >-
+      `AggregateWith` is a jupiter-params annotation type; params-module code (its processor,
+      elsewhere in the same package) routinely logs aggregation diagnostics via
+      `commons.logging.Logger` — the same established forward direction as the other params/logging
+      rows above. Must not fire.
+
+  - host_file: "junit-jupiter-params/src/main/java/org/junit/jupiter/params/provider/AnnotationBasedArgumentsProvider.java"
+    source_layer: "provider"
+    import_line: "import other.logging.ArgotFixture;\n"
+    target_layer: "logging"
+    rationale: >-
+      `AnnotationBasedArgumentsProvider` resolves `@ArgumentsSource`-driven providers; logging a
+      provider-resolution failure via `commons.logging.Logger` is the same ordinary forward
+      direction as the rest of jupiter-params. Must not fire.
+
+  - host_file: "junit-platform-launcher/src/main/java/org/junit/platform/launcher/jfr/FlightRecordingDiscoveryListener.java"
+    source_layer: "jfr"
+    import_line: "import other.logging.ArgotFixture;\n"
+    target_layer: "logging"
+    rationale: >-
+      `FlightRecordingDiscoveryListener` lives in platform-launcher rather than jupiter, but takes
+      the same forward direction one module over: launcher code logging JFR-event diagnostics via
+      `platform.commons.logging.Logger` is the ordinary direction every platform/jupiter module
+      takes toward commons's foundational logging facade. Must not fire.

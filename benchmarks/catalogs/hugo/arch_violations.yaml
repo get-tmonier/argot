@@ -1,0 +1,346 @@
+# Architecture-graph violation fixtures for hugo (Go). Each `import_line` added
+# to `host_file` creates the internal edge (source layer -> target layer). Violations
+# cross a boundary the repo's learned layering treats as foreign; controls respect
+# the established direction and must not fire.
+#
+# Layer = first path component under the module root `github.com/gohugoio/hugo/`
+# (module declared in go.mod). `__root__` denotes files directly under the module
+# root (magefile.go, a `//go:build mage` build-tooling entrypoint — not the `hugo`
+# CLI binary, which lives under `commands`).
+#
+# Topology, from grepping `"github.com/gohugoio/hugo/<layer>"` per source file,
+# non-test unless noted, then reduced to layer names:
+#   - `identity` (finder.go/identity.go: a dependency-invalidation/change-tracking
+#     primitive) is the single most-attested foundational leaf sampled here:
+#     hugolib (page.go, page__meta.go, content_map.go), config (configProvider.go,
+#     allconfig/configlanguage.go), hugofs (hglob/glob.go), and resources
+#     (transform.go, resource_spec.go) all import it directly to build
+#     cache-invalidation identities. identity itself only imports common/types
+#     and compare.
+#   - `htesting` / `compare` are hugo's own shared test-assertion helpers
+#     (quicktest wrappers in htesting/hqt, a Comparer-style equality helper in
+#     compare) — production (non-`_test.go`) consumers include
+#     hugolib/integrationtest_builder.go, hugolib/filesystems/basefs.go,
+#     resources/images/imagetesting/testing.go,
+#     resources/resource_transformers/tocss/dartsass/transform.go, and, inside
+#     `common` itself, common/hdebug/debug.go (-> htesting) and
+#     common/hstrings/strings.go + common/version/version.go (-> compare).
+#     Neither package has a production fan-out beyond that.
+#   - `docshelper` is a doc-generation-hook registry; reached via
+#     config/allconfig/docshelper.go (plus output/, tpl/cast/, helpers/,
+#     commands/gen.go) to register runtime documentation callbacks — always
+#     consumed, never a consumer.
+#   - `livereload` (the browser-refresh notifier for `hugo server`) has exactly
+#     one production dependency anywhere in the package — media, for
+#     MIME-aware script injection — and exactly two consumers,
+#     commands/hugobuilder.go and commands/server.go. It is functionally a
+#     fan_out=1 leaf.
+#   - `releaser` (the maintainer-only "cut a Hugo release" tool) has exactly one
+#     production dependency — common/version — and one consumer,
+#     commands/release.go. Same near-leaf shape as livereload.
+#   - `parser` (front-matter/config-format decoding: TOML/YAML/JSON) sits below
+#     `config`: config/configLoader.go imports parser to decode config files.
+#   - `create` (the `hugo new` content-scaffolding package backing the `new`
+#     command) already imports config, config/allconfig, config/testconfig,
+#     deps, common/hexec, common/paths, helpers, hugofs, hugofs/hglob, AND
+#     hugolib directly — the broadest existing fan-out of any layer sampled in
+#     this menu.
+#   - `watcher` (batcher.go: batches raw fsnotify events on a timer) is
+#     deliberately parameter-driven — New() takes interval/poll settings as
+#     plain arguments from its one caller, commands/hugobuilder.go — and its
+#     only internal import anywhere is its own subpackage, watcher/filenotify.
+#   - `scripts` (fork_go_templates/main.go: a one-off maintainer script that
+#     vendors and rewrites Go's stdlib text/template and html/template into
+#     hugo/tpl/internal/go_templates) has exactly one internal dependency,
+#     common/hugio, alongside stdlib + afero for its own file-tree walk.
+#   - `magefile.go` (__root__, `//go:build mage`) already imports codegen and
+#     resources/page/page_generate directly for its `Generate` mage target, but
+#     its `GenDocsHelper` target still shells out via subprocess
+#     (`go run main.go gen docshelper`) rather than importing config directly —
+#     the file is deliberately narrow about which packages it pulls in
+#     in-process. None of its other targets (Fmt/Vet/Test/Check/Docker/Install)
+#     touch site building at all.
+#
+# Selection method: candidates came from a resolver-verified 0-usage edge menu
+# (`/tmp/arch-w2/candidates-hugo.md`, 80 rows spanning 5 targets — common,
+# hugolib, config, resources, hugofs — each import_line confirmed to create the
+# stated src->tgt edge with no prior usage). Violations below skew heavily
+# toward wrong-direction edges (reversal / transitive_reversal / sink_out) to
+# measure recall on the natural distribution of LLM layering mistakes: a
+# low-level primitive (identity, htesting, compare, docshelper) reaching up into
+# a layer that already depends on it, or a near-leaf tool (livereload, releaser)
+# picking up disproportionate new fan-out. Exactly one forward-kind violation is
+# kept (magefile.go -> hugolib: directionally safe, but the file has no
+# functional need for the site-building engine — an honesty check for the edges
+# direction-only checking cannot catch).
+#
+# Controls: this corpus's forward-candidate pool skews toward narrow,
+# single-purpose maintainer tooling (scripts/fork_go_templates, magefile.go,
+# watcher/batcher.go) reaching into heavy core-engine targets, rather than
+# gh-cli-style broad consumer layers — so fewer rows here read as unambiguously
+# legitimate than the ~8 asked for; 6 are included, each tied to a concrete
+# existing shape (an import list, an existing mage target, or a same-domain
+# helper) rather than an invented need. `create` is the one target with a
+# strongly attested "one more core-layer import is unsurprising" shape.
+
+violations:
+  # ---- reversals / transitive reversals off the `identity` hub (hugolib,
+  # config, hugofs, and resources all already depend on identity directly) ----
+  - host_file: "identity/finder.go"
+    source_layer: "identity"
+    import_line: "import \"github.com/gohugoio/hugo/hugolib\""
+    target_layer: "hugolib"
+    kind: "reversal"
+    rationale: >-
+      hugolib/page__meta.go, page.go, and content_map.go all already import
+      identity to build cache-invalidation identities for pages — hugolib ->
+      identity is attested across the core page model. identity/finder.go
+      importing hugolib back would reverse it: the low-level dependency-tracking
+      primitive reaching up into the entire site-building engine it exists to
+      serve.
+
+  - host_file: "identity/finder.go"
+    source_layer: "identity"
+    import_line: "import \"github.com/gohugoio/hugo/config\""
+    target_layer: "config"
+    kind: "reversal"
+    rationale: >-
+      config/configProvider.go and config/allconfig/configlanguage.go already
+      import identity for config-level invalidation identities — config ->
+      identity is attested. identity/finder.go importing config back would
+      reverse it, the same shape as the hugolib edge above.
+
+  - host_file: "identity/finder.go"
+    source_layer: "identity"
+    import_line: "import \"github.com/gohugoio/hugo/resources\""
+    target_layer: "resources"
+    kind: "reversal"
+    rationale: >-
+      resources/transform.go and resources/resource_spec.go already import
+      identity to track resource-level change identities — resources ->
+      identity is attested. identity/finder.go importing resources back would
+      reverse it: the shared invalidation primitive reaching up into the
+      resource-processing pipeline built on top of it.
+
+  - host_file: "identity/finder.go"
+    source_layer: "identity"
+    import_line: "import \"github.com/gohugoio/hugo/hugofs\""
+    target_layer: "hugofs"
+    kind: "reversal"
+    rationale: >-
+      hugofs/hglob/glob.go already imports identity — hugofs -> identity is
+      attested. identity/finder.go importing hugofs back would reverse it,
+      completing the pattern: identity is depended on by hugolib, config,
+      resources, and hugofs alike, never the other way.
+
+  # ---- reversals off hugo's shared test-helper packages (htesting/compare) ----
+  - host_file: "htesting/hqt/checkers.go"
+    source_layer: "htesting"
+    import_line: "import \"github.com/gohugoio/hugo/common\""
+    target_layer: "common"
+    kind: "reversal"
+    rationale: >-
+      common/hdebug/debug.go already imports htesting to drive debug-only test
+      assertions — common -> htesting is attested, from inside common's own
+      debug subpackage. htesting/hqt/checkers.go importing common back would
+      reverse it: the shared test-checker package reaching into Hugo's
+      foundational utility grab-bag instead of staying the one-way leaf
+      common's debug tooling reaches down into.
+
+  - host_file: "htesting/hqt/checkers.go"
+    source_layer: "htesting"
+    import_line: "import \"github.com/gohugoio/hugo/hugolib\""
+    target_layer: "hugolib"
+    kind: "reversal"
+    rationale: >-
+      hugolib/integrationtest_builder.go already imports htesting to build its
+      integration-test fixtures — hugolib -> htesting is attested production
+      code (not a `_test.go` file). htesting/hqt/checkers.go importing hugolib
+      back would reverse it: the shared assertion helper reaching into the
+      full site engine instead of staying the library hugolib's own test-builder
+      reaches down into.
+
+  - host_file: "compare/compare.go"
+    source_layer: "compare"
+    import_line: "import \"github.com/gohugoio/hugo/common\""
+    target_layer: "common"
+    kind: "reversal"
+    rationale: >-
+      common/hstrings/strings.go and common/version/version.go both already
+      import compare for its equality helpers — common -> compare is attested
+      twice over. compare/compare.go importing common back would close that
+      loop: Hugo's generic comparison leaf pulling in the same foundational
+      grab-bag two of its own callers already live inside.
+
+  - host_file: "compare/compare.go"
+    source_layer: "compare"
+    import_line: "import \"github.com/gohugoio/hugo/config\""
+    target_layer: "config"
+    kind: "transitive_reversal"
+    rationale: >-
+      config/configProvider.go already imports identity (attested config ->
+      identity), and identity/finder.go + identity/identity.go already import
+      compare (attested identity -> compare) — so config -> identity -> compare
+      is an attested two-hop chain, with identity as the connective hub (the
+      same hub grounding the identity-target violations above).
+      compare/compare.go importing config directly would reverse that
+      transitive direction — reaching straight into config instead of being
+      reached via identity.
+
+  # ---- reversal off a narrow leaf that config already depends on ----
+  - host_file: "parser/frontmatter.go"
+    source_layer: "parser"
+    import_line: "import \"github.com/gohugoio/hugo/config\""
+    target_layer: "config"
+    kind: "reversal"
+    rationale: >-
+      config/configLoader.go already imports parser to decode TOML/YAML/JSON
+      config files — config -> parser is attested; parser is the low-level
+      format-decoding leaf config is built on. parser/frontmatter.go importing
+      config back would reverse it, the front-matter parser reaching up into
+      the config-assembly layer that already consumes it.
+
+  # ---- transitive reversal off the docshelper hook registry ----
+  - host_file: "docshelper/docs.go"
+    source_layer: "docshelper"
+    import_line: "import \"github.com/gohugoio/hugo/common\""
+    target_layer: "common"
+    kind: "transitive_reversal"
+    rationale: >-
+      common/hugo/hugo.go (production, not a test file) already imports config,
+      and config/allconfig/docshelper.go already imports docshelper to register
+      its doc-generation hooks — so common -> config -> docshelper is an
+      attested two-hop chain. docshelper is meant to be reached from config's
+      doc-helper wiring, not to reach back into common directly;
+      docshelper/docs.go importing common reverses that transitive direction.
+
+  # ---- sink_out (livereload / releaser are near-leaves: one existing
+  # dependency each, gaining a disproportionate new one) ----
+  - host_file: "livereload/connection.go"
+    source_layer: "livereload"
+    import_line: "import \"github.com/gohugoio/hugo/common\""
+    target_layer: "common"
+    kind: "sink_out"
+    rationale: >-
+      livereload's only production dependency, across every file in the
+      package, is media (for MIME-aware injection of the reload script); it is
+      otherwise a near-leaf consumed only by commands/hugobuilder.go and
+      commands/server.go. livereload/connection.go importing common — Hugo's
+      broadest utility grab-bag (collections, hashing, paths, loggers,
+      version, ...) — would be new, disproportionate fan-out for a
+      single-purpose websocket notifier that has never needed more than one
+      internal dependency.
+
+  - host_file: "releaser/releaser.go"
+    source_layer: "releaser"
+    import_line: "import \"github.com/gohugoio/hugo/hugolib\""
+    target_layer: "hugolib"
+    kind: "sink_out"
+    rationale: >-
+      releaser is the maintainer-only "cut a Hugo release" tool (bump version,
+      tag, changelog); its only production dependency anywhere in the package
+      is common/version, and its only consumer is commands/release.go.
+      releaser/releaser.go importing hugolib — the entire site-building engine
+      — would be a huge, unjustified jump for a release-automation script that
+      has never needed more than a version string.
+
+  # ---- forward but still questionable (honesty check: not caught by
+  # direction alone) ----
+  - host_file: "magefile.go"
+    source_layer: "__root__"
+    import_line: "import \"github.com/gohugoio/hugo/hugolib\""
+    target_layer: "hugolib"
+    kind: "forward"
+    rationale: >-
+      magefile.go already imports codegen and resources/page/page_generate
+      in-process for its `Generate` target, and even its own doc-generation
+      target (`GenDocsHelper`) shells out via subprocess rather than importing
+      config directly — the file is deliberately narrow about in-process
+      package imports. None of its other mage targets (Fmt/Vet/Test/Check/
+      Docker/Install/HugoNoGitInfo) touch site building at all. __root__ sits
+      at the top of the graph so magefile.go -> hugolib is directionally
+      "forward" (not caught by the reversal/sink_out signal), but there is no
+      functional grounding for a build script to import the entire
+      site-building engine — the kind of layer-skip an agent could introduce
+      ("let me just call into hugolib here") that direction-only checking
+      misses. Included to keep the recall measurement honest.
+
+controls:
+  - host_file: "create/content.go"
+    source_layer: "create"
+    import_line: "import \"github.com/gohugoio/hugo/resources\""
+    target_layer: "resources"
+    rationale: >-
+      create (the `hugo new` content-scaffolding package) already imports
+      config, config/allconfig, config/testconfig, deps, common/hexec,
+      common/paths, helpers, hugofs, hugofs/hglob, AND hugolib directly — it
+      sits above and freely consumes Hugo's core layers to build new content.
+      Adding resources, the content-resource-processing package, is the same
+      shape as its existing dependency list, not a new category of coupling —
+      must not fire.
+
+  - host_file: "magefile.go"
+    source_layer: "__root__"
+    import_line: "import \"github.com/gohugoio/hugo/config\""
+    target_layer: "config"
+    rationale: >-
+      magefile.go's `GenDocsHelper` mage target already exists to generate
+      config documentation — today it shells out to `go run main.go gen
+      docshelper`, and config/allconfig/docshelper.go is the production code
+      that does the generating. magefile.go already imports codegen directly
+      for its sibling `Generate` target's in-process code generation;
+      converting `GenDocsHelper` from a subprocess call to a direct config
+      import is a normal consolidation of generation logic the build script
+      already performs, not a new category of dependency — must not fire.
+
+  - host_file: "watcher/batcher.go"
+    source_layer: "watcher"
+    import_line: "import \"github.com/gohugoio/hugo/config\""
+    target_layer: "config"
+    rationale: >-
+      Batcher.New() takes its batching interval, poll interval, and poll-mode
+      flag as plain parameters, currently extracted from config by its one
+      caller, commands/hugobuilder.go, before being passed in. Having the
+      batcher read its own defaults (e.g. a configurable watch interval)
+      directly from config, instead of requiring the caller to pre-extract
+      every value, is a normal, harmless simplification of an existing
+      parameter — must not fire.
+
+  - host_file: "watcher/batcher.go"
+    source_layer: "watcher"
+    import_line: "import \"github.com/gohugoio/hugo/hugofs\""
+    target_layer: "hugofs"
+    rationale: >-
+      watcher's job is turning raw fsnotify events into batches; hugofs is
+      Hugo's filesystem abstraction for resolving which component
+      (content/static/layouts/...) a given path belongs to. A batcher that
+      tags or filters events using hugofs's existing path-classification
+      helpers, rather than leaving that entirely to its caller, is a narrow
+      extension within the same problem domain (filesystem paths) — must not
+      fire.
+
+  - host_file: "scripts/fork_go_templates/main.go"
+    source_layer: "scripts"
+    import_line: "import \"github.com/gohugoio/hugo/hugofs\""
+    target_layer: "hugofs"
+    rationale: >-
+      the fork script already does its own file-tree manipulation via afero
+      and common/hugio while vendoring Go's text/template and html/template
+      packages into Hugo's tpl/internal/go_templates tree. Reusing hugofs's
+      existing afero-based directory-walk/filter helpers for that same
+      file-tree manipulation, instead of hand-rolling it, is a narrow
+      substitution within the same problem domain (file-tree operations) —
+      must not fire.
+
+  - host_file: "magefile.go"
+    source_layer: "__root__"
+    import_line: "import \"github.com/gohugoio/hugo/hugofs\""
+    target_layer: "hugofs"
+    rationale: >-
+      magefile.go's `Generate` target already writes to specific autogenerated
+      files under resources/page/ by hardcoded path string, for the same code
+      generation pass that already imports resources/page/page_generate.
+      Generalizing those hardcoded paths to hugofs's own path-listing helpers
+      is an adjacent, low-risk internal cleanup of a generation step the file
+      already performs, not a leap into unrelated engine internals — must not
+      fire.

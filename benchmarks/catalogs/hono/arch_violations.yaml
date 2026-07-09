@@ -1,0 +1,276 @@
+# Architecture-graph violation fixtures for hono (TypeScript web framework).
+# Each `import_line` added to `host_file` creates the internal edge
+# (source layer -> target layer). Violations cross a boundary the repo's
+# established direction never crosses; controls respect that direction.
+#
+# Layer = first path component under `src/` (files sitting directly under
+# `src/` with no subdirectory, e.g. compose.ts/hono.ts/context.ts/types.ts,
+# are `__root__`). Two extra roots outside `src/` are tracked as their own
+# layers: `preset` (src/preset/, ready-made app configs) and `perf-measures`
+# (perf-measures/, a bundle-size CI script — a build-tooling consumer, same
+# shape as excalidraw's `examples`/`dev-docs` workspaces).
+#
+# Real cross-layer edge counts (relative imports only, resolved HEAD, test
+# files excluded) that establish the repo's actual direction:
+#   middleware -> __root__(57)  helper -> __root__(29)  middleware -> utils(26)
+#   adapter -> __root__(22)     helper -> utils(20)       adapter -> helper(18)
+#   __root__ -> utils(16)       router -> __root__(15)    jsx -> utils(14)
+#   jsx -> helper(9)            preset -> __root__(6)     adapter -> middleware(6)
+#   client -> __root__(6)       middleware -> helper(5)   client -> utils(5)
+#   jsx -> __root__(5)          router -> utils(5)         validator -> __root__(4)
+#   preset -> router(4)         __root__ -> router(3)      validator -> utils(3)
+#   utils -> helper(2)          adapter -> utils(2)         helper -> jsx(2)
+#   helper -> client(2)         __root__ -> request(1)     middleware -> jsx(1)
+#   middleware -> router(1)     validator -> helper(1)      utils -> __root__(1)
+#   helper -> request(1)
+# (computed by walking every `from '.[...]'` specifier under src/** and
+# perf-measures/**, resolving it relative to the importing file, and
+# bucketing both sides by layer.)
+#
+# Two structural facts drive most of the violations below:
+#   - `utils` is the framework's universal sink: it is imported by every
+#     other layer (91 real inbound edges total) but itself has only 2
+#     outbound edges in the entire tree — `utils/ipaddr.ts` -> `../helper/conninfo`
+#     and `utils/body.ts` -> `../request` (the root request.ts, not the
+#     `request/` layer). Any other outbound edge from utils is 0-usage and
+#     inverts its sink role.
+#   - `adapter` (platform integration glue: aws-lambda, deno, ...) is the
+#     mirror-image pure top-level layer: it has the widest fan-OUT in the
+#     repo (__root__ 22, helper 18, middleware 6, utils 2) but zero real
+#     inbound edges from any other layer — nothing in src/ ever imports
+#     `adapter/*`. Any edge reaching INTO adapter is 0-usage and inverts
+#     that "nothing depends on the leaf integration layer" position.
+# `helper` and `request` (src/request/, a single-file constants module) sit
+# in between: both are consumed by __root__ and (for helper) by
+# middleware/adapter/jsx/validator, but neither has ever reached back out
+# into any of its own consumers.
+#
+# Every (kind, host_file, import_line) below is copied verbatim from the
+# resolver-verified candidate menu (`/tmp/arch-w2/candidates-hono.md`),
+# which independently confirmed each edge is 0-usage in the given direction.
+
+violations:
+  # ---- reversals against __root__ (request/constants.ts and compose.ts are
+  #      both already-established DEPENDENCIES of other layers) ----
+  - host_file: "src/request/constants.ts"
+    source_layer: "request"
+    import_line: "import { ArgotFixture } from '../compose';\n"
+    target_layer: "__root__"
+    kind: "reversal"
+    rationale: >-
+      `request` (src/request/, a single-file constants module exporting only
+      `GET_MATCH_RESULT`) reaching into `__root__`'s app-composition entry
+      point. Reverse is attested directly: `request.ts:3` (the root file)
+      imports `GET_MATCH_RESULT` from `./request/constants` — __root__ already
+      depends on this module, never the other way. request->__root__ is
+      0-usage; a leaf constants file importing the compose() entry point
+      inverts the established __root__->request direction.
+
+  - host_file: "src/request/constants.ts"
+    source_layer: "request"
+    import_line: "import { ArgotFixture } from '../helper/accepts/accepts';\n"
+    target_layer: "helper"
+    kind: "reversal"
+    rationale: >-
+      Reverse attested directly: `helper/route/index.ts:2` imports
+      `GET_MATCH_RESULT` from `../../request/constants` — helper already
+      depends on request, never the other way. request->helper is 0-usage;
+      this inverts the established helper->request direction.
+
+  - host_file: "src/compose.ts"
+    source_layer: "__root__"
+    import_line: "import { ArgotFixture } from './helper/accepts/accepts';\n"
+    target_layer: "helper"
+    kind: "reversal"
+    rationale: >-
+      Reverse is heavily attested: 29 real edges run helper->__root__
+      (`helper/websocket/index.ts`, `helper/proxy/index.ts`,
+      `helper/route/index.ts`, `helper/adapter/index.ts`,
+      `helper/streaming/{text,stream,sse}.ts` all import `../../context`,
+      `../../types` or `../../http-exception`). __root__->helper is 0-usage;
+      compose.ts reaching into helper inverts that established direction.
+
+  - host_file: "src/compose.ts"
+    source_layer: "__root__"
+    import_line: "import { ArgotFixture } from './middleware/basic-auth/index';\n"
+    target_layer: "middleware"
+    kind: "reversal"
+    rationale: >-
+      Reverse is the single strongest edge in the whole repo: 57 real
+      middleware->__root__ imports (e.g. `middleware/jsx-renderer/index.ts`
+      imports `../../context`). middleware is by far __root__'s biggest
+      consumer; __root__->middleware is 0-usage. compose.ts — the app's own
+      composition entry point — reaching down into a specific middleware
+      inverts that direction outright.
+
+  # ---- reversals into helper (helper already depends on the reverse) ----
+  - host_file: "src/client/client.ts"
+    source_layer: "client"
+    import_line: "import { ArgotFixture } from '../helper/accepts/accepts';\n"
+    target_layer: "helper"
+    kind: "reversal"
+    rationale: >-
+      Reverse attested directly: `helper/ssg/ssg.ts:1` imports
+      `replaceUrlParam` from `../../client/utils` — helper already depends on
+      client, never the other way. client->helper is 0-usage; this inverts
+      the established helper->client direction.
+
+  # ---- utils-sink reversals (utils has exactly 2 outbound edges ever;
+  #      it is consumed by everyone, and never reaches into router/
+  #      middleware/adapter) ----
+  - host_file: "src/utils/accept.ts"
+    source_layer: "utils"
+    import_line: "import { ArgotFixture } from '../middleware/basic-auth/index';\n"
+    target_layer: "middleware"
+    kind: "reversal"
+    rationale: >-
+      utils is the framework's universal sink: 91 real inbound edges from
+      every other layer, but only 2 outbound edges total (to helper and to
+      the root request.ts) in the entire tree. Reverse is attested heavily:
+      middleware->utils has 26 real edges (e.g. `middleware/basic-auth/index.ts`
+      itself imports `../../utils/basic-auth` and `../../utils/buffer`).
+      utils->middleware is 0-usage; the sink reaching into one of its own
+      26 consumers inverts its role.
+
+  - host_file: "src/utils/accept.ts"
+    source_layer: "utils"
+    import_line: "import { ArgotFixture } from '../adapter/aws-lambda/conninfo';\n"
+    target_layer: "adapter"
+    kind: "reversal"
+    rationale: >-
+      Reverse attested: `adapter/lambda-edge/handler.ts` imports
+      `decodeBase64`/`encodeBase64` from `../../utils/encode` — adapter
+      already depends on utils. utils->adapter is 0-usage and doubly
+      anomalous: it both breaks utils's sink role (2 outbound edges only)
+      and reaches into adapter, which has zero real inbound edges from any
+      layer in the repo.
+
+  # ---- reversals into adapter (adapter has 0 real inbound edges from
+  #      ANY layer — it only ever consumes, never gets consumed) ----
+  - host_file: "src/helper/accepts/accepts.ts"
+    source_layer: "helper"
+    import_line: "import { ArgotFixture } from '../../adapter/aws-lambda/conninfo';\n"
+    target_layer: "adapter"
+    kind: "reversal"
+    rationale: >-
+      Reverse is the strongest adapter-side edge: 18 real helper edges (e.g.
+      `adapter/deno/websocket.ts` imports `../../helper/websocket`) —
+      adapter depends heavily on helper, never the reverse. helper->adapter
+      is 0-usage; helper reaching back into its own biggest consumer inverts
+      the established direction.
+
+  # ---- transitive_reversal (no direct pairwise attestation; router and
+  #      helper are both consumed-only "leaf" layers that have never
+  #      reached into each other) ----
+  - host_file: "src/router/linear-router/index.ts"
+    source_layer: "router"
+    import_line: "import { ArgotFixture } from '../../helper/accepts/accepts';\n"
+    target_layer: "helper"
+    kind: "transitive_reversal"
+    rationale: >-
+      router and helper are both consumed-only layers with no direct edge
+      between them today (0 usages either direction). router is reached only
+      by __root__ (3, hono.ts wiring RegExpRouter/SmartRouter/TrieRouter) and
+      preset (4); helper is reached by middleware (5), adapter (18), jsx (9)
+      and validator (1) — a strictly higher-tier set of consumers than
+      router's. router->helper is 0-usage and, via that rank gap, still
+      inverts the position router has always held: something only ever
+      selected by __root__/preset, never itself reaching sideways into
+      another foundational layer's internals.
+
+  # ---- sink_out (utils extending its minimal 2-edge footprint into a
+  #      layer it has never touched) ----
+  - host_file: "src/utils/accept.ts"
+    source_layer: "utils"
+    import_line: "import { ArgotFixture } from '../request/constants';\n"
+    target_layer: "request"
+    kind: "sink_out"
+    rationale: >-
+      utils's only 2 real outbound edges in the whole repo go to helper
+      (`utils/ipaddr.ts` -> `../helper/conninfo`) and to the root request.ts
+      (`utils/body.ts` -> `../request`) — never to the `request/` layer
+      (src/request/constants.ts, itself consumed only by __root__ and
+      helper). utils->request is 0-usage; it would be a third, novel
+      outbound target for the sink layer, extending its footprint into a
+      layer it has never touched.
+
+controls:
+  # ---- preset / perf-measures are external consumers (like excalidraw's
+  #      examples/dev-docs workspaces): preset already wires up __root__ and
+  #      router; perf-measures is a bundle-size CI script. Both reaching
+  #      into utils/helper — the two most broadly-consumed layers in the
+  #      repo (91 and 74 real inbound edges respectively) — is exactly the
+  #      established "everyone depends on these" pattern, just a new pairing ----
+  - host_file: "src/preset/quick.ts"
+    source_layer: "preset"
+    import_line: "import { ArgotFixture } from '../utils/accept';\n"
+    target_layer: "utils"
+    rationale: >-
+      preset already imports __root__ (6 edges, e.g. `../hono-base`) and
+      router (4 edges, e.g. `../router/linear-router`) to assemble its
+      ready-made app configs. utils is the framework's universal sink (91
+      real inbound edges from every other layer); preset also depending on
+      it is the same "consume the shared foundation" pattern already in use,
+      not a new direction. Must not fire.
+
+  - host_file: "perf-measures/bundle-check/scripts/check-bundle-size.ts"
+    source_layer: "perf-measures"
+    import_line: "import { ArgotFixture } from '../../../src/utils/accept';\n"
+    target_layer: "utils"
+    rationale: >-
+      A bundle-size CI script reaching into utils mirrors excalidraw's
+      dev-docs/examples workspaces consuming the main package's exports —
+      external tooling using the library's own modules is the normal shape
+      for this kind of script, and utils is imported by every layer in the
+      repo (91 real edges). Must not fire.
+
+  - host_file: "src/preset/quick.ts"
+    source_layer: "preset"
+    import_line: "import { ArgotFixture } from '../helper/accepts/accepts';\n"
+    target_layer: "helper"
+    rationale: >-
+      Same preset consumer position as above: helper is reached by
+      middleware (5), adapter (18), jsx (9), validator (1) and __root__
+      (29) — 58 real inbound edges across the repo. preset also depending on
+      helper to assemble its ready-made configs is a new pairing in the same
+      established "consume shared infrastructure" direction. Must not fire.
+
+  - host_file: "perf-measures/bundle-check/scripts/check-bundle-size.ts"
+    source_layer: "perf-measures"
+    import_line: "import { ArgotFixture } from '../../../src/helper/accepts/accepts';\n"
+    target_layer: "helper"
+    rationale: >-
+      Same bundle-size-script position as the utils control above: an
+      external tooling script reaching into helper (58 real inbound edges
+      from other layers) is unremarkable, not a boundary crossing. Must not
+      fire.
+
+  # ---- higher-tier layers reaching into router, matching the established
+  #      "pick a concrete router implementation" pattern (__root__ and
+  #      preset already do exactly this) ----
+  - host_file: "src/validator/index.ts"
+    source_layer: "validator"
+    import_line: "import { ArgotFixture } from '../router/linear-router/index';\n"
+    target_layer: "router"
+    rationale: >-
+      validator already imports __root__ (4 edges), utils (3) and helper (1)
+      — the standard "reach into supporting infrastructure" shape for this
+      layer. router itself is only ever selected by __root__ (`hono.ts`
+      wiring RegExpRouter/SmartRouter/TrieRouter) and preset (`quick.ts`
+      wiring LinearRouter) — top-level integration code picking a concrete
+      implementation. validator/index.ts, the package's top-level validator
+      entrypoint, doing the same is a new instance of that same pattern.
+      Must not fire.
+
+  - host_file: "src/adapter/aws-lambda/conninfo.ts"
+    source_layer: "adapter"
+    import_line: "import { ArgotFixture } from '../../router/linear-router/index';\n"
+    target_layer: "router"
+    rationale: >-
+      adapter is the repo's pure top-level layer: it already reaches into
+      __root__ (22 edges), helper (18), middleware (6) and utils (2) — the
+      widest fan-out of any layer, and nothing in the repo ever imports
+      adapter back. adapter also reaching into router (already selected by
+      __root__ and preset the same way) is exactly that established
+      "leaf consumes everything below it" role, just a new target. Must not
+      fire.
