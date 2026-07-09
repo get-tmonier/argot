@@ -70,6 +70,44 @@ const RARE_CALLEE_DF_FLOOR: u32 = 4;
 /// "threshold".
 pub(crate) const MIN_SIMILARITY_TO_FIRE: f32 = STRONG_SIMILARITY;
 
+// --- sibling / wrapper filters -------------------------------------------------
+// A reinvention is *substantive, unique* code. Three shapes embed close to an
+// existing function but are not reinventions, and dominate the clean-commit false
+// fires on library/framework corpora (see docs/research/evidence/semantic-f1-*).
+//
+/// Substance floor: a function this short is a thin wrapper / delegator / accessor
+/// (`fn lower(&self){ self.floor() }`). Matching one is never a meaningful "you
+/// already have this". Genuine reimplementations are longer (the shortest planted
+/// reinvention across 31 corpora is ~7 lines).
+const MIN_REINVENTION_BODY_LINES: usize = 6;
+/// A symbol name defined at least this many times across the repo is an *interface
+/// / family method* (`on_send` in a linter's cops, `ReadMetadata` across providers)
+/// — you cannot reinvent a method every sibling class already implements. A genuine
+/// reinvention target is defined ~once. Applied under the weak-overlap guard.
+const FAMILY_SYMBOL_DF: u32 = 5;
+/// A name this common (an assertion overload defined 100+ times, a `parse` / `read`
+/// defined dozens of times) is *unconditionally* a family method — filtered like a
+/// very-dense cluster, subject to the same exact-helper (callee) exemption.
+const VERY_FAMILIAR_SYMBOL_DF: u32 = 20;
+/// Embedding-cluster density: this many of the top-10 cross-file neighbours sitting
+/// within [`CLUSTER_COSINE_BAND`] of the nearest marks a *dense family* of
+/// near-identical siblings (per-entity resolvers, per-codec handlers). A unique
+/// reinvention matches ONE original, so its neighbours drop off. Applied only under
+/// the weak-overlap guard.
+const DENSE_CLUSTER_NEIGHBORS: usize = 3;
+/// A *very* dense cluster (this many near-identical neighbours) is a family member
+/// regardless of overlap strength — even a strong match to one member is just "the
+/// next sibling in a large family", not a reinvention. Applied unconditionally.
+/// Set one above the densest genuine reinvention observed by subtoken/vocabulary
+/// alone (a `password` generator at 6) so it never suppresses a real reimplementation.
+const VERY_DENSE_NEIGHBORS: usize = 7;
+/// …and a very-dense candidate that reuses its match's *exact* helpers this strongly
+/// is a genuine reimplementation of one specific member, not just the next sibling.
+const VERY_DENSE_CALLEE_EXEMPT: f32 = 0.50;
+const CLUSTER_COSINE_BAND: f32 = 0.05;
+/// Cross-file neighbours retrieved to measure family density.
+const NEIGHBORHOOD: usize = 10;
+
 /// A fired reinvention finding: the existing function this one duplicates.
 #[derive(Debug, Clone)]
 pub struct RedundantFinding {
@@ -93,6 +131,10 @@ pub struct RedundantScorer<'a> {
     /// rarity cutoff below which a shared callee alone confirms a reinvention.
     callee_df: HashMap<String, u32>,
     rare_callee_df: u32,
+    /// How many index functions share each symbol name — an interface/family
+    /// method (`on_send`, `ReadMetadata`) recurs across the repo; a unique
+    /// function is defined ~once.
+    symbol_df: HashMap<String, u32>,
 }
 
 impl<'a> RedundantScorer<'a> {
@@ -107,12 +149,17 @@ impl<'a> RedundantScorer<'a> {
         }
         let rare_callee_df =
             ((RARE_CALLEE_DF_FRACTION * n_docs).ceil() as u32).max(RARE_CALLEE_DF_FLOOR);
+        let mut symbol_df: HashMap<String, u32> = HashMap::new();
+        for e in &index.entries {
+            *symbol_df.entry(e.symbol.clone()).or_insert(0) += 1;
+        }
         Self {
             index,
             subtoken_idf,
             default_idf: idf_of(0, n_docs),
             callee_df,
             rare_callee_df,
+            symbol_df,
         }
     }
 
@@ -125,11 +172,19 @@ impl<'a> RedundantScorer<'a> {
         }
         // Nearest *cross-file* neighbour (same-file matches are overloads /
         // adjacent helpers, a known false-alarm driver).
-        let best = *self
+        let neighbors = self
             .index
-            .nearest(query, 1, |e| e.path != func.path)
-            .first()?;
+            .nearest(query, NEIGHBORHOOD, |e| e.path != func.path);
+        let best = *neighbors.first()?;
         let best_entry = self.index.entry(best.entry_index);
+        // Embedding-family density: how many of the top-`NEIGHBORHOOD` cross-file
+        // neighbours sit within [`CLUSTER_COSINE_BAND`] cosine of the nearest. A
+        // unique reinvention matches ONE original (the rest drop off); a sibling
+        // interface method sits in a crowd of near-equal neighbours.
+        let n_near = neighbors
+            .iter()
+            .filter(|n| n.cosine >= best.cosine - CLUSTER_COSINE_BAND)
+            .count();
         // A near-duplicate that keeps the *same name* in another file is almost
         // always a move/rename, not a reinvention — don't flag refactors.
         if eq_ignore_ascii_case(&best_entry.symbol, &func.symbol) {
@@ -162,6 +217,36 @@ impl<'a> RedundantScorer<'a> {
         let rare_callee = cos >= STRONG_SIMILARITY && self.shares_rare_callee(func, best_entry);
         if !normal && !strong && !rare_callee {
             return None;
+        }
+        // Sibling / wrapper filters — reject the non-reinvention shapes that embed
+        // close but dominate clean-commit false fires (see the constants + evidence).
+        let match_df = self.symbol_df.get(&best_entry.symbol).copied().unwrap_or(1);
+        // Family tiers (unconditional). A candidate that matches a *very* dense cluster
+        // (7+ near-identical cross-file neighbours) or a *very* common name (defined
+        // 20+ times across the repo) is a family member — a new command handler /
+        // provider method / assertion overload, not a unique reinvention. It fires
+        // anyway only when it reuses its match's *exact* helpers (callee ≥ 0.50): a
+        // genuine reimplementation of one specific member (a bit-rotation that calls
+        // the same primitives) does that; a parallel sibling shares only a fraction.
+        if callee_jac < VERY_DENSE_CALLEE_EXEMPT
+            && (n_near >= VERY_DENSE_NEIGHBORS || match_df >= VERY_FAMILIAR_SYMBOL_DF)
+        {
+            return None;
+        }
+        // The remaining filters apply only when the structural overlap with the match
+        // is *weak*: a strong / near-identical match to a unique original is a genuine
+        // reimplementation even if it is short, a common name, or in a moderate family.
+        let weak_overlap = callee_jac < STRONG_CALLEE_BAR && sub_jac < NORMAL_SUBTOKEN_BAR;
+        if weak_overlap {
+            if func.text.lines().count() < MIN_REINVENTION_BODY_LINES {
+                return None; // thin wrapper / accessor
+            }
+            if match_df >= FAMILY_SYMBOL_DF {
+                return None; // matched an interface / family method
+            }
+            if n_near >= DENSE_CLUSTER_NEIGHBORS {
+                return None; // one of many near-identical siblings, only loosely resembled
+            }
         }
         Some(RedundantFinding {
             nearest_symbol: best_entry.symbol.clone(),
@@ -323,12 +408,16 @@ mod tests {
     }
 
     fn func_c(symbol: &str, path: &str, callees: &[&str], subtokens: &[&str]) -> FunctionRef {
+        // A ≥6-line body so the substance filter (MIN_REINVENTION_BODY_LINES) treats
+        // these as real functions; the tests exercise the structural fire logic, not
+        // the wrapper filter (which has its own tests).
+        let text = format!("fn {symbol}() {{\n    let a = 1;\n    let b = 2;\n    let c = a + b;\n    let d = c * 2;\n    d\n}}");
         FunctionRef {
             symbol: symbol.into(),
             path: path.into(),
             line: 10,
-            end_line: 15,
-            text: String::new(),
+            end_line: 16,
+            text,
             callees: callees.iter().map(|s| s.to_string()).collect(),
             subtokens: subtokens.iter().map(|s| s.to_string()).collect(),
         }
@@ -561,5 +650,63 @@ mod tests {
                 &q,
             )
             .is_none());
+    }
+
+    /// A large family of near-identical functions (an interface implemented across
+    /// many files) all embed together. A new sibling that only *loosely* resembles
+    /// one of them is a family member, not a reinvention; one that reuses a member's
+    /// exact helpers is a genuine reimplementation and still fires.
+    #[test]
+    fn sibling_in_a_dense_family_is_filtered_unless_it_reuses_exact_helpers() {
+        let mut entries = Vec::new();
+        for i in 0..8 {
+            entries.push(entry_c(
+                "handle",
+                &format!("src/mod{i}/h.rs"),
+                vec![1.0, 0.004 * i as f32, 0.0],
+                &["base", "emit"],
+                &["handle", "event"],
+            ));
+        }
+        let idx = SemanticIndex { dim: 3, entries };
+        let scorer = RedundantScorer::new(&idx);
+        let q = unit(vec![0.999, 0.01, 0.0]);
+        // Loosely-resembling new sibling: fires the callee tier (shares `base`) but
+        // weak overlap in a very dense neighbourhood → filtered as a family member.
+        let weak = func_c(
+            "route",
+            "src/new/h.rs",
+            &["base", "x", "y"],
+            &["route", "path"],
+        );
+        assert!(scorer.evaluate(&weak, &q).is_none());
+        // Genuine reimplementation of one member: reuses its exact helpers (high
+        // callee overlap) → exempt from the family filter, fires.
+        let genuine = func_c(
+            "route",
+            "src/new/h.rs",
+            &["base", "emit"],
+            &["route", "path"],
+        );
+        assert!(scorer.evaluate(&genuine, &q).is_some());
+    }
+
+    /// A thin delegator/wrapper is too short to be a meaningful reinvention when it
+    /// only loosely resembles its match.
+    #[test]
+    fn short_wrapper_is_filtered_when_overlap_is_weak() {
+        let idx = callee_index(); // format_price / format_amount
+        let scorer = RedundantScorer::new(&idx);
+        let q = unit(vec![0.995, 0.01, 0.0]); // ≈1.0 to format_price
+        let short = FunctionRef {
+            symbol: "show".into(),
+            path: "src/ui.rs".into(),
+            line: 1,
+            end_line: 3,
+            text: "fn show() {\n    round()\n}".into(), // 3 lines, below the substance floor
+            callees: vec!["round".into(), "x".into(), "y".into()], // callee_jac ≈0.20 (weak)
+            subtokens: vec!["show".into()],
+        };
+        assert!(scorer.evaluate(&short, &q).is_none());
     }
 }
