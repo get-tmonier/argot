@@ -1,178 +1,310 @@
 # Architecture-graph violation fixtures for composer (PHP, PSR-4 namespace Composer\<Layer>).
 # Each `import_line` added to `host_file` creates the internal edge (source layer -> target
-# layer). Violations cross a boundary the repo never crosses; controls respect the established
-# direction.
+# layer). Violations cross a boundary the repo's learned layering never crosses; controls
+# respect the established direction.
 #
 # Layer = the SECOND namespace component of a file's `namespace Composer\<Layer>\...;` decl,
-# i.e. its directory under `src/Composer/`. An `use Composer\<LayerB>\Class;` in a file whose
-# namespace is `Composer\<LayerA>` forms the edge (LayerA -> LayerB).
+# i.e. its directory under `src/Composer/`. Composer's layers group roughly as:
+#   - Package            the domain model of packages (versions, links, comparators) — a
+#                         near-universal SINK: almost every other layer depends on it, it
+#                         depends on almost nothing.
+#   - IO, Json, Config,
+#     Util, Pcre,
+#     Platform           low-level utility/infra leaves (console I/O, JSON read/write, config
+#                         sources, generic helpers, regex, HHVM/PHP runtime detection). Should
+#                         have ~zero fan-out to domain or mid-tier layers.
+#   - Exception           pure marker classes; deliberately inert (zero imports) so they can be
+#                         thrown/caught anywhere without dragging in machinery.
+#   - EventDispatcher,
+#     Script, Question   thin cross-cutting infra (pub/sub event bus + base Event, script-event
+#                         definitions, CLI question helpers) — plain data/leaf helpers.
+#   - Semver              the composer/semver sub-library (version-constraint parsing) — treated
+#                         as an internal utility layer; legitimately consumed wherever versions
+#                         are compared (Installer, Downloader, SelfUpdate) but not by unrelated
+#                         detection/analysis code.
+#   - Filter, FilterList,
+#     Policy, Advisory    mid-tier package-filtering / audit decision & config objects.
+#   - Repository,
+#     Downloader,
+#     Installer,
+#     DependencyResolver,
+#     Plugin              mid-tier orchestration: fetch, resolve, install, and extend packages.
+#   - Console, Command,
+#     SelfUpdate          the app/entry-point CLI layer — the only place that legitimately wires
+#                         broadly across mid-tier and domain layers.
+#   - PHPStan              a standalone dev-tooling extension (return-type/rule extensions for
+#                         static analysis). Runs at analysis time, never in the request path;
+#                         orthogonal to the runtime layering above.
 #
-# Topology at HEAD (from `git grep -h 'use Composer\<X>\' -- src/Composer/<source>/`, counting
-# only internal src/Composer/ layers; external composer/* vendor namespaces like Pcre, Semver,
-# Spdx are excluded):
-#   - `Command` is the top APP/entry layer: it imports Repository/Package/Util/Console/Plugin/
-#     Json/IO/DependencyResolver/Downloader/... (huge fan_out); almost nothing imports Command.
-#     So every `<lib-layer> -> Command` edge reverses an attested `Command -> <lib-layer>`.
-#   - `Util`, `IO`, `Json` are near-SINKS: widely imported, they import out to very few layers
-#     (Util -> {IO,Downloader,Package,Json,Repository,Exception}; IO -> {Util,Question};
-#     Json -> {Util,Repository,IO,Downloader}). Any edge OUT of them to a non-listed layer is
-#     anomalous and sink-leaving.
-#   - `DependencyResolver -> Package` (attested, many files), `Autoload -> Package`,
-#     `Installer -> Downloader` are one-directional spines; the reverse is never used.
-# Verification method per fixture: the (source -> target) edge is confirmed 0-usage with
-#   git -C benchmarks/data/composer/.repo grep -l 'use Composer\<target>\' -- 'src/Composer/<source>/'
-# returning nothing (0 files).
+# Methodology: every (host_file, import_line) pair below is copied VERBATIM from a row in the
+# resolver-verified candidate menu (80 top-pop rows: 69 catchable reversal/transitive_reversal/
+# sink_out candidates + 11 forward candidates the menu surfaced for this corpus, 10 of which are
+# used below) — each row's
+# edge was confirmed 0-usage by the actual argot-core resolver, which creates the edge
+# deterministically by injecting a synthetic `ArgotFixture` marker class into the target
+# namespace and importing it from the host file (so `import_line` is always the two-line
+# `<?php` + `use Composer\<Target>\ArgotFixture;` snippet, not a hand-picked real symbol). Each
+# `rationale` below explains the realistic real-world import an LLM would plausibly write to
+# produce that same src->tgt edge, and why it is/isn't architecturally sound.
+#
+# Selection is by ARCHITECTURAL REALISM, not by `kind`: most violations are genuine reversals /
+# transitive-reversals / sink-outs (utility or leaf layers reaching into the domain layer, or a
+# near-sink leaving its position) — the classic case the gate is built to catch. Four violations
+# are deliberately `forward`-kind (direction-compliant, so the gate structurally CANNOT catch
+# them) but still architecturally questionable — an entry-point or dev-tooling layer reaching
+# sideways into domain/utility territory it has no real business touching. These keep the recall
+# measurement honest: they are true violations the gate is expected to miss. All 6 controls are
+# the remaining `forward`-kind rows in the menu, each a clearly legitimate use of an already-
+# well-established entry/mid-tier -> low-level-utility direction; the gate must stay quiet on them.
 
 violations:
-  # ---- reversals (attested LayerB->LayerA, so LayerA->LayerB reverses an established direction) ----
-  - host_file: "src/Composer/Package/BasePackage.php"
-    source_layer: "Package"
-    import_line: "use Composer\\Command\\InstallCommand;"
-    target_layer: "Command"
-    kind: "reversal"
-    rationale: >-
-      A Package value object reaching up into a console Command — the canonical LLM layering
-      mistake. `git grep -l 'use Composer\Command\' -- src/Composer/Package/` returns 0 files
-      -> edge Package->Command is 0-usage. Reverse strongly attested: Command->Package (22 files),
-      so this reverses the established Command->Package direction.
-
-  - host_file: "src/Composer/Repository/ComposerRepository.php"
-    source_layer: "Repository"
-    import_line: "use Composer\\Command\\UpdateCommand;"
-    target_layer: "Command"
-    kind: "reversal"
-    rationale: >-
-      A repository implementation importing a console Command. `git grep -l 'use Composer\Command\'
-      -- src/Composer/Repository/` returns 0 files -> Repository->Command is 0-usage. Reverse
-      attested: Command->Repository (18 files) — Command drives Repository, never the reverse.
-
-  - host_file: "src/Composer/DependencyResolver/DefaultPolicy.php"
-    source_layer: "DependencyResolver"
-    import_line: "use Composer\\Command\\RequireCommand;"
-    target_layer: "Command"
-    kind: "reversal"
-    rationale: >-
-      The solver policy pulling in a console Command. `git grep -l 'use Composer\Command\' --
-      src/Composer/DependencyResolver/` returns 0 files -> DependencyResolver->Command is 0-usage.
-      Reverse attested: Command->DependencyResolver (6 files). Reverses that direction.
-
-  - host_file: "src/Composer/Downloader/DownloadManager.php"
-    source_layer: "Downloader"
-    import_line: "use Composer\\Command\\InstallCommand;"
-    target_layer: "Command"
-    kind: "reversal"
-    rationale: >-
-      The download manager importing the install Command. `git grep -l 'use Composer\Command\' --
-      src/Composer/Downloader/` returns 0 files -> Downloader->Command is 0-usage. Reverse attested:
-      Command->Downloader (3 files) — Command orchestrates Downloader, not the reverse.
-
-  - host_file: "src/Composer/Package/AliasPackage.php"
-    source_layer: "Package"
-    import_line: "use Composer\\DependencyResolver\\Solver;"
-    target_layer: "DependencyResolver"
-    kind: "reversal"
-    rationale: >-
-      A Package model importing the dependency Solver inverts the spine. `git grep -l
-      'use Composer\DependencyResolver\' -- src/Composer/Package/` returns 0 files ->
-      Package->DependencyResolver is 0-usage. Reverse strongly attested: DependencyResolver->Package
-      (18 files) — the solver consumes Package, never the other way. Reverses that direction.
-
-  - host_file: "src/Composer/Downloader/FileDownloader.php"
-    source_layer: "Downloader"
-    import_line: "use Composer\\Installer\\InstallationManager;"
-    target_layer: "Installer"
-    kind: "reversal"
-    rationale: >-
-      A downloader reaching up into the InstallationManager. `git grep -l 'use Composer\Installer\'
-      -- src/Composer/Downloader/` returns 0 files -> Downloader->Installer is 0-usage. Reverse
-      attested: Installer->Downloader (3 files) — Installer drives Downloader. Reverses that direction.
-
-  - host_file: "src/Composer/Package/RootPackage.php"
-    source_layer: "Package"
-    import_line: "use Composer\\Autoload\\AutoloadGenerator;"
-    target_layer: "Autoload"
-    kind: "reversal"
-    rationale: >-
-      A Package model importing the AutoloadGenerator. `git grep -l 'use Composer\Autoload\' --
-      src/Composer/Package/` returns 0 files -> Package->Autoload is 0-usage. Reverse attested:
-      Autoload->Package (1 file) — the autoload generator reads Package, never the reverse.
-
-  # ---- sink_out (Util/IO/Json are near-sinks; any outbound edge to a non-attested layer is suspect) ----
-  - host_file: "src/Composer/Util/Filesystem.php"
-    source_layer: "Util"
-    import_line: "use Composer\\Command\\InstallCommand;"
-    target_layer: "Command"
-    kind: "sink_out"
-    rationale: >-
-      Util is a near-sink (imported by nearly every layer; imports out only to IO/Downloader/
-      Package/Json/Repository/Exception). A low-level Filesystem helper importing a console Command
-      inverts the spine. `git grep -l 'use Composer\Command\' -- src/Composer/Util/` returns 0 files
-      -> Util->Command is 0-usage; Command->Util is separately attested (23 files), never the reverse.
-
-  - host_file: "src/Composer/IO/ConsoleIO.php"
+  # ---- reversals / transitive-reversals / sink-outs (utility or leaf layer reaching into the
+  # domain layer, or a near-sink layer leaving its position — the classic case the gate catches) ----
+  - host_file: "src/Composer/IO/BaseIO.php"
     source_layer: "IO"
-    import_line: "use Composer\\Repository\\ComposerRepository;"
-    target_layer: "Repository"
-    kind: "sink_out"
+    import_line: "<?php\nuse Composer\\Package\\ArgotFixture;\n"
+    target_layer: "Package"
+    kind: "reversal"
     rationale: >-
-      IO is a sink (imports out only to Util and Question). An IO implementation reaching into a
-      Repository is anomalous. `git grep -l 'use Composer\Repository\' -- src/Composer/IO/` returns
-      0 files -> IO->Repository is 0-usage. Reverse attested: Repository->IO (18 files) — Repository
-      consumes IO for output, never the reverse.
+      BaseIO is composer's abstract IO base (verbosity levels, read/write, ask*) — a pure
+      interaction leaf that Package/Repository/Installer code all depend ON (it currently imports
+      only Config/Pcre/Util). A plausible LLM edit adds a debug/log helper typed against
+      `PackageInterface` (e.g. so `$io->debug($package)` can format it inline) instead of taking a
+      string — reversing IO's role as a foundational leaf that package-aware code calls INTO, not
+      the other way around. Resolver-verified 0-usage at HEAD.
 
   - host_file: "src/Composer/Json/JsonFile.php"
     source_layer: "Json"
-    import_line: "use Composer\\Command\\ValidateCommand;"
-    target_layer: "Command"
+    import_line: "<?php\nuse Composer\\Package\\ArgotFixture;\n"
+    target_layer: "Package"
+    kind: "reversal"
+    rationale: >-
+      JsonFile is composer's generic JSON read/validate/write utility (imports only
+      Pcre/Util/IO/Downloader). A plausible LLM addition is a convenience `readPackage()` method
+      that constructs a `Package` object straight out of the raw JSON, folding domain modeling
+      into the generic file-format utility. Package already has (and needs) parsers that depend
+      on Json, never the reverse. Resolver-verified 0-usage at HEAD.
+
+  - host_file: "src/Composer/Config/ConfigSourceInterface.php"
+    source_layer: "Config"
+    import_line: "<?php\nuse Composer\\Package\\ArgotFixture;\n"
+    target_layer: "Package"
+    kind: "reversal"
+    rationale: >-
+      ConfigSourceInterface is a pure interface (addRepository/addConfigSetting/…, zero
+      imports). A plausible LLM edit adds a "package-aware" config method typed against
+      `PackageInterface`, importing Package here — but config sources are meant to stay
+      package-agnostic key/value stores; Package legitimately depends on config data, never the
+      other way. Resolver-verified 0-usage at HEAD.
+
+  - host_file: "src/Composer/Exception/IrrecoverableDownloadException.php"
+    source_layer: "Exception"
+    import_line: "<?php\nuse Composer\\Util\\ArgotFixture;\n"
+    target_layer: "Util"
+    kind: "reversal"
+    rationale: >-
+      This exception is a one-line marker (`extends \RuntimeException`, zero imports) —
+      deliberately inert so it can be thrown/caught anywhere without pulling in machinery. A
+      plausible LLM "improvement" adds cleanup logic in the constructor (e.g. calling
+      `Filesystem::remove()` on the partial download), importing `Composer\Util`. Exceptions
+      doing side-effecting cleanup work is a common LLM anti-pattern that inverts the
+      leaf-exception convention. Resolver-verified 0-usage at HEAD.
+
+  - host_file: "src/Composer/Question/StrictConfirmationQuestion.php"
+    source_layer: "Question"
+    import_line: "<?php\nuse Composer\\Package\\ArgotFixture;\n"
+    target_layer: "Package"
+    kind: "transitive_reversal"
+    rationale: >-
+      A CLI confirmation-question helper (currently depends only on Pcre for input parsing). A
+      plausible LLM edit customizes the prompt per-package (e.g. "Remove
+      {$package->getName()}? [y/n]") by typing the constructor against `PackageInterface`
+      directly instead of accepting a pre-formatted string, pulling the domain layer into a
+      generic Symfony-Console helper. Resolver-verified 0-usage at HEAD.
+
+  - host_file: "src/Composer/Console/Application.php"
+    source_layer: "Console"
+    import_line: "<?php\nuse Composer\\Package\\ArgotFixture;\n"
+    target_layer: "Package"
     kind: "sink_out"
     rationale: >-
-      Json is a near-sink (imports out only to Util/Repository/IO/Downloader). The JSON file
-      abstraction importing a console Command inverts the spine. `git grep -l 'use Composer\Command\'
-      -- src/Composer/Json/` returns 0 files -> Json->Command is 0-usage; Command->Json is attested
-      (14 files), never the reverse.
+      Application.php is the CLI bootstrap — it already wires Installer, Command, Downloader,
+      IO, Json, Util, EventDispatcher and Exception, but historically never imports Package or
+      Repository directly; every package touch is delegated through Installer/Command. A
+      plausible LLM shortcut (e.g. a fast-path `--package` flag handled inline in
+      `Application::doRun()`) imports `PackageInterface` straight into the bootstrap file,
+      skipping the Installer abstraction the rest of the app funnels through. Resolver-verified
+      0-usage at HEAD.
+
+  - host_file: "src/Composer/Policy/AbandonedPolicyConfig.php"
+    source_layer: "Policy"
+    import_line: "<?php\nuse Composer\\IO\\ArgotFixture;\n"
+    target_layer: "IO"
+    kind: "transitive_reversal"
+    rationale: >-
+      AbandonedPolicyConfig is a pure config-value object (currently only imports
+      `Semver\VersionParser`). A plausible LLM edit adds an inline warning print
+      (`$io->writeError(...)`) when an abandoned-package policy loads, importing `Composer\IO`.
+      Config/policy objects doing their own console output is a classic side-effect-creep
+      mistake — IO calls should come from the caller, not the data object. Resolver-verified
+      0-usage at HEAD.
+
+  - host_file: "src/Composer/Downloader/ArchiveDownloader.php"
+    source_layer: "Downloader"
+    import_line: "<?php\nuse Composer\\Json\\ArgotFixture;\n"
+    target_layer: "Json"
+    kind: "reversal"
+    rationale: >-
+      `Json/JsonFile.php` already imports `Downloader\TransportException` at HEAD — Json
+      legitimately depends on Downloader for its HTTP-download codepath. A plausible LLM edit
+      has ArchiveDownloader read/write a JSON manifest directly via `Composer\Json\JsonFile`
+      instead of going through the file's existing narrow relationship, reversing the attested
+      Json->Downloader direction into Downloader->Json and creating a two-way coupling.
+      Resolver-verified 0-usage at HEAD.
+
+  - host_file: "src/Composer/EventDispatcher/Event.php"
+    source_layer: "EventDispatcher"
+    import_line: "<?php\nuse Composer\\Semver\\ArgotFixture;\n"
+    target_layer: "Semver"
+    kind: "sink_out"
+    rationale: >-
+      `Event` is EventDispatcher's minimal base data object (name/args/flags — zero Composer
+      imports today). A plausible LLM edit has an event carry a pre-parsed version constraint by
+      importing `Composer\Semver\VersionParser` before dispatch, pulling a parsing library into
+      what is meant to stay a plain, serializable data carrier any listener can construct.
+      Resolver-verified 0-usage at HEAD.
+
+  - host_file: "src/Composer/Plugin/Capability/Capability.php"
+    source_layer: "Plugin"
+    import_line: "<?php\nuse Composer\\Config\\ArgotFixture;\n"
+    target_layer: "Config"
+    kind: "transitive_reversal"
+    rationale: >-
+      `Capability` is an intentionally empty marker interface ("Every new Capability... must
+      implement this interface", zero imports or methods). A plausible LLM edit adds a
+      `getConfig(): Config` method signature directly on the marker so plugin authors "just" have
+      config available, importing `Composer\Config` into a contract designed to declare nothing —
+      defeats the point of a marker interface and couples the plugin API surface to a concrete
+      infra class. Resolver-verified 0-usage at HEAD.
+
+  # ---- forward-kind but still architecturally questionable: direction-compliant (entry/dev-
+  # tooling/leaf-utility reaching "down" or "sideways"), so the gate structurally CANNOT catch
+  # these — included so the recall measurement stays honest about what it misses ----
+  - host_file: "src/Composer/SelfUpdate/Keys.php"
+    source_layer: "SelfUpdate"
+    import_line: "<?php\nuse Composer\\Package\\ArgotFixture;\n"
+    target_layer: "Package"
+    kind: "forward"
+    rationale: >-
+      Keys.php verifies signing keys for `composer self-update` (currently only imports
+      `Pcre\Preg`) — its job is validating the composer.phar binary, unrelated to the project's
+      installed-package graph. A plausible LLM edit "records" the currently-installed packages
+      alongside the key-verification result, importing `Composer\Package`. Direction-wise this
+      is entry-layer-reaching-into-domain (forward, so the gate's direction check does not flag
+      it), but self-update has no legitimate reason to touch package objects — a scope violation
+      the direction check structurally cannot see.
+
+  - host_file: "src/Composer/SelfUpdate/Keys.php"
+    source_layer: "SelfUpdate"
+    import_line: "<?php\nuse Composer\\Repository\\ArgotFixture;\n"
+    target_layer: "Repository"
+    kind: "forward"
+    rationale: >-
+      Same file, same scope mismatch: a plausible LLM edit has self-update "check available
+      versions via the package repository" by importing `Composer\Repository` directly instead
+      of the self-update-specific GitHub-tags mechanism the file already relies on
+      (`SelfUpdate\Versions.php`). Forward direction (entry -> mid-tier) so it passes the gate's
+      direction check, but it's the wrong abstraction — self-update maintains its own narrow
+      version-check machinery precisely so it doesn't couple to the full repository stack.
+
+  - host_file: "src/Composer/Platform/HhvmDetector.php"
+    source_layer: "Platform"
+    import_line: "<?php\nuse Composer\\Semver\\ArgotFixture;\n"
+    target_layer: "Semver"
+    kind: "forward"
+    rationale: >-
+      HhvmDetector answers one narrow question (is this HHVM, what version) using only
+      `Util\Platform`/`Util\ProcessExecutor` — plain string/process work, no constraint logic. A
+      plausible LLM edit "future-proofs" a version check by importing
+      `Composer\Semver\VersionParser` to parse the detected version as a semver constraint, when
+      a simple `version_compare()` would do. It's forward (leaf-utility -> leaf-utility, so the
+      direction-only check passes it), but it's a sideways layer-skip: runtime/platform
+      detection pulling in the package-versioning domain's constraint-parsing machinery it has
+      no real use for.
+
+  - host_file: "src/Composer/PHPStan/ConfigReturnTypeExtension.php"
+    source_layer: "PHPStan"
+    import_line: "<?php\nuse Composer\\IO\\ArgotFixture;\n"
+    target_layer: "IO"
+    kind: "forward"
+    rationale: >-
+      This file is a PHPStan static-analysis extension (return-type inference for
+      `Config::get()`) — it runs at analysis time, never in a live CLI session, and currently
+      only imports `Config`/`Json\JsonFile` to read schema shape. A plausible LLM edit imports
+      `Composer\IO\IOInterface` to "print a warning" during analysis. Forward direction
+      (dev-tooling -> low-level utility) so the gate's direction check lets it through, but a
+      static-analysis extension has no legitimate reason to depend on an interactive console
+      abstraction — a layer-skip into unrelated runtime machinery.
 
 controls:
-  - host_file: "src/Composer/Command/AboutCommand.php"
-    source_layer: "Command"
-    import_line: "use Composer\\Repository\\RepositoryFactory;"
-    target_layer: "Repository"
+  - host_file: "src/Composer/SelfUpdate/Keys.php"
+    source_layer: "SelfUpdate"
+    import_line: "<?php\nuse Composer\\Json\\ArgotFixture;\n"
+    target_layer: "Json"
     rationale: >-
-      Command importing Repository is THE established direction; Command->Repository is heavily
-      attested (18 files). Adding another such import is legit growth. `git grep -l
-      'use Composer\Repository\' -- src/Composer/Command/` shows Command->Repository is attested,
-      so the detector must stay quiet.
+      Self-update's own state (embedded key fingerprints, version pins) is naturally read as
+      JSON, and the file already parses embedded key material. A `Composer\Json\JsonFile` import
+      here is a low-level-utility dependency from an app/entry file — exactly the established
+      forward direction (entry -> leaf-utility) — and must not fire.
 
-  - host_file: "src/Composer/Command/ArchiveCommand.php"
-    source_layer: "Command"
-    import_line: "use Composer\\Util\\Filesystem;"
+  - host_file: "src/Composer/SelfUpdate/Keys.php"
+    source_layer: "SelfUpdate"
+    import_line: "<?php\nuse Composer\\Semver\\ArgotFixture;\n"
+    target_layer: "Semver"
+    rationale: >-
+      Deciding whether the installed composer.phar needs updating is fundamentally a
+      version-comparison problem; self-update legitimately needs `Composer\Semver` to compare
+      its own version against the latest tag. Entry-layer -> utility-layer, the established
+      direction, must not fire.
+
+  - host_file: "src/Composer/PHPStan/ConfigReturnTypeExtension.php"
+    source_layer: "PHPStan"
+    import_line: "<?php\nuse Composer\\Pcre\\ArgotFixture;\n"
+    target_layer: "Pcre"
+    rationale: >-
+      The extension already inspects config-key string literals; using `Composer\Pcre\Preg` for
+      that pattern matching is exactly the kind of utility hop the file already makes (it already
+      imports `Json\JsonFile`). A generic regex-utility import from dev-tooling is unremarkable
+      dev-tooling -> low-level-utility direction and must not fire.
+
+  - host_file: "src/Composer/PHPStan/ConfigReturnTypeExtension.php"
+    source_layer: "PHPStan"
+    import_line: "<?php\nuse Composer\\Util\\ArgotFixture;\n"
     target_layer: "Util"
     rationale: >-
-      Command->Util is the dominant established direction (23 Command files import Util; Util->Command
-      is 0). A new Command file importing a Util helper respects the spine and must not fire.
+      Static-analysis extensions routinely need small generic helpers (path normalization,
+      array utilities); `Composer\Util` is composer's generic-utility grab-bag. Dev-tooling
+      depending on a low-level utility layer is unremarkable and matches the file's existing
+      `Config`/`Json` dependency shape — must not fire.
 
-  - host_file: "src/Composer/DependencyResolver/Decisions.php"
-    source_layer: "DependencyResolver"
-    import_line: "use Composer\\Package\\CompletePackageInterface;"
-    target_layer: "Package"
+  - host_file: "src/Composer/Installer/BinaryInstaller.php"
+    source_layer: "Installer"
+    import_line: "<?php\nuse Composer\\Semver\\ArgotFixture;\n"
+    target_layer: "Semver"
     rationale: >-
-      DependencyResolver->Package is established (18 files); the reverse Package->DependencyResolver
-      is 0. Importing a Package type into the solver is exactly the established direction — no flag.
+      BinaryInstaller decides which package binaries to symlink/copy for the resolved version
+      set — comparing versions is core to what an installer does, and `Composer\Semver` is
+      precisely the library for that. Mid-tier -> low-level-utility, the established direction
+      (the file already imports `Package\PackageInterface`, `Pcre`, and three `Util\*` classes);
+      a further Semver import is unremarkable growth, not a violation.
 
-  - host_file: "src/Composer/Repository/ArrayRepository.php"
-    source_layer: "Repository"
-    import_line: "use Composer\\Package\\CompletePackageInterface;"
-    target_layer: "Package"
-    rationale: >-
-      Repository->Package is established (18 Repository files import Package). Repositories build
-      and hand back Package objects, so importing a Package type is exactly the attested direction.
-      `git grep -l 'use Composer\Package\' -- src/Composer/Repository/` confirms the edge exists;
-      a new Package import here is legit growth and must not fire.
-
-  - host_file: "src/Composer/Downloader/GitDownloader.php"
+  - host_file: "src/Composer/Downloader/ArchiveDownloader.php"
     source_layer: "Downloader"
-    import_line: "use Composer\\Util\\Filesystem;"
-    target_layer: "Util"
+    import_line: "<?php\nuse Composer\\Semver\\ArgotFixture;\n"
+    target_layer: "Semver"
     rationale: >-
-      Downloader->Util is established (13 Downloader files import Util; Util->Downloader is the
-      only reverse and is itself attested as the sink-forward). A new Util helper import in a
-      downloader is legit growth in the established direction, not a violation.
+      ArchiveDownloader already imports `Package\PackageInterface`, `Util\Platform`, and
+      `DependencyResolver\Operation\InstallOperation` — it operates squarely in
+      package-version territory. Using `Composer\Semver` to compare/normalize a package's
+      version during archive extraction is exactly the established mid-tier -> utility direction
+      and must not fire.
