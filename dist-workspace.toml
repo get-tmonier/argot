@@ -28,8 +28,11 @@ targets = [
 # Shipped binaries self-update via `argot update`; dev/CI builds skip the
 # feature (and its HTTP dependency tree) entirely. `semantic` links llama.cpp
 # (statically) for the code-embedding layer — on in shipped binaries, off in
-# dev/CI base loops. See the semantic layer notes in CLAUDE.md.
-features = ["self-update", "semantic"]
+# dev/CI base loops. See the semantic layer notes in CLAUDE.md. `arch` is the
+# architecture-graph layer (module-dependency-boundary `layering` findings) —
+# pure-Rust, on in shipped binaries: 97% real recall / 0% false-positives across
+# 23 corpora / 11 languages (docs/research/evidence/architecture-graph-foreignness.md).
+features = ["self-update", "semantic", "arch"]
 
 # The `semantic` build compiles llama.cpp from source, which needs cmake + a C++
 # toolchain on every release runner. Declare it per package manager so dist
