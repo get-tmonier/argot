@@ -420,7 +420,14 @@ aligned → real 90% recall — a second measured language.
 control-FP are unchanged (0.6% mean, 0% control-FP) — the fixes only recovered suppressed catch,
 they did not touch the false-positive profile. **Remaining:** (1) re-author the Python fixtures
 against the dumper (task #18) for a refreshed Python recall — the coverage suggests ~high-40s to
-80s depending on how loosely layered the repo is; (2) **guava/Java 19%** (7/39 host-mapped) looks
-like the *same* class of layer-assignment issue — Java's self-layer could also be package-derived;
-worth a look. Honest headline now: **strong low-FP (0% control-FP, ≤2.7% over-fire), ~59% mean
-authorable catch, 90% measured recall on the one re-validated non-Python language (Rust).**
+80s depending on how loosely layered the repo is; (2) **guava/Java 19%** (7/39 host-mapped) is a
+*milder instance of the same bug class* — guava ships both `com.google.common.*` and
+`com.google.thirdparty.*`, so `detect_java_context`'s per-src-root longest-common-prefix base
+collapses to `com.google`, bucketing most `common.*` files into a single layer `common`. The fix
+is the Java analog of the C# one (derive the self-layer from the file's `package` decl, with base
+detection that splits on top-level namespace fan-out instead of a single LCP) — deferred: it is a
+riskier base-detection rework with no clean multi-base Java regression corpus, and Java is not
+zeroed (60 edges, directional; 19% is partly genuine for a foundational utility lib where nearly
+every edge flows toward the `base`/`collect` sinks). Filed as a follow-up to task #19. Honest
+headline now: **strong low-FP (0% control-FP, ≤2.7% over-fire), ~59% mean authorable catch, 90%
+measured recall on the one re-validated non-Python language (Rust).**
