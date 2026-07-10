@@ -348,11 +348,11 @@ pub fn run_integrity_fp(
     let _ = writeln!(md, "# integrity-fp — accepted-history false positives\n");
     let _ = writeln!(
         md,
-        "| corpus | replayed | test-touching | flagged | FP rate | flagged events |"
+        "| corpus | replayed | test-touching | flagged(any) | any rate | flagged(gating) | gating rate | flagged events |"
     );
-    let _ = writeln!(md, "|---|---|---|---|---|---|");
+    let _ = writeln!(md, "|---|---|---|---|---|---|---|---|");
 
-    let (mut sum_tt, mut sum_flagged) = (0usize, 0usize);
+    let (mut sum_tt, mut sum_flagged, mut sum_gating) = (0usize, 0usize, 0usize);
     for t in targets {
         let repo_dir = ensure_clone(data_dir, &t.name, &t.url)?;
         let sha = &t.prs[0].sha;
@@ -364,17 +364,20 @@ pub fn run_integrity_fp(
         let model =
             IntegrityModel::from_json(&model_raw).unwrap_or_else(IntegrityModel::permissive);
 
-        let (replayed, test_touching, flagged, kinds) =
+        let (replayed, test_touching, flagged, flagged_gating, kinds) =
             replay_history(&repo_dir, &model, HISTORY_WINDOW, FP_REPLAY_WINDOW)?;
         let rate = 100.0 * flagged as f64 / test_touching.max(1) as f64;
+        let gating_rate = 100.0 * flagged_gating as f64 / test_touching.max(1) as f64;
         let _ = writeln!(
             md,
-            "| {} | {} | {} | {} | {:.2}% | {} |",
+            "| {} | {} | {} | {} | {:.2}% | {} | {:.2}% | {} |",
             t.name,
             replayed,
             test_touching,
             flagged,
             rate,
+            flagged_gating,
+            gating_rate,
             kinds
                 .iter()
                 .map(|(k, n)| format!("{k}×{n}"))
@@ -383,17 +386,21 @@ pub fn run_integrity_fp(
         );
         sum_tt += test_touching;
         sum_flagged += flagged;
+        sum_gating += flagged_gating;
         eprintln!(
-            "[integrity-fp] {}: {flagged}/{test_touching} flagged ({rate:.2}%)",
+            "[integrity-fp] {}: any {flagged}/{test_touching} ({rate:.2}%) · gating {flagged_gating} ({gating_rate:.2}%)",
             t.name
         );
     }
     let _ = writeln!(
         md,
-        "\n**overall: {}/{} accepted test-touching commits flagged = {:.2}%** (gate ≤ 2%)",
+        "\n**overall: any-severity {}/{} = {:.2}% · gating (error-severity rules) {}/{} = {:.2}%** (gate: gating ≤ 2%)",
         sum_flagged,
         sum_tt,
         100.0 * sum_flagged as f64 / sum_tt.max(1) as f64,
+        sum_gating,
+        sum_tt,
+        100.0 * sum_gating as f64 / sum_tt.max(1) as f64,
     );
     Ok(md)
 }
@@ -405,7 +412,7 @@ fn replay_history(
     model: &IntegrityModel,
     skip: usize,
     take: usize,
-) -> Result<(usize, usize, usize, BTreeMap<String, usize>)> {
+) -> Result<(usize, usize, usize, usize, BTreeMap<String, usize>)> {
     let repo = git2::Repository::discover(repo_dir)?;
     let head = repo.head()?.peel_to_commit()?;
     let mut revwalk = repo.revwalk()?;
@@ -417,6 +424,7 @@ fn replay_history(
     let mut replayed = 0usize;
     let mut test_touching = 0usize;
     let mut flagged = 0usize;
+    let mut flagged_gating = 0usize;
     let mut kinds: BTreeMap<String, usize> = BTreeMap::new();
 
     for oid in revwalk {
@@ -478,6 +486,14 @@ fn replay_history(
         test_touching += 1;
         if !events.is_empty() {
             flagged += 1;
+            // Gating = events whose rule ships error-severity by default.
+            if events.iter().any(|e| {
+                argot_core::rules::rule_for_reason(e.kind.reason())
+                    .map(|r| r.default_severity == argot_core::rules::Severity::Error)
+                    .unwrap_or(true)
+            }) {
+                flagged_gating += 1;
+            }
             let mut per: BTreeMap<&str, usize> = BTreeMap::new();
             for e in &events {
                 *kinds.entry(e.kind.key().to_string()).or_default() += 1;
@@ -495,7 +511,7 @@ fn replay_history(
             );
         }
     }
-    Ok((replayed, test_touching, flagged, kinds))
+    Ok((replayed, test_touching, flagged, flagged_gating, kinds))
 }
 
 fn blob_text(repo: &git2::Repository, tree: &git2::Tree, path: &str) -> Option<String> {

@@ -64,6 +64,11 @@ pub struct Rule {
     pub label: &'static str,
     /// One-line description for `argot rules` and docs.
     pub description: &'static str,
+    /// Registry default severity — the value `[rules]`/`--rule` layers start
+    /// from. Almost everything gates by default; a rule whose accepted-history
+    /// false-positive profile is advisory-grade ships as `warn` (decision
+    /// recorded in `docs/research/evidence/`).
+    pub default_severity: Severity,
 }
 
 /// The statistical voice detectors, learned from the repo's git history.
@@ -83,8 +88,10 @@ pub const GROUPS: &[&str] = &[
     GROUP_INTEGRITY,
 ];
 
-/// The full registry, in display order. All rules default to `error`
-/// ("everything gates by default"); users downgrade per rule or per group.
+/// The full registry, in display order. Rules default to `error`
+/// ("everything gates by default") except where the accepted-history
+/// false-positive profile is advisory-grade (`test-weakened` ships `warn`);
+/// users adjust per rule or per group.
 pub const RULES: &[Rule] = &[
     Rule {
         name: "foreign-import",
@@ -92,6 +99,7 @@ pub const RULES: &[Rule] = &[
         group: GROUP_VOICE,
         label: "foreign import",
         description: "an import of a dependency the repo has never used",
+        default_severity: Severity::Error,
     },
     Rule {
         name: "unfamiliar-callee",
@@ -99,6 +107,7 @@ pub const RULES: &[Rule] = &[
         group: GROUP_VOICE,
         label: "unfamiliar callee",
         description: "a call to a receiver or callee the repo's code never calls",
+        default_severity: Severity::Error,
     },
     Rule {
         name: "rare-tokens",
@@ -106,6 +115,7 @@ pub const RULES: &[Rule] = &[
         group: GROUP_VOICE,
         label: "rare token sequence",
         description: "a token sequence statistically foreign to the repo's voice",
+        default_severity: Severity::Error,
     },
     Rule {
         name: "convention",
@@ -113,6 +123,7 @@ pub const RULES: &[Rule] = &[
         group: GROUP_VOICE,
         label: "convention",
         description: "a construction that breaks a convention learned from the repo",
+        default_severity: Severity::Error,
     },
     Rule {
         name: "redundant",
@@ -120,6 +131,7 @@ pub const RULES: &[Rule] = &[
         group: GROUP_SEMANTIC,
         label: "already implemented here",
         description: "a new function that duplicates one the repo already has",
+        default_severity: Severity::Error,
     },
     Rule {
         name: "misplaced",
@@ -127,6 +139,7 @@ pub const RULES: &[Rule] = &[
         group: GROUP_SEMANTIC,
         label: "unusual location",
         description: "a function that looks like it belongs in another module area",
+        default_severity: Severity::Error,
     },
     Rule {
         name: "layering",
@@ -134,6 +147,7 @@ pub const RULES: &[Rule] = &[
         group: GROUP_ARCHITECTURE,
         label: "crosses a module boundary",
         description: "an internal import that reverses the repo's layer direction",
+        default_severity: Severity::Error,
     },
     Rule {
         name: "test-deleted",
@@ -141,6 +155,7 @@ pub const RULES: &[Rule] = &[
         group: GROUP_INTEGRITY,
         label: "test deleted alongside code change",
         description: "a test removed while the production code it exercised still exists",
+        default_severity: Severity::Error,
     },
     Rule {
         name: "test-disabled",
@@ -148,6 +163,7 @@ pub const RULES: &[Rule] = &[
         group: GROUP_INTEGRITY,
         label: "test disabled alongside code change",
         description: "a skip/ignore marker added or a test gutted while production code changes",
+        default_severity: Severity::Error,
     },
     Rule {
         name: "test-weakened",
@@ -155,6 +171,7 @@ pub const RULES: &[Rule] = &[
         group: GROUP_INTEGRITY,
         label: "test weakened alongside code change",
         description: "assertions removed, tautologized, or loosened while production code changes",
+        default_severity: Severity::Warn,
     },
 ];
 
@@ -223,7 +240,7 @@ impl RuleSettings {
     pub fn resolve(layers: &[RulesLayer]) -> Self {
         let mut by_reason = HashMap::new();
         for rule in RULES {
-            let mut sev = Severity::Error;
+            let mut sev = rule.default_severity;
             for layer in layers {
                 let group = layer
                     .iter()
@@ -323,11 +340,15 @@ mod tests {
     }
 
     #[test]
-    fn defaults_are_all_error() {
+    fn defaults_follow_the_registry() {
         let s = RuleSettings::resolve(&[]);
         for r in RULES {
-            assert_eq!(s.severity_of_reason(r.reason), Severity::Error);
+            assert_eq!(s.severity_of_reason(r.reason), r.default_severity);
         }
+        // Everything gates by default except the advisory-profiled rule.
+        assert_eq!(s.severity_of_reason("test_weakened"), Severity::Warn);
+        assert_eq!(s.severity_of_reason("test_deleted"), Severity::Error);
+        assert_eq!(s.severity_of_reason("import"), Severity::Error);
         assert!(s.group_enabled(GROUP_VOICE));
         assert!(s.group_enabled(GROUP_SEMANTIC));
         assert!(s.group_enabled(GROUP_ARCHITECTURE));

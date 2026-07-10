@@ -154,7 +154,8 @@ belongs to one of **ten stable rules**, in four groups:
 
 Each rule carries a **severity**: `error` (reported, fails `argot check` with
 exit 1), `warn` (reported, does not fail the check), or `off` (the rule does not
-run). **Everything defaults to `error`** — argot gates on all of it until you
+run). **Everything defaults to `error`** (except `test-weakened`, which ships
+`warn` — reported, never failing the check) — argot gates on the rest until you
 say otherwise. Keys are rule names or whole group names; a rule-specific entry
 always beats its group entry:
 

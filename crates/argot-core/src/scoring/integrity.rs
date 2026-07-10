@@ -589,16 +589,20 @@ pub fn changeset_events(files: &[FileChange]) -> Vec<IntegrityEvent> {
                 let mut survivors_untouched = true;
                 for (key, olds) in &old_groups {
                     let news = new_groups.get(key).map(Vec::as_slice).unwrap_or(&[]);
-                    let mut pool: Vec<&Vec<String>> = olds.iter().map(|a| &a.literals).collect();
+                    // Multiset-match new occurrences against old ones by
+                    // literals; the UNMATCHED old occurrences are the truly
+                    // removed ones (a positional tail would pick a surviving
+                    // twin when a middle occurrence was excised).
+                    let mut unmatched: Vec<&AssertionSite> = olds.to_vec();
                     for n in news {
-                        if let Some(pos) = pool.iter().position(|l| *l == &n.literals) {
-                            pool.remove(pos);
+                        if let Some(pos) = unmatched.iter().position(|o| o.literals == n.literals) {
+                            unmatched.remove(pos);
                         } else {
                             survivors_untouched = false;
                         }
                     }
                     if news.len() < olds.len() && net_lost(key) {
-                        vanished.extend(olds.iter().skip(news.len()).filter(|a| {
+                        vanished.extend(unmatched.into_iter().filter(|a| {
                             let raw = raw_site_text(a);
                             let moved_verbatim = text_count(&changeset_new_texts, &raw)
                                 >= text_count(&changeset_old_texts, &raw);

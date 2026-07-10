@@ -86,7 +86,8 @@ already has that function.
 
 ## Severities and configuration
 
-Every rule defaults to `error` (error → exit `1`; warn → shown, exit `0`;
+Every rule defaults to `error` except `test-weakened`, which ships `warn`
+(error → exit `1`; warn → shown, exit `0`;
 off → silent). Configure durably in `argot.toml`:
 
 ```toml

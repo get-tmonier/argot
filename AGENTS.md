@@ -53,7 +53,9 @@ one of the most actionable findings argot makes:
 
 Rules are configurable like any linter: `argot rules` lists them; `argot.toml
 [rules]` or `argot check --rule <name|group>=<error|warn|off>` sets severities.
-Everything defaults to `error`.
+Everything defaults to `error` except `test-weakened`, which ships as `warn`
+(reported, never fails the check) — its finding classes are real but noisier
+on routine test churn.
 
 **Gauge trust first.** Run `argot inspect` (or MCP `argot.fit_status`). If the
 verdict is **Marginal** or **Not recommended**, down-weight every hit — the model

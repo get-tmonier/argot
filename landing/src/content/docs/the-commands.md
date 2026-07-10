@@ -92,7 +92,7 @@ may pause briefly to fetch the ~100 MB model to a local cache; after that it's w
 
 **Exit codes:** `0` clean · `1` at least one `error`-severity finding — *something to look at, not
 a verdict* · `2` setup/usage error. What exits 1 is the rule's configured **severity**: every rule
-defaults to `error`, and any rule you set to `warn` is still reported but doesn't fail the check
+defaults to `error` (except `test-weakened`, which ships `warn`), and any rule set to `warn` is still reported but doesn't fail the check
 (`--error-on-warnings` flips that back on for strict CI). Confidence tiers
 (`unusual`/`suspicious`/`foreign`) grade the evidence for display — they never drive the exit code.
 See [Configure](/docs/configure/#rules--rule-severities).
