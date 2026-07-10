@@ -69,7 +69,9 @@ the original), **misplaced code**, and a **layering violation** (96.8% caught at
 zero false positives on control edits). It also flags **tests weakened,
 disabled, or deleted alongside a code change** — a test gutted, skipped, or its
 assertions loosened while the production code it exercises also changes —
-validated across 22 corpora / 11 languages. Trust those hits.
+94% of authored gaming edits caught across 22 corpora / 11 languages, with
+1.2% of real accepted test-touching commits flagged at gating severity and
+zero fires on authored legitimate-refactor controls. Trust those hits.
 
 It does **not** reliably catch *in-vocabulary* breaks — where every token is
 already in the repo and only the choice is wrong (a bare `ValueError` where the
