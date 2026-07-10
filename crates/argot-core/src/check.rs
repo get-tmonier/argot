@@ -18,6 +18,7 @@ use crate::git_walk::{
     open_repo, resolve_shas, walk_commits, HunkSpan, WalkItem, SUPPORTED_EXTENSIONS,
 };
 use crate::output::{render_json, render_sarif, FileScan, HitRecord, OutputFormat, ReportMeta};
+use crate::rules::{self, RuleSettings, RulesLayer, Severity as RuleSeverity};
 use crate::scoring::adapters::c::CAdapter;
 use crate::scoring::adapters::cpp::CppAdapter;
 use crate::scoring::adapters::csharp::CSharpAdapter;
@@ -49,8 +50,11 @@ use std::path::{Path, PathBuf};
 /// Default number of hunk-body lines shown under each above-threshold hit.
 pub const DEFAULT_HUNK_LINES: usize = 6;
 
-/// Severity tier ordering, weakest first (`_SEVERITY_ORDER`).
-const SEVERITY_ORDER: [&str; 3] = ["unusual", "suspicious", "foreign"];
+/// Confidence tier ordering, weakest first. Confidence grades how strong the
+/// evidence is (`unusual` / `suspicious` / `foreign`); it is display-only —
+/// whether a finding fails the check is decided by its rule's configured
+/// severity (`error` / `warn`), never by the tier.
+const CONFIDENCE_ORDER: [&str; 3] = ["unusual", "suspicious", "foreign"];
 
 // ANSI color codes for the human `check` render. Every colored write goes
 // through `paint`, which is a no-op when `use_color` is false — so the
@@ -62,10 +66,10 @@ const C_BOLD: &str = "\x1b[1m";
 const C_DIM: &str = "\x1b[2m";
 const C_RESET: &str = "\x1b[0m";
 
-/// The accent color for a severity tier: red (foreign), yellow (suspicious),
+/// The accent color for a confidence tier: red (foreign), yellow (suspicious),
 /// blue (unusual).
-fn severity_color(sev: &str) -> &'static str {
-    match sev {
+fn confidence_color(tier: &str) -> &'static str {
+    match tier {
         "foreign" => C_RED,
         "suspicious" => C_YELLOW,
         _ => C_BLUE,
@@ -94,7 +98,12 @@ pub struct CheckArgs {
     pub argot_dir: PathBuf,
     pub hunk_lines: usize,
     pub verbose: bool,
-    pub min_severity: String,
+    /// Only show hits at or above this confidence tier (display filter).
+    pub min_confidence: String,
+    /// Validated CLI `--rule` overrides, highest-precedence severity layer.
+    pub rule_overrides: RulesLayer,
+    /// Promote `warn`-severity findings to check failures (CI strictness).
+    pub error_on_warnings: bool,
     pub use_color: bool,
     /// Output format. Machine formats (`json`/`sarif`) own stdout exclusively.
     pub format: OutputFormat,
@@ -168,7 +177,7 @@ struct Hit {
     hash: String,
     /// Set when a suppression surface muted this hit.
     suppressed_by: Option<SuppressedBy>,
-    /// Advisory evidence for a semantic finding (reinvention / placement).
+    /// Nearest-code evidence for a semantic finding (reinvention / placement).
     /// Feature-gated so the base build has no extra field and stays byte-for-byte
     /// identical; base statistical Hits carry `None` when the feature is on.
     #[cfg(feature = "semantic")]
@@ -301,13 +310,13 @@ fn is_supported_ext(file_path: &str) -> bool {
     SUPPORTED_EXTENSIONS.contains(&extension(file_path).as_str())
 }
 
-fn sev_index(s: &str) -> usize {
-    SEVERITY_ORDER.iter().position(|x| *x == s).unwrap_or(0)
+fn confidence_index(s: &str) -> usize {
+    CONFIDENCE_ORDER.iter().position(|x| *x == s).unwrap_or(0)
 }
 
-/// Classify a hit into a severity tier.
+/// Classify a hit into a confidence tier.
 ///
-/// Severity expresses the *strength of the evidence that a hunk is foreign*,
+/// Confidence expresses the *strength of the evidence that a hunk is foreign*,
 /// derived per signal-kind — not one margin rule for every reason:
 ///
 /// * **Categorical foreign signals** are `foreign` by nature. A foreign import
@@ -320,13 +329,16 @@ fn sev_index(s: &str) -> usize {
 /// * **Distributional signals** (BPE surprise, convention rarity, unfamiliar
 ///   callee) grade by margin above the calibrated threshold: the margin there
 ///   genuinely measures how far outside the repo's voice the hunk sits.
-fn severity(reason: &str, score: f64, threshold: f64) -> &'static str {
+/// * **Structural findings** (`redundant` / `misplaced` / `layering`) pin to
+///   `unusual` — they surface real, linter-invisible structure (a duplicate, a
+///   misplacement, a crossed boundary) for the author to judge; their scores
+///   are not on the foreignness scale the margins above grade.
+///
+/// Whether a finding fails the check is its rule's configured severity
+/// (`error` / `warn` / `off`), not this tier.
+fn confidence(reason: &str, score: f64, threshold: f64) -> &'static str {
     match reason {
         "import" => "foreign",
-        // Semantic + architecture-graph findings are advisory — the mildest tier.
-        // They surface real, linter-invisible structure (a duplicate, a
-        // misplacement, a crossed layer boundary) for the author to judge, not a
-        // "this is foreign" verdict.
         "redundant" | "misplaced" | "layering" => "unusual",
         _ => {
             if score >= threshold + 1.5 {
@@ -337,19 +349,6 @@ fn severity(reason: &str, score: f64, threshold: f64) -> &'static str {
                 "unusual"
             }
         }
-    }
-}
-
-/// User-facing translation of a scorer `reason` code (`_REASON_LABEL`).
-fn reason_label(reason: &str) -> &str {
-    match reason {
-        "bpe" => "rare token sequence",
-        "call_receiver" => "unfamiliar callee",
-        "import" => "foreign import",
-        "redundant" => "already implemented here",
-        "misplaced" => "unusual location",
-        "layering" => "crosses a module boundary",
-        other => other,
     }
 }
 
@@ -1196,7 +1195,7 @@ fn score_patches(
     (hits, hunk_count, files_scanned)
 }
 
-/// The architecture-graph pass — additive advisory `Hit`s from the per-repo
+/// The architecture-graph pass — additive `Hit`s from the per-repo
 /// module-dependency graph (`.argot/layering.json`). For each changed file it
 /// takes the ADDED lines, resolves the internal import edges they introduce, and
 /// flags any that reverse an established layer direction or leave a (near-)sink —
@@ -1289,8 +1288,8 @@ fn arch_hits(
     hits
 }
 
-/// The semantic pass (F1 reinvention today; F2 placement next) — additive
-/// advisory `Hit`s from the per-repo embedding index. It runs *alongside* the
+/// The semantic pass (F1 reinvention, F2 placement) — additive `Hit`s from
+/// the per-repo embedding index. It runs *alongside* the
 /// statistical scorers, never through them: it reads `.argot/semantic-index.json`
 /// plus the embedder, finds the functions the diff *defines*, and flags any that
 /// reinvent existing code. Returns extra hits to merge into the report. Empty
@@ -1523,7 +1522,7 @@ fn dump_semantic_candidate(
     .to_string()
 }
 
-/// Build one advisory semantic `Hit`, applying the mute + inline suppression
+/// Build one semantic `Hit`, applying the mute + inline suppression
 /// surfaces exactly as base hits do. `reason` is `"redundant"` / `"misplaced"`.
 #[cfg(feature = "semantic")]
 #[allow(clippy::too_many_arguments)]
@@ -1723,7 +1722,7 @@ fn render_results(
     let mut counts: HashMap<&str, usize> = HashMap::new();
     for h in hits {
         *counts
-            .entry(severity(&h.reason, h.score, h.threshold))
+            .entry(confidence(&h.reason, h.score, h.threshold))
             .or_insert(0) += 1;
     }
     let total = hits.len();
@@ -1733,7 +1732,7 @@ fn render_results(
         if c > 0 {
             tier_parts.push(format!(
                 "{c} {}",
-                paint(tier, severity_color(tier), use_color)
+                paint(tier, confidence_color(tier), use_color)
             ));
         }
     }
@@ -1783,20 +1782,16 @@ fn render_results(
         fhits.sort_by_key(|h| h.line); // stable by line asc
 
         for h in &fhits {
-            let sev = severity(&h.reason, h.score, h.threshold);
-            let color = severity_color(sev);
+            let sev = confidence(&h.reason, h.score, h.threshold);
+            let color = confidence_color(sev);
             let line_str = if h.line == h.line_end {
                 format!("L{}", h.line)
             } else {
                 format!("L{}-L{}", h.line, h.line_end)
             };
-            let friendly = reason_label(&h.reason);
-            let reason_str = if friendly != h.reason {
-                format!("{} ({})", friendly, h.reason)
-            } else {
-                h.reason.clone()
-            };
-            let meta = format!("· {} · {}", h.source, reason_str);
+            // The meta line names the rule (`foreign-import`, `redundant`, …);
+            // internal reasons without a rule (`none` under --threshold) print raw.
+            let meta = format!("· {} · {}", h.source, rules::code_for_reason(&h.reason));
             let glyph = match sev {
                 "foreign" => "!",
                 "suspicious" => "?",
@@ -1864,11 +1859,28 @@ fn render_results(
     any_truncated
 }
 
+/// The check exit code for the visible findings: 1 when any finding's rule is
+/// configured `error` (or when `--error-on-warnings` promotes a warn-only
+/// run), 0 otherwise. Unregistered reasons gate as `error` — a finding never
+/// silently loses its gate.
+fn gate_exit_code(visible: &[&Hit], settings: &RuleSettings, error_on_warnings: bool) -> i32 {
+    let fails = visible
+        .iter()
+        .any(|h| settings.severity_of_reason(&h.reason) == RuleSeverity::Error)
+        || (error_on_warnings && !visible.is_empty());
+    if fails {
+        1
+    } else {
+        0
+    }
+}
+
 /// Flatten visible hits into serializable [`HitRecord`]s for the machine
-/// formats. Severity is measured against the per-hit calibrated threshold,
-/// matching the human rendering; evidence lines are the same per-reason lines
-/// the human path prints, with layout indentation stripped.
-fn hit_records(hits: &[&Hit]) -> Vec<HitRecord> {
+/// formats. Confidence is measured against the per-hit calibrated threshold,
+/// matching the human rendering; severity is the rule's configured level;
+/// evidence lines are the same per-reason lines the human path prints, with
+/// layout indentation stripped.
+fn hit_records(hits: &[&Hit], settings: &RuleSettings) -> Vec<HitRecord> {
     hits.iter()
         .map(|h| {
             let evidence: Vec<String> = h
@@ -1898,9 +1910,10 @@ fn hit_records(hits: &[&Hit]) -> Vec<HitRecord> {
                 line_end: h.line_end,
                 score: h.score,
                 threshold: h.threshold,
-                severity: severity(&h.reason, h.score, h.threshold).to_string(),
-                reason: h.reason.clone(),
-                reason_label: reason_label(&h.reason).to_string(),
+                confidence: confidence(&h.reason, h.score, h.threshold).to_string(),
+                severity: settings.severity_of_reason(&h.reason).as_str().to_string(),
+                rule: rules::code_for_reason(&h.reason).to_string(),
+                rule_label: rules::label_for_reason(&h.reason).to_string(),
                 source: h.source.clone(),
                 hash: h.hash.clone(),
                 evidence,
@@ -2090,10 +2103,13 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         );
     }
 
-    // argot.toml config: excludes + `[detect]` heuristics + `[[mute]]`. Loaded
-    // once here — the `[detect]` markers gate the check-time auto-generated skip
-    // built into each scorer, so they must be in place before load_scorers.
+    // argot.toml config: excludes + `[detect]` heuristics + `[rules]` +
+    // `[[mute]]`. Loaded once here — the `[detect]` markers gate the check-time
+    // auto-generated skip built into each scorer, so they must be in place
+    // before load_scorers.
     let config = ArgotConfig::load(Path::new(&args.repo_path));
+    // Effective per-rule severities: defaults ⊕ [rules] ⊕ CLI --rule overrides.
+    let settings = config.rule_settings(&args.rule_overrides);
 
     let Loaded {
         mut scorers,
@@ -2211,28 +2227,37 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     let header_cpp = crate::scoring::calibration::header_is_cpp(Path::new(&args.repo_path));
 
     // Additive semantic pass over the same scoped batches (borrowed before
-    // score_patches consumes them). Produces advisory reinvention/placement hits;
-    // a no-op without the feature or when the index/model is unavailable.
+    // score_patches consumes them). Produces reinvention/placement hits; a
+    // no-op without the feature or when the index/model is unavailable.
     #[cfg(feature = "semantic")]
-    let semantic_extra = semantic_hits(
-        &filtered,
-        &args.argot_dir,
-        &filter_adapters,
-        &mutes.active,
-        &config.detect,
-        header_cpp,
-        &mut stderr,
-    );
+    let semantic_extra = if settings.group_enabled(rules::GROUP_SEMANTIC) {
+        semantic_hits(
+            &filtered,
+            &args.argot_dir,
+            &filter_adapters,
+            &mutes.active,
+            &config.detect,
+            header_cpp,
+            &mut stderr,
+        )
+    } else {
+        // Both semantic rules are off: no index load, no model, no cost.
+        Vec::new()
+    };
 
     // Compute arch hits before `filtered` is moved into `score_patches`.
     #[cfg(feature = "arch")]
-    let arch_extra = arch_hits(
-        &filtered,
-        &args.argot_dir,
-        &filter_adapters,
-        &mutes.active,
-        &mut stderr,
-    );
+    let arch_extra = if settings.severity_of_reason("layering") != RuleSeverity::Off {
+        arch_hits(
+            &filtered,
+            &args.argot_dir,
+            &filter_adapters,
+            &mutes.active,
+            &mut stderr,
+        )
+    } else {
+        Vec::new()
+    };
 
     let (hits, hunk_count, files_scanned) = score_patches(
         filtered,
@@ -2246,8 +2271,8 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         &mut stderr,
     );
 
-    // Merge the advisory semantic hits (rebind rather than `mut` so the base
-    // build has no unused-mut and stays byte-for-byte identical).
+    // Merge the semantic hits (rebind rather than `mut` so the base build has
+    // no unused-mut and stays byte-for-byte identical).
     #[cfg(feature = "semantic")]
     let hits = {
         let mut hits = hits;
@@ -2255,11 +2280,20 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         hits
     };
 
-    // Merge the advisory architecture-graph hits (same rebind discipline).
+    // Merge the architecture-graph hits (same rebind discipline).
     #[cfg(feature = "arch")]
     let hits = {
         let mut hits = hits;
         hits.extend(arch_extra);
+        hits
+    };
+
+    // A rule set to `off` emits nothing: its findings are dropped entirely
+    // (an off rule inside an otherwise-enabled group reaches this filter;
+    // internal reasons like `none` have no rule and always pass).
+    let hits = {
+        let mut hits = hits;
+        hits.retain(|h| settings.severity_of_reason(&h.reason) != RuleSeverity::Off);
         hits
     };
 
@@ -2292,14 +2326,14 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         ));
     }
 
-    // --min-severity drops weaker tiers from both output and banner counts.
-    let min_idx = sev_index(&args.min_severity);
+    // --min-confidence drops weaker tiers from both output and banner counts.
+    let min_idx = confidence_index(&args.min_confidence);
     let visible: Vec<&Hit> = above
         .iter()
         .copied()
         .filter(|h| {
             let t = threshold_override.unwrap_or(h.threshold);
-            sev_index(severity(&h.reason, h.score, t)) >= min_idx
+            confidence_index(confidence(&h.reason, h.score, t)) >= min_idx
         })
         .collect();
 
@@ -2318,16 +2352,15 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     let _ = write_last_check(&args.argot_dir, &last_check);
 
     // Machine formats: the serialized document is the entire stdout; skip
-    // warnings stay on stderr. Exit semantics match the human path (1 when
-    // any hit is visible, 0 otherwise).
+    // warnings stay on stderr. Exit semantics match the human path (rule
+    // severities decide, see gate_exit_code).
     if args.format.is_machine() {
-        let records = hit_records(&visible);
+        let records = hit_records(&visible, &settings);
         let meta = report_meta(&args, scan_label, hunk_count, files_scanned, &model_hash);
-        let exit_code = if visible.is_empty() { 0 } else { 1 };
         return CheckOutcome {
             stdout: render_machine(args.format, &meta, &records),
             stderr,
-            exit_code,
+            exit_code: gate_exit_code(&visible, &settings, args.error_on_warnings),
         };
     }
 
@@ -2341,9 +2374,9 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
             )
         } else if !above.is_empty() {
             format!(
-                "All {} hit(s) below severity '{}' — pass a lower --min-severity to see them.\n",
+                "All {} hit(s) below confidence '{}' — pass a lower --min-confidence to see them.\n",
                 above.len(),
-                args.min_severity
+                args.min_confidence
             )
         } else if let Some(t) = threshold_override {
             format!("All {hunk_count} hunk(s) scored below threshold {t:.2} — looks clean.\n")
@@ -2373,7 +2406,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     CheckOutcome {
         stdout,
         stderr,
-        exit_code: 1,
+        exit_code: gate_exit_code(&visible, &settings, args.error_on_warnings),
     }
 }
 
@@ -2517,12 +2550,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn semantic_reasons_have_labels_and_advisory_severity() {
-        assert_eq!(reason_label("redundant"), "already implemented here");
-        assert_eq!(reason_label("misplaced"), "unusual location");
+    fn semantic_reasons_have_labels_and_pinned_confidence() {
+        assert_eq!(
+            rules::label_for_reason("redundant"),
+            "already implemented here"
+        );
+        assert_eq!(rules::label_for_reason("misplaced"), "unusual location");
         // Advisory findings are the mildest tier regardless of score.
-        assert_eq!(severity("redundant", 5.0, 0.1), "unusual");
-        assert_eq!(severity("misplaced", 5.0, 0.1), "unusual");
+        assert_eq!(confidence("redundant", 5.0, 0.1), "unusual");
+        assert_eq!(confidence("misplaced", 5.0, 0.1), "unusual");
     }
 
     #[cfg(feature = "semantic")]
@@ -2554,8 +2590,8 @@ mod tests {
         // modules against a threshold of 1.0, so a lone foreign import sits exactly
         // at the bar. It must still read as `foreign` — the strongest tier — not
         // fall through the BPE-margin logic into `unusual`.
-        assert_eq!(severity("import", 1.0, 1.0), "foreign");
-        assert_eq!(severity("import", 3.0, 1.0), "foreign");
+        assert_eq!(confidence("import", 1.0, 1.0), "foreign");
+        assert_eq!(confidence("import", 3.0, 1.0), "foreign");
     }
 
     #[test]
@@ -2563,11 +2599,11 @@ mod tests {
         // BPE / convention / call_receiver keep the additive-margin tiering, which
         // is calibrated for their nat-scale scores.
         let t = 8.0;
-        assert_eq!(severity("bpe", t, t), "unusual");
-        assert_eq!(severity("bpe", t + 0.5, t), "suspicious");
-        assert_eq!(severity("bpe", t + 1.5, t), "foreign");
-        assert_eq!(severity("call_receiver", t + 0.4, t), "unusual");
-        assert_eq!(severity("convention", t + 1.6, t), "foreign");
+        assert_eq!(confidence("bpe", t, t), "unusual");
+        assert_eq!(confidence("bpe", t + 0.5, t), "suspicious");
+        assert_eq!(confidence("bpe", t + 1.5, t), "foreign");
+        assert_eq!(confidence("call_receiver", t + 0.4, t), "unusual");
+        assert_eq!(confidence("convention", t + 1.6, t), "foreign");
     }
 
     #[test]

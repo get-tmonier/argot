@@ -6,7 +6,7 @@
 //! ```toml
 //! [[mute]]
 //! path = "src/vendored/**"     # mandatory glob (fnmatch, `*` crosses `/`)
-//! scorer = "bpe"               # optional: bpe | import | call_receiver
+//! rule = "rare-tokens"         # optional: any rule or group name (`argot rules`)
 //! hash = "a1b2c3d4e5f6"        # optional: hit hash (`argot mute` writes these)
 //! expires = "2026-12-31"       # optional: YYYY-MM-DD, ignored past this date
 //! reason = "vendored upstream" # mandatory
@@ -25,8 +25,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SuppressionRule {
     pub path: String,
+    /// A rule or group name from the registry (`None` = every rule).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub scorer: Option<String>,
+    pub rule: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hash: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -39,7 +40,10 @@ impl SuppressionRule {
     /// reason code and hit hash?
     pub fn matches(&self, rel_path: &str, reason_code: &str, hit_hash: &str) -> bool {
         fnmatch(rel_path, &self.path)
-            && self.scorer.as_deref().is_none_or(|s| s == reason_code)
+            && self
+                .rule
+                .as_deref()
+                .is_none_or(|s| crate::rules::selector_matches_reason(s, reason_code))
             && self.hash.as_deref().is_none_or(|h| h == hit_hash)
     }
 }
@@ -49,7 +53,7 @@ impl SuppressionRule {
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct RawMute {
     pub path: Option<String>,
-    pub scorer: Option<String>,
+    pub rule: Option<String>,
     pub hash: Option<String>,
     pub expires: Option<String>,
     pub reason: Option<String>,
@@ -97,10 +101,10 @@ pub fn build_mutes(raw: Vec<RawMute>, today: &str) -> SuppressionsFile {
             ));
             continue;
         };
-        if let Some(scorer) = &r.scorer {
-            if !crate::suppress::inline::KNOWN_SCORERS.contains(&scorer.as_str()) {
+        if let Some(rule) = &r.rule {
+            if !crate::rules::known_selector(rule) {
                 out.warnings.push(format!(
-                    "argot.toml: mute {label}: unknown scorer '{scorer}' — entry ignored"
+                    "argot.toml: mute {label}: unknown rule '{rule}' — entry ignored"
                 ));
                 continue;
             }
@@ -116,7 +120,7 @@ pub fn build_mutes(raw: Vec<RawMute>, today: &str) -> SuppressionsFile {
         }
         let rule = SuppressionRule {
             path,
-            scorer: r.scorer,
+            rule: r.rule,
             hash: r.hash,
             expires: r.expires,
             reason,
@@ -143,14 +147,14 @@ mod tests {
 
     fn raw(
         path: Option<&str>,
-        scorer: Option<&str>,
+        rule: Option<&str>,
         hash: Option<&str>,
         expires: Option<&str>,
         reason: Option<&str>,
     ) -> RawMute {
         RawMute {
             path: path.map(str::to_string),
-            scorer: scorer.map(str::to_string),
+            rule: rule.map(str::to_string),
             hash: hash.map(str::to_string),
             expires: expires.map(str::to_string),
             reason: reason.map(str::to_string),
@@ -170,7 +174,7 @@ mod tests {
                 ),
                 raw(
                     Some("app.py"),
-                    Some("bpe"),
+                    Some("rare-tokens"),
                     Some("a1b2c3d4e5f6"),
                     Some("2099-01-01"),
                     Some("accepted oddity"),
@@ -182,7 +186,7 @@ mod tests {
         assert!(f.expired.is_empty());
         assert!(f.warnings.is_empty());
         assert_eq!(f.active[0].path, "src/vendored/**");
-        assert_eq!(f.active[1].scorer.as_deref(), Some("bpe"));
+        assert_eq!(f.active[1].rule.as_deref(), Some("rare-tokens"));
         assert_eq!(f.active[1].hash.as_deref(), Some("a1b2c3d4e5f6"));
     }
 
@@ -230,7 +234,7 @@ mod tests {
     }
 
     #[test]
-    fn invalid_date_and_scorer_are_rejected() {
+    fn invalid_date_and_rule_are_rejected() {
         let f = build_mutes(
             vec![
                 raw(Some("a.py"), None, None, Some("soonish"), Some("r")),
@@ -246,7 +250,7 @@ mod tests {
         assert!(f
             .warnings
             .iter()
-            .any(|w| w.contains("unknown scorer 'quantum'")));
+            .any(|w| w.contains("unknown rule 'quantum'")));
     }
 
     #[test]
@@ -263,10 +267,10 @@ mod tests {
     }
 
     #[test]
-    fn matches_by_glob_scorer_and_hash() {
+    fn matches_by_glob_rule_and_hash() {
         let rule = SuppressionRule {
             path: "src/*.py".to_string(),
-            scorer: Some("bpe".to_string()),
+            rule: Some("rare-tokens".to_string()),
             hash: Some("abc123def456".to_string()),
             expires: None,
             reason: "r".to_string(),
@@ -278,7 +282,7 @@ mod tests {
 
         let broad = SuppressionRule {
             path: "src/**".to_string(),
-            scorer: None,
+            rule: None,
             hash: None,
             expires: None,
             reason: "r".to_string(),

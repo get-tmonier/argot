@@ -2,7 +2,7 @@ argot check · 1 hunk above threshold (1 foreign)
 note: argot is a probabilistic style linter — verify before action.
 
 integration.py
-  !  L1-L9           1.00  foreign  · ef37598 · foreign import (import) [848320fed028]
+  !  L1-L9           1.00  foreign  · ef37598 · foreign-import [848320fed028]
      ↳ sqlalchemy (L2) — never seen in repo
        common here: __future__ (5×), collections (1×), json (1×) (+4 more)
   1 | from __future__ import annotations

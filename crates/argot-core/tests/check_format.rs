@@ -76,7 +76,9 @@ fn base_args(repo: &Path, format: OutputFormat) -> CheckArgs {
         argot_dir: repo.join(".argot"),
         hunk_lines: 6,
         verbose: false,
-        min_severity: "unusual".to_string(),
+        min_confidence: "unusual".to_string(),
+        rule_overrides: Vec::new(),
+        error_on_warnings: false,
         use_color: false,
         format,
         today: "2026-01-01".to_string(),
@@ -105,10 +107,14 @@ fn check_json_format_emits_a_single_json_document_with_hits() {
         assert!(h["score"].is_number());
         assert!(h["threshold"].is_number());
         assert!(
-            ["unusual", "suspicious", "foreign"].contains(&h["severity"].as_str().unwrap()),
-            "severity is a known tier"
+            ["unusual", "suspicious", "foreign"].contains(&h["confidence"].as_str().unwrap()),
+            "confidence is a known tier"
         );
-        assert!(h["reason"].is_string());
+        assert!(
+            ["error", "warn"].contains(&h["severity"].as_str().unwrap()),
+            "severity is the rule's configured level"
+        );
+        assert!(h["rule"].is_string());
         assert_eq!(h["hash"].as_str().unwrap().len(), 12, "hit hash present");
         assert!(h["evidence"].is_array());
     }

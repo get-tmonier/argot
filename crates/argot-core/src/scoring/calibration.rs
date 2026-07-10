@@ -1056,6 +1056,11 @@ pub fn run_calibrate(
     let config = crate::config::ArgotConfig::load(repo_dir);
     let path_suppressions = config.path_suppressions();
     let detect = &config.detect;
+    // Effective [rules] severities — a group turned off in argot.toml skips
+    // its whole fit-time artifact (semantic index / layering graph) and cost.
+    // Only the feature-gated layers read it.
+    #[cfg(any(feature = "semantic", feature = "arch"))]
+    let rule_settings = config.rule_settings(&Vec::new());
     // Fit from committed HEAD, not the working tree — an uncommitted foreign
     // edit must not be learned as part of the voice it's about to be checked
     // against. Byte-identical to a working-tree read on a clean checkout.
@@ -1065,14 +1070,20 @@ pub fn run_calibrate(
     // load / one-time fetch). `None` when the model is unavailable (offline) —
     // the fit still produces the full statistical model, just no semantic index.
     #[cfg(feature = "semantic")]
-    let embedder = match crate::scoring::semantic::embedder::Embedder::ready() {
-        Ok(e) => e,
-        Err(e) => {
-            // Degrade to no-semantic-index, but NEVER silently: a load failure
-            // (GPU memory pressure, corrupt model) must be visible, or a bench
-            // records "0 recall" where the truth is "no embedder".
-            eprintln!("argot: semantic model failed to load — skipping semantic index: {e:#}");
-            None
+    let embedder = if !rule_settings.group_enabled(crate::rules::GROUP_SEMANTIC) {
+        // Both semantic rules are off in [rules]: no model, no index, no cost.
+        eprintln!("argot: semantic rules are off in [rules] — skipping the semantic index");
+        None
+    } else {
+        match crate::scoring::semantic::embedder::Embedder::ready() {
+            Ok(e) => e,
+            Err(e) => {
+                // Degrade to no-semantic-index, but NEVER silently: a load failure
+                // (GPU memory pressure, corrupt model) must be visible, or a bench
+                // records "0 recall" where the truth is "no embedder".
+                eprintln!("argot: semantic model failed to load — skipping semantic index: {e:#}");
+                None
+            }
         }
     };
     #[cfg(feature = "semantic")]
@@ -1458,7 +1469,7 @@ pub fn run_calibrate(
     // the same voice-file collection production fits on (config-respecting) —
     // Python only in v1; other languages simply produce no graph.
     #[cfg(feature = "arch")]
-    {
+    if rule_settings.severity_of_reason("layering") != crate::rules::Severity::Off {
         use crate::scoring::adapters::Language;
         use crate::scoring::arch_graph::{RepoLayering, LAYERING_FILE};
         let files = crate::train::collect_source_files(repo_dir);

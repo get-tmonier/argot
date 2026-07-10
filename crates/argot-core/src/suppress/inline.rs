@@ -2,28 +2,26 @@
 //!
 //! ```text
 //! # argot: ignore-next-line — <reason>
-//! # argot: ignore-next-line scorer=bpe — <reason>
+//! # argot: ignore-next-line rule=rare-tokens — <reason>
 //! # argot: ignore-block-start — <reason>
 //! …
 //! # argot: ignore-block-end
 //! ```
 //!
 //! (`//` for languages with C-style line comments; the adapter supplies the
-//! prefix.) The separator before the reason may be `—`, `-`, or `:`. A reason
-//! is mandatory: a suppression comment without one is reported as a warning
-//! and ignored.
-
-/// Scorer names accepted in `scorer=<name>` — the check-time `Reason` codes a
-/// hit can carry.
-pub const KNOWN_SCORERS: &[&str] = &["bpe", "import", "call_receiver"];
+//! prefix.) `rule=` accepts any rule or group name from the registry
+//! ([`crate::rules`]). The separator before the reason may be `—`, `-`, or
+//! `:`. A reason is mandatory: a suppression comment without one is reported
+//! as a warning and ignored.
 
 /// One inline suppression: an inclusive 1-indexed line range, an optional
-/// scorer scope, and the author's reason.
+/// rule/group scope, and the author's reason.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InlineRule {
     pub line_start: usize,
     pub line_end: usize,
-    pub scorer: Option<String>,
+    /// A rule or group name from the registry (`None` = every rule).
+    pub rule: Option<String>,
     pub reason: String,
 }
 
@@ -44,41 +42,44 @@ pub struct InlineSuppressions {
 
 impl InlineSuppressions {
     /// Does any rule suppress a hit spanning `[line_start, line_end]` with the
-    /// given winning reason code? Scorer-scoped rules only match their scorer.
+    /// given winning reason code? Rule-scoped entries match when the hit's
+    /// rule (or its group) equals the scope.
     pub fn suppresses(&self, line_start: usize, line_end: usize, reason_code: &str) -> bool {
         self.rules.iter().any(|r| {
             r.line_start <= line_end
                 && line_start <= r.line_end
-                && r.scorer.as_deref().is_none_or(|s| s == reason_code)
+                && r.rule
+                    .as_deref()
+                    .is_none_or(|s| crate::rules::selector_matches_reason(s, reason_code))
         })
     }
 }
 
-/// Directive payload after the directive keyword: optional `scorer=<name>`,
+/// Directive payload after the directive keyword: optional `rule=<name>`,
 /// optional separator (`—`/`-`/`:`), then the reason.
 struct Payload {
-    scorer: Option<String>,
+    rule: Option<String>,
     reason: String,
     error: Option<String>,
 }
 
 fn parse_payload(rest: &str) -> Payload {
     let mut rest = rest.trim();
-    let mut scorer = None;
-    if let Some(after) = rest.strip_prefix("scorer=") {
+    let mut rule = None;
+    if let Some(after) = rest.strip_prefix("rule=") {
         let name: String = after.chars().take_while(|c| !c.is_whitespace()).collect();
         rest = after[name.len()..].trim_start();
-        if !KNOWN_SCORERS.contains(&name.as_str()) {
+        if !crate::rules::known_selector(&name) {
             return Payload {
-                scorer: None,
+                rule: None,
                 reason: String::new(),
                 error: Some(format!(
-                    "unknown scorer '{name}' (expected one of: {})",
-                    KNOWN_SCORERS.join(", ")
+                    "unknown rule '{name}' (expected one of: {})",
+                    crate::rules::selector_names().join(", ")
                 )),
             };
         }
-        scorer = Some(name);
+        rule = Some(name);
     }
     // Optional separator before the reason.
     for sep in ["—", "-", ":"] {
@@ -88,7 +89,7 @@ fn parse_payload(rest: &str) -> Payload {
         }
     }
     Payload {
-        scorer,
+        rule,
         reason: rest.trim().to_string(),
         error: None,
     }
@@ -100,7 +101,7 @@ fn parse_payload(rest: &str) -> Payload {
 /// whose text starts with `argot:` are considered.
 pub fn parse_inline(source: &str, comment_prefix: &str) -> InlineSuppressions {
     let mut out = InlineSuppressions::default();
-    // Open block: (start_line, scorer, reason).
+    // Open block: (start_line, rule, reason).
     let mut open_block: Option<(usize, Option<String>, String)> = None;
     let mut last_line = 0usize;
 
@@ -135,7 +136,7 @@ pub fn parse_inline(source: &str, comment_prefix: &str) -> InlineSuppressions {
             out.rules.push(InlineRule {
                 line_start: ln + 1,
                 line_end: ln + 1,
-                scorer: p.scorer,
+                rule: p.rule,
                 reason: p.reason,
             });
         } else if let Some(rest) = directive.strip_prefix("ignore-block-start") {
@@ -161,13 +162,13 @@ pub fn parse_inline(source: &str, comment_prefix: &str) -> InlineSuppressions {
                 });
                 continue;
             }
-            open_block = Some((ln, p.scorer, p.reason));
+            open_block = Some((ln, p.rule, p.reason));
         } else if directive.starts_with("ignore-block-end") {
             match open_block.take() {
-                Some((start, scorer, reason)) => out.rules.push(InlineRule {
+                Some((start, rule, reason)) => out.rules.push(InlineRule {
                     line_start: start,
                     line_end: ln,
-                    scorer,
+                    rule,
                     reason,
                 }),
                 None => out.warnings.push(InlineWarning {
@@ -178,7 +179,7 @@ pub fn parse_inline(source: &str, comment_prefix: &str) -> InlineSuppressions {
         }
     }
 
-    if let Some((start, scorer, reason)) = open_block.take() {
+    if let Some((start, rule, reason)) = open_block.take() {
         out.warnings.push(InlineWarning {
             line: start,
             message: "ignore-block-start never closed — suppressing to end of file".to_string(),
@@ -186,7 +187,7 @@ pub fn parse_inline(source: &str, comment_prefix: &str) -> InlineSuppressions {
         out.rules.push(InlineRule {
             line_start: start,
             line_end: last_line,
-            scorer,
+            rule,
             reason,
         });
     }
@@ -207,7 +208,7 @@ mod tests {
             vec![InlineRule {
                 line_start: 3,
                 line_end: 3,
-                scorer: None,
+                rule: None,
                 reason: "vendored oddity".to_string(),
             }]
         );
@@ -246,13 +247,31 @@ d()
     }
 
     #[test]
-    fn scorer_scoped_rule_only_matches_its_scorer() {
-        let src = "# argot: ignore-next-line scorer=bpe — noisy tokens\nweird()\n";
+    fn rule_scoped_entry_only_matches_its_rule() {
+        let src = "# argot: ignore-next-line rule=rare-tokens — noisy tokens\nweird()\n";
         let s = parse_inline(src, "#");
-        assert_eq!(s.rules[0].scorer.as_deref(), Some("bpe"));
+        assert_eq!(s.rules[0].rule.as_deref(), Some("rare-tokens"));
         assert!(s.suppresses(2, 2, "bpe"));
         assert!(!s.suppresses(2, 2, "import"));
         assert!(!s.suppresses(2, 2, "call_receiver"));
+    }
+
+    #[test]
+    fn group_scoped_entry_matches_every_rule_in_the_group() {
+        let src = "# argot: ignore-next-line rule=semantic — intentional twin\nweird()\n";
+        let s = parse_inline(src, "#");
+        assert!(s.suppresses(2, 2, "redundant"));
+        assert!(s.suppresses(2, 2, "misplaced"));
+        assert!(!s.suppresses(2, 2, "bpe"));
+    }
+
+    #[test]
+    fn semantic_rules_are_suppressible_by_name() {
+        let src =
+            "# argot: ignore-next-line rule=redundant — intentional reimplementation\nweird()\n";
+        let s = parse_inline(src, "#");
+        assert!(s.suppresses(2, 2, "redundant"));
+        assert!(!s.suppresses(2, 2, "misplaced"));
     }
 
     #[test]
@@ -277,12 +296,12 @@ d()
     }
 
     #[test]
-    fn unknown_scorer_warns_and_ignores() {
-        let src = "# argot: ignore-next-line scorer=quantum — hmm\nweird()\n";
+    fn unknown_rule_warns_and_ignores() {
+        let src = "# argot: ignore-next-line rule=quantum — hmm\nweird()\n";
         let s = parse_inline(src, "#");
         assert!(s.rules.is_empty());
         assert_eq!(s.warnings.len(), 1);
-        assert!(s.warnings[0].message.contains("unknown scorer 'quantum'"));
+        assert!(s.warnings[0].message.contains("unknown rule 'quantum'"));
     }
 
     #[test]

@@ -17,6 +17,7 @@ pub mod git_walk;
 pub mod inspect;
 pub mod json;
 pub mod output;
+pub mod rules;
 pub mod scoring;
 pub mod stats;
 pub mod suppress;

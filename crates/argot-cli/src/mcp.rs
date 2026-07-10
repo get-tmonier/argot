@@ -94,12 +94,12 @@ fn tool_definitions() -> Value {
     json!([
         {
             "name": "argot.check",
-            "description": "Score a code hunk against the repo's voice. Returns whether it is out of voice, the score, the reason, and evidence naming the surprising tokens.",
+            "description": "Score a code hunk against the repo's voice. Returns whether it is out of voice, the score, the rule that fired, and evidence naming the surprising tokens.",
             "inputSchema": hunk_schema,
         },
         {
             "name": "argot.explain",
-            "description": "Explain a hunk's voice score in detail: the reason it fired and the full evidence trail (surprising tokens with repo attestation counts).",
+            "description": "Explain a hunk's voice score in detail: the rule it fired and the full evidence trail (surprising tokens with repo attestation counts).",
             "inputSchema": hunk_schema,
         },
         {
@@ -191,7 +191,8 @@ fn tool_check(args: &Value, repo: &Path, explain: bool) -> Result<Value, String>
         // so an agent can gauge how close a hit was (not the internal BPE stage).
         "score": scored.score,
         "threshold": scored.threshold,
-        "reason": scored.reason.as_str(),
+        // The stable rule name (registry) — matches `check` JSON's `rule`.
+        "rule": argot_core::rules::code_for_reason(scored.reason.as_str()),
     });
     // Evidence: always for explain; and on a fired hunk for check.
     if explain || scored.flagged {

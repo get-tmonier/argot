@@ -164,6 +164,8 @@ enum Command {
     Fit(FitCmd),
     /// Check code changes against the calibrated scorers.
     Check(CheckCmd),
+    /// List every rule with its group and effective severity for this repo.
+    Rules(RulesCmd),
     /// Score a PR (or diff range) against the local voice without checking it out.
     Review(ReviewCmd),
     /// PR-level out-of-voice metric plus ranked hot-spots for a ref/range.
@@ -970,13 +972,20 @@ struct CheckCmd {
     /// Show full hunk contents (no truncation; overrides --hunk-lines).
     #[arg(short = 'v', long)]
     verbose: bool,
-    /// Only show hits at or above this severity.
+    /// Only show hits at or above this confidence tier.
     #[arg(
-        long = "min-severity",
+        long = "min-confidence",
         default_value = "unusual",
         value_parser = ["unusual", "suspicious", "foreign"]
     )]
-    min_severity: String,
+    min_confidence: String,
+    /// Override a rule's severity for this run: `--rule <name>=<error|warn|off>`
+    /// (repeatable; accepts rule or group names — see `argot rules`).
+    #[arg(long = "rule", value_name = "NAME=SEVERITY", value_parser = parse_rule_override)]
+    rule: Vec<(String, argot_core::rules::Severity)>,
+    /// Exit non-zero when `warn`-severity findings are present (CI strictness).
+    #[arg(long = "error-on-warnings")]
+    error_on_warnings: bool,
     /// Output format: human (terminal), json (stable machine-readable), or
     /// sarif (SARIF 2.1.0 for code-scanning uploads). Machine formats write
     /// nothing but the document to stdout.
@@ -1019,7 +1028,9 @@ fn run_check_cmd(c: CheckCmd) -> ExitCode {
         argot_dir: argot_dir.clone(),
         hunk_lines: c.hunk_lines,
         verbose: c.verbose,
-        min_severity: c.min_severity,
+        min_confidence: c.min_confidence,
+        rule_overrides: c.rule,
+        error_on_warnings: c.error_on_warnings,
         use_color,
         // The value_parser restricts input to the known names, so this is
         // always Some; default to Human defensively.
@@ -1038,6 +1049,64 @@ fn run_check_cmd(c: CheckCmd) -> ExitCode {
         }
     }
     ExitCode::from(outcome.exit_code as u8)
+}
+
+#[derive(Args)]
+struct RulesCmd {
+    /// Path to the repository (its argot.toml decides the effective severities).
+    #[arg(long, default_value = ".")]
+    repo: PathBuf,
+    /// Output format: human or json.
+    #[arg(long, default_value = "human", value_parser = ["human", "json"])]
+    format: String,
+}
+
+fn run_rules_cmd(c: RulesCmd) -> ExitCode {
+    use argot_core::rules::{GROUPS, RULES};
+    let config = argot_core::config::ArgotConfig::load(&c.repo);
+    for w in &config.warnings {
+        eprintln!("[argot] {w}");
+    }
+    let settings = config.rule_settings(&Vec::new());
+    if c.format == "json" {
+        let doc: Vec<serde_json::Value> = RULES
+            .iter()
+            .map(|r| {
+                serde_json::json!({
+                    "name": r.name,
+                    "group": r.group,
+                    "severity": settings.severity_of_rule(r).as_str(),
+                    "label": r.label,
+                    "description": r.description,
+                })
+            })
+            .collect();
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&doc).expect("static json")
+        );
+        return ExitCode::SUCCESS;
+    }
+    let name_w = RULES.iter().map(|r| r.name.len()).max().unwrap_or(0);
+    let group_w = GROUPS.iter().map(|g| g.len()).max().unwrap_or(0);
+    println!(
+        "{:<name_w$}  {:<group_w$}  {:<8}  DESCRIPTION",
+        "RULE", "GROUP", "SEVERITY"
+    );
+    for r in RULES {
+        println!(
+            "{:<name_w$}  {:<group_w$}  {:<8}  {}",
+            r.name,
+            r.group,
+            settings.severity_of_rule(r).as_str(),
+            r.description
+        );
+    }
+    println!(
+        "
+Configure in argot.toml [rules] (e.g. `misplaced = \"warn\"`, `semantic = \"off\"`)\nor per run with `argot check --rule <name>=<severity>`."
+    );
+    ExitCode::SUCCESS
 }
 
 #[derive(Args)]
@@ -1360,6 +1429,23 @@ struct MuteCmd {
     expires: Option<u64>,
 }
 
+/// Parse a `--rule <name>=<severity>` override against the registry — a CLI
+/// typo is a hard usage error (config typos, by contrast, warn and degrade).
+fn parse_rule_override(s: &str) -> Result<(String, argot_core::rules::Severity), String> {
+    let (name, sev) = s
+        .split_once('=')
+        .ok_or_else(|| format!("expected <name>=<severity>, got '{s}'"))?;
+    if !argot_core::rules::known_selector(name) {
+        return Err(format!(
+            "unknown rule '{name}' (known: {})",
+            argot_core::rules::selector_names().join(", ")
+        ));
+    }
+    let severity = argot_core::rules::Severity::parse(sev)
+        .ok_or_else(|| format!("invalid severity '{sev}' (expected error, warn, or off)"))?;
+    Ok((name.to_string(), severity))
+}
+
 /// Parse `--expires 30d` (a plain number is accepted too).
 fn parse_expires_days(s: &str) -> Result<u64, String> {
     s.strip_suffix('d')
@@ -1478,8 +1564,8 @@ fn run_list_mutes() -> ExitCode {
     for (label, list) in [("active", &rules.active), ("expired", &rules.expired)] {
         for r in list {
             let mut parts = vec![format!("path={}", r.path)];
-            if let Some(s) = &r.scorer {
-                parts.push(format!("scorer={s}"));
+            if let Some(s) = &r.rule {
+                parts.push(format!("rule={s}"));
             }
             if let Some(h) = &r.hash {
                 parts.push(format!("hash={h}"));
@@ -1879,6 +1965,7 @@ fn main() -> ExitCode {
         Some(Command::Calibrate(c)) => run_calibrate_cmd(c),
         Some(Command::Fit(c)) => run_fit_cmd(c),
         Some(Command::Check(c)) => run_check_cmd(c),
+        Some(Command::Rules(c)) => run_rules_cmd(c),
         Some(Command::Review(c)) => {
             let use_color =
                 std::env::var_os("NO_COLOR").is_none() && std::io::stdout().is_terminal();

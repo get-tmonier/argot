@@ -47,7 +47,7 @@ pub fn mute_hash(
 
     let rule = SuppressionRule {
         path: hit.path.clone(),
-        scorer: None,
+        rule: None,
         hash: Some(hash.to_string()),
         expires,
         reason: reason
