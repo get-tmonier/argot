@@ -25,10 +25,13 @@ type ForeignRow = {
   overfire_existing_pct: number | null; detection_existing_pct: number | null;
   overfire_new_pct: number | null; under_sampled: boolean;
 };
+// Loose-null guard, typed: JSON rows may carry null (and a missing key is
+// undefined) — one predicate covers both and keeps eqeqeq strict.
+const isNum = (x: unknown): x is number => typeof x === 'number';
 const foreignRows = (foreignData.corpora ?? []) as ForeignRow[];
 // Visible-tier (easy/medium) catch — the headline. Masked (hard) is surfaced as a
 // second line so a column can't read as a flat 100% while its hard cases quietly miss.
-const fVis = (c: FClass) => (c && c.pct != null ? `${c.pct}% (${c.caught}/${c.total})` : '—');
+const fVis = (c: FClass) => (c && isNum(c.pct) ? `${c.pct}% (${c.caught}/${c.total})` : '—');
 const fMasked = (c: FClass) =>
   c && c.masked_total > 0 ? `${c.masked_caught}/${c.masked_total} hard` : null;
 // aggregate visible catch per signal (the honest per-signal headline).
@@ -198,17 +201,19 @@ const semF2 = (semanticData.misplacement ?? []) as SemF2[];
 const semWindow = (semanticData as { window?: number }).window ?? 200;
 // recall summary (min / median across corpora with a recall number).
 const med = (xs: number[]) => (xs.length ? xs.slice().sort((a, b) => a - b)[Math.floor(xs.length / 2)] : null);
-const f1Recalls = semF1.map((r) => r.recall_pct).filter((x): x is number => x != null);
+const f1Recalls = semF1.map((r) => r.recall_pct).filter(isNum);
 const f1RecallMin = f1Recalls.length ? Math.min(...f1Recalls) : null;
 const f1RecallMed = med(f1Recalls);
-const f2Recalls = semF2.map((r) => r.recall_pct).filter((x): x is number => x != null);
+const f2Recalls = semF2.map((r) => r.recall_pct).filter(isNum);
 const f2RecallMed = med(f2Recalls);
 // Uniform cells (every row, same fields):
 // catch = "Z% (caught/total)"; false-fire = "Y% (fires/hunks)".
 const recallCell = (p: number | null, a: number | null, b: number | null) =>
-  p == null ? '—' : b != null ? `${p}% (${a}/${b})` : `${p}%`;
+  p === null ? '—' : b !== null ? `${p}% (${a}/${b})` : `${p}%`;
 const fireCell = (fires: number | null, hunks: number | null, pct: number | null) =>
-  pct == null || fires == null || hunks == null ? '—' : `${pct.toFixed(2)}% (${fires}/${hunks})`;
+  pct === null || fires === null || hunks === null
+    ? '—'
+    : `${pct.toFixed(2)}% (${fires}/${hunks})`;
 ---
 
 <Base title="Benchmarks · argot" description="Honest, leak-free benchmark results for argot, fed from CI.">
@@ -458,12 +463,12 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
                       {fMasked(r.classes.foreign_api) && <div class="text-xs text-muted">{fMasked(r.classes.foreign_api)}</div>}
                     </td>
                     <td class="text-right">
-                      {r.overfire_existing_pct != null ? `${r.overfire_existing_pct.toFixed(2)}%` : '—'}
-                      {r.detection_existing_pct != null && r.detection_existing_pct > 0 && (
+                      {isNum(r.overfire_existing_pct) ? `${r.overfire_existing_pct.toFixed(2)}%` : '—'}
+                      {isNum(r.detection_existing_pct) && r.detection_existing_pct > 0 && (
                         <div class="text-xs text-muted">+{r.detection_existing_pct.toFixed(2)}% detections</div>
                       )}
                     </td>
-                    <td class="text-right">{r.overfire_new_pct != null ? `${r.overfire_new_pct.toFixed(2)}%` : '—'}</td>
+                    <td class="text-right">{isNum(r.overfire_new_pct) ? `${r.overfire_new_pct.toFixed(2)}%` : '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -490,7 +495,7 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
             <strong>Catch is high</strong> — parallel agents write faithful reimplementations
             of a repo's own functions (renamed, restructured); planted as new code, argot
             flags them <code class="text-xs">redundant</code>
-            {f1RecallMin != null && (<> at <strong>≥ {f1RecallMin}% on every corpus</strong> (median {f1RecallMed}%)</>)}.
+            {isNum(f1RecallMin) && (<> at <strong>≥ {f1RecallMin}% on every corpus</strong> (median {f1RecallMed}%)</>)}.
             <strong> False-fire is calibrated away, not hidden.</strong> Real repos hold
             real parallel code, and a naïve embedding sense fires on all of it (5–14% of
             real-commit hunks). argot filters the shapes that <em>aren't</em> reinventions —
@@ -530,7 +535,7 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
                     <td class="text-right">{recallCell(r.recall_pct, r.recall_caught, r.recall_total)}</td>
                     <td class="text-right">
                       {fireCell(r.fp_fires, r.fp_hunks, r.fp_per_hunk_pct)}
-                      {r.fp_true_per_hunk_pct != null && (r.fp_fires ?? 0) > 0 && (
+                      {isNum(r.fp_true_per_hunk_pct) && (r.fp_fires ?? 0) > 0 && (
                         <div class="text-xs text-muted">{r.fp_true_per_hunk_pct}% judged true{r.fp_sampled ? ' (sampled)' : ''}</div>
                       )}
                     </td>

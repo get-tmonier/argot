@@ -59,7 +59,8 @@ const fr: SiteContent = {
     label: 'Jour un',
     title: 'Rembobinez votre historique. Voyez ce qu’il aurait attrapé.',
     body: 'On ne démontre pas un garde-fou sur le code qu’il vient d’apprendre — alors argot rembobine. [[argot replay]] calibre la voix telle qu’elle était il y a 50 commits et rescore tout ce qui a suivi : une commande, quelques secondes, votre arbre intact.',
-    caption: 'Vraie exécution sur l’historique de FastAPI : deux imports fraîchement adoptés et le nouveau vocabulaire de streaming — chacun avec [[l’évidence du dépôt lui-même]].',
+    caption:
+      'Vraie exécution sur l’historique de FastAPI : deux imports fraîchement adoptés et le nouveau vocabulaire de streaming — chacun avec [[l’évidence du dépôt lui-même]].',
   },
   engine: {
     label: 'Sous le capot',
@@ -83,7 +84,10 @@ const fr: SiteContent = {
       { value: '0,2 s', label: 'pour vérifier un diff' },
       { value: '0,6 s', label: 'quand il définit de nouvelles fonctions' },
       { value: '25 s', label: 'premier fit, dépôt de 1 100 fichiers' },
-      { value: '4 s', label: 'pour rafraîchir — les fonctions inchangées réutilisent leurs embeddings' },
+      {
+        value: '4 s',
+        label: 'pour rafraîchir — les fonctions inchangées réutilisent leurs embeddings',
+      },
     ],
     finePrint:
       'Mesuré sur FastAPI, CPU de portable. Un seul binaire statique — pas de Python, pas de Node, aucun runtime à installer.',
