@@ -285,10 +285,14 @@ fn publish_artifacts(worktree_root: &Path, repo: &Path) -> std::io::Result<()> {
         if name == "repo-corpus.txt" {
             // The fit canonicalizes paths, but cover the raw prefix too so a
             // platform that skips symlink resolution still rewrites cleanly.
+            // Each rewrite keeps the path flavor it found: canonical→canonical,
+            // raw→raw — on Windows the two differ (`\\?\` verbatim prefix,
+            // 8.3 short names), and mixing them leaves unrewritable paths.
             let text = std::fs::read_to_string(entry.path())?;
-            let text = text
-                .replace(&wt_prefix, &repo_prefix)
-                .replace(&worktree_root.to_string_lossy().into_owned(), &repo_prefix);
+            let text = text.replace(&wt_prefix, &repo_prefix).replace(
+                &worktree_root.to_string_lossy().into_owned(),
+                &repo.to_string_lossy(),
+            );
             std::fs::write(&dst, text)?;
         } else {
             std::fs::copy(entry.path(), &dst)?;
