@@ -491,24 +491,25 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
             of a repo's own functions (renamed, restructured); planted as new code, argot
             flags them <code class="text-xs">redundant</code>
             {f1RecallMin != null && (<> at <strong>≥ {f1RecallMin}% on every corpus</strong> (median {f1RecallMed}%)</>)}.
-            <strong> False-fire is filtered, not hidden.</strong> The naïve sense fired on
-            5–14% of real-commit hunks on library/framework repos — but those fires were
-            dominated by shapes that <em>aren't</em> reinventions: thin wrappers, interface /
-            family methods (a linter's <code class="text-xs">on_send</code> across 271 cops),
-            and dense sibling clusters. Four cheap structural filters (body size, symbol
-            frequency, embedding-neighbour density — each exempted when the candidate reuses
-            the match's exact helpers) drop them with <strong>zero recall loss</strong>, taking
-            the clean-commit false-fire to <strong>≤ 5%/hunk on 28 of 31 corpora</strong>
-            (aggregate ~3.5%). The three that remain — curl 6.2%, jellyfin 7.0%, laravel 6.6%
-            (3-judge labelled) — are <strong>parallel backends and sibling-module methods</strong>
-            (openssl↔wolfssl, Illuminate/*) that even a skeptical human reviewer calls "not a
-            reinvention, but structurally identical": the documented irreducible floor of a
-            name/structure sense with no LLM. That residual is exactly why
-            <code class="text-xs">redundant</code> stays <strong>advisory</strong> — a review
-            prompt, never folded into the gated catch/over-fire numbers: argot names the
-            nearest existing function and lets you decide. (It does fire at the mildest tier,
-            so a redundant-only hunk still exits non-zero; mute or raise
-            <code class="text-xs">--min-severity</code> to silence it.)
+            <strong> False-fire is calibrated away, not hidden.</strong> Real repos hold
+            real parallel code, and a naïve embedding sense fires on all of it (5–14% of
+            real-commit hunks). argot filters the shapes that <em>aren't</em> reinventions —
+            thin wrappers, interface / family methods (a linter's
+            <code class="text-xs">on_send</code> across 271 cops), dense sibling clusters,
+            co-located protocol-variant families (curl's <code class="text-xs">cf_h3_*</code>
+            next to <code class="text-xs">cf_h2_*</code>) — and at
+            <code class="text-xs">fit</code> it <strong>measures itself against your own
+            history</strong>: a mini-replay of the repo's recently added functions estimates
+            its false-fire rate, and repos that practice systematic parallel implementation
+            (saleor's checkout/order mirrors) automatically get a stricter mode. On the
+            leak-free clean-commit replay this lands at
+            <strong>≤ 2.8%/hunk on all 31 corpora</strong> — no exceptions carved out (the
+            former outliers: jellyfin 7.7→2.3%, curl 6.9→1.2%, laravel 6.8→1.6%,
+            saleor 7.5→2.4%). <code class="text-xs">redundant</code> stays
+            <strong>advisory</strong> — a review prompt, never folded into the gated
+            catch/over-fire numbers: argot names the nearest existing function and lets you
+            decide. (It does fire at the mildest tier, so a redundant-only hunk still exits
+            non-zero; mute or raise <code class="text-xs">--min-severity</code> to silence it.)
           </p>
           <div class="mt-6 overflow-x-auto">
             <table class="w-full min-w-[34rem] border-collapse text-sm">
@@ -551,26 +552,26 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
           <p class="mt-3 leading-relaxed text-ink-dim">
             The same index judges <em>where</em> a function belongs: if its nearest peers
             nearly all live in a different package than the one it's filed under, it's
-            probably misplaced (its area = the major package, e.g. <code class="text-xs">src/db</code>).
+            probably misplaced. The "package" isn't a fixed directory depth — at
+            <code class="text-xs">fit</code>, argot <strong>walks each repo's tree to its real
+            package granularity</strong> (descending through containers like
+            <code class="text-xs">src/</code> or <code class="text-xs">src/Illuminate/</code>),
+            <strong>merges packages that are semantically entangled</strong> (a header-only
+            library's <code class="text-xs">src/</code> and <code class="text-xs">include/</code>
+            are one thing, not two), and <strong>calibrates the vote against itself</strong>: a
+            transplant simulation on the repo's own functions picks the thresholds, and when no
+            configuration reaches usable recall the sense is <strong>disabled for that repo</strong>
+            — a flat single-package library gets silence, not noise (marked “—” below).
             <strong>Catch</strong> = transplant recall: a real function re-filed into a foreign
-            but existing package should fire <code class="text-xs">misplaced</code>
-            {f2RecallMed != null && (<> — median <strong>{f2RecallMed}%</strong></>)}, up from
-            66% once areas are taken at the package (depth-2) rather than sub-package level;
-            about a third of corpora now clear 85%. Single-package repos (commander, express,
-            composer, homebrew — all of one top-level namespace) have no second area to judge
-            against and are marked “—”. Some corpora (hono/ink/jellyfin) stay lower: a function
-            whose semantic peers are genuinely <em>scattered</em> across many packages cannot
-            be shown to be <em>mis</em>placed — an inherent limit of neighbour-based placement,
-            and the transplant metric is itself a lower bound (a generic util relocates freely,
-            so not firing on it is correct, not a miss). <strong> False-fire</strong> = the
-            leak-free clean-commit holdout: <strong>well under 1% of hunks</strong> on nearly
-            every repo — and the package-level area is a large FP <em>win</em> on cohesive
-            monorepos (sibling modules collapse into one area and stop reading as misplaced:
-            laravel 34→1, homebrew 22→0, fmt 20%→3%). Two repos stay above 5%: fmt (7 fires over
-            a 35-hunk replay — statistical noise, not a rate) and junit5 (5.5% — the
-            <code class="text-xs">junit-platform-*</code> modules are near-identical siblings that
-            depth-2 can't fully merge). Lower catch than reinvention, but far quieter; both are
-            advisory.
+            but existing package fires <code class="text-xs">misplaced</code>
+            {f2RecallMed != null && (<> at <strong>86–99% on every judging repo</strong> (median {f2RecallMed}%)</>)}
+            — up from a median of 66% (and literally 0% on composer, whose whole tree sat in
+            one fixed-depth area) before the self-calibration. <strong>False-fire</strong> = the
+            leak-free clean-commit holdout: <strong>≤ 1.5% of hunks on every repo</strong>. The
+            former outliers are gone the honest way — fmt (20%: a header-only layout with no
+            separable architecture) now abstains, and junit5 (5.5%: near-identical
+            <code class="text-xs">junit-platform-*</code> siblings) merges them and lands at 0.
+            Both senses are advisory.
           </p>
           <div class="mt-6 overflow-x-auto">
             <table class="w-full min-w-[34rem] border-collapse text-sm">
@@ -599,11 +600,12 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
           </div>
           <p class="mt-4 text-xs text-muted">
             <strong>Catch</strong> = transplant recall (n = functions sampled); “—” marks a
-            single-package repo (commander, express) with no foreign area to transplant into —
-            its false-fire is still measured and shown. <strong>False-fire / hunk</strong> =
-            replayed-commit hunks that fired <code>misplaced</code> (fires / hunks scanned),
-            window 150. Advisory — never folded into the gated catch/over-fire metric
-            (it does fire at the mildest tier).
+            repo where the fit-time self-calibration disabled placement — flat single-package
+            or semantically-fused layouts (bat, commander, express, ink, rich, fmt) with no
+            separable architecture to judge; their false-fire is 0 by construction (the sense
+            abstains). <strong>False-fire / hunk</strong> = replayed-commit hunks that fired
+            <code>misplaced</code> (fires / hunks scanned), window 150. Advisory — never
+            folded into the gated catch/over-fire metric (it does fire at the mildest tier).
           </p>
 
           <h2 id="architecture" class="mt-16 scroll-mt-20 text-2xl font-bold tracking-tight">4 · Architecture <span class="align-middle text-sm font-normal text-emerald-500">· gated</span></h2>

@@ -196,33 +196,38 @@ you already have (a bare `ValueError` where you'd raise `HTTPException`), the
 mistake is a *choice*, not a foreign pattern — argot won't gate on it, and says so.
 Full, verified breakdown: [what it catches](https://argot.tmonier.com/docs/what-it-catches/).
 
-#### Reinvention across every language — and its honest limits
+#### Reinvention and misplacement across every language — self-calibrated per repo
 
-The *"you already have this"* sense isn't Python-and-TypeScript-only. The scoring
-is language-agnostic — identifier subtokens and callees are extracted the same way
-everywhere — so every language argot parses gets it, benchmarked on **31 real repos
-across 11 languages**.
+The *"you already have this"* and *"this doesn't belong here"* senses aren't
+Python-and-TypeScript-only. The scoring is language-agnostic — identifier
+subtokens and callees are extracted the same way everywhere — so every language
+argot parses gets them, benchmarked on **31 real repos across 11 languages**.
 
 **Catch is high.** Planting faithful reimplementations of a repo's own functions
-(renamed, restructured) as new code, argot flags them redundant at **≥ 80% on every
-corpus** (median 95%).
+(renamed, restructured) as new code, argot flags them redundant at **85–100% on
+every corpus** (median 94%). Re-filing a real function into a foreign package
+fires misplaced at **86–99%** on every repo that has a separable architecture.
 
-**False-fire is filtered, not hidden.** The naïve sense fired on 5–14% of real-commit
-hunks on library/framework repos — but those fires were dominated by shapes that
-*aren't* reinventions: thin wrappers, interface/family methods (a linter's `on_send`
-across 271 cops), dense sibling clusters. Four cheap structural filters (body size,
-symbol frequency, embedding-neighbour density — each exempted when the candidate
-reuses the match's exact helpers) drop them with **zero recall loss**, taking the
-clean-commit false-fire to **≤5%/hunk on 28 of 31 corpora** (3-judge labelled where it
-matters). The three that remain — curl 6.2%, jellyfin 7.0%, laravel 6.6% — are
-parallel backends and sibling-module methods (openssl↔wolfssl, Illuminate/\*) that a
-skeptical human reviewer calls "not a reinvention, but structurally identical": the
-irreducible floor of a name/structure sense with no LLM. That residual is why
-*redundant* (and the quieter *misplaced*) stay **advisory** — a prompt to review,
-never folded into the gated catch/over-fire numbers above. They do fire at the mildest
-(`unusual`) tier, so a reinvention- or misplacement-only hunk still exits non-zero;
-mute them or raise `--min-severity` to drop them from the gate. The full per-repo
-catch **and false-fire** rates — for both senses — are on the
+**False-fire is calibrated away, not hidden.** Real repos hold real parallel
+code — per-locale providers, protocol-variant ports, checkout/order mirrors —
+and a naïve embedding sense fires on all of it. argot filters the shapes that
+aren't reinventions (thin wrappers, interface/family methods, dense sibling
+clusters, co-located variant families), and at `fit` it **measures itself
+against your own history**: a mini-replay of the repo's recently added functions
+estimates its false-fire rate and, on repos that practice systematic parallel
+implementation, switches the sense to a stricter mode automatically. Same for
+placement: argot learns your real package granularity, merges packages that are
+semantically entangled, and **abstains entirely** on repos with no separable
+architecture (a flat single-package library gets silence, not noise). On the
+leak-free clean-commit replay this lands **≤ 2.8% of hunks for redundant and
+≤ 1.5% for misplaced on all 31 corpora** — no exceptions carved out.
+
+Both senses stay **advisory** — a prompt to review, never folded into the gated
+catch/over-fire numbers above; argot names the nearest existing code and lets
+you judge. They do fire at the mildest (`unusual`) tier, so a reinvention- or
+misplacement-only hunk still exits non-zero; mute them or raise
+`--min-severity` to drop them from the gate. The full per-repo catch **and
+false-fire** rates — for both senses — are on the
 [benchmarks page](https://argot.tmonier.com/benchmarks).
 
 ### argot vs. the tools you already run
