@@ -21,6 +21,12 @@ pub mod conventions;
 pub mod evidence;
 pub mod filters;
 pub mod import_graph;
+/// The test-integrity sense — per-version test inventories diffed into
+/// test-gaming events (rules `test-deleted` / `test-disabled` /
+/// `test-weakened`, group `integrity`). Feature-gated (`--features
+/// integrity`), pure-Rust: absent and zero-cost off, base byte-unchanged.
+#[cfg(feature = "integrity")]
+pub mod integrity;
 pub mod model;
 /// The semantic layer — per-repo code embeddings powering the reinvention
 /// placement and nearest-code-evidence findings. Feature-gated: absent (and
@@ -38,6 +44,8 @@ pub mod shape_primitives;
 /// `docs/research/evidence/foreign-structure-gate-floor.md`.
 #[cfg(feature = "structural")]
 pub mod structural;
+#[cfg(feature = "integrity")]
+pub mod test_inventory;
 pub mod typicality;
 
 mod minhash_params_seed0;

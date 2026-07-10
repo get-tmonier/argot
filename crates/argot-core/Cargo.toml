@@ -76,6 +76,16 @@ structural = []
 # wired into the gating exit code). Enabled by the bench; not (yet) in releases.
 arch = []
 
+# The test-integrity sense: catches an agent gaming tests to green a failing
+# suite (weakening / disabling / deleting them alongside a production change).
+# Pure-Rust, NO new deps — reads both sides of the diff, builds per-version
+# test inventories with the pinned tree-sitter grammars, and diffs them into
+# events (rules `test-deleted` / `test-disabled` / `test-weakened`, group
+# `integrity`). Same build-time-gate shape as `arch`: off in dev/CI base loops
+# so the base guardrail is provably byte-for-byte unchanged; ON in releases
+# (dist-workspace.toml). Evidence: docs/research/evidence/test-integrity-*.md.
+integrity = []
+
 [dev-dependencies]
 serde.workspace = true
 serde_json.workspace = true

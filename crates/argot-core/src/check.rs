@@ -192,6 +192,11 @@ struct Hit {
     /// direction the new edge violates. Same feature-gating discipline.
     #[cfg(feature = "arch")]
     arch: Option<String>,
+    /// Pre-rendered evidence line for a test-integrity finding — the
+    /// weakened/deleted test and the co-changed production source. Same
+    /// feature-gating discipline.
+    #[cfg(feature = "integrity")]
+    integrity: Option<String>,
 }
 
 /// The nearest-existing-code evidence attached to a semantic finding (F4). Held
@@ -343,6 +348,11 @@ fn confidence_index(s: &str) -> usize {
 ///   `unusual` — they surface real, linter-invisible structure (a duplicate, a
 ///   misplacement, a crossed boundary) for the author to judge; their scores
 ///   are not on the foreignness scale the margins above grade.
+/// * **Integrity findings** (`test-deleted` / `test-disabled` /
+///   `test-weakened`) pin to `suspicious`: each is a discrete, evidenced
+///   event (a marker added, assertions excised) that survived the FP
+///   refinements and the repo's own calibrated gates — stronger than
+///   `unusual`, but not the categorical certainty of a 0-usage import.
 ///
 /// Whether a finding fails the check is its rule's configured severity
 /// (`error` / `warn` / `off`), not this tier.
@@ -350,6 +360,7 @@ fn confidence(reason: &str, score: f64, threshold: f64) -> &'static str {
     match reason {
         "import" => "foreign",
         "redundant" | "misplaced" | "layering" => "unusual",
+        "test_deleted" | "test_disabled" | "test_weakened" => "suspicious",
         _ => {
             if score >= threshold + 1.5 {
                 "foreign"
@@ -1203,6 +1214,8 @@ fn score_patches(
                 semantic: None,
                 #[cfg(feature = "arch")]
                 arch: None,
+                #[cfg(feature = "integrity")]
+                integrity: None,
             });
         }
     }
@@ -1310,6 +1323,8 @@ fn arch_hits(
             #[cfg(feature = "semantic")]
             semantic: None,
             arch: Some(arch_evidence(&edge, violation)),
+            #[cfg(feature = "integrity")]
+            integrity: None,
         });
     }
     hits
@@ -1335,6 +1350,333 @@ fn arch_evidence(
             format!("{a} is a module this repo never imports out of — this import leaves it")
         }
     }
+}
+
+/// Collect the test-integrity pass's changesets: both sides of every changed
+/// source file (renames resolved) **including deletions**, which the scoring
+/// `PatchBatch` path never carries. Mirrors `collect_patches`' mode dispatch;
+/// an explicit commit set yields one changeset per commit so the event
+/// refinements reason about each accepted unit separately. Every changeset is
+/// labelled with its display source (`workdir` / `staged` / short SHA).
+#[cfg(feature = "integrity")]
+fn integrity_changesets(
+    args: &CheckArgs,
+) -> Vec<(String, Vec<crate::scoring::integrity::FileChange>)> {
+    use crate::scoring::integrity::FileChange;
+    use crate::scoring::test_inventory::language_for_path;
+
+    const MAX_BLOB: usize = 400_000;
+
+    fn tree_text(repo: &git2::Repository, tree: &git2::Tree, path: &str) -> Option<String> {
+        let entry = tree.get_path(Path::new(path)).ok()?;
+        let blob = repo.find_blob(entry.id()).ok()?;
+        (blob.size() <= MAX_BLOB).then(|| String::from_utf8_lossy(blob.content()).to_string())
+    }
+    fn workdir_text(repo: &git2::Repository, path: &str) -> Option<String> {
+        let full = repo.workdir()?.join(path);
+        let data = fs::read(&full).ok()?;
+        (data.len() <= MAX_BLOB).then(|| String::from_utf8_lossy(&data).to_string())
+    }
+    fn index_text(repo: &git2::Repository, path: &str) -> Option<String> {
+        let index = repo.index().ok()?;
+        let entry = index.get_path(Path::new(path), 0)?;
+        let blob = repo.find_blob(entry.id).ok()?;
+        (blob.size() <= MAX_BLOB).then(|| String::from_utf8_lossy(blob.content()).to_string())
+    }
+    fn changes_from_diff(
+        diff: &mut git2::Diff,
+        old_side: &dyn Fn(&str) -> Option<String>,
+        new_side: &dyn Fn(&str) -> Option<String>,
+    ) -> Vec<FileChange> {
+        let _ = diff.find_similar(Some(&mut DiffFindOptions::new()));
+        let mut out = Vec::new();
+        for d in diff.deltas() {
+            let new_path = d
+                .new_file()
+                .path()
+                .and_then(|p| p.to_str())
+                .map(str::to_string);
+            let old_path = d
+                .old_file()
+                .path()
+                .and_then(|p| p.to_str())
+                .map(str::to_string);
+            let path = new_path
+                .clone()
+                .or_else(|| old_path.clone())
+                .unwrap_or_default();
+            if language_for_path(&path).is_none() {
+                continue;
+            }
+            let old = match d.status() {
+                git2::Delta::Added | git2::Delta::Untracked => None,
+                _ => old_path.as_deref().and_then(old_side),
+            };
+            let new = match d.status() {
+                git2::Delta::Deleted => None,
+                _ => new_path.as_deref().and_then(new_side),
+            };
+            if old.is_none() && new.is_none() {
+                continue;
+            }
+            out.push(FileChange { path, old, new });
+        }
+        out
+    }
+    fn one(source: &str, cs: Vec<FileChange>) -> Vec<(String, Vec<FileChange>)> {
+        if cs.is_empty() {
+            Vec::new()
+        } else {
+            vec![(source.to_string(), cs)]
+        }
+    }
+
+    let repo_path = args.repo_path.as_str();
+    let Ok(repo) = open_repo(repo_path) else {
+        return Vec::new();
+    };
+    let commit_set = args
+        .commit
+        .as_deref()
+        .map(|c| !c.is_empty())
+        .unwrap_or(false);
+    let ref_nonempty = !args.reference.is_empty();
+
+    let per_commit = |shas: &HashSet<String>| -> Vec<(String, Vec<FileChange>)> {
+        let mut out = Vec::new();
+        for sha in shas {
+            let Ok(oid) = git2::Oid::from_str(sha) else {
+                continue;
+            };
+            let Ok(commit) = repo.find_commit(oid) else {
+                continue;
+            };
+            if commit.parent_count() != 1 {
+                continue;
+            }
+            let Ok(parent_tree) = commit.parent(0).and_then(|p| p.tree()) else {
+                continue;
+            };
+            let Ok(tree) = commit.tree() else {
+                continue;
+            };
+            let Ok(mut diff) = repo.diff_tree_to_tree(Some(&parent_tree), Some(&tree), None) else {
+                continue;
+            };
+            let cs = changes_from_diff(&mut diff, &|p| tree_text(&repo, &parent_tree, p), &|p| {
+                tree_text(&repo, &tree, p)
+            });
+            if !cs.is_empty() {
+                let short: String = sha.chars().take(7).collect();
+                out.push((short, cs));
+            }
+        }
+        out
+    };
+
+    if commit_set {
+        let Ok(shas) = resolve_shas(&repo, args.commit.as_deref().unwrap_or_default()) else {
+            return Vec::new();
+        };
+        return per_commit(&shas);
+    }
+    if ref_nonempty {
+        let reference = args.reference.as_str();
+        if let Some((base_raw, head_raw)) = reference.split_once("..") {
+            let base = if base_raw.is_empty() {
+                "HEAD"
+            } else {
+                base_raw
+            };
+            let head_trimmed = head_raw.trim_start_matches('.');
+            let head = if head_trimmed.is_empty() {
+                "HEAD"
+            } else {
+                head_trimmed
+            };
+            let Ok(base_c) = repo.revparse_single(base).and_then(|o| o.peel_to_commit()) else {
+                return Vec::new();
+            };
+            let Ok(head_c) = repo.revparse_single(head).and_then(|o| o.peel_to_commit()) else {
+                return Vec::new();
+            };
+            let base_id = repo
+                .merge_base(base_c.id(), head_c.id())
+                .unwrap_or_else(|_| base_c.id());
+            let Ok(base_tree) = repo.find_commit(base_id).and_then(|c| c.tree()) else {
+                return Vec::new();
+            };
+            let Ok(head_tree) = head_c.tree() else {
+                return Vec::new();
+            };
+            let Ok(mut diff) = repo.diff_tree_to_tree(Some(&base_tree), Some(&head_tree), None)
+            else {
+                return Vec::new();
+            };
+            let short: String = head_c.id().to_string().chars().take(7).collect();
+            let cs = changes_from_diff(&mut diff, &|p| tree_text(&repo, &base_tree, p), &|p| {
+                tree_text(&repo, &head_tree, p)
+            });
+            return one(&short, cs);
+        }
+        // Bare ref: the net view merge-base(ref, HEAD) → working tree.
+        let Ok(base_c) = repo
+            .revparse_single(reference)
+            .and_then(|o| o.peel_to_commit())
+        else {
+            return Vec::new();
+        };
+        let base_id = repo
+            .head()
+            .ok()
+            .and_then(|h| h.target())
+            .and_then(|h| repo.merge_base(base_c.id(), h).ok())
+            .unwrap_or_else(|| base_c.id());
+        let Ok(base_tree) = repo.find_commit(base_id).and_then(|c| c.tree()) else {
+            return Vec::new();
+        };
+        let mut opts = git2::DiffOptions::new();
+        opts.include_untracked(true).recurse_untracked_dirs(true);
+        let Ok(mut diff) = repo.diff_tree_to_workdir_with_index(Some(&base_tree), Some(&mut opts))
+        else {
+            return Vec::new();
+        };
+        let cs = changes_from_diff(&mut diff, &|p| tree_text(&repo, &base_tree, p), &|p| {
+            workdir_text(&repo, p)
+        });
+        return one("workdir", cs);
+    }
+    if args.staged {
+        let Ok(head_tree) = repo.head().and_then(|h| h.peel_to_tree()) else {
+            return Vec::new();
+        };
+        let Ok(index) = repo.index() else {
+            return Vec::new();
+        };
+        let Ok(mut diff) = repo.diff_tree_to_index(Some(&head_tree), Some(&index), None) else {
+            return Vec::new();
+        };
+        let cs = changes_from_diff(&mut diff, &|p| tree_text(&repo, &head_tree, p), &|p| {
+            index_text(&repo, p)
+        });
+        return one("staged", cs);
+    }
+    if args.unstaged {
+        let Ok(index) = repo.index() else {
+            return Vec::new();
+        };
+        let Ok(mut diff) = repo.diff_index_to_workdir(Some(&index), None) else {
+            return Vec::new();
+        };
+        let cs = changes_from_diff(&mut diff, &|p| index_text(&repo, p), &|p| {
+            workdir_text(&repo, p)
+        });
+        return one("workdir", cs);
+    }
+    let Ok(head_tree) = repo.head().and_then(|h| h.peel_to_tree()) else {
+        return Vec::new();
+    };
+    let mut opts = git2::DiffOptions::new();
+    opts.include_untracked(true).recurse_untracked_dirs(true);
+    let Ok(mut diff) = repo.diff_tree_to_workdir_with_index(Some(&head_tree), Some(&mut opts))
+    else {
+        return Vec::new();
+    };
+    let cs = changes_from_diff(&mut diff, &|p| tree_text(&repo, &head_tree, p), &|p| {
+        workdir_text(&repo, p)
+    });
+    one("workdir", cs)
+}
+
+/// The test-integrity pass — additive `Hit`s from diffing both sides of the
+/// change's test files into gaming events, gated by the repo's own learned
+/// event gates (`.argot/integrity.json`). Runs beside the statistical
+/// scorers; a graceful no-op when the changeset carries no tests. Reasons
+/// `test_deleted` / `test_disabled` / `test_weakened`.
+#[cfg(feature = "integrity")]
+fn integrity_hits(
+    args: &CheckArgs,
+    filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
+    mute_rules: &[SuppressionRule],
+    stderr: &mut String,
+) -> Vec<Hit> {
+    use crate::scoring::integrity::{changeset_events, IntegrityModel, INTEGRITY_FILE};
+
+    let model = match std::fs::read_to_string(args.argot_dir.join(INTEGRITY_FILE)) {
+        Ok(raw) => match IntegrityModel::from_json(&raw) {
+            Some(m) => m,
+            None => {
+                stderr.push_str(
+                    "[argot] integrity gates unreadable — run `argot fit` to restore the test-integrity rules\n",
+                );
+                return Vec::new();
+            }
+        },
+        // No artifact (an older fit): the built-in default gates apply.
+        Err(_) => IntegrityModel::permissive(),
+    };
+
+    let mut hits = Vec::new();
+    for (source, files) in integrity_changesets(args) {
+        for ev in changeset_events(&files) {
+            if !model.enabled(ev.kind) {
+                continue;
+            }
+            let reason = ev.kind.reason();
+            let hash = hit_hash(&ev.file, reason, &ev.hash_content());
+            // Display body: the post-image line the event anchors to (the
+            // hash above never depends on it).
+            let hunk_content = files
+                .iter()
+                .find(|f| f.path == ev.file)
+                .and_then(|f| f.new.as_deref())
+                .and_then(|src| src.lines().nth(ev.line.saturating_sub(1)))
+                .unwrap_or_default()
+                .to_string();
+            let inline = files
+                .iter()
+                .find(|f| f.path == ev.file)
+                .and_then(|f| f.new.as_ref())
+                .and_then(|src| {
+                    ext_to_lang(&extension(&ev.file))
+                        .and_then(|l| filter_adapters.get(l))
+                        .map(|a| parse_inline(src, a.line_comment_prefix()))
+                });
+            let suppressed_by = if inline
+                .as_ref()
+                .is_some_and(|i| i.suppresses(ev.line, ev.line, reason))
+            {
+                Some(SuppressedBy::Inline)
+            } else if mute_rules
+                .iter()
+                .any(|r| r.matches(&ev.file, reason, &hash))
+            {
+                Some(SuppressedBy::Mute)
+            } else {
+                None
+            };
+            hits.push(Hit {
+                score: 1.0,
+                file_path: ev.file.clone(),
+                line: ev.line,
+                line_end: ev.line,
+                source: source.clone(),
+                reason: reason.to_string(),
+                flagged: true,
+                threshold: 0.5,
+                hunk_content,
+                evidence: None,
+                hash,
+                suppressed_by,
+                #[cfg(feature = "semantic")]
+                semantic: None,
+                #[cfg(feature = "arch")]
+                arch: None,
+                integrity: Some(ev.evidence()),
+            });
+        }
+    }
+    hits
 }
 
 /// The semantic pass (F1 reinvention, F2 placement) — additive `Hit`s from
@@ -1896,6 +2238,12 @@ fn render_results(
                 out.push_str(&paint(&format!("    ↳ {arch}"), C_DIM, use_color));
                 out.push('\n');
             }
+            // Integrity findings name the gamed test and the co-changed source.
+            #[cfg(feature = "integrity")]
+            if let Some(integrity) = &h.integrity {
+                out.push_str(&paint(&format!("    ↳ {integrity}"), C_DIM, use_color));
+                out.push('\n');
+            }
 
             // Smart-peek keeps flagged lines in-frame; caret spans drive the
             // eslint-style `^^^^` underlines under the offending bytes.
@@ -2086,6 +2434,11 @@ fn hit_records(hits: &[&Hit], settings: &RuleSettings) -> Vec<HitRecord> {
             #[cfg(feature = "arch")]
             let evidence = match &h.arch {
                 Some(arch) => vec![format!("↳ {arch}")],
+                None => evidence,
+            };
+            #[cfg(feature = "integrity")]
+            let evidence = match &h.integrity {
+                Some(integrity) => vec![format!("↳ {integrity}")],
                 None => evidence,
             };
             HitRecord {
@@ -2730,6 +3083,15 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         Vec::new()
     };
 
+    // The test-integrity pass collects its own two-sided changesets (the
+    // scoring batches carry post-images only, and never deletions).
+    #[cfg(feature = "integrity")]
+    let integrity_extra = if settings.group_enabled(rules::GROUP_INTEGRITY) {
+        integrity_hits(&args, &filter_adapters, &mutes.active, &mut stderr)
+    } else {
+        Vec::new()
+    };
+
     let (hits, hunk_count, files_scanned) = score_patches(
         filtered,
         &mut scorers,
@@ -2756,6 +3118,14 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     let hits = {
         let mut hits = hits;
         hits.extend(arch_extra);
+        hits
+    };
+
+    // Merge the test-integrity hits (same rebind discipline).
+    #[cfg(feature = "integrity")]
+    let hits = {
+        let mut hits = hits;
+        hits.extend(integrity_extra);
         hits
     };
 
@@ -3080,6 +3450,102 @@ mod tests {
         let sup = parse_inline(&out, "#");
         assert_eq!(sup.rules.len(), 2);
         assert!(sup.warnings.is_empty());
+    }
+
+    #[test]
+    fn integrity_reasons_have_labels_and_pinned_confidence() {
+        assert_eq!(
+            rules::label_for_reason("test_disabled"),
+            "test disabled alongside code change"
+        );
+        assert_eq!(rules::code_for_reason("test_weakened"), "test-weakened");
+        // Integrity findings are discrete evidenced events — mid tier.
+        assert_eq!(confidence("test_deleted", 1.0, 0.5), "suspicious");
+        assert_eq!(confidence("test_disabled", 1.0, 0.5), "suspicious");
+        assert_eq!(confidence("test_weakened", 1.0, 0.5), "suspicious");
+    }
+
+    #[test]
+    #[cfg(feature = "integrity")]
+    fn integrity_pass_fires_on_a_staged_gaming_edit() {
+        use std::process::Command;
+        let root = &std::env::temp_dir().join(format!("argot_integrity_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(root);
+        std::fs::create_dir_all(root).unwrap();
+        let git = |args: &[&str]| {
+            let ok = Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .env("GIT_AUTHOR_NAME", "t")
+                .env("GIT_AUTHOR_EMAIL", "t@t")
+                .env("GIT_COMMITTER_NAME", "t")
+                .env("GIT_COMMITTER_EMAIL", "t@t")
+                .output()
+                .unwrap();
+            assert!(ok.status.success(), "git {args:?}: {ok:?}");
+        };
+        git(&["init", "-q"]);
+        std::fs::create_dir_all(root.join("tests")).unwrap();
+        std::fs::write(
+            root.join("parser.py"),
+            "def parse(x):\n    return x.strip()\n",
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("tests/test_parser.py"),
+            "def test_parse():\n    assert parse(\" A \") == \"A\"\n    assert parse(\"\") == \"\"\n",
+        )
+        .unwrap();
+        git(&["add", "-A"]);
+        git(&["commit", "-qm", "init"]);
+        // Gaming edit: prod change + the failing assertion excised, staged.
+        std::fs::write(
+            root.join("parser.py"),
+            "def parse(x):\n    return x.strip().lower()\n",
+        )
+        .unwrap();
+        std::fs::write(
+            root.join("tests/test_parser.py"),
+            "def test_parse():\n    assert parse(\" A \") == \"A\"\n",
+        )
+        .unwrap();
+        git(&["add", "-A"]);
+
+        let args = CheckArgs {
+            repo_path: root.to_string_lossy().to_string(),
+            reference: String::new(),
+            staged: true,
+            unstaged: false,
+            commit: None,
+            only: Vec::new(),
+            exclude: Vec::new(),
+            threshold: None,
+            argot_dir: root.join(".argot"),
+            hunk_lines: 3,
+            verbose: false,
+            min_confidence: "unusual".to_string(),
+            rule_overrides: Vec::new(),
+            error_on_warnings: false,
+            add_ignores: false,
+            use_color: false,
+            format: OutputFormat::Human,
+            today: "2026-01-01".to_string(),
+        };
+        let adapters: HashMap<String, Box<dyn LanguageAdapter>> = HashMap::new();
+        let mut stderr = String::new();
+        // No artifact on disk → permissive default gates.
+        let hits = integrity_hits(&args, &adapters, &[], &mut stderr);
+        assert_eq!(hits.len(), 1, "stderr: {stderr}");
+        let h = &hits[0];
+        assert_eq!(h.reason, "test_weakened");
+        assert_eq!(h.file_path, "tests/test_parser.py");
+        assert!(h.flagged);
+        let ev = h.integrity.as_deref().unwrap();
+        assert!(ev.contains("test_parse"), "{ev}");
+        assert!(ev.contains("parser.py"), "{ev}");
+        // A hit hash exists so `argot mute` can address it.
+        assert_eq!(h.hash.len(), 12);
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]

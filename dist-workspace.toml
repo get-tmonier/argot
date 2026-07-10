@@ -38,7 +38,10 @@ targets = [
 # architecture-graph layer (module-dependency-boundary `layering` findings) —
 # pure-Rust, on in shipped binaries: 97% real recall / 0% false-positives across
 # 23 corpora / 11 languages (docs/research/evidence/architecture-graph-foreignness.md).
-features = ["self-update", "semantic", "arch"]
+# `integrity` is the test-integrity layer (test-gaming findings `test-deleted` /
+# `test-disabled` / `test-weakened`) — pure-Rust, on in shipped binaries; numbers
+# in docs/research/evidence/test-integrity-*.md.
+features = ["self-update", "semantic", "arch", "integrity"]
 
 # The `semantic` build compiles llama.cpp from source, which needs cmake + a C++
 # toolchain on every release runner. Declare it per package manager so dist

@@ -1071,7 +1071,7 @@ pub fn run_calibrate(
     // Effective [rules] severities — a group turned off in argot.toml skips
     // its whole fit-time artifact (semantic index / layering graph) and cost.
     // Only the feature-gated layers read it.
-    #[cfg(any(feature = "semantic", feature = "arch"))]
+    #[cfg(any(feature = "semantic", feature = "arch", feature = "integrity"))]
     let rule_settings = config.rule_settings(&Vec::new());
     // Fit from committed HEAD, not the working tree — an uncommitted foreign
     // edit must not be learned as part of the voice it's about to be checked
@@ -1527,6 +1527,23 @@ pub fn run_calibrate(
             let path = output.with_file_name(LAYERING_FILE);
             if let Err(e) = write_atomic(&path, graph.to_json(&opts.repo_sha).as_bytes()) {
                 eprintln!("argot: writing layering graph failed: {e}");
+            }
+        }
+    }
+
+    // Test-integrity gates (`.argot/integrity.json`), alongside
+    // scorer-config.json — feature-gated + its own file so the base config is
+    // byte-for-byte unchanged. A mini-replay over the repo's accepted-history
+    // window measures each gaming event's natural rate and disables the
+    // classes this repo's normal development trips too often (FP-first; see
+    // the module docs of `scoring::integrity`).
+    #[cfg(feature = "integrity")]
+    if rule_settings.group_enabled(crate::rules::GROUP_INTEGRITY) {
+        use crate::scoring::integrity::{fit_model, INTEGRITY_FILE};
+        if let Some(model) = fit_model(repo_dir, &opts.repo_sha) {
+            let path = output.with_file_name(INTEGRITY_FILE);
+            if let Err(e) = write_atomic(&path, model.to_json().as_bytes()) {
+                eprintln!("argot: writing integrity gates failed: {e}");
             }
         }
     }

@@ -282,6 +282,28 @@ fn real_main() -> Result<ExitCode> {
         return Ok(ExitCode::SUCCESS);
     }
 
+    #[cfg(feature = "integrity")]
+    if cli.mode == "integrity-verify" {
+        let md = argot_bench::integrity::run_integrity_verify(
+            &selected,
+            &opts.data_dir,
+            &opts.catalogs_dir,
+        )?;
+        print!("{md}");
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    #[cfg(feature = "integrity")]
+    if cli.mode == "integrity-fp" {
+        let md = argot_bench::integrity::run_integrity_fp(
+            &selected,
+            &opts.data_dir,
+            &opts.catalogs_dir,
+        )?;
+        print!("{md}");
+        return Ok(ExitCode::SUCCESS);
+    }
+
     if cli.mode == "holdout" || cli.mode == "honest" {
         let hopts = holdout::HoldoutOptions {
             data_dir: opts.data_dir.clone(),

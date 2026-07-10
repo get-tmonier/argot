@@ -25,6 +25,10 @@ semantic = ["argot-core/semantic"]
 # reason `layering`). Build-time gate like `semantic`; forwards to argot-core's
 # `arch` feature. Off in dev/CI base loops; ON in releases (dist-workspace.toml).
 arch = ["argot-core/arch"]
+# Compiles in the test-integrity layer (test-gaming findings, rules
+# `test-deleted`/`test-disabled`/`test-weakened`). Build-time gate like `arch`;
+# off in dev/CI base loops; ON in releases (dist-workspace.toml).
+integrity = ["argot-core/integrity"]
 
 [dependencies]
 argot-core = { path = "../argot-core" }

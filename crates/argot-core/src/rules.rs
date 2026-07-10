@@ -2,7 +2,7 @@
 //!
 //! Every finding argot can emit belongs to exactly one **rule** (kebab-case,
 //! e.g. `foreign-import`), and every rule belongs to one **group** (`voice`,
-//! `semantic`, `architecture`). Rules carry a **severity** — `error` (fails
+//! `semantic`, `architecture`, `integrity`). Rules carry a **severity** — `error` (fails
 //! `check`), `warn` (reported, does not fail), or `off` (not run) — resolved
 //! from, in ascending precedence: registry defaults, `argot.toml [rules]`,
 //! `argot.local.toml [rules]`, and CLI `--rule` overrides. Within a layer a
@@ -58,7 +58,7 @@ pub struct Rule {
     pub name: &'static str,
     /// Internal scorer reason code this rule maps to (hit hashes use this).
     pub reason: &'static str,
-    /// The rule's group (`voice` / `semantic` / `architecture`).
+    /// The rule's group (`voice` / `semantic` / `architecture` / `integrity`).
     pub group: &'static str,
     /// Short human label shown next to a finding.
     pub label: &'static str,
@@ -72,9 +72,16 @@ pub const GROUP_VOICE: &str = "voice";
 pub const GROUP_SEMANTIC: &str = "semantic";
 /// The module-dependency-graph detector.
 pub const GROUP_ARCHITECTURE: &str = "architecture";
+/// The test-integrity detectors (test gaming: delete / disable / weaken).
+pub const GROUP_INTEGRITY: &str = "integrity";
 
 /// Every group name, in display order.
-pub const GROUPS: &[&str] = &[GROUP_VOICE, GROUP_SEMANTIC, GROUP_ARCHITECTURE];
+pub const GROUPS: &[&str] = &[
+    GROUP_VOICE,
+    GROUP_SEMANTIC,
+    GROUP_ARCHITECTURE,
+    GROUP_INTEGRITY,
+];
 
 /// The full registry, in display order. All rules default to `error`
 /// ("everything gates by default"); users downgrade per rule or per group.
@@ -127,6 +134,27 @@ pub const RULES: &[Rule] = &[
         group: GROUP_ARCHITECTURE,
         label: "crosses a module boundary",
         description: "an internal import that reverses the repo's layer direction",
+    },
+    Rule {
+        name: "test-deleted",
+        reason: "test_deleted",
+        group: GROUP_INTEGRITY,
+        label: "test deleted alongside code change",
+        description: "a test removed while the production code it exercised still exists",
+    },
+    Rule {
+        name: "test-disabled",
+        reason: "test_disabled",
+        group: GROUP_INTEGRITY,
+        label: "test disabled alongside code change",
+        description: "a skip/ignore marker added or a test gutted while production code changes",
+    },
+    Rule {
+        name: "test-weakened",
+        reason: "test_weakened",
+        group: GROUP_INTEGRITY,
+        label: "test weakened alongside code change",
+        description: "assertions removed, tautologized, or loosened while production code changes",
     },
 ];
 
@@ -303,6 +331,7 @@ mod tests {
         assert!(s.group_enabled(GROUP_VOICE));
         assert!(s.group_enabled(GROUP_SEMANTIC));
         assert!(s.group_enabled(GROUP_ARCHITECTURE));
+        assert!(s.group_enabled(GROUP_INTEGRITY));
     }
 
     #[test]
