@@ -666,9 +666,16 @@ pub fn changeset_events(files: &[FileChange]) -> Vec<IntegrityEvent> {
             }
 
             // --- weaken: comparison widened (an exact site net-lost; a new,
-            // weaker assertion over the same subject words appeared here)
+            // weaker assertion over the same subject words appeared here).
+            // One event per site key: structurally identical assertions
+            // collide on the key, and duplicate events would read as a bulk
+            // sweep.
+            let mut widened_keys: HashSet<&str> = HashSet::new();
             for oa_site in &t.assertions {
                 if oa_site.strength != Strength::Exact || !net_lost(&oa_site.site_key) {
+                    continue;
+                }
+                if !widened_keys.insert(oa_site.site_key.as_str()) {
                     continue;
                 }
                 let ow = words_of(&oa_site.site_key);
@@ -720,14 +727,19 @@ pub fn changeset_events(files: &[FileChange]) -> Vec<IntegrityEvent> {
     // BULK_EVENT_CAP tests is a migration/refactor sweep — gaming is
     // surgical. (Whole-file deletion stays: it is already one event.)
     {
-        let mut per_kind: HashMap<EventKind, usize> = HashMap::new();
+        let mut per_kind: HashMap<EventKind, HashSet<(&str, &str)>> = HashMap::new();
         for e in &events {
-            *per_kind.entry(e.kind).or_default() += 1;
+            per_kind
+                .entry(e.kind)
+                .or_default()
+                .insert((e.file.as_str(), e.test_name.as_str()));
         }
-        events.retain(|e| {
-            e.kind == EventKind::TestFileDeleted
-                || per_kind.get(&e.kind).copied().unwrap_or(0) <= BULK_EVENT_CAP
-        });
+        let bulky: HashSet<EventKind> = per_kind
+            .iter()
+            .filter(|(_, tests)| tests.len() > BULK_EVENT_CAP)
+            .map(|(k, _)| *k)
+            .collect();
+        events.retain(|e| e.kind == EventKind::TestFileDeleted || !bulky.contains(&e.kind));
     }
 
     // Retarget fires once per changeset, only as an ISOLATED flip: one or two
@@ -1370,6 +1382,47 @@ mod tests {
         let events = changeset_events(&files);
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].kind, EventKind::BodyGutted);
+    }
+
+    #[test]
+    fn colliding_key_widening_emits_one_event_and_survives_bulk_guard() {
+        // Several structurally identical exact assertions; ONE is replaced by
+        // a weaker predicate. Must yield exactly one Widened event (duplicate
+        // per-occurrence events would read as a bulk sweep and be dropped).
+        let t_old = r#"
+def test_advance():
+    t = ticker()
+    assert t.read() == 0
+    assert t.read() == 1000000
+    assert t.read() == 2000010
+    assert t.read() == 3000010
+"#;
+        let t_new = r#"
+def test_advance():
+    t = ticker()
+    assert t.read() == 0
+    assert t.read() == 1000000
+    assert t.read() == 2000010
+    assert t.read() is not None
+"#;
+        let files = [
+            change("parser.py", PROD_OLD, PROD_NEW),
+            change("tests/test_ticker.py", t_old, t_new),
+        ];
+        let events = changeset_events(&files);
+        let widened: Vec<_> = events
+            .iter()
+            .filter(|e| e.kind == EventKind::Widened)
+            .collect();
+        assert_eq!(widened.len(), 1, "events: {events:?}");
+    }
+
+    #[test]
+    fn tautology_capable_strips_generics() {
+        use crate::scoring::test_inventory::tautology_capable;
+        assert!(tautology_capable("Equal<uint>"));
+        assert!(tautology_capable("assertEquals"));
+        assert!(!tautology_capable("assertRunFAIL"));
     }
 
     #[test]

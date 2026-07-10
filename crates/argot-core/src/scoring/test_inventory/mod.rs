@@ -262,6 +262,8 @@ pub fn defined_symbols(source: &str, language: Language) -> HashSet<String> {
 /// literal argument usually embeds its subject internally
 /// (`assertRunFAIL("cmd")`) — flagging it as can-never-fail would be wrong.
 pub fn tautology_capable(callee: &str) -> bool {
+    // Strip generic arguments (`Equal<uint>` → `Equal`).
+    let callee = callee.split('<').next().unwrap_or(callee).trim_end();
     const CORE: &[&str] = &[
         // language-level asserts
         "assert",
