@@ -61,7 +61,7 @@ from tenacity import retry, wait_exponential, stop_after_attempt
 Before committing, it ran `argot check` — and got one hit:
 
 ```text
-! fastapi/_retry.py:1-33   foreign   · foreign import
+! fastapi/_retry.py:1-33   foreign   · foreign-import
   ↳ tenacity — 0 of 74 module specifiers in repo
     common here: fastapi (357×), pydantic (129×), typing (129×)
 ```
@@ -125,7 +125,7 @@ posted a **non-blocking** voice-score comment:
 
 ```text
 🎙️ argot voice check — 83% in-voice · 🔴 foreign · express
-   src/helper/receipts/index.ts — advisory, not a merge gate
+   src/helper/receipts/index.ts — informational, not a merge gate
 ```
 
 A follow-up commit rewrote it in Hono style (`new Hono()`, `c.json`). The **same

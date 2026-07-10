@@ -42,11 +42,11 @@ const ariaLabel = isRedundant
           <div class="term-line term-flag advisory" style="--i: 2">
             <span class="dot">.</span>
             <span class="loc">L13-L21</span>
-            <span class="flag-word amber">redundant</span>
+            <span class="flag-word amber">unusual</span>
             <span class="sep" aria-hidden="true">
               ·
             </span>
-            <span class="flag-word amber">already implemented here</span>
+            <span class="flag-word amber">redundant</span>
             <span class="hash">[0b14869858]</span>
           </div>
 
@@ -84,7 +84,7 @@ const ariaLabel = isRedundant
             <span class="sep" aria-hidden="true">
               ·
             </span>
-            <span class="flag-word">foreign import</span>
+            <span class="flag-word">foreign-import</span>
             <span class="hash">[94a92c256e]</span>
           </div>
 
@@ -178,7 +178,7 @@ const ariaLabel = isRedundant
     margin-left: -0.6em;
     padding-left: 0.6em;
   }
-  /* The semantic (advisory) findings read in amber, not flag-red — the mildest
+  /* The semantic findings read in amber, not flag-red — the mildest confidence
      tier, a heads-up you judge, not a "this is foreign" verdict. */
   .term-flag.advisory {
     border-left-color: var(--amber);
@@ -283,7 +283,7 @@ const ariaLabel = isRedundant
   }
 
   /* The flagged line lands with a brief tint — the one verdict that matters.
-     Foreign flashes flag-red; the advisory semantic finding flashes amber. */
+     Foreign flashes flag-red; the semantic finding flashes amber. */
   .demo-terminal.is-playing .term-flag {
     animation: flag-flash 0.9s var(--ease-out-expo);
     animation-delay: calc(var(--i, 0) * 320ms);

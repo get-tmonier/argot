@@ -5,7 +5,7 @@ group: Guide
 order: 9
 ---
 
-argot in CI is **advisory by design**. It's a statistical guardrail, so it
+argot in CI is **non-blocking by design**. It's a statistical guardrail, so it
 *informs* a pull request — a visual score, the hot-spots, and inline annotations
 — without ever gating the merge. The reviewer has the last word. (Want a hard
 gate anyway? One input flips it on.)
@@ -42,21 +42,28 @@ it, so a dependency the PR introduces is judged as new (not learned as normal
 first). The model is cached per base commit and only re-fit when the base moves.
 
 > **Warming the embedding model.** The semantic layer's ~100 MB code-embedding
-> model (GGUF) is fetched on first use. The Action's `cache: true` (default)
-> already keeps the fitted `.argot/` — including `.argot/semantic-index.json` —
-> between runs, keyed on the base commit. To also skip re-downloading the model
-> itself, cache its directory (`~/.cache/argot/models`) with `actions/cache`:
+> model (GGUF) is fetched on first use. To pre-warm it as an explicit step — with
+> a hard, legible failure if the runner can't reach the network — run
+> **`argot model fetch`** before the check. On top of that, cache the model
+> directory (`~/.cache/argot/models`) with `actions/cache` so the download
+> happens once, not per run (the Action's `cache: true` default already keeps
+> the fitted `.argot/`, including `.argot/semantic-index.json`, keyed on the
+> base commit):
 >
 > ```yaml
 >       - uses: actions/cache@v4
 >         with:
 >           path: ~/.cache/argot/models
 >           key: argot-model-v1
+>       - run: argot model fetch    # pre-warm; fails loudly if the download can't happen
 > ```
 >
-> If the fetch fails (an offline or locked-down runner), the semantic checks simply
-> no-op and the **base foreign-catch guardrail still runs** — you never get a red
-> build because a model download was blocked.
+> If the model isn't available at check time (an offline or locked-down runner),
+> the semantic rules are skipped with a printed note and the **base
+> foreign-catch guardrail still runs** — you never get a red build because a
+> model download was blocked. On a locked-down mirror, set `ARGOT_MODEL_URL`
+> (the sha256 is still verified) — see
+> [Configure](/docs/configure/#environment-variables).
 
 > **Committing the workflow:** pushing a `.github/workflows/*.yml` needs the
 > `workflow` token scope. If `git push` is rejected with *"refusing to allow an
@@ -81,7 +88,7 @@ The card looks like this:
 >
 > `█████████████████░░░` 83%
 >
-> > **Advisory — not a merge gate.**
+> > **Informational — not a merge gate.**
 
 ## Let an AI agent wire it in
 
@@ -91,7 +98,7 @@ at your repo root — it's the CI counterpart to the [Setup](/docs/setup/) promp
 ```text
 You are adding **argot** to this repository's CI — a non-blocking voice check on
 every pull request. You do NOT need argot installed locally; the GitHub Action
-installs and fits it. Keep it advisory — never a merge gate.
+installs and fits it. Keep it informational — never a merge gate.
 
 1. Confirm the repo is on GitHub with Actions enabled.
 
@@ -151,6 +158,27 @@ policy):
           fail-on-hits: true
 ```
 
+Which findings fail is the rules engine's call: every rule defaults to severity
+`error`, and anything the repo's `argot.toml` downgrades to `warn` is reported
+without failing. In a hand-rolled workflow, `argot check --error-on-warnings`
+turns even the `warn`-severity findings into a red build — the strictest
+setting. See [Configure](/docs/configure/#rules--rule-severities).
+
+## Inline PR annotations without the Action
+
+In any hand-rolled workflow, `--format github` emits GitHub Actions workflow
+commands (`::error file=…,line=…::message`) directly — the runner turns them
+into inline PR annotations with **no SARIF upload step and no extra
+permissions**:
+
+```yaml
+      - run: argot check origin/${{ github.base_ref }}..HEAD --format github
+```
+
+Each annotation carries the rule name, the score and confidence, the evidence,
+and the exact `argot mute <hash>` command. `error`-severity rules annotate as
+errors, `warn`-severity ones as warnings.
+
 ### Action inputs
 
 All inputs are optional.
@@ -176,7 +204,7 @@ All inputs are optional.
 
 ## Locally, before you push
 
-A [pre-commit](https://pre-commit.com) hook scores staged changes (advisory —
+A [pre-commit](https://pre-commit.com) hook scores staged changes (informational —
 it doesn't fail the commit unless you make it):
 
 ```yaml
@@ -199,8 +227,11 @@ any system:
 ```text
 argot check main..HEAD --format json      # stable JSON: hits, scores, hashes
 argot check main..HEAD --format sarif      # SARIF 2.1.0 for any code scanner
+argot check main..HEAD --format github     # inline PR annotations, no upload step
 argot voice-diff main..HEAD --format markdown   # the score card
 ```
 
-Exit codes: `0` clean · `1` hits found · `2` setup/usage error. Treat `1` as
-"there's something to look at," not a failure — that's the whole posture.
+Exit codes: `0` clean · `1` at least one `error`-severity finding · `2`
+setup/usage error. Treat `1` as "there's something to look at," not a failure —
+that's the whole posture. Rules you've set to `warn` never exit 1 (unless you
+pass `--error-on-warnings`).

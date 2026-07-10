@@ -4,7 +4,7 @@ const fr: SiteContent = {
   meta: {
     title: 'argot — détectez le code IA qui ne colle pas à votre dépôt',
     description:
-      'argot est un garde-fou local pour le code écrit par IA. Il apprend les motifs de votre dépôt depuis son historique git, puis signale le code qui n’a pas sa place — une dépendance jamais utilisée, une fonction que vous avez déjà, du code au mauvais endroit. Propulsé par un modèle d’embeddings de code qui tourne sur votre machine. Sans LLM, sans cloud, sans GPU.',
+      'argot est un garde-fou local pour le code écrit par IA. Il apprend les motifs de votre dépôt depuis son historique git, puis signale le code qui n’a pas sa place — une dépendance jamais utilisée, une fonction que vous avez déjà, du code au mauvais endroit, un import qui casse votre architecture. Propulsé par un modèle d’embeddings de code qui tourne sur votre machine. Sans LLM, sans cloud, sans GPU.',
   },
   nav: {
     demo: 'Démo',
@@ -16,7 +16,7 @@ const fr: SiteContent = {
     titleLead: 'Lintez les règles',
     titleGradient: 'que personne n’a écrites.',
     subtitle:
-      'Il signale le code IA qui ne colle pas à votre dépôt — une dépendance jamais utilisée, une fonction que vous [[avez déjà]], du code au mauvais endroit.',
+      'Il signale le code IA qui ne colle pas à votre dépôt — une dépendance jamais utilisée, une fonction que vous [[avez déjà]], du code au mauvais endroit, un import qui casse votre architecture.',
     ctaPrimary: 'Lire la doc',
     ctaSecondary: 'Star sur GitHub',
     install: 'npm i -g @tmonier/argot',
@@ -34,7 +34,7 @@ const fr: SiteContent = {
   catches: {
     label: 'Ce qu’il détecte',
     title: 'Ça compile. C’est typé. Ça ne colle toujours pas.',
-    body: 'Trois façons dont le code IA ne s’intègre pas à [[ce]] dépôt — invisibles pour ESLint, ruff ou un type-checker.',
+    body: 'Quatre détecteurs, tous appris de votre historique git — rien de tout cela n’est visible pour ESLint, ruff ou un type-checker. Et une limite honnête qu’il ne franchit pas : un mauvais choix fait de mots qui sont [[déjà les vôtres]] est un choix, pas un motif étranger.',
     items: [
       {
         title: 'Étranger',
@@ -49,8 +49,8 @@ const fr: SiteContent = {
         desc: 'Le bon code, rangé dans le [[mauvais paquet]] — ses plus proches voisins vivent ailleurs.',
       },
       {
-        title: 'La limite qu’il ne franchit pas',
-        desc: 'Un mauvais choix alors que [[tout le vocabulaire est déjà le vôtre]]. argot ne s’engage pas sur un choix — et le dit.',
+        title: 'Architecture',
+        desc: 'Un import interne qui [[inverse votre architecture]] — une frontière que ce dépôt ne franchit jamais. 96,8 % détectés, zéro faux positif.',
       },
     ],
   },
@@ -61,17 +61,17 @@ const fr: SiteContent = {
       {
         value: '98 %',
         title: 'détection étrangère visible',
-        desc: 'Quand le symbole étranger est [[visible]] dans le diff — un import ou un appel explicite — jugé par le binaire livré : 565 sur 574.',
+        desc: 'Quand le symbole étranger est [[visible]] dans le diff — un import ou un appel explicite — jugé par le binaire livré : 604 sur 618.',
       },
       {
-        value: '85 %',
-        title: 'détection sur toutes les fixtures',
-        desc: 'Chaque cassure plantée, facile → difficile — le reste est de l’[[étranger masqué]] qu’un modèle de voix ne peut structurellement pas voir : 591 sur 694.',
+        value: '96,8 %',
+        title: 'violations d’architecture détectées',
+        desc: 'Violations de layering plantées (244 sur 252) à [[zéro faux positif]] — 0 déclenchement sur 140 modifications de contrôle.',
       },
       {
         value: '0,22 %',
         title: 'fausses alertes sur de vraies modifications',
-        desc: 'À quelle fréquence argot se déclenche sur le [[code existant]] — 31 dépôts, chacun ≤ 1,17 %.',
+        desc: 'À quelle fréquence argot se déclenche sur le [[code existant]] — 49 hunks sur 22 785 ; 31 dépôts, chacun ≤ 1,17 %.',
       },
       {
         value: '150 ms',
@@ -82,7 +82,7 @@ const fr: SiteContent = {
     languages:
       'Un seul [[binaire statique]], 11 langages : Python · TypeScript · JavaScript · Go · Rust · Java · C# · C · C++ · Ruby · PHP.',
     finePrint:
-      'Sans fuite par construction : rappel sur des motifs étrangers plantés dans de vrais fichiers ; fausses alertes par holdout temporel.',
+      'Sans fuite par construction : rappel sur des motifs étrangers plantés dans de vrais fichiers ; fausses alertes par holdout temporel. La seule chose qu’un modèle de voix ne peut structurellement pas voir — l’étranger masqué — est publiée sur la page benchmarks, pas cachée.',
     benchmarksCta: 'Tous les chiffres par dépôt →',
   },
   setup: {
@@ -105,7 +105,7 @@ const fr: SiteContent = {
   ciScore: {
     label: 'En CI, sans la friction',
     title: 'Un score de voix sur chaque PR. Jamais une porte de merge.',
-    body: 'Un score visuel et les points chauds sur chaque PR — [[consultatif par défaut]]. Intentionnel ? Un argot mute, versionné comme trace d’audit.',
+    body: 'Un score visuel et les points chauds sur chaque PR — [[non bloquant par défaut]]. Intentionnel ? Un argot mute, versionné comme trace d’audit.',
     caption: 'Atterrit dans le résumé Actions, un commentaire de PR épinglé, et l’onglet Security.',
   },
   cta: {

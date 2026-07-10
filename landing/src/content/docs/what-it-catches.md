@@ -1,19 +1,26 @@
 ---
 title: What it catches
-description: The three axes argot flags — a foreign dependency/API/paradigm the repo has never used, a redundant function it already has, and misplaced code — plus an honest account of the in-vocabulary breaks it still won't gate on.
+description: The four axes argot flags — a foreign dependency/API/paradigm the repo has never used, a redundant function it already has, misplaced code, and an import that breaks the repo's layering — plus an honest account of the in-vocabulary breaks it still won't gate on.
 group: Guide
 order: 7
 ---
 
 argot catches code that is *technically fine but doesn't fit this project* — valid, typed, and
-lint-clean, but not how this codebase writes things. It works on **three axes**:
+lint-clean, but not how this codebase writes things. It works on **four axes**:
 
 - **Foreign** — a dependency, API, or whole paradigm the repo has never reached for. The base voice
-  model (statistical, no neural net); the class an AI agent trips most, and the one the published
-  numbers gate on.
+  model (statistical, no neural net; rules `foreign-import`, `unfamiliar-callee`, `rare-tokens`);
+  the class an AI agent trips most, and the one the published numbers gate on.
 - **Redundant** — a new function that reinvents one the repo already has. The semantic layer finds
-  the original and shows you where it lives. Advisory.
-- **Misplaced** — the right code, filed in the wrong package. Also the semantic layer. Advisory.
+  the original and shows you where it lives (rule `redundant`).
+- **Misplaced** — the right code, filed in the wrong package. Also the semantic layer (rule
+  `misplaced`).
+- **Layering** — an internal import that reverses the repo's own layer direction. The architecture
+  detector (rule `layering`).
+
+Every rule defaults to severity `error` — a finding fails `argot check` — and every one can be
+downgraded to `warn` or `off` per repo or per run. See
+[Configure](/docs/configure/#rules--rule-severities).
 
 Everything below is a real result from the shipped binary (`argot check` on a planted hunk, fit on
 the repo's own history). Where argot flags a line, the transcript is quoted verbatim. Where it
@@ -58,7 +65,7 @@ def record_dependency_call(name: str, resolved: bool) -> None:
 ```
 
 ```text
-? suspicious · unfamiliar callee (call_receiver)
+? suspicious · unfamiliar-callee
   ↳ _audit.insert_one — 0 of 927 callees in this cluster
 ```
 
@@ -81,7 +88,7 @@ class ReceiptView(View):                 # FastAPI uses function endpoints + Dep
 ```
 
 ```text
-! foreign · unfamiliar callee (call_receiver)   [score 11.05]
+! foreign · unfamiliar-callee   [score 11.05]
   ↳ JsonResponse, HttpResponseNotFound — 0 of 927 callees in this cluster
 ```
 
@@ -103,9 +110,11 @@ margin:
    ↳ duplicates slugify (src/utils/text.py:1) — similarity 0.86
 ```
 
-This is **advisory**: real repos hold real duplication, and sometimes a second `slugify` is a
-deliberate call. argot shows you the original and lets you judge. It gates CI like any other hit, but
-the framing is "look at this," not "this is wrong."
+Real repos hold real duplication, and sometimes a second `slugify` is a deliberate call — argot
+shows you the original and lets you judge. `redundant` findings are pinned to the `unusual`
+confidence tier (the evidence is a similarity lookup, not a hard fact), and like every rule the
+severity is yours: it fails the check by default, or one config line makes it report-only
+(`redundant = "warn"` in `argot.toml`'s `[rules]`).
 
 ## Misplaced — the right code, wrong place
 
@@ -117,9 +126,31 @@ package or area than the one it was filed under:
    ↳ looks like core/downloader code filed under commands/
 ```
 
-Same posture — advisory, a nudge to check whether a helper landed in the wrong module. Both
-`redundant` and `misplaced` come from a per-repo code-embedding index (`jina-code`, ~100 MB, local,
-CPU-first — no cloud, no LLM). See [How it works](/docs/how-it-works/) for the mechanics.
+Same posture — a nudge to check whether a helper landed in the wrong module, pinned to the
+`unusual` confidence tier and configurable per rule (`misplaced = "warn"`, or `semantic = "off"` to
+turn the whole group off). Both `redundant` and `misplaced` come from a per-repo code-embedding
+index (`jina-code`, ~100 MB, local, CPU-first — no cloud, no LLM). See
+[How it works](/docs/how-it-works/) for the mechanics.
+
+## Layering — an import that breaks your architecture
+
+The **architecture detector**. At fit, argot builds a module-dependency graph of the repo
+(`.argot/layering.json`); at check, an added internal import that *reverses* an established layer
+direction — a low-level module suddenly importing from the layer above it, or an edge out of a
+module the graph knows as a (near-)sink — is flagged:
+
+```text
+.  crosses a module boundary (layering)
+   ↳ core/parser now imports cli/commands — the repo's edges run the other way
+```
+
+This is the structural cousin of the foreign axis: every token can be repo-familiar, but the
+*edge* is one the codebase has never drawn. On the benchmark — 23 corpora across all 11 supported
+languages — the detector caught **244 of 252 (96.8%)** planted layering violations with **0 of 140**
+false positives on control edits, and a worst-case over-fire of 2.7%. Findings are pinned to the
+`unusual` confidence tier and fail the check by default (`layering = "warn"` or `"off"` to
+downgrade). The fit-time import resolver covers Python in v1; the graph and benchmark methodology
+are language-agnostic.
 
 ## What argot does *not* reliably catch
 
@@ -156,13 +187,16 @@ misuse of your own vocabulary.
 
 | argot flags | argot won't gate on |
 |---|---|
-| A dependency the repo has never imported *(foreign)* | A wrong *value* on an attested construct |
-| A call into a library the repo standardises away from *(foreign)* | A wrong exception type where both are attested |
-| A whole foreign paradigm — Django view, Flask route, manual validation *(foreign)* | A structural shape built from only-familiar tokens |
-| A new function that reinvents one you already have *(redundant · advisory)* | — |
-| The right code filed in the wrong package *(misplaced · advisory)* | — |
+| A dependency the repo has never imported *(`foreign-import`)* | A wrong *value* on an attested construct |
+| A call into a library the repo standardises away from *(`unfamiliar-callee`)* | A wrong exception type where both are attested |
+| A whole foreign paradigm — Django view, Flask route, manual validation *(`rare-tokens` / `unfamiliar-callee`)* | A structural shape built from only-familiar tokens |
+| A new function that reinvents one you already have *(`redundant`)* | — |
+| The right code filed in the wrong package *(`misplaced`)* | — |
+| An internal import that reverses your layering *(`layering`)* | — |
 
 Treat a hit as a prompt to look, never a verdict. **Foreign** catches are reliable — 98% when the
-symbol is visible in the change. **Redundant** and **misplaced** are advisory: the semantic layer
-surfaces the nearest existing code and lets you judge. And there's a **line it won't cross** — a
-wrong choice built entirely from vocabulary you already have; argot won't gate on that, and says so.
+symbol is visible in the change. **Redundant** and **misplaced** surface the nearest existing code
+and let you judge; **layering** shows the edge that runs against the graph. Every rule is
+configurable (`error` / `warn` / `off` — see [Configure](/docs/configure/#rules--rule-severities)).
+And there's a **line it won't cross** — a wrong choice built entirely from vocabulary you already
+have; argot won't gate on that, and says so.

@@ -1,8 +1,8 @@
 ---
 import Base from '#layouts/Base.astro';
 import { SITE } from '#lib/site';
-// The semantic layer (advisory) — reinvention (F1) + misplacement (F2), measured
-// by the same leak-free clean-commit holdout (window 150). A SEPARATE advisory
+// The semantic layer — reinvention (F1) + misplacement (F2), measured
+// by the same leak-free clean-commit holdout (window 150). A SEPARATE
 // channel: reported alongside every hit, never folded into the base metrics above.
 import semanticData from '../data/semantic.json';
 // Foreign detector, per signal: catch per class (foreign_import / foreign_api /
@@ -176,7 +176,7 @@ const ci = (s: Fp | null | undefined) =>
 const det = (s: Fp | null | undefined) =>
   s && s.hits > 0 ? `+${s.rate_pct.toFixed(2)}% detections` : '';
 
-// Both advisory senses share ONE row shape so their tables are column-for-column
+// Both semantic senses share ONE row shape so their tables are column-for-column
 // identical: catch (recall + count) · clean-commit false-fire (fires/hunks + %) ·
 // judged-true (where the fires were labelled). '—' appears ONLY on a genuine
 // measurement gap (fit error), never as a formatting shortcut.
@@ -256,7 +256,7 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
       <a href="#reinvention" class="rounded-xl border border-line bg-panel/30 p-4 transition-colors hover:border-line-2">
         <div class="flex items-center gap-2">
           <span class="font-semibold text-ink">2 · Reinvention</span>
-          <span class="rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-muted">advisory</span>
+          <span class="rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-muted">rule redundant</span>
         </div>
         <p class="mt-1.5 text-sm text-ink-dim">A function that reimplements one you already
           have. The local code-embedding index.</p>
@@ -264,7 +264,7 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
       <a href="#misplacement" class="rounded-xl border border-line bg-panel/30 p-4 transition-colors hover:border-line-2">
         <div class="flex items-center gap-2">
           <span class="font-semibold text-ink">3 · Misplacement</span>
-          <span class="rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-muted">advisory</span>
+          <span class="rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-muted">rule misplaced</span>
         </div>
         <p class="mt-1.5 text-sm text-ink-dim">The right code filed in the wrong package —
           its nearest peers live elsewhere.</p>
@@ -272,22 +272,22 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
       <a href="#architecture" class="rounded-xl border border-line bg-panel/30 p-4 transition-colors hover:border-line-2">
         <div class="flex items-center gap-2">
           <span class="font-semibold text-ink">4 · Architecture</span>
-          <span class="rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-emerald-500">gated</span>
+          <span class="rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-emerald-500">rule layering</span>
         </div>
         <p class="mt-1.5 text-sm text-ink-dim">A module edge foreign to the repo's own
           layering — a reversed dependency, a cycle, or an edge out of a sink.</p>
       </a>
     </div>
     <p class="mt-5 text-sm leading-relaxed text-ink-dim">
-      <strong>Gated vs advisory.</strong> Detectors 1 &amp; 4 are the quality gate — their
-      catch and over-fire numbers are what argot is judged on. Detectors 2 &amp; 3 are a
-      separate <strong>advisory</strong> channel: a prompt to review, never folded into
-      the gated catch/over-fire numbers above. They still fire at the mildest
-      (<code class="text-xs">unusual</code>) tier, so a reinvention- or misplacement-only
-      hunk does exit non-zero — raise <code class="text-xs">--min-severity</code> or mute
-      to drop them from the gate. Every catch number is held-out; every false-alarm
-      number is a leak-free temporal holdout (fit at an old commit, replay only unseen
-      commits). <strong>Higher catch, lower false-alarm.</strong>
+      <strong>What the headline metric covers.</strong> All four detectors fire as
+      ordinary rules — <code class="text-xs">error</code> severity by default (the check
+      fails), each one configurable to <code class="text-xs">warn</code> or
+      <code class="text-xs">off</code> in <code class="text-xs">[rules]</code>. The
+      headline catch/over-fire numbers argot is judged on cover detectors 1 &amp; 4;
+      detectors 2 &amp; 3 are measured separately below and never folded in. Every catch
+      number is held-out; every false-alarm number is a leak-free temporal holdout (fit
+      at an old commit, replay only unseen commits). <strong>Higher catch, lower
+      false-alarm.</strong>
     </p>
 
     <h2 id="foreign" class="mt-14 scroll-mt-20 text-2xl font-bold tracking-tight">1 · Foreign-pattern detection <span class="align-middle text-sm font-normal text-emerald-500">· the gate</span></h2>
@@ -479,11 +479,11 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
             <strong>Detections</strong> (muted, “+x%”) are fires on a symbol that is
             0-usage at fit — a real new dependency or API argot correctly flags for
             review — so they never count against the score. Reinvention and misplacement
-            (below) are the separate advisory channel and are not folded into these
+            (below) are measured separately and are not folded into these
             numbers. ⚠️ marks corpora under the 300-hunk sample bar.
           </p>
 
-          <h2 id="reinvention" class="mt-16 scroll-mt-20 text-2xl font-bold tracking-tight">2 · Reinvention <span class="align-middle text-sm font-normal text-muted">· advisory · reason <code class="text-xs">redundant</code></span></h2>
+          <h2 id="reinvention" class="mt-16 scroll-mt-20 text-2xl font-bold tracking-tight">2 · Reinvention <span class="align-middle text-sm font-normal text-muted">· rule <code class="text-xs">redundant</code></span></h2>
           <p class="mt-3 leading-relaxed text-ink-dim">
             A local code-embedding index (jina-code, ~100 MB, runs on your machine) finds
             a new function that reimplements one the repo already has.
@@ -505,11 +505,12 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
             leak-free clean-commit replay this lands at
             <strong>≤ 2.8%/hunk on all 31 corpora</strong> — no exceptions carved out (the
             former outliers: jellyfin 7.7→2.3%, curl 6.9→1.2%, laravel 6.8→1.6%,
-            saleor 7.5→2.4%). <code class="text-xs">redundant</code> stays
-            <strong>advisory</strong> — a review prompt, never folded into the gated
-            catch/over-fire numbers: argot names the nearest existing function and lets you
-            decide. (It does fire at the mildest tier, so a redundant-only hunk still exits
-            non-zero; mute or raise <code class="text-xs">--min-severity</code> to silence it.)
+            saleor 7.5→2.4%). <code class="text-xs">redundant</code> is
+            measured separately — never folded into the headline catch/over-fire numbers:
+            argot names the nearest existing function and lets you decide. (Like every rule
+            it fails the check by default; set it to <code class="text-xs">warn</code> or
+            <code class="text-xs">off</code> in <code class="text-xs">[rules]</code>, or
+            mute the hit.)
           </p>
           <div class="mt-6 overflow-x-auto">
             <table class="w-full min-w-[34rem] border-collapse text-sm">
@@ -544,11 +545,11 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
             hunks that fired <code>redundant</code> (fires / hunks scanned); the muted line
             is the <strong>judged-true</strong> rate after three independent reviewers
             removed the genuine reinventions (majority vote, default false-alarm). Shown for
-            every corpus; window 150, leak-free holdout. Advisory — never folded into the
-            gated catch/over-fire metric (it does fire at the mildest tier).
+            every corpus; window 150, leak-free holdout. Measured separately — never folded
+            into the headline catch/over-fire metric.
           </p>
 
-          <h2 id="misplacement" class="mt-16 scroll-mt-20 text-2xl font-bold tracking-tight">3 · Misplacement <span class="align-middle text-sm font-normal text-muted">· advisory · reason <code class="text-xs">misplaced</code></span></h2>
+          <h2 id="misplacement" class="mt-16 scroll-mt-20 text-2xl font-bold tracking-tight">3 · Misplacement <span class="align-middle text-sm font-normal text-muted">· rule <code class="text-xs">misplaced</code></span></h2>
           <p class="mt-3 leading-relaxed text-ink-dim">
             The same index judges <em>where</em> a function belongs: if its nearest peers
             nearly all live in a different package than the one it's filed under, it's
@@ -571,7 +572,6 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
             former outliers are gone the honest way — fmt (20%: a header-only layout with no
             separable architecture) now abstains, and junit5 (5.5%: near-identical
             <code class="text-xs">junit-platform-*</code> siblings) merges them and lands at 0.
-            Both senses are advisory.
           </p>
           <div class="mt-6 overflow-x-auto">
             <table class="w-full min-w-[34rem] border-collapse text-sm">
@@ -604,8 +604,8 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
             or semantically-fused layouts (bat, commander, express, ink, rich, fmt) with no
             separable architecture to judge; their false-fire is 0 by construction (the sense
             abstains). <strong>False-fire / hunk</strong> = replayed-commit hunks that fired
-            <code>misplaced</code> (fires / hunks scanned), window 150. Advisory — never
-            folded into the gated catch/over-fire metric (it does fire at the mildest tier).
+            <code>misplaced</code> (fires / hunks scanned), window 150. Measured separately —
+            never folded into the headline catch/over-fire metric.
           </p>
 
           <h2 id="architecture" class="mt-16 scroll-mt-20 text-2xl font-bold tracking-tight">4 · Architecture <span class="align-middle text-sm font-normal text-emerald-500">· gated</span></h2>

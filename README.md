@@ -4,13 +4,15 @@
 
 <p align="center">
   <strong>Your codebase has a voice. argot makes AI code speak it.</strong><br/>
-  <em>A local guardrail that catches AI-written code that doesn't fit your repo — a dependency you've never used, a function you already wrote, logic in the wrong place. Learned from your git history. Backed by a code-embedding model that runs on your laptop — no LLM, no cloud, no GPU.</em>
+  <em>A local guardrail that catches AI-written code that doesn't fit your repo — a dependency you've never used, a function you already wrote, logic in the wrong place, an import that breaks your layering. Learned from your git history. No LLM, no cloud, no GPU.</em>
 </p>
 
 <p align="center">
   <a href="https://argot.tmonier.com"><strong>argot.tmonier.com</strong></a>
   &nbsp;·&nbsp;
   <a href="https://argot.tmonier.com/docs/">Documentation</a>
+  &nbsp;·&nbsp;
+  <a href="https://argot.tmonier.com/benchmarks">Benchmarks</a>
   &nbsp;·&nbsp;
   <a href="docs/research/README.md">Research log</a>
 </p>
@@ -35,35 +37,45 @@
   <img src="https://img.shields.io/badge/C++-00599C?logo=cplusplus&logoColor=white" alt="C++" />
   <img src="https://img.shields.io/badge/C-A8B9CC?logo=c&logoColor=black" alt="C" />
   <img src="https://img.shields.io/badge/Ruby-CC342D?logo=ruby&logoColor=white" alt="Ruby" />
+  <img src="https://img.shields.io/badge/PHP-777BB4?logo=php&logoColor=white" alt="PHP" />
   &nbsp;·&nbsp;<a href="#benchmarks">11 languages →</a>
 </p>
-
-<!-- TODO(js-numbers): the benchmark TABLE below (per-language rows + "N repos") still shows the
-     pre-JavaScript run; refresh it — split the TypeScript/JavaScript row and update the counts —
-     once the JS re-bench dashboard lands. -->
-
 
 ---
 
 Type checkers ask *"is this valid?"* argot asks the question that used to live in code review: *"is this how **we** do it here?"* — and catches AI code that's flawless, type-correct, lint-clean, and still doesn't belong.
 
-### Three ways AI code fails to fit — invisible to every linter
+### Four detectors, all learned from your git history
 
-|  |  |  |
-| :-- | :-- | :-- |
-| 🚫 **Foreign** | a dependency, API, or idiom your repo has **never used** | *"we don't do it this way here"* |
-| ♻️ **Redundant** | a new function that **reinvents one you already have** | *"you already have this"* |
-| 📍 **Misplaced** | the right code, filed in the **wrong place** | *"this doesn't belong here"* |
+| | Rule | It catches | |
+| :-- | :-- | :-- | :-- |
+| 🚫 | **`foreign-import`** + friends | a dependency, API, or idiom your repo has **never used** | *"we don't do it this way here"* |
+| ♻️ | **`redundant`** | a new function that **reinvents one you already have** | *"you already have this"* |
+| 📍 | **`misplaced`** | the right code, filed in the **wrong place** | *"this doesn't belong here"* |
+| 🧱 | **`layering`** | an internal import that **reverses your architecture** | *"we never cross this boundary"* |
 
-Copilot, ESLint, SAST — every tool judges by one *global* idea of good code. argot learns **yours**, from your git history, and judges each AI diff against it. That per-repo judgment can't be copied by a bigger model — only by knowing your codebase.
+Copilot, ESLint, SAST — every tool judges by one *global* idea of good code. argot learns **yours** and judges each AI diff against it. Configure it like any linter: every rule defaults to `error`; downgrade or disable any of them.
 
-### Real semantic understanding — no LLM, no cloud, no GPU
-
+- 📊 **98%** foreign catch (604/618) · **0.22%** false alarms (49 of 22,785 real hunks) — [honest, leak-free benchmarks](#benchmarks) on 31 repos, 11 languages
+- 🧱 **96.8%** architecture-violation recall (244/252) at **0%** false positives (0/140 control edits)
 - ⚡ **Rust · single static binary** — fits in seconds, checks a diff in ~150 ms
-- 🧠 **A local code-embedding model** (`jina-code`) — semantic understanding from an encoder that turns code into vectors, **not an LLM**: no generation, no API key, no GPU
-- 🪶 **~100 MB model, CPU-first** (Metal-accelerated on Macs) — a few hundred MB of RAM, not the gigabytes a served model needs
-- 🔒 **Nothing leaves your machine** — no telemetry, no account, local by default
-- 📊 **Honest, leak-free benchmarks** — **98%** foreign catch · **0.22%** false alarms · 31 repos · 11 languages
+- 🧠 **A local code-embedding model** (`jina-code`, ~100 MB, CPU-first, Metal on Macs) — semantic understanding from an encoder, **not an LLM**: no generation, no API key, no GPU
+- 🔒 **Nothing leaves your machine** — no telemetry, no account; one cached version check per day (opt-out) is the only network call it ever makes on its own
+
+## Quickstart
+
+```sh
+# 1. install (single static binary — no Python, no Node)
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.sh | sh
+
+# 2. learn this repo's voice (~seconds; first run fetches the ~100 MB local model)
+argot init
+
+# 3. check your diff (~150 ms)
+argot check
+```
+
+Windows: `powershell -c "irm https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.ps1 | iex"` · npm: `npm install -g @tmonier/argot`
 
 ## Demo
 
@@ -71,164 +83,76 @@ Copilot, ESLint, SAST — every tool judges by one *global* idea of good code. a
   <img src="docs/demo/demo.gif" alt="argot check flagging a foreign Django-style view in an all-FastAPI codebase" width="760" />
 </p>
 
-Above: a PR adds a **Django-style class view** to a codebase that is entirely
-FastAPI. It's valid Python — mypy and ruff are silent — but the framework it
-reaches for is one this repo has never imported. `argot check` groups hits by
-file, colors them by severity, and points a `↳` evidence line at the exact token
-carrying the score:
+A PR adds a **Django-style view** to an all-FastAPI codebase. mypy and ruff are
+silent — the framework it reaches for is one this repo has never imported:
 
 ```
 argot check · 1 hunk above threshold (1 foreign)
 note: argot is a probabilistic style linter — verify before action.
 
 fastapi/receipts.py
-  !  L1-L10         1.00  foreign  · staged · foreign import (import) [94a92c256ea1]
+  !  L1-L10         1.00  foreign  · staged · foreign-import [94a92c256ea1]
      ↳ django (L1) — 0 of 74 module specifiers in repo
        common here: fastapi (357×), pydantic (129×), typing (129×) (+7 more)
   1 | from django.views import View
              ^^^^^^
   2 | from django.http import JsonResponse, HttpResponseNotFound
         (+8 more lines)
-
-tip: pass --verbose (-v) to expand truncated hunks.
 ```
 
-The glyph encodes severity (`!` foreign · `?` suspicious · `.` unusual), the
-`[hash]` is a stable id you can `argot mute`, and the `↳` line names the foreign
-symbol with the repo's own vocabulary beside it — 74 imports of `fastapi`,
-`pydantic`, `starlette`…, and never once `django`. No linter flags a valid import
-of a real framework; argot does — because this repo never has. Full anatomy:
-[Reading the output](https://argot.tmonier.com/docs/reading-the-output/).
+The `redundant` rule goes further — it names the code you already have:
 
-## Install
-
-argot is a **single static binary** — no Python, no Node, no runtime to install.
-
-```sh
-# macOS / Linux (curl)
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.sh | sh
-
-# Windows (PowerShell)
-powershell -c "irm https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.ps1 | iex"
-
-# npm (any platform)
-npm install -g @tmonier/argot
+```
+src/text/slug.py
+  .  L12-L24        0.86  unusual  · staged · redundant [c2117f8ab90d]
+     ↳ duplicates slugify (src/utils/text.py:14) — similarity 0.86
 ```
 
-All three download the prebuilt binary for your platform — macOS (Apple Silicon +
-Intel), Linux (x64 + arm64), and Windows (x64). See the
-[CI guide](https://argot.tmonier.com/docs/ci/) and the
-[install docs](https://argot.tmonier.com/docs/) for the full platform matrix.
+And `layering` flags the import that quietly reverses your architecture:
 
-## Set up
+```
+core/parser.py
+  .  L1             1.00  unusual  · staged · layering [77d1e02c433a]
+```
 
-Point argot at a repo and let your coding agent drive it — the fastest path.
-Install the skills once:
+The glyph grades confidence (`!` foreign · `?` suspicious · `.` unusual), the
+`[hash]` is a stable id you can `argot mute`, and every `↳` line is your repo's
+own evidence. Full anatomy: [Reading the output](https://argot.tmonier.com/docs/reading-the-output/).
+
+## Set up with your coding agent
+
+The fastest path: install the skills once and let your agent drive.
 
 ```sh
 npx skills add get-tmonier/argot
 ```
 
-Then run **`/argot-setup`** in Claude Code, Cursor, or 70+ agents. This is where
-the skill earns its keep: it **reads your codebase** to decide what should and
-shouldn't shape the repo's voice — a vendored SDK, a generated `gen/`, a docs
-site — writes an `argot.toml` for it, fits the model, and verifies argot
-actually catches a foreign import. Deciding what to exclude is a judgment call an
-LLM makes well; the raw `argot init` leaves it to you. `/argot-check` then scores
-each diff and reads the result advisorily (never blocks); `/argot-review-pr`
-reviews a whole PR against your repo's voice; `/argot-setup-ci` wires the
-GitHub Action.
+Then run **`/argot-setup`** in Claude Code, Cursor, or 70+ agents — it reads
+your codebase to decide what should shape the voice (and what shouldn't: a
+vendored SDK, a generated `gen/`), writes `argot.toml`, fits, and verifies the
+guardrail actually fires. `/argot-check` scores each diff; `/argot-review-pr`
+reviews a whole PR; `/argot-setup-ci` wires the GitHub Action.
+Prefer by hand? `argot init && argot check` — see [Setup](https://argot.tmonier.com/docs/setup/).
 
-Prefer to drive it by hand? `argot init && argot check` runs the pipeline
-directly — you make the what-to-exclude calls yourself (see
-[Setup](https://argot.tmonier.com/docs/setup/)).
+## Configure it like any linter
 
-**More in the docs:** [Setup](https://argot.tmonier.com/docs/setup/) covers
-hand-picking what argot learns from and a copy-paste prompt for any agent;
-[Agents](https://argot.tmonier.com/docs/agents/) covers the skills, `AGENTS.md`,
-and the optional MCP server; [The commands](https://argot.tmonier.com/docs/the-commands/)
-has every flag (JSON/SARIF, ranges, `argot update`).
+`argot rules` lists every rule. All of them default to `error`; set any rule —
+or a whole group — to `warn` or `off` in `argot.toml`, or per run:
 
-## Configuration
-
-argot learns from the code *you* wrote, so it already skips tests, docs, examples,
-build output, and anything it detects as generated or data-only. Exclude the rest
-— vendored SDKs, generated stubs, legacy modules — in `argot.toml`'s
-`[exclude].paths` (gitignore-style patterns); `argot init --suggest` finds the
-generated- and data-heavy dirs for you, and you accept an intentional hit with
-`argot mute <hash> --reason "…"`.
-Full guide: [Configure](https://argot.tmonier.com/docs/configure/).
-
-## What it catches
-
-Not a replacement for ESLint, ruff, or type checkers — argot catches what they
-**structurally can't**: code that's valid, typed, and lint-clean but doesn't fit
-*this* repo. Three axes.
-
-**1 · Foreign** — a pattern the repo has never used. The statistical voice model,
-**98%** catch when the symbol is visible ([benchmarks](#benchmarks)):
-
-```python
-import requests                       # repo standardises on httpx       →  ! foreign · requests
-_audit.insert_one({"user": uid})      # a Mongo call in a SQLAlchemy repo →  ? suspicious · call_receiver
-class ReceiptView(View):              # a Django view in an all-FastAPI repo →  ! foreign · paradigm
+```toml
+[rules]
+misplaced = "warn"     # report, but don't fail the check
+semantic  = "off"      # disable the whole embedding-based group
 ```
 
-**2 · Redundant** — a new function that reinvents one you already have. The
-embedding index finds the original and shows you exactly where it lives:
-
-```
-  .  already implemented here (redundant)
-     ↳ duplicates slugify (src/utils/text.py:1) — similarity 0.86
+```sh
+argot check --rule layering=warn --error-on-warnings
 ```
 
-**3 · Misplaced** — the right code, filed in the wrong package:
-
-```
-  .  unusual location (misplaced)
-     ↳ looks like core/downloader code filed under commands/
-```
-
-*Redundant* and *misplaced* are **advisory** — real repos hold real duplication
-and cross-cutting helpers, so argot shows the nearest existing code and lets you
-judge. And there's a **line it won't cross**: when a break reuses only vocabulary
-you already have (a bare `ValueError` where you'd raise `HTTPException`), the
-mistake is a *choice*, not a foreign pattern — argot won't gate on it, and says so.
-Full, verified breakdown: [what it catches](https://argot.tmonier.com/docs/what-it-catches/).
-
-#### Reinvention and misplacement across every language — self-calibrated per repo
-
-The *"you already have this"* and *"this doesn't belong here"* senses aren't
-Python-and-TypeScript-only. The scoring is language-agnostic — identifier
-subtokens and callees are extracted the same way everywhere — so every language
-argot parses gets them, benchmarked on **31 real repos across 11 languages**.
-
-**Catch is high.** Planting faithful reimplementations of a repo's own functions
-(renamed, restructured) as new code, argot flags them redundant at **85–100% on
-every corpus** (median 94%). Re-filing a real function into a foreign package
-fires misplaced at **86–99%** on every repo that has a separable architecture.
-
-**False-fire is calibrated away, not hidden.** Real repos hold real parallel
-code — per-locale providers, protocol-variant ports, checkout/order mirrors —
-and a naïve embedding sense fires on all of it. argot filters the shapes that
-aren't reinventions (thin wrappers, interface/family methods, dense sibling
-clusters, co-located variant families), and at `fit` it **measures itself
-against your own history**: a mini-replay of the repo's recently added functions
-estimates its false-fire rate and, on repos that practice systematic parallel
-implementation, switches the sense to a stricter mode automatically. Same for
-placement: argot learns your real package granularity, merges packages that are
-semantically entangled, and **abstains entirely** on repos with no separable
-architecture (a flat single-package library gets silence, not noise). On the
-leak-free clean-commit replay this lands **≤ 2.8% of hunks for redundant and
-≤ 1.5% for misplaced on all 31 corpora** — no exceptions carved out.
-
-Both senses stay **advisory** — a prompt to review, never folded into the gated
-catch/over-fire numbers above; argot names the nearest existing code and lets
-you judge. They do fire at the mildest (`unusual`) tier, so a reinvention- or
-misplacement-only hunk still exits non-zero; mute them or raise
-`--min-severity` to drop them from the gate. The full per-repo catch **and
-false-fire** rates — for both senses — are on the
-[benchmarks page](https://argot.tmonier.com/benchmarks).
+Excludes are just as boring: `[exclude].paths` (gitignore-style; `argot init
+--suggest` finds candidates), inline `# argot: ignore-next-line rule=redundant —
+reason`, and `argot mute <hash> --reason "…"` for durable, committed
+acceptances. Full guide: [Configure](https://argot.tmonier.com/docs/configure/).
 
 ### argot vs. the tools you already run
 
@@ -238,6 +162,7 @@ false-fire** rates — for both senses — are on the
 | Flags what's foreign to *this* repo | ❌ | ❌ | ❌ | ✅ |
 | Flags a function you **already have** | ❌ | ❌ | ❌ | ✅ |
 | Flags code filed in the **wrong place** | ❌ | ❌ | ❌ | ✅ |
+| Flags an import that **breaks your layering** | ❌ | ❌ | ❌ | ✅ |
 | Learns from *your* history · runs 100% local | ❌ | ❌ | ❌ | ✅ |
 
 argot is additive: it sits *after* your type checker and linter and catches the
@@ -246,97 +171,84 @@ team has written.
 
 ## Benchmarks
 
-**Honest, leak-free numbers.** argot has one job — flag a pattern **foreign to
-the repo** (a dependency, API, or construct the codebase has never used, the kind
-of thing an AI agent drags in), so the scorecard is two numbers, measured without
-leakage:
+**Honest, leak-free numbers**, measured by the real `fit → check` pipeline —
+foreign fixtures spliced into real host files; false alarms counted on a
+temporal holdout (fit at an old commit, replay only commits the model never saw).
 
-- **Visible-foreign catch** — foreign imports and APIs spliced into real host
-  files and judged by the real `fit` → `check` pipeline. When the foreign symbol
-  is visible in the code, argot catches **565/574 (98%)**.
-- **False alarm (over-fire)** — a temporal holdout (fit at an old commit, replay
-  only commits the model never saw) counting how often argot fires on the repo's
-  *own existing code*. Aggregate **0.22%**, worst corpus **1.17%**. A fire on a
-  genuinely *new* dependency in a real commit is a **detection**, not an alarm —
-  reported separately, never counted against the tool.
+- **Foreign catch — 604/618 (98%)** when the foreign symbol is visible in the diff.
+- **False alarms — 0.22%** of 22,785 real hunks of the repos' own code; worst corpus **1.17%**. A fire on a genuinely *new* dependency in a real commit is a **detection**, reported separately — never counted against the tool.
+- **Architecture — 244/252 (96.8%)** planted layering violations caught, **0/140** control edits flagged, worst over-fire 2.7% (23 corpora).
+- **Reinvention — 85–100%** per corpus (median 94%) · false-fire ≤ 2.8% of hunks. **Misplacement — 86–99%** where the repo has separable architecture · ≤ 1.5%.
 
 | Language | Corpora | Visible-foreign catch | Worst over-fire |
 |---|---|---|---|
-| Python | fastapi · rich · faker · saleor · wagtail · dagster · scrapy | 137/140 (98%) | 0.92% |
-| TypeScript / JS | hono · ink · faker-js · excalidraw · outline · commander · express · eslint | 126/127 (99%) | 0.11% |
+| Python | fastapi · rich · faker · saleor · wagtail · dagster · scrapy | 145/151 (96%) | 0.92% |
+| TypeScript | hono · ink · faker-js · excalidraw · outline | 102/105 (97%) | 0.11% |
+| JavaScript | express · commander · eslint | 48/48 (100%) | 0.00% |
 | Go | gh-cli · hugo | 37/38 (97%) | 1.17% |
 | Rust | ripgrep · bat | 38/38 (100%) | 0.30% |
 | Java | guava · junit5 | 38/38 (100%) | 0.82% |
-| C# | powershell · jellyfin | 38/40 (95%) | 0.06% |
+| C# | powershell · jellyfin | 40/42 (95%) | 0.06% |
 | C | redis · curl | 37/38 (97%) | 0.18% |
-| C++ | rocksdb · fmt | 38/39 (97%) | 0.22% |
+| C++ | rocksdb · fmt | 40/41 (98%) | 0.22% |
 | Ruby | homebrew · rubocop | 38/38 (100%) | 0.63% |
-| PHP | laravel · composer | 38/38 (100%) | 0.00% |
+| PHP | laravel · composer | 41/41 (100%) | 0.00% |
 
-Across **31 repos in 11 languages**. Earlier published numbers were measured
-train-on-test and were materially optimistic — see
-[issue #92](https://github.com/get-tmonier/argot/issues/92) and the
-[re-measurement evidence](docs/research/evidence/issue92-honest-rebench.md).
+One documented limit: **masked foreign** — a foreign symbol whose name collides
+with one you already use — is statistically invisible to a voice model (~17%
+of the hardest fixtures). We publish that number rather than hide it. Full
+per-corpus tables, methodology, and confidence intervals:
+[benchmarks page](https://argot.tmonier.com/benchmarks) (fed from CI, can't
+drift from what ships). Earlier train-on-test numbers were retracted —
+[issue #92](https://github.com/get-tmonier/argot/issues/92).
 
-**What the two numbers mean.** A commit that introduces a *genuinely new*
-dependency or API (a symbol with zero usage in the repo at fit time) is not an
-idiomatic commit — flagging it is argot's job, so those fires are counted as
-**detections**, not false alarms. The true false-alarm rate is **over-fire**:
-argot firing on the repo's *own existing code*, and every one of the 31 corpora
-holds it to ≤ 1.17%. The one class argot *cannot* catch is **masked foreign** —
-a foreign symbol whose name collides with one the repo already uses, or a dynamic
-`import()` — a documented statistical limit (~17%), since a voice model can't
-separate foreign code that looks exactly like yours. The full per-corpus table,
-new-file rates, and confidence intervals are on the
-[benchmarks page](https://argot.tmonier.com/benchmarks), fed from CI so they
-can't drift from what ships.
+Want a language or corpus validated? The pipeline is language-agnostic —
+per-language is a tree-sitter adapter, shipped only after honest benchmarks.
+[Open an issue](https://github.com/get-tmonier/argot/issues/new).
 
-Mixed-language monorepos calibrate **one threshold per language** and dispatch
-each hunk by file extension — no single distribution dominates the others.
+## CI
 
-**Adding a language is a roadmap item, not an architectural blocker.** The
-scoring pipeline is language-agnostic; per-language is just a tree-sitter
-adapter. We ship a language only *after* benchmarking it honestly on real
-corpora — and we publish the numbers it actually gets. Want a corpus
-validated? [Open an issue](https://github.com/get-tmonier/argot/issues/new).
+```yaml
+- uses: get-tmonier/argot@main   # non-blocking voice score on every PR
+```
 
-## Running in CI
-
-`argot check` emits `--format json` (stable schema) and `--format sarif`
-(SARIF 2.1.0 for GitHub code scanning). A composite GitHub Action ships at the
-repo root (`uses: get-tmonier/argot@main`), and `.pre-commit-hooks.yaml`
-registers an `argot-check` hook. It's non-blocking by default — a visual voice
-score on every PR. Copy-paste setups: [the CI guide](https://argot.tmonier.com/docs/ci/),
-or run `/argot-setup-ci` (see [Set up](#set-up)).
+`argot check --format github` prints inline PR annotations directly;
+`--format sarif` feeds GitHub code scanning; `--format json` is a stable
+schema for anything else. `.pre-commit-hooks.yaml` registers an `argot-check`
+hook, and `argot model fetch` pre-warms the embedding model in CI images.
+Copy-paste setups: [the CI guide](https://argot.tmonier.com/docs/ci/).
 
 ## How it works
 
-**Two senses, both learned entirely from your git history.**
+**Four detectors, one source of truth: your git history.**
 
-*The voice model — statistical.* A scorer runs on each diff hunk: an **import
-check** (any module foreign to this repo?), a **BPE surprise** score (how much
-likelier is this hunk's tokens under a generic open-source baseline than under
-*your* repo?), and a **call-receiver penalty** (does it call things this kind of
-file never calls?). Two frequency tables plus a callee-cluster partition — no
-neural net, fits in seconds, scores in milliseconds.
+1. *Voice* (`foreign-import` · `unfamiliar-callee` · `rare-tokens` · `convention`) —
+   a statistical scorer per diff hunk: is any module foreign to this repo? how
+   much likelier are these tokens under a generic open-source baseline than
+   under *yours*? does it call things this kind of file never calls? Two
+   frequency tables and a callee-cluster partition — no neural net, fits in
+   seconds, scores in milliseconds.
+2. *Reinvention* (`redundant`) — at fit, argot embeds every function with a
+   local code-embedding model (`jina-code`, statically linked llama.cpp). At
+   check it asks: *is there already one just like this?* — and self-calibrates
+   against your own history so repos with legitimate parallel code (per-locale
+   providers, protocol variants) don't drown in noise.
+3. *Placement* (`misplaced`) — *do this function's nearest neighbours all live
+   somewhere else?* argot learns your real package granularity and abstains
+   entirely on repos with no separable architecture.
+4. *Architecture* (`layering`) — a module-dependency graph of your imports; a
+   diff that reverses an established layer direction or crosses a boundary the
+   repo never crosses gets flagged, with **0%** false positives on control edits.
 
-*The semantic index — embeddings.* At fit, argot embeds every function with a
-local **code-embedding model** (`jina-code`, ~100 MB, statically linked via
-llama.cpp — CPU-first, Metal on Macs). At check, it embeds each new function and
-asks two things a linter can't: *is there already one just like it?* (reinvention)
-and *do its nearest neighbours live somewhere else?* (placement). No prompt, no
-generation, nothing leaves your machine.
-
-Full detail: [How it works](https://argot.tmonier.com/docs/how-it-works/) and
-[The scoring model](https://argot.tmonier.com/docs/the-scoring-model/); the
-experiment log is in [docs/research/](docs/research/README.md).
+No prompt, no generation, nothing leaves your machine. Full detail:
+[How it works](https://argot.tmonier.com/docs/how-it-works/) ·
+[The scoring model](https://argot.tmonier.com/docs/the-scoring-model/) ·
+experiment log in [docs/research/](docs/research/README.md).
 
 ## Contributing
 
-Issues and PRs welcome — start with [CONTRIBUTING.md](CONTRIBUTING.md) for dev
-setup (`rustup` + `just`), the `just verify` gate, and how to propose a new
-language or corpus. The [good first issues](https://github.com/get-tmonier/argot/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
-are a good place to start.
+Issues and PRs welcome — start with [CONTRIBUTING.md](CONTRIBUTING.md) (`rustup`
++ `just`, the `just verify` gate, proposing a new language or corpus).
 
 ```sh
 git clone https://github.com/get-tmonier/argot && cd argot
@@ -348,39 +260,27 @@ just verify      # cargo fmt --check + clippy -D warnings + cargo test
 
 argot's scorer is only as honest as the corpora it's benchmarked against. We use
 these repositories as **read-only benchmark corpora** — cloned at benchmark time,
-never redistributed — to measure catch and false-alarm rates on real code. None
-are affiliated with, endorse, or are endorsed by argot; each remains under its
-own license, and their histories are our ground-truth voice signal.
+never redistributed. None are affiliated with argot; each remains under its own
+license.
 
 - **Python** — [FastAPI](https://github.com/tiangolo/fastapi) · [rich](https://github.com/Textualize/rich) · [faker](https://github.com/joke2k/faker) · [Saleor](https://github.com/saleor/saleor) · [Wagtail](https://github.com/wagtail/wagtail) · [Dagster](https://github.com/dagster-io/dagster) · [Scrapy](https://github.com/scrapy/scrapy)
 - **TypeScript** — [Hono](https://github.com/honojs/hono) · [Ink](https://github.com/vadimdemedes/ink) · [faker-js](https://github.com/faker-js/faker) · [Excalidraw](https://github.com/excalidraw/excalidraw) · [Outline](https://github.com/outline/outline)
 - **JavaScript** — [Express](https://github.com/expressjs/express) · [Commander.js](https://github.com/tj/commander.js) · [ESLint](https://github.com/eslint/eslint)
-- **Go** — [GitHub CLI](https://github.com/cli/cli) · [Hugo](https://github.com/gohugoio/hugo)
-- **Rust** — [ripgrep](https://github.com/BurntSushi/ripgrep) · [bat](https://github.com/sharkdp/bat)
-- **Java** — [Guava](https://github.com/google/guava) · [JUnit 5](https://github.com/junit-team/junit5)
-- **C#** — [PowerShell](https://github.com/PowerShell/PowerShell) · [Jellyfin](https://github.com/jellyfin/jellyfin)
-- **C** — [redis](https://github.com/redis/redis) · [curl](https://github.com/curl/curl)
-- **C++** — [RocksDB](https://github.com/facebook/rocksdb) · [fmt](https://github.com/fmtlib/fmt)
-- **Ruby** — [Homebrew](https://github.com/Homebrew/brew) · [RuboCop](https://github.com/rubocop/rubocop)
-- **PHP** — [Laravel](https://github.com/laravel/framework) · [Composer](https://github.com/composer/composer)
+- **Go** — [GitHub CLI](https://github.com/cli/cli) · [Hugo](https://github.com/gohugoio/hugo) &nbsp;·&nbsp; **Rust** — [ripgrep](https://github.com/BurntSushi/ripgrep) · [bat](https://github.com/sharkdp/bat) &nbsp;·&nbsp; **Java** — [Guava](https://github.com/google/guava) · [JUnit 5](https://github.com/junit-team/junit5)
+- **C#** — [PowerShell](https://github.com/PowerShell/PowerShell) · [Jellyfin](https://github.com/jellyfin/jellyfin) &nbsp;·&nbsp; **C** — [redis](https://github.com/redis/redis) · [curl](https://github.com/curl/curl) &nbsp;·&nbsp; **C++** — [RocksDB](https://github.com/facebook/rocksdb) · [fmt](https://github.com/fmtlib/fmt)
+- **Ruby** — [Homebrew](https://github.com/Homebrew/brew) · [RuboCop](https://github.com/rubocop/rubocop) &nbsp;·&nbsp; **PHP** — [Laravel](https://github.com/laravel/framework) · [Composer](https://github.com/composer/composer)
 
-Built on [tree-sitter](https://tree-sitter.github.io/tree-sitter/) and its
-per-language grammars (Python, TypeScript, JavaScript, Go, Rust, C, C++, Java,
-C#, PHP, Ruby), [libgit2](https://libgit2.org/) via [git2](https://docs.rs/git2/) (vendored,
-no network transports), HuggingFace
+Built on [tree-sitter](https://tree-sitter.github.io/tree-sitter/) (11 grammars),
+[libgit2](https://libgit2.org/) via [git2](https://docs.rs/git2/), HuggingFace
 [tokenizers](https://github.com/huggingface/tokenizers) (UnixCoder BPE),
 [clap](https://docs.rs/clap/), [Serde](https://serde.rs/), and
-[cargo-dist](https://opensource.axo.dev/cargo-dist/) /
-[axoupdater](https://github.com/axodotdev/axoupdater) for releases and
-`argot update`. The semantic layer links [llama.cpp](https://github.com/ggml-org/llama.cpp)
-(MIT) statically via [`llama-cpp-2`](https://crates.io/crates/llama-cpp-2).
-
-The semantic layer's code-embedding model is
+[cargo-dist](https://opensource.axo.dev/cargo-dist/) / [axoupdater](https://github.com/axodotdev/axoupdater).
+The semantic layer links [llama.cpp](https://github.com/ggml-org/llama.cpp) (MIT)
+statically via [`llama-cpp-2`](https://crates.io/crates/llama-cpp-2); its model is
 [**jina-embeddings-v2-base-code**](https://huggingface.co/jinaai/jina-embeddings-v2-base-code)
-by [Jina AI](https://jina.ai/), used under the **Apache License 2.0**. argot
-fetches it on first use and redistributes the `Q4_K_M` GGUF quantization (a
-derivative work under Apache-2.0 §4 — weights quantized, architecture unchanged)
-from its [`semantic-model-v1`](https://github.com/get-tmonier/argot/releases/tag/semantic-model-v1)
+by [Jina AI](https://jina.ai/) (Apache-2.0), fetched on first use as a `Q4_K_M`
+GGUF quantization (a derivative work under Apache-2.0 §4) from the
+[`semantic-model-v1`](https://github.com/get-tmonier/argot/releases/tag/semantic-model-v1)
 release. argot is not affiliated with, nor endorsed by, Jina AI.
 
 ## License

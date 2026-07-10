@@ -6,12 +6,13 @@ order: 1
 ---
 
 **argot** learns your repo's patterns from its own git history, then flags AI-written code that
-doesn't fit — on three axes: a dependency, API, or construct it has never used (**foreign**); a new
+doesn't fit — on four axes: a dependency, API, or construct it has never used (**foreign**); a new
 function that reinvents one you already wrote (**redundant**); the right code filed in the wrong
-place (**misplaced**). All valid, typed, and lint-clean — but not how anything here is actually
-built. The base guardrail is model-free; the semantic layer that finds reinventions and
-misplacements runs a small local code embedder — one ~100 MB one-time download, still no cloud, no
-GPU required, nothing leaves your machine.
+place (**misplaced**); an internal import that reverses your module layering (**layering**). All
+valid, typed, and lint-clean — but not how anything here is actually built. The base guardrail is
+model-free; the semantic layer that finds reinventions and misplacements runs a small local code
+embedder — one ~100 MB one-time download, still no cloud, no GPU required, nothing leaves your
+machine.
 
 > **Status: alpha.** argot is a probabilistic style linter — treat every flag as a prompt to look,
 > and verify before you gate CI on it. It ships honest, leak-free benchmarks and a public research log.
@@ -64,6 +65,12 @@ argot init         # learn your repo's voice, then a health check (Ready / Margi
 argot check        # score uncommitted changes (or pass a ref/range)
 ```
 
+The first `init` also downloads the ~100 MB embedding model to a shared local cache — once per
+machine, never per repo. Prefer it explicit? `argot model fetch` pre-downloads it (useful before
+going offline or in CI). And `argot rules` lists every rule with its effective severity — all
+`error` by default, each one yours to downgrade in `argot.toml`
+([Configure](/docs/configure/#rules--rule-severities)).
+
 `argot init` fits the model once and writes a `.argot/.gitignore` so the rebuildable model stays out
 of git. If the health check isn't **Ready**, or your repo has generated / vendored / peripheral code
 (a monorepo's marketing site, playground, or demo apps), spend a minute on [Setup](/docs/setup/) to
@@ -74,7 +81,7 @@ argot check · 2 hunks above threshold (1 foreign · 1 suspicious)
 note: argot is a probabilistic style linter — verify before action.
 
 src/utils/http-helpers.ts
-  !  L42-L48   8.21  foreign     · workdir · foreign import (import) [a1b2c3d4e5f6]
+  !  L42-L48   8.21  foreign     · workdir · foreign-import [a1b2c3d4e5f6]
      ↳ axios — 0 of 47 module specifiers in repo
        common here: react (320×), express (88×), pg (47×)
 ```
@@ -85,8 +92,9 @@ src/utils/http-helpers.ts
 - It **reliably** catches what they can't articulate: a **foreign dependency, API, or paradigm** —
   something the repo has never used. When the foreign symbol is in the diff, the base voice model
   catches ~98% of them.
-- It **also** flags — advisorily — a **redundant** function (one you already wrote) and **misplaced**
-  code (filed in the wrong package), via the semantic layer's per-repo code-embedding index.
+- It **also** flags a **redundant** function (one you already wrote) and **misplaced** code (filed
+  in the wrong package) via the semantic layer's per-repo code-embedding index, and a **layering**
+  break via the architecture graph — each its own rule, each downgradable to `warn` or `off`.
 - It is **honest about its limit**: it does *not* reliably flag an *in-vocabulary* choice — a bare
   `ValueError` where you'd raise `HTTPException`, when every token is already yours. So a clean run
   means "no foreign pattern found," **not** "this matches every convention." argot never gates on
@@ -104,5 +112,5 @@ If your team ships LLM-assisted code, this is the layer your CI is missing.
 - [Configure](/docs/configure/) — `argot.toml`, inline comments, and durable `argot mute`.
 - [How it works](/docs/how-it-works/) — the two-phase pipeline, in plain terms.
 - [The commands](/docs/the-commands/) — `init`, `check`, `fit`, `mute`, and the rest in detail.
-- [Reading the output](/docs/reading-the-output/) — severity tiers, sources, and the evidence line.
-- [What it catches](/docs/what-it-catches/) — three real examples every other tool stays silent on.
+- [Reading the output](/docs/reading-the-output/) — rules, confidence tiers, sources, and the evidence line.
+- [What it catches](/docs/what-it-catches/) — real examples every other tool stays silent on.

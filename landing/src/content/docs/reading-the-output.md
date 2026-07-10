@@ -1,6 +1,6 @@
 ---
 title: Reading the output
-description: Anatomy of a hit — severity tiers, sources, the reason, and the evidence line.
+description: Anatomy of a hit — the rule, confidence tiers, severities, sources, and the evidence line.
 group: Guide
 order: 6
 ---
@@ -12,7 +12,7 @@ argot check · 2 hunks above threshold (1 foreign · 1 suspicious)
 note: argot is a probabilistic style linter — verify before action.
 
 src/utils/http-helpers.ts
-  !  L42-L48      8.21  foreign     · workdir · foreign import (import) [a1b2c3d4e5f6]
+  !  L42-L48      8.21  foreign     · workdir · foreign-import [a1b2c3d4e5f6]
      ↳ axios — 0 of 47 module specifiers in repo
        common here: react (320×), express (88×), pg (47×)
   42 │ import axios from 'axios';
@@ -20,7 +20,7 @@ src/utils/http-helpers.ts
   44 │ export async function fetchUserData(id: string) {
 
 src/api/router.ts
-  ?  L102         5.89  suspicious  · staged · rare token sequence (bpe) [b7c8d9e0f1a2]
+  ?  L102         5.89  suspicious  · staged · rare-tokens [b7c8d9e0f1a2]
      ↳ startedAt (0×), _res (3×), use (88×)
   102 │ router.use((req, _res, next) => { req.startedAt = Date.now(); next(); });
 ```
@@ -33,17 +33,20 @@ Each hit line carries five things:
 - **the hit hash** (`[a1b2c3d4e5f6]`) — a stable id you can pass to `argot mute`.
 - **the score** — the BPE log-likelihood ratio for the hunk. Higher means it diverges more from the
   repo's distribution.
-- **the severity tier** — `unusual` / `suspicious` / `foreign` (below).
+- **the confidence tier** — `unusual` / `suspicious` / `foreign` (below).
 - **the source** — `workdir`, `staged`, `untracked`, or a commit SHA, so you know where it came from.
-- **the reason** that fired — `import` (foreign import), `bpe` (rare token sequence), or `call_receiver`
-  (an unfamiliar callee tipped it over) from the base voice model, plus `redundant` (a function you
-  already have) and `misplaced` (code in an unusual location) from the semantic layer. A further
-  reason, `convention`, exists in the engine but is **off by default** — an internal benchmark-only
-  knob, not something `check` normally emits.
+- **the rule** that fired — `foreign-import`, `rare-tokens`, or `unfamiliar-callee` from the base
+  voice model, `redundant` (a function you already have) and `misplaced` (code in an unusual
+  location) from the semantic layer, and `layering` (an internal import that crosses a module
+  boundary) from the architecture detector. A further rule, `convention`, exists in the engine but
+  rarely fires on its own. `argot rules` lists them all with their effective severities.
 
-## Severity tiers
+## Confidence tiers
 
-Tiers are relative to the calibrated threshold `t` (stored in `.argot/scorer-config.json`):
+The tier grades **how strong the evidence is** — it drives the marker and the display, never the
+exit code (that's the rule's configured *severity* — see
+[Configure](/docs/configure/#rules--rule-severities)). For the statistical rules, tiers are
+relative to the calibrated threshold `t` (stored in `.argot/scorer-config.json`):
 
 | Tier | Range | Meaning |
 |---|---|---|
@@ -51,11 +54,14 @@ Tiers are relative to the calibrated threshold `t` (stored in `.argot/scorer-con
 | `suspicious` | `t+0.5 ≤ score < t+1.5` | Likely worth a look |
 | `foreign` | `score ≥ t+1.5` | High-confidence anomaly |
 
+`redundant`, `misplaced`, and `layering` findings are always pinned to `unusual` — their evidence
+is a lookup, not a score margin. `argot check --min-confidence <tier>` filters the display.
+
 ## The evidence line
 
 The `↳` line is the per-hunk evidence — *why* this hunk fired:
 
-- For **bpe** hits it names the surprising identifiers with their repo-wide counts. `startedAt (0×)`
+- For **rare-tokens** hits it names the surprising identifiers with their repo-wide counts. `startedAt (0×)`
   never appears elsewhere in the repo; `use (88×)` is familiar — the flag is about the *combination*,
   not the words.
 - For **foreign-import** and **unfamiliar-callee** hits it shows the offending names plus a
@@ -66,12 +72,13 @@ The `↳` line is the per-hunk evidence — *why* this hunk fired:
 - For **misplaced** hits it names where the code looks like it belongs:
   `↳ looks like core/downloader code filed under commands/`.
 
-The score and reason are always printed, so a hit is never a black box.
+The score and rule are always printed, so a hit is never a black box.
 
 ## Machine-readable output
 
 `argot check --format json` and `--format sarif` write **only** the document to stdout (progress and
-warnings stay on stderr), so they pipe cleanly. Both are stable contracts.
+warnings stay on stderr), so they pipe cleanly. Both are stable contracts. A third machine format,
+[`--format github`](#--format-github), emits GitHub Actions workflow commands.
 
 ### `--format json`
 
@@ -94,28 +101,38 @@ Each entry in `hits[]`:
 | `path` | Repo-relative, `/`-separated file path. |
 | `line_start`, `line_end` | 1-based hunk line range. |
 | `score` | The hunk's score. |
-| `threshold` | Calibrated threshold the severity tier is measured against. |
-| `severity` | `unusual` / `suspicious` / `foreign`. |
-| `reason` | Scorer reason code: `bpe`, `import`, `call_receiver` (base voice model), `redundant`, or `misplaced` (semantic layer). |
-| `reason_label` | Human label of `reason` (e.g. `rare token sequence`, `foreign import`). |
+| `threshold` | Calibrated threshold the confidence tier is measured against. |
+| `confidence` | Evidence strength: `unusual` / `suspicious` / `foreign`. |
+| `severity` | The rule's configured severity for this run: `error` (fails the check) or `warn`. |
+| `rule` | Stable rule name: `foreign-import`, `unfamiliar-callee`, `rare-tokens`, `convention`, `redundant`, `misplaced`, or `layering` — the same key you'd use in `argot.toml [rules]`, `--rule`, and suppressions. |
+| `rule_label` | Human label of `rule` (e.g. `rare token sequence`, `foreign import`). |
 | `source` | `workdir` / `staged` / `untracked`, or a short commit SHA. |
 | `hash` | Content-based hit hash — paste into `argot mute <hash>`. |
 | `evidence` | Rendered evidence lines (empty when the scorer had none). |
 
 ### `--format sarif`
 
-SARIF 2.1.0 for code scanning (GitHub `upload-sarif`, etc.). One rule per distinct `reason` code —
-including the semantic layer's `redundant` and `misplaced`, which get their own auto-generated rules;
-each result carries the physical location and the raw `score` / `threshold` / `severity` / `source` /
-`hash` / `evidence` under `properties`. Severity tiers map to SARIF levels: `unusual → note`,
-`suspicious → warning`, `foreign → error`.
+SARIF 2.1.0 for code scanning (GitHub `upload-sarif`, etc.). `ruleId` is the rule name
+(`foreign-import`, `redundant`, `layering`, …), one SARIF rule per distinct name in
+first-appearance order; each result carries the physical location and the raw `score` /
+`threshold` / `confidence` / `severity` / `source` / `hash` / `evidence` under `properties`.
+Confidence tiers map to SARIF levels — `unusual → note`, `suspicious → warning`,
+`foreign → error` — capped at `warning` for a rule configured `warn` (SARIF `error` is reserved
+for findings that fail the check).
+
+### `--format github`
+
+GitHub Actions workflow commands — one `::error file=…,line=…::message` (or `::warning` for a
+`warn`-severity rule) per hit, which the runner turns into **inline PR annotations** with no upload
+step and no extra permissions. Each annotation carries the rule name, score, confidence, evidence,
+and the exact `argot mute <hash>` command. Available on `check` and `review`.
 
 The `voice-diff`, `inspect`, `status`, and `list` commands each also emit a stable `--format json`
 document — see [The commands](/docs/the-commands/).
 
 ## Color
 
-argot colors the severity markers only when [`NO_COLOR`](https://no-color.org) is **unset** and stdout
+argot colors the confidence markers only when [`NO_COLOR`](https://no-color.org) is **unset** and stdout
 is a terminal. Set `NO_COLOR=1`, or redirect stdout to a file/pipe, for plain text. The machine
 formats above are never colored.
 
