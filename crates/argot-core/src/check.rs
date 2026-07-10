@@ -2829,7 +2829,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[test]
     #[cfg(feature = "arch")]
     fn arch_evidence_names_the_broken_direction() {
         use crate::scoring::arch_graph::Violation;
