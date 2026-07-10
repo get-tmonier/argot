@@ -9,6 +9,7 @@ mod describe;
 mod mcp;
 mod replay;
 mod review;
+mod uninstall;
 #[cfg(feature = "self-update")]
 mod update_check;
 mod voice_diff;
@@ -205,6 +206,9 @@ enum Command {
     List(ListCmd),
     /// Update the argot CLI to the latest release.
     Update,
+    /// Remove argot from this machine: every repo's artifacts, the model
+    /// cache, global state, and the binary (shows the full list first).
+    Uninstall(UninstallCmd),
     /// Refresh the cached version.json state (spawned detached; hidden).
     #[cfg(feature = "self-update")]
     #[command(name = "refresh-version-cache", hide = true)]
@@ -230,6 +234,16 @@ struct DescribeVoiceCmd {
     /// Write to this file instead of stdout (e.g. `STYLE.md`).
     #[arg(long, value_name = "FILE")]
     out: Option<PathBuf>,
+}
+
+#[derive(Args)]
+struct UninstallCmd {
+    /// Show everything that would be removed, remove nothing.
+    #[arg(long)]
+    dry_run: bool,
+    /// Skip the confirmation prompt (required when not on a terminal).
+    #[arg(long)]
+    yes: bool,
 }
 
 #[derive(Args)]
@@ -316,22 +330,19 @@ fn git_toplevel() -> Option<String> {
     argot_core::git_walk::repo_workdir(".")
 }
 
-fn resolve_context() -> RepoCtx {
-    let git_root = git_toplevel().unwrap_or_else(|| {
-        std::env::current_dir()
-            .unwrap_or_default()
-            .display()
-            .to_string()
-    });
+/// Upsert `git_root` into the global registry (`~/.argot/settings.json`) —
+/// how `argot list`/`status` and `argot uninstall` know where artifacts live.
+/// Returns the repo's display name.
+fn register_repo(git_root: &str) -> String {
     let mut settings = read_settings();
     let now = iso_now();
-    let basename = std::path::Path::new(&git_root)
+    let basename = std::path::Path::new(git_root)
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_else(|| git_root.clone());
+        .unwrap_or_else(|| git_root.to_string());
     let entry = settings
         .repos
-        .entry(git_root.clone())
+        .entry(git_root.to_string())
         .or_insert_with(|| RepoEntry {
             name: basename.clone(),
             registered_at: now.clone(),
@@ -340,7 +351,17 @@ fn resolve_context() -> RepoCtx {
     entry.last_used_at = now;
     let name = entry.name.clone();
     write_settings(&settings);
+    name
+}
 
+fn resolve_context() -> RepoCtx {
+    let git_root = git_toplevel().unwrap_or_else(|| {
+        std::env::current_dir()
+            .unwrap_or_default()
+            .display()
+            .to_string()
+    });
+    let name = register_repo(&git_root);
     let argot_dir = PathBuf::from(&git_root).join(".argot");
     RepoCtx {
         dataset_path: argot_dir.join("dataset.jsonl"),
@@ -783,6 +804,15 @@ fn warn_uncommitted(paths: &[String]) {
 /// version control. Returns the scorer-config path on success. Shared by `fit`
 /// and `init`; failures are always setup errors (exit 2).
 fn fit_repo(repo: &Path, slices: &[String]) -> Result<PathBuf, ()> {
+    // Every fitted repo lands in the global registry so `argot list`/`status`
+    // — and `argot uninstall` — know where artifacts live. argot's own
+    // throwaway worktrees (replay, the background refresh) live under the OS
+    // temp dir and are not user repos.
+    let canon = |p: &Path| fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+    let repo_canon = canon(repo);
+    if !repo_canon.starts_with(canon(&std::env::temp_dir())) {
+        register_repo(&repo_canon.to_string_lossy());
+    }
     let argot_dir = repo.join(".argot");
     if let Err(e) = ensure_model_gitignored(&argot_dir) {
         eprintln!(
@@ -2246,6 +2276,7 @@ fn main() -> ExitCode {
         Some(Command::Status(c)) => run_status(c),
         Some(Command::List(c)) => run_list(c),
         Some(Command::Update) => run_update(),
+        Some(Command::Uninstall(c)) => uninstall::run_uninstall(c.dry_run, c.yes),
         #[cfg(feature = "self-update")]
         Some(Command::RefreshVersionCache) => {
             update_check::run_refresh();

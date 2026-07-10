@@ -376,4 +376,24 @@ one dim stderr line when a newer release exists. It's silent in CI, on a non-tty
 and in machine formats, and it's opt-out — `ARGOT_UPDATE_CHECK=0` or `[update] check = false`. See
 [Configure](/docs/configure/#update--the-passive-update-notice).
 
+## uninstall
+
+Leave as cleanly as you arrived. `uninstall` builds the full inventory of everything argot ever
+wrote on the machine, shows it with sizes, and removes it after confirmation:
+
+```bash
+argot uninstall              # show the plan, confirm, remove
+argot uninstall --dry-run    # just show the plan
+argot uninstall --yes        # no prompt (required when not on a terminal)
+```
+
+It removes every registered repo's `.argot/` and `argot.local.toml`, the model cache
+(`~/.cache/argot`), the global registry (`~/.argot/settings.json`), the installer receipt, and —
+for curl/raw installs — the binary itself. It detects how argot was installed: an npm install gets
+the exact `npm uninstall -g @tmonier/argot` command instead, since npm owns those files. Two things
+are deliberately left, each listed with a note: **git-tracked files** (`argot.toml`, a committed CI
+workflow) — argot never edits your tracked tree, remove those via git — and externally installed
+agent skills / MCP registrations, which live in your agent's config, not argot's. The full file
+inventory is the [table in Configure](/docs/configure/#which-files-argot-writes-and-where).
+
 See [Reading the output](/docs/reading-the-output/) for how to interpret a `check` run.
