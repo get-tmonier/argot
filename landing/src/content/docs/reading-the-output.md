@@ -71,6 +71,8 @@ The `↳` line is the per-hunk evidence — *why* this hunk fired:
   `↳ duplicates slugify (src/utils/text.py:1) — similarity 0.86`.
 - For **misplaced** hits it names where the code looks like it belongs:
   `↳ looks like core/downloader code filed under commands/`.
+- For **layering** hits it names the established direction the new import breaks:
+  `↳ cli → core is this repo's direction — this import reverses it`.
 
 The score and rule are always printed, so a hit is never a black box.
 

@@ -12,6 +12,8 @@
 //!   `error`; a rule-specific entry beats its group entry.
 //! - `[update]` — `check = false` opts this repo out of the passive
 //!   once-a-day update notice (env: `ARGOT_UPDATE_CHECK=0`).
+//! - `[fit]` — `auto-refresh = false` opts out of the background refit that
+//!   keeps the voice model fresh as the repo moves.
 //! - `[[mute]]` — durable per-hit acceptances, a committed audit trail. Written
 //!   by `argot mute <hash>`. Replaces the old `.argot/suppressions.yaml`.
 //!
@@ -193,6 +195,9 @@ pub struct ArgotConfig {
     pub rules: Vec<RulesLayer>,
     /// `[update].check` — false opts out of the passive update notice.
     pub update_check: bool,
+    /// `[fit].auto-refresh` — false opts out of the background refit when the
+    /// model has drifted behind HEAD.
+    pub fit_auto_refresh: bool,
     /// Raw `[[mute]]` tables, validated on demand by [`ArgotConfig::mutes`].
     mutes: Vec<RawMute>,
     /// True when an `argot.toml` (or local) backed these values.
@@ -208,6 +213,7 @@ impl Default for ArgotConfig {
             detect: DetectConfig::default(),
             rules: Vec::new(),
             update_check: true,
+            fit_auto_refresh: true,
             mutes: Vec::new(),
             from_file: false,
             warnings: Vec::new(),
@@ -228,6 +234,8 @@ struct RawConfig {
     rules: BTreeMap<String, toml::Value>,
     #[serde(default)]
     update: RawUpdate,
+    #[serde(default)]
+    fit: RawFit,
     /// `[[mute]]` array-of-tables.
     #[serde(default)]
     mute: Vec<RawMute>,
@@ -243,6 +251,12 @@ struct RawExclude {
 #[derive(Debug, Clone, Default, Deserialize)]
 struct RawUpdate {
     check: Option<bool>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+struct RawFit {
+    auto_refresh: Option<bool>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -336,8 +350,13 @@ impl ArgotConfig {
             rules.push(validate_layer(&entries, origin, &mut warnings));
         }
 
-        // [update]: local wins.
+        // [update] / [fit]: scalars — local wins.
         let update_check = local.update.check.or(base.update.check).unwrap_or(true);
+        let fit_auto_refresh = local
+            .fit
+            .auto_refresh
+            .or(base.fit.auto_refresh)
+            .unwrap_or(true);
 
         // [[mute]]: appended.
         let mut mutes = base.mute;
@@ -351,6 +370,7 @@ impl ArgotConfig {
             },
             rules,
             update_check,
+            fit_auto_refresh,
             mutes,
             from_file,
             warnings,

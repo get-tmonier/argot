@@ -141,7 +141,8 @@ And `layering` flags the import that quietly reverses your architecture:
 
 ```
 core/parser.py
-  .  L1             1.00  unusual  · staged · layering [77d1e02c433a]
+  .  L3             1.00  unusual  · staged · layering [77d1e02c433a]
+     ↳ cli → core is this repo's direction — this import reverses it
 ```
 
 The glyph grades confidence (`!` foreign · `?` suspicious · `.` unusual), the

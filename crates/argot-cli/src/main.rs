@@ -4,6 +4,7 @@
 //! (`extract` → `train` → `calibrate` → `check`, plus the `fit` one-shot and
 //! the suppression commands) runs in-process against `argot-core`.
 
+mod auto_refit;
 mod describe;
 mod mcp;
 mod review;
@@ -203,6 +204,9 @@ enum Command {
     #[cfg(feature = "self-update")]
     #[command(name = "refresh-version-cache", hide = true)]
     RefreshVersionCache,
+    /// Refit the voice model in the background (spawned detached; hidden).
+    #[command(name = "background-refit", hide = true)]
+    BackgroundRefit(BackgroundRefitCmd),
     /// Run a Model Context Protocol server for LLM coding agents (stdio).
     Mcp(McpCmd),
     /// Generate a STYLE.md describing the repo's learned voice.
@@ -1101,7 +1105,19 @@ fn run_check_cmd(c: CheckCmd) -> ExitCode {
         }
         freshness_hook();
     }
+    // Drifted model? Refresh it in the background so the next check is sharp
+    // (detached, throttled, opt-out via [fit] auto-refresh = false).
+    if outcome.exit_code < 2 {
+        auto_refit::maybe_refit(&c.repo, &argot_dir, &today, quiet || !human);
+    }
     ExitCode::from(outcome.exit_code as u8)
+}
+
+#[derive(Args)]
+struct BackgroundRefitCmd {
+    /// Path to the repository to refit.
+    #[arg(long, default_value = ".")]
+    repo: PathBuf,
 }
 
 #[derive(Args)]
@@ -2116,6 +2132,10 @@ fn main() -> ExitCode {
         #[cfg(feature = "self-update")]
         Some(Command::RefreshVersionCache) => {
             update_check::run_refresh();
+            ExitCode::SUCCESS
+        }
+        Some(Command::BackgroundRefit(c)) => {
+            auto_refit::run_background_refit(&c.repo);
             ExitCode::SUCCESS
         }
         Some(Command::Mcp(c)) => mcp::run_mcp(c.repo),

@@ -585,6 +585,7 @@ mod tests {
             vec: unit(vec),
             callees: callees.iter().map(|s| s.to_string()).collect(),
             subtokens: subtokens.iter().map(|s| s.to_string()).collect(),
+            text_hash: String::new(),
         }
     }
 

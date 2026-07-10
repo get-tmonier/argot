@@ -188,6 +188,10 @@ struct Hit {
     /// identical; base statistical Hits carry `None` when the feature is on.
     #[cfg(feature = "semantic")]
     semantic: Option<SemanticHitEvidence>,
+    /// Pre-rendered evidence line for a `layering` finding — which established
+    /// direction the new edge violates. Same feature-gating discipline.
+    #[cfg(feature = "arch")]
+    arch: Option<String>,
 }
 
 /// The nearest-existing-code evidence attached to a semantic finding (F4). Held
@@ -1184,6 +1188,8 @@ fn score_patches(
                 suppressed_by,
                 #[cfg(feature = "semantic")]
                 semantic: None,
+                #[cfg(feature = "arch")]
+                arch: None,
             });
         }
     }
@@ -1248,14 +1254,15 @@ fn arch_hits(
         if added.is_empty() {
             continue;
         }
-        // Fire if the added imports create a novel reversal/sink-out edge.
-        let fired = graph
+        // Fire if the added imports create a novel reversal/sink-out edge —
+        // and keep that edge: the evidence line names the direction it breaks.
+        let Some((edge, violation)) = graph
             .file_edges(&batch.file_path, &added)
             .iter()
-            .any(|e| graph.classify(e).is_some());
-        if !fired {
+            .find_map(|e| graph.classify(e).map(|v| (e.clone(), v)))
+        else {
             continue;
-        }
+        };
         let hunk_content = added.clone();
         let hash = hit_hash(&batch.file_path, "layering", &hunk_content);
         let inline = ext_to_lang(&extension(&batch.file_path))
@@ -1289,9 +1296,32 @@ fn arch_hits(
             suppressed_by,
             #[cfg(feature = "semantic")]
             semantic: None,
+            arch: Some(arch_evidence(&edge, violation)),
         });
     }
     hits
+}
+
+/// The evidence line for a `layering` finding: name the established direction
+/// the novel edge `(a, b)` breaks, in the repo's own module vocabulary.
+#[cfg(feature = "arch")]
+fn arch_evidence(
+    edge: &crate::scoring::arch_graph::Edge,
+    violation: crate::scoring::arch_graph::Violation,
+) -> String {
+    use crate::scoring::arch_graph::Violation;
+    let (a, b) = edge;
+    match violation {
+        Violation::Reversal => {
+            format!("{b} → {a} is this repo's direction — this import reverses it")
+        }
+        Violation::TransitiveReversal => format!(
+            "{b} already depends on {a} — this import closes a cycle against the repo's layering"
+        ),
+        Violation::SinkOut => {
+            format!("{a} is a module this repo never imports out of — this import leaves it")
+        }
+    }
 }
 
 /// The semantic pass (F1 reinvention, F2 placement) — additive `Hit`s from
@@ -1588,6 +1618,8 @@ fn build_semantic_hit(
         hash,
         suppressed_by,
         semantic: Some(sem),
+        #[cfg(feature = "arch")]
+        arch: None,
     }
 }
 
@@ -1845,6 +1877,12 @@ fn render_results(
                     out.push('\n');
                 }
             }
+            // Layering findings name the established direction they break.
+            #[cfg(feature = "arch")]
+            if let Some(arch) = &h.arch {
+                out.push_str(&paint(&format!("    ↳ {arch}"), C_DIM, use_color));
+                out.push('\n');
+            }
 
             // Smart-peek keeps flagged lines in-frame; caret spans drive the
             // eslint-style `^^^^` underlines under the offending bytes.
@@ -2032,6 +2070,11 @@ fn hit_records(hits: &[&Hit], settings: &RuleSettings) -> Vec<HitRecord> {
                     .collect(),
                 None => evidence,
             };
+            #[cfg(feature = "arch")]
+            let evidence = match &h.arch {
+                Some(arch) => vec![format!("↳ {arch}")],
+                None => evidence,
+            };
             HitRecord {
                 path: h.file_path.clone(),
                 line_start: h.line,
@@ -2083,8 +2126,9 @@ const FRESHNESS_WARN_COMMITS: usize = 10;
 
 /// How many commits HEAD is ahead of the fit SHA (`None` when either end
 /// cannot be resolved — shallow clones, rewritten history, detached states
-/// must never break check).
-fn commits_since_fit(repo_path: &str, fit_sha: &str) -> Option<usize> {
+/// must never break check). Public: the CLI's auto-refresh reads the same
+/// staleness the in-check warning does.
+pub fn commits_since_fit(repo_path: &str, fit_sha: &str) -> Option<usize> {
     let repo = open_repo(repo_path).ok()?;
     let head = repo.head().ok()?.peel_to_commit().ok()?;
     let fit_oid = git2::Oid::from_str(fit_sha).ok()?;
@@ -2293,8 +2337,10 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     if let Some(fit_sha) = &fit_sha {
         if let Some(behind) = commits_since_fit(&args.repo_path, fit_sha) {
             if behind >= FRESHNESS_WARN_COMMITS {
+                // No imperative here: the CLI's auto-refresh acts on this
+                // drift itself (and says so right after this line).
                 stderr.push_str(&format!(
-                    "[argot] model fitted {behind} commits ago — voice may have drifted; re-run `argot fit`\n"
+                    "[argot] model fitted {behind} commits ago — voice may have drifted\n"
                 ));
             }
         }
@@ -2682,6 +2728,20 @@ fn mute_path_present(repo_path: &str, mute_path: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[test]
+    #[cfg(feature = "arch")]
+    fn arch_evidence_names_the_broken_direction() {
+        use crate::scoring::arch_graph::Violation;
+        let edge = ("core".to_string(), "cli".to_string());
+        assert_eq!(
+            arch_evidence(&edge, Violation::Reversal),
+            "cli → core is this repo's direction — this import reverses it"
+        );
+        assert!(arch_evidence(&edge, Violation::TransitiveReversal).contains("closes a cycle"));
+        assert!(arch_evidence(&edge, Violation::SinkOut).contains("never imports out of"));
+    }
 
     #[test]
     fn insert_ignore_comments_bottom_up_with_indentation() {

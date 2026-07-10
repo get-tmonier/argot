@@ -1089,6 +1089,17 @@ pub fn run_calibrate(
     #[cfg(feature = "semantic")]
     let mut semantic_artifact =
         crate::scoring::semantic::index::SemanticArtifact::new(opts.repo_sha.clone());
+    // The previous fit's index, when it exists and was built by THIS model:
+    // unchanged functions reuse their vectors (incremental refresh), so a
+    // routine refit embeds only what actually changed. A stale/other-model
+    // artifact yields no reuse — full re-embed, never mixed spaces.
+    #[cfg(feature = "semantic")]
+    let prior_artifact = std::fs::read_to_string(
+        output.with_file_name(crate::scoring::semantic::SEMANTIC_INDEX_FILE),
+    )
+    .ok()
+    .and_then(|raw| crate::scoring::semantic::index::SemanticArtifact::from_json_str(&raw).ok())
+    .filter(|a| a.validate_current().is_ok());
 
     for (name, (language, lang_files)) in by_lang {
         let adapter = adapter_for(language);
@@ -1363,12 +1374,26 @@ pub fn run_calibrate(
                 ));
             }
             if !funcs.is_empty() {
+                let prior_index = prior_artifact
+                    .as_ref()
+                    .and_then(|a| a.load(name).ok().flatten())
+                    .map(|li| li.index);
                 eprintln!(
                     "argot: building semantic index for {name} ({} functions)…",
                     funcs.len()
                 );
-                match crate::scoring::semantic::index::SemanticIndex::build(emb, &funcs) {
-                    Ok(idx) if !idx.is_empty() => {
+                match crate::scoring::semantic::index::SemanticIndex::build_with_reuse(
+                    emb,
+                    &funcs,
+                    prior_index.as_ref(),
+                ) {
+                    Ok((idx, reused)) if !idx.is_empty() => {
+                        if reused > 0 {
+                            eprintln!(
+                                "argot: {name}: reused {reused} of {} embeddings from the previous fit",
+                                funcs.len()
+                            );
+                        }
                         // Self-calibrate the placement sense on the fresh index
                         // (adaptive areas, entangled merges, vote parameters —
                         // or disabled when the repo's areas aren't separable).

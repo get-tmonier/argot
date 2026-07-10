@@ -482,6 +482,7 @@ mod tests {
             vec: unit(vec),
             callees: Vec::new(),
             subtokens: Vec::new(),
+            text_hash: String::new(),
         }
     }
 

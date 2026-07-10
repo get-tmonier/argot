@@ -16,7 +16,7 @@
 //! Query is a brute-force scan: ~2.6k × 768 mults per query is sub-millisecond,
 //! and diffs define only a handful of functions, so LSH/ANN would be premature.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use anyhow::{bail, Context, Result};
 use base64::Engine as _;
@@ -56,6 +56,11 @@ pub struct IndexEntry {
     /// Sorted, deduped identifier subtokens — used for IDF-weighted subtoken
     /// Jaccard confirmation (the main reinvention-recall driver).
     pub subtokens: Vec<String>,
+    /// Truncated sha256 of the embedded text — lets a refit reuse this entry's
+    /// vector when the function body is unchanged (incremental refresh).
+    /// Empty on artifacts written before the field existed (no reuse, full
+    /// re-embed — correct, just slower once).
+    pub text_hash: String,
 }
 
 /// A function to index or query: identity plus the source text to embed, and its
@@ -103,30 +108,76 @@ impl SemanticIndex {
     /// Build an index by embedding `funcs` in one batch (amortises the inference
     /// context). Order of `entries` follows `funcs`.
     pub fn build(embedder: &Embedder, funcs: &[FunctionRef]) -> Result<Self> {
+        Ok(Self::build_with_reuse(embedder, funcs, None)?.0)
+    }
+
+    /// Build the index, reusing vectors from `prior` for functions whose
+    /// embedded text is unchanged (keyed by [`embed_text_hash`]) — the
+    /// incremental-refit path that turns a full re-embed into embedding only
+    /// the new/changed functions. Returns the index and how many vectors were
+    /// reused. A `prior` from another model must never reach here — the caller
+    /// gates on [`SemanticArtifact::validate_current`].
+    pub fn build_with_reuse(
+        embedder: &Embedder,
+        funcs: &[FunctionRef],
+        prior: Option<&SemanticIndex>,
+    ) -> Result<(Self, usize)> {
         if funcs.is_empty() {
-            return Ok(Self {
-                dim: EMBED_DIM,
-                entries: Vec::new(),
-            });
+            return Ok((
+                Self {
+                    dim: EMBED_DIM,
+                    entries: Vec::new(),
+                },
+                0,
+            ));
         }
-        let texts: Vec<&str> = funcs.iter().map(|f| f.text.as_str()).collect();
-        let vecs = embedder.embed(&texts).context("embed corpus functions")?;
-        let entries = funcs
-            .iter()
-            .zip(vecs)
-            .map(|(f, vec)| IndexEntry {
+        // hash → vector of the prior fit (skip pre-hash entries).
+        let mut reusable: HashMap<&str, &Vec<f32>> = HashMap::new();
+        if let Some(p) = prior {
+            for e in &p.entries {
+                if !e.text_hash.is_empty() && e.vec.len() == EMBED_DIM {
+                    reusable.insert(e.text_hash.as_str(), &e.vec);
+                }
+            }
+        }
+
+        let hashes: Vec<String> = funcs.iter().map(|f| embed_text_hash(&f.text)).collect();
+        let to_embed: Vec<usize> = (0..funcs.len())
+            .filter(|&i| !reusable.contains_key(hashes[i].as_str()))
+            .collect();
+        let texts: Vec<&str> = to_embed.iter().map(|&i| funcs[i].text.as_str()).collect();
+        let mut fresh = embedder
+            .embed(&texts)
+            .context("embed corpus functions")?
+            .into_iter();
+
+        let mut entries = Vec::with_capacity(funcs.len());
+        let mut reused = 0usize;
+        for (i, f) in funcs.iter().enumerate() {
+            let vec = match reusable.get(hashes[i].as_str()) {
+                Some(v) => {
+                    reused += 1;
+                    (*v).clone()
+                }
+                None => fresh.next().expect("one fresh vector per to-embed fn"),
+            };
+            entries.push(IndexEntry {
                 symbol: f.symbol.clone(),
                 path: f.path.clone(),
                 line: f.line,
                 vec,
                 callees: f.callees.clone(),
                 subtokens: f.subtokens.clone(),
-            })
-            .collect();
-        Ok(Self {
-            dim: EMBED_DIM,
-            entries,
-        })
+                text_hash: hashes[i].clone(),
+            });
+        }
+        Ok((
+            Self {
+                dim: EMBED_DIM,
+                entries,
+            },
+            reused,
+        ))
     }
 
     /// The top-`k` entries admitted by `include`, by descending cosine. `include`
@@ -177,6 +228,7 @@ impl SemanticIndex {
             reinvention,
             callees: self.entries.iter().map(|e| e.callees.clone()).collect(),
             subtokens: self.entries.iter().map(|e| e.subtokens.clone()).collect(),
+            text_hashes: self.entries.iter().map(|e| e.text_hash.clone()).collect(),
         }
     }
 
@@ -212,6 +264,7 @@ impl SemanticIndex {
                 vec,
                 callees: j.callees.get(i).cloned().unwrap_or_default(),
                 subtokens: j.subtokens.get(i).cloned().unwrap_or_default(),
+                text_hash: j.text_hashes.get(i).cloned().unwrap_or_default(),
             });
         }
         Ok(Self {
@@ -219,6 +272,18 @@ impl SemanticIndex {
             entries,
         })
     }
+}
+
+/// Truncated sha256 of an embed input — the reuse key for incremental refits.
+/// 16 hex chars ≈ 64 bits: collisions across a repo's few thousand functions
+/// are negligible, and a collision only reuses a *valid* vector for the wrong
+/// (near-identical-population) text, never corrupts the index shape.
+pub fn embed_text_hash(text: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(text.as_bytes());
+    let digest = hasher.finalize();
+    digest.iter().take(8).map(|b| format!("{b:02x}")).collect()
 }
 
 /// Dot product (== cosine for L2-normalised inputs). A length mismatch means
@@ -438,6 +503,10 @@ struct LanguageIndexJson {
     /// IDF-weighted fingerprint that drives most of F1's reinvention recall.
     #[serde(default)]
     subtokens: Vec<Vec<String>>,
+    /// Per-function embed-text hashes (aligned) — the incremental-refit reuse
+    /// key. Default (empty) for indices written before the field: no reuse.
+    #[serde(default)]
+    text_hashes: Vec<String>,
 }
 
 /// A language's loaded index plus its self-calibrated placement config.
@@ -577,6 +646,7 @@ mod tests {
             vec,
             callees: Vec::new(),
             subtokens: Vec::new(),
+            text_hash: String::new(),
         }
     }
 
@@ -651,6 +721,68 @@ mod tests {
             assert!(c > 0.999, "f16 storage preserves direction: {c}");
         }
         assert!(back.load("typescript").unwrap().is_none());
+    }
+
+    #[test]
+    fn embed_text_hash_is_stable_and_content_keyed() {
+        let a = embed_text_hash("def f():\n    return 1\n");
+        let b = embed_text_hash("def f():\n    return 1\n");
+        let c = embed_text_hash("def f():\n    return 2\n");
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+        assert_eq!(a.len(), 16, "16 hex chars");
+    }
+
+    #[test]
+    fn build_with_reuse_keeps_unchanged_vectors_and_embeds_the_rest() {
+        // Needs a local model (same skip convention as the embedder tests).
+        let Some(emb) = crate::scoring::semantic::embedder::Embedder::ready()
+            .ok()
+            .flatten()
+        else {
+            eprintln!("skipping: no local model");
+            return;
+        };
+        let func = |symbol: &str, text: &str| FunctionRef {
+            symbol: symbol.into(),
+            path: "src/m.py".into(),
+            line: 1,
+            end_line: 3,
+            text: text.into(),
+            callees: Vec::new(),
+            subtokens: Vec::new(),
+        };
+        let f1 = func("a", "def a(x):\n    y = x + 1\n    return y\n");
+        let f2 = func("b", "def b(x):\n    y = x * 2\n    return y\n");
+        let (first, reused0) =
+            SemanticIndex::build_with_reuse(&emb, &[f1.clone(), f2.clone()], None).unwrap();
+        assert_eq!(reused0, 0);
+
+        // Second fit: f1 unchanged, f2 replaced by a new function.
+        let f3 = func("c", "def c(x):\n    y = x - 3\n    return y\n");
+        let (second, reused) =
+            SemanticIndex::build_with_reuse(&emb, &[f1.clone(), f3], Some(&first)).unwrap();
+        assert_eq!(reused, 1, "unchanged f1 reused");
+        assert_eq!(
+            second.entries[0].vec, first.entries[0].vec,
+            "bit-identical reuse"
+        );
+        assert_ne!(second.entries[1].vec, first.entries[1].vec);
+        // Hashes round-trip through the artifact so the NEXT fit reuses too.
+        let mut art = SemanticArtifact::new("sha".into());
+        art.insert(
+            "python",
+            &second,
+            crate::scoring::semantic::placement::PlacementConfig::default(),
+            crate::scoring::semantic::redundant::ReinventionConfig::default(),
+        );
+        let back = SemanticArtifact::from_json_str(&art.to_json_string().unwrap()).unwrap();
+        let loaded = back.load("python").unwrap().unwrap();
+        assert_eq!(
+            loaded.index.entries[0].text_hash,
+            second.entries[0].text_hash
+        );
+        assert!(!loaded.index.entries[0].text_hash.is_empty());
     }
 
     #[test]

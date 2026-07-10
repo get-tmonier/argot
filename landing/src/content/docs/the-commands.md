@@ -152,6 +152,14 @@ argot check --repo ../other-repo    # check a repo other than the current direct
 Color follows the [`NO_COLOR`](https://no-color.org) convention: argot colors confidence markers only when
 `NO_COLOR` is unset **and** stdout is a terminal. Machine formats are never colored.
 
+### Freshness
+
+A fit that falls **10+ commits behind HEAD** (or a week old with any drift) is
+refreshed automatically: `check` spawns a detached background refit (at most
+once a day, never in CI) and tells you in one dim line — the next check uses
+the fresh voice. Opt out with `[fit] auto-refresh = false`
+([Configure](/docs/configure/#fit--the-background-auto-refresh)).
+
 ## rules
 
 List every rule with its group and the **effective severity** for this repo — the resolved result

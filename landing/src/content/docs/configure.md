@@ -296,6 +296,24 @@ both).
 paths = ["scratch/", "experiments/"]   # appended to the committed excludes
 ```
 
+## `[fit]` — the background auto-refresh
+
+A fit is a snapshot: as the repo merges new dependencies and modules, a stale
+model starts reading your own accepted code as foreign. argot keeps itself
+fresh — when a `check` notices the fit is **10+ commits behind HEAD** (or more
+than a week old with any drift), it refits **in the background**, detached, at
+most once a day, and says so in one dim line. The check you just ran used the
+old model (zero added latency); the next one scores against the fresh voice.
+The refit reads committed HEAD — never your working tree — and the semantic
+index reuses the embeddings of unchanged functions, so a routine refresh costs
+seconds. CI never auto-refits (the Action refits per base advance). To opt out
+and drive `argot fit` yourself:
+
+```toml
+[fit]
+auto-refresh = false
+```
+
 ## `[update]` — the passive update notice
 
 argot prints at most one dim line a day on stderr when a newer release exists
