@@ -166,6 +166,9 @@ enum Command {
     Check(CheckCmd),
     /// List every rule with its group and effective severity for this repo.
     Rules(RulesCmd),
+    /// Manage the local embedding model behind the semantic rules.
+    #[cfg(feature = "semantic")]
+    Model(ModelCmd),
     /// Score a PR (or diff range) against the local voice without checking it out.
     Review(ReviewCmd),
     /// PR-level out-of-voice metric plus ranked hot-spots for a ref/range.
@@ -1109,6 +1112,85 @@ Configure in argot.toml [rules] (e.g. `misplaced = \"warn\"`, `semantic = \"off\
     ExitCode::SUCCESS
 }
 
+/// `argot model` — explicit control over the fetched-on-first-use embedding
+/// model (~100 MB GGUF). The automatic path needs none of this; these exist
+/// for CI pre-warming, air-gapped installs, and cache hygiene.
+#[cfg(feature = "semantic")]
+#[derive(Args)]
+struct ModelCmd {
+    #[command(subcommand)]
+    action: ModelAction,
+}
+
+#[cfg(feature = "semantic")]
+#[derive(clap::Subcommand)]
+enum ModelAction {
+    /// Download and verify the model now (instead of on first use).
+    Fetch,
+    /// Show whether the model is present, where, and its size.
+    Status,
+    /// Delete the model cache (re-fetched on next use).
+    Clean,
+}
+
+#[cfg(feature = "semantic")]
+fn run_model_cmd(c: ModelCmd) -> ExitCode {
+    use argot_core::scoring::semantic::embedder;
+    let mb = |b: u64| b as f64 / (1024.0 * 1024.0);
+    match c.action {
+        ModelAction::Fetch => match embedder::fetch_model() {
+            Ok(path) => {
+                let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+                println!(
+                    "model ready: {} ({:.1} MB, sha256 verified)",
+                    path.display(),
+                    mb(size)
+                );
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("error: {e:#}");
+                ExitCode::from(2)
+            }
+        },
+        ModelAction::Status => match embedder::model_status() {
+            Ok(embedder::ModelStatus::EnvOverride(path)) => {
+                println!("model: {} ({})", path.display(), embedder::MODEL_ENV);
+                ExitCode::SUCCESS
+            }
+            Ok(embedder::ModelStatus::Cached { path, size_bytes }) => {
+                println!(
+                    "model: {} ({:.1} MB, sha256 verified)",
+                    path.display(),
+                    mb(size_bytes)
+                );
+                ExitCode::SUCCESS
+            }
+            Ok(embedder::ModelStatus::Absent) => {
+                println!(
+                    "model: not downloaded — fetched on first `argot fit`/`check`, \
+                     or run `argot model fetch` now (~100 MB, one-time)"
+                );
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("error: {e:#}");
+                ExitCode::from(2)
+            }
+        },
+        ModelAction::Clean => match embedder::clean_models() {
+            Ok((files, bytes)) => {
+                println!("removed {files} file(s), freed {:.1} MB", mb(bytes));
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("error: {e:#}");
+                ExitCode::from(2)
+            }
+        },
+    }
+}
+
 #[derive(Args)]
 struct ReviewCmd {
     /// A PR URL, `#number` / `number`, a `base..head` range, or a commit sha.
@@ -1966,6 +2048,8 @@ fn main() -> ExitCode {
         Some(Command::Fit(c)) => run_fit_cmd(c),
         Some(Command::Check(c)) => run_check_cmd(c),
         Some(Command::Rules(c)) => run_rules_cmd(c),
+        #[cfg(feature = "semantic")]
+        Some(Command::Model(c)) => run_model_cmd(c),
         Some(Command::Review(c)) => {
             let use_color =
                 std::env::var_os("NO_COLOR").is_none() && std::io::stdout().is_terminal();

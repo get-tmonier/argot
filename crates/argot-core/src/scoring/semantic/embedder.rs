@@ -33,17 +33,29 @@ const N_CTX: u32 = 8192;
 
 /// The pinned model — `jina-embeddings-v2-base-code`, Q4_K_M GGUF. These exact
 /// bytes cleared parity 1.0 in the P0 spike; the sha256 is the ollama blob name.
-const MODEL_FILENAME: &str = "jina-embeddings-v2-base-code-Q4_K_M.gguf";
-const MODEL_SHA256: &str = "1cea691a59c9aeb48f5a95d631f51a8f67850eb6638398c88343de8a6815b496";
+pub const MODEL_NAME: &str = "jina-embeddings-v2-base-code";
+pub const MODEL_FILENAME: &str = "jina-embeddings-v2-base-code-Q4_K_M.gguf";
+pub const MODEL_SHA256: &str = "1cea691a59c9aeb48f5a95d631f51a8f67850eb6638398c88343de8a6815b496";
 
 /// Pinned download URL: an argot-owned release asset mirroring the exact bytes
 /// (chosen over the community `gandolfi/` HF repo so we own availability +
-/// integrity). The release process must upload this file under this tag.
+/// integrity). The release process must upload this file under this tag —
+/// CI verifies the asset exists and matches [`MODEL_SHA256`].
 const MODEL_URL: &str = "https://github.com/get-tmonier/argot/releases/download/semantic-model-v1/jina-embeddings-v2-base-code-Q4_K_M.gguf";
 
 /// Env override for the model path — used by tests, offline installs, and CI to
 /// point at a local GGUF instead of downloading. Highest-priority source.
-const MODEL_ENV: &str = "ARGOT_SEMANTIC_MODEL";
+pub const MODEL_ENV: &str = "ARGOT_SEMANTIC_MODEL";
+
+/// Env kill-switch for all network access: when truthy (set, non-empty, not
+/// `0`), argot never attempts a download — a missing model degrades with a
+/// clear note instead of touching the network. Pattern: `HF_HUB_OFFLINE`.
+pub const OFFLINE_ENV: &str = "ARGOT_OFFLINE";
+
+/// Env override for the download URL (corporate mirrors / artifactory). The
+/// downloaded bytes must still match [`MODEL_SHA256`] — the mirror changes
+/// *where* the model comes from, never *what* it is.
+pub const MODEL_URL_ENV: &str = "ARGOT_MODEL_URL";
 
 /// The process-global llama.cpp backend. `LlamaBackend::init` must run exactly
 /// once per process. We suppress *all* llama.cpp **and** ggml (Metal) logging
@@ -157,7 +169,7 @@ fn l2_normalize(v: &mut [f32]) {
 }
 
 /// Where the fetched GGUF is cached, matching argot's existing `~/.cache/argot`
-/// convention (XDG on Linux, `%LOCALAPPDATA%` on Windows).
+/// convention (XDG on Linux/macOS, `%LOCALAPPDATA%` on Windows).
 fn cache_dir() -> Result<PathBuf> {
     if let Ok(x) = std::env::var("XDG_CACHE_HOME") {
         if !x.is_empty() {
@@ -174,8 +186,36 @@ fn cache_dir() -> Result<PathBuf> {
     Ok(PathBuf::from(home).join(".cache").join("argot"))
 }
 
+/// The directory the fetched model lives in (`<cache>/models`). Public so the
+/// CLI (`argot model status`) and docs name the same real path.
+pub fn models_dir() -> Result<PathBuf> {
+    Ok(cache_dir()?.join("models"))
+}
+
+/// Is `ARGOT_OFFLINE` truthy (set, non-empty, not `0`)?
+fn offline() -> bool {
+    std::env::var(OFFLINE_ENV)
+        .map(|v| !v.is_empty() && v != "0")
+        .unwrap_or(false)
+}
+
+/// The effective download URL (`ARGOT_MODEL_URL` mirror override, else the
+/// pinned release asset).
+fn model_url() -> String {
+    std::env::var(MODEL_URL_ENV)
+        .ok()
+        .filter(|u| !u.is_empty())
+        .unwrap_or_else(|| MODEL_URL.to_string())
+}
+
+/// The advice tail appended to every "model unavailable" note.
+const RETRY_HINT: &str =
+    "retry with `argot model fetch`, or set ARGOT_SEMANTIC_MODEL to a local GGUF";
+
 /// Resolve the model path: env override → verified cache → download. Returns
-/// `Ok(None)` when the model isn't present and can't be fetched (offline).
+/// `Ok(None)` when the model isn't present and can't be fetched — ALWAYS after
+/// printing a one-line reason on stderr (degradation is loud, never a silent
+/// zero: the user must know the redundant/misplaced rules did not run).
 fn resolve_model_path() -> Result<Option<PathBuf>> {
     // 1. Explicit override (tests / offline / CI): trust the path as given.
     if let Ok(p) = std::env::var(MODEL_ENV) {
@@ -189,45 +229,269 @@ fn resolve_model_path() -> Result<Option<PathBuf>> {
     }
 
     // 2. Cache hit (verify integrity before trusting it).
-    let cached = cache_dir()?.join("models").join(MODEL_FILENAME);
+    let cached = models_dir()?.join(MODEL_FILENAME);
     if cached.exists() {
         if sha256_file(&cached)? == MODEL_SHA256 {
             return Ok(Some(cached));
         }
         // Corrupt/partial: remove and fall through to re-fetch.
+        eprintln!("argot: cached model failed its sha256 check — re-fetching");
         let _ = std::fs::remove_file(&cached);
     }
 
-    // 3. Fetch-on-first-use. A network failure is a graceful degrade (None),
-    // not an error — the base guardrail still runs.
+    // 3. Fetch-on-first-use — unless the user said "never touch the network".
+    if offline() {
+        eprintln!(
+            "argot: {OFFLINE_ENV} is set and no cached model — \
+             redundant/misplaced checks skipped this run"
+        );
+        return Ok(None);
+    }
+    // A network failure is a graceful degrade (None), not an error — the base
+    // guardrail still runs — but the reason is always printed.
     match download_model(&cached) {
         Ok(()) => Ok(Some(cached)),
-        Err(_) => Ok(None),
+        Err(e) => {
+            eprintln!(
+                "argot: semantic model download failed ({e:#}) — \
+                 redundant/misplaced checks skipped this run; {RETRY_HINT}"
+            );
+            Ok(None)
+        }
     }
 }
 
-/// Download the pinned GGUF to `dest`, streaming to a temp file, verifying the
-/// sha256, then atomically renaming into place.
+/// Explicit pre-download for `argot model fetch`: resolves like the automatic
+/// path but treats every failure as a hard error (a user who asked for the
+/// model wants the real cause, not a degrade). Returns the cached path.
+pub fn fetch_model() -> Result<PathBuf> {
+    if let Ok(p) = std::env::var(MODEL_ENV) {
+        if !p.is_empty() {
+            let path = PathBuf::from(p);
+            if path.exists() {
+                return Ok(path);
+            }
+            bail!("{MODEL_ENV} points at a missing file: {}", path.display());
+        }
+    }
+    let cached = models_dir()?.join(MODEL_FILENAME);
+    if cached.exists() && sha256_file(&cached)? == MODEL_SHA256 {
+        return Ok(cached);
+    }
+    if offline() {
+        bail!("{OFFLINE_ENV} is set — unset it to allow the download");
+    }
+    download_model(&cached)?;
+    Ok(cached)
+}
+
+/// Where `argot model status` finds the model, if anywhere.
+pub enum ModelStatus {
+    /// `ARGOT_SEMANTIC_MODEL` points at this file (trusted as-is).
+    EnvOverride(PathBuf),
+    /// Verified in the cache.
+    Cached { path: PathBuf, size_bytes: u64 },
+    /// Not present — fetched on first use (or via `argot model fetch`).
+    Absent,
+}
+
+/// Report the model's presence without ever touching the network.
+pub fn model_status() -> Result<ModelStatus> {
+    if let Ok(p) = std::env::var(MODEL_ENV) {
+        if !p.is_empty() {
+            return Ok(ModelStatus::EnvOverride(PathBuf::from(p)));
+        }
+    }
+    let cached = models_dir()?.join(MODEL_FILENAME);
+    if cached.exists() && sha256_file(&cached)? == MODEL_SHA256 {
+        let size_bytes = std::fs::metadata(&cached).map(|m| m.len()).unwrap_or(0);
+        return Ok(ModelStatus::Cached {
+            path: cached,
+            size_bytes,
+        });
+    }
+    Ok(ModelStatus::Absent)
+}
+
+/// Delete everything under the model cache (`argot model clean`) — stale
+/// models from older argot versions, orphaned partial downloads, and the
+/// current model. Returns (files removed, bytes freed).
+pub fn clean_models() -> Result<(usize, u64)> {
+    let dir = models_dir()?;
+    let mut files = 0usize;
+    let mut bytes = 0u64;
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return Ok((0, 0));
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() {
+            bytes += entry.metadata().map(|m| m.len()).unwrap_or(0);
+            std::fs::remove_file(&path).with_context(|| format!("remove {}", path.display()))?;
+            files += 1;
+        }
+    }
+    Ok((files, bytes))
+}
+
+/// Drop cache-dir siblings the current model made obsolete: any other `*.gguf`
+/// (a previous model version) and any orphaned `*.partial*` temp file. Runs
+/// after a successful install so the cache never accumulates dead ~100 MB
+/// files across model upgrades.
+fn gc_stale_cache_files(dir: &Path, keep: &Path) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path == keep || !path.is_file() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if name.ends_with(".gguf") || name.contains(".partial") {
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+}
+
+/// Standard Cache Directory Tagging signature — tells backup tools the
+/// directory is regenerable and safe to skip (<https://bford.info/cachedir/>).
+fn write_cachedir_tag(cache_root: &Path) {
+    let tag = cache_root.join("CACHEDIR.TAG");
+    if tag.exists() {
+        return;
+    }
+    let _ = std::fs::write(
+        &tag,
+        "Signature: 8a477f597d28d172789f06886806bc55\n\
+         # This directory holds argot's regenerable cache (semantic model).\n\
+         # Everything here is re-fetched on demand — safe to delete or skip in backups.\n",
+    );
+}
+
+/// HTTP agent for the model download: bounded connect/read timeouts (a stalled
+/// proxy must degrade, never hang the fit) and standard proxy-env support
+/// (`HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY`).
+fn download_agent() -> ureq::Agent {
+    let mut builder = ureq::AgentBuilder::new()
+        .timeout_connect(std::time::Duration::from_secs(10))
+        .timeout_read(std::time::Duration::from_secs(60));
+    let proxy_env = [
+        "HTTPS_PROXY",
+        "https_proxy",
+        "HTTP_PROXY",
+        "http_proxy",
+        "ALL_PROXY",
+    ]
+    .iter()
+    .find_map(|k| std::env::var(k).ok().filter(|v| !v.is_empty()));
+    if let Some(p) = proxy_env {
+        if let Ok(proxy) = ureq::Proxy::new(p) {
+            builder = builder.proxy(proxy);
+        }
+    }
+    builder.build()
+}
+
+/// Download the pinned GGUF to `dest`: announce what/why/where up front,
+/// stream to a PID-unique temp file (concurrent runs can't corrupt each
+/// other), show progress on a tty, verify the sha256, then atomically rename
+/// into place. One retry on a transient network failure.
 fn download_model(dest: &Path) -> Result<()> {
     if let Some(parent) = dest.parent() {
         std::fs::create_dir_all(parent).context("create model cache dir")?;
+        gc_stale_cache_files(parent, dest); // clear orphaned partials up front
+        if let Some(cache_root) = parent.parent() {
+            write_cachedir_tag(cache_root);
+        }
     }
-    let tmp = dest.with_extension("gguf.partial");
+    let tmp = dest.with_extension(format!("gguf.partial.{}", std::process::id()));
 
-    eprintln!("argot: downloading semantic model (~90 MB, one-time)…");
-    let resp = ureq::get(MODEL_URL).call().context("fetch model")?;
+    eprintln!(
+        "argot: downloading {MODEL_NAME} (~100 MB, one-time) to {} — powers the redundant/misplaced rules",
+        dest.parent().map(|p| p.display().to_string()).unwrap_or_default()
+    );
+    let mut last_err: Option<anyhow::Error> = None;
+    for attempt in 0..2 {
+        if attempt > 0 {
+            eprintln!("argot: retrying download…");
+        }
+        match try_download(&tmp, dest) {
+            Ok(()) => {
+                if let Some(parent) = dest.parent() {
+                    gc_stale_cache_files(parent, dest); // drop obsolete older models
+                }
+                eprintln!("argot: semantic model ready ({})", dest.display());
+                return Ok(());
+            }
+            Err(e) => last_err = Some(e),
+        }
+    }
+    let _ = std::fs::remove_file(&tmp);
+    Err(last_err.expect("two attempts, at least one error"))
+}
+
+/// One download attempt: stream → verify → rename.
+fn try_download(tmp: &Path, dest: &Path) -> Result<()> {
+    let resp = download_agent()
+        .get(&model_url())
+        .call()
+        .context("fetch model")?;
+    let total: Option<u64> = resp.header("Content-Length").and_then(|v| v.parse().ok());
     let mut reader = resp.into_reader();
     {
-        let mut file = std::fs::File::create(&tmp).context("create temp model file")?;
-        std::io::copy(&mut reader, &mut file).context("stream model to disk")?;
+        let mut file = std::fs::File::create(tmp).context("create temp model file")?;
+        stream_with_progress(&mut reader, &mut file, total).context("stream model to disk")?;
     }
 
-    let got = sha256_file(&tmp)?;
+    let got = sha256_file(tmp)?;
     if got != MODEL_SHA256 {
-        let _ = std::fs::remove_file(&tmp);
+        let _ = std::fs::remove_file(tmp);
         bail!("downloaded model sha256 mismatch: got {got}, expected {MODEL_SHA256}");
     }
-    std::fs::rename(&tmp, dest).context("install model into cache")?;
+    std::fs::rename(tmp, dest).context("install model into cache")?;
+    Ok(())
+}
+
+/// `io::copy` with a live progress line on stderr when it's a tty (silent
+/// otherwise — CI logs must not fill with carriage returns).
+fn stream_with_progress(
+    reader: &mut impl std::io::Read,
+    file: &mut std::fs::File,
+    total: Option<u64>,
+) -> std::io::Result<()> {
+    use std::io::{IsTerminal, Write};
+    let show = std::io::stderr().is_terminal();
+    let mut buf = vec![0u8; 1 << 20];
+    let mut done: u64 = 0;
+    let mut last_shown: u64 = 0;
+    loop {
+        let n = reader.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        file.write_all(&buf[..n])?;
+        done += n as u64;
+        // Repaint at most every 4 MB — enough to feel alive, cheap to render.
+        if show && done - last_shown >= (4 << 20) {
+            last_shown = done;
+            let mb = done as f64 / (1024.0 * 1024.0);
+            match total {
+                Some(t) if t > 0 => {
+                    let pct = (done as f64 / t as f64 * 100.0).min(100.0);
+                    eprint!(
+                        "\rargot: downloading… {mb:.0} / {:.0} MB ({pct:.0}%)",
+                        t as f64 / (1024.0 * 1024.0)
+                    );
+                }
+                _ => eprint!("\rargot: downloading… {mb:.0} MB"),
+            }
+            let _ = std::io::stderr().flush();
+        }
+    }
+    if show && last_shown > 0 {
+        eprintln!();
+    }
     Ok(())
 }
 
@@ -267,6 +531,46 @@ mod tests {
                 cached.exists().then_some(cached)
             })?;
         Embedder::load(&path).ok()
+    }
+
+    fn scratch(name: &str) -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("argot_embedder_{name}_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn gc_removes_stale_ggufs_and_partials_but_keeps_current() {
+        let dir = scratch("gc");
+        let keep = dir.join(MODEL_FILENAME);
+        std::fs::write(&keep, b"current").unwrap();
+        std::fs::write(dir.join("old-model-v0.gguf"), b"old").unwrap();
+        std::fs::write(dir.join("x.gguf.partial.123"), b"orphan").unwrap();
+        std::fs::write(dir.join("CACHEDIR.TAG"), b"tag").unwrap();
+        gc_stale_cache_files(&dir, &keep);
+        assert!(keep.exists(), "current model kept");
+        assert!(!dir.join("old-model-v0.gguf").exists(), "old model gone");
+        assert!(!dir.join("x.gguf.partial.123").exists(), "orphan gone");
+        assert!(dir.join("CACHEDIR.TAG").exists(), "unrelated file kept");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn cachedir_tag_written_once_with_signature() {
+        let dir = scratch("tag");
+        write_cachedir_tag(&dir);
+        let content = std::fs::read_to_string(dir.join("CACHEDIR.TAG")).unwrap();
+        assert!(content.starts_with("Signature: 8a477f597d28d172789f06886806bc55"));
+        // Idempotent: a hand-edited tag is left untouched.
+        std::fs::write(dir.join("CACHEDIR.TAG"), "custom").unwrap();
+        write_cachedir_tag(&dir);
+        assert_eq!(
+            std::fs::read_to_string(dir.join("CACHEDIR.TAG")).unwrap(),
+            "custom"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

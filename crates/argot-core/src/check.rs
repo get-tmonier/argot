@@ -1324,6 +1324,15 @@ fn semantic_hits(
             return Vec::new();
         }
     };
+    // A stale index (older format, different embedding model) must never be
+    // queried — its cosines would be silently wrong. Loud skip + rebuild hint.
+    if let Err(reason) = artifact.validate_current() {
+        stderr.push_str(&format!(
+            "[argot] semantic index {reason} — run `argot fit` to rebuild; \
+             redundant/misplaced checks skipped this run\n"
+        ));
+        return Vec::new();
+    }
 
     // Gather the functions this diff defines: a function whose definition line is
     // among the diff's added lines is newly added (its whole body, incl. the def,
@@ -1390,7 +1399,9 @@ fn semantic_hits(
     let embedder = match Embedder::ready() {
         Ok(Some(e)) => e,
         Ok(None) => {
-            stderr.push_str("[argot] semantic model unavailable — skipping reinvention findings\n");
+            stderr.push_str(
+                "[argot] semantic model unavailable — redundant/misplaced checks skipped this run\n",
+            );
             return Vec::new();
         }
         Err(e) => {

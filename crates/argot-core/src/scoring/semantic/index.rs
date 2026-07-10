@@ -28,7 +28,11 @@ use crate::scoring::adapters::LanguageAdapter;
 
 /// Artifact format version (bump on any breaking on-disk change).
 /// v2: `area_norms` replaced by the self-calibrated `placement` block.
-const ARTIFACT_VERSION: u32 = 2;
+/// v3: the artifact records the embedding model's identity (name/sha256/dim)
+///     and `validate_current` gates loading — an index built by a different
+///     model or argot version is declared stale instead of silently producing
+///     wrong cosines.
+const ARTIFACT_VERSION: u32 = 3;
 
 /// Functions shorter than this (in lines) are skipped when indexing: one- and
 /// two-line bodies are boilerplate (getters, trivial wrappers) that only add
@@ -217,8 +221,16 @@ impl SemanticIndex {
     }
 }
 
-/// Dot product (== cosine for L2-normalised inputs).
+/// Dot product (== cosine for L2-normalised inputs). A length mismatch means
+/// the index was built by a different-dimensional model — `validate_current`
+/// prevents that upstream; this guard makes the failure impossible to miss
+/// (a mismatched entry can never be "nearest") instead of a silently
+/// truncated `zip`.
 fn dot(a: &[f32], b: &[f32]) -> f32 {
+    debug_assert_eq!(a.len(), b.len(), "embedding dimension mismatch");
+    if a.len() != b.len() {
+        return f32::NEG_INFINITY;
+    }
     a.iter().zip(b).map(|(x, y)| x * y).sum()
 }
 
@@ -436,13 +448,38 @@ pub struct LoadedIndex {
     pub reinvention: super::redundant::ReinventionConfig,
 }
 
+/// The embedding model an index was built with — persisted in the artifact so
+/// a model upgrade (new argot release, new constants) invalidates old indices
+/// loudly instead of comparing vectors from two different embedding spaces.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ModelIdentity {
+    pub name: String,
+    pub sha256: String,
+    pub dim: usize,
+}
+
+impl ModelIdentity {
+    /// The identity of the model this binary pins.
+    pub fn current() -> Self {
+        Self {
+            name: super::embedder::MODEL_NAME.to_string(),
+            sha256: super::embedder::MODEL_SHA256.to_string(),
+            dim: EMBED_DIM,
+        }
+    }
+}
+
 /// The whole-repo semantic artifact: one index per language, plus the fit's
 /// `repo_sha` so a check can confirm the index matches the scorer-config it
-/// scores with.
+/// scores with, and the embedding model's identity so a model change is
+/// detected instead of silently mis-scored.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SemanticArtifact {
     pub version: u32,
     pub repo_sha: String,
+    /// Absent only in pre-v3 artifacts — `validate_current` rejects those.
+    #[serde(default)]
+    pub model: Option<ModelIdentity>,
     languages: BTreeMap<String, LanguageIndexJson>,
 }
 
@@ -451,8 +488,42 @@ impl SemanticArtifact {
         Self {
             version: ARTIFACT_VERSION,
             repo_sha,
+            model: Some(ModelIdentity::current()),
             languages: BTreeMap::new(),
         }
+    }
+
+    /// Is this on-disk artifact usable by *this* binary? `Err(reason)` when it
+    /// was written by an older format or a different embedding model — the
+    /// caller reports the reason and skips the semantic rules for the run
+    /// (`argot fit` rebuilds the index with the current model).
+    pub fn validate_current(&self) -> std::result::Result<(), String> {
+        if self.version != ARTIFACT_VERSION {
+            return Err(format!(
+                "was written by another argot version (format v{}, this binary expects v{ARTIFACT_VERSION})",
+                self.version
+            ));
+        }
+        let current = ModelIdentity::current();
+        match &self.model {
+            None => return Err("predates model-identity tracking".to_string()),
+            Some(m) if *m != current => {
+                return Err(format!(
+                    "was built with a different embedding model ({} dim {})",
+                    m.name, m.dim
+                ));
+            }
+            Some(_) => {}
+        }
+        for (lang, j) in &self.languages {
+            if j.dim != EMBED_DIM {
+                return Err(format!(
+                    "{lang} index is {}-dimensional, this model embeds {EMBED_DIM}",
+                    j.dim
+                ));
+            }
+        }
+        Ok(())
     }
 
     /// Add a language's index and its self-calibrated placement config
@@ -580,6 +651,64 @@ mod tests {
             assert!(c > 0.999, "f16 storage preserves direction: {c}");
         }
         assert!(back.load("typescript").unwrap().is_none());
+    }
+
+    #[test]
+    fn fresh_artifact_validates_and_carries_model_identity() {
+        let art = SemanticArtifact::new("deadbeef".into());
+        assert_eq!(art.version, ARTIFACT_VERSION);
+        assert_eq!(art.model, Some(ModelIdentity::current()));
+        assert!(art.validate_current().is_ok());
+        // Survives the JSON round-trip.
+        let back = SemanticArtifact::from_json_str(&art.to_json_string().unwrap()).unwrap();
+        assert!(back.validate_current().is_ok());
+    }
+
+    #[test]
+    fn stale_artifacts_are_rejected_with_a_reason() {
+        // Older format version.
+        let mut art = SemanticArtifact::new("sha".into());
+        art.version = ARTIFACT_VERSION - 1;
+        let reason = art.validate_current().unwrap_err();
+        assert!(reason.contains("another argot version"), "{reason}");
+
+        // Pre-identity artifact (v3 field missing on disk → None).
+        let mut art = SemanticArtifact::new("sha".into());
+        art.model = None;
+        assert!(art
+            .validate_current()
+            .unwrap_err()
+            .contains("model-identity"));
+
+        // Different embedding model.
+        let mut art = SemanticArtifact::new("sha".into());
+        art.model = Some(ModelIdentity {
+            name: "some-other-model".into(),
+            sha256: "0".repeat(64),
+            dim: 384,
+        });
+        let reason = art.validate_current().unwrap_err();
+        assert!(reason.contains("different embedding model"), "{reason}");
+        assert!(reason.contains("some-other-model"), "{reason}");
+    }
+
+    #[test]
+    fn pre_v3_json_parses_but_fails_validation() {
+        // A v2 artifact on disk: no `model` field at all.
+        let json = r#"{"version":2,"repo_sha":"abc","languages":{}}"#;
+        let art = SemanticArtifact::from_json_str(json).unwrap();
+        assert!(art.validate_current().is_err());
+    }
+
+    #[test]
+    fn dot_guards_against_dimension_mismatch() {
+        let a = vec![1.0f32, 0.0, 0.0];
+        let b = vec![1.0f32, 0.0];
+        // Debug builds assert; release returns NEG_INFINITY (never nearest).
+        let result = std::panic::catch_unwind(|| dot(&a, &b));
+        if let Ok(v) = result {
+            assert_eq!(v, f32::NEG_INFINITY);
+        }
     }
 
     #[test]
