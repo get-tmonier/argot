@@ -168,22 +168,17 @@ fn l2_normalize(v: &mut [f32]) {
     }
 }
 
-/// Where the fetched GGUF is cached, matching argot's existing `~/.cache/argot`
-/// convention (XDG on Linux/macOS, `%LOCALAPPDATA%` on Windows).
-fn cache_dir() -> Result<PathBuf> {
-    if let Ok(x) = std::env::var("XDG_CACHE_HOME") {
-        if !x.is_empty() {
-            return Ok(PathBuf::from(x).join("argot"));
-        }
-    }
-    #[cfg(target_os = "windows")]
-    if let Ok(local) = std::env::var("LOCALAPPDATA") {
-        if !local.is_empty() {
-            return Ok(PathBuf::from(local).join("argot"));
-        }
-    }
-    let home = std::env::var("HOME").context("neither XDG_CACHE_HOME nor HOME is set")?;
-    Ok(PathBuf::from(home).join(".cache").join("argot"))
+use crate::cache::cache_dir;
+
+/// The release tag the pinned model ships under (`semantic-model-v1`) — the
+/// update notice compares it against the published `version.json` to announce
+/// a model change after `argot update`.
+pub fn model_tag() -> &'static str {
+    MODEL_URL
+        .split('/')
+        .rev()
+        .nth(1)
+        .expect("MODEL_URL has a tag segment")
 }
 
 /// The directory the fetched model lives in (`<cache>/models`). Public so the

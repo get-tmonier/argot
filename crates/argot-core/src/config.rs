@@ -10,6 +10,8 @@
 //! - `[rules]` — per-rule severities (`error` / `warn` / `off`), keyed by rule
 //!   or group name from the [`crate::rules`] registry. Everything defaults to
 //!   `error`; a rule-specific entry beats its group entry.
+//! - `[update]` — `check = false` opts this repo out of the passive
+//!   once-a-day update notice (env: `ARGOT_UPDATE_CHECK=0`).
 //! - `[[mute]]` — durable per-hit acceptances, a committed audit trail. Written
 //!   by `argot mute <hash>`. Replaces the old `.argot/suppressions.yaml`.
 //!
@@ -182,19 +184,35 @@ impl Default for DetectConfig {
 }
 
 /// The resolved argot configuration (`argot.toml` ⊕ `argot.local.toml`).
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ArgotConfig {
     pub exclude: ExcludeConfig,
     pub detect: DetectConfig,
     /// Validated `[rules]` layers, ascending precedence (base, then local).
     /// CLI overrides append a third layer via [`ArgotConfig::rule_settings`].
     pub rules: Vec<RulesLayer>,
+    /// `[update].check` — false opts out of the passive update notice.
+    pub update_check: bool,
     /// Raw `[[mute]]` tables, validated on demand by [`ArgotConfig::mutes`].
     mutes: Vec<RawMute>,
     /// True when an `argot.toml` (or local) backed these values.
     pub from_file: bool,
     /// Parse-level notes (malformed config file) for stderr.
     pub warnings: Vec<String>,
+}
+
+impl Default for ArgotConfig {
+    fn default() -> Self {
+        ArgotConfig {
+            exclude: ExcludeConfig::default(),
+            detect: DetectConfig::default(),
+            rules: Vec::new(),
+            update_check: true,
+            mutes: Vec::new(),
+            from_file: false,
+            warnings: Vec::new(),
+        }
+    }
 }
 
 /// On-disk shape for serde reads.
@@ -208,6 +226,8 @@ struct RawConfig {
     /// (`toml::Value`) so one bad entry warns instead of failing the file.
     #[serde(default)]
     rules: BTreeMap<String, toml::Value>,
+    #[serde(default)]
+    update: RawUpdate,
     /// `[[mute]]` array-of-tables.
     #[serde(default)]
     mute: Vec<RawMute>,
@@ -218,6 +238,11 @@ struct RawExclude {
     recommended: Option<Vec<String>>,
     #[serde(default)]
     paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+struct RawUpdate {
+    check: Option<bool>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -311,6 +336,9 @@ impl ArgotConfig {
             rules.push(validate_layer(&entries, origin, &mut warnings));
         }
 
+        // [update]: local wins.
+        let update_check = local.update.check.or(base.update.check).unwrap_or(true);
+
         // [[mute]]: appended.
         let mut mutes = base.mute;
         mutes.extend(local.mute);
@@ -322,6 +350,7 @@ impl ArgotConfig {
                 generated_markers,
             },
             rules,
+            update_check,
             mutes,
             from_file,
             warnings,

@@ -15,7 +15,7 @@ path = "src/main.rs"
 # Off by default: axoupdater drags in an HTTP stack (reqwest/rustls/tokio)
 # that only shipped binaries need. Release builds enable it via
 # dist-workspace.toml; CI and dev loops skip the whole tree.
-self-update = ["dep:axoupdater"]
+self-update = ["dep:axoupdater", "dep:ureq"]
 # Compiles in the semantic layer (embeddings-backed findings). This is a
 # build-time gate, not a user opt-in: the shipped binary is built with it on and
 # semantic is standard, always-on behaviour. Dev/CI base loops leave it off for
@@ -33,3 +33,4 @@ serde_json.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 axoupdater = { workspace = true, optional = true }
+ureq = { workspace = true, optional = true }

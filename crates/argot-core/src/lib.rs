@@ -9,6 +9,7 @@
 //! Pipeline: extract → train → calibrate → check.
 
 pub mod bpe;
+pub mod cache;
 pub mod check;
 pub mod config;
 pub mod dataset;

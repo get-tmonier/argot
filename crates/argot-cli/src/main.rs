@@ -7,6 +7,8 @@
 mod describe;
 mod mcp;
 mod review;
+#[cfg(feature = "self-update")]
+mod update_check;
 mod voice_diff;
 
 use clap::{Args, Parser, Subcommand};
@@ -197,6 +199,10 @@ enum Command {
     List(ListCmd),
     /// Update the argot CLI to the latest release.
     Update,
+    /// Refresh the cached version.json state (spawned detached; hidden).
+    #[cfg(feature = "self-update")]
+    #[command(name = "refresh-version-cache", hide = true)]
+    RefreshVersionCache,
     /// Run a Model Context Protocol server for LLM coding agents (stdio).
     Mcp(McpCmd),
     /// Generate a STYLE.md describing the repo's learned voice.
@@ -499,6 +505,10 @@ fn run_update() -> ExitCode {
     match updater.run_sync() {
         Ok(Some(result)) => {
             println!("Updated to argot {}.", result.new_version);
+            // Did this release move the pinned embedding model? Say so now,
+            // so the next fit's ~100 MB download is expected, not a surprise.
+            #[cfg(feature = "semantic")]
+            update_check::model_change_note();
             ExitCode::SUCCESS
         }
         Ok(None) => {
@@ -516,6 +526,13 @@ fn run_update() -> ExitCode {
 /// json` idiom).
 fn wants_json(format: &str) -> bool {
     format == "json"
+}
+
+/// End-of-command freshness hook (notice + detached refresh). A no-op in
+/// builds without `self-update` — dev/CI binaries never phone home.
+fn freshness_hook() {
+    #[cfg(feature = "self-update")]
+    update_check::maybe_notify_and_refresh();
 }
 
 fn print_help_banner() {
@@ -748,6 +765,7 @@ fn run_fit_cmd(c: FitCmd) -> ExitCode {
     match fit_repo(&c.repo, &c.slice) {
         Ok(scorer_config) => {
             println!("Done. Scorer config: {}", scorer_config.display());
+            freshness_hook();
             ExitCode::SUCCESS
         }
         Err(()) => ExitCode::from(2),
@@ -1056,6 +1074,7 @@ fn run_check_cmd(c: CheckCmd) -> ExitCode {
                 eprintln!("note: voice model fitted {days} days ago — `argot fit` to refresh.");
             }
         }
+        freshness_hook();
     }
     ExitCode::from(outcome.exit_code as u8)
 }
@@ -2069,6 +2088,11 @@ fn main() -> ExitCode {
         Some(Command::Status(c)) => run_status(c),
         Some(Command::List(c)) => run_list(c),
         Some(Command::Update) => run_update(),
+        #[cfg(feature = "self-update")]
+        Some(Command::RefreshVersionCache) => {
+            update_check::run_refresh();
+            ExitCode::SUCCESS
+        }
         Some(Command::Mcp(c)) => mcp::run_mcp(c.repo),
         Some(Command::DescribeVoice(c)) => describe::run_describe_voice(c.repo, c.top, c.out),
     }
