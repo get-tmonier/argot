@@ -517,11 +517,24 @@ pub fn changeset_events(files: &[FileChange]) -> Vec<IntegrityEvent> {
             continue;
         };
 
-        let new_by_name: HashMap<&str, &TestCase> =
-            ni.tests.iter().map(|t| (t.name.as_str(), t)).collect();
+        // Names collide legitimately (JUnit @Nested classes, rspec titles
+        // repeated across describes): pair same-named tests POSITIONALLY, one
+        // old to one new — keying a map by name would compare dozens of tests
+        // against a single survivor and fabricate mass events.
+        let mut new_by_name: HashMap<&str, Vec<&TestCase>> = HashMap::new();
+        for t in &ni.tests {
+            new_by_name.entry(t.name.as_str()).or_default().push(t);
+        }
+        let mut taken: HashMap<&str, usize> = HashMap::new();
 
         for t in &td.old_inv.tests {
-            let Some(nt) = new_by_name.get(t.name.as_str()) else {
+            let slot = taken.entry(t.name.as_str()).or_default();
+            let nt = new_by_name
+                .get(t.name.as_str())
+                .and_then(|v| v.get(*slot))
+                .copied();
+            *slot += 1;
+            let Some(nt) = nt else {
                 if !prod_deleted_any
                     && prod_net_growing
                     && !replaced_somewhere(t)
@@ -1423,6 +1436,41 @@ def test_advance():
         assert!(tautology_capable("Equal<uint>"));
         assert!(tautology_capable("assertEquals"));
         assert!(!tautology_capable("assertRunFAIL"));
+    }
+
+    #[test]
+    fn same_named_tests_pair_positionally() {
+        // JUnit @Nested-style: many tests share a method name in one file.
+        // Editing ONE of them must not read as mass gutting of the others.
+        let mk = |bodies: &[&str]| -> String {
+            bodies
+                .iter()
+                .enumerate()
+                .map(|(i, b)| {
+                    format!("class C{i} {{\n  @Test\n  void check() {{\n    {b}\n  }}\n}}\n")
+                })
+                .collect()
+        };
+        let t_old = mk(&[
+            "assertEquals(1, f(1));",
+            "assertEquals(2, f(2));",
+            "assertEquals(3, f(3));",
+        ]);
+        let t_new = mk(&["assertEquals(1, f(1));", "assertEquals(2, f(2));", "g(3);"]);
+        let files = [
+            change(
+                "src/main/java/F.java",
+                "class F { int f(int x) { return x; } }",
+                "class F { int f(int x) { return x; } int g(int x) { return x; } }",
+            ),
+            change("src/test/java/FTest.java", t_old.as_str(), t_new.as_str()),
+        ];
+        let events = changeset_events(&files);
+        let gutted = events
+            .iter()
+            .filter(|e| e.kind == EventKind::BodyGutted)
+            .count();
+        assert_eq!(gutted, 1, "expected exactly one gutting event: {events:?}");
     }
 
     #[test]
