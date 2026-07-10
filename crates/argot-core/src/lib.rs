@@ -15,6 +15,7 @@ pub mod config;
 pub mod dataset;
 pub mod extract;
 pub mod git_walk;
+pub mod health;
 pub mod inspect;
 pub mod json;
 pub mod output;

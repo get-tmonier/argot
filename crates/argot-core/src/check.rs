@@ -376,6 +376,19 @@ enum BatchScope {
     Drop,
 }
 
+/// Languages present in the change that argot supports but the current fit
+/// has no model for (fitted before the language appeared in the repo).
+fn patches_langs_without_model(
+    patches: &[PatchBatch],
+    scorers: &HashMap<String, SequentialImportBpeScorer>,
+) -> Vec<&'static str> {
+    patches
+        .iter()
+        .filter_map(|b| ext_to_lang(&extension(&b.file_path)))
+        .filter(|lang| !scorers.contains_key(*lang))
+        .collect()
+}
+
 /// Port of `_is_out_of_scope`, split so user-ignored files stay countable:
 /// wrong language / recommended-set path → `Drop` (silent, as always); user
 /// `[exclude].paths` match → `ScoreSuppressed`. Data-heavy files are NOT dropped
@@ -2346,6 +2359,44 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         }
     }
 
+    // Fit-time health (persisted by the last fit — foreground OR background,
+    // whose stdout is detached): the "is it time to recalibrate?" answer,
+    // surfaced by the command users actually run.
+    if let Some(health) = crate::health::read(&args.argot_dir) {
+        if !health.drift_candidates.is_empty() {
+            let shown: Vec<&str> = health
+                .drift_candidates
+                .iter()
+                .take(3)
+                .map(String::as_str)
+                .collect();
+            let more = if health.drift_candidates.len() > 3 {
+                ", …"
+            } else {
+                ""
+            };
+            stderr.push_str(&format!(
+                "[argot] {} director{} look generated or data-heavy and are shaping the voice                  ({}{more}) — review `argot init --suggest`
+",
+                health.drift_candidates.len(),
+                if health.drift_candidates.len() != 1 {
+                    "ies"
+                } else {
+                    "y"
+                },
+                shown.join(", "),
+            ));
+        }
+        if !health.config_fingerprint.is_empty()
+            && health.config_fingerprint != crate::health::config_fingerprint(&config)
+        {
+            stderr.push_str(
+                "[argot] argot.toml changed since the last fit — the voice doesn't reflect                  your configuration yet (auto-refresh will refit, or run `argot fit`)
+",
+            );
+        }
+    }
+
     // Suppression surfaces from argot.toml (config loaded above): the resolved
     // path set (recommended built-ins + `[exclude].paths`, the same set
     // calibration samples from) and the `[[mute]]` rules (expiry vs `args.today`).
@@ -2356,6 +2407,23 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     let mutes = config.mutes(&args.today);
     for w in &mutes.warnings {
         stderr.push_str(&format!("[argot] {w}\n"));
+    }
+
+    // A supported language with no model in this fit is silently dropped by
+    // batch_scope below — correct scoring, but the user must know their new
+    // Go file has zero coverage until the next fit. (Computed pre-filter:
+    // those batches don't survive it.)
+    {
+        let mut unfitted: Vec<&str> = patches_langs_without_model(&patches, &scorers);
+        unfitted.sort_unstable();
+        unfitted.dedup();
+        if !unfitted.is_empty() {
+            stderr.push_str(&format!(
+                "[argot] this change touches {} file(s) — no model in the current fit;                  run `argot fit` to cover them
+",
+                unfitted.join("/"),
+            ));
+        }
     }
 
     // Scope + only/exclude filters. User-ignored files stay scored (marked) so
@@ -2371,6 +2439,22 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
             passes_filters(&b.file_path, &args.only, &args.exclude).then_some(b)
         })
         .collect();
+
+    // A supported language with no model in this fit gets silently dropped by
+    // batch_scope — which is correct scoring, but the user must know their new
+    // Go file has zero coverage until the next fit.
+    {
+        let mut unfitted: Vec<&str> = patches_langs_without_model(&filtered, &scorers);
+        unfitted.sort_unstable();
+        unfitted.dedup();
+        if !unfitted.is_empty() {
+            stderr.push_str(&format!(
+                "[argot] this change touches {} file(s) — no model in the current fit;                  run `argot fit` to cover them
+",
+                unfitted.join("/"),
+            ));
+        }
+    }
 
     // Changeset-wide local bindings: names any file in this change defines.
     // A change that calls what it also defines (a new feature naming its own
@@ -2537,8 +2621,23 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     if args.format.is_machine() {
         let records = hit_records(&visible, &settings);
         let meta = report_meta(&args, scan_label, hunk_count, files_scanned, &model_hash);
+        let mut stdout = render_machine(args.format, &meta, &records);
+        // In the github format, the health notes ("model drifted", "config
+        // changed since fit", "language not fitted") become run-level notices —
+        // CI logs bury stderr, PR annotations don't.
+        if args.format == OutputFormat::Github {
+            for line in stderr.lines() {
+                if let Some(note) = line.strip_prefix("[argot] ") {
+                    stdout.push_str(&format!(
+                        "::notice title=argot::{}
+",
+                        note.replace('%', "%25")
+                    ));
+                }
+            }
+        }
         return CheckOutcome {
-            stdout: render_machine(args.format, &meta, &records),
+            stdout,
             stderr,
             exit_code: gate_exit_code(&visible, &settings, args.error_on_warnings),
         };

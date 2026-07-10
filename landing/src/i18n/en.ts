@@ -55,6 +55,12 @@ const en: SiteContent = {
     ],
     seeLive: 'See it on real repos',
   },
+  replay: {
+    label: 'Day one',
+    title: 'Rewind your history. See what it would have caught.',
+    body: 'You can’t demo a guardrail on code it just learned from — so argot rewinds instead. [[argot replay]] fits the voice as it was 50 commits ago and rescores everything since: one command, seconds, your tree untouched.',
+    caption: 'Real run on FastAPI’s history: two newly-adopted imports and the new streaming vocabulary — each with [[the repo’s own evidence]].',
+  },
   engine: {
     label: 'Under the hood',
     title: 'Semantic understanding. No LLM anywhere.',

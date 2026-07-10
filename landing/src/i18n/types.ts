@@ -36,6 +36,12 @@ export interface SiteContent {
     }[];
     readonly seeLive: string;
   };
+  readonly replay: {
+    readonly label: string;
+    readonly title: string;
+    readonly body: string;
+    readonly caption: string;
+  };
   readonly engine: {
     readonly label: string;
     readonly title: string;

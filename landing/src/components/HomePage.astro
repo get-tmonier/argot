@@ -7,6 +7,7 @@ import Footer from '#components/Footer.astro';
 import Hero from '#components/Hero.astro';
 import Nav from '#components/Nav.astro';
 import Proof from '#components/Proof.astro';
+import Replay from '#components/Replay.astro';
 import Setup from '#components/Setup.astro';
 import Base from '#layouts/Base.astro';
 import type { SiteContent } from '#i18n/types';
@@ -23,6 +24,7 @@ const { content, locale } = Astro.props;
   <main>
     <Hero content={content} locale={locale} />
     <Demo content={content} />
+    <Replay content={content} />
     <Engine content={content} />
     <Proof content={content} />
     <Setup content={content} />

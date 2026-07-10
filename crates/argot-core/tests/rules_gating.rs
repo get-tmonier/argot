@@ -247,6 +247,36 @@ fn add_ignores_refuses_ref_ranges() {
 }
 
 #[test]
+fn config_change_since_fit_is_noted_at_check() {
+    let repo = prepare_import_repo("cfg_drift");
+    // The fit persisted its config fingerprint (defaults). Change a
+    // fit-relevant knob afterwards: check must say the fit is out of sync.
+    std::fs::write(repo.join("argot.toml"), "[detect]\ndata-threshold = 0.5\n").unwrap();
+    let out = run_check(args(&repo));
+    assert!(
+        out.stderr.contains("argot.toml changed since the last fit"),
+        "{}",
+        out.stderr
+    );
+}
+
+#[test]
+fn unfitted_language_in_the_diff_is_noted() {
+    let repo = prepare_import_repo("newlang");
+    let go_src = "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"hi\")\n}\n";
+    std::fs::write(repo.join("main.go"), go_src).unwrap();
+    let mut a = args(&repo);
+    a.reference = String::new(); // workdir mode sees the untracked file
+    let out = run_check(a);
+    assert!(
+        out.stderr
+            .contains("go file(s) — no model in the current fit"),
+        "{}",
+        out.stderr
+    );
+}
+
+#[test]
 fn json_carries_rule_and_severity_fields() {
     let repo = prepare_import_repo("json");
     let mut a = args(&repo);

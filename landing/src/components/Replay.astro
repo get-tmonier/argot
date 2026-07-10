@@ -1,0 +1,221 @@
+---
+// "Day one" — the flagship demo command. A guardrail can't be demoed on the
+// code it just learned from, so `argot replay` rewinds instead: fit the voice
+// as it was 50 commits ago, rescore everything since. This section plays a
+// real replay run (FastAPI's history, abridged) with the same line-cascade
+// treatment as DemoTerminal — hand-authored real output, not generated data.
+import { emphasize } from '#lib/text';
+import type { SiteContent } from '#i18n/types';
+
+interface Props {
+  content: SiteContent;
+}
+const { replay } = Astro.props.content;
+---
+
+<section id="replay" class="snap-section relative flex md:min-h-svh items-center">
+  <div
+    class="mx-auto grid w-full max-w-6xl grid-cols-1 gap-6 px-5 py-12 md:py-24 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:gap-16"
+  >
+    <div class="reveal">
+      <p class="mb-3 font-mono text-xs tracking-widest text-ember uppercase">{replay.label}</p>
+      <h2 class="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{replay.title}</h2>
+      <p
+        class="mt-4 leading-relaxed text-ink-dim text-pretty sm:mt-5"
+        set:html={emphasize(replay.body)}
+      />
+    </div>
+
+    <div class="reveal flex flex-col gap-4" style="--reveal-delay: 120ms">
+      <div class="replay-terminal" role="group" aria-label="Example argot replay output">
+        <div class="rt-titlebar">
+          <span class="rt-dot" style="background: var(--flag)" aria-hidden="true"></span>
+          <span class="rt-dot" style="background: var(--amber)" aria-hidden="true"></span>
+          <span class="rt-dot" style="background: var(--jade)" aria-hidden="true"></span>
+          <span class="rt-title">argot replay</span>
+        </div>
+        <div class="rt-body">
+          <div class="rt-line" style="--i: 0">
+            <span class="dim" aria-hidden="true">$</span> argot replay<span
+              class="cursor"
+              aria-hidden="true"></span>
+          </div>
+          <div class="rt-line rt-banner" style="--i: 1">
+            ━━ argot replay · 300 commits, judged by the voice as of c206f19b ━━
+          </div>
+          <div class="rt-line" style="--i: 2">
+            &nbsp;&nbsp;4 finding(s) argot would have raised <span class="ink">before merge</span>:
+          </div>
+          <div class="rt-line rt-count" style="--i: 3">
+            &nbsp;&nbsp;&nbsp;&nbsp;foreign-import&nbsp;&nbsp;<span class="flagword">×2</span>
+          </div>
+          <div class="rt-line rt-count" style="--i: 4">
+            &nbsp;&nbsp;&nbsp;&nbsp;rare-tokens&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span
+              class="amberword">×2</span
+            >
+          </div>
+          <div class="rt-line dim" style="--i: 5">&nbsp;&nbsp;worth a look first:</div>
+          <div class="rt-line" style="--i: 6">
+            &nbsp;&nbsp;<span class="bang">!</span> fastapi/responses.py:L1-L8&nbsp;&nbsp;<span
+              class="flagword">foreign-import</span
+            >&nbsp;&nbsp;· 88021c3
+          </div>
+          <div class="rt-line rt-evidence" style="--i: 7">
+            ↳ <span class="flagword">importlib</span> (L1) — 0 of 73 module specifiers in repo
+          </div>
+          <div class="rt-line" style="--i: 8">
+            &nbsp;&nbsp;<span class="quest">?</span> fastapi/responses.py:L10-L64&nbsp;&nbsp;<span
+              class="amberword">rare-tokens</span
+            >&nbsp;&nbsp;· 88021c3
+          </div>
+          <div class="rt-line rt-evidence" style="--i: 9">
+            ↳ _UjsonModule (0×), Protocol (0×), _OrjsonModule (0×) (+1 more)
+          </div>
+          <div class="rt-line rt-footer dim" style="--i: 10">
+            &nbsp;&nbsp;Merged code is accepted code — read each as “would have prompted review”.
+          </div>
+        </div>
+      </div>
+      <p class="text-center text-sm text-muted text-pretty" set:html={emphasize(replay.caption)} />
+    </div>
+  </div>
+</section>
+
+<style>
+  .replay-terminal {
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel) 80%, #000);
+    overflow: hidden;
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.03) inset,
+      0 24px 60px -30px rgba(0, 0, 0, 0.8);
+  }
+  .rt-titlebar {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel-2) 60%, transparent);
+  }
+  .rt-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 999px;
+    opacity: 0.85;
+  }
+  .rt-title {
+    margin-left: 8px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .rt-body {
+    overflow-x: auto;
+    padding: clamp(14px, 3.6vw, 22px);
+    font-family: var(--font-mono);
+    font-size: clamp(11px, 3vw, 13.5px);
+    line-height: 1.9;
+    white-space: nowrap;
+  }
+  .rt-line {
+    display: block;
+  }
+  .rt-banner {
+    margin-top: 0.7em;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .rt-count {
+    color: var(--ink-dim);
+  }
+  .rt-evidence {
+    padding-left: 3.2em;
+    color: var(--ink-dim);
+  }
+  .rt-footer {
+    margin-top: 0.7em;
+    white-space: normal;
+  }
+  .dim {
+    color: var(--muted);
+  }
+  .ink {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .bang {
+    color: var(--flag);
+    font-weight: 700;
+  }
+  .quest {
+    color: var(--amber);
+    font-weight: 700;
+  }
+  .flagword {
+    color: var(--flag);
+    font-weight: 600;
+  }
+  .amberword {
+    color: var(--amber);
+    font-weight: 600;
+  }
+
+  .cursor::after {
+    content: '';
+    display: inline-block;
+    width: 0.55ch;
+    height: 1em;
+    margin-left: 2px;
+    vertical-align: -0.15em;
+    background: var(--ember);
+  }
+  :global(.js) .replay-terminal.is-playing .cursor::after {
+    animation: blink 0.9s step-end 6;
+  }
+
+  /* Same reveal-cascade contract as DemoTerminal: hidden only once JS confirms
+     it can play; reduced-motion / no-IO jumps straight to done. */
+  :global(.js) .replay-terminal:not(.is-playing):not(.is-done) .rt-line {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  .replay-terminal.is-playing .rt-line {
+    transition:
+      opacity 0.45s var(--ease-out-expo),
+      transform 0.45s var(--ease-out-expo);
+    transition-delay: calc(var(--i, 0) * 260ms);
+  }
+  .replay-terminal.is-playing .rt-line,
+  .replay-terminal.is-done .rt-line {
+    opacity: 1;
+    transform: none;
+  }
+  .replay-terminal.is-playing .rt-banner {
+    animation: flag-flash 0.9s var(--ease-out-expo);
+    animation-delay: calc(var(--i, 0) * 260ms);
+  }
+</style>
+
+<script>
+  for (const root of document.querySelectorAll<HTMLElement>('.replay-terminal')) {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced || !('IntersectionObserver' in window)) {
+      root.classList.add('is-done');
+      continue;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            root.classList.add('is-playing');
+            io.unobserve(entry.target);
+          }
+        }
+      },
+      { rootMargin: '0px 0px -10% 0px', threshold: 0.3 },
+    );
+    io.observe(root);
+  }
+</script>

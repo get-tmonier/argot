@@ -192,6 +192,12 @@ runs:
         # same base reuses one fitted model, and it re-fits only when the base
         # advances (never on a per-PR head, which would poison the voice).
         key: argot-model-${{ runner.os }}-${{ inputs.argot-version }}-${{ steps.base.outputs.base_sha }}
+        # On a base advance (cache miss) restore the previous base's .argot
+        # anyway: the fit re-runs (miss ≠ exact hit) but the old semantic
+        # index seeds it, so unchanged functions reuse their embeddings —
+        # an incremental re-fit instead of minutes of full re-embedding.
+        restore-keys: |
+          argot-model-${{ runner.os }}-${{ inputs.argot-version }}-
 
     - name: Fit voice model on the base
       if: ${{ inputs.cache != 'true' || steps.model-cache.outputs.cache-hit != 'true' }}

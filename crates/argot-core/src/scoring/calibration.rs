@@ -1065,6 +1065,9 @@ pub fn run_calibrate(
     let config = crate::config::ArgotConfig::load(repo_dir);
     let path_suppressions = config.path_suppressions();
     let detect = &config.detect;
+    // Captured now: `config` (the ArgotConfig) is shadowed by the ScorerConfig
+    // later; the health artifact records which configuration this fit reflects.
+    let config_fingerprint_at_fit = crate::health::config_fingerprint(&config);
     // Effective [rules] severities — a group turned off in argot.toml skips
     // its whole fit-time artifact (semantic index / layering graph) and cost.
     // Only the feature-gated layers read it.
@@ -1563,6 +1566,23 @@ pub fn run_calibrate(
         if let Ok(manifest_json) = serde_json::to_string_pretty(&manifest) {
             write_atomic(&manifest_path, manifest_json.as_bytes())?;
         }
+        // Fit-time self-diagnosis, persisted so `check`/`status` surface it
+        // without re-scanning (and so a background refit's findings survive
+        // its /dev/null stdout): calibration-drift candidates + the config
+        // fingerprint this fit reflects.
+        let drift_candidates = crate::suppress::suggest_ignores(repo_dir)
+            .candidates
+            .into_iter()
+            .map(|c| c.path)
+            .collect();
+        crate::health::write(
+            parent,
+            &crate::health::FitHealth {
+                fit_sha: opts.repo_sha.clone(),
+                config_fingerprint: config_fingerprint_at_fit,
+                drift_candidates,
+            },
+        );
     }
 
     Ok(thresholds_out)

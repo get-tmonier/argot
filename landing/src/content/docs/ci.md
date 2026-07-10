@@ -51,7 +51,10 @@ first). The model is cached per base commit and only re-fit when the base moves.
 > The heavier, easy-to-miss cost is the **fit-time semantic index**: fitting on
 > a new base embeds every corpus function on a CPU runner — minutes on a large
 > repo. The Action's `cache: true` keeps the fitted `.argot/` (index included)
-> keyed on the base commit, so you pay it only when the base advances. If that
+> keyed on the base commit, so you pay it only when the base advances — and on
+> that advance it restores the *previous* base's index first, so the re-fit is
+> incremental (unchanged functions reuse their embeddings; seconds, not
+> minutes). If that
 > is still too much — or the runner is locked down — set the Action's
 > **`semantic: false`** input: no download, no index build; the voice and
 > layering rules still run.

@@ -66,17 +66,38 @@ fn lock_path(argot_dir: &Path) -> PathBuf {
     argot_dir.join("auto-refit.lock")
 }
 
-fn last_attempt(argot_dir: &Path) -> u64 {
+fn read_state(argot_dir: &Path) -> serde_json::Value {
     std::fs::read_to_string(state_path(argot_dir))
         .ok()
-        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
-        .and_then(|v| v.get("last_attempt")?.as_u64())
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_else(|| serde_json::json!({}))
+}
+
+fn last_attempt(argot_dir: &Path) -> u64 {
+    read_state(argot_dir)
+        .get("last_attempt")
+        .and_then(|v| v.as_u64())
         .unwrap_or(0)
 }
 
+/// Did the last background refit fail? (Cleared by the next success.)
+fn last_failed(argot_dir: &Path) -> bool {
+    read_state(argot_dir)
+        .get("last_failed")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
 fn record_attempt(argot_dir: &Path) {
-    let body = serde_json::json!({ "last_attempt": now_secs() }).to_string();
-    let _ = std::fs::write(state_path(argot_dir), body);
+    let mut state = read_state(argot_dir);
+    state["last_attempt"] = serde_json::json!(now_secs());
+    let _ = std::fs::write(state_path(argot_dir), state.to_string());
+}
+
+fn record_result(argot_dir: &Path, failed: bool) {
+    let mut state = read_state(argot_dir);
+    state["last_failed"] = serde_json::json!(failed);
+    let _ = std::fs::write(state_path(argot_dir), state.to_string());
 }
 
 /// Are we on a CI runner? `CI` covers GitHub/GitLab/CircleCI/Travis/Buildkite;
@@ -107,10 +128,33 @@ pub fn maybe_refit(repo: &Path, argot_dir: &Path, today: &str, quiet: bool) {
     else {
         return; // unresolvable history (shallow clone, rewritten) — leave it be
     };
+    // Two staleness axes: history moved past the fit, OR the fit no longer
+    // reflects the configuration (the user/skill edited [exclude]/[detect] —
+    // recalibration completes itself instead of waiting for a manual fit).
+    let config_changed = argot_core::health::read(argot_dir)
+        .map(|h| {
+            !h.config_fingerprint.is_empty()
+                && h.config_fingerprint
+                    != argot_core::health::config_fingerprint(
+                        &argot_core::config::ArgotConfig::load(repo),
+                    )
+        })
+        .unwrap_or(false);
     let age_days = fit_age_days(&timestamp, today).unwrap_or(0);
-    let stale = behind >= REFIT_BEHIND_COMMITS
+    let history_stale = behind >= REFIT_BEHIND_COMMITS
         || (age_days >= (REFIT_AGE.as_secs() / 86_400) as i64 && behind >= 1);
-    if !stale {
+    if !history_stale && !config_changed {
+        return;
+    }
+    // A failing background refit must not loop silently forever: after a
+    // failed attempt, hand the wheel back with a visible note instead of
+    // re-spawning into the same wall.
+    if last_failed(argot_dir) {
+        if !quiet {
+            eprintln!(
+                "\x1b[2margot: the last background refit failed — run `argot fit` to see why\x1b[0m"
+            );
+        }
         return;
     }
     if now_secs().saturating_sub(last_attempt(argot_dir)) < ATTEMPT_INTERVAL.as_secs() {
@@ -131,10 +175,14 @@ pub fn maybe_refit(repo: &Path, argot_dir: &Path, today: &str, quiet: bool) {
         .spawn()
         .is_ok();
     if spawned && !quiet {
+        let reason = if config_changed {
+            "argot.toml changed since the fit".to_string()
+        } else {
+            format!("voice model is {behind} commit(s) behind")
+        };
         eprintln!(
-            "\x1b[2margot: voice model is {behind} commit(s) behind — refitting in the \
-             background; your next check uses the fresh voice ([fit] auto-refresh = false \
-             to disable)\x1b[0m"
+            "\x1b[2margot: {reason} — refitting in the background; your next check uses \
+             the fresh voice ([fit] auto-refresh = false to disable)\x1b[0m"
         );
     }
 }
@@ -169,7 +217,8 @@ pub fn run_background_refit(repo: &Path) {
         }
     }
 
-    let _ = crate::fit_repo(repo, &[]);
+    let failed = crate::fit_repo(repo, &[]).is_err();
+    record_result(&argot_dir, failed);
     let _ = std::fs::remove_file(&lock);
 }
 

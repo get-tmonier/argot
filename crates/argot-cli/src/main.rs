@@ -378,6 +378,27 @@ fn run_status(c: StatusCmd) -> ExitCode {
     let model_bytes = fs::metadata(&ctx.repo_corpus_path).ok().map(|m| m.len());
     let calibrated = ctx.argot_dir.join("scorer-config.json").exists();
 
+    // The one-stop "is my setup healthy / is it time to recalibrate?" answer:
+    // freshness (commits behind), config sync, and calibration drift — all
+    // read from what the last fit persisted, no tree walk here.
+    let health = argot_core::health::read(&ctx.argot_dir);
+    let behind = health.as_ref().and_then(|h| {
+        (!h.fit_sha.is_empty())
+            .then(|| argot_core::check::commits_since_fit(&ctx.git_root, &h.fit_sha))
+            .flatten()
+    });
+    let config_in_sync = health.as_ref().map(|h| {
+        h.config_fingerprint.is_empty()
+            || h.config_fingerprint
+                == argot_core::health::config_fingerprint(&argot_core::config::ArgotConfig::load(
+                    Path::new(&ctx.git_root),
+                ))
+    });
+    let drift: Vec<String> = health
+        .as_ref()
+        .map(|h| h.drift_candidates.clone())
+        .unwrap_or_default();
+
     if wants_json(&c.format) {
         let doc = serde_json::json!({
             "repo": { "name": ctx.name, "path": ctx.git_root },
@@ -386,6 +407,12 @@ fn run_status(c: StatusCmd) -> ExitCode {
             })),
             "model": { "trained": model_bytes.is_some(), "bytes": model_bytes },
             "calibrated": calibrated,
+            "health": health.as_ref().map(|h| serde_json::json!({
+                "fit_sha": h.fit_sha,
+                "commits_behind": behind,
+                "config_in_sync": config_in_sync,
+                "drift_candidates": drift,
+            })),
         });
         println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
         return ExitCode::SUCCESS;
@@ -404,6 +431,33 @@ fn run_status(c: StatusCmd) -> ExitCode {
         println!("Calibrated: yes");
     } else {
         println!("Calibrated: not calibrated — run `argot fit`");
+    }
+    if let Some(h) = &health {
+        let fresh = match behind {
+            Some(0) => "fresh (at HEAD)".to_string(),
+            Some(n) => format!("{n} commit(s) behind HEAD — auto-refresh will refit"),
+            None => "unknown".to_string(),
+        };
+        println!(
+            "Voice:    fitted at {} · {fresh}",
+            &h.fit_sha[..12.min(h.fit_sha.len())]
+        );
+        match config_in_sync {
+            Some(true) => println!("Config:   in sync with the fit"),
+            Some(false) => {
+                println!("Config:   argot.toml changed since the fit — auto-refresh will refit")
+            }
+            None => {}
+        }
+        if drift.is_empty() {
+            println!("Hygiene:  no unexcluded generated/data-heavy directories");
+        } else {
+            println!(
+                "Hygiene:  {} director{} shaping the voice that look generated/data-heavy — `argot init --suggest`",
+                drift.len(),
+                if drift.len() != 1 { "ies" } else { "y" }
+            );
+        }
     }
     ExitCode::SUCCESS
 }
@@ -803,12 +857,22 @@ struct InitCmd {
 /// excluded, so this stays quiet on a well-configured repo and speaks up the
 /// fit after the tree grew something the voice shouldn't learn.
 fn drift_suggestions_note(repo: &Path) {
-    let candidates = suggest_ignores(repo).candidates;
+    // The fit that just ran persisted its own scan (`.argot/health.json`);
+    // read it rather than walking the tree twice. Fallback: live scan.
+    let candidates: Vec<String> = argot_core::health::read(&repo.join(".argot"))
+        .map(|h| h.drift_candidates)
+        .unwrap_or_else(|| {
+            suggest_ignores(repo)
+                .candidates
+                .into_iter()
+                .map(|c| c.path)
+                .collect()
+        });
     if candidates.is_empty() {
         return;
     }
     let plural = if candidates.len() != 1 { "ies" } else { "y" };
-    let names: Vec<&str> = candidates.iter().take(3).map(|c| c.path.as_str()).collect();
+    let names: Vec<&str> = candidates.iter().take(3).map(String::as_str).collect();
     let more = if candidates.len() > 3 { ", …" } else { "" };
     println!();
     println!(

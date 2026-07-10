@@ -315,10 +315,23 @@ auto-refresh = false
 ```
 
 Freshness is separate from **calibration drift** — a new `gen/` dir or a
-vendored SDK appearing in the tree. argot watches for that itself: every
-`fit`/`init` re-scans the tree and prints a note when new generated or
-data-heavy directories (not yet excluded) are shaping the voice, pointing at
-`argot init --suggest`. A well-configured repo stays quiet.
+vendored SDK appearing in the tree, or an `argot.toml` edit the model hasn't
+absorbed yet. argot watches for both itself, and you never have to guess when
+to recalibrate:
+
+- every `fit`/`init` re-scans the tree and persists its verdict to
+  `.argot/health.json`; **`argot check` reads it and prints one-line notes**
+  when new generated/data-heavy directories are shaping the voice or when
+  `argot.toml` changed since the fit (in `--format github`, these become
+  run-level PR annotations),
+- **editing `[exclude]`/`[detect]` is itself a refresh trigger**: the next
+  check notices the config fingerprint changed and refits in the background,
+- **`argot status`** is the one-stop health view: fitted SHA, commits behind,
+  config in sync or not, and unexcluded noisy directories,
+- a failing background refit stops retrying silently and tells you to run
+  `argot fit` yourself.
+
+A well-configured repo stays quiet on all of it.
 
 ## `[update]` — the passive update notice
 

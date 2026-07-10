@@ -315,6 +315,17 @@ other MCP clients.
 
 ## status
 
+The health hub — the answer to "is my setup still good?":
+
+```text
+Voice:    fitted at 4d488eb8b604 · fresh (at HEAD)
+Config:   in sync with the fit
+Hygiene:  no unexcluded generated/data-heavy directories
+```
+
+`--format json` carries the same `health` block for scripts.
+
+
 Show the current repository's argot state — whether it has an extracted dataset, a trained model, and
 a calibrated threshold:
 

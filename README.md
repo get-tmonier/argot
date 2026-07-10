@@ -71,33 +71,55 @@ curl --proto '=https' --tlsv1.2 -LsSf https://github.com/get-tmonier/argot/relea
 
 Windows: `powershell -c "irm https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.ps1 | iex"` · npm: `npm install -g @tmonier/argot`
 
-**argot's accuracy is a function of its setup.** It learns from what it's
-allowed to see — a fit that ingests vendored SDKs, generated stubs, or data
-files speaks with the wrong voice and flags the wrong things. Deciding what
-should shape the voice is a judgment call; make it well once and everything
-downstream is quiet and sharp.
+**Then — sixty seconds of proof, on your own history:**
 
-**Recommended — let your coding agent make those calls:**
+```sh
+argot init       # learn this repo's voice (~25 s on a 1,100-file repo)
+argot replay     # ⏪ rewind: what would argot have caught in your last 50 commits?
+```
+
+`replay` fits the voice **as it was 50 commits ago** (in a temp worktree —
+your tree stays untouched) and rescores everything since. Real run on
+FastAPI's history:
+
+```
+━━ argot replay · 300 commits, judged by the voice as of c206f19b ━━
+
+  4 finding(s) argot would have raised before merge, out of 120 hunks:
+
+    foreign-import  ×2
+    rare-tokens     ×2
+
+  worth a look first:
+  ! fastapi/responses.py:L1-L8  foreign-import  · 88021c3
+      ↳ importlib (L1) — 0 of 73 module specifiers in repo
+  ? fastapi/responses.py:L10-L64  rare-tokens  · 88021c3
+      ↳ _UjsonModule (0×), Protocol (0×), _OrjsonModule (0×) (+1 more)
+
+  Merged code is accepted code — read each as "would have prompted review",
+  not as a bug list.
+```
+
+(Everything argot writes in-repo is gitignored except the small `argot.toml` —
+the model and index live in `.argot/` and `~/.cache/argot`, never in your git.)
+
+**Before you rely on it: the setup calls.** argot's accuracy is a function of
+its setup — it learns from what it's allowed to see, and a fit that ingests
+vendored SDKs, generated stubs, or data files speaks with the wrong voice.
+Recommended: let your coding agent make those calls —
 
 ```sh
 npx skills add get-tmonier/argot     # then run /argot-setup in your agent
 ```
 
 `/argot-setup` (Claude Code, Cursor, 70+ agents) reads your codebase, decides
-what shouldn't shape the voice, writes `argot.toml`, fits (~seconds; the first
-run fetches the ~100 MB local model), and verifies argot actually catches a
-foreign import. Then `/argot-check` scores each diff, `/argot-review-pr`
-reviews a whole PR, `/argot-setup-ci` wires the GitHub Action.
-
-**By hand** — make the same calls yourself:
-
-```sh
-argot init --suggest   # which dirs look like they shouldn't shape the voice
-#   → review, add them to argot.toml [exclude].paths, then:
-argot init             # fit the voice model
-argot check            # score your diff (sub-second)
-argot replay           # the fun one: what argot would have caught in your last 50 commits
-```
+what shouldn't shape the voice, writes `argot.toml`, re-fits, and verifies
+argot actually catches a foreign import. Then `/argot-check` scores each diff,
+`/argot-review-pr` reviews a whole PR, `/argot-setup-ci` wires the GitHub
+Action. By hand instead: `argot init --suggest`, review, add to `argot.toml
+[exclude].paths`, re-run `argot init` — and argot itself tells you when to
+revisit (every fit re-scans for new generated/data-heavy directories; `argot
+status` is the health view).
 
 ## Demo
 
@@ -149,11 +171,6 @@ core/parser.py
 The glyph grades confidence (`!` foreign · `?` suspicious · `.` unusual), the
 `[hash]` is a stable id you can `argot mute`, and every `↳` line is your repo's
 own evidence. Full anatomy: [Reading the output](https://argot.tmonier.com/docs/reading-the-output/).
-
-Want proof on **your** repo, day one? `argot replay` fits the voice as it was
-50 commits ago and reports what argot would have caught before merge — on
-FastAPI's history it surfaces the newly-adopted imports and the new streaming
-vocabulary in seconds, with the evidence for each.
 
 ## Configure it like any linter
 

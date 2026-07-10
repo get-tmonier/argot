@@ -55,6 +55,12 @@ const fr: SiteContent = {
     ],
     seeLive: 'Voyez-le sur de vrais dépôts',
   },
+  replay: {
+    label: 'Jour un',
+    title: 'Rembobinez votre historique. Voyez ce qu’il aurait attrapé.',
+    body: 'On ne démontre pas un garde-fou sur le code qu’il vient d’apprendre — alors argot rembobine. [[argot replay]] calibre la voix telle qu’elle était il y a 50 commits et rescore tout ce qui a suivi : une commande, quelques secondes, votre arbre intact.',
+    caption: 'Vraie exécution sur l’historique de FastAPI : deux imports fraîchement adoptés et le nouveau vocabulaire de streaming — chacun avec [[l’évidence du dépôt lui-même]].',
+  },
   engine: {
     label: 'Sous le capot',
     title: 'De la compréhension sémantique. Aucun LLM nulle part.',
