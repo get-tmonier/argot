@@ -11,6 +11,12 @@ ci = "github"
 # (`curl … | sh`); `powershell` gives Windows a package-manager-free
 # `irm … | iex` one-liner for the x86_64-pc-windows-msvc build below.
 installers = ["shell", "powershell", "npm"]
+# Windows: link the DYNAMIC CRT (/MD). cargo-dist defaults to the static CRT,
+# but llama.cpp's cmake-built objects (the semantic layer) reference dynamic
+# UCRT imports (__imp_fopen, __imp__aligned_malloc, …) — mixing the two broke
+# the first Windows release that carried the embedder (v0.2.56/57, LNK2019).
+# The UCRT ships with Windows 10+, so /MD is safe for the installer targets.
+msvc-crt-static = false
 # Publish the npm installer as @tmonier/argot (preserves `npm i -g @tmonier/argot`)
 npm-scope = "@tmonier"
 # Push the npm installer to the registry (uses the NPM_TOKEN secret)
