@@ -96,6 +96,9 @@ mod tests {
     use super::*;
 
     #[test]
+    // ArgotConfig has a private field, so a struct literal can't be built
+    // outside config.rs — mutate a Default instead.
+    #[allow(clippy::field_reassign_with_default)]
     fn fingerprint_is_stable_and_sensitive_to_fit_relevant_config() {
         let base = ArgotConfig::default();
         let a = config_fingerprint(&base);
@@ -118,6 +121,8 @@ mod tests {
     }
 
     #[test]
+    // Same private-field constraint as above.
+    #[allow(clippy::field_reassign_with_default)]
     fn fingerprint_separates_field_boundaries() {
         let mut x = ArgotConfig::default();
         x.exclude.paths = vec!["ab".into(), "c".into()];
