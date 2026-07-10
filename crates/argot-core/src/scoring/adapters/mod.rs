@@ -42,10 +42,31 @@ pub enum Language {
     Ruby,
 }
 
+/// A callable definition (function or method) with its 1-indexed inclusive line
+/// range — the unit the semantic index embeds. Distinct from
+/// `callable_definitions` (which yields only *names*, for callee attestation):
+/// the semantic layer needs the function's *body* to embed. Feature-gated: only
+/// the `semantic` build compiles the extraction.
+#[cfg(feature = "semantic")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallableBody {
+    pub symbol: String,
+    pub start_line: usize,
+    pub end_line: usize,
+}
+
 /// Uniform language-adapter surface (port of the Python `LanguageAdapter`
 /// Protocol). Implemented by `PythonAdapter` and `TypeScriptAdapter`; the
 /// scorers dispatch through `&dyn LanguageAdapter`.
 pub trait LanguageAdapter {
+    /// Function/method definitions with their line ranges — the embeddable units
+    /// for the semantic index. Default empty: a language with no implementation
+    /// simply produces no semantic index (no reinvention/placement findings),
+    /// which is a graceful no-op. Implemented for Python and TypeScript in v1.
+    #[cfg(feature = "semantic")]
+    fn callable_bodies(&self, _source: &str) -> Vec<CallableBody> {
+        Vec::new()
+    }
     fn language(&self) -> Language;
     fn extract_imports(&self, source: &str) -> HashSet<String>;
     fn extract_imports_with_spans(&self, source: &str) -> Vec<(String, usize, usize, usize)>;
@@ -115,6 +136,10 @@ impl LanguageAdapter for python::PythonAdapter {
     fn callable_definitions(&self, source: &str) -> HashSet<String> {
         python::PythonAdapter::callable_definitions(self, source)
     }
+    #[cfg(feature = "semantic")]
+    fn callable_bodies(&self, source: &str) -> Vec<CallableBody> {
+        python::PythonAdapter::callable_bodies(self, source)
+    }
     fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
         python::PythonAdapter::internal_import_bindings(self, source)
     }
@@ -162,6 +187,10 @@ impl LanguageAdapter for go::GoAdapter {
     }
     fn callable_definitions(&self, source: &str) -> HashSet<String> {
         go::GoAdapter::callable_definitions(self, source)
+    }
+    #[cfg(feature = "semantic")]
+    fn callable_bodies(&self, source: &str) -> Vec<CallableBody> {
+        go::GoAdapter::callable_bodies(self, source)
     }
     fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
         go::GoAdapter::internal_import_bindings(self, source)
@@ -212,6 +241,10 @@ impl LanguageAdapter for rust::RustAdapter {
     fn callable_definitions(&self, source: &str) -> HashSet<String> {
         rust::RustAdapter::callable_definitions(self, source)
     }
+    #[cfg(feature = "semantic")]
+    fn callable_bodies(&self, source: &str) -> Vec<CallableBody> {
+        rust::RustAdapter::callable_bodies(self, source)
+    }
     fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
         rust::RustAdapter::internal_import_bindings(self, source)
     }
@@ -259,6 +292,10 @@ impl LanguageAdapter for cpp::CppAdapter {
     fn callable_definitions(&self, source: &str) -> HashSet<String> {
         cpp::CppAdapter::callable_definitions(self, source)
     }
+    #[cfg(feature = "semantic")]
+    fn callable_bodies(&self, source: &str) -> Vec<CallableBody> {
+        cpp::CppAdapter::callable_bodies(self, source)
+    }
     fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
         cpp::CppAdapter::internal_import_bindings(self, source)
     }
@@ -305,6 +342,10 @@ impl LanguageAdapter for ruby::RubyAdapter {
     }
     fn callable_definitions(&self, source: &str) -> HashSet<String> {
         ruby::RubyAdapter::callable_definitions(self, source)
+    }
+    #[cfg(feature = "semantic")]
+    fn callable_bodies(&self, source: &str) -> Vec<CallableBody> {
+        ruby::RubyAdapter::callable_bodies(self, source)
     }
     fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
         ruby::RubyAdapter::internal_import_bindings(self, source)

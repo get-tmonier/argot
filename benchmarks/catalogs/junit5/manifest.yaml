@@ -90,6 +90,7 @@ fixtures:
 - id: foreign_rxjava_1
   file: breaks/break_foreign_rxjava_1.java
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 24
   hunk_end_line: 35
   rationale: 'Fully-qualified io.reactivex.rxjava3 reactive pipeline
@@ -104,6 +105,7 @@ fixtures:
 - id: foreign_reactor_1
   file: breaks/break_foreign_reactor_1.java
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 25
   hunk_end_line: 34
   rationale: 'Fully-qualified reactor.core reactive pipeline (Flux.fromIterable/
@@ -118,6 +120,7 @@ fixtures:
 - id: foreign_akka_1
   file: breaks/break_foreign_akka_1.java
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 22
   hunk_end_line: 33
   rationale: 'Fully-qualified akka.actor actor runtime (ActorSystem.create/actorOf/
@@ -249,6 +252,7 @@ fixtures:
 - id: foreign_netty_1
   file: breaks/break_foreign_netty_1.java
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 26
   hunk_end_line: 37
   rationale: 'Top-level import of io.netty.channel.EventLoopGroup/nio.NioEventLoopGroup/
@@ -264,6 +268,7 @@ fixtures:
 - id: foreign_vertx_1
   file: breaks/break_foreign_vertx_1.java
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 24
   hunk_end_line: 32
   rationale: 'Vert.x timer runtime reached through a receiver variable — a fully-qualified
@@ -278,6 +283,7 @@ fixtures:
 - id: foreign_disruptor_1
   file: breaks/break_foreign_disruptor_1.java
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 24
   hunk_end_line: 37
   rationale: 'LMAX Disruptor ring buffer reached through a receiver variable — a
@@ -294,6 +300,7 @@ fixtures:
 - id: foreign_quartz_1
   file: breaks/break_foreign_quartz_1.java
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 22
   hunk_end_line: 33
   rationale: 'Quartz scheduler reached only through fully-qualified org.quartz calls,
@@ -311,6 +318,7 @@ fixtures:
 - id: foreign_jctools_1
   file: breaks/break_foreign_jctools_1.java
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 22
   hunk_end_line: 33
   rationale: 'JCTools lock-free MpscArrayQueue reached through a bare constructor with

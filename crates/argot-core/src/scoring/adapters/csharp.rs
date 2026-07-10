@@ -384,6 +384,30 @@ impl CSharpAdapter {
     /// Names bound to callable/type definitions (methods, constructors,
     /// classes, interfaces, structs, records, enums, properties). Feeds
     /// local-binding attestation: code calling what it defines is not foreign.
+    /// Method/constructor/local-function definitions with their line ranges — the
+    /// embeddable units for the semantic index. Type and property declarations are
+    /// containers/accessors, not standalone function bodies, so they are skipped.
+    #[cfg(feature = "semantic")]
+    pub fn callable_bodies(&self, source: &str) -> Vec<super::CallableBody> {
+        let tree = parse(source);
+        let mut out = Vec::new();
+        for node in descendants(tree.root_node()) {
+            if matches!(
+                node.kind(),
+                "method_declaration" | "constructor_declaration" | "local_function_statement"
+            ) {
+                if let Some(name) = node.child_by_field_name("name") {
+                    out.push(super::CallableBody {
+                        symbol: node_text(name, source).to_string(),
+                        start_line: node.start_position().row + 1,
+                        end_line: node.end_position().row + 1,
+                    });
+                }
+            }
+        }
+        out
+    }
+
     pub fn callable_definitions(&self, source: &str) -> HashSet<String> {
         let tree = parse(source);
         let mut out = HashSet::new();
@@ -509,6 +533,10 @@ impl LanguageAdapter for CSharpAdapter {
     }
     fn callable_definitions(&self, source: &str) -> HashSet<String> {
         CSharpAdapter::callable_definitions(self, source)
+    }
+    #[cfg(feature = "semantic")]
+    fn callable_bodies(&self, source: &str) -> Vec<super::CallableBody> {
+        CSharpAdapter::callable_bodies(self, source)
     }
     fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
         CSharpAdapter::internal_import_bindings(self, source)
@@ -642,6 +670,20 @@ const NOISE: &[&str] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "semantic")]
+    #[test]
+    fn callable_bodies_covers_methods_and_constructors() {
+        let a = CSharpAdapter::new();
+        let src = "class Foo {\n    public Foo(int x) { this.x = x; }\n    public int Add(int a, int b) {\n        return a + b;\n    }\n}\n";
+        let names: Vec<String> = a
+            .callable_bodies(src)
+            .into_iter()
+            .map(|b| b.symbol)
+            .collect();
+        assert!(names.contains(&"Add".to_string()), "{names:?}");
+        assert!(names.contains(&"Foo".to_string()), "constructor: {names:?}");
+    }
 
     #[test]
     fn resolve_repo_modules_derives_owned_namespace_prefixes() {

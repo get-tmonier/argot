@@ -1,0 +1,344 @@
+# Architecture-graph violation fixtures for rocksdb (C++). Each `import_line`
+# added to `host_file` creates the internal edge (source layer -> target
+# layer) via `#include "<layer>/argot_fixture.h"`. Violations cross a
+# boundary the repo never crosses in that direction; controls respect the
+# established direction.
+#
+# Layer = top-level directory under the repo root (`db`, `table`, `util`,
+# `port`, `env`, `file`, `memtable`, `memory`, `cache`, `monitoring`,
+# `logging`, `options`, `utilities`, `test_util`, `include`/`rocksdb`,
+# `rocksjni`, `java`, `trace_replay`, `examples`, `fuzz`, `microbench`,
+# `db_stress_tool`, `tools`) — with one exception: the vendored
+# PerconaFT-derived range-tree lock manager embedded at
+# `utilities/transactions/lock/range/range_tree/lib/` carries its own
+# internal layers (`__root__` = files directly under `lib/`, `ft`,
+# `locktree`, `portability`), verified separately since it is a
+# self-contained third-party subsystem rather than native rocksdb code.
+# All rows below are copied verbatim (kind/src/tgt/host_file/import_line)
+# from the resolver-verified candidate menu
+# (`/tmp/arch-gap/candidates-rocksdb.md`) — every edge was confirmed
+# 0-usage (the host file does not already reach the target layer) and
+# cross-checked against the reverse direction to classify
+# reversal / transitive_reversal / sink_out / forward.
+#
+# ---- layer roles (from reading the repo, HEAD of benchmarks/data/rocksdb) ----
+#   `db`, `table`      — the core LSM engine (`db`) and its on-disk SST/block
+#                        format layer (`table`); together the highest-level
+#                        internals. Almost everything else exists to serve
+#                        them.
+#   `memtable`         — the in-memory write buffer feeding `db`; sits just
+#                        below `db`/`table` but is itself a foundational
+#                        data structure, not a consumer of the format layer.
+#   `util`, `port`,
+#   `env`, `memory`    — foundational layers: generic utilities, OS/platform
+#                        portability shims, the filesystem/OS abstraction,
+#                        and the allocator/arena abstraction. Nearly
+#                        everything depends on these; they should depend on
+#                        almost nothing.
+#   `file`             — file I/O abstraction built on `env`; consumed by
+#                        `db`/`table`, not the reverse.
+#   `monitoring`,
+#   `logging`          — cross-cutting stats/histogram and log-rotation
+#                        helpers; sampled/called BY `file`/`table`/`options`,
+#                        not callers of them.
+#   `options`, `cache` — options structs and the block-cache implementation;
+#                        `options` already depends on `cache` (e.g.
+#                        LRUCacheOptions), establishing options->cache.
+#   `test_util`        — test-only mocks/scaffolding (mock envs, time
+#                        mocks). Consumed BY test code across many layers;
+#                        production headers or vendored libraries reaching
+#                        into it is a leak of test infra into shipped code.
+#   `rocksjni`, `java`  — the JNI bridge to the Java bindings: `java/` holds
+#                        the JNI glue implementation (`.cc` files) that
+#                        legitimately reaches into core engine layers to
+#                        implement the bindings; `rocksjni` is the generated
+#                        binding surface itself, a downstream leaf that core
+#                        engine internals (util/options/etc.) never need.
+#   `rocksdb` (=
+#   `include/rocksdb/*.h`), `include` (=
+#   `include/rocksdb/utilities/*.h`) — the public API surface. Internal
+#                        implementation files legitimately include these to
+#                        implement declared interfaces (forward direction);
+#                        the public headers themselves must stay
+#                        self-contained and not reach back down into
+#                        internal-only layers like `util`/`test_util`.
+#   vendored range-tree
+#   (`__root__`/`ft`/
+#   `portability`/
+#   `locktree`)        — a third-party (PerconaFT-derived) lock-manager
+#                        library embedded under
+#                        `utilities/transactions/lock/range/range_tree/lib/`.
+#                        `locktree` is its most host-integrated component
+#                        (already talks to rocksdb). `__root__`, `ft` and
+#                        `portability` are still self-contained (zero
+#                        rocksdb-internal includes) — a new edge from any of
+#                        them into host internals is a foreign subsystem
+#                        reaching outside its own boundary.
+#
+# Realism: violations below are dominated by reversal/transitive_reversal/
+# sink_out — a foundational layer (util/port/env/memory/monitoring/logging/
+# cache/memtable) or the public API surface reaching UP into the engine
+# (db/table) or sideways into test-only/JNI-leaf infra it has never touched
+# — because that is the dominant failure mode for an LLM editing a large,
+# strictly layered C++ codebase: it grabs the nearest plausible-looking
+# type from the wrong side of an established dependency, or a vendored
+# subsystem "reaches out" of its own directory. No forward-kind entry is
+# included as a violation.
+
+violations:
+  # ---- reversal (8): reverse edge target->source is attested, so
+  #      source->target flips an established direction ----
+
+  - host_file: "include/rocksdb/advanced_cache.h"
+    source_layer: "rocksdb"
+    import_line: "#include \"test_util/argot_fixture.h\"\n"
+    target_layer: "test_util"
+    kind: "reversal"
+    rationale: >-
+      include/rocksdb/advanced_cache.h is part of the public API surface
+      (include/rocksdb/*.h) — test_util already depends on the public API
+      (test scaffolding routinely constructs Cache/Options objects declared
+      there), establishing test_util->rocksdb. A public header pulling in
+      test-only mock/scaffolding types reverses that: it leaks
+      test-infrastructure into a header every consumer of the library
+      compiles against. 0-usage confirmed by the resolver.
+
+  - host_file: "port/jemalloc_helper.h"
+    source_layer: "port"
+    import_line: "#include \"db/argot_fixture.h\"\n"
+    target_layer: "db"
+    kind: "reversal"
+    rationale: >-
+      port/ is the OS/platform portability shim (jemalloc_helper.h wraps a
+      malloc-library quirk) — one of the most foundational layers in the
+      tree; db already depends on port for platform primitives, establishing
+      db->port. Having the portability shim reach up into the core LSM
+      engine to satisfy a jemalloc helper reverses that direction. 0-usage
+      confirmed.
+
+  - host_file: "memory/allocator.h"
+    source_layer: "memory"
+    import_line: "#include \"db/argot_fixture.h\"\n"
+    target_layer: "db"
+    kind: "reversal"
+    rationale: >-
+      memory/allocator.h defines the generic Allocator/arena abstraction —
+      foundational, used by db to manage memtable/block memory (db->memory
+      established). The allocator interface reaching up into the engine it
+      is supposed to serve reverses that direction — a classic
+      "grab the big type from the wrong side" mistake. 0-usage confirmed.
+
+  - host_file: "env/composite_env.cc"
+    source_layer: "env"
+    import_line: "#include \"table/argot_fixture.h\"\n"
+    target_layer: "table"
+    kind: "reversal"
+    rationale: >-
+      env/ is the filesystem/OS environment abstraction beneath even
+      `file` — about as foundational as the tree gets. table already
+      depends on env to read/write SST files, establishing table->env.
+      composite_env.cc reaching up into the SST table-format layer reverses
+      that. 0-usage confirmed.
+
+  - host_file: "monitoring/file_read_sample.h"
+    source_layer: "monitoring"
+    import_line: "#include \"file/argot_fixture.h\"\n"
+    target_layer: "file"
+    kind: "reversal"
+    rationale: >-
+      file_read_sample.h is a stats-sampling helper — file/ already calls
+      into monitoring to report read-sample histograms (file->monitoring
+      established). The sampling helper reaching back into the file
+      abstraction it merely receives samples from reverses that direction.
+      0-usage confirmed.
+
+  - host_file: "logging/auto_roll_logger.cc"
+    source_layer: "logging"
+    import_line: "#include \"table/argot_fixture.h\"\n"
+    target_layer: "table"
+    kind: "reversal"
+    rationale: >-
+      auto_roll_logger.cc implements log-file rotation — a cross-cutting
+      foundational service; table already depends on logging to emit
+      diagnostics (table->logging established). The log-rotation
+      implementation reaching up into the SST table-format layer reverses
+      that. 0-usage confirmed.
+
+  - host_file: "cache/cache.cc"
+    source_layer: "cache"
+    import_line: "#include \"options/argot_fixture.h\"\n"
+    target_layer: "options"
+    kind: "reversal"
+    rationale: >-
+      cache.cc implements the block-cache interface; options already
+      depends on cache (e.g. LRUCacheOptions embeds cache-shaped config),
+      establishing options->cache. The cache implementation reaching back
+      into options reverses that — cache should stay a leaf options
+      configures, not a consumer of the options aggregate. 0-usage
+      confirmed.
+
+  - host_file: "memtable/alloc_tracker.cc"
+    source_layer: "memtable"
+    import_line: "#include \"table/argot_fixture.h\"\n"
+    target_layer: "table"
+    kind: "reversal"
+    rationale: >-
+      alloc_tracker.cc tracks memtable arena allocations — a foundational
+      in-memory data-structure concern; table already depends on memtable to
+      flush it into SST files, establishing table->memtable. The allocation
+      tracker reaching up into the on-disk table-format layer reverses that.
+      0-usage confirmed.
+
+  # ---- transitive_reversal (2): the reverse edge is a two-hop attested
+  #      chain rather than a direct one ----
+
+  - host_file: "utilities/transactions/lock/range/range_tree/lib/portability/memory.h"
+    source_layer: "portability"
+    import_line: "#include \"db/argot_fixture.h\"\n"
+    target_layer: "db"
+    kind: "transitive_reversal"
+    rationale: >-
+      portability/memory.h is the vendored range-tree lock manager's own
+      platform-portability shim — self-contained, zero rocksdb-internal
+      includes. db reaches this vendored library transitively (db -> the
+      transaction/lock integration -> range_tree), an attested two-hop
+      chain. The vendored shim reaching directly into rocksdb's core engine
+      closes that chain from the wrong side — a foreign subsystem stepping
+      outside its own directory into the host's internals. 0-usage
+      confirmed.
+
+  - host_file: "utilities/transactions/lock/range/range_tree/lib/db.h"
+    source_layer: "__root__"
+    import_line: "#include \"test_util/argot_fixture.h\"\n"
+    target_layer: "test_util"
+    kind: "transitive_reversal"
+    rationale: >-
+      db.h sits at the root of the vendored range-tree library — also
+      self-contained. rocksdb's test suite transitively reaches this
+      vendored code (test_util -> transaction tests -> range_tree), an
+      attested two-hop chain. The vendored library's root header reaching
+      directly into rocksdb's test-only scaffolding closes that chain
+      backwards: a third-party lock manager has no legitimate reason to
+      know about the host project's test mocks. 0-usage confirmed.
+
+  # ---- sink_out (2): source layer had no attested relationship with the
+  #      target in either direction; the new edge leaks a core-engine
+  #      internal into a downstream leaf (JNI binding surface) ----
+
+  - host_file: "util/aligned_buffer.h"
+    source_layer: "util"
+    import_line: "#include \"rocksjni/argot_fixture.h\"\n"
+    target_layer: "rocksjni"
+    kind: "sink_out"
+    rationale: >-
+      aligned_buffer.h is a generic low-level utility (alignment-aware
+      buffer) — foundational, consumed by nearly everything. rocksjni is the
+      generated Java-binding surface, a downstream leaf that consumes core
+      engine types through the public API, never the reverse. A general
+      utility header reaching into the JNI glue layer leaks a
+      language-binding concern into foundational code with no attested
+      relationship in either direction. 0-usage confirmed.
+
+  - host_file: "options/cf_options.cc"
+    source_layer: "options"
+    import_line: "#include \"rocksjni/argot_fixture.h\"\n"
+    target_layer: "rocksjni"
+    kind: "sink_out"
+    rationale: >-
+      cf_options.cc implements column-family option resolution — core
+      engine configuration, used everywhere. Reaching into rocksjni (the
+      JNI binding surface, which depends on options via the public API, not
+      the reverse) to satisfy an options code path leaks the Java-binding
+      layer into core configuration logic. 0-usage confirmed.
+
+controls:
+  # Realistic NEW imports that RESPECT the established layer direction:
+  # each host already sits above (or alongside) its target in the graph, so
+  # a new import along the same direction is not a new edge -> must NOT be
+  # flagged.
+
+  - host_file: "env/composite_env.cc"
+    source_layer: "env"
+    import_line: "#include \"include/argot_fixture.h\"\n"
+    target_layer: "include"
+    rationale: >-
+      `include` here is the public include/rocksdb/utilities/*.h surface.
+      env/ already implements interfaces declared under the public API
+      (Env-related types live in include/rocksdb/*.h); reaching for the
+      utilities sub-surface it helps implement is the normal forward
+      direction, not a reversal. Not a violation.
+
+  - host_file: "db/arena_wrapped_db_iter.cc"
+    source_layer: "db"
+    import_line: "#include \"include/argot_fixture.h\"\n"
+    target_layer: "include"
+    rationale: >-
+      db/ already implements the bulk of the public API; a core iterator
+      implementation file reaching for a declaration under
+      include/rocksdb/utilities/ (e.g. a utility type it needs to return) is
+      consistent with db's existing role as the primary implementer of the
+      public surface. Not a violation.
+
+  - host_file: "table/adaptive/adaptive_table_factory.cc"
+    source_layer: "table"
+    import_line: "#include \"include/argot_fixture.h\"\n"
+    target_layer: "include"
+    rationale: >-
+      table/ implements SST format factories declared in the public API;
+      reaching into include/rocksdb/utilities/ for a factory-adjacent public
+      type is the same established direction as its existing public-API
+      dependencies. Not a violation.
+
+  - host_file: "memtable/alloc_tracker.cc"
+    source_layer: "memtable"
+    import_line: "#include \"include/argot_fixture.h\"\n"
+    target_layer: "include"
+    rationale: >-
+      memtable/ sits below db/table but still consumes the public API for
+      shared types; a new include of the utilities sub-surface follows the
+      same "implementation reaches for its declared interface" direction
+      already established elsewhere in the layer. Not a violation.
+
+  - host_file: "trace_replay/block_cache_tracer.cc"
+    source_layer: "trace_replay"
+    import_line: "#include \"include/argot_fixture.h\"\n"
+    target_layer: "include"
+    rationale: >-
+      trace_replay/ implements the Replayer/tracer utilities already
+      declared under include/rocksdb/utilities/; reaching further into that
+      same public sub-surface is a natural continuation of its existing
+      role, not a new direction. Not a violation.
+
+  - host_file: "java/rocksjni/backup_engine_options.cc"
+    source_layer: "java"
+    import_line: "#include \"file/argot_fixture.h\"\n"
+    target_layer: "file"
+    rationale: >-
+      java/rocksjni/*.cc is the JNI glue implementation — its entire job is
+      to bridge Java calls into core engine layers. Reaching into file/ to
+      implement backup-engine file operations is exactly the established
+      direction (JNI glue -> core internals), not a reversal. Not a
+      violation.
+
+  - host_file: "java/rocksjni/backup_engine_options.cc"
+    source_layer: "java"
+    import_line: "#include \"table/argot_fixture.h\"\n"
+    target_layer: "table"
+    rationale: >-
+      Same host as above; the JNI glue implementation reaching into table/
+      to expose SST-related backup options through the Java bindings is
+      consistent with its existing role as a consumer of core internals.
+      Not a violation.
+
+  - host_file: "utilities/transactions/lock/range/range_tree/lib/locktree/concurrent_tree.cc"
+    source_layer: "locktree"
+    import_line: "#include \"rocksdb/argot_fixture.h\"\n"
+    target_layer: "rocksdb"
+    rationale: >-
+      Unlike its sibling __root__/ft/portability files (self-contained,
+      zero rocksdb-internal includes), locktree/ is the vendored range-tree
+      library's most host-integrated component — it is the piece that
+      actually implements rocksdb's transaction-lock manager and already
+      talks to the host project. A new include of the public rocksdb API
+      here is the normal, established direction for this specific
+      subcomponent. Not a violation.

@@ -16,6 +16,7 @@ fixtures:
 - id: mimesis_alt_1
   file: breaks/break_mimesis_alt_1.py
   category: mimesis_alt
+  class: foreign_api
   hunk_start_line: 19
   hunk_end_line: 46
   difficulty: easy
@@ -25,6 +26,7 @@ fixtures:
 - id: threading_provider_1
   file: breaks/break_threading_provider_1.py
   category: threading_provider
+  class: semantic_convention
   hunk_start_line: 19
   hunk_end_line: 53
   difficulty: easy
@@ -34,6 +36,7 @@ fixtures:
 - id: sqlalchemy_sink_1
   file: breaks/break_sqlalchemy_sink_1.py
   category: sqlalchemy_sink
+  class: foreign_api
   hunk_start_line: 17
   hunk_end_line: 49
   difficulty: easy
@@ -43,6 +46,7 @@ fixtures:
 - id: numpy_random_1
   file: breaks/break_numpy_random_1.py
   category: numpy_random
+  class: foreign_api
   hunk_start_line: 19
   hunk_end_line: 46
   difficulty: easy
@@ -52,6 +56,7 @@ fixtures:
 - id: requests_source_1
   file: breaks/break_requests_source_1.py
   category: requests_source
+  class: foreign_api
   hunk_start_line: 17
   hunk_end_line: 47
   difficulty: easy
@@ -61,6 +66,7 @@ fixtures:
 - id: mimesis_alt_2
   file: breaks/break_mimesis_alt_2.py
   category: mimesis_alt
+  class: foreign_api
   hunk_start_line: 16
   hunk_end_line: 33
   difficulty: medium
@@ -71,6 +77,7 @@ fixtures:
 - id: threading_provider_2
   file: breaks/break_threading_provider_2.py
   category: threading_provider
+  class: semantic_convention
   hunk_start_line: 15
   hunk_end_line: 22
   difficulty: medium
@@ -80,6 +87,7 @@ fixtures:
 - id: threading_provider_3
   file: breaks/break_threading_provider_3.py
   category: threading_provider
+  class: semantic_convention
   hunk_start_line: 15
   hunk_end_line: 29
   difficulty: hard
@@ -90,6 +98,7 @@ fixtures:
 - id: sqlalchemy_sink_2
   file: breaks/break_sqlalchemy_sink_2.py
   category: sqlalchemy_sink
+  class: foreign_api
   hunk_start_line: 16
   hunk_end_line: 28
   difficulty: medium
@@ -99,6 +108,7 @@ fixtures:
 - id: sqlalchemy_sink_3
   file: breaks/break_sqlalchemy_sink_3.py
   category: sqlalchemy_sink
+  class: foreign_api
   hunk_start_line: 15
   hunk_end_line: 30
   difficulty: hard
@@ -109,6 +119,7 @@ fixtures:
 - id: numpy_random_2
   file: breaks/break_numpy_random_2.py
   category: numpy_random
+  class: foreign_api
   hunk_start_line: 15
   hunk_end_line: 28
   difficulty: medium
@@ -118,6 +129,7 @@ fixtures:
 - id: numpy_random_3
   file: breaks/break_numpy_random_3.py
   category: numpy_random
+  class: foreign_api
   hunk_start_line: 15
   hunk_end_line: 32
   difficulty: hard
@@ -128,6 +140,7 @@ fixtures:
 - id: requests_source_2
   file: breaks/break_requests_source_2.py
   category: requests_source
+  class: foreign_api
   hunk_start_line: 15
   hunk_end_line: 25
   difficulty: medium
@@ -137,6 +150,7 @@ fixtures:
 - id: requests_source_3
   file: breaks/break_requests_source_3.py
   category: requests_source
+  class: foreign_api
   hunk_start_line: 16
   hunk_end_line: 31
   difficulty: hard
@@ -147,6 +161,7 @@ fixtures:
 - id: synthetic_formula_1
   file: breaks/break_synthetic_formula_1.py
   category: numpy_random
+  class: foreign_api
   hunk_start_line: 18
   hunk_end_line: 28
   rationale: 'string-formula synthesis (f-string concat) instead of faker.email()/faker.name(); no foreign import in hunk; era-6 limit: call_receiver has no target, BPE tokens (f-string, str, int format)
@@ -233,6 +248,7 @@ fixtures:
 - id: foreign_concurrency_gevent_1
   file: breaks/break_foreign_concurrency_gevent_1.py
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 14
   hunk_end_line: 22
   difficulty: easy
@@ -242,6 +258,7 @@ fixtures:
 - id: foreign_concurrency_eventlet_2
   file: breaks/break_foreign_concurrency_eventlet_2.py
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 15
   hunk_end_line: 20
   difficulty: medium
@@ -251,9 +268,76 @@ fixtures:
 - id: foreign_concurrency_trio_3
   file: breaks/break_foreign_concurrency_trio_3.py
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 14
   hunk_end_line: 22
   difficulty: hard
   rationale: "MASKED trio concurrency: the nursery is an injected receiver PARAM (`async def scatter_generation(nursery, ...)`), so nursery.start_soon()/cancel_scope.cancel() carry no foreign namespace and there is no import in the scored diff. trio has 0 grep hits at e7d5cf2 and is absent from setup.py. Genuinely may miss unless BPE surprise fires on start_soon/cancel_scope."
   host_file: faker/utils/text.py
   host_inject_at_line: 29
+- id: foreign_import_orjson_1
+  file: breaks/break_foreign_import_orjson_1.py
+  category: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 20
+  difficulty: easy
+  rationale: "bare `import orjson` + orjson.dumps() inside the hunk. orjson has 0 grep hits in faker source at e7d5cf2 and is absent from setup.py — faker uses stdlib json for serialization. Import stage fires on the foreign module."
+  host_file: faker/providers/isbn/__init__.py
+  host_inject_at_line: 76
+- id: foreign_import_loguru_2
+  file: breaks/break_foreign_import_loguru_2.py
+  category: foreign_import
+  hunk_start_line: 15
+  hunk_end_line: 19
+  difficulty: medium
+  rationale: "`from loguru import logger` sits in the decoy region (file top, OUTSIDE the hunk); hunk calls logger.bind()/logger.info(). loguru has 0 grep hits in faker source at e7d5cf2 and is absent from setup.py — faker ships no logging framework. Import stage still fires on the loguru module in the diff."
+  host_file: faker/providers/passport/__init__.py
+  host_inject_at_line: 48
+- id: foreign_api_stripe_5
+  file: breaks/break_foreign_api_stripe_5.py
+  category: foreign_api
+  hunk_start_line: 14
+  hunk_end_line: 22
+  difficulty: easy
+  rationale: "`import stripe` + fully-qualified stripe.Customer.create()/stripe.Charge.create() inside the hunk. stripe has 0 grep hits in faker source at e7d5cf2 and is absent from setup.py — faker touches no payment SDK. Import stage fires; call_receiver also fires on the foreign `stripe` namespace."
+  host_file: faker/providers/sbn/__init__.py
+  host_inject_at_line: 54
+- id: foreign_api_psycopg2_6
+  file: breaks/break_foreign_api_psycopg2_6.py
+  category: foreign_api
+  hunk_start_line: 15
+  hunk_end_line: 22
+  difficulty: medium
+  rationale: "psycopg2 connection through a receiver variable (`conn = psycopg2.connect(...); cursor = conn.cursor()`); the `import psycopg2` sits in the decoy region OUTSIDE the hunk. psycopg2 has 0 grep hits in faker source at e7d5cf2 and is absent from setup.py. call_receiver fires on the foreign `psycopg2` namespace in the constructor; import stage also fires."
+  host_file: faker/providers/emoji/__init__.py
+  host_inject_at_line: 3529
+- id: foreign_concurrency_greenlet_4
+  file: breaks/break_foreign_concurrency_greenlet_4.py
+  category: foreign_concurrency
+  class: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 29
+  difficulty: easy
+  rationale: "`import greenlet` + greenlet.greenlet()/getcurrent().parent.switch() inside the hunk. greenlet has 0 grep hits in faker source at e7d5cf2 and is absent from setup.py — faker is synchronous, no green-thread runtime. Import stage fires; call_receiver also fires on the foreign `greenlet` namespace."
+  host_file: faker/providers/doi/__init__.py
+  host_inject_at_line: 23
+- id: foreign_concurrency_joblib_5
+  file: breaks/break_foreign_concurrency_joblib_5.py
+  category: foreign_concurrency
+  class: foreign_import
+  hunk_start_line: 15
+  hunk_end_line: 20
+  difficulty: medium
+  rationale: "joblib Parallel/delayed through a receiver variable (`runner = Parallel(n_jobs=-1, ...); runner(jobs)`); the `from joblib import Parallel, delayed` sits in the decoy region OUTSIDE the hunk. joblib has 0 grep hits in faker source at e7d5cf2 and is absent from setup.py. call_receiver fires on the foreign `Parallel` receiver; import stage also fires."
+  host_file: faker/providers/__init__.py
+  host_inject_at_line: 743
+- id: foreign_concurrency_dask_6
+  file: breaks/break_foreign_concurrency_dask_6.py
+  category: foreign_concurrency
+  class: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 21
+  difficulty: easy
+  rationale: "`import dask` + dask.delayed()/dask.compute() inside the hunk. dask has 0 grep hits in faker source at e7d5cf2 and is absent from setup.py — faker has no distributed task-graph runtime. Import stage fires; call_receiver also fires on the foreign `dask` namespace."
+  host_file: faker/typing.py
+  host_inject_at_line: 44

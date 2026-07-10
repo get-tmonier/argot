@@ -1,0 +1,9 @@
+{
+ "corpus": "rubocop",
+ "reason": "redundant",
+ "window": 150,
+ "raw_fires": 25,
+ "genuine": 6,
+ "true_fp": 19,
+ "judges": 3
+}

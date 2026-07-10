@@ -15,6 +15,7 @@ fixtures:
 - id: err_unwrap_chain_1
   file: breaks/break_err_unwrap_chain_1.rs
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 32
   hunk_end_line: 44
   rationale: 'File::open().expect() + metadata().unwrap() + read_to_end().expect()
@@ -28,6 +29,7 @@ fixtures:
 - id: err_process_exit_1
   file: breaks/break_err_process_exit_1.rs
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 27
   hunk_end_line: 45
   rationale: 'eprintln! + std::process::exit(2) deep in walker library code.
@@ -41,6 +43,7 @@ fixtures:
 - id: err_swallowed_result_1
   file: breaks/break_err_swallowed_result_1.rs
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 31
   hunk_end_line: 47
   rationale: 'let _ = wtr.write_all(...) and .flush().ok() swallowing io::Results
@@ -54,6 +57,7 @@ fixtures:
 - id: err_panic_glob_1
   file: breaks/break_err_panic_glob_1.rs
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 26
   hunk_end_line: 55
   rationale: 'panic!("invalid glob: ...") + expect() on user-supplied pattern
@@ -66,6 +70,7 @@ fixtures:
 - id: conc_mutex_threads_1
   file: breaks/break_conc_mutex_threads_1.rs
   category: wrong_concurrency
+  class: semantic_convention
   hunk_start_line: 30
   hunk_end_line: 53
   rationale: 'Raw thread::spawn worker fan-out popping an Arc<Mutex<Vec>> queue
@@ -80,6 +85,7 @@ fixtures:
 - id: conc_busywait_1
   file: breaks/break_conc_busywait_1.rs
   category: wrong_concurrency
+  class: semantic_convention
   hunk_start_line: 30
   hunk_end_line: 53
   rationale: 'Busy-wait polling: thread::sleep(1ms) loop on an AtomicBool done
@@ -93,6 +99,7 @@ fixtures:
 - id: api_regex_in_loop_1
   file: breaks/break_api_regex_in_loop_1.rs
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 26
   hunk_end_line: 44
   rationale: 'regex::Regex::new(&pat).unwrap() recompiled for every haystack line
@@ -107,6 +114,7 @@ fixtures:
 - id: api_fs_read_dir_1
   file: breaks/break_api_fs_read_dir_1.rs
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 28
   hunk_end_line: 47
   rationale: 'Hand-rolled recursive std::fs::read_dir traversal with a string
@@ -120,6 +128,7 @@ fixtures:
 - id: api_println_output_1
   file: breaks/break_api_println_output_1.rs
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 29
   hunk_end_line: 39
   rationale: 'println!-driven match and summary output. Verified at SHA: zero
@@ -133,6 +142,7 @@ fixtures:
 - id: api_read_to_string_1
   file: breaks/break_api_read_to_string_1.rs
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 28
   hunk_end_line: 43
   rationale: 'fs::read_to_string whole-file slurp + lines().contains() scan,
@@ -276,6 +286,7 @@ fixtures:
 - id: foreign_threadpool_1
   file: breaks/break_foreign_threadpool_1.rs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 26
   hunk_end_line: 38
   rationale: 'threadpool::ThreadPool::new() + pool.execute() fanning per-file
@@ -291,6 +302,7 @@ fixtures:
 - id: foreign_smol_1
   file: breaks/break_foreign_smol_1.rs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 24
   hunk_end_line: 38
   rationale: 'smol::block_on() + smol::spawn() driving the slice-by-line sink
@@ -361,6 +373,7 @@ fixtures:
 - id: foreign_flume_1
   file: breaks/break_foreign_flume_1.rs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 25
   hunk_end_line: 35
   rationale: 'flume::unbounded() MPMC channel fanning per-file outcomes back from
@@ -375,6 +388,7 @@ fixtures:
 - id: foreign_parking_lot_1
   file: breaks/break_foreign_parking_lot_1.rs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 25
   hunk_end_line: 34
   rationale: 'use parking_lot::Mutex as PlMutex (aliased import) guarding the shared
@@ -432,6 +446,7 @@ fixtures:
 - id: foreign_async_std_1
   file: breaks/break_foreign_async_std_1.rs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 29
   hunk_end_line: 43
   rationale: 'async-std runtime driving the slice-by-line sink concurrently via a
@@ -462,6 +477,7 @@ fixtures:
 - id: foreign_dashmap_1
   file: breaks/break_foreign_dashmap_1.rs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 30
   hunk_end_line: 39
   rationale: 'HARD (masked): dashmap concurrent map named only as a

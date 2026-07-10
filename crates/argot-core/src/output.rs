@@ -8,9 +8,12 @@
 //! Formats:
 //! - `json` — argot's own stable schema (tool block, scan metadata, per-hit
 //!   entries). Intended for scripting; field names are part of the contract.
+//! - `github` — GitHub Actions workflow commands (`::error file=…`), one line
+//!   per hit → inline PR annotations with no extra action or upload step.
 //! - `sarif` — SARIF 2.1.0 for code-scanning integrations (GitHub
-//!   `upload-sarif` etc.). Severity tiers map to SARIF levels:
-//!   `unusual` → `note`, `suspicious` → `warning`, `foreign` → `error`.
+//!   `upload-sarif` etc.). Confidence tiers map to SARIF levels
+//!   (`unusual` → `note`, `suspicious` → `warning`, `foreign` → `error`),
+//!   capped at `warning` for `warn`-severity rules.
 
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -25,6 +28,8 @@ pub enum OutputFormat {
     Json,
     /// SARIF 2.1.0 for code-scanning uploads.
     Sarif,
+    /// GitHub Actions workflow commands (inline PR annotations).
+    Github,
 }
 
 impl OutputFormat {
@@ -34,6 +39,7 @@ impl OutputFormat {
             "human" => Some(Self::Human),
             "json" => Some(Self::Json),
             "sarif" => Some(Self::Sarif),
+            "github" => Some(Self::Github),
             _ => None,
         }
     }
@@ -55,14 +61,18 @@ pub struct HitRecord {
     pub line_end: usize,
     /// BPE-stage score for the hunk.
     pub score: f64,
-    /// Calibrated threshold the severity tier is measured against.
+    /// Calibrated threshold the confidence tier is measured against.
     pub threshold: f64,
-    /// Severity tier name (weakest to strongest: unusual, suspicious, foreign).
+    /// Confidence tier (weakest to strongest: unusual, suspicious, foreign) —
+    /// how strong the evidence is. Display-graded, does not gate.
+    pub confidence: String,
+    /// The rule's configured severity for this run (`error` or `warn`).
     pub severity: String,
-    /// Scorer reason code (e.g. `bpe`, `import`, `call_receiver`).
-    pub reason: String,
-    /// User-facing translation of `reason` (e.g. "rare token sequence").
-    pub reason_label: String,
+    /// Stable rule name (e.g. `foreign-import`, `redundant`) — the registry
+    /// key usable in `argot.toml [rules]`, `--rule`, and suppressions.
+    pub rule: String,
+    /// Human label for the rule (e.g. "rare token sequence").
+    pub rule_label: String,
     /// Where the hunk came from: `workdir`/`staged`/`untracked` or a short SHA.
     pub source: String,
     /// Content-based hit hash — paste into `argot mute <hash>` to suppress.
@@ -97,16 +107,23 @@ pub struct ReportMeta {
     pub model: String,
 }
 
-/// Map a severity tier to its SARIF result level.
+/// Map a hit to its SARIF result level: the confidence tier grades the level
+/// (`note`/`warning`/`error`), and a `warn`-severity rule caps it at
+/// `warning` — SARIF `error` is reserved for findings that fail the check.
 ///
 /// Unknown tiers fall back to `warning` so a future tier never silently
 /// disappears from code-scanning results.
-fn sarif_level(severity: &str) -> &'static str {
-    match severity {
+fn sarif_level(confidence: &str, severity: &str) -> &'static str {
+    let level = match confidence {
         "unusual" => "note",
         "suspicious" => "warning",
         "foreign" => "error",
         _ => "warning",
+    };
+    if severity != "error" && level == "error" {
+        "warning"
+    } else {
+        level
     }
 }
 
@@ -136,11 +153,11 @@ pub fn render_json(meta: &ReportMeta, hits: &[HitRecord]) -> String {
 /// result carries the physical location, the mapped level, and the raw
 /// score/threshold/severity/evidence in `properties`.
 pub fn render_sarif(meta: &ReportMeta, hits: &[HitRecord]) -> String {
-    // Rules: distinct reason codes, first-appearance order.
+    // Rules: distinct rule names, first-appearance order.
     let mut rule_ids: Vec<(&str, &str)> = Vec::new();
     for h in hits {
-        if !rule_ids.iter().any(|(id, _)| *id == h.reason) {
-            rule_ids.push((&h.reason, &h.reason_label));
+        if !rule_ids.iter().any(|(id, _)| *id == h.rule) {
+            rule_ids.push((&h.rule, &h.rule_label));
         }
     }
     let rules: Vec<Value> = rule_ids
@@ -164,20 +181,20 @@ pub fn render_sarif(meta: &ReportMeta, hits: &[HitRecord]) -> String {
         .map(|h| {
             let rule_index = rule_ids
                 .iter()
-                .position(|(id, _)| *id == h.reason)
+                .position(|(id, _)| *id == h.rule)
                 .expect("rule registered above");
             let mut text = format!(
                 "{} — score {:.2} vs threshold {:.2} ({})",
-                h.reason_label, h.score, h.threshold, h.severity
+                h.rule_label, h.score, h.threshold, h.confidence
             );
             for line in &h.evidence {
                 text.push('\n');
                 text.push_str(line);
             }
             json!({
-                "ruleId": h.reason,
+                "ruleId": h.rule,
                 "ruleIndex": rule_index,
-                "level": sarif_level(&h.severity),
+                "level": sarif_level(&h.confidence, &h.severity),
                 "message": { "text": text },
                 "locations": [{
                     "physicalLocation": {
@@ -188,6 +205,7 @@ pub fn render_sarif(meta: &ReportMeta, hits: &[HitRecord]) -> String {
                 "properties": {
                     "score": h.score,
                     "threshold": h.threshold,
+                    "confidence": h.confidence,
                     "severity": h.severity,
                     "source": h.source,
                     "hash": h.hash,
@@ -221,6 +239,51 @@ pub fn render_sarif(meta: &ReportMeta, hits: &[HitRecord]) -> String {
     to_pretty(&doc)
 }
 
+/// Escape a workflow-command message value (GitHub's own rules: `%`, CR, LF).
+fn github_escape(s: &str) -> String {
+    s.replace('%', "%25")
+        .replace('\r', "%0D")
+        .replace('\n', "%0A")
+}
+
+/// Escape a workflow-command *property* value (adds `:` and `,`).
+fn github_escape_property(s: &str) -> String {
+    github_escape(s).replace(':', "%3A").replace(',', "%2C")
+}
+
+/// Render GitHub Actions workflow commands (`--format github`): one
+/// `::error`/`::warning` line per hit — the runner turns these into inline PR
+/// annotations with no upload step. Severity maps directly: `error` rules
+/// annotate as errors, `warn` rules as warnings.
+pub fn render_github(hits: &[HitRecord]) -> String {
+    let mut out = String::new();
+    for h in hits {
+        let level = if h.severity == "error" {
+            "error"
+        } else {
+            "warning"
+        };
+        let mut message = format!(
+            "{} — score {:.2} vs threshold {:.2} ({} confidence)",
+            h.rule_label, h.score, h.threshold, h.confidence
+        );
+        for line in &h.evidence {
+            message.push('\n');
+            message.push_str(line);
+        }
+        message.push_str(&format!("\nmute with: argot mute {}", h.hash));
+        out.push_str(&format!(
+            "::{level} file={},line={},endLine={},title={}::{}\n",
+            github_escape_property(&h.path),
+            h.line_start,
+            h.line_end,
+            github_escape_property(&format!("argot: {}", h.rule)),
+            github_escape(&message),
+        ));
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -239,19 +302,20 @@ mod tests {
         }
     }
 
-    fn hit(severity: &str, reason: &str) -> HitRecord {
+    fn hit(conf: &str, rule: &str) -> HitRecord {
         HitRecord {
             path: "src/app.py".to_string(),
             line_start: 10,
             line_end: 16,
             score: 8.25,
             threshold: 6.75,
-            severity: severity.to_string(),
-            reason: reason.to_string(),
-            reason_label: match reason {
-                "bpe" => "rare token sequence",
-                "import" => "foreign import",
-                _ => reason,
+            confidence: conf.to_string(),
+            severity: "error".to_string(),
+            rule: rule.to_string(),
+            rule_label: match rule {
+                "rare-tokens" => "rare token sequence",
+                "foreign-import" => "foreign import",
+                _ => rule,
             }
             .to_string(),
             source: "workdir".to_string(),
@@ -273,7 +337,7 @@ mod tests {
 
     #[test]
     fn json_document_carries_tool_meta_and_hit_fields() {
-        let out = render_json(&meta(), &[hit("suspicious", "bpe")]);
+        let out = render_json(&meta(), &[hit("suspicious", "rare-tokens")]);
         let doc: Value = serde_json::from_str(&out).expect("valid JSON");
         assert_eq!(doc["tool"]["name"], "argot");
         assert_eq!(doc["tool"]["version"], "0.0.0-test");
@@ -288,9 +352,10 @@ mod tests {
         assert_eq!(h["line_end"], 16);
         assert_eq!(h["score"], 8.25);
         assert_eq!(h["threshold"], 6.75);
-        assert_eq!(h["severity"], "suspicious");
-        assert_eq!(h["reason"], "bpe");
-        assert_eq!(h["reason_label"], "rare token sequence");
+        assert_eq!(h["confidence"], "suspicious");
+        assert_eq!(h["severity"], "error");
+        assert_eq!(h["rule"], "rare-tokens");
+        assert_eq!(h["rule_label"], "rare token sequence");
         assert_eq!(h["source"], "workdir");
         assert_eq!(h["hash"], "a1b2c3d4e5f6");
         assert_eq!(
@@ -308,7 +373,7 @@ mod tests {
 
     #[test]
     fn sarif_has_required_top_level_fields() {
-        let out = render_sarif(&meta(), &[hit("foreign", "import")]);
+        let out = render_sarif(&meta(), &[hit("foreign", "foreign-import")]);
         let doc: Value = serde_json::from_str(&out).expect("valid JSON");
         assert_eq!(doc["version"], "2.1.0");
         assert!(doc["$schema"]
@@ -323,11 +388,11 @@ mod tests {
     }
 
     #[test]
-    fn sarif_maps_severity_tiers_to_levels() {
+    fn sarif_maps_confidence_tiers_to_levels() {
         let hits = [
-            hit("unusual", "bpe"),
-            hit("suspicious", "bpe"),
-            hit("foreign", "bpe"),
+            hit("unusual", "rare-tokens"),
+            hit("suspicious", "rare-tokens"),
+            hit("foreign", "rare-tokens"),
         ];
         let out = render_sarif(&meta(), &hits);
         let doc: Value = serde_json::from_str(&out).unwrap();
@@ -340,22 +405,32 @@ mod tests {
     }
 
     #[test]
+    fn sarif_caps_warn_severity_rules_at_warning() {
+        let mut h = hit("foreign", "redundant");
+        h.severity = "warn".to_string();
+        let out = render_sarif(&meta(), &[h]);
+        let doc: Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(doc["runs"][0]["results"][0]["level"], "warning");
+    }
+
+    #[test]
     fn sarif_result_carries_rule_location_and_properties() {
-        let out = render_sarif(&meta(), &[hit("foreign", "import")]);
+        let out = render_sarif(&meta(), &[hit("foreign", "foreign-import")]);
         let doc: Value = serde_json::from_str(&out).unwrap();
         let run = &doc["runs"][0];
         let r = &run["results"][0];
-        assert_eq!(r["ruleId"], "import");
+        assert_eq!(r["ruleId"], "foreign-import");
         assert_eq!(r["ruleIndex"], 0);
         let rule = &run["tool"]["driver"]["rules"][0];
-        assert_eq!(rule["id"], "import");
+        assert_eq!(rule["id"], "foreign-import");
         assert_eq!(rule["shortDescription"]["text"], "foreign import");
         let loc = &r["locations"][0]["physicalLocation"];
         assert_eq!(loc["artifactLocation"]["uri"], "src/app.py");
         assert_eq!(loc["region"]["startLine"], 10);
         assert_eq!(loc["region"]["endLine"], 16);
         assert_eq!(r["properties"]["score"], 8.25);
-        assert_eq!(r["properties"]["severity"], "foreign");
+        assert_eq!(r["properties"]["confidence"], "foreign");
+        assert_eq!(r["properties"]["severity"], "error");
         assert_eq!(r["properties"]["hash"], "a1b2c3d4e5f6");
         assert!(r["message"]["text"]
             .as_str()
@@ -365,11 +440,11 @@ mod tests {
     }
 
     #[test]
-    fn sarif_deduplicates_rules_by_reason_code() {
+    fn sarif_deduplicates_rules_by_rule_name() {
         let hits = [
-            hit("unusual", "bpe"),
-            hit("foreign", "bpe"),
-            hit("foreign", "import"),
+            hit("unusual", "rare-tokens"),
+            hit("foreign", "rare-tokens"),
+            hit("foreign", "foreign-import"),
         ];
         let out = render_sarif(&meta(), &hits);
         let doc: Value = serde_json::from_str(&out).unwrap();
@@ -377,10 +452,35 @@ mod tests {
             .as_array()
             .unwrap();
         assert_eq!(rules.len(), 2);
-        assert_eq!(rules[0]["id"], "bpe");
-        assert_eq!(rules[1]["id"], "import");
+        assert_eq!(rules[0]["id"], "rare-tokens");
+        assert_eq!(rules[1]["id"], "foreign-import");
         let results = doc["runs"][0]["results"].as_array().unwrap();
         assert_eq!(results[2]["ruleIndex"], 1);
+    }
+
+    #[test]
+    fn github_format_emits_one_annotation_per_hit_with_severity_level() {
+        let mut warn_hit = hit("unusual", "redundant");
+        warn_hit.severity = "warn".to_string();
+        let out = render_github(&[hit("foreign", "foreign-import"), warn_hit]);
+        let lines: Vec<&str> = out.lines().collect();
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].starts_with(
+            "::error file=src/app.py,line=10,endLine=16,title=argot%3A foreign-import::"
+        ));
+        assert!(lines[0].contains("foreign import — score 8.25"));
+        assert!(lines[0].contains("%0Amute with: argot mute a1b2c3d4e5f6"));
+        assert!(lines[1].starts_with("::warning "));
+    }
+
+    #[test]
+    fn github_format_escapes_workflow_command_metacharacters() {
+        let mut h = hit("foreign", "foreign-import");
+        h.path = "src/a,b:c.py".to_string();
+        h.evidence = vec!["50% of\nlines".to_string()];
+        let out = render_github(&[h]);
+        assert!(out.contains("file=src/a%2Cb%3Ac.py"));
+        assert!(out.contains("50%25 of%0Alines"));
     }
 
     #[test]

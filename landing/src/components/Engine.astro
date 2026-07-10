@@ -1,0 +1,76 @@
+---
+// "Under the hood" — the section the Demo terminal can't tell: WHAT powers the
+// four rules (a local embedding model, a statistical voice model, an
+// architecture graph — one Rust binary) and how fast it is, with measured
+// numbers. Deliberately zero code samples: the terminal above owns "what it
+// catches"; this section owns "how, and how fast".
+import { emphasize } from '#lib/text';
+import type { SiteContent } from '#i18n/types';
+
+interface Props {
+  content: SiteContent;
+}
+const { engine } = Astro.props.content;
+---
+
+<section
+  id="engine"
+  class="snap-section relative flex md:min-h-svh items-center overflow-hidden border-y border-line bg-bg-2/40"
+>
+  <div class="mx-auto w-full max-w-6xl px-5 py-14 md:py-20">
+    <div class="reveal mx-auto max-w-2xl text-center">
+      <p class="mb-3 font-mono text-xs tracking-widest text-ember uppercase">{engine.label}</p>
+      <h2 class="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{engine.title}</h2>
+      <p
+        class="mt-4 leading-relaxed text-ink-dim text-pretty"
+        set:html={emphasize(engine.body)}
+      />
+    </div>
+
+    <div class="mt-10 grid grid-cols-1 gap-3 sm:gap-4 lg:mt-14 lg:grid-cols-3">
+      {
+        engine.cards.map((card, i) => (
+          <article
+            class="reveal engine-card rounded-2xl border border-line bg-panel/40 p-5 sm:p-6"
+            style={`--reveal-delay: ${i * 110}ms`}
+          >
+            <h3 class="font-semibold text-ink">{card.title}</h3>
+            <p
+              class="mt-2.5 text-sm leading-relaxed text-ink-dim text-pretty"
+              set:html={emphasize(card.desc)}
+            />
+          </article>
+        ))
+      }
+    </div>
+
+    <div
+      class="reveal mt-8 grid grid-cols-2 gap-x-6 gap-y-5 rounded-2xl border border-line bg-panel/25 px-6 py-5 sm:grid-cols-4"
+      style="--reveal-delay: 300ms"
+    >
+      {
+        engine.stats.map((stat) => (
+          <div class="text-center">
+            <div class="font-mono text-2xl font-bold text-ink sm:text-3xl">{stat.value}</div>
+            <div class="mt-1 text-xs leading-snug text-muted text-balance">{stat.label}</div>
+          </div>
+        ))
+      }
+    </div>
+    <p class="reveal mt-4 text-center text-xs text-muted" style="--reveal-delay: 380ms">
+      {engine.finePrint}
+    </p>
+  </div>
+</section>
+
+<style>
+  .engine-card {
+    transition:
+      border-color 0.25s,
+      transform 0.25s;
+  }
+  .engine-card:hover {
+    border-color: var(--line-2);
+    transform: translateY(-2px);
+  }
+</style>

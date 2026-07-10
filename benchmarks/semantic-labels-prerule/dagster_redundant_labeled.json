@@ -1,0 +1,8 @@
+{
+ "corpus": "dagster",
+ "reason": "redundant",
+ "genuine": 17,
+ "true_fp": 17,
+ "raw_fires": 34,
+ "sampled": true
+}

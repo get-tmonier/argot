@@ -17,7 +17,10 @@ use crate::config::{ArgotConfig, DetectConfig};
 use crate::git_walk::{
     open_repo, resolve_shas, walk_commits, HunkSpan, WalkItem, SUPPORTED_EXTENSIONS,
 };
-use crate::output::{render_json, render_sarif, FileScan, HitRecord, OutputFormat, ReportMeta};
+use crate::output::{
+    render_github, render_json, render_sarif, FileScan, HitRecord, OutputFormat, ReportMeta,
+};
+use crate::rules::{self, RuleSettings, RulesLayer, Severity as RuleSeverity};
 use crate::scoring::adapters::c::CAdapter;
 use crate::scoring::adapters::cpp::CppAdapter;
 use crate::scoring::adapters::csharp::CSharpAdapter;
@@ -49,8 +52,11 @@ use std::path::{Path, PathBuf};
 /// Default number of hunk-body lines shown under each above-threshold hit.
 pub const DEFAULT_HUNK_LINES: usize = 6;
 
-/// Severity tier ordering, weakest first (`_SEVERITY_ORDER`).
-const SEVERITY_ORDER: [&str; 3] = ["unusual", "suspicious", "foreign"];
+/// Confidence tier ordering, weakest first. Confidence grades how strong the
+/// evidence is (`unusual` / `suspicious` / `foreign`); it is display-only —
+/// whether a finding fails the check is decided by its rule's configured
+/// severity (`error` / `warn`), never by the tier.
+const CONFIDENCE_ORDER: [&str; 3] = ["unusual", "suspicious", "foreign"];
 
 // ANSI color codes for the human `check` render. Every colored write goes
 // through `paint`, which is a no-op when `use_color` is false — so the
@@ -62,10 +68,10 @@ const C_BOLD: &str = "\x1b[1m";
 const C_DIM: &str = "\x1b[2m";
 const C_RESET: &str = "\x1b[0m";
 
-/// The accent color for a severity tier: red (foreign), yellow (suspicious),
+/// The accent color for a confidence tier: red (foreign), yellow (suspicious),
 /// blue (unusual).
-fn severity_color(sev: &str) -> &'static str {
-    match sev {
+fn confidence_color(tier: &str) -> &'static str {
+    match tier {
         "foreign" => C_RED,
         "suspicious" => C_YELLOW,
         _ => C_BLUE,
@@ -94,7 +100,16 @@ pub struct CheckArgs {
     pub argot_dir: PathBuf,
     pub hunk_lines: usize,
     pub verbose: bool,
-    pub min_severity: String,
+    /// Only show hits at or above this confidence tier (display filter).
+    pub min_confidence: String,
+    /// Validated CLI `--rule` overrides, highest-precedence severity layer.
+    pub rule_overrides: RulesLayer,
+    /// Promote `warn`-severity findings to check failures (CI strictness).
+    pub error_on_warnings: bool,
+    /// Insert an inline ignore comment above every current finding (adoption
+    /// on an existing codebase — the `ruff --add-noqa` move). Working-tree
+    /// modes only.
+    pub add_ignores: bool,
     pub use_color: bool,
     /// Output format. Machine formats (`json`/`sarif`) own stdout exclusively.
     pub format: OutputFormat,
@@ -168,6 +183,36 @@ struct Hit {
     hash: String,
     /// Set when a suppression surface muted this hit.
     suppressed_by: Option<SuppressedBy>,
+    /// Nearest-code evidence for a semantic finding (reinvention / placement).
+    /// Feature-gated so the base build has no extra field and stays byte-for-byte
+    /// identical; base statistical Hits carry `None` when the feature is on.
+    #[cfg(feature = "semantic")]
+    semantic: Option<SemanticHitEvidence>,
+    /// Pre-rendered evidence line for a `layering` finding — which established
+    /// direction the new edge violates. Same feature-gating discipline.
+    #[cfg(feature = "arch")]
+    arch: Option<String>,
+}
+
+/// The nearest-existing-code evidence attached to a semantic finding (F4). Held
+/// as structured data so every output format renders it its own way.
+#[cfg(feature = "semantic")]
+#[derive(Debug, Clone)]
+enum SemanticHitEvidence {
+    /// F1 reinvention: the existing function this one duplicates.
+    Redundant {
+        nearest_symbol: String,
+        nearest_path: String,
+        nearest_line: usize,
+        similarity: f32,
+    },
+    /// F2 placement: the area this function looks like it belongs in.
+    Misplaced {
+        neighbor_area: String,
+        actual_area: String,
+        /// Nearest peers (symbol, path:line) that voted for `neighbor_area`.
+        peers: Vec<(String, String, usize)>,
+    },
 }
 
 /// One calibrated slice for check-time dispatch: its threshold applies to hunks
@@ -275,13 +320,13 @@ fn is_supported_ext(file_path: &str) -> bool {
     SUPPORTED_EXTENSIONS.contains(&extension(file_path).as_str())
 }
 
-fn sev_index(s: &str) -> usize {
-    SEVERITY_ORDER.iter().position(|x| *x == s).unwrap_or(0)
+fn confidence_index(s: &str) -> usize {
+    CONFIDENCE_ORDER.iter().position(|x| *x == s).unwrap_or(0)
 }
 
-/// Classify a hit into a severity tier.
+/// Classify a hit into a confidence tier.
 ///
-/// Severity expresses the *strength of the evidence that a hunk is foreign*,
+/// Confidence expresses the *strength of the evidence that a hunk is foreign*,
 /// derived per signal-kind — not one margin rule for every reason:
 ///
 /// * **Categorical foreign signals** are `foreign` by nature. A foreign import
@@ -294,9 +339,17 @@ fn sev_index(s: &str) -> usize {
 /// * **Distributional signals** (BPE surprise, convention rarity, unfamiliar
 ///   callee) grade by margin above the calibrated threshold: the margin there
 ///   genuinely measures how far outside the repo's voice the hunk sits.
-fn severity(reason: &str, score: f64, threshold: f64) -> &'static str {
+/// * **Structural findings** (`redundant` / `misplaced` / `layering`) pin to
+///   `unusual` — they surface real, linter-invisible structure (a duplicate, a
+///   misplacement, a crossed boundary) for the author to judge; their scores
+///   are not on the foreignness scale the margins above grade.
+///
+/// Whether a finding fails the check is its rule's configured severity
+/// (`error` / `warn` / `off`), not this tier.
+fn confidence(reason: &str, score: f64, threshold: f64) -> &'static str {
     match reason {
         "import" => "foreign",
+        "redundant" | "misplaced" | "layering" => "unusual",
         _ => {
             if score >= threshold + 1.5 {
                 "foreign"
@@ -309,23 +362,13 @@ fn severity(reason: &str, score: f64, threshold: f64) -> &'static str {
     }
 }
 
-/// User-facing translation of a scorer `reason` code (`_REASON_LABEL`).
-fn reason_label(reason: &str) -> &str {
-    match reason {
-        "bpe" => "rare token sequence",
-        "call_receiver" => "unfamiliar callee",
-        "import" => "foreign import",
-        other => other,
-    }
-}
-
 /// Scope decision for one patch batch, against the resolved path-suppression
-/// set (recommended built-ins + `.argotignore` — the same set calibration
+/// set (recommended built-ins + `argot.toml [exclude].paths` — the same set calibration
 /// samples from; lock-step principle).
 enum BatchScope {
     /// In scope: score and report normally.
     Score,
-    /// In scope but matched by a user `.argotignore` pattern: score it so the
+    /// In scope but matched by a user `[exclude].paths` pattern: score it so the
     /// suppression is countable, then drop its hits from output.
     ScoreSuppressed,
     /// Out of scope (wrong language, recommended exclusion, data-dominant):
@@ -333,9 +376,22 @@ enum BatchScope {
     Drop,
 }
 
+/// Languages present in the change that argot supports but the current fit
+/// has no model for (fitted before the language appeared in the repo).
+fn patches_langs_without_model(
+    patches: &[PatchBatch],
+    scorers: &HashMap<String, SequentialImportBpeScorer>,
+) -> Vec<&'static str> {
+    patches
+        .iter()
+        .filter_map(|b| ext_to_lang(&extension(&b.file_path)))
+        .filter(|lang| !scorers.contains_key(*lang))
+        .collect()
+}
+
 /// Port of `_is_out_of_scope`, split so user-ignored files stay countable:
 /// wrong language / recommended-set path → `Drop` (silent, as always); user
-/// `.argotignore` match → `ScoreSuppressed`. Data-heavy files are NOT dropped
+/// `[exclude].paths` match → `ScoreSuppressed`. Data-heavy files are NOT dropped
 /// here: data scope is row-granular inside the scorer (a planted code hunk in
 /// a data-dominant file must still be judged; its data-row hunks are skipped
 /// per hunk).
@@ -1143,6 +1199,10 @@ fn score_patches(
                 evidence: scored.evidence,
                 hash,
                 suppressed_by,
+                #[cfg(feature = "semantic")]
+                semantic: None,
+                #[cfg(feature = "arch")]
+                arch: None,
             });
         }
     }
@@ -1158,6 +1218,459 @@ fn score_patches(
         .map(|(path, hunks)| FileScan { path, hunks })
         .collect();
     (hits, hunk_count, files_scanned)
+}
+
+/// The architecture-graph pass — additive `Hit`s from the per-repo
+/// module-dependency graph (`.argot/layering.json`). For each changed file it
+/// takes the ADDED lines, resolves the internal import edges they introduce, and
+/// flags any that reverse an established layer direction or leave a (near-)sink —
+/// a boundary the repo never crosses. Runs alongside the statistical scorers,
+/// never through them; empty (graceful degrade) when the graph is absent, so the
+/// base guardrail is entirely unaffected. Reason code `layering`.
+#[cfg(feature = "arch")]
+fn arch_hits(
+    patches: &[PatchBatch],
+    argot_dir: &Path,
+    filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
+    mute_rules: &[SuppressionRule],
+    stderr: &mut String,
+) -> Vec<Hit> {
+    use crate::scoring::arch_graph::{RepoLayering, LAYERING_FILE};
+    let Ok(raw) = std::fs::read_to_string(argot_dir.join(LAYERING_FILE)) else {
+        return Vec::new();
+    };
+    let Some(graph) = RepoLayering::from_json(&raw) else {
+        stderr.push_str("[argot] layering graph unreadable\n");
+        return Vec::new();
+    };
+    let mut hits = Vec::new();
+    for batch in patches {
+        if batch.ignored_by_pattern || !batch.file_path.ends_with(".py") {
+            continue; // v1: Python resolver only
+        }
+        let source = String::from_utf8_lossy(&batch.content);
+        let lines: Vec<&str> = source.lines().collect();
+        // Concatenate the ADDED lines (1-indexed) — the imports the diff introduces.
+        let mut added = String::new();
+        let mut first_line = 0usize;
+        for h in &batch.hunks {
+            for l in h.new_start..(h.new_start + h.new_lines) {
+                if let Some(t) = lines.get((l as usize).saturating_sub(1)) {
+                    if first_line == 0 {
+                        first_line = l as usize;
+                    }
+                    added.push_str(t);
+                    added.push('\n');
+                }
+            }
+        }
+        if added.is_empty() {
+            continue;
+        }
+        // Fire if the added imports create a novel reversal/sink-out edge —
+        // and keep that edge: the evidence line names the direction it breaks.
+        let Some((edge, violation)) = graph
+            .file_edges(&batch.file_path, &added)
+            .iter()
+            .find_map(|e| graph.classify(e).map(|v| (e.clone(), v)))
+        else {
+            continue;
+        };
+        let hunk_content = added.clone();
+        let hash = hit_hash(&batch.file_path, "layering", &hunk_content);
+        let inline = ext_to_lang(&extension(&batch.file_path))
+            .and_then(|l| filter_adapters.get(l))
+            .map(|a| parse_inline(&source, a.line_comment_prefix()));
+        let suppressed_by = if inline
+            .as_ref()
+            .is_some_and(|i| i.suppresses(first_line, first_line, "layering"))
+        {
+            Some(SuppressedBy::Inline)
+        } else if mute_rules
+            .iter()
+            .any(|r| r.matches(&batch.file_path, "layering", &hash))
+        {
+            Some(SuppressedBy::Mute)
+        } else {
+            None
+        };
+        hits.push(Hit {
+            score: 1.0,
+            file_path: batch.file_path.clone(),
+            line: first_line,
+            line_end: first_line,
+            source: batch.source.clone(),
+            reason: "layering".to_string(),
+            flagged: true,
+            threshold: 0.5,
+            hunk_content,
+            evidence: None,
+            hash,
+            suppressed_by,
+            #[cfg(feature = "semantic")]
+            semantic: None,
+            arch: Some(arch_evidence(&edge, violation)),
+        });
+    }
+    hits
+}
+
+/// The evidence line for a `layering` finding: name the established direction
+/// the novel edge `(a, b)` breaks, in the repo's own module vocabulary.
+#[cfg(feature = "arch")]
+fn arch_evidence(
+    edge: &crate::scoring::arch_graph::Edge,
+    violation: crate::scoring::arch_graph::Violation,
+) -> String {
+    use crate::scoring::arch_graph::Violation;
+    let (a, b) = edge;
+    match violation {
+        Violation::Reversal => {
+            format!("{b} → {a} is this repo's direction — this import reverses it")
+        }
+        Violation::TransitiveReversal => format!(
+            "{b} already depends on {a} — this import closes a cycle against the repo's layering"
+        ),
+        Violation::SinkOut => {
+            format!("{a} is a module this repo never imports out of — this import leaves it")
+        }
+    }
+}
+
+/// The semantic pass (F1 reinvention, F2 placement) — additive `Hit`s from
+/// the per-repo embedding index. It runs *alongside* the
+/// statistical scorers, never through them: it reads `.argot/semantic-index.json`
+/// plus the embedder, finds the functions the diff *defines*, and flags any that
+/// reinvent existing code. Returns extra hits to merge into the report. Empty
+/// (a clean graceful degrade) when the index or model is unavailable, so the
+/// base guardrail is entirely unaffected.
+#[cfg(feature = "semantic")]
+fn semantic_hits(
+    patches: &[PatchBatch],
+    argot_dir: &Path,
+    filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
+    mute_rules: &[SuppressionRule],
+    detect: &DetectConfig,
+    header_cpp: bool,
+    stderr: &mut String,
+) -> Vec<Hit> {
+    use crate::scoring::semantic::embedder::Embedder;
+    use crate::scoring::semantic::index::{
+        functions_in_file, FunctionRef, LoadedIndex, SemanticArtifact,
+    };
+    use crate::scoring::semantic::placement::PlacementScorer;
+    use crate::scoring::semantic::redundant::RedundantScorer;
+    use crate::scoring::semantic::SEMANTIC_INDEX_FILE;
+
+    // Load the fit-time index artifact; its absence just means no semantic layer.
+    let Ok(raw) = std::fs::read_to_string(argot_dir.join(SEMANTIC_INDEX_FILE)) else {
+        return Vec::new();
+    };
+    let artifact = match SemanticArtifact::from_json_str(&raw) {
+        Ok(a) => a,
+        Err(e) => {
+            stderr.push_str(&format!("[argot] semantic index unreadable: {e}\n"));
+            return Vec::new();
+        }
+    };
+    // A stale index (older format, different embedding model) must never be
+    // queried — its cosines would be silently wrong. Loud skip + rebuild hint.
+    if let Err(reason) = artifact.validate_current() {
+        stderr.push_str(&format!(
+            "[argot] semantic index {reason} — run `argot fit` to rebuild; \
+             redundant/misplaced checks skipped this run\n"
+        ));
+        return Vec::new();
+    }
+
+    // Gather the functions this diff defines: a function whose definition line is
+    // among the diff's added lines is newly added (its whole body, incl. the def,
+    // is in an added hunk) — the reinvention candidates.
+    let mut candidates: Vec<(usize, &'static str, FunctionRef)> = Vec::new();
+    for (bi, batch) in patches.iter().enumerate() {
+        if batch.ignored_by_pattern {
+            continue;
+        }
+        let ext = extension(&batch.file_path);
+        let Some(lang) = ext_to_lang_ctx(&ext, header_cpp) else {
+            continue;
+        };
+        let Some(adapter) = filter_adapters.get(lang) else {
+            continue;
+        };
+        let source = String::from_utf8_lossy(&batch.content);
+        // Mirror the index scope (calibration's `filtered`): a data-dominant or
+        // auto-generated file (unicode tables, transpiled output, generated stubs)
+        // is not authored voice — its functions are neither reinvention candidates
+        // nor placement candidates. Skips the F2 over-fire clean-commit measurement
+        // caught on generated data modules (e.g. rich/_unicode_data).
+        if adapter.is_data_dominant(&source, detect.data_threshold)
+            || adapter.is_auto_generated(&source, &detect.generated_markers)
+        {
+            continue;
+        }
+        let mut added: HashSet<usize> = HashSet::new();
+        for h in &batch.hunks {
+            for l in h.new_start..(h.new_start + h.new_lines) {
+                added.insert(l as usize);
+            }
+        }
+        for f in functions_in_file(adapter.as_ref(), &batch.file_path, &source) {
+            if added.contains(&f.line) {
+                candidates.push((bi, lang, f));
+            }
+        }
+    }
+    if candidates.is_empty() {
+        return Vec::new();
+    }
+
+    // Load only the indices we actually need.
+    let mut loaded: HashMap<&'static str, LoadedIndex> = HashMap::new();
+    for (_, lang, _) in &candidates {
+        if loaded.contains_key(lang) {
+            continue;
+        }
+        match artifact.load(lang) {
+            Ok(Some(li)) => {
+                loaded.insert(lang, li);
+            }
+            Ok(None) => {}
+            Err(e) => stderr.push_str(&format!("[argot] semantic index for {lang}: {e}\n")),
+        }
+    }
+    candidates.retain(|(_, lang, _)| loaded.contains_key(lang));
+    if candidates.is_empty() {
+        return Vec::new();
+    }
+
+    // Acquire the embedder once; unavailable model → degrade (no semantic hits).
+    let embedder = match Embedder::ready() {
+        Ok(Some(e)) => e,
+        Ok(None) => {
+            stderr.push_str(
+                "[argot] semantic model unavailable — redundant/misplaced checks skipped this run\n",
+            );
+            return Vec::new();
+        }
+        Err(e) => {
+            stderr.push_str(&format!("[argot] semantic model load failed: {e}\n"));
+            return Vec::new();
+        }
+    };
+
+    // Embed all candidate functions in one batch.
+    let texts: Vec<&str> = candidates.iter().map(|(_, _, f)| f.text.as_str()).collect();
+    let vecs = match embedder.embed(&texts) {
+        Ok(v) => v,
+        Err(e) => {
+            stderr.push_str(&format!("[argot] semantic embedding failed: {e}\n"));
+            return Vec::new();
+        }
+    };
+
+    // Dev-only feature capture (`ARGOT_SEM_DUMP=<path>`): append one JSON line
+    // per candidate — its structural features, nearest neighbours and the fire
+    // outcome — so bench sweeps can re-evaluate rule variants offline against a
+    // saved index copy without re-running fit/check. Inert without the env var.
+    let dump_path = std::env::var_os("ARGOT_SEM_DUMP");
+    let mut dump_lines: Vec<String> = Vec::new();
+
+    let mut hits = Vec::new();
+    for ((bi, lang, f), vec) in candidates.iter().zip(&vecs) {
+        let li = &loaded[lang];
+        let batch = &patches[*bi];
+        let mut fired: Option<&'static str> = None;
+        // F1 first: a duplicate isn't "misplaced", it's "redundant" — the
+        // stronger signal wins, one finding per function.
+        if let Some(found) = RedundantScorer::new(&li.index, &li.reinvention).evaluate(f, vec) {
+            fired = Some("redundant");
+            let similarity = found.similarity;
+            hits.push(build_semantic_hit(
+                batch,
+                f,
+                "redundant",
+                similarity as f64,
+                crate::scoring::semantic::redundant::MIN_SIMILARITY_TO_FIRE as f64,
+                SemanticHitEvidence::Redundant {
+                    nearest_symbol: found.nearest_symbol,
+                    nearest_path: found.nearest_path,
+                    nearest_line: found.nearest_line,
+                    similarity,
+                },
+                filter_adapters,
+                mute_rules,
+            ));
+        }
+        // F2 placement (only when F1 didn't already claim the function).
+        if fired.is_none() {
+            if let Some(m) = PlacementScorer::new(&li.index, &li.placement).evaluate(f, vec) {
+                fired = Some("misplaced");
+                let score = (m.expected_fraction - m.in_area_fraction).max(0.0) as f64;
+                hits.push(build_semantic_hit(
+                    batch,
+                    f,
+                    "misplaced",
+                    score,
+                    m.expected_fraction as f64,
+                    SemanticHitEvidence::Misplaced {
+                        neighbor_area: m.neighbor_area,
+                        actual_area: m.actual_area,
+                        peers: m.peers,
+                    },
+                    filter_adapters,
+                    mute_rules,
+                ));
+            }
+        }
+        if dump_path.is_some() {
+            dump_lines.push(dump_semantic_candidate(lang, f, vec, li, fired));
+        }
+    }
+    if let (Some(p), false) = (dump_path, dump_lines.is_empty()) {
+        use std::io::Write as _;
+        if let Ok(mut fh) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&p)
+        {
+            let _ = writeln!(fh, "{}", dump_lines.join("\n"));
+        }
+    }
+    hits
+}
+
+/// One JSON line for the `ARGOT_SEM_DUMP` capture: the candidate's identity and
+/// structural features, its f16 embedding, its top nearest index neighbours
+/// (unfiltered — offline analysis applies its own same-file / cross-file rules
+/// by joining `entry_index` with a saved copy of the index), and the production
+/// fire outcome (to validate offline re-implementations against the binary).
+#[cfg(feature = "semantic")]
+fn dump_semantic_candidate(
+    lang: &str,
+    f: &crate::scoring::semantic::index::FunctionRef,
+    vec: &[f32],
+    li: &crate::scoring::semantic::index::LoadedIndex,
+    fired: Option<&str>,
+) -> String {
+    use base64::Engine as _;
+    /// Neighbours captured per candidate — enough headroom over the check-time
+    /// k=10 for offline variants to re-filter (same-file, deeper k) losslessly.
+    const DUMP_NEIGHBORS: usize = 40;
+    let neighbors: Vec<serde_json::Value> = li
+        .index
+        .nearest(vec, DUMP_NEIGHBORS, |_| true)
+        .iter()
+        .map(|n| serde_json::json!([n.entry_index, n.cosine]))
+        .collect();
+    let vec_f16: Vec<u8> = vec
+        .iter()
+        .flat_map(|x| half::f16::from_f32(*x).to_le_bytes())
+        .collect();
+    serde_json::json!({
+        "lang": lang,
+        "path": f.path,
+        "symbol": f.symbol,
+        "line": f.line,
+        "body_lines": f.text.lines().count(),
+        "callees": f.callees,
+        "subtokens": f.subtokens,
+        "vec_b64": base64::engine::general_purpose::STANDARD.encode(vec_f16),
+        "neighbors": neighbors,
+        "fired": fired,
+    })
+    .to_string()
+}
+
+/// Build one semantic `Hit`, applying the mute + inline suppression
+/// surfaces exactly as base hits do. `reason` is `"redundant"` / `"misplaced"`.
+#[cfg(feature = "semantic")]
+#[allow(clippy::too_many_arguments)]
+fn build_semantic_hit(
+    batch: &PatchBatch,
+    f: &crate::scoring::semantic::index::FunctionRef,
+    reason: &str,
+    score: f64,
+    threshold: f64,
+    sem: SemanticHitEvidence,
+    filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
+    mute_rules: &[SuppressionRule],
+) -> Hit {
+    let hunk_content = f.text.clone();
+    let hash = hit_hash(&batch.file_path, reason, &hunk_content);
+    let inline = ext_to_lang(&extension(&batch.file_path))
+        .and_then(|l| filter_adapters.get(l))
+        .map(|a| {
+            let src = String::from_utf8_lossy(&batch.content);
+            parse_inline(&src, a.line_comment_prefix())
+        });
+    let suppressed_by = if inline
+        .as_ref()
+        .is_some_and(|i| i.suppresses(f.line, f.end_line, reason))
+    {
+        Some(SuppressedBy::Inline)
+    } else if mute_rules
+        .iter()
+        .any(|r| r.matches(&batch.file_path, reason, &hash))
+    {
+        Some(SuppressedBy::Mute)
+    } else {
+        None
+    };
+    Hit {
+        score,
+        file_path: batch.file_path.clone(),
+        line: f.line,
+        line_end: f.end_line,
+        source: batch.source.clone(),
+        reason: reason.to_string(),
+        flagged: true,
+        threshold,
+        hunk_content,
+        evidence: None,
+        hash,
+        suppressed_by,
+        semantic: Some(sem),
+        #[cfg(feature = "arch")]
+        arch: None,
+    }
+}
+
+/// Render the nearest-existing-code evidence for a semantic finding as `↳` lines
+/// (F4 — retrieval + template, no LLM).
+#[cfg(feature = "semantic")]
+fn format_semantic_evidence(sem: &SemanticHitEvidence, use_color: bool) -> Vec<String> {
+    match sem {
+        SemanticHitEvidence::Redundant {
+            nearest_symbol,
+            nearest_path,
+            nearest_line,
+            similarity,
+        } => {
+            let body = format!(
+                "    ↳ duplicates {nearest_symbol} ({nearest_path}:{nearest_line}) — similarity {similarity:.2}"
+            );
+            vec![paint(&body, C_DIM, use_color)]
+        }
+        SemanticHitEvidence::Misplaced {
+            neighbor_area,
+            actual_area,
+            peers,
+        } => {
+            let filed = if actual_area.is_empty() {
+                "the repo root".to_string()
+            } else {
+                actual_area.clone()
+            };
+            let head = format!("    ↳ looks like {neighbor_area} code filed under {filed}");
+            let mut lines = vec![paint(&head, C_DIM, use_color)];
+            if let Some((sym, path, line)) = peers.first() {
+                let peer = format!("      nearest peer: {sym} ({path}:{line})");
+                lines.push(paint(&peer, C_DIM, use_color));
+            }
+            lines
+        }
+    }
 }
 
 /// Build the eslint-style `^^^^^` underline for one source line
@@ -1271,7 +1784,7 @@ fn render_results(
     let mut counts: HashMap<&str, usize> = HashMap::new();
     for h in hits {
         *counts
-            .entry(severity(&h.reason, h.score, h.threshold))
+            .entry(confidence(&h.reason, h.score, h.threshold))
             .or_insert(0) += 1;
     }
     let total = hits.len();
@@ -1281,7 +1794,7 @@ fn render_results(
         if c > 0 {
             tier_parts.push(format!(
                 "{c} {}",
-                paint(tier, severity_color(tier), use_color)
+                paint(tier, confidence_color(tier), use_color)
             ));
         }
     }
@@ -1331,20 +1844,16 @@ fn render_results(
         fhits.sort_by_key(|h| h.line); // stable by line asc
 
         for h in &fhits {
-            let sev = severity(&h.reason, h.score, h.threshold);
-            let color = severity_color(sev);
+            let sev = confidence(&h.reason, h.score, h.threshold);
+            let color = confidence_color(sev);
             let line_str = if h.line == h.line_end {
                 format!("L{}", h.line)
             } else {
                 format!("L{}-L{}", h.line, h.line_end)
             };
-            let friendly = reason_label(&h.reason);
-            let reason_str = if friendly != h.reason {
-                format!("{} ({})", friendly, h.reason)
-            } else {
-                h.reason.clone()
-            };
-            let meta = format!("· {} · {}", h.source, reason_str);
+            // The meta line names the rule (`foreign-import`, `redundant`, …);
+            // internal reasons without a rule (`none` under --threshold) print raw.
+            let meta = format!("· {} · {}", h.source, rules::code_for_reason(&h.reason));
             let glyph = match sev {
                 "foreign" => "!",
                 "suspicious" => "?",
@@ -1370,6 +1879,22 @@ fn render_results(
                     out.push_str(&line);
                     out.push('\n');
                 }
+            }
+            // Semantic findings render nearest-existing-code evidence (F4) — a
+            // retrieval lookup, no LLM. Turns the statistic into "here's the
+            // closest thing you already have."
+            #[cfg(feature = "semantic")]
+            if let Some(sem) = &h.semantic {
+                for line in format_semantic_evidence(sem, use_color) {
+                    out.push_str(&line);
+                    out.push('\n');
+                }
+            }
+            // Layering findings name the established direction they break.
+            #[cfg(feature = "arch")]
+            if let Some(arch) = &h.arch {
+                out.push_str(&paint(&format!("    ↳ {arch}"), C_DIM, use_color));
+                out.push('\n');
             }
 
             // Smart-peek keeps flagged lines in-frame; caret spans drive the
@@ -1402,24 +1927,142 @@ fn render_results(
     any_truncated
 }
 
+/// Insert inline `argot: ignore-next-line` comments above the given 1-indexed
+/// lines of `source`, bottom-up so earlier insertions never shift later
+/// targets. Each comment copies the target line's indentation. Pure — the
+/// caller does the I/O.
+fn insert_ignore_comments(source: &str, comments: &[(usize, String)]) -> String {
+    let mut lines: Vec<String> = source.split('\n').map(str::to_string).collect();
+    let mut sorted: Vec<&(usize, String)> = comments.iter().collect();
+    sorted.sort_by_key(|(line, _)| std::cmp::Reverse(*line));
+    for (line, text) in sorted {
+        let idx = line.saturating_sub(1).min(lines.len());
+        let indent: String = lines
+            .get(idx)
+            .map(|l| l.chars().take_while(|c| c.is_whitespace()).collect())
+            .unwrap_or_default();
+        lines.insert(idx, format!("{indent}{text}"));
+    }
+    lines.join("\n")
+}
+
+/// `--add-ignores`: write one inline suppression above every visible finding
+/// (deduped per line; a line carrying several rules gets one unscoped
+/// comment). Adoption tooling — a wall of existing findings becomes a set of
+/// reviewable, greppable comments instead of a red first run.
+fn add_ignore_comments(
+    args: &CheckArgs,
+    visible: &[&Hit],
+    filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
+    stderr: String,
+) -> CheckOutcome {
+    // Only the working-tree modes: editing files based on a historical ref's
+    // line numbers would write comments into the wrong places.
+    if !args.reference.is_empty() || args.commit.as_deref().is_some_and(|c| !c.is_empty()) {
+        return CheckOutcome::err(
+            "error: --add-ignores edits the working tree — run it without a ref/--commit\n"
+                .to_string(),
+            2,
+        );
+    }
+    if visible.is_empty() {
+        return CheckOutcome {
+            stdout: "No findings — nothing to ignore.\n".to_string(),
+            stderr,
+            exit_code: 0,
+        };
+    }
+
+    // file → line → rules found there.
+    let mut by_file: BTreeMap<&str, BTreeMap<usize, Vec<&str>>> = BTreeMap::new();
+    for h in visible {
+        by_file
+            .entry(h.file_path.as_str())
+            .or_default()
+            .entry(h.line)
+            .or_default()
+            .push(rules::code_for_reason(&h.reason));
+    }
+
+    let mut files_written = 0usize;
+    let mut comments_written = 0usize;
+    let mut stderr = stderr;
+    for (file, lines) in &by_file {
+        let Some(prefix) = ext_to_lang(&extension(file))
+            .and_then(|l| filter_adapters.get(l))
+            .map(|a| a.line_comment_prefix())
+        else {
+            stderr.push_str(&format!("[argot] {file}: unknown language — skipped\n"));
+            continue;
+        };
+        let path = Path::new(&args.repo_path).join(file);
+        let Ok(source) = fs::read_to_string(&path) else {
+            stderr.push_str(&format!("[argot] {file}: unreadable — skipped\n"));
+            continue;
+        };
+        let comments: Vec<(usize, String)> = lines
+            .iter()
+            .map(|(line, rule_names)| {
+                let mut names: Vec<&str> = rule_names.clone();
+                names.sort_unstable();
+                names.dedup();
+                let scope = if names.len() == 1 {
+                    format!(" rule={}", names[0])
+                } else {
+                    String::new()
+                };
+                (
+                    *line,
+                    format!(
+                        "{prefix} argot: ignore-next-line{scope} — baselined by --add-ignores; review"
+                    ),
+                )
+            })
+            .collect();
+        let updated = insert_ignore_comments(&source, &comments);
+        if let Err(e) = fs::write(&path, updated) {
+            stderr.push_str(&format!("[argot] {file}: write failed ({e}) — skipped\n"));
+            continue;
+        }
+        files_written += 1;
+        comments_written += comments.len();
+    }
+
+    CheckOutcome {
+        stdout: format!(
+            "Added {comments_written} ignore comment(s) across {files_written} file(s) — \
+             review them, then commit (each carries a greppable reason).\n"
+        ),
+        stderr,
+        exit_code: 0,
+    }
+}
+
+/// The check exit code for the visible findings: 1 when any finding's rule is
+/// configured `error` (or when `--error-on-warnings` promotes a warn-only
+/// run), 0 otherwise. Unregistered reasons gate as `error` — a finding never
+/// silently loses its gate.
+fn gate_exit_code(visible: &[&Hit], settings: &RuleSettings, error_on_warnings: bool) -> i32 {
+    let fails = visible
+        .iter()
+        .any(|h| settings.severity_of_reason(&h.reason) == RuleSeverity::Error)
+        || (error_on_warnings && !visible.is_empty());
+    if fails {
+        1
+    } else {
+        0
+    }
+}
+
 /// Flatten visible hits into serializable [`HitRecord`]s for the machine
-/// formats. Severity is measured against the per-hit calibrated threshold,
-/// matching the human rendering; evidence lines are the same per-reason lines
-/// the human path prints, with layout indentation stripped.
-fn hit_records(hits: &[&Hit]) -> Vec<HitRecord> {
+/// formats. Confidence is measured against the per-hit calibrated threshold,
+/// matching the human rendering; severity is the rule's configured level;
+/// evidence lines are the same per-reason lines the human path prints, with
+/// layout indentation stripped.
+fn hit_records(hits: &[&Hit], settings: &RuleSettings) -> Vec<HitRecord> {
     hits.iter()
-        .map(|h| HitRecord {
-            path: h.file_path.clone(),
-            line_start: h.line,
-            line_end: h.line_end,
-            score: h.score,
-            threshold: h.threshold,
-            severity: severity(&h.reason, h.score, h.threshold).to_string(),
-            reason: h.reason.clone(),
-            reason_label: reason_label(&h.reason).to_string(),
-            source: h.source.clone(),
-            hash: h.hash.clone(),
-            evidence: h
+        .map(|h| {
+            let evidence: Vec<String> = h
                 .evidence
                 .as_ref()
                 .map(|ev| {
@@ -1428,7 +2071,37 @@ fn hit_records(hits: &[&Hit]) -> Vec<HitRecord> {
                         .map(|l| l.trim().to_string())
                         .collect()
                 })
-                .unwrap_or_default(),
+                .unwrap_or_default();
+            // Semantic findings carry their nearest-code evidence here too, so
+            // JSON and SARIF consumers (GitHub code scanning) get it for free.
+            // Rebind (not `mut`) so the base build stays warning-clean.
+            #[cfg(feature = "semantic")]
+            let evidence = match &h.semantic {
+                Some(sem) => format_semantic_evidence(sem, false)
+                    .into_iter()
+                    .map(|l| l.trim().to_string())
+                    .collect(),
+                None => evidence,
+            };
+            #[cfg(feature = "arch")]
+            let evidence = match &h.arch {
+                Some(arch) => vec![format!("↳ {arch}")],
+                None => evidence,
+            };
+            HitRecord {
+                path: h.file_path.clone(),
+                line_start: h.line,
+                line_end: h.line_end,
+                score: h.score,
+                threshold: h.threshold,
+                confidence: confidence(&h.reason, h.score, h.threshold).to_string(),
+                severity: settings.severity_of_reason(&h.reason).as_str().to_string(),
+                rule: rules::code_for_reason(&h.reason).to_string(),
+                rule_label: rules::label_for_reason(&h.reason).to_string(),
+                source: h.source.clone(),
+                hash: h.hash.clone(),
+                evidence,
+            }
         })
         .collect()
 }
@@ -1456,6 +2129,7 @@ fn report_meta(
 fn render_machine(format: OutputFormat, meta: &ReportMeta, records: &[HitRecord]) -> String {
     match format {
         OutputFormat::Sarif => render_sarif(meta, records),
+        OutputFormat::Github => render_github(records),
         _ => render_json(meta, records),
     }
 }
@@ -1465,8 +2139,9 @@ const FRESHNESS_WARN_COMMITS: usize = 10;
 
 /// How many commits HEAD is ahead of the fit SHA (`None` when either end
 /// cannot be resolved — shallow clones, rewritten history, detached states
-/// must never break check).
-fn commits_since_fit(repo_path: &str, fit_sha: &str) -> Option<usize> {
+/// must never break check). Public: the CLI's auto-refresh reads the same
+/// staleness the in-check warning does.
+pub fn commits_since_fit(repo_path: &str, fit_sha: &str) -> Option<usize> {
     let repo = open_repo(repo_path).ok()?;
     let head = repo.head().ok()?.peel_to_commit().ok()?;
     let fit_oid = git2::Oid::from_str(fit_sha).ok()?;
@@ -1614,10 +2289,13 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         );
     }
 
-    // argot.toml config: excludes + `[detect]` heuristics + `[[mute]]`. Loaded
-    // once here — the `[detect]` markers gate the check-time auto-generated skip
-    // built into each scorer, so they must be in place before load_scorers.
+    // argot.toml config: excludes + `[detect]` heuristics + `[rules]` +
+    // `[[mute]]`. Loaded once here — the `[detect]` markers gate the check-time
+    // auto-generated skip built into each scorer, so they must be in place
+    // before load_scorers.
     let config = ArgotConfig::load(Path::new(&args.repo_path));
+    // Effective per-rule severities: defaults ⊕ [rules] ⊕ CLI --rule overrides.
+    let settings = config.rule_settings(&args.rule_overrides);
 
     let Loaded {
         mut scorers,
@@ -1672,10 +2350,50 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     if let Some(fit_sha) = &fit_sha {
         if let Some(behind) = commits_since_fit(&args.repo_path, fit_sha) {
             if behind >= FRESHNESS_WARN_COMMITS {
+                // No imperative here: the CLI's auto-refresh acts on this
+                // drift itself (and says so right after this line).
                 stderr.push_str(&format!(
-                    "[argot] model fitted {behind} commits ago — voice may have drifted; re-run `argot fit`\n"
+                    "[argot] model fitted {behind} commits ago — voice may have drifted\n"
                 ));
             }
+        }
+    }
+
+    // Fit-time health (persisted by the last fit — foreground OR background,
+    // whose stdout is detached): the "is it time to recalibrate?" answer,
+    // surfaced by the command users actually run.
+    if let Some(health) = crate::health::read(&args.argot_dir) {
+        if !health.drift_candidates.is_empty() {
+            let shown: Vec<&str> = health
+                .drift_candidates
+                .iter()
+                .take(3)
+                .map(String::as_str)
+                .collect();
+            let more = if health.drift_candidates.len() > 3 {
+                ", …"
+            } else {
+                ""
+            };
+            stderr.push_str(&format!(
+                "[argot] {} director{} look generated or data-heavy and are shaping the voice                  ({}{more}) — review `argot init --suggest`
+",
+                health.drift_candidates.len(),
+                if health.drift_candidates.len() != 1 {
+                    "ies"
+                } else {
+                    "y"
+                },
+                shown.join(", "),
+            ));
+        }
+        if !health.config_fingerprint.is_empty()
+            && health.config_fingerprint != crate::health::config_fingerprint(&config)
+        {
+            stderr.push_str(
+                "[argot] argot.toml changed since the last fit — the voice doesn't reflect                  your configuration yet (auto-refresh will refit, or run `argot fit`)
+",
+            );
         }
     }
 
@@ -1691,6 +2409,23 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         stderr.push_str(&format!("[argot] {w}\n"));
     }
 
+    // A supported language with no model in this fit is silently dropped by
+    // batch_scope below — correct scoring, but the user must know their new
+    // Go file has zero coverage until the next fit. (Computed pre-filter:
+    // those batches don't survive it.)
+    {
+        let mut unfitted: Vec<&str> = patches_langs_without_model(&patches, &scorers);
+        unfitted.sort_unstable();
+        unfitted.dedup();
+        if !unfitted.is_empty() {
+            stderr.push_str(&format!(
+                "[argot] this change touches {} file(s) — no model in the current fit;                  run `argot fit` to cover them
+",
+                unfitted.join("/"),
+            ));
+        }
+    }
+
     // Scope + only/exclude filters. User-ignored files stay scored (marked) so
     // their suppressed hits are countable.
     let filtered: Vec<PatchBatch> = patches
@@ -1704,6 +2439,22 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
             passes_filters(&b.file_path, &args.only, &args.exclude).then_some(b)
         })
         .collect();
+
+    // A supported language with no model in this fit gets silently dropped by
+    // batch_scope — which is correct scoring, but the user must know their new
+    // Go file has zero coverage until the next fit.
+    {
+        let mut unfitted: Vec<&str> = patches_langs_without_model(&filtered, &scorers);
+        unfitted.sort_unstable();
+        unfitted.dedup();
+        if !unfitted.is_empty() {
+            stderr.push_str(&format!(
+                "[argot] this change touches {} file(s) — no model in the current fit;                  run `argot fit` to cover them
+",
+                unfitted.join("/"),
+            ));
+        }
+    }
 
     // Changeset-wide local bindings: names any file in this change defines.
     // A change that calls what it also defines (a new feature naming its own
@@ -1733,6 +2484,40 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     // `.h` routes to the same C/C++ model calibrate built it into (repo's
     // translation-unit majority) — computed once from the working tree.
     let header_cpp = crate::scoring::calibration::header_is_cpp(Path::new(&args.repo_path));
+
+    // Additive semantic pass over the same scoped batches (borrowed before
+    // score_patches consumes them). Produces reinvention/placement hits; a
+    // no-op without the feature or when the index/model is unavailable.
+    #[cfg(feature = "semantic")]
+    let semantic_extra = if settings.group_enabled(rules::GROUP_SEMANTIC) {
+        semantic_hits(
+            &filtered,
+            &args.argot_dir,
+            &filter_adapters,
+            &mutes.active,
+            &config.detect,
+            header_cpp,
+            &mut stderr,
+        )
+    } else {
+        // Both semantic rules are off: no index load, no model, no cost.
+        Vec::new()
+    };
+
+    // Compute arch hits before `filtered` is moved into `score_patches`.
+    #[cfg(feature = "arch")]
+    let arch_extra = if settings.severity_of_reason("layering") != RuleSeverity::Off {
+        arch_hits(
+            &filtered,
+            &args.argot_dir,
+            &filter_adapters,
+            &mutes.active,
+            &mut stderr,
+        )
+    } else {
+        Vec::new()
+    };
+
     let (hits, hunk_count, files_scanned) = score_patches(
         filtered,
         &mut scorers,
@@ -1744,6 +2529,32 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         header_cpp,
         &mut stderr,
     );
+
+    // Merge the semantic hits (rebind rather than `mut` so the base build has
+    // no unused-mut and stays byte-for-byte identical).
+    #[cfg(feature = "semantic")]
+    let hits = {
+        let mut hits = hits;
+        hits.extend(semantic_extra);
+        hits
+    };
+
+    // Merge the architecture-graph hits (same rebind discipline).
+    #[cfg(feature = "arch")]
+    let hits = {
+        let mut hits = hits;
+        hits.extend(arch_extra);
+        hits
+    };
+
+    // A rule set to `off` emits nothing: its findings are dropped entirely
+    // (an off rule inside an otherwise-enabled group reaches this filter;
+    // internal reasons like `none` have no rule and always pass).
+    let hits = {
+        let mut hits = hits;
+        hits.retain(|h| settings.severity_of_reason(&h.reason) != RuleSeverity::Off);
+        hits
+    };
 
     // Display gate: --threshold widens to every hit >= N; otherwise show flagged.
     let threshold_override = args.threshold;
@@ -1774,16 +2585,21 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         ));
     }
 
-    // --min-severity drops weaker tiers from both output and banner counts.
-    let min_idx = sev_index(&args.min_severity);
+    // --min-confidence drops weaker tiers from both output and banner counts.
+    let min_idx = confidence_index(&args.min_confidence);
     let visible: Vec<&Hit> = above
         .iter()
         .copied()
         .filter(|h| {
             let t = threshold_override.unwrap_or(h.threshold);
-            sev_index(severity(&h.reason, h.score, t)) >= min_idx
+            confidence_index(confidence(&h.reason, h.score, t)) >= min_idx
         })
         .collect();
+
+    // --add-ignores: edit the working tree instead of reporting.
+    if args.add_ignores {
+        return add_ignore_comments(&args, &visible, &filter_adapters, stderr);
+    }
 
     // Cache the visible hits for `argot mute <hash>` — written on every check
     // run (best-effort; a read-only tree must not fail the check).
@@ -1800,16 +2616,30 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     let _ = write_last_check(&args.argot_dir, &last_check);
 
     // Machine formats: the serialized document is the entire stdout; skip
-    // warnings stay on stderr. Exit semantics match the human path (1 when
-    // any hit is visible, 0 otherwise).
+    // warnings stay on stderr. Exit semantics match the human path (rule
+    // severities decide, see gate_exit_code).
     if args.format.is_machine() {
-        let records = hit_records(&visible);
+        let records = hit_records(&visible, &settings);
         let meta = report_meta(&args, scan_label, hunk_count, files_scanned, &model_hash);
-        let exit_code = if visible.is_empty() { 0 } else { 1 };
+        let mut stdout = render_machine(args.format, &meta, &records);
+        // In the github format, the health notes ("model drifted", "config
+        // changed since fit", "language not fitted") become run-level notices —
+        // CI logs bury stderr, PR annotations don't.
+        if args.format == OutputFormat::Github {
+            for line in stderr.lines() {
+                if let Some(note) = line.strip_prefix("[argot] ") {
+                    stdout.push_str(&format!(
+                        "::notice title=argot::{}
+",
+                        note.replace('%', "%25")
+                    ));
+                }
+            }
+        }
         return CheckOutcome {
-            stdout: render_machine(args.format, &meta, &records),
+            stdout,
             stderr,
-            exit_code,
+            exit_code: gate_exit_code(&visible, &settings, args.error_on_warnings),
         };
     }
 
@@ -1823,9 +2653,9 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
             )
         } else if !above.is_empty() {
             format!(
-                "All {} hit(s) below severity '{}' — pass a lower --min-severity to see them.\n",
+                "All {} hit(s) below confidence '{}' — pass a lower --min-confidence to see them.\n",
                 above.len(),
-                args.min_severity
+                args.min_confidence
             )
         } else if let Some(t) = threshold_override {
             format!("All {hunk_count} hunk(s) scored below threshold {t:.2} — looks clean.\n")
@@ -1855,7 +2685,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     CheckOutcome {
         stdout,
         stderr,
-        exit_code: 1,
+        exit_code: gate_exit_code(&visible, &settings, args.error_on_warnings),
     }
 }
 
@@ -1999,13 +2829,90 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(feature = "arch")]
+    fn arch_evidence_names_the_broken_direction() {
+        use crate::scoring::arch_graph::Violation;
+        let edge = ("core".to_string(), "cli".to_string());
+        assert_eq!(
+            arch_evidence(&edge, Violation::Reversal),
+            "cli → core is this repo's direction — this import reverses it"
+        );
+        assert!(arch_evidence(&edge, Violation::TransitiveReversal).contains("closes a cycle"));
+        assert!(arch_evidence(&edge, Violation::SinkOut).contains("never imports out of"));
+    }
+
+    #[test]
+    fn insert_ignore_comments_bottom_up_with_indentation() {
+        let src = "def a():\n    x = 1\n    y = 2\n\ndef b():\n    z = 3\n";
+        let out = insert_ignore_comments(
+            src,
+            &[
+                (2, "# argot: ignore-next-line — r1".to_string()),
+                (
+                    6,
+                    "# argot: ignore-next-line rule=redundant — r2".to_string(),
+                ),
+            ],
+        );
+        let lines: Vec<&str> = out.lines().collect();
+        // Indentation copied from the target line; both landed above their
+        // original targets despite the insertions shifting line numbers.
+        assert_eq!(lines[1], "    # argot: ignore-next-line — r1");
+        assert_eq!(lines[2], "    x = 1");
+        assert_eq!(
+            lines[6],
+            "    # argot: ignore-next-line rule=redundant — r2"
+        );
+        assert_eq!(lines[7], "    z = 3");
+        // The inserted comments parse as real suppressions.
+        let sup = parse_inline(&out, "#");
+        assert_eq!(sup.rules.len(), 2);
+        assert!(sup.warnings.is_empty());
+    }
+
+    #[test]
+    fn semantic_reasons_have_labels_and_pinned_confidence() {
+        assert_eq!(
+            rules::label_for_reason("redundant"),
+            "already implemented here"
+        );
+        assert_eq!(rules::label_for_reason("misplaced"), "unusual location");
+        // Advisory findings are the mildest tier regardless of score.
+        assert_eq!(confidence("redundant", 5.0, 0.1), "unusual");
+        assert_eq!(confidence("misplaced", 5.0, 0.1), "unusual");
+    }
+
+    #[cfg(feature = "semantic")]
+    #[test]
+    fn semantic_evidence_renders_nearest_code() {
+        let redundant = SemanticHitEvidence::Redundant {
+            nearest_symbol: "slugify".into(),
+            nearest_path: "src/utils/text.py".into(),
+            nearest_line: 1,
+            similarity: 0.86,
+        };
+        let lines = format_semantic_evidence(&redundant, false);
+        assert!(lines[0].contains("duplicates slugify (src/utils/text.py:1)"));
+        assert!(lines[0].contains("0.86"));
+
+        let misplaced = SemanticHitEvidence::Misplaced {
+            neighbor_area: "src/db".into(),
+            actual_area: "src/ui".into(),
+            peers: vec![("load_row".into(), "src/db/models.py".into(), 12)],
+        };
+        let lines = format_semantic_evidence(&misplaced, false);
+        assert!(lines[0].contains("looks like src/db code filed under src/ui"));
+        assert!(lines[1].contains("load_row (src/db/models.py:12)"));
+    }
+
+    #[test]
     fn foreign_import_tiers_as_foreign_regardless_of_margin() {
         // The import signal is categorical: score is a count of never-before-seen
         // modules against a threshold of 1.0, so a lone foreign import sits exactly
         // at the bar. It must still read as `foreign` — the strongest tier — not
         // fall through the BPE-margin logic into `unusual`.
-        assert_eq!(severity("import", 1.0, 1.0), "foreign");
-        assert_eq!(severity("import", 3.0, 1.0), "foreign");
+        assert_eq!(confidence("import", 1.0, 1.0), "foreign");
+        assert_eq!(confidence("import", 3.0, 1.0), "foreign");
     }
 
     #[test]
@@ -2013,11 +2920,11 @@ mod tests {
         // BPE / convention / call_receiver keep the additive-margin tiering, which
         // is calibrated for their nat-scale scores.
         let t = 8.0;
-        assert_eq!(severity("bpe", t, t), "unusual");
-        assert_eq!(severity("bpe", t + 0.5, t), "suspicious");
-        assert_eq!(severity("bpe", t + 1.5, t), "foreign");
-        assert_eq!(severity("call_receiver", t + 0.4, t), "unusual");
-        assert_eq!(severity("convention", t + 1.6, t), "foreign");
+        assert_eq!(confidence("bpe", t, t), "unusual");
+        assert_eq!(confidence("bpe", t + 0.5, t), "suspicious");
+        assert_eq!(confidence("bpe", t + 1.5, t), "foreign");
+        assert_eq!(confidence("call_receiver", t + 0.4, t), "unusual");
+        assert_eq!(confidence("convention", t + 1.6, t), "foreign");
     }
 
     #[test]

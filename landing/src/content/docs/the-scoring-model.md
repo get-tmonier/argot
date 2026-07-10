@@ -1,6 +1,6 @@
 ---
 title: The scoring model
-description: The BPE log-ratio, the call-receiver penalty, file clustering, and per-corpus auto-detect.
+description: The BPE log-ratio, the call-receiver penalty, file clustering, per-corpus auto-detect, the semantic layer, and the architecture graph.
 group: Reference
 order: 10
 ---
@@ -72,7 +72,7 @@ The whole penalty is **gated by foreign reach**: it applies only when the hunk's
 module foreign to the repo (a foreign namespace-qualified or bare-foreign callee somewhere in the
 file). In files that stay entirely within the repo's own vocabulary the penalty is suppressed, so an
 unattested-callee soft signal can't tip in-voice code over the line — the gate that cut
-`call_receiver` false alarms in the #92 pass.
+`unfamiliar-callee` false alarms in the #92 pass.
 
 ## File clustering
 
@@ -95,8 +95,50 @@ fire rate of the cluster-rare rule. If the rule fires on < 5% of hunks it's info
 enabled; otherwise it's disabled to avoid Zipf-tail false-positive floods. This is what keeps the
 same config honest across very different repos.
 
-## Reason attribution
+## Rule attribution
 
-A hunk is flagged if the import checker fires (foreign import) **or** the adjusted BPE score exceeds
-the threshold. The reason is `call_receiver` when the penalty pushed a below-threshold BPE over the
-line, and `bpe` when raw BPE already crossed it. Scores and reasons are always included in the output.
+A hunk is flagged by the base voice model if the import checker fires **or** the adjusted BPE score
+exceeds the threshold. The finding carries a stable rule name: `foreign-import` for a foreign
+import, `unfamiliar-callee` when the penalty pushed a below-threshold BPE over the line, and
+`rare-tokens` when raw BPE already crossed it. The semantic layer adds two more rules — `redundant`
+and `misplaced` — and the architecture graph adds `layering` (both below). Scores and rule names
+are always included in the output, and every rule's severity is configurable — see
+[Configure](/docs/configure/#rules--rule-severities).
+
+## The semantic layer
+
+Separate from the BPE model above, argot keeps a per-repo **code-embedding index**. At fit it embeds
+every function with a small local model (`jina-embeddings-v2-base-code`, Q4 GGUF, ~100 MB, statically
+linked via llama.cpp — CPU-first, Metal-accelerated on macOS; fetched once to a local cache on first
+use, ~250 MB peak RAM while a check embeds) and stores the vectors in `.argot/semantic-index.json`.
+It turns a function into a vector — no prompt, no generation, nothing leaves your machine; offline,
+the layer no-ops and the base guardrail still runs.
+
+At check, each new function is embedded and matched against the index:
+
+- **`redundant`** — the function's nearest cross-file neighbour is a near-duplicate above a similarity
+  margin. Evidence: `↳ duplicates <symbol> (path:line) — similarity 0.86`. Retrieval 96–100%.
+- **`misplaced`** — the function's nearest semantic neighbours concentrate in a different package or
+  area than the one it was filed under. Evidence: `↳ looks like <area> code filed under <actual-area>`.
+
+Both findings are pinned to the `unusual` **confidence** tier (the evidence is a similarity lookup)
+and carry severity `error` by default — they fail the check like any other rule, and they're one
+`[rules]` line to downgrade (`redundant = "warn"`, or `semantic = "off"` for the whole group; with
+the group off, fit and check skip the model download and the index entirely). Real repos hold real
+duplication and cross-cutting code, so argot shows the nearest existing function and lets you
+judge. This channel is separate from the foreign-catch metric — it does not change the base model's
+catch or false-alarm numbers.
+
+## The architecture graph
+
+The fourth detector is pure graph analysis — no model, no scoring math. At fit, argot resolves
+every internal import into a module-dependency graph, derives the repo's layer directions from it,
+and persists the result as `.argot/layering.json`. At check, the *added* lines' internal imports
+are resolved against that graph; an edge that reverses an established layer direction (a
+transitive reversal counts), closes a cycle, or leaves a (near-)sink module is flagged under rule
+**`layering`** ("crosses a module boundary"), pinned to the `unusual` confidence tier, severity
+`error` by default.
+
+Benchmarked on 23 corpora across all 11 supported languages: **244/252 (96.8%)** planted violations
+caught, **0/140** false positives on control edits, worst-case over-fire 2.7%. The check-time
+import resolver covers Python in v1.

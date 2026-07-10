@@ -997,6 +997,15 @@ pub fn calibrate_convention_bars(
 /// `repo_dir` is the target repo (candidate rglob source). `repo_corpus_path`
 /// lists corpus files (from `train`). `generic_baseline_json` is the embedded
 /// baseline bytes.
+/// Write a fit artifact via temp-file + rename, so a fit killed mid-write (a
+/// laptop shutdown, a background refit reaped by the OS) can never leave a
+/// half-written artifact behind — the previous version survives intact.
+fn write_atomic(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    let tmp = path.with_extension(format!("tmp.{}", std::process::id()));
+    std::fs::write(&tmp, bytes)?;
+    std::fs::rename(&tmp, path)
+}
+
 pub fn run_calibrate(
     repo_dir: &Path,
     repo_corpus_path: &Path,
@@ -1056,10 +1065,53 @@ pub fn run_calibrate(
     let config = crate::config::ArgotConfig::load(repo_dir);
     let path_suppressions = config.path_suppressions();
     let detect = &config.detect;
+    // Captured now: `config` (the ArgotConfig) is shadowed by the ScorerConfig
+    // later; the health artifact records which configuration this fit reflects.
+    let config_fingerprint_at_fit = crate::health::config_fingerprint(&config);
+    // Effective [rules] severities — a group turned off in argot.toml skips
+    // its whole fit-time artifact (semantic index / layering graph) and cost.
+    // Only the feature-gated layers read it.
+    #[cfg(any(feature = "semantic", feature = "arch"))]
+    let rule_settings = config.rule_settings(&Vec::new());
     // Fit from committed HEAD, not the working tree — an uncommitted foreign
     // edit must not be learned as part of the voice it's about to be checked
     // against. Byte-identical to a working-tree read on a clean checkout.
     let head = HeadSource::new(repo_dir);
+
+    // Semantic layer: acquire the embedder once for the whole fit (lazy model
+    // load / one-time fetch). `None` when the model is unavailable (offline) —
+    // the fit still produces the full statistical model, just no semantic index.
+    #[cfg(feature = "semantic")]
+    let embedder = if !rule_settings.group_enabled(crate::rules::GROUP_SEMANTIC) {
+        // Both semantic rules are off in [rules]: no model, no index, no cost.
+        eprintln!("argot: semantic rules are off in [rules] — skipping the semantic index");
+        None
+    } else {
+        match crate::scoring::semantic::embedder::Embedder::ready() {
+            Ok(e) => e,
+            Err(e) => {
+                // Degrade to no-semantic-index, but NEVER silently: a load failure
+                // (GPU memory pressure, corrupt model) must be visible, or a bench
+                // records "0 recall" where the truth is "no embedder".
+                eprintln!("argot: semantic model failed to load — skipping semantic index: {e:#}");
+                None
+            }
+        }
+    };
+    #[cfg(feature = "semantic")]
+    let mut semantic_artifact =
+        crate::scoring::semantic::index::SemanticArtifact::new(opts.repo_sha.clone());
+    // The previous fit's index, when it exists and was built by THIS model:
+    // unchanged functions reuse their vectors (incremental refresh), so a
+    // routine refit embeds only what actually changed. A stale/other-model
+    // artifact yields no reuse — full re-embed, never mixed spaces.
+    #[cfg(feature = "semantic")]
+    let prior_artifact = std::fs::read_to_string(
+        output.with_file_name(crate::scoring::semantic::SEMANTIC_INDEX_FILE),
+    )
+    .ok()
+    .and_then(|raw| crate::scoring::semantic::index::SemanticArtifact::from_json_str(&raw).ok())
+    .filter(|a| a.validate_current().is_ok());
 
     for (name, (language, lang_files)) in by_lang {
         let adapter = adapter_for(language);
@@ -1310,6 +1362,77 @@ pub fn run_calibrate(
         };
         let model_hash = model.hash();
 
+        // Semantic index for this language: embed every corpus function (the
+        // same `callable_bodies` extraction check uses on the diff). Skipped
+        // silently when no embedder is available — never load-bearing.
+        #[cfg(feature = "semantic")]
+        if let Some(emb) = embedder.as_ref() {
+            let mut funcs = Vec::new();
+            for (path, source) in corpus {
+                // Mirror the check-time candidate scope (`batch.ignored_by_pattern`):
+                // never index code the check would skip — tests, docs, examples,
+                // scripts, migrations, generated (`argot:recommended` + `[exclude]`).
+                // A reinvention target must be *canonical* repo code, not a tutorial
+                // or fixture; indexing those both mis-points findings and inflates
+                // self-similarity on duplication-heavy example trees.
+                if path_suppressions.is_suppressed_abs(path, repo_dir) {
+                    continue;
+                }
+                let rel = rel_to_repo(path, repo_dir);
+                funcs.extend(crate::scoring::semantic::index::functions_in_file(
+                    adapter.as_ref(),
+                    &rel,
+                    source,
+                ));
+            }
+            if !funcs.is_empty() {
+                let prior_index = prior_artifact
+                    .as_ref()
+                    .and_then(|a| a.load(name).ok().flatten())
+                    .map(|li| li.index);
+                eprintln!(
+                    "argot: building semantic index for {name} ({} functions)…",
+                    funcs.len()
+                );
+                match crate::scoring::semantic::index::SemanticIndex::build_with_reuse(
+                    emb,
+                    &funcs,
+                    prior_index.as_ref(),
+                ) {
+                    Ok((idx, reused)) if !idx.is_empty() => {
+                        if reused > 0 {
+                            eprintln!(
+                                "argot: {name}: reused {reused} of {} embeddings from the previous fit",
+                                funcs.len()
+                            );
+                        }
+                        // Self-calibrate the placement sense on the fresh index
+                        // (adaptive areas, entangled merges, vote parameters —
+                        // or disabled when the repo's areas aren't separable).
+                        let placement =
+                            crate::scoring::semantic::placement::calibrate_placement(&idx);
+                        // Self-calibrate the reinvention sense: mini-replay of
+                        // the functions added over the recent window against the
+                        // older code (conservative mode for repos practicing
+                        // systematic parallel implementation).
+                        let recent = recent_semantic_functions(
+                            repo_dir,
+                            &funcs,
+                            adapter.as_ref(),
+                            SEMANTIC_CALIBRATION_WINDOW,
+                        );
+                        let reinvention =
+                            crate::scoring::semantic::redundant::calibrate_reinvention(
+                                &idx, &recent,
+                            );
+                        semantic_artifact.insert(name, &idx, placement, reinvention);
+                    }
+                    Ok(_) => {}
+                    Err(e) => eprintln!("argot: semantic index for {name} failed: {e}"),
+                }
+            }
+        }
+
         thresholds_out.push((name.to_string(), threshold));
         languages.insert(
             name.to_string(),
@@ -1359,7 +1482,54 @@ pub fn run_calibrate(
         std::fs::create_dir_all(parent).ok();
     }
     let json = serde_json::to_string_pretty(&config)?;
-    std::fs::write(output, &json)?;
+    write_atomic(output, json.as_bytes())?;
+
+    // Semantic index artifact, alongside scorer-config.json. Kept in its own
+    // file so scorer-config.json (and its model hash) stay byte-for-byte
+    // unchanged whether or not the semantic layer is compiled in.
+    #[cfg(feature = "semantic")]
+    if !semantic_artifact.is_empty() {
+        let sem_path = output.with_file_name(crate::scoring::semantic::SEMANTIC_INDEX_FILE);
+        match semantic_artifact.to_json_string() {
+            Ok(sem_json) => {
+                if let Err(e) = write_atomic(&sem_path, sem_json.as_bytes()) {
+                    eprintln!("argot: writing semantic index failed: {e}");
+                }
+            }
+            Err(e) => eprintln!("argot: serializing semantic index failed: {e}"),
+        }
+    }
+
+    // Architecture-graph artifact (`.argot/layering.json`), alongside
+    // scorer-config.json. Feature-gated + in its own file so the base config is
+    // byte-for-byte unchanged whether or not the layer is compiled in. Built from
+    // the same voice-file collection production fits on (config-respecting) —
+    // Python only in v1; other languages simply produce no graph.
+    #[cfg(feature = "arch")]
+    if rule_settings.severity_of_reason("layering") != crate::rules::Severity::Off {
+        use crate::scoring::adapters::Language;
+        use crate::scoring::arch_graph::{RepoLayering, LAYERING_FILE};
+        let files = crate::train::collect_source_files(repo_dir);
+        let mut sources: Vec<(String, String)> = Vec::new();
+        for abs in &files {
+            if abs.extension().and_then(|e| e.to_str()) != Some("py") {
+                continue;
+            }
+            if let (Ok(rel), Ok(src)) = (abs.strip_prefix(repo_dir), std::fs::read_to_string(abs)) {
+                sources.push((rel.to_string_lossy().replace('\\', "/"), src));
+            }
+        }
+        let graph = RepoLayering::fit(
+            sources.iter().map(|(p, s)| (p.as_str(), s.as_str())),
+            Language::Python,
+        );
+        if graph.edge_count() > 0 {
+            let path = output.with_file_name(LAYERING_FILE);
+            if let Err(e) = write_atomic(&path, graph.to_json(&opts.repo_sha).as_bytes()) {
+                eprintln!("argot: writing layering graph failed: {e}");
+            }
+        }
+    }
 
     // Emit the inspectable model manifest alongside the config.
     let per_lang_model_hash: BTreeMap<String, String> = config
@@ -1394,8 +1564,25 @@ pub fn run_calibrate(
     if let Some(parent) = output.parent() {
         let manifest_path = parent.join(MANIFEST_FILE);
         if let Ok(manifest_json) = serde_json::to_string_pretty(&manifest) {
-            std::fs::write(manifest_path, manifest_json)?;
+            write_atomic(&manifest_path, manifest_json.as_bytes())?;
         }
+        // Fit-time self-diagnosis, persisted so `check`/`status` surface it
+        // without re-scanning (and so a background refit's findings survive
+        // its /dev/null stdout): calibration-drift candidates + the config
+        // fingerprint this fit reflects.
+        let drift_candidates = crate::suppress::suggest_ignores(repo_dir)
+            .candidates
+            .into_iter()
+            .map(|c| c.path)
+            .collect();
+        crate::health::write(
+            parent,
+            &crate::health::FitHealth {
+                fit_sha: opts.repo_sha.clone(),
+                config_fingerprint: config_fingerprint_at_fit,
+                drift_candidates,
+            },
+        );
     }
 
     Ok(thresholds_out)
@@ -1487,6 +1674,91 @@ fn extract_identifiers(src: &str) -> Vec<String> {
         }
     }
     out
+}
+
+/// History window (first-parent commits) for the semantic self-calibrations —
+/// mirrors the clean-commit bench window.
+#[cfg(feature = "semantic")]
+const SEMANTIC_CALIBRATION_WINDOW: usize = 150;
+
+/// Which of `funcs` (index order) were ADDED within the recent history window:
+/// their file is new since the window commit, or the file changed and the old
+/// version (parsed with the same adapter — names only, no embedding) did not
+/// define their symbol. Empty history / any git failure → all-false (the
+/// reinvention calibration then keeps the standard rule).
+#[cfg(feature = "semantic")]
+fn recent_semantic_functions(
+    repo_dir: &Path,
+    funcs: &[crate::scoring::semantic::index::FunctionRef],
+    adapter: &dyn LanguageAdapter,
+    window: usize,
+) -> Vec<bool> {
+    let none = vec![false; funcs.len()];
+    let Ok(repo) = git2::Repository::open(repo_dir) else {
+        return none;
+    };
+    let Ok(head) = repo.head().and_then(|h| h.peel_to_commit()) else {
+        return none;
+    };
+    // Walk `window` first-parent steps back (the bench's HEAD~window).
+    let mut old = head.clone();
+    for _ in 0..window {
+        match old.parent(0) {
+            Ok(p) => old = p,
+            Err(_) => return none, // history shorter than the window
+        }
+    }
+    let (Ok(old_tree), Ok(head_tree)) = (old.tree(), head.tree()) else {
+        return none;
+    };
+    let Ok(diff) = repo.diff_tree_to_tree(Some(&old_tree), Some(&head_tree), None) else {
+        return none;
+    };
+    let mut changed: std::collections::HashSet<String> = std::collections::HashSet::new();
+    diff.foreach(
+        &mut |delta, _| {
+            if let Some(p) = delta.new_file().path().and_then(|p| p.to_str()) {
+                changed.insert(p.replace('\\', "/"));
+            }
+            true
+        },
+        None,
+        None,
+        None,
+    )
+    .ok();
+    // Old symbol sets for changed files that already existed at the old commit.
+    let mut old_syms: std::collections::HashMap<String, std::collections::HashSet<String>> =
+        std::collections::HashMap::new();
+    for path in funcs.iter().map(|f| f.path.as_str()) {
+        if !changed.contains(path) || old_syms.contains_key(path) {
+            continue;
+        }
+        let syms = old_tree
+            .get_path(Path::new(path))
+            .ok()
+            .and_then(|e| e.to_object(&repo).ok())
+            .and_then(|o| o.into_blob().ok())
+            .map(|b| String::from_utf8_lossy(b.content()).into_owned())
+            .map(|src| {
+                crate::scoring::semantic::index::functions_in_file(adapter, path, &src)
+                    .into_iter()
+                    .map(|f| f.symbol)
+                    .collect::<std::collections::HashSet<String>>()
+            })
+            .unwrap_or_default(); // absent at the old commit → new file → empty set
+        old_syms.insert(path.to_string(), syms);
+    }
+    funcs
+        .iter()
+        .map(|f| {
+            changed.contains(&f.path)
+                && !old_syms
+                    .get(&f.path)
+                    .map(|s| s.contains(&f.symbol))
+                    .unwrap_or(false)
+        })
+        .collect()
 }
 
 #[cfg(test)]

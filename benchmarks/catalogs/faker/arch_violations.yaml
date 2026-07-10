@@ -1,0 +1,257 @@
+# Architecture-graph violation fixtures for faker (the Python `faker` library).
+#
+# Package root: faker/ (the dir with __init__.py). A "layer" is the first path
+# component under faker/ for subpackages (e.g. faker/providers/internet/__init__.py
+# -> layer "providers"; faker/decode/codes.py -> layer "decode"). Top-level FILES
+# directly in faker/ (config.py, factory.py, generator.py, exceptions.py, proxy.py,
+# documentor.py, cli.py, typing.py) are each addressable as their own TARGET layer
+# via an absolute `from faker.<name> import X` (the resolver keys target layers off
+# the imported dotted path, e.g. "faker.config" -> layer "config"). Their SOURCE
+# layer, however, collapses to "__root__" (a bare top-level file's own directory has
+# only one path component, so it can never itself be named as a source) — meaning
+# config/factory/generator/exceptions/proxy/documentor/cli/typing structurally have
+# zero recorded OUT-edges under their own name and are therefore permanent sinks as
+# import TARGETS. faker/__init__.py and faker/__main__.py are layer "__root__".
+#
+# Established topology (learned from git HEAD, file-level import edges — includes
+# relative imports, which the resolver follows but a plain textual grep misses):
+#   providers -> typing     (dozens of files; Country/BasicNumber/CardType/... type
+#                             aliases used across nearly every locale provider)
+#   providers -> utils      (5 files: utils, utils.checksums, utils.datasets,
+#                             utils.decorators — luhn/slugify helpers, dataset merge)
+#   providers -> exceptions (15 files: UnsupportedFeature)
+#   providers -> decode     (1 file, relative: providers/internet/__init__.py does
+#                             `from ...decode import unidecode`)
+#   sphinx    -> config     (2 files: docstring.py, documentor.py — AVAILABLE_LOCALES,
+#                             DEFAULT_LOCALE, PROVIDERS drive the autodoc build)
+#   sphinx    -> providers  (1 file: documentor.py imports BaseProvider to introspect
+#                             provider classes for doc generation)
+#   contrib   -> config     (1 file: contrib/pytest/plugin.py reads DEFAULT_LOCALE)
+#   utils     -> typing     (1 file: utils/datasets.py imports OrderedDictType)
+#   utils     -> generator  (1 file: utils/distribution.py imports faker.generator.random)
+#
+# Near-sink / sink layers (NEAR_SINK_RATIO = 0.5 — imported at least as much as it
+# imports out): decode (STRICT sink — out-mass 0, only providers reaches into it),
+# utils (near-sink — providers imports it in 5 files against utils's own 2 outgoing
+# edges), and every top-level-file target layer (config/factory/generator/exceptions/
+# proxy/documentor/cli/typing) is a structural sink by construction (see above — they
+# can never accrue an out-edge under their own layer name).
+#
+# Verification methodology: import-statement-anchored grep (source and relative
+# forms) so comments/strings don't produce false matches, e.g.:
+#   git -C benchmarks/data/faker/.repo grep -nE \
+#     '^\s*(from|import) faker\.<B>\b' -- 'faker/<A>/'
+#   git -C benchmarks/data/faker/.repo grep -nE 'from \.+<B>\b' -- 'faker/<A>/'
+# (both return nothing == 0-usage). Every host_file/import_line pair below was
+# additionally round-tripped through the resolver's own `RepoLayering::file_edges`
+# (the `--mode arch-candidates` dump), so each is valid-by-construction against the
+# exact edge and kind claimed — no text-grep gap.
+
+violations:
+  # --- reversals: B->A is an attested, real import direction ---
+  - host_file: "faker/utils/__init__.py"
+    source_layer: "utils"
+    import_line: "from faker.providers import ArgotFixture"
+    target_layer: "providers"
+    kind: "reversal"
+    rationale: >-
+      a shared util importing the providers package. `git grep -nE
+      '^\s*(from|import) faker\.providers' -- faker/utils/` returns nothing ->
+      0-usage. providers imports utils in 5 files (providers/__init__.py,
+      credit_card, currency, misc, ..., all pulling utils/utils.checksums/
+      utils.datasets/utils.decorators) — B->A strongly attested — so utils reaching
+      up into providers reverses the established direction (and utils is itself a
+      near-sink: it is imported more than it imports out).
+
+  - host_file: "faker/decode/__init__.py"
+    source_layer: "decode"
+    import_line: "from faker.providers import ArgotFixture"
+    target_layer: "providers"
+    kind: "reversal"
+    rationale: >-
+      the unicode-decode helper importing the providers package. `git grep -nE
+      '^\s*(from|import) faker\.providers' -- faker/decode/` returns nothing ->
+      0-usage. providers imports decode in 1 file via a relative import
+      (`providers/internet/__init__.py`: `from ...decode import unidecode`) — B->A
+      attested — so decode reaching into providers reverses the established
+      direction. decode is a strict sink (out-mass 0: it imports nothing internal
+      today), so this is doubly wrong-way.
+
+  # --- sink_out: leaves a sink layer; the reverse edge is NOT attested ---
+  - host_file: "faker/decode/__init__.py"
+    source_layer: "decode"
+    import_line: "from faker.typing import ArgotFixture"
+    target_layer: "typing"
+    kind: "sink_out"
+    rationale: >-
+      decode importing the shared type-alias module. `git grep -nE
+      '^\s*(from|import) faker\.typing' -- faker/decode/` returns nothing ->
+      0-usage. Not a reversal: typing has zero internal imports of its own (it only
+      imports stdlib `dataclasses`/`typing`/`datetime`), so it never reaches back
+      into decode. decode is a strict sink (imports nothing internal); a sink layer
+      reaching out into typing is a placement mistake — every other consumer of
+      typing (providers, utils) does so from a live feature layer, not from the
+      leaf decode helper.
+
+  - host_file: "faker/decode/__init__.py"
+    source_layer: "decode"
+    import_line: "from faker.utils import ArgotFixture"
+    target_layer: "utils"
+    kind: "sink_out"
+    rationale: >-
+      decode importing the utils package. `git grep -nE '^\s*(from|import)
+      faker\.utils' -- faker/decode/` returns nothing -> 0-usage. Not a reversal:
+      utils never imports decode (`git grep -nE '^\s*(from|import) faker\.decode'
+      -- faker/utils/` == 0, and no relative form either). decode is a strict sink
+      (out-mass 0); a sink reaching out into another near-sink layer is a
+      placement mistake with no established precedent.
+
+  - host_file: "faker/decode/__init__.py"
+    source_layer: "decode"
+    import_line: "from faker.generator import ArgotFixture"
+    target_layer: "generator"
+    kind: "sink_out"
+    rationale: >-
+      decode importing the core Generator module. `git grep -nE '^\s*(from|import)
+      faker\.generator' -- faker/decode/` returns nothing -> 0-usage. Not a
+      reversal: generator.py's only internal import is `.typing` — it never
+      reaches into decode. generator is a target-only layer (its own outgoing
+      imports collapse to __root__, so it structurally has zero out-edges under
+      its own name, i.e. it is a sink by construction); a leaf decode helper
+      reaching into the core generator is a placement mistake.
+
+  - host_file: "faker/decode/__init__.py"
+    source_layer: "decode"
+    import_line: "from faker.exceptions import ArgotFixture"
+    target_layer: "exceptions"
+    kind: "sink_out"
+    rationale: >-
+      decode importing the exceptions module. `git grep -nE '^\s*(from|import)
+      faker\.exceptions' -- faker/decode/` returns nothing -> 0-usage. Not a
+      reversal: exceptions.py has no internal imports at all — it never reaches
+      into decode. exceptions is imported by providers in 15 files (UnsupportedFeature)
+      but is itself a pure target-only sink; decode (also a sink) reaching out into
+      it has no precedent anywhere in the repo.
+
+  - host_file: "faker/utils/__init__.py"
+    source_layer: "utils"
+    import_line: "from faker.config import ArgotFixture"
+    target_layer: "config"
+    kind: "sink_out"
+    rationale: >-
+      utils importing the config module. `git grep -nE '^\s*(from|import)
+      faker\.config' -- faker/utils/` returns nothing -> 0-usage. Not a reversal:
+      config.py's own relative import (`from .utils.loading import ...`) is
+      recorded as __root__->utils, not config->utils, so no edge points back from
+      "config" to "utils" under the resolver's layer vocabulary. utils is a
+      near-sink (providers imports it in 5 files against its own 2 out-edges); a
+      near-sink reaching out into the config layer is a placement mistake — the
+      only NON-__root__ consumers of config today are sphinx and contrib
+      (feature/tooling layers reading locale settings), never a shared-utility
+      leaf.
+
+  - host_file: "faker/utils/__init__.py"
+    source_layer: "utils"
+    import_line: "from faker.factory import ArgotFixture"
+    target_layer: "factory"
+    kind: "sink_out"
+    rationale: >-
+      utils importing the Factory module. `git grep -nE '^\s*(from|import)
+      faker\.factory' -- faker/utils/` returns nothing -> 0-usage. Not a reversal:
+      factory.py imports `.config`, `.generator`, `.utils.loading` (all recorded
+      as __root__ source edges), never anything under the "utils" layer name.
+      utils is a near-sink; reaching out into factory — the class that assembles a
+      Faker instance from providers — is a mistake no shared-utility file makes
+      today.
+
+  - host_file: "faker/utils/__init__.py"
+    source_layer: "utils"
+    import_line: "from faker.proxy import ArgotFixture"
+    target_layer: "proxy"
+    kind: "sink_out"
+    rationale: >-
+      utils importing the Faker proxy class. `git grep -nE '^\s*(from|import)
+      faker\.proxy' -- faker/utils/` returns nothing -> 0-usage. Not a reversal:
+      proxy.py imports `.config`, `.exceptions`, `.factory` (all __root__-sourced),
+      never anything under "utils". utils is a near-sink; a shared-utility file
+      reaching up into the top-level Faker() proxy — the public entry point that
+      is built ON TOP of everything else — inverts the whole dependency direction.
+
+  - host_file: "faker/utils/__init__.py"
+    source_layer: "utils"
+    import_line: "from faker.documentor import ArgotFixture"
+    target_layer: "documentor"
+    kind: "sink_out"
+    rationale: >-
+      utils importing the (legacy, root-level) documentor module. `git grep -nE
+      '^\s*(from|import) faker\.documentor' -- faker/utils/` returns nothing ->
+      0-usage. Not a reversal: documentor.py imports `.generator`, `.providers`,
+      `.proxy` (__root__-sourced), never utils. utils is a near-sink; reaching out
+      into documentation-generation code from a shared-utility file has no
+      precedent and no plausible reason.
+
+controls:
+  # Realistic NEW cross-layer imports that RESPECT the established fan-out from a
+  # non-sink layer, or extend a direction the repo already relies on. 0-usage at
+  # this exact import line (resolver-verified via `run_arch_candidates`), so these
+  # are legit growth and must NOT be flagged.
+  - host_file: "faker/sphinx/__init__.py"
+    source_layer: "sphinx"
+    import_line: "from faker.typing import ArgotFixture"
+    target_layer: "typing"
+    rationale: >-
+      sphinx is the docs/autodoc tooling; it already imports config (2 files) and
+      providers (1 file) to introspect the library for documentation generation.
+      typing is the most widely-consumed layer in the repo (imported by nearly
+      every provider file). A doc-generation module also wanting the shared type
+      aliases (e.g. to render accurate signatures) is ordinary growth in the same
+      "sphinx reads into core" pattern already established, not a violation.
+
+  - host_file: "faker/contrib/__init__.py"
+    source_layer: "contrib"
+    import_line: "from faker.providers import ArgotFixture"
+    target_layer: "providers"
+    rationale: >-
+      contrib holds community/plugin-style extensions (e.g. the pytest plugin,
+      which already imports faker.config). Third-party contrib providers
+      subclassing `faker.providers.BaseProvider` is the canonical way to extend
+      Faker — sphinx already imports providers for the same reason (introspecting
+      BaseProvider). A new contrib module reaching into providers is the expected,
+      idiomatic direction, not a violation.
+
+  - host_file: "faker/sphinx/__init__.py"
+    source_layer: "sphinx"
+    import_line: "from faker.utils import ArgotFixture"
+    target_layer: "utils"
+    rationale: >-
+      sphinx already reaches into config and providers to build documentation;
+      pulling in a utils helper (e.g. for text formatting in generated docs)
+      follows the same "docs tooling imports core" direction and is ordinary
+      growth, not a violation.
+
+  - host_file: "faker/providers/__init__.py"
+    source_layer: "providers"
+    import_line: "from faker.config import ArgotFixture"
+    target_layer: "config"
+    rationale: >-
+      providers is the biggest fan-out layer in the repo — it already imports
+      typing (dozens of files), utils (5 files), exceptions (15 files), and decode
+      (1 file). config holds shared settings like AVAILABLE_LOCALES/DEFAULT_LOCALE
+      that sphinx and contrib already read; a base provider reading the same
+      config is the same "providers reaches into shared core modules" pattern
+      providers already exhibits repeatedly, not a violation.
+
+  - host_file: "faker/sphinx/__init__.py"
+    source_layer: "sphinx"
+    import_line: "from faker.generator import ArgotFixture"
+    target_layer: "generator"
+    rationale: >-
+      sphinx already reaches into config (2 files: AVAILABLE_LOCALES,
+      DEFAULT_LOCALE, PROVIDERS) and providers (BaseProvider) to build
+      documentation. The separate, root-level faker/documentor.py — the legacy
+      doc-string generator — already imports `.generator` (Generator) for the
+      same introspection purpose (dynamically-added provider methods). A sphinx
+      module doing the equivalent `from faker.generator import ...` follows the
+      same "doc-generation code introspects Generator" precedent, just from the
+      newer sphinx-based tooling instead of the legacy one — ordinary growth, not
+      a violation.

@@ -34,7 +34,7 @@ plugin, which bundles the skills *and* the MCP server:
 
 ```text
 /plugin marketplace add get-tmonier/argot
-/plugin install argot
+/plugin install argot@argot
 ```
 
 The skill runs the exact prompt in §3 for you — reach for that prompt directly
@@ -59,7 +59,12 @@ any file it detects as auto-generated or data-only (the built-in
 that's all you need. If the verdict is **Ready**, you're done. `init` also writes
 an `argot.toml` with the effective `[exclude]`, `[detect]`, and `[[mute]]` sections
 spelled out (so nothing is hidden), and drops a `.argot/.gitignore` so the fitted
-model — a rebuildable artifact — never lands in version control.
+model — a rebuildable artifact — never lands in version control. During fit it also
+builds the semantic layer's code-embedding index (`.argot/semantic-index.json`) so
+the reinvention and placement checks are ready on your first `check` — no extra step.
+The first fit downloads the ~100 MB embedding model to a shared local cache, once per
+machine (pre-fetch it with `argot model fetch`, or skip it offline — argot says so and
+carries on; see [Configure](/docs/configure/#environment-variables)).
 
 ### If the verdict isn't Ready
 

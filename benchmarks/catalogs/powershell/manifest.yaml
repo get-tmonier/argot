@@ -15,6 +15,7 @@ fixtures:
 - id: ps_error_exit_1
   file: breaks/break_exit_on_error_1.cs
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 22
   hunk_end_line: 34
   rationale: Environment.Exit + Console error print in a cmdlet helper; repo discipline
@@ -26,6 +27,7 @@ fixtures:
 - id: ps_error_string_throw_1
   file: breaks/break_string_throw_1.cs
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 19
   hunk_end_line: 37
   rationale: Bare `throw new Exception("...")` mixed with errno-style -1/0 return codes;
@@ -37,6 +39,7 @@ fixtures:
 - id: ps_error_swallow_1
   file: breaks/break_swallow_catch_1.cs
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 19
   hunk_end_line: 32
   rationale: Bare `catch {}` swallow of conversion failures; the host cmdlet surfaces
@@ -47,6 +50,7 @@ fixtures:
 - id: ps_conc_async_void_1
   file: breaks/break_async_void_1.cs
   category: wrong_concurrency
+  class: semantic_convention
   hunk_start_line: 16
   hunk_end_line: 23
   rationale: Fire-and-forget `async void` member; the host's async surface is async
@@ -57,6 +61,7 @@ fixtures:
 - id: ps_conc_backgroundworker_1
   file: breaks/break_backgroundworker_1.cs
   category: wrong_concurrency
+  class: semantic_convention
   hunk_start_line: 22
   hunk_end_line: 37
   rationale: WinForms-era System.ComponentModel.BackgroundWorker drives event draining;
@@ -67,6 +72,7 @@ fixtures:
 - id: ps_conc_channels_1
   file: breaks/break_channels_1.cs
   category: wrong_concurrency
+  class: semantic_convention
   hunk_start_line: 19
   hunk_end_line: 31
   rationale: System.Threading.Channels producer/consumer pump; the host throttle manager
@@ -77,6 +83,7 @@ fixtures:
 - id: ps_api_console_output_1
   file: breaks/break_console_output_1.cs
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 16
   hunk_end_line: 24
   rationale: Console.WriteLine/Console.Write as a cmdlet's output channel; repo cmdlets
@@ -87,6 +94,7 @@ fixtures:
 - id: ps_api_json_concat_1
   file: breaks/break_json_concat_1.cs
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 15
   hunk_end_line: 43
   rationale: Hand-rolled JSON via StringBuilder + manual escaping; the host file serializes
@@ -98,6 +106,7 @@ fixtures:
 - id: ps_api_webrequest_legacy_1
   file: breaks/break_webrequest_legacy_1.cs
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 20
   hunk_end_line: 30
   rationale: Deprecated synchronous WebRequest.Create/GetResponse pipeline; this file
@@ -313,6 +322,7 @@ fixtures:
 - id: ps_foreign_nitoasyncex_1
   file: breaks/break_nitoasyncex_1.cs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 20
   hunk_end_line: 29
   rationale: 'Nito.AsyncEx AsyncLock (foreign `using Nito.AsyncEx` + new AsyncLock/LockAsync) serializes async event dispatch; Nito.AsyncEx is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — coordination uses lock/ThreadPool/events. Caught by the import stage (foreign using token Nito.AsyncEx); AsyncLock type also 0-usage.'
@@ -322,6 +332,7 @@ fixtures:
 - id: ps_foreign_quartz_1
   file: breaks/break_quartz_1.cs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 20
   hunk_end_line: 24
   rationale: 'Quartz.NET scheduler (fully-qualified new Quartz.Impl.StdSchedulerFactory().GetScheduler) drives throttled operations; Quartz is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — throttling is coordinated by the manager''s own queue. The foreign type construction (root Quartz) fires call_receiver via the unattested namespace.'
@@ -331,6 +342,7 @@ fixtures:
 - id: ps_foreign_dataflow_1
   file: breaks/break_dataflow_1.cs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 19
   hunk_end_line: 29
   rationale: 'TPL Dataflow ActionBlock (`using System.Threading.Tasks.Dataflow` + new ActionBlock, Post/Complete) pumps throttled operations; the Dataflow library is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — throttling uses the manager''s own queue. HARD: its namespace root is System (repo-attested) so the call_receiver namespace gate is blind; detectable only via the foreign import token System.Threading.Tasks.Dataflow (and the unattested short type ActionBlock).'
@@ -340,6 +352,7 @@ fixtures:
 - id: ps_foreign_reactive_1
   file: breaks/break_reactive_1.cs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 16
   hunk_end_line: 22
   rationale: 'System.Reactive (Rx.NET) reactive stream (fully-qualified System.Reactive.Linq.Observable.Interval + Subscribe, no using) drives a heartbeat instead of the plain event; System.Reactive is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — signalling uses C# events and Timer. HARD genuine miss: reached fully-qualified with NO using and its namespace root is System (repo-attested), so the import stage sees no foreign token and call_receiver''s namespace gate is blind; every other callee (List.Add, TimeSpan.FromSeconds, the local stream receiver) is attested/local.'
@@ -364,3 +377,23 @@ fixtures:
   difficulty: hard
   host_file: src/Microsoft.PowerShell.Commands.Management/commands/management/Process.cs
   host_inject_at_line: 792
+- id: ps_foreign_akka_1
+  file: breaks/break_akka_1.cs
+  category: foreign_concurrency
+  class: foreign_import
+  hunk_start_line: 19
+  hunk_end_line: 23
+  rationale: 'Akka.NET actor system (foreign `using Akka.Actor` + ActorSystem.Create/ActorOf/Tell) dispatches job execution in a single fluent chain; Akka.NET is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — job execution here goes entirely through JobSourceAdapter/Job2, never an actor model. Caught by the import stage (foreign using token Akka.Actor); ActorSystem/Props also 0-usage. EASY: explicit foreign import, no receiver variable.'
+  difficulty: easy
+  host_file: src/System.Management.Automation/engine/remoting/client/JobManager.cs
+  host_inject_at_line: 252
+- id: ps_foreign_disruptor_1
+  file: breaks/break_disruptor_1.cs
+  category: foreign_concurrency
+  class: foreign_import
+  hunk_start_line: 20
+  hunk_end_line: 25
+  rationale: 'LMAX Disruptor ring buffer (fully-qualified new Disruptor.Dsl.Disruptor<T>, then reached through a receiver variable) pumps queued runspace work; Disruptor-net is 0 grep hits in *.cs and 0 PackageReference/PackageVersion entries in *.csproj/*.props at the pinned SHA — this pool coordinates queued work through its own _syncObject locks, not a lock-free ring buffer. The foreign type construction (root Disruptor) fires call_receiver via the unattested namespace; the receiver-variable methods (HandleEventsWith/Start) are masked. MEDIUM: reached through a receiver variable.'
+  difficulty: medium
+  host_file: src/System.Management.Automation/engine/hostifaces/RunspacePool.cs
+  host_inject_at_line: 794

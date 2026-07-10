@@ -1,0 +1,8 @@
+{
+ "corpus": "eslint",
+ "reason": "redundant",
+ "genuine": 0,
+ "true_fp": 8,
+ "raw_fires": 8,
+ "sampled": true
+}

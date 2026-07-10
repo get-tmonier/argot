@@ -5,12 +5,36 @@ use anyhow::{bail, Context, Result};
 use serde::Deserialize;
 use std::path::Path;
 
+/// The four canonical RUBRIC scoring classes. A fixture's `class()` must be one
+/// of these; the descriptive `category` (jquery, xhr_network, foreign_concurrency,
+/// …) is free-text for reporting only. Gating is decided purely from the canonical
+/// class, so no code ever needs to know a corpus's ad-hoc category vocabulary.
+///
+/// Two gated foreign capabilities: `foreign_import` (a foreign package/dep — the
+/// import stage; foreign concurrency libs fold in here, they are just deps) and
+/// `foreign_api` (a foreign callee that is not an explicit import — the harder
+/// call-receiver path). Plus two ungated secondary classes.
+pub const CANONICAL_CLASSES: [&str; 4] = [
+    "foreign_import",
+    "foreign_api",
+    "naming_shape_break",
+    "semantic_convention",
+];
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct Fixture {
     pub id: String,
     /// Path relative to the catalog dir (e.g. `breaks/break_http_sink_1.ts`).
     pub file: String,
+    /// Free-text descriptive break type (jquery, xhr_network, …) — for reporting.
     pub category: String,
+    /// Canonical RUBRIC scoring class. Optional: when the `category` is itself a
+    /// canonical class the author may omit it (`class()` falls back to `category`);
+    /// a descriptive category REQUIRES an explicit `class:` mapping it to one of
+    /// `CANONICAL_CLASSES` (enforced at load). This is where the gated-vs-secondary
+    /// decision lives — authored per fixture, never inferred from the name.
+    #[serde(default)]
+    pub class: Option<String>,
     pub hunk_start_line: usize,
     pub hunk_end_line: usize,
     #[serde(default)]
@@ -28,6 +52,14 @@ pub struct Fixture {
     pub host_file: Option<String>,
     #[serde(default)]
     pub host_inject_at_line: Option<usize>,
+}
+
+impl Fixture {
+    /// Canonical scoring class: the explicit `class:` field, else the `category`
+    /// (which must then already be canonical). Enforced canonical at load.
+    pub fn class(&self) -> &str {
+        self.class.as_deref().unwrap_or(&self.category)
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,6 +94,19 @@ pub fn load_catalog(dir: &Path) -> Result<Catalog> {
             if !matches!(lang.as_str(), "python" | "typescript") {
                 bail!("fixture {}: invalid language {:?}", fx.id, lang);
             }
+        }
+        // The scoring class must be canonical — a descriptive category (jquery,
+        // xhr_network, …) requires an explicit `class:` mapping it to one of the
+        // five RUBRIC classes. Hard-error rather than silently mis-gate.
+        if !CANONICAL_CLASSES.contains(&fx.class()) {
+            bail!(
+                "fixture {}: scoring class {:?} is not canonical — add a `class:` field \
+                 mapping category {:?} to one of {:?}",
+                fx.id,
+                fx.class(),
+                fx.category,
+                CANONICAL_CLASSES
+            );
         }
     }
     if catalog.language == "multi" {

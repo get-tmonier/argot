@@ -15,6 +15,7 @@ fixtures:
 - id: err_panic_1
   file: breaks/break_err_panic_1.go
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 28
   hunk_end_line: 49
   rationale: 'panic() on every error path in a label command helper. Verified at
@@ -28,6 +29,7 @@ fixtures:
 - id: err_exit_1
   file: breaks/break_err_exit_1.go
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 23
   hunk_end_line: 43
   rationale: 'fmt.Println(err) + os.Exit(1) inside a gist shared-library helper.
@@ -42,6 +44,7 @@ fixtures:
 - id: err_stringmatch_1
   file: breaks/break_err_stringmatch_1.go
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 24
   hunk_end_line: 47
   rationale: 'Error matching via err.Error() == "..." literals, then swallowing the
@@ -54,6 +57,7 @@ fixtures:
 - id: api_ioutil_1
   file: breaks/break_api_ioutil_1.go
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 19
   hunk_end_line: 46
   rationale: 'Deprecated io/ioutil stdlib APIs (ioutil.ReadFile/ReadAll/WriteFile);
@@ -66,6 +70,7 @@ fixtures:
 - id: api_rawhttp_1
   file: breaks/break_api_rawhttp_1.go
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 20
   hunk_end_line: 40
   rationale: 'Hand-rolled GitHub REST call with bare http.Get, string-concatenated
@@ -79,6 +84,7 @@ fixtures:
 - id: api_cobra_run_1
   file: breaks/break_api_cobra_run_1.go
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 29
   hunk_end_line: 57
   rationale: 'Off-voice cobra use: command wired via `Run:` with a stdlib
@@ -92,6 +98,7 @@ fixtures:
 - id: api_env_token_1
   file: breaks/break_api_env_token_1.go
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 19
   hunk_end_line: 43
   rationale: 'Direct os.Getenv("GH_TOKEN")/("GH_ENTERPRISE_TOKEN")/("GH_HOST") with
@@ -105,6 +112,7 @@ fixtures:
 - id: conc_cond_1
   file: breaks/break_conc_cond_1.go
   category: wrong_concurrency
+  class: semantic_convention
   hunk_start_line: 29
   hunk_end_line: 73
   rationale: 'Hand-built producer/consumer queue with sync.Cond + sync.Mutex and
@@ -119,6 +127,7 @@ fixtures:
 - id: conc_busywait_1
   file: breaks/break_conc_busywait_1.go
   category: wrong_concurrency
+  class: semantic_convention
   hunk_start_line: 31
   hunk_end_line: 57
   rationale: 'Busy-wait spin loop polling an atomic flag with runtime.Gosched to
@@ -279,6 +288,7 @@ fixtures:
 - id: foreign_ants_1
   file: breaks/break_foreign_ants_1.go
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 8
   hunk_end_line: 30
   rationale: 'github.com/panjf2000/ants/v2 goroutine pool (ants.NewPool/pool.Submit/pool.Release)
@@ -292,6 +302,7 @@ fixtures:
 - id: foreign_conc_1
   file: breaks/break_foreign_conc_1.go
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 7
   hunk_end_line: 21
   rationale: 'github.com/sourcegraph/conc structured-concurrency pool
@@ -389,6 +400,7 @@ fixtures:
 - id: foreign_pond_1
   file: breaks/break_foreign_pond_1.go
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 7
   hunk_end_line: 21
   rationale: 'github.com/alitto/pond worker pool imported inside the hunk and reached
@@ -403,6 +415,7 @@ fixtures:
 - id: foreign_tunny_1
   file: breaks/break_foreign_tunny_1.go
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 7
   hunk_end_line: 19
   rationale: 'github.com/Jeffail/tunny reached through a BARE tunny.NewFunc(...) call
@@ -448,6 +461,7 @@ fixtures:
 - id: foreign_ratelimit_1
   file: breaks/break_foreign_ratelimit_1.go
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 7
   hunk_end_line: 16
   rationale: 'go.uber.org/ratelimit reached ONLY through a ratelimit.Limiter

@@ -494,6 +494,53 @@ impl TypeScriptAdapter {
         out
     }
 
+    /// Function/method definitions with their line ranges — the embeddable units
+    /// for the semantic index. Covers `function`/generator declarations, class
+    /// `method_definition`s, and function-valued `const`/`let` bindings (arrows,
+    /// function expressions). Ambient (`declare`) blocks carry no bodies, so
+    /// they're skipped.
+    #[cfg(feature = "semantic")]
+    pub fn callable_bodies(&self, source: &str) -> Vec<super::CallableBody> {
+        let tree = parse(source);
+        let mut out = Vec::new();
+        let mut stack = vec![tree.root_node()];
+        while let Some(node) = stack.pop() {
+            if node.kind() == "ambient_declaration" {
+                continue;
+            }
+            let named = match node.kind() {
+                "function_declaration" | "generator_function_declaration" | "method_definition" => {
+                    node.child_by_field_name("name")
+                }
+                "variable_declarator" => match get_ts_rhs(node) {
+                    Some(rhs)
+                        if TS_FUNCTION_VALUE_TYPES.contains(&rhs.kind())
+                            && node
+                                .child_by_field_name("name")
+                                .is_some_and(|n| n.kind() == "identifier") =>
+                    {
+                        node.child_by_field_name("name")
+                    }
+                    _ => None,
+                },
+                _ => None,
+            };
+            if let Some(name) = named {
+                out.push(super::CallableBody {
+                    symbol: node_text(name, source).to_string(),
+                    start_line: node.start_position().row + 1,
+                    end_line: node.end_position().row + 1,
+                });
+            }
+            for i in (0..node.child_count()).rev() {
+                if let Some(c) = node.child(i) {
+                    stack.push(c);
+                }
+            }
+        }
+        out
+    }
+
     /// Every locally bound value name — variable declarators (including
     /// destructuring patterns), function parameters, and import clauses (any
     /// specifier: importing a name binds it; whether the MODULE is in-voice
@@ -901,6 +948,10 @@ impl LanguageAdapter for TypeScriptAdapter {
     }
     fn callable_definitions(&self, source: &str) -> HashSet<String> {
         TypeScriptAdapter::callable_definitions(self, source)
+    }
+    #[cfg(feature = "semantic")]
+    fn callable_bodies(&self, source: &str) -> Vec<super::CallableBody> {
+        TypeScriptAdapter::callable_bodies(self, source)
     }
     fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
         TypeScriptAdapter::internal_import_bindings(self, source)

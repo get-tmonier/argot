@@ -86,7 +86,10 @@ fn base_args(repo: &Path) -> CheckArgs {
         argot_dir: repo.join(".argot"),
         hunk_lines: 6,
         verbose: false,
-        min_severity: "unusual".to_string(),
+        min_confidence: "unusual".to_string(),
+        rule_overrides: Vec::new(),
+        error_on_warnings: false,
+        add_ignores: false,
         use_color: false,
         format: argot_core::output::OutputFormat::Human,
         today: TODAY.to_string(),
@@ -247,21 +250,18 @@ fn expired_mute_entry_is_ignored_with_stderr_note() {
 }
 
 #[test]
-fn mute_path_glob_with_scorer_scope() {
+fn mute_path_glob_with_rule_scope() {
     let repo = prepare_repo("glob");
-    // The fixture hits carry reason "none" (visible via --threshold); a rule
-    // scoped to another scorer must not match, a path-wide rule must.
+    // The fixture hits carry reason "none" (visible via --threshold); a mute
+    // scoped to another rule must not match, a path-wide rule must.
     std::fs::write(
         repo.join("argot.toml"),
-        "[[mute]]\npath = \"integration.*\"\nscorer = \"bpe\"\nreason = \"wrong scope\"\n",
+        "[[mute]]\npath = \"integration.*\"\nrule = \"rare-tokens\"\nreason = \"wrong scope\"\n",
     )
     .unwrap();
     let out = run_check(range_args(&repo));
     assert_eq!(out.exit_code, 1);
-    assert!(
-        out.stdout.contains("integration.py"),
-        "scorer scope excludes"
-    );
+    assert!(out.stdout.contains("integration.py"), "rule scope excludes");
 
     std::fs::write(
         repo.join("argot.toml"),

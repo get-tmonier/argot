@@ -26,14 +26,13 @@ const { demo } = Astro.props.content;
           <span class="badge ok">ruff</span><span class="text-muted">lint-clean</span>
         </li>
         <li class="flex items-center gap-3">
-          <span class="badge flag">argot</span><span class="text-ink-dim">flags one line</span>
+          <span class="badge flag">argot</span><span class="text-ink-dim">flags what doesn’t fit</span>
         </li>
       </ul>
     </div>
 
     <div class="reveal flex flex-col gap-4" style="--reveal-delay: 120ms">
-      <DemoTerminal />
-      <p class="text-center text-sm text-muted text-pretty" set:html={emphasize(demo.caption)} />
+      <DemoTerminal content={Astro.props.content} />
       <a
         href="/docs/real-world-scenarios/"
         class="group inline-flex items-center justify-center gap-1.5 text-center text-sm font-medium text-ember transition-colors hover:text-ember-bright"

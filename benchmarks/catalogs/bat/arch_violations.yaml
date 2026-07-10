@@ -1,0 +1,323 @@
+# Architecture-graph violation fixtures for bat (Rust). Each `import_line`
+# added to `host_file` creates the internal edge (source layer -> target
+# layer). Violations cross a boundary the repo never crosses in that
+# direction; controls respect the established direction.
+#
+# Layer = first path component under `src/` (a file `src/foo.rs` or a
+# directory `src/foo/` is layer `foo`). bat's library crate root is
+# `src/lib.rs`; everything below is verified via
+#   git -C benchmarks/data/bat/.repo grep -n '<target>::' -- <host_file>
+# returning 0 lines for the new edge, cross-checked against the reverse
+# direction to classify reversal / transitive_reversal / sink_out.
+#
+# ---- layer roles (from reading the modules, HEAD of benchmarks/data/bat) ----
+#   `error`     — universal sink: a 12-variant Result/Error wrapper around
+#                 std::io::Error. Imports nothing from crate::; almost every
+#                 other layer imports it (input, style, line_range, assets,
+#                 lessopen, printer, ...).
+#   `config`    — the resolved-settings aggregate (`Config` struct). Directly
+#                 imports six leaf layers: line_range, nonprintable_notation,
+#                 paging (feature-gated), style, syntax_mapping, wrapping.
+#                 Consumed by controller/printer/decorations/preprocessor/
+#                 output/lessopen/assets — a config->{leaf} fan-out, never
+#                 the reverse.
+#   leaf enums  — `wrapping` (WrappingMode), `nonprintable_notation`
+#                 (NonprintableNotation/BinaryBehavior), `paging`
+#                 (PagingMode) are tiny files with ZERO `use` statements of
+#                 any kind: pure sinks. `style`, `line_range` and
+#                 `syntax_mapping/builtin.rs` each only import `error`
+#                 (near-sinks). All six are established config dependencies.
+#   `terminal`, `vscreen` — pure sinks (zero `use crate::` imports); consumed
+#                 only by printer.rs (vscreen also by preprocessor.rs).
+#   `assets`    — syntax/theme resource loader; imports `error` and
+#                 `syntax_mapping` (ignored_suffixes, MappingTarget) — never
+#                 imported by leaf/near-sink layers.
+#   `decorations` — printer helper; already imports `diff` and `printer`
+#                 itself, so it sits high in the graph despite being a small
+#                 file.
+#   `preprocessor` — mid-tier text-preprocessing; already imports
+#                 `nonprintable_notation` and `vscreen` directly.
+#   `output`, `lessopen`, `printer` — higher-tier consumers; `printer.rs`
+#                 alone imports 13 other layers (assets, config, decorations,
+#                 diff, error, input, line_range, output, preprocessor,
+#                 style, terminal, vscreen, wrapping) and is the crate's
+#                 biggest fan-in-avoider — the natural "top" of the DAG
+#                 short of `controller`.
+#
+# NOTE on `bin`: the resolver-candidate menu (candidates-bat.md) lists
+# several `forward`-kind rows sourced from src/bin/bat/app.rs using
+# `use crate::<target>::ArgotFixture;`. `src/bin/bat/` is its OWN binary
+# crate (separate from the `bat` library crate rooted at src/lib.rs), so a
+# real `use crate::error::...` there cannot resolve to the library's
+# `error` module — app.rs already reaches those library items via
+# `use bat::{error::*, line_range::{...}, ...}`. Rather than paper over
+# that crate-boundary mismatch, this fixture set omits `bin` as a
+# host/source entirely; every entry below is a same-crate (library) edge.
+#
+# Realism: violations below are dominated by reversal/transitive_reversal/
+# sink_out (a leaf or near-sink module reaching up into `config`, `assets`
+# or `input` — the layers it is actually consumed by) because that is the
+# dominant failure mode for an LLM editing a small, established codebase:
+# it grabs the big aggregate type (Config) or a plausible-looking sibling
+# from the wrong side of an established dependency. No forward-kind entry
+# is included as a violation — every genuinely plausible forward layer-skip
+# candidate in the verified menu happened to be sourced from `bin` (see
+# above) and is excluded on the crate-boundary grounds already covered.
+
+violations:
+  # ---- reversal (8): reverse edge target->source is attested, so
+  #      source->target flips an established direction ----
+
+  - host_file: "src/error.rs"
+    source_layer: "error"
+    import_line: "use crate::input::ArgotFixture;"
+    target_layer: "input"
+    kind: "reversal"
+    rationale: >-
+      error.rs is the crate's universal sink (Io/Fmt variants wrapping
+      std::io::Error; zero `use crate::` imports of its own) that nearly
+      everything depends on. input.rs already depends on it
+      (`use crate::error::*;`, src/input.rs:9, wrapping file/stdin reads in
+      the crate's Result type). Having the error type reach up into a
+      concrete data-source abstraction reverses that established
+      input->error direction. `git grep -n 'input::' -- src/error.rs` -> 0
+      lines (0-usage).
+
+  - host_file: "src/wrapping.rs"
+    source_layer: "wrapping"
+    import_line: "use crate::config::ArgotFixture;"
+    target_layer: "config"
+    kind: "reversal"
+    rationale: >-
+      wrapping.rs is a 12-line enum (WrappingMode) with zero `use`
+      statements of any kind — a pure leaf. config.rs already imports it
+      (`use crate::wrapping::WrappingMode;`). The enum definition reaching
+      up into the resolved-settings aggregate that owns it reverses
+      config->wrapping. 0-usage confirmed (file has no imports at all).
+
+  - host_file: "src/nonprintable_notation.rs"
+    source_layer: "nonprintable_notation"
+    import_line: "use crate::config::ArgotFixture;"
+    target_layer: "config"
+    kind: "reversal"
+    rationale: >-
+      Same pattern as wrapping: nonprintable_notation.rs is a pure leaf enum
+      (NonprintableNotation/BinaryBehavior, zero `use` statements). config.rs
+      already imports it
+      (`use crate::nonprintable_notation::{BinaryBehavior, NonprintableNotation};`).
+      Reversing config->nonprintable_notation. 0-usage confirmed.
+
+  - host_file: "src/style.rs"
+    source_layer: "style"
+    import_line: "use crate::config::ArgotFixture;"
+    target_layer: "config"
+    kind: "reversal"
+    rationale: >-
+      style.rs's only dependency is `use crate::error::*;` (src/style.rs:4)
+      — a near-sink. config.rs already imports it
+      (`use crate::style::StyleComponents;`). Reversing config->style.
+      `git grep -n 'config::' -- src/style.rs` -> 0 lines.
+
+  - host_file: "src/line_range.rs"
+    source_layer: "line_range"
+    import_line: "use crate::config::ArgotFixture;"
+    target_layer: "config"
+    kind: "reversal"
+    rationale: >-
+      line_range.rs's only dependency is `use crate::error::*;`
+      (src/line_range.rs:1) — a near-sink. config.rs already imports it
+      (`use crate::line_range::{HighlightedLineRanges, LineRanges};`).
+      Reversing config->line_range. `git grep -n 'config::' --
+      src/line_range.rs` -> 0 lines.
+
+  - host_file: "src/syntax_mapping/builtin.rs"
+    source_layer: "syntax_mapping"
+    import_line: "use crate::config::ArgotFixture;"
+    target_layer: "config"
+    kind: "reversal"
+    rationale: >-
+      builtin.rs's only dependency is a sibling import within its own
+      module (`use crate::syntax_mapping::{make_glob_matcher, Case,
+      MappingTarget};`). config.rs already imports the module
+      (`use crate::syntax_mapping::SyntaxMapping;`). Reversing
+      config->syntax_mapping. `git grep -n 'config::' --
+      src/syntax_mapping/builtin.rs` -> 0 lines.
+
+  - host_file: "src/paging.rs"
+    source_layer: "paging"
+    import_line: "use crate::config::ArgotFixture;"
+    target_layer: "config"
+    kind: "reversal"
+    rationale: >-
+      paging.rs is a 6-line enum (PagingMode) with zero `use` statements —
+      a pure leaf. config.rs already imports it under
+      `#[cfg(feature = "paging")] use crate::paging::PagingMode;`.
+      Reversing config->paging. 0-usage confirmed (file has no imports at
+      all).
+
+  - host_file: "src/syntax_mapping/builtin.rs"
+    source_layer: "syntax_mapping"
+    import_line: "use crate::assets::ArgotFixture;"
+    target_layer: "assets"
+    kind: "reversal"
+    rationale: >-
+      Reverse attested via src/assets.rs
+      (`use crate::syntax_mapping::ignored_suffixes::IgnoredSuffixes;` and
+      `use crate::syntax_mapping::MappingTarget;`). builtin.rs importing the
+      resource-loader layer that already consumes it reverses
+      assets->syntax_mapping. `git grep -n 'assets::' --
+      src/syntax_mapping/builtin.rs` -> 0 lines.
+
+  # ---- transitive_reversal (1): the reverse edge is a two-hop attested
+  #      chain rather than a direct one ----
+
+  - host_file: "src/error.rs"
+    source_layer: "error"
+    import_line: "use crate::config::ArgotFixture;"
+    target_layer: "config"
+    kind: "transitive_reversal"
+    rationale: >-
+      config.rs never imports error directly (`grep -c error src/config.rs`
+      -> 0), but it transitively depends on it: config.rs imports
+      `crate::line_range::{HighlightedLineRanges, LineRanges}`
+      (src/config.rs:1), and line_range.rs itself imports
+      `crate::error::*` (src/line_range.rs:1). So config -> line_range ->
+      error is an attested two-hop chain. error importing config directly
+      would close that chain one hop removed from a direct reversal —
+      hence transitive_reversal. 0-usage confirmed (error.rs has no
+      `use crate::` imports at all).
+
+  # ---- sink_out (3): source was a pure sink (zero outgoing crate-internal
+  #      edges); neither direction is attested against the new target, so
+  #      it's a pure leak rather than a reversal ----
+
+  - host_file: "src/terminal.rs"
+    source_layer: "terminal"
+    import_line: "use crate::assets::ArgotFixture;"
+    target_layer: "assets"
+    kind: "sink_out"
+    rationale: >-
+      terminal.rs has zero `use crate::` imports (its only consumer is
+      printer.rs) — a pure sink. Neither terminal->assets nor
+      assets->terminal is attested (`git grep -n 'terminal' --
+      src/assets.rs src/assets/*.rs` finds nothing about the terminal
+      module). Pure sink-leak: a previously self-contained escape-sequence
+      helper sprouting a new dependency on the resource loader.
+
+  - host_file: "src/vscreen.rs"
+    source_layer: "vscreen"
+    import_line: "use crate::config::ArgotFixture;"
+    target_layer: "config"
+    kind: "sink_out"
+    rationale: >-
+      vscreen.rs has zero `use crate::` imports (consumed only by
+      printer.rs and preprocessor.rs) — a pure sink. config.rs never
+      imports vscreen (absent from its six leaf dependencies). Neither
+      direction attested: pure sink-leak, not a reversal.
+
+  - host_file: "src/line_range.rs"
+    source_layer: "line_range"
+    import_line: "use crate::assets::ArgotFixture;"
+    target_layer: "assets"
+    kind: "sink_out"
+    rationale: >-
+      line_range.rs's only dependency is `error` (near-sink). The assets
+      module (src/assets.rs, src/assets/assets_metadata.rs) never imports
+      line_range. Neither direction attested: pure sink-leak, distinct from
+      the config-target reversal above (line_range.rs:1 already reaches
+      into error, but assets is untouched in either direction).
+
+controls:
+  # Realistic NEW imports that RESPECT the established layer direction:
+  # each host already sits above (or alongside) its target in the graph, so
+  # a new import along the same direction is not a new edge -> must NOT be
+  # flagged.
+
+  - host_file: "src/decorations.rs"
+    source_layer: "decorations"
+    import_line: "use crate::error::ArgotFixture;"
+    target_layer: "error"
+    rationale: >-
+      decorations.rs already sits high in the graph: it imports
+      `crate::diff::LineChange` and `crate::printer::{Colors,
+      InteractivePrinter}` (src/decorations.rs:2-3) — printer being the
+      crate's biggest consumer. Nothing depends on decorations for error,
+      so adding a Result-returning helper via the universal error sink is a
+      normal low-level dependency addition, not a new direction. Not a
+      violation.
+
+  - host_file: "src/decorations.rs"
+    source_layer: "decorations"
+    import_line: "use crate::input::ArgotFixture;"
+    target_layer: "input"
+    rationale: >-
+      Same host as above; decorations already reaches into printer/diff at
+      the top of the graph. Pulling in an Input type (e.g. to label a
+      decoration by source filename) is a plausible same-tier addition,
+      consistent with the existing direction. Not a violation.
+
+  - host_file: "src/preprocessor.rs"
+    source_layer: "preprocessor"
+    import_line: "use crate::config::ArgotFixture;"
+    target_layer: "config"
+    rationale: >-
+      preprocessor.rs already imports two of config's own dependencies
+      directly (`nonprintable_notation::NonprintableNotation`,
+      `vscreen::{EscapeSequenceOffsets, EscapeSequenceOffsetsIterator}`,
+      src/preprocessor.rs:3-6). Reaching for the aggregate Config to read
+      another setting is the natural next step along the same direction,
+      not a new one. Not a violation.
+
+  - host_file: "src/preprocessor.rs"
+    source_layer: "preprocessor"
+    import_line: "use crate::line_range::ArgotFixture;"
+    target_layer: "line_range"
+    rationale: >-
+      Same host; preprocessor's existing dependencies (nonprintable_notation,
+      vscreen) sit at the same tier as line_range. Wanting LineRanges to
+      range-check during preprocessing is consistent with that existing
+      set, not a reversal. Not a violation.
+
+  - host_file: "src/output.rs"
+    source_layer: "output"
+    import_line: "use crate::config::ArgotFixture;"
+    target_layer: "config"
+    rationale: >-
+      output.rs already imports `error`, `less`, `paging` and `wrapping`
+      (src/output.rs:8-14) — a spread of leaf/near-leaf dependencies.
+      Reaching for the aggregate Config it doesn't yet import is consistent
+      with that existing set. Not a violation.
+
+  - host_file: "src/assets/assets_metadata.rs"
+    source_layer: "assets"
+    import_line: "use crate::config::ArgotFixture;"
+    target_layer: "config"
+    rationale: >-
+      assets_metadata.rs currently only imports `error`
+      (src/assets/assets_metadata.rs:8), and the assets module already sits
+      above several leaf modules (it imports syntax_mapping, per
+      src/assets.rs:14-15). Wanting Config for e.g. theme/style selection
+      is a natural addition along the same direction. Not a violation.
+
+  - host_file: "src/lessopen.rs"
+    source_layer: "lessopen"
+    import_line: "use crate::config::ArgotFixture;"
+    target_layer: "config"
+    rationale: >-
+      lessopen.rs already imports `crate::error::Result`
+      (src/lessopen.rs:11) plus a grouped block of crate dependencies for
+      its external-pager-integration logic. Reaching for Config to read a
+      lessopen-related setting is consistent with its existing dependency
+      tier. Not a violation.
+
+  - host_file: "src/printer.rs"
+    source_layer: "printer"
+    import_line: "use crate::paging::ArgotFixture;"
+    target_layer: "paging"
+    rationale: >-
+      printer.rs is the crate's biggest consumer — it already imports
+      assets, config, decorations, diff, error, input, line_range, output,
+      preprocessor, style, terminal, vscreen and wrapping (13 distinct
+      layers, src/printer.rs:21-41). Wanting PagingMode too — the one leaf
+      it doesn't yet touch — is the least surprising possible addition.
+      Not a violation.

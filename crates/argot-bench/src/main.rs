@@ -240,6 +240,48 @@ fn real_main() -> Result<ExitCode> {
         keep_control_results: cli.keep_controls,
     };
 
+    #[cfg(feature = "structural")]
+    if cli.mode == "structural" {
+        let md =
+            argot_bench::structural::run_structural(&selected, &opts.data_dir, &cli.results_dir)?;
+        print!("{md}");
+        eprintln!("results → {}", cli.results_dir.display());
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    #[cfg(feature = "arch")]
+    if cli.mode == "arch" {
+        let md = argot_bench::arch::run_arch(
+            &selected,
+            &opts.data_dir,
+            &opts.catalogs_dir,
+            &cli.results_dir,
+        )?;
+        print!("{md}");
+        eprintln!("results → {}", cli.results_dir.display());
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    #[cfg(feature = "arch")]
+    if cli.mode == "arch-candidates" {
+        let md = argot_bench::arch::run_arch_candidates(
+            &selected,
+            &opts.data_dir,
+            &opts.catalogs_dir,
+            &cli.results_dir,
+        )?;
+        print!("{md}");
+        eprintln!("results → {}", cli.results_dir.display());
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    #[cfg(feature = "arch")]
+    if cli.mode == "arch-verify" {
+        let md = argot_bench::arch::run_arch_verify(&selected, &opts.data_dir, &opts.catalogs_dir)?;
+        print!("{md}");
+        return Ok(ExitCode::SUCCESS);
+    }
+
     if cli.mode == "holdout" || cli.mode == "honest" {
         let hopts = holdout::HoldoutOptions {
             data_dir: opts.data_dir.clone(),

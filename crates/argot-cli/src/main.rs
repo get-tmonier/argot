@@ -4,9 +4,13 @@
 //! (`extract` → `train` → `calibrate` → `check`, plus the `fit` one-shot and
 //! the suppression commands) runs in-process against `argot-core`.
 
+mod auto_refit;
 mod describe;
 mod mcp;
+mod replay;
 mod review;
+#[cfg(feature = "self-update")]
+mod update_check;
 mod voice_diff;
 
 use clap::{Args, Parser, Subcommand};
@@ -152,7 +156,9 @@ enum Command {
     /// Set up argot for this repo: fit the voice model and report its health
     /// (`--suggest` lists directories you may want to exclude first).
     Init(InitCmd),
-    /// Extract dataset from git history.
+    /// Extract dataset from git history. Plumbing for the bench; hidden —
+    /// the fit → check flow never consumes the dataset.
+    #[command(hide = true)]
     Extract(ExtractArgs),
     /// Collect the repo corpus + generic baseline. Plumbing behind `fit`; hidden.
     #[command(hide = true)]
@@ -164,9 +170,18 @@ enum Command {
     Fit(FitCmd),
     /// Check code changes against the calibrated scorers.
     Check(CheckCmd),
+    /// List every rule with its group and effective severity for this repo.
+    Rules(RulesCmd),
+    /// Manage the local embedding model behind the semantic rules.
+    #[cfg(feature = "semantic")]
+    Model(ModelCmd),
     /// Score a PR (or diff range) against the local voice without checking it out.
     Review(ReviewCmd),
+    /// Replay your recent commits against the voice fitted just before them —
+    /// what argot would have caught before merge. Informational; exits 0.
+    Replay(ReplayCmd),
     /// PR-level out-of-voice metric plus ranked hot-spots for a ref/range.
+    /// Informational: always exits 0 (use `check`/`review` to gate).
     #[command(name = "voice-diff")]
     VoiceDiff(VoiceDiffCmd),
     /// Report corpus composition, calibration health, and repo suitability.
@@ -189,6 +204,13 @@ enum Command {
     List(ListCmd),
     /// Update the argot CLI to the latest release.
     Update,
+    /// Refresh the cached version.json state (spawned detached; hidden).
+    #[cfg(feature = "self-update")]
+    #[command(name = "refresh-version-cache", hide = true)]
+    RefreshVersionCache,
+    /// Refit the voice model in the background (spawned detached; hidden).
+    #[command(name = "background-refit", hide = true)]
+    BackgroundRefit(BackgroundRefitCmd),
     /// Run a Model Context Protocol server for LLM coding agents (stdio).
     Mcp(McpCmd),
     /// Generate a STYLE.md describing the repo's learned voice.
@@ -343,9 +365,6 @@ struct StatusCmd {
     /// Output format: human (terminal) or json (stable machine-readable).
     #[arg(long, default_value = "human", value_parser = ["human", "json"])]
     format: String,
-    /// Deprecated alias for `--format json` (hidden; use `--format json`).
-    #[arg(long, hide = true)]
-    json: bool,
 }
 
 fn run_status(c: StatusCmd) -> ExitCode {
@@ -359,7 +378,28 @@ fn run_status(c: StatusCmd) -> ExitCode {
     let model_bytes = fs::metadata(&ctx.repo_corpus_path).ok().map(|m| m.len());
     let calibrated = ctx.argot_dir.join("scorer-config.json").exists();
 
-    if wants_json(&c.format, c.json) {
+    // The one-stop "is my setup healthy / is it time to recalibrate?" answer:
+    // freshness (commits behind), config sync, and calibration drift — all
+    // read from what the last fit persisted, no tree walk here.
+    let health = argot_core::health::read(&ctx.argot_dir);
+    let behind = health.as_ref().and_then(|h| {
+        (!h.fit_sha.is_empty())
+            .then(|| argot_core::check::commits_since_fit(&ctx.git_root, &h.fit_sha))
+            .flatten()
+    });
+    let config_in_sync = health.as_ref().map(|h| {
+        h.config_fingerprint.is_empty()
+            || h.config_fingerprint
+                == argot_core::health::config_fingerprint(&argot_core::config::ArgotConfig::load(
+                    Path::new(&ctx.git_root),
+                ))
+    });
+    let drift: Vec<String> = health
+        .as_ref()
+        .map(|h| h.drift_candidates.clone())
+        .unwrap_or_default();
+
+    if wants_json(&c.format) {
         let doc = serde_json::json!({
             "repo": { "name": ctx.name, "path": ctx.git_root },
             "dataset": dataset.map(|(count, bytes)| serde_json::json!({
@@ -367,6 +407,12 @@ fn run_status(c: StatusCmd) -> ExitCode {
             })),
             "model": { "trained": model_bytes.is_some(), "bytes": model_bytes },
             "calibrated": calibrated,
+            "health": health.as_ref().map(|h| serde_json::json!({
+                "fit_sha": h.fit_sha,
+                "commits_behind": behind,
+                "config_in_sync": config_in_sync,
+                "drift_candidates": drift,
+            })),
         });
         println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
         return ExitCode::SUCCESS;
@@ -386,6 +432,33 @@ fn run_status(c: StatusCmd) -> ExitCode {
     } else {
         println!("Calibrated: not calibrated — run `argot fit`");
     }
+    if let Some(h) = &health {
+        let fresh = match behind {
+            Some(0) => "fresh (at HEAD)".to_string(),
+            Some(n) => format!("{n} commit(s) behind HEAD — auto-refresh will refit"),
+            None => "unknown".to_string(),
+        };
+        println!(
+            "Voice:    fitted at {} · {fresh}",
+            &h.fit_sha[..12.min(h.fit_sha.len())]
+        );
+        match config_in_sync {
+            Some(true) => println!("Config:   in sync with the fit"),
+            Some(false) => {
+                println!("Config:   argot.toml changed since the fit — auto-refresh will refit")
+            }
+            None => {}
+        }
+        if drift.is_empty() {
+            println!("Hygiene:  no unexcluded generated/data-heavy directories");
+        } else {
+            println!(
+                "Hygiene:  {} director{} shaping the voice that look generated/data-heavy — `argot init --suggest`",
+                drift.len(),
+                if drift.len() != 1 { "ies" } else { "y" }
+            );
+        }
+    }
     ExitCode::SUCCESS
 }
 
@@ -394,9 +467,6 @@ struct ListCmd {
     /// Output format: human (terminal) or json (stable machine-readable).
     #[arg(long, default_value = "human", value_parser = ["human", "json"])]
     format: String,
-    /// Deprecated alias for `--format json` (hidden; use `--format json`).
-    #[arg(long, hide = true)]
-    json: bool,
 }
 
 fn run_list(c: ListCmd) -> ExitCode {
@@ -405,7 +475,7 @@ fn run_list(c: ListCmd) -> ExitCode {
     let mut repos: Vec<(&String, &RepoEntry)> = settings.repos.iter().collect();
     repos.sort_by(|a, b| a.1.name.cmp(&b.1.name));
 
-    if wants_json(&c.format, c.json) {
+    if wants_json(&c.format) {
         let items: Vec<serde_json::Value> = repos
             .iter()
             .map(|(path, entry)| {
@@ -497,6 +567,10 @@ fn run_update() -> ExitCode {
     match updater.run_sync() {
         Ok(Some(result)) => {
             println!("Updated to argot {}.", result.new_version);
+            // Did this release move the pinned embedding model? Say so now,
+            // so the next fit's ~100 MB download is expected, not a surprise.
+            #[cfg(feature = "semantic")]
+            update_check::model_change_note();
             ExitCode::SUCCESS
         }
         Ok(None) => {
@@ -510,16 +584,23 @@ fn run_update() -> ExitCode {
     }
 }
 
-/// Whether a command should emit its JSON document: the shared `--format json`
-/// idiom, plus the deprecated per-command `--json` boolean alias.
-fn wants_json(format: &str, json_alias: bool) -> bool {
-    json_alias || format == "json"
+/// Whether a command should emit its JSON document (the shared `--format
+/// json` idiom).
+fn wants_json(format: &str) -> bool {
+    format == "json"
+}
+
+/// End-of-command freshness hook (notice + detached refresh). A no-op in
+/// builds without `self-update` — dev/CI binaries never phone home.
+fn freshness_hook() {
+    #[cfg(feature = "self-update")]
+    update_check::maybe_notify_and_refresh();
 }
 
 fn print_help_banner() {
     let version = env!("CARGO_PKG_VERSION");
     println!(
-        "argot v{version}\n\nCOMMANDS\n  init          Set up argot for this repo (fit + health check; --suggest lists dirs to exclude)\n  extract       Walk git history into a training dataset (.argot/dataset.jsonl)\n  fit           Fit the voice model to this repo (= train + calibrate, one-shot)\n  check         Check changes against the fitted voice\n  review        Score a PR (or diff range) against the local voice, no checkout\n  voice-diff    PR-level out-of-voice metric + hot-spots for a ref/range\n  inspect       Report corpus composition, calibration health, and suitability\n  mute          Mute a hit by hash (appends a [[mute]] to argot.toml)\n  list-mutes    List active suppressions across all surfaces\n  review-mutes  Report (and --prune) hash-scoped mutes whose file is gone\n  status        Show current repository's argot state\n  list          List all registered repositories\n  update        Update the argot CLI\n  mcp           Run an MCP server for LLM coding agents (stdio)\n  describe-voice  Generate a STYLE.md describing the repo's learned voice\n\nTypical first run: argot init && argot check\nRun `argot <command> --help` for details on any command."
+        "argot v{version}\n\nCOMMANDS\n  init          Set up argot for this repo (fit + health check; --suggest lists dirs to exclude)\n  fit           Fit the voice model to this repo (= train + calibrate, one-shot)\n  check         Check changes against the fitted voice\n  rules         List every rule with its group and effective severity\n  review        Score a PR (or diff range) against the local voice, no checkout\n  replay        What argot would have caught in your last N commits\n  voice-diff    PR-level out-of-voice metric + hot-spots for a ref/range\n  inspect       Report corpus composition, calibration health, and suitability\n  mute          Mute a hit by hash (appends a [[mute]] to argot.toml)\n  list-mutes    List active suppressions across all surfaces\n  review-mutes  Report (and --prune) hash-scoped mutes whose file is gone\n  model         Manage the local embedding model (fetch / status / clean)\n  status        Show current repository's argot state\n  list          List all registered repositories\n  update        Update the argot CLI\n  mcp           Run an MCP server for LLM coding agents (stdio)\n  describe-voice  Generate a STYLE.md describing the repo's learned voice\n\nTypical first run: argot init && argot check\nRun `argot <command> --help` for details on any command."
     );
 }
 
@@ -746,6 +827,8 @@ fn run_fit_cmd(c: FitCmd) -> ExitCode {
     match fit_repo(&c.repo, &c.slice) {
         Ok(scorer_config) => {
             println!("Done. Scorer config: {}", scorer_config.display());
+            drift_suggestions_note(&c.repo);
+            freshness_hook();
             ExitCode::SUCCESS
         }
         Err(()) => ExitCode::from(2),
@@ -758,13 +841,47 @@ struct InitCmd {
     #[arg(long, default_value = ".")]
     repo: PathBuf,
     /// Don't fit — instead list directories you may want to add to
-    /// `.argotignore` first (statistical evidence only; you decide).
+    /// `argot.toml [exclude].paths` first (statistical evidence only; you decide).
     #[arg(long)]
     suggest: bool,
     /// Output format for `--suggest`: human (terminal) or json (stable,
     /// machine-readable — consumed by the setup skill).
     #[arg(long, default_value = "human", value_parser = ["human", "json"])]
     format: String,
+}
+
+/// Config quality IS the experience: a fit that ingests vendored, generated,
+/// or data-heavy directories speaks with the wrong voice and flags the wrong
+/// things — and a repo DRIFTS into that state (a new `gen/`, a vendored SDK
+/// added last month). `suggest_ignores` only returns directories NOT already
+/// excluded, so this stays quiet on a well-configured repo and speaks up the
+/// fit after the tree grew something the voice shouldn't learn.
+fn drift_suggestions_note(repo: &Path) {
+    // The fit that just ran persisted its own scan (`.argot/health.json`);
+    // read it rather than walking the tree twice. Fallback: live scan.
+    let candidates: Vec<String> = argot_core::health::read(&repo.join(".argot"))
+        .map(|h| h.drift_candidates)
+        .unwrap_or_else(|| {
+            suggest_ignores(repo)
+                .candidates
+                .into_iter()
+                .map(|c| c.path)
+                .collect()
+        });
+    if candidates.is_empty() {
+        return;
+    }
+    let plural = if candidates.len() != 1 { "ies" } else { "y" };
+    let names: Vec<&str> = candidates.iter().take(3).map(String::as_str).collect();
+    let more = if candidates.len() > 3 { ", …" } else { "" };
+    println!();
+    println!(
+        "note: {} director{plural} look generated or data-heavy and are shaping the voice ({}{more}).",
+        candidates.len(),
+        names.join(", ")
+    );
+    println!("      Review with `argot init --suggest`, or let the setup skill decide:");
+    println!("      npx skills add get-tmonier/argot   then run /argot-setup");
 }
 
 fn run_init_cmd(c: InitCmd) -> ExitCode {
@@ -792,6 +909,7 @@ fn run_init_cmd(c: InitCmd) -> ExitCode {
     match report.verdict {
         Verdict::Ready => {
             println!("Voice model fitted → {}", scorer_config.display());
+            drift_suggestions_note(&c.repo);
             println!("Next:  argot check          # score your working changes");
         }
         Verdict::Marginal | Verdict::NotRecommended => {
@@ -820,7 +938,7 @@ fn verdict_word(v: Verdict) -> &'static str {
 
 fn run_init_suggest(c: &InitCmd) -> ExitCode {
     let suggestions = suggest_ignores(&c.repo);
-    if wants_json(&c.format, false) {
+    if wants_json(&c.format) {
         match serde_json::to_string_pretty(&suggestions) {
             Ok(json) => {
                 println!("{json}");
@@ -970,22 +1088,38 @@ struct CheckCmd {
     /// Show full hunk contents (no truncation; overrides --hunk-lines).
     #[arg(short = 'v', long)]
     verbose: bool,
-    /// Only show hits at or above this severity.
+    /// Only show hits at or above this confidence tier.
     #[arg(
-        long = "min-severity",
+        long = "min-confidence",
         default_value = "unusual",
         value_parser = ["unusual", "suspicious", "foreign"]
     )]
-    min_severity: String,
-    /// Output format: human (terminal), json (stable machine-readable), or
-    /// sarif (SARIF 2.1.0 for code-scanning uploads). Machine formats write
-    /// nothing but the document to stdout.
+    min_confidence: String,
+    /// Override a rule's severity for this run: `--rule <name>=<error|warn|off>`
+    /// (repeatable; accepts rule or group names — see `argot rules`).
+    #[arg(long = "rule", value_name = "NAME=SEVERITY", value_parser = parse_rule_override)]
+    rule: Vec<(String, argot_core::rules::Severity)>,
+    /// Exit non-zero when `warn`-severity findings are present (CI strictness).
+    #[arg(long = "error-on-warnings")]
+    error_on_warnings: bool,
+    /// Insert an inline ignore comment above every current finding instead of
+    /// reporting (adopting argot on an existing codebase). Working-tree only.
+    #[arg(long = "add-ignores")]
+    add_ignores: bool,
+    /// Output format: human (terminal), json (stable machine-readable), sarif
+    /// (SARIF 2.1.0 for code-scanning uploads), or github (Actions workflow
+    /// commands → inline PR annotations). Machine formats write nothing but
+    /// the document to stdout.
     #[arg(
         long,
         default_value = "human",
-        value_parser = ["human", "json", "sarif"]
+        value_parser = ["human", "json", "sarif", "github"]
     )]
     format: String,
+    /// Suppress informational stderr notes (model line, staleness nudges,
+    /// suppression counts). Errors still print.
+    #[arg(short = 'q', long)]
+    quiet: bool,
 }
 
 /// Resolve `--argot-dir` against `--repo`: a relative artifacts dir (the default
@@ -1006,6 +1140,7 @@ fn run_check_cmd(c: CheckCmd) -> ExitCode {
     let use_color = std::env::var_os("NO_COLOR").is_none() && std::io::stdout().is_terminal();
     let argot_dir = resolve_argot_dir(&c.repo, c.argot_dir);
     let human = c.format == "human";
+    let quiet = c.quiet;
     let today = today_utc();
     let outcome = run_check(CheckArgs {
         repo_path: c.repo.to_string_lossy().into_owned(),
@@ -1019,7 +1154,10 @@ fn run_check_cmd(c: CheckCmd) -> ExitCode {
         argot_dir: argot_dir.clone(),
         hunk_lines: c.hunk_lines,
         verbose: c.verbose,
-        min_severity: c.min_severity,
+        min_confidence: c.min_confidence,
+        rule_overrides: c.rule,
+        error_on_warnings: c.error_on_warnings,
+        add_ignores: c.add_ignores,
         use_color,
         // The value_parser restricts input to the known names, so this is
         // always Some; default to Human defensively.
@@ -1027,17 +1165,180 @@ fn run_check_cmd(c: CheckCmd) -> ExitCode {
         today: today.clone(),
     });
     print!("{}", outcome.stdout);
-    eprint!("{}", outcome.stderr);
+    // --quiet drops informational stderr; hard errors (exit 2) always print.
+    if !quiet || outcome.exit_code >= 2 {
+        eprint!("{}", outcome.stderr);
+    }
     // Soft staleness nudge — human output only, never affects the exit code or
     // the machine formats. Catches the "fit once, forgot for months" case.
-    if human && outcome.exit_code < 2 {
+    if human && !quiet && outcome.exit_code < 2 {
         if let Some(days) = fit_timestamp(&argot_dir).and_then(|ts| days_since_fit(&ts, &today)) {
             if days >= STALE_FIT_DAYS {
                 eprintln!("note: voice model fitted {days} days ago — `argot fit` to refresh.");
             }
         }
+        freshness_hook();
+    }
+    // Drifted model? Refresh it in the background so the next check is sharp
+    // (detached, throttled, opt-out via [fit] auto-refresh = false).
+    if outcome.exit_code < 2 {
+        auto_refit::maybe_refit(&c.repo, &argot_dir, &today, quiet || !human);
     }
     ExitCode::from(outcome.exit_code as u8)
+}
+
+#[derive(Args)]
+struct ReplayCmd {
+    /// How many commits back to fit the historical voice (first-parent line).
+    #[arg(long, default_value_t = replay::DEFAULT_COMMITS)]
+    commits: usize,
+    /// Path to the repository.
+    #[arg(long, default_value = ".")]
+    repo: PathBuf,
+}
+
+#[derive(Args)]
+struct BackgroundRefitCmd {
+    /// Path to the repository to refit.
+    #[arg(long, default_value = ".")]
+    repo: PathBuf,
+}
+
+#[derive(Args)]
+struct RulesCmd {
+    /// Path to the repository (its argot.toml decides the effective severities).
+    #[arg(long, default_value = ".")]
+    repo: PathBuf,
+    /// Output format: human or json.
+    #[arg(long, default_value = "human", value_parser = ["human", "json"])]
+    format: String,
+}
+
+fn run_rules_cmd(c: RulesCmd) -> ExitCode {
+    use argot_core::rules::{GROUPS, RULES};
+    let config = argot_core::config::ArgotConfig::load(&c.repo);
+    for w in &config.warnings {
+        eprintln!("[argot] {w}");
+    }
+    let settings = config.rule_settings(&Vec::new());
+    if c.format == "json" {
+        let doc: Vec<serde_json::Value> = RULES
+            .iter()
+            .map(|r| {
+                serde_json::json!({
+                    "name": r.name,
+                    "group": r.group,
+                    "severity": settings.severity_of_rule(r).as_str(),
+                    "label": r.label,
+                    "description": r.description,
+                })
+            })
+            .collect();
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&doc).expect("static json")
+        );
+        return ExitCode::SUCCESS;
+    }
+    let name_w = RULES.iter().map(|r| r.name.len()).max().unwrap_or(0);
+    let group_w = GROUPS.iter().map(|g| g.len()).max().unwrap_or(0);
+    println!(
+        "{:<name_w$}  {:<group_w$}  {:<8}  DESCRIPTION",
+        "RULE", "GROUP", "SEVERITY"
+    );
+    for r in RULES {
+        println!(
+            "{:<name_w$}  {:<group_w$}  {:<8}  {}",
+            r.name,
+            r.group,
+            settings.severity_of_rule(r).as_str(),
+            r.description
+        );
+    }
+    println!(
+        "
+Configure in argot.toml [rules] (e.g. `misplaced = \"warn\"`, `semantic = \"off\"`)\nor per run with `argot check --rule <name>=<severity>`."
+    );
+    ExitCode::SUCCESS
+}
+
+/// `argot model` — explicit control over the fetched-on-first-use embedding
+/// model (~100 MB GGUF). The automatic path needs none of this; these exist
+/// for CI pre-warming, air-gapped installs, and cache hygiene.
+#[cfg(feature = "semantic")]
+#[derive(Args)]
+struct ModelCmd {
+    #[command(subcommand)]
+    action: ModelAction,
+}
+
+#[cfg(feature = "semantic")]
+#[derive(clap::Subcommand)]
+enum ModelAction {
+    /// Download and verify the model now (instead of on first use).
+    Fetch,
+    /// Show whether the model is present, where, and its size.
+    Status,
+    /// Delete the model cache (re-fetched on next use).
+    Clean,
+}
+
+#[cfg(feature = "semantic")]
+fn run_model_cmd(c: ModelCmd) -> ExitCode {
+    use argot_core::scoring::semantic::embedder;
+    let mb = |b: u64| b as f64 / (1024.0 * 1024.0);
+    match c.action {
+        ModelAction::Fetch => match embedder::fetch_model() {
+            Ok(path) => {
+                let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+                println!(
+                    "model ready: {} ({:.1} MB, sha256 verified)",
+                    path.display(),
+                    mb(size)
+                );
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("error: {e:#}");
+                ExitCode::from(2)
+            }
+        },
+        ModelAction::Status => match embedder::model_status() {
+            Ok(embedder::ModelStatus::EnvOverride(path)) => {
+                println!("model: {} ({})", path.display(), embedder::MODEL_ENV);
+                ExitCode::SUCCESS
+            }
+            Ok(embedder::ModelStatus::Cached { path, size_bytes }) => {
+                println!(
+                    "model: {} ({:.1} MB, sha256 verified)",
+                    path.display(),
+                    mb(size_bytes)
+                );
+                ExitCode::SUCCESS
+            }
+            Ok(embedder::ModelStatus::Absent) => {
+                println!(
+                    "model: not downloaded — fetched on first `argot fit`/`check`, \
+                     or run `argot model fetch` now (~100 MB, one-time)"
+                );
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("error: {e:#}");
+                ExitCode::from(2)
+            }
+        },
+        ModelAction::Clean => match embedder::clean_models() {
+            Ok((files, bytes)) => {
+                println!("removed {files} file(s), freed {:.1} MB", mb(bytes));
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("error: {e:#}");
+                ExitCode::from(2)
+            }
+        },
+    }
 }
 
 #[derive(Args)]
@@ -1047,8 +1348,8 @@ struct ReviewCmd {
     /// Path to the local repository (whose fitted voice scores the PR).
     #[arg(long, default_value = ".")]
     repo: PathBuf,
-    /// Output format: human, json, or sarif.
-    #[arg(long, default_value = "human", value_parser = ["human", "json", "sarif"])]
+    /// Output format: human, json, sarif, or github (PR annotations).
+    #[arg(long, default_value = "human", value_parser = ["human", "json", "sarif", "github"])]
     format: String,
 }
 
@@ -1083,9 +1384,6 @@ struct InspectCmd {
     /// Output format: human (terminal) or json (stable machine-readable).
     #[arg(long, default_value = "human", value_parser = ["human", "json"])]
     format: String,
-    /// Deprecated alias for `--format json` (hidden; use `--format json`).
-    #[arg(long, hide = true)]
-    json: bool,
 }
 
 fn run_inspect_cmd(c: InspectCmd) -> ExitCode {
@@ -1099,7 +1397,7 @@ fn run_inspect_cmd(c: InspectCmd) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    if wants_json(&c.format, c.json) {
+    if wants_json(&c.format) {
         match serde_json::to_string_pretty(&report) {
             Ok(json) => println!("{json}"),
             Err(e) => {
@@ -1250,7 +1548,7 @@ fn run_inspect_model(c: &InspectCmd) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    if wants_json(&c.format, c.json) {
+    if wants_json(&c.format) {
         match serde_json::to_string_pretty(&report) {
             Ok(json) => println!("{json}"),
             Err(e) => {
@@ -1358,6 +1656,23 @@ struct MuteCmd {
     /// Auto-expire the mute after N days (e.g. `30d`).
     #[arg(long, value_name = "DAYS", value_parser = parse_expires_days)]
     expires: Option<u64>,
+}
+
+/// Parse a `--rule <name>=<severity>` override against the registry — a CLI
+/// typo is a hard usage error (config typos, by contrast, warn and degrade).
+fn parse_rule_override(s: &str) -> Result<(String, argot_core::rules::Severity), String> {
+    let (name, sev) = s
+        .split_once('=')
+        .ok_or_else(|| format!("expected <name>=<severity>, got '{s}'"))?;
+    if !argot_core::rules::known_selector(name) {
+        return Err(format!(
+            "unknown rule '{name}' (known: {})",
+            argot_core::rules::selector_names().join(", ")
+        ));
+    }
+    let severity = argot_core::rules::Severity::parse(sev)
+        .ok_or_else(|| format!("invalid severity '{sev}' (expected error, warn, or off)"))?;
+    Ok((name.to_string(), severity))
 }
 
 /// Parse `--expires 30d` (a plain number is accepted too).
@@ -1478,8 +1793,8 @@ fn run_list_mutes() -> ExitCode {
     for (label, list) in [("active", &rules.active), ("expired", &rules.expired)] {
         for r in list {
             let mut parts = vec![format!("path={}", r.path)];
-            if let Some(s) = &r.scorer {
-                parts.push(format!("scorer={s}"));
+            if let Some(s) = &r.rule {
+                parts.push(format!("rule={s}"));
             }
             if let Some(h) = &r.hash {
                 parts.push(format!("hash={h}"));
@@ -1879,6 +2194,9 @@ fn main() -> ExitCode {
         Some(Command::Calibrate(c)) => run_calibrate_cmd(c),
         Some(Command::Fit(c)) => run_fit_cmd(c),
         Some(Command::Check(c)) => run_check_cmd(c),
+        Some(Command::Rules(c)) => run_rules_cmd(c),
+        #[cfg(feature = "semantic")]
+        Some(Command::Model(c)) => run_model_cmd(c),
         Some(Command::Review(c)) => {
             let use_color =
                 std::env::var_os("NO_COLOR").is_none() && std::io::stdout().is_terminal();
@@ -1895,6 +2213,16 @@ fn main() -> ExitCode {
         Some(Command::Status(c)) => run_status(c),
         Some(Command::List(c)) => run_list(c),
         Some(Command::Update) => run_update(),
+        #[cfg(feature = "self-update")]
+        Some(Command::RefreshVersionCache) => {
+            update_check::run_refresh();
+            ExitCode::SUCCESS
+        }
+        Some(Command::Replay(c)) => replay::run_replay(&c.repo, c.commits),
+        Some(Command::BackgroundRefit(c)) => {
+            auto_refit::run_background_refit(&c.repo);
+            ExitCode::SUCCESS
+        }
         Some(Command::Mcp(c)) => mcp::run_mcp(c.repo),
         Some(Command::DescribeVoice(c)) => describe::run_describe_voice(c.repo, c.top, c.out),
     }
@@ -1975,14 +2303,9 @@ mod tests {
     }
 
     #[test]
-    fn wants_json_honors_format_and_deprecated_alias() {
-        // The `--format json` idiom.
-        assert!(wants_json("json", false));
-        assert!(!wants_json("human", false));
-        // The deprecated `--json` boolean alias still forces JSON.
-        assert!(wants_json("human", true));
-        // Alias and format agree.
-        assert!(wants_json("json", true));
+    fn wants_json_honors_format() {
+        assert!(wants_json("json"));
+        assert!(!wants_json("human"));
     }
 
     #[test]

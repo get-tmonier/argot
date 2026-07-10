@@ -1,0 +1,8 @@
+{
+ "corpus": "laravel",
+ "reason": "redundant",
+ "genuine": 2,
+ "true_fp": 32,
+ "raw_fires": 34,
+ "sampled": true
+}

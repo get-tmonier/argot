@@ -11,7 +11,7 @@
 //! 2. **Inline magic comments** — `# argot: ignore-next-line — <reason>` and
 //!    block variants, language-aware via the adapters' line-comment prefix
 //!    ([`inline`]).
-//! 3. **`argot.toml` `[[mute]]`** — durable rules with optional scorer /
+//! 3. **`argot.toml` `[[mute]]`** — durable rules with optional rule /
 //!    hit-hash / expiry scoping ([`rules_file`]); `argot mute` appends
 //!    hash-scoped entries ([`mute`]) resolved via the last-check cache
 //!    ([`last_check`]).

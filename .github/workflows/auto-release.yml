@@ -8,8 +8,30 @@ on:
       - "Cargo.lock"
 
 jobs:
+  # The shipped binary fetches the semantic model from a pinned release asset.
+  # That contract is otherwise purely manual — if the asset went missing or its
+  # bytes changed, every user download would degrade to a no-op. Verify the
+  # exact URL and sha256 the code pins BEFORE tagging a release.
+  verify-model-asset:
+    name: Verify pinned semantic-model asset
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download the pinned GGUF and check its sha256
+        run: |
+          SRC=crates/argot-core/src/scoring/semantic/embedder.rs
+          URL=$(grep -o 'https://[^"]*\.gguf' "$SRC" | head -1)
+          SHA=$(grep -m1 'MODEL_SHA256' "$SRC" | grep -o '[0-9a-f]\{64\}')
+          echo "pinned: $URL"
+          echo "expect: $SHA"
+          curl -fsSL --retry 3 -o model.gguf "$URL"
+          GOT=$(sha256sum model.gguf | cut -d' ' -f1)
+          echo "got:    $GOT"
+          test "$GOT" = "$SHA"
+
   bump-and-tag:
     name: Bump patch version and tag
+    needs: verify-model-asset
     runs-on: ubuntu-latest
     permissions:
       contents: write

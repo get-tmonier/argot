@@ -94,6 +94,7 @@ fixtures:
 - id: foreign_tokio_concurrency_1
   file: breaks/break_foreign_tokio_concurrency.rs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 14
   hunk_end_line: 27
   rationale: 'tokio::runtime::Runtime::new().block_on() + tokio::spawn() spinning
@@ -108,6 +109,7 @@ fixtures:
 - id: foreign_rayon_concurrency_1
   file: breaks/break_foreign_rayon_concurrency.rs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 22
   hunk_end_line: 30
   rationale: 'use rayon::prelude::* + par_iter() data-parallel filtering of line
@@ -121,6 +123,7 @@ fixtures:
 - id: foreign_crossbeam_concurrency_1
   file: breaks/break_foreign_crossbeam_concurrency.rs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 19
   hunk_end_line: 32
   rationale: 'crossbeam::channel::unbounded() + crossbeam::thread::scope() fanning
@@ -261,6 +264,7 @@ fixtures:
 - id: foreign_threadpool_concurrency_1
   file: breaks/break_foreign_threadpool_concurrency.rs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 14
   hunk_end_line: 25
   rationale: 'threadpool::ThreadPool::new() + pool.execute() fanning line-range
@@ -275,6 +279,7 @@ fixtures:
 - id: foreign_asyncstd_concurrency_1
   file: breaks/break_foreign_asyncstd_concurrency.rs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 15
   hunk_end_line: 24
   rationale: 'async-std runtime driving preprocessing on an async task, reached
@@ -289,6 +294,7 @@ fixtures:
 - id: foreign_flume_concurrency_1
   file: breaks/break_foreign_flume_concurrency.rs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 14
   hunk_end_line: 19
   rationale: 'flume MPMC channel wiring a writer thread, reached through an
@@ -303,6 +309,7 @@ fixtures:
 - id: foreign_dashmap_concurrency_1
   file: breaks/break_foreign_dashmap_concurrency.rs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 22
   hunk_end_line: 32
   rationale: 'HARD — a dashmap::DashMap concurrent map tallying style components,

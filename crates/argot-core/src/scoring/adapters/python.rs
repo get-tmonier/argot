@@ -339,6 +339,28 @@ impl PythonAdapter {
         out
     }
 
+    /// Function and method definitions with their line ranges — the embeddable
+    /// units for the semantic index. `descendants` walks the whole tree, so this
+    /// captures methods (functions nested in classes) as well as module-level
+    /// and nested functions. `async def` is a `function_definition` too.
+    #[cfg(feature = "semantic")]
+    pub fn callable_bodies(&self, source: &str) -> Vec<super::CallableBody> {
+        let tree = parse(source);
+        let mut out = Vec::new();
+        for node in descendants(tree.root_node()) {
+            if node.kind() == "function_definition" {
+                if let Some(name) = node.child_by_field_name("name") {
+                    out.push(super::CallableBody {
+                        symbol: node_text(name, source).to_string(),
+                        start_line: node.start_position().row + 1,
+                        end_line: node.end_position().row + 1,
+                    });
+                }
+            }
+        }
+        out
+    }
+
     /// Every locally bound value name — assignment targets, function
     /// parameters, and `for` targets.
     pub fn value_bindings(&self, source: &str) -> HashSet<String> {

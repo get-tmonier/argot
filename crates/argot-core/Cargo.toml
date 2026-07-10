@@ -32,6 +32,50 @@ serde_yaml.workspace = true
 toml.workspace = true
 toml_edit.workspace = true
 
+# --- semantic layer (feature-gated; absent from the base build) ---
+# Optional here, no accel backend; macOS adds Metal via the target table below.
+llama-cpp-2 = { workspace = true, optional = true }
+ureq = { workspace = true, optional = true }
+half = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
+
+# Metal acceleration on macOS only. Cargo unifies this with the base optional
+# entry above, so a macOS `--features semantic` build links llama.cpp with Metal
+# while Linux/Windows fall back to CPU (the release matrix wires other backends).
+[target.'cfg(target_os = "macos")'.dependencies]
+llama-cpp-2 = { workspace = true, optional = true, features = ["metal"] }
+
+[features]
+# The semantic sense: per-repo code embeddings powering the reinvention (F1),
+# placement (F2) and nearest-code-evidence (F4) capabilities. In the shipped
+# product this is a STANDARD, always-on capability — not a user opt-in and no
+# runtime toggle; the released binary is built with it on (see
+# dist-workspace.toml) and the model auto-downloads on first use.
+#
+# The Cargo feature nonetheless defaults OFF purely as a BUILD-TIME gate: it lets
+# the dev/CI lean loop (`cargo build`, `just verify`) compile pure-Rust with no
+# cmake/llama.cpp toolchain, and lets CI prove the base statistical guardrail is
+# byte-for-byte unchanged and zero-cost when the layer is absent. Invisible to
+# users — it governs how the binary is built, not whether the feature is on.
+semantic = ["dep:llama-cpp-2", "dep:ureq", "dep:half", "dep:base64"]
+
+# The structural-foreignness sense: node-kind bigrams as a repo's structural
+# vocabulary (the shape analog of the foreign-vocabulary gate). Pure-Rust, NO new
+# deps — the gate is purely a build-time boundary so the base guardrail stays
+# byte-for-byte unchanged and the layer stays advisory / measurement-only (it is
+# never wired into the gating exit code). Enabled by the bench to validate the
+# irreducible floor (docs/research/evidence/foreign-structure-gate-floor.md); NOT
+# enabled in the released binary (unlike `semantic`), because the floor proves it
+# is not gatable.
+structural = []
+
+# The architecture-graph sense: a repo's module-dependency topology + the
+# reversal/sink-out fire rule (the relationship analog of the vocabulary gate).
+# Pure-Rust, NO new deps; a build-time boundary so the base guardrail stays
+# byte-for-byte unchanged and the layer stays advisory / measurement-only (never
+# wired into the gating exit code). Enabled by the bench; not (yet) in releases.
+arch = []
+
 [dev-dependencies]
 serde.workspace = true
 serde_json.workspace = true

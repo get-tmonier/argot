@@ -1,0 +1,8 @@
+{
+ "corpus": "curl",
+ "reason": "redundant",
+ "genuine": 3,
+ "true_fp": 31,
+ "raw_fires": 34,
+ "sampled": true
+}

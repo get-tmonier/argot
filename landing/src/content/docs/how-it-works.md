@@ -1,13 +1,35 @@
 ---
 title: How it works
-description: Two frequency tables, a max log-ratio, and a threshold calibrated on your own code.
+description: Four detectors — a statistical voice model, two embedding-based checks (reinvention, placement), and a module-dependency architecture graph — all learned from your git history.
 group: Start
 order: 3
 ---
 
-argot is deliberately simple. There is **no neural network** at scoring time — the model is two
-token-frequency distributions and a maximum log-likelihood ratio. That's the whole idea, and it's
-why argot fits in seconds and scores in milliseconds, entirely on CPU.
+argot has **four detectors**, all learned entirely from your git history. Each one emits findings
+under a named **rule** (`argot rules` lists them all), and every rule's severity is yours to
+configure — see [Configure](/docs/configure/#rules--rule-severities).
+
+The **statistical voice model** is deliberately simple: **no neural network**, just two
+token-frequency distributions and a maximum log-likelihood ratio. That's what catches *foreign*
+patterns — a dependency or API the repo has never used (rules `foreign-import`,
+`unfamiliar-callee`, `rare-tokens`) — and it's why the statistical pass fits in seconds and scores in milliseconds
+on CPU.
+
+The **reinvention** and **placement** detectors share the one neural component: a per-repo
+code-embedding index, built at fit with a small local model (`jina-code`, ~100 MB, statically
+linked via llama.cpp — CPU-first, Metal-accelerated on macOS, fetched once to a local cache on
+first use). Reinvention flags a new function that duplicates one the repo already has (rule
+`redundant`); placement flags a function filed in the wrong module area (rule `misplaced`). No
+cloud, no GPU, no text generation; turn a function into a vector, look up its neighbours. Offline,
+the download is skipped with a printed note — never silently — and the other detectors still run.
+
+The **architecture detector** builds a module-dependency graph of your repo at fit and flags an
+added internal import that reverses the repo's established layer direction (rule `layering`). Pure
+graph analysis — no model, no network.
+
+The embedding model is [jina-embeddings-v2-base-code](https://huggingface.co/jinaai/jina-embeddings-v2-base-code)
+by Jina AI (Apache-2.0), run via [llama.cpp](https://github.com/ggml-org/llama.cpp) (MIT). argot
+is not affiliated with Jina AI.
 
 ## The mental model
 
@@ -79,7 +101,13 @@ every diff).
    and sets the threshold to the maximum score over those "normal" hunks. Per-language repos get one
    threshold per language.
 
-`argot fit` runs all three for you and writes `.argot/scorer-config.json`.
+`argot fit` runs all three for you and writes `.argot/scorer-config.json`. It then builds the
+**semantic index** — it embeds every function with the local code-embedding model and writes
+`.argot/semantic-index.json`, the per-repo vector index the reinvention and placement checks query
+at check time — and the **layering graph** (`.argot/layering.json`), the module-dependency graph
+the architecture detector checks new imports against. (`scorer-config.json` is unchanged; each
+artifact lives in its own file.) Turn the `semantic` rule group off and fit skips the embedding
+work entirely — no model download, no index.
 
 ### Check
 
@@ -88,12 +116,20 @@ For each changed hunk, argot runs a short pipeline:
 1. **Typicality filter** — skip hunks that are structurally data-dominant (mostly literals) or live in
    a data-dominant file. The n-gram model would only see noise there.
 2. **Import checker** — if a hunk imports a module that's foreign to the repo's own first-party import
-   set, flag it immediately (`reason: import`).
+   set, flag it immediately (rule `foreign-import`).
 3. **BPE scorer** — compute the max-surprise score, adjusted by a small per-callee penalty (applied
    only when the hunk reaches into a module foreign to the repo), and flag the hunk if the adjusted
-   score exceeds the calibrated threshold.
+   score exceeds the calibrated threshold (rules `rare-tokens` and `unfamiliar-callee`).
+4. **Semantic checks** — for each new function, argot embeds it and queries the index: is there
+   already a near-identical function elsewhere (*reinvention*, rule `redundant`)? Do its nearest
+   neighbours cluster in a different package (*placement*, rule `misplaced`)? Real repos hold real
+   duplication and cross-cutting helpers, so both show you the nearest existing code and let you
+   judge — and both are one config line to downgrade to `warn` or `off`.
+5. **Architecture check** — the added lines' internal imports are resolved against the fit-time
+   module-dependency graph; an edge that reverses an established layer direction or leaves a
+   (near-)sink is flagged (rule `layering`, "crosses a module boundary").
 
-The math, in one line:
+The math for the base voice model, in one line:
 
 $$
 \text{surprise}(t) = \log P_\text{baseline}(t) - \log P_\text{repo}(t)

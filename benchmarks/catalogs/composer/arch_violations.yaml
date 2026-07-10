@@ -1,0 +1,310 @@
+# Architecture-graph violation fixtures for composer (PHP, PSR-4 namespace Composer\<Layer>).
+# Each `import_line` added to `host_file` creates the internal edge (source layer -> target
+# layer). Violations cross a boundary the repo's learned layering never crosses; controls
+# respect the established direction.
+#
+# Layer = the SECOND namespace component of a file's `namespace Composer\<Layer>\...;` decl,
+# i.e. its directory under `src/Composer/`. Composer's layers group roughly as:
+#   - Package            the domain model of packages (versions, links, comparators) — a
+#                         near-universal SINK: almost every other layer depends on it, it
+#                         depends on almost nothing.
+#   - IO, Json, Config,
+#     Util, Pcre,
+#     Platform           low-level utility/infra leaves (console I/O, JSON read/write, config
+#                         sources, generic helpers, regex, HHVM/PHP runtime detection). Should
+#                         have ~zero fan-out to domain or mid-tier layers.
+#   - Exception           pure marker classes; deliberately inert (zero imports) so they can be
+#                         thrown/caught anywhere without dragging in machinery.
+#   - EventDispatcher,
+#     Script, Question   thin cross-cutting infra (pub/sub event bus + base Event, script-event
+#                         definitions, CLI question helpers) — plain data/leaf helpers.
+#   - Semver              the composer/semver sub-library (version-constraint parsing) — treated
+#                         as an internal utility layer; legitimately consumed wherever versions
+#                         are compared (Installer, Downloader, SelfUpdate) but not by unrelated
+#                         detection/analysis code.
+#   - Filter, FilterList,
+#     Policy, Advisory    mid-tier package-filtering / audit decision & config objects.
+#   - Repository,
+#     Downloader,
+#     Installer,
+#     DependencyResolver,
+#     Plugin              mid-tier orchestration: fetch, resolve, install, and extend packages.
+#   - Console, Command,
+#     SelfUpdate          the app/entry-point CLI layer — the only place that legitimately wires
+#                         broadly across mid-tier and domain layers.
+#   - PHPStan              a standalone dev-tooling extension (return-type/rule extensions for
+#                         static analysis). Runs at analysis time, never in the request path;
+#                         orthogonal to the runtime layering above.
+#
+# Methodology: every (host_file, import_line) pair below is copied VERBATIM from a row in the
+# resolver-verified candidate menu (`/tmp/arch-fix2/candidates-composer.md`: top-80-by-population
+# rows out of 451 catchable + 148 forward candidates for this corpus — 69 catchable
+# reversal/transitive_reversal/sink_out rows + 11 forward rows). Each row's edge was confirmed
+# 0-usage by the actual argot-core resolver, which creates the edge deterministically by
+# injecting a synthetic `ArgotFixture` marker class into the target namespace and importing it
+# from the host file (so `import_line` is always the two-line `<?php` + `use
+# Composer\<Target>\ArgotFixture;` snippet, not a hand-picked real symbol). Each `rationale`
+# below explains the realistic real-world import an LLM would plausibly write to produce that
+# same src->tgt edge, and why it is/isn't architecturally sound.
+#
+# Distribution: 12 violations, PREDOMINANTLY wrong-direction (11 of 12 are
+# reversal/transitive_reversal/sink_out — a utility or leaf layer reaching into the domain layer,
+# a mid-tier layer reaching into another mid-tier layer it doesn't drive, or a near-sink layer
+# leaving its position). That mirrors the natural distribution of realistic LLM architectural
+# mistakes: wrong-direction edges dominate, so the fixture set does too — no artificial padding
+# toward gate-invisible cases. Exactly ONE violation is `forward`-kind (PHPStan -> IO): a
+# genuinely plausible layer-skip (dev-tooling reaching sideways into an interactive-console
+# abstraction it has no analysis-time use for) that the gate's direction-only check structurally
+# cannot catch, kept to measure recall honestly. The 8 controls are `forward`-kind rows that are
+# clearly legitimate — entry-layer (SelfUpdate) or dev-tooling (PHPStan) reaching into a
+# domain/mid-tier/utility layer along an already-established direction, plus two established
+# mid-tier -> Semver version-comparison edges (Installer, Downloader) — proving the gate does not
+# over-fire on ordinary forward growth.
+
+violations:
+  # ---- reversals / transitive-reversals / sink-outs (11 of 12 — the classic case the gate is
+  # built to catch: a utility or leaf layer reaching into the domain layer, a mid-tier layer
+  # reaching into a peer mid-tier layer it doesn't drive, or a near-sink layer leaving its
+  # position) ----
+  - host_file: "src/Composer/IO/BaseIO.php"
+    source_layer: "IO"
+    import_line: "<?php\nuse Composer\\Package\\ArgotFixture;\n"
+    target_layer: "Package"
+    kind: "reversal"
+    rationale: >-
+      BaseIO is composer's abstract IO base (verbosity levels, read/write, ask*) — a pure
+      interaction leaf that Package/Repository/Installer code all depend ON (it currently imports
+      only Config/Pcre/Util). A plausible LLM edit adds a debug/log helper typed against
+      `PackageInterface` (e.g. so `$io->debug($package)` can format it inline) instead of taking a
+      string — reversing IO's role as a foundational leaf that package-aware code calls INTO, not
+      the other way around. Resolver-verified 0-usage at HEAD.
+
+  - host_file: "src/Composer/Json/JsonFile.php"
+    source_layer: "Json"
+    import_line: "<?php\nuse Composer\\Package\\ArgotFixture;\n"
+    target_layer: "Package"
+    kind: "reversal"
+    rationale: >-
+      JsonFile is composer's generic JSON read/validate/write utility (imports only
+      Pcre/Util/IO/Downloader). A plausible LLM addition is a convenience `readPackage()` method
+      that constructs a `Package` object straight out of the raw JSON, folding domain modeling
+      into the generic file-format utility. Package already has (and needs) parsers that depend
+      on Json, never the reverse. Resolver-verified 0-usage at HEAD.
+
+  - host_file: "src/Composer/Config/ConfigSourceInterface.php"
+    source_layer: "Config"
+    import_line: "<?php\nuse Composer\\Package\\ArgotFixture;\n"
+    target_layer: "Package"
+    kind: "reversal"
+    rationale: >-
+      ConfigSourceInterface is a pure interface (addRepository/addConfigSetting/…, zero
+      imports). A plausible LLM edit adds a "package-aware" config method typed against
+      `PackageInterface`, importing Package here — but config sources are meant to stay
+      package-agnostic key/value stores; Package legitimately depends on config data, never the
+      other way. Resolver-verified 0-usage at HEAD.
+
+  - host_file: "src/Composer/Exception/IrrecoverableDownloadException.php"
+    source_layer: "Exception"
+    import_line: "<?php\nuse Composer\\Util\\ArgotFixture;\n"
+    target_layer: "Util"
+    kind: "reversal"
+    rationale: >-
+      This exception is a one-line marker (`extends \RuntimeException`, zero imports) —
+      deliberately inert so it can be thrown/caught anywhere without dragging in machinery. A
+      plausible LLM "improvement" adds cleanup logic in the constructor (e.g. calling
+      `Filesystem::remove()` on the partial download), importing `Composer\Util`. Exceptions
+      doing side-effecting cleanup work is a common LLM anti-pattern that inverts the
+      leaf-exception convention. Resolver-verified 0-usage at HEAD.
+
+  - host_file: "src/Composer/IO/BaseIO.php"
+    source_layer: "IO"
+    import_line: "<?php\nuse Composer\\Downloader\\ArgotFixture;\n"
+    target_layer: "Downloader"
+    kind: "reversal"
+    rationale: >-
+      Same foundational-leaf role as the IO->Package case above, different target: Downloader
+      code already depends on IO for progress/error reporting, never the reverse. A plausible LLM
+      edit adds a "track this download" helper on BaseIO typed against a concrete
+      `Downloader\FileDownloader` (or catching `Downloader\TransportException` inline) instead of
+      accepting a plain progress value or a generic `\Throwable` — pulling the mid-tier download
+      machinery into what is meant to stay a dependency-free interaction leaf. Resolver-verified
+      0-usage at HEAD.
+
+  - host_file: "src/Composer/Question/StrictConfirmationQuestion.php"
+    source_layer: "Question"
+    import_line: "<?php\nuse Composer\\Package\\ArgotFixture;\n"
+    target_layer: "Package"
+    kind: "transitive_reversal"
+    rationale: >-
+      A CLI confirmation-question helper (currently depends only on Pcre for input parsing). A
+      plausible LLM edit customizes the prompt per-package (e.g. "Remove
+      {$package->getName()}? [y/n]") by typing the constructor against `PackageInterface`
+      directly instead of accepting a pre-formatted string, pulling the domain layer into a
+      generic Symfony-Console helper. Resolver-verified 0-usage at HEAD.
+
+  - host_file: "src/Composer/Console/Application.php"
+    source_layer: "Console"
+    import_line: "<?php\nuse Composer\\Package\\ArgotFixture;\n"
+    target_layer: "Package"
+    kind: "sink_out"
+    rationale: >-
+      Application.php is the CLI bootstrap — it already wires Installer, Command, Downloader,
+      IO, Json, Util, EventDispatcher and Exception, but historically never imports Package or
+      Repository directly; every package touch is delegated through Installer/Command. A
+      plausible LLM shortcut (e.g. a fast-path `--package` flag handled inline in
+      `Application::doRun()`) imports `PackageInterface` straight into the bootstrap file,
+      skipping the Installer abstraction the rest of the app funnels through. Resolver-verified
+      0-usage at HEAD.
+
+  - host_file: "src/Composer/Policy/AbandonedPolicyConfig.php"
+    source_layer: "Policy"
+    import_line: "<?php\nuse Composer\\IO\\ArgotFixture;\n"
+    target_layer: "IO"
+    kind: "transitive_reversal"
+    rationale: >-
+      AbandonedPolicyConfig is a pure config-value object (currently only imports
+      `Semver\VersionParser`). A plausible LLM edit adds an inline warning print
+      (`$io->writeError(...)`) when an abandoned-package policy loads, importing `Composer\IO`.
+      Config/policy objects doing their own console output is a classic side-effect-creep
+      mistake — IO calls should come from the caller, not the data object. Resolver-verified
+      0-usage at HEAD.
+
+  - host_file: "src/Composer/Downloader/ArchiveDownloader.php"
+    source_layer: "Downloader"
+    import_line: "<?php\nuse Composer\\Json\\ArgotFixture;\n"
+    target_layer: "Json"
+    kind: "reversal"
+    rationale: >-
+      `Json/JsonFile.php` already imports `Downloader\TransportException` at HEAD — Json
+      legitimately depends on Downloader for its HTTP-download codepath. A plausible LLM edit
+      has ArchiveDownloader read/write a JSON manifest directly via `Composer\Json\JsonFile`
+      instead of going through the file's existing narrow relationship, reversing the attested
+      Json->Downloader direction into Downloader->Json and creating a two-way coupling.
+      Resolver-verified 0-usage at HEAD.
+
+  - host_file: "src/Composer/EventDispatcher/Event.php"
+    source_layer: "EventDispatcher"
+    import_line: "<?php\nuse Composer\\Semver\\ArgotFixture;\n"
+    target_layer: "Semver"
+    kind: "sink_out"
+    rationale: >-
+      `Event` is EventDispatcher's minimal base data object (name/args/flags — zero Composer
+      imports today). A plausible LLM edit has an event carry a pre-parsed version constraint by
+      importing `Composer\Semver\VersionParser` before dispatch, pulling a parsing library into
+      what is meant to stay a plain, serializable data carrier any listener can construct.
+      Resolver-verified 0-usage at HEAD.
+
+  - host_file: "src/Composer/Plugin/Capability/Capability.php"
+    source_layer: "Plugin"
+    import_line: "<?php\nuse Composer\\Config\\ArgotFixture;\n"
+    target_layer: "Config"
+    kind: "transitive_reversal"
+    rationale: >-
+      `Capability` is an intentionally empty marker interface ("Every new Capability... must
+      implement this interface", zero imports or methods). A plausible LLM edit adds a
+      `getConfig(): Config` method signature directly on the marker so plugin authors "just" have
+      config available, importing `Composer\Config` into a contract designed to declare nothing —
+      defeats the point of a marker interface and couples the plugin API surface to a concrete
+      infra class. Resolver-verified 0-usage at HEAD.
+
+  # ---- the one forward-kind violation: direction-compliant (dev-tooling reaching sideways into
+  # a runtime abstraction), so the gate structurally CANNOT catch it — kept so recall is measured
+  # honestly against what the direction-only check is expected to miss ----
+  - host_file: "src/Composer/PHPStan/ConfigReturnTypeExtension.php"
+    source_layer: "PHPStan"
+    import_line: "<?php\nuse Composer\\IO\\ArgotFixture;\n"
+    target_layer: "IO"
+    kind: "forward"
+    rationale: >-
+      This file is a PHPStan static-analysis extension (return-type inference for
+      `Config::get()`) — it runs at analysis time, never in a live CLI session, and currently
+      only imports `Config`/`Json\JsonFile` to read schema shape. A plausible LLM edit imports
+      `Composer\IO\IOInterface` to "print a warning" during analysis. Forward direction
+      (dev-tooling -> low-level utility) so the gate's direction check lets it through, but a
+      static-analysis extension has no legitimate reason to depend on an interactive console
+      abstraction — a layer-skip into unrelated runtime machinery.
+
+controls:
+  - host_file: "src/Composer/SelfUpdate/Keys.php"
+    source_layer: "SelfUpdate"
+    import_line: "<?php\nuse Composer\\Package\\ArgotFixture;\n"
+    target_layer: "Package"
+    rationale: >-
+      SelfUpdate is composer's app/entry layer (the `self-update` CLI flow); Package is the
+      domain model. Composer's self-update process legitimately touches package state — e.g.
+      recording the currently-installed package set alongside a self-update diagnostic report —
+      which is exactly the entry-layer -> domain-layer direction Console/Command/SelfUpdate all
+      use elsewhere. Forward direction, ordinary feature growth; the gate must stay quiet.
+
+  - host_file: "src/Composer/SelfUpdate/Keys.php"
+    source_layer: "SelfUpdate"
+    import_line: "<?php\nuse Composer\\Repository\\ArgotFixture;\n"
+    target_layer: "Repository"
+    rationale: >-
+      Self-update legitimately needs to know what's available to update to; using
+      `Composer\Repository` to check available composer.phar builds/versions is a reasonable
+      entry-layer -> mid-tier-orchestration dependency, matching the direction the rest of the app
+      (Console, Command) already uses to reach Repository. Forward direction, must not fire.
+
+  - host_file: "src/Composer/SelfUpdate/Keys.php"
+    source_layer: "SelfUpdate"
+    import_line: "<?php\nuse Composer\\Json\\ArgotFixture;\n"
+    target_layer: "Json"
+    rationale: >-
+      Self-update's own state (embedded key fingerprints, version pins) is naturally read as
+      JSON, and the file already parses embedded key material. A `Composer\Json\JsonFile` import
+      here is a low-level-utility dependency from an app/entry file — exactly the established
+      forward direction (entry -> leaf-utility) — and must not fire.
+
+  - host_file: "src/Composer/SelfUpdate/Keys.php"
+    source_layer: "SelfUpdate"
+    import_line: "<?php\nuse Composer\\Semver\\ArgotFixture;\n"
+    target_layer: "Semver"
+    rationale: >-
+      Deciding whether the installed composer.phar needs updating is fundamentally a
+      version-comparison problem; self-update legitimately needs `Composer\Semver` to compare
+      its own version against the latest tag. Entry-layer -> utility-layer, the established
+      direction, must not fire.
+
+  - host_file: "src/Composer/PHPStan/ConfigReturnTypeExtension.php"
+    source_layer: "PHPStan"
+    import_line: "<?php\nuse Composer\\Pcre\\ArgotFixture;\n"
+    target_layer: "Pcre"
+    rationale: >-
+      The extension already inspects config-key string literals; using `Composer\Pcre\Preg` for
+      that pattern matching is exactly the kind of utility hop the file already makes (it already
+      imports `Json\JsonFile`). A generic regex-utility import from dev-tooling is unremarkable
+      dev-tooling -> low-level-utility direction and must not fire.
+
+  - host_file: "src/Composer/PHPStan/ConfigReturnTypeExtension.php"
+    source_layer: "PHPStan"
+    import_line: "<?php\nuse Composer\\Util\\ArgotFixture;\n"
+    target_layer: "Util"
+    rationale: >-
+      Static-analysis extensions routinely need small generic helpers (path normalization,
+      array utilities); `Composer\Util` is composer's generic-utility grab-bag. Dev-tooling
+      depending on a low-level utility layer is unremarkable and matches the file's existing
+      `Config`/`Json` dependency shape — must not fire.
+
+  - host_file: "src/Composer/Installer/BinaryInstaller.php"
+    source_layer: "Installer"
+    import_line: "<?php\nuse Composer\\Semver\\ArgotFixture;\n"
+    target_layer: "Semver"
+    rationale: >-
+      BinaryInstaller decides which package binaries to symlink/copy for the resolved version
+      set — comparing versions is core to what an installer does, and `Composer\Semver` is
+      precisely the library for that. Mid-tier -> low-level-utility, the established direction
+      (the file already imports `Package\PackageInterface`, `Pcre`, and three `Util\*` classes);
+      a further Semver import is unremarkable growth, not a violation.
+
+  - host_file: "src/Composer/Platform/HhvmDetector.php"
+    source_layer: "Platform"
+    import_line: "<?php\nuse Composer\\Semver\\ArgotFixture;\n"
+    target_layer: "Semver"
+    rationale: >-
+      HhvmDetector answers narrow platform/runtime questions using only
+      `Util\Platform`/`Util\ProcessExecutor` — plain string/process work. Comparing a detected
+      PHP/HHVM version against a semver constraint via `Composer\Semver` is a reasonable
+      leaf-utility -> leaf-utility dependency, the same direction Installer, Downloader and
+      SelfUpdate already use Semver for (comparing versions). Forward direction, unremarkable
+      growth; the gate must not fire.

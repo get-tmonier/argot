@@ -1,0 +1,8 @@
+{
+ "corpus": "bat",
+ "reason": "redundant",
+ "genuine": 0,
+ "true_fp": 3,
+ "raw_fires": 3,
+ "sampled": true
+}

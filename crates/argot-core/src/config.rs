@@ -7,6 +7,13 @@
 //!   patterns (scored but reported). Replaces the old `.argotignore`.
 //! - `[detect]` — the generated/data heuristics: `data-threshold` and the
 //!   `generated-markers` comment set, made visible and editable.
+//! - `[rules]` — per-rule severities (`error` / `warn` / `off`), keyed by rule
+//!   or group name from the [`crate::rules`] registry. Everything defaults to
+//!   `error`; a rule-specific entry beats its group entry.
+//! - `[update]` — `check = false` opts this repo out of the passive
+//!   once-a-day update notice (env: `ARGOT_UPDATE_CHECK=0`).
+//! - `[fit]` — `auto-refresh = false` opts out of the background refit that
+//!   keeps the voice model fresh as the repo moves.
 //! - `[[mute]]` — durable per-hit acceptances, a committed audit trail. Written
 //!   by `argot mute <hash>`. Replaces the old `.argot/suppressions.yaml`.
 //!
@@ -18,9 +25,11 @@
 //! hidden — a fresh repo with no file falls back to [`ArgotConfig::default`]
 //! (identical values) *and* the next fit writes them out.
 
+use crate::rules::{validate_layer, RuleSettings, RulesLayer};
 use crate::suppress::path_rules::{default_recommended_patterns, PathSuppressions};
 use crate::suppress::rules_file::{build_mutes, RawMute, SuppressionRule, SuppressionsFile};
 use serde::Deserialize;
+use std::collections::BTreeMap;
 use std::path::Path;
 use toml_edit::{value, ArrayOfTables, DocumentMut, Item, Table};
 
@@ -177,16 +186,39 @@ impl Default for DetectConfig {
 }
 
 /// The resolved argot configuration (`argot.toml` ⊕ `argot.local.toml`).
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ArgotConfig {
     pub exclude: ExcludeConfig,
     pub detect: DetectConfig,
+    /// Validated `[rules]` layers, ascending precedence (base, then local).
+    /// CLI overrides append a third layer via [`ArgotConfig::rule_settings`].
+    pub rules: Vec<RulesLayer>,
+    /// `[update].check` — false opts out of the passive update notice.
+    pub update_check: bool,
+    /// `[fit].auto-refresh` — false opts out of the background refit when the
+    /// model has drifted behind HEAD.
+    pub fit_auto_refresh: bool,
     /// Raw `[[mute]]` tables, validated on demand by [`ArgotConfig::mutes`].
     mutes: Vec<RawMute>,
     /// True when an `argot.toml` (or local) backed these values.
     pub from_file: bool,
     /// Parse-level notes (malformed config file) for stderr.
     pub warnings: Vec<String>,
+}
+
+impl Default for ArgotConfig {
+    fn default() -> Self {
+        ArgotConfig {
+            exclude: ExcludeConfig::default(),
+            detect: DetectConfig::default(),
+            rules: Vec::new(),
+            update_check: true,
+            fit_auto_refresh: true,
+            mutes: Vec::new(),
+            from_file: false,
+            warnings: Vec::new(),
+        }
+    }
 }
 
 /// On-disk shape for serde reads.
@@ -196,6 +228,14 @@ struct RawConfig {
     exclude: RawExclude,
     #[serde(default)]
     detect: RawDetect,
+    /// `[rules]` table: rule/group name → severity. Values are kept loose
+    /// (`toml::Value`) so one bad entry warns instead of failing the file.
+    #[serde(default)]
+    rules: BTreeMap<String, toml::Value>,
+    #[serde(default)]
+    update: RawUpdate,
+    #[serde(default)]
+    fit: RawFit,
     /// `[[mute]]` array-of-tables.
     #[serde(default)]
     mute: Vec<RawMute>,
@@ -206,6 +246,17 @@ struct RawExclude {
     recommended: Option<Vec<String>>,
     #[serde(default)]
     paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+struct RawUpdate {
+    check: Option<bool>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+struct RawFit {
+    auto_refresh: Option<bool>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -279,6 +330,34 @@ impl ArgotConfig {
             generated_markers.extend(extra);
         }
 
+        // [rules]: two validated layers, base then local (local wins per key —
+        // a later layer takes precedence in RuleSettings::resolve).
+        let mut rules = Vec::new();
+        for (raw_rules, origin) in [(base.rules, CONFIG_FILE), (local.rules, LOCAL_CONFIG_FILE)] {
+            if raw_rules.is_empty() {
+                continue;
+            }
+            let entries: Vec<(String, String)> = raw_rules
+                .into_iter()
+                .map(|(k, v)| {
+                    let value = match v {
+                        toml::Value::String(s) => s,
+                        other => other.to_string(),
+                    };
+                    (k, value)
+                })
+                .collect();
+            rules.push(validate_layer(&entries, origin, &mut warnings));
+        }
+
+        // [update] / [fit]: scalars — local wins.
+        let update_check = local.update.check.or(base.update.check).unwrap_or(true);
+        let fit_auto_refresh = local
+            .fit
+            .auto_refresh
+            .or(base.fit.auto_refresh)
+            .unwrap_or(true);
+
         // [[mute]]: appended.
         let mut mutes = base.mute;
         mutes.extend(local.mute);
@@ -289,10 +368,23 @@ impl ArgotConfig {
                 data_threshold,
                 generated_markers,
             },
+            rules,
+            update_check,
+            fit_auto_refresh,
             mutes,
             from_file,
             warnings,
         }
+    }
+
+    /// Resolve the effective per-rule severities: registry defaults ⊕ config
+    /// layers ⊕ the (already-validated) CLI `--rule` overrides.
+    pub fn rule_settings(&self, cli_overrides: &RulesLayer) -> RuleSettings {
+        let mut layers = self.rules.clone();
+        if !cli_overrides.is_empty() {
+            layers.push(cli_overrides.clone());
+        }
+        RuleSettings::resolve(&layers)
     }
 
     /// The resolved path-level suppression set (scope filter for check,
@@ -365,6 +457,14 @@ generated-markers = [
 {markers}
 ]
 
+[rules]
+# Per-rule severities: \"error\" (fails `argot check`), \"warn\" (reported, does
+# not fail), or \"off\" (not run). Everything defaults to \"error\". Keys are rule
+# names or whole groups — `argot rules` lists them; a rule-specific entry beats
+# its group. Examples:
+#   misplaced = \"warn\"     # report, but don't fail the check
+#   semantic  = \"off\"      # disable the whole embedding-based group
+
 # Durable, per-hit acceptances written by `argot mute <hash>` — a committed
 # record of code you've decided is fine for this repo. Example:
 #
@@ -400,8 +500,8 @@ pub fn write_default_if_absent(repo_root: &Path) -> Result<bool, String> {
 fn mute_table(rule: &SuppressionRule) -> Table {
     let mut t = Table::new();
     t["path"] = value(&rule.path);
-    if let Some(s) = &rule.scorer {
-        t["scorer"] = value(s);
+    if let Some(s) = &rule.rule {
+        t["rule"] = value(s);
     }
     if let Some(h) = &rule.hash {
         t["hash"] = value(h);
@@ -572,6 +672,40 @@ reason = \"adopting axios\"
     }
 
     #[test]
+    fn rules_section_layers_base_then_local_and_warns_on_bad_entries() {
+        use crate::rules::Severity;
+        let dir = scratch("rules");
+        std::fs::write(
+            dir.join(CONFIG_FILE),
+            "[rules]\nsemantic = \"off\"\nquantum = \"off\"\nmisplaced = 3\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join(LOCAL_CONFIG_FILE),
+            "[rules]\nredundant = \"warn\"\n",
+        )
+        .unwrap();
+        let cfg = ArgotConfig::load(&dir);
+        assert!(cfg
+            .warnings
+            .iter()
+            .any(|w| w.contains("unknown rule 'quantum'")));
+        assert!(cfg
+            .warnings
+            .iter()
+            .any(|w| w.contains("invalid severity '3'")));
+        let settings = cfg.rule_settings(&Vec::new());
+        // Local layer's rule-specific entry beats the base group entry.
+        assert_eq!(settings.severity_of_reason("redundant"), Severity::Warn);
+        assert_eq!(settings.severity_of_reason("misplaced"), Severity::Off);
+        assert_eq!(settings.severity_of_reason("import"), Severity::Error);
+        // CLI overrides win over everything.
+        let settings = cfg.rule_settings(&vec![("semantic".to_string(), Severity::Error)]);
+        assert_eq!(settings.severity_of_reason("misplaced"), Severity::Error);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn malformed_config_warns_and_defaults() {
         let dir = scratch("bad");
         std::fs::write(dir.join(CONFIG_FILE), "this = = not toml").unwrap();
@@ -591,7 +725,7 @@ reason = \"adopting axios\"
         .unwrap();
         let rule = SuppressionRule {
             path: "src/app.py".to_string(),
-            scorer: None,
+            rule: None,
             hash: Some("abc123def456".to_string()),
             expires: None,
             reason: "noisy hunk".to_string(),
@@ -617,7 +751,7 @@ reason = \"adopting axios\"
         let dir = scratch("append_fresh");
         let rule = SuppressionRule {
             path: "src/app.py".to_string(),
-            scorer: None,
+            rule: None,
             hash: Some("deadbeef0000".to_string()),
             expires: None,
             reason: "r".to_string(),
@@ -638,7 +772,7 @@ reason = \"adopting axios\"
         let dir = scratch("prune");
         let keep = SuppressionRule {
             path: "keep.py".to_string(),
-            scorer: None,
+            rule: None,
             hash: Some("keephash0000".to_string()),
             expires: None,
             reason: "still live".to_string(),
@@ -648,7 +782,7 @@ reason = \"adopting axios\"
             &dir,
             &SuppressionRule {
                 path: "gone.py".to_string(),
-                scorer: None,
+                rule: None,
                 hash: Some("deadhash0000".to_string()),
                 expires: None,
                 reason: "dead".to_string(),

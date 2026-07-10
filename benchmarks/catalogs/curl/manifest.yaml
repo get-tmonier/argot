@@ -111,6 +111,7 @@ fixtures:
 - id: foreign_gcd_1
   file: breaks/break_foreign_gcd_1.c
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 17
   hunk_end_line: 35
   rationale: 'Grand Central Dispatch fan-out of the easy transfers onto a
@@ -130,6 +131,7 @@ fixtures:
 - id: foreign_openmp_1
   file: breaks/break_foreign_openmp_1.c
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 16
   hunk_end_line: 28
   rationale: 'OpenMP data-parallel decompression of independent content blocks
@@ -147,6 +149,7 @@ fixtures:
 - id: foreign_ck_1
   file: breaks/break_foreign_ck_1.c
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 16
   hunk_end_line: 33
   rationale: 'Concurrency Kit lock-free SPSC ring handing idle connections
@@ -232,6 +235,7 @@ fixtures:
 - id: foreign_libmill_1
   file: breaks/break_foreign_libmill_1.c
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 16
   hunk_end_line: 35
   rationale: 'libmill structured-concurrency coroutines fanning name resolution
@@ -306,6 +310,7 @@ fixtures:
 - id: foreign_zeromq_1
   file: breaks/break_foreign_zeromq_1.c
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 21
   hunk_end_line: 33
   rationale: 'ZeroMQ PUSH socket mirroring each decoded WebSocket frame onto a
@@ -324,6 +329,7 @@ fixtures:
 - id: foreign_mpi_1
   file: breaks/break_foreign_mpi_1.c
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 17
   hunk_end_line: 33
   rationale: 'MPI distributed-memory scatter/gather parallelizing decompression
@@ -380,6 +386,7 @@ fixtures:
 - id: foreign_taskrun_done_collision_1
   file: breaks/break_foreign_taskrun_done_collision_1.c
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 21
   hunk_end_line: 27
   rationale: 'libtask stackful-coroutine runtime driving one transfer per

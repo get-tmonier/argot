@@ -99,6 +99,7 @@ fixtures:
 - id: jc_reactive_1
   file: breaks/break_reactive_1.cs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 16
   hunk_end_line: 25
   rationale: 'System.Reactive (Rx.NET) Observable.Interval + Subject (using
@@ -118,6 +119,7 @@ fixtures:
 - id: jc_hangfire_1
   file: breaks/break_hangfire_1.cs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 16
   hunk_end_line: 22
   rationale: 'Hangfire BackgroundJobClient (using Hangfire + fully-qualified
@@ -135,6 +137,7 @@ fixtures:
 - id: jc_quartz_1
   file: breaks/break_quartz_1.cs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 20
   hunk_end_line: 24
   rationale: 'Quartz.NET StdSchedulerFactory/IScheduler (fully-qualified
@@ -219,6 +222,7 @@ fixtures:
 - id: jc_rabbitmq_1
   file: breaks/break_rabbitmq_1.cs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 16
   hunk_end_line: 23
   rationale: 'RabbitMQ.Client ConnectionFactory/IModel (using RabbitMQ.Client + ConnectionFactory
@@ -292,6 +296,7 @@ fixtures:
 - id: jc_masstransit_1
   file: breaks/break_masstransit_1.cs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 16
   hunk_end_line: 21
   rationale: 'MassTransit Bus.Factory.CreateUsingInMemory builds an in-memory service
@@ -306,6 +311,7 @@ fixtures:
 - id: jc_dataflow_1
   file: breaks/break_dataflow_1.cs
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 22
   hunk_end_line: 32
   rationale: 'System.Threading.Tasks.Dataflow ActionBlock drives a concurrent provider

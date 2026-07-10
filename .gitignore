@@ -85,3 +85,6 @@ engine/.era14-features/
 
 # Phase B (#92) experiment venv — torch/sentence-transformers, regenerable
 .venv-phaseb/
+
+# local-dev symlink to target/release/argot (see memory: feedback_local_binary_testing)
+argot-local

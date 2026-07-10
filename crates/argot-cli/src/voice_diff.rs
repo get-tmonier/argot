@@ -18,7 +18,7 @@ pub struct HitScore {
     pub line_start: usize,
     pub line_end: usize,
     pub score: f64,
-    pub severity: String,
+    pub confidence: String,
     /// Content-based hit hash — `argot mute <hash>` accepts the hunk.
     pub hash: String,
 }
@@ -37,7 +37,7 @@ pub struct HotSpot {
     pub line_start: usize,
     pub line_end: usize,
     pub score: f64,
-    pub severity: String,
+    pub confidence: String,
     /// Content-based hit hash — `argot mute <hash>` accepts the hunk.
     pub hash: String,
 }
@@ -49,7 +49,7 @@ pub struct VoiceDiffSummary {
     pub hunks_total: usize,
     pub hunks_flagged: usize,
     /// Strongest tier that fired (`foreign`/`suspicious`/`unusual`/`none`).
-    pub max_severity: String,
+    pub max_confidence: String,
     /// Highest-scoring hunks first.
     pub hot_spots: Vec<HotSpot>,
 }
@@ -64,9 +64,9 @@ pub fn summarize(hits: &[HitScore], hunks_total: usize, top_n: usize) -> VoiceDi
     } else {
         0.0
     };
-    let max_severity = ["foreign", "suspicious", "unusual"]
+    let max_confidence = ["foreign", "suspicious", "unusual"]
         .into_iter()
-        .find(|t| hits.iter().any(|h| h.severity == *t))
+        .find(|t| hits.iter().any(|h| h.confidence == *t))
         .unwrap_or("none")
         .to_string();
     let mut sorted: Vec<&HitScore> = hits.iter().collect();
@@ -85,7 +85,7 @@ pub fn summarize(hits: &[HitScore], hunks_total: usize, top_n: usize) -> VoiceDi
             line_start: h.line_start,
             line_end: h.line_end,
             score: h.score,
-            severity: h.severity.clone(),
+            confidence: h.confidence.clone(),
             hash: h.hash.clone(),
         })
         .collect();
@@ -93,7 +93,7 @@ pub fn summarize(hits: &[HitScore], hunks_total: usize, top_n: usize) -> VoiceDi
         out_of_voice_pct,
         hunks_total,
         hunks_flagged: flagged,
-        max_severity,
+        max_confidence,
         hot_spots,
     }
 }
@@ -113,7 +113,10 @@ pub fn summary_for_ref(repo: &Path, reference: &str, top_n: usize) -> Option<Voi
         argot_dir: repo.join(".argot"),
         hunk_lines: DEFAULT_HUNK_LINES,
         verbose: false,
-        min_severity: "unusual".to_string(),
+        min_confidence: "unusual".to_string(),
+        rule_overrides: Vec::new(),
+        error_on_warnings: false,
+        add_ignores: false,
         use_color: false,
         format: OutputFormat::Json,
         today: crate::today_utc(),
@@ -140,8 +143,8 @@ pub fn summary_for_ref(repo: &Path, reference: &str, top_n: usize) -> Option<Voi
                     line_start: h.get("line_start").and_then(Value::as_u64).unwrap_or(0) as usize,
                     line_end: h.get("line_end").and_then(Value::as_u64).unwrap_or(0) as usize,
                     score: h.get("score").and_then(Value::as_f64).unwrap_or(0.0),
-                    severity: h
-                        .get("severity")
+                    confidence: h
+                        .get("confidence")
                         .and_then(Value::as_str)
                         .unwrap_or("")
                         .to_string(),
@@ -161,12 +164,12 @@ pub fn summary_for_ref(repo: &Path, reference: &str, top_n: usize) -> Option<Voi
 pub fn one_liner(s: &VoiceDiffSummary) -> String {
     format!(
         "voice-diff · {:.0}% out of voice ({}/{} hunks · max {})",
-        s.out_of_voice_pct, s.hunks_flagged, s.hunks_total, s.max_severity
+        s.out_of_voice_pct, s.hunks_flagged, s.hunks_total, s.max_confidence
     )
 }
 
 /// A GitHub-flavoured markdown "voice score" card — for a PR comment or an
-/// Actions job summary. Deliberately framed as advisory: it reports a score and
+/// Actions job summary. Deliberately framed as informational: it reports a score and
 /// hot-spots and offers the `argot mute` escape hatch, but never speaks in terms
 /// of pass/fail or blocking. The reviewer decides.
 pub fn markdown_card(s: &VoiceDiffSummary) -> String {
@@ -186,7 +189,7 @@ pub fn markdown_card(s: &VoiceDiffSummary) -> String {
         let _ = writeln!(out, "`{bar}` 100%\n");
         let _ = writeln!(
             out,
-            "<sub>argot is a statistical guardrail — advisory only, it never blocks a merge.</sub>"
+            "<sub>argot is a probabilistic guardrail — informational, it never blocks a merge.</sub>"
         );
         return out;
     }
@@ -194,18 +197,18 @@ pub fn markdown_card(s: &VoiceDiffSummary) -> String {
     let _ = writeln!(
         out,
         "**{in_voice:.0}% in-voice** · {} of {} scored hunks look foreign to this repo's patterns · strongest signal: **{}**",
-        s.hunks_flagged, s.hunks_total, s.max_severity
+        s.hunks_flagged, s.hunks_total, s.max_confidence
     );
     let _ = writeln!(out, "\n`{bar}` {in_voice:.0}%\n");
     let _ = writeln!(
         out,
-        "> **Advisory — not a merge gate.** argot is statistical and can be wrong; treat these as prompts to review, not errors.\n"
+        "> **Informational — not a merge gate.** argot is probabilistic and can be wrong; treat these as prompts to review, not errors.\n"
     );
 
     let _ = writeln!(out, "| | Location | Signal | Score | Accept |");
     let _ = writeln!(out, "|---|---|---|--:|---|");
     for h in &s.hot_spots {
-        let glyph = match h.severity.as_str() {
+        let glyph = match h.confidence.as_str() {
             "foreign" => "🔴",
             "suspicious" => "🟡",
             _ => "⚪",
@@ -223,7 +226,7 @@ pub fn markdown_card(s: &VoiceDiffSummary) -> String {
         let _ = writeln!(
             out,
             "| {glyph} | `{loc}` | {} | {:.1} | {accept} |",
-            h.severity, h.score
+            h.confidence, h.score
         );
     }
     let _ = writeln!(out);
@@ -271,7 +274,7 @@ pub fn run_voice_diff(target: &str, repo: PathBuf, format: &str, top_n: usize) -
             };
             println!(
                 "    {:>6.2}  {:<10}  {}:{}",
-                h.score, h.severity, h.file, loc
+                h.score, h.confidence, h.file, loc
             );
         }
     }
@@ -288,7 +291,7 @@ mod tests {
             line_start: line,
             line_end: line,
             score,
-            severity: sev.to_string(),
+            confidence: sev.to_string(),
             hash: "deadbeef".to_string(),
         }
     }
@@ -297,7 +300,7 @@ mod tests {
     fn empty_diff_is_zero_percent_and_no_hot_spots() {
         let s = summarize(&[], 12, 10);
         assert_eq!(s.out_of_voice_pct, 0.0);
-        assert_eq!(s.max_severity, "none");
+        assert_eq!(s.max_confidence, "none");
         assert!(s.hot_spots.is_empty());
     }
 
@@ -328,15 +331,15 @@ mod tests {
             hit("b.py", 2, 6.0, "foreign"),
             hit("c.py", 3, 5.5, "suspicious"),
         ];
-        assert_eq!(summarize(&hits, 20, 10).max_severity, "foreign");
+        assert_eq!(summarize(&hits, 20, 10).max_confidence, "foreign");
     }
 
     #[test]
-    fn markdown_card_is_advisory_and_offers_mute() {
+    fn markdown_card_is_informational_and_offers_mute() {
         let hits = vec![hit("src/http.ts", 42, 8.2, "foreign")];
         let card = markdown_card(&summarize(&hits, 40, 10));
         assert!(card.contains("in-voice"), "reports a score");
-        assert!(card.contains("not a merge gate"), "framed advisory");
+        assert!(card.contains("not a merge gate"), "framed informational");
         assert!(
             card.contains("argot mute deadbeef"),
             "offers the accept command"

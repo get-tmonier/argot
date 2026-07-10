@@ -25,31 +25,62 @@ export const GET: APIRoute = async () => {
   const lines: string[] = [
     '# argot',
     '',
-    '> A guardrail that flags code foreign to a repo\'s own patterns — the ' +
-      'dependencies, APIs, and constructs an AI coding agent reaches for that the ' +
-      'codebase has never used, learned from the repo\'s git history. One ' +
-      'statically-linked Rust binary; no model, no cloud, no GPU. argot answers ' +
-      '"is this how we write things here?", not "is this valid?".',
+    '> A local guardrail that flags AI-written code foreign to a repo\'s own ' +
+      'patterns — a dependency you\'ve never used, a function you already wrote, ' +
+      'logic in the wrong place, an import that breaks the layering — all learned ' +
+      'from the repo\'s git history. One ' +
+      'statically-linked Rust binary. The base voice model is model-free ' +
+      '(statistical, no neural net); a small local code-embedding model powers the ' +
+      'semantic layer — an embedding model, not an LLM: no generation, no cloud, ' +
+      'no GPU. argot answers "is this how ' +
+      'we write things here?", not "is this valid?".',
     '',
-    'argot is a **statistical** guardrail — advisory, never a blocker. Every docs ' +
+    'argot is a **probabilistic** guardrail — verify before acting on a hit. Every docs ' +
       'page below has a plain-markdown twin at the same path with a `.md` suffix ' +
       '(e.g. `/docs/configure.md`) — fetch that to read the source without ' +
       'scraping HTML.',
     '',
-    '## What it catches (and what it does not)',
+    '## What it catches',
     '',
-    '**Catches — reliably (~98% when the foreign symbol is visible in the change):** ' +
-      'a foreign dependency (an import the repo has never used), a foreign API (a call ' +
-      'into a library it standardises away from), or a whole foreign paradigm (a ' +
-      'Django-style view in a FastAPI repo, hand-rolled validation, a different HTTP ' +
-      'client). These are the novel-pattern classes the published numbers gate on.',
+    'Four detectors, all learned from the repo\'s own git history. Every finding ' +
+      'belongs to a named rule with a configurable severity (`error` fails the check, ' +
+      '`warn` reports without failing, `off` disables) — set in `argot.toml [rules]` ' +
+      'or per run with `--rule <name|group>=<severity>`; `argot rules` lists them.',
     '',
-    '**Does NOT reliably catch — secondary, never gated:** in-vocabulary breaks where ' +
-      'every token is already in the repo and only the *choice* is wrong (a bare ' +
-      '`ValueError` where the repo raises `HTTPException`; a manual status check instead ' +
-      'of `raise_for_status()`). Separating these from in-voice code drives false alarms, ' +
-      'so argot leaves them. **A clean `argot check` means "no foreign pattern found," ' +
-      'not "this matches every convention."**',
+    '**1 · Foreign — the base voice model (statistical, no neural net; ~98% when the ' +
+      'foreign symbol is visible in the change):** a foreign dependency (an import the ' +
+      'repo has never used), a foreign API (a call into a library it standardises away ' +
+      'from), or a whole foreign paradigm (a Django-style view in a FastAPI repo, ' +
+      'hand-rolled validation, a different HTTP client). This is the class the published ' +
+      'benchmark numbers gate on. Rules (group `voice`): `foreign-import`, ' +
+      '`rare-tokens`, `unfamiliar-callee`, `convention`.',
+    '',
+    '**2 · Redundant — the semantic layer:** a new function that reinvents ' +
+      'one the repo already has. A per-repo code-embedding index finds the nearest ' +
+      'existing function and shows where it lives. Rule: `redundant` (group `semantic`).',
+    '',
+    '**3 · Misplaced — the semantic layer:** the right code filed in the ' +
+      'wrong package — its nearest semantic neighbours concentrate somewhere else. ' +
+      'Rule: `misplaced` (group `semantic`).',
+    '',
+    '**4 · Layering — the architecture graph:** an internal import that reverses the ' +
+      'repo\'s established layer direction or crosses a boundary it never crosses. ' +
+      '96.8% of planted violations caught at 0% false positives on control edits. ' +
+      'Rule: `layering` (group `architecture`).',
+    '',
+    'The semantic layer runs a small local code-embedding model (`jina-embeddings-v2-' +
+      'base-code`, Q4 GGUF, ~100 MB, fetched once on first use, statically linked via ' +
+      'llama.cpp — CPU-first, Metal-accelerated on macOS). It turns a function into a ' +
+      'vector — no cloud, no GPU, no text generation, nothing leaves your machine. ' +
+      'Offline, the semantic rules skip with a clear note and the rest still runs ' +
+      '(`argot model fetch` pre-downloads; `ARGOT_OFFLINE=1` never touches the network).',
+    '',
+    '**The line it won\'t cross:** an in-vocabulary break where every token is already ' +
+      'in the repo and only the *choice* is wrong (a bare `ValueError` where the repo ' +
+      'raises `HTTPException`; a manual status check instead of `raise_for_status()`). ' +
+      'The semantic layer narrows this gap but does not close it — argot won\'t gate on ' +
+      'a wrong choice among your own vocabulary, and says so. **A clean `argot check` ' +
+      'means "no foreign pattern found," not "this matches every convention."**',
     '',
     '## Docs',
     '',

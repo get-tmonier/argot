@@ -23,7 +23,10 @@ const QUICK_CONTROL_CAP: usize = 50;
 #[derive(Debug, Clone, Serialize)]
 pub struct FixtureResult {
     pub id: String,
+    /// Free-text descriptive break type (jquery, xhr_network, …) — for reporting.
     pub category: String,
+    /// Canonical RUBRIC scoring class — what gating and consolidation read.
+    pub class: String,
     pub difficulty: Option<String>,
     pub import_score: f64,
     pub bpe_score: f64,
@@ -298,6 +301,7 @@ fn score_fixtures(
         out.push(FixtureResult {
             id: fx.id.clone(),
             category: fx.category.clone(),
+            class: fx.class().to_string(),
             difficulty: fx.difficulty.clone(),
             import_score: r.stages.import_score,
             bpe_score: r.stages.bpe_score,

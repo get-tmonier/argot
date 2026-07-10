@@ -36,7 +36,10 @@ const BENCH_TODAY: &str = "2026-01-01";
 #[derive(Debug, Clone, Serialize)]
 pub struct ProdFixtureResult {
     pub id: String,
+    /// Free-text descriptive break type (jquery, xhr_network, …) — for reporting.
     pub category: String,
+    /// Canonical RUBRIC scoring class — what gating and consolidation read.
+    pub class: String,
     pub language: Option<String>,
     /// `easy` / `medium` / `hard` — drives the visible-vs-masked difficulty
     /// split reported in the dashboard.
@@ -100,7 +103,10 @@ pub(crate) fn check_args(repo_dir: &Path) -> CheckArgs {
         argot_dir: repo_dir.join(".argot"),
         hunk_lines: DEFAULT_HUNK_LINES,
         verbose: false,
-        min_severity: "unusual".to_string(),
+        min_confidence: "unusual".to_string(),
+        rule_overrides: Vec::new(),
+        error_on_warnings: false,
+        add_ignores: false,
         use_color: false,
         format: argot_core::output::OutputFormat::Json,
         today: BENCH_TODAY.to_string(),
@@ -225,6 +231,7 @@ pub fn run_corpus_production(target: &Target, opts: &RunOptions) -> Result<Produ
         fixture_results.push(ProdFixtureResult {
             id: fx.id.clone(),
             category: fx.category.clone(),
+            class: fx.class().to_string(),
             language: fx.language.clone(),
             difficulty: fx.difficulty.clone(),
             flagged: !hits.is_empty(),
@@ -272,60 +279,30 @@ pub fn write_production_reports(
 /// `voice` = foreign-to-repo vocabulary argot's stages detect (gated ≥85%);
 /// `semantic` = misuse of the repo's own/known vocabulary (reported, ungated —
 /// a documented fundamental limit, not a pass/fail line).
-pub fn tier_of(category: &str) -> &'static str {
-    match category {
-        // Gated foreign-symbol classes (RUBRIC v2): a foreign package/library
+pub fn tier_of(class: &str) -> &'static str {
+    match class {
+        // Gated foreign-symbol classes (RUBRIC): a foreign package/dep (import
+        // stage; foreign concurrency libs fold in here) or a foreign callee (API)
         // verified 0-usage in the repo — argot's reliable capability.
-        "foreign_import" | "foreign_api" | "foreign_concurrency" => "gated",
+        "foreign_import" | "foreign_api" => "gated",
         "naming_shape_break" => "naming",
-        // v1 `wrong_concurrency` is mostly *attested* primitives (pthread where
-        // attested, busy-wait) — semantic, not a foreign symbol. Reported.
-        "wrong_error_discipline"
-        | "wrong_api_within_known_lib"
-        | "wrong_concurrency"
-        | "semantic_convention" => "semantic",
-        // Legacy Python/TS catalogs use an ad-hoc taxonomy predating the RUBRIC.
+        // Misuse of the repo's own attested vocabulary / a builtin it avoids
+        // (die/exit, raw pthread, bare except, hand-rolled validation) — a
+        // documented local limit, reported never gated.
+        "semantic_convention" => "semantic",
+        // Unreachable: catalog load enforces a canonical class. Defensive only.
         _ => "other",
     }
 }
 
-/// Whether a break class is a **novel-pattern** class — a symbol/module/dep
-/// foreign to the repo (argot's one job), across both the RUBRIC tiers and the
-/// legacy catalogs' ad-hoc names. The RUBRIC `gated` classes qualify; so do the
-/// legacy classes that name a foreign library or a network/subprocess sink a
-/// data/UI library reaches into (jQuery, colorama, numpy, moment, mimesis,
-/// httpx/requests, XHR, etc.). Excludes the `naming`/`semantic` classes, which
-/// misuse the repo's *own* attested vocabulary and are a documented local limit.
-///
-/// This is the consistent per-corpus recall metric — every catalogued corpus
-/// gets a foreign-catch number, instead of the RUBRIC-8 showing a clean gated %
-/// while legacy corpora show a mixed aggregate dragged down by classes argot
-/// never targets. (Bench taxonomy only — enumerated legacy names live here, not
-/// in production code.)
-pub fn is_novel_pattern(category: &str) -> bool {
-    if tier_of(category) == "gated" {
-        return true;
-    }
-    matches!(
-        category,
-        "foreign_http"
-            | "foreign_rng"
-            | "framework_swap"
-            | "jquery"
-            | "numpy_random"
-            | "colorama"
-            | "termcolor"
-            | "curses"
-            | "moment_dates"
-            | "mimesis_alt"
-            | "requests_source"
-            | "runtime_fetch"
-            | "xhr_network"
-            | "http_sink"
-            | "downstream_http"
-            | "shell_out"
-            | "subprocess_shell"
-    )
+/// Whether a break's canonical class is a **novel-pattern** (foreign-to-repo)
+/// class — argot's one job. Now a direct function of the class: the gated
+/// classes and nothing else. The old per-name legacy allow-list is gone — the
+/// gated-vs-secondary decision is authored on each fixture (`class:` in the
+/// manifest) and validated canonical at load, so no code carries a corpus's
+/// ad-hoc category vocabulary.
+pub fn is_novel_pattern(class: &str) -> bool {
+    tier_of(class) == "gated"
 }
 
 /// `(caught, total)` over a report's fixtures in one scope tier.
@@ -333,7 +310,7 @@ fn tier_recall(r: &ProductionReport, tier: &str) -> (usize, usize) {
     let mut caught = 0;
     let mut total = 0;
     for f in &r.fixture_results {
-        if tier_of(&f.category) == tier {
+        if tier_of(&f.class) == tier {
             total += 1;
             if f.flagged {
                 caught += 1;

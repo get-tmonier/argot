@@ -1,6 +1,6 @@
 ---
 title: Agents (skills & MCP)
-description: Put argot in your coding agent's loop — a commit-time check skill and proactive MCP context — advisory, never blocking.
+description: Put argot in your coding agent's loop — a commit-time check skill and proactive MCP context — informational, never blocking.
 group: Guide
 order: 8
 ---
@@ -17,9 +17,10 @@ argot is inside that agent's loop.
   for reading hundreds of files. On a repo the agent already sees whole, the skills
   alone are enough.
 
-Both follow one rule: **argot is advisory and never blocks.** A hit is a prompt
-to think, not a gate — the human always has the last word. The full contract
-lives in the repo's [`AGENTS.md`](https://github.com/get-tmonier/argot/blob/main/AGENTS.md).
+Both follow one principle: **in an agent's loop, argot informs and never blocks.**
+A hit is a prompt to think, not a gate — the human always has the last word. The
+full contract lives in the repo's
+[`AGENTS.md`](https://github.com/get-tmonier/argot/blob/main/AGENTS.md).
 
 ## Skills
 
@@ -47,11 +48,11 @@ CLI:
 npx skills add get-tmonier/argot
 ```
 
-`argot-check` reads `argot check --format json` and follows an advisory decision
-tree: it surfaces `foreign` hits prominently, mentions `suspicious` ones, and
-stays quiet on `unusual` — and it **never** blocks a commit, rewrites your code,
-or mutes on your behalf. When a divergence is intentional, it offers the exact
-command to record it:
+`argot-check` reads `argot check --format json` and grades its response by
+confidence tier: it surfaces `foreign`-confidence hits prominently, mentions
+`suspicious` ones, and stays quiet on `unusual` — and it **never** blocks a
+commit, rewrites your code, or mutes on your behalf. When a divergence is
+intentional, it offers the exact command to record it:
 
 ```text
 argot mute <hash> --reason "adopting axios repo-wide"
@@ -68,20 +69,21 @@ advice, read the output correctly, and mute false positives with a reason.
 ## MCP — proactive voice
 
 `argot mcp` runs a [Model Context Protocol](https://modelcontextprotocol.io)
-server over stdio, in-process against the fitted `.argot/` model — no network,
+server over stdio, in-process against the fitted `.argot/` model — local-first,
 no separate runtime. It exposes four tools:
 
 | Tool | When the agent calls it | Returns |
 |---|---|---|
 | `argot.voice_context` | **before** generating code for a file | typical callees and familiar imports for the file's language — bias generation toward local idioms |
-| `argot.check` | on a generated hunk | whether it's out of voice, the score, the reason, and evidence |
-| `argot.explain` | to understand a hit | the reason plus the full evidence trail |
+| `argot.check` | on a generated hunk | whether it's out of voice, the score, the rule that fired, and evidence |
+| `argot.explain` | to understand a hit | the rule plus the full evidence trail |
 | `argot.fit_status` | to gauge trust | corpus composition, calibration freshness, and a Ready / Marginal / Not-recommended verdict |
 
 **Tool inputs and responses.** `argot.check` and `argot.explain` take `file_path` and `hunk_content`
 (both required) plus optional `file_source` (the full file, for better context); they return
-`out_of_voice`, `score`, `threshold`, `reason`, `model`, and — on a hit, or always for `explain` —
-`evidence`. `argot.voice_context` takes `file_path` (required) and optional `top` (default 10), and
+`out_of_voice`, `score`, `threshold`, `rule` (one of the seven stable rule names: `foreign-import`,
+`unfamiliar-callee`, `rare-tokens`, `convention`, `redundant`, `misplaced`, `layering`), `model`,
+and — on a hit, or always for `explain` — `evidence`. `argot.voice_context` takes `file_path` (required) and optional `top` (default 10), and
 returns `typical_callees_by_cluster`, `familiar_imports`, and the resolved `language`.
 `argot.fit_status` takes no arguments and returns the full `inspect` report (corpus, calibration,
 verdict, reasons). Tool-level failures come back as an `isError` text result the agent can read, not a
@@ -105,8 +107,11 @@ claude mcp add argot -- argot mcp --repo /path/to/your/repo
 ```
 
 Any MCP client works — the server speaks newline-delimited JSON-RPC 2.0 on
-stdio. It's local-only by default: it reads `.argot/` on disk and never opens a
-socket. The statistics it surfaces are derived from your own repository.
+stdio. It's local at steady state: it reads `.argot/` on disk and serves
+statistics derived from your own repository. The one exception is the semantic
+layer's **first use**, which fetches the ~100 MB code-embedding model to a local
+cache once; after that — and for everything the base voice model does — nothing
+touches the network.
 
 ## Which to use
 

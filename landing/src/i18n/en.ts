@@ -2,57 +2,92 @@ import type { SiteContent } from './types';
 
 const en: SiteContent = {
   meta: {
-    title: 'argot — lint the rules you never wrote down',
+    title: 'argot — catch the AI code that doesn’t fit your codebase',
     description:
-      'argot is a guardrail for AI-written code. It learns your repo’s patterns from its own git history, then flags the dependencies, APIs, and constructs it has never used — the “unknown to this repo” code an AI agent reaches for. No model, no cloud, no GPU.',
+      'argot is a local guardrail for AI-written code. It learns your repo’s patterns from its own git history, then flags code that doesn’t belong — a dependency you’ve never used, a function you already wrote, logic in the wrong place, an import that breaks your layering. Backed by a code-embedding model that runs on your laptop. No LLM, no cloud, no GPU.',
   },
   nav: {
     demo: 'Demo',
-    catches: 'What it catches',
+    engine: 'Under the hood',
     docs: 'Docs',
   },
   hero: {
-    eyebrow: 'Local · single Rust binary · no LLM',
+    eyebrow: 'Local embedding model · Rust single binary · no LLM',
     titleLead: 'Lint the rules',
     titleGradient: 'you never wrote down.',
     subtitle:
-      'It flags code foreign to your repo — the dependencies and idioms an AI writes that your codebase has [[never used]].',
+      'AI writes valid code that isn’t [[yours]]. argot learns your repo’s voice from its git history — and flags what doesn’t belong, before it merges.',
     ctaPrimary: 'Read the docs',
     ctaSecondary: 'Star on GitHub',
     install: 'npm i -g @tmonier/argot',
-    installNote: 'MIT · single static binary · macOS · Linux · Windows · no runtime deps',
+    installNote: 'MIT · single static binary · macOS · Linux · Windows · 100% local',
     installAlt: 'or install without npm',
   },
   demo: {
     label: 'The second question',
     title: 'Type checkers ask if it compiles. argot asks if it’s yours.',
-    body: 'Linters ask “is this valid?” — never “is this how we write things?” An LLM buries that under clean, type-correct PRs. [[argot asks it back.]]',
-    caption:
-      'A Django view in an all-FastAPI repo. mypy and ruff pass — [[argot flags it in ~150 ms.]]',
-    seeLive: 'See it on real repos',
-  },
-  catches: {
-    label: 'What it catches',
-    title: 'Technically fine. Socially foreign.',
-    body: 'What ESLint, ruff, and type checkers can’t articulate: a dependency, API, or paradigm [[the repo has never used]].',
-    items: [
+    body: 'An LLM buries that question under clean, type-correct PRs. argot asks it at the diff — [[this is its real output]].',
+    tabs: [
       {
-        title: 'A foreign dependency',
-        desc: 'An import the repo has never used. The clearest signal — caught most reliably.',
+        id: 'foreign-import',
+        label: 'foreign-import',
+        caption:
+          'A Django view in an all-FastAPI repo — valid Python, but a framework this repo has never imported. The evidence shows what the repo reaches for instead.',
       },
       {
-        title: 'A foreign API',
-        desc: 'A call into a library the rest of the codebase avoids.',
+        id: 'redundant',
+        label: 'redundant',
+        caption:
+          'The repo already has this function. argot names the original, where it lives, and how close the match is — use it instead of merging a twin.',
       },
       {
-        title: 'A foreign paradigm',
-        desc: 'A whole idiom from elsewhere — a Django view in a FastAPI repo.',
+        id: 'misplaced',
+        label: 'misplaced',
+        caption:
+          'Downloader logic filed under cli/commands — its nearest peers all live in core/downloader. Right code, wrong home.',
       },
       {
-        title: 'The line it won’t cross',
-        desc: 'A wrong exception where [[every token is already yours]]. argot won’t gate on a choice — and says so.',
+        id: 'layering',
+        label: 'layering',
+        caption:
+          'In this repo, cli imports core — never the other way. This one import quietly reverses the architecture; argot flags the edge itself.',
       },
     ],
+    seeLive: 'See it on real repos',
+  },
+  replay: {
+    label: 'Day one',
+    title: 'Rewind your history. See what it would have caught.',
+    body: 'You can’t demo a guardrail on code it just learned from — so argot rewinds instead. [[argot replay]] fits the voice as it was 50 commits ago and rescores everything since: one command, seconds, your tree untouched.',
+    caption:
+      'Real run on FastAPI’s history: two newly-adopted imports and the new streaming vocabulary — each with [[the repo’s own evidence]].',
+  },
+  engine: {
+    label: 'Under the hood',
+    title: 'Semantic understanding. No LLM anywhere.',
+    body: 'Three engines, one static [[Rust]] binary, all learned from your git history — no API key, no GPU, nothing leaves your machine.',
+    cards: [
+      {
+        title: 'A code-embedding model on your laptop',
+        desc: 'jina-code (~100 MB, fetched once) turns every function into a vector. That’s how argot knows you [[already wrote this]] — and where it belongs. An encoder, not an LLM: no generation, CPU-first, Metal-accelerated on Macs.',
+      },
+      {
+        title: 'A statistical voice model',
+        desc: 'Two frequency tables and a callee-cluster partition, learned from your history — the imports, callees, and token shapes your repo [[actually uses]]. No neural net needed to know django doesn’t belong here.',
+      },
+      {
+        title: 'An architecture graph',
+        desc: 'Your module-dependency topology, fitted from your own imports: which layers point at which. A new edge that [[reverses the established direction]] is flagged with the direction it breaks.',
+      },
+    ],
+    stats: [
+      { value: '0.2s', label: 'to check a diff' },
+      { value: '0.6s', label: 'when it defines new functions' },
+      { value: '25s', label: 'first fit, 1,100-file repo' },
+      { value: '4s', label: 'to refresh — unchanged functions reuse their embeddings' },
+    ],
+    finePrint:
+      'Measured on FastAPI, laptop CPU. Single static binary — no Python, no Node, no runtime to install.',
   },
   proof: {
     label: 'Measured, not promised',
@@ -60,35 +95,35 @@ const en: SiteContent = {
     stats: [
       {
         value: '98%',
-        title: 'visible-foreign catch',
-        desc: 'When the foreign symbol is [[visible]] in the diff — an explicit import or call — judged by the shipped binary: 565 of 574.',
+        title: 'foreign patterns caught',
+        desc: 'A dependency or API the repo never uses: 604 of 618 caught — while firing on just [[0.22% of real edits]] (49 of 22,785 hunks; worst repo 1.17%).',
       },
       {
-        value: '85%',
-        title: 'catch across every fixture',
-        desc: 'Every planted break, easy → hard — the rest are [[masked foreign]] a voice model structurally can’t see: 591 of 694.',
+        value: '94%',
+        title: 'reinventions caught · median',
+        desc: '85–100% per repo: faithful rewrites of the repo’s [[own functions]], planted as new code and traced back to the original. False-fire ≤ 2.8% of hunks.',
       },
       {
-        value: '0.22%',
-        title: 'false alarms on real edits',
-        desc: 'How often argot fires on your repo’s [[own existing code]] — 31 repos, every one ≤ 1.17%.',
+        value: '96%',
+        title: 'misplacements caught · median',
+        desc: '86–99% wherever the repo has a separable architecture — and it [[abstains]] where there is none, instead of guessing.',
       },
       {
-        value: '150ms',
-        title: 'to check a change',
-        desc: 'On a 34k-file repo, laptop CPU. The one-time fit takes ~7 s. [[No GPU, no cloud.]]',
+        value: '96.8%',
+        title: 'architecture violations caught',
+        desc: 'Layering reversals: 244 of 252 caught at [[zero false positives]] — 0 of 140 control edits flagged.',
       },
     ],
     languages:
       'One [[static binary]], 11 languages: Python · TypeScript · JavaScript · Go · Rust · Java · C# · C · C++ · Ruby · PHP.',
     finePrint:
-      'Leak-free by construction: recall on foreign patterns planted in real files; false alarms on a temporal holdout.',
+      'Leak-free by construction: recall on foreign patterns planted in real files; false alarms on a temporal holdout. The one thing a voice model structurally can’t see — masked foreign — is published on the benchmarks page, not hidden.',
     benchmarksCta: 'Full per-repo numbers →',
   },
   setup: {
     label: 'Setup · built for agents',
     title: 'A CLI your coding agent can drive.',
-    body: 'The skills run argot [[and bring the judgment]]: /argot-setup reads your repo to decide what shouldn’t shape its voice — a vendored SDK, a generated dir — writes an argot.toml, fits, and verifies the catch. Advisory, never blocking.',
+    body: 'The skills run argot [[and bring the judgment]]: /argot-setup reads your repo to decide what shouldn’t shape its voice — a vendored SDK, a generated dir — writes an argot.toml, fits, and verifies the catch. Informational, never blocking.',
     installLabel: 'Add the skills — Claude Code, Cursor, 70+ agents',
     skillsIntro: 'four slash-commands your agent runs:',
     skillDescs: [
@@ -105,7 +140,7 @@ const en: SiteContent = {
   ciScore: {
     label: 'In CI, without the friction',
     title: 'A voice score on every PR. Never a merge gate.',
-    body: 'A visual score and the hot-spots on each PR — [[advisory by default]]. Intentional? One argot mute, committed as an audit trail.',
+    body: 'A visual score and the hot-spots on each PR — [[non-blocking by default]]. Intentional? One argot mute, committed as an audit trail.',
     caption: 'Lands in the Actions summary, a sticky PR comment, and the Security tab.',
   },
   cta: {

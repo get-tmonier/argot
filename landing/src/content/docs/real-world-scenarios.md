@@ -61,7 +61,7 @@ from tenacity import retry, wait_exponential, stop_after_attempt
 Before committing, it ran `argot check` — and got one hit:
 
 ```text
-! fastapi/_retry.py:1-33   foreign   · foreign import
+! fastapi/_retry.py:1-33   foreign   · foreign-import
   ↳ tenacity — 0 of 74 module specifiers in repo
     common here: fastapi (357×), pydantic (129×), typing (129×)
 ```
@@ -85,6 +85,11 @@ That's the documented boundary, live:
 > idiomatic."** argot catches the foreign dependency an agent drags in; it does
 > not catch a sync-in-an-async design decision. See
 > [what it catches](/docs/what-it-catches/).
+
+The semantic layer **narrows** this boundary — it now flags a function that
+reinvents one the repo already has (`redundant`) or code filed in the wrong package
+(`misplaced`) — but it doesn't erase it: a sync-in-async *choice* built entirely
+from FastAPI's own vocabulary is still below the line argot gates on.
 
 ## 3. Intentional foreign code — accept it, with a trail
 
@@ -120,7 +125,7 @@ posted a **non-blocking** voice-score comment:
 
 ```text
 🎙️ argot voice check — 83% in-voice · 🔴 foreign · express
-   src/helper/receipts/index.ts — advisory, not a merge gate
+   src/helper/receipts/index.ts — informational, not a merge gate
 ```
 
 A follow-up commit rewrote it in Hono style (`new Hono()`, `c.json`). The **same

@@ -6,3 +6,4 @@ dist/
 
 # deps — landing is a standalone project with its own lockfile (committed)
 node_modules/
+pnpm-workspace.yaml

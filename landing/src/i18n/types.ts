@@ -10,7 +10,7 @@ export interface SiteContent {
   };
   readonly nav: {
     readonly demo: string;
-    readonly catches: string;
+    readonly engine: string;
     readonly docs: string;
   };
   readonly hero: {
@@ -28,14 +28,28 @@ export interface SiteContent {
     readonly label: string;
     readonly title: string;
     readonly body: string;
-    readonly caption: string;
+    /// One tab per detector: the rule name and a one-line caption for its pane.
+    readonly tabs: readonly {
+      readonly id: string;
+      readonly label: string;
+      readonly caption: string;
+    }[];
     readonly seeLive: string;
   };
-  readonly catches: {
+  readonly replay: {
     readonly label: string;
     readonly title: string;
     readonly body: string;
-    readonly items: readonly Feature[];
+    readonly caption: string;
+  };
+  readonly engine: {
+    readonly label: string;
+    readonly title: string;
+    readonly body: string;
+    readonly cards: readonly Feature[];
+    /// The measured speed row (value + short label) and its source line.
+    readonly stats: readonly { readonly value: string; readonly label: string }[];
+    readonly finePrint: string;
   };
   readonly proof: {
     readonly label: string;

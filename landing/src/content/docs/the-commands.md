@@ -1,14 +1,14 @@
 ---
 title: The commands
-description: init and check — the everyday commands — plus fit, extract, and the on-demand tools.
+description: init and check — the everyday commands — plus fit, rules, model, and the on-demand tools.
 group: Guide
 order: 4
 ---
 
 The two everyday commands are **`argot init`** (one-time setup — it fits the model and health-checks
-the repo) and **`argot check`** (the per-diff loop). `fit` is what `init` runs under the hood;
-`extract` writes a raw training dataset the check path doesn't need, so most repos never run it. The
-rest — `review`, `voice-diff`, `inspect`, `mute` — are on demand. Run `argot --help` for the full list.
+the repo) and **`argot check`** (the per-diff loop). `fit` is what `init` runs under the hood. The
+rest — `rules`, `model`, `review`, `voice-diff`, `inspect`, `mute` — are on demand. Run
+`argot --help` for the full list.
 
 ## init
 
@@ -24,22 +24,6 @@ argot init --suggest --format json   # the same, machine-readable (for the setup
 
 See [Setup](/docs/setup/) for deciding what shouldn't shape your voice.
 
-## extract
-
-Walks the repo's git history and writes a training dataset — one record per hunk, with tokenized
-context and content.
-
-```bash
-argot extract                # full history of the current repo
-argot extract HEAD~50        # history up to and including HEAD~50
-argot extract main..HEAD     # only commits in that range
-argot extract --limit 5000   # stop after 5000 records
-argot extract --out data.jsonl   # write somewhere other than the default
-```
-
-The current repo is auto-detected. Flags: `--repo <path>` (default `.`), `--out <path>` (default
-`.argot/dataset.jsonl`), `--limit <N>` (cap the records emitted).
-
 ## fit
 
 One-shot voice fitting: collects the repo's source files as the repo corpus, sets up the generic
@@ -49,15 +33,22 @@ baseline, then samples representative hunks to set the scoring threshold.
 argot fit
 ```
 
-Writes three artifacts under `.argot/`:
+Writes its artifacts under `.argot/`:
 
 | File | What it is |
 |---|---|
 | `repo-corpus.txt` | the source files counted into the repo distribution |
 | `generic-baseline.json` | the bundled generic baseline reference |
 | `scorer-config.json` | the calibrated threshold(s) and scorer config |
+| `semantic-index.json` | the per-repo code-embedding index for the reinvention/placement checks |
+| `layering.json` | the module-dependency graph the `layering` rule checks added imports against |
 
-It also refreshes `.argot/manifest.json` (the hashed model record). For every file argot writes,
+`fit` also builds the **semantic index**: it embeds every function with a local code-embedding model
+(`jina-code`, ~100 MB, fetched once to a local cache on first use — pre-fetch it with
+[`argot model fetch`](#model)) and writes `.argot/semantic-index.json`. This is standard — there is
+no flag to enable it, though setting the `semantic` rule group to `off` in `argot.toml`'s `[rules]`
+skips it (no download, no index). It also refreshes
+`.argot/manifest.json` (the hashed model record). For every file argot writes,
 where it lives, and whether it's committed, see the
 [reference table in Configure](/docs/configure/#which-files-argot-writes-and-where).
 Re-run `fit` after a major refactor. Internally it runs the engine's two underlying phases (build
@@ -86,13 +77,19 @@ combine; the first matching slice wins.
 
 ## check
 
-Scores changed hunks against the trained scorer and prints them grouped by file.
+Scores changed hunks against the trained scorer and prints them grouped by file. Alongside the base
+voice model, `check` also runs the semantic layer's **reinvention** (`redundant`) and **placement**
+(`misplaced`) checks against `.argot/semantic-index.json`, and the **architecture** check
+(`layering`) against `.argot/layering.json` — automatically, no flag. (The first check that embeds
+may pause briefly to fetch the ~100 MB model to a local cache; after that it's warm. Pre-fetch with
+[`argot model fetch`](#model).)
 
-**Exit codes:** `0` clean · `1` hits found — *something to look at, not a failure* · `2` setup/usage
-error. For CI, prefer the non-blocking [GitHub Action](/docs/ci/) over a hand-rolled
-`argot check || fail`: because a foreign import can land in any tier, gating the CLI exit code turns
-every advisory hit — down to `unusual` — into a red build. The Action posts an advisory score card
-instead, and only blocks if you explicitly ask it to.
+**Exit codes:** `0` clean · `1` at least one `error`-severity finding — *something to look at, not
+a verdict* · `2` setup/usage error. What exits 1 is the rule's configured **severity**: every rule
+defaults to `error`, and any rule you set to `warn` is still reported but doesn't fail the check
+(`--error-on-warnings` flips that back on for strict CI). Confidence tiers
+(`unusual`/`suspicious`/`foreign`) grade the evidence for display — they never drive the exit code.
+See [Configure](/docs/configure/#rules--rule-severities).
 
 ```bash
 argot check                         # uncommitted changes — modified + staged + untracked
@@ -106,16 +103,24 @@ argot check --commit abc1234        # a single commit
 ### Scoping and filtering
 
 ```bash
-argot check --only 'src/*'          # restrict to matching files (repeatable)
-argot check --exclude 'test/*'      # drop matching files (repeatable; wins over --only)
-argot check --min-severity foreign  # only show foreign-tier hits
-argot check --verbose               # show full hunk contents (no truncation)
+argot check --only 'src/*'            # restrict to matching files (repeatable)
+argot check --exclude 'test/*'        # drop matching files (repeatable; wins over --only)
+argot check --min-confidence foreign  # only show foreign-confidence hits
+argot check --rule misplaced=warn     # override a rule's severity for this run (repeatable)
+argot check --rule semantic=off       # …or a whole group
+argot check --error-on-warnings       # warn-severity findings also fail the check (strict CI)
+argot check --verbose                 # show full hunk contents (no truncation)
 ```
 
-`--min-severity` filters by tier. Keep the default (`unusual`) to see everything argot flags — a lone
-foreign import can score right at the threshold and land in `unusual`, so `--min-severity foreign`
-(the strongest-anomaly tier) may *hide* a single new dependency. Raise it to `suspicious` or `foreign`
-only to cut noise on a chatty repo, once you trust the calibration.
+`--min-confidence` filters the *display* by evidence tier. Keep the default (`unusual`) to see
+everything argot flags — a lone foreign import can score right at the threshold and land in
+`unusual`, so `--min-confidence foreign` (the strongest-evidence tier) may *hide* a single new
+dependency. Raise it to `suspicious` or `foreign` only to cut noise on a chatty repo, once you
+trust the calibration.
+
+`--rule <name|group>=<error|warn|off>` overrides the committed `[rules]` config for one run — CLI
+beats `argot.local.toml` beats `argot.toml` beats the all-`error` defaults. `argot rules` lists
+what's in effect.
 
 Every `check` run also names the model that judged the diff — a short `model:` hash on stderr (human)
 or in the `model` field of `--format json`/`sarif`. Same corpus + config always fits the same hash, so
@@ -124,21 +129,86 @@ you can tell at a glance whether your model matches a colleague's.
 ### Output and advanced flags
 
 ```bash
-argot check --format json           # stable machine JSON (human | json | sarif; default human)
+argot check --format json           # stable machine JSON (human | json | sarif | github; default human)
 argot check --format sarif          # SARIF 2.1.0 for code-scanning uploads
+argot check --format github         # GitHub Actions workflow commands → inline PR annotations
+argot check --quiet                 # suppress informational stderr (model line, nudges, counts)
 argot check --hunk-lines 12         # lines of hunk body under each hit (default 6; 0 to suppress)
 argot check --repo ../other-repo    # check a repo other than the current directory (default .)
 ```
 
 | Flag | Default | What it does |
 |---|---|---|
-| `--format` | `human` | `human`, `json` (stable schema), or `sarif` (SARIF 2.1.0). Machine formats write only the document to stdout — see [Reading the output](/docs/reading-the-output/). |
+| `--format` | `human` | `human`, `json` (stable schema), `sarif` (SARIF 2.1.0), or `github` (Actions workflow commands — inline PR annotations with no upload step). Machine formats write only the document to stdout — see [Reading the output](/docs/reading-the-output/). |
+| `--rule <name>=<sev>` | — | Override a rule or group's severity (`error`/`warn`/`off`) for this run. Repeatable. |
+| `--min-confidence <tier>` | `unusual` | Only show hits at or above this confidence tier. |
+| `--error-on-warnings` | off | Exit non-zero when `warn`-severity findings are present. |
+| `--quiet` / `-q` | off | Suppress informational stderr notes. Errors still print. |
+| `--add-ignores` | off | Instead of reporting, insert an inline `# argot: ignore-next-line rule=… — baselined by --add-ignores; review` comment above every current finding — the adoption move on an existing codebase (working-tree modes only). Review the comments, then commit them. |
 | `--repo <path>` | `.` | Repository to check. |
 | `--argot-dir <path>` | `.argot` | Where to load the fitted model from. A relative path is resolved against `--repo`; an absolute path is used verbatim. |
 | `--hunk-lines <N>` | `6` | Hunk-body lines shown under each hit (`0` suppresses them; `--verbose` overrides with the full hunk). |
 
-Color follows the [`NO_COLOR`](https://no-color.org) convention: argot colors severity markers only when
+Color follows the [`NO_COLOR`](https://no-color.org) convention: argot colors confidence markers only when
 `NO_COLOR` is unset **and** stdout is a terminal. Machine formats are never colored.
+
+### Freshness
+
+A fit that falls **10+ commits behind HEAD** (or a week old with any drift) is
+refreshed automatically: `check` spawns a detached background refit (at most
+once a day, never in CI) and tells you in one dim line — the next check uses
+the fresh voice. Opt out with `[fit] auto-refresh = false`
+([Configure](/docs/configure/#fit--the-background-auto-refresh)).
+
+## rules
+
+List every rule with its group and the **effective severity** for this repo — the resolved result
+of the defaults, `argot.toml`, and `argot.local.toml`:
+
+```bash
+argot rules                  # RULE / GROUP / SEVERITY / DESCRIPTION table
+argot rules --format json    # the same, machine-readable
+```
+
+Seven rules in three groups: `voice` (`foreign-import`, `unfamiliar-callee`, `rare-tokens`,
+`convention`), `semantic` (`redundant`, `misplaced`), and `architecture` (`layering`). Configure
+them in `argot.toml`'s `[rules]` or per run with `check --rule` — see
+[Configure](/docs/configure/#rules--rule-severities).
+
+## model
+
+Explicit control over the semantic layer's fetched-on-first-use embedding model (~100 MB GGUF). The
+automatic path needs none of this — these exist for CI pre-warming, air-gapped installs, and cache
+hygiene:
+
+```bash
+argot model fetch            # download and verify the model now (instead of on first use)
+argot model status           # is it present, where, and how big
+argot model clean            # delete the model cache (re-fetched on next use)
+```
+
+`fetch` fails loudly (exit 2 with the reason) instead of degrading — that's the point: run it in CI
+setup or before going offline, and a network problem surfaces there rather than as a skipped check
+later. Downloads verify the sha256, honor `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY`, and respect
+`ARGOT_MODEL_URL` (mirror), `ARGOT_SEMANTIC_MODEL` (local file, no download), and `ARGOT_OFFLINE`
+— see [Configure](/docs/configure/#environment-variables).
+
+## replay
+
+```bash
+argot replay                 # what would argot have caught in your last 50 commits?
+argot replay --commits 200   # wider window
+```
+
+The install-day question, answered on your own history: replay fits the voice
+**as it was N commits ago** (in a temporary git worktree — your tree and
+`.argot/` are untouched; your current `argot.toml` and semantic index ride
+along, so the historical fit reuses embeddings and takes seconds) and then
+scores `base..HEAD` against it. The report counts findings per rule, shows the
+strongest examples with their evidence, and frames them honestly: merged code
+is accepted code, so each hit reads as *"would have prompted review before
+merge"* — a fire on a dependency you adopted deliberately is a detection
+working as intended. Informational: always exits 0.
 
 ## review
 
@@ -157,9 +227,9 @@ argot review abc1234                               # a single commit
 ```
 
 PR mode uses the `gh` CLI (`gh auth login` once). Range and commit targets go
-straight through to the local git — no network. `--format json|sarif` works the
-same as `check`. `review` also prints a one-line **voice-diff** headline above
-the hits.
+straight through to the local git — no network. `--format json|sarif|github`
+works the same as `check`. `review` also prints a one-line **voice-diff**
+headline above the hits.
 
 ## voice-diff
 
@@ -245,6 +315,17 @@ other MCP clients.
 
 ## status
 
+The health hub — the answer to "is my setup still good?":
+
+```text
+Voice:    fitted at 4d488eb8b604 · fresh (at HEAD)
+Config:   in sync with the fit
+Hygiene:  no unexcluded generated/data-heavy directories
+```
+
+`--format json` carries the same `health` block for scripts.
+
+
 Show the current repository's argot state — whether it has an extracted dataset, a trained model, and
 a calibrated threshold:
 
@@ -276,5 +357,10 @@ argot update
 
 Self-update works for the curl-installer build (it reads the install receipt); an npm install prints
 the `npm install -g @tmonier/argot@latest` command instead.
+
+argot also nudges you passively: at most once a day it checks the published version file and prints
+one dim stderr line when a newer release exists. It's silent in CI, on a non-tty, under `--quiet`,
+and in machine formats, and it's opt-out — `ARGOT_UPDATE_CHECK=0` or `[update] check = false`. See
+[Configure](/docs/configure/#update--the-passive-update-notice).
 
 See [Reading the output](/docs/reading-the-output/) for how to interpret a `check` run.

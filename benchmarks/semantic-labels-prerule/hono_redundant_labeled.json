@@ -1,0 +1,8 @@
+{
+ "corpus": "hono",
+ "reason": "redundant",
+ "genuine": 1,
+ "true_fp": 4,
+ "raw_fires": 5,
+ "sampled": true
+}

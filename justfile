@@ -44,6 +44,53 @@ bench-quick:
     cargo build --release -p argot-bench
     ./target/release/argot-bench --corpus ink --quick --results-dir benchmarks/results/quick
 
+# Semantic-layer bench (F1 reinvention + F2 placement: recall AND clean-commit FP)
+# over every corpus with fixtures. Builds the semantic binary (feature is off in
+# dev/CI, on only for shipped builds), then runs the unified driver. Pass corpora
+# to scope (`just bench-semantic rich hono`); needs numpy (benchmarks/requirements.txt)
+# and the jina GGUF (auto-downloaded, or ARGOT_SEMANTIC_MODEL=<path>). Robust: each
+# fit is timeout+retry-guarded so one huge corpus (e.g. dagster, 14.8k fns) can't stall.
+bench-semantic *corpora:
+    cargo build --release -p argot --features semantic
+    python3 benchmarks/sem_all.py {{corpora}}
+    python3 benchmarks/sem_consolidate.py   # → landing/src/data/semantic.json
+
+# Structural-foreignness floor validation over every corpus: real multi-language
+# extraction + real temporal-holdout over-fire. Pure-Rust feature (no model/deps),
+# NON-GATING and off in shipped builds — it exists to validate the irreducible
+# floor (docs/research/evidence/foreign-structure-gate-floor.md), not to gate.
+# Pass corpora to scope (`just bench-structural --corpus rich,faker`).
+bench-structural *args:
+    cargo build --release -p argot-bench --features structural
+    ./target/release/argot-bench --mode structural --results-dir benchmarks/results/structural {{args}}
+
+# Architecture-graph bench (`--features arch`): real recall on authored 0-usage
+# violation fixtures + real-holdout over-fire, across the 23 corpora with
+# meaningful layering. 11 languages; every corpus ≥88% real recall / 0% control-FP
+# (docs/research/evidence/architecture-graph-foreignness.md). Feature-gated,
+# NON-GATING in dev/CI, base guardrail byte-for-byte unchanged. Pass corpora to
+# scope (`just bench-arch --corpus guava,ripgrep`); default runs the full set.
+bench-arch *args:
+    cargo build --release -p argot-bench --features arch
+    ./target/release/argot-bench --mode arch --results-dir benchmarks/results/arch \
+      {{ if args == "" { "--corpus saleor,scrapy,wagtail,fastapi,faker,dagster,composer,laravel,ripgrep,bat,guava,junit5,powershell,jellyfin,rubocop,gh-cli,hugo,hono,eslint,excalidraw,faker-js,curl,rocksdb" } else { args } }}
+
+# Fast fixture-recall guard (`--mode arch-verify`): fit each corpus at HEAD and
+# score its authored fixtures, skipping the slow holdout replay (~25s for all 23
+# corpora vs ~12min). Use as a regression check when the resolver changes — any
+# `invalid` count or recall drop means fixtures rotted. Full over-fire is in
+# `just bench-arch`.
+arch-verify *args:
+    cargo build --release -p argot-bench --features arch
+    ./target/release/argot-bench --mode arch-verify \
+      {{ if args == "" { "--corpus saleor,scrapy,wagtail,fastapi,faker,dagster,composer,laravel,ripgrep,bat,guava,junit5,powershell,jellyfin,rubocop,gh-cli,hugo,hono,eslint,excalidraw,faker-js,curl,rocksdb" } else { args } }}
+
+# Dump the resolver-verified 0-usage candidate menu (`--mode arch-candidates`) —
+# ready-to-author fixture rows (host_file + verified import_line) per corpus.
+bench-arch-candidates *args:
+    cargo build --release -p argot-bench --features arch
+    ./target/release/argot-bench --mode arch-candidates --results-dir benchmarks/results/arch {{args}}
+
 # --- checks ---
 
 # Format check + clippy-as-errors + tests. Canonical CI gate.

@@ -1,0 +1,241 @@
+# Architecture-graph violation fixtures for gh-cli (Go). Each `import_line` added
+# to `host_file` creates the internal edge (source layer -> target layer). Violations
+# cross a boundary the repo's learned layering treats as foreign; controls respect
+# the established direction and must not fire.
+#
+# Layer = first path component under the module root `github.com/cli/cli/v2/`.
+# Topology at HEAD (from `git grep -h '"github.com/cli/cli/v2/'` scoped per
+# source-layer directory, non-test files, then reduced to layer names):
+#   - `api` (GitHub REST/GraphQL client, 208-file fan-in) has layer-level fan-out
+#     {internal, pkg, utils} — api/client.go itself pulls in only the external
+#     ghAPI/ghauth packages, but api/http_client.go imports internal/{gh,
+#     ghinstance,ghrepo,gh/ghtelemetry}, pkg/{httpmock,iostreams,set}, AND utils.
+#   - `git` (local git command wrapper, 81-file fan-in) has layer-level fan-out
+#     {internal} only — every git/*.go file's sole internal import is
+#     internal/ghinstance or internal/run.
+#   - `internal` (495-file fan-in, config/ghrepo/telemetry/agents/skills/...) is
+#     the one layer that fans out broadly: {api, git, internal, pkg, utils} — e.g.
+#     internal/skills/installer/installer.go imports both api and git,
+#     internal/ghcmd/cmd.go imports api and utils. This makes `internal` a real
+#     hub: api reaches git THROUGH internal (api->internal->git, via
+#     skills/installer), and git reaches api THROUGH internal the same way
+#     (git->internal->api). Neither api nor git has ever imported the other
+#     directly — they are kept parallel, wired together only by higher layers.
+#   - `context` (current repo/remote resolution, 34-file fan-in): context.go
+#     imports api and internal/ghrepo; context/remote.go imports git. context
+#     sits above both transport leaves and above internal's public repo helpers.
+#   - `test` (test/helpers.go: CmdOut/OutputStub/ExpectLines, stdlib-only,
+#     explicitly "// TODO copypasta from command package") is pure test-double
+#     scaffolding — all 23 current consumers are `_test.go` files; fan_out = 0.
+#   - `utils` (utils/utils.go: IsDebugEnabled + TerminalSize, stdlib +
+#     golang.org/x/term only) is a small, genuinely generic leaf. Its 7 current
+#     consumers include the CLI's own entrypoint plumbing — internal/ghcmd/cmd.go
+#     and pkg/cmd/root/extension.go both do `hasDebug, _ := utils.IsDebugEnabled()`
+#     at startup — establishing "CLI entrypoint checks GH_DEBUG via utils" as a
+#     recurring shape, not a one-off.
+#   - `cmd` holds the entrypoints: cmd/gh/main.go is a two-line shim into
+#     internal/ghcmd.Main(); cmd/gen-docs/main.go is a narrow doc generator whose
+#     only imports are internal/{config,docs,gh,ghrepo,telemetry} and
+#     pkg/{cmd/root,cmdutil,extensions,iostreams} — it walks the cobra command
+#     tree and writes man/markdown pages, nothing more.
+#   - `acceptance` (acceptance/acceptance_test.go) is the top-level E2E suite; it
+#     currently imports only internal/ghcmd and runs the full CLI in-process.
+#
+# Selection method: candidates came from a resolver-verified 0-usage edge menu
+# (`/tmp/arch-fix2/candidates-gh-cli.md`, 18 catchable + 11 forward rows, each
+# import_line confirmed to create the stated src->tgt edge with no prior usage).
+# Four menu rows targeted a bare `internal` or `pkg` import path with no `.go`
+# files directly under that directory (only subpackages: `internal/*.go` and
+# `pkg/*.go` are both empty at the top level) — those import lines do not
+# compile as valid Go and were excluded as unrealistic.
+#
+# Fixtures below skew heavily toward wrong-direction edges (reversal /
+# transitive_reversal / sink_out — the shapes the arch-graph gate actually
+# catches) to measure real recall on the natural distribution of LLM layering
+# mistakes: a low-level package reaching up into a layer that already reaches
+# down into it. Exactly one forward-kind violation is kept (cmd->git, gen-docs
+# has no functional need for the git wrapper) as an honesty check — forward
+# edges the direction signal alone cannot catch. Controls are forward-kind
+# edges into hosts/targets with a concrete, attested "same shape" precedent
+# elsewhere in the repo, so the detector must stay quiet on legitimate growth.
+
+violations:
+  # ---- reversals / transitive reversals (an attested B->A edge exists — directly
+  # or via the `internal` hub — so A->B reverses it) ----
+  - host_file: "git/client.go"
+    source_layer: "git"
+    import_line: "import \"github.com/cli/cli/v2/api\""
+    target_layer: "api"
+    kind: "transitive_reversal"
+    rationale: >-
+      git/client.go's only internal imports are internal/ghinstance and
+      internal/run — git's layer-level fan-out is {internal} alone, never api.
+      But internal is a real hub: internal/ghcmd/cmd.go, internal/authflow/flow.go,
+      internal/codespaces/api/api.go, internal/featuredetection/feature_detection.go
+      and internal/skills/{discovery,installer}/*.go all import api, so
+      git->internal->api is an attested transitive chain. git importing api
+      directly reverses that established (transitive) direction — the local-git
+      transport reaching straight into GitHub's REST/GraphQL client instead of
+      going through the services layer that already bridges them.
+
+  - host_file: "api/client.go"
+    source_layer: "api"
+    import_line: "import \"github.com/cli/cli/v2/git\""
+    target_layer: "git"
+    kind: "transitive_reversal"
+    rationale: >-
+      Mirror of the previous edge: api's layer-level fan-out is {internal, pkg,
+      utils} (api/http_client.go imports internal/{gh,ghinstance,ghrepo,
+      gh/ghtelemetry}, pkg/{httpmock,iostreams,set}, utils) — never git
+      directly. But internal/skills/installer/installer.go and
+      internal/skills/registry/registry.go both import git, so
+      api->internal->git is an attested transitive chain. api importing git
+      directly reverses that direction — the GitHub API client would instead be
+      expected to route through internal, not shell out to local git itself.
+      api and git are always wired side by side by their callers (context,
+      pkg/cmd/*); neither has ever imported the other directly.
+
+  - host_file: "utils/utils.go"
+    source_layer: "utils"
+    import_line: "import \"github.com/cli/cli/v2/api\""
+    target_layer: "api"
+    kind: "reversal"
+    rationale: >-
+      utils.go is gh-cli's smallest leaf: two functions (IsDebugEnabled,
+      TerminalSize), stdlib + golang.org/x/term only. The reverse is directly
+      attested: api/http_client.go already imports utils (one of utils's 7
+      consumers) to call IsDebugEnabled. utils->api would have the generic
+      debug/terminal helper reaching up into the 208-file GitHub API client —
+      reversing the established api->utils direction.
+
+  - host_file: "git/client.go"
+    source_layer: "git"
+    import_line: "import \"github.com/cli/cli/v2/context\""
+    target_layer: "context"
+    kind: "reversal"
+    rationale: >-
+      context/remote.go already imports git to resolve remotes (context->git
+      is directly attested, part of context's 34-file consumption). git/client.go
+      importing context back would close that loop — the local-git transport
+      reaching up into the repo-context resolver that is itself built on top of
+      git.
+
+  - host_file: "internal/agents/detect.go"
+    source_layer: "internal"
+    import_line: "import \"github.com/cli/cli/v2/context\""
+    target_layer: "context"
+    kind: "reversal"
+    rationale: >-
+      context.go already imports internal/ghrepo (context->internal directly
+      attested). internal/agents/detect.go — a small, self-contained
+      coding-agent sniffer (stdlib only: fmt/os/regexp/strings) — importing
+      context to resolve the current repo would reverse that established
+      context->internal direction and drag repo-resolution into an unrelated
+      agent-detection helper.
+
+  # ---- sink_out (`test` is a pure sink: 23 consumers, all _test.go, fan_out=0) ----
+  - host_file: "context/context.go"
+    source_layer: "context"
+    import_line: "import \"github.com/cli/cli/v2/test\""
+    target_layer: "test"
+    kind: "sink_out"
+    rationale: >-
+      test/helpers.go is pure test-double scaffolding (CmdOut/OutputStub/
+      ExpectLines, stdlib-only, explicitly commented "// TODO copypasta from
+      command package") consumed by 23 files, every one of them `_test.go`.
+      context.go is production code; importing test would wire mock types into
+      the real repo-context resolver — the classic "reached for the nearby test
+      helper" mistake, and test leaving its sink position (consumed-only) is
+      the signal.
+
+  - host_file: "api/client.go"
+    source_layer: "api"
+    import_line: "import \"github.com/cli/cli/v2/test\""
+    target_layer: "test"
+    kind: "sink_out"
+    rationale: >-
+      Same test-only sink as above, from the other transport leaf: api/client.go
+      is the production GraphQL/REST client. Pulling in test's CmdOut/OutputStub
+      mock types here would mean production request handling depends on
+      scaffolding meant only for `_test.go` files — test has zero legitimate
+      production consumers.
+
+  # ---- forward but still questionable (honesty check: not caught by direction alone) ----
+  - host_file: "cmd/gen-docs/main.go"
+    source_layer: "cmd"
+    import_line: "import \"github.com/cli/cli/v2/git\""
+    target_layer: "git"
+    kind: "forward"
+    rationale: >-
+      gen-docs is a narrow, single-purpose doc-generation entrypoint — its only
+      imports are internal/{config,docs,gh,ghrepo,telemetry} and pkg/{cmd/root,
+      cmdutil,extensions,iostreams} for walking the cobra command tree and
+      writing man/markdown pages; it never resolves a repo or runs git. cmd sits
+      at the top of the graph so cmd->git is directionally "forward" (not caught
+      by the reversal/sink_out signal), but there is no doc-generation reason to
+      shell out to git — a layer-skip an LLM could introduce (e.g. "let me
+      git-blame this command file for an example") that the structural direction
+      check alone will miss. Included to keep the recall measurement honest.
+
+controls:
+  - host_file: "acceptance/acceptance_test.go"
+    source_layer: "acceptance"
+    import_line: "import \"github.com/cli/cli/v2/api\""
+    target_layer: "api"
+    rationale: >-
+      acceptance tests already run the full CLI in-process (via internal/ghcmd,
+      currently its only internal import) and commonly need a side channel to
+      seed or clean up GitHub-side fixtures (create/delete a throwaway PR or
+      issue) independent of the command path under test. api is forward-consumed
+      by 208 files across the repo and acceptance sits above it in the graph, so
+      a direct api import for test setup/teardown follows the established
+      top-consumes-transport direction — must not fire.
+
+  - host_file: "acceptance/acceptance_test.go"
+    source_layer: "acceptance"
+    import_line: "import \"github.com/cli/cli/v2/git\""
+    target_layer: "git"
+    rationale: >-
+      E2E acceptance tests routinely need to set up or verify local repo state
+      (init a scratch repo, confirm a commit landed, inspect a branch) around
+      the CLI invocation under test. git already has an 81-file fan-in and
+      acceptance is a top consumer layer; using the git wrapper for local-repo
+      scaffolding in an E2E test is legitimate test infrastructure, not a
+      layering mistake.
+
+  - host_file: "acceptance/acceptance_test.go"
+    source_layer: "acceptance"
+    import_line: "import \"github.com/cli/cli/v2/test\""
+    target_layer: "test"
+    rationale: >-
+      test/helpers.go (CmdOut, OutputStub, ExpectLines) exists purely to be
+      imported by test files — its 23 current consumers are all `_test.go`.
+      acceptance_test.go doing the same is the textbook intended use of a
+      shared test-helper package; the detector must stay quiet on the direction
+      it was built for.
+
+  - host_file: "acceptance/acceptance_test.go"
+    source_layer: "acceptance"
+    import_line: "import \"github.com/cli/cli/v2/utils\""
+    target_layer: "utils"
+    rationale: >-
+      utils (IsDebugEnabled/TerminalSize) is already consumed from api,
+      internal, and three pkg/cmd/* packages (7 files total) as a generic
+      low-level helper. An E2E test reading GH_DEBUG or terminal size to
+      configure how it captures and asserts on CLI output is normal use of that
+      shared leaf utility — the same shape as its existing callers — and must
+      not fire.
+
+  - host_file: "cmd/gen-docs/main.go"
+    source_layer: "cmd"
+    import_line: "import \"github.com/cli/cli/v2/utils\""
+    target_layer: "utils"
+    rationale: >-
+      utils.IsDebugEnabled is already called at startup by two other CLI
+      entrypoint packages — internal/ghcmd/cmd.go (`hasDebug, _ :=
+      utils.IsDebugEnabled()`, the real command runner cmd/gh/main.go shims
+      into) and pkg/cmd/root/extension.go — establishing "entrypoint checks
+      GH_DEBUG via utils" as a recurring, attested shape rather than a one-off.
+      gen-docs is a sibling entrypoint under cmd/; adding the same generic
+      debug-check for verbose logging during generation follows that
+      established pattern and must not fire.

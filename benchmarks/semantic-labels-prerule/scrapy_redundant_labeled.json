@@ -1,0 +1,286 @@
+{
+ "corpus": "scrapy",
+ "reason": "redundant",
+ "window": 150,
+ "raw_fires": 45,
+ "genuine": 3,
+ "true_fp": 42,
+ "hunks_scanned": 1462,
+ "replay_commits": 169,
+ "true_fp_per_hunk_pct": 2.873,
+ "sampled": false,
+ "reused_baseline_labels": true,
+ "unmatched": 0,
+ "rows": [
+  {
+   "fire": 166,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/spiders/crawl.py:166",
+   "similarity": 0.8141
+  },
+  {
+   "fire": 186,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/utils/log.py:186",
+   "similarity": 0.7926
+  },
+  {
+   "fire": 86,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/utils/reactor.py:86",
+   "similarity": 0.7848
+  },
+  {
+   "fire": 713,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/pipelines/files.py:713",
+   "similarity": 0.8748
+  },
+  {
+   "fire": 448,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/core/engine.py:448",
+   "similarity": 0.7113
+  },
+  {
+   "fire": 364,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/core/spidermw.py:364",
+   "similarity": 0.8007
+  },
+  {
+   "fire": 390,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/core/spidermw.py:390",
+   "similarity": 0.7499
+  },
+  {
+   "fire": 134,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/core/scraper.py:134",
+   "similarity": 0.7935
+  },
+  {
+   "fire": 199,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/core/spidermw.py:199",
+   "similarity": 0.7238
+  },
+  {
+   "fire": 86,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/middleware.py:86",
+   "similarity": 0.7913
+  },
+  {
+   "fire": 85,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/core/engine.py:85",
+   "similarity": 0.7018
+  },
+  {
+   "fire": 159,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/core/scraper.py:159",
+   "similarity": 0.8177
+  },
+  {
+   "fire": 167,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/core/scraper.py:167",
+   "similarity": 0.7803
+  },
+  {
+   "fire": 126,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/extensions/closespider.py:126",
+   "similarity": 0.7958
+  },
+  {
+   "fire": 148,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/extensions/closespider.py:148",
+   "similarity": 0.839
+  },
+  {
+   "fire": 150,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/downloadermiddlewares/redirect.py:150",
+   "similarity": 0.7763
+  },
+  {
+   "fire": 179,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/core/scraper.py:179",
+   "similarity": 0.8177
+  },
+  {
+   "fire": 83,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/pipelines/__init__.py:83",
+   "similarity": 0.7985
+  },
+  {
+   "fire": 95,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/pipelines/__init__.py:95",
+   "similarity": 0.7848
+  },
+  {
+   "fire": 482,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/pipelines/files.py:482",
+   "similarity": 0.8291
+  },
+  {
+   "fire": 104,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/pipelines/images.py:104",
+   "similarity": 0.8174
+  },
+  {
+   "fire": 110,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/pipelines/images.py:110",
+   "similarity": 0.8174
+  },
+  {
+   "fire": 33,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/utils/_compression.py:33",
+   "similarity": 0.8019
+  },
+  {
+   "fire": 59,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/utils/_compression.py:59",
+   "similarity": 0.7784
+  },
+  {
+   "fire": 76,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/utils/_compression.py:76",
+   "similarity": 0.8
+  },
+  {
+   "fire": 33,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/utils/_compression.py:33",
+   "similarity": 0.8019
+  },
+  {
+   "fire": 59,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/utils/_compression.py:59",
+   "similarity": 0.7784
+  },
+  {
+   "fire": 76,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/utils/_compression.py:76",
+   "similarity": 0.8
+  },
+  {
+   "fire": 489,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/pipelines/files.py:489",
+   "similarity": 0.8291
+  },
+  {
+   "fire": 114,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/pipelines/__init__.py:114",
+   "similarity": 0.8075
+  },
+  {
+   "fire": 126,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/pipelines/__init__.py:126",
+   "similarity": 0.7949
+  },
+  {
+   "fire": 45,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/utils/decorators.py:45",
+   "similarity": 0.8221
+  },
+  {
+   "fire": 49,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/downloadermiddlewares/redirect.py:49",
+   "similarity": 0.8237
+  },
+  {
+   "fire": 16,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/utils/reactorless.py:16",
+   "similarity": 0.7935
+  },
+  {
+   "fire": 181,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/core/scraper.py:181",
+   "similarity": 0.8294
+  },
+  {
+   "fire": 40,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/commands/__init__.py:40",
+   "similarity": 0.7839
+  },
+  {
+   "fire": 669,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/pipelines/files.py:669",
+   "similarity": 0.8504
+  },
+  {
+   "fire": 129,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/pipelines/images.py:129",
+   "similarity": 0.8684
+  },
+  {
+   "fire": 61,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/utils/decorators.py:61",
+   "similarity": 0.7288
+  },
+  {
+   "fire": 125,
+   "verdict": "genuine",
+   "new_fn": "scrapy/utils/ssl.py:125",
+   "similarity": 0.7232
+  },
+  {
+   "fire": 40,
+   "verdict": "genuine",
+   "new_fn": "scrapy/cmdline.py:40",
+   "similarity": 0.7926
+  },
+  {
+   "fire": 125,
+   "verdict": "genuine",
+   "new_fn": "scrapy/utils/misc.py:125",
+   "similarity": 0.9506
+  },
+  {
+   "fire": 16,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/utils/reactorless.py:16",
+   "similarity": 0.8117
+  },
+  {
+   "fire": 170,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/utils/misc.py:170",
+   "similarity": 0.8168
+  },
+  {
+   "fire": 108,
+   "verdict": "false-alarm",
+   "new_fn": "scrapy/commands/shell.py:108",
+   "similarity": 0.7611
+  }
+ ]
+}

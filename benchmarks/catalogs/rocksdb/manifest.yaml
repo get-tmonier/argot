@@ -15,6 +15,7 @@ fixtures:
 - id: err_throw_1
   file: breaks/break_err_throw_1.cpp
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 23
   hunk_end_line: 49
   rationale: 'throw std::runtime_error/std::invalid_argument + try/catch in a
@@ -29,6 +30,7 @@ fixtures:
 - id: err_exit_1
   file: breaks/break_err_exit_1.cpp
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 19
   hunk_end_line: 42
   rationale: 'fprintf(stderr)+exit(1)/abort() on corruption in a table-cache
@@ -42,6 +44,7 @@ fixtures:
 - id: err_ignored_status_1
   file: breaks/break_err_ignored_status_1.cpp
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 20
   hunk_end_line: 41
   rationale: 'errno-style int return codes (-1/0) and VersionEdit::DecodeFrom
@@ -55,6 +58,7 @@ fixtures:
 - id: err_swallow_catch_1
   file: breaks/break_err_swallow_catch_1.cpp
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 18
   hunk_end_line: 40
   rationale: 'catch(...) swallowing around DB::Delete, discarding the returned
@@ -67,6 +71,7 @@ fixtures:
 - id: conc_pthread_busywait_1
   file: breaks/break_conc_pthread_busywait_1.cpp
   category: wrong_concurrency
+  class: semantic_convention
   hunk_start_line: 20
   hunk_end_line: 41
   rationale: 'pthread_create + volatile-flag busy-wait with usleep(100).
@@ -80,6 +85,7 @@ fixtures:
 - id: conc_detach_1
   file: breaks/break_conc_detach_1.cpp
   category: wrong_concurrency
+  class: semantic_convention
   hunk_start_line: 19
   hunk_end_line: 39
   rationale: 'std::thread(...).detach() fire-and-forget plus sleep_for polling
@@ -92,6 +98,7 @@ fixtures:
 - id: api_fopen_1
   file: breaks/break_api_fopen_1.cpp
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 22
   hunk_end_line: 46
   rationale: 'FILE* fopen/fwrite/fseek/ftell direct stdio IO for blob data.
@@ -105,6 +112,7 @@ fixtures:
 - id: api_printf_log_1
   file: breaks/break_api_printf_log_1.cpp
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 20
   hunk_end_line: 36
   rationale: 'printf/fprintf(stdout) progress and warning logging. Verified at
@@ -118,6 +126,7 @@ fixtures:
 - id: api_manual_encoding_1
   file: breaks/break_api_manual_encoding_1.cpp
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 20
   hunk_end_line: 44
   rationale: 'hand-rolled little-endian shift packing, manual varint loop, and
@@ -314,6 +323,7 @@ fixtures:
 - id: foreign_tbb_1
   file: breaks/break_foreign_tbb_1.cpp
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 16
   hunk_end_line: 34
   rationale: 'Intel TBB parallel task runtime for a parallel memtable scan,
@@ -357,6 +367,7 @@ fixtures:
 - id: foreign_taskflow_1
   file: breaks/break_foreign_taskflow_1.cpp
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 12
   hunk_end_line: 26
   rationale: 'Taskflow dependency reached through an executor receiver variable
@@ -481,6 +492,7 @@ fixtures:
 - id: foreign_boost_lockfree_1
   file: breaks/break_foreign_boost_lockfree_1.cpp
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 15
   hunk_end_line: 34
   rationale: 'boost::lockfree (a foreign lock-free concurrency queue) reached
@@ -493,5 +505,55 @@ fixtures:
     between threads through InstrumentedCondVar over std containers, never a
     lock-free queue lib. HARD: masked leaf collision, genuinely may miss.'
   difficulty: hard
+  host_file: db/flush_job.cc
+  host_inject_at_line: 704
+- id: foreign_openmp_1
+  file: breaks/break_foreign_openmp_1.cpp
+  category: foreign_concurrency
+  class: foreign_import
+  hunk_start_line: 16
+  hunk_end_line: 30
+  rationale: 'OpenMP runtime for a parallel checksum fold over table blocks,
+    #include <omp.h> plus omp_set_num_threads and a #pragma omp parallel for
+    reduction inside the hunk. Verified at pinned SHA: zero `#include <omp.h>`,
+    zero `pragma omp` and zero `omp_set_num_threads`/`omp_get_thread_num` sites
+    in *.cc/*.h/*.cpp (git grep); rocksdb parallelises through its own
+    port::Thread pools and Env, never the OpenMP runtime. EASY: explicit foreign
+    import.'
+  difficulty: easy
+  host_file: db/flush_job.cc
+  host_inject_at_line: 704
+- id: foreign_moodycamel_1
+  file: breaks/break_foreign_moodycamel_1.cpp
+  category: foreign_concurrency
+  class: foreign_import
+  hunk_start_line: 17
+  hunk_end_line: 35
+  rationale: 'moodycamel::ConcurrentQueue, a foreign lock-free MPMC queue, to hand
+    subcompaction job ids between worker threads, #include "concurrentqueue.h"
+    plus a moodycamel::ConcurrentQueue with .enqueue/.try_dequeue inside the hunk.
+    Verified at pinned SHA: zero `moodycamel` and zero `#include "concurrentqueue`
+    sites in *.cc/*.h/*.cpp (git grep); rocksdb passes work between threads through
+    an InstrumentedCondVar over std containers, never a foreign queue lib. HARD:
+    masked by a quoted include ("concurrentqueue.h") that reads as a local project
+    header rather than a foreign <> system dependency, so the import stage does not
+    flag it — a genuine miss to report, not softened.'
+  difficulty: hard
+  host_file: db/compaction/compaction_job.cc
+  host_inject_at_line: 451
+- id: foreign_asio_pool_1
+  file: breaks/break_foreign_asio_pool_1.cpp
+  category: foreign_concurrency
+  class: foreign_import
+  hunk_start_line: 14
+  hunk_end_line: 28
+  rationale: 'boost::asio::thread_pool, a foreign thread-pool runtime, to run flush
+    callbacks in parallel, #include <boost/asio/thread_pool.hpp> plus
+    boost::asio::post over the pool inside the hunk. Verified at pinned SHA: zero
+    `boost::asio`, zero `#include <boost/asio` and zero boost includes at all in
+    *.cc/*.h/*.cpp (git grep); rocksdb schedules background work through its own
+    Env thread pools, never a foreign asio runtime. EASY: explicit foreign
+    import.'
+  difficulty: easy
   host_file: db/flush_job.cc
   host_inject_at_line: 704

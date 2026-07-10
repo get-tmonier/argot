@@ -1,0 +1,11 @@
+{
+ "corpus": "junit5",
+ "reason": "redundant",
+ "window": 150,
+ "raw_fires": 13,
+ "genuine": 3,
+ "true_fp": 10,
+ "judges": 3,
+ "method": "3-judge majority, default false-alarm",
+ "note": "labelled on the post-sibling-filter survivors"
+}

@@ -21,7 +21,7 @@ you with a single, scoped task. Do that task. Do not expand scope.
    `.scratch/<slug>/PRD.md §Step Y` (product/refactor) — that section
    is canonical. Read it before acting.
 4. **Verify before reporting — scoped only.** Run checks scoped to the
-   files you touched (`uv run pytest <file>`, `just lint`, etc.).
+   files you touched (`cargo test -p argot-core <module>`, `cargo clippy`).
    Scoped checks must come back clean — **no errors AND no warnings**
    on the files you touched. Treat warnings as failures. Do NOT run
    `just verify` or the full test suite — other executors may have
@@ -54,14 +54,12 @@ you with a single, scoped task. Do that task. Do not expand scope.
 
 # Codebase rules (CLAUDE.md, binding)
 
-- Hexagonal architecture: `cli/src/modules/<x>/{domain,application,
-  infrastructure}`. Cross-module imports via `<module>/dependencies.ts`
-  only. Path aliases `#modules/*` not `../..`.
-- TypeScript strict + `no-any`. `Console.log` not `console.log`.
-- Python mypy strict + ruff line=100. Targeted inline ignores only;
-  never global suppression (`feedback_clean_fixes`).
-- Production scorers (`engine/argot/scoring/`) run locally; no cloud
-  deps, no hardcoded framework literals
+- One Rust workspace: `crates/argot-core` (engine, pure library) +
+  `crates/argot-cli` (the `argot` binary). Rust 2021, clippy runs as
+  `-D warnings`. Targeted inline `#[allow(clippy::x)]` with a reason
+  only; never crate-level suppression (`feedback_clean_fixes`).
+- Production scorers (`crates/argot-core/src/scoring/`) run locally; no
+  cloud deps, no hardcoded framework literals
   (`feedback_no_cloud_no_hardcoded_domain`). Tests/eval may use them.
 - Production code is language-agnostic and corpus-agnostic. No
   hardcoded references to Python, TypeScript, FastAPI, faker-js, or

@@ -1,0 +1,8 @@
+{
+ "corpus": "excalidraw",
+ "reason": "redundant",
+ "genuine": 5,
+ "true_fp": 29,
+ "raw_fires": 34,
+ "sampled": true
+}

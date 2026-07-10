@@ -1,0 +1,8 @@
+{
+ "corpus": "ink",
+ "reason": "redundant",
+ "genuine": 0,
+ "true_fp": 13,
+ "raw_fires": 13,
+ "sampled": true
+}

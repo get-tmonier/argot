@@ -330,6 +330,28 @@ impl GoAdapter {
     /// declarations, and `var`/`const`/`:=` bindings to a `func` literal.
     /// Local-binding attestation: code calling what it defines is not foreign
     /// voice.
+    /// Function/method definitions with their line ranges — the embeddable units
+    /// for the semantic index. Top-level `func` declarations and methods (`func
+    /// (r Recv) Name(...)`). Function literals bound to vars are left to base
+    /// callee attestation, not embedded as standalone units.
+    #[cfg(feature = "semantic")]
+    pub fn callable_bodies(&self, source: &str) -> Vec<super::CallableBody> {
+        let tree = parse(source);
+        let mut out = Vec::new();
+        for node in descendants(tree.root_node()) {
+            if matches!(node.kind(), "function_declaration" | "method_declaration") {
+                if let Some(name) = node.child_by_field_name("name") {
+                    out.push(super::CallableBody {
+                        symbol: node_text(name, source).to_string(),
+                        start_line: node.start_position().row + 1,
+                        end_line: node.end_position().row + 1,
+                    });
+                }
+            }
+        }
+        out
+    }
+
     pub fn callable_definitions(&self, source: &str) -> HashSet<String> {
         let tree = parse(source);
         let mut out = HashSet::new();
@@ -496,6 +518,20 @@ const NOISE: &[&str] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "semantic")]
+    #[test]
+    fn callable_bodies_covers_funcs_and_methods() {
+        let a = GoAdapter::new();
+        let src = "package p\n\nfunc Add(a, b int) int {\n\tsum := a + b\n\treturn sum\n}\n\nfunc (r Repo) Save(x int) error {\n\tr.store(x)\n\treturn nil\n}\n";
+        let names: Vec<String> = a
+            .callable_bodies(src)
+            .into_iter()
+            .map(|b| b.symbol)
+            .collect();
+        assert!(names.contains(&"Add".to_string()), "{names:?}");
+        assert!(names.contains(&"Save".to_string()), "{names:?}");
+    }
 
     #[test]
     fn resolve_repo_modules_reads_go_mod_module_paths() {

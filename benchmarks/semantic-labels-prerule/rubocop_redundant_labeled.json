@@ -1,0 +1,8 @@
+{
+ "corpus": "rubocop",
+ "reason": "redundant",
+ "genuine": 4,
+ "true_fp": 30,
+ "raw_fires": 34,
+ "sampled": true
+}

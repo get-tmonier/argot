@@ -1,0 +1,250 @@
+{
+ "corpus": "wagtail",
+ "reason": "redundant",
+ "window": 150,
+ "raw_fires": 18,
+ "genuine": 4,
+ "true_fp": 14,
+ "hunks_scanned": 415,
+ "replay_commits": 150,
+ "raw_per_hunk_pct": 4.337,
+ "true_fp_per_hunk_pct": 3.373,
+ "raw_per_commit": 0.12,
+ "true_fp_per_commit": 0.0933,
+ "rows": [
+  {
+   "fire": 0,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "client/src/components/StreamField/blocks/StaticBlock.js:25",
+   "matched": "getModalOptions",
+   "similarity": 1.0,
+   "commit": "870ab603b"
+  },
+  {
+   "fire": 1,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "client/src/components/CommentApp/components/Comment/index.tsx:21",
+   "matched": "saveCommentReply",
+   "similarity": 0.8417,
+   "commit": "67f753979"
+  },
+  {
+   "fire": 2,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "wagtail/admin/views/generic/mixins.py:861",
+   "matched": "post",
+   "similarity": 0.7916,
+   "commit": "a5fa1693a"
+  },
+  {
+   "fire": 3,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "wagtail/blocks/list_block.py:200",
+   "matched": "__init__",
+   "similarity": 0.8303,
+   "commit": "cfa8a06a3"
+  },
+  {
+   "fire": 4,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "wagtail/blocks/list_block.py:251",
+   "matched": "__init__",
+   "similarity": 0.8234,
+   "commit": "cfa8a06a3"
+  },
+  {
+   "fire": 5,
+   "verdict": "genuine",
+   "votes": [
+    "genuine",
+    "genuine",
+    "genuine"
+   ],
+   "new_fn": "wagtail/documents/fields.py:34",
+   "matched": "check_image_file_size",
+   "similarity": 1.0,
+   "commit": "9f02a9d0d"
+  },
+  {
+   "fire": 6,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "wagtail/actions/delete_page.py:29",
+   "matched": "delete",
+   "similarity": 0.7353,
+   "commit": "5a237ef16"
+  },
+  {
+   "fire": 7,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "wagtail/query.py:25",
+   "matched": "get_index_view_kwargs",
+   "similarity": 0.845,
+   "commit": "5a237ef16"
+  },
+  {
+   "fire": 8,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "wagtail/admin/views/generic/history.py:314",
+   "matched": "_annotate_queryset_updated_at",
+   "similarity": 0.7735,
+   "commit": "47d7a7d3e"
+  },
+  {
+   "fire": 9,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "wagtail/admin/models.py:156",
+   "matched": "__init__",
+   "similarity": 0.7421,
+   "commit": "c124f7a79"
+  },
+  {
+   "fire": 10,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "wagtail/admin/views/pages/preview.py:84",
+   "matched": "clean_parent_page",
+   "similarity": 0.8034,
+   "commit": "c124f7a79"
+  },
+  {
+   "fire": 11,
+   "verdict": "genuine",
+   "votes": [
+    "genuine",
+    "genuine",
+    "genuine"
+   ],
+   "new_fn": "wagtail/models/revisions.py:302",
+   "matched": "_get_base_content_type",
+   "similarity": 0.7998,
+   "commit": "c124f7a79"
+  },
+  {
+   "fire": 12,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "wagtail/admin/models.py:159",
+   "matched": "__init__",
+   "similarity": 0.7421,
+   "commit": "7e9c2dac3"
+  },
+  {
+   "fire": 13,
+   "verdict": "genuine",
+   "votes": [
+    "genuine",
+    "genuine",
+    "genuine"
+   ],
+   "new_fn": "client/src/includes/contentChecker.ts:150",
+   "matched": "getA11yReport",
+   "similarity": 0.953,
+   "commit": "9c9a0e117"
+  },
+  {
+   "fire": 14,
+   "verdict": "genuine",
+   "votes": [
+    "genuine",
+    "genuine",
+    "genuine"
+   ],
+   "new_fn": "client/src/includes/contentChecker.ts:175",
+   "matched": "renderA11yResults",
+   "similarity": 0.9168,
+   "commit": "9c9a0e117"
+  },
+  {
+   "fire": 15,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "client/src/includes/userbar.ts:381",
+   "matched": "setUpContentChecks",
+   "similarity": 0.7541,
+   "commit": "9c9a0e117"
+  },
+  {
+   "fire": 16,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "client/src/includes/userbar.ts:418",
+   "matched": "hide",
+   "similarity": 0.8225,
+   "commit": "9c9a0e117"
+  },
+  {
+   "fire": 17,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "wagtail/admin/views/pages/listing.py:289",
+   "matched": "get_queryset",
+   "similarity": 0.8268,
+   "commit": "be9a5822a"
+  }
+ ]
+}

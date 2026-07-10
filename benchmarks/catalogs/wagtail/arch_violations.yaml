@@ -1,0 +1,227 @@
+# Architecture-graph violation fixtures for wagtail.
+#
+# Package root: wagtail/ (the dir with __init__.py). A "layer" is the first path
+# component under wagtail/ (e.g. wagtail/admin/views/pages.py -> layer "admin";
+# wagtail/models/__init__.py -> layer "models").
+#
+# Established topology (learned from git HEAD, file-level import edges, tests
+# included). Selected attested A->B directions and their counts (files under
+# wagtail/A importing wagtail.B):
+#   admin   -> models  (125)   contrib -> admin  (73)   contrib -> models (51)
+#   images  -> admin   (50)    snippets-> admin  (47)   documents-> admin (37)
+#   users   -> admin   (26)    admin   -> utils  (23)   admin   -> users  (20)
+#   blocks  -> admin   (19)    admin   -> actions(16)   snippets-> models (16)
+#   actions -> models  (15)    admin   -> api    (15)   images  -> models (13)
+#   images  -> search  (6)     admin   -> rich_text (6) admin   -> search (5)
+#   api     -> models  (6)
+# Near-sink layers (widely imported, import out to few/none): utils (imports
+# nothing), rich_text (only -> models), search (only -> utils),
+# permission_policies (only -> models), models (huge in-degree, tiny out-degree),
+# embeds (only -> admin, rich_text).
+#
+# Each violation is an internal edge A->B that the repo's topology NEVER has
+# (verified 0 real import statements) and is a genuine "doesn't belong here"
+# mistake of the kind an LLM would introduce. Verification uses import-statement-
+# anchored grep so comments / string literals don't produce false matches:
+#   git -C benchmarks/data/wagtail/.repo grep -nE \
+#     "^\s*(from|import) wagtail\.<B>" -- "wagtail/<A>/"
+# (returns nothing == 0-usage).
+
+violations:
+  # --- reversals: B->A is an attested, heavily-used direction ---
+  - host_file: "wagtail/models/collections.py"
+    source_layer: "models"
+    import_line: "from wagtail.admin.panels import FieldPanel"
+    target_layer: "admin"
+    kind: "reversal"
+    rationale: >-
+      models importing admin. `git grep -nE '^\s*(from|import) wagtail\.admin'
+      -- wagtail/models/` returns nothing -> 0-usage (the only textual hits in
+      wagtail/models/ are a COMMENT and string literals in pages.py/panels.py that
+      explicitly note "importing from wagtail.admin would create a circular
+      import", not real imports). admin imports models in 125 files (B->A strongly
+      attested), so this reverses the established layering and would create the
+      exact circular import the codebase deliberately avoids.
+
+  - host_file: "wagtail/models/pages.py"
+    source_layer: "models"
+    import_line: "from wagtail.api.v2.views import PagesAPIViewSet"
+    target_layer: "api"
+    kind: "reversal"
+    rationale: >-
+      models importing the REST api layer. `git grep -nE '^\s*(from|import)
+      wagtail\.api' -- wagtail/models/` returns nothing -> 0-usage. api imports
+      models in 6 files (B->A attested: api serializers/views read the model
+      layer), so a model reaching up into the API view layer reverses the
+      established direction.
+
+  - host_file: "wagtail/actions/publish_page_revision.py"
+    source_layer: "actions"
+    import_line: "from wagtail.admin.mail import send_notification"
+    target_layer: "admin"
+    kind: "reversal"
+    rationale: >-
+      an action importing an admin helper. `git grep -nE '^\s*(from|import)
+      wagtail\.admin' -- wagtail/actions/` returns nothing -> 0-usage. admin
+      imports actions in 16 files (B->A attested: admin views invoke actions),
+      so the action layer pulling admin.mail reverses the established direction.
+
+  - host_file: "wagtail/search/backends/base.py"
+    source_layer: "search"
+    import_line: "from wagtail.admin.auth import permission_denied"
+    target_layer: "admin"
+    kind: "reversal"
+    rationale: >-
+      a search backend importing admin auth. `git grep -nE '^\s*(from|import)
+      wagtail\.admin' -- wagtail/search/` returns nothing -> 0-usage. admin
+      imports search in 5 files (B->A attested), so a low-level search backend
+      reaching into the admin UI/auth layer reverses the established direction.
+
+  - host_file: "wagtail/rich_text/__init__.py"
+    source_layer: "rich_text"
+    import_line: "from wagtail.admin.rich_text import get_rich_text_editor_widget"
+    target_layer: "admin"
+    kind: "reversal"
+    rationale: >-
+      the rich_text core importing the admin editor widget. `git grep -nE
+      '^\s*(from|import) wagtail\.admin' -- wagtail/rich_text/` returns nothing ->
+      0-usage. admin imports rich_text in 6 files (B->A attested), so the
+      rich_text layer pulling an admin widget reverses the established direction.
+
+  - host_file: "wagtail/utils/decorators.py"
+    source_layer: "utils"
+    import_line: "from wagtail.admin.menu import MenuItem"
+    target_layer: "admin"
+    kind: "reversal"
+    rationale: >-
+      a shared util importing the admin menu. `git grep -nE '^\s*(from|import)
+      wagtail\.admin' -- wagtail/utils/` returns nothing -> 0-usage. admin imports
+      utils in 23 files (B->A attested), so the utils layer reaching up into
+      admin reverses the established direction (and utils imports out to nothing).
+
+  - host_file: "wagtail/models/media.py"
+    source_layer: "models"
+    import_line: "from wagtail.images import get_image_model"
+    target_layer: "images"
+    kind: "reversal"
+    rationale: >-
+      the media model importing the images app. `git grep -nE '^\s*(from|import)
+      wagtail\.images' -- wagtail/models/` returns nothing -> 0-usage. images
+      imports models in 13 files (B->A attested: the images app builds on the
+      model layer), so a core model depending on the images feature layer
+      reverses the established direction.
+
+  # --- sink_out: leaves a near-sink layer; reverse edge is NOT attested ---
+  - host_file: "wagtail/models/reference_index.py"
+    source_layer: "models"
+    import_line: "from wagtail.embeds.embeds import get_embed"
+    target_layer: "embeds"
+    kind: "sink_out"
+    rationale: >-
+      a core model importing the embeds feature. `git grep -nE '^\s*(from|import)
+      wagtail\.embeds' -- wagtail/models/` returns nothing -> 0-usage. This is not
+      a reversal: embeds never imports models (`git grep -nE '^\s*(from|import)
+      wagtail\.models' -- wagtail/embeds/` == 0). models is a near-sink (huge
+      in-degree, imports out only to actions/search/utils/users/blocks); a sink
+      model reaching out into the embeds feature layer is a placement mistake.
+
+  - host_file: "wagtail/permission_policies/base.py"
+    source_layer: "permission_policies"
+    import_line: "from wagtail.search.backends import get_search_backend"
+    target_layer: "search"
+    kind: "sink_out"
+    rationale: >-
+      a permission policy importing the search backend. `git grep -nE
+      '^\s*(from|import) wagtail\.search' -- wagtail/permission_policies/` returns
+      nothing -> 0-usage. Not a reversal: search never imports permission_policies
+      (`git grep -nE '^\s*(from|import) wagtail\.permission_policies' --
+      wagtail/search/` == 0). permission_policies is a near-sink (imports out only
+      to models); leaving it for the search layer is a placement mistake.
+
+  # --- forward_cross: novel cross-layer edge, neither reversal nor sink-leave ---
+  - host_file: "wagtail/documents/models.py"
+    source_layer: "documents"
+    import_line: "from wagtail.users.models import UserProfile"
+    target_layer: "users"
+    kind: "forward_cross"
+    rationale: >-
+      a document model importing the users layer. `git grep -nE '^\s*(from|import)
+      wagtail\.users' -- wagtail/documents/` returns nothing -> 0-usage. Not a
+      reversal: users never imports documents (`git grep -nE '^\s*(from|import)
+      wagtail\.documents' -- wagtail/users/` == 0). documents is not a sink (it
+      imports admin/models/search/api/... heavily), so this is a forward cross
+      into an unrelated sibling layer the repo never wires together.
+
+  - host_file: "wagtail/snippets/views/snippets.py"
+    source_layer: "snippets"
+    import_line: "from wagtail.api.v2.views import BaseAPIViewSet"
+    target_layer: "api"
+    kind: "forward_cross"
+    rationale: >-
+      a snippets admin view importing the REST api viewset. `git grep -nE
+      '^\s*(from|import) wagtail\.api' -- wagtail/snippets/` returns nothing ->
+      0-usage. Not a reversal: api never imports snippets (`git grep -nE
+      '^\s*(from|import) wagtail\.snippets' -- wagtail/api/` == 0). snippets is not
+      a sink; this crosses from the snippets UI into the API surface layer, a pair
+      the repo never connects.
+
+  - host_file: "wagtail/blocks/field_block.py"
+    source_layer: "blocks"
+    import_line: "from wagtail.search.backends import get_search_backend"
+    target_layer: "search"
+    kind: "forward_cross"
+    rationale: >-
+      a StreamField block importing the search backend. `git grep -nE
+      '^\s*(from|import) wagtail\.search' -- wagtail/blocks/` returns nothing ->
+      0-usage. Not a reversal: search never imports blocks (`git grep -nE
+      '^\s*(from|import) wagtail\.blocks' -- wagtail/search/` == 0). blocks is not
+      a sink (it imports admin heavily); wiring the block layer to the search
+      backend is a forward cross the repo topology never has.
+
+controls:
+  # Realistic NEW cross-layer imports that RESPECT the established direction.
+  # 0-usage at this exact import line, but the layer edge A->B is heavily
+  # attested, so these are legit growth and must NOT be flagged.
+  - host_file: "wagtail/admin/menu.py"
+    source_layer: "admin"
+    import_line: "from wagtail.models import Page"
+    target_layer: "models"
+    rationale: >-
+      admin importing models is the backbone direction (admin imports models in
+      125 files). A new such import is ordinary growth, not a violation.
+
+  - host_file: "wagtail/images/models.py"
+    source_layer: "images"
+    import_line: "from wagtail.search import index"
+    target_layer: "search"
+    rationale: >-
+      images -> search is established (images imports search in 6 files: image
+      models register with the search index). A new such edge respects the
+      established direction and is legit growth.
+
+  - host_file: "wagtail/contrib/forms/models.py"
+    source_layer: "contrib"
+    import_line: "from wagtail.models import Page"
+    target_layer: "models"
+    rationale: >-
+      contrib -> models is established (contrib imports models in 51 files). A
+      contrib feature building on the model layer is the normal direction, not a
+      violation.
+
+  - host_file: "wagtail/documents/forms.py"
+    source_layer: "documents"
+    import_line: "from wagtail.admin.panels import FieldPanel"
+    target_layer: "admin"
+    rationale: >-
+      documents -> admin is established (documents imports admin in 37 files: the
+      documents app plugs into the admin UI). A new admin.panels import respects
+      the established direction and is legit growth.
+
+  - host_file: "wagtail/snippets/models.py"
+    source_layer: "snippets"
+    import_line: "from wagtail.models import DraftStateMixin"
+    target_layer: "models"
+    rationale: >-
+      snippets -> models is established (snippets imports models in 16 files). A
+      snippet model mixing in a model-layer base class is the normal direction,
+      not a violation.

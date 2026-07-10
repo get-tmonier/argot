@@ -9,14 +9,17 @@
 //! Pipeline: extract → train → calibrate → check.
 
 pub mod bpe;
+pub mod cache;
 pub mod check;
 pub mod config;
 pub mod dataset;
 pub mod extract;
 pub mod git_walk;
+pub mod health;
 pub mod inspect;
 pub mod json;
 pub mod output;
+pub mod rules;
 pub mod scoring;
 pub mod stats;
 pub mod suppress;

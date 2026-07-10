@@ -1,0 +1,458 @@
+{
+ "corpus": "saleor",
+ "reason": "redundant",
+ "window": 150,
+ "raw_fires": 34,
+ "genuine": 12,
+ "true_fp": 22,
+ "hunks_scanned": 1516,
+ "replay_commits": 151,
+ "raw_per_hunk_pct": 2.243,
+ "true_fp_per_hunk_pct": 1.451,
+ "raw_per_commit": 0.2252,
+ "true_fp_per_commit": 0.1457,
+ "rows": [
+  {
+   "fire": 0,
+   "verdict": "genuine",
+   "votes": [
+    "genuine",
+    "genuine",
+    "genuine"
+   ],
+   "new_fn": "saleor/account/search.py:126",
+   "matched": "search_products",
+   "similarity": 0.9152,
+   "commit": "bb6160059"
+  },
+  {
+   "fire": 1,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "saleor/graphql/order/mutations/draft_order_complete.py:109",
+   "matched": "deactivate_voucher_code",
+   "similarity": 0.725,
+   "commit": "d8ed4beda"
+  },
+  {
+   "fire": 2,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "saleor/graphql/payment/resolvers.py:47",
+   "matched": "resolve_draft_orders",
+   "similarity": 0.7048,
+   "commit": "4d333d041"
+  },
+  {
+   "fire": 3,
+   "verdict": "genuine",
+   "votes": [
+    "genuine",
+    "genuine",
+    "genuine"
+   ],
+   "new_fn": "saleor/checkout/search/indexing.py:157",
+   "matched": "generate_order_payments_search_vector_value",
+   "similarity": 0.85,
+   "commit": "3e5172f5a"
+  },
+  {
+   "fire": 4,
+   "verdict": "genuine",
+   "votes": [
+    "genuine",
+    "genuine",
+    "false-alarm"
+   ],
+   "new_fn": "saleor/graphql/checkout/filters.py:105",
+   "matched": "filter_metadata",
+   "similarity": 0.9791,
+   "commit": "3e5172f5a"
+  },
+  {
+   "fire": 5,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "saleor/asgi/usage_telemetry.py:213",
+   "matched": "health_check_wrapper",
+   "similarity": 0.798,
+   "commit": "3f4ffe417"
+  },
+  {
+   "fire": 6,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "saleor/graphql/order/types.py:2020",
+   "matched": "get_voucher_discounts",
+   "similarity": 0.7363,
+   "commit": "24fe545e1"
+  },
+  {
+   "fire": 7,
+   "verdict": "genuine",
+   "votes": [
+    "genuine",
+    "genuine",
+    "genuine"
+   ],
+   "new_fn": "saleor/order/webhooks/exclude_shipping.py:89",
+   "matched": "get_cache_data_for_exclude_shipping_methods",
+   "similarity": 1.0,
+   "commit": "24fe545e1"
+  },
+  {
+   "fire": 8,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "saleor/order/webhooks/exclude_shipping.py:182",
+   "matched": "parse_excluded_shipping_methods",
+   "similarity": 0.8003,
+   "commit": "24fe545e1"
+  },
+  {
+   "fire": 9,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "saleor/graphql/order/schema.py:293",
+   "matched": "resolve_order_number",
+   "similarity": 0.7118,
+   "commit": "0423c2ff3"
+  },
+  {
+   "fire": 10,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "saleor/graphql/order/types.py:1306",
+   "matched": "resolve_unit",
+   "similarity": 0.8022,
+   "commit": "0423c2ff3"
+  },
+  {
+   "fire": 11,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "saleor/graphql/order/types.py:1974",
+   "matched": "get_voucher_discounts",
+   "similarity": 0.7315,
+   "commit": "0423c2ff3"
+  },
+  {
+   "fire": 12,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "saleor/order/calculations.py:426",
+   "matched": "_get_taxes_for_checkout",
+   "similarity": 0.7959,
+   "commit": "0423c2ff3"
+  },
+  {
+   "fire": 13,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "saleor/order/calculations.py:844",
+   "matched": "checkout_line_tax_rate",
+   "similarity": 0.8143,
+   "commit": "0423c2ff3"
+  },
+  {
+   "fire": 14,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "saleor/order/calculations.py:1102",
+   "matched": "calculate_order_total",
+   "similarity": 0.7977,
+   "commit": "0423c2ff3"
+  },
+  {
+   "fire": 15,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "saleor/tax/webhooks/shared.py:50",
+   "matched": "__run_tax_webhook",
+   "similarity": 0.843,
+   "commit": "0423c2ff3"
+  },
+  {
+   "fire": 16,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "saleor/webhook/transport/asynchronous/transport.py:148",
+   "matched": "trigger_taxes_all_webhooks_sync",
+   "similarity": 0.7496,
+   "commit": "b4cc3b3f2"
+  },
+  {
+   "fire": 17,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "saleor/core/search.py:142",
+   "matched": "search_pages",
+   "similarity": 0.7692,
+   "commit": "1233f8eb3"
+  },
+  {
+   "fire": 18,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "saleor/graphql/checkout/schema.py:106",
+   "matched": "resolve_homepage_events",
+   "similarity": 0.8474,
+   "commit": "1233f8eb3"
+  },
+  {
+   "fire": 19,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "saleor/graphql/order/schema.py:245",
+   "matched": "resolve_customers",
+   "similarity": 0.8018,
+   "commit": "1233f8eb3"
+  },
+  {
+   "fire": 20,
+   "verdict": "genuine",
+   "votes": [
+    "genuine",
+    "genuine",
+    "genuine"
+   ],
+   "new_fn": "saleor/checkout/webhooks/exclude_shipping.py:84",
+   "matched": "generate_excluded_shipping_methods_for_checkout_payload",
+   "similarity": 1.0,
+   "commit": "e46cc8120"
+  },
+  {
+   "fire": 21,
+   "verdict": "genuine",
+   "votes": [
+    "genuine",
+    "genuine",
+    "genuine"
+   ],
+   "new_fn": "saleor/checkout/webhooks/exclude_shipping.py:198",
+   "matched": "parse_excluded_shipping_methods",
+   "similarity": 1.0,
+   "commit": "e46cc8120"
+  },
+  {
+   "fire": 22,
+   "verdict": "genuine",
+   "votes": [
+    "genuine",
+    "genuine",
+    "genuine"
+   ],
+   "new_fn": "saleor/checkout/webhooks/list_shipping_methods.py:27",
+   "matched": "get_shipping_methods_for_checkout",
+   "similarity": 0.8811,
+   "commit": "cdc8b6919"
+  },
+  {
+   "fire": 23,
+   "verdict": "genuine",
+   "votes": [
+    "genuine",
+    "genuine",
+    "genuine"
+   ],
+   "new_fn": "saleor/checkout/webhooks/exclude_shipping.py:77",
+   "matched": "get_cache_data_for_exclude_shipping_methods",
+   "similarity": 1.0,
+   "commit": "6a4cf706b"
+  },
+  {
+   "fire": 24,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "saleor/shipping/webhooks/shared.py:81",
+   "matched": "get_excluded_shipping_methods_or_fetch",
+   "similarity": 0.9269,
+   "commit": "6a4cf706b"
+  },
+  {
+   "fire": 25,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "saleor/graphql/checkout/types.py:739",
+   "matched": "get_or_fetch_checkout_deliveries",
+   "similarity": 0.8109,
+   "commit": "90f3b85c2"
+  },
+  {
+   "fire": 26,
+   "verdict": "genuine",
+   "votes": [
+    "genuine",
+    "genuine",
+    "genuine"
+   ],
+   "new_fn": "saleor/checkout/webhooks/list_shipping_methods.py:72",
+   "matched": "parse_list_shipping_methods_response",
+   "similarity": 1.0,
+   "commit": "9a0221138"
+  },
+  {
+   "fire": 27,
+   "verdict": "genuine",
+   "votes": [
+    "genuine",
+    "genuine",
+    "genuine"
+   ],
+   "new_fn": "saleor/checkout/delivery_context.py:585",
+   "matched": "fetch_shipping_methods_for_checkout",
+   "similarity": 0.8287,
+   "commit": "85bca2a78"
+  },
+  {
+   "fire": 28,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "saleor/graphql/order/filters.py:285",
+   "matched": "filter_placed_orders_at",
+   "similarity": 0.8735,
+   "commit": "d7231794d"
+  },
+  {
+   "fire": 29,
+   "verdict": "genuine",
+   "votes": [
+    "genuine",
+    "genuine",
+    "genuine"
+   ],
+   "new_fn": "saleor/app/manifest_schema.py:128",
+   "matched": "_clean_author",
+   "similarity": 0.8168,
+   "commit": "3cd1430f3"
+  },
+  {
+   "fire": 30,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "saleor/graphql/account/mutations/authentication/utils.py:22",
+   "matched": "get_user_from_access_payload",
+   "similarity": 0.8929,
+   "commit": "094d2e950"
+  },
+  {
+   "fire": 31,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "saleor/graphql/product/schema.py:430",
+   "matched": "resolve_products",
+   "similarity": 0.8175,
+   "commit": "492952d57"
+  },
+  {
+   "fire": 32,
+   "verdict": "false-alarm",
+   "votes": [
+    "false-alarm",
+    "false-alarm",
+    "false-alarm"
+   ],
+   "new_fn": "saleor/product/models.py:445",
+   "matched": "__str__",
+   "similarity": 0.8348,
+   "commit": "492952d57"
+  },
+  {
+   "fire": 33,
+   "verdict": "genuine",
+   "votes": [
+    "genuine",
+    "genuine",
+    "genuine"
+   ],
+   "new_fn": "saleor/graphql/product/utils.py:46",
+   "matched": "validate_input",
+   "similarity": 0.7343,
+   "commit": "114553593"
+  }
+ ]
+}

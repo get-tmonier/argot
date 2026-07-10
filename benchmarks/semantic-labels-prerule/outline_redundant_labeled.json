@@ -1,0 +1,8 @@
+{
+ "corpus": "outline",
+ "reason": "redundant",
+ "genuine": 0,
+ "true_fp": 21,
+ "raw_fires": 21,
+ "sampled": true
+}

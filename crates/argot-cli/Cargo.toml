@@ -15,12 +15,24 @@ path = "src/main.rs"
 # Off by default: axoupdater drags in an HTTP stack (reqwest/rustls/tokio)
 # that only shipped binaries need. Release builds enable it via
 # dist-workspace.toml; CI and dev loops skip the whole tree.
-self-update = ["dep:axoupdater"]
+self-update = ["dep:axoupdater", "dep:ureq"]
+# Compiles in the semantic layer (embeddings-backed findings). This is a
+# build-time gate, not a user opt-in: the shipped binary is built with it on and
+# semantic is standard, always-on behaviour. Dev/CI base loops leave it off for
+# the lean pure-Rust build. Forwards to argot-core's `semantic` feature.
+semantic = ["argot-core/semantic"]
+# Compiles in the architecture-graph layer (module-dependency-boundary findings,
+# reason `layering`). Build-time gate like `semantic`; forwards to argot-core's
+# `arch` feature. Off in dev/CI base loops; ON in releases (dist-workspace.toml).
+arch = ["argot-core/arch"]
 
 [dependencies]
 argot-core = { path = "../argot-core" }
+# Already compiled via argot-core; declared here for replay's history walk.
+git2 = { workspace = true }
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 axoupdater = { workspace = true, optional = true }
+ureq = { workspace = true, optional = true }

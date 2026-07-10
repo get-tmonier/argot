@@ -15,6 +15,7 @@ fixtures:
 - id: outline_jquery_1
   file: breaks/break_jquery_1.tsx
   category: jquery
+  class: foreign_api
   hunk_start_line: 12
   hunk_end_line: 20
   rationale: jQuery slideUp/addClass DOM mutation inside a React useEffect; jquery has 0 hits in outline production code
@@ -24,6 +25,7 @@ fixtures:
 - id: outline_jquery_2
   file: breaks/break_jquery_2.tsx
   category: jquery
+  class: foreign_api
   hunk_start_line: 1
   hunk_end_line: 21
   rationale: import $ from "jquery" at line 1 plus $.ajax where all API traffic goes through ~/utils/ApiClient; import scorer fires immediately
@@ -33,6 +35,7 @@ fixtures:
 - id: outline_redux_boilerplate_1
   file: breaks/break_redux_1.ts
   category: redux_boilerplate
+  class: foreign_api
   hunk_start_line: 11
   hunk_end_line: 38
   rationale: Redux Toolkit createSlice + configureStore where outline state is MobX class stores with @observable/@action; redux has 0 hits
@@ -42,6 +45,7 @@ fixtures:
 - id: outline_redux_boilerplate_2
   file: breaks/break_redux_2.tsx
   category: redux_boilerplate
+  class: foreign_api
   hunk_start_line: 13
   hunk_end_line: 38
   rationale: react-redux connect() + mapStateToProps/mapDispatchToProps where components use useStores() + mobx-react observer
@@ -51,6 +55,7 @@ fixtures:
 - id: outline_express_idioms_1
   file: breaks/break_express_1.ts
   category: express_idioms
+  class: foreign_api
   hunk_start_line: 6
   hunk_end_line: 28
   rationale: Express app.get (req, res) handler with res.status().json() where the server voice is koa-router router.post + async (ctx APIContext); res.status has 0 hits
@@ -60,6 +65,7 @@ fixtures:
 - id: outline_express_idioms_2
   file: breaks/break_express_2.ts
   category: express_idioms
+  class: foreign_api
   hunk_start_line: 4
   hunk_end_line: 15
   rationale: Express middleware (req, res, next) with next(err) chaining instead of Koa ctx middleware; overlapping middleware vocabulary makes this subtler
@@ -69,6 +75,7 @@ fixtures:
 - id: outline_raw_sql_1
   file: breaks/break_raw_sql_1.ts
   category: raw_sql
+  class: semantic_convention
   hunk_start_line: 1
   hunk_end_line: 28
   rationale: import { Pool } from "pg" at line 1 with interpolated SQL strings; direct pg client has 0 hits — the data layer is Sequelize models
@@ -78,6 +85,7 @@ fixtures:
 - id: outline_raw_sql_2
   file: breaks/break_raw_sql_2.ts
   category: raw_sql
+  class: semantic_convention
   hunk_start_line: 9
   hunk_end_line: 26
   rationale: 'hand-concatenated SQL DELETE with string-built WHERE clause where queue tasks use Model.destroy({ where: { [Op.lt] } })'
@@ -87,6 +95,7 @@ fixtures:
 - id: outline_foreign_http_1
   file: breaks/break_http_1.ts
   category: foreign_http
+  class: foreign_api
   hunk_start_line: 1
   hunk_end_line: 22
   rationale: import axios at line 1 inside a MobX store; axios has 0 hits — frontend networking is the shared fetch-based ApiClient
@@ -96,6 +105,7 @@ fixtures:
 - id: outline_foreign_http_2
   file: breaks/break_http_2.ts
   category: foreign_http
+  class: foreign_api
   hunk_start_line: 13
   hunk_end_line: 27
   rationale: raw XMLHttpRequest onreadystatechange state machine with success/error callbacks; XHR appears once in the corpus (upload progress), so tokens are rarer but not absent
@@ -105,6 +115,7 @@ fixtures:
 - id: outline_shell_out_1
   file: breaks/break_shell_out_1.ts
   category: shell_out
+  class: semantic_convention
   hunk_start_line: 8
   hunk_end_line: 25
   rationale: execSync shell-out to ImageMagick inside a koa-router request handler; child_process has 0 hits in production
@@ -114,6 +125,7 @@ fixtures:
 - id: outline_shell_out_2
   file: breaks/break_shell_out_2.ts
   category: shell_out
+  class: semantic_convention
   hunk_start_line: 4
   hunk_end_line: 28
   rationale: spawn("pg_dump") with stdio event callbacks in a queue task where tasks operate on Sequelize models and storage adapters
@@ -123,6 +135,7 @@ fixtures:
 - id: outline_class_components_1
   file: breaks/break_class_components_1.tsx
   category: class_components
+  class: semantic_convention
   hunk_start_line: 12
   hunk_end_line: 27
   rationale: class component with componentDidMount/componentWillUnmount + this.setState; outline retains 3 class components (ErrorBoundary, editor, LazyLoad) so the pattern is rare but not absent
@@ -132,6 +145,7 @@ fixtures:
 - id: outline_class_components_2
   file: breaks/break_class_components_2.tsx
   category: class_components
+  class: semantic_convention
   hunk_start_line: 12
   hunk_end_line: 26
   rationale: legacy componentWillReceiveProps + forceUpdate derived-state lifecycle; pre-16.3 lifecycles have 0 hits in the corpus
@@ -259,6 +273,7 @@ fixtures:
 - id: outline_foreign_concurrency_piscina
   file: breaks/break_piscina.ts
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 12
   rationale: import Piscina + new Piscina({...}).run() worker pool where outline offloads background work to Bull queues; piscina 0 hits and absent from package.json. Import stage fires on the foreign concurrency lib.
@@ -268,6 +283,7 @@ fixtures:
 - id: outline_foreign_concurrency_threads
   file: breaks/break_threads.ts
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 15
   rationale: import { spawn, Thread, Worker } from threads + spawn(new Worker()) pool where outline runs background jobs via Bull queues; the threads package has 0 hits and is absent from package.json (Worker here is the threads export, not the ambient global). Import stage fires on the foreign concurrency lib.
@@ -277,6 +293,7 @@ fixtures:
 - id: outline_foreign_concurrency_workerpool
   file: breaks/break_workerpool.ts
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 11
   rationale: bare workerpool.pool().exec() worker pool (import assumed at module top, outside the hunk) where outline runs background work via Bull queues; workerpool 0 hits and absent from package.json. Call-receiver resolves the foreign namespace workerpool (pool leaf is 0-usage).
@@ -286,6 +303,7 @@ fixtures:
 - id: outline_foreign_concurrency_bottleneck
   file: breaks/break_bottleneck.ts
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 11
   rationale: import Bottleneck + new Bottleneck({...}).schedule() rate limiter via a receiver where outline throttles via rate-limiter-flexible; bottleneck 0 hits and absent from package.json. Receiver-var mechanism; import stage fires on the foreign bottleneck module (schedule leaf is attested and masks the call).
@@ -295,6 +313,7 @@ fixtures:
 - id: outline_foreign_concurrency_comlink
   file: breaks/break_comlink.ts
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 10
   rationale: import * as Comlink + Comlink.expose()/proxy() worker RPC where outline offloads work through Bull queues; comlink 0 hits and absent from package.json. Namespace-import mechanism; import stage fires on the foreign comlink module.
@@ -304,6 +323,7 @@ fixtures:
 - id: outline_foreign_concurrency_plimit
   file: breaks/break_p-limit.ts
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 1
   hunk_end_line: 10
   rationale: import pLimit from p-limit + pLimit(n) concurrency limiter where outline bounds concurrency with async-sema; p-limit 0 hits and absent from package.json. Import stage fires on the foreign p-limit module.

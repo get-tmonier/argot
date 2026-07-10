@@ -1,0 +1,4 @@
+# Python deps for the semantic-layer bench driver (benchmarks/sem_all.py and the
+# sem_*.py helpers it calls). The Rust pipeline itself has NO Python dependency —
+# this is bench/eval tooling only. Install: pip install -r benchmarks/requirements.txt
+numpy>=2.0

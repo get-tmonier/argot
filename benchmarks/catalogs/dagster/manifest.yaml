@@ -27,6 +27,7 @@ fixtures:
     language: python
     file: breaks/py/paradigm_break_prefect_task.py
     category: framework_swap
+    class: foreign_api
     hunk_start_line: 14
     hunk_end_line: 53
     rationale: "Dagster uses @op / @asset with RetryPolicy objects; Prefect's @task(retries=3,
@@ -40,6 +41,7 @@ fixtures:
     language: python
     file: breaks/py/paradigm_break_luigi_pipeline.py
     category: framework_swap
+    class: foreign_api
     hunk_start_line: 15
     hunk_end_line: 79
     rationale: "Dagster expresses asset dependencies via parameter names or deps=[]; Luigi's class-based
@@ -53,6 +55,7 @@ fixtures:
     language: python
     file: breaks/py/paradigm_break_procedural_etl.py
     category: asset_definition
+    class: semantic_convention
     hunk_start_line: 14
     hunk_end_line: 72
     rationale: "Dagster models data as @asset-decorated functions with return values persisted by an
@@ -67,6 +70,7 @@ fixtures:
     language: python
     file: breaks/py/paradigm_break_class_pipeline.py
     category: asset_definition
+    class: semantic_convention
     hunk_start_line: 13
     hunk_end_line: 76
     rationale: "Dagster models data with @asset-decorated pure functions wired by the asset graph;
@@ -81,6 +85,7 @@ fixtures:
     language: python
     file: breaks/py/paradigm_break_apscheduler.py
     category: scheduling
+    class: semantic_convention
     hunk_start_line: 15
     hunk_end_line: 76
     rationale: "Dagster declares schedules as ScheduleDefinition objects registered in Definitions()
@@ -95,6 +100,7 @@ fixtures:
     language: python
     file: breaks/py/paradigm_break_cron_schedule.py
     category: scheduling
+    class: semantic_convention
     hunk_start_line: 14
     hunk_end_line: 75
     rationale: "Dagster uses ScheduleDefinition with execution_fn yielding RunRequest objects evaluated
@@ -109,6 +115,7 @@ fixtures:
     language: python
     file: breaks/py/paradigm_break_jsonschema_validation.py
     category: validation
+    class: semantic_convention
     hunk_start_line: 15
     hunk_end_line: 83
     rationale: "Dagster validates run config through dagster.Field / dagster.Shape / dagster.Array
@@ -123,6 +130,7 @@ fixtures:
     language: python
     file: breaks/py/paradigm_break_pydantic_model.py
     category: validation
+    class: semantic_convention
     hunk_start_line: 14
     hunk_end_line: 68
     rationale: "Dagster's dagster.Config (a Pydantic superclass) integrates with the event log and
@@ -137,6 +145,7 @@ fixtures:
     language: python
     file: breaks/py/paradigm_break_broad_except.py
     category: exception_handling
+    class: semantic_convention
     hunk_start_line: 15
     hunk_end_line: 80
     rationale: "Dagster handles transient failures via RetryPolicy(max_retries=N, backoff=Backoff.EXPONENTIAL)
@@ -151,6 +160,7 @@ fixtures:
     language: python
     file: breaks/py/paradigm_break_atexit_handler.py
     category: exception_handling
+    class: semantic_convention
     hunk_start_line: 15
     hunk_end_line: 70
     rationale: "Dagster uses @failure_hook / @success_hook decorators receiving HookContext for
@@ -165,6 +175,7 @@ fixtures:
     language: python
     file: breaks/py/paradigm_break_raw_boto3_io.py
     category: asset_definition
+    class: semantic_convention
     hunk_start_line: 15
     hunk_end_line: 67
     rationale: "Dagster manages S3 persistence via IOManager / UPathIOManager subclasses implementing
@@ -182,6 +193,7 @@ fixtures:
     language: typescript
     file: breaks/ts/break_framework_swap_1.tsx
     category: framework_swap
+    class: foreign_api
     hunk_start_line: 5
     hunk_end_line: 51
     rationale: >-
@@ -197,6 +209,7 @@ fixtures:
     language: typescript
     file: breaks/ts/break_framework_swap_2.tsx
     category: framework_swap
+    class: foreign_api
     hunk_start_line: 5
     hunk_end_line: 44
     rationale: >-
@@ -212,6 +225,7 @@ fixtures:
     language: typescript
     file: breaks/ts/break_framework_swap_3.tsx
     category: framework_swap
+    class: foreign_api
     hunk_start_line: 5
     hunk_end_line: 48
     rationale: >-
@@ -227,6 +241,7 @@ fixtures:
     language: typescript
     file: breaks/ts/break_state_management_1.tsx
     category: state_management
+    class: foreign_api
     hunk_start_line: 5
     hunk_end_line: 60
     rationale: >-
@@ -242,6 +257,7 @@ fixtures:
     language: typescript
     file: breaks/ts/break_state_management_2.tsx
     category: state_management
+    class: foreign_api
     hunk_start_line: 5
     hunk_end_line: 48
     rationale: >-
@@ -257,6 +273,7 @@ fixtures:
     language: typescript
     file: breaks/ts/break_data_fetching_1.tsx
     category: data_fetching
+    class: semantic_convention
     hunk_start_line: 6
     hunk_end_line: 65
     rationale: >-
@@ -272,6 +289,7 @@ fixtures:
     language: typescript
     file: breaks/ts/break_data_fetching_2.tsx
     category: data_fetching
+    class: semantic_convention
     hunk_start_line: 6
     hunk_end_line: 49
     rationale: >-
@@ -287,6 +305,7 @@ fixtures:
     language: typescript
     file: breaks/ts/break_routing_1.tsx
     category: routing
+    class: foreign_api
     hunk_start_line: 6
     hunk_end_line: 50
     rationale: >-
@@ -302,6 +321,7 @@ fixtures:
     language: typescript
     file: breaks/ts/break_routing_2.tsx
     category: routing
+    class: foreign_api
     hunk_start_line: 6
     hunk_end_line: 44
     rationale: >-
@@ -317,6 +337,7 @@ fixtures:
     language: typescript
     file: breaks/ts/break_styling_1.tsx
     category: styling
+    class: foreign_api
     hunk_start_line: 6
     hunk_end_line: 48
     rationale: >-
@@ -332,6 +353,7 @@ fixtures:
     language: typescript
     file: breaks/ts/break_styling_2.tsx
     category: styling
+    class: foreign_api
     hunk_start_line: 6
     hunk_end_line: 50
     rationale: >-
@@ -347,6 +369,7 @@ fixtures:
     language: typescript
     file: breaks/ts/break_type_paradigm_1.ts
     category: framework_swap
+    class: naming_shape_break
     hunk_start_line: 6
     hunk_end_line: 52
     rationale: >-
@@ -405,6 +428,7 @@ fixtures:
     language: python
     file: breaks/py/foreign_concurrency_ray.py
     category: foreign_concurrency
+    class: foreign_import
     hunk_start_line: 9
     hunk_end_line: 23
     rationale: "Ray distributed runtime (@ray.remote / ray.init / ray.get) fanning steps out instead
@@ -419,6 +443,7 @@ fixtures:
     language: python
     file: breaks/py/foreign_concurrency_trio.py
     category: foreign_concurrency
+    class: foreign_import
     hunk_start_line: 9
     hunk_end_line: 26
     rationale: "trio structured-concurrency runtime (trio.open_nursery / trio.run / nursery.start_soon)
@@ -448,6 +473,7 @@ fixtures:
     language: python
     file: breaks/py/foreign_concurrency_gevent.py
     category: foreign_concurrency
+    class: foreign_import
     hunk_start_line: 9
     hunk_end_line: 22
     rationale: "gevent greenlet Pool (gevent.pool.Pool / pool.spawn / gevent.sleep) for concurrent
@@ -531,6 +557,7 @@ fixtures:
     language: typescript
     file: breaks/ts/foreign_concurrency_rxjs.tsx
     category: foreign_concurrency
+    class: foreign_import
     hunk_start_line: 5
     hunk_end_line: 24
     rationale: "RxJS reactive-streams runtime (Subject / interval / pipe(switchMap).subscribe) for log
@@ -588,6 +615,7 @@ fixtures:
     language: typescript
     file: breaks/ts/foreign_concurrency_comlink.ts
     category: foreign_concurrency
+    class: foreign_import
     hunk_start_line: 4
     hunk_end_line: 21
     rationale: "Comlink web-worker RPC bridge (Comlink.wrap<T>(worker) / proxy) for off-thread graph

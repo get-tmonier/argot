@@ -15,6 +15,7 @@ fixtures:
 - id: laravel_error_die_1
   file: breaks/break_error_die_1.php
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 27
   hunk_end_line: 44
   rationale: 'die() on invalid rule parameters. Verified at pinned SHA: `git grep
@@ -27,6 +28,7 @@ fixtures:
 - id: laravel_error_errorlog_1
   file: breaks/break_error_errorlog_1.php
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 19
   hunk_end_line: 42
   rationale: 'error_log() + return false on read failure. Verified: `error_log(`
@@ -39,6 +41,7 @@ fixtures:
 - id: laravel_error_triggererror_1
   file: breaks/break_error_triggererror_1.php
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 21
   hunk_end_line: 36
   rationale: 'trigger_error(E_USER_ERROR) for a missing config key. Verified: only
@@ -51,6 +54,7 @@ fixtures:
 - id: laravel_concurrency_fork_1
   file: breaks/break_concurrency_fork_1.php
   category: wrong_concurrency
+  class: semantic_convention
   hunk_start_line: 19
   hunk_end_line: 48
   rationale: 'Raw pcntl_fork()/pcntl_waitpid() worker pool. Verified: `pcntl_fork`
@@ -64,6 +68,7 @@ fixtures:
 - id: laravel_concurrency_flock_1
   file: breaks/break_concurrency_flock_1.php
   category: wrong_concurrency
+  class: semantic_convention
   hunk_start_line: 19
   hunk_end_line: 40
   rationale: 'Manual flock() file mutex with usleep() busy-wait acquisition loop.
@@ -77,6 +82,7 @@ fixtures:
 - id: laravel_api_superglobals_1
   file: breaks/break_api_superglobals_1.php
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 22
   hunk_end_line: 44
   rationale: 'Raw $_GET/$_POST/$_SERVER superglobal reads. Verified: `$_GET` and
@@ -89,6 +95,7 @@ fixtures:
 - id: laravel_api_sqlconcat_1
   file: breaks/break_api_sqlconcat_1.php
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 19
   hunk_end_line: 33
   rationale: 'String-concatenated SQL with an interpolated identifier executed via
@@ -103,6 +110,7 @@ fixtures:
 - id: laravel_api_curl_1
   file: breaks/break_api_curl_1.php
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 19
   hunk_end_line: 40
   rationale: 'Raw curl_init()/curl_setopt()/curl_exec() HTTP delivery. Verified:
@@ -115,6 +123,7 @@ fixtures:
 - id: laravel_api_setcookie_1
   file: breaks/break_api_setcookie_1.php
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 20
   hunk_end_line: 37
   rationale: 'Raw setcookie() + header() emission. Verified: `setcookie(` = 0 sites
@@ -249,6 +258,7 @@ fixtures:
 - id: laravel_foreign_amp_1
   file: breaks/break_foreign_amp_1.php
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 19
   hunk_end_line: 38
   rationale: 'amphp/amp async futures (\Amp\async / \Amp\delay / \Amp\Future\await via
@@ -261,6 +271,7 @@ fixtures:
 - id: laravel_foreign_revolt_1
   file: breaks/break_foreign_revolt_1.php
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 18
   hunk_end_line: 32
   rationale: 'revolt/event-loop fiber scheduler (\Revolt\EventLoop::repeat / ::run via
@@ -273,6 +284,7 @@ fixtures:
 - id: laravel_foreign_ampparallel_1
   file: breaks/break_foreign_ampparallel_1.php
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 23
   hunk_end_line: 42
   rationale: 'amphp/parallel worker pool (DefaultWorkerPool reached by short name, driven
@@ -446,3 +458,49 @@ fixtures:
   difficulty: hard
   host_file: src/Illuminate/Cache/Repository.php
   host_inject_at_line: 432
+- id: laravel_foreign_spatieasync_1
+  file: breaks/break_foreign_spatieasync_1.php
+  category: foreign_concurrency
+  class: foreign_import
+  hunk_start_line: 19
+  hunk_end_line: 36
+  rationale: 'spatie/async worker pool (\Spatie\Async\Pool::create()/->add()/->wait()
+    via FQN). Verified at pinned SHA: spatie/async absent from composer.json (require
+    and require-dev) and `Spatie\Async` = 0 grep hits repo-wide (only spatie/fork,
+    a different package, is referenced as an optional "fork" concurrency driver
+    in Illuminate\Concurrency); the repo runs concurrent work through queue workers
+    and dispatched jobs, never this foreign async pool. Explicit foreign namespace
+    \Spatie\Async\.'
+  difficulty: easy
+  host_file: src/Illuminate/Queue/Worker.php
+  host_inject_at_line: 700
+- id: laravel_foreign_swoolecoroutine_1
+  file: breaks/break_foreign_swoolecoroutine_1.php
+  category: foreign_concurrency
+  class: foreign_import
+  hunk_start_line: 21
+  hunk_end_line: 38
+  rationale: 'ext-swoole coroutine wait group (Swoole\Coroutine\WaitGroup reached
+    by short name via a receiver variable). Verified at pinned SHA: swoole absent
+    from composer.json (require, require-dev and suggest) and `Swoole` = 0 grep
+    hits repo-wide; `WaitGroup` = 0 src hits (non-colliding); the repo''s own drivers
+    (ProcessDriver, ForkDriver, SyncDriver in Illuminate\Concurrency) run concurrent
+    closures instead. Medium: the tell is a bare unattested callee (new WaitGroup),
+    not an explicit namespace.'
+  difficulty: medium
+  host_file: src/Illuminate/Concurrency/ConcurrencyManager.php
+  host_inject_at_line: 103
+- id: laravel_foreign_parallelruntime_1
+  file: breaks/break_foreign_parallelruntime_1.php
+  category: foreign_concurrency
+  class: foreign_import
+  hunk_start_line: 19
+  hunk_end_line: 38
+  rationale: 'ext-parallel runtime pool (new \parallel\Runtime()/->run() via FQN).
+    Verified at pinned SHA: ext-parallel absent from composer.json (require, require-dev
+    and suggest) and `parallel\Runtime` / `\parallel\` = 0 grep hits repo-wide; the
+    repo''s own ProcessDriver forks worker processes through Illuminate\Process\Pool
+    instead of a foreign runtime extension. Explicit foreign namespace \parallel\.'
+  difficulty: easy
+  host_file: src/Illuminate/Concurrency/ProcessDriver.php
+  host_inject_at_line: 92

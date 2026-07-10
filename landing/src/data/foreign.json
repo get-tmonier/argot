@@ -1,0 +1,1328 @@
+{
+ "generated_at": "2026-07-08",
+ "corpora": [
+  {
+   "corpus": "bat",
+   "language": "Rust",
+   "classes": {
+    "foreign_import": {
+     "caught": 13,
+     "total": 13,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 93,
+     "reason": "call_receiver"
+    },
+    "foreign_api": {
+     "caught": 6,
+     "total": 6,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 75,
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.3,
+   "detection_existing_pct": 6.8,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "commander",
+   "language": "JavaScript",
+   "classes": {
+    "foreign_import": {
+     "caught": 11,
+     "total": 11,
+     "pct": 100,
+     "masked_caught": 1,
+     "masked_total": 1,
+     "masked_pct": 100,
+     "overall_pct": 100,
+     "reason": "call_receiver"
+    },
+    "foreign_api": {
+     "caught": 5,
+     "total": 5,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 83,
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 1,
+     "pct": 0,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 0,
+     "reason": null
+    },
+    "semantic_convention": {
+     "caught": 0,
+     "total": 1,
+     "pct": 0,
+     "masked_caught": 1,
+     "masked_total": 1,
+     "masked_pct": 100,
+     "overall_pct": 50,
+     "reason": "call_receiver"
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 4.87,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "composer",
+   "language": "PHP",
+   "classes": {
+    "foreign_import": {
+     "caught": 12,
+     "total": 12,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 86,
+     "reason": "call_receiver"
+    },
+    "foreign_api": {
+     "caught": 7,
+     "total": 7,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 88,
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.21,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "curl",
+   "language": "C",
+   "classes": {
+    "foreign_import": {
+     "caught": 12,
+     "total": 13,
+     "pct": 92,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 86,
+     "reason": "call_receiver"
+    },
+    "foreign_api": {
+     "caught": 6,
+     "total": 6,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 75,
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.0,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "dagster",
+   "language": "Python",
+   "classes": {
+    "foreign_import": {
+     "caught": 11,
+     "total": 11,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 100,
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 7,
+     "total": 10,
+     "pct": 70,
+     "masked_caught": 3,
+     "masked_total": 7,
+     "masked_pct": 43,
+     "overall_pct": 59,
+     "reason": "import"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 3,
+     "total": 8,
+     "pct": 38,
+     "masked_caught": 2,
+     "masked_total": 3,
+     "masked_pct": 67,
+     "overall_pct": 45,
+     "reason": "import"
+    },
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 1,
+     "pct": 0,
+     "masked_caught": 0,
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 0,
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.14,
+   "detection_existing_pct": 0.0,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "eslint",
+   "language": "JavaScript",
+   "classes": {
+    "foreign_import": {
+     "caught": 11,
+     "total": 11,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 92,
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 5,
+     "total": 5,
+     "pct": 100,
+     "masked_caught": 1,
+     "masked_total": 1,
+     "masked_pct": 100,
+     "overall_pct": 100,
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 2,
+     "pct": 0,
+     "masked_caught": 0,
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 0,
+     "reason": null
+    },
+    "semantic_convention": {
+     "caught": 0,
+     "total": 0,
+     "pct": null,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 0,
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.0,
+   "overfire_new_pct": 0.0,
+   "under_sampled": true
+  },
+  {
+   "corpus": "excalidraw",
+   "language": "TypeScript",
+   "classes": {
+    "foreign_import": {
+     "caught": 12,
+     "total": 12,
+     "pct": 100,
+     "masked_caught": 1,
+     "masked_total": 1,
+     "masked_pct": 100,
+     "overall_pct": 100,
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 10,
+     "total": 11,
+     "pct": 91,
+     "masked_caught": 0,
+     "masked_total": 3,
+     "masked_pct": 0,
+     "overall_pct": 71,
+     "reason": "import"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 0,
+     "total": 4,
+     "pct": 0,
+     "masked_caught": 1,
+     "masked_total": 2,
+     "masked_pct": 50,
+     "overall_pct": 17,
+     "reason": "call_receiver"
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.6,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "express",
+   "language": "JavaScript",
+   "classes": {
+    "foreign_import": {
+     "caught": 11,
+     "total": 11,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 92,
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 5,
+     "total": 5,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 83,
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 2,
+     "pct": 0,
+     "masked_caught": 0,
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 0,
+     "reason": null
+    },
+    "semantic_convention": {
+     "caught": 0,
+     "total": 0,
+     "pct": null,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 0,
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 15.38,
+   "overfire_new_pct": 0.0,
+   "under_sampled": true
+  },
+  {
+   "corpus": "faker",
+   "language": "Python",
+   "classes": {
+    "foreign_import": {
+     "caught": 11,
+     "total": 11,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 92,
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 11,
+     "total": 12,
+     "pct": 92,
+     "masked_caught": 3,
+     "masked_total": 6,
+     "masked_pct": 50,
+     "overall_pct": 78,
+     "reason": "import"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 2,
+     "total": 2,
+     "pct": 100,
+     "masked_caught": 1,
+     "masked_total": 1,
+     "masked_pct": 100,
+     "overall_pct": 100,
+     "reason": "import"
+    }
+   },
+   "overfire_existing_pct": 0.92,
+   "detection_existing_pct": 0.0,
+   "overfire_new_pct": 0.0,
+   "under_sampled": true
+  },
+  {
+   "corpus": "faker-js",
+   "language": "TypeScript",
+   "classes": {
+    "foreign_import": {
+     "caught": 10,
+     "total": 10,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 91,
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 8,
+     "total": 8,
+     "pct": 100,
+     "masked_caught": 1,
+     "masked_total": 3,
+     "masked_pct": 33,
+     "overall_pct": 82,
+     "reason": "import"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 2,
+     "total": 3,
+     "pct": 67,
+     "masked_caught": 2,
+     "masked_total": 11,
+     "masked_pct": 18,
+     "overall_pct": 29,
+     "reason": "call_receiver"
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.0,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "fastapi",
+   "language": "Python",
+   "classes": {
+    "foreign_import": {
+     "caught": 12,
+     "total": 12,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 3,
+     "masked_pct": 0,
+     "overall_pct": 80,
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 8,
+     "total": 9,
+     "pct": 89,
+     "masked_caught": 0,
+     "masked_total": 6,
+     "masked_pct": 0,
+     "overall_pct": 53,
+     "reason": "import"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 11,
+     "total": 20,
+     "pct": 55,
+     "masked_caught": 3,
+     "masked_total": 6,
+     "masked_pct": 50,
+     "overall_pct": 54,
+     "reason": "call_receiver"
+    }
+   },
+   "overfire_existing_pct": 0.35,
+   "detection_existing_pct": 0.87,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "fmt",
+   "language": "C++",
+   "classes": {
+    "foreign_import": {
+     "caught": 13,
+     "total": 13,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 93,
+     "reason": "call_receiver"
+    },
+    "foreign_api": {
+     "caught": 6,
+     "total": 7,
+     "pct": 86,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 67,
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 3.7,
+   "overfire_new_pct": 0.0,
+   "under_sampled": true
+  },
+  {
+   "corpus": "gh-cli",
+   "language": "Go",
+   "classes": {
+    "foreign_import": {
+     "caught": 10,
+     "total": 10,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 91,
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 8,
+     "total": 9,
+     "pct": 89,
+     "masked_caught": 0,
+     "masked_total": 3,
+     "masked_pct": 0,
+     "overall_pct": 67,
+     "reason": "import"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 3,
+     "total": 8,
+     "pct": 38,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 33,
+     "reason": "call_receiver"
+    },
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 0,
+     "pct": null,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 0,
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.0,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "guava",
+   "language": "Java",
+   "classes": {
+    "foreign_import": {
+     "caught": 12,
+     "total": 12,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 86,
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 7,
+     "total": 7,
+     "pct": 100,
+     "masked_caught": 1,
+     "masked_total": 3,
+     "masked_pct": 33,
+     "overall_pct": 80,
+     "reason": "bpe"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 1,
+     "total": 9,
+     "pct": 11,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 10,
+     "reason": "bpe"
+    },
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 2,
+     "pct": 0,
+     "masked_caught": 0,
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 0,
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.82,
+   "detection_existing_pct": 0.16,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "homebrew",
+   "language": "Ruby",
+   "classes": {
+    "foreign_import": {
+     "caught": 11,
+     "total": 11,
+     "pct": 100,
+     "masked_caught": 2,
+     "masked_total": 2,
+     "masked_pct": 100,
+     "overall_pct": 100,
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 8,
+     "total": 8,
+     "pct": 100,
+     "masked_caught": 3,
+     "masked_total": 3,
+     "masked_pct": 100,
+     "overall_pct": 100,
+     "reason": "import"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 1,
+     "total": 7,
+     "pct": 14,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 11,
+     "reason": "call_receiver"
+    },
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 2,
+     "pct": 0,
+     "masked_caught": 0,
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 0,
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.22,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "hono",
+   "language": "TypeScript",
+   "classes": {
+    "foreign_import": {
+     "caught": 12,
+     "total": 12,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 86,
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 11,
+     "total": 11,
+     "pct": 100,
+     "masked_caught": 1,
+     "masked_total": 5,
+     "masked_pct": 20,
+     "overall_pct": 75,
+     "reason": "import"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 4,
+     "total": 7,
+     "pct": 57,
+     "masked_caught": 0,
+     "masked_total": 3,
+     "masked_pct": 0,
+     "overall_pct": 40,
+     "reason": "import"
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.0,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "hugo",
+   "language": "Go",
+   "classes": {
+    "foreign_import": {
+     "caught": 12,
+     "total": 12,
+     "pct": 100,
+     "masked_caught": 1,
+     "masked_total": 1,
+     "masked_pct": 100,
+     "overall_pct": 100,
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 7,
+     "total": 7,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 78,
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 1.17,
+   "detection_existing_pct": 0.39,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "ink",
+   "language": "TypeScript",
+   "classes": {
+    "foreign_import": {
+     "caught": 11,
+     "total": 11,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 92,
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 9,
+     "total": 9,
+     "pct": 100,
+     "masked_caught": 2,
+     "masked_total": 2,
+     "masked_pct": 100,
+     "overall_pct": 100,
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 11,
+     "total": 11,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 85,
+     "reason": "bpe"
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 6.08,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "jellyfin",
+   "language": "C#",
+   "classes": {
+    "foreign_import": {
+     "caught": 12,
+     "total": 12,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 92,
+     "reason": "call_receiver"
+    },
+    "foreign_api": {
+     "caught": 7,
+     "total": 8,
+     "pct": 88,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 70,
+     "reason": "import"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.45,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "junit5",
+   "language": "Java",
+   "classes": {
+    "foreign_import": {
+     "caught": 12,
+     "total": 12,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 86,
+     "reason": "call_receiver"
+    },
+    "foreign_api": {
+     "caught": 7,
+     "total": 7,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 88,
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.53,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "laravel",
+   "language": "PHP",
+   "classes": {
+    "foreign_import": {
+     "caught": 12,
+     "total": 12,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 100,
+     "reason": "call_receiver"
+    },
+    "foreign_api": {
+     "caught": 10,
+     "total": 10,
+     "pct": 100,
+     "masked_caught": 1,
+     "masked_total": 4,
+     "masked_pct": 25,
+     "overall_pct": 79,
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 3,
+     "total": 7,
+     "pct": 43,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 33,
+     "reason": "call_receiver"
+    },
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 1,
+     "pct": 0,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 0,
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.63,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "outline",
+   "language": "TypeScript",
+   "classes": {
+    "foreign_import": {
+     "caught": 11,
+     "total": 11,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 100,
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 8,
+     "total": 10,
+     "pct": 80,
+     "masked_caught": 0,
+     "masked_total": 6,
+     "masked_pct": 0,
+     "overall_pct": 50,
+     "reason": "import"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 3,
+     "total": 5,
+     "pct": 60,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 50,
+     "reason": "import"
+    }
+   },
+   "overfire_existing_pct": 0.11,
+   "detection_existing_pct": 0.43,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "powershell",
+   "language": "C#",
+   "classes": {
+    "foreign_import": {
+     "caught": 13,
+     "total": 13,
+     "pct": 100,
+     "masked_caught": 1,
+     "masked_total": 2,
+     "masked_pct": 50,
+     "overall_pct": 93,
+     "reason": "call_receiver"
+    },
+    "foreign_api": {
+     "caught": 8,
+     "total": 9,
+     "pct": 89,
+     "masked_caught": 1,
+     "masked_total": 2,
+     "masked_pct": 50,
+     "overall_pct": 82,
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 0,
+     "total": 7,
+     "pct": 0,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 0,
+     "reason": null
+    },
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 2,
+     "pct": 0,
+     "masked_caught": 0,
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 0,
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.06,
+   "detection_existing_pct": 0.22,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "redis",
+   "language": "C",
+   "classes": {
+    "foreign_import": {
+     "caught": 11,
+     "total": 11,
+     "pct": 100,
+     "masked_caught": 2,
+     "masked_total": 3,
+     "masked_pct": 67,
+     "overall_pct": 93,
+     "reason": "call_receiver"
+    },
+    "foreign_api": {
+     "caught": 8,
+     "total": 8,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 89,
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 1,
+     "total": 7,
+     "pct": 14,
+     "masked_caught": 0,
+     "masked_total": 3,
+     "masked_pct": 0,
+     "overall_pct": 10,
+     "reason": "call_receiver"
+    },
+    "naming_shape_break": {
+     "caught": 1,
+     "total": 2,
+     "pct": 50,
+     "masked_caught": 0,
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 50,
+     "reason": "call_receiver"
+    }
+   },
+   "overfire_existing_pct": 0.18,
+   "detection_existing_pct": 0.18,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "rich",
+   "language": "Python",
+   "classes": {
+    "foreign_import": {
+     "caught": 12,
+     "total": 12,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 100,
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 8,
+     "total": 8,
+     "pct": 100,
+     "masked_caught": 1,
+     "masked_total": 4,
+     "masked_pct": 25,
+     "overall_pct": 75,
+     "reason": "import"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 5,
+     "total": 8,
+     "pct": 62,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 50,
+     "reason": "import"
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.51,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "ripgrep",
+   "language": "Rust",
+   "classes": {
+    "foreign_import": {
+     "caught": 11,
+     "total": 11,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 92,
+     "reason": "call_receiver"
+    },
+    "foreign_api": {
+     "caught": 8,
+     "total": 8,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 80,
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 1,
+     "total": 8,
+     "pct": 12,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 10,
+     "reason": "call_receiver"
+    },
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 2,
+     "pct": 0,
+     "masked_caught": 0,
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 0,
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.63,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "rocksdb",
+   "language": "C++",
+   "classes": {
+    "foreign_import": {
+     "caught": 9,
+     "total": 9,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 82,
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 12,
+     "total": 12,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 3,
+     "masked_pct": 0,
+     "overall_pct": 80,
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 1,
+     "total": 7,
+     "pct": 14,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 11,
+     "reason": "bpe"
+    },
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 1,
+     "pct": 0,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 0,
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.22,
+   "detection_existing_pct": 0.9,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "rubocop",
+   "language": "Ruby",
+   "classes": {
+    "foreign_import": {
+     "caught": 13,
+     "total": 13,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 93,
+     "reason": "call_receiver"
+    },
+    "foreign_api": {
+     "caught": 6,
+     "total": 6,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 75,
+     "reason": "call_receiver"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.63,
+   "detection_existing_pct": 0.51,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "saleor",
+   "language": "Python",
+   "classes": {
+    "foreign_import": {
+     "caught": 13,
+     "total": 13,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 93,
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 9,
+     "total": 10,
+     "pct": 90,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 75,
+     "reason": "import"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 5,
+     "total": 8,
+     "pct": 62,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 50,
+     "reason": "import"
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.0,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "scrapy",
+   "language": "Python",
+   "classes": {
+    "foreign_import": {
+     "caught": 12,
+     "total": 12,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 3,
+     "masked_pct": 0,
+     "overall_pct": 80,
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 6,
+     "total": 6,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 3,
+     "masked_pct": 0,
+     "overall_pct": 67,
+     "reason": "import"
+    }
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.68,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "wagtail",
+   "language": "Python",
+   "classes": {
+    "foreign_import": {
+     "caught": 13,
+     "total": 13,
+     "pct": 100,
+     "masked_caught": 1,
+     "masked_total": 1,
+     "masked_pct": 100,
+     "overall_pct": 100,
+     "reason": "import"
+    },
+    "foreign_api": {
+     "caught": 12,
+     "total": 12,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 3,
+     "masked_pct": 0,
+     "overall_pct": 80,
+     "reason": "import"
+    }
+   },
+   "secondary": {
+    "semantic_convention": {
+     "caught": 5,
+     "total": 7,
+     "pct": 71,
+     "masked_caught": 2,
+     "masked_total": 2,
+     "masked_pct": 100,
+     "overall_pct": 78,
+     "reason": "import"
+    }
+   },
+   "overfire_existing_pct": 0.19,
+   "detection_existing_pct": 0.19,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  }
+ ]
+}

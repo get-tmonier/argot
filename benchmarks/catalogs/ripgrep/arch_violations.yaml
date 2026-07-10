@@ -1,0 +1,236 @@
+# Architecture-graph violation fixtures for ripgrep (Rust).
+#
+# ripgrep is a Cargo workspace: member crates live at crates/<name>/src/. A
+# "layer" = the first module (directory or file) under a crate's src/ root. The
+# resolver forms an *internal* edge from a `use crate::<layerB>::Item;` import:
+# source_layer = the host file's first module under that crate's src/, target =
+# <layerB>. So every fixture below is a WITHIN-CRATE edge (host file in layer A
+# adds `use crate::<layerB>::...`). Two crates are used: `printer` and `searcher`.
+#
+# NOTE on Rust grouped imports: an established edge often lives inside a
+# multi-line `use crate::{ layerB::Item, ... };` block, so a single-line
+# `git grep 'use crate::layerB'` MISSES it. The form-agnostic token that catches
+# BOTH the single-line (`use crate::layerB::Item;`) and grouped
+# (`use crate::{ layerB::Item }`) forms is the path segment `layerB::`. Every
+# 0-usage claim below was verified with
+#   git -C benchmarks/data/ripgrep/.repo grep -n '<layerB>::' -- <host_file>
+# returning 0 lines (the `path` target additionally notes its only `path::` hit
+# is std::path::Path, i.e. not crate::path).
+#
+# ---- printer topology (layers = files directly under crates/printer/src/) ----
+#   Sinks (imported a lot, out-degree 0): color, counter, jsont
+#   Near-sinks: stats (out -> util only), util (out -> hyperlink only)
+#   Mid: hyperlink (out -> hyperlink_aliases, util)
+#   High-level (import many, imported by ~nobody but lib.rs re-export):
+#     standard, summary, path, json
+#   Established edges: {standard,summary} -> {color,counter,hyperlink,stats,util};
+#     json -> {counter,jsont,stats,util}; path -> {color,hyperlink,util};
+#     stats -> util; util -> hyperlink; hyperlink -> {hyperlink_aliases,util}.
+#
+# ---- searcher topology (layers under crates/searcher/src/) ----
+#   Leaves (out-degree 0): line_buffer, lines, macros
+#   Near-sink: sink (out -> lines, searcher)
+#   Orchestrator (dir module): searcher (out -> line_buffer, lines, sink)
+#   Test infra: testutil (out -> searcher, sink)
+#   Established edges: searcher -> {line_buffer, lines, sink}; sink -> {lines, searcher}.
+
+violations:
+  # ---- reversal (7): reverse edge B->A is attested, A->B is 0-usage ----
+
+  - host_file: "crates/printer/src/color.rs"
+    source_layer: "color"
+    import_line: "use crate::standard::StandardBuilder;"
+    target_layer: "standard"
+    kind: "reversal"
+    rationale: >-
+      color is a pure sink (color.rs has no `use crate::` imports at all,
+      out-degree 0) that standard depends on. Making it reach up into the
+      high-level standard printer reverses that. `git grep -n 'standard::' --
+      crates/printer/src/color.rs` -> 0 lines (0-usage). Reverse standard->color
+      is attested (standard.rs imports color::ColorSpecs). StandardBuilder is a
+      real pub struct in crates/printer/src/standard.rs.
+
+  - host_file: "crates/printer/src/counter.rs"
+    source_layer: "counter"
+    import_line: "use crate::json::JSONBuilder;"
+    target_layer: "json"
+    kind: "reversal"
+    rationale: >-
+      counter is a pure sink (counter.rs has no `use crate::` imports,
+      out-degree 0) consumed by json/standard/summary. Importing the high-level
+      json printer reverses the json->counter dependency. `git grep -n 'json::'
+      -- crates/printer/src/counter.rs` -> 0 lines (0-usage). Reverse
+      json->counter is attested (json.rs imports counter::CounterWriter).
+      JSONBuilder is a real pub struct in crates/printer/src/json.rs.
+
+  - host_file: "crates/printer/src/stats.rs"
+    source_layer: "stats"
+    import_line: "use crate::summary::SummaryBuilder;"
+    target_layer: "summary"
+    kind: "reversal"
+    rationale: >-
+      stats is a near-sink (its only outgoing edge is stats->util) that the
+      high-level summary printer imports. Reaching up into summary reverses that.
+      `git grep -n 'summary::' -- crates/printer/src/stats.rs` -> 0 lines
+      (0-usage). Reverse summary->stats is attested (summary.rs imports
+      stats::Stats). SummaryBuilder is a real pub struct in
+      crates/printer/src/summary.rs.
+
+  - host_file: "crates/printer/src/util.rs"
+    source_layer: "util"
+    import_line: "use crate::standard::Standard;"
+    target_layer: "standard"
+    kind: "reversal"
+    rationale: >-
+      util is the most heavily-imported near-sink in the crate (its only
+      outgoing edge is util->hyperlink) and standard depends on it. Making util
+      import the high-level standard printer reverses standard->util. `git grep
+      -n 'standard::' -- crates/printer/src/util.rs` -> 0 lines (0-usage; util.rs
+      imports only hyperlink). Reverse standard->util is attested (standard.rs
+      imports util::{find_iter_at_in_context, ...}). Standard is a real pub
+      struct in crates/printer/src/standard.rs.
+
+  - host_file: "crates/printer/src/hyperlink.rs"
+    source_layer: "hyperlink"
+    import_line: "use crate::path::PathPrinter;"
+    target_layer: "path"
+    kind: "reversal"
+    rationale: >-
+      hyperlink is a low/mid layer (out -> hyperlink_aliases, util) that the
+      high-level path printer builds on. Importing path reverses path->hyperlink.
+      `git grep -n 'crate::path' -- crates/printer/src/hyperlink.rs` -> 0 lines;
+      the only `path::` token in the file is `std::path::Path` (line 1), i.e. no
+      crate::path edge (0-usage). Reverse path->hyperlink is attested (path.rs
+      imports hyperlink::{self, HyperlinkConfig}). PathPrinter is a real pub
+      struct in crates/printer/src/path.rs.
+
+  - host_file: "crates/searcher/src/line_buffer.rs"
+    source_layer: "line_buffer"
+    import_line: "use crate::searcher::Searcher;"
+    target_layer: "searcher"
+    kind: "reversal"
+    rationale: >-
+      line_buffer is a leaf (line_buffer.rs has no `use crate::` imports,
+      out-degree 0) that the searcher orchestrator drives. Importing the
+      Searcher reverses searcher->line_buffer. `git grep -n 'crate::searcher' --
+      crates/searcher/src/line_buffer.rs` -> 0 lines (0-usage). Reverse
+      searcher->line_buffer is attested (searcher/core.rs, glue.rs and mod.rs all
+      import line_buffer::...). Searcher is a real pub struct in
+      crates/searcher/src/searcher/mod.rs.
+
+  - host_file: "crates/searcher/src/lines.rs"
+    source_layer: "lines"
+    import_line: "use crate::sink::SinkError;"
+    target_layer: "sink"
+    kind: "reversal"
+    rationale: >-
+      lines is a leaf (lines.rs has no `use crate::` imports, out-degree 0) and
+      sink depends on it (sink.rs imports lines::LineIter). Making lines import
+      the sink layer reverses sink->lines. `git grep -n 'crate::sink' --
+      crates/searcher/src/lines.rs` -> 0 lines (0-usage). Reverse sink->lines is
+      attested (sink.rs:6 imports lines::LineIter). SinkError is a real pub trait
+      in crates/searcher/src/sink.rs.
+
+  # ---- sink_out (1): a pure sink sprouts a new outgoing edge to a higher-level
+  #      layer it never touches; both directions 0-usage (pure leak) ----
+
+  - host_file: "crates/printer/src/jsont.rs"
+    source_layer: "jsont"
+    import_line: "use crate::standard::StandardSink;"
+    target_layer: "standard"
+    kind: "sink_out"
+    rationale: >-
+      jsont is a pure sink: jsont.rs has no `use crate::` imports (out-degree 0)
+      and is imported only by json. A new outgoing edge to the high-level
+      standard printer leaks out of that sink. `git grep -n 'standard::' --
+      crates/printer/src/jsont.rs` -> 0 lines, and the reverse `git grep -n
+      'jsont::' -- crates/printer/src/standard.rs` -> 0 lines: neither direction
+      is attested, so this is a pure sink-leak, not a reversal. StandardSink is a
+      real pub struct in crates/printer/src/standard.rs.
+
+  # ---- forward_cross (2): a cross-layer edge the topology never has in either
+  #      direction (both directions 0-usage) ----
+
+  - host_file: "crates/printer/src/standard.rs"
+    source_layer: "standard"
+    import_line: "use crate::summary::SummaryBuilder;"
+    target_layer: "summary"
+    kind: "forward_cross"
+    rationale: >-
+      standard and summary are sibling high-level printers, each wired
+      independently from lib.rs; they never import each other. `git grep -n
+      'summary::' -- crates/printer/src/standard.rs` -> 0 lines, and the reverse
+      `git grep -n 'standard::' -- crates/printer/src/summary.rs` -> 0 lines: no
+      edge either way. Cross-layer import the topology never has. SummaryBuilder
+      is a real pub struct in crates/printer/src/summary.rs.
+
+  - host_file: "crates/searcher/src/sink.rs"
+    source_layer: "sink"
+    import_line: "use crate::line_buffer::LineBuffer;"
+    target_layer: "line_buffer"
+    kind: "forward_cross"
+    rationale: >-
+      sink (out -> lines, searcher) and line_buffer (a leaf) are both driven by
+      the searcher orchestrator but have no edge between them in either
+      direction. `git grep -n 'line_buffer' -- crates/searcher/src/sink.rs` -> 0
+      lines, and the reverse `git grep -n 'crate::sink' --
+      crates/searcher/src/line_buffer.rs` -> 0 lines: no edge either way.
+      Cross-layer import the topology never has. LineBuffer is a real
+      pub(crate) struct in crates/searcher/src/line_buffer.rs.
+
+controls:
+  # Realistic NEW imports that RESPECT the established layer direction: the
+  # source->target edge already exists in the graph, so a new import along it is
+  # not a new edge -> must NOT be flagged.
+
+  - host_file: "crates/printer/src/standard.rs"
+    source_layer: "standard"
+    import_line: "use crate::color::default_color_specs;"
+    target_layer: "color"
+    rationale: >-
+      standard->color is well established (standard.rs already imports
+      color::ColorSpecs). Pulling another color helper into the standard printer
+      is idiomatic and along the existing edge. default_color_specs is a real pub
+      fn in crates/printer/src/color.rs. Not a violation.
+
+  - host_file: "crates/printer/src/summary.rs"
+    source_layer: "summary"
+    import_line: "use crate::util::DecimalFormatter;"
+    target_layer: "util"
+    rationale: >-
+      summary->util is established (summary.rs already imports
+      util::{find_iter_at_in_context, PrinterPath}). A summary printer reaching
+      for another util formatter respects the layering (high-level -> near-sink).
+      DecimalFormatter is a real pub(crate) struct in crates/printer/src/util.rs.
+      Not a violation.
+
+  - host_file: "crates/printer/src/json.rs"
+    source_layer: "json"
+    import_line: "use crate::util::PrinterPath;"
+    target_layer: "util"
+    rationale: >-
+      json->util is established (json.rs already imports
+      util::find_iter_at_in_context). A JSON printer using a util path helper is
+      the expected low-level dependency. PrinterPath is a real pub(crate) struct
+      in crates/printer/src/util.rs. Not a violation.
+
+  - host_file: "crates/searcher/src/searcher/mod.rs"
+    source_layer: "searcher"
+    import_line: "use crate::sink::SinkFinish;"
+    target_layer: "sink"
+    rationale: >-
+      searcher->sink is the crate's most established direction (searcher/core.rs,
+      glue.rs and mod.rs all import sink::{Sink, SinkError, ...}). The
+      orchestrator handling another Sink callback type is idiomatic and along the
+      existing edge. SinkFinish is a real pub struct in
+      crates/searcher/src/sink.rs. Not a violation.
+
+  - host_file: "crates/searcher/src/sink.rs"
+    source_layer: "sink"
+    import_line: "use crate::lines::LineStep;"
+    target_layer: "lines"
+    rationale: >-
+      sink->lines is established (sink.rs already imports lines::LineIter). A sink
+      module using another lines helper respects the layering (sink -> leaf).
+      LineStep is a real pub struct in crates/searcher/src/lines.rs. Not a
+      violation.

@@ -79,6 +79,27 @@ pub fn collect_source_files_with(
     out
 }
 
+/// True if `rel_path` (repo-root-relative, `/`-separated) is a corpus source
+/// file — the per-path form of [`collect_source_files`]'s filter: a source
+/// extension, not a test/spec file, no excluded-dir component, and not muted by a
+/// user `.argotignore`/`[exclude].paths` pattern. Lets a caller classify a single
+/// path (e.g. a changed file in a diff) without re-walking the tree.
+pub fn is_corpus_source(rel_path: &str, suppressions: &PathSuppressions) -> bool {
+    let file = rel_path.rsplit('/').next().unwrap_or(rel_path);
+    if !SOURCE_EXTENSIONS.contains(&suffix(file)) || is_test_filename(file) {
+        return false;
+    }
+    let comps: Vec<&str> = rel_path.split('/').collect();
+    // any excluded-dir component (all but the basename) prunes the path
+    if comps[..comps.len().saturating_sub(1)]
+        .iter()
+        .any(|c| EXCLUDE_DIRS.contains(c))
+    {
+        return false;
+    }
+    !suppressions.matches_user_pattern(rel_path)
+}
+
 /// True when the user's `.argotignore` mutes this path. Recommended-set
 /// exclusions deliberately do NOT count here (corpus behaviour without an
 /// `.argotignore` must stay byte-identical) — but a user pattern applies even
@@ -188,6 +209,21 @@ mod tests {
         assert_eq!(suffix("a.py"), ".py");
         assert_eq!(suffix("a.PY"), ".PY");
         assert!(!SOURCE_EXTENSIONS.contains(&suffix("a.PY")));
+    }
+
+    #[test]
+    fn is_corpus_source_matches_collector_filters() {
+        let s = PathSuppressions::recommended();
+        assert!(is_corpus_source("app/models/user.py", &s));
+        assert!(is_corpus_source("src/widget.tsx", &s));
+        // test files / test dirs / vendored dirs are not voice
+        assert!(!is_corpus_source("tests/test_app.py", &s));
+        assert!(!is_corpus_source("app/test_helpers.py", &s));
+        assert!(!is_corpus_source("node_modules/pkg/index.ts", &s));
+        assert!(!is_corpus_source("app/foo.test.ts", &s));
+        // non-source extensions
+        assert!(!is_corpus_source("README.md", &s));
+        assert!(!is_corpus_source("app/data.json", &s));
     }
 
     #[test]

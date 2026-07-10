@@ -1,0 +1,304 @@
+# Architecture-graph violation fixtures for guava (Java, package root com/google/common/,
+# plus the vendored com/google/thirdparty/publicsuffix/ leaf). Each `import_line` added to
+# `host_file` creates the internal edge (source layer -> target layer). Violations cross a
+# boundary the repo's learned layering never crosses; controls respect the established
+# direction.
+#
+# Layer = the directory basename directly under com/google/common (or com/google/thirdparty)
+# that a file lives in, e.g. `com/google/common/primitives/Booleans.java` -> layer "primitives".
+# Guava's production layers group roughly as:
+#   - base                the universal SINK: everything else depends on it (Optional,
+#                         Preconditions, Objects, CharMatcher, ...); it depends on almost
+#                         nothing outside base itself.
+#   - annotations         pure marker annotations (@Beta, @GwtCompatible, @CanIgnoreReturnValue)
+#                         — imported by nearly every other layer (highest fan-in in the repo),
+#                         deliberately near-zero-dependency so it can decorate anything.
+#   - collect             ImmutableList/ImmutableMap/Multimap/... — heavily depended-on after
+#                         base; most feature layers (cache, hash, eventbus, graph, ...) build on it.
+#   - primitives, math,
+#     hash, escape, io,
+#     net, html, xml,
+#     eventbus, reflect,
+#     graph, cache        mid-tier feature/utility layers, each consuming base/annotations and
+#                         sometimes collect/primitives, but never depended on by base/annotations.
+#   - publicsuffix         the vendored public-suffix-list matcher (com/google/thirdparty/) — a
+#                         leaf data/matching utility, architecturally equivalent to a feature layer.
+#   - internal             `futures/failureaccess`'s InternalFutureFailureAccess — a deliberately
+#                         minimal, near-zero-dependency leaf so java.util.concurrent-adjacent code
+#                         can depend on it without pulling in the rest of guava. Functions as a
+#                         second near-sink alongside base/annotations.
+#   - testers, features,
+#     google, testing     guava-testlib (test-support) layers, EXCLUDED from this fixture set —
+#                         edges into/out of a test-support library are a different failure mode
+#                         (prod-depends-on-test-lib) than the intra-production layering violations
+#                         this gate targets, so they're left out to keep the fixture set on-topic.
+#
+# Methodology: every (host_file, import_line) pair below is copied VERBATIM from a row in the
+# resolver-verified candidate menu (`/tmp/arch-fix2/candidates-guava.md`, 319 catchable +
+# 582 forward candidates; every row's edge confirmed 0-usage by the actual argot-core resolver).
+# Java has no single natural "index" symbol per package the way saleor's Python imports do, so —
+# matching the composer (PHP) precedent in this same directory tree — the resolver creates the
+# edge deterministically by injecting a synthetic `ArgotFixture` marker class into a canonical
+# `com.google.common.testing.<TargetLayer>` namespace and importing it from the host file; the
+# `import_line` is therefore always the single-line `import com.google.common.testing.<Target>.
+# ArgotFixture;` snippet, not a hand-picked real symbol. Two menu rows per near-sink target
+# (`Helpers`, `MoreExecutors`) were excluded from selection: those "layers" are individual class
+# files, not real package directories, so `target_layer: Helpers`/`MoreExecutors` would not read
+# as an architectural layer.
+#
+# Selection is by ARCHITECTURAL REALISM within the production-layer set above, not by raw `kind`
+# frequency: all 12 violations are genuine reversals / transitive-reversals / sink-outs — a
+# foundational or near-sink layer (base, annotations, primitives, internal) reached into by a
+# feature/utility layer that legitimately depends ON it, or a near-sink (internal) leaving its
+# carefully-minimal position. No `forward`-kind violation is included: every forward-kind row in
+# the production-only candidate pool (xml/publicsuffix/html -> base/collect/primitives/math) is
+# an unremarkable leaf-utility -> foundation import, not a plausible sideways layer-skip — adding
+# one here would be contrived padding, so it's left out per the "at most 1, no padding" guidance.
+# All 8 controls are forward-kind rows from that same pool: a peripheral leaf-utility layer
+# (xml, publicsuffix, html) importing a foundational layer (base, collect, primitives, math) —
+# the dominant, repo-established direction. The gate must stay quiet on all of them.
+
+violations:
+  # ---- reversals (attested TargetLayer -> SourceLayer, so SourceLayer -> TargetLayer reverses
+  # an established direction) ----
+  - host_file: "android/guava/src/com/google/common/annotations/Beta.java"
+    source_layer: "annotations"
+    import_line: "import com.google.common.testing.base.ArgotFixture;\n"
+    target_layer: "base"
+    kind: "reversal"
+    rationale: >-
+      annotations/ holds pure marker annotations (@Beta et al.) — deliberately near-zero-
+      dependency so they can decorate any class in the library, including base's own
+      Preconditions/Optional/Objects. base -> annotations is heavily attested (base classes are
+      themselves @GwtCompatible-annotated); the reverse has never happened. A plausible LLM
+      "improvement" has Beta.java build its deprecation-warning message via
+      `com.google.common.base.Preconditions`-style formatting instead of a plain string literal,
+      reversing that direction and giving a supposedly-inert marker annotation a real dependency.
+      Resolver-verified 0-usage at HEAD.
+
+  - host_file: "android/guava/src/com/google/common/primitives/Booleans.java"
+    source_layer: "primitives"
+    import_line: "import com.google.common.testing.collect.ArgotFixture;\n"
+    target_layer: "collect"
+    kind: "reversal"
+    rationale: >-
+      primitives (Booleans, Ints, Longs — raw array/primitive helpers) is a low-level utility
+      that collect (ImmutableList, Multiset, ...) depends on for boxing/array conversions
+      (collect -> primitives is attested and heavy). A plausible LLM edit adds a convenience
+      `Booleans.asImmutableList(boolean...)` that returns `com.google.common.collect.
+      ImmutableList<Boolean>` directly instead of a plain `List`, pulling the collections
+      library into the primitive-array utility and reversing the established direction.
+      Resolver-verified 0-usage at HEAD.
+
+  - host_file: "android/guava/src/com/google/common/annotations/Beta.java"
+    source_layer: "annotations"
+    import_line: "import com.google.common.testing.collect.ArgotFixture;\n"
+    target_layer: "collect"
+    kind: "reversal"
+    rationale: >-
+      collect is one of the heaviest consumers of the annotations package (nearly every
+      Immutable* type carries @GwtCompatible/@Beta); collect -> annotations is strongly attested,
+      never the reverse. A plausible LLM edit adds an inline usage example inside Beta.java's
+      javadoc-adjacent helper code that instantiates an `ImmutableList`, importing
+      `com.google.common.collect` into what must stay a zero-dependency marker-annotation
+      package. Resolver-verified 0-usage at HEAD.
+
+  - host_file: "android/guava/src/com/google/common/annotations/Beta.java"
+    source_layer: "annotations"
+    import_line: "import com.google.common.testing.primitives.ArgotFixture;\n"
+    target_layer: "primitives"
+    kind: "reversal"
+    rationale: >-
+      primitives classes are themselves @Beta/@GwtCompatible-annotated (primitives ->
+      annotations attested), never the reverse. A plausible LLM edit has Beta.java validate an
+      `int` retention-policy flag via `com.google.common.primitives.Ints`, importing primitives
+      into the marker-annotation package and reversing the direction. Resolver-verified 0-usage
+      at HEAD.
+
+  - host_file: "android/guava/src/com/google/common/primitives/Booleans.java"
+    source_layer: "primitives"
+    import_line: "import com.google.common.testing.math.ArgotFixture;\n"
+    target_layer: "math"
+    kind: "reversal"
+    rationale: >-
+      math (IntMath, LongMath, DoubleMath) depends on primitives for its low-level numeric
+      plumbing (math -> primitives attested), not the reverse. A plausible LLM edit has
+      Booleans.java delegate an overflow-safe count/index computation to
+      `com.google.common.math.IntMath.checkedAdd` instead of implementing the bounds check
+      locally, pulling math into the primitives utility and reversing that direction.
+      Resolver-verified 0-usage at HEAD.
+
+  # ---- transitive_reversals (attested multi-hop TargetLayer ~> SourceLayer path, so
+  # SourceLayer -> TargetLayer closes a cycle at a distance) ----
+  - host_file: "futures/failureaccess/src/com/google/common/util/concurrent/internal/InternalFutureFailureAccess.java"
+    source_layer: "internal"
+    import_line: "import com.google.common.testing.base.ArgotFixture;\n"
+    target_layer: "base"
+    kind: "transitive_reversal"
+    rationale: >-
+      internal/ is the failureaccess module's deliberately minimal leaf support class — it
+      exists so java.util.concurrent-adjacent code can depend on it without pulling in the rest
+      of guava, and util.concurrent (which sits downstream of internal) itself depends on base
+      transitively. A plausible LLM edit adds a `Preconditions.checkNotNull`-style guard sourced
+      straight from `com.google.common.base` instead of the module's own minimal null-check,
+      closing a cycle back through a layer several hops downstream. Resolver-verified 0-usage
+      transitive reversal at HEAD.
+
+  - host_file: "android/guava/src/com/google/common/hash/AbstractByteHasher.java"
+    source_layer: "hash"
+    import_line: "import com.google.common.testing.collect.ArgotFixture;\n"
+    target_layer: "collect"
+    kind: "transitive_reversal"
+    rationale: >-
+      hash's digest primitives sit downstream of collect in the dependency graph — collect-
+      backed table/cache constructs elsewhere in the repo depend on hashing transitively (e.g.
+      via BloomFilter-adjacent machinery), even though no file in hash/ imports collect
+      directly. A plausible LLM edit has AbstractByteHasher accumulate its digest bytes into an
+      `ImmutableList<Byte>` via `com.google.common.collect` instead of the raw byte buffer it
+      uses today, closing that cycle at a distance. Resolver-verified 0-usage transitive
+      reversal at HEAD.
+
+  - host_file: "android/guava/src/com/google/common/escape/ArrayBasedCharEscaper.java"
+    source_layer: "escape"
+    import_line: "import com.google.common.testing.collect.ArgotFixture;\n"
+    target_layer: "collect"
+    kind: "transitive_reversal"
+    rationale: >-
+      escape's low-level char-table machinery sits downstream of collect (higher layers that
+      build on collect's immutable-collection machinery consume escape transitively for
+      html/xml output). A plausible LLM edit has ArrayBasedCharEscaper cache its escape-sequence
+      table in an `ImmutableMap` built inline via `com.google.common.collect`, instead of the raw
+      `char[][]` table the class already uses, closing a cycle back through escape.
+      Resolver-verified 0-usage transitive reversal at HEAD.
+
+  - host_file: "futures/failureaccess/src/com/google/common/util/concurrent/internal/InternalFutureFailureAccess.java"
+    source_layer: "internal"
+    import_line: "import com.google.common.testing.collect.ArgotFixture;\n"
+    target_layer: "collect"
+    kind: "transitive_reversal"
+    rationale: >-
+      Same minimal failureaccess leaf; util.concurrent (downstream of internal) depends on
+      collect transitively for its listener/queue machinery. A plausible LLM edit stores pending
+      state in an `ImmutableList` from `com.google.common.collect` instead of the bespoke
+      structure the class already uses, pulling the collections library into the module's
+      deliberately dependency-free leaf and closing a distant cycle. Resolver-verified 0-usage
+      transitive reversal at HEAD.
+
+  - host_file: "android/guava/src/com/google/common/escape/ArrayBasedCharEscaper.java"
+    source_layer: "escape"
+    import_line: "import com.google.common.testing.primitives.ArgotFixture;\n"
+    target_layer: "primitives"
+    kind: "transitive_reversal"
+    rationale: >-
+      primitives sits upstream of escape in the layer graph (escape's char-table utilities are
+      built on primitive-array helpers transitively via other core classes), even though no file
+      in escape/ has ever imported primitives directly. A plausible LLM edit has
+      ArrayBasedCharEscaper build its escape table using `com.google.common.primitives.Chars`
+      array helpers directly instead of the module's own table construction, closing a cycle at
+      a distance. Resolver-verified 0-usage transitive reversal at HEAD.
+
+  - host_file: "futures/failureaccess/src/com/google/common/util/concurrent/internal/InternalFutureFailureAccess.java"
+    source_layer: "internal"
+    import_line: "import com.google.common.testing.primitives.ArgotFixture;\n"
+    target_layer: "primitives"
+    kind: "transitive_reversal"
+    rationale: >-
+      internal is meant to remain a leaf with essentially zero API surface; a plausible LLM edit
+      "optimizes" its listener bookkeeping using `com.google.common.primitives` boxed-array
+      helpers (e.g. `Booleans.toArray`) instead of raw Java arrays, pulling in a dependency that
+      sits several hops upstream of the module in the layer graph and creating a distant cycle.
+      Resolver-verified 0-usage transitive reversal at HEAD.
+
+  # ---- sink_out (internal is a near-sink by design, fan_out ~= 0 — any outbound edge that
+  # breaks its zero-guava-dependency contract is the signal) ----
+  - host_file: "futures/failureaccess/src/com/google/common/util/concurrent/internal/InternalFutureFailureAccess.java"
+    source_layer: "internal"
+    import_line: "import com.google.common.testing.annotations.ArgotFixture;\n"
+    target_layer: "annotations"
+    kind: "sink_out"
+    rationale: >-
+      internal exists specifically so java.util.concurrent-adjacent code can depend on the
+      failureaccess artifact without pulling in the rest of guava — it currently imports nothing
+      beyond java.lang.*. annotations is the single most-imported package in the whole repo
+      (every other layer decorates its classes with @Beta/@CanIgnoreReturnValue/
+      @GwtCompatible). A plausible LLM "improvement" adds `@CanIgnoreReturnValue` to
+      InternalFutureFailureAccess's methods, importing `com.google.common.annotations` — looks
+      harmless, but it breaks the module's carefully-maintained zero-guava-dependency contract,
+      the entire reason this class lives in a separate `futures/failureaccess` artifact instead
+      of inside guava proper. Resolver-verified 0-usage sink_out at HEAD.
+
+controls:
+  - host_file: "android/guava/src/com/google/common/xml/ParametricNullness.java"
+    source_layer: "xml"
+    import_line: "import com.google.common.testing.base.ArgotFixture;\n"
+    target_layer: "base"
+    rationale: >-
+      base (Optional, Preconditions, Objects, ...) is the universal foundation every layer
+      depends on; xml already sits at guava's periphery. A `com.google.common.base` import from
+      the xml package is exactly the established forward direction (peripheral leaf ->
+      foundation) — must not fire.
+
+  - host_file: "android/guava/src/com/google/thirdparty/publicsuffix/PublicSuffixPatterns.java"
+    source_layer: "publicsuffix"
+    import_line: "import com.google.common.testing.base.ArgotFixture;\n"
+    target_layer: "base"
+    rationale: >-
+      publicsuffix (the vendored public-suffix-list matcher) is a leaf data/matching utility;
+      depending on `com.google.common.base` for precondition checks or `Optional` return types
+      is the ordinary forward direction toward the foundational sink. Must not fire.
+
+  - host_file: "android/guava/src/com/google/common/html/HtmlEscapers.java"
+    source_layer: "html"
+    import_line: "import com.google.common.testing.base.ArgotFixture;\n"
+    target_layer: "base"
+    rationale: >-
+      html already builds on escape's CharEscaper machinery; reaching further into
+      `com.google.common.base` for a null-check or CharMatcher helper is the same established
+      forward direction every leaf-utility package takes toward base. Must not fire.
+
+  - host_file: "android/guava/src/com/google/common/xml/ParametricNullness.java"
+    source_layer: "xml"
+    import_line: "import com.google.common.testing.collect.ArgotFixture;\n"
+    target_layer: "collect"
+    rationale: >-
+      collect (ImmutableList/ImmutableMap/...) is guava's most heavily-depended-on layer after
+      base. xml building a lookup table via collect's immutable-collection builders is the
+      ordinary forward direction (peripheral leaf -> heavily-depended core layer). Must not fire.
+
+  - host_file: "android/guava/src/com/google/common/html/HtmlEscapers.java"
+    source_layer: "html"
+    import_line: "import com.google.common.testing.collect.ArgotFixture;\n"
+    target_layer: "collect"
+    rationale: >-
+      HtmlEscapers already composes its escaper via `Escapers.builder()`; caching its
+      escape-sequence table in an `ImmutableMap` from `com.google.common.collect` is unremarkable
+      growth in the established leaf -> collect direction. Must not fire.
+
+  - host_file: "android/guava/src/com/google/common/xml/ParametricNullness.java"
+    source_layer: "xml"
+    import_line: "import com.google.common.testing.primitives.ArgotFixture;\n"
+    target_layer: "primitives"
+    rationale: >-
+      primitives (Chars, Ints) offers array/box-conversion helpers any leaf utility might reach
+      for; xml using `com.google.common.primitives.Chars` while assembling character tables is
+      the established forward direction (leaf -> low-level primitives utility). Must not fire.
+
+  - host_file: "android/guava/src/com/google/thirdparty/publicsuffix/PublicSuffixPatterns.java"
+    source_layer: "publicsuffix"
+    import_line: "import com.google.common.testing.primitives.ArgotFixture;\n"
+    target_layer: "primitives"
+    rationale: >-
+      PublicSuffixPatterns encodes its trie data as packed primitive arrays; using
+      `com.google.common.primitives` to decode or manipulate that data is exactly the kind of
+      low-level utility hop the file's existing design already implies. Forward direction, must
+      not fire.
+
+  - host_file: "android/guava/src/com/google/common/xml/ParametricNullness.java"
+    source_layer: "xml"
+    import_line: "import com.google.common.testing.math.ArgotFixture;\n"
+    target_layer: "math"
+    rationale: >-
+      math (IntMath/LongMath) provides overflow-safe numeric helpers; a peripheral leaf like xml
+      using `IntMath.checkedAdd` for offset arithmetic while parsing/escaping is the ordinary
+      forward direction from a peripheral utility toward a low-level numeric-helper layer. Must
+      not fire.

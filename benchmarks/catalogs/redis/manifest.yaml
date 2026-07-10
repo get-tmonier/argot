@@ -15,6 +15,7 @@ fixtures:
 - id: exit_on_error_1
   file: breaks/break_exit_on_error_1.c
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 21
   hunk_end_line: 47
   rationale: 'fprintf(stderr) + exit(1)/exit(EXIT_FAILURE) on bad client input
@@ -28,6 +29,7 @@ fixtures:
 - id: printf_log_1
   file: breaks/break_printf_log_1.c
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 16
   hunk_end_line: 29
   rationale: 'printf/fprintf(stdout)+fflush diagnostics in an expire-cycle
@@ -40,6 +42,7 @@ fixtures:
 - id: malloc_abort_1
   file: breaks/break_malloc_abort_1.c
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 23
   hunk_end_line: 43
   rationale: 'raw malloc with perror("malloc")+abort() on allocation failure
@@ -54,6 +57,7 @@ fixtures:
 - id: errno_return_1
   file: breaks/break_errno_return_1.c
   category: wrong_error_discipline
+  class: semantic_convention
   hunk_start_line: 21
   hunk_end_line: 42
   rationale: 'errno = ENOENT/EBUSY + -1 return codes with
@@ -67,6 +71,7 @@ fixtures:
 - id: thread_spawn_1
   file: breaks/break_thread_spawn_1.c
   category: wrong_concurrency
+  class: semantic_convention
   hunk_start_line: 18
   hunk_end_line: 37
   rationale: 'pthread_create + pthread_detach spawning one thread per object
@@ -81,6 +86,7 @@ fixtures:
 - id: busywait_poll_1
   file: breaks/break_busywait_poll_1.c
   category: wrong_concurrency
+  class: semantic_convention
   hunk_start_line: 17
   hunk_end_line: 41
   rationale: 'pthread_mutex-guarded volatile flag + while/usleep(1000)
@@ -94,6 +100,7 @@ fixtures:
 - id: raw_malloc_1
   file: breaks/break_raw_malloc_1.c
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 17
   hunk_end_line: 41
   rationale: 'raw malloc/realloc/free with NULL-check returns for object
@@ -108,6 +115,7 @@ fixtures:
 - id: strcat_string_1
   file: breaks/break_strcat_string_1.c
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 18
   hunk_end_line: 41
   rationale: 'static char[256] key building with strncat/strcat/strcpy/sprintf
@@ -120,6 +128,7 @@ fixtures:
 - id: dict_internals_1
   file: breaks/break_dict_internals_1.c
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 16
   hunk_end_line: 34
   rationale: 'hand-walking dict ht_table[table][idx] buckets and de->next
@@ -134,6 +143,7 @@ fixtures:
 - id: handrolled_parse_1
   file: breaks/break_handrolled_parse_1.c
   category: wrong_api_within_known_lib
+  class: semantic_convention
   hunk_start_line: 16
   hunk_end_line: 45
   rationale: 'hand-rolled isdigit loop + strtol with atoi fallback to parse a
@@ -342,6 +352,7 @@ fixtures:
 - id: foreign_openmp_1
   file: breaks/break_foreign_openmp_1.c
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 19
   hunk_end_line: 32
   rationale: 'OpenMP data-parallel checksum of the keyspace across worker
@@ -358,6 +369,7 @@ fixtures:
 - id: foreign_gcd_1
   file: breaks/break_foreign_gcd_1.c
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 17
   hunk_end_line: 31
   rationale: 'Grand Central Dispatch fan-out of lazy-free jobs onto a concurrent
@@ -390,6 +402,7 @@ fixtures:
 - id: foreign_libaio_1
   file: breaks/break_foreign_libaio_1.c
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 19
   hunk_end_line: 29
   rationale: 'Linux libaio submitting RDB writes asynchronously through an io
@@ -423,6 +436,7 @@ fixtures:
 - id: foreign_nsync_1
   file: breaks/break_foreign_nsync_1.c
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 18
   hunk_end_line: 27
   rationale: 'nsync mutex + condition variable guarding a shared eviction
@@ -501,6 +515,7 @@ fixtures:
 - id: foreign_ck_includefar_1
   file: breaks/break_foreign_ck_includefar_1.c
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 30
   hunk_end_line: 38
   rationale: 'HARD (include far away): Concurrency Kit lock-free SPSC ring
@@ -519,6 +534,7 @@ fixtures:
 - id: foreign_pthreadpool_indirect_1
   file: breaks/break_foreign_pthreadpool_indirect_1.c
   category: foreign_concurrency
+  class: foreign_import
   hunk_start_line: 19
   hunk_end_line: 23
   rationale: 'HARD (masked): pthreadpool (a foreign fork-join parallel runtime)

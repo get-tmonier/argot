@@ -2,57 +2,95 @@ import type { SiteContent } from './types';
 
 const fr: SiteContent = {
   meta: {
-    title: 'argot — lintez les règles que personne n’a écrites',
+    title: 'argot — détectez le code IA qui ne colle pas à votre dépôt',
     description:
-      'argot est un garde-fou pour le code écrit par IA. Il apprend les motifs de votre dépôt depuis son historique git, puis signale les dépendances, API et constructions qu’il n’a jamais utilisées. Aucun modèle, aucun cloud, aucun GPU.',
+      'argot est un garde-fou local pour le code écrit par IA. Il apprend les motifs de votre dépôt depuis son historique git, puis signale le code qui n’a pas sa place — une dépendance jamais utilisée, une fonction que vous avez déjà, du code au mauvais endroit, un import qui casse votre architecture. Propulsé par un modèle d’embeddings de code qui tourne sur votre machine. Sans LLM, sans cloud, sans GPU.',
   },
   nav: {
     demo: 'Démo',
-    catches: 'Ce qu’il détecte',
+    engine: 'Sous le capot',
     docs: 'Docs',
   },
   hero: {
-    eyebrow: 'Local · un seul binaire Rust · sans LLM',
+    eyebrow: 'Modèle d’embeddings local · binaire Rust unique · sans LLM',
     titleLead: 'Lintez les règles',
     titleGradient: 'que personne n’a écrites.',
     subtitle:
-      'Il signale le code étranger à votre dépôt — les dépendances et idiomes qu’une IA écrit et que votre code n’a [[jamais utilisés]].',
+      'L’IA écrit du code valide qui n’est pas [[le vôtre]]. argot apprend la voix de votre dépôt depuis son historique git — et signale ce qui n’a pas sa place, avant le merge.',
     ctaPrimary: 'Lire la doc',
     ctaSecondary: 'Star sur GitHub',
     install: 'npm i -g @tmonier/argot',
-    installNote: 'MIT · binaire statique unique · macOS · Linux · Windows · zéro dépendance',
+    installNote: 'MIT · binaire statique unique · macOS · Linux · Windows · 100 % local',
     installAlt: 'ou installer sans npm',
   },
   demo: {
     label: 'La deuxième question',
     title: 'Le type-checker demande si ça compile. argot demande si c’est le vôtre.',
-    body: 'Les linters demandent « est-ce valide ? » — jamais « est-ce ainsi qu’on écrit ici ? » Un LLM l’enterre sous des PR propres et bien typées. [[argot repose la question.]]',
-    caption:
-      'Une vue à la Django dans un dépôt 100 % FastAPI. mypy et ruff passent — [[argot le signale en ~150 ms.]]',
-    seeLive: 'Voyez-le sur de vrais dépôts',
-  },
-  catches: {
-    label: 'Ce qu’il détecte',
-    title: 'Techniquement correct. Socialement étranger.',
-    body: 'Ce qu’ESLint, ruff et les type-checkers ne savent pas formuler : une dépendance, une API ou un paradigme [[que le dépôt n’a jamais utilisés]].',
-    items: [
+    body: 'Un LLM enterre cette question sous des PR propres et bien typées. argot la pose au diff — [[voici sa vraie sortie]].',
+    tabs: [
       {
-        title: 'Une dépendance étrangère',
-        desc: 'Un import que le dépôt n’a jamais utilisé. Le signal le plus net — le mieux détecté.',
+        id: 'foreign-import',
+        label: 'foreign-import',
+        caption:
+          'Une vue Django dans un dépôt entièrement FastAPI — du Python valide, mais un framework que ce dépôt n’a jamais importé. L’évidence montre ce que le dépôt utilise à la place.',
       },
       {
-        title: 'Une API étrangère',
-        desc: 'Un appel vers une bibliothèque que le reste du code évite.',
+        id: 'redundant',
+        label: 'redundant',
+        caption:
+          'Le dépôt a déjà cette fonction. argot nomme l’originale, où elle vit, et la proximité du doublon — utilisez-la au lieu de merger un jumeau.',
       },
       {
-        title: 'Un paradigme étranger',
-        desc: 'Tout un idiome venu d’ailleurs — une vue Django dans un dépôt FastAPI.',
+        id: 'misplaced',
+        label: 'misplaced',
+        caption:
+          'De la logique de téléchargement rangée sous cli/commands — ses plus proches voisins vivent tous dans core/downloader. Le bon code, au mauvais endroit.',
       },
       {
-        title: 'La limite qu’il ne franchit pas',
-        desc: 'Une mauvaise exception alors que [[tout le vocabulaire est déjà le vôtre]]. argot ne s’engage pas sur un choix — et le dit.',
+        id: 'layering',
+        label: 'layering',
+        caption:
+          'Dans ce dépôt, cli importe core — jamais l’inverse. Cet import inverse discrètement l’architecture ; argot signale l’arête elle-même.',
       },
     ],
+    seeLive: 'Voyez-le sur de vrais dépôts',
+  },
+  replay: {
+    label: 'Jour un',
+    title: 'Rembobinez votre historique. Voyez ce qu’il aurait attrapé.',
+    body: 'On ne démontre pas un garde-fou sur le code qu’il vient d’apprendre — alors argot rembobine. [[argot replay]] calibre la voix telle qu’elle était il y a 50 commits et rescore tout ce qui a suivi : une commande, quelques secondes, votre arbre intact.',
+    caption:
+      'Vraie exécution sur l’historique de FastAPI : deux imports fraîchement adoptés et le nouveau vocabulaire de streaming — chacun avec [[l’évidence du dépôt lui-même]].',
+  },
+  engine: {
+    label: 'Sous le capot',
+    title: 'De la compréhension sémantique. Aucun LLM nulle part.',
+    body: 'Trois moteurs, un seul binaire [[Rust]] statique, tous appris de votre historique git — pas de clé d’API, pas de GPU, rien ne quitte votre machine.',
+    cards: [
+      {
+        title: 'Un modèle d’embeddings de code sur votre laptop',
+        desc: 'jina-code (~100 Mo, téléchargé une fois) transforme chaque fonction en vecteur. C’est ainsi qu’argot sait que vous [[l’avez déjà écrite]] — et où elle a sa place. Un encodeur, pas un LLM : aucune génération, CPU d’abord, accéléré Metal sur Mac.',
+      },
+      {
+        title: 'Un modèle de voix statistique',
+        desc: 'Deux tables de fréquences et une partition d’appels, apprises de votre historique — les imports, les appels et les formes de tokens que votre dépôt [[utilise vraiment]]. Pas besoin de réseau de neurones pour savoir que django n’a rien à faire ici.',
+      },
+      {
+        title: 'Un graphe d’architecture',
+        desc: 'La topologie de dépendances de vos modules, calibrée depuis vos propres imports : quelles couches pointent vers lesquelles. Une nouvelle arête qui [[inverse la direction établie]] est signalée avec la direction qu’elle casse.',
+      },
+    ],
+    stats: [
+      { value: '0,2 s', label: 'pour vérifier un diff' },
+      { value: '0,6 s', label: 'quand il définit de nouvelles fonctions' },
+      { value: '25 s', label: 'premier fit, dépôt de 1 100 fichiers' },
+      {
+        value: '4 s',
+        label: 'pour rafraîchir — les fonctions inchangées réutilisent leurs embeddings',
+      },
+    ],
+    finePrint:
+      'Mesuré sur FastAPI, CPU de portable. Un seul binaire statique — pas de Python, pas de Node, aucun runtime à installer.',
   },
   proof: {
     label: 'Mesuré, pas promis',
@@ -60,35 +98,35 @@ const fr: SiteContent = {
     stats: [
       {
         value: '98 %',
-        title: 'détection étrangère visible',
-        desc: 'Quand le symbole étranger est [[visible]] dans le diff — un import ou un appel explicite — jugé par le binaire livré : 565 sur 574.',
+        title: 'motifs étrangers détectés',
+        desc: 'Une dépendance ou une API que le dépôt n’utilise jamais : 604 sur 618 — en ne se déclenchant que sur [[0,22 % des vraies modifications]] (49 hunks sur 22 785 ; pire dépôt 1,17 %).',
       },
       {
-        value: '85 %',
-        title: 'détection sur toutes les fixtures',
-        desc: 'Chaque cassure plantée, facile → difficile — le reste est de l’[[étranger masqué]] qu’un modèle de voix ne peut structurellement pas voir : 591 sur 694.',
+        value: '94 %',
+        title: 'réinventions détectées · médiane',
+        desc: '85–100 % par dépôt : des réécritures fidèles des [[propres fonctions]] du dépôt, plantées comme du code neuf et retracées à l’originale. Faux déclenchement ≤ 2,8 % des hunks.',
       },
       {
-        value: '0,22 %',
-        title: 'fausses alertes sur de vraies modifications',
-        desc: 'À quelle fréquence argot se déclenche sur le [[code existant]] — 31 dépôts, chacun ≤ 1,17 %.',
+        value: '96 %',
+        title: 'mauvais placements détectés · médiane',
+        desc: '86–99 % partout où le dépôt a une architecture séparable — et il [[s’abstient]] là où il n’y en a pas, au lieu de deviner.',
       },
       {
-        value: '150 ms',
-        title: 'pour vérifier un changement',
-        desc: 'Sur un dépôt de 34 000 fichiers, CPU de portable. Le fit unique prend ~7 s. [[Sans GPU, sans cloud.]]',
+        value: '96,8 %',
+        title: 'violations d’architecture détectées',
+        desc: 'Inversions de layering : 244 sur 252 détectées à [[zéro faux positif]] — 0 déclenchement sur 140 modifications de contrôle.',
       },
     ],
     languages:
       'Un seul [[binaire statique]], 11 langages : Python · TypeScript · JavaScript · Go · Rust · Java · C# · C · C++ · Ruby · PHP.',
     finePrint:
-      'Sans fuite par construction : rappel sur des motifs étrangers plantés dans de vrais fichiers ; fausses alertes par holdout temporel.',
+      'Sans fuite par construction : rappel sur des motifs étrangers plantés dans de vrais fichiers ; fausses alertes par holdout temporel. La seule chose qu’un modèle de voix ne peut structurellement pas voir — l’étranger masqué — est publiée sur la page benchmarks, pas cachée.',
     benchmarksCta: 'Tous les chiffres par dépôt →',
   },
   setup: {
     label: 'Configuration · conçu pour les agents',
     title: 'Un CLI que votre agent peut piloter.',
-    body: 'Les skills lancent argot [[et apportent le jugement]] : /argot-setup lit votre dépôt pour décider ce qui ne doit pas façonner sa voix — un SDK vendorisé, un dossier généré — écrit un argot.toml, calibre, et vérifie la détection. Consultatif, jamais bloquant.',
+    body: 'Les skills lancent argot [[et apportent le jugement]] : /argot-setup lit votre dépôt pour décider ce qui ne doit pas façonner sa voix — un SDK vendorisé, un dossier généré — écrit un argot.toml, calibre, et vérifie la détection. Informatif, jamais bloquant.',
     installLabel: 'Ajoutez les skills — Claude Code, Cursor, 70+ agents',
     skillsIntro: 'quatre slash-commands que votre agent lance :',
     skillDescs: [
@@ -105,7 +143,7 @@ const fr: SiteContent = {
   ciScore: {
     label: 'En CI, sans la friction',
     title: 'Un score de voix sur chaque PR. Jamais une porte de merge.',
-    body: 'Un score visuel et les points chauds sur chaque PR — [[consultatif par défaut]]. Intentionnel ? Un argot mute, versionné comme trace d’audit.',
+    body: 'Un score visuel et les points chauds sur chaque PR — [[non bloquant par défaut]]. Intentionnel ? Un argot mute, versionné comme trace d’audit.',
     caption: 'Atterrit dans le résumé Actions, un commentaire de PR épinglé, et l’onglet Security.',
   },
   cta: {

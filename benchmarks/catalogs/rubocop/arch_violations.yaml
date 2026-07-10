@@ -1,0 +1,167 @@
+# Architecture-graph violation fixtures for rubocop (Ruby). Each `import_line`
+# added to `host_file` creates the internal edge (source layer -> target layer).
+# Violations cross a boundary the repo never crosses in that direction; controls
+# respect the established direction (or are structurally forward/non-catchable
+# and must stay quiet).
+#
+# Layer detection for Ruby (`detect_ruby_context` / `layer_under` in
+# arch_graph.rs): roots are `""` (repo root) and `lib` (present because the repo
+# has files under `lib/`). A file directly inside a root (no sub-component) gets
+# the sentinel layer `__root__`; a file one level down gets its enclosing dir as
+# the layer. Concretely for this repo:
+#   - `lib/rubocop.rb`                 -> layer `__root__` (the gem's one entry file)
+#   - `lib/rubocop/<...>.rb`           -> layer `rubocop`  (cop/AST/CLI internals)
+#   - `lib/ruby_lsp/rubocop/<...>.rb`  -> layer `ruby_lsp` (the Ruby LSP add-on)
+#   - `tasks/<...>.rb`                 -> layer `tasks`    (rake/dev utilities)
+#   - `spec/<...>.rb`                  -> layer `spec`     (test suite)
+# This corpus's whole cross-layer graph among these 5 layers is TINY (a handful
+# of files each), so `recompute_sinks`'s near-sink rule (a layer is a near-sink
+# once out_mass <= 0.5 * (in_mass + out_mass)) tips several layers into sink
+# status off single-digit counts. Edge weights below are FILE counts, not raw
+# `require_relative` occurrences — `file_edges` returns a `HashSet<Edge>` per
+# file, so `lib/rubocop.rb`'s ~700 individual requires into `lib/rubocop/**`
+# collapse to exactly one `__root__ -> rubocop` edge (weight 1), not 700.
+#
+# Topology at the corpus's pinned SHA (recomputed with the same per-file-dedup
+# rule as `RepoLayering::file_edges`, cross-checked against every `kind` the
+# resolver assigned in the verified candidate menu):
+#   - `tasks`    im=1 om=0  -> STRICT SINK  (spec -> tasks, 1 file; tasks imports nothing)
+#   - `__root__` im=3 om=1  -> near-sink    (rubocop -> __root__ x2, ruby_lsp -> __root__ x1;
+#                                             __root__ -> rubocop x1)
+#   - `rubocop`  im=3 om=2  -> near-sink    (__root__ -> rubocop x1, ruby_lsp -> rubocop x2;
+#                                             rubocop -> __root__ x2)
+#   - `ruby_lsp` im=0 om=3  -> source/hub   (ruby_lsp -> __root__ x1, ruby_lsp -> rubocop x2;
+#                                             nothing imports ruby_lsp back)
+#   - `spec`     im=0 om=1  -> source       (spec -> tasks x1; nothing imports spec back)
+# Verification per fixture: `RepoLayering::classify` on the (source -> target)
+# edge, reproducible by hand as `git -C benchmarks/data/rubocop/.repo grep -rn
+# "require_relative" -- lib/ tasks/ spec/` and resolving each spec against its
+# host file's directory.
+#
+# Menu note: this corpus's verified 0-usage candidate menu is SMALL — 5 layers,
+# 7 catchable candidates (5 sink_out + 2 reversal) and only 2 forward
+# candidates. Every entry below is one of those 9 rows; none were invented.
+# All 7 catchable rows are used as violations. Both forward rows are used as
+# controls — `spec -> __root__` is a clean legitimate case (a spec file
+# requiring the library it tests); `ruby_lsp -> tasks` is a structurally
+# forward, non-catchable edge (ruby_lsp is a source, not a sink, and no reverse
+# tasks -> ruby_lsp edge is attested) — the gate must stay quiet on it, whether
+# or not the specific import reads as idiomatic, so it is kept as a control
+# rather than dropped. The menu offered no third or fourth forward candidate,
+# so this catalog ships 2 controls, not the usual 3-4.
+
+violations:
+  # ---- sink_out (tasks: im=1/om=0, a strict sink — any outbound edge is anomalous) ----
+  - host_file: "tasks/changelog.rb"
+    source_layer: "tasks"
+    import_line: 'require_relative "../lib/rubocop/arguments_env"'
+    target_layer: "rubocop"
+    kind: "sink_out"
+    rationale: >-
+      tasks/changelog.rb is a rake changelog utility. tasks is a strict sink in this
+      corpus (im=1 via spec -> tasks, om=0 — nothing under tasks/ requires anything
+      else). A dev-tooling script reaching into the cop/AST/CLI internals (lib/rubocop/**)
+      it's meant to help release inverts that: tasks stops being a leaf the test suite
+      merely consumes. The edge tasks->rubocop is unattested in either direction, and
+      tasks leaving its sink position is the tell (RepoLayering::classify -> SinkOut).
+
+  - host_file: "tasks/changelog.rb"
+    source_layer: "tasks"
+    import_line: 'require_relative "../lib/rubocop"'
+    target_layer: "__root__"
+    kind: "sink_out"
+    rationale: >-
+      Same sink-out shape, this time tasks reaching for the gem's single entry file
+      (lib/rubocop.rb, layer __root__) directly. 0-usage in either direction; the
+      whole point of tasks/ in this repo is to be pulled in by spec/, never to pull
+      in the packaged library itself.
+
+  - host_file: "tasks/changelog.rb"
+    source_layer: "tasks"
+    import_line: 'require_relative "../lib/ruby_lsp/rubocop/addon"'
+    target_layer: "ruby_lsp"
+    kind: "sink_out"
+    rationale: >-
+      tasks reaching into the Ruby LSP add-on. Same sink violation shape as the two
+      rows above — 0-usage edge, tasks (im=1, om=0) staying a leaf is the established
+      shape and any outbound edge from it breaks that.
+
+  # ---- sink_out (__root__: im=3/om=1, near-sink) ----
+  - host_file: "lib/rubocop.rb"
+    source_layer: "__root__"
+    import_line: 'require_relative "../tasks/changelog"'
+    target_layer: "tasks"
+    kind: "sink_out"
+    rationale: >-
+      lib/rubocop.rb (layer __root__) is imported by both other lib layers (rubocop
+      x2, ruby_lsp x1 -> im=3) while it only reaches back into rubocop once (om=1) —
+      a 3:1 in:out ratio that trips the near-sink rule. Wiring the changelog rake
+      task into the packaged library's own entry point pulls dev/release tooling
+      into runtime load order — backwards, and 0-usage in either direction.
+
+  # ---- sink_out (rubocop: im=3/om=2, near-sink) ----
+  - host_file: "lib/rubocop/arguments_env.rb"
+    source_layer: "rubocop"
+    import_line: 'require_relative "../../tasks/changelog"'
+    target_layer: "tasks"
+    kind: "sink_out"
+    rationale: >-
+      lib/rubocop/** (layer rubocop) is also a near-sink (im=3: __root__ x1 +
+      ruby_lsp x2; om=2: rubocop -> __root__ x2) — consumed more than it reaches
+      out. A cop-internals file requiring the changelog rake task pulls dev/release
+      tooling into the gem's runtime code. 0-usage edge, against the layer's
+      established near-sink shape.
+
+  # ---- reversal (attested ruby_lsp -> {__root__, rubocop}; the reverse never happens) ----
+  - host_file: "lib/rubocop.rb"
+    source_layer: "__root__"
+    import_line: 'require_relative "./ruby_lsp/rubocop/addon"'
+    target_layer: "ruby_lsp"
+    kind: "reversal"
+    rationale: >-
+      The attested direction is ruby_lsp -> __root__ (lib/ruby_lsp/rubocop/addon.rb's
+      `require_relative '../../rubocop'`, 1 file): the optional LSP add-on depends on
+      the core gem, never the reverse. __root__ reaching down to require the add-on
+      reverses that — the packaged library's entry point would now depend on an
+      editor-integration add-on it doesn't own. 0-usage edge; the reverse is directly
+      attested, so RepoLayering::classify returns Reversal.
+
+  - host_file: "lib/rubocop/arguments_env.rb"
+    source_layer: "rubocop"
+    import_line: 'require_relative "../ruby_lsp/rubocop/addon"'
+    target_layer: "ruby_lsp"
+    kind: "reversal"
+    rationale: >-
+      The attested direction is ruby_lsp -> rubocop (addon.rb's `require_relative
+      '../../rubocop/lsp/logger'`, 2 files) — the add-on reaches into the cop
+      internals, never the reverse. A cop-internals file requiring the LSP add-on
+      straight back reverses that established direction. 0-usage edge; the reverse
+      is attested, so this is a Reversal, not a fresh forward edge.
+
+controls:
+  - host_file: "spec/core_ext/string.rb"
+    source_layer: "spec"
+    import_line: 'require_relative "../../lib/rubocop"'
+    target_layer: "__root__"
+    rationale: >-
+      spec -> __root__ is exactly the shape a Ruby test suite is supposed to have:
+      a spec file pulling in the library under test. spec is a pure source in this
+      graph (om=1, im=0) and the reverse (__root__ -> spec) is not attested, so
+      RepoLayering::classify falls through every violation branch to None (a clean
+      novel-forward edge) — matching the resolver's own "forward" tag on this
+      candidate. Must NOT fire.
+
+  - host_file: "lib/ruby_lsp/rubocop/addon.rb"
+    source_layer: "ruby_lsp"
+    import_line: 'require_relative "../../../tasks/changelog"'
+    target_layer: "tasks"
+    rationale: >-
+      ruby_lsp is a pure source/hub here (om=3, im=0 — nothing imports the add-on
+      back) and tasks is only ever a consumer via spec, never a producer, so there
+      is no attested reverse (tasks -> ruby_lsp) and no cycle for a transitive
+      reversal either. classify() falls through to None. Kept as a control not
+      because this specific import reads as idiomatic (an LSP add-on reaching for a
+      changelog rake task is unusual) but because it is the menu's only other
+      forward candidate and the gate structurally cannot distinguish it from
+      organic growth — it must stay quiet, and this fixture proves that boundary
+      rather than hiding it.

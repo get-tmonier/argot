@@ -600,3 +600,19 @@ language coverage, editor/agent integration, a versioned model artifact, and a
 public benchmark dashboard. Those are tracked as
 [open issues](https://github.com/get-tmonier/argot/issues); this research log
 stays the receipts for every scoring decision behind them.
+
+## Update (2026-07-10): the semantic layer reaches gate level everywhere
+
+The embedding senses (reinvention F1, placement F2) were rebuilt around
+**fit-time self-calibration** and are now gate-ready on all 31 corpora —
+recall ≥ 85% (or a clean abstain) and clean-commit over-fire ≤ 3%/hunk on every
+(detector, corpus) cell, leak-free. Placement finds each repo's real package
+granularity adaptively, merges semantically entangled areas, and disables
+itself where no separable architecture exists (fmt's old 20% FP is now a clean
+abstain); reinvention adds a same-directory margin, an unconditional substance
+floor, a rare-callee-only family exemption, and a per-repo **conservative mode**
+selected by a zero-embedding git mini-replay at fit (saleor 7.5% → 2.4%/hunk).
+Foreign and Architecture were re-verified unchanged. The full story — including
+every rejected trigger and two ops incidents (stranded clones, silent embedder
+degradation) — is in
+[`evidence/semantic-all-gates-self-calibration.md`](evidence/semantic-all-gates-self-calibration.md).

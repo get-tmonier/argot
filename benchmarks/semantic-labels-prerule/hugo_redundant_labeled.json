@@ -1,0 +1,8 @@
+{
+ "corpus": "hugo",
+ "reason": "redundant",
+ "genuine": 0,
+ "true_fp": 23,
+ "raw_fires": 23,
+ "sampled": true
+}

@@ -5,7 +5,7 @@ group: Guide
 order: 9
 ---
 
-argot in CI is **advisory by design**. It's a statistical guardrail, so it
+argot in CI is **non-blocking by design**. It's a statistical guardrail, so it
 *informs* a pull request — a visual score, the hot-spots, and inline annotations
 — without ever gating the merge. The reviewer has the last word. (Want a hard
 gate anyway? One input flips it on.)
@@ -41,6 +41,41 @@ argot fits the model on the PR's **base** branch and scores your changes against
 it, so a dependency the PR introduces is judged as new (not learned as normal
 first). The model is cached per base commit and only re-fit when the base moves.
 
+> **What the embedding model costs in CI — and what the Action already does.**
+> The semantic layer's ~100 MB (104 MB) GGUF is fetched on first use. The
+> Action handles it for you: it caches `~/.cache/argot/models` under a key tied
+> to the model's release tag (so the download happens **once per repo × OS**,
+> not per run — the tag only changes when a release pins a new model) and runs
+> `argot model fetch` (a cache hit costs one sha256 pass, well under a second;
+> a cold download from GitHub Releases is typically 10–30 s on hosted runners).
+> The heavier, easy-to-miss cost is the **fit-time semantic index**: fitting on
+> a new base embeds every corpus function on a CPU runner — minutes on a large
+> repo. The Action's `cache: true` keeps the fitted `.argot/` (index included)
+> keyed on the base commit, so you pay it only when the base advances — and on
+> that advance it restores the *previous* base's index first, so the re-fit is
+> incremental (unchanged functions reuse their embeddings; seconds, not
+> minutes). If that
+> is still too much — or the runner is locked down — set the Action's
+> **`semantic: false`** input: no download, no index build; the voice and
+> layering rules still run.
+>
+> Hand-rolled workflow (no Action)? Reproduce the same two steps:
+>
+> ```yaml
+>       - uses: actions/cache@v4
+>         with:
+>           path: ~/.cache/argot/models
+>           key: argot-embedding-model-semantic-model-v1-${{ runner.os }}
+>       - run: argot model fetch    # pre-warm; fails loudly if the download can't happen
+> ```
+>
+> If the model isn't available at check time (an offline or locked-down runner),
+> the semantic rules are skipped with a printed note and the **base
+> foreign-catch guardrail still runs** — you never get a red build because a
+> model download was blocked. On a locked-down mirror, set `ARGOT_MODEL_URL`
+> (the sha256 is still verified) — see
+> [Configure](/docs/configure/#environment-variables).
+
 > **Committing the workflow:** pushing a `.github/workflows/*.yml` needs the
 > `workflow` token scope. If `git push` is rejected with *"refusing to allow an
 > OAuth App to … workflow … without 'workflow' scope"*, run
@@ -64,7 +99,7 @@ The card looks like this:
 >
 > `█████████████████░░░` 83%
 >
-> > **Advisory — not a merge gate.**
+> > **Informational — not a merge gate.**
 
 ## Let an AI agent wire it in
 
@@ -74,7 +109,7 @@ at your repo root — it's the CI counterpart to the [Setup](/docs/setup/) promp
 ```text
 You are adding **argot** to this repository's CI — a non-blocking voice check on
 every pull request. You do NOT need argot installed locally; the GitHub Action
-installs and fits it. Keep it advisory — never a merge gate.
+installs and fits it. Keep it informational — never a merge gate.
 
 1. Confirm the repo is on GitHub with Actions enabled.
 
@@ -134,6 +169,27 @@ policy):
           fail-on-hits: true
 ```
 
+Which findings fail is the rules engine's call: every rule defaults to severity
+`error`, and anything the repo's `argot.toml` downgrades to `warn` is reported
+without failing. In a hand-rolled workflow, `argot check --error-on-warnings`
+turns even the `warn`-severity findings into a red build — the strictest
+setting. See [Configure](/docs/configure/#rules--rule-severities).
+
+## Inline PR annotations without the Action
+
+In any hand-rolled workflow, `--format github` emits GitHub Actions workflow
+commands (`::error file=…,line=…::message`) directly — the runner turns them
+into inline PR annotations with **no SARIF upload step and no extra
+permissions**:
+
+```yaml
+      - run: argot check origin/${{ github.base_ref }}..HEAD --format github
+```
+
+Each annotation carries the rule name, the score and confidence, the evidence,
+and the exact `argot mute <hash>` command. `error`-severity rules annotate as
+errors, `warn`-severity ones as warnings.
+
 ### Action inputs
 
 All inputs are optional.
@@ -157,9 +213,63 @@ All inputs are optional.
 | `exit-code` | Exit code of `argot check` (`0` clean, `1` hits found). |
 | `results-file` | Path to the written results file. |
 
+## On any other CI — GitLab, Jenkins, CircleCI, …
+
+The Action is a convenience, not a requirement. On any provider, a voice check
+is four steps — and two caches:
+
+1. **Install the binary** (~20 MB, pin a version for reproducible runs):
+   `curl -LsSf https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.sh | sh`,
+   then make sure `~/.local/bin` / `~/.cargo/bin` is on `PATH`.
+2. **Warm the embedding model** — cache the models directory and run
+   `argot model fetch` (cache hit: one sha256 pass, <1 s; cold: one ~104 MB
+   download). Locked-down runner? `ARGOT_OFFLINE=1` skips it — voice +
+   layering still run.
+3. **Fit on the base, not the head** — check out the target branch, `argot
+   fit`, check out the PR head again. Fitting on the head would teach the
+   model the PR's own new code before judging it. Cache `.argot/` keyed on
+   the base commit so the fit (and its semantic index) re-runs only when the
+   base advances.
+4. **Check the range** — `argot check "origin/$TARGET..HEAD" --format json`
+   (exit 0 clean · 1 findings · 2 setup error; add `--error-on-warnings` for
+   a strict gate).
+
+GitLab CI, as one concrete shape (GitLab only caches paths inside the project
+dir — point `XDG_CACHE_HOME` there so the model cache is cacheable):
+
+```yaml
+argot:
+  variables:
+    GIT_DEPTH: 0                                # ranges need history
+    XDG_CACHE_HOME: $CI_PROJECT_DIR/.cache      # model cache inside the project dir
+  cache:
+    - key: argot-model-semantic-model-v1
+      paths: [.cache/argot/models]
+    - key: argot-fit-$CI_MERGE_REQUEST_DIFF_BASE_SHA
+      paths: [.argot]
+  script:
+    - curl -LsSf https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.sh | sh
+    - export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+    - argot model fetch
+    - |
+      if [ ! -f .argot/scorer-config.json ]; then
+        git checkout --detach "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
+        argot fit
+        git checkout --detach "$CI_COMMIT_SHA"
+      fi
+    - argot check "$CI_MERGE_REQUEST_DIFF_BASE_SHA..HEAD"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+```
+
+Two behaviours you get for free on runners: the background auto-refit and the
+update notice **never run in CI** (argot detects `CI`, and Jenkins/TeamCity/
+Azure markers too), and a blocked model download degrades to a printed skip —
+never a red build.
+
 ## Locally, before you push
 
-A [pre-commit](https://pre-commit.com) hook scores staged changes (advisory —
+A [pre-commit](https://pre-commit.com) hook scores staged changes (informational —
 it doesn't fail the commit unless you make it):
 
 ```yaml
@@ -182,8 +292,11 @@ any system:
 ```text
 argot check main..HEAD --format json      # stable JSON: hits, scores, hashes
 argot check main..HEAD --format sarif      # SARIF 2.1.0 for any code scanner
+argot check main..HEAD --format github     # inline PR annotations, no upload step
 argot voice-diff main..HEAD --format markdown   # the score card
 ```
 
-Exit codes: `0` clean · `1` hits found · `2` setup/usage error. Treat `1` as
-"there's something to look at," not a failure — that's the whole posture.
+Exit codes: `0` clean · `1` at least one `error`-severity finding · `2`
+setup/usage error. Treat `1` as "there's something to look at," not a failure —
+that's the whole posture. Rules you've set to `warn` never exit 1 (unless you
+pass `--error-on-warnings`).

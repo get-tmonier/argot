@@ -1,0 +1,11 @@
+{
+ "corpus": "jellyfin",
+ "reason": "redundant",
+ "window": 150,
+ "raw_fires": 57,
+ "genuine": 5,
+ "true_fp": 52,
+ "judges": 3,
+ "method": "3-judge majority, default false-alarm",
+ "note": "labelled on the post-sibling-filter survivors"
+}

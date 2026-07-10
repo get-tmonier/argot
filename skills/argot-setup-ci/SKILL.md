@@ -5,9 +5,10 @@ description: Wire argot into a repository's GitHub Actions as a non-blocking voi
 
 # argot-setup-ci
 
-Add argot to a repository's CI as an **advisory** voice check on every pull
-request. You do **not** need to set argot up locally first — the Action installs
-argot and fits the model in CI. Never make it block the merge.
+Add argot to a repository's CI as a **non-blocking** pattern check on every
+pull request. You do **not** need to set argot up locally first — the Action
+installs argot and fits the model in CI. Never make it block the merge unless
+the user explicitly asks for a gate.
 
 ## Steps
 
@@ -31,8 +32,17 @@ argot and fits the model in CI. Never make it block the merge.
          - uses: actions/checkout@v4
            with:
              fetch-depth: 0    # argot fits on the PR's base branch, so it needs history
+         - uses: actions/cache@v4
+           with:
+             path: ~/.cache/argot/models   # the ~100 MB semantic embedding model
+             key: argot-model-semantic-model-v1
          - uses: get-tmonier/argot@main
    ```
+
+   The cache step keeps the one-time ~100 MB semantic-model download out of
+   every run (keep the key stable — the model only changes with argot itself).
+   In a hand-rolled workflow that can't cache, run `argot model fetch` once
+   after installing argot instead.
 
 3. If the repo already has an `argot.toml` (from local setup or by hand), leave
    it — the Action respects it. It's optional; for a monorepo with peripheral
@@ -48,6 +58,14 @@ argot and fits the model in CI. Never make it block the merge.
 5. Tell the user what they'll get on each PR: a **non-blocking** voice-score card
    (a sticky PR comment + the Actions job summary) and inline code-scanning
    annotations. It never fails the build.
+
+6. If the user prefers a hand-rolled workflow over the Action (or already has
+   one), the building blocks are: install argot, `argot model fetch` (or the
+   cache step above), `argot fit`, then `argot check --format github` — the
+   `github` format prints workflow commands that GitHub renders as inline PR
+   annotations. For a strict setup, `--error-on-warnings` makes warn-severity
+   hits fail the run too. If an existing workflow runs `argot extract && argot
+   fit`, replace that with plain `argot fit` (fit includes extraction).
 
 ## Principles
 
