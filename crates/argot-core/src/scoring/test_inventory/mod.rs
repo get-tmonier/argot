@@ -256,6 +256,93 @@ pub fn defined_symbols(source: &str, language: Language) -> HashSet<String> {
     defs
 }
 
+/// Can this assertion callee even EXPRESS a tautology? Only core-vocabulary
+/// assertions whose argument semantics are known (the argument IS the
+/// compared value / condition). A custom `assert*`-prefixed helper taking a
+/// literal argument usually embeds its subject internally
+/// (`assertRunFAIL("cmd")`) — flagging it as can-never-fail would be wrong.
+pub fn tautology_capable(callee: &str) -> bool {
+    const CORE: &[&str] = &[
+        // language-level asserts
+        "assert",
+        "assert_eq",
+        "assert_ne",
+        "debug_assert",
+        "debug_assert_eq",
+        // xUnit-family comparisons/conditions
+        "assertEqual",
+        "assertNotEqual",
+        "assertTrue",
+        "assertFalse",
+        "assertIs",
+        "assertIsNot",
+        "assertEquals",
+        "assertNotEquals",
+        "assertSame",
+        "assertNotSame",
+        "assertArrayEquals",
+        "assertNull",
+        "assertNotNull",
+        // jest/vitest/chai/node
+        "toBe",
+        "toEqual",
+        "toStrictEqual",
+        "toBeTruthy",
+        "toBeFalsy",
+        "strictEqual",
+        "deepEqual",
+        "deepStrictEqual",
+        "equal",
+        "equals",
+        "ok",
+        "isTrue",
+        "isFalse",
+        // rspec/minitest
+        "eq",
+        "eql",
+        "be",
+        "be_truthy",
+        "be_falsey",
+        "assert_equal",
+        "refute_equal",
+        "must_equal",
+        "wont_equal",
+        // xunit/nunit/mstest/fluent
+        "Equal",
+        "NotEqual",
+        "True",
+        "False",
+        "Same",
+        "AreEqual",
+        "AreSame",
+        "IsTrue",
+        "IsFalse",
+        "Be",
+        "BeTrue",
+        "BeFalse",
+        // php
+        "assertSame",
+        "assertCount",
+        // go testify
+        "assert.Equal",
+        "require.Equal",
+        "assert.True",
+        "require.True",
+        "assert.False",
+        "require.False",
+        "assert.Exactly",
+        "require.Exactly",
+    ];
+    CORE.contains(&callee)
+        || callee.starts_with("EXPECT_")
+        || callee.starts_with("ASSERT_")
+        || callee == "REQUIRE"
+        || callee == "CHECK"
+        || callee.starts_with("TEST_ASSERT")
+        || callee.contains("_eq")
+        || callee.contains("_equal")
+}
+
 // ---------------------------------------------------------------- shared AST helpers
 
 pub(crate) fn node_text<'a>(n: tree_sitter::Node, src: &'a str) -> &'a str {

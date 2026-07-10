@@ -32,8 +32,8 @@ use serde::{Deserialize, Serialize};
 
 use super::adapters::Language;
 use super::test_inventory::{
-    self, defined_symbols, is_test_path, language_for_path, words_of, AssertionSite, Strength,
-    TestCase, TestInventory,
+    self, defined_symbols, is_test_path, language_for_path, tautology_capable, words_of,
+    AssertionSite, Strength, TestCase, TestInventory,
 };
 
 /// The fit artifact, beside `scorer-config.json`.
@@ -58,6 +58,9 @@ const RENAME_JACCARD: f64 = 0.3;
 /// Site-word Jaccard at which a weaker new assertion counts as a rewrite of a
 /// vanished exact assertion (comparison widening).
 const WIDEN_JACCARD: f64 = 0.4;
+/// More same-kind events than this in ONE changeset is a migration/refactor
+/// sweep, not gaming — gaming is surgical (flip the failing few, not forty).
+const BULK_EVENT_CAP: usize = 3;
 
 // ---------------------------------------------------------------- events
 
@@ -694,7 +697,7 @@ pub fn changeset_events(files: &[FileChange]) -> Vec<IntegrityEvent> {
             for (key, news) in &new_groups {
                 let old_count = old_groups.get(key).map(|v| v.len()).unwrap_or(0);
                 for a in news.iter().skip(old_count) {
-                    if a.subject_idents == 0 {
+                    if a.subject_idents == 0 && tautology_capable(&a.callee) {
                         events.push(IntegrityEvent {
                             kind: EventKind::Tautology,
                             file: file.clone(),
@@ -707,6 +710,20 @@ pub fn changeset_events(files: &[FileChange]) -> Vec<IntegrityEvent> {
                 }
             }
         }
+    }
+
+    // Bulk guard: a changeset tripping the same event on more than
+    // BULK_EVENT_CAP tests is a migration/refactor sweep — gaming is
+    // surgical. (Whole-file deletion stays: it is already one event.)
+    {
+        let mut per_kind: HashMap<EventKind, usize> = HashMap::new();
+        for e in &events {
+            *per_kind.entry(e.kind).or_default() += 1;
+        }
+        events.retain(|e| {
+            e.kind == EventKind::TestFileDeleted
+                || per_kind.get(&e.kind).copied().unwrap_or(0) <= BULK_EVENT_CAP
+        });
     }
 
     // Retarget fires once per changeset, only as an ISOLATED flip: one or two
@@ -1300,6 +1317,55 @@ mod tests {
         let files = [change("src/escape.rs", old_src, new_src)];
         let events = changeset_events(&files);
         assert!(events.is_empty(), "tests-only ignore fired: {events:?}");
+    }
+
+    #[test]
+    fn custom_assert_helper_with_literal_arg_is_not_a_tautology() {
+        // `assertRunFAIL("cmd")`-style custom helpers embed their subject
+        // internally; a literal-only argument is not a can-never-fail check.
+        let old_test = "def test_cmds():\n    assertRunFAIL(\"checkconsistency\")\n";
+        let new_test = "def test_cmds():\n    assertRunFAIL(\"checkconsistency\")\n    assertRunFAIL(\"scan\")\n";
+        let files = [
+            change("parser.py", PROD_OLD, PROD_NEW),
+            change("tests/test_cmds.py", old_test, new_test),
+        ];
+        let events = changeset_events(&files);
+        assert!(
+            events.iter().all(|e| e.kind != EventKind::Tautology),
+            "custom helper flagged as tautology: {events:?}"
+        );
+    }
+
+    #[test]
+    fn bulk_sweep_is_a_migration_not_gaming() {
+        // Five tests gutted at once alongside a prod change: a migration.
+        let mut old_test = String::new();
+        let mut new_test = String::new();
+        for i in 0..5 {
+            old_test.push_str(&format!(
+                "def test_case_{i}():\n    r = run({i})\n    assert r == {i}\n\n"
+            ));
+            new_test.push_str(&format!("def test_case_{i}():\n    r = run({i})\n\n"));
+        }
+        let files = [
+            change("parser.py", PROD_OLD, PROD_NEW),
+            change("tests/test_bulk.py", old_test.as_str(), new_test.as_str()),
+        ];
+        let events = changeset_events(&files);
+        assert!(events.is_empty(), "bulk sweep fired: {events:?}");
+
+        // One test gutted: surgical — still fires.
+        let files = [
+            change("parser.py", PROD_OLD, PROD_NEW),
+            change(
+                "tests/test_one.py",
+                "def test_case():\n    r = run(1)\n    assert r == 1\n",
+                "def test_case():\n    r = run(1)\n",
+            ),
+        ];
+        let events = changeset_events(&files);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind, EventKind::BodyGutted);
     }
 
     #[test]
