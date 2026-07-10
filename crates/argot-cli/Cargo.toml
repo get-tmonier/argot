@@ -23,7 +23,7 @@ self-update = ["dep:axoupdater", "dep:ureq"]
 semantic = ["argot-core/semantic"]
 # Compiles in the architecture-graph layer (module-dependency-boundary findings,
 # reason `layering`). Build-time gate like `semantic`; forwards to argot-core's
-# `arch` feature. Off in dev/CI and (for now) in releases.
+# `arch` feature. Off in dev/CI base loops; ON in releases (dist-workspace.toml).
 arch = ["argot-core/arch"]
 
 [dependencies]
