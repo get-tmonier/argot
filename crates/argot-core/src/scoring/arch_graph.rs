@@ -1,7 +1,9 @@
 //! Architecture-graph foreignness — the relationship analog of the foreign-
-//! vocabulary gate. Feature-gated (`--features arch`), pure-Rust (no new deps),
-//! advisory / measurement-only: **not** wired into the base gating path, so the
-//! shipped guardrail is byte-for-byte unchanged with or without it.
+//! vocabulary gate. Feature-gated (`--features arch`), pure-Rust (no new deps).
+//! When compiled in it emits the `layering` rule (default severity `error` —
+//! it gates like any other rule; configurable via `[rules]`); its findings
+//! stay out of the base benchmark metric, and without the feature the base
+//! guardrail is byte-for-byte unchanged.
 //!
 //! # What it is
 //!

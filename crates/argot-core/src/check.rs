@@ -17,7 +17,9 @@ use crate::config::{ArgotConfig, DetectConfig};
 use crate::git_walk::{
     open_repo, resolve_shas, walk_commits, HunkSpan, WalkItem, SUPPORTED_EXTENSIONS,
 };
-use crate::output::{render_json, render_sarif, FileScan, HitRecord, OutputFormat, ReportMeta};
+use crate::output::{
+    render_github, render_json, render_sarif, FileScan, HitRecord, OutputFormat, ReportMeta,
+};
 use crate::rules::{self, RuleSettings, RulesLayer, Severity as RuleSeverity};
 use crate::scoring::adapters::c::CAdapter;
 use crate::scoring::adapters::cpp::CppAdapter;
@@ -353,12 +355,12 @@ fn confidence(reason: &str, score: f64, threshold: f64) -> &'static str {
 }
 
 /// Scope decision for one patch batch, against the resolved path-suppression
-/// set (recommended built-ins + `.argotignore` — the same set calibration
+/// set (recommended built-ins + `argot.toml [exclude].paths` — the same set calibration
 /// samples from; lock-step principle).
 enum BatchScope {
     /// In scope: score and report normally.
     Score,
-    /// In scope but matched by a user `.argotignore` pattern: score it so the
+    /// In scope but matched by a user `[exclude].paths` pattern: score it so the
     /// suppression is countable, then drop its hits from output.
     ScoreSuppressed,
     /// Out of scope (wrong language, recommended exclusion, data-dominant):
@@ -368,7 +370,7 @@ enum BatchScope {
 
 /// Port of `_is_out_of_scope`, split so user-ignored files stay countable:
 /// wrong language / recommended-set path → `Drop` (silent, as always); user
-/// `.argotignore` match → `ScoreSuppressed`. Data-heavy files are NOT dropped
+/// `[exclude].paths` match → `ScoreSuppressed`. Data-heavy files are NOT dropped
 /// here: data scope is row-granular inside the scorer (a planted code hunk in
 /// a data-dominant file must still be judged; its data-row hunks are skipped
 /// per hunk).
@@ -1956,6 +1958,7 @@ fn report_meta(
 fn render_machine(format: OutputFormat, meta: &ReportMeta, records: &[HitRecord]) -> String {
     match format {
         OutputFormat::Sarif => render_sarif(meta, records),
+        OutputFormat::Github => render_github(records),
         _ => render_json(meta, records),
     }
 }

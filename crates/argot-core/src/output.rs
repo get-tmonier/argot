@@ -8,6 +8,8 @@
 //! Formats:
 //! - `json` — argot's own stable schema (tool block, scan metadata, per-hit
 //!   entries). Intended for scripting; field names are part of the contract.
+//! - `github` — GitHub Actions workflow commands (`::error file=…`), one line
+//!   per hit → inline PR annotations with no extra action or upload step.
 //! - `sarif` — SARIF 2.1.0 for code-scanning integrations (GitHub
 //!   `upload-sarif` etc.). Confidence tiers map to SARIF levels
 //!   (`unusual` → `note`, `suspicious` → `warning`, `foreign` → `error`),
@@ -26,6 +28,8 @@ pub enum OutputFormat {
     Json,
     /// SARIF 2.1.0 for code-scanning uploads.
     Sarif,
+    /// GitHub Actions workflow commands (inline PR annotations).
+    Github,
 }
 
 impl OutputFormat {
@@ -35,6 +39,7 @@ impl OutputFormat {
             "human" => Some(Self::Human),
             "json" => Some(Self::Json),
             "sarif" => Some(Self::Sarif),
+            "github" => Some(Self::Github),
             _ => None,
         }
     }
@@ -234,6 +239,51 @@ pub fn render_sarif(meta: &ReportMeta, hits: &[HitRecord]) -> String {
     to_pretty(&doc)
 }
 
+/// Escape a workflow-command message value (GitHub's own rules: `%`, CR, LF).
+fn github_escape(s: &str) -> String {
+    s.replace('%', "%25")
+        .replace('\r', "%0D")
+        .replace('\n', "%0A")
+}
+
+/// Escape a workflow-command *property* value (adds `:` and `,`).
+fn github_escape_property(s: &str) -> String {
+    github_escape(s).replace(':', "%3A").replace(',', "%2C")
+}
+
+/// Render GitHub Actions workflow commands (`--format github`): one
+/// `::error`/`::warning` line per hit — the runner turns these into inline PR
+/// annotations with no upload step. Severity maps directly: `error` rules
+/// annotate as errors, `warn` rules as warnings.
+pub fn render_github(hits: &[HitRecord]) -> String {
+    let mut out = String::new();
+    for h in hits {
+        let level = if h.severity == "error" {
+            "error"
+        } else {
+            "warning"
+        };
+        let mut message = format!(
+            "{} — score {:.2} vs threshold {:.2} ({} confidence)",
+            h.rule_label, h.score, h.threshold, h.confidence
+        );
+        for line in &h.evidence {
+            message.push('\n');
+            message.push_str(line);
+        }
+        message.push_str(&format!("\nmute with: argot mute {}", h.hash));
+        out.push_str(&format!(
+            "::{level} file={},line={},endLine={},title={}::{}\n",
+            github_escape_property(&h.path),
+            h.line_start,
+            h.line_end,
+            github_escape_property(&format!("argot: {}", h.rule)),
+            github_escape(&message),
+        ));
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -406,6 +456,31 @@ mod tests {
         assert_eq!(rules[1]["id"], "foreign-import");
         let results = doc["runs"][0]["results"].as_array().unwrap();
         assert_eq!(results[2]["ruleIndex"], 1);
+    }
+
+    #[test]
+    fn github_format_emits_one_annotation_per_hit_with_severity_level() {
+        let mut warn_hit = hit("unusual", "redundant");
+        warn_hit.severity = "warn".to_string();
+        let out = render_github(&[hit("foreign", "foreign-import"), warn_hit]);
+        let lines: Vec<&str> = out.lines().collect();
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].starts_with(
+            "::error file=src/app.py,line=10,endLine=16,title=argot%3A foreign-import::"
+        ));
+        assert!(lines[0].contains("foreign import — score 8.25"));
+        assert!(lines[0].contains("%0Amute with: argot mute a1b2c3d4e5f6"));
+        assert!(lines[1].starts_with("::warning "));
+    }
+
+    #[test]
+    fn github_format_escapes_workflow_command_metacharacters() {
+        let mut h = hit("foreign", "foreign-import");
+        h.path = "src/a,b:c.py".to_string();
+        h.evidence = vec!["50% of\nlines".to_string()];
+        let out = render_github(&[h]);
+        assert!(out.contains("file=src/a%2Cb%3Ac.py"));
+        assert!(out.contains("50%25 of%0Alines"));
     }
 
     #[test]

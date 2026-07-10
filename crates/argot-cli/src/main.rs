@@ -152,7 +152,9 @@ enum Command {
     /// Set up argot for this repo: fit the voice model and report its health
     /// (`--suggest` lists directories you may want to exclude first).
     Init(InitCmd),
-    /// Extract dataset from git history.
+    /// Extract dataset from git history. Plumbing for the bench; hidden —
+    /// the fit → check flow never consumes the dataset.
+    #[command(hide = true)]
     Extract(ExtractArgs),
     /// Collect the repo corpus + generic baseline. Plumbing behind `fit`; hidden.
     #[command(hide = true)]
@@ -172,6 +174,7 @@ enum Command {
     /// Score a PR (or diff range) against the local voice without checking it out.
     Review(ReviewCmd),
     /// PR-level out-of-voice metric plus ranked hot-spots for a ref/range.
+    /// Informational: always exits 0 (use `check`/`review` to gate).
     #[command(name = "voice-diff")]
     VoiceDiff(VoiceDiffCmd),
     /// Report corpus composition, calibration health, and repo suitability.
@@ -348,9 +351,6 @@ struct StatusCmd {
     /// Output format: human (terminal) or json (stable machine-readable).
     #[arg(long, default_value = "human", value_parser = ["human", "json"])]
     format: String,
-    /// Deprecated alias for `--format json` (hidden; use `--format json`).
-    #[arg(long, hide = true)]
-    json: bool,
 }
 
 fn run_status(c: StatusCmd) -> ExitCode {
@@ -364,7 +364,7 @@ fn run_status(c: StatusCmd) -> ExitCode {
     let model_bytes = fs::metadata(&ctx.repo_corpus_path).ok().map(|m| m.len());
     let calibrated = ctx.argot_dir.join("scorer-config.json").exists();
 
-    if wants_json(&c.format, c.json) {
+    if wants_json(&c.format) {
         let doc = serde_json::json!({
             "repo": { "name": ctx.name, "path": ctx.git_root },
             "dataset": dataset.map(|(count, bytes)| serde_json::json!({
@@ -399,9 +399,6 @@ struct ListCmd {
     /// Output format: human (terminal) or json (stable machine-readable).
     #[arg(long, default_value = "human", value_parser = ["human", "json"])]
     format: String,
-    /// Deprecated alias for `--format json` (hidden; use `--format json`).
-    #[arg(long, hide = true)]
-    json: bool,
 }
 
 fn run_list(c: ListCmd) -> ExitCode {
@@ -410,7 +407,7 @@ fn run_list(c: ListCmd) -> ExitCode {
     let mut repos: Vec<(&String, &RepoEntry)> = settings.repos.iter().collect();
     repos.sort_by(|a, b| a.1.name.cmp(&b.1.name));
 
-    if wants_json(&c.format, c.json) {
+    if wants_json(&c.format) {
         let items: Vec<serde_json::Value> = repos
             .iter()
             .map(|(path, entry)| {
@@ -515,16 +512,16 @@ fn run_update() -> ExitCode {
     }
 }
 
-/// Whether a command should emit its JSON document: the shared `--format json`
-/// idiom, plus the deprecated per-command `--json` boolean alias.
-fn wants_json(format: &str, json_alias: bool) -> bool {
-    json_alias || format == "json"
+/// Whether a command should emit its JSON document (the shared `--format
+/// json` idiom).
+fn wants_json(format: &str) -> bool {
+    format == "json"
 }
 
 fn print_help_banner() {
     let version = env!("CARGO_PKG_VERSION");
     println!(
-        "argot v{version}\n\nCOMMANDS\n  init          Set up argot for this repo (fit + health check; --suggest lists dirs to exclude)\n  extract       Walk git history into a training dataset (.argot/dataset.jsonl)\n  fit           Fit the voice model to this repo (= train + calibrate, one-shot)\n  check         Check changes against the fitted voice\n  review        Score a PR (or diff range) against the local voice, no checkout\n  voice-diff    PR-level out-of-voice metric + hot-spots for a ref/range\n  inspect       Report corpus composition, calibration health, and suitability\n  mute          Mute a hit by hash (appends a [[mute]] to argot.toml)\n  list-mutes    List active suppressions across all surfaces\n  review-mutes  Report (and --prune) hash-scoped mutes whose file is gone\n  status        Show current repository's argot state\n  list          List all registered repositories\n  update        Update the argot CLI\n  mcp           Run an MCP server for LLM coding agents (stdio)\n  describe-voice  Generate a STYLE.md describing the repo's learned voice\n\nTypical first run: argot init && argot check\nRun `argot <command> --help` for details on any command."
+        "argot v{version}\n\nCOMMANDS\n  init          Set up argot for this repo (fit + health check; --suggest lists dirs to exclude)\n  fit           Fit the voice model to this repo (= train + calibrate, one-shot)\n  check         Check changes against the fitted voice\n  rules         List every rule with its group and effective severity\n  review        Score a PR (or diff range) against the local voice, no checkout\n  voice-diff    PR-level out-of-voice metric + hot-spots for a ref/range\n  inspect       Report corpus composition, calibration health, and suitability\n  mute          Mute a hit by hash (appends a [[mute]] to argot.toml)\n  list-mutes    List active suppressions across all surfaces\n  review-mutes  Report (and --prune) hash-scoped mutes whose file is gone\n  model         Manage the local embedding model (fetch / status / clean)\n  status        Show current repository's argot state\n  list          List all registered repositories\n  update        Update the argot CLI\n  mcp           Run an MCP server for LLM coding agents (stdio)\n  describe-voice  Generate a STYLE.md describing the repo's learned voice\n\nTypical first run: argot init && argot check\nRun `argot <command> --help` for details on any command."
     );
 }
 
@@ -763,7 +760,7 @@ struct InitCmd {
     #[arg(long, default_value = ".")]
     repo: PathBuf,
     /// Don't fit — instead list directories you may want to add to
-    /// `.argotignore` first (statistical evidence only; you decide).
+    /// `argot.toml [exclude].paths` first (statistical evidence only; you decide).
     #[arg(long)]
     suggest: bool,
     /// Output format for `--suggest`: human (terminal) or json (stable,
@@ -825,7 +822,7 @@ fn verdict_word(v: Verdict) -> &'static str {
 
 fn run_init_suggest(c: &InitCmd) -> ExitCode {
     let suggestions = suggest_ignores(&c.repo);
-    if wants_json(&c.format, false) {
+    if wants_json(&c.format) {
         match serde_json::to_string_pretty(&suggestions) {
             Ok(json) => {
                 println!("{json}");
@@ -989,15 +986,20 @@ struct CheckCmd {
     /// Exit non-zero when `warn`-severity findings are present (CI strictness).
     #[arg(long = "error-on-warnings")]
     error_on_warnings: bool,
-    /// Output format: human (terminal), json (stable machine-readable), or
-    /// sarif (SARIF 2.1.0 for code-scanning uploads). Machine formats write
-    /// nothing but the document to stdout.
+    /// Output format: human (terminal), json (stable machine-readable), sarif
+    /// (SARIF 2.1.0 for code-scanning uploads), or github (Actions workflow
+    /// commands → inline PR annotations). Machine formats write nothing but
+    /// the document to stdout.
     #[arg(
         long,
         default_value = "human",
-        value_parser = ["human", "json", "sarif"]
+        value_parser = ["human", "json", "sarif", "github"]
     )]
     format: String,
+    /// Suppress informational stderr notes (model line, staleness nudges,
+    /// suppression counts). Errors still print.
+    #[arg(short = 'q', long)]
+    quiet: bool,
 }
 
 /// Resolve `--argot-dir` against `--repo`: a relative artifacts dir (the default
@@ -1018,6 +1020,7 @@ fn run_check_cmd(c: CheckCmd) -> ExitCode {
     let use_color = std::env::var_os("NO_COLOR").is_none() && std::io::stdout().is_terminal();
     let argot_dir = resolve_argot_dir(&c.repo, c.argot_dir);
     let human = c.format == "human";
+    let quiet = c.quiet;
     let today = today_utc();
     let outcome = run_check(CheckArgs {
         repo_path: c.repo.to_string_lossy().into_owned(),
@@ -1041,10 +1044,13 @@ fn run_check_cmd(c: CheckCmd) -> ExitCode {
         today: today.clone(),
     });
     print!("{}", outcome.stdout);
-    eprint!("{}", outcome.stderr);
+    // --quiet drops informational stderr; hard errors (exit 2) always print.
+    if !quiet || outcome.exit_code >= 2 {
+        eprint!("{}", outcome.stderr);
+    }
     // Soft staleness nudge — human output only, never affects the exit code or
     // the machine formats. Catches the "fit once, forgot for months" case.
-    if human && outcome.exit_code < 2 {
+    if human && !quiet && outcome.exit_code < 2 {
         if let Some(days) = fit_timestamp(&argot_dir).and_then(|ts| days_since_fit(&ts, &today)) {
             if days >= STALE_FIT_DAYS {
                 eprintln!("note: voice model fitted {days} days ago — `argot fit` to refresh.");
@@ -1198,8 +1204,8 @@ struct ReviewCmd {
     /// Path to the local repository (whose fitted voice scores the PR).
     #[arg(long, default_value = ".")]
     repo: PathBuf,
-    /// Output format: human, json, or sarif.
-    #[arg(long, default_value = "human", value_parser = ["human", "json", "sarif"])]
+    /// Output format: human, json, sarif, or github (PR annotations).
+    #[arg(long, default_value = "human", value_parser = ["human", "json", "sarif", "github"])]
     format: String,
 }
 
@@ -1234,9 +1240,6 @@ struct InspectCmd {
     /// Output format: human (terminal) or json (stable machine-readable).
     #[arg(long, default_value = "human", value_parser = ["human", "json"])]
     format: String,
-    /// Deprecated alias for `--format json` (hidden; use `--format json`).
-    #[arg(long, hide = true)]
-    json: bool,
 }
 
 fn run_inspect_cmd(c: InspectCmd) -> ExitCode {
@@ -1250,7 +1253,7 @@ fn run_inspect_cmd(c: InspectCmd) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    if wants_json(&c.format, c.json) {
+    if wants_json(&c.format) {
         match serde_json::to_string_pretty(&report) {
             Ok(json) => println!("{json}"),
             Err(e) => {
@@ -1401,7 +1404,7 @@ fn run_inspect_model(c: &InspectCmd) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    if wants_json(&c.format, c.json) {
+    if wants_json(&c.format) {
         match serde_json::to_string_pretty(&report) {
             Ok(json) => println!("{json}"),
             Err(e) => {
@@ -2146,14 +2149,9 @@ mod tests {
     }
 
     #[test]
-    fn wants_json_honors_format_and_deprecated_alias() {
-        // The `--format json` idiom.
-        assert!(wants_json("json", false));
-        assert!(!wants_json("human", false));
-        // The deprecated `--json` boolean alias still forces JSON.
-        assert!(wants_json("human", true));
-        // Alias and format agree.
-        assert!(wants_json("json", true));
+    fn wants_json_honors_format() {
+        assert!(wants_json("json"));
+        assert!(!wants_json("human"));
     }
 
     #[test]
