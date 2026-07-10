@@ -2171,26 +2171,44 @@ fn default_branch_shorthand(repo: &git2::Repository) -> Option<String> {
         .map(|s| s.to_string())
 }
 
-/// The newest **accepted** commit the current work builds on. On the default
-/// branch (or when no default branch is discernible) that's HEAD; on any
-/// other branch it's the merge-base with the default branch. Feature-branch
-/// commits are deliberately not accepted history — a voice refreshed against
-/// this anchor never learns unreviewed work-in-progress, so `check` keeps
-/// judging it instead of treating it as the repo's own. `None` when history
-/// can't be resolved (shallow clones, disjoint roots).
-pub fn accepted_anchor(repo_path: &str) -> Option<String> {
+/// The trunk whose line counts as accepted history: the branch named in
+/// `[fit] refresh-from` when it exists (locally or on origin), else the
+/// auto-detected default branch — a named trunk missing from this clone
+/// (a fork, a typo) degrades to detection rather than silently anchoring
+/// at HEAD.
+fn trunk_shorthand(repo: &git2::Repository, config: &crate::config::ArgotConfig) -> Option<String> {
+    if let crate::config::FitRefreshFrom::Branch(name) = &config.fit_refresh_from {
+        let exists = repo.find_reference(&format!("refs/heads/{name}")).is_ok()
+            || repo
+                .find_reference(&format!("refs/remotes/origin/{name}"))
+                .is_ok();
+        if exists {
+            return Some(name.clone());
+        }
+    }
+    default_branch_shorthand(repo)
+}
+
+/// The newest **accepted** commit the current work builds on. On the trunk
+/// (or when no trunk is discernible) that's HEAD; on any other branch it's
+/// the merge-base with the trunk. Feature-branch commits are deliberately not
+/// accepted history — a voice refreshed against this anchor never learns
+/// unreviewed work-in-progress, so `check` keeps judging it instead of
+/// treating it as the repo's own. `None` when history can't be resolved
+/// (shallow clones, disjoint roots).
+pub fn accepted_anchor(repo_path: &str, config: &crate::config::ArgotConfig) -> Option<String> {
     let repo = open_repo(repo_path).ok()?;
     let head_ref = repo.head().ok()?;
     let head = head_ref.peel_to_commit().ok()?;
-    let Some(default_name) = default_branch_shorthand(&repo) else {
+    let Some(trunk) = trunk_shorthand(&repo, config) else {
         return Some(head.id().to_string());
     };
-    if head_ref.is_branch() && head_ref.shorthand() == Some(default_name.as_str()) {
+    if head_ref.is_branch() && head_ref.shorthand() == Some(trunk.as_str()) {
         return Some(head.id().to_string());
     }
     let tip = repo
-        .find_reference(&format!("refs/heads/{default_name}"))
-        .or_else(|_| repo.find_reference(&format!("refs/remotes/origin/{default_name}")))
+        .find_reference(&format!("refs/heads/{trunk}"))
+        .or_else(|_| repo.find_reference(&format!("refs/remotes/origin/{trunk}")))
         .ok()?
         .peel_to_commit()
         .ok()?
@@ -2254,8 +2272,10 @@ pub fn in_scope_commits_between(
 /// `[fit] refresh-from = "default-branch"`; plain HEAD when the repo opted
 /// into `"current-branch"`.
 pub fn freshness_anchor(repo_path: &str, config: &crate::config::ArgotConfig) -> Option<String> {
-    match config.fit_refresh_from {
-        crate::config::FitRefreshFrom::DefaultBranch => accepted_anchor(repo_path),
+    match &config.fit_refresh_from {
+        crate::config::FitRefreshFrom::DefaultBranch | crate::config::FitRefreshFrom::Branch(_) => {
+            accepted_anchor(repo_path, config)
+        }
         crate::config::FitRefreshFrom::CurrentBranch => {
             let repo = open_repo(repo_path).ok()?;
             let head = repo.head().ok()?.peel_to_commit().ok()?;
@@ -2284,11 +2304,11 @@ pub fn unmerged_branch_source_commits(
         return None;
     }
     let branch = head_ref.shorthand()?.to_string();
-    if branch == default_branch_shorthand(&repo)? {
+    if branch == trunk_shorthand(&repo, config)? {
         return None;
     }
     let head_sha = head_ref.peel_to_commit().ok()?.id().to_string();
-    let anchor = accepted_anchor(repo_path)?;
+    let anchor = accepted_anchor(repo_path, config)?;
     if anchor == head_sha {
         return None;
     }
@@ -3221,7 +3241,7 @@ mod tests {
 
         // The anchor is the merge-base with main — the feature commits are
         // not accepted history.
-        assert_eq!(accepted_anchor(path), Some(c1.to_string()));
+        assert_eq!(accepted_anchor(path, &config), Some(c1.to_string()));
         // A voice fitted at the anchor is fresh no matter how busy the branch.
         assert_eq!(
             accepted_source_commits_behind(path, &c1.to_string(), &config, 10),
@@ -3264,8 +3284,62 @@ mod tests {
 
         // Back on the default branch: HEAD is the anchor, no advisory.
         repo.set_head("refs/heads/main").unwrap();
-        assert_eq!(accepted_anchor(path), Some(c1.to_string()));
+        assert_eq!(accepted_anchor(path, &config), Some(c1.to_string()));
         assert_eq!(unmerged_branch_source_commits(path, &config, 10), None);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A `[fit] refresh-from = "<branch>"` names the trunk explicitly for
+    /// repos whose accepted line isn't main/master.
+    #[test]
+    fn named_trunk_overrides_default_branch_detection() {
+        let dir = std::env::temp_dir().join(format!("argot_trunk_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("src")).unwrap();
+        let repo = git2::Repository::init(&dir).unwrap();
+        std::fs::write(dir.join("src/a.py"), "x = 1\n").unwrap();
+        let c1 = commit_all(&repo, "c1: trunk");
+        let c1_commit = repo.find_commit(c1).unwrap();
+        // Trunk is `develop`; no main/master exists anywhere.
+        repo.branch("develop", &c1_commit, true).unwrap();
+        repo.set_head("refs/heads/develop").unwrap();
+        for stray in ["main", "master"] {
+            if let Ok(mut b) = repo.find_branch(stray, git2::BranchType::Local) {
+                b.delete().unwrap();
+            }
+        }
+        repo.branch("feat", &c1_commit, true).unwrap();
+        repo.set_head("refs/heads/feat").unwrap();
+        std::fs::write(dir.join("src/b.py"), "y = 2\n").unwrap();
+        let c2 = commit_all(&repo, "c2: feature source");
+
+        let path = dir.to_str().unwrap();
+        std::fs::write(
+            dir.join("argot.toml"),
+            "[fit]\nrefresh-from = \"develop\"\n",
+        )
+        .unwrap();
+        let named = crate::config::ArgotConfig::load(&dir);
+        assert_eq!(
+            named.fit_refresh_from,
+            crate::config::FitRefreshFrom::Branch("develop".to_string())
+        );
+        // Named trunk: the anchor is the merge-base with develop, and the
+        // advisory sees the unmerged feature commit.
+        assert_eq!(accepted_anchor(path, &named), Some(c1.to_string()));
+        assert_eq!(
+            unmerged_branch_source_commits(path, &named, 10),
+            Some(("feat".to_string(), 1))
+        );
+        // Without the override there is no main/master to detect — the
+        // anchor degrades to HEAD (today's behaviour for unusual layouts).
+        let auto = crate::config::ArgotConfig::default();
+        assert_eq!(accepted_anchor(path, &auto), Some(c2.to_string()));
+        // A named trunk missing from the clone degrades to detection, not to
+        // a silent HEAD anchor pretending the config was honored.
+        std::fs::write(dir.join("argot.toml"), "[fit]\nrefresh-from = \"gone\"\n").unwrap();
+        let missing = crate::config::ArgotConfig::load(&dir);
+        assert_eq!(accepted_anchor(path, &missing), Some(c2.to_string()));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

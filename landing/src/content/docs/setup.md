@@ -107,10 +107,13 @@ not demos, generated code, vendored dependencies, or config. Configure what
 argot ignores, confirm the model is healthy, and verify it catches a foreign
 import.
 
-argot fits from the **committed** tree (HEAD), so an uncommitted edit to an
-existing file won't pollute the voice — you don't need a pristine tree. A
-brand-new file you haven't committed is still read from disk, though, so commit
-or remove any throwaway files first.
+argot fits from files as they are on disk, minus anything **gitignored** —
+editor-history trees, local worktrees, and build output never shape the voice
+as long as `.gitignore` covers them. Uncommitted edits to tracked files DO
+count (argot warns on a dirty tree), so commit or stash work in progress
+first, and prefer running this from the **default branch** — fitting on a
+feature branch bakes its unmerged commits into the voice (argot warns about
+that too; relay the warning to me rather than suppressing it).
 
 1. Confirm argot is installed: `argot --version`. If missing, tell me how to
    install it and stop.
@@ -140,8 +143,12 @@ or remove any throwaway files first.
    - vendored / third-party code checked in (`vendor/`, bundled SDKs)
    - large data, fixtures, snapshots, locale tables, database migrations
    - legacy or archived modules that aren't how we write code today
+   - COMMITTED duplicate snapshots of our own code (an editor-history dir, a
+     `backup/`/`old/` tree) — gitignored ones are already skipped automatically
    argot already excludes tests, docs, examples, and build output by default, so
-   focus on the repo-specific directories above.
+   focus on the repo-specific directories above. Sanity-check the result:
+   `.argot/repo-corpus.txt` lists every file that shaped the voice — skim it
+   and make sure nothing surprising is there.
 
 6. Edit `argot.toml`'s `[exclude].paths` at the repo root — add each directory
    as a gitignore-style pattern (one per array entry, each with a trailing
@@ -155,7 +162,13 @@ or remove any throwaway files first.
    confirm it's flagged. Then revert. If it is NOT flagged, the voice is still
    diluted by non-authored code — exclude more peripheral directories and repeat.
 
-8. Summarize what you excluded and why, and the final Verdict.
+8. Finish with the proof on our own history: `argot replay`. It fits the voice
+   as of ~50 commits ago in a temp worktree (our tree stays untouched) and
+   reports what argot would have caught before merge — show me the report. If
+   the in-scope code is younger than the window, replay shrinks it
+   automatically and says so; a quiet replay is also a result.
+
+9. Summarize what you excluded and why, and the final Verdict.
 
 Don't chase a green "Ready". If the verdict stays **Marginal** only because the
 repo is small (few candidate hunks), that's fine — Marginal is usable and

@@ -329,8 +329,14 @@ base advance). `init` writes the defaults explicitly:
 [fit]
 auto-refresh = true               # false: you drive `argot fit` yourself
 refresh-after = 10                # accepted in-scope commits before a refresh
-refresh-from = "default-branch"   # "current-branch": let refreshes learn branch HEADs
+refresh-from = "default-branch"   # auto-detected — see below
 ```
+
+`refresh-from` is a mode, not a blank to fill in: `"default-branch"`
+auto-detects your trunk (`origin/HEAD`, else `main`, else `master`), so main-
+and master-only repos both just work. Name a branch (`"develop"`) when your
+trunk is non-standard, or set `"current-branch"` to let refreshes learn
+whatever HEAD has.
 
 Freshness is separate from **calibration drift** — a new `gen/` dir or a
 vendored SDK appearing in the tree, or an `argot.toml` edit the model hasn't

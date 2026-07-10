@@ -71,12 +71,16 @@ pub const DEFAULT_FIT_REFRESH_AFTER: usize = 10;
 
 /// `[fit].refresh-from` — which history the auto-refresh treats as the
 /// repo's accepted voice.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum FitRefreshFrom {
-    /// Anchor at the merge-base with the default branch: a feature branch's
-    /// own commits never train the voice (they're the code under judgment).
+    /// Anchor at the merge-base with the auto-detected default branch
+    /// (`origin/HEAD`, else `main`, else `master`): a feature branch's own
+    /// commits never train the voice (they're the code under judgment).
     #[default]
     DefaultBranch,
+    /// A named trunk (`"develop"`, `"trunk"`) for repos whose accepted line
+    /// isn't main/master. Same merge-base anchoring, explicit branch.
+    Branch(String),
     /// Opt-out: treat whatever HEAD has as accepted (committed code only —
     /// the working tree still never trains the voice).
     CurrentBranch,
@@ -399,11 +403,13 @@ impl ArgotConfig {
             .map(|s| match s.as_str() {
                 "default-branch" => FitRefreshFrom::DefaultBranch,
                 "current-branch" => FitRefreshFrom::CurrentBranch,
-                other => {
-                    warnings.push(format!(
-                        "[fit] refresh-from: unknown value {other:?} — using \"default-branch\" \
-                         (valid: \"default-branch\", \"current-branch\")"
-                    ));
+                name if !name.trim().is_empty() => FitRefreshFrom::Branch(name.to_string()),
+                _ => {
+                    warnings.push(
+                        "[fit] refresh-from: empty value — using \"default-branch\" (valid: \
+                         \"default-branch\", \"current-branch\", or a branch name)"
+                            .to_string(),
+                    );
                     FitRefreshFrom::DefaultBranch
                 }
             })
@@ -516,10 +522,12 @@ generated-markers = [
 # background (committed code only, never your working tree).
 auto-refresh = true
 refresh-after = {DEFAULT_FIT_REFRESH_AFTER}
-# What counts as accepted history: \"default-branch\" anchors the refresh at
-# the merge-base with your default branch, so a feature branch's own commits
-# never train the voice — they stay the code under judgment. Set
-# \"current-branch\" to let the refresh learn whatever HEAD has.
+# What counts as accepted history. \"default-branch\" auto-detects your trunk
+# (origin/HEAD, else main, else master) — nothing to fill in — and anchors the
+# refresh at the merge-base with it, so a feature branch's own commits never
+# train the voice; they stay the code under judgment. Name a branch (e.g.
+# \"develop\") if your trunk is non-standard, or set \"current-branch\" to let
+# refreshes learn whatever HEAD has.
 refresh-from = \"default-branch\"
 
 [rules]
@@ -702,14 +710,21 @@ reason = \"adopting axios\"
         assert_eq!(cfg.fit_refresh_after, 25);
         assert_eq!(cfg.fit_refresh_from, FitRefreshFrom::CurrentBranch);
 
-        // Zero clamps to 1; an unknown refresh-from warns and keeps the default.
+        // Zero clamps to 1; any other name is an explicit trunk; an empty
+        // value warns and keeps the default.
         std::fs::write(
             dir.join(CONFIG_FILE),
-            "[fit]\nrefresh-after = 0\nrefresh-from = \"sideways\"\n",
+            "[fit]\nrefresh-after = 0\nrefresh-from = \"develop\"\n",
         )
         .unwrap();
         let cfg = ArgotConfig::load(&dir);
         assert_eq!(cfg.fit_refresh_after, 1);
+        assert_eq!(
+            cfg.fit_refresh_from,
+            FitRefreshFrom::Branch("develop".to_string())
+        );
+        std::fs::write(dir.join(CONFIG_FILE), "[fit]\nrefresh-from = \"\"\n").unwrap();
+        let cfg = ArgotConfig::load(&dir);
         assert_eq!(cfg.fit_refresh_from, FitRefreshFrom::DefaultBranch);
         assert!(cfg.warnings.iter().any(|w| w.contains("refresh-from")));
 

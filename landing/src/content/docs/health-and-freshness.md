@@ -107,7 +107,8 @@ All three knobs live in `argot.toml`, written explicitly by `init`
 [fit]
 auto-refresh = true
 refresh-after = 10                # accepted in-scope commits before a refresh
-refresh-from = "default-branch"   # or "current-branch" to learn branch HEADs
+refresh-from = "default-branch"   # auto-detects the trunk (origin/HEAD → main → master);
+                                  # name one ("develop"), or "current-branch" to opt out
 ```
 
 A **manual** `argot fit` follows your branch — that's your call to make. When
