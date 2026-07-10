@@ -396,14 +396,48 @@ pub fn changeset_events(files: &[FileChange]) -> Vec<IntegrityEvent> {
             }
         }
     }
-    // Whitespace-collapsed post-image texts — the "did this exact assertion
-    // text survive anywhere?" check that excuses extract-to-helper refactors
-    // (the assertion moves into a plain function the inventory doesn't walk).
+    // Whitespace-collapsed texts of both sides — the "did this exact
+    // assertion text survive somewhere?" check that excuses extract-to-helper
+    // refactors (the assertion moves into a plain function the inventory
+    // doesn't walk). Count-aware: a surviving duplicate of an excised
+    // assertion must not excuse the excision.
+    let collapse = |t: &str| t.split_whitespace().collect::<Vec<_>>().join(" ");
     let changeset_new_texts: Vec<String> = files
         .iter()
         .filter_map(|f| f.new.as_deref())
-        .map(|t| t.split_whitespace().collect::<Vec<_>>().join(" "))
+        .map(collapse)
         .collect();
+    let changeset_old_texts: Vec<String> = files
+        .iter()
+        .filter_map(|f| f.old.as_deref())
+        .map(collapse)
+        .collect();
+    let text_count = |texts: &[String], needle: &str| -> usize {
+        texts.iter().map(|t| t.matches(needle).count()).sum()
+    };
+    // Words of the changeset's ADDED lines (line-level multiset diff) — an
+    // assertion moved into a new helper and adapted to its signature lives
+    // in added text; a pure deletion adds nothing.
+    let added_line_words: HashSet<String> = {
+        let mut words = HashSet::new();
+        for f in files {
+            let (Some(o), Some(n)) = (f.old.as_deref(), f.new.as_deref()) else {
+                continue;
+            };
+            let mut old_lines: HashMap<&str, usize> = HashMap::new();
+            for l in o.lines() {
+                *old_lines.entry(l.trim()).or_default() += 1;
+            }
+            for l in n.lines() {
+                let t = l.trim();
+                match old_lines.get_mut(t) {
+                    Some(c) if *c > 0 => *c -= 1,
+                    _ => words.extend(words_of(t)),
+                }
+            }
+        }
+        words
+    };
     let changeset_added_assertions: usize = new_site_counts
         .iter()
         .map(|(k, n)| n.saturating_sub(old_site_counts.get(k).copied().unwrap_or(0)))
@@ -555,7 +589,16 @@ pub fn changeset_events(files: &[FileChange]) -> Vec<IntegrityEvent> {
                     if news.len() < olds.len() && net_lost(key) {
                         vanished.extend(olds.iter().skip(news.len()).filter(|a| {
                             let raw = raw_site_text(a);
-                            !changeset_new_texts.iter().any(|t| t.contains(&raw))
+                            let moved_verbatim = text_count(&changeset_new_texts, &raw)
+                                >= text_count(&changeset_old_texts, &raw);
+                            let site_words = words_of(&raw);
+                            let covered = site_words
+                                .iter()
+                                .filter(|w| added_line_words.contains(*w))
+                                .count();
+                            let moved_adapted =
+                                !site_words.is_empty() && covered * 5 >= site_words.len() * 4;
+                            !moved_verbatim && !moved_adapted
                         }));
                     }
                 }
@@ -794,9 +837,12 @@ pub fn fit_model(repo_dir: &Path, repo_sha: &str) -> Option<IntegrityModel> {
             } else {
                 GATE_BAR
             };
-            // Below-bar noise is quiet enough to gate; retargets must also
-            // clear the scout's verdict that they are never a safe default.
-            rate <= bar && (kind != EventKind::Retarget || hits == 0)
+            // Below-bar noise is quiet enough to gate. A single observed
+            // event is weak evidence of a high true rate (1/20 commits is
+            // 33%-likely under a true rate ≤ 2%), so disabling requires at
+            // least two. Retargets must also clear the scout's verdict that
+            // they are never a safe default.
+            (rate <= bar || hits < 2) && (kind != EventKind::Retarget || hits == 0)
         };
         gates.insert(kind.key().to_string(), EventGate { rate, enabled });
     }
@@ -1127,6 +1173,60 @@ def test_info():
                 .iter()
                 .all(|e| e.kind != EventKind::AssertionsRemoved),
             "helper extraction read as excision: {events:?}"
+        );
+    }
+
+    #[test]
+    fn adapted_extract_to_helper_is_silent_but_duplicate_excision_fires() {
+        // Moved-and-adapted: the assertion reappears in an added helper with
+        // a renamed variable — a refactor, not a loss.
+        let old_test = r#"
+def test_info():
+    assert parse(raw_value) == expected_value
+    assert info.name == "redis"
+"#;
+        let adapted = r#"
+def check_parse(value):
+    assert parse(value) == expected_value
+
+def test_info():
+    check_parse(raw_value)
+    assert info.name == "redis"
+"#;
+        let files = [
+            change("parser.py", PROD_OLD, PROD_NEW),
+            change("tests/test_info.py", old_test, adapted),
+        ];
+        assert!(
+            changeset_events(&files)
+                .iter()
+                .all(|e| e.kind != EventKind::AssertionsRemoved),
+            "adapted helper extraction read as excision"
+        );
+
+        // Duplicate-shape excision: one of two IDENTICAL assertions removed,
+        // nothing added — the surviving twin must NOT excuse the excision.
+        let old_dup = r#"
+def test_same():
+    assert parse(x) == parse(y)
+    assert parse(x) == parse(y)
+    assert other() == 1
+"#;
+        let new_dup = r#"
+def test_same():
+    assert parse(x) == parse(y)
+    assert other() == 1
+"#;
+        let files = [
+            change("parser.py", PROD_OLD, PROD_NEW),
+            change("tests/test_same.py", old_dup, new_dup),
+        ];
+        let events = changeset_events(&files);
+        assert!(
+            events
+                .iter()
+                .any(|e| e.kind == EventKind::AssertionsRemoved),
+            "duplicate excision was wrongly excused: {events:?}"
         );
     }
 
