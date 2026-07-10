@@ -143,13 +143,14 @@ The same resolved `[exclude]` + `[detect]` govern what argot **learns** from,
 ## `[rules]` — rule severities
 
 **Location:** the `[rules]` section of `argot.toml`. Every finding argot emits
-belongs to one of **seven stable rules**, in three groups:
+belongs to one of **ten stable rules**, in four groups:
 
 | Group | Rules |
 |---|---|
 | `voice` | `foreign-import` · `unfamiliar-callee` · `rare-tokens` · `convention` |
 | `semantic` | `redundant` · `misplaced` |
 | `architecture` | `layering` |
+| `integrity` | `test-deleted` · `test-disabled` · `test-weakened` |
 
 Each rule carries a **severity**: `error` (reported, fails `argot check` with
 exit 1), `warn` (reported, does not fail the check), or `off` (the rule does not
@@ -223,9 +224,10 @@ The rules:
   reason from the directive with `—`, `-`, or `:`.
 - **`rule=<name>`** (optional) scopes the mute to one rule (`foreign-import`,
   `rare-tokens`, `unfamiliar-callee`, `convention`, `redundant`, `misplaced`,
-  `layering`) or a whole group (`voice`, `semantic`, `architecture`). Omit it to
-  mute the hunk whatever fired. An unknown rule name is a warning, and the
-  directive is ignored.
+  `layering`, `test-deleted`, `test-disabled`, `test-weakened`) or a whole group
+  (`voice`, `semantic`, `architecture`, `integrity`). Omit it to mute the hunk
+  whatever fired. An unknown rule name is a warning, and the directive is
+  ignored.
 - **`ignore-next-line`** mutes the single line below the comment.
   **`ignore-block-start` … `ignore-block-end`** mute everything between them
   (the `-end` needs no reason). An unclosed block suppresses to end of file with
@@ -401,6 +403,7 @@ version control.
 | `.argot/scorer-config.json` | `fit` / `init` | The fitted voice model: calibrated threshold(s) + scorer config. | No — rebuildable. |
 | `.argot/semantic-index.json` | `fit` / `init` | The per-repo code-embedding index for the reinvention/placement checks. Records the model that built it — an index from a different model/version is rejected with a "run `argot fit` to rebuild" message rather than scoring wrong. | No — rebuildable. |
 | `.argot/layering.json` | `fit` / `init` | The module-dependency graph the `layering` rule checks added imports against. | No — rebuildable. |
+| `.argot/integrity.json` | `fit` / `init` | Per-repo learned gates for the test-integrity rules (`test-deleted` / `test-disabled` / `test-weakened`), from a mini-replay of the repo's accepted history. | No — rebuildable. |
 | `.argot/manifest.json` | `fit` / `init` | Versioned, hashed record of what was learned (model hash, fit commit, corpus size); read by `inspect --model`. | No — rebuildable. |
 | `.argot/health.json` | `fit` / `init` | The fit's self-record — fitted SHA, config fingerprint, drift candidates; read by `check` and `status` for the freshness notes ([Health & freshness](/docs/health-and-freshness/)). | No — rebuildable. |
 | `.argot/repo-corpus.txt` | `fit` / `init` | The source files counted into the repo distribution. | No — rebuildable. |

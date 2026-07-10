@@ -1,6 +1,6 @@
 ---
 name: argot-review-pr
-description: Review a specific pull request (or diff range) against this repo's learned patterns with argot, without checking it out — flag dependencies, APIs, and constructs foreign to how the repo is written, duplicated functions, misfiled code, and layering breaks. Use when the user asks to "review PR #123 with argot", "check this PR for out-of-voice code", or "run argot on that branch/range". Distinct from argot-check (your local working changes) and argot-setup-ci (wiring the GitHub Action).
+description: Review a specific pull request (or diff range) against this repo's learned patterns with argot, without checking it out — flag dependencies, APIs, and constructs foreign to how the repo is written, duplicated functions, misfiled code, layering breaks, and tests weakened, disabled, or deleted alongside a production change. Use when the user asks to "review PR #123 with argot", "check this PR for out-of-voice code", or "run argot on that branch/range". Distinct from argot-check (your local working changes) and argot-setup-ci (wiring the GitHub Action).
 ---
 
 # argot-review-pr
@@ -48,7 +48,7 @@ In `--format human` the meta line reads
 
 ## The rules
 
-Seven rules in three groups (`argot rules` prints the registry with the repo's
+Ten rules in four groups (`argot rules` prints the registry with the repo's
 effective severities):
 
 | Rule | Group | What it means | What to recommend |
@@ -60,13 +60,19 @@ effective severities):
 | `redundant` | semantic | Duplicates a function the repo already has — evidence `↳ duplicates <symbol> (<path>:<line>) — similarity 0.XX` names the original. | **Do not ignore.** Open the cited file, compare, and recommend calling the existing function instead of merging a reimplementation — or a justified mute. |
 | `misplaced` | semantic | The function looks like it belongs in another module area — evidence `↳ looks like <area> code filed under <area>`. | Suggest moving it to the cited area, or ask the author to justify the placement. |
 | `layering` | architecture | An internal import that reverses the repo's established layering direction. | Recommend not introducing the import — invert the dependency or route through the intended layer. |
+| `test-deleted` | integrity | A test (or whole test file) removed while the production code it exercised still exists. | Recommend restoring the test or explaining why it's obsolete; if the deletion is legitimate (feature removed), the code that exercised it should be gone too. Call out test-gaming explicitly. |
+| `test-disabled` | integrity | A skip/ignore marker added, or a test gutted, while production code changes. | Recommend un-skipping and fixing the code, or recording why the skip is temporary; skipping to make a failing suite green is the exact behavior this rule exists to catch. |
+| `test-weakened` | integrity | Assertions removed, tautologized, or loosened while production code changes. | Recommend restoring the assertion strength; if the expected value legitimately changed, ask the author to say why rather than silently retargeting. |
 
 Confidence tiers grade **evidence strength only** — they never drive the exit
 code (severities do), and `redundant` / `misplaced` / `layering` are always
-reported at `unusual`. **An `unusual` hit is NOT "usually fine" — look at its
-rule.** Severities: every rule defaults to `error`; the repo can downgrade per
-rule or group in `argot.toml` `[rules]` or per run with
-`argot review --rule <name|group>=<severity>`.
+reported at `unusual`. The three `integrity` rules (`test-deleted`,
+`test-disabled`, `test-weakened`) pin to `suspicious` — each is a discrete,
+evidenced event (a marker added, assertions excised), stronger than `unusual`
+but not the categorical certainty of a 0-usage import. **An `unusual` hit is
+NOT "usually fine" — look at its rule.** Severities: every rule defaults to
+`error`; the repo can downgrade per rule or group in `argot.toml` `[rules]` or
+per run with `argot review --rule <name|group>=<severity>`.
 
 ## Gauge trust first
 
@@ -78,10 +84,11 @@ down-weight the `voice`-group hits accordingly and say so.
 
 argot reliably flags a **novel pattern** foreign to this repo: a dependency it
 has never imported, an API it never calls, or a whole paradigm it never writes —
-plus duplicated functions, misfiled code, and layering breaks. Trust a
+plus duplicated functions, misfiled code, layering breaks, and a test weakened,
+disabled, or deleted alongside the production change it covers. Trust a
 `foreign-import` hit. It does **not** catch every *in-vocabulary* break — where
 every token is already in the repo and only the choice is wrong. So a clean
-review means "none of the seven rules fired," not "this PR is idiomatic."
+review means "none of the ten rules fired," not "this PR is idiomatic."
 
 ## Decision tree — branch on the rule
 
@@ -100,6 +107,12 @@ review means "none of the seven rules fired," not "this PR is idiomatic."
 - **`layering`** — recommend against introducing the import; invert the
   dependency or go through the intended layer. Only a deliberate architecture
   change justifies a mute.
+- **`test-deleted` / `test-disabled` / `test-weakened`** — call out test-gaming
+  explicitly in the review comment: a test was deleted, skipped, or weakened
+  alongside a production change. Recommend restoring or un-skipping the test,
+  or asking the author to justify the change (a legitimately removed feature
+  should remove its test too; a legitimately retargeted expectation should say
+  why). Only a justified explanation from the author warrants a mute.
 
 ## Hard rules
 

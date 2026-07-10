@@ -80,7 +80,7 @@ suppressing it).
    directory patterns. If the repo uses a code generator whose banner isn't in
    the default `[detect].generated-markers` (e.g. a bespoke in-house codegen),
    add that phrase there too. If the user wants to soften or disable a rule
-   (all seven default to `error`), the surface is the `[rules]` table in the
+   (all ten default to `error`), the surface is the `[rules]` table in the
    same file — e.g. `misplaced = "warn"` or `semantic = "off"`; `argot rules`
    lists the registry with effective severities. Re-run `argot init`.
 

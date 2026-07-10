@@ -1,6 +1,6 @@
 ---
 name: argot-check
-description: Score your working changes with argot — flag code foreign to this repo's own patterns (unfamiliar dependencies, APIs, constructs), functions the repo already has, code filed in the wrong place, and imports that break the repo's layering — before committing. Use after generating or editing code, before a commit, or when the user asks "check my changes with argot", "is this in-voice", or "does this match how we write code here".
+description: Score your working changes with argot — flag code foreign to this repo's own patterns (unfamiliar dependencies, APIs, constructs), functions the repo already has, code filed in the wrong place, imports that break the repo's layering, and tests weakened, disabled, or deleted alongside a production change — before committing. Use after generating or editing code, before a commit, or when the user asks "check my changes with argot", "is this in-voice", or "does this match how we write code here".
 ---
 
 # argot-check
@@ -54,7 +54,7 @@ informational stderr.
 
 ## The rules
 
-Seven rules in three groups. `argot rules` prints this registry with the
+Ten rules in four groups. `argot rules` prints this registry with the
 repo's effective severities.
 
 | Rule | Group | What it means | What to do |
@@ -66,6 +66,9 @@ repo's effective severities.
 | `redundant` | semantic | A new function that duplicates one the repo already has. The evidence `↳ duplicates <symbol> (<path>:<line>) — similarity 0.XX` names the original. | **Do not ignore.** Open the cited file, compare, and call the existing function instead of keeping the reimplementation — or justify and mute with a reason. |
 | `misplaced` | semantic | A function that looks like it belongs in another module area. The evidence reads `↳ looks like <area> code filed under <area>`. | Propose moving the code to the cited area, or justify the placement. |
 | `layering` | architecture | An internal import that reverses the repo's established layering direction. | Don't introduce the import — invert the dependency or route through the intended layer. |
+| `test-deleted` | integrity | A test (or whole test file) removed while the production code it exercised still exists. | Restore the test or explain why it's obsolete; if the deletion is legitimate (feature removed), the code that exercised it should be gone too. |
+| `test-disabled` | integrity | A skip/ignore marker added, or a test gutted, while production code changes. | Un-skip and fix the code, or record why the skip is temporary; skipping to make a failing suite green is the exact behavior this rule exists to catch. |
+| `test-weakened` | integrity | Assertions removed, tautologized, or loosened while production code changes. | Restore the assertion strength; if the expected value legitimately changed, say why in the commit/PR rather than silently retargeting. |
 
 ## Confidence is evidence strength, not priority
 
@@ -74,9 +77,12 @@ statistical evidence is** — nothing more. They are display-only: they never
 drive the exit code (severities do), and `--min-confidence` only filters the
 display. `redundant`, `misplaced`, and `layering` are always reported at
 `unusual` because they come from a single retrieval/graph signal rather than a
-calibrated score. **An `unusual` hit is NOT "usually fine" — look at its
-rule.** An `unusual` `redundant` hit still means the repo already has that
-function.
+calibrated score. The three `integrity` rules (`test-deleted`, `test-disabled`,
+`test-weakened`) pin to `suspicious` — each is a discrete, evidenced event (a
+marker added, assertions excised), stronger than `unusual` but not the
+categorical certainty of a 0-usage import. **An `unusual` hit is NOT "usually
+fine" — look at its rule.** An `unusual` `redundant` hit still means the repo
+already has that function.
 
 ## Severities and configuration
 
@@ -86,7 +92,7 @@ off → silent). Configure durably in `argot.toml`:
 ```toml
 [rules]
 misplaced = "warn"     # one rule
-semantic = "off"       # or a whole group: voice / semantic / architecture
+semantic = "off"       # or a whole group: voice / semantic / architecture / integrity
 ```
 
 or per run with `argot check --rule <name|group>=<severity>`. In strict CI,
@@ -105,11 +111,13 @@ has never imported, an API it never calls, or a whole paradigm (a Django-style
 view in a FastAPI repo, a different HTTP client, hand-rolled validation) it
 never writes. When the foreign symbol is in the change, it catches ~98% of
 these. Trust a `foreign-import` hit. The `semantic` and `architecture` rules
-add duplicated functions, misfiled code, and layering breaks on top.
+add duplicated functions, misfiled code, and layering breaks on top; the
+`integrity` rules add a test weakened, disabled, or deleted alongside the
+production change it covers.
 
 It does **not** catch every *in-vocabulary* break — where every token is
 already in the repo and only the choice is wrong. So **a clean run means "none
-of the seven rules fired," not "this matches every convention."** Don't present
+of the ten rules fired," not "this matches every convention."** Don't present
 a clean argot result as a guarantee the code is idiomatic — it's silent on some
 of the subtle stuff by design.
 
@@ -135,6 +143,15 @@ For each hit in the JSON, branch on `rule`:
 - **`layering`** — don't introduce this import. Invert the dependency or go
   through the layer the repo's architecture intends. Only mute if the user
   confirms the layering is deliberately changing.
+- **`test-deleted`** — restore the test or explain why it's obsolete; if the
+  deletion is legitimate (feature removed), the code that exercised it should
+  be gone too.
+- **`test-disabled`** — un-skip and fix the code, or record why the skip is
+  temporary; skipping to make a failing suite green is the exact behavior this
+  rule exists to catch.
+- **`test-weakened`** — restore the assertion strength; if the expected value
+  legitimately changed, say why in the commit/PR rather than silently
+  retargeting.
 
 ## Report format
 

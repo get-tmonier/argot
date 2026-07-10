@@ -56,8 +56,9 @@ first). The model is cached per base commit and only re-fit when the base moves.
 > incremental (unchanged functions reuse their embeddings; seconds, not
 > minutes). If that
 > is still too much — or the runner is locked down — set the Action's
-> **`semantic: false`** input: no download, no index build; the voice and
-> layering rules still run.
+> **`semantic: false`** input: no download, no index build; the voice,
+> layering, and integrity rules still run — they're pure Rust, no model
+> download.
 >
 > Hand-rolled workflow (no Action)? Reproduce the same two steps:
 >
@@ -205,7 +206,7 @@ All inputs are optional.
 | `upload-sarif` | `true` | Upload the SARIF file to code scanning (needs `format: sarif` and `security-events: write`). |
 | `comment-pr` | `true` | Post/update the sticky voice-score PR comment (needs `pull-requests: write`). |
 | `rules` | *(empty)* | Space-separated rule severity overrides passed to `argot check --rule`, e.g. `misplaced=warn semantic=off`. Empty = the repo's `argot.toml` `[rules]`. |
-| `semantic` | `true` | Run the semantic rules (`redundant`/`misplaced`). `false` sets `ARGOT_OFFLINE=1` — no model download, no index build; the voice and layering rules still run. |
+| `semantic` | `true` | Run the semantic rules (`redundant`/`misplaced`). `false` sets `ARGOT_OFFLINE=1` — no model download, no index build; the voice, layering, and integrity rules still run. |
 | `fail-on-hits` | `false` | Fail the job when argot finds hits above the threshold. Off by default — argot informs without gating. |
 
 ### Action outputs
@@ -225,8 +226,8 @@ is four steps — and two caches:
    then make sure `~/.local/bin` / `~/.cargo/bin` is on `PATH`.
 2. **Warm the embedding model** — cache the models directory and run
    `argot model fetch` (cache hit: one sha256 pass, <1 s; cold: one ~104 MB
-   download). Locked-down runner? `ARGOT_OFFLINE=1` skips it — voice +
-   layering still run.
+   download). Locked-down runner? `ARGOT_OFFLINE=1` skips it — voice,
+   layering, and integrity still run.
 3. **Fit on the base, not the head** — check out the target branch, `argot
    fit`, check out the PR head again. Fitting on the head would teach the
    model the PR's own new code before judging it. Cache `.argot/` keyed on
