@@ -32,16 +32,12 @@ the user explicitly asks for a gate.
          - uses: actions/checkout@v4
            with:
              fetch-depth: 0    # argot fits on the PR's base branch, so it needs history
-         - uses: actions/cache@v4
-           with:
-             path: ~/.cache/argot/models   # the ~100 MB semantic embedding model
-             key: argot-model-semantic-model-v1
          - uses: get-tmonier/argot@main
    ```
 
-   The cache step keeps the one-time ~100 MB semantic-model download out of
-   every run (keep the key stable — the model only changes with argot itself).
-   In a hand-rolled workflow that can't cache, run `argot model fetch` once
+   That's the whole workflow — the Action installs argot, caches and fetches
+   the ~100 MB semantic embedding model itself (no manual cache step needed),
+   fits, and scores. In a hand-rolled workflow, run `argot model fetch` once
    after installing argot instead.
 
 3. If the repo already has an `argot.toml` (from local setup or by hand), leave
@@ -60,8 +56,9 @@ the user explicitly asks for a gate.
    annotations. It never fails the build.
 
 6. If the user prefers a hand-rolled workflow over the Action (or already has
-   one), the building blocks are: install argot, `argot model fetch` (or the
-   cache step above), `argot fit`, then `argot check --format github` — the
+   one), the building blocks are: install argot, `argot model fetch` (cache
+   `~/.cache/argot/models` to keep the download out of every run), `argot fit`,
+   then `argot check --format github` — the
    `github` format prints workflow commands that GitHub renders as inline PR
    annotations. For a strict setup, `--error-on-warnings` makes warn-severity
    hits fail the run too. If an existing workflow runs `argot extract && argot

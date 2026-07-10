@@ -117,7 +117,8 @@ the layer no-ops and the base guardrail still runs.
 At check, each new function is embedded and matched against the index:
 
 - **`redundant`** — the function's nearest cross-file neighbour is a near-duplicate above a similarity
-  margin. Evidence: `↳ duplicates <symbol> (path:line) — similarity 0.86`. Retrieval 96–100%.
+  margin. Evidence: `↳ duplicates <symbol> (path:line) — similarity 0.86`. Catches 85–100% of
+  reinventions per repo (median 94%).
 - **`misplaced`** — the function's nearest semantic neighbours concentrate in a different package or
   area than the one it was filed under. Evidence: `↳ looks like <area> code filed under <actual-area>`.
 

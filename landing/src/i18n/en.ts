@@ -65,7 +65,7 @@ const en: SiteContent = {
   engine: {
     label: 'Under the hood',
     title: 'Semantic understanding. No LLM anywhere.',
-    body: 'Three engines, one static [[Rust]] binary, all learned from your git history — no API key, no GPU, nothing leaves your machine.',
+    body: 'Three engines behind the four detectors, one static [[Rust]] binary, all learned from your git history — no API key, no GPU, nothing leaves your machine.',
     cards: [
       {
         title: 'A code-embedding model on your laptop',
