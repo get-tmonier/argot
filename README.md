@@ -119,7 +119,10 @@ argot actually catches a foreign import. Then `/argot-check` scores each diff,
 Action. By hand instead: `argot init --suggest`, review, add to `argot.toml
 [exclude].paths`, re-run `argot init` — and argot itself tells you when to
 revisit (every fit re-scans for new generated/data-heavy directories; `argot
-status` is the health view).
+status` is the health view). After that the voice maintains itself: when your
+default branch gains enough new source, `check` re-fits in the background —
+from **accepted history only**, so a feature branch's unmerged commits (the
+code being judged) never train the judge.
 
 ## Demo
 

@@ -2134,8 +2134,9 @@ fn render_machine(format: OutputFormat, meta: &ReportMeta, records: &[HitRecord]
     }
 }
 
-/// Commits between the fit SHA and HEAD to trigger the freshness warning.
-const FRESHNESS_WARN_COMMITS: usize = 10;
+/// Freshness walks stop visiting commits here — far past every threshold.
+/// The stale-after threshold itself is `[fit] refresh-after` in argot.toml.
+pub const FRESHNESS_SCAN_CAP: usize = 200;
 
 /// How many commits HEAD is ahead of the fit SHA (`None` when either end
 /// cannot be resolved — shallow clones, rewritten history, detached states
@@ -2151,6 +2152,211 @@ pub fn commits_since_fit(repo_path: &str, fit_sha: &str) -> Option<usize> {
     repo.find_commit(fit_oid).ok()?;
     let (ahead, _) = repo.graph_ahead_behind(head.id(), fit_oid).ok()?;
     Some(ahead)
+}
+
+/// The repo's default branch, by shorthand name — `origin/HEAD`'s target when
+/// the remote declares one, else a local `main`/`master`. `None` when neither
+/// exists (unusual layouts keep today's HEAD-relative behaviour).
+fn default_branch_shorthand(repo: &git2::Repository) -> Option<String> {
+    if let Ok(r) = repo.find_reference("refs/remotes/origin/HEAD") {
+        if let Some(target) = r.symbolic_target() {
+            if let Some(name) = target.strip_prefix("refs/remotes/origin/") {
+                return Some(name.to_string());
+            }
+        }
+    }
+    ["main", "master"]
+        .iter()
+        .find(|name| repo.find_reference(&format!("refs/heads/{name}")).is_ok())
+        .map(|s| s.to_string())
+}
+
+/// The trunk whose line counts as accepted history: the branch named in
+/// `[fit] refresh-from` when it exists (locally or on origin), else the
+/// auto-detected default branch — a named trunk missing from this clone
+/// (a fork, a typo) degrades to detection rather than silently anchoring
+/// at HEAD.
+fn trunk_shorthand(repo: &git2::Repository, config: &crate::config::ArgotConfig) -> Option<String> {
+    if let crate::config::FitRefreshFrom::Branch(name) = &config.fit_refresh_from {
+        let exists = repo.find_reference(&format!("refs/heads/{name}")).is_ok()
+            || repo
+                .find_reference(&format!("refs/remotes/origin/{name}"))
+                .is_ok();
+        if exists {
+            return Some(name.clone());
+        }
+    }
+    default_branch_shorthand(repo)
+}
+
+/// The newest **accepted** commit the current work builds on. On the trunk
+/// (or when no trunk is discernible) that's HEAD; on any other branch it's
+/// the merge-base with the trunk. Feature-branch commits are deliberately not
+/// accepted history — a voice refreshed against this anchor never learns
+/// unreviewed work-in-progress, so `check` keeps judging it instead of
+/// treating it as the repo's own. `None` when history can't be resolved
+/// (shallow clones, disjoint roots).
+pub fn accepted_anchor(repo_path: &str, config: &crate::config::ArgotConfig) -> Option<String> {
+    let repo = open_repo(repo_path).ok()?;
+    let head_ref = repo.head().ok()?;
+    let head = head_ref.peel_to_commit().ok()?;
+    let Some(trunk) = trunk_shorthand(&repo, config) else {
+        return Some(head.id().to_string());
+    };
+    if head_ref.is_branch() && head_ref.shorthand() == Some(trunk.as_str()) {
+        return Some(head.id().to_string());
+    }
+    let tip = repo
+        .find_reference(&format!("refs/heads/{trunk}"))
+        .or_else(|_| repo.find_reference(&format!("refs/remotes/origin/{trunk}")))
+        .ok()?
+        .peel_to_commit()
+        .ok()?
+        .id();
+    let base = repo.merge_base(head.id(), tip).ok()?;
+    Some(base.to_string())
+}
+
+/// How many commits in `from..to` touch corpus source under the given
+/// suppressions — the staleness measure freshness decisions run on: docs,
+/// CI config, and changelog churn don't age a voice; accepted source changes
+/// do. Bounded twice so it never weighs on check: the count stops at
+/// `stop_at` (callers only need "did it cross the threshold"), and the walk
+/// itself gives up after [`FRESHNESS_SCAN_CAP`] commits (a fit that far
+/// behind is stale regardless of the exact count). `None` when either end is
+/// unresolvable — callers must leave the fit alone rather than guess.
+pub fn in_scope_commits_between(
+    repo_path: &str,
+    from_sha: &str,
+    to_sha: &str,
+    suppressions: &crate::suppress::PathSuppressions,
+    stop_at: usize,
+) -> Option<usize> {
+    let repo = open_repo(repo_path).ok()?;
+    let from = git2::Oid::from_str(from_sha).ok()?;
+    let to = git2::Oid::from_str(to_sha).ok()?;
+    if from == to || stop_at == 0 {
+        return Some(0);
+    }
+    repo.find_commit(from).ok()?;
+    let mut walk = repo.revwalk().ok()?;
+    walk.push(to).ok()?;
+    walk.hide(from).ok()?;
+    let mut in_scope = 0usize;
+    for oid in walk.flatten().take(FRESHNESS_SCAN_CAP) {
+        let commit = repo.find_commit(oid).ok()?;
+        let tree = commit.tree().ok()?;
+        let parent_tree = commit.parent(0).ok().and_then(|p| p.tree().ok());
+        let diff = repo
+            .diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), None)
+            .ok()?;
+        let touches = diff.deltas().any(|d| {
+            d.new_file()
+                .path()
+                .or(d.old_file().path())
+                .and_then(|p| p.to_str())
+                .is_some_and(|rel| crate::train::is_corpus_source(rel, suppressions))
+        });
+        if touches {
+            in_scope += 1;
+            if in_scope >= stop_at {
+                break;
+            }
+        }
+    }
+    Some(in_scope)
+}
+
+/// The anchor freshness is measured against — and the commit a background
+/// refresh fits at. [`accepted_anchor`] under the default
+/// `[fit] refresh-from = "default-branch"`; plain HEAD when the repo opted
+/// into `"current-branch"`.
+pub fn freshness_anchor(repo_path: &str, config: &crate::config::ArgotConfig) -> Option<String> {
+    match &config.fit_refresh_from {
+        crate::config::FitRefreshFrom::DefaultBranch | crate::config::FitRefreshFrom::Branch(_) => {
+            accepted_anchor(repo_path, config)
+        }
+        crate::config::FitRefreshFrom::CurrentBranch => {
+            let repo = open_repo(repo_path).ok()?;
+            let head = repo.head().ok()?.peel_to_commit().ok()?;
+            Some(head.id().to_string())
+        }
+    }
+}
+
+/// The laundering advisory's evidence: when HEAD is a named branch other than
+/// the default and its unmerged commits touch in-scope source, returns
+/// `(branch, count)` (count stops at `cap`). `None` whenever a fit here is
+/// unremarkable — on the default branch, detached HEAD (replay worktrees),
+/// a branch with nothing in-scope of its own, or a repo that opted into
+/// `[fit] refresh-from = "current-branch"`.
+pub fn unmerged_branch_source_commits(
+    repo_path: &str,
+    config: &crate::config::ArgotConfig,
+    cap: usize,
+) -> Option<(String, usize)> {
+    if config.fit_refresh_from == crate::config::FitRefreshFrom::CurrentBranch {
+        return None;
+    }
+    let repo = open_repo(repo_path).ok()?;
+    let head_ref = repo.head().ok()?;
+    if !head_ref.is_branch() {
+        return None;
+    }
+    let branch = head_ref.shorthand()?.to_string();
+    if branch == trunk_shorthand(&repo, config)? {
+        return None;
+    }
+    let head_sha = head_ref.peel_to_commit().ok()?.id().to_string();
+    let anchor = accepted_anchor(repo_path, config)?;
+    if anchor == head_sha {
+        return None;
+    }
+    let n = in_scope_commits_between(
+        repo_path,
+        &anchor,
+        &head_sha,
+        &config.path_suppressions(),
+        cap,
+    )?;
+    (n > 0).then_some((branch, n))
+}
+
+/// The shared freshness measure: commits of **accepted, in-scope** source the
+/// fit hasn't seen — [`freshness_anchor`] composed with
+/// [`in_scope_commits_between`]. Both check's drift warning and the CLI's
+/// background auto-refresh read this, so a feature branch full of its own
+/// commits reads as fresh (nothing accepted moved), and a docs-only sprint on
+/// main does too. Cost on the check path: a couple of ref lookups plus one
+/// commit-graph count; the per-commit tree diffs only run when accepted
+/// history actually moved, and stop at `stop_at`.
+pub fn accepted_source_commits_behind(
+    repo_path: &str,
+    fit_sha: &str,
+    config: &crate::config::ArgotConfig,
+    stop_at: usize,
+) -> Option<usize> {
+    let anchor = freshness_anchor(repo_path, config)?;
+    // Cheap gate: no commits at all between fit and anchor (the common,
+    // fresh case) answers 0 without a single tree diff.
+    let repo = open_repo(repo_path).ok()?;
+    let fit = git2::Oid::from_str(fit_sha).ok()?;
+    let anchor_oid = git2::Oid::from_str(&anchor).ok()?;
+    if fit == anchor_oid {
+        return Some(0);
+    }
+    repo.find_commit(fit).ok()?;
+    let (ahead, _) = repo.graph_ahead_behind(anchor_oid, fit).ok()?;
+    if ahead == 0 {
+        return Some(0);
+    }
+    in_scope_commits_between(
+        repo_path,
+        fit_sha,
+        &anchor,
+        &config.path_suppressions(),
+        stop_at,
+    )
 }
 
 /// Collect patches for the requested mode (`main()` mode dispatch). On a
@@ -2346,14 +2552,20 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
 
     // Freshness: a stale model turns ordinary drift into noise (a month of
     // drift on a busy workspace measured ~14× the hit volume of a fresh
-    // fit). Warn when HEAD has moved substantially since the fit.
+    // fit). Warn when ACCEPTED history has moved substantially since the fit
+    // — commits touching in-scope source on the default-branch line. A
+    // feature branch's own commits don't count (they're the code under
+    // judgment, not the voice), and docs-only churn doesn't either.
     if let Some(fit_sha) = &fit_sha {
-        if let Some(behind) = commits_since_fit(&args.repo_path, fit_sha) {
-            if behind >= FRESHNESS_WARN_COMMITS {
+        let stale_after = config.fit_refresh_after;
+        if let Some(behind) =
+            accepted_source_commits_behind(&args.repo_path, fit_sha, &config, stale_after)
+        {
+            if behind >= stale_after {
                 // No imperative here: the CLI's auto-refresh acts on this
                 // drift itself (and says so right after this line).
                 stderr.push_str(&format!(
-                    "[argot] model fitted {behind} commits ago — voice may have drifted\n"
+                    "[argot] model fitted {behind}+ source commits ago — voice may have drifted\n"
                 ));
             }
         }
@@ -3000,6 +3212,161 @@ mod tests {
         assert_eq!(commits_since_fit(path, &head.to_string()), Some(0));
         // Unresolvable fit SHA must never break check.
         assert_eq!(commits_since_fit(path, "fixture"), None);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn freshness_ignores_feature_branch_and_docs_churn() {
+        let dir = std::env::temp_dir().join(format!("argot_anchor_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("src")).unwrap();
+        let repo = git2::Repository::init(&dir).unwrap();
+        std::fs::write(dir.join("src/a.py"), "x = 1\n").unwrap();
+        let c1 = commit_all(&repo, "c1: source on default");
+        // Pin the default branch name regardless of the machine's git config.
+        let c1_commit = repo.find_commit(c1).unwrap();
+        repo.branch("main", &c1_commit, true).unwrap();
+        repo.set_head("refs/heads/main").unwrap();
+
+        // A feature branch with one source commit and one docs commit.
+        repo.branch("feat", &c1_commit, true).unwrap();
+        repo.set_head("refs/heads/feat").unwrap();
+        std::fs::write(dir.join("src/b.py"), "y = 2\n").unwrap();
+        commit_all(&repo, "c2: feature source");
+        std::fs::write(dir.join("README.md"), "docs\n").unwrap();
+        let c3 = commit_all(&repo, "c3: docs only");
+
+        let path = dir.to_str().unwrap();
+        let config = crate::config::ArgotConfig::default();
+
+        // The anchor is the merge-base with main — the feature commits are
+        // not accepted history.
+        assert_eq!(accepted_anchor(path, &config), Some(c1.to_string()));
+        // A voice fitted at the anchor is fresh no matter how busy the branch.
+        assert_eq!(
+            accepted_source_commits_behind(path, &c1.to_string(), &config, 10),
+            Some(0)
+        );
+        // Of the branch's own commits, only the source one is in scope.
+        assert_eq!(
+            in_scope_commits_between(
+                path,
+                &c1.to_string(),
+                &c3.to_string(),
+                &config.path_suppressions(),
+                10
+            ),
+            Some(1)
+        );
+        // The manual-fit advisory sees the same single unmerged source commit…
+        assert_eq!(
+            unmerged_branch_source_commits(path, &config, 10),
+            Some(("feat".to_string(), 1))
+        );
+        // …and stays quiet when the repo opted into current-branch refreshes.
+        let opt_dir = std::env::temp_dir().join(format!("argot_anchor_cfg_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&opt_dir);
+        std::fs::create_dir_all(&opt_dir).unwrap();
+        std::fs::write(
+            opt_dir.join("argot.toml"),
+            "[fit]\nrefresh-from = \"current-branch\"\n",
+        )
+        .unwrap();
+        let opted_out = crate::config::ArgotConfig::load(&opt_dir);
+        let _ = std::fs::remove_dir_all(&opt_dir);
+        assert_eq!(
+            opted_out.fit_refresh_from,
+            crate::config::FitRefreshFrom::CurrentBranch
+        );
+        assert_eq!(unmerged_branch_source_commits(path, &opted_out, 10), None);
+        // Under the opt-out the anchor is plain HEAD.
+        assert_eq!(freshness_anchor(path, &opted_out), Some(c3.to_string()));
+
+        // Back on the default branch: HEAD is the anchor, no advisory.
+        repo.set_head("refs/heads/main").unwrap();
+        assert_eq!(accepted_anchor(path, &config), Some(c1.to_string()));
+        assert_eq!(unmerged_branch_source_commits(path, &config, 10), None);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A `[fit] refresh-from = "<branch>"` names the trunk explicitly for
+    /// repos whose accepted line isn't main/master.
+    #[test]
+    fn named_trunk_overrides_default_branch_detection() {
+        let dir = std::env::temp_dir().join(format!("argot_trunk_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("src")).unwrap();
+        let repo = git2::Repository::init(&dir).unwrap();
+        std::fs::write(dir.join("src/a.py"), "x = 1\n").unwrap();
+        let c1 = commit_all(&repo, "c1: trunk");
+        let c1_commit = repo.find_commit(c1).unwrap();
+        // Trunk is `develop`; no main/master exists anywhere.
+        repo.branch("develop", &c1_commit, true).unwrap();
+        repo.set_head("refs/heads/develop").unwrap();
+        for stray in ["main", "master"] {
+            if let Ok(mut b) = repo.find_branch(stray, git2::BranchType::Local) {
+                b.delete().unwrap();
+            }
+        }
+        repo.branch("feat", &c1_commit, true).unwrap();
+        repo.set_head("refs/heads/feat").unwrap();
+        std::fs::write(dir.join("src/b.py"), "y = 2\n").unwrap();
+        let c2 = commit_all(&repo, "c2: feature source");
+
+        let path = dir.to_str().unwrap();
+        std::fs::write(
+            dir.join("argot.toml"),
+            "[fit]\nrefresh-from = \"develop\"\n",
+        )
+        .unwrap();
+        let named = crate::config::ArgotConfig::load(&dir);
+        assert_eq!(
+            named.fit_refresh_from,
+            crate::config::FitRefreshFrom::Branch("develop".to_string())
+        );
+        // Named trunk: the anchor is the merge-base with develop, and the
+        // advisory sees the unmerged feature commit.
+        assert_eq!(accepted_anchor(path, &named), Some(c1.to_string()));
+        assert_eq!(
+            unmerged_branch_source_commits(path, &named, 10),
+            Some(("feat".to_string(), 1))
+        );
+        // Without the override there is no main/master to detect — the
+        // anchor degrades to HEAD (today's behaviour for unusual layouts).
+        let auto = crate::config::ArgotConfig::default();
+        assert_eq!(accepted_anchor(path, &auto), Some(c2.to_string()));
+        // A named trunk missing from the clone degrades to detection, not to
+        // a silent HEAD anchor pretending the config was honored.
+        std::fs::write(dir.join("argot.toml"), "[fit]\nrefresh-from = \"gone\"\n").unwrap();
+        let missing = crate::config::ArgotConfig::load(&dir);
+        assert_eq!(accepted_anchor(path, &missing), Some(c2.to_string()));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn in_scope_count_stops_at_threshold() {
+        let dir = std::env::temp_dir().join(format!("argot_stopat_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("src")).unwrap();
+        let repo = git2::Repository::init(&dir).unwrap();
+        std::fs::write(dir.join("src/a.py"), "x = 0\n").unwrap();
+        let base = commit_all(&repo, "base");
+        for i in 1..=5 {
+            std::fs::write(dir.join("src/a.py"), format!("x = {i}\n")).unwrap();
+            commit_all(&repo, &format!("c{i}"));
+        }
+        let head = repo.head().unwrap().peel_to_commit().unwrap().id();
+        let path = dir.to_str().unwrap();
+        let sup = crate::suppress::PathSuppressions::recommended();
+        assert_eq!(
+            in_scope_commits_between(path, &base.to_string(), &head.to_string(), &sup, 3),
+            Some(3),
+            "count is capped at stop_at"
+        );
+        assert_eq!(
+            in_scope_commits_between(path, &base.to_string(), &head.to_string(), &sup, 10),
+            Some(5)
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

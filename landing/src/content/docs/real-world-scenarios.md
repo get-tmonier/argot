@@ -2,7 +2,7 @@
 title: Real-world scenarios
 description: argot dogfooded end-to-end on real repositories — setup, the local dev loop, muting, and the CI pull-request flow — with the actual transcripts, good and bad.
 group: Guide
-order: 10
+order: 11
 ---
 
 Everything here is a real run of the shipped binary on real repositories —

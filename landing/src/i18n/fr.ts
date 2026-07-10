@@ -12,7 +12,7 @@ const fr: SiteContent = {
     docs: 'Docs',
   },
   hero: {
-    eyebrow: 'Modèle d’embeddings local · binaire Rust unique · sans LLM',
+    eyebrow: 'Garde-fou du code écrit par IA · appris de votre historique git · 100 % local',
     titleLead: 'Lintez les règles',
     titleGradient: 'que personne n’a écrites.',
     subtitle:

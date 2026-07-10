@@ -53,7 +53,7 @@ The pipeline splits into **fit** (run once per repo, and after major refactors) 
 every diff).
 
 <figure class="diagram">
-<svg viewBox="0 0 920 384" role="img" aria-label="argot pipeline: a fit phase (extract, train, calibrate) producing a calibrated scorer config, and a check phase (diff hunk through typicality filter, import checker, and BPE scorer) producing clean or flagged.">
+<svg viewBox="0 0 1080 384" role="img" aria-label="argot pipeline: a fit phase (extract, train, calibrate) producing the .argot artifacts (scorer config, semantic index, layering graph), and a check phase (diff hunk through typicality filter, import checker, BPE scorer, and the semantic and layering detectors) producing clean or flagged.">
   <defs>
     <marker id="ah" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"></path></marker>
   </defs>
@@ -61,32 +61,37 @@ every diff).
   <g class="d-node"><rect x="24" y="42" width="128" height="58" rx="11"></rect><text x="88" y="68" class="d-cmd">extract</text><text x="88" y="86" class="d-sub">git history</text></g>
   <g class="d-node"><rect x="196" y="42" width="128" height="58" rx="11"></rect><text x="260" y="68" class="d-cmd">train</text><text x="260" y="86" class="d-sub">two distributions</text></g>
   <g class="d-node"><rect x="368" y="42" width="140" height="58" rx="11"></rect><text x="438" y="68" class="d-cmd">calibrate</text><text x="438" y="86" class="d-sub">threshold t</text></g>
-  <g class="d-node d-artifact"><rect x="556" y="42" width="200" height="58" rx="11"></rect><text x="656" y="67" class="d-file">scorer-config.json</text><text x="656" y="85" class="d-sub">the shipped model</text></g>
+  <g class="d-node d-artifact"><rect x="556" y="42" width="300" height="58" rx="11"></rect><text x="706" y="67" class="d-file">.argot/</text><text x="706" y="85" class="d-sub">scorer config · semantic index · layering graph</text></g>
   <line class="d-link" x1="152" y1="71" x2="196" y2="71" marker-end="url(#ah)"></line>
   <line class="d-link" x1="324" y1="71" x2="368" y2="71" marker-end="url(#ah)"></line>
   <line class="d-link" x1="508" y1="71" x2="556" y2="71" marker-end="url(#ah)"></line>
   <line class="d-flow" x1="152" y1="71" x2="196" y2="71"><animate attributeName="stroke-dashoffset" from="23" to="0" dur="1.1s" repeatCount="indefinite"></animate></line>
   <line class="d-flow" x1="324" y1="71" x2="368" y2="71"><animate attributeName="stroke-dashoffset" from="23" to="0" dur="1.1s" begin="0.3s" repeatCount="indefinite"></animate></line>
   <line class="d-flow" x1="508" y1="71" x2="556" y2="71"><animate attributeName="stroke-dashoffset" from="23" to="0" dur="1.1s" begin="0.6s" repeatCount="indefinite"></animate></line>
-  <path class="d-thread" d="M656,100 L656,212" marker-end="url(#ah)"></path>
-  <text x="666" y="158" class="d-thread-label">threshold t</text>
+  <path class="d-thread" d="M620,100 L620,212" marker-end="url(#ah)"></path>
+  <text x="630" y="158" class="d-thread-label">threshold t</text>
+  <path class="d-thread" d="M820,100 C820,150 872,158 872,212" marker-end="url(#ah)"></path>
+  <text x="882" y="158" class="d-thread-label">index + graph</text>
   <text x="24" y="196" class="d-phase">CHECK · every diff</text>
-  <g class="d-node"><rect x="24" y="212" width="120" height="58" rx="11"></rect><text x="84" y="238" class="d-stage">diff hunk</text><text x="84" y="256" class="d-sub">changed code</text></g>
-  <g class="d-node"><rect x="188" y="212" width="150" height="58" rx="11"></rect><text x="263" y="238" class="d-stage">typicality</text><text x="263" y="256" class="d-sub">skip data-dominant</text></g>
-  <g class="d-node"><rect x="382" y="212" width="150" height="58" rx="11"></rect><text x="457" y="238" class="d-stage">imports</text><text x="457" y="256" class="d-sub">foreign import?</text></g>
-  <g class="d-node d-accent"><rect x="576" y="212" width="160" height="58" rx="11"></rect><text x="656" y="238" class="d-stage">BPE + penalty</text><text x="656" y="256" class="d-sub">surprise vs threshold</text></g>
-  <g class="d-out d-ok"><rect x="788" y="210" width="108" height="26" rx="8"></rect><text x="842" y="227">✓ clean</text></g>
-  <g class="d-out d-flag"><rect x="788" y="246" width="108" height="26" rx="8"></rect><text x="842" y="263">⚑ flagged</text></g>
-  <line class="d-link" x1="144" y1="241" x2="188" y2="241" marker-end="url(#ah)"></line>
-  <line class="d-link" x1="338" y1="241" x2="382" y2="241" marker-end="url(#ah)"></line>
-  <line class="d-link" x1="532" y1="241" x2="576" y2="241" marker-end="url(#ah)"></line>
-  <line class="d-link" x1="736" y1="237" x2="788" y2="223" marker-end="url(#ah)"></line>
-  <line class="d-link" x1="736" y1="245" x2="788" y2="259" marker-end="url(#ah)"></line>
-  <line class="d-flow" x1="144" y1="241" x2="188" y2="241"><animate attributeName="stroke-dashoffset" from="23" to="0" dur="1.1s" repeatCount="indefinite"></animate></line>
-  <line class="d-flow" x1="338" y1="241" x2="382" y2="241"><animate attributeName="stroke-dashoffset" from="23" to="0" dur="1.1s" begin="0.3s" repeatCount="indefinite"></animate></line>
-  <line class="d-flow" x1="532" y1="241" x2="576" y2="241"><animate attributeName="stroke-dashoffset" from="23" to="0" dur="1.1s" begin="0.6s" repeatCount="indefinite"></animate></line>
+  <g class="d-node"><rect x="24" y="212" width="112" height="58" rx="11"></rect><text x="80" y="238" class="d-stage">diff hunk</text><text x="80" y="256" class="d-sub">changed code</text></g>
+  <g class="d-node"><rect x="176" y="212" width="138" height="58" rx="11"></rect><text x="245" y="238" class="d-stage">typicality</text><text x="245" y="256" class="d-sub">skip data-dominant</text></g>
+  <g class="d-node"><rect x="354" y="212" width="126" height="58" rx="11"></rect><text x="417" y="238" class="d-stage">imports</text><text x="417" y="256" class="d-sub">foreign import?</text></g>
+  <g class="d-node d-accent"><rect x="520" y="212" width="150" height="58" rx="11"></rect><text x="595" y="238" class="d-stage">BPE + penalty</text><text x="595" y="256" class="d-sub">surprise vs threshold</text></g>
+  <g class="d-node"><rect x="710" y="212" width="176" height="58" rx="11"></rect><text x="798" y="238" class="d-stage">semantic · layering</text><text x="798" y="256" class="d-sub">redundant · misplaced · layers</text></g>
+  <g class="d-out d-ok"><rect x="936" y="210" width="108" height="26" rx="8"></rect><text x="990" y="227">✓ clean</text></g>
+  <g class="d-out d-flag"><rect x="936" y="246" width="108" height="26" rx="8"></rect><text x="990" y="263">⚑ flagged</text></g>
+  <line class="d-link" x1="136" y1="241" x2="176" y2="241" marker-end="url(#ah)"></line>
+  <line class="d-link" x1="314" y1="241" x2="354" y2="241" marker-end="url(#ah)"></line>
+  <line class="d-link" x1="480" y1="241" x2="520" y2="241" marker-end="url(#ah)"></line>
+  <line class="d-link" x1="670" y1="241" x2="710" y2="241" marker-end="url(#ah)"></line>
+  <line class="d-link" x1="886" y1="237" x2="936" y2="223" marker-end="url(#ah)"></line>
+  <line class="d-link" x1="886" y1="245" x2="936" y2="259" marker-end="url(#ah)"></line>
+  <line class="d-flow" x1="136" y1="241" x2="176" y2="241"><animate attributeName="stroke-dashoffset" from="23" to="0" dur="1.1s" repeatCount="indefinite"></animate></line>
+  <line class="d-flow" x1="314" y1="241" x2="354" y2="241"><animate attributeName="stroke-dashoffset" from="23" to="0" dur="1.1s" begin="0.3s" repeatCount="indefinite"></animate></line>
+  <line class="d-flow" x1="480" y1="241" x2="520" y2="241"><animate attributeName="stroke-dashoffset" from="23" to="0" dur="1.1s" begin="0.6s" repeatCount="indefinite"></animate></line>
+  <line class="d-flow" x1="670" y1="241" x2="710" y2="241"><animate attributeName="stroke-dashoffset" from="23" to="0" dur="1.1s" begin="0.9s" repeatCount="indefinite"></animate></line>
 </svg>
-<figcaption>Run <code>extract → train → calibrate</code> once; the calibrated threshold feeds every <code>check</code>.</figcaption>
+<figcaption>Run <code>extract → train → calibrate</code> once; the artifacts in <code>.argot/</code> feed every <code>check</code> — the calibrated threshold gates the voice rules, the index and graph power the semantic and layering rules.</figcaption>
 </figure>
 
 ### Fit

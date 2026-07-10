@@ -10,9 +10,14 @@ not generated code, vendored dependencies, or pure data. Deciding what to
 exclude is a judgment call; argot gives you statistical evidence, and you bring
 the semantic knowledge of the tree.
 
-argot fits from the **committed** tree (HEAD), so uncommitted edits to tracked
-files are ignored — you don't need a pristine tree. A brand-new untracked file is
-still read from disk, so commit or remove throwaway files first.
+argot fits from files as they are on disk, minus anything **gitignored** —
+editor-history trees (`.history/`), local worktrees, build output and the like
+never shape the voice as long as `.gitignore` covers them. Uncommitted edits to
+tracked files DO count (argot warns about a dirty tree), so commit or stash
+work in progress first. Prefer running setup from the **default branch**:
+fitting on a feature branch bakes its unmerged commits into the voice, and
+argot warns about exactly that (relay the warning to the user rather than
+suppressing it).
 
 ## Steps
 
@@ -58,6 +63,13 @@ still read from disk, so commit or remove throwaway files first.
    - vendored / third-party code checked into the repo (`vendor/`, bundled SDKs)
    - large data, fixtures, snapshots, locale tables, database migrations
    - legacy or archived modules that aren't how the team writes code today
+   - duplicate snapshots of the repo's own code that are **committed** (an
+     editor-history dir, a `backup/`/`old/` tree, copied-in worktrees) —
+     gitignored ones are already skipped automatically; committed ones
+     double-weight stale code and need an explicit exclude
+
+   Sanity-check the fitted corpus: `.argot/repo-corpus.txt` lists every file
+   that shaped the voice — skim it and make sure nothing surprising is there.
 
    argot already excludes tests, docs, examples, and build output by default —
    focus on the repo-specific dirs above.
@@ -82,10 +94,12 @@ still read from disk, so commit or remove throwaway files first.
 8. **Finish with the wow — replay their history:** `argot replay`. It fits the
    voice as it was ~50 commits ago (in a temp worktree — the user's tree is
    untouched) and reports what argot would have caught before merge, with
-   per-rule counts and evidence. Show the user the report. If it says the
-   window touched no supported source files, widen it
-   (`argot replay --commits 200`). A quiet replay is also a result: their
-   recent history is in voice.
+   per-rule counts and evidence. Show the user the report. If the repo's
+   in-scope code is younger than the window (a rewrite, or early history that
+   today's excludes mute entirely), replay shrinks the window automatically
+   and says so. If it says the window touched no supported source files,
+   widen it (`argot replay --commits 200`). A quiet replay is also a result:
+   their recent history is in voice.
 
 9. **Summarize** for the user: what you excluded and why, and the final Verdict.
    `argot.toml` is committed (the excludes/detect/mutes are a shared, reviewable

@@ -13,7 +13,8 @@ rest — `rules`, `model`, `review`, `voice-diff`, `inspect`, `mute` — are on 
 ## init
 
 Fits the voice model to the repo (`fit`), prints a health check (corpus composition + a
-Ready / Marginal / Not-recommended verdict), and writes a `.argot/.gitignore` so the rebuildable
+Ready / Marginal / Not-recommended verdict — [what drives it](/docs/health-and-freshness/#the-verdict--ready--marginal--not-recommended)),
+and writes a `.argot/.gitignore` so the rebuildable
 model stays out of version control. This is the one command a new repo needs.
 
 ```bash
@@ -32,6 +33,11 @@ baseline, then samples representative hunks to set the scoring threshold.
 ```bash
 argot fit
 ```
+
+Fitting on a feature branch whose unmerged commits touch in-scope source earns a
+warning (never a prompt): those commits become the voice, and argot stops flagging
+what it has learned. The background auto-refresh never does this — see
+[Health & freshness](/docs/health-and-freshness/#staying-fresh--the-background-auto-refresh).
 
 Writes its artifacts under `.argot/`:
 
@@ -154,11 +160,15 @@ Color follows the [`NO_COLOR`](https://no-color.org) convention: argot colors co
 
 ### Freshness
 
-A fit that falls **10+ commits behind HEAD** (or a week old with any drift) is
-refreshed automatically: `check` spawns a detached background refit (at most
-once a day, never in CI) and tells you in one dim line — the next check uses
-the fresh voice. Opt out with `[fit] auto-refresh = false`
-([Configure](/docs/configure/#fit--the-background-auto-refresh)).
+A fit that falls **`refresh-after` accepted source commits behind** (default
+10 — measured on your default-branch line, so a feature branch's own commits
+and docs churn never count; or a week old with any such drift) is refreshed
+automatically: `check` spawns a detached background refit (at most once a day,
+never in CI, fitted at the accepted anchor so unmerged work never trains the
+voice) and tells you in one dim line — the next check uses the fresh voice.
+Opt out with `[fit] auto-refresh = false`. The whole self-maintenance loop —
+verdict, health record, drift, staleness — is one page:
+[Health & freshness](/docs/health-and-freshness/).
 
 ## rules
 
@@ -208,7 +218,10 @@ scores `base..HEAD` against it. The report counts findings per rule, shows the
 strongest examples with their evidence, and frames them honestly: merged code
 is accepted code, so each hit reads as *"would have prompted review before
 merge"* — a fire on a dependency you adopted deliberately is a detection
-working as intended. Informational: always exits 0.
+working as intended. If your in-scope code is younger than the window (a
+rewrite, or early history your current excludes mute entirely), replay
+shrinks the window to the oldest commit it can fit and says so.
+Informational: always exits 0.
 
 ## review
 
@@ -362,5 +375,25 @@ argot also nudges you passively: at most once a day it checks the published vers
 one dim stderr line when a newer release exists. It's silent in CI, on a non-tty, under `--quiet`,
 and in machine formats, and it's opt-out — `ARGOT_UPDATE_CHECK=0` or `[update] check = false`. See
 [Configure](/docs/configure/#update--the-passive-update-notice).
+
+## uninstall
+
+Leave as cleanly as you arrived. `uninstall` builds the full inventory of everything argot ever
+wrote on the machine, shows it with sizes, and removes it after confirmation:
+
+```bash
+argot uninstall              # show the plan, confirm, remove
+argot uninstall --dry-run    # just show the plan
+argot uninstall --yes        # no prompt (required when not on a terminal)
+```
+
+It removes every registered repo's `.argot/` and `argot.local.toml`, the model cache
+(`~/.cache/argot`), the global registry (`~/.argot/settings.json`), the installer receipt, and —
+for curl/raw installs — the binary itself. It detects how argot was installed: an npm install gets
+the exact `npm uninstall -g @tmonier/argot` command instead, since npm owns those files. Two things
+are deliberately left, each listed with a note: **git-tracked files** (`argot.toml`, a committed CI
+workflow) — argot never edits your tracked tree, remove those via git — and externally installed
+agent skills / MCP registrations, which live in your agent's config, not argot's. The full file
+inventory is the [table in Configure](/docs/configure/#which-files-argot-writes-and-where).
 
 See [Reading the output](/docs/reading-the-output/) for how to interpret a `check` run.

@@ -109,9 +109,12 @@ src/utils/http-helpers.ts
 
 If your team ships LLM-assisted code, this is the layer your CI is missing.
 
-> **One setup note:** argot learns from your files *as they are on disk*, so fit on a **clean
-> working tree** — commit or stash work in progress first, or uncommitted foreign code gets learned
-> as normal. `argot init`/`fit` warns you when the tree is dirty.
+> **One setup note:** argot learns from your files *as they are on disk* (anything gitignored is
+> skipped automatically), so fit from your **default branch on a clean tree** — uncommitted or
+> unmerged foreign code would otherwise be learned as normal. `argot init`/`fit` warns you on a
+> dirty tree or a feature branch either way, and the background auto-refresh never makes this
+> mistake: it only ever learns accepted history
+> ([Health & freshness](/docs/health-and-freshness/)).
 
 ## Where to next
 

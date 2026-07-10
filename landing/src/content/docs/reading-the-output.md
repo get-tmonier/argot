@@ -2,7 +2,7 @@
 title: Reading the output
 description: Anatomy of a hit — the rule, confidence tiers, severities, sources, and the evidence line.
 group: Guide
-order: 6
+order: 7
 ---
 
 A `check` run groups hits by file. Here's a complete one:

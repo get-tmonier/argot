@@ -2,7 +2,7 @@
 title: Agents (skills & MCP)
 description: Put argot in your coding agent's loop — a commit-time check skill and proactive MCP context — informational, never blocking.
 group: Guide
-order: 8
+order: 9
 ---
 
 Most code argot judges is now written by an AI agent, so the natural place for
