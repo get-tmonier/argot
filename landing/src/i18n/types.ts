@@ -10,7 +10,7 @@ export interface SiteContent {
   };
   readonly nav: {
     readonly demo: string;
-    readonly catches: string;
+    readonly engine: string;
     readonly docs: string;
   };
   readonly hero: {
@@ -36,11 +36,14 @@ export interface SiteContent {
     }[];
     readonly seeLive: string;
   };
-  readonly catches: {
+  readonly engine: {
     readonly label: string;
     readonly title: string;
     readonly body: string;
-    readonly items: readonly Feature[];
+    readonly cards: readonly Feature[];
+    /// The measured speed row (value + short label) and its source line.
+    readonly stats: readonly { readonly value: string; readonly label: string }[];
+    readonly finePrint: string;
   };
   readonly proof: {
     readonly label: string;

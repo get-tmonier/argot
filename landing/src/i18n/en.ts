@@ -8,7 +8,7 @@ const en: SiteContent = {
   },
   nav: {
     demo: 'Demo',
-    catches: 'What it catches',
+    engine: 'Under the hood',
     docs: 'Docs',
   },
   hero: {
@@ -26,7 +26,7 @@ const en: SiteContent = {
   demo: {
     label: 'The second question',
     title: 'Type checkers ask if it compiles. argot asks if it’s yours.',
-    body: 'mypy asks if it compiles. ruff asks if it’s tidy. Neither asks the review question: [[is this how we do it here?]] Every example below passes both — argot catches all four.',
+    body: 'An LLM buries that question under clean, type-correct PRs. argot asks it at the diff — [[this is its real output]].',
     tabs: [
       {
         id: 'foreign-import',
@@ -55,28 +55,32 @@ const en: SiteContent = {
     ],
     seeLive: 'See it on real repos',
   },
-  catches: {
-    label: 'What it catches',
-    title: 'It compiles. It’s typed. It still doesn’t fit.',
-    body: 'Four detectors, all learned from your git history — none of this visible to ESLint, ruff, or a type checker. And one honest line it won’t cross: a wrong choice made only of tokens that are [[already yours]] is a choice, not a foreign pattern.',
-    items: [
+  engine: {
+    label: 'Under the hood',
+    title: 'Semantic understanding. No LLM anywhere.',
+    body: 'Three engines, one static [[Rust]] binary, all learned from your git history — no API key, no GPU, nothing leaves your machine.',
+    cards: [
       {
-        title: 'Your agent just imported a framework this repo has never touched.',
-        desc: 'argot flags the dependency and shows what the repo reaches for [[instead]].',
+        title: 'A code-embedding model on your laptop',
+        desc: 'jina-code (~100 MB, fetched once) turns every function into a vector. That’s how argot knows you [[already wrote this]] — and where it belongs. An encoder, not an LLM: no generation, CPU-first, Metal-accelerated on Macs.',
       },
       {
-        title: 'Your agent just merged a second implementation of slugify.',
-        desc: 'argot finds the original and shows you [[where it already lives]].',
+        title: 'A statistical voice model',
+        desc: 'Two frequency tables and a callee-cluster partition, learned from your history — the imports, callees, and token shapes your repo [[actually uses]]. No neural net needed to know django doesn’t belong here.',
       },
       {
-        title: 'Your agent just filed downloader logic under cli/commands.',
-        desc: 'argot points to [[where its nearest kin already live]].',
-      },
-      {
-        title: 'Your agent just let cli reach straight into core — backwards.',
-        desc: 'argot flags [[the edge that reverses your architecture]].',
+        title: 'An architecture graph',
+        desc: 'Your module-dependency topology, fitted from your own imports: which layers point at which. A new edge that [[reverses the established direction]] is flagged with the direction it breaks.',
       },
     ],
+    stats: [
+      { value: '0.2s', label: 'to check a diff' },
+      { value: '0.6s', label: 'when it defines new functions' },
+      { value: '25s', label: 'first fit, 1,100-file repo' },
+      { value: '4s', label: 'to refresh — unchanged functions reuse their embeddings' },
+    ],
+    finePrint:
+      'Measured on FastAPI, laptop CPU. Single static binary — no Python, no Node, no runtime to install.',
   },
   proof: {
     label: 'Measured, not promised',
@@ -106,7 +110,7 @@ const en: SiteContent = {
     languages:
       'One [[static binary]], 11 languages: Python · TypeScript · JavaScript · Go · Rust · Java · C# · C · C++ · Ruby · PHP.',
     finePrint:
-      'Leak-free by construction: recall on foreign patterns planted in real files; false alarms on a temporal holdout. The one thing a voice model structurally can’t see — masked foreign — is published on the benchmarks page, not hidden. Speed, measured on FastAPI (1,100+ files, laptop CPU): check ~0.2 s (~0.6 s when the diff defines new functions) · first fit ~25 s · refresh ~4 s.',
+      'Leak-free by construction: recall on foreign patterns planted in real files; false alarms on a temporal holdout. The one thing a voice model structurally can’t see — masked foreign — is published on the benchmarks page, not hidden.',
     benchmarksCta: 'Full per-repo numbers →',
   },
   setup: {

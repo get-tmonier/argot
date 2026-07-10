@@ -8,7 +8,7 @@ const fr: SiteContent = {
   },
   nav: {
     demo: 'Démo',
-    catches: 'Ce qu’il détecte',
+    engine: 'Sous le capot',
     docs: 'Docs',
   },
   hero: {
@@ -26,7 +26,7 @@ const fr: SiteContent = {
   demo: {
     label: 'La deuxième question',
     title: 'Le type-checker demande si ça compile. argot demande si c’est le vôtre.',
-    body: 'mypy demande si ça compile. ruff demande si c’est propre. Aucun ne pose la question de la review : [[est-ce ainsi qu’on fait ici ?]] Chaque exemple ci-dessous passe les deux — argot attrape les quatre.',
+    body: 'Un LLM enterre cette question sous des PR propres et bien typées. argot la pose au diff — [[voici sa vraie sortie]].',
     tabs: [
       {
         id: 'foreign-import',
@@ -55,28 +55,32 @@ const fr: SiteContent = {
     ],
     seeLive: 'Voyez-le sur de vrais dépôts',
   },
-  catches: {
-    label: 'Ce qu’il détecte',
-    title: 'Ça compile. C’est typé. Ça ne colle toujours pas.',
-    body: 'Quatre détecteurs, tous appris de votre historique git — rien de tout cela n’est visible pour ESLint, ruff ou un type-checker. Et une limite honnête qu’il ne franchit pas : un mauvais choix fait de mots qui sont [[déjà les vôtres]] est un choix, pas un motif étranger.',
-    items: [
+  engine: {
+    label: 'Sous le capot',
+    title: 'De la compréhension sémantique. Aucun LLM nulle part.',
+    body: 'Trois moteurs, un seul binaire [[Rust]] statique, tous appris de votre historique git — pas de clé d’API, pas de GPU, rien ne quitte votre machine.',
+    cards: [
       {
-        title: 'Votre agent vient d’importer un framework que ce dépôt n’a jamais touché.',
-        desc: 'argot signale la dépendance et montre ce que le dépôt utilise [[à la place]].',
+        title: 'Un modèle d’embeddings de code sur votre laptop',
+        desc: 'jina-code (~100 Mo, téléchargé une fois) transforme chaque fonction en vecteur. C’est ainsi qu’argot sait que vous [[l’avez déjà écrite]] — et où elle a sa place. Un encodeur, pas un LLM : aucune génération, CPU d’abord, accéléré Metal sur Mac.',
       },
       {
-        title: 'Votre agent vient de merger une deuxième implémentation de slugify.',
-        desc: 'argot retrouve l’originale et vous montre [[où elle vit déjà]].',
+        title: 'Un modèle de voix statistique',
+        desc: 'Deux tables de fréquences et une partition d’appels, apprises de votre historique — les imports, les appels et les formes de tokens que votre dépôt [[utilise vraiment]]. Pas besoin de réseau de neurones pour savoir que django n’a rien à faire ici.',
       },
       {
-        title: 'Votre agent vient de ranger de la logique de téléchargement sous cli/commands.',
-        desc: 'argot pointe vers [[l’endroit où vivent déjà ses plus proches voisins]].',
-      },
-      {
-        title: 'Votre agent vient de laisser cli plonger directement dans core — à l’envers.',
-        desc: 'argot signale [[l’arête qui inverse votre architecture]].',
+        title: 'Un graphe d’architecture',
+        desc: 'La topologie de dépendances de vos modules, calibrée depuis vos propres imports : quelles couches pointent vers lesquelles. Une nouvelle arête qui [[inverse la direction établie]] est signalée avec la direction qu’elle casse.',
       },
     ],
+    stats: [
+      { value: '0,2 s', label: 'pour vérifier un diff' },
+      { value: '0,6 s', label: 'quand il définit de nouvelles fonctions' },
+      { value: '25 s', label: 'premier fit, dépôt de 1 100 fichiers' },
+      { value: '4 s', label: 'pour rafraîchir — les fonctions inchangées réutilisent leurs embeddings' },
+    ],
+    finePrint:
+      'Mesuré sur FastAPI, CPU de portable. Un seul binaire statique — pas de Python, pas de Node, aucun runtime à installer.',
   },
   proof: {
     label: 'Mesuré, pas promis',
@@ -106,7 +110,7 @@ const fr: SiteContent = {
     languages:
       'Un seul [[binaire statique]], 11 langages : Python · TypeScript · JavaScript · Go · Rust · Java · C# · C · C++ · Ruby · PHP.',
     finePrint:
-      'Sans fuite par construction : rappel sur des motifs étrangers plantés dans de vrais fichiers ; fausses alertes par holdout temporel. La seule chose qu’un modèle de voix ne peut structurellement pas voir — l’étranger masqué — est publiée sur la page benchmarks, pas cachée. Vitesse, mesurée sur FastAPI (1 100+ fichiers, CPU de portable) : check ~0,2 s (~0,6 s quand le diff définit de nouvelles fonctions) · premier fit ~25 s · refresh ~4 s.',
+      'Sans fuite par construction : rappel sur des motifs étrangers plantés dans de vrais fichiers ; fausses alertes par holdout temporel. La seule chose qu’un modèle de voix ne peut structurellement pas voir — l’étranger masqué — est publiée sur la page benchmarks, pas cachée.',
     benchmarksCta: 'Tous les chiffres par dépôt →',
   },
   setup: {

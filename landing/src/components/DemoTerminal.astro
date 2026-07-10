@@ -477,6 +477,19 @@ const tabs = demo.tabs;
       });
     }
 
+    // Deep-link: the hero rule chips anchor to #demo-tab-<rule>; select it.
+    const selectFromHash = () => {
+      const id = decodeURIComponent(location.hash.slice(1));
+      const i = tabs.findIndex((t) => t.id === id);
+      if (i >= 0) {
+        stopAuto();
+        root.classList.add('is-done');
+        select(i);
+      }
+    };
+    window.addEventListener('hashchange', selectFromHash);
+    if (location.hash.startsWith('#demo-tab-')) selectFromHash();
+
     if (reduced || !('IntersectionObserver' in window)) {
       root.classList.add('is-done');
       continue; // no cascade, no auto-advance — the user drives the tabs.
