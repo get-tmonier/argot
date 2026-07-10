@@ -28,7 +28,12 @@ export interface SiteContent {
     readonly label: string;
     readonly title: string;
     readonly body: string;
-    readonly caption: string;
+    /// One tab per detector: the rule name and a one-line caption for its pane.
+    readonly tabs: readonly {
+      readonly id: string;
+      readonly label: string;
+      readonly caption: string;
+    }[];
     readonly seeLive: string;
   };
   readonly catches: {

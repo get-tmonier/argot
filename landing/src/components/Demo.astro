@@ -32,9 +32,7 @@ const { demo } = Astro.props.content;
     </div>
 
     <div class="reveal flex flex-col gap-4" style="--reveal-delay: 120ms">
-      <DemoTerminal />
-      <DemoTerminal variant="redundant" />
-      <p class="text-center text-sm text-muted text-pretty" set:html={emphasize(demo.caption)} />
+      <DemoTerminal content={Astro.props.content} />
       <a
         href="/docs/real-world-scenarios/"
         class="group inline-flex items-center justify-center gap-1.5 text-center text-sm font-medium text-ember transition-colors hover:text-ember-bright"

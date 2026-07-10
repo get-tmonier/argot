@@ -812,6 +812,26 @@ fn run_init_cmd(c: InitCmd) -> ExitCode {
     match report.verdict {
         Verdict::Ready => {
             println!("Voice model fitted → {}", scorer_config.display());
+            // Config quality IS the experience: a fit that ingested vendored or
+            // generated code speaks with the wrong voice and flags the wrong
+            // things. If the tree holds likely-excludable dirs and none are
+            // configured yet, say so here — not via the first noisy check.
+            let config = argot_core::config::ArgotConfig::load(&c.repo);
+            if config.exclude.paths.is_empty() {
+                let candidates = suggest_ignores(&c.repo).candidates;
+                if !candidates.is_empty() {
+                    let plural = if candidates.len() != 1 { "ies" } else { "y" };
+                    println!();
+                    println!(
+                        "note: {} director{plural} look like they may not carry this repo's authored voice.",
+                        candidates.len()
+                    );
+                    println!(
+                        "      Review with `argot init --suggest`, or let the setup skill decide:"
+                    );
+                    println!("      npx skills add get-tmonier/argot   then run /argot-setup");
+                }
+            }
             println!("Next:  argot check          # score your working changes");
         }
         Verdict::Marginal | Verdict::NotRecommended => {

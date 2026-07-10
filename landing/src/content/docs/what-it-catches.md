@@ -28,12 +28,10 @@ doesn't, that's said plainly.
 
 ## Foreign — a pattern the repo has never used
 
-<!-- TODO(js-numbers): the fixture total and the "N of M" catch fraction below still show the
-     pre-JavaScript run; refresh them once the JS re-bench dashboard lands. -->
 This is the base voice model — statistical, no neural net. Across the whole fixture set in 11
 languages, when the foreign symbol is visible in the code — an explicit import, a fully-qualified
-call, a distinct API name — argot catches **~98%** on the honest, leak-free bench. Three shapes,
-strongest first.
+call, a distinct API name — argot catches **604 of 618 (98%)** on the honest, leak-free bench.
+Three shapes of foreign code:
 
 ### 1. A foreign dependency
 

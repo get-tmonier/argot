@@ -26,9 +26,33 @@ const en: SiteContent = {
   demo: {
     label: 'The second question',
     title: 'Type checkers ask if it compiles. argot asks if it’s yours.',
-    body: 'Linters ask “is this valid?” — never “is this how we write things?” An LLM buries that under clean, type-correct PRs. [[argot asks it back.]]',
-    caption:
-      'Two real checks: a foreign framework, and a function the repo [[already had]]. mypy and ruff pass both — argot doesn’t.',
+    body: 'Linters ask “is this valid?” — never “is this how we write things?” An LLM buries that under clean, type-correct PRs. [[argot asks it back]] — four detectors, one per tab. mypy and ruff pass every one of these; argot doesn’t.',
+    tabs: [
+      {
+        id: 'foreign-import',
+        label: 'foreign-import',
+        caption:
+          'A Django view in an all-FastAPI repo — valid Python, but a framework this repo has never imported. The evidence shows what the repo reaches for instead.',
+      },
+      {
+        id: 'redundant',
+        label: 'redundant',
+        caption:
+          'The repo already has this function. argot names the original, where it lives, and how close the match is — use it instead of merging a twin.',
+      },
+      {
+        id: 'misplaced',
+        label: 'misplaced',
+        caption:
+          'Downloader logic filed under cli/commands — its nearest peers all live in core/downloader. Right code, wrong home.',
+      },
+      {
+        id: 'layering',
+        label: 'layering',
+        caption:
+          'In this repo, cli imports core — never the other way. This one import quietly reverses the architecture; argot flags the edge itself.',
+      },
+    ],
     seeLive: 'See it on real repos',
   },
   catches: {
@@ -38,7 +62,7 @@ const en: SiteContent = {
     items: [
       {
         title: 'Foreign',
-        desc: 'A dependency, API, or idiom [[the repo has never used]]. The clearest signal — caught most reliably.',
+        desc: 'A dependency, API, or idiom [[the repo has never used]] — the “we don’t do it this way here”.',
       },
       {
         title: 'Redundant',

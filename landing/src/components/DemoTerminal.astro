@@ -1,24 +1,28 @@
 ---
 // Self-contained animated terminal replacing /demo.gif: real text (legible to
 // screen readers, crisp at any zoom), not a raster capture. Content is
-// hand-authored to match a real `argot check` run byte-for-byte (see
-// Demo.astro's caption) — nothing here is generated from external data.
+// hand-authored to match a real `argot check` run — nothing here is generated
+// from external data.
 //
-// Two variants, both real argot output:
-//   foreign   — a Django import in an all-FastAPI file (the base voice model)
-//   redundant — a new fn that reinvents an existing one (the semantic layer)
-interface Props {
-  variant?: 'foreign' | 'redundant';
-}
-const { variant = 'foreign' } = Astro.props;
+// One pane per detector, tabbed by rule name — the four are peers, none is
+// "the" demo:
+//   foreign-import — a Django import in an all-FastAPI file (voice)
+//   redundant      — a new fn that reinvents an existing one (semantic)
+//   misplaced      — downloader logic filed under cli/commands (semantic)
+//   layering       — a core→cli import reversing the repo's direction (architecture)
+//
+// Tabs auto-advance once through the four panes (skipped under
+// prefers-reduced-motion) and stop on the first user interaction.
+import type { SiteContent } from '#i18n/types';
 
-const isRedundant = variant === 'redundant';
-const ariaLabel = isRedundant
-  ? 'Example argot check output: a new function flagged as already implemented elsewhere in the repo'
-  : 'Example argot check output: a foreign Django import flagged in an all-FastAPI file';
+interface Props {
+  content: SiteContent;
+}
+const { demo } = Astro.props.content;
+const tabs = demo.tabs;
 ---
 
-<div class="demo-terminal" role="group" aria-label={ariaLabel} data-variant={variant}>
+<div class="demo-terminal" role="group" aria-label="Example argot check output, one tab per rule">
   <div class="term-titlebar">
     <span class="term-dot" style="background: var(--flag)" aria-hidden="true"></span>
     <span class="term-dot" style="background: var(--amber)" aria-hidden="true"></span>
@@ -26,96 +30,181 @@ const ariaLabel = isRedundant
     <span class="term-title">argot check</span>
   </div>
 
-  <div class="term-body">
+  <div class="term-tabs" role="tablist" aria-label="Detector">
+    {
+      tabs.map((tab, i) => (
+        <button
+          class="term-tab"
+          role="tab"
+          id={`demo-tab-${tab.id}`}
+          aria-controls={`demo-pane-${tab.id}`}
+          aria-selected={i === 0 ? 'true' : 'false'}
+          tabindex={i === 0 ? 0 : -1}
+          data-pane={tab.id}
+        >
+          {tab.label}
+        </button>
+      ))
+    }
+  </div>
+
+  <div
+    class="term-body"
+    role="tabpanel"
+    id="demo-pane-foreign-import"
+    aria-labelledby="demo-tab-foreign-import"
+  >
     <div class="term-line term-prompt" style="--i: 0">
       <span class="dim" aria-hidden="true">$</span> argot check<span class="cursor" aria-hidden="true"
       ></span>
     </div>
-
-    {
-      isRedundant ? (
-        <>
-          <div class="term-line term-file" style="--i: 1">
-            src/api/handlers.py
-          </div>
-
-          <div class="term-line term-flag semantic" style="--i: 2">
-            <span class="dot">.</span>
-            <span class="loc">L13-L21</span>
-            <span class="flag-word amber">unusual</span>
-            <span class="sep" aria-hidden="true">
-              ·
-            </span>
-            <span class="flag-word amber">redundant</span>
-            <span class="hash">[0b14869858]</span>
-          </div>
-
-          <div class="term-line term-evidence" style="--i: 3">
-            <span aria-hidden="true">↳</span> duplicates{' '}
-            <span class="flag-word amber">slugify</span> (src/utils/text.py:1)
-          </div>
-
-          <div class="term-line term-reach" style="--i: 4">
-            similarity 0.86 — you already have this
-          </div>
-
-          <div class="term-line term-code" style="--i: 5">
-            <div class="code-line">
-              <span class="gutter">13</span>
-              <span class="bar" aria-hidden="true">
-                {' │ '}
-              </span>
-              <span class="code-text">
-                def <span class="flag-word amber">make_slug</span>(text):
-              </span>
-            </div>
-          </div>
-        </>
-      ) : (
-        <>
-          <div class="term-line term-file" style="--i: 1">
-            fastapi/receipts.py
-          </div>
-
-          <div class="term-line term-flag" style="--i: 2">
-            <span class="bang">!</span>
-            <span class="loc">L1-L10</span>
-            <span class="flag-word">foreign</span>
-            <span class="sep" aria-hidden="true">
-              ·
-            </span>
-            <span class="flag-word">foreign-import</span>
-            <span class="hash">[94a92c256e]</span>
-          </div>
-
-          <div class="term-line term-evidence" style="--i: 3">
-            <span aria-hidden="true">↳</span> <span class="flag-word">django</span> — 0 of 74 imports
-            in this repo
-          </div>
-
-          <div class="term-line term-reach" style="--i: 4">
-            repo reaches for: fastapi · pydantic · starlette
-          </div>
-
-          <div class="term-line term-code" style="--i: 5">
-            <div class="code-line">
-              <span class="gutter">1</span>
-              <span class="bar" aria-hidden="true">
-                {' │ '}
-              </span>
-              <span class="code-text">
-                from <span class="flag-word">django</span>.views import View
-              </span>
-            </div>
-            <div class="caret-line" aria-hidden="true">
-              <span class="ghost">1 │ from </span>
-              <span class="caret-marks">~~~~~~</span>
-            </div>
-          </div>
-        </>
-      )
-    }
+    <div class="term-line term-file" style="--i: 1">fastapi/receipts.py</div>
+    <div class="term-line term-flag" style="--i: 2">
+      <span class="bang">!</span>
+      <span class="loc">L1-L10</span>
+      <span class="flag-word">foreign</span>
+      <span class="sep" aria-hidden="true">·</span>
+      <span class="flag-word">foreign-import</span>
+      <span class="hash">[94a92c256ea1]</span>
+    </div>
+    <div class="term-line term-evidence" style="--i: 3">
+      <span aria-hidden="true">↳</span> <span class="flag-word">django</span> — 0 of 74 imports in
+      this repo
+    </div>
+    <div class="term-line term-reach" style="--i: 4">
+      repo reaches for: fastapi · pydantic · starlette
+    </div>
+    <div class="term-line term-code" style="--i: 5">
+      <div class="code-line">
+        <span class="gutter">1</span>
+        <span class="bar" aria-hidden="true">{' │ '}</span>
+        <span class="code-text">
+          from <span class="flag-word">django</span>.views import View
+        </span>
+      </div>
+      <div class="caret-line" aria-hidden="true">
+        <span class="ghost">1 │ from </span>
+        <span class="caret-marks">~~~~~~</span>
+      </div>
+    </div>
   </div>
+
+  <div
+    class="term-body"
+    role="tabpanel"
+    id="demo-pane-redundant"
+    aria-labelledby="demo-tab-redundant"
+    hidden
+  >
+    <div class="term-line term-prompt" style="--i: 0">
+      <span class="dim" aria-hidden="true">$</span> argot check<span class="cursor" aria-hidden="true"
+      ></span>
+    </div>
+    <div class="term-line term-file" style="--i: 1">src/api/handlers.py</div>
+    <div class="term-line term-flag semantic" style="--i: 2">
+      <span class="dot">.</span>
+      <span class="loc">L13-L21</span>
+      <span class="flag-word amber">unusual</span>
+      <span class="sep" aria-hidden="true">·</span>
+      <span class="flag-word amber">redundant</span>
+      <span class="hash">[0b1486985821]</span>
+    </div>
+    <div class="term-line term-evidence" style="--i: 3">
+      <span aria-hidden="true">↳</span> duplicates{' '}
+      <span class="flag-word amber">slugify</span> (src/utils/text.py:14) — similarity 0.86
+    </div>
+    <div class="term-line term-code" style="--i: 4">
+      <div class="code-line">
+        <span class="gutter">13</span>
+        <span class="bar" aria-hidden="true">{' │ '}</span>
+        <span class="code-text">
+          def <span class="flag-word amber">make_slug</span>(text):
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div
+    class="term-body"
+    role="tabpanel"
+    id="demo-pane-misplaced"
+    aria-labelledby="demo-tab-misplaced"
+    hidden
+  >
+    <div class="term-line term-prompt" style="--i: 0">
+      <span class="dim" aria-hidden="true">$</span> argot check<span class="cursor" aria-hidden="true"
+      ></span>
+    </div>
+    <div class="term-line term-file" style="--i: 1">src/cli/commands/fetch.py</div>
+    <div class="term-line term-flag semantic" style="--i: 2">
+      <span class="dot">.</span>
+      <span class="loc">L18-L41</span>
+      <span class="flag-word amber">unusual</span>
+      <span class="sep" aria-hidden="true">·</span>
+      <span class="flag-word amber">misplaced</span>
+      <span class="hash">[3e51b7c20d6f]</span>
+    </div>
+    <div class="term-line term-evidence" style="--i: 3">
+      <span aria-hidden="true">↳</span> looks like <span class="flag-word amber">core/downloader</span>
+      code filed under cli/commands
+    </div>
+    <div class="term-line term-reach" style="--i: 4">
+      nearest peer: fetch_with_retry (core/downloader/http.py:52)
+    </div>
+    <div class="term-line term-code" style="--i: 5">
+      <div class="code-line">
+        <span class="gutter">18</span>
+        <span class="bar" aria-hidden="true">{' │ '}</span>
+        <span class="code-text">
+          def <span class="flag-word amber">stream_chunks</span>(url, dest):
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div
+    class="term-body"
+    role="tabpanel"
+    id="demo-pane-layering"
+    aria-labelledby="demo-tab-layering"
+    hidden
+  >
+    <div class="term-line term-prompt" style="--i: 0">
+      <span class="dim" aria-hidden="true">$</span> argot check<span class="cursor" aria-hidden="true"
+      ></span>
+    </div>
+    <div class="term-line term-file" style="--i: 1">src/core/parser.py</div>
+    <div class="term-line term-flag semantic" style="--i: 2">
+      <span class="dot">.</span>
+      <span class="loc">L3</span>
+      <span class="flag-word amber">unusual</span>
+      <span class="sep" aria-hidden="true">·</span>
+      <span class="flag-word amber">layering</span>
+      <span class="hash">[77d1e02c433a]</span>
+    </div>
+    <div class="term-line term-code" style="--i: 3">
+      <div class="code-line">
+        <span class="gutter">3</span>
+        <span class="bar" aria-hidden="true">{' │ '}</span>
+        <span class="code-text">
+          from <span class="flag-word amber">cli.commands.run</span> import build_context
+        </span>
+      </div>
+    </div>
+    <div class="term-line term-reach" style="--i: 4">
+      cli → core is this repo's direction; core never imports cli
+    </div>
+  </div>
+
+  <p class="term-caption">
+    {
+      tabs.map((tab, i) => (
+        <span data-caption={tab.id} hidden={i !== 0}>
+          {tab.caption}
+        </span>
+      ))
+    }
+  </p>
 </div>
 
 <style>
@@ -150,6 +239,43 @@ const ariaLabel = isRedundant
     color: var(--muted);
   }
 
+  /* --- rule tabs: the four detectors as peers --- */
+  .term-tabs {
+    display: flex;
+    gap: 2px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel-2) 35%, transparent);
+    padding: 0 8px;
+  }
+  .term-tab {
+    appearance: none;
+    background: none;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    padding: 9px 10px 7px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition:
+      color 0.2s,
+      border-color 0.2s;
+  }
+  .term-tab:hover {
+    color: var(--ink-dim);
+  }
+  .term-tab[aria-selected='true'] {
+    color: var(--ink);
+    border-bottom-color: var(--ember);
+  }
+  .term-tab:focus-visible {
+    outline: 2px solid var(--ember);
+    outline-offset: -2px;
+    border-radius: 6px;
+  }
+
   .term-body {
     overflow-x: auto;
     padding: clamp(14px, 3.6vw, 22px);
@@ -157,6 +283,15 @@ const ariaLabel = isRedundant
     font-size: clamp(11px, 3.1vw, 14px);
     line-height: 1.9;
     white-space: nowrap;
+    min-height: 15.5em;
+  }
+
+  .term-caption {
+    padding: 10px 16px 13px;
+    border-top: 1px solid var(--line);
+    font-size: 0.82rem;
+    color: var(--muted);
+    text-wrap: pretty;
   }
 
   .term-line {
@@ -178,8 +313,8 @@ const ariaLabel = isRedundant
     margin-left: -0.6em;
     padding-left: 0.6em;
   }
-  /* The semantic findings read in amber, not flag-red — the mildest confidence
-     tier, a heads-up you judge, not a "this is foreign" verdict. */
+  /* The unusual-confidence findings read in amber, not flag-red — the mildest
+     evidence tier, a heads-up you judge. */
   .term-flag.semantic {
     border-left-color: var(--amber);
   }
@@ -283,7 +418,7 @@ const ariaLabel = isRedundant
   }
 
   /* The flagged line lands with a brief tint — the one verdict that matters.
-     Foreign flashes flag-red; the semantic finding flashes amber. */
+     Foreign flashes flag-red; the amber findings flash amber. */
   .demo-terminal.is-playing .term-flag {
     animation: flag-flash 0.9s var(--ease-out-expo);
     animation-delay: calc(var(--i, 0) * 320ms);
@@ -311,23 +446,74 @@ const ariaLabel = isRedundant
 </style>
 
 <script>
-  const terminals = document.querySelectorAll<HTMLElement>('.demo-terminal');
-
-  for (const root of terminals) {
+  for (const root of document.querySelectorAll<HTMLElement>('.demo-terminal')) {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>('.term-tab')];
+    const panes = [...root.querySelectorAll<HTMLElement>('.term-body')];
+    const captions = [...root.querySelectorAll<HTMLElement>('[data-caption]')];
+    let autoTimer: ReturnType<typeof setInterval> | undefined;
+
+    const select = (index: number) => {
+      for (const [i, tab] of tabs.entries()) {
+        const active = i === index;
+        tab.setAttribute('aria-selected', String(active));
+        tab.tabIndex = active ? 0 : -1;
+        panes[i].hidden = !active;
+        captions[i].hidden = !active;
+      }
+    };
+
+    const stopAuto = () => {
+      if (autoTimer !== undefined) {
+        clearInterval(autoTimer);
+        autoTimer = undefined;
+      }
+    };
+
+    for (const [i, tab] of tabs.entries()) {
+      tab.addEventListener('click', () => {
+        stopAuto();
+        // Post-cascade, panes appear instantly (the entrance played once).
+        root.classList.add('is-done');
+        select(i);
+        tab.focus();
+      });
+      tab.addEventListener('keydown', (e) => {
+        const delta = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+        if (delta === 0) return;
+        e.preventDefault();
+        stopAuto();
+        root.classList.add('is-done');
+        const next = (i + delta + tabs.length) % tabs.length;
+        select(next);
+        tabs[next].focus();
+      });
+    }
 
     if (reduced || !('IntersectionObserver' in window)) {
       root.classList.add('is-done');
-      continue;
+      continue; // no cascade, no auto-advance — the user drives the tabs.
     }
 
     const io = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (entry.isIntersecting) {
-            root.classList.add('is-playing');
-            io.unobserve(entry.target);
-          }
+          if (!entry.isIntersecting) continue;
+          root.classList.add('is-playing');
+          io.unobserve(entry.target);
+          // One pass through the other panes after the cascade settles, so a
+          // visitor who never touches the tabs still sees all four detectors.
+          let index = 0;
+          let advanced = 0;
+          setTimeout(() => {
+            autoTimer = setInterval(() => {
+              index = (index + 1) % tabs.length;
+              root.classList.add('is-done');
+              select(index);
+              advanced += 1;
+              if (advanced >= tabs.length - 1) stopAuto();
+            }, 4500);
+          }, 2600);
         }
       },
       { rootMargin: '0px 0px -10% 0px', threshold: 0.3 },

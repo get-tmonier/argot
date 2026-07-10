@@ -41,20 +41,28 @@ argot fits the model on the PR's **base** branch and scores your changes against
 it, so a dependency the PR introduces is judged as new (not learned as normal
 first). The model is cached per base commit and only re-fit when the base moves.
 
-> **Warming the embedding model.** The semantic layer's ~100 MB code-embedding
-> model (GGUF) is fetched on first use. To pre-warm it as an explicit step — with
-> a hard, legible failure if the runner can't reach the network — run
-> **`argot model fetch`** before the check. On top of that, cache the model
-> directory (`~/.cache/argot/models`) with `actions/cache` so the download
-> happens once, not per run (the Action's `cache: true` default already keeps
-> the fitted `.argot/`, including `.argot/semantic-index.json`, keyed on the
-> base commit):
+> **What the embedding model costs in CI — and what the Action already does.**
+> The semantic layer's ~100 MB (104 MB) GGUF is fetched on first use. The
+> Action handles it for you: it caches `~/.cache/argot/models` under a key tied
+> to the model's release tag (so the download happens **once per repo × OS**,
+> not per run — the tag only changes when a release pins a new model) and runs
+> `argot model fetch` (a cache hit costs one sha256 pass, well under a second;
+> a cold download from GitHub Releases is typically 10–30 s on hosted runners).
+> The heavier, easy-to-miss cost is the **fit-time semantic index**: fitting on
+> a new base embeds every corpus function on a CPU runner — minutes on a large
+> repo. The Action's `cache: true` keeps the fitted `.argot/` (index included)
+> keyed on the base commit, so you pay it only when the base advances. If that
+> is still too much — or the runner is locked down — set the Action's
+> **`semantic: false`** input: no download, no index build; the voice and
+> layering rules still run.
+>
+> Hand-rolled workflow (no Action)? Reproduce the same two steps:
 >
 > ```yaml
 >       - uses: actions/cache@v4
 >         with:
 >           path: ~/.cache/argot/models
->           key: argot-model-v1
+>           key: argot-embedding-model-semantic-model-v1-${{ runner.os }}
 >       - run: argot model fetch    # pre-warm; fails loudly if the download can't happen
 > ```
 >

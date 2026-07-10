@@ -72,6 +72,14 @@ inputs:
       (everything error by default).
     required: false
     default: ""
+  semantic:
+    description: >-
+      Run the semantic rules (redundant/misplaced) in CI. 'false' sets
+      ARGOT_OFFLINE=1 — no ~100 MB model download, no index build at fit;
+      the voice and layering rules still run. Use on locked-down runners or
+      to keep base-advance fits fast on very large repos.
+    required: false
+    default: "true"
   fail-on-hits:
     description: >-
       Fail the job when argot finds hunks above the calibrated threshold.
@@ -163,13 +171,14 @@ runs:
     # here so a base advance never re-downloads it; `argot model fetch`
     # verifies the sha256 either way (a cache hit costs one hash pass).
     - name: Cache the embedding model
-      if: ${{ inputs.cache == 'true' }}
+      if: ${{ inputs.cache == 'true' && inputs.semantic == 'true' }}
       uses: actions/cache@v4
       with:
         path: ~/.cache/argot/models
         key: argot-embedding-model-semantic-model-v1-${{ runner.os }}
 
     - name: Fetch the embedding model
+      if: ${{ inputs.semantic == 'true' }}
       shell: bash
       run: argot model fetch
 
@@ -191,6 +200,8 @@ runs:
         ARGOT_PATH: ${{ inputs.path }}
         BASE_SHA: ${{ steps.base.outputs.base_sha }}
         ORIG_SHA: ${{ steps.base.outputs.orig_sha }}
+        # semantic: false → no model download, no index build at fit.
+        ARGOT_OFFLINE: ${{ inputs.semantic != 'true' && '1' || '' }}
       run: |
         set -euo pipefail
         # Learn the repo's established voice from the BASE tree — NOT the PR head.
@@ -211,6 +222,7 @@ runs:
         ARGOT_FORMAT: ${{ inputs.format }}
         ARGOT_OUT: ${{ inputs.output-file }}
         ARGOT_RULES: ${{ inputs.rules }}
+        ARGOT_OFFLINE: ${{ inputs.semantic != 'true' && '1' || '' }}
       run: |
         set -euo pipefail
         # Score the same range the base was resolved from, against the base-fit

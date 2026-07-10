@@ -62,20 +62,41 @@ Copilot, ESLint, SAST — every tool judges by one *global* idea of good code. a
 - 🧠 **A local code-embedding model** (`jina-code`, ~100 MB, CPU-first, Metal on Macs) — semantic understanding from an encoder, **not an LLM**: no generation, no API key, no GPU
 - 🔒 **Nothing leaves your machine** — no telemetry, no account; one cached version check per day (opt-out) is the only network call it ever makes on its own
 
-## Quickstart
+## Get started
 
 ```sh
-# 1. install (single static binary — no Python, no Node)
+# install (single static binary — no Python, no Node)
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.sh | sh
-
-# 2. learn this repo's voice (~seconds; first run fetches the ~100 MB local model)
-argot init
-
-# 3. check your diff (~150 ms)
-argot check
 ```
 
 Windows: `powershell -c "irm https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.ps1 | iex"` · npm: `npm install -g @tmonier/argot`
+
+**argot's accuracy is a function of its setup.** It learns from what it's
+allowed to see — a fit that ingests vendored SDKs, generated stubs, or data
+files speaks with the wrong voice and flags the wrong things. Deciding what
+should shape the voice is a judgment call; make it well once and everything
+downstream is quiet and sharp.
+
+**Recommended — let your coding agent make those calls:**
+
+```sh
+npx skills add get-tmonier/argot     # then run /argot-setup in your agent
+```
+
+`/argot-setup` (Claude Code, Cursor, 70+ agents) reads your codebase, decides
+what shouldn't shape the voice, writes `argot.toml`, fits (~seconds; the first
+run fetches the ~100 MB local model), and verifies argot actually catches a
+foreign import. Then `/argot-check` scores each diff, `/argot-review-pr`
+reviews a whole PR, `/argot-setup-ci` wires the GitHub Action.
+
+**By hand** — make the same calls yourself:
+
+```sh
+argot init --suggest   # which dirs look like they shouldn't shape the voice
+#   → review, add them to argot.toml [exclude].paths, then:
+argot init             # fit the voice model
+argot check            # score your diff (~150 ms)
+```
 
 ## Demo
 
@@ -108,6 +129,14 @@ src/text/slug.py
      ↳ duplicates slugify (src/utils/text.py:14) — similarity 0.86
 ```
 
+`misplaced` names where the code actually belongs:
+
+```
+src/cli/commands/fetch.py
+  .  L18-L41        0.62  unusual  · staged · misplaced [3e51b7c20d6f]
+     ↳ looks like core/downloader code filed under cli/commands
+```
+
 And `layering` flags the import that quietly reverses your architecture:
 
 ```
@@ -118,21 +147,6 @@ core/parser.py
 The glyph grades confidence (`!` foreign · `?` suspicious · `.` unusual), the
 `[hash]` is a stable id you can `argot mute`, and every `↳` line is your repo's
 own evidence. Full anatomy: [Reading the output](https://argot.tmonier.com/docs/reading-the-output/).
-
-## Set up with your coding agent
-
-The fastest path: install the skills once and let your agent drive.
-
-```sh
-npx skills add get-tmonier/argot
-```
-
-Then run **`/argot-setup`** in Claude Code, Cursor, or 70+ agents — it reads
-your codebase to decide what should shape the voice (and what shouldn't: a
-vendored SDK, a generated `gen/`), writes `argot.toml`, fits, and verifies the
-guardrail actually fires. `/argot-check` scores each diff; `/argot-review-pr`
-reviews a whole PR; `/argot-setup-ci` wires the GitHub Action.
-Prefer by hand? `argot init && argot check` — see [Setup](https://argot.tmonier.com/docs/setup/).
 
 ## Configure it like any linter
 
@@ -152,7 +166,8 @@ argot check --rule layering=warn --error-on-warnings
 Excludes are just as boring: `[exclude].paths` (gitignore-style; `argot init
 --suggest` finds candidates), inline `# argot: ignore-next-line rule=redundant —
 reason`, and `argot mute <hash> --reason "…"` for durable, committed
-acceptances. Full guide: [Configure](https://argot.tmonier.com/docs/configure/).
+acceptances. Full guides: [Setup](https://argot.tmonier.com/docs/setup/) ·
+[Configure](https://argot.tmonier.com/docs/configure/).
 
 ### argot vs. the tools you already run
 

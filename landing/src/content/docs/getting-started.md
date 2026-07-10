@@ -57,10 +57,16 @@ page is the local flow.
 
 ## Set up locally, then check
 
-The fastest path is one command:
+**argot's accuracy is a function of its setup.** It learns from what it's allowed to see — a fit
+that ingests vendored SDKs, generated stubs, or data files speaks with the wrong voice and flags
+the wrong things. The recommended path is the [setup skill](/docs/setup/) (`npx skills add
+get-tmonier/argot`, then `/argot-setup`): your coding agent reads the tree and makes the
+what-shapes-the-voice calls for you. Going by hand, make them yourself first:
 
 ```bash
 cd your-repo
+argot init --suggest   # which dirs look like they shouldn't shape the voice
+#   → review, add them to argot.toml [exclude].paths, then:
 argot init         # learn your repo's voice, then a health check (Ready / Marginal / …)
 argot check        # score uncommitted changes (or pass a ref/range)
 ```

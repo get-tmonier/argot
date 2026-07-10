@@ -26,9 +26,33 @@ const fr: SiteContent = {
   demo: {
     label: 'La deuxième question',
     title: 'Le type-checker demande si ça compile. argot demande si c’est le vôtre.',
-    body: 'Les linters demandent « est-ce valide ? » — jamais « est-ce ainsi qu’on écrit ici ? » Un LLM l’enterre sous des PR propres et bien typées. [[argot repose la question.]]',
-    caption:
-      'Deux vrais contrôles : un framework étranger, et une fonction que le dépôt [[avait déjà]]. mypy et ruff passent les deux — pas argot.',
+    body: 'Les linters demandent « est-ce valide ? » — jamais « est-ce ainsi qu’on écrit ici ? » Un LLM l’enterre sous des PR propres et bien typées. [[argot repose la question]] — quatre détecteurs, un par onglet. mypy et ruff passent chacun de ces exemples ; pas argot.',
+    tabs: [
+      {
+        id: 'foreign-import',
+        label: 'foreign-import',
+        caption:
+          'Une vue Django dans un dépôt entièrement FastAPI — du Python valide, mais un framework que ce dépôt n’a jamais importé. L’évidence montre ce que le dépôt utilise à la place.',
+      },
+      {
+        id: 'redundant',
+        label: 'redundant',
+        caption:
+          'Le dépôt a déjà cette fonction. argot nomme l’originale, où elle vit, et la proximité du doublon — utilisez-la au lieu de merger un jumeau.',
+      },
+      {
+        id: 'misplaced',
+        label: 'misplaced',
+        caption:
+          'De la logique de téléchargement rangée sous cli/commands — ses plus proches voisins vivent tous dans core/downloader. Le bon code, au mauvais endroit.',
+      },
+      {
+        id: 'layering',
+        label: 'layering',
+        caption:
+          'Dans ce dépôt, cli importe core — jamais l’inverse. Cet import inverse discrètement l’architecture ; argot signale l’arête elle-même.',
+      },
+    ],
     seeLive: 'Voyez-le sur de vrais dépôts',
   },
   catches: {
@@ -38,7 +62,7 @@ const fr: SiteContent = {
     items: [
       {
         title: 'Étranger',
-        desc: 'Une dépendance, une API ou un idiome [[que le dépôt n’a jamais utilisés]]. Le signal le plus net — le mieux détecté.',
+        desc: 'Une dépendance, une API ou un idiome [[que le dépôt n’a jamais utilisés]] — le « on ne fait pas comme ça ici ».',
       },
       {
         title: 'Redondant',
