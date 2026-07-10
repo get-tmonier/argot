@@ -1356,7 +1356,21 @@ pub fn run_calibrate(
                         // or disabled when the repo's areas aren't separable).
                         let placement =
                             crate::scoring::semantic::placement::calibrate_placement(&idx);
-                        semantic_artifact.insert(name, &idx, placement);
+                        // Self-calibrate the reinvention sense: mini-replay of
+                        // the functions added over the recent window against the
+                        // older code (conservative mode for repos practicing
+                        // systematic parallel implementation).
+                        let recent = recent_semantic_functions(
+                            repo_dir,
+                            &funcs,
+                            adapter.as_ref(),
+                            SEMANTIC_CALIBRATION_WINDOW,
+                        );
+                        let reinvention =
+                            crate::scoring::semantic::redundant::calibrate_reinvention(
+                                &idx, &recent,
+                            );
+                        semantic_artifact.insert(name, &idx, placement, reinvention);
                     }
                     Ok(_) => {}
                     Err(e) => eprintln!("argot: semantic index for {name} failed: {e}"),
@@ -1588,6 +1602,91 @@ fn extract_identifiers(src: &str) -> Vec<String> {
         }
     }
     out
+}
+
+/// History window (first-parent commits) for the semantic self-calibrations —
+/// mirrors the clean-commit bench window.
+#[cfg(feature = "semantic")]
+const SEMANTIC_CALIBRATION_WINDOW: usize = 150;
+
+/// Which of `funcs` (index order) were ADDED within the recent history window:
+/// their file is new since the window commit, or the file changed and the old
+/// version (parsed with the same adapter — names only, no embedding) did not
+/// define their symbol. Empty history / any git failure → all-false (the
+/// reinvention calibration then keeps the standard rule).
+#[cfg(feature = "semantic")]
+fn recent_semantic_functions(
+    repo_dir: &Path,
+    funcs: &[crate::scoring::semantic::index::FunctionRef],
+    adapter: &dyn LanguageAdapter,
+    window: usize,
+) -> Vec<bool> {
+    let none = vec![false; funcs.len()];
+    let Ok(repo) = git2::Repository::open(repo_dir) else {
+        return none;
+    };
+    let Ok(head) = repo.head().and_then(|h| h.peel_to_commit()) else {
+        return none;
+    };
+    // Walk `window` first-parent steps back (the bench's HEAD~window).
+    let mut old = head.clone();
+    for _ in 0..window {
+        match old.parent(0) {
+            Ok(p) => old = p,
+            Err(_) => return none, // history shorter than the window
+        }
+    }
+    let (Ok(old_tree), Ok(head_tree)) = (old.tree(), head.tree()) else {
+        return none;
+    };
+    let Ok(diff) = repo.diff_tree_to_tree(Some(&old_tree), Some(&head_tree), None) else {
+        return none;
+    };
+    let mut changed: std::collections::HashSet<String> = std::collections::HashSet::new();
+    diff.foreach(
+        &mut |delta, _| {
+            if let Some(p) = delta.new_file().path().and_then(|p| p.to_str()) {
+                changed.insert(p.replace('\\', "/"));
+            }
+            true
+        },
+        None,
+        None,
+        None,
+    )
+    .ok();
+    // Old symbol sets for changed files that already existed at the old commit.
+    let mut old_syms: std::collections::HashMap<String, std::collections::HashSet<String>> =
+        std::collections::HashMap::new();
+    for path in funcs.iter().map(|f| f.path.as_str()) {
+        if !changed.contains(path) || old_syms.contains_key(path) {
+            continue;
+        }
+        let syms = old_tree
+            .get_path(Path::new(path))
+            .ok()
+            .and_then(|e| e.to_object(&repo).ok())
+            .and_then(|o| o.into_blob().ok())
+            .map(|b| String::from_utf8_lossy(b.content()).into_owned())
+            .map(|src| {
+                crate::scoring::semantic::index::functions_in_file(adapter, path, &src)
+                    .into_iter()
+                    .map(|f| f.symbol)
+                    .collect::<std::collections::HashSet<String>>()
+            })
+            .unwrap_or_default(); // absent at the old commit → new file → empty set
+        old_syms.insert(path.to_string(), syms);
+    }
+    funcs
+        .iter()
+        .map(|f| {
+            changed.contains(&f.path)
+                && !old_syms
+                    .get(&f.path)
+                    .map(|s| s.contains(&f.symbol))
+                    .unwrap_or(false)
+        })
+        .collect()
 }
 
 #[cfg(test)]

@@ -30,6 +30,8 @@
 
 use std::collections::{BTreeSet, HashMap};
 
+use serde::{Deserialize, Serialize};
+
 use super::index::{FunctionRef, IndexEntry, SemanticIndex};
 use super::placement::parent_dir;
 
@@ -125,6 +127,98 @@ const CLUSTER_COSINE_BAND: f32 = 0.05;
 /// Cross-file neighbours retrieved to measure family density.
 const NEIGHBORHOOD: usize = 10;
 
+// --- conservative mode (fit-time self-calibration) -----------------------------
+//
+/// Some repos practice *systematic parallel implementation* — per-entity modules
+/// (checkout/order webhooks), protocol-variant ports — where every new function
+/// legitimately near-duplicates an existing sibling. There the standard rule
+/// over-fires on clean commits. At fit time a **mini-replay** estimates exactly
+/// that: the fraction of functions ADDED in the recent window (function-level,
+/// via git tree diff + old-version symbol parsing — no extra embedding) that the
+/// rule would flag against the pre-window code. Above the bar, the repo's F1
+/// switches to conservative mode: fires must be *unambiguous* (close match that
+/// stands out from the crowd).
+const CONSERVATIVE_EST_BAR: f32 = 0.09;
+/// Minimum recently-added functions for the estimate to mean anything — at a
+/// ~10% rate, fewer observations put the binomial CI wider than the decision
+/// band (junit5: 7/62 recents ≈ 11% estimate against a measured 1.6%/hunk
+/// clean-commit rate). Low-churn repos don't exhibit the systematic-parallel
+/// pattern at scale anyway.
+const CONSERVATIVE_MIN_RECENT: usize = 100;
+/// Recently-added functions sampled for the estimate (stride cap).
+const CONSERVATIVE_MAX_SAMPLE: usize = 400;
+/// Conservative-mode extra gates: the match must be close…
+const CONSERVATIVE_MIN_COSINE: f32 = 0.85;
+/// …and stand out from the second-nearest neighbour.
+const CONSERVATIVE_MIN_MARGIN: f32 = 0.05;
+
+/// Fit-time self-calibrated reinvention configuration, stored per language in
+/// the semantic artifact.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ReinventionConfig {
+    /// Apply the conservative extra gates at check time.
+    pub conservative: bool,
+    /// Diagnostics: the mini-replay estimate (fires / recently-added fns) and
+    /// how many recently-added functions it saw.
+    pub est_fire_rate: f32,
+    pub est_recent: usize,
+}
+
+/// Self-calibrate F1 on a fresh index. `recent[i]` marks entries added within
+/// the recent history window (computed by the fit flow via git). The estimator
+/// evaluates each recent entry against an index of only the NON-recent entries
+/// — approximating "new code checked against the old tree" with zero extra
+/// embedding work.
+pub fn calibrate_reinvention(index: &SemanticIndex, recent: &[bool]) -> ReinventionConfig {
+    let recents: Vec<usize> = (0..index.len()).filter(|&i| recent[i]).collect();
+    let old_entries: Vec<IndexEntry> = index
+        .entries
+        .iter()
+        .zip(recent)
+        .filter(|(_, r)| !**r)
+        .map(|(e, _)| e.clone())
+        .collect();
+    let mut cfg = ReinventionConfig {
+        conservative: false,
+        est_fire_rate: 0.0,
+        est_recent: recents.len(),
+    };
+    if recents.len() < CONSERVATIVE_MIN_RECENT || old_entries.len() < CONSERVATIVE_MIN_RECENT {
+        return cfg;
+    }
+    let old_index = SemanticIndex {
+        dim: index.dim,
+        entries: old_entries,
+    };
+    let scorer = RedundantScorer::new(&old_index, &ReinventionConfig::default());
+    let step = recents.len().div_ceil(CONSERVATIVE_MAX_SAMPLE).max(1);
+    let mut fires = 0usize;
+    let mut evaluated = 0usize;
+    for &i in recents.iter().step_by(step) {
+        let e = index.entry(i);
+        // Body text is not stored in the index; use a substantial placeholder so
+        // the substance floors pass (the estimator measures the structural rule).
+        let func = FunctionRef {
+            symbol: e.symbol.clone(),
+            path: e.path.clone(),
+            line: e.line,
+            end_line: e.line + 10,
+            text: "x\n".repeat(12),
+            callees: e.callees.clone(),
+            subtokens: e.subtokens.clone(),
+        };
+        evaluated += 1;
+        if scorer.evaluate(&func, &e.vec).is_some() {
+            fires += 1;
+        }
+    }
+    if evaluated > 0 {
+        cfg.est_fire_rate = fires as f32 / evaluated as f32;
+        cfg.conservative = cfg.est_fire_rate >= CONSERVATIVE_EST_BAR;
+    }
+    cfg
+}
+
 /// A fired reinvention finding: the existing function this one duplicates.
 #[derive(Debug, Clone)]
 pub struct RedundantFinding {
@@ -141,6 +235,8 @@ pub struct RedundantFinding {
 /// `get`, `return`) without any hand-tuned stop-list.
 pub struct RedundantScorer<'a> {
     index: &'a SemanticIndex,
+    /// Fit-time self-calibrated mode (see [`ReinventionConfig`]).
+    conservative: bool,
     subtoken_idf: HashMap<String, f32>,
     /// IDF for a subtoken not seen in the corpus (df = 0) — the max weight.
     default_idf: f32,
@@ -155,7 +251,7 @@ pub struct RedundantScorer<'a> {
 }
 
 impl<'a> RedundantScorer<'a> {
-    pub fn new(index: &'a SemanticIndex) -> Self {
+    pub fn new(index: &'a SemanticIndex, cfg: &ReinventionConfig) -> Self {
         let n_docs = index.entries.len().max(1) as f64;
         let subtoken_idf = corpus_idf(index.entries.iter().map(|e| &e.subtokens), n_docs);
         let mut callee_df: HashMap<String, u32> = HashMap::new();
@@ -172,6 +268,7 @@ impl<'a> RedundantScorer<'a> {
         }
         Self {
             index,
+            conservative: cfg.conservative,
             subtoken_idf,
             default_idf: idf_of(0, n_docs),
             callee_df,
@@ -244,17 +341,22 @@ impl<'a> RedundantScorer<'a> {
         if func.text.lines().count() < MIN_BODY_LINES_ANY {
             return None;
         }
+        let margin = neighbors
+            .get(1)
+            .map(|n2| cos - n2.cosine)
+            .unwrap_or(f32::MAX);
         // Same-directory matches must stand out from the neighbourhood (see
         // SAME_DIR_MIN_MARGIN): a co-located protocol-variant / wrapper family
         // member sits in a crowd; a genuine reinvention matches one original.
-        if parent_dir(&func.path) == parent_dir(&best_entry.path) {
-            let margin = neighbors
-                .get(1)
-                .map(|n2| cos - n2.cosine)
-                .unwrap_or(f32::MAX);
-            if margin < SAME_DIR_MIN_MARGIN {
-                return None;
-            }
+        if parent_dir(&func.path) == parent_dir(&best_entry.path) && margin < SAME_DIR_MIN_MARGIN {
+            return None;
+        }
+        // Conservative mode (fit-time self-calibrated, see ReinventionConfig):
+        // a repo shown to practice systematic parallel implementation only gets
+        // unambiguous findings — a close match that stands out from the crowd.
+        if self.conservative && (cos < CONSERVATIVE_MIN_COSINE || margin < CONSERVATIVE_MIN_MARGIN)
+        {
+            return None;
         }
         // Sibling / wrapper filters — reject the non-reinvention shapes that embed
         // close but dominate clean-commit false fires (see the constants + evidence).
@@ -494,7 +596,7 @@ mod tests {
     #[test]
     fn fires_on_near_duplicate_via_subtokens() {
         let idx = index();
-        let scorer = RedundantScorer::new(&idx);
+        let scorer = RedundantScorer::new(&idx, &ReinventionConfig::default());
         // Very close to `slugify` (cos ≈ 0.98) and shares its rare subtokens.
         let q = unit(vec![0.98, 0.02, 0.0]);
         let f = scorer
@@ -515,7 +617,7 @@ mod tests {
     #[test]
     fn does_not_fire_on_close_but_structurally_unrelated() {
         let idx = index();
-        let scorer = RedundantScorer::new(&idx);
+        let scorer = RedundantScorer::new(&idx, &ReinventionConfig::default());
         // Close to `slugify` in embedding, but no shared callees and disjoint
         // subtokens → anisotropy near-match, not a reinvention.
         let q = unit(vec![0.98, 0.02, 0.0]);
@@ -535,7 +637,7 @@ mod tests {
     #[test]
     fn same_file_match_is_excluded() {
         let idx = index();
-        let scorer = RedundantScorer::new(&idx);
+        let scorer = RedundantScorer::new(&idx, &ReinventionConfig::default());
         let q = unit(vec![0.98, 0.02, 0.0]);
         // Candidate lives in slugify's own file → its only near-dup is same-file.
         assert!(scorer
@@ -554,7 +656,7 @@ mod tests {
     #[test]
     fn same_name_is_treated_as_move_not_reinvention() {
         let idx = index();
-        let scorer = RedundantScorer::new(&idx);
+        let scorer = RedundantScorer::new(&idx, &ReinventionConfig::default());
         let q = unit(vec![0.98, 0.02, 0.0]);
         // Same symbol name, different file → a move/rename, not a reinvention.
         assert!(scorer
@@ -608,7 +710,7 @@ mod tests {
     #[test]
     fn callee_overlap_fires_without_subtoken_overlap() {
         let idx = callee_index();
-        let scorer = RedundantScorer::new(&idx);
+        let scorer = RedundantScorer::new(&idx, &ReinventionConfig::default());
         let q = unit(vec![0.995, 0.01, 0.0]); // cos ≈ 1.0 to format_price
         let f = scorer
             .evaluate(
@@ -628,7 +730,7 @@ mod tests {
     fn no_structural_overlap_does_not_fire() {
         // Same close embedding, but disjoint callees AND disjoint subtokens.
         let idx = callee_index();
-        let scorer = RedundantScorer::new(&idx);
+        let scorer = RedundantScorer::new(&idx, &ReinventionConfig::default());
         let q = unit(vec![0.995, 0.01, 0.0]);
         assert!(scorer
             .evaluate(
@@ -646,7 +748,7 @@ mod tests {
     #[test]
     fn strong_tier_rescues_distant_match_with_high_subtoken_overlap() {
         let idx = index();
-        let scorer = RedundantScorer::new(&idx);
+        let scorer = RedundantScorer::new(&idx, &ReinventionConfig::default());
         // cos ≈ 0.72 to slugify — below the normal 0.78 floor — but identical
         // rare subtokens. The strong tier rescues it; the normal tier would not.
         let q = unit(vec![0.72, 0.69, 0.0]);
@@ -673,7 +775,7 @@ mod tests {
     #[test]
     fn distant_match_with_weak_overlap_does_not_fire() {
         let idx = index();
-        let scorer = RedundantScorer::new(&idx);
+        let scorer = RedundantScorer::new(&idx, &ReinventionConfig::default());
         // Same cos ≈ 0.72, but only partial subtoken overlap (1 of 3 shared) →
         // below the strong bar, and too distant for the normal tier. No fire.
         let q = unit(vec![0.72, 0.69, 0.0]);
@@ -714,7 +816,7 @@ mod tests {
             ));
         }
         let idx = SemanticIndex { dim: 3, entries };
-        let scorer = RedundantScorer::new(&idx);
+        let scorer = RedundantScorer::new(&idx, &ReinventionConfig::default());
         // Nearest member is mod0 — the one with the distinctive helper.
         let q = unit(vec![1.0, 0.0, 0.0]);
         // Loosely-resembling new sibling: fires the callee tier (shares `base`) but
@@ -771,7 +873,7 @@ mod tests {
                 ),
             ],
         };
-        let scorer = RedundantScorer::new(&idx);
+        let scorer = RedundantScorer::new(&idx, &ReinventionConfig::default());
         let q = unit(vec![1.0, 0.01, 0.0]);
         // Same dir as the match (lib/) and margin ~0 → filtered.
         let same_dir = func_c(
@@ -796,7 +898,7 @@ mod tests {
     #[test]
     fn short_stub_never_fires_even_with_strong_overlap() {
         let idx = index();
-        let scorer = RedundantScorer::new(&idx);
+        let scorer = RedundantScorer::new(&idx, &ReinventionConfig::default());
         let q = unit(vec![0.98, 0.02, 0.0]);
         let stub = FunctionRef {
             symbol: "normalize_slug".into(),
@@ -835,7 +937,7 @@ mod tests {
                 ),
             ],
         };
-        let scorer = RedundantScorer::new(&idx);
+        let scorer = RedundantScorer::new(&idx, &ReinventionConfig::default());
         let q = unit(vec![1.0, 0.05, 0.0]);
         let f = scorer
             .evaluate(
@@ -856,7 +958,7 @@ mod tests {
     #[test]
     fn short_wrapper_is_filtered_when_overlap_is_weak() {
         let idx = callee_index(); // format_price / format_amount
-        let scorer = RedundantScorer::new(&idx);
+        let scorer = RedundantScorer::new(&idx, &ReinventionConfig::default());
         let q = unit(vec![0.995, 0.01, 0.0]); // ≈1.0 to format_price
         let short = FunctionRef {
             symbol: "show".into(),

@@ -1424,7 +1424,7 @@ fn semantic_hits(
         let mut fired: Option<&'static str> = None;
         // F1 first: a duplicate isn't "misplaced", it's "redundant" — the
         // stronger signal wins, one finding per function.
-        if let Some(found) = RedundantScorer::new(&li.index).evaluate(f, vec) {
+        if let Some(found) = RedundantScorer::new(&li.index, &li.reinvention).evaluate(f, vec) {
             fired = Some("redundant");
             let similarity = found.similarity;
             hits.push(build_semantic_hit(

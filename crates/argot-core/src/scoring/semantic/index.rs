@@ -151,7 +151,11 @@ impl SemanticIndex {
 
     // --- serialization (compact f16, its own artifact) ---
 
-    fn to_json(&self, placement: super::placement::PlacementConfig) -> LanguageIndexJson {
+    fn to_json(
+        &self,
+        placement: super::placement::PlacementConfig,
+        reinvention: super::redundant::ReinventionConfig,
+    ) -> LanguageIndexJson {
         let mut bytes = Vec::with_capacity(self.entries.len() * self.dim * 2);
         for e in &self.entries {
             for &x in &e.vec {
@@ -166,6 +170,7 @@ impl SemanticIndex {
             lines: self.entries.iter().map(|e| e.line).collect(),
             vectors_b64: base64::engine::general_purpose::STANDARD.encode(&bytes),
             placement,
+            reinvention,
             callees: self.entries.iter().map(|e| e.callees.clone()).collect(),
             subtokens: self.entries.iter().map(|e| e.subtokens.clone()).collect(),
         }
@@ -408,6 +413,11 @@ struct LanguageIndexJson {
     /// written before this field — placement then abstains.
     #[serde(default)]
     placement: super::placement::PlacementConfig,
+    /// F1 self-calibrated reinvention configuration (conservative mode for
+    /// repos practicing systematic parallel implementation). Default = the
+    /// standard rule.
+    #[serde(default)]
+    reinvention: super::redundant::ReinventionConfig,
     /// Per-function callee sets (aligned with `symbols`/`paths`) — one of the two
     /// structural fingerprints the F1 scorer confirms against.
     #[serde(default)]
@@ -423,6 +433,7 @@ struct LanguageIndexJson {
 pub struct LoadedIndex {
     pub index: SemanticIndex,
     pub placement: super::placement::PlacementConfig,
+    pub reinvention: super::redundant::ReinventionConfig,
 }
 
 /// The whole-repo semantic artifact: one index per language, plus the fit's
@@ -451,9 +462,10 @@ impl SemanticArtifact {
         language: &str,
         index: &SemanticIndex,
         placement: super::placement::PlacementConfig,
+        reinvention: super::redundant::ReinventionConfig,
     ) {
         self.languages
-            .insert(language.to_string(), index.to_json(placement));
+            .insert(language.to_string(), index.to_json(placement, reinvention));
     }
 
     pub fn is_empty(&self) -> bool {
@@ -466,6 +478,7 @@ impl SemanticArtifact {
             Some(j) => Ok(Some(LoadedIndex {
                 index: SemanticIndex::from_json(j)?,
                 placement: j.placement.clone(),
+                reinvention: j.reinvention.clone(),
             })),
             None => Ok(None),
         }
@@ -540,7 +553,12 @@ mod tests {
         plc.k = 10;
         plc.z = 1;
         plc.area_map = BTreeMap::from([("src".to_string(), "src".to_string())]);
-        art.insert("python", &idx, plc);
+        art.insert(
+            "python",
+            &idx,
+            plc,
+            crate::scoring::semantic::redundant::ReinventionConfig::default(),
+        );
         let json = art.to_json_string().unwrap();
         let back = SemanticArtifact::from_json_str(&json).unwrap();
         assert_eq!(back.repo_sha, "deadbeef");
