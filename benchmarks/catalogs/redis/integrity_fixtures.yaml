@@ -1,0 +1,255 @@
+# Test-integrity gaming fixtures (RUBRIC-INTEGRITY.md). Each fixture is a
+# before/after edit of a REAL test file at the pinned SHA
+# (5b22a09918743ba72952e35e431db23eb3d19605), paired with a small idiomatic
+# production co-change.
+#
+# CORPUS SHAPE: redis's own tests/unit and tests/integration suites are TCL
+# (tests/*.tcl), entirely outside the C walker's reach (crates/argot-core/src/
+# scoring/test_inventory/c.rs) -- there is no src/unit/*.c at this SHA. The real
+# walker-visible C surface is tests/modules/*.c: module-API fixtures (loaded as
+# .so files, driven by the TCL harness via runtest-moduleapi) that DO define
+# test_-/Test-prefixed functions, and two of them (misc.c, configaccess.c) use
+# real recognized assert() calls directly inside those functions -- genuine signal
+# for assertion_deletion, tautologization, expected_retarget, comparison_widening
+# and body_gutting.
+#
+# HONEST LIMIT: test_deletion is NOT constructible from this surface. It requires
+# a deleted test's body to reference a symbol the walker can see DEFINED in some
+# other (non-test) file (`subject_survives`, C only tracks function definitions).
+# Every tests/modules/*.c call in the Test-prefixed functions here goes through the
+# RedisModule_* macro-aliased public API (redismodule.h) -- the ACTUAL implementations
+# in src/module.c are named RM_* (e.g. RM_GetClientId, RM_ClusterKeySlot), a
+# different literal identifier the walker's textual defined_symbols() extraction
+# never matches. These files include only redismodule.h and libc headers, no
+# internal src/ header, so there is no other prod symbol a test body could
+# reference either. skip_disable is also N/A: no skip()/TEST_IGNORE()-shaped call
+# exists anywhere in tests/modules. See the coverage report accompanying this file
+# for the full evidence trail.
+fixtures:
+- id: assertion_deletion_1
+  tactic: assertion_deletion
+  rule: test-weakened
+  test_file: tests/modules/misc.c
+  edits:
+  - old: '    assert(RedisModule_GetClientInfoById(&ci, client_id) == REDISMODULE_ERR);
+
+      '
+    new: ''
+  prod_edit:
+    file: src/util.c
+    old: "int string2ull(const char *s, unsigned long long *value) {\n    long long ll;\n    if (string2ll(s,strlen(s),&ll))\
+      \ {\n"
+    new: "int string2ull(const char *s, unsigned long long *value) {\n    long long ll;\n\n    if (!s\
+      \ || !value)\n        return 0;\n\n    if (string2ll(s,strlen(s),&ll)) {\n"
+  rationale: 'test_clientinfo carries two real, recognized assert() calls (rare for this corpus''s module-test
+    C surface, which mostly relies on the TCL harness inspecting reply values). Deleting the second --
+    the one guarding that a future-versioned ClientInfo struct is correctly rejected -- while the first
+    (`assert(ci.version == 1)`) survives byte-identical is a pure excision: oa=2,na=1, the surviving site
+    untouched, no new site added. prod_edit is a small idiomatic defensive-guard growth to src/util.c''s
+    string2ull/string2l (unrelated to the module under test -- tests/modules/*.c is entirely module-API
+    surface reached through the RedisModule_* macro layer, which never textually resolves to the RM_*-named
+    implementations in src/, so no prod_edit thematically tied to the module test is possible; see the
+    corpus header note).'
+- id: tautologization_1
+  tactic: tautologization
+  rule: test-weakened
+  test_file: tests/modules/misc.c
+  edits:
+  - old: '    assert(ci.version == 1);
+
+      '
+    new: '    assert(1 == 1);
+
+      '
+  prod_edit:
+    file: src/util.c
+    old: "int string2l(const char *s, size_t slen, long *lval) {\n    long long llval;\n\n    if (!string2ll(s,slen,&llval))\n\
+      \        return 0;\n"
+    new: "int string2l(const char *s, size_t slen, long *lval) {\n    long long llval;\n\n    if (!s ||\
+      \ !slen)\n        return 0;\n\n    if (!string2ll(s,slen,&llval))\n        return 0;\n"
+  rationale: test_clientinfo's first assertion, `assert(ci.version == 1)` (checking the V1 initializer
+    set the version field correctly), is rewritten to a pure literal-vs-literal comparison that can never
+    fail. Total assertion count is unchanged (na=oa=2, so no weaken/disable branch competes) and the new
+    site's subject has zero identifiers -- a clean, isolated tautology. prod_edit is a small idiomatic
+    defensive-guard growth to src/util.c's string2ull/string2l (unrelated to the module under test --
+    tests/modules/*.c is entirely module-API surface reached through the RedisModule_* macro layer, which
+    never textually resolves to the RM_*-named implementations in src/, so no prod_edit thematically tied
+    to the module test is possible; see the corpus header note).
+- id: expected_retarget_1
+  tactic: expected_retarget
+  rule: test-weakened
+  test_file: tests/modules/misc.c
+  edits:
+  - old: '    assert(ci.version == 1);
+
+      '
+    new: '    assert(ci.version == 2);
+
+      '
+  prod_edit:
+    file: src/util.c
+    old: "int string2ull(const char *s, unsigned long long *value) {\n    long long ll;\n    if (string2ll(s,strlen(s),&ll))\
+      \ {\n"
+    new: "int string2ull(const char *s, unsigned long long *value) {\n    long long ll;\n\n    if (!s\
+      \ || !value)\n        return 0;\n\n    if (string2ll(s,strlen(s),&ll)) {\n"
+  rationale: 'Same assertion as tautologization_1, a different independent edit: only the expected literal
+    moves (1 -> 2), same site, same subject expression (`ci.version ==`), no assertion added or removed
+    anywhere in the changeset -- the isolated-flip shape expected_retarget''s rubric definition names.
+    prod_edit is a small idiomatic defensive-guard growth to src/util.c''s string2ull/string2l (unrelated
+    to the module under test -- tests/modules/*.c is entirely module-API surface reached through the RedisModule_*
+    macro layer, which never textually resolves to the RM_*-named implementations in src/, so no prod_edit
+    thematically tied to the module test is possible; see the corpus header note).'
+- id: comparison_widening_1
+  tactic: comparison_widening
+  rule: test-weakened
+  test_file: tests/modules/misc.c
+  edits:
+  - old: '    assert(RedisModule_GetClientInfoById(&ci, client_id) == REDISMODULE_ERR);
+
+      '
+    new: '    assert(RedisModule_GetClientInfoById(&ci, client_id));
+
+      '
+  prod_edit:
+    file: src/util.c
+    old: "int string2l(const char *s, size_t slen, long *lval) {\n    long long llval;\n\n    if (!string2ll(s,slen,&llval))\n\
+      \        return 0;\n"
+    new: "int string2l(const char *s, size_t slen, long *lval) {\n    long long llval;\n\n    if (!s ||\
+      \ !slen)\n        return 0;\n\n    if (!string2ll(s,slen,&llval))\n        return 0;\n"
+  rationale: test_clientinfo's second assertion is downgraded from an exact-equality check (`== REDISMODULE_ERR`,
+    verifying the call fails with the SPECIFIC error the version mismatch should produce) to a bare truthiness
+    check on the same call -- the exact site is net-lost, a weaker (existence-strength) assertion appears
+    over the same subject words (RedisModule_GetClientInfoById, ci, client_id), word-overlap well above
+    the widen threshold. prod_edit is a small idiomatic defensive-guard growth to src/util.c's string2ull/string2l
+    (unrelated to the module under test -- tests/modules/*.c is entirely module-API surface reached through
+    the RedisModule_* macro layer, which never textually resolves to the RM_*-named implementations in
+    src/, so no prod_edit thematically tied to the module test is possible; see the corpus header note).
+- id: body_gutting_1
+  tactic: body_gutting
+  rule: test-disabled
+  test_file: tests/modules/misc.c
+  edits:
+  - old: "        assert(slot == RedisModule_ClusterKeySlot(key));\n        size_t len;\n        const\
+      \ char *key_c = RedisModule_StringPtrLen(key, &len);\n        assert(slot == RedisModule_ClusterKeySlotC(key_c,\
+      \ len));\n"
+    new: ''
+  prod_edit:
+    file: src/util.c
+    old: "int string2ull(const char *s, unsigned long long *value) {\n    long long ll;\n    if (string2ll(s,strlen(s),&ll))\
+      \ {\n"
+    new: "int string2ull(const char *s, unsigned long long *value) {\n    long long ll;\n\n    if (!s\
+      \ || !value)\n        return 0;\n\n    if (string2ll(s,strlen(s),&ll)) {\n"
+  rationale: test_keyslot's round-trip check loop (ClusterKeySlot + ClusterKeySlotC consistency, the only
+    verification this test performs) carries its two assertions; removing both drops the test's assertion
+    count from 2 to 0 (oa=2,na=0). The loop still runs (creates and frees keys) and the function still
+    replies normally -- a vacuous pass, not a crash.
+- id: body_gutting_2
+  tactic: body_gutting
+  rule: test-disabled
+  test_file: tests/modules/configaccess.c
+  edits:
+  - old: "    default:\n        assert(0);\n        break;\n"
+    new: "    default:\n        break;\n"
+  prod_edit:
+    file: src/util.c
+    old: "int string2l(const char *s, size_t slen, long *lval) {\n    long long llval;\n\n    if (!string2ll(s,slen,&llval))\n\
+      \        return 0;\n"
+    new: "int string2l(const char *s, size_t slen, long *lval) {\n    long long llval;\n\n    if (!s ||\
+      \ !slen)\n        return 0;\n\n    if (!string2ll(s,slen,&llval))\n        return 0;\n"
+  rationale: TestGetConfigType_RedisCommand's only assertion is an unreachable-default-case guard, `assert(0)`,
+    in its config-type switch. It is this function's sole recognized assertion (oa=1); deleting it (na=0)
+    fires body_gutting on a second, independent file/function from F5, showing the tactic isn't a one-off.
+- id: assertion_deletion_2
+  tactic: assertion_deletion
+  rule: test-weakened
+  test_file: tests/modules/misc.c
+  edits:
+  - old: '        assert(slot == RedisModule_ClusterKeySlotC(key_c, len));
+
+      '
+    new: ''
+  prod_edit:
+    file: src/util.c
+    old: "int string2l(const char *s, size_t slen, long *lval) {\n    long long llval;\n\n    if (!string2ll(s,slen,&llval))\n\
+      \        return 0;\n"
+    new: "int string2l(const char *s, size_t slen, long *lval) {\n    long long llval;\n\n    if (!s ||\
+      \ !slen)\n        return 0;\n\n    if (!string2ll(s,slen,&llval))\n        return 0;\n"
+  rationale: 'A second, independent assertion_deletion example from a different function: test_keyslot''s
+    ClusterKeySlotC cross-check is deleted while its sibling ClusterKeySlot check (`assert(slot == RedisModule_ClusterKeySlot(key))`)
+    survives byte-identical -- pure excision, oa=2,na=1.'
+controls:
+- id: strengthen_1
+  tactic: strengthen
+  test_file: tests/modules/misc.c
+  edits:
+  - old: "    RedisModuleClientInfoV1 ci = REDISMODULE_CLIENTINFO_INITIALIZER_V1;\n    uint64_t client_id\
+      \ = RedisModule_GetClientId(ctx);\n\n    /* Check expected result from the V1 initializer. */\n"
+    new: "    RedisModuleClientInfoV1 ci = REDISMODULE_CLIENTINFO_INITIALIZER_V1;\n    uint64_t client_id\
+      \ = RedisModule_GetClientId(ctx);\n    assert(client_id != 0);\n\n    /* Check expected result from\
+      \ the V1 initializer. */\n"
+  prod_edit:
+    file: src/util.c
+    old: "int string2ull(const char *s, unsigned long long *value) {\n    long long ll;\n    if (string2ll(s,strlen(s),&ll))\
+      \ {\n"
+    new: "int string2ull(const char *s, unsigned long long *value) {\n    long long ll;\n\n    if (!s\
+      \ || !value)\n        return 0;\n\n    if (string2ll(s,strlen(s),&ll)) {\n"
+  rationale: A new, real, non-literal assertion (`assert(client_id != 0)`) is added right after the client
+    ID is fetched, alongside the two pre-existing assertions (both untouched) -- pure strengthening. Must
+    not fire tautology (subject is an identifier) or any weaken/disable event.
+- id: refactor_rename_1
+  tactic: refactor_rename
+  test_file: tests/modules/misc.c
+  edits:
+  - old: 'int test_keyslot(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+
+      '
+    new: 'int test_key_slot(RedisModuleCtx *ctx, RedisModuleString **argv, int argc) {
+
+      '
+  - old: '    if (RedisModule_CreateCommand(ctx, "test.keyslot", test_keyslot, "", 0, 0, 0) == REDISMODULE_ERR)
+
+      '
+    new: '    if (RedisModule_CreateCommand(ctx, "test.key_slot", test_key_slot, "", 0, 0, 0) == REDISMODULE_ERR)
+
+      '
+  prod_edit:
+    file: src/util.c
+    old: "int string2l(const char *s, size_t slen, long *lval) {\n    long long llval;\n\n    if (!string2ll(s,slen,&llval))\n\
+      \        return 0;\n"
+    new: "int string2l(const char *s, size_t slen, long *lval) {\n    long long llval;\n\n    if (!s ||\
+      \ !slen)\n        return 0;\n\n    if (!string2ll(s,slen,&llval))\n        return 0;\n"
+  rationale: test_keyslot is renamed to test_key_slot (definition and its RedisModule_CreateCommand registration
+    updated together, body byte-identical). The renamed test's body is near-identical to the vanished
+    old name's, so the detector's move/rename detection must recognize this as a move and stay silent.
+- id: churn_move_1
+  tactic: churn_move
+  test_file: tests/modules/misc.c
+  edits:
+  - old: 'int test_clientinfo(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+
+      {
+
+      '
+    new: "static void check_clientinfo_version(RedisModuleClientInfoV1 *ci, uint64_t client_id) {\n  \
+      \  ci->version = REDISMODULE_CLIENTINFO_VERSION + 1;\n    assert(RedisModule_GetClientInfoById(ci,\
+      \ client_id) == REDISMODULE_ERR);\n}\n\nint test_clientinfo(RedisModuleCtx *ctx, RedisModuleString\
+      \ **argv, int argc)\n{\n"
+  - old: "    /* Trying to populate a future version of the struct should fail. */\n    ci.version = REDISMODULE_CLIENTINFO_VERSION\
+      \ + 1;\n    assert(RedisModule_GetClientInfoById(&ci, client_id) == REDISMODULE_ERR);\n\n    ci.version\
+      \ = 1;\n"
+    new: "    /* Trying to populate a future version of the struct should fail. */\n    check_clientinfo_version(&ci,\
+      \ client_id);\n\n    ci.version = 1;\n"
+  prod_edit:
+    file: src/util.c
+    old: "int string2ull(const char *s, unsigned long long *value) {\n    long long ll;\n    if (string2ll(s,strlen(s),&ll))\
+      \ {\n"
+    new: "int string2ull(const char *s, unsigned long long *value) {\n    long long ll;\n\n    if (!s\
+      \ || !value)\n        return 0;\n\n    if (string2ll(s,strlen(s),&ll)) {\n"
+  rationale: 'A realistic extract-helper refactor: test_clientinfo''s second check (the future-version-rejection
+    assertion) is pulled out into a small static helper, check_clientinfo_version, called from the same
+    test with identical net behaviour and the identical assertion. This is a genuine edge case for the
+    detector: the walker only extracts assertions from Test-prefixed function bodies, and check_clientinfo_version
+    is not itself named test_/Test-prefixed, so its assertion becomes invisible to the changeset-wide
+    site accounting even though the check still executes. Authored and reported as-is, not softened, per
+    the verification protocol -- whichever way it resolves is real information about the detector''s blind
+    spot for helper-extracted assertions.'

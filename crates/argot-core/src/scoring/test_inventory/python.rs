@@ -21,8 +21,13 @@ pub(super) fn extract(root: tree_sitter::Node, src: &str) -> TestInventory {
             return;
         }
         let mut skip_markers = 0usize;
+        // Decorators wrap the def in a decorated_definition; the test's span
+        // must cover them (a tests-only skip decorator is test text, not
+        // production text).
+        let mut span_node = n;
         if let Some(parent) = n.parent() {
             if parent.kind() == "decorated_definition" {
+                span_node = parent;
                 for i in 0..parent.named_child_count() {
                     let Some(c) = parent.named_child(i) else {
                         continue;
@@ -111,12 +116,12 @@ pub(super) fn extract(root: tree_sitter::Node, src: &str) -> TestInventory {
         let body_text = node_text(n, src);
         inv.tests.push(TestCase {
             name,
-            line: n.start_position().row + 1,
+            line: span_node.start_position().row + 1,
             disabled: false,
             skip_markers,
             assertions,
             body_words: words_of(body_text),
-            body_lines: body_text.lines().count(),
+            body_lines: node_text(span_node, src).lines().count(),
         });
     });
     inv

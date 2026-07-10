@@ -223,13 +223,17 @@ pub fn defined_symbols(source: &str, language: Language) -> HashSet<String> {
                 | "singleton_method"
                 | "class"
                 | "module"
+                | "function_expression"
         ) {
             return;
         }
         // Named defs expose a `name` field; C/C++ function defs descend
         // through the declarator chain instead.
         if let Some(name) = n.child_by_field_name("name") {
-            if name.kind().ends_with("identifier") || name.kind() == "constant" {
+            if name.kind().ends_with("identifier")
+                || name.kind() == "constant"
+                || name.kind() == "name"
+            {
                 let t = node_text(name, source);
                 if t.len() > 2 {
                     defs.insert(t.to_string());
@@ -289,7 +293,12 @@ pub(crate) fn words_of(text: &str) -> HashSet<String> {
 pub(crate) fn ident_count(n: tree_sitter::Node) -> usize {
     let mut count = 0usize;
     walk_named(n, &mut |c| {
-        if c.kind().ends_with("identifier") || c.kind() == "self" || c.kind() == "variable_name" {
+        if c.kind().ends_with("identifier")
+            || c.kind() == "self"
+            || c.kind() == "variable_name"
+            || c.kind() == "constant"
+            || c.kind() == "name"
+        {
             count += 1;
         }
     });

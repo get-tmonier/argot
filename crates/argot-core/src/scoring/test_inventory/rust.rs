@@ -24,6 +24,10 @@ pub(super) fn extract(root: tree_sitter::Node, src: &str) -> TestInventory {
         // Attributes are preceding named siblings of the item.
         let mut is_test = false;
         let mut ignored = false;
+        // The span starts at the first attribute: markers are siblings, and
+        // the production-side strip must blank them with the test (a
+        // tests-only `#[ignore]` addition must not read as a prod change).
+        let mut start_line = n.start_position().row + 1;
         let mut sib = n.prev_named_sibling();
         while let Some(s) = sib {
             if s.kind() != "attribute_item" {
@@ -37,6 +41,7 @@ pub(super) fn extract(root: tree_sitter::Node, src: &str) -> TestInventory {
             if t.contains("ignore") {
                 ignored = true;
             }
+            start_line = s.start_position().row + 1;
             sib = s.prev_named_sibling();
         }
         if !is_test {
@@ -91,14 +96,15 @@ pub(super) fn extract(root: tree_sitter::Node, src: &str) -> TestInventory {
             });
         });
         let body_text = node_text(n, src);
+        let end_line = n.end_position().row + 1;
         inv.tests.push(TestCase {
             name,
-            line: n.start_position().row + 1,
+            line: start_line,
             disabled: ignored,
             skip_markers: usize::from(ignored),
             assertions,
             body_words: words_of(body_text),
-            body_lines: body_text.lines().count(),
+            body_lines: end_line + 1 - start_line,
         });
     });
     inv

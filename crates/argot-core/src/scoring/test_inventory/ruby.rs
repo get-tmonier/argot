@@ -65,6 +65,10 @@ fn call_args_idents(n: tree_sitter::Node) -> usize {
         .child_by_field_name("arguments")
         .map(ident_count)
         .unwrap_or(0);
+    // `expect { … }.to raise_error(X)` — the block IS the subject.
+    if let Some(b) = n.child_by_field_name("block") {
+        total += ident_count(b);
+    }
     if let Some(r) = n.child_by_field_name("receiver") {
         total += if r.kind() == "call" {
             call_args_idents(r)

@@ -165,6 +165,24 @@ fn judge(repo_dir: &Path, fix: &IntegrityFix) -> Result<Vec<String>> {
     Ok(fired)
 }
 
+/// Skip the (expensive) per-corpus fit when the existing artifacts were
+/// already fitted at this SHA — fixture-authoring iteration reuses them; a
+/// fresh clone or SHA bump refits.
+fn ensure_fitted(repo_dir: &Path, sha: &str) -> Result<()> {
+    let manifest = repo_dir.join(".argot").join("manifest.json");
+    if let Ok(raw) = std::fs::read_to_string(&manifest) {
+        if let Ok(doc) = serde_json::from_str::<serde_json::Value>(&raw) {
+            if doc["fit_commit_sha"].as_str() == Some(sha)
+                && repo_dir.join(".argot").join("integrity.json").exists()
+            {
+                return Ok(());
+            }
+        }
+    }
+    fit_clone(repo_dir, sha)?;
+    Ok(())
+}
+
 fn reset(repo_dir: &Path) -> Result<()> {
     git(repo_dir, &["reset", "-q", "--hard", "HEAD"])?;
     // Keep the fit artifacts and the synced corpus config across fixtures.
@@ -202,7 +220,7 @@ pub fn run_integrity_verify(
         let sha = &t.prs[0].sha;
         ensure_sha_checked_out(&repo_dir, sha)?;
         sync_corpus_config(catalogs_dir, &t.name, &repo_dir)?;
-        fit_clone(&repo_dir, sha)?;
+        ensure_fitted(&repo_dir, sha)?;
 
         let (mut caught, mut other, mut missed, mut invalid) = (0usize, 0usize, 0usize, 0usize);
         for fix in &catalog.fixtures {
@@ -340,7 +358,7 @@ pub fn run_integrity_fp(
         let sha = &t.prs[0].sha;
         ensure_sha_checked_out(&repo_dir, sha)?;
         sync_corpus_config(catalogs_dir, &t.name, &repo_dir)?;
-        fit_clone(&repo_dir, sha)?;
+        ensure_fitted(&repo_dir, sha)?;
         let model_raw = std::fs::read_to_string(repo_dir.join(".argot").join(INTEGRITY_FILE))
             .unwrap_or_default();
         let model =

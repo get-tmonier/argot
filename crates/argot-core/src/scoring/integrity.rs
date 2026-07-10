@@ -256,21 +256,30 @@ fn carries_tests(path: &str, lang: Language, inv: &TestInventory) -> bool {
     is_test_path(path, lang) || !inv.is_empty()
 }
 
-/// Source text with test-case line spans blanked — what's left is the file's
-/// production side (Rust keeps unit tests inside prod files).
+/// Source text with test-case line spans REMOVED — what's left is the file's
+/// production side (Rust keeps unit tests inside prod files). Removal, not
+/// blanking: a line inserted inside a test span (a marker, an assertion)
+/// must not shift the remainder and read as a production change.
 fn strip_tests(source: &str, inv: &TestInventory) -> String {
     if inv.is_empty() {
         return source.to_string();
     }
-    let mut keep: Vec<&str> = source.lines().collect();
+    let lines: Vec<&str> = source.lines().collect();
+    let mut drop = vec![false; lines.len()];
     for t in &inv.tests {
         let start = t.line.saturating_sub(1);
-        let end = (start + t.body_lines).min(keep.len());
-        for line in keep.iter_mut().take(end).skip(start) {
-            *line = "";
+        let end = (start + t.body_lines).min(lines.len());
+        for d in drop.iter_mut().take(end).skip(start) {
+            *d = true;
         }
     }
-    keep.join("\n")
+    lines
+        .iter()
+        .zip(&drop)
+        .filter(|(_, d)| !**d)
+        .map(|(l, _)| *l)
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 struct TestFileDiff {
@@ -387,6 +396,14 @@ pub fn changeset_events(files: &[FileChange]) -> Vec<IntegrityEvent> {
             }
         }
     }
+    // Whitespace-collapsed post-image texts — the "did this exact assertion
+    // text survive anywhere?" check that excuses extract-to-helper refactors
+    // (the assertion moves into a plain function the inventory doesn't walk).
+    let changeset_new_texts: Vec<String> = files
+        .iter()
+        .filter_map(|f| f.new.as_deref())
+        .map(|t| t.split_whitespace().collect::<Vec<_>>().join(" "))
+        .collect();
     let changeset_added_assertions: usize = new_site_counts
         .iter()
         .map(|(k, n)| n.saturating_sub(old_site_counts.get(k).copied().unwrap_or(0)))
@@ -518,19 +535,28 @@ pub fn changeset_events(files: &[FileChange]) -> Vec<IntegrityEvent> {
                 });
             } else if na < oa {
                 // --- weaken: pure excision. Fires only when the removal is
-                // surgical — every surviving aligned pair is unchanged — and
-                // the removed occurrences are net-lost from the changeset.
+                // surgical — every surviving assertion existed before with
+                // the same literals (multiset containment: removing a middle
+                // occurrence must not misalign) — and the removed occurrences
+                // are net-lost from the changeset including as raw text (an
+                // assertion extracted into a helper is a move, not a loss).
                 let mut vanished: Vec<&AssertionSite> = Vec::new();
                 let mut survivors_untouched = true;
                 for (key, olds) in &old_groups {
                     let news = new_groups.get(key).map(Vec::as_slice).unwrap_or(&[]);
-                    for (o, n) in olds.iter().zip(news.iter()) {
-                        if o.literals != n.literals {
+                    let mut pool: Vec<&Vec<String>> = olds.iter().map(|a| &a.literals).collect();
+                    for n in news {
+                        if let Some(pos) = pool.iter().position(|l| *l == &n.literals) {
+                            pool.remove(pos);
+                        } else {
                             survivors_untouched = false;
                         }
                     }
                     if news.len() < olds.len() && net_lost(key) {
-                        vanished.extend(olds.iter().skip(news.len()));
+                        vanished.extend(olds.iter().skip(news.len()).filter(|a| {
+                            let raw = raw_site_text(a);
+                            !changeset_new_texts.iter().any(|t| t.contains(&raw))
+                        }));
                     }
                 }
                 let no_new_sites = new_groups
@@ -553,8 +579,13 @@ pub fn changeset_events(files: &[FileChange]) -> Vec<IntegrityEvent> {
             }
 
             // --- weaken: expected literals retargeted at aligned sites
+            // (only when occurrence counts match — a removal shifts the
+            // positional alignment and would fabricate retargets)
             for (key, olds) in &old_groups {
                 let news = new_groups.get(key).map(Vec::as_slice).unwrap_or(&[]);
+                if news.len() != olds.len() {
+                    continue;
+                }
                 for (o, n) in olds.iter().zip(news.iter()) {
                     if o.literals != n.literals && !o.literals.is_empty() {
                         retarget_sites += 1;
@@ -641,6 +672,22 @@ pub fn changeset_events(files: &[FileChange]) -> Vec<IntegrityEvent> {
     }
 
     events
+}
+
+/// Reconstruct an assertion's collapsed raw text from its blanked site key +
+/// literals (the site key blanks each literal to `▯`, in order).
+fn raw_site_text(a: &AssertionSite) -> String {
+    let mut out = String::new();
+    let mut lits = a.literals.iter();
+    for (i, part) in a.site_key.split('▯').enumerate() {
+        if i > 0 {
+            if let Some(l) = lits.next() {
+                out.push_str(&l.split_whitespace().collect::<Vec<_>>().join(" "));
+            }
+        }
+        out.push_str(part);
+    }
+    out
 }
 
 fn truncate(s: &str, max: usize) -> String {
@@ -988,6 +1035,136 @@ def test_parse():
             change("tests/test_parse.py", TEST_OLD, stronger),
         ];
         assert!(changeset_events(&files).is_empty());
+    }
+
+    #[test]
+    fn java_asserttrue_true_tautology_fires() {
+        let prod_old = "class StringUtils {\n    static String x() { return \"a\"; }\n}\n";
+        let prod_new = "class StringUtils {\n    static String x() { return \"a\"; }\n    static String y() { return \"b\"; }\n}\n";
+        let test_old = r#"
+class StringUtilsTests {
+    @Test
+    void nonEmpty() {
+        String[] array = {"a"};
+        assertSame(array, nonEmptyArray(array));
+    }
+}
+"#;
+        let test_new = r#"
+class StringUtilsTests {
+    @Test
+    void nonEmpty() {
+        String[] array = {"a"};
+        assertTrue(true);
+    }
+}
+"#;
+        let files = [
+            change("src/main/java/StringUtils.java", prod_old, prod_new),
+            change("src/test/java/StringUtilsTests.java", test_old, test_new),
+        ];
+        let events = changeset_events(&files);
+        assert!(
+            events.iter().any(|e| e.kind == EventKind::Tautology),
+            "expected tautology, got {events:?}"
+        );
+    }
+
+    #[test]
+    fn middle_occurrence_churn_move_is_silent() {
+        // Three identical-shape assertions; the MIDDLE one moves to a sibling
+        // test. Positional zip must not fabricate a retarget or an excision.
+        let old_test = r#"
+def test_ticker():
+    assert ticker.read() == 10
+    assert ticker.read() == 20
+    assert ticker.read() == 30
+
+def test_other():
+    assert other() == 1
+"#;
+        let new_test = r#"
+def test_ticker():
+    assert ticker.read() == 10
+    assert ticker.read() == 30
+
+def test_other():
+    assert other() == 1
+    assert ticker.read() == 20
+"#;
+        let files = [
+            change("parser.py", PROD_OLD, PROD_NEW),
+            change("tests/test_ticker.py", old_test, new_test),
+        ];
+        let events = changeset_events(&files);
+        assert!(events.is_empty(), "churn move fired: {events:?}");
+    }
+
+    #[test]
+    fn extract_to_helper_refactor_is_silent() {
+        // The assertion moves into a plain helper the inventory doesn't walk;
+        // its raw text survives in the changeset, so nothing was lost.
+        let old_test = r#"
+def test_info():
+    assert info.version == 3
+    assert info.name == "redis"
+"#;
+        let new_test = r#"
+def check_version(info):
+    assert info.version == 3
+
+def test_info():
+    check_version(info)
+    assert info.name == "redis"
+"#;
+        let files = [
+            change("parser.py", PROD_OLD, PROD_NEW),
+            change("tests/test_info.py", old_test, new_test),
+        ];
+        let events = changeset_events(&files);
+        assert!(
+            events
+                .iter()
+                .all(|e| e.kind != EventKind::AssertionsRemoved),
+            "helper extraction read as excision: {events:?}"
+        );
+    }
+
+    #[test]
+    fn rust_tests_only_ignore_is_silent() {
+        // In-file unit tests: adding #[ignore] is test text, not production
+        // text — the scope guard must hold even though the attribute is a
+        // sibling of the function item.
+        let old_src = r#"
+pub fn escape(s: &str) -> String { s.to_string() }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn roundtrip() {
+        assert_eq!(escape("x"), "x");
+    }
+}
+"#;
+        let new_src = r#"
+pub fn escape(s: &str) -> String { s.to_string() }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[ignore = "flaky on CI"]
+    fn roundtrip() {
+        assert_eq!(escape("x"), "x");
+    }
+}
+"#;
+        let files = [change("src/escape.rs", old_src, new_src)];
+        let events = changeset_events(&files);
+        assert!(events.is_empty(), "tests-only ignore fired: {events:?}");
     }
 
     #[test]
