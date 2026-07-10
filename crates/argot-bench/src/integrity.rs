@@ -364,8 +364,13 @@ pub fn run_integrity_fp(
         let model =
             IntegrityModel::from_json(&model_raw).unwrap_or_else(IntegrityModel::permissive);
 
-        let (replayed, test_touching, flagged, flagged_gating, kinds) =
-            replay_history(&repo_dir, &model, HISTORY_WINDOW, FP_REPLAY_WINDOW)?;
+        let ReplayStats {
+            replayed,
+            test_touching,
+            flagged,
+            flagged_gating,
+            kinds,
+        } = replay_history(&repo_dir, &model, HISTORY_WINDOW, FP_REPLAY_WINDOW)?;
         let rate = 100.0 * flagged as f64 / test_touching.max(1) as f64;
         let gating_rate = 100.0 * flagged_gating as f64 / test_touching.max(1) as f64;
         let _ = writeln!(
@@ -412,7 +417,7 @@ fn replay_history(
     model: &IntegrityModel,
     skip: usize,
     take: usize,
-) -> Result<(usize, usize, usize, usize, BTreeMap<String, usize>)> {
+) -> Result<ReplayStats> {
     let repo = git2::Repository::discover(repo_dir)?;
     let head = repo.head()?.peel_to_commit()?;
     let mut revwalk = repo.revwalk()?;
@@ -511,7 +516,22 @@ fn replay_history(
             );
         }
     }
-    Ok((replayed, test_touching, flagged, flagged_gating, kinds))
+    Ok(ReplayStats {
+        replayed,
+        test_touching,
+        flagged,
+        flagged_gating,
+        kinds,
+    })
+}
+
+/// Counters from one accepted-history replay.
+struct ReplayStats {
+    replayed: usize,
+    test_touching: usize,
+    flagged: usize,
+    flagged_gating: usize,
+    kinds: BTreeMap<String, usize>,
 }
 
 fn blob_text(repo: &git2::Repository, tree: &git2::Tree, path: &str) -> Option<String> {
