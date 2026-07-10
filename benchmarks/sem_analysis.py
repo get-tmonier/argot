@@ -38,6 +38,7 @@ for i, a in enumerate(sys.argv[2:]):
 # abstains (placement N/A).
 MIN_NEIGH = 5
 MAX_CONTAINER_FRAC = 0.5
+ABS_CONTAINER_FRAC = 0.25
 MIN_AREA_FNS = 8
 
 
@@ -49,13 +50,15 @@ def area_walk(paths):
         dirs = p.split("/")[:-1]
         for i in range(len(dirs) + 1):
             counts["/".join(dirs[:i])] += 1
+    total = counts.get("", 1)
 
     def area(path):
         dirs = path.split("/")[:-1]
         prefix = ""
         for d in dirs:
             nxt = f"{prefix}/{d}" if prefix else d
-            if counts.get(nxt, 0) > MAX_CONTAINER_FRAC * counts.get(prefix, 0):
+            if counts.get(nxt, 0) > MAX_CONTAINER_FRAC * counts.get(prefix, 0) \
+               or counts.get(nxt, 0) > ABS_CONTAINER_FRAC * total:
                 prefix = nxt
                 continue
             if counts.get(nxt, 0) >= MIN_AREA_FNS:

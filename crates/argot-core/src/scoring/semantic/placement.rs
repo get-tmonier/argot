@@ -31,6 +31,11 @@ use super::index::{FunctionRef, SemanticIndex};
 /// A directory holding more than this share of its parent's functions is a
 /// container, not an area — the adaptive walk descends into it.
 const MAX_CONTAINER_FRAC: f64 = 0.5;
+/// …and so is a directory holding more than this share of ALL functions,
+/// whatever its parent share: a thousands-of-functions subtree is never a leaf
+/// area (mirror layouts like guava/ + android/ split ~50/50, so neither clears
+/// the parent-share test, yet each contains the real packages).
+const ABS_CONTAINER_FRAC: f64 = 0.25;
 /// An area smaller than this merges up into its parent container.
 const MIN_AREA_FNS: usize = 8;
 /// Candidate merge thresholds for entangled-area flow, descending. The first
@@ -71,6 +76,8 @@ pub(super) fn parent_dir(path: &str) -> &str {
 pub struct AreaWalk {
     /// Function count per directory prefix ("" = repo root).
     counts: HashMap<String, usize>,
+    /// Total functions (the root prefix count).
+    total: usize,
 }
 
 impl AreaWalk {
@@ -92,7 +99,8 @@ impl AreaWalk {
                 *counts.entry(prefix.clone()).or_insert(0) += 1;
             }
         }
-        Self { counts }
+        let total = counts.get("").copied().unwrap_or(0);
+        Self { counts, total }
     }
 
     /// The base area of a repo-relative path: descend through containers,
@@ -113,7 +121,9 @@ impl AreaWalk {
             };
             let parent_n = self.counts.get(&prefix).copied().unwrap_or(0);
             let next_n = self.counts.get(&next).copied().unwrap_or(0);
-            if (next_n as f64) > MAX_CONTAINER_FRAC * parent_n as f64 {
+            if (next_n as f64) > MAX_CONTAINER_FRAC * parent_n as f64
+                || (next_n as f64) > ABS_CONTAINER_FRAC * self.total as f64
+            {
                 prefix = next; // container: descend
                 continue;
             }
