@@ -349,10 +349,10 @@ pub fn calibrate_placement(index: &SemanticIndex) -> PlacementConfig {
             outdeg[a] += 1.0;
         }
     }
-    for a in 0..m {
-        if outdeg[a] > 0.0 {
-            for b in 0..m {
-                flow[a][b] /= outdeg[a];
+    for (row, &deg) in flow.iter_mut().zip(&outdeg) {
+        if deg > 0.0 {
+            for v in row.iter_mut() {
+                *v /= deg;
             }
         }
     }
@@ -364,9 +364,9 @@ pub fn calibrate_placement(index: &SemanticIndex) -> PlacementConfig {
         // Merge every pair with cross-flow ≥ tau (mandatory floor included,
         // since MERGE_TAUS starts at the floor).
         let mut dsu = Dsu::new(m);
-        for a in 0..m {
-            for b in (a + 1)..m {
-                if flow[a][b] >= tau || flow[b][a] >= tau {
+        for (a, row) in flow.iter().enumerate() {
+            for (b, &ab) in row.iter().enumerate().skip(a + 1) {
+                if ab >= tau || flow[b][a] >= tau {
                     dsu.union(a, b);
                 }
             }

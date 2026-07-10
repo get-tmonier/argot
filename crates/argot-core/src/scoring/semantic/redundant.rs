@@ -374,7 +374,8 @@ impl<'a> RedundantScorer<'a> {
         // Rare-callee path: below the min-callee guard, a single shared *rare*
         // callee still confirms (a specific helper both functions call).
         let rare_callee = self.shares_rare_callee(func, best_entry);
-        if !normal && !strong && !(cos >= STRONG_SIMILARITY && rare_callee) {
+        let rescued = cos >= STRONG_SIMILARITY && rare_callee;
+        if !(normal || strong || rescued) {
             return None;
         }
         // Substance floor (unconditional): stubs and accessors are never a
