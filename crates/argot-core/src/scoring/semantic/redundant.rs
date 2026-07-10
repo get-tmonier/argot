@@ -151,6 +151,15 @@ const CONSERVATIVE_MAX_SAMPLE: usize = 400;
 const CONSERVATIVE_MIN_COSINE: f32 = 0.85;
 /// …and stand out from the second-nearest neighbour.
 const CONSERVATIVE_MIN_MARGIN: f32 = 0.05;
+/// Mirror guard: in a corpus where this share of functions' two nearest
+/// cross-file neighbours carry the SAME symbol (a maintained mirror tree —
+/// guava/ + android/ at 48%), a query matching a mirrored function sees both
+/// twins at the top and its margin collapses to ~0 whatever the evidence, so
+/// the conservative margin gate would blind the whole sense (guava planted
+/// recall 94%→0%). Conservative mode is only usable below this rate.
+const CONSERVATIVE_MAX_TWIN_RATE: f32 = 0.35;
+/// Index functions sampled for the twin-rate measurement.
+const TWIN_RATE_SAMPLE: usize = 300;
 
 /// Fit-time self-calibrated reinvention configuration, stored per language in
 /// the semantic artifact.
@@ -214,9 +223,41 @@ pub fn calibrate_reinvention(index: &SemanticIndex, recent: &[bool]) -> Reinvent
     }
     if evaluated > 0 {
         cfg.est_fire_rate = fires as f32 / evaluated as f32;
-        cfg.conservative = cfg.est_fire_rate >= CONSERVATIVE_EST_BAR;
+        cfg.conservative = cfg.est_fire_rate >= CONSERVATIVE_EST_BAR
+            && twin_rate(index) < CONSERVATIVE_MAX_TWIN_RATE;
     }
     cfg
+}
+
+/// Share of (sampled) index functions whose two nearest cross-file neighbours
+/// carry the same symbol — the mirror-tree signature (see
+/// [`CONSERVATIVE_MAX_TWIN_RATE`]).
+fn twin_rate(index: &SemanticIndex) -> f32 {
+    let n = index.len();
+    if n < 50 {
+        return 0.0;
+    }
+    let step = n.div_ceil(TWIN_RATE_SAMPLE).max(1);
+    let mut twin = 0usize;
+    let mut total = 0usize;
+    for qi in (0..n).step_by(step) {
+        let e = index.entry(qi);
+        let top = index.nearest(&e.vec, 2, |o| o.path != e.path);
+        if top.len() < 2 {
+            continue;
+        }
+        total += 1;
+        let a = &index.entry(top[0].entry_index).symbol;
+        let b = &index.entry(top[1].entry_index).symbol;
+        if a.len() == b.len() && a.eq_ignore_ascii_case(b) {
+            twin += 1;
+        }
+    }
+    if total == 0 {
+        0.0
+    } else {
+        twin as f32 / total as f32
+    }
 }
 
 /// A fired reinvention finding: the existing function this one duplicates.
