@@ -103,7 +103,7 @@ down-weight the `voice`-group hits accordingly and say so.
 argot reliably flags a **novel pattern** foreign to this repo — a dependency it
 has never imported, an API it never calls, or a whole paradigm (a Django-style
 view in a FastAPI repo, a different HTTP client, hand-rolled validation) it
-never writes. When the foreign symbol is in the change, it catches ~99% of
+never writes. When the foreign symbol is in the change, it catches ~98% of
 these. Trust a `foreign-import` hit. The `semantic` and `architecture` rules
 add duplicated functions, misfiled code, and layering breaks on top.
 
@@ -157,6 +157,9 @@ argot: 2 hits in your changes (1 error · 1 warn)
 - Durable, reviewable: `argot mute <hash> --reason "…"` — a committed
   `[[mute]]` entry in `argot.toml`, which can also target a rule or group with
   `rule = "<name|group>"`.
+- Housekeeping: `argot list-mutes` shows every active suppression across all
+  three surfaces; `argot review-mutes` re-scores muted files and reports which
+  suppressions no longer fire (`--prune` removes the dead ones).
 
 ## Hard rules
 

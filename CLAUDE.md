@@ -16,6 +16,8 @@ just test         # cargo test --workspace
 just extract .    # run extract on this repo → .argot/dataset.jsonl
 just dogfood      # run full pipeline against argot itself (or any path) — fast monorepo check
 just build        # cargo build --release -p argot → target/release/argot
+just bench-quick  # ~1 min bench smoke (one fixture per category + 50 controls)
+just arch-verify  # ~25 s architecture-layer fixture-recall regression guard
 ```
 
 `just dogfood` exercises extract → train → calibrate → check end-to-end and asserts both Python and TypeScript rows landed in `dataset.jsonl` plus a `scorer-config.json` was emitted. It's a **dev loop, not a CI gate** — informational signal that monorepo handling didn't silently break. Drift is the contributor's responsibility; nothing forces it to run.
@@ -27,18 +29,27 @@ One Cargo workspace, two crates:
 ```
 crates/
   argot-core/       # the engine — pure library, does the work
-    scoring/        # scorers (SequentialImportBpeScorer, call_receiver, filters,
-                    #   typicality), adapters (python/typescript), calibration,
+    scoring/        # scorers (sequential/BPE, call_receiver, conventions, filters,
+                    #   typicality), adapters (per language), calibration,
                     #   numpy_sampler (numpy-exact RNG for threshold parity)
       semantic/     # OPT-COMPILE (`--features semantic`): per-repo code
                     #   embeddings — embedder (llama.cpp/jina-code), index,
                     #   redundant (F1), placement (F2). See "Semantic layer".
-    git_walk.rs · tokenize.rs · extract.rs · train.rs · check.rs · dataset.rs · stats.rs
+      arch_graph.rs # OPT-COMPILE (`--features arch`): module-dependency graph →
+                    #   the `layering` rule. See "Architecture layer".
+      structural.rs # OPT-COMPILE (`--features structural`): AST-bigram signal —
+                    #   research-only, NON-GATING, off in releases.
+    rules.rs        # the rule registry: 7 rules / 3 groups, severities, confidence tiers
+    git_walk.rs · tokenize.rs · extract.rs · train.rs · check.rs · inspect.rs ·
+    config.rs · health.rs · output.rs · suppress/ · dataset.rs · stats.rs
     data/           # embedded unixcoder tokenizer + generic BPE baseline (include_bytes!)
-  argot-cli/        # clap CLI → the single `argot` binary (package name: argot)
+  argot-cli/        # clap CLI → the single `argot` binary (package name: argot);
+                    # per-command modules: mcp.rs (MCP server) · review.rs ·
+                    # replay.rs · voice_diff.rs · describe.rs (describe-voice) ·
+                    # auto_refit.rs · update_check.rs · uninstall.rs · worktree.rs
 ```
 
-The full pipeline is `extract` → `train` → `calibrate` → `check` (or `fit` = train + calibrate). Everything runs in-process in the one binary — no subprocess, no external files.
+The full pipeline is `train` → `calibrate` → `check` (`fit` = train + calibrate, one-shot; `argot init` = fit + health report; `extract` is bench plumbing — the fit → check flow never consumes the dataset). Everything runs in-process in the one binary — no subprocess, no external files. Release binaries build with `features = ["self-update", "semantic", "arch"]` (`dist-workspace.toml`); dev/CI base loops build with none of them.
 
 ### Semantic layer (`--features semantic`)
 
@@ -64,6 +75,22 @@ its own `.argot/semantic-index.json` so `scorer-config.json` is untouched. Its
 findings are never folded into the base catch/false-alarm metric. Dev/CI test
 with `ARGOT_SEMANTIC_MODEL=<gguf path>` to skip the download; `ARGOT_OFFLINE=1`
 forbids all network.
+
+### Architecture layer (`--features arch`)
+
+The `layering` rule (group `architecture`): flags an internal module-dependency
+edge that reverses the repo's learned layer direction, closes a cycle, or lands
+on a (near-)sink. Same build-time-gate shape as `semantic` — off in dev/CI base
+loops, ON in releases. Validated at 244/252 (96.8%) real recall / 0 control FPs
+across 23 corpora (evidence in `docs/research/evidence/`); `just arch-verify`
+is the ~25 s fixture-recall regression guard.
+
+### Structural signal (`--features structural`)
+
+`scoring/structural.rs`: 0-usage AST-bigram foreignness. Real signal but not
+gatable (no threshold gives acceptable over-fire everywhere) — kept
+feature-gated, NON-GATING, **off in releases**. Don't re-chase gatability;
+the evidence record explains why.
 
 Production code lives under `crates/argot-core/src/scoring/`. Production symbols (types, files, functions) must be named after domain concepts — never after research artefacts (`era`, `phase`, `PhaseNa…`, etc.); those labels belong in eval/research code only.
 
@@ -110,6 +137,24 @@ Benchmarks are expensive. Default to the cheapest signal first:
 3. **Full corpus bench** — final confirmation of a strong signal, or era-closing baseline. Not a default step.
 
 Keep evidence of every experiment in `docs/research/evidence/` regardless of outcome. Clean up experiment scripts once results are recorded — they don't need to survive, the evidence does.
+
+## Agent-facing product surfaces (keep in sync)
+
+When a command, flag, rule, or exit code changes, these ship the change to
+users and must move together:
+
+- `skills/` — the four shipped skills (`argot-setup`, `argot-check`,
+  `argot-review-pr`, `argot-setup-ci`); workflow procedures, not command
+  catalogs — `argot --help` stays the source of truth.
+- `crates/argot-cli/src/mcp.rs` — the MCP server (`argot mcp`).
+- `.claude-plugin/` — the Claude Code plugin (bundles the skills + MCP server).
+- `action.yml` — the GitHub Action; its inputs table is documented in
+  `landing/src/content/docs/ci.md`.
+- `AGENTS.md` — the usage contract for coding agents, published at
+  argot.tmonier.com/docs/agents/ and in `llms.txt`.
+- `landing/` — the site + docs (`landing/src/content/docs/`, i18n copy in
+  `landing/src/i18n/{en,fr}.ts`; benchmark numbers are CI-fed from
+  `landing/src/data/*.json` — never hand-edit a metric).
 
 ## Agent skills
 

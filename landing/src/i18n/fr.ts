@@ -65,7 +65,7 @@ const fr: SiteContent = {
   engine: {
     label: 'Sous le capot',
     title: 'De la compréhension sémantique. Aucun LLM nulle part.',
-    body: 'Trois moteurs, un seul binaire [[Rust]] statique, tous appris de votre historique git — pas de clé d’API, pas de GPU, rien ne quitte votre machine.',
+    body: 'Trois moteurs derrière les quatre détecteurs, un seul binaire [[Rust]] statique, tous appris de votre historique git — pas de clé d’API, pas de GPU, rien ne quitte votre machine.',
     cards: [
       {
         title: 'Un modèle d’embeddings de code sur votre laptop',

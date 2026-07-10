@@ -197,20 +197,22 @@ All inputs are optional.
 | Input | Default | What it does |
 |---|---|---|
 | `path` | `.` | Repository to check (working-directory relative). |
-| `argot-version` | `latest` | Release to install — `latest` or a version like `0.2.48`. |
-| `format` | `sarif` | Output format for `argot check`: `sarif`, `json`, or `human`. |
+| `argot-version` | `latest` | Release to install — `latest` or a version like `0.2.59`. |
+| `format` | `sarif` | Output format for `argot check`: `sarif`, `json`, `github`, or `human`. |
 | `output-file` | `argot-results.sarif` | File the check results are written to. |
 | `ref` | *(empty)* | Ref or range to check (e.g. `origin/main..HEAD`). Empty = automatic: `base..HEAD` on PRs, the head commit on pushes. |
 | `cache` | `true` | Cache the fitted `.argot/` model between runs, keyed on the base commit. |
 | `upload-sarif` | `true` | Upload the SARIF file to code scanning (needs `format: sarif` and `security-events: write`). |
 | `comment-pr` | `true` | Post/update the sticky voice-score PR comment (needs `pull-requests: write`). |
+| `rules` | *(empty)* | Space-separated rule severity overrides passed to `argot check --rule`, e.g. `misplaced=warn semantic=off`. Empty = the repo's `argot.toml` `[rules]`. |
+| `semantic` | `true` | Run the semantic rules (`redundant`/`misplaced`). `false` sets `ARGOT_OFFLINE=1` — no model download, no index build; the voice and layering rules still run. |
 | `fail-on-hits` | `false` | Fail the job when argot finds hits above the threshold. Off by default — argot informs without gating. |
 
 ### Action outputs
 
 | Output | Meaning |
 |---|---|
-| `exit-code` | Exit code of `argot check` (`0` clean, `1` hits found). |
+| `exit-code` | Exit code of `argot check` (`0` clean, `1` hits found, `2` setup/usage error). |
 | `results-file` | Path to the written results file. |
 
 ## On any other CI — GitLab, Jenkins, CircleCI, …
@@ -276,7 +278,7 @@ it doesn't fail the commit unless you make it):
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/get-tmonier/argot
-    rev: main   # pin to a release tag (e.g. v0.2.48) once you've picked one
+    rev: main   # pin to a release tag (e.g. v0.2.59) once you've picked one
     hooks:
       - id: argot-check
 ```

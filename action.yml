@@ -91,7 +91,7 @@ inputs:
 
 outputs:
   exit-code:
-    description: "Exit code of `argot check` (0 clean, 1 hits found)."
+    description: "Exit code of `argot check` (0 clean, 1 hits found, 2 setup/usage error)."
     value: ${{ steps.check.outputs.exit-code }}
   results-file:
     description: "Path to the written results file."

@@ -90,7 +90,9 @@ optionally scoped to one rule or group:
 ```
 
 See [Configure](https://argot.tmonier.com/docs/configure/) for all three
-suppression surfaces.
+suppression surfaces. Housekeeping: `argot list-mutes` shows every active
+suppression; `argot review-mutes` reports which ones no longer fire
+(`--prune` removes them).
 
 ## Never
 
@@ -115,5 +117,10 @@ Trust the binary. `argot rules` prints the live rule registry and `argot
 - **MCP** (proactive): `argot mcp` exposes `voice_context` so you can write
   in-voice from the first token — see
   [the agents guide](https://argot.tmonier.com/docs/agents/).
+- **Voice guide:** `argot describe-voice --out STYLE.md` writes a
+  human-readable description of the learned voice (typical callees, familiar
+  imports) you can commit and point agents at.
+- **Everything else:** `argot --help` is the full, always-current command
+  surface — trust it over any list in a document.
 - **Docs:** <https://argot.tmonier.com/docs/> · **llms.txt:**
   <https://argot.tmonier.com/llms.txt>

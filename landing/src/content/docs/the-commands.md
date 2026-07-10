@@ -331,7 +331,7 @@ other MCP clients.
 The health hub — the answer to "is my setup still good?":
 
 ```text
-Voice:    fitted at 4d488eb8b604 · fresh (at HEAD)
+Voice:    fitted at 4d488eb8b604 · fresh (nothing accepted since the fit)
 Config:   in sync with the fit
 Hygiene:  no unexcluded generated/data-heavy directories
 ```

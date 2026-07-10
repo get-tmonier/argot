@@ -101,7 +101,12 @@ suppressing it).
    widen it (`argot replay --commits 200`). A quiet replay is also a result:
    their recent history is in voice.
 
-9. **Summarize** for the user: what you excluded and why, and the final Verdict.
+9. **Optional finishing artifact:** `argot describe-voice --out STYLE.md`
+   generates a human-readable guide to the learned voice (typical callees per
+   file cluster, the familiar import surface). Offer it when the user wants a
+   committed, reviewable description of what argot learned.
+
+10. **Summarize** for the user: what you excluded and why, and the final Verdict.
    `argot.toml` is committed (the excludes/detect/mutes are a shared, reviewable
    decision); argot also wrote a `.argot/.gitignore` so the rebuildable model
    itself isn't committed (regenerate with `argot fit`), and gitignored
