@@ -89,6 +89,7 @@ dependencies = [
  "argot-core",
  "axoupdater",
  "clap",
+ "git2",
  "serde",
  "serde_json",
  "ureq",

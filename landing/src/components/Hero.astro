@@ -12,6 +12,17 @@ interface Props {
 }
 const { content, locale } = Astro.props;
 const { hero } = content;
+
+// The four rules, as a legible preview right in the hero — same slugs as the
+// Demo tabs and the Catches cards below, so the vocabulary reads as one
+// thread through the page. foreign-import carries the "foreign" (flag) tier;
+// the other three carry "unusual" (amber) — a confidence tier, not a ranking.
+const rules = [
+  { id: 'foreign-import', tier: 'flag' },
+  { id: 'redundant', tier: 'amber' },
+  { id: 'misplaced', tier: 'amber' },
+  { id: 'layering', tier: 'amber' },
+] as const;
 ---
 
 <section class="snap-section relative flex min-h-svh items-center overflow-hidden">
@@ -40,6 +51,16 @@ const { hero } = content;
       class="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-balance text-ink-dim"
       set:html={emphasize(hero.subtitle)}
     />
+
+    <ul class="hero-rules mt-5 flex flex-wrap items-center justify-center gap-2" aria-label="What argot catches">
+      {
+        rules.map((rule, i) => (
+          <li class="hero-rule-chip" data-tier={rule.tier} style={`--i:${i}`}>
+            <a href={`#catch-${rule.id}`}>{rule.id}</a>
+          </li>
+        ))
+      }
+    </ul>
 
     <div class="mt-7 flex flex-wrap items-center justify-center gap-3">
       <a
@@ -123,6 +144,64 @@ const { hero } = content;
     pointer-events: none;
   }
 
+  /* --- the four rules, previewed as chips: same slugs the Demo tabs and the
+     Catches cards use, colour-coded by confidence tier, deep-linking down to
+     their card. They pop in just after the rest of the hero settles. --- */
+  .hero-rules {
+    list-style: none;
+    padding: 0;
+  }
+  .hero-rule-chip a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45em;
+    border-radius: 999px;
+    border: 1px solid var(--line-2);
+    background: color-mix(in srgb, var(--panel) 55%, transparent);
+    padding: 0.32em 0.8em;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--ink-dim);
+    text-decoration: none;
+    backdrop-filter: blur(4px);
+    transition:
+      border-color 0.2s,
+      color 0.2s,
+      background-color 0.2s;
+  }
+  .hero-rule-chip a:hover,
+  .hero-rule-chip a:focus-visible {
+    color: var(--ink);
+    border-color: var(--line-2);
+    background: var(--panel);
+  }
+  .hero-rule-chip a::before {
+    content: '';
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--amber);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--amber) 70%, transparent);
+  }
+  .hero-rule-chip[data-tier='flag'] a::before {
+    background: var(--flag);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--flag) 70%, transparent);
+  }
+  :global(.js) .hero-rule-chip {
+    opacity: 0;
+    transform: translateY(6px) scale(0.94);
+  }
+  .reveal.is-visible .hero-rule-chip {
+    animation: hero-chip-in 0.5s var(--ease-out-expo) forwards;
+    animation-delay: calc(0.5s + var(--i) * 90ms);
+  }
+  @keyframes hero-chip-in {
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
   /* a discreet "there's more below" cue for the full-screen hero */
   .hero-scroll {
     position: absolute;
@@ -156,6 +235,11 @@ const { hero } = content;
   @media (prefers-reduced-motion: reduce) {
     .hero-scroll {
       animation: hero-scroll-in 0.4s ease 0.6s forwards;
+    }
+    .hero-rule-chip {
+      opacity: 1;
+      transform: none;
+      animation: none;
     }
   }
 </style>

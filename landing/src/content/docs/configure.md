@@ -314,6 +314,12 @@ and drive `argot fit` yourself:
 auto-refresh = false
 ```
 
+Freshness is separate from **calibration drift** — a new `gen/` dir or a
+vendored SDK appearing in the tree. argot watches for that itself: every
+`fit`/`init` re-scans the tree and prints a note when new generated or
+data-heavy directories (not yet excluded) are shaping the voice, pointing at
+`argot init --suggest`. A well-configured repo stays quiet.
+
 ## `[update]` — the passive update notice
 
 argot prints at most one dim line a day on stderr when a newer release exists

@@ -12,7 +12,7 @@ configure — see [Configure](/docs/configure/#rules--rule-severities).
 The **statistical voice model** is deliberately simple: **no neural network**, just two
 token-frequency distributions and a maximum log-likelihood ratio. That's what catches *foreign*
 patterns — a dependency or API the repo has never used (rules `foreign-import`,
-`unfamiliar-callee`, `rare-tokens`) — and it's why argot fits in seconds and scores in milliseconds
+`unfamiliar-callee`, `rare-tokens`) — and it's why the statistical pass fits in seconds and scores in milliseconds
 on CPU.
 
 The **reinvention** and **placement** detectors share the one neural component: a per-repo

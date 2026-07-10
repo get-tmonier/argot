@@ -28,6 +28,8 @@ arch = ["argot-core/arch"]
 
 [dependencies]
 argot-core = { path = "../argot-core" }
+# Already compiled via argot-core; declared here for replay's history walk.
+git2 = { workspace = true }
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true

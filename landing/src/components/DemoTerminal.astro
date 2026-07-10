@@ -428,22 +428,8 @@ const tabs = demo.tabs;
     animation: flag-flash-amber 0.9s var(--ease-out-expo);
     animation-delay: calc(var(--i, 0) * 320ms);
   }
-  @keyframes flag-flash {
-    0% {
-      background: color-mix(in srgb, var(--flag) 16%, transparent);
-    }
-    100% {
-      background: transparent;
-    }
-  }
-  @keyframes flag-flash-amber {
-    0% {
-      background: color-mix(in srgb, var(--amber) 16%, transparent);
-    }
-    100% {
-      background: transparent;
-    }
-  }
+  /* flag-flash / flag-flash-amber keyframes now live in global.css, shared
+     with Catches' mini-scenes. */
 </style>
 
 <script>

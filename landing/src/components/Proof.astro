@@ -22,8 +22,11 @@ const { proof } = Astro.props.content;
       {
         proof.stats.map((stat, i) => (
           <div class="reveal min-w-0" style={`--reveal-delay: ${(i % 4) * 90}ms`}>
-            <span class="block h-px w-8 bg-gradient-to-r from-ember to-ember-deep" />
-            <p class="mt-3 text-4xl font-bold tracking-tight text-ink tabular-nums sm:mt-4 sm:text-5xl">
+            <span class="proof-tick block h-px w-8 bg-gradient-to-r from-ember to-ember-deep" />
+            <p
+              class="mt-3 text-4xl font-bold tracking-tight text-ink tabular-nums sm:mt-4 sm:text-5xl"
+              data-count={stat.value}
+            >
               {stat.value}
             </p>
             <h3 class="mt-2 text-sm font-semibold tracking-tight text-ink sm:text-base">{stat.title}</h3>
@@ -56,3 +59,73 @@ const { proof } = Astro.props.content;
     </p>
   </div>
 </section>
+
+<style>
+  /* the ember tick above each stat draws in left-to-right, in step with the
+     count-up below it */
+  :global(.js) .proof-tick {
+    transform: scaleX(0);
+    transform-origin: left;
+  }
+  .reveal.is-visible .proof-tick {
+    animation: proof-tick-in 0.6s var(--ease-out-expo) forwards;
+  }
+  @keyframes proof-tick-in {
+    to {
+      transform: scaleX(1);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .proof-tick {
+      transform: none;
+      animation: none;
+    }
+  }
+</style>
+
+<script>
+  // Count up each stat from 0 to its published value once it scrolls into
+  // view — purely visual. The exact published string (`data-count`) is
+  // always the final frame, so the number/wording on the page never drifts
+  // from what's in i18n, animated or not.
+  const targets = document.querySelectorAll<HTMLElement>('#proof [data-count]');
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (targets.length && !reduced && 'IntersectionObserver' in window) {
+    const easeOutCubic = (t: number): number => 1 - (1 - t) ** 3;
+
+    const countUp = (el: HTMLElement) => {
+      const raw = el.dataset.count ?? '';
+      const match = raw.match(/^([\d.,]+)(.*)$/);
+      if (!match) return;
+      const [, numeral, suffix] = match;
+      const sep = numeral.includes(',') ? ',' : '.';
+      const decimals = numeral.includes(sep) ? numeral.split(sep)[1].length : 0;
+      const target = parseFloat(numeral.replace(',', '.'));
+      if (Number.isNaN(target)) return;
+
+      const duration = 1100;
+      const start = performance.now();
+      const tick = (now: number) => {
+        const p = Math.min((now - start) / duration, 1);
+        const value = target * easeOutCubic(p);
+        el.textContent = value.toFixed(decimals).replace('.', sep) + suffix;
+        if (p < 1) requestAnimationFrame(tick);
+        else el.textContent = raw; // land on the exact published string
+      };
+      requestAnimationFrame(tick);
+    };
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          countUp(entry.target as HTMLElement);
+          io.unobserve(entry.target);
+        }
+      },
+      { threshold: 0.4 },
+    );
+    for (const el of targets) io.observe(el);
+  }
+</script>

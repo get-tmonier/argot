@@ -16,7 +16,7 @@ const fr: SiteContent = {
     titleLead: 'Lintez les règles',
     titleGradient: 'que personne n’a écrites.',
     subtitle:
-      'Il signale le code IA qui ne colle pas à votre dépôt — une dépendance jamais utilisée, une fonction que vous [[avez déjà]], du code au mauvais endroit, un import qui casse votre architecture.',
+      'L’IA écrit du code valide qui n’est pas [[le vôtre]]. argot apprend la voix de votre dépôt depuis son historique git — et signale ce qui n’a pas sa place, avant le merge.',
     ctaPrimary: 'Lire la doc',
     ctaSecondary: 'Star sur GitHub',
     install: 'npm i -g @tmonier/argot',
@@ -26,7 +26,7 @@ const fr: SiteContent = {
   demo: {
     label: 'La deuxième question',
     title: 'Le type-checker demande si ça compile. argot demande si c’est le vôtre.',
-    body: 'Les linters demandent « est-ce valide ? » — jamais « est-ce ainsi qu’on écrit ici ? » Un LLM l’enterre sous des PR propres et bien typées. [[argot repose la question]] — quatre détecteurs, un par onglet. mypy et ruff passent chacun de ces exemples ; pas argot.',
+    body: 'mypy demande si ça compile. ruff demande si c’est propre. Aucun ne pose la question de la review : [[est-ce ainsi qu’on fait ici ?]] Chaque exemple ci-dessous passe les deux — argot attrape les quatre.',
     tabs: [
       {
         id: 'foreign-import',
@@ -61,20 +61,20 @@ const fr: SiteContent = {
     body: 'Quatre détecteurs, tous appris de votre historique git — rien de tout cela n’est visible pour ESLint, ruff ou un type-checker. Et une limite honnête qu’il ne franchit pas : un mauvais choix fait de mots qui sont [[déjà les vôtres]] est un choix, pas un motif étranger.',
     items: [
       {
-        title: 'Étranger',
-        desc: 'Une dépendance, une API ou un idiome [[que le dépôt n’a jamais utilisés]] — le « on ne fait pas comme ça ici ».',
+        title: 'Votre agent vient d’importer un framework que ce dépôt n’a jamais touché.',
+        desc: 'argot signale la dépendance et montre ce que le dépôt utilise [[à la place]].',
       },
       {
-        title: 'Redondant',
-        desc: 'Une fonction qui [[réinvente ce que vous avez déjà]]. argot retrouve l’originale et vous montre où elle vit.',
+        title: 'Votre agent vient de merger une deuxième implémentation de slugify.',
+        desc: 'argot retrouve l’originale et vous montre [[où elle vit déjà]].',
       },
       {
-        title: 'Mal placé',
-        desc: 'Le bon code, rangé dans le [[mauvais paquet]] — ses plus proches voisins vivent ailleurs.',
+        title: 'Votre agent vient de ranger de la logique de téléchargement sous cli/commands.',
+        desc: 'argot pointe vers [[l’endroit où vivent déjà ses plus proches voisins]].',
       },
       {
-        title: 'Architecture',
-        desc: 'Un import interne qui [[inverse votre architecture]] — une frontière que ce dépôt ne franchit jamais. 96,8 % détectés, zéro faux positif.',
+        title: 'Votre agent vient de laisser cli plonger directement dans core — à l’envers.',
+        desc: 'argot signale [[l’arête qui inverse votre architecture]].',
       },
     ],
   },
@@ -84,29 +84,29 @@ const fr: SiteContent = {
     stats: [
       {
         value: '98 %',
-        title: 'détection étrangère visible',
-        desc: 'Quand le symbole étranger est [[visible]] dans le diff — un import ou un appel explicite — jugé par le binaire livré : 604 sur 618.',
+        title: 'motifs étrangers détectés',
+        desc: 'Une dépendance ou une API que le dépôt n’utilise jamais : 604 sur 618 — en ne se déclenchant que sur [[0,22 % des vraies modifications]] (49 hunks sur 22 785 ; pire dépôt 1,17 %).',
+      },
+      {
+        value: '94 %',
+        title: 'réinventions détectées · médiane',
+        desc: '85–100 % par dépôt : des réécritures fidèles des [[propres fonctions]] du dépôt, plantées comme du code neuf et retracées à l’originale. Faux déclenchement ≤ 2,8 % des hunks.',
+      },
+      {
+        value: '96 %',
+        title: 'mauvais placements détectés · médiane',
+        desc: '86–99 % partout où le dépôt a une architecture séparable — et il [[s’abstient]] là où il n’y en a pas, au lieu de deviner.',
       },
       {
         value: '96,8 %',
         title: 'violations d’architecture détectées',
-        desc: 'Violations de layering plantées (244 sur 252) à [[zéro faux positif]] — 0 déclenchement sur 140 modifications de contrôle.',
-      },
-      {
-        value: '0,22 %',
-        title: 'fausses alertes sur de vraies modifications',
-        desc: 'À quelle fréquence argot se déclenche sur le [[code existant]] — 49 hunks sur 22 785 ; 31 dépôts, chacun ≤ 1,17 %.',
-      },
-      {
-        value: '150 ms',
-        title: 'pour vérifier un changement',
-        desc: 'Sur un dépôt de 34 000 fichiers, CPU de portable. Le fit unique prend ~7 s. [[Sans GPU, sans cloud.]]',
+        desc: 'Inversions de layering : 244 sur 252 détectées à [[zéro faux positif]] — 0 déclenchement sur 140 modifications de contrôle.',
       },
     ],
     languages:
       'Un seul [[binaire statique]], 11 langages : Python · TypeScript · JavaScript · Go · Rust · Java · C# · C · C++ · Ruby · PHP.',
     finePrint:
-      'Sans fuite par construction : rappel sur des motifs étrangers plantés dans de vrais fichiers ; fausses alertes par holdout temporel. La seule chose qu’un modèle de voix ne peut structurellement pas voir — l’étranger masqué — est publiée sur la page benchmarks, pas cachée.',
+      'Sans fuite par construction : rappel sur des motifs étrangers plantés dans de vrais fichiers ; fausses alertes par holdout temporel. La seule chose qu’un modèle de voix ne peut structurellement pas voir — l’étranger masqué — est publiée sur la page benchmarks, pas cachée. Vitesse, mesurée sur FastAPI (1 100+ fichiers, CPU de portable) : check ~0,2 s (~0,6 s quand le diff définit de nouvelles fonctions) · premier fit ~25 s · refresh ~4 s.',
     benchmarksCta: 'Tous les chiffres par dépôt →',
   },
   setup: {

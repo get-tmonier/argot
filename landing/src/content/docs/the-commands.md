@@ -193,6 +193,23 @@ later. Downloads verify the sha256, honor `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY`
 `ARGOT_MODEL_URL` (mirror), `ARGOT_SEMANTIC_MODEL` (local file, no download), and `ARGOT_OFFLINE`
 — see [Configure](/docs/configure/#environment-variables).
 
+## replay
+
+```bash
+argot replay                 # what would argot have caught in your last 50 commits?
+argot replay --commits 200   # wider window
+```
+
+The install-day question, answered on your own history: replay fits the voice
+**as it was N commits ago** (in a temporary git worktree — your tree and
+`.argot/` are untouched; your current `argot.toml` and semantic index ride
+along, so the historical fit reuses embeddings and takes seconds) and then
+scores `base..HEAD` against it. The report counts findings per rule, shows the
+strongest examples with their evidence, and frames them honestly: merged code
+is accepted code, so each hit reads as *"would have prompted review before
+merge"* — a fire on a dependency you adopted deliberately is a detection
+working as intended. Informational: always exits 0.
+
 ## review
 
 Score a pull request against your local voice **without checking it out** — the

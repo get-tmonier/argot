@@ -165,6 +165,27 @@ a:hover > .tmonier-wordmark {
   }
 }
 
+/* Shared "verdict" flash — a brief colour-tinted background that settles back
+   to transparent, used wherever a flagged token/line lands (DemoTerminal's
+   flag lines, Catches' mini-scenes). Two tiers, matching the flag/amber
+   confidence split used everywhere else. */
+@keyframes flag-flash {
+  0% {
+    background: color-mix(in srgb, var(--flag) 16%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+@keyframes flag-flash-amber {
+  0% {
+    background: color-mix(in srgb, var(--amber) 16%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
 /* --- scroll reveal (driven by IntersectionObserver in Base) ---
    Gated behind `.js` so that without JavaScript the content is simply visible
    (progressive enhancement) rather than stuck at opacity 0. */

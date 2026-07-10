@@ -58,7 +58,7 @@ Copilot, ESLint, SAST — every tool judges by one *global* idea of good code. a
 
 - 📊 **98%** foreign catch (604/618) · **0.22%** false alarms (49 of 22,785 real hunks) — [honest, leak-free benchmarks](#benchmarks) on 31 repos, 11 languages
 - 🧱 **96.8%** architecture-violation recall (244/252) at **0%** false positives (0/140 control edits)
-- ⚡ **Rust · single static binary** — fits in seconds, checks a diff in ~150 ms
+- ⚡ **Rust · single static binary** — checks a diff in ~0.2 s (0.6 s when it defines new functions); the one-time fit is ~25 s on a 1,100-file repo, ~4 s to refresh (measured on FastAPI, laptop CPU)
 - 🧠 **A local code-embedding model** (`jina-code`, ~100 MB, CPU-first, Metal on Macs) — semantic understanding from an encoder, **not an LLM**: no generation, no API key, no GPU
 - 🔒 **Nothing leaves your machine** — no telemetry, no account; one cached version check per day (opt-out) is the only network call it ever makes on its own
 
@@ -95,7 +95,8 @@ reviews a whole PR, `/argot-setup-ci` wires the GitHub Action.
 argot init --suggest   # which dirs look like they shouldn't shape the voice
 #   → review, add them to argot.toml [exclude].paths, then:
 argot init             # fit the voice model
-argot check            # score your diff (~150 ms)
+argot check            # score your diff (sub-second)
+argot replay           # the fun one: what argot would have caught in your last 50 commits
 ```
 
 ## Demo
@@ -148,6 +149,11 @@ core/parser.py
 The glyph grades confidence (`!` foreign · `?` suspicious · `.` unusual), the
 `[hash]` is a stable id you can `argot mute`, and every `↳` line is your repo's
 own evidence. Full anatomy: [Reading the output](https://argot.tmonier.com/docs/reading-the-output/).
+
+Want proof on **your** repo, day one? `argot replay` fits the voice as it was
+50 commits ago and reports what argot would have caught before merge — on
+FastAPI's history it surfaces the newly-adopted imports and the new streaming
+vocabulary in seconds, with the evidence for each.
 
 ## Configure it like any linter
 

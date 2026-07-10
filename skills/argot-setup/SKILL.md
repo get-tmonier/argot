@@ -79,11 +79,34 @@ still read from disk, so commit or remove throwaway files first.
    the voice is still diluted by non-authored code — exclude more peripheral
    directories and repeat.
 
-8. **Summarize** for the user: what you excluded and why, and the final Verdict.
+8. **Finish with the wow — replay their history:** `argot replay`. It fits the
+   voice as it was ~50 commits ago (in a temp worktree — the user's tree is
+   untouched) and reports what argot would have caught before merge, with
+   per-rule counts and evidence. Show the user the report. If it says the
+   window touched no supported source files, widen it
+   (`argot replay --commits 200`). A quiet replay is also a result: their
+   recent history is in voice.
+
+9. **Summarize** for the user: what you excluded and why, and the final Verdict.
    `argot.toml` is committed (the excludes/detect/mutes are a shared, reviewable
    decision); argot also wrote a `.argot/.gitignore` so the rebuildable model
    itself isn't committed (regenerate with `argot fit`), and gitignored
    `argot.local.toml` for anyone who wants personal, uncommitted overrides.
+
+## Recalibrating later (maintenance)
+
+A repo drifts into mis-calibration: a new `gen/` dir, a vendored SDK, a wave of
+data files. argot detects this itself — **every `argot fit`/`init` re-scans the
+tree and prints a note when new generated/data-heavy directories are shaping
+the voice** (it only names dirs not already excluded, so a well-configured repo
+stays quiet). When the user reports argot got noisy, or that note appears:
+
+1. `argot init --suggest --format json` — the fresh evidence.
+2. Re-run steps 5–7 above (read the tree, extend `[exclude].paths`, re-fit,
+   verify the catch).
+3. Model freshness is NOT your job: argot auto-refits in the background when
+   the fit falls ≥10 commits behind (`[fit] auto-refresh = false` disables).
+   Recalibration is about *what shapes the voice*; freshness is automatic.
 
 ## Principles
 

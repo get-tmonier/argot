@@ -69,6 +69,7 @@ argot init --suggest   # which dirs look like they shouldn't shape the voice
 #   → review, add them to argot.toml [exclude].paths, then:
 argot init         # learn your repo's voice, then a health check (Ready / Marginal / …)
 argot check        # score uncommitted changes (or pass a ref/range)
+argot replay       # the fun one: what argot would have caught in your last 50 commits
 ```
 
 The first `init` also downloads the ~100 MB embedding model to a shared local cache — once per

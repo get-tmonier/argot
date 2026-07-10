@@ -7,6 +7,7 @@
 mod auto_refit;
 mod describe;
 mod mcp;
+mod replay;
 mod review;
 #[cfg(feature = "self-update")]
 mod update_check;
@@ -176,6 +177,9 @@ enum Command {
     Model(ModelCmd),
     /// Score a PR (or diff range) against the local voice without checking it out.
     Review(ReviewCmd),
+    /// Replay your recent commits against the voice fitted just before them —
+    /// what argot would have caught before merge. Informational; exits 0.
+    Replay(ReplayCmd),
     /// PR-level out-of-voice metric plus ranked hot-spots for a ref/range.
     /// Informational: always exits 0 (use `check`/`review` to gate).
     #[command(name = "voice-diff")]
@@ -542,7 +546,7 @@ fn freshness_hook() {
 fn print_help_banner() {
     let version = env!("CARGO_PKG_VERSION");
     println!(
-        "argot v{version}\n\nCOMMANDS\n  init          Set up argot for this repo (fit + health check; --suggest lists dirs to exclude)\n  fit           Fit the voice model to this repo (= train + calibrate, one-shot)\n  check         Check changes against the fitted voice\n  rules         List every rule with its group and effective severity\n  review        Score a PR (or diff range) against the local voice, no checkout\n  voice-diff    PR-level out-of-voice metric + hot-spots for a ref/range\n  inspect       Report corpus composition, calibration health, and suitability\n  mute          Mute a hit by hash (appends a [[mute]] to argot.toml)\n  list-mutes    List active suppressions across all surfaces\n  review-mutes  Report (and --prune) hash-scoped mutes whose file is gone\n  model         Manage the local embedding model (fetch / status / clean)\n  status        Show current repository's argot state\n  list          List all registered repositories\n  update        Update the argot CLI\n  mcp           Run an MCP server for LLM coding agents (stdio)\n  describe-voice  Generate a STYLE.md describing the repo's learned voice\n\nTypical first run: argot init && argot check\nRun `argot <command> --help` for details on any command."
+        "argot v{version}\n\nCOMMANDS\n  init          Set up argot for this repo (fit + health check; --suggest lists dirs to exclude)\n  fit           Fit the voice model to this repo (= train + calibrate, one-shot)\n  check         Check changes against the fitted voice\n  rules         List every rule with its group and effective severity\n  review        Score a PR (or diff range) against the local voice, no checkout\n  replay        What argot would have caught in your last N commits\n  voice-diff    PR-level out-of-voice metric + hot-spots for a ref/range\n  inspect       Report corpus composition, calibration health, and suitability\n  mute          Mute a hit by hash (appends a [[mute]] to argot.toml)\n  list-mutes    List active suppressions across all surfaces\n  review-mutes  Report (and --prune) hash-scoped mutes whose file is gone\n  model         Manage the local embedding model (fetch / status / clean)\n  status        Show current repository's argot state\n  list          List all registered repositories\n  update        Update the argot CLI\n  mcp           Run an MCP server for LLM coding agents (stdio)\n  describe-voice  Generate a STYLE.md describing the repo's learned voice\n\nTypical first run: argot init && argot check\nRun `argot <command> --help` for details on any command."
     );
 }
 
@@ -769,6 +773,7 @@ fn run_fit_cmd(c: FitCmd) -> ExitCode {
     match fit_repo(&c.repo, &c.slice) {
         Ok(scorer_config) => {
             println!("Done. Scorer config: {}", scorer_config.display());
+            drift_suggestions_note(&c.repo);
             freshness_hook();
             ExitCode::SUCCESS
         }
@@ -789,6 +794,30 @@ struct InitCmd {
     /// machine-readable — consumed by the setup skill).
     #[arg(long, default_value = "human", value_parser = ["human", "json"])]
     format: String,
+}
+
+/// Config quality IS the experience: a fit that ingests vendored, generated,
+/// or data-heavy directories speaks with the wrong voice and flags the wrong
+/// things — and a repo DRIFTS into that state (a new `gen/`, a vendored SDK
+/// added last month). `suggest_ignores` only returns directories NOT already
+/// excluded, so this stays quiet on a well-configured repo and speaks up the
+/// fit after the tree grew something the voice shouldn't learn.
+fn drift_suggestions_note(repo: &Path) {
+    let candidates = suggest_ignores(repo).candidates;
+    if candidates.is_empty() {
+        return;
+    }
+    let plural = if candidates.len() != 1 { "ies" } else { "y" };
+    let names: Vec<&str> = candidates.iter().take(3).map(|c| c.path.as_str()).collect();
+    let more = if candidates.len() > 3 { ", …" } else { "" };
+    println!();
+    println!(
+        "note: {} director{plural} look generated or data-heavy and are shaping the voice ({}{more}).",
+        candidates.len(),
+        names.join(", ")
+    );
+    println!("      Review with `argot init --suggest`, or let the setup skill decide:");
+    println!("      npx skills add get-tmonier/argot   then run /argot-setup");
 }
 
 fn run_init_cmd(c: InitCmd) -> ExitCode {
@@ -816,26 +845,7 @@ fn run_init_cmd(c: InitCmd) -> ExitCode {
     match report.verdict {
         Verdict::Ready => {
             println!("Voice model fitted → {}", scorer_config.display());
-            // Config quality IS the experience: a fit that ingested vendored or
-            // generated code speaks with the wrong voice and flags the wrong
-            // things. If the tree holds likely-excludable dirs and none are
-            // configured yet, say so here — not via the first noisy check.
-            let config = argot_core::config::ArgotConfig::load(&c.repo);
-            if config.exclude.paths.is_empty() {
-                let candidates = suggest_ignores(&c.repo).candidates;
-                if !candidates.is_empty() {
-                    let plural = if candidates.len() != 1 { "ies" } else { "y" };
-                    println!();
-                    println!(
-                        "note: {} director{plural} look like they may not carry this repo's authored voice.",
-                        candidates.len()
-                    );
-                    println!(
-                        "      Review with `argot init --suggest`, or let the setup skill decide:"
-                    );
-                    println!("      npx skills add get-tmonier/argot   then run /argot-setup");
-                }
-            }
+            drift_suggestions_note(&c.repo);
             println!("Next:  argot check          # score your working changes");
         }
         Verdict::Marginal | Verdict::NotRecommended => {
@@ -1111,6 +1121,16 @@ fn run_check_cmd(c: CheckCmd) -> ExitCode {
         auto_refit::maybe_refit(&c.repo, &argot_dir, &today, quiet || !human);
     }
     ExitCode::from(outcome.exit_code as u8)
+}
+
+#[derive(Args)]
+struct ReplayCmd {
+    /// How many commits back to fit the historical voice (first-parent line).
+    #[arg(long, default_value_t = replay::DEFAULT_COMMITS)]
+    commits: usize,
+    /// Path to the repository.
+    #[arg(long, default_value = ".")]
+    repo: PathBuf,
 }
 
 #[derive(Args)]
@@ -2134,6 +2154,7 @@ fn main() -> ExitCode {
             update_check::run_refresh();
             ExitCode::SUCCESS
         }
+        Some(Command::Replay(c)) => replay::run_replay(&c.repo, c.commits),
         Some(Command::BackgroundRefit(c)) => {
             auto_refit::run_background_refit(&c.repo);
             ExitCode::SUCCESS

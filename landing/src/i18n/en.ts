@@ -16,7 +16,7 @@ const en: SiteContent = {
     titleLead: 'Lint the rules',
     titleGradient: 'you never wrote down.',
     subtitle:
-      'It flags the AI code that doesn’t fit your repo — a dependency you’ve never used, a function you [[already have]], logic in the wrong place, an import that breaks your layering.',
+      'AI writes valid code that isn’t [[yours]]. argot learns your repo’s voice from its git history — and flags what doesn’t belong, before it merges.',
     ctaPrimary: 'Read the docs',
     ctaSecondary: 'Star on GitHub',
     install: 'npm i -g @tmonier/argot',
@@ -26,7 +26,7 @@ const en: SiteContent = {
   demo: {
     label: 'The second question',
     title: 'Type checkers ask if it compiles. argot asks if it’s yours.',
-    body: 'Linters ask “is this valid?” — never “is this how we write things?” An LLM buries that under clean, type-correct PRs. [[argot asks it back]] — four detectors, one per tab. mypy and ruff pass every one of these; argot doesn’t.',
+    body: 'mypy asks if it compiles. ruff asks if it’s tidy. Neither asks the review question: [[is this how we do it here?]] Every example below passes both — argot catches all four.',
     tabs: [
       {
         id: 'foreign-import',
@@ -61,20 +61,20 @@ const en: SiteContent = {
     body: 'Four detectors, all learned from your git history — none of this visible to ESLint, ruff, or a type checker. And one honest line it won’t cross: a wrong choice made only of tokens that are [[already yours]] is a choice, not a foreign pattern.',
     items: [
       {
-        title: 'Foreign',
-        desc: 'A dependency, API, or idiom [[the repo has never used]] — the “we don’t do it this way here”.',
+        title: 'Your agent just imported a framework this repo has never touched.',
+        desc: 'argot flags the dependency and shows what the repo reaches for [[instead]].',
       },
       {
-        title: 'Redundant',
-        desc: 'A new function that [[reinvents one you already have]]. argot finds the original and shows you where it lives.',
+        title: 'Your agent just merged a second implementation of slugify.',
+        desc: 'argot finds the original and shows you [[where it already lives]].',
       },
       {
-        title: 'Misplaced',
-        desc: 'The right code, filed in the [[wrong package]] — its nearest kin all live somewhere else.',
+        title: 'Your agent just filed downloader logic under cli/commands.',
+        desc: 'argot points to [[where its nearest kin already live]].',
       },
       {
-        title: 'Layering',
-        desc: 'An internal import that [[reverses your architecture]] — a boundary this repo never crosses. 96.8% caught, zero false positives.',
+        title: 'Your agent just let cli reach straight into core — backwards.',
+        desc: 'argot flags [[the edge that reverses your architecture]].',
       },
     ],
   },
@@ -84,29 +84,29 @@ const en: SiteContent = {
     stats: [
       {
         value: '98%',
-        title: 'visible-foreign catch',
-        desc: 'When the foreign symbol is [[visible]] in the diff — an explicit import or call — judged by the shipped binary: 604 of 618.',
+        title: 'foreign patterns caught',
+        desc: 'A dependency or API the repo never uses: 604 of 618 caught — while firing on just [[0.22% of real edits]] (49 of 22,785 hunks; worst repo 1.17%).',
+      },
+      {
+        value: '94%',
+        title: 'reinventions caught · median',
+        desc: '85–100% per repo: faithful rewrites of the repo’s [[own functions]], planted as new code and traced back to the original. False-fire ≤ 2.8% of hunks.',
+      },
+      {
+        value: '96%',
+        title: 'misplacements caught · median',
+        desc: '86–99% wherever the repo has a separable architecture — and it [[abstains]] where there is none, instead of guessing.',
       },
       {
         value: '96.8%',
         title: 'architecture violations caught',
-        desc: 'Planted layering violations (244 of 252) at [[zero false positives]] — 0 of 140 control edits flagged.',
-      },
-      {
-        value: '0.22%',
-        title: 'false alarms on real edits',
-        desc: 'How often argot fires on your repo’s [[own existing code]] — 49 of 22,785 real hunks; 31 repos, every one ≤ 1.17%.',
-      },
-      {
-        value: '150ms',
-        title: 'to check a change',
-        desc: 'On a 34k-file repo, laptop CPU. The one-time fit takes ~7 s. [[No GPU, no cloud.]]',
+        desc: 'Layering reversals: 244 of 252 caught at [[zero false positives]] — 0 of 140 control edits flagged.',
       },
     ],
     languages:
       'One [[static binary]], 11 languages: Python · TypeScript · JavaScript · Go · Rust · Java · C# · C · C++ · Ruby · PHP.',
     finePrint:
-      'Leak-free by construction: recall on foreign patterns planted in real files; false alarms on a temporal holdout. The one thing a voice model structurally can’t see — masked foreign — is published on the benchmarks page, not hidden.',
+      'Leak-free by construction: recall on foreign patterns planted in real files; false alarms on a temporal holdout. The one thing a voice model structurally can’t see — masked foreign — is published on the benchmarks page, not hidden. Speed, measured on FastAPI (1,100+ files, laptop CPU): check ~0.2 s (~0.6 s when the diff defines new functions) · first fit ~25 s · refresh ~4 s.',
     benchmarksCta: 'Full per-repo numbers →',
   },
   setup: {
