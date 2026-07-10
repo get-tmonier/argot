@@ -1004,6 +1004,10 @@ struct CheckCmd {
     /// Exit non-zero when `warn`-severity findings are present (CI strictness).
     #[arg(long = "error-on-warnings")]
     error_on_warnings: bool,
+    /// Insert an inline ignore comment above every current finding instead of
+    /// reporting (adopting argot on an existing codebase). Working-tree only.
+    #[arg(long = "add-ignores")]
+    add_ignores: bool,
     /// Output format: human (terminal), json (stable machine-readable), sarif
     /// (SARIF 2.1.0 for code-scanning uploads), or github (Actions workflow
     /// commands → inline PR annotations). Machine formats write nothing but
@@ -1055,6 +1059,7 @@ fn run_check_cmd(c: CheckCmd) -> ExitCode {
         min_confidence: c.min_confidence,
         rule_overrides: c.rule,
         error_on_warnings: c.error_on_warnings,
+        add_ignores: c.add_ignores,
         use_color,
         // The value_parser restricts input to the known names, so this is
         // always Some; default to Human defensively.

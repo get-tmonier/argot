@@ -151,6 +151,7 @@ fn run_check_ref(
         min_confidence: "unusual".to_string(),
         rule_overrides: Vec::new(),
         error_on_warnings: false,
+        add_ignores: false,
         use_color,
         format: fmt,
         today: crate::today_utc(),

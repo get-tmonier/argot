@@ -124,6 +124,7 @@ fn base_args(repo: &Path) -> CheckArgs {
         min_confidence: "unusual".to_string(),
         rule_overrides: Vec::new(),
         error_on_warnings: false,
+        add_ignores: false,
         use_color: false,
         format: argot_core::output::OutputFormat::Human,
         today: "2026-01-01".to_string(),

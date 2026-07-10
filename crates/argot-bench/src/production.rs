@@ -106,6 +106,7 @@ pub(crate) fn check_args(repo_dir: &Path) -> CheckArgs {
         min_confidence: "unusual".to_string(),
         rule_overrides: Vec::new(),
         error_on_warnings: false,
+        add_ignores: false,
         use_color: false,
         format: argot_core::output::OutputFormat::Json,
         today: BENCH_TODAY.to_string(),

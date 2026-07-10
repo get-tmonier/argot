@@ -197,6 +197,12 @@ more_legacy()
 # argot: ignore-block-end
 ```
 
+Adopting argot on an existing codebase with a wall of findings? `argot check
+--add-ignores` inserts one of these comments above every current finding
+(tagged `baselined by --add-ignores; review`) so the first run goes green and
+each acceptance stays a greppable, reviewable line — the same move as
+`ruff --add-noqa`.
+
 The `//` languages are identical, just with a different token:
 
 ```ts

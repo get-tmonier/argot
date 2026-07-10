@@ -106,6 +106,10 @@ pub struct CheckArgs {
     pub rule_overrides: RulesLayer,
     /// Promote `warn`-severity findings to check failures (CI strictness).
     pub error_on_warnings: bool,
+    /// Insert an inline ignore comment above every current finding (adoption
+    /// on an existing codebase — the `ruff --add-noqa` move). Working-tree
+    /// modes only.
+    pub add_ignores: bool,
     pub use_color: bool,
     /// Output format. Machine formats (`json`/`sarif`) own stdout exclusively.
     pub format: OutputFormat,
@@ -1872,6 +1876,117 @@ fn render_results(
     any_truncated
 }
 
+/// Insert inline `argot: ignore-next-line` comments above the given 1-indexed
+/// lines of `source`, bottom-up so earlier insertions never shift later
+/// targets. Each comment copies the target line's indentation. Pure — the
+/// caller does the I/O.
+fn insert_ignore_comments(source: &str, comments: &[(usize, String)]) -> String {
+    let mut lines: Vec<String> = source.split('\n').map(str::to_string).collect();
+    let mut sorted: Vec<&(usize, String)> = comments.iter().collect();
+    sorted.sort_by_key(|(line, _)| std::cmp::Reverse(*line));
+    for (line, text) in sorted {
+        let idx = line.saturating_sub(1).min(lines.len());
+        let indent: String = lines
+            .get(idx)
+            .map(|l| l.chars().take_while(|c| c.is_whitespace()).collect())
+            .unwrap_or_default();
+        lines.insert(idx, format!("{indent}{text}"));
+    }
+    lines.join("\n")
+}
+
+/// `--add-ignores`: write one inline suppression above every visible finding
+/// (deduped per line; a line carrying several rules gets one unscoped
+/// comment). Adoption tooling — a wall of existing findings becomes a set of
+/// reviewable, greppable comments instead of a red first run.
+fn add_ignore_comments(
+    args: &CheckArgs,
+    visible: &[&Hit],
+    filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
+    stderr: String,
+) -> CheckOutcome {
+    // Only the working-tree modes: editing files based on a historical ref's
+    // line numbers would write comments into the wrong places.
+    if !args.reference.is_empty() || args.commit.as_deref().is_some_and(|c| !c.is_empty()) {
+        return CheckOutcome::err(
+            "error: --add-ignores edits the working tree — run it without a ref/--commit\n"
+                .to_string(),
+            2,
+        );
+    }
+    if visible.is_empty() {
+        return CheckOutcome {
+            stdout: "No findings — nothing to ignore.\n".to_string(),
+            stderr,
+            exit_code: 0,
+        };
+    }
+
+    // file → line → rules found there.
+    let mut by_file: BTreeMap<&str, BTreeMap<usize, Vec<&str>>> = BTreeMap::new();
+    for h in visible {
+        by_file
+            .entry(h.file_path.as_str())
+            .or_default()
+            .entry(h.line)
+            .or_default()
+            .push(rules::code_for_reason(&h.reason));
+    }
+
+    let mut files_written = 0usize;
+    let mut comments_written = 0usize;
+    let mut stderr = stderr;
+    for (file, lines) in &by_file {
+        let Some(prefix) = ext_to_lang(&extension(file))
+            .and_then(|l| filter_adapters.get(l))
+            .map(|a| a.line_comment_prefix())
+        else {
+            stderr.push_str(&format!("[argot] {file}: unknown language — skipped\n"));
+            continue;
+        };
+        let path = Path::new(&args.repo_path).join(file);
+        let Ok(source) = fs::read_to_string(&path) else {
+            stderr.push_str(&format!("[argot] {file}: unreadable — skipped\n"));
+            continue;
+        };
+        let comments: Vec<(usize, String)> = lines
+            .iter()
+            .map(|(line, rule_names)| {
+                let mut names: Vec<&str> = rule_names.clone();
+                names.sort_unstable();
+                names.dedup();
+                let scope = if names.len() == 1 {
+                    format!(" rule={}", names[0])
+                } else {
+                    String::new()
+                };
+                (
+                    *line,
+                    format!(
+                        "{prefix} argot: ignore-next-line{scope} — baselined by --add-ignores; review"
+                    ),
+                )
+            })
+            .collect();
+        let updated = insert_ignore_comments(&source, &comments);
+        if let Err(e) = fs::write(&path, updated) {
+            stderr.push_str(&format!("[argot] {file}: write failed ({e}) — skipped\n"));
+            continue;
+        }
+        files_written += 1;
+        comments_written += comments.len();
+    }
+
+    CheckOutcome {
+        stdout: format!(
+            "Added {comments_written} ignore comment(s) across {files_written} file(s) — \
+             review them, then commit (each carries a greppable reason).\n"
+        ),
+        stderr,
+        exit_code: 0,
+    }
+}
+
 /// The check exit code for the visible findings: 1 when any finding's rule is
 /// configured `error` (or when `--error-on-warnings` promotes a warn-only
 /// run), 0 otherwise. Unregistered reasons gate as `error` — a finding never
@@ -2351,6 +2466,11 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         })
         .collect();
 
+    // --add-ignores: edit the working tree instead of reporting.
+    if args.add_ignores {
+        return add_ignore_comments(&args, &visible, &filter_adapters, stderr);
+    }
+
     // Cache the visible hits for `argot mute <hash>` — written on every check
     // run (best-effort; a read-only tree must not fail the check).
     let last_check: Vec<LastCheckHit> = visible
@@ -2562,6 +2682,35 @@ fn mute_path_present(repo_path: &str, mute_path: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn insert_ignore_comments_bottom_up_with_indentation() {
+        let src = "def a():\n    x = 1\n    y = 2\n\ndef b():\n    z = 3\n";
+        let out = insert_ignore_comments(
+            src,
+            &[
+                (2, "# argot: ignore-next-line — r1".to_string()),
+                (
+                    6,
+                    "# argot: ignore-next-line rule=redundant — r2".to_string(),
+                ),
+            ],
+        );
+        let lines: Vec<&str> = out.lines().collect();
+        // Indentation copied from the target line; both landed above their
+        // original targets despite the insertions shifting line numbers.
+        assert_eq!(lines[1], "    # argot: ignore-next-line — r1");
+        assert_eq!(lines[2], "    x = 1");
+        assert_eq!(
+            lines[6],
+            "    # argot: ignore-next-line rule=redundant — r2"
+        );
+        assert_eq!(lines[7], "    z = 3");
+        // The inserted comments parse as real suppressions.
+        let sup = parse_inline(&out, "#");
+        assert_eq!(sup.rules.len(), 2);
+        assert!(sup.warnings.is_empty());
+    }
 
     #[test]
     fn semantic_reasons_have_labels_and_pinned_confidence() {

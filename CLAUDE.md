@@ -44,21 +44,26 @@ The full pipeline is `extract` → `train` → `calibrate` → `check` (or `fit`
 
 A second, embedding-based sense layered on the base statistical guardrail. It
 builds a per-repo `SemanticIndex` (embed every function at fit, query at check)
-and emits three **advisory** findings: `redundant` (F1 reinvention — "you already
-have this"), `misplaced` (F2 placement — "this doesn't belong here"), and
-nearest-code evidence (F4) on both. Embedder = llama.cpp statically linked via
-`llama-cpp-2` (same in-process C-dep shape as git2/tree-sitter), model =
-jina-embeddings-v2-base-code Q4 GGUF fetched-on-first-use to the cache.
+and emits two rules — `redundant` (F1 reinvention — "you already have this") and
+`misplaced` (F2 placement — "this doesn't belong here"), group `semantic` in the
+rule registry (`src/rules.rs`) — plus nearest-code evidence (F4) on both.
+Embedder = llama.cpp statically linked via `llama-cpp-2` (same in-process C-dep
+shape as git2/tree-sitter), model = jina-embeddings-v2-base-code Q4 GGUF
+fetched-on-first-use to `~/.cache/argot/models` (sha256-pinned; the artifact
+records the model identity and a stale index is rejected loudly). Contributor
+contract: `docs/agents/semantic-contract.md`.
 
 **Binding invariant:** the whole layer is behind `feature = "semantic"` (a
 build-time gate, default off). With it off the base guardrail is byte-for-byte
 unchanged, builds pure-Rust with zero new deps, and pays no cost. The shipped
-binary is built with it **on** (release enables the feature) — it is *not* a user
-opt-in and has no runtime toggle; the model auto-downloads on first use and the
-layer no-ops gracefully offline. The index lives in its own
-`.argot/semantic-index.json` so `scorer-config.json` is untouched. Findings are
-advisory — never claim they move the base catch/false-alarm metric. Dev/CI test
-with `ARGOT_SEMANTIC_MODEL=<gguf path>` to skip the download.
+binary is built with it **on** (release enables the feature); users control it
+like any rule (`[rules] semantic = "off"` skips the index and the download —
+there is no dedicated toggle beyond the rules surface). The model auto-downloads
+on first use with progress + a loud, verbalized skip offline. The index lives in
+its own `.argot/semantic-index.json` so `scorer-config.json` is untouched. Its
+findings are never folded into the base catch/false-alarm metric. Dev/CI test
+with `ARGOT_SEMANTIC_MODEL=<gguf path>` to skip the download; `ARGOT_OFFLINE=1`
+forbids all network.
 
 Production code lives under `crates/argot-core/src/scoring/`. Production symbols (types, files, functions) must be named after domain concepts — never after research artefacts (`era`, `phase`, `PhaseNa…`, etc.); those labels belong in eval/research code only.
 

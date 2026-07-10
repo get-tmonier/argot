@@ -88,7 +88,7 @@ const en: SiteContent = {
   setup: {
     label: 'Setup · built for agents',
     title: 'A CLI your coding agent can drive.',
-    body: 'The skills run argot [[and bring the judgment]]: /argot-setup reads your repo to decide what shouldn’t shape its voice — a vendored SDK, a generated dir — writes an argot.toml, fits, and verifies the catch. Advisory, never blocking.',
+    body: 'The skills run argot [[and bring the judgment]]: /argot-setup reads your repo to decide what shouldn’t shape its voice — a vendored SDK, a generated dir — writes an argot.toml, fits, and verifies the catch. Informational, never blocking.',
     installLabel: 'Add the skills — Claude Code, Cursor, 70+ agents',
     skillsIntro: 'four slash-commands your agent runs:',
     skillDescs: [

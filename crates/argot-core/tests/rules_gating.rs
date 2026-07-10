@@ -100,6 +100,7 @@ fn args(repo: &Path) -> CheckArgs {
         min_confidence: "unusual".to_string(),
         rule_overrides: Vec::new(),
         error_on_warnings: false,
+        add_ignores: false,
         use_color: false,
         format: OutputFormat::Human,
         today: "2026-01-01".to_string(),
@@ -188,6 +189,61 @@ fn unknown_rules_key_warns_and_is_ignored() {
     let out = run_check(args(&repo));
     assert_eq!(out.exit_code, 1, "unknown key changes nothing");
     assert!(out.stderr.contains("unknown rule 'quantum'"));
+}
+
+#[test]
+fn add_ignores_baselines_workdir_findings() {
+    let repo = prepare_import_repo("add_ignores");
+    // A workdir edit reaching for the never-used dependency.
+    let target = repo.join("pipeline.py");
+    let src = std::fs::read_to_string(&target).unwrap();
+    std::fs::write(
+        &target,
+        format!(
+            "import sqlalchemy
+{src}"
+        ),
+    )
+    .unwrap();
+
+    // Workdir mode (empty reference) — the mode --add-ignores edits.
+    let workdir = |repo: &std::path::Path| {
+        let mut a = args(repo);
+        a.reference = String::new();
+        a
+    };
+    let out = run_check(workdir(&repo));
+    assert_eq!(out.exit_code, 1, "workdir foreign-import fires");
+
+    let mut a = workdir(&repo);
+    a.add_ignores = true;
+    let out = run_check(a);
+    assert_eq!(out.exit_code, 0, "--add-ignores itself succeeds");
+    assert!(
+        out.stdout.contains("Added 1 ignore comment(s)"),
+        "{}",
+        out.stdout
+    );
+    let updated = std::fs::read_to_string(&target).unwrap();
+    assert!(
+        updated.contains("# argot: ignore-next-line rule=foreign-import — baselined"),
+        "{updated}"
+    );
+
+    // The baselined finding no longer fails the check.
+    let out = run_check(workdir(&repo));
+    assert_eq!(out.exit_code, 0, "baselined → clean: {}", out.stdout);
+}
+
+#[test]
+fn add_ignores_refuses_ref_ranges() {
+    let repo = prepare_import_repo("add_ignores_ref");
+    let mut a = args(&repo);
+    a.reference = "HEAD~1..HEAD".to_string();
+    a.add_ignores = true;
+    let out = run_check(a);
+    assert_eq!(out.exit_code, 2);
+    assert!(out.stderr.contains("edits the working tree"));
 }
 
 #[test]

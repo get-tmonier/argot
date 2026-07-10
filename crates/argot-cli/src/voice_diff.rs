@@ -116,6 +116,7 @@ pub fn summary_for_ref(repo: &Path, reference: &str, top_n: usize) -> Option<Voi
         min_confidence: "unusual".to_string(),
         rule_overrides: Vec::new(),
         error_on_warnings: false,
+        add_ignores: false,
         use_color: false,
         format: OutputFormat::Json,
         today: crate::today_utc(),

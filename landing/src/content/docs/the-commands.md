@@ -144,6 +144,7 @@ argot check --repo ../other-repo    # check a repo other than the current direct
 | `--min-confidence <tier>` | `unusual` | Only show hits at or above this confidence tier. |
 | `--error-on-warnings` | off | Exit non-zero when `warn`-severity findings are present. |
 | `--quiet` / `-q` | off | Suppress informational stderr notes. Errors still print. |
+| `--add-ignores` | off | Instead of reporting, insert an inline `# argot: ignore-next-line rule=… — baselined by --add-ignores; review` comment above every current finding — the adoption move on an existing codebase (working-tree modes only). Review the comments, then commit them. |
 | `--repo <path>` | `.` | Repository to check. |
 | `--argot-dir <path>` | `.argot` | Where to load the fitted model from. A relative path is resolved against `--repo`; an absolute path is used verbatim. |
 | `--hunk-lines <N>` | `6` | Hunk-body lines shown under each hit (`0` suppresses them; `--verbose` overrides with the full hunk). |

@@ -88,7 +88,7 @@ const fr: SiteContent = {
   setup: {
     label: 'Configuration · conçu pour les agents',
     title: 'Un CLI que votre agent peut piloter.',
-    body: 'Les skills lancent argot [[et apportent le jugement]] : /argot-setup lit votre dépôt pour décider ce qui ne doit pas façonner sa voix — un SDK vendorisé, un dossier généré — écrit un argot.toml, calibre, et vérifie la détection. Consultatif, jamais bloquant.',
+    body: 'Les skills lancent argot [[et apportent le jugement]] : /argot-setup lit votre dépôt pour décider ce qui ne doit pas façonner sa voix — un SDK vendorisé, un dossier généré — écrit un argot.toml, calibre, et vérifie la détection. Informatif, jamais bloquant.',
     installLabel: 'Ajoutez les skills — Claude Code, Cursor, 70+ agents',
     skillsIntro: 'quatre slash-commands que votre agent lance :',
     skillDescs: [

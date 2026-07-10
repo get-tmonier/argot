@@ -39,7 +39,7 @@ const ariaLabel = isRedundant
             src/api/handlers.py
           </div>
 
-          <div class="term-line term-flag advisory" style="--i: 2">
+          <div class="term-line term-flag semantic" style="--i: 2">
             <span class="dot">.</span>
             <span class="loc">L13-L21</span>
             <span class="flag-word amber">unusual</span>
@@ -180,7 +180,7 @@ const ariaLabel = isRedundant
   }
   /* The semantic findings read in amber, not flag-red — the mildest confidence
      tier, a heads-up you judge, not a "this is foreign" verdict. */
-  .term-flag.advisory {
+  .term-flag.semantic {
     border-left-color: var(--amber);
   }
   .term-evidence {
@@ -288,7 +288,7 @@ const ariaLabel = isRedundant
     animation: flag-flash 0.9s var(--ease-out-expo);
     animation-delay: calc(var(--i, 0) * 320ms);
   }
-  .demo-terminal.is-playing .term-flag.advisory {
+  .demo-terminal.is-playing .term-flag.semantic {
     animation: flag-flash-amber 0.9s var(--ease-out-expo);
     animation-delay: calc(var(--i, 0) * 320ms);
   }
