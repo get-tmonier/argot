@@ -1065,9 +1065,16 @@ pub fn run_calibrate(
     // load / one-time fetch). `None` when the model is unavailable (offline) —
     // the fit still produces the full statistical model, just no semantic index.
     #[cfg(feature = "semantic")]
-    let embedder = crate::scoring::semantic::embedder::Embedder::ready()
-        .ok()
-        .flatten();
+    let embedder = match crate::scoring::semantic::embedder::Embedder::ready() {
+        Ok(e) => e,
+        Err(e) => {
+            // Degrade to no-semantic-index, but NEVER silently: a load failure
+            // (GPU memory pressure, corrupt model) must be visible, or a bench
+            // records "0 recall" where the truth is "no embedder".
+            eprintln!("argot: semantic model failed to load — skipping semantic index: {e:#}");
+            None
+        }
+    };
     #[cfg(feature = "semantic")]
     let mut semantic_artifact =
         crate::scoring::semantic::index::SemanticArtifact::new(opts.repo_sha.clone());

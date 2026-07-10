@@ -104,9 +104,15 @@ def main():
     sem_index = os.path.exists(os.path.join(REPO, ".argot", "semantic-index.json"))
     redundant = misplaced = commits_with_fp = scanned = total_hits = hunks_scanned = 0
     fires = []
+    degraded = 0
     for c in replay:
         out = subprocess.run([ARGOT, "check", "--repo", REPO, "--commit", c, "--format", "json"],
                              capture_output=True, text=True)
+        # Silently-degraded semantic pass (embedder failed to load) → this
+        # commit measured nothing; a run with many of these is invalid.
+        if "[argot] semantic model" in (out.stderr or "") or "semantic embedding failed" in (out.stderr or ""):
+            degraded += 1
+            continue
         try:
             doc = json.loads(out.stdout)
         except json.JSONDecodeError:
@@ -138,6 +144,9 @@ def main():
 
     # corpus name: parent dir when the clone lives in <corpus>/.repo
     name = os.path.basename(os.path.dirname(REPO)) if REPO.endswith("/.repo") else os.path.basename(REPO)
+    if degraded:
+        print(f"SEMANTIC DEGRADED on {degraded} replay commits — run invalid", file=sys.stderr)
+        sys.exit(1)
     summary = {"corpus": name, "language": LANG, "window": WINDOW, "fit_sha": fit_point,
                "replay_commits": scanned, "hunks_scanned": hunks_scanned, "total_hits": total_hits,
                "redundant_fp": redundant, "misplaced_fp": misplaced,

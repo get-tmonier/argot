@@ -112,6 +112,13 @@ def main():
     # one check over all planted new files (untracked → new functions)
     out = subprocess.run([ARGOT, "check", "--repo", CORPUS, "--format", "json"],
                          capture_output=True, text=True)
+    # A silently-degraded semantic pass (model failed to load under GPU
+    # pressure) would record 0 fires as "0% recall" — that is a measurement
+    # failure, not a result. Fail loudly instead.
+    if "[argot] semantic model" in (out.stderr or "") or "semantic embedding failed" in (out.stderr or ""):
+        print("SEMANTIC DEGRADED during check:", out.stderr[-300:], file=sys.stderr)
+        shutil.rmtree(BENCH_DIR, ignore_errors=True)
+        sys.exit(1)
     try:
         doc = json.loads(out.stdout)
     except json.JSONDecodeError:
