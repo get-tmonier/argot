@@ -689,11 +689,13 @@ mod tests {
         idx.entries[0].callees = vec!["lower".into(), "strip".into()];
         idx.entries[0].subtokens = vec!["normalize".into(), "slug".into()];
         let mut art = SemanticArtifact::new("deadbeef".into());
-        let mut plc = crate::scoring::semantic::placement::PlacementConfig::default();
-        plc.enabled = true;
-        plc.k = 10;
-        plc.z = 1;
-        plc.area_map = BTreeMap::from([("src".to_string(), "src".to_string())]);
+        let plc = crate::scoring::semantic::placement::PlacementConfig {
+            enabled: true,
+            k: 10,
+            z: 1,
+            area_map: BTreeMap::from([("src".to_string(), "src".to_string())]),
+            ..Default::default()
+        };
         art.insert(
             "python",
             &idx,
