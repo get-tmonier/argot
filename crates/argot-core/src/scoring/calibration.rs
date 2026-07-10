@@ -997,6 +997,15 @@ pub fn calibrate_convention_bars(
 /// `repo_dir` is the target repo (candidate rglob source). `repo_corpus_path`
 /// lists corpus files (from `train`). `generic_baseline_json` is the embedded
 /// baseline bytes.
+/// Write a fit artifact via temp-file + rename, so a fit killed mid-write (a
+/// laptop shutdown, a background refit reaped by the OS) can never leave a
+/// half-written artifact behind — the previous version survives intact.
+fn write_atomic(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    let tmp = path.with_extension(format!("tmp.{}", std::process::id()));
+    std::fs::write(&tmp, bytes)?;
+    std::fs::rename(&tmp, path)
+}
+
 pub fn run_calibrate(
     repo_dir: &Path,
     repo_corpus_path: &Path,
@@ -1470,7 +1479,7 @@ pub fn run_calibrate(
         std::fs::create_dir_all(parent).ok();
     }
     let json = serde_json::to_string_pretty(&config)?;
-    std::fs::write(output, &json)?;
+    write_atomic(output, json.as_bytes())?;
 
     // Semantic index artifact, alongside scorer-config.json. Kept in its own
     // file so scorer-config.json (and its model hash) stay byte-for-byte
@@ -1480,7 +1489,7 @@ pub fn run_calibrate(
         let sem_path = output.with_file_name(crate::scoring::semantic::SEMANTIC_INDEX_FILE);
         match semantic_artifact.to_json_string() {
             Ok(sem_json) => {
-                if let Err(e) = std::fs::write(&sem_path, sem_json) {
+                if let Err(e) = write_atomic(&sem_path, sem_json.as_bytes()) {
                     eprintln!("argot: writing semantic index failed: {e}");
                 }
             }
@@ -1513,7 +1522,7 @@ pub fn run_calibrate(
         );
         if graph.edge_count() > 0 {
             let path = output.with_file_name(LAYERING_FILE);
-            if let Err(e) = std::fs::write(&path, graph.to_json(&opts.repo_sha)) {
+            if let Err(e) = write_atomic(&path, graph.to_json(&opts.repo_sha).as_bytes()) {
                 eprintln!("argot: writing layering graph failed: {e}");
             }
         }
@@ -1552,7 +1561,7 @@ pub fn run_calibrate(
     if let Some(parent) = output.parent() {
         let manifest_path = parent.join(MANIFEST_FILE);
         if let Ok(manifest_json) = serde_json::to_string_pretty(&manifest) {
-            std::fs::write(manifest_path, manifest_json)?;
+            write_atomic(&manifest_path, manifest_json.as_bytes())?;
         }
     }
 

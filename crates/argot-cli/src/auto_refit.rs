@@ -79,12 +79,22 @@ fn record_attempt(argot_dir: &Path) {
     let _ = std::fs::write(state_path(argot_dir), body);
 }
 
+/// Are we on a CI runner? `CI` covers GitHub/GitLab/CircleCI/Travis/Buildkite;
+/// Jenkins, TeamCity, and Azure Pipelines don't set it, so their own markers
+/// are checked too — an ephemeral runner must never get an unsolicited
+/// background fit (the job may kill it mid-write).
+pub fn is_ci() -> bool {
+    ["CI", "JENKINS_URL", "TEAMCITY_VERSION", "TF_BUILD"]
+        .iter()
+        .any(|k| std::env::var_os(k).is_some())
+}
+
 /// End-of-check hook: spawn a detached refit when the model has drifted.
 /// Never blocks, never errors — a missed refresh just tries again tomorrow.
 pub fn maybe_refit(repo: &Path, argot_dir: &Path, today: &str, quiet: bool) {
-    // CI refits per base advance through the Action; a runner must never
-    // burn minutes on an unsolicited background fit.
-    if std::env::var_os("CI").is_some() {
+    // CI refits per base advance (the Action) or explicit `argot fit` steps;
+    // a runner must never burn minutes on an unsolicited background fit.
+    if is_ci() {
         return;
     }
     if !argot_core::config::ArgotConfig::load(repo).fit_auto_refresh {

@@ -122,7 +122,7 @@ fn enabled() -> bool {
     if !std::io::stderr().is_terminal() {
         return false;
     }
-    if std::env::var_os("CI").is_some() {
+    if crate::auto_refit::is_ci() {
         return false;
     }
     if std::env::var(UPDATE_CHECK_ENV).is_ok_and(|v| v == "0") {

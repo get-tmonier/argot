@@ -210,6 +210,60 @@ All inputs are optional.
 | `exit-code` | Exit code of `argot check` (`0` clean, `1` hits found). |
 | `results-file` | Path to the written results file. |
 
+## On any other CI — GitLab, Jenkins, CircleCI, …
+
+The Action is a convenience, not a requirement. On any provider, a voice check
+is four steps — and two caches:
+
+1. **Install the binary** (~20 MB, pin a version for reproducible runs):
+   `curl -LsSf https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.sh | sh`,
+   then make sure `~/.local/bin` / `~/.cargo/bin` is on `PATH`.
+2. **Warm the embedding model** — cache the models directory and run
+   `argot model fetch` (cache hit: one sha256 pass, <1 s; cold: one ~104 MB
+   download). Locked-down runner? `ARGOT_OFFLINE=1` skips it — voice +
+   layering still run.
+3. **Fit on the base, not the head** — check out the target branch, `argot
+   fit`, check out the PR head again. Fitting on the head would teach the
+   model the PR's own new code before judging it. Cache `.argot/` keyed on
+   the base commit so the fit (and its semantic index) re-runs only when the
+   base advances.
+4. **Check the range** — `argot check "origin/$TARGET..HEAD" --format json`
+   (exit 0 clean · 1 findings · 2 setup error; add `--error-on-warnings` for
+   a strict gate).
+
+GitLab CI, as one concrete shape (GitLab only caches paths inside the project
+dir — point `XDG_CACHE_HOME` there so the model cache is cacheable):
+
+```yaml
+argot:
+  variables:
+    GIT_DEPTH: 0                                # ranges need history
+    XDG_CACHE_HOME: $CI_PROJECT_DIR/.cache      # model cache inside the project dir
+  cache:
+    - key: argot-model-semantic-model-v1
+      paths: [.cache/argot/models]
+    - key: argot-fit-$CI_MERGE_REQUEST_DIFF_BASE_SHA
+      paths: [.argot]
+  script:
+    - curl -LsSf https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.sh | sh
+    - export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+    - argot model fetch
+    - |
+      if [ ! -f .argot/scorer-config.json ]; then
+        git checkout --detach "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
+        argot fit
+        git checkout --detach "$CI_COMMIT_SHA"
+      fi
+    - argot check "$CI_MERGE_REQUEST_DIFF_BASE_SHA..HEAD"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+```
+
+Two behaviours you get for free on runners: the background auto-refit and the
+update notice **never run in CI** (argot detects `CI`, and Jenkins/TeamCity/
+Azure markers too), and a blocked model download degrades to a printed skip —
+never a red build.
+
 ## Locally, before you push
 
 A [pre-commit](https://pre-commit.com) hook scores staged changes (informational —
