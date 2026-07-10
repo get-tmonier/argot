@@ -52,12 +52,13 @@ fn is_test_filename(name: &str) -> bool {
 
 /// Recursively collect production source files under `repo_path`, mirroring
 /// `_collect_source_files`: keep `.py/.ts/.tsx`, drop any path with an
-/// excluded directory component, drop test/spec files, and drop paths the
+/// excluded directory component, drop test/spec files, drop paths the
 /// user muted in `[exclude].paths` (user patterns only — the built-in
 /// `argot:recommended` set governs calibration/check scope, not corpus
 /// collection, so a repo without an `argot.toml` gets exactly the corpus
-/// it always did). Vendored trees (`repos/`, editor-history dirs, …) would
-/// otherwise attest their own voice into the model.
+/// it always did), and drop gitignored-and-untracked paths (see [`GitScope`]).
+/// Vendored trees (`repos/`, editor-history dirs, …) would otherwise attest
+/// their own voice into the model.
 ///
 /// The result is sorted for reproducibility. Python's `rglob` order is
 /// filesystem-dependent (non-deterministic) and downstream consumers only
@@ -73,10 +74,68 @@ pub fn collect_source_files_with(
     repo_path: &Path,
     suppressions: &PathSuppressions,
 ) -> Vec<PathBuf> {
+    let git_scope = GitScope::open(repo_path);
     let mut out = Vec::new();
-    collect_recursive(repo_path, repo_path, suppressions, &mut out);
+    collect_recursive(
+        repo_path,
+        repo_path,
+        suppressions,
+        git_scope.as_ref(),
+        &mut out,
+    );
     out.sort();
     out
+}
+
+/// Git's own view of what belongs to the repo. A path that is gitignored and
+/// not tracked — an editor's local-history tree, a `.worktrees/` checkout,
+/// build output — is deliberately outside the repo and carries no authored
+/// voice, so the corpus drops it. Tracked files always stay in, even when an
+/// ignore pattern covers them (force-added wins, matching git's own rule).
+/// On a plain directory with no `.git`, everything stays in.
+struct GitScope {
+    repo: git2::Repository,
+    /// Sorted, `/`-separated, repo-relative tracked paths from the index.
+    tracked: Vec<String>,
+}
+
+impl GitScope {
+    fn open(root: &Path) -> Option<Self> {
+        let repo = git2::Repository::open(root).ok()?;
+        let index = repo.index().ok()?;
+        let mut tracked: Vec<String> = index
+            .iter()
+            .map(|e| String::from_utf8_lossy(&e.path).into_owned())
+            .collect();
+        tracked.sort_unstable();
+        Some(Self { repo, tracked })
+    }
+
+    fn ignored(&self, rel: &str) -> bool {
+        self.repo.is_path_ignored(rel).unwrap_or(false)
+    }
+
+    /// File outside the repo per git: ignored and not in the index.
+    fn excludes_file(&self, rel: &str) -> bool {
+        self.ignored(rel)
+            && self
+                .tracked
+                .binary_search_by(|p| p.as_str().cmp(rel))
+                .is_err()
+    }
+
+    /// Directory prunable per git: ignored (checked with a trailing `/` so
+    /// `dir/`-style patterns match) and holding no tracked file beneath it.
+    fn excludes_dir(&self, rel: &str) -> bool {
+        if !self.ignored(rel) && !self.ignored(&format!("{rel}/")) {
+            return false;
+        }
+        let prefix = format!("{rel}/");
+        let i = self
+            .tracked
+            .partition_point(|p| p.as_str() < prefix.as_str());
+        !self.tracked.get(i).is_some_and(|p| p.starts_with(&prefix))
+    }
 }
 
 /// True if `rel_path` (repo-root-relative, `/`-separated) is a corpus source
@@ -116,6 +175,7 @@ fn collect_recursive(
     dir: &Path,
     root: &Path,
     suppressions: &PathSuppressions,
+    git_scope: Option<&GitScope>,
     out: &mut Vec<PathBuf>,
 ) {
     let entries = match fs::read_dir(dir) {
@@ -140,7 +200,13 @@ fn collect_recursive(
             if user_ignored(&path, root, suppressions) {
                 continue;
             }
-            collect_recursive(&path, root, suppressions, out);
+            if let (Some(scope), Some(rel)) = (git_scope, crate::suppress::rel_string(&path, root))
+            {
+                if scope.excludes_dir(&rel) {
+                    continue;
+                }
+            }
+            collect_recursive(&path, root, suppressions, git_scope, out);
         } else if file_type.is_file() {
             if !SOURCE_EXTENSIONS.contains(&suffix(&name)) {
                 continue;
@@ -150,6 +216,12 @@ fn collect_recursive(
             }
             if user_ignored(&path, root, suppressions) {
                 continue;
+            }
+            if let (Some(scope), Some(rel)) = (git_scope, crate::suppress::rel_string(&path, root))
+            {
+                if scope.excludes_file(&rel) {
+                    continue;
+                }
             }
             out.push(path);
         }
@@ -182,7 +254,10 @@ pub fn run_train(
 
     let files = collect_source_files(&repo_path);
     if files.is_empty() {
-        bail!("no source files found in repository");
+        bail!(
+            "no source files found in repository — every candidate file is \
+             unsupported, gitignored, or excluded by argot.toml [exclude] patterns"
+        );
     }
 
     // "\n".join(str(p) for p in files) — no trailing newline.
@@ -287,6 +362,70 @@ mod tests {
         // only user patterns apply here.
         assert!(names.contains(&"example.py".to_string()));
         assert_eq!(after.len(), 2);
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn gitignored_untracked_paths_are_not_voice() {
+        let tmp = std::env::temp_dir().join(format!("argot_train_gitscope_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(tmp.join("src")).unwrap();
+        fs::create_dir_all(tmp.join(".history/src")).unwrap();
+        fs::create_dir_all(tmp.join("gen")).unwrap();
+        fs::write(tmp.join(".gitignore"), ".history/\ngen/\nlocal_*.py\n").unwrap();
+        fs::write(tmp.join("src/app.py"), "x=1").unwrap();
+        fs::write(tmp.join("src/local_notes.py"), "x=1").unwrap();
+        fs::write(tmp.join(".history/src/app_20260101.py"), "x=1").unwrap();
+        fs::write(tmp.join("gen/stub.py"), "x=1").unwrap();
+        fs::write(tmp.join("gen/forced.py"), "x=1").unwrap();
+
+        let repo = git2::Repository::init(&tmp).unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(Path::new("src/app.py")).unwrap();
+        // Force-added despite the ignore pattern: git considers it tracked,
+        // so the corpus keeps it.
+        index
+            .add_frombuffer(
+                &git2::IndexEntry {
+                    ctime: git2::IndexTime::new(0, 0),
+                    mtime: git2::IndexTime::new(0, 0),
+                    dev: 0,
+                    ino: 0,
+                    mode: 0o100644,
+                    uid: 0,
+                    gid: 0,
+                    file_size: 3,
+                    id: git2::Oid::zero(),
+                    flags: 0,
+                    flags_extended: 0,
+                    path: b"gen/forced.py".to_vec(),
+                },
+                b"x=1",
+            )
+            .unwrap();
+        index.write().unwrap();
+
+        let names: Vec<String> = collect_source_files(&tmp)
+            .iter()
+            .map(|p| crate::suppress::rel_string(p, &tmp).unwrap())
+            .collect();
+        assert!(names.contains(&"src/app.py".to_string()));
+        assert!(
+            names.contains(&"gen/forced.py".to_string()),
+            "tracked file survives an ignore pattern: {names:?}"
+        );
+        assert!(
+            !names.iter().any(|n| n.starts_with(".history/")),
+            "gitignored editor-history tree pruned: {names:?}"
+        );
+        assert!(
+            !names.contains(&"gen/stub.py".to_string()),
+            "ignored+untracked sibling of a tracked file dropped: {names:?}"
+        );
+        assert!(
+            !names.contains(&"src/local_notes.py".to_string()),
+            "ignored+untracked file dropped: {names:?}"
+        );
         let _ = fs::remove_dir_all(&tmp);
     }
 }

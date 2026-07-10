@@ -2,7 +2,7 @@
 title: What it catches
 description: The four axes argot flags — a foreign dependency/API/paradigm the repo has never used, a redundant function it already has, misplaced code, and an import that breaks the repo's layering — plus an honest account of the in-vocabulary breaks it still won't gate on.
 group: Guide
-order: 7
+order: 8
 ---
 
 argot catches code that is *technically fine but doesn't fit this project* — valid, typed, and

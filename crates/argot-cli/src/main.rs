@@ -12,6 +12,7 @@ mod review;
 #[cfg(feature = "self-update")]
 mod update_check;
 mod voice_diff;
+mod worktree;
 
 use clap::{Args, Parser, Subcommand};
 use serde::{Deserialize, Serialize};
@@ -382,17 +383,22 @@ fn run_status(c: StatusCmd) -> ExitCode {
     // freshness (commits behind), config sync, and calibration drift — all
     // read from what the last fit persisted, no tree walk here.
     let health = argot_core::health::read(&ctx.argot_dir);
+    let status_config = argot_core::config::ArgotConfig::load(Path::new(&ctx.git_root));
     let behind = health.as_ref().and_then(|h| {
         (!h.fit_sha.is_empty())
-            .then(|| argot_core::check::commits_since_fit(&ctx.git_root, &h.fit_sha))
+            .then(|| {
+                argot_core::check::accepted_source_commits_behind(
+                    &ctx.git_root,
+                    &h.fit_sha,
+                    &status_config,
+                    status_config.fit_refresh_after,
+                )
+            })
             .flatten()
     });
     let config_in_sync = health.as_ref().map(|h| {
         h.config_fingerprint.is_empty()
-            || h.config_fingerprint
-                == argot_core::health::config_fingerprint(&argot_core::config::ArgotConfig::load(
-                    Path::new(&ctx.git_root),
-                ))
+            || h.config_fingerprint == argot_core::health::config_fingerprint(&status_config)
     });
     let drift: Vec<String> = health
         .as_ref()
@@ -434,8 +440,15 @@ fn run_status(c: StatusCmd) -> ExitCode {
     }
     if let Some(h) = &health {
         let fresh = match behind {
-            Some(0) => "fresh (at HEAD)".to_string(),
-            Some(n) => format!("{n} commit(s) behind HEAD — auto-refresh will refit"),
+            Some(0) => "fresh (nothing accepted since the fit)".to_string(),
+            Some(n) => {
+                let plus = if n >= status_config.fit_refresh_after {
+                    "+"
+                } else {
+                    ""
+                };
+                format!("{n}{plus} accepted source commit(s) behind — auto-refresh will refit")
+            }
             None => "unknown".to_string(),
         };
         println!(
@@ -790,6 +803,26 @@ fn fit_repo(repo: &Path, slices: &[String]) -> Result<PathBuf, ()> {
     let dirty = argot_core::git_walk::uncommitted_source_paths(&repo.to_string_lossy());
     if !dirty.is_empty() {
         warn_uncommitted(&dirty);
+    }
+    // Same laundering risk one level up: a manual fit on a feature branch
+    // learns its unmerged commits, and argot stops flagging what it has
+    // learned. Advisory only — agents, scripts, and hooks drive fit too, so
+    // never a prompt — and silent when the branch adds nothing in scope,
+    // on detached HEAD (replay/refresh worktrees), or when the repo declared
+    // branch fits intended via `[fit] refresh-from = "current-branch"`.
+    let fit_config = argot_core::config::ArgotConfig::load(repo);
+    if let Some((branch, n)) = argot_core::check::unmerged_branch_source_commits(
+        &repo.to_string_lossy(),
+        &fit_config,
+        argot_core::check::FRESHNESS_SCAN_CAP,
+    ) {
+        eprintln!(
+            "warning: fitting on branch '{branch}' — its {n} unmerged source commit(s) will be"
+        );
+        eprintln!("         learned as this repo's voice, and argot stops flagging what it has");
+        eprintln!("         learned. Merged code is the safer voice: fit from the default");
+        eprintln!("         branch, or declare branch fits intended with");
+        eprintln!("         `[fit] refresh-from = \"current-branch\"` in argot.toml.");
     }
     let repo_corpus = argot_dir.join("repo-corpus.txt");
     let generic = argot_dir.join("generic-baseline.json");

@@ -18,95 +18,92 @@
 //!
 //! Informational by design: always exits 0 on success, 2 when it can't run.
 
-use std::path::{Path, PathBuf};
-use std::process::{Command, ExitCode};
+use std::path::Path;
+use std::process::ExitCode;
 
 use argot_core::check::{run_check, CheckArgs, DEFAULT_HUNK_LINES};
 use argot_core::output::OutputFormat;
+
+use crate::worktree::TempWorktree;
 
 /// Default window: enough history to hold real findings, small enough that
 /// the base voice is still "the same repo".
 pub const DEFAULT_COMMITS: usize = 50;
 
-/// Walk first-parents back `n` commits from HEAD. Returns (base, head) full
-/// SHAs; base is clamped to the root commit on short histories.
-fn resolve_range(repo: &Path, n: usize) -> Result<(String, String, usize), String> {
+/// Walk first-parents back `n` commits from HEAD. Returns the HEAD SHA plus
+/// the ancestor chain (`chain[k-1]` = the commit `k` back); the chain is
+/// clamped to the root commit on short histories.
+fn resolve_chain(repo: &Path, n: usize) -> Result<(String, Vec<String>), String> {
     let git_repo = git2::Repository::discover(repo).map_err(|e| format!("not a git repo: {e}"))?;
     let head = git_repo
         .head()
         .and_then(|h| h.peel_to_commit())
         .map_err(|e| format!("cannot resolve HEAD: {e}"))?;
     let head_sha = head.id().to_string();
-    let mut base = head.clone();
-    let mut walked = 0usize;
+    let mut chain = Vec::new();
+    let mut cursor = head;
     for _ in 0..n {
-        match base.parent(0) {
+        match cursor.parent(0) {
             Ok(p) => {
-                base = p;
-                walked += 1;
+                chain.push(p.id().to_string());
+                cursor = p;
             }
             Err(_) => break, // root commit
         }
     }
-    if walked == 0 {
+    if chain.is_empty() {
         return Err("HEAD has no parent — nothing to replay".to_string());
     }
-    Ok((base.id().to_string(), head_sha, walked))
+    Ok((head_sha, chain))
 }
 
-/// `git -C <repo> <args>` — replay shells out for worktree management only
-/// (the one git feature libgit2 makes harder than the porcelain).
-fn git(repo: &Path, args: &[&str]) -> Result<(), String> {
-    let status = Command::new("git")
-        .arg("-C")
-        .arg(repo)
-        .args(args)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .map_err(|e| format!("git not found on PATH ({e}) — replay needs the git CLI"))?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(format!("git {} failed", args.join(" ")))
-    }
+/// True when the tree at `sha` holds at least one file today's config counts
+/// as corpus source — i.e. a fit at that commit can succeed.
+fn tree_has_scoped_source(
+    git_repo: &git2::Repository,
+    sha: &str,
+    suppressions: &argot_core::suppress::PathSuppressions,
+) -> bool {
+    let Ok(oid) = git2::Oid::from_str(sha) else {
+        return false;
+    };
+    let Ok(tree) = git_repo.find_commit(oid).and_then(|c| c.tree()) else {
+        return false;
+    };
+    let mut found = false;
+    let _ = tree.walk(git2::TreeWalkMode::PreOrder, |root, entry| {
+        if entry.kind() == Some(git2::ObjectType::Blob) {
+            if let Some(name) = entry.name() {
+                let rel = format!("{root}{name}");
+                if argot_core::train::is_corpus_source(&rel, suppressions) {
+                    found = true;
+                    return git2::TreeWalkResult::Abort;
+                }
+            }
+        }
+        git2::TreeWalkResult::Ok
+    });
+    found
 }
 
-/// A temp worktree that cleans up after itself (best-effort).
-struct TempWorktree {
-    repo: PathBuf,
-    path: PathBuf,
-}
-
-impl TempWorktree {
-    fn create(repo: &Path, sha: &str) -> Result<Self, String> {
-        let path = std::env::temp_dir().join(format!("argot-replay-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&path);
-        git(
-            repo,
-            &["worktree", "add", "--detach", &path.to_string_lossy(), sha],
-        )?;
-        Ok(Self {
-            repo: repo.to_path_buf(),
-            path,
-        })
-    }
-}
-
-impl Drop for TempWorktree {
-    fn drop(&mut self) {
-        let _ = git(
-            &self.repo,
-            &[
-                "worktree",
-                "remove",
-                "--force",
-                &self.path.to_string_lossy(),
-            ],
-        );
-        let _ = std::fs::remove_dir_all(&self.path);
-        let _ = git(&self.repo, &["worktree", "prune"]);
-    }
+/// The widest replay window whose base commit can actually be fitted: the
+/// largest `k ≤ chain.len()` such that the tree `k` commits back still holds
+/// in-scope source under today's config. Repos whose in-scope code is younger
+/// than the requested window (e.g. a rewrite, or early history that today's
+/// excludes mute entirely) shrink instead of failing. Returns 0 when no
+/// ancestor qualifies.
+fn max_replayable_window(
+    repo: &Path,
+    chain: &[String],
+    suppressions: &argot_core::suppress::PathSuppressions,
+) -> usize {
+    let Ok(git_repo) = git2::Repository::discover(repo) else {
+        return 0;
+    };
+    (1..=chain.len())
+        .rev()
+        .find(|&k| tree_has_scoped_source(&git_repo, &chain[k - 1], suppressions))
+        .unwrap_or(0)
 }
 
 /// One parsed hit from check's JSON document.
@@ -171,6 +168,7 @@ fn render_report(
     commits: usize,
     base_short: &str,
     hunks_scanned: u64,
+    widen_hint: bool,
     color: bool,
 ) -> String {
     let mut out = String::new();
@@ -188,7 +186,9 @@ fn render_report(
             out.push_str(&format!(
                 "  These {commits} commits touched no supported source files (docs-only?).\n"
             ));
-            out.push_str(&dim("  Try a wider window: argot replay --commits 200\n"));
+            if widen_hint {
+                out.push_str(&dim("  Try a wider window: argot replay --commits 200\n"));
+            }
         } else {
             out.push_str(&format!(
                 "  Nothing argot would have raised — {hunks_scanned} hunks replayed, all in voice.\n"
@@ -282,46 +282,50 @@ fn render_report(
 
 /// Run the whole replay. Informational: exits 0 on success even with findings.
 pub fn run_replay(repo: &Path, commits: usize) -> ExitCode {
-    let (base, head, walked) = match resolve_range(repo, commits) {
+    let (head, chain) = match resolve_chain(repo, commits) {
         Ok(v) => v,
         Err(e) => {
             eprintln!("error: {e}");
             return ExitCode::from(2);
         }
     };
+    // Shrink the window to the oldest ancestor a fit can succeed on: today's
+    // config rides into the historical worktree, so a base commit whose whole
+    // tree is excluded or unsupported (in-scope code younger than the window)
+    // would otherwise die on "no source files found".
+    let suppressions = argot_core::config::ArgotConfig::load(repo).path_suppressions();
+    let walked = max_replayable_window(repo, &chain, &suppressions);
+    if walked == 0 {
+        eprintln!(
+            "error: nothing to replay — none of the last {} commit(s) contain source files in \
+             argot's scope; if this repo has source code, check the [exclude] patterns in argot.toml",
+            chain.len()
+        );
+        return ExitCode::from(2);
+    }
+    if walked < chain.len() {
+        eprintln!(
+            "argot: the repo {} commit(s) ago had no code in argot's scope yet — shrinking the \
+             window to {walked} commit(s)",
+            chain.len()
+        );
+    }
+    let base = chain[walked - 1].clone();
     let base_short = &base[..12.min(base.len())];
 
     eprintln!(
         "argot: replaying your last {walked} commit(s) against the voice as of {base_short}…"
     );
-    let worktree = match TempWorktree::create(repo, &base) {
+    let worktree = match TempWorktree::create(repo, &base, "argot-replay") {
         Ok(w) => w,
         Err(e) => {
             eprintln!("error: {e}");
             return ExitCode::from(2);
         }
     };
-
-    // Today's config judges the past: the user's current excludes and rule
-    // severities ride into the worktree (the checkout has the old ones).
-    for name in [
-        argot_core::config::CONFIG_FILE,
-        argot_core::config::LOCAL_CONFIG_FILE,
-    ] {
-        let src = repo.join(name);
-        if src.is_file() {
-            let _ = std::fs::copy(&src, worktree.path.join(name));
-        }
-    }
-    // Seed the semantic index from the current fit (when present): the
-    // incremental build reuses embeddings for every function that already
-    // existed, so the historical fit costs seconds, not a full re-embed.
-    let seed = repo.join(".argot").join("semantic-index.json");
-    if seed.is_file() {
-        let dst_dir = worktree.path.join(".argot");
-        let _ = std::fs::create_dir_all(&dst_dir);
-        let _ = std::fs::copy(&seed, dst_dir.join("semantic-index.json"));
-    }
+    // Today's config judges the past, and the current semantic index seeds
+    // the historical fit (embeddings reuse: seconds, not a full re-embed).
+    worktree.adopt_current_config(repo);
 
     eprintln!("argot: fitting the historical voice (one-off, in a temp worktree)…");
     if crate::fit_repo(&worktree.path, &[]).is_err() {
@@ -363,7 +367,17 @@ pub fn run_replay(repo: &Path, commits: usize) -> ExitCode {
     let color = std::env::var_os("NO_COLOR").is_none()
         && std::io::IsTerminal::is_terminal(&std::io::stdout());
     println!();
-    print!("{}", render_report(&hits, walked, base_short, hunks, color));
+    print!(
+        "{}",
+        render_report(
+            &hits,
+            walked,
+            base_short,
+            hunks,
+            walked == chain.len(),
+            color
+        )
+    );
     println!();
     println!("Full detail: argot check {base_short}..HEAD   (after refreshing the fit)");
     ExitCode::SUCCESS
@@ -393,7 +407,7 @@ mod tests {
             hit("foreign-import", "foreign", "c.py"),
             hit("redundant", "unusual", "d.py"),
         ];
-        let out = render_report(&hits, 50, "abc123def456", 900, false);
+        let out = render_report(&hits, 50, "abc123def456", 900, true, false);
         assert!(out.contains("4 finding(s)"));
         assert!(out.contains("foreign-import  ×2"));
         assert!(out.contains("redundant"));
@@ -408,17 +422,85 @@ mod tests {
 
     #[test]
     fn quiet_replay_is_a_positive_message() {
-        let out = render_report(&[], 50, "abc123def456", 1200, false);
+        let out = render_report(&[], 50, "abc123def456", 1200, true, false);
         assert!(out.contains("all in voice"));
         assert!(out.contains("1200 hunks"));
     }
 
     #[test]
     fn empty_window_suggests_widening_instead_of_claiming_in_voice() {
-        let out = render_report(&[], 50, "abc123def456", 0, false);
+        let out = render_report(&[], 50, "abc123def456", 0, true, false);
         assert!(out.contains("no supported source files"));
         assert!(out.contains("--commits 200"));
         assert!(!out.contains("all in voice"));
+    }
+
+    #[test]
+    fn shrunk_window_does_not_suggest_widening() {
+        let out = render_report(&[], 3, "abc123def456", 0, false, false);
+        assert!(out.contains("no supported source files"));
+        assert!(!out.contains("--commits 200"));
+    }
+
+    /// Stage `files` (path → contents) on top of the current index and commit.
+    fn commit(repo: &git2::Repository, files: &[(&str, &str)], msg: &str) {
+        let root = repo.workdir().unwrap();
+        let mut index = repo.index().unwrap();
+        for (rel, contents) in files {
+            let abs = root.join(rel);
+            std::fs::create_dir_all(abs.parent().unwrap()).unwrap();
+            std::fs::write(&abs, contents).unwrap();
+            index.add_path(Path::new(rel)).unwrap();
+        }
+        index.write().unwrap();
+        let tree = repo.find_tree(index.write_tree().unwrap()).unwrap();
+        let sig = git2::Signature::now("t", "t@example.com").unwrap();
+        let parents: Vec<git2::Commit> = repo
+            .head()
+            .ok()
+            .and_then(|h| h.peel_to_commit().ok())
+            .into_iter()
+            .collect();
+        let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
+        repo.commit(Some("HEAD"), &sig, &sig, msg, &tree, &parent_refs)
+            .unwrap();
+    }
+
+    #[test]
+    fn window_shrinks_to_the_oldest_fittable_base() {
+        let tmp = std::env::temp_dir().join(format!("argot_replay_shrink_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let repo = git2::Repository::init(&tmp).unwrap();
+        // History: c1 = excluded/unsupported only, c2 introduces in-scope
+        // source, c3 = HEAD. chain = [c2, c1].
+        commit(
+            &repo,
+            &[("site/page.astro", "<html/>"), ("site/x.ts", "let x=1")],
+            "c1",
+        );
+        commit(&repo, &[("src/a.ts", "export const a = 1")], "c2");
+        commit(&repo, &[("src/a.ts", "export const a = 2")], "c3");
+
+        let (_head, chain) = resolve_chain(&tmp, 10).unwrap();
+        assert_eq!(chain.len(), 2);
+
+        // Without user excludes, c1's site/x.ts is in scope: full window.
+        let none = argot_core::suppress::PathSuppressions::recommended();
+        assert_eq!(max_replayable_window(&tmp, &chain, &none), 2);
+
+        // With today's config muting site/, c1 has nothing in scope: shrink
+        // to the window whose base is c2.
+        std::fs::write(tmp.join("argot.toml"), "[exclude]\npaths = [\"site/\"]\n").unwrap();
+        let sup = argot_core::config::ArgotConfig::load(&tmp).path_suppressions();
+        assert_eq!(max_replayable_window(&tmp, &chain, &sup), 1);
+
+        // A config that excludes everything leaves nothing to replay.
+        std::fs::write(tmp.join("argot.toml"), "[exclude]\npaths = [\"*/\"]\n").unwrap();
+        let all = argot_core::config::ArgotConfig::load(&tmp).path_suppressions();
+        assert_eq!(max_replayable_window(&tmp, &chain, &all), 0);
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]

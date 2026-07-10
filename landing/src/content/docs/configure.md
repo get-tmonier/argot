@@ -68,6 +68,12 @@ The pattern rules (shared by both lists), precisely:
 - A leading `!` re-includes a path an earlier pattern excluded — **last match
   wins.**
 
+One scope decision argot makes for you: **gitignored files never shape the
+voice.** The fit reads files from disk, but anything `.gitignore` covers and
+git doesn't track — editor-history trees like `.history/`, local worktrees,
+build output — is dropped from the training corpus automatically. Only
+*committed* code needs an `[exclude]` entry.
+
 Don't hand-guess the directories to exclude — [`argot init --suggest`](/docs/setup/)
 surfaces the generated/data-heavy ones with evidence, and an agent can name the
 vendored/legacy ones from your tree. See [Setup](/docs/setup/).
@@ -298,20 +304,32 @@ paths = ["scratch/", "experiments/"]   # appended to the committed excludes
 
 ## `[fit]` — the background auto-refresh
 
+*This is the config surface; the full mechanism — verdict, health record,
+drift, staleness — is one page:
+[Health & freshness](/docs/health-and-freshness/).*
+
 A fit is a snapshot: as the repo merges new dependencies and modules, a stale
 model starts reading your own accepted code as foreign. argot keeps itself
-fresh — when a `check` notices the fit is **10+ commits behind HEAD** (or more
-than a week old with any drift), it refits **in the background**, detached, at
-most once a day, and says so in one dim line. The check you just ran used the
-old model (zero added latency); the next one scores against the fresh voice.
-The refit reads committed HEAD — never your working tree — and the semantic
-index reuses the embeddings of unchanged functions, so a routine refresh costs
-seconds. CI never auto-refits (the Action refits per base advance). To opt out
-and drive `argot fit` yourself:
+fresh — when **accepted history** gains `refresh-after` commits touching
+in-scope source since the fit (or the fit is more than a week old with any
+such drift), a `check` refits **in the background**, detached, at most once a
+day, and says so in one dim line. The check you just ran used the old model
+(zero added latency); the next one scores against the fresh voice.
+
+"Accepted" is the load-bearing word: staleness is measured — and the refit
+fitted — at the **merge-base with your default branch**, in a throwaway
+worktree when needed. A feature branch's own commits and your uncommitted
+edits never train the voice; they stay the code under judgment. Only commits
+touching in-scope source count, so docs and CI churn don't age the voice
+either. The semantic index reuses the embeddings of unchanged functions, so a
+routine refresh costs seconds. CI never auto-refits (the Action refits per
+base advance). `init` writes the defaults explicitly:
 
 ```toml
 [fit]
-auto-refresh = false
+auto-refresh = true               # false: you drive `argot fit` yourself
+refresh-after = 10                # accepted in-scope commits before a refresh
+refresh-from = "default-branch"   # "current-branch": let refreshes learn branch HEADs
 ```
 
 Freshness is separate from **calibration drift** — a new `gen/` dir or a
@@ -378,6 +396,7 @@ version control.
 | `.argot/semantic-index.json` | `fit` / `init` | The per-repo code-embedding index for the reinvention/placement checks. Records the model that built it — an index from a different model/version is rejected with a "run `argot fit` to rebuild" message rather than scoring wrong. | No — rebuildable. |
 | `.argot/layering.json` | `fit` / `init` | The module-dependency graph the `layering` rule checks added imports against. | No — rebuildable. |
 | `.argot/manifest.json` | `fit` / `init` | Versioned, hashed record of what was learned (model hash, fit commit, corpus size); read by `inspect --model`. | No — rebuildable. |
+| `.argot/health.json` | `fit` / `init` | The fit's self-record — fitted SHA, config fingerprint, drift candidates; read by `check` and `status` for the freshness notes ([Health & freshness](/docs/health-and-freshness/)). | No — rebuildable. |
 | `.argot/repo-corpus.txt` | `fit` / `init` | The source files counted into the repo distribution. | No — rebuildable. |
 | `.argot/generic-baseline.json` | `fit` / `init` | The bundled generic-baseline reference. | No — rebuildable. |
 | `.argot/dataset.jsonl` | `extract` | Raw training dataset — one record per hunk. The check path doesn't need it. | No — rebuildable. |

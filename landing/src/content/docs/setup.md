@@ -8,7 +8,9 @@ order: 2
 argot learns the voice of the code **you** wrote by hand. Setup is really one
 question: *what should it learn from?* Everything hand-written stays in; anything
 generated, vendored, or pure data should stay out — otherwise argot learns a
-voice that isn't yours and flags the wrong things.
+voice that isn't yours and flags the wrong things. (Gitignored files are
+already out — the fit skips anything git doesn't consider part of the repo,
+so editor-history trees and build output never need an exclude.)
 
 This is the **local path** — checking on your machine (and in a pre-commit hook).
 Just want a voice score on every PR, with no local install? That's the

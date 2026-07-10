@@ -1,4 +1,5 @@
-//! Background auto-refit — the voice model keeps itself fresh.
+//! Background auto-refit — the voice model keeps itself fresh, on **accepted
+//! history only**.
 //!
 //! A fit is a snapshot: as the repo merges new dependencies and modules, a
 //! stale model reads its own accepted code as foreign (a month of drift once
@@ -6,14 +7,19 @@
 //! `argot fit` makes freshness a chore; this module makes it automatic with
 //! the same zero-latency shape as the update check:
 //!
-//! At the end of a `check`, when the fit is **≥ 10 commits behind HEAD** (or
-//! **> 7 days old and at least 1 behind**), spawn a detached
-//! `argot background-refit` child and say so in one dim line. The check that
-//! noticed still used the old model — no added latency — and the next check
-//! scores against the fresh one. The refit reads committed HEAD (never the
-//! working tree), so dirty edits can't contaminate the voice; the semantic
-//! index reuses embeddings for unchanged functions, so a routine refresh
-//! costs seconds, not a full re-embed.
+//! At the end of a `check`, when accepted history — the default-branch line,
+//! per `[fit] refresh-from` — has gained **≥ `[fit] refresh-after` commits
+//! touching in-scope source** since the fit (or the fit is > 7 days old with
+//! any such drift), spawn a detached `argot background-refit` child and say
+//! so in one dim line. The check that noticed still used the old model — no
+//! added latency — and the next check scores against the fresh one.
+//!
+//! What the refit learns is as guarded as when it runs: it fits **at the
+//! accepted anchor in a throwaway worktree** whenever HEAD isn't that anchor
+//! or the tree is dirty — a feature branch's own commits and uncommitted
+//! edits are the code argot is judging, and must never become the voice it
+//! judges against. The semantic index seeds from the current fit, so a
+//! routine refresh costs seconds, not a full re-embed.
 //!
 //! Guard-rails: at most one attempt per 24 h (state file), a lock so two
 //! checks can't race two fits, skipped in CI (the Action refits per base
@@ -22,8 +28,6 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-/// Commits-behind threshold — the same bar as check's drift warning.
-const REFIT_BEHIND_COMMITS: usize = 10;
 /// Age threshold: a week-old fit with any drift at all also refreshes.
 const REFIT_AGE: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 /// At most one background attempt per this window (guards failure loops).
@@ -118,31 +122,40 @@ pub fn maybe_refit(repo: &Path, argot_dir: &Path, today: &str, quiet: bool) {
     if is_ci() {
         return;
     }
-    if !argot_core::config::ArgotConfig::load(repo).fit_auto_refresh {
+    let config = argot_core::config::ArgotConfig::load(repo);
+    if !config.fit_auto_refresh {
         return;
     }
     let Some((fit_sha, timestamp)) = fit_identity(argot_dir) else {
         return; // no fit yet — nothing to refresh
     };
-    let Some(behind) = argot_core::check::commits_since_fit(&repo.to_string_lossy(), &fit_sha)
-    else {
+    // Staleness is measured on ACCEPTED history (default-branch line unless
+    // `[fit] refresh-from` says otherwise) and counts only commits touching
+    // in-scope source — a feature branch's own commits and docs-only churn
+    // never age the voice. The count stops at the threshold, so the fresh
+    // common case costs one commit-graph query, no tree diffs.
+    let stale_after = config.fit_refresh_after;
+    let Some(behind) = argot_core::check::accepted_source_commits_behind(
+        &repo.to_string_lossy(),
+        &fit_sha,
+        &config,
+        stale_after,
+    ) else {
         return; // unresolvable history (shallow clone, rewritten) — leave it be
     };
-    // Two staleness axes: history moved past the fit, OR the fit no longer
-    // reflects the configuration (the user/skill edited [exclude]/[detect] —
-    // recalibration completes itself instead of waiting for a manual fit).
+    // Two staleness axes: accepted history moved past the fit, OR the fit no
+    // longer reflects the configuration (the user/skill edited
+    // [exclude]/[detect] — recalibration completes itself instead of waiting
+    // for a manual fit).
     let config_changed = argot_core::health::read(argot_dir)
         .map(|h| {
             !h.config_fingerprint.is_empty()
-                && h.config_fingerprint
-                    != argot_core::health::config_fingerprint(
-                        &argot_core::config::ArgotConfig::load(repo),
-                    )
+                && h.config_fingerprint != argot_core::health::config_fingerprint(&config)
         })
         .unwrap_or(false);
     let age_days = fit_age_days(&timestamp, today).unwrap_or(0);
-    let history_stale = behind >= REFIT_BEHIND_COMMITS
-        || (age_days >= (REFIT_AGE.as_secs() / 86_400) as i64 && behind >= 1);
+    let history_stale =
+        behind >= stale_after || (age_days >= (REFIT_AGE.as_secs() / 86_400) as i64 && behind >= 1);
     if !history_stale && !config_changed {
         return;
     }
@@ -178,7 +191,9 @@ pub fn maybe_refit(repo: &Path, argot_dir: &Path, today: &str, quiet: bool) {
         let reason = if config_changed {
             "argot.toml changed since the fit".to_string()
         } else {
-            format!("voice model is {behind} commit(s) behind")
+            // `behind` stops counting at the threshold — honest "+" past it.
+            let plus = if behind >= stale_after { "+" } else { "" };
+            format!("voice model is {behind}{plus} accepted source commit(s) behind")
         };
         eprintln!(
             "\x1b[2margot: {reason} — refitting in the background; your next check uses \
@@ -217,9 +232,69 @@ pub fn run_background_refit(repo: &Path) {
         }
     }
 
-    let failed = crate::fit_repo(repo, &[]).is_err();
+    let failed = refit_accepted(repo).is_err();
     record_result(&argot_dir, failed);
     let _ = std::fs::remove_file(&lock);
+}
+
+/// Fit the voice from accepted history. In place only when HEAD *is* the
+/// anchor and the tree is clean (the fast common case on the default branch);
+/// otherwise in a throwaway worktree at the anchor, publishing the artifacts
+/// back — unmerged branch commits and uncommitted edits never train the voice.
+fn refit_accepted(repo: &Path) -> Result<(), ()> {
+    let repo_s = repo.to_string_lossy().into_owned();
+    let config = argot_core::config::ArgotConfig::load(repo);
+    let anchor = argot_core::check::freshness_anchor(&repo_s, &config);
+    let head = crate::head_sha(&repo_s);
+    let dirty = !argot_core::git_walk::uncommitted_source_paths(&repo_s).is_empty();
+    match anchor {
+        Some(anchor) if dirty || Some(anchor.as_str()) != head.as_deref() => {
+            fit_in_worktree(repo, &anchor)
+        }
+        // Anchor == HEAD with a clean tree — or history the anchor can't be
+        // resolved on (then a worktree wouldn't know where to stand either).
+        _ => crate::fit_repo(repo, &[]).map(|_| ()),
+    }
+}
+
+fn fit_in_worktree(repo: &Path, sha: &str) -> Result<(), ()> {
+    let worktree =
+        crate::worktree::TempWorktree::create(repo, sha, "argot-refit").map_err(|_| ())?;
+    worktree.adopt_current_config(repo);
+    crate::fit_repo(&worktree.path, &[])?;
+    publish_artifacts(&worktree.path, repo).map_err(|_| ())
+}
+
+/// Copy the worktree fit's `.argot/` artifacts over the repo's. The corpus
+/// listing is rewritten to repo paths (it records absolute paths and is the
+/// one artifact humans read back); everything else is location-independent.
+fn publish_artifacts(worktree_root: &Path, repo: &Path) -> std::io::Result<()> {
+    let from = worktree_root.join(".argot");
+    let to = repo.join(".argot");
+    std::fs::create_dir_all(&to)?;
+    let canon = |p: &Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+    let wt_prefix = canon(worktree_root).to_string_lossy().into_owned();
+    let repo_prefix = canon(repo).to_string_lossy().into_owned();
+    for entry in std::fs::read_dir(&from)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_file() {
+            continue;
+        }
+        let name = entry.file_name();
+        let dst = to.join(&name);
+        if name == "repo-corpus.txt" {
+            // The fit canonicalizes paths, but cover the raw prefix too so a
+            // platform that skips symlink resolution still rewrites cleanly.
+            let text = std::fs::read_to_string(entry.path())?;
+            let text = text
+                .replace(&wt_prefix, &repo_prefix)
+                .replace(&worktree_root.to_string_lossy().into_owned(), &repo_prefix);
+            std::fs::write(&dst, text)?;
+        } else {
+            std::fs::copy(entry.path(), &dst)?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -235,6 +310,40 @@ mod tests {
         record_attempt(&dir);
         assert!(last_attempt(&dir) > 0);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn publish_rewrites_corpus_paths_and_keeps_local_state() {
+        let base = std::env::temp_dir().join(format!("argot_publish_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let wt = base.join("worktree");
+        let repo = base.join("repo");
+        std::fs::create_dir_all(wt.join(".argot")).unwrap();
+        std::fs::create_dir_all(repo.join(".argot")).unwrap();
+        std::fs::write(
+            wt.join(".argot/repo-corpus.txt"),
+            format!("{}/src/a.py\n{}/src/b.py", wt.display(), wt.display()),
+        )
+        .unwrap();
+        std::fs::write(wt.join(".argot/scorer-config.json"), "{}").unwrap();
+        // Pre-existing local state that the worktree fit doesn't produce
+        // must survive the publish untouched.
+        std::fs::write(repo.join(".argot/last-check.json"), "[]").unwrap();
+
+        publish_artifacts(&wt, &repo).unwrap();
+
+        let corpus = std::fs::read_to_string(repo.join(".argot/repo-corpus.txt")).unwrap();
+        assert!(
+            corpus.contains(&format!("{}/src/a.py", repo.display())),
+            "worktree paths rewritten to repo paths: {corpus}"
+        );
+        assert!(!corpus.contains("worktree"), "{corpus}");
+        assert!(repo.join(".argot/scorer-config.json").is_file());
+        assert_eq!(
+            std::fs::read_to_string(repo.join(".argot/last-check.json")).unwrap(),
+            "[]"
+        );
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[test]
