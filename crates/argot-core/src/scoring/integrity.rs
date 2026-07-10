@@ -415,15 +415,23 @@ pub fn changeset_events(files: &[FileChange]) -> Vec<IntegrityEvent> {
     let text_count = |texts: &[String], needle: &str| -> usize {
         texts.iter().map(|t| t.matches(needle).count()).sum()
     };
-    // Words of the changeset's ADDED lines (line-level multiset diff) — an
-    // assertion moved into a new helper and adapted to its signature lives
-    // in added text; a pure deletion adds nothing.
+    // Words of the changeset's ADDED lines in TEST-CARRYING files (line-level
+    // multiset diff) — an assertion moved into a new helper and adapted to
+    // its signature lives in added test text; a pure deletion adds nothing.
+    // Production-side additions never excuse an excision (they routinely
+    // share the test's domain vocabulary).
     let added_line_words: HashSet<String> = {
         let mut words = HashSet::new();
         for f in files {
             let (Some(o), Some(n)) = (f.old.as_deref(), f.new.as_deref()) else {
                 continue;
             };
+            let carries = language_for_path(&f.path).is_some_and(|lang| {
+                is_test_path(&f.path, lang) || !test_inventory::extract(n, lang).is_empty()
+            });
+            if !carries {
+                continue;
+            }
             let mut old_lines: HashMap<&str, usize> = HashMap::new();
             for l in o.lines() {
                 *old_lines.entry(l.trim()).or_default() += 1;
@@ -1227,6 +1235,33 @@ def test_same():
                 .iter()
                 .any(|e| e.kind == EventKind::AssertionsRemoved),
             "duplicate excision was wrongly excused: {events:?}"
+        );
+    }
+
+    #[test]
+    fn prod_side_vocabulary_overlap_does_not_excuse_excision() {
+        // The prod edit ADDS lines sharing the assertion's domain words —
+        // that must not read as "the assertion moved".
+        let old_test = r#"
+def test_label():
+    assert label.name == "bug"
+    assert label.description == "Something broken"
+"#;
+        let new_test = r#"
+def test_label():
+    assert label.name == "bug"
+"#;
+        let prod_new = "def parse(x):\n    return x.strip()\n\ndef label_description(label):\n    assert_valid(label.description)\n    return label.description\n";
+        let files = [
+            change("parser.py", PROD_OLD, prod_new),
+            change("tests/test_label.py", old_test, new_test),
+        ];
+        let events = changeset_events(&files);
+        assert!(
+            events
+                .iter()
+                .any(|e| e.kind == EventKind::AssertionsRemoved),
+            "prod-side vocabulary excused the excision: {events:?}"
         );
     }
 

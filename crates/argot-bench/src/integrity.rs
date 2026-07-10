@@ -478,9 +478,21 @@ fn replay_history(
         test_touching += 1;
         if !events.is_empty() {
             flagged += 1;
+            let mut per: BTreeMap<&str, usize> = BTreeMap::new();
             for e in &events {
                 *kinds.entry(e.kind.key().to_string()).or_default() += 1;
+                *per.entry(e.kind.key()).or_default() += 1;
             }
+            let sha7: String = oid.to_string().chars().take(7).collect();
+            let detail: Vec<String> = per.iter().map(|(k, n)| format!("{k}x{n}")).collect();
+            let sample = events
+                .first()
+                .map(|e| format!("{}::{}", e.file, e.test_name))
+                .unwrap_or_default();
+            eprintln!(
+                "[integrity-fp]   flagged {sha7} {} e.g. {sample}",
+                detail.join(" ")
+            );
         }
     }
     Ok((replayed, test_touching, flagged, kinds))
