@@ -9,7 +9,7 @@ pub mod adapters;
 /// The architecture-graph sense — a repo's module-dependency topology; flags an
 /// internal edge that reverses an established direction or leaves a sink layer
 /// (the relationship analog of the foreign-vocabulary gate). Feature-gated
-/// (`--features arch`), advisory / measurement-only, pure-Rust: absent and
+/// (`--features arch`), pure-Rust — emits the `layering` rule: absent and
 /// zero-cost off, never wired into the base gating path, base byte-unchanged.
 /// See the module docs + `docs/research/evidence/architecture-graph-foreignness.md`.
 #[cfg(feature = "arch")]
@@ -22,7 +22,7 @@ pub mod evidence;
 pub mod filters;
 pub mod import_graph;
 pub mod model;
-/// The semantic layer — per-repo code embeddings powering advisory reinvention,
+/// The semantic layer — per-repo code embeddings powering the reinvention
 /// placement and nearest-code-evidence findings. Feature-gated: absent (and
 /// zero-cost) unless built with `--features semantic`.
 #[cfg(feature = "semantic")]

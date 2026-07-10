@@ -1,9 +1,9 @@
 # Composite GitHub Action for argot — voice linter that learns a repo's voice
 # from git history. See https://argot.tmonier.com/docs/ci/ for copy-paste workflows.
 #
-# It is advisory by default: argot is a statistical guardrail, so it informs the
-# PR with a visual score and inline annotations without gating the merge. The
-# reviewer has the last word (opt into `fail-on-hits` for a hard gate).
+# It is non-blocking by default: argot is a probabilistic guardrail, so it
+# informs the PR with a visual score and inline annotations without gating the
+# merge. The reviewer has the last word (opt into `fail-on-hits` for a hard gate).
 #
 # What it does:
 #   1. Downloads the prebuilt `argot` binary from this repo's GitHub Releases
@@ -40,7 +40,7 @@ inputs:
     required: false
     default: "latest"
   format:
-    description: "Output format for `argot check`: sarif, json, or human."
+    description: "Output format for `argot check`: sarif, json, github (inline PR annotations), or human."
     required: false
     default: "sarif"
   output-file:
@@ -65,6 +65,13 @@ inputs:
     description: "Post/update a non-blocking voice-score comment on the pull request (requires `pull-requests: write`)."
     required: false
     default: "true"
+  rules:
+    description: >-
+      Space-separated rule severity overrides passed to `argot check --rule`,
+      e.g. 'misplaced=warn semantic=off'. Empty = the repo's argot.toml [rules]
+      (everything error by default).
+    required: false
+    default: ""
   fail-on-hits:
     description: >-
       Fail the job when argot finds hunks above the calibrated threshold.
@@ -151,6 +158,21 @@ runs:
         } >> "$GITHUB_OUTPUT"
         echo "voice learned from base $base_sha; scoring '${range:-HEAD}'."
 
+    # The embedding model (~100 MB GGUF) is keyed on its release tag, not the
+    # base commit — it only changes when a release pins a new model. Cached
+    # here so a base advance never re-downloads it; `argot model fetch`
+    # verifies the sha256 either way (a cache hit costs one hash pass).
+    - name: Cache the embedding model
+      if: ${{ inputs.cache == 'true' }}
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/argot/models
+        key: argot-embedding-model-semantic-model-v1-${{ runner.os }}
+
+    - name: Fetch the embedding model
+      shell: bash
+      run: argot model fetch
+
     - name: Cache argot model (keyed on the base)
       if: ${{ inputs.cache == 'true' }}
       id: model-cache
@@ -188,6 +210,7 @@ runs:
         ARGOT_RANGE: ${{ steps.base.outputs.range }}
         ARGOT_FORMAT: ${{ inputs.format }}
         ARGOT_OUT: ${{ inputs.output-file }}
+        ARGOT_RULES: ${{ inputs.rules }}
       run: |
         set -euo pipefail
         # Score the same range the base was resolved from, against the base-fit
@@ -198,6 +221,9 @@ runs:
         else
           args+=(--commit HEAD)
         fi
+        for rule in $ARGOT_RULES; do
+          args+=(--rule "$rule")
+        done
         set +e
         argot check --repo "$ARGOT_PATH" "${args[@]}" --format "$ARGOT_FORMAT" > "$ARGOT_OUT"
         code=$?
@@ -231,7 +257,7 @@ runs:
           exit 0
         fi
         card="${RUNNER_TEMP}/argot-voice-card.md"
-        # Advisory: never let card rendering fail the job.
+        # Informational: never let card rendering fail the job.
         if argot voice-diff "$range" --repo "$ARGOT_PATH" --format markdown > "$card" 2>/dev/null; then
           # Rich score card in the Actions run UI — no extra permissions, fork-safe.
           cat "$card" >> "$GITHUB_STEP_SUMMARY"

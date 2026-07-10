@@ -29,6 +29,15 @@ still read from disk, so commit or remove throwaway files first.
    **Ready** with a clean corpus, you may not need to exclude anything — but
    still do step 7 (verify the catch).
 
+   `argot init` also builds the repo's **semantic index** (for the `redundant`
+   and `misplaced` rules). On first use it downloads the jina-code embedding
+   model (~100 MB, one-time, to `~/.cache/argot/models/`) with a progress
+   report — tell the user this up-front and don't worry about the delay. A
+   failed download is verbalized, never silent. `argot model fetch` /
+   `status` / `clean` manage the cache explicitly; `ARGOT_SEMANTIC_MODEL`
+   points at a local gguf, `ARGOT_OFFLINE=1` skips the download, and
+   `ARGOT_MODEL_URL` sets a mirror.
+
 4. **Get argot's suggestions:** `argot init --suggest --format json`. Lists
    directories that are mostly auto-generated or data files, with counts. Note
    the `included` count (real code a rule would drop) — and that `--suggest`
@@ -58,7 +67,10 @@ still read from disk, so commit or remove throwaway files first.
    patterns, one per entry, each with a trailing `# reason` comment; prefer
    directory patterns. If the repo uses a code generator whose banner isn't in
    the default `[detect].generated-markers` (e.g. a bespoke in-house codegen),
-   add that phrase there too. Re-run `argot init`.
+   add that phrase there too. If the user wants to soften or disable a rule
+   (all seven default to `error`), the surface is the `[rules]` table in the
+   same file — e.g. `misplaced = "warn"` or `semantic = "off"`; `argot rules`
+   lists the registry with effective severities. Re-run `argot init`.
 
 7. **Verify the catch works** — the important check. In a real primary-source
    file, add a throwaway import of a package the repo never uses (e.g.
@@ -85,3 +97,7 @@ still read from disk, so commit or remove throwaway files first.
 
 See [Configure](https://argot.tmonier.com/docs/configure/) for the full
 suppression system (inline comments and durable mutes too).
+
+If the CLI's output disagrees with this document, trust the binary: `argot
+rules` and `argot <cmd> --help` are the source of truth — this skill may lag
+behind them.

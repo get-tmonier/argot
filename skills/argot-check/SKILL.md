@@ -1,13 +1,13 @@
 ---
 name: argot-check
-description: Score your working changes with argot — flag code foreign to this repo's own patterns (unfamiliar dependencies, APIs, constructs) before committing. Advisory only, never blocks. Use after generating or editing code, before a commit, or when the user asks "check my changes with argot", "is this in-voice", or "does this match how we write code here".
+description: Score your working changes with argot — flag code foreign to this repo's own patterns (unfamiliar dependencies, APIs, constructs), functions the repo already has, code filed in the wrong place, and imports that break the repo's layering — before committing. Use after generating or editing code, before a commit, or when the user asks "check my changes with argot", "is this in-voice", or "does this match how we write code here".
 ---
 
 # argot-check
 
-Run `argot` on the current changes and report anything foreign to the repo's
-learned voice — **as advice, never as a gate**. argot is statistical; false
-positives are expected. The human decides what to do.
+Run `argot` on the current changes and act on what it reports. argot is
+statistical; false positives happen. Every hit names a **rule**, and the rule —
+not the confidence glyph — tells you what to do. The human has the last word.
 
 ## Preconditions
 
@@ -25,78 +25,153 @@ argot check --format json            # working-tree changes
 argot check --staged --format json   # what's about to be committed
 ```
 
-Exit codes: `0` clean · `1` hits found · `2` setup/usage error. **Treat `1` as
-"there is something to look at," not as a failure.**
+Exit codes: `0` clean (or warn-severity hits only) · `1` at least one
+error-severity hit · `2` setup/usage error. **Treat `1` as "there is something
+to act on," not as a mystery failure** — walk the decision tree below.
 
 Each hit in the JSON `hits` array carries:
 
 | Field | Use |
 |---|---|
-| `severity` | `foreign` / `suspicious` / `unusual` — branch on this (see the decision tree). |
-| `reason_label` | Human label of the signal: `foreign import`, `unfamiliar callee`, `rare token sequence`. |
-| `evidence` | The lines to show the user — names the foreign symbol and what the repo uses instead. |
+| `rule` | Kebab-case rule name (`foreign-import`, `redundant`, …) — **branch on this** (see the rules table and decision tree). |
+| `rule_label` | Human label of the rule: `foreign import`, `already implemented here`, … |
+| `severity` | `error` or `warn` — the rule's configured severity for this run. Error hits drive exit code `1`. |
+| `confidence` | `unusual` / `suspicious` / `foreign` — strength of the evidence, display-grade only (see below). |
+| `evidence` | The lines to show the user — names the foreign symbol, the duplicated function, or the area the code belongs in. |
 | `hash` | Stable id for `argot mute <hash>`. |
 | `path`, `line_start`, `line_end` | Where it is. |
 | `source` | `workdir` / `staged` / `untracked` / a commit SHA — where the change came from. |
-| `score`, `threshold` | Raw internals. **Read `severity`, not these** — they sit on different scales per signal (a foreign import scores 1.0 against its own bar of 1.0, unrelated to the BPE `threshold` shown), so comparing them directly is meaningless. |
+| `score`, `threshold` | Raw internals. **Read `rule` and `severity`, not these** — they sit on different scales per signal, so comparing them directly is meaningless. |
+
+In `--format human`, each hit's meta line reads
+`!  L1-L10  1.00  foreign  · staged · foreign-import [a1b2c3d4]` — confidence
+glyph and tier, then the source and the rule name.
+
+`--format` accepts `human` / `json` / `sarif` / `github` (`github` emits
+workflow commands for inline PR annotations). `--min-confidence` filters what
+is *displayed* (it does not change the exit code); `--quiet` silences
+informational stderr.
+
+## The rules
+
+Seven rules in three groups. `argot rules` prints this registry with the
+repo's effective severities.
+
+| Rule | Group | What it means | What to do |
+|---|---|---|---|
+| `foreign-import` | voice | An import of a dependency the repo has never used. | Read the evidence — it names the import and what the repo reaches for instead. Switch to the in-voice dependency unless the new one is deliberate. |
+| `unfamiliar-callee` | voice | A call to a receiver or callee the repo's code never calls. | Check whether the API is wanted; prefer the API the repo already uses. |
+| `rare-tokens` | voice | A token sequence statistically foreign to the repo's voice. | Read the hunk; if it's an off-voice idiom, rewrite it with the repo's vocabulary. |
+| `convention` | voice | A construction that breaks a convention learned from the repo. | Follow the convention named in the evidence, or justify the exception. |
+| `redundant` | semantic | A new function that duplicates one the repo already has. The evidence `↳ duplicates <symbol> (<path>:<line>) — similarity 0.XX` names the original. | **Do not ignore.** Open the cited file, compare, and call the existing function instead of keeping the reimplementation — or justify and mute with a reason. |
+| `misplaced` | semantic | A function that looks like it belongs in another module area. The evidence reads `↳ looks like <area> code filed under <area>`. | Propose moving the code to the cited area, or justify the placement. |
+| `layering` | architecture | An internal import that reverses the repo's established layering direction. | Don't introduce the import — invert the dependency or route through the intended layer. |
+
+## Confidence is evidence strength, not priority
+
+`foreign` (`!`) / `suspicious` (`?`) / `unusual` (`.`) grade **how strong the
+statistical evidence is** — nothing more. They are display-only: they never
+drive the exit code (severities do), and `--min-confidence` only filters the
+display. `redundant`, `misplaced`, and `layering` are always reported at
+`unusual` because they come from a single retrieval/graph signal rather than a
+calibrated score. **An `unusual` hit is NOT "usually fine" — look at its
+rule.** An `unusual` `redundant` hit still means the repo already has that
+function.
+
+## Severities and configuration
+
+Every rule defaults to `error` (error → exit `1`; warn → shown, exit `0`;
+off → silent). Configure durably in `argot.toml`:
+
+```toml
+[rules]
+misplaced = "warn"     # one rule
+semantic = "off"       # or a whole group: voice / semantic / architecture
+```
+
+or per run with `argot check --rule <name|group>=<severity>`. In strict CI,
+`--error-on-warnings` makes warn hits fail the run too.
 
 ## Gauge trust first
 
 Run `argot inspect` and read the verdict. If it's **Marginal** or **Not
-recommended**, the model isn't well-calibrated on this repo — down-weight every
-hit accordingly and say so.
+recommended**, the statistical voice model isn't well-calibrated on this repo —
+down-weight the `voice`-group hits accordingly and say so.
 
 ## What a hit means — and what a clean run doesn't
 
-argot reliably flags one thing: a **novel pattern** foreign to this repo — a
-dependency it has never imported, an API it never calls, or a whole paradigm
-(a Django-style view in a FastAPI repo, a different HTTP client, hand-rolled
-validation) it never writes. When the foreign symbol is in the change, it catches
-~99% of these. Trust a `foreign` hit here.
+argot reliably flags a **novel pattern** foreign to this repo — a dependency it
+has never imported, an API it never calls, or a whole paradigm (a Django-style
+view in a FastAPI repo, a different HTTP client, hand-rolled validation) it
+never writes. When the foreign symbol is in the change, it catches ~99% of
+these. Trust a `foreign-import` hit. The `semantic` and `architecture` rules
+add duplicated functions, misfiled code, and layering breaks on top.
 
-It does **not** reliably catch *in-vocabulary* breaks — where every token is
-already in the repo and only the choice is wrong (a bare `ValueError` where the
-repo raises `HTTPException`; a manual status check instead of `raise_for_status()`).
-So **a clean run means "no foreign pattern found," not "this matches every
-convention."** Don't present a clean argot result as a guarantee the code is
-idiomatic — it's silent on the subtle stuff by design.
+It does **not** catch every *in-vocabulary* break — where every token is
+already in the repo and only the choice is wrong. So **a clean run means "none
+of the seven rules fired," not "this matches every convention."** Don't present
+a clean argot result as a guarantee the code is idiomatic — it's silent on some
+of the subtle stuff by design.
 
-## Decision tree (never block)
+## Decision tree — branch on the rule
 
-For each hit in the JSON (`severity`, `reason`, `evidence`, `hash`):
+For each hit in the JSON, branch on `rule`:
 
-- **`foreign`** — high-confidence anomaly (a dependency/API the repo has never
-  used). Surface it clearly. Read the evidence line — it shows the surprising
-  identifier and what the repo uses instead. Ask: *does this match how the repo
-  already does this?*
-  - If a well-established in-voice option exists and the user is open to it,
-    suggest switching.
+- **`foreign-import` / `unfamiliar-callee` / `rare-tokens` / `convention`** —
+  the change uses a dependency, API, or idiom foreign to the repo. Read the
+  evidence line — it shows the surprising identifier and what the repo uses
+  instead. Ask: *does this match how the repo already does this?*
+  - If a well-established in-voice option exists, rewrite your change to use
+    it (or suggest the switch if the code isn't yours).
   - If the choice is deliberate, tell the user they can record it:
     `argot mute <hash> --reason "…"`.
-- **`suspicious`** — mention it as worth a glance; show the evidence.
-- **`unusual`** — usually fine; raise only if directly relevant to what the user
-  is doing.
+- **`redundant`** — do **not** ignore this. Open the file cited in the
+  evidence (`↳ duplicates <symbol> (<path>:<line>)`), compare the two
+  functions, and **use the existing one** instead of the reimplementation. If
+  the duplication is genuinely intentional (e.g. a deliberate fork), justify
+  it and mute with that reason.
+- **`misplaced`** — propose moving the code to the area the evidence cites, or
+  explain to the user why this location is right (then mute with that reason).
+- **`layering`** — don't introduce this import. Invert the dependency or go
+  through the layer the repo's architecture intends. Only mute if the user
+  confirms the layering is deliberately changing.
 
 ## Report format
 
 Give a short, calm summary. For example:
 
 ```
-argot: 1 foreign · 1 suspicious in your changes (advisory — argot is statistical)
+argot: 2 hits in your changes (1 error · 1 warn)
 
-! src/http.ts:42   axios — 0 of 47 imports in this repo use it
-                   the repo reaches for: react (320×), express (88×), pg (47×)
-                   → intentional? record it: argot mute a1b2c3d4 --reason "…"
-? src/api.ts:88    unusual token sequence — glance at the evidence
+! src/http.ts:42    foreign-import — axios; 0 of 47 imports here use it
+                    the repo reaches for: node-fetch (88×)
+                    → switched to node-fetch (or record it: argot mute a1b2c3d4 --reason "…")
+. src/user.ts:10    redundant — duplicates slugify (src/utils/text.ts:14) — similarity 0.93
+                    → call the existing slugify instead of the new copy
 ```
+
+## Suppressions
+
+- One line, in the code:
+  `# argot: ignore-next-line rule=<name|group> — reason`
+- Durable, reviewable: `argot mute <hash> --reason "…"` — a committed
+  `[[mute]]` entry in `argot.toml`, which can also target a rule or group with
+  `rule = "<name|group>"`.
 
 ## Hard rules
 
-- **Never block, fail, or refuse to proceed** because argot fired. No hit is a
-  merge/commit gate.
-- **Never rewrite the user's code** just to silence a hit. Suggest; don't
-  enforce.
+- **Fix or justify — don't silently ignore.** An error-severity hit fails
+  `argot check`; resolve it by fixing the code you wrote or by offering the
+  user the mute command with a real reason.
+- **Never rewrite pre-existing code the user wrote** just to silence a hit.
+  For code you authored in this session, applying the rule's fix is the job.
 - **Never mute on the user's behalf** without a real reason they'd endorse.
   Muting is a human decision; offer the exact command instead.
-- False positives are normal. If the user says a hit is fine, that's the end of
+- False positives happen. If the user says a hit is fine, that's the end of
   it — offer to mute it with their reason so it doesn't come back.
+
+## If the CLI and this document disagree
+
+If the binary reports a rule not covered by this document, trust the binary:
+run `argot rules` for the registry and `argot <cmd> --help` — the CLI is the
+source of truth, this skill may lag behind it.

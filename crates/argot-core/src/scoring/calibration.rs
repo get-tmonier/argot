@@ -1341,7 +1341,7 @@ pub fn run_calibrate(
 
         // Semantic index for this language: embed every corpus function (the
         // same `callable_bodies` extraction check uses on the diff). Skipped
-        // silently when no embedder is available — advisory, never load-bearing.
+        // silently when no embedder is available — never load-bearing.
         #[cfg(feature = "semantic")]
         if let Some(emb) = embedder.as_ref() {
             let mut funcs = Vec::new();

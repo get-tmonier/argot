@@ -6,6 +6,8 @@
 - **`CLAUDE.md`** — Architecture section: the crate/module layout.
 - **`docs/research/`** — serves as ADR for this repo. Read entries that touch the area you're about to work in.
 - **`docs/rust-port/`** — the Rust port's parity record + cutover plan.
+- **Touching the semantic layer** (`crates/argot-core/src/scoring/semantic/`) — read `docs/agents/semantic-contract.md` (self-calibration invariants) and the "Semantic layer" section of `CLAUDE.md` first.
+- **Touching calibration** — `docs/agents/calibration-contract.md` is binding.
 
 If any of these files don't exist, proceed silently. Don't flag their absence upfront.
 

@@ -1,15 +1,16 @@
 # Working with argot
 
 [argot](https://argot.tmonier.com) is a guardrail that flags code **foreign to a
-repo's own patterns** — the dependencies, APIs, and constructs it learns a
-codebase has never used, from its git history. It answers *"is this how we write
-things here?"*, not *"is this valid?"*. This file tells a coding agent how to use
-it well. (Developing argot itself? See `CLAUDE.md`.)
+repo's own patterns** — learned from its git history. Four detectors: a foreign
+dependency/API/idiom, a function the repo already has, code filed in the wrong
+place, and an internal import that reverses the repo's layering. It answers
+*"is this how we write things here?"*, not *"is this valid?"*. This file tells a
+coding agent how to use it well. (Developing argot itself? See `CLAUDE.md`.)
 
-## The contract: advisory, never blocking
+## The contract: surface, don't enforce
 
-argot is a **statistical** linter. It has false positives, and its confidence
-depends on the repo. **A hit is a prompt to think, never a gate.**
+argot is a **probabilistic** linter. It has false positives, and its confidence
+depends on the repo. **A hit is a prompt to think, never a reason to refuse.**
 
 - Never block a commit, fail a task, or refuse to proceed because argot fired.
 - Never auto-"fix" a hit by rewriting code the human didn't ask you to change.
@@ -19,22 +20,35 @@ depends on the repo. **A hit is a prompt to think, never a gate.**
 ## Two moments
 
 1. **Setup (once per repo).** Fit the voice model and decide what shouldn't
-   shape it. → `argot init`, then the **argot-setup** skill for anything with
-   generated/vendored/data directories. See
+   shape it. → `argot init` (also builds the semantic index; the first run
+   fetches a ~100 MB local embedding model, one-time), then the **argot-setup**
+   skill for anything with generated/vendored/data directories. See
    [Setup](https://argot.tmonier.com/docs/setup/).
 2. **Check (per change).** Before committing code you generated or edited, score
    it. → `argot check`, or the **argot-check** skill.
 
 ## Reading `argot check`
 
-Run `argot check --format json` for machine output. Each hit carries a
-`severity`, a `reason`, an evidence trail, and a stable `hash`:
+Run `argot check --format json` for machine output. Each hit carries a `rule`,
+a `severity` (`error`/`warn` — whether it fails the check), a `confidence` tier
+(`unusual`/`suspicious`/`foreign` — how strong the evidence is, display only),
+an evidence trail, and a stable `hash`. **Branch on the rule, not the
+confidence tier** — `redundant` is pinned to `unusual` confidence and is still
+one of the most actionable findings argot makes:
 
-| Severity | Meaning | What to do |
-|---|---|---|
-| `foreign` | High-confidence anomaly — a dependency/API the repo has never used | Surface it. Reconsider whether it matches how the repo does this. |
-| `suspicious` | Likely worth a look | Mention it; glance at the evidence. |
-| `unusual` | Borderline | Usually fine; raise only if directly relevant. |
+| Rule | Group | It means | What to do |
+|---|---|---|---|
+| `foreign-import` | voice | an import of a dependency the repo has never used | Check the evidence line for what the repo uses instead; prefer the in-voice option unless the new dependency is deliberate. |
+| `unfamiliar-callee` | voice | a call to something this kind of file never calls | Same: compare against the named common callees. |
+| `rare-tokens` | voice | a token sequence statistically foreign to the repo's voice | Read the flagged identifiers; rewrite with the repo's vocabulary if unintended. |
+| `convention` | voice | a construction that breaks a learned repo convention | As above. |
+| `redundant` | semantic | this new function duplicates one the repo already has | **Open the file the evidence names** (`↳ duplicates X (path:line)`), compare, and use the existing function instead — or justify and mute. |
+| `misplaced` | semantic | this function's nearest kin all live in another area | Propose moving it to the named area, or justify its placement. |
+| `layering` | architecture | this internal import reverses the repo's layer direction | Don't introduce the import — invert the dependency or go through the intended layer. |
+
+Rules are configurable like any linter: `argot rules` lists them; `argot.toml
+[rules]` or `argot check --rule <name|group>=<error|warn|off>` sets severities.
+Everything defaults to `error`.
 
 **Gauge trust first.** Run `argot inspect` (or MCP `argot.fit_status`). If the
 verdict is **Marginal** or **Not recommended**, down-weight every hit — the model
@@ -42,25 +56,24 @@ isn't well-calibrated on this repo yet.
 
 ## What it catches — and what a clean run doesn't mean
 
-argot reliably flags a **novel pattern** foreign to this repo: a dependency it
-never imports, an API it never calls, or a whole paradigm (a Django-style view in
-a FastAPI repo, a different HTTP client, hand-rolled validation) it never writes —
-~99% when the foreign symbol is in the change. Trust those hits.
+argot reliably flags a **novel pattern** foreign to this repo (~98% when the
+foreign symbol is in the change), a **reinvented function** (the evidence names
+the original), **misplaced code**, and a **layering violation** (96.8% caught at
+zero false positives on control edits). Trust those hits.
 
 It does **not** reliably catch *in-vocabulary* breaks — where every token is
 already in the repo and only the choice is wrong (a bare `ValueError` where the
-repo raises `HTTPException`; a manual status check instead of `raise_for_status()`).
-So **a clean `argot check` means "no foreign pattern found," not "this is
-idiomatic."** Don't tell the user their code matches the repo's conventions on the
-strength of a clean run — argot is silent on that subtler class by design.
+repo raises `HTTPException`). So **a clean `argot check` means "no foreign
+pattern found," not "this is idiomatic."** Don't tell the user their code
+matches the repo's conventions on the strength of a clean run.
 
 ## When a hit is a real divergence
 
 Look at the evidence line — it names the surprising identifier and what the repo
-uses instead (`axios — 0 of 47 imports; common here: react, express, pg`). Ask:
-does this match how the repo already does this? If a well-established in-voice
-option exists, prefer it. If the foreign choice is deliberate (adopting a new
-dependency repo-wide), **record the decision** so the noise stops:
+uses instead (`axios — 0 of 47 imports; common here: react, express, pg`), or
+the existing function a `redundant` hit duplicates. If a well-established
+in-voice option exists, prefer it. If the foreign choice is deliberate (adopting
+a new dependency repo-wide), **record the decision** so the noise stops:
 
 ```
 argot mute <hash> --reason "adopting axios repo-wide"
@@ -68,11 +81,12 @@ argot mute <hash> --reason "adopting axios repo-wide"
 
 ## When a hit is a false positive
 
-Expected — argot is statistical. Don't contort the code to satisfy it. Mute it
-with a reason (committed, so it's an audit trail), or drop an inline note:
+Expected — argot is probabilistic. Don't contort the code to satisfy it. Mute it
+with a reason (committed, so it's an audit trail), or drop an inline note —
+optionally scoped to one rule or group:
 
 ```python
-# argot: ignore-next-line — vendored shim, intentional
+# argot: ignore-next-line rule=redundant — intentional parallel implementation
 ```
 
 See [Configure](https://argot.tmonier.com/docs/configure/) for all three
@@ -85,6 +99,13 @@ suppression surfaces.
 - Never add whole source directories to `argot.toml`'s `[exclude]` to make it
   quiet — only exclude what genuinely isn't the repo's authored voice (generated,
   vendored, data). When unsure, ask the human.
+- Never set a rule to `off` on your own initiative — downgrading to `warn` or
+  muting a specific hit with a reason is the recorded, reversible move.
+
+## If the binary disagrees with this document
+
+Trust the binary. `argot rules` prints the live rule registry and `argot
+<command> --help` the live flags — this file may lag a release behind.
 
 ## More
 

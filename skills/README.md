@@ -1,15 +1,19 @@
 # argot skills
 
 Four skills that let a coding agent (Claude Code, Cursor, Codex, …) use argot
-well — set it up locally, check changes, review a PR, and wire it into CI — all
-**without ever blocking you**. Pick the local path, the CI path, or both.
+well — set it up locally, check changes, review a PR, and wire it into CI.
+argot watches for four kinds of problem, each with its own rules: code
+**foreign** to the repo's learned voice (`foreign-import`, `unfamiliar-callee`,
+`rare-tokens`, `convention`), functions the repo **already has** (`redundant`),
+code filed in the **wrong area** (`misplaced`), and imports that **break the
+repo's layering** (`layering`). Pick the local path, the CI path, or both.
 
 | Skill | Path | When it runs |
 |---|---|---|
-| [`argot-setup`](./argot-setup/SKILL.md) | local | Once per repo — fit the model and decide what shouldn't shape its voice (writes `argot.toml`). |
-| [`argot-check`](./argot-check/SKILL.md) | local | Per change — score your working diff and surface anything foreign (advisory). |
-| [`argot-review-pr`](./argot-review-pr/SKILL.md) | local | On demand — review a specific PR (or range) against the repo's local voice, no checkout. |
-| [`argot-setup-ci`](./argot-setup-ci/SKILL.md) | CI | Wire the GitHub Action — a non-blocking voice score on every PR (no local setup needed). |
+| [`argot-setup`](./argot-setup/SKILL.md) | local | Once per repo — fit the model, build the semantic index, and decide what shouldn't shape the repo's voice (writes `argot.toml`). |
+| [`argot-check`](./argot-check/SKILL.md) | local | Per change — score your working diff against all four detectors and act on what fires. |
+| [`argot-review-pr`](./argot-review-pr/SKILL.md) | local | On demand — review a specific PR (or range) against the repo's local model, no checkout. |
+| [`argot-setup-ci`](./argot-setup-ci/SKILL.md) | CI | Wire the GitHub Action — a non-blocking score on every PR (no local setup needed). |
 
 ## Install
 
@@ -41,11 +45,12 @@ Every path needs the `argot` CLI installed — see the
 
 ## The one rule
 
-argot is a **statistical** guardrail. These skills treat every hit as *advice*,
-never a gate: they surface divergences and offer to record deliberate ones
-(`argot mute <hash> --reason "…"`), but they never block a commit, fail a task,
-or rewrite your code to satisfy the linter. The human has the last word. The
-full contract is in the repo's [`AGENTS.md`](../AGENTS.md).
+argot is a **statistical** guardrail; false positives happen. These skills act
+on every hit by its *rule* — reuse the existing function, move the misfiled
+code, keep the layering intact, stay in the repo's vocabulary — or record a
+deliberate divergence (`argot mute <hash> --reason "…"`). They never mute on
+your behalf or rewrite code you wrote without asking. The human has the last
+word. The full contract is in the repo's [`AGENTS.md`](../AGENTS.md).
 
 ## Prefer proactive guidance?
 

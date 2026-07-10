@@ -168,7 +168,7 @@ pub fn one_liner(s: &VoiceDiffSummary) -> String {
 }
 
 /// A GitHub-flavoured markdown "voice score" card — for a PR comment or an
-/// Actions job summary. Deliberately framed as advisory: it reports a score and
+/// Actions job summary. Deliberately framed as informational: it reports a score and
 /// hot-spots and offers the `argot mute` escape hatch, but never speaks in terms
 /// of pass/fail or blocking. The reviewer decides.
 pub fn markdown_card(s: &VoiceDiffSummary) -> String {
@@ -188,7 +188,7 @@ pub fn markdown_card(s: &VoiceDiffSummary) -> String {
         let _ = writeln!(out, "`{bar}` 100%\n");
         let _ = writeln!(
             out,
-            "<sub>argot is a statistical guardrail — advisory only, it never blocks a merge.</sub>"
+            "<sub>argot is a probabilistic guardrail — informational, it never blocks a merge.</sub>"
         );
         return out;
     }
@@ -201,7 +201,7 @@ pub fn markdown_card(s: &VoiceDiffSummary) -> String {
     let _ = writeln!(out, "\n`{bar}` {in_voice:.0}%\n");
     let _ = writeln!(
         out,
-        "> **Advisory — not a merge gate.** argot is statistical and can be wrong; treat these as prompts to review, not errors.\n"
+        "> **Informational — not a merge gate.** argot is probabilistic and can be wrong; treat these as prompts to review, not errors.\n"
     );
 
     let _ = writeln!(out, "| | Location | Signal | Score | Accept |");
@@ -334,11 +334,11 @@ mod tests {
     }
 
     #[test]
-    fn markdown_card_is_advisory_and_offers_mute() {
+    fn markdown_card_is_informational_and_offers_mute() {
         let hits = vec![hit("src/http.ts", 42, 8.2, "foreign")];
         let card = markdown_card(&summarize(&hits, 40, 10));
         assert!(card.contains("in-voice"), "reports a score");
-        assert!(card.contains("not a merge gate"), "framed advisory");
+        assert!(card.contains("not a merge gate"), "framed informational");
         assert!(
             card.contains("argot mute deadbeef"),
             "offers the accept command"

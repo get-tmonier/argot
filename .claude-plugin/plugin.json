@@ -1,7 +1,7 @@
 {
   "name": "argot",
   "displayName": "argot",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A guardrail that flags code foreign to a repo's own patterns — learned from git history. Bundles the argot-setup, argot-check, argot-review-pr, and argot-setup-ci skills plus the argot MCP server.",
   "author": {
     "name": "Damien Meur",

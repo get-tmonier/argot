@@ -12,11 +12,13 @@
 //! - **F4 evidence**: show the closest existing code on any finding (retrieval).
 //!
 //! All three ride one shared [`index::SemanticIndex`] built at fit-time from the
-//! repo's own functions and queried at check-time. Findings are **advisory** —
-//! real repos contain real duplication and cross-cutting helpers, so the layer
-//! frames each finding with concrete evidence and never claims the base
-//! catch/false-alarm metric moved (embedding *novelty* is deliberately NOT wired
-//! into the foreign-pattern scorers — see `A3-F3-verdict.md`).
+//! repo's own functions and queried at check-time. The findings fire as the
+//! `redundant`/`misplaced` rules (group `semantic`, configurable severity like
+//! any rule) — real repos contain real duplication and cross-cutting helpers,
+//! so the layer frames each finding with concrete evidence, and its numbers are
+//! never folded into the base catch/false-alarm metric (embedding *novelty* is
+//! deliberately NOT wired into the foreign-pattern scorers — see
+//! `A3-F3-verdict.md`).
 //!
 //! Everything here is gated behind `feature = "semantic"`; with the feature off
 //! the base statistical guardrail is byte-for-byte unchanged and pays no cost.

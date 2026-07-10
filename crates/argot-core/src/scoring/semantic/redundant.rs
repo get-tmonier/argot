@@ -24,9 +24,9 @@
 //!
 //! This module is pure scoring: it takes an embedding and returns a finding or
 //! nothing. Extraction, embedding and `Hit` construction live in the check flow.
-//! Findings are **advisory** — a real repo contains real duplication, which the
-//! feature correctly surfaces; the evidence names the existing function so the
-//! author judges.
+//! A real repo contains real duplication, which the feature correctly
+//! surfaces; the evidence names the existing function so the author judges
+//! (the `redundant` rule is configurable like any other).
 
 use std::collections::{BTreeSet, HashMap};
 
