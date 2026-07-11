@@ -1,12 +1,12 @@
 ---
 title: What it catches
-description: The four axes argot flags — a foreign dependency/API/paradigm the repo has never used, a redundant function it already has, misplaced code, and an import that breaks the repo's layering — plus an honest account of the in-vocabulary breaks it still won't gate on.
+description: The five axes argot flags — a foreign dependency/API/paradigm the repo has never used, a redundant function it already has, misplaced code, an import that breaks the repo's layering, and a test gamed to green a failing suite — plus an honest account of the in-vocabulary breaks it still won't gate on.
 group: Guide
 order: 8
 ---
 
 argot catches code that is *technically fine but doesn't fit this project* — valid, typed, and
-lint-clean, but not how this codebase writes things. It works on **four axes**:
+lint-clean, but not how this codebase writes things. It works on **five axes**:
 
 - **Foreign** — a dependency, API, or whole paradigm the repo has never reached for. The base voice
   model (statistical, no neural net; rules `foreign-import`, `unfamiliar-callee`, `rare-tokens`);
@@ -17,10 +17,14 @@ lint-clean, but not how this codebase writes things. It works on **four axes**:
   `misplaced`).
 - **Layering** — an internal import that reverses the repo's own layer direction. The architecture
   detector (rule `layering`).
+- **Integrity** — a test quietly deleted, disabled, or weakened alongside the production change it
+  covers. The integrity detector (rules `test-deleted`, `test-disabled`, `test-weakened`) — the
+  complement of the other four: they catch foul play with *code*, this one catches foul play with
+  *tests*.
 
-Every rule defaults to severity `error` — a finding fails `argot check` — and every one can be
-downgraded to `warn` or `off` per repo or per run. See
-[Configure](/docs/configure/#rules--rule-severities).
+Every rule defaults to severity `error` — a finding fails `argot check` — except `test-weakened`,
+which ships `warn` (reported, never fails the check); every rule can be reconfigured per repo or
+per run. See [Configure](/docs/configure/#rules--rule-severities).
 
 Everything below is a real result from the shipped binary (`argot check` on a planted hunk, fit on
 the repo's own history). Where argot flags a line, the transcript is quoted verbatim. Where it
@@ -150,6 +154,47 @@ false positives on control edits, and a worst-case over-fire of 2.7%. Findings a
 downgrade). The fit-time import resolver covers Python in v1; the graph and benchmark methodology
 are language-agnostic.
 
+## Integrity — a test gamed to green a failing suite
+
+The **integrity detector** — the complement of the other four. Where `foreign-import`,
+`redundant`, `misplaced`, and `layering` catch foul play with *code*, this one catches foul play
+with *tests*: an AI agent asked to make a failing suite pass that quietly deletes, skips, or
+weakens the test instead of fixing the bug.
+
+At fit, a mini-replay of the repo's own accepted history learns which test-editing patterns are
+*normal* here — moved/renamed tests, assertions extracted to helpers, tests retired with their
+feature, bulk migrations — and stores the per-repo gates in `.argot/integrity.json`. At check, any
+changeset that touches production source *and* weakens, disables, or removes a test is flagged;
+tests-only commits (suite curation, refactors, renames with no production change) are excused by
+design:
+
+```text
+!  test disabled (test-disabled)
+   ↳ test `test_parse` disabled — skip/ignore marker added; this change also modifies parser.py
+```
+
+Three rules: **`test-deleted`** — a test removed while the production code it exercised still
+exists; **`test-disabled`** — a skip/ignore marker added, or a test gutted to a vacuous pass;
+**`test-weakened`** — assertions removed, tautologized, or loosened, or an expected literal
+retargeted. All three are pinned to the `suspicious` confidence tier. `test-deleted` and
+`test-disabled` default to `error`; **`test-weakened` ships `warn`** — reported on every run,
+never fails the check on its own, downgradeable or upgradeable per repo.
+
+On the benchmark — 22 corpora across 11 languages — the detector caught **144 of 153 (94.1%)**
+authored gaming tactics, with **0 of 102** legitimate-refactor controls (moves, renames, deletions
+alongside a removed feature, genuine strengthening) fired. Replayed against 3,540 real accepted
+test-touching commits *outside* the fit's calibration window, only **1.24%** were flagged at
+gating (error) severity — the honest cost of running this against real history, not a fixture
+rate. The hardest tactic is expected-value retargeting (16/21, 76%): a bare literal retarget is
+statically indistinguishable from a healthy TDD update, so it only fires in repos whose accepted
+history shows zero isolated literal flips — elsewhere the per-repo gate keeps it silent by design,
+a documented limit, not a bug. Full numbers, per-tactic breakdown, and the FP-hardening journey:
+[`docs/research/evidence/test-integrity-capstone.md`](https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/test-integrity-capstone.md).
+
+A clean integrity check means **no known gaming pattern fired** — not that the tests are good, and
+not that every test is trustworthy. A fraudulent test that asserts the wrong behaviour from the
+start needs an oracle, not a diff, and is out of scope by design.
+
 ## What argot does *not* reliably catch
 
 Honesty is a feature. When a break reuses **only vocabulary the repo already has** — every token,
@@ -191,10 +236,13 @@ misuse of your own vocabulary.
 | A new function that reinvents one you already have *(`redundant`)* | — |
 | The right code filed in the wrong package *(`misplaced`)* | — |
 | An internal import that reverses your layering *(`layering`)* | — |
+| A test deleted, disabled, or weakened alongside a prod change *(`test-deleted` / `test-disabled` / `test-weakened`)* | A fraudulent test that asserts the wrong behaviour from the start |
 
 Treat a hit as a prompt to look, never a verdict. **Foreign** catches are reliable — 98% when the
 symbol is visible in the change. **Redundant** and **misplaced** surface the nearest existing code
-and let you judge; **layering** shows the edge that runs against the graph. Every rule is
-configurable (`error` / `warn` / `off` — see [Configure](/docs/configure/#rules--rule-severities)).
-And there's a **line it won't cross** — a wrong choice built entirely from vocabulary you already
-have; argot won't gate on that, and says so.
+and let you judge; **layering** shows the edge that runs against the graph. **Integrity** catches
+94.1% of authored gaming tactics at a 1.24% cost on real accepted history, and reports
+`test-weakened` findings without failing the check by default. Every rule is configurable
+(`error` / `warn` / `off` — see [Configure](/docs/configure/#rules--rule-severities)). And there's
+a **line it won't cross** — a wrong choice built entirely from vocabulary you already have; argot
+won't gate on that, and says so.

@@ -45,7 +45,7 @@
 
 Type checkers ask *"is this valid?"* argot asks the question that used to live in code review: *"is this how **we** do it here?"* — and catches AI code that's flawless, type-correct, lint-clean, and still doesn't belong.
 
-### Four detectors, all learned from your git history
+### Five detectors, all learned from your git history
 
 | | Rule | It catches | |
 | :-- | :-- | :-- | :-- |
@@ -53,11 +53,13 @@ Type checkers ask *"is this valid?"* argot asks the question that used to live i
 | ♻️ | **`redundant`** | a new function that **reinvents one you already have** | *"you already have this"* |
 | 📍 | **`misplaced`** | the right code, filed in the **wrong place** | *"this doesn't belong here"* |
 | 🧱 | **`layering`** | an internal import that **reverses your architecture** | *"we never cross this boundary"* |
+| 🧪 | **`test-deleted`** + friends | a test **quietly weakened, disabled, or removed** alongside the prod change it covers | *"don't game the tests"* |
 
-Copilot, ESLint, SAST — every tool judges by one *global* idea of good code. argot learns **yours** and judges each AI diff against it. Configure it like any linter: every rule defaults to `error`; downgrade or disable any of them.
+Copilot, ESLint, SAST — every tool judges by one *global* idea of good code. argot learns **yours** and judges each AI diff against it. Configure it like any linter: every rule defaults to `error` (`test-weakened` ships `warn` — see below); downgrade or disable any of them.
 
 - 📊 **98%** foreign catch (604/618) · **0.22%** false alarms (49 of 22,785 real hunks) — [honest, leak-free benchmarks](#benchmarks) on 31 repos, 11 languages
 - 🧱 **96.8%** architecture-violation recall (244/252) at **0%** false positives (0/140 control edits)
+- 🧪 **94.1%** test-gaming catch (144/153 authored fixtures) at **1.24%** gating false-alarm rate on replayed accepted history (0/102 legit-refactor controls fired)
 - ⚡ **Rust · single static binary** — checks a diff in ~0.2 s (0.6 s when it defines new functions); the one-time fit is ~25 s on a 1,100-file repo, ~4 s to refresh (measured on FastAPI, laptop CPU)
 - 🧠 **A local code-embedding model** (`jina-code`, ~100 MB, CPU-first, Metal on Macs) — semantic understanding from an encoder, **not an LLM**: no generation, no API key, no GPU
 - 🔒 **Nothing leaves your machine** — no telemetry, no account; one cached version check per day (opt-out) is the only network call it ever makes on its own
@@ -205,6 +207,7 @@ acceptances. Full guides: [Setup](https://argot.tmonier.com/docs/setup/) ·
 | Flags a function you **already have** | ❌ | ❌ | ❌ | ✅ |
 | Flags code filed in the **wrong place** | ❌ | ❌ | ❌ | ✅ |
 | Flags an import that **breaks your layering** | ❌ | ❌ | ❌ | ✅ |
+| Flags a test **quietly weakened to game a failing suite** | ❌ | ❌ | ❌ | ✅ |
 | Learns from *your* history · runs 100% local | ❌ | ❌ | ❌ | ✅ |
 
 argot is additive: it sits *after* your type checker and linter and catches the
@@ -221,6 +224,7 @@ temporal holdout (fit at an old commit, replay only commits the model never saw)
 - **False alarms — 0.22%** of 22,785 real hunks of the repos' own code; worst corpus **1.17%**. A fire on a genuinely *new* dependency in a real commit is a **detection**, reported separately — never counted against the tool.
 - **Architecture — 244/252 (96.8%)** planted layering violations caught, **0/140** control edits flagged, worst over-fire 2.7% (23 corpora).
 - **Reinvention — 85–100%** per corpus (median 94%) · false-fire ≤ 2.8% of hunks. **Misplacement — 86–99%** where the repo has separable architecture · ≤ 1.5%.
+- **Test-integrity — 144/153 (94.1%)** authored gaming tactics caught across 22 corpora / 11 languages, **0/102** legitimate-refactor controls fired, **1.24%** of 3,540 replayed accepted test-touching commits flagged at gating severity — [evidence](docs/research/evidence/test-integrity-capstone.md).
 
 | Language | Corpora | Visible-foreign catch | Worst over-fire |
 |---|---|---|---|
@@ -262,7 +266,7 @@ Copy-paste setups: [the CI guide](https://argot.tmonier.com/docs/ci/).
 
 ## How it works
 
-**Four detectors, one source of truth: your git history.**
+**Five detectors, one source of truth: your git history.**
 
 1. *Voice* (`foreign-import` · `unfamiliar-callee` · `rare-tokens` · `convention`) —
    a statistical scorer per diff hunk: is any module foreign to this repo? how
@@ -281,6 +285,12 @@ Copy-paste setups: [the CI guide](https://argot.tmonier.com/docs/ci/).
 4. *Architecture* (`layering`) — a module-dependency graph of your imports; a
    diff that reverses an established layer direction or crosses a boundary the
    repo never crosses gets flagged, with **0%** false positives on control edits.
+5. *Integrity* (`test-deleted` · `test-disabled` · `test-weakened`) — at fit, a
+   mini-replay of your accepted history learns which test-editing patterns are
+   normal here; at check, a test quietly deleted, skipped, or weakened
+   alongside the production code it exercised is flagged — the complement of
+   the other four, which catch foul play with *code*; this one catches an AI
+   agent gaming *tests* to green a failing suite.
 
 No prompt, no generation, nothing leaves your machine. Full detail:
 [How it works](https://argot.tmonier.com/docs/how-it-works/) ·

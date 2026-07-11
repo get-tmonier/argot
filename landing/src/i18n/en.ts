@@ -52,6 +52,12 @@ const en: SiteContent = {
         caption:
           'In this repo, cli imports core — never the other way. This one import quietly reverses the architecture; argot flags the edge itself.',
       },
+      {
+        id: 'test-disabled',
+        label: 'test-disabled',
+        caption:
+          'A failing test goes green because it was skipped, not fixed. argot pairs the disabled test with the production change it covers, and names both.',
+      },
     ],
     seeLive: 'See it on real repos',
   },
@@ -65,7 +71,7 @@ const en: SiteContent = {
   engine: {
     label: 'Under the hood',
     title: 'Semantic understanding. No LLM anywhere.',
-    body: 'Three engines behind the four detectors, one static [[Rust]] binary, all learned from your git history — no API key, no GPU, nothing leaves your machine.',
+    body: 'Four engines behind the five detectors, one static [[Rust]] binary, all learned from your git history — no API key, no GPU, nothing leaves your machine.',
     cards: [
       {
         title: 'A code-embedding model on your laptop',
@@ -78,6 +84,10 @@ const en: SiteContent = {
       {
         title: 'An architecture graph',
         desc: 'Your module-dependency topology, fitted from your own imports: which layers point at which. A new edge that [[reverses the established direction]] is flagged with the direction it breaks.',
+      },
+      {
+        title: 'A test-inventory diff',
+        desc: 'tree-sitter parses every test file at each commit and tracks what each one asserts. When a production change lands beside a test that’s [[skipped, gutted, or deleted]], argot pairs the two and names the test — no model, just a structural diff of the suite.',
       },
     ],
     stats: [
@@ -112,6 +122,11 @@ const en: SiteContent = {
         value: '96.8%',
         title: 'architecture violations caught',
         desc: 'Layering reversals: 244 of 252 caught at [[zero false positives]] — 0 of 140 control edits flagged.',
+      },
+      {
+        value: '94%',
+        title: 'test-gaming edits caught',
+        desc: 'Skipping, gutting, or deleting a test to green a failing suite: 144 of 153 authored edits caught, 0 of 102 legitimate refactors flagged — just [[1.24% flagged on real accepted commits]].',
       },
     ],
     languages:

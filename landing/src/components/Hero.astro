@@ -13,15 +13,17 @@ interface Props {
 const { content, locale } = Astro.props;
 const { hero } = content;
 
-// The four rules, as a legible preview right in the hero — same slugs as the
+// The five rules, as a legible preview right in the hero — same slugs as the
 // Demo tabs and the Catches cards below, so the vocabulary reads as one
 // thread through the page. foreign-import carries the "foreign" (flag) tier;
-// the other three carry "unusual" (amber) — a confidence tier, not a ranking.
+// the rest carry the amber tier (unusual or suspicious confidence) — a
+// confidence tier, not a ranking.
 const rules = [
   { id: 'foreign-import', tier: 'flag' },
   { id: 'redundant', tier: 'amber' },
   { id: 'misplaced', tier: 'amber' },
   { id: 'layering', tier: 'amber' },
+  { id: 'test-disabled', tier: 'amber' },
 ] as const;
 ---
 

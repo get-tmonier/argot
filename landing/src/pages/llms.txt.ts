@@ -42,7 +42,7 @@ export const GET: APIRoute = async () => {
     '',
     '## What it catches',
     '',
-    'Four detectors, all learned from the repo\'s own git history. Every finding ' +
+    'Five detectors, all learned from the repo\'s own git history. Every finding ' +
       'belongs to a named rule with a configurable severity (`error` fails the check, ' +
       '`warn` reports without failing, `off` disables) — set in `argot.toml [rules]` ' +
       'or per run with `--rule <name|group>=<severity>`; `argot rules` lists them.',
@@ -67,6 +67,13 @@ export const GET: APIRoute = async () => {
       'repo\'s established layer direction or crosses a boundary it never crosses. ' +
       '96.8% of planted violations caught at 0% false positives on control edits. ' +
       'Rule: `layering` (group `architecture`).',
+    '',
+    '**5 · Test integrity — the test-inventory diff:** a test weakened, disabled, or ' +
+      'deleted alongside the production change it covers — the shape of an agent ' +
+      'gaming a failing suite. 94% of authored gaming edits caught across 22 corpora / ' +
+      '11 languages, 1.24% of real accepted test-touching commits flagged at gating ' +
+      'severity, zero fires on legitimate-refactor controls. Rules (group ' +
+      '`integrity`): `test-deleted`, `test-disabled`, `test-weakened` (ships `warn`).',
     '',
     'The semantic layer runs a small local code-embedding model (`jina-embeddings-v2-' +
       'base-code`, Q4 GGUF, ~100 MB, fetched once on first use, statically linked via ' +

@@ -1,6 +1,6 @@
 ---
 title: Real-world scenarios
-description: argot dogfooded end-to-end on real repositories — setup, the local dev loop, muting, and the CI pull-request flow — with the actual transcripts, good and bad.
+description: argot dogfooded end-to-end on real repositories — setup, the local dev loop, muting, a gamed test, and the CI pull-request flow — with the actual transcripts, good and bad.
 group: Guide
 order: 11
 ---
@@ -140,12 +140,57 @@ sticky comment updated in place** to green:
 > in the Files tab — so a fix commit clears an earlier commit's flag. The card
 > never blocks the merge; the reviewer has the last word. See [CI](/docs/ci/).
 
+## 6. Gaming a failing test — caught before it ships
+
+Same FastAPI checkout, same pinned commit as the replay example above. Say an
+agent is asked to fix a failing test after a small change to
+`fastapi/exceptions.py`'s `EndpointContext` — instead of finding out *why*
+`test_text_get` now fails, the easy-looking move is to skip it and ship the
+production change anyway:
+
+```python
+# tests/test_path.py — the agent's "fix"
+import pytest
+from fastapi.testclient import TestClient
+...
+
+@pytest.mark.skip(reason="flaky since the routing change, tracked separately")
+def test_text_get():
+    response = client.get("/text")
+```
+
+`argot check --staged` catches it — because the changeset also touches
+production code, not because a test was skipped in isolation:
+
+```text
+argot check · 1 hunk above threshold (1 suspicious)
+note: argot is a probabilistic style linter — verify before action.
+
+tests/test_path.py
+  ?  L9              1.00  suspicious  · staged · test-disabled [b252342bf669]
+     ↳ test `test_text_get` disabled — skip/ignore marker added; this change also modifies fastapi/exceptions.py
+  9 | @pytest.mark.skip(reason="flaky since the routing change, tracked separately")
+```
+
+The evidence names both halves of the tell: the skip marker *and* the
+co-changed production file. A genuinely flaky-test skip, a rename, or a test
+retired alongside the feature it covered never fires this rule — only
+production code changing **in the same breath** as a test getting weaker
+does. `test-disabled` is `error` by default, so this fails the check, the
+same way the foreign-import catch in §2 did. A quieter cousin,
+`test-weakened` (assertions loosened rather than removed), ships `warn` by
+default — reported in the output, but it alone won't fail a merge.
+
 ## What the dogfood showed
 
 - **It catches what it says it does.** A foreign dependency (`tenacity`, `aiohttp`,
   `express`) is flagged fast, with evidence specific enough that the fix is obvious
   — before CI, before human review. Signal-to-noise was high: one foreign import,
   one hit, no chaff.
+- **It watches tests, not just code.** A skipped test alongside the production
+  change it covers is flagged with the same specificity — the test name, the
+  marker, the co-changed file — because gaming a suite is a foul as real as a
+  foreign import.
 - **It doesn't cry wolf.** `httpx` in FastAPI scored clean — it's a library the
   repo actually uses. argot flags *foreign*, not *unfamiliar-to-you*.
 - **It's honest about the rest.** In-vocabulary design smells (sync in an async

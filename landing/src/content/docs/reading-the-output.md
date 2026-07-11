@@ -37,9 +37,13 @@ Each hit line carries five things:
 - **the source** — `workdir`, `staged`, `untracked`, or a commit SHA, so you know where it came from.
 - **the rule** that fired — `foreign-import`, `rare-tokens`, or `unfamiliar-callee` from the base
   voice model, `redundant` (a function you already have) and `misplaced` (code in an unusual
-  location) from the semantic layer, and `layering` (an internal import that crosses a module
-  boundary) from the architecture detector. A further rule, `convention`, exists in the engine but
-  rarely fires on its own. `argot rules` lists them all with their effective severities.
+  location) from the semantic layer, `layering` (an internal import that crosses a module
+  boundary) from the architecture detector, and `test-deleted` / `test-disabled` / `test-weakened`
+  (a test removed, skipped, or weakened alongside the production change it covers) from the
+  integrity detector. A further rule, `convention`, exists in the engine but rarely fires on its
+  own. Every rule defaults to `error` except `test-weakened`, which ships `warn` — it's printed
+  like any other hit, but on its own it doesn't fail the check. `argot rules` lists them all with
+  their effective severities.
 
 ## Confidence tiers
 
@@ -54,8 +58,10 @@ relative to the calibrated threshold `t` (stored in `.argot/scorer-config.json`)
 | `suspicious` | `t+0.5 ≤ score < t+1.5` | Likely worth a look |
 | `foreign` | `score ≥ t+1.5` | High-confidence anomaly |
 
-`redundant`, `misplaced`, and `layering` findings are always pinned to `unusual` — their evidence
-is a lookup, not a score margin. `argot check --min-confidence <tier>` filters the display.
+`redundant`, `misplaced`, and `layering` findings are always pinned to `unusual`; the integrity
+findings (`test-deleted`, `test-disabled`, `test-weakened`) are always pinned to `suspicious`.
+None of these carry a score margin — the evidence is an event lookup, not a BPE distance. `argot
+check --min-confidence <tier>` filters the display.
 
 ## The evidence line
 
@@ -73,6 +79,11 @@ The `↳` line is the per-hunk evidence — *why* this hunk fired:
   `↳ looks like core/downloader code filed under commands/`.
 - For **layering** hits it names the established direction the new import breaks:
   `↳ cli → core is this repo's direction — this import reverses it`.
+- For **integrity** hits it names the test and what happened to it, plus a note that the
+  changeset also touches production source — the co-change requirement that keeps tests-only
+  commits (suite curation) silent. Rendered under a `test-disabled` hit at `suspicious`
+  confidence, score `1.00`:
+  ``↳ test `test_parse` disabled — skip/ignore marker added; this change also modifies parser.py``.
 
 The score and rule are always printed, so a hit is never a black box.
 
@@ -106,7 +117,7 @@ Each entry in `hits[]`:
 | `threshold` | Calibrated threshold the confidence tier is measured against. |
 | `confidence` | Evidence strength: `unusual` / `suspicious` / `foreign`. |
 | `severity` | The rule's configured severity for this run: `error` (fails the check) or `warn`. |
-| `rule` | Stable rule name: `foreign-import`, `unfamiliar-callee`, `rare-tokens`, `convention`, `redundant`, `misplaced`, or `layering` — the same key you'd use in `argot.toml [rules]`, `--rule`, and suppressions. |
+| `rule` | Stable rule name: `foreign-import`, `unfamiliar-callee`, `rare-tokens`, `convention`, `redundant`, `misplaced`, `layering`, `test-deleted`, `test-disabled`, or `test-weakened` — the same key you'd use in `argot.toml [rules]`, `--rule`, and suppressions. |
 | `rule_label` | Human label of `rule` (e.g. `rare token sequence`, `foreign import`). |
 | `source` | `workdir` / `staged` / `untracked`, or a short commit SHA. |
 | `hash` | Content-based hit hash — paste into `argot mute <hash>`. |
