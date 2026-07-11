@@ -1975,6 +1975,8 @@ fn build_semantic_hit(
         semantic: Some(sem),
         #[cfg(feature = "arch")]
         arch: None,
+        #[cfg(feature = "integrity")]
+        integrity: None,
     }
 }
 
