@@ -4,7 +4,7 @@ const en: SiteContent = {
   meta: {
     title: 'argot — catch the AI code that doesn’t fit your codebase',
     description:
-      'argot is a local guardrail for AI-written code. It learns your repo’s patterns from its own git history, then flags code that doesn’t belong — a dependency you’ve never used, a function you already wrote, logic in the wrong place, an import that breaks your layering. Backed by a code-embedding model that runs on your laptop. No LLM, no cloud, no GPU.',
+      'argot is a local guardrail for AI-written code. It learns your repo’s patterns from its own git history, then flags code that doesn’t belong — a dependency you’ve never used, a function you already wrote, logic in the wrong place, an import that breaks your layering. And when an agent quiets a failing test instead of fixing it — skipped, gutted, or deleted right beside the code it covers — argot pairs the two and says so. Backed by a code-embedding model that runs on your laptop. No LLM, no cloud, no GPU.',
   },
   nav: {
     demo: 'Demo',
@@ -16,7 +16,7 @@ const en: SiteContent = {
     titleLead: 'Lint the rules',
     titleGradient: 'you never wrote down.',
     subtitle:
-      'AI writes valid code that isn’t [[yours]]. argot learns your repo’s voice from its git history — and flags what doesn’t belong, before it merges.',
+      'AI writes valid code that isn’t [[yours]] — and silences the tests that say so. argot learns your repo from its git history and flags both, before the merge.',
     ctaPrimary: 'Read the docs',
     ctaSecondary: 'Star on GitHub',
     install: 'npm i -g @tmonier/argot',
@@ -60,6 +60,19 @@ const en: SiteContent = {
       },
     ],
     seeLive: 'See it on real repos',
+  },
+  trust: {
+    label: 'The other failure mode',
+    title: 'An agent that can’t fix the code will “fix” the test.',
+    body: 'Skip it with a plausible reason, delete the assertion that fails, nudge the expected value, drop the file — the diff looks tidy, CI turns green, and your safety net now has a hole [[exactly where the code is newest]]. argot reads both sides of every diff: the moment a test gets weaker in the same change that touches the code it covers, it names the test and the co-changed file. Your own history teaches it what normal test churn looks like — refactors stay quiet.',
+    moves: [
+      { name: 'skip it', example: '@pytest.mark.skip("flaky")' },
+      { name: 'gut it', example: 'assertions removed, test kept' },
+      { name: 'retarget it', example: 'expected 429 → becomes 200' },
+      { name: 'delete it', example: 'test gone, code stays' },
+    ],
+    caption:
+      'Measured like everything else: [[94%]] of authored gaming edits caught across 22 repos / 11 languages · 0 of 102 legitimate refactors flagged · 1.24% flagged on real accepted commits. test-weakened ships as warn — argot informs, never blocks.',
   },
   replay: {
     label: 'Day one',

@@ -4,7 +4,7 @@ const fr: SiteContent = {
   meta: {
     title: 'argot — détectez le code IA qui ne colle pas à votre dépôt',
     description:
-      'argot est un garde-fou local pour le code écrit par IA. Il apprend les motifs de votre dépôt depuis son historique git, puis signale le code qui n’a pas sa place — une dépendance jamais utilisée, une fonction que vous avez déjà, du code au mauvais endroit, un import qui casse votre architecture. Propulsé par un modèle d’embeddings de code qui tourne sur votre machine. Sans LLM, sans cloud, sans GPU.',
+      'argot est un garde-fou local pour le code écrit par IA. Il apprend les motifs de votre dépôt depuis son historique git, puis signale le code qui n’a pas sa place — une dépendance jamais utilisée, une fonction que vous avez déjà, du code au mauvais endroit, un import qui casse votre architecture. Et quand un agent fait taire un test en échec au lieu de le corriger — sauté, vidé ou supprimé juste à côté du code qu’il couvre — argot associe les deux et le dit. Propulsé par un modèle d’embeddings de code qui tourne sur votre machine. Sans LLM, sans cloud, sans GPU.',
   },
   nav: {
     demo: 'Démo',
@@ -16,7 +16,7 @@ const fr: SiteContent = {
     titleLead: 'Lintez les règles',
     titleGradient: 'que personne n’a écrites.',
     subtitle:
-      'L’IA écrit du code valide qui n’est pas [[le vôtre]]. argot apprend la voix de votre dépôt depuis son historique git — et signale ce qui n’a pas sa place, avant le merge.',
+      'L’IA écrit du code valide qui n’est pas [[le vôtre]] — et fait taire les tests qui le disent. argot apprend votre dépôt depuis son historique git et signale les deux, avant le merge.',
     ctaPrimary: 'Lire la doc',
     ctaSecondary: 'Star sur GitHub',
     install: 'npm i -g @tmonier/argot',
@@ -60,6 +60,19 @@ const fr: SiteContent = {
       },
     ],
     seeLive: 'Voyez-le sur de vrais dépôts',
+  },
+  trust: {
+    label: 'L’autre mode de défaillance',
+    title: 'L’agent qui ne sait pas corriger le code « corrige » le test.',
+    body: 'Un skip avec une raison plausible, l’assertion qui échoue supprimée, la valeur attendue réajustée, le fichier disparu — le diff est propre, la CI repasse au vert, et votre filet de sécurité se troue [[exactement là où le code est le plus récent]]. argot lit les deux côtés de chaque diff : dès qu’un test s’affaiblit dans le changement même qui touche le code qu’il couvre, il nomme le test et le fichier co-modifié. Votre historique lui apprend le va-et-vient normal des tests — les refactorings restent silencieux.',
+    moves: [
+      { name: 'le sauter', example: '@pytest.mark.skip("flaky")' },
+      { name: 'le vider', example: 'assertions supprimées, test conservé' },
+      { name: 'réajuster', example: 'attendu 429 → devient 200' },
+      { name: 'le supprimer', example: 'test disparu, code conservé' },
+    ],
+    caption:
+      'Mesuré comme le reste : [[94 %]] des éditions truquées détectées sur 22 dépôts / 11 langages · 0 des 102 refactorings légitimes signalés · 1,24 % de commits réels marqués. test-weakened sort en warn — argot informe, ne bloque jamais.',
   },
   replay: {
     label: 'Jour un',

@@ -36,6 +36,14 @@ export interface SiteContent {
     }[];
     readonly seeLive: string;
   };
+  readonly trust: {
+    readonly label: string;
+    readonly title: string;
+    readonly body: string;
+    /// The four moves an agent makes on a failing test — name + tiny example.
+    readonly moves: readonly { readonly name: string; readonly example: string }[];
+    readonly caption: string;
+  };
   readonly replay: {
     readonly label: string;
     readonly title: string;

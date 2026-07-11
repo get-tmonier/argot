@@ -45,6 +45,8 @@
 
 Type checkers ask *"is this valid?"* argot asks the question that used to live in code review: *"is this how **we** do it here?"* — and catches AI code that's flawless, type-correct, lint-clean, and still doesn't belong.
 
+And it asks a second question no other tool asks: **did the AI play fair?** When an agent can't make a failing test pass, the cheapest path to "done" is to make the test stop looking — skip it with a plausible reason, delete the assertion that fails, nudge the expected value. The diff looks tidy, CI turns green, and your safety net now has a hole exactly where the code is newest. argot reads both sides of every diff and pairs a weakened, disabled, or deleted test with the production change it covers — before you merge on a checkmark that no longer means anything.
+
 ### Five detectors, all learned from your git history
 
 | | Rule | It catches | |
