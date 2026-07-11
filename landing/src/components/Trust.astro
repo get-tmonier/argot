@@ -49,9 +49,9 @@ const { trust } = Astro.props.content;
         </div>
         <div class="tt-body">
           <div class="tt-line dim" style="--i: 0"># your agent, 40 minutes ago:</div>
-          <div class="tt-line" style="--i: 1">
+          <div class="tt-line tt-wrap" style="--i: 1">
             &nbsp;&nbsp;<span class="jade">✓</span> Done — 42 passed, 0 failed
-            <span class="dim">(was: 3 failing)</span>
+            <span class="dim">(was:&nbsp;3&nbsp;failing)</span>
           </div>
           <div class="tt-line" style="--i: 2">&nbsp;</div>
           <div class="tt-line" style="--i: 3">
@@ -65,9 +65,9 @@ const { trust } = Astro.props.content;
           <div class="tt-line" style="--i: 5">
             &nbsp;&nbsp;<span class="quest">?</span> L214&nbsp;&nbsp;1.00&nbsp;&nbsp;<span
               class="amberword">suspicious</span
-            >&nbsp;· staged · <span class="amberword">test-disabled</span>&nbsp;<span class="dim"
-              >[c48f0a1de923]</span
-            >
+            ><span class="tt-meta">&nbsp;· staged</span> · <span class="amberword"
+              >test-disabled</span
+            ><span class="tt-meta">&nbsp;<span class="dim">[c48f0a1de923]</span></span>
           </div>
           <div class="tt-line tt-evidence" style="--i: 6">
             ↳ test <span class="ink">`test_rate_limit_429`</span> disabled — skip/ignore marker
@@ -137,6 +137,21 @@ const { trust } = Astro.props.content;
     font-size: clamp(11px, 3vw, 13.5px);
     line-height: 1.9;
     white-space: nowrap;
+  }
+  /* Phones: the evidence prose wraps instead of clipping; the metadata that
+     would force a pan (source · hash) steps aside; remaining overflow fades
+     at the right edge instead of hard-cutting. */
+  @media (max-width: 767px) {
+    .tt-body {
+      mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+    }
+    .tt-evidence,
+    .tt-wrap {
+      white-space: normal;
+    }
+    .tt-meta {
+      display: none;
+    }
   }
   .tt-line {
     display: block;

@@ -34,13 +34,27 @@ const rules = [
   <!-- the living backdrop: the repo's voice, with divergent hunks flaring -->
   <VoiceField />
 
-  <div class="reveal relative z-10 mx-auto w-full max-w-3xl px-5 py-10 text-center">
+  <div class="reveal relative z-10 mx-auto w-full max-w-3xl px-5 pt-20 pb-10 md:py-10 text-center">
     <div class="mb-5 inline-flex items-center gap-2.5">
       <Logo size={36} draw />
       <span
-        class="rounded-full border border-line-2 bg-panel/70 px-3 py-1 text-xs font-semibold tracking-wide uppercase shadow-[0_0_24px_-6px_var(--ember-bright)] backdrop-blur-sm"
+        class="rounded-full border border-line-2 bg-panel/70 px-3 py-1 text-[0.65rem] font-semibold tracking-wide uppercase shadow-[0_0_24px_-6px_var(--ember-bright)] backdrop-blur-sm sm:text-xs"
       >
-        <span class="voice-text-shimmer">{hero.eyebrow}</span>
+        <span class="voice-text-shimmer">
+          {
+            hero.eyebrow.split(' · ').map((part, i, all) => (
+              <span
+                class:list={[
+                  i > 0 && i < all.length - 1 && 'eyebrow-mid',
+                  i > 0 && i === all.length - 1 && 'eyebrow-end',
+                ]}
+              >
+                {i > 0 ? ' · ' : ''}
+                {part}
+              </span>
+            ))
+          }
+        </span>
       </span>
     </div>
 
@@ -93,7 +107,9 @@ const rules = [
         <span class="text-ink-dim">npm i -g <span class="text-ink">@tmonier/argot</span></span>
         <span class="copy-icon pl-2 text-muted transition-colors group-hover:text-ink">⧉</span>
       </button>
-      <p class="text-xs text-muted">{hero.installNote}</p>
+      <p class="max-w-sm text-xs text-balance text-muted sm:max-w-none">
+        {hero.installNote.replaceAll(' \u00b7', '\u00a0\u00b7')}
+      </p>
       <a
         href={localePath('/docs/#install', locale)}
         class="text-xs text-muted underline decoration-dotted underline-offset-4 transition-colors hover:text-ink"
@@ -102,7 +118,9 @@ const rules = [
       </a>
     </div>
 
-    <HeroFormula />
+    <div class="hidden md:block">
+      <HeroFormula />
+    </div>
   </div>
 
   <a href="#demo" class="hero-scroll" aria-label="Scroll to the demo">
@@ -123,6 +141,22 @@ const rules = [
 </section>
 
 <style>
+  /* The eyebrow reads as three claims separated by dots; on a phone the
+     middle one wraps it into a shouting three-line pill — keep the first and
+     last claims only. */
+  @media (max-width: 639px) {
+    .eyebrow-mid {
+      display: none;
+    }
+  }
+  /* The narrowest phones keep the first claim only — the others already live
+     in the subtitle and the install note right below. */
+  @media (max-width: 399px) {
+    .eyebrow-end {
+      display: none;
+    }
+  }
+
   .hero-grid {
     position: absolute;
     inset: -2px;

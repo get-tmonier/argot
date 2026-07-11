@@ -290,6 +290,17 @@ const tabs = demo.tabs;
     border-bottom: 1px solid var(--line);
     background: color-mix(in srgb, var(--panel-2) 35%, transparent);
     padding: 0 8px;
+    scrollbar-width: none;
+  }
+  .term-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  /* Phones: the strip scrolls — fade the right edge so the further tabs read
+     as "more", not as a cut. */
+  @media (max-width: 767px) {
+    .term-tabs {
+      mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    }
   }
   .term-tab {
     appearance: none;
@@ -327,6 +338,11 @@ const tabs = demo.tabs;
     line-height: 1.9;
     white-space: nowrap;
     min-height: 15.5em;
+  }
+  @media (max-width: 767px) {
+    .term-body {
+      mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+    }
   }
 
   .term-caption {
