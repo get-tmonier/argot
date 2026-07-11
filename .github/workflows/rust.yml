@@ -91,6 +91,7 @@ jobs:
         run: |
           cargo clippy -p argot-core -p argot-bench --all-targets --features integrity -- -D warnings
           cargo test -p argot-core --features integrity
+          cargo check -p argot-core --features arch,integrity
       # The semantic layer links llama.cpp (compiling it from source via cmake is
       # a multi-minute C++ build), so it is kept OFF the PR path to keep PR CI
       # fast — it runs only on push-to-main and manual dispatch (Linux leg),
@@ -106,6 +107,12 @@ jobs:
       - name: Test semantic feature
         if: github.event_name != 'pull_request' && matrix.os == 'ubuntu-latest'
         run: cargo test -p argot-core --features semantic
+      # The release builds every feature together — compile that exact combo
+      # here so a cross-feature initializer gap can't first surface on the
+      # release runners (v0.2.62 broke exactly this way).
+      - name: Check the release feature combo
+        if: github.event_name != 'pull_request' && matrix.os == 'ubuntu-latest'
+        run: cargo check -p argot --features self-update,semantic,arch,integrity
       - name: Test (incl. Python-parity golden suites)
         env:
           # On Windows `bash` resolves to the WSL stub (System32, no distro
