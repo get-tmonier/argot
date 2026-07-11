@@ -18,10 +18,16 @@ const { proof } = Astro.props.content;
       <h2 class="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{proof.title}</h2>
     </div>
 
-    <div class="mt-10 grid grid-cols-2 gap-x-5 gap-y-8 sm:gap-x-10 sm:gap-y-10 md:mt-16 lg:grid-cols-4">
+    <div class="mt-10 grid grid-cols-2 gap-x-5 gap-y-8 sm:gap-x-8 sm:gap-y-10 md:mt-16 lg:grid-cols-5">
       {
         proof.stats.map((stat, i) => (
-          <div class="reveal min-w-0" style={`--reveal-delay: ${(i % 4) * 90}ms`}>
+          <div
+            class:list={[
+              'reveal min-w-0',
+              i === 4 && 'col-span-2 lg:col-span-1',
+            ]}
+            style={`--reveal-delay: ${(i % 5) * 90}ms`}
+          >
             <span class="proof-tick block h-px w-8 bg-gradient-to-r from-ember to-ember-deep" />
             <p
               class="mt-3 text-4xl font-bold tracking-tight text-ink tabular-nums sm:mt-4 sm:text-5xl"
@@ -41,7 +47,7 @@ const { proof } = Astro.props.content;
 
     <p
       class="reveal mx-auto mt-10 max-w-2xl text-center text-sm leading-relaxed text-ink-dim md:mt-12"
-      set:html={emphasize(proof.languages)}
+      set:html={emphasize(proof.languages.replaceAll(' \u00b7', '\u00a0\u00b7'))}
     />
 
     <p class="reveal mx-auto mt-6 max-w-2xl text-center font-mono text-xs leading-relaxed text-ink-dim/80">

@@ -1,0 +1,235 @@
+---
+// "The second failure mode" — the test-integrity pitch. The other sections
+// sell the first question (is this code yours?); this one sells the second
+// (did the agent play fair with the tests?). The terminal contrasts the
+// agent's report with argot's finding — the finding is argot's real output
+// shape (rule chip, confidence, hash, evidence line pairing the test with the
+// co-changed production file); the agent line is a reenactment of the story
+// every team has by now.
+import { emphasize } from '#lib/text';
+import type { SiteContent } from '#i18n/types';
+
+interface Props {
+  content: SiteContent;
+}
+const { trust } = Astro.props.content;
+---
+
+<section id="trust" class="snap-section relative flex md:min-h-svh items-center">
+  <div
+    class="mx-auto grid w-full max-w-6xl grid-cols-1 gap-6 px-5 py-12 md:py-24 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:gap-16"
+  >
+    <div class="reveal">
+      <p class="mb-3 font-mono text-xs tracking-widest text-ember uppercase">{trust.label}</p>
+      <h2 class="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{trust.title}</h2>
+      <p
+        class="mt-4 leading-relaxed text-ink-dim text-pretty sm:mt-5"
+        set:html={emphasize(trust.body)}
+      />
+
+      <ul class="mt-5 flex flex-col gap-2.5 text-sm sm:mt-7">
+        {
+          trust.moves.map((move) => (
+            <li class="flex items-center gap-3">
+              <span class="move">{move.name}</span>
+              <span class="font-mono text-xs text-muted">{move.example}</span>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+
+    <div class="reveal flex flex-col gap-4" style="--reveal-delay: 120ms">
+      <div class="trust-terminal" role="group" aria-label="Example test-integrity finding">
+        <div class="tt-titlebar">
+          <span class="tt-dot" style="background: var(--flag)" aria-hidden="true"></span>
+          <span class="tt-dot" style="background: var(--amber)" aria-hidden="true"></span>
+          <span class="tt-dot" style="background: var(--jade)" aria-hidden="true"></span>
+          <span class="tt-title">the green checkmark, audited</span>
+        </div>
+        <div class="tt-body">
+          <div class="tt-line dim" style="--i: 0"># your agent, 40 minutes ago:</div>
+          <div class="tt-line tt-wrap" style="--i: 1">
+            &nbsp;&nbsp;<span class="jade">✓</span> Done — 42 passed, 0 failed
+            <span class="dim">(was:&nbsp;3&nbsp;failing)</span>
+          </div>
+          <div class="tt-line" style="--i: 2">&nbsp;</div>
+          <div class="tt-line" style="--i: 3">
+            <span class="dim" aria-hidden="true">$</span> argot check<span
+              class="cursor"
+              aria-hidden="true"></span>
+          </div>
+          <div class="tt-line" style="--i: 4">
+            &nbsp;&nbsp;<span class="ink">tests/test_rate_limit.py</span>
+          </div>
+          <div class="tt-line" style="--i: 5">
+            &nbsp;&nbsp;<span class="quest">?</span> L214&nbsp;&nbsp;1.00&nbsp;&nbsp;<span
+              class="amberword">suspicious</span
+            ><span class="tt-meta">&nbsp;· staged</span> · <span class="amberword"
+              >test-disabled</span
+            ><span class="tt-meta">&nbsp;<span class="dim">[c48f0a1de923]</span></span>
+          </div>
+          <div class="tt-line tt-evidence" style="--i: 6">
+            ↳ test <span class="ink">`test_rate_limit_429`</span> disabled — skip/ignore marker
+            added;
+          </div>
+          <div class="tt-line tt-evidence" style="--i: 7">
+            &nbsp;&nbsp;this change also modifies <span class="ink">middleware/rate_limit.py</span>
+          </div>
+          <div class="tt-line dim" style="--i: 8">
+            &nbsp;&nbsp;214 | @pytest.mark.skip(reason="flaky since limiter rework")
+          </div>
+          <div class="tt-line dim" style="--i: 9">&nbsp;&nbsp;215 | def test_rate_limit_429():</div>
+        </div>
+      </div>
+      <p class="text-center text-sm text-muted text-pretty" set:html={emphasize(trust.caption)} />
+    </div>
+  </div>
+</section>
+
+<style>
+  .move {
+    display: inline-flex;
+    min-width: 6.2rem;
+    justify-content: center;
+    border-radius: 6px;
+    border: 1px solid var(--line-2);
+    padding: 0.15rem 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--amber);
+  }
+
+  .trust-terminal {
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel) 80%, #000);
+    overflow: hidden;
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.03) inset,
+      0 24px 60px -30px rgba(0, 0, 0, 0.8);
+  }
+  .tt-titlebar {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel-2) 60%, transparent);
+  }
+  .tt-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 999px;
+    opacity: 0.85;
+  }
+  .tt-title {
+    margin-left: 8px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .tt-body {
+    overflow-x: auto;
+    padding: clamp(14px, 3.6vw, 22px);
+    font-family: var(--font-mono);
+    font-size: clamp(11px, 3vw, 13.5px);
+    line-height: 1.9;
+    white-space: nowrap;
+  }
+  /* Phones: the evidence prose wraps instead of clipping; the metadata that
+     would force a pan (source · hash) steps aside; remaining overflow fades
+     at the right edge instead of hard-cutting. */
+  @media (max-width: 767px) {
+    .tt-body {
+      mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+    }
+    .tt-evidence,
+    .tt-wrap {
+      white-space: normal;
+    }
+    .tt-meta {
+      display: none;
+    }
+  }
+  .tt-line {
+    display: block;
+  }
+  .tt-evidence {
+    padding-left: 3.2em;
+    color: var(--ink-dim);
+  }
+  .dim {
+    color: var(--muted);
+  }
+  .ink {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .jade {
+    color: var(--jade);
+    font-weight: 700;
+  }
+  .quest {
+    color: var(--amber);
+    font-weight: 700;
+  }
+  .amberword {
+    color: var(--amber);
+    font-weight: 600;
+  }
+
+  .cursor::after {
+    content: '';
+    display: inline-block;
+    width: 0.55ch;
+    height: 1em;
+    margin-left: 2px;
+    vertical-align: -0.15em;
+    background: var(--ember);
+  }
+  :global(.js) .trust-terminal.is-playing .cursor::after {
+    animation: blink 0.9s step-end 6;
+  }
+
+  /* Same reveal-cascade contract as DemoTerminal/Replay: hidden only once JS
+     confirms it can play; reduced-motion / no-IO jumps straight to done. */
+  :global(.js) .trust-terminal:not(.is-playing):not(.is-done) .tt-line {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  .trust-terminal.is-playing .tt-line {
+    transition:
+      opacity 0.45s var(--ease-out-expo),
+      transform 0.45s var(--ease-out-expo);
+    transition-delay: calc(var(--i, 0) * 260ms);
+  }
+  .trust-terminal.is-playing .tt-line,
+  .trust-terminal.is-done .tt-line {
+    opacity: 1;
+    transform: none;
+  }
+</style>
+
+<script>
+  for (const root of document.querySelectorAll<HTMLElement>('.trust-terminal')) {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced || !('IntersectionObserver' in window)) {
+      root.classList.add('is-done');
+      continue;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            root.classList.add('is-playing');
+            io.unobserve(entry.target);
+          }
+        }
+      },
+      { rootMargin: '0px 0px -10% 0px', threshold: 0.3 },
+    );
+    io.observe(root);
+  }
+</script>

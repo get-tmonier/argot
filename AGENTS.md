@@ -1,11 +1,13 @@
 # Working with argot
 
 [argot](https://argot.tmonier.com) is a guardrail that flags code **foreign to a
-repo's own patterns** — learned from its git history. Four detectors: a foreign
+repo's own patterns** — learned from its git history. Five detectors: a foreign
 dependency/API/idiom, a function the repo already has, code filed in the wrong
-place, and an internal import that reverses the repo's layering. It answers
-*"is this how we write things here?"*, not *"is this valid?"*. This file tells a
-coding agent how to use it well. (Developing argot itself? See `CLAUDE.md`.)
+place, an internal import that reverses the repo's layering, and a test
+weakened, disabled, or deleted alongside the production change it covers. It
+answers *"is this how we write things here?"*, not *"is this valid?"*. This
+file tells a coding agent how to use it well. (Developing argot itself? See
+`CLAUDE.md`.)
 
 ## The contract: surface, don't enforce
 
@@ -45,10 +47,15 @@ one of the most actionable findings argot makes:
 | `redundant` | semantic | this new function duplicates one the repo already has | **Open the file the evidence names** (`↳ duplicates X (path:line)`), compare, and use the existing function instead — or justify and mute. |
 | `misplaced` | semantic | this function's nearest kin all live in another area | Propose moving it to the named area, or justify its placement. |
 | `layering` | architecture | this internal import reverses the repo's layer direction | Don't introduce the import — invert the dependency or go through the intended layer. |
+| `test-deleted` | integrity | a test removed while the production code it exercised still exists | Restore the test or explain why it's obsolete; if the deletion is legitimate (feature removed), the code that exercised it should be gone too. |
+| `test-disabled` | integrity | a skip/ignore marker added, or a test gutted, while production code changes | Un-skip and fix the code, or record why the skip is temporary; skipping to make a failing suite green is the exact behavior this rule exists to catch. |
+| `test-weakened` | integrity | assertions removed, tautologized, or loosened while production code changes | Restore the assertion strength; if the expected value legitimately changed, say why in the commit/PR rather than silently retargeting. |
 
 Rules are configurable like any linter: `argot rules` lists them; `argot.toml
 [rules]` or `argot check --rule <name|group>=<error|warn|off>` sets severities.
-Everything defaults to `error`.
+Everything defaults to `error` except `test-weakened`, which ships as `warn`
+(reported, never fails the check) — its finding classes are real but noisier
+on routine test churn.
 
 **Gauge trust first.** Run `argot inspect` (or MCP `argot.fit_status`). If the
 verdict is **Marginal** or **Not recommended**, down-weight every hit — the model
@@ -59,7 +66,12 @@ isn't well-calibrated on this repo yet.
 argot reliably flags a **novel pattern** foreign to this repo (~98% when the
 foreign symbol is in the change), a **reinvented function** (the evidence names
 the original), **misplaced code**, and a **layering violation** (96.8% caught at
-zero false positives on control edits). Trust those hits.
+zero false positives on control edits). It also flags **tests weakened,
+disabled, or deleted alongside a code change** — a test gutted, skipped, or its
+assertions loosened while the production code it exercises also changes —
+94% of authored gaming edits caught across 22 corpora / 11 languages, with
+1.2% of real accepted test-touching commits flagged at gating severity and
+zero fires on authored legitimate-refactor controls. Trust those hits.
 
 It does **not** reliably catch *in-vocabulary* breaks — where every token is
 already in the repo and only the choice is wrong (a bare `ValueError` where the

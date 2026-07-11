@@ -4,14 +4,15 @@
 // hand-authored to match a real `argot check` run — nothing here is generated
 // from external data.
 //
-// One pane per detector, tabbed by rule name — the four are peers, none is
+// One pane per detector, tabbed by rule name — the five are peers, none is
 // "the" demo:
 //   foreign-import — a Django import in an all-FastAPI file (voice)
 //   redundant      — a new fn that reinvents an existing one (semantic)
 //   misplaced      — downloader logic filed under cli/commands (semantic)
 //   layering       — a core→cli import reversing the repo's direction (architecture)
+//   test-disabled  — a test skipped alongside the prod change it covers (integrity)
 //
-// Tabs auto-advance once through the four panes (skipped under
+// Tabs auto-advance once through the five panes (skipped under
 // prefers-reduced-motion) and stop on the first user interaction.
 import type { SiteContent } from '#i18n/types';
 
@@ -197,6 +198,47 @@ const tabs = demo.tabs;
     </div>
   </div>
 
+  <div
+    class="term-body"
+    role="tabpanel"
+    id="demo-pane-test-disabled"
+    aria-labelledby="demo-tab-test-disabled"
+    hidden
+  >
+    <div class="term-line term-prompt" style="--i: 0">
+      <span class="dim" aria-hidden="true">$</span> argot check<span class="cursor" aria-hidden="true"
+      ></span>
+    </div>
+    <div class="term-line term-file" style="--i: 1">tests/test_rate_limit.py</div>
+    <div class="term-line term-flag semantic" style="--i: 2">
+      <span class="dot">.</span>
+      <span class="loc">L41-L43</span>
+      <span class="flag-word amber">suspicious</span>
+      <span class="sep" aria-hidden="true">·</span>
+      <span class="flag-word amber">test-disabled</span>
+      <span class="hash">[c48f0a1de923]</span>
+    </div>
+    <div class="term-line term-evidence" style="--i: 3">
+      <span aria-hidden="true">↳</span> test <span class="flag-word amber">test_rate_limit_429</span> disabled
+      — skip/ignore marker added; this change also modifies
+      <span class="flag-word amber">middleware/rate_limit.py</span>
+    </div>
+    <div class="term-line term-code" style="--i: 4">
+      <div class="code-line">
+        <span class="gutter">41</span>
+        <span class="bar" aria-hidden="true">{' │ '}</span>
+        <span class="code-text">
+          <span class="flag-word amber">@pytest.mark.skip</span>(reason="flaky since limiter rework")
+        </span>
+      </div>
+      <div class="code-line">
+        <span class="gutter">42</span>
+        <span class="bar" aria-hidden="true">{' │ '}</span>
+        <span class="code-text">def test_rate_limit_429():</span>
+      </div>
+    </div>
+  </div>
+
   <p class="term-caption">
     {
       tabs.map((tab, i) => (
@@ -240,7 +282,7 @@ const tabs = demo.tabs;
     color: var(--muted);
   }
 
-  /* --- rule tabs: the four detectors as peers --- */
+  /* --- rule tabs: the five detectors as peers --- */
   .term-tabs {
     display: flex;
     gap: 2px;
@@ -248,6 +290,17 @@ const tabs = demo.tabs;
     border-bottom: 1px solid var(--line);
     background: color-mix(in srgb, var(--panel-2) 35%, transparent);
     padding: 0 8px;
+    scrollbar-width: none;
+  }
+  .term-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  /* Phones: the strip scrolls — fade the right edge so the further tabs read
+     as "more", not as a cut. */
+  @media (max-width: 767px) {
+    .term-tabs {
+      mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    }
   }
   .term-tab {
     appearance: none;
@@ -285,6 +338,11 @@ const tabs = demo.tabs;
     line-height: 1.9;
     white-space: nowrap;
     min-height: 15.5em;
+  }
+  @media (max-width: 767px) {
+    .term-body {
+      mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+    }
   }
 
   .term-caption {
@@ -502,7 +560,7 @@ const tabs = demo.tabs;
           root.classList.add('is-playing');
           io.unobserve(entry.target);
           // One pass through the other panes after the cascade settles, so a
-          // visitor who never touches the tabs still sees all four detectors.
+          // visitor who never touches the tabs still sees all five detectors.
           let index = 0;
           let advanced = 0;
           setTimeout(() => {

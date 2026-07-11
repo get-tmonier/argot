@@ -94,6 +94,9 @@ one scores against the fresh voice. Guardrails, so this never surprises you:
 - at most **one attempt per day**, one refit at a time (a lock file),
 - the semantic index reuses embeddings of unchanged functions, so a routine
   refresh costs seconds,
+- the integrity gates (`.argot/integrity.json`) refresh the same way as the
+  rest of the voice — a stale mini-replay never keeps judging you against
+  history the repo has since moved past,
 - **never runs in CI** (the Action refits per base advance instead),
 - a failing refit doesn't retry silently — the next check says
   `the last background refit failed — run argot fit to see why`,

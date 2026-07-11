@@ -66,7 +66,10 @@ builds the semantic layer's code-embedding index (`.argot/semantic-index.json`) 
 the reinvention and placement checks are ready on your first `check` — no extra step.
 The first fit downloads the ~100 MB embedding model to a shared local cache, once per
 machine (pre-fetch it with `argot model fetch`, or skip it offline — argot says so and
-carries on; see [Configure](/docs/configure/#environment-variables)).
+carries on; see [Configure](/docs/configure/#environment-variables)). It also mini-replays
+your accepted history to learn per-repo gates for the test-integrity rules
+(`.argot/integrity.json`), so `test-deleted`/`test-disabled`/`test-weakened` are tuned to
+how this repo actually treats tests before your first `check`.
 
 ### If the verdict isn't Ready
 

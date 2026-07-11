@@ -253,8 +253,10 @@ const flagged = [
     .vf-flare-halo {
       display: none;
     }
+    /* On a phone the text column is the full viewport — a bright full-height
+       sweep reads as a glitch slicing the copy, not a playhead. */
     .vf-scanline {
-      filter: none;
+      display: none;
     }
   }
 

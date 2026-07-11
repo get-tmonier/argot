@@ -18,6 +18,7 @@ just dogfood      # run full pipeline against argot itself (or any path) — fas
 just build        # cargo build --release -p argot → target/release/argot
 just bench-quick  # ~1 min bench smoke (one fixture per category + 50 controls)
 just arch-verify  # ~25 s architecture-layer fixture-recall regression guard
+just integrity-verify  # gaming-fixture recall + control guard for the integrity rules
 ```
 
 `just dogfood` exercises extract → train → calibrate → check end-to-end and asserts both Python and TypeScript rows landed in `dataset.jsonl` plus a `scorer-config.json` was emitted. It's a **dev loop, not a CI gate** — informational signal that monorepo handling didn't silently break. Drift is the contributor's responsibility; nothing forces it to run.
@@ -39,7 +40,11 @@ crates/
                     #   the `layering` rule. See "Architecture layer".
       structural.rs # OPT-COMPILE (`--features structural`): AST-bigram signal —
                     #   research-only, NON-GATING, off in releases.
-    rules.rs        # the rule registry: 7 rules / 3 groups, severities, confidence tiers
+      integrity.rs  # OPT-COMPILE (`--features integrity`): diffs each
+                    #   changeset's test_inventory/ (per-language test-case
+                    #   facts) into gaming events — test-deleted /
+                    #   test-disabled / test-weakened. See "Integrity layer".
+    rules.rs        # the rule registry: 10 rules / 4 groups, severities, confidence tiers
     git_walk.rs · tokenize.rs · extract.rs · train.rs · check.rs · inspect.rs ·
     config.rs · health.rs · output.rs · suppress/ · dataset.rs · stats.rs
     data/           # embedded unixcoder tokenizer + generic BPE baseline (include_bytes!)
@@ -84,6 +89,24 @@ on a (near-)sink. Same build-time-gate shape as `semantic` — off in dev/CI bas
 loops, ON in releases. Validated at 244/252 (96.8%) real recall / 0 control FPs
 across 23 corpora (evidence in `docs/research/evidence/`); `just arch-verify`
 is the ~25 s fixture-recall regression guard.
+
+### Integrity layer (`--features integrity`)
+
+The `integrity` rule group: `test-deleted` (error) — a test removed while the
+production code it exercised still exists; `test-disabled` (error) — a
+skip/ignore marker added or a test gutted to a vacuous pass; `test-weakened`
+(**warn** by default — reported, never fails `check`) — assertions
+excised/tautologized/widened or an expected literal retargeted. All three fire
+only when the changeset also touches production source (tests-only commits
+are suite curation, not gaming) and are pinned confidence `suspicious`. Same
+build-time-gate shape as `semantic`/`arch` — off in dev/CI base loops, ON in
+releases. Per-repo gates are learned at fit from a mini-replay of the repo's
+accepted history and stored in `.argot/integrity.json` (a rebuildable sibling
+of `scorer-config.json`). Validated at 94.1% catch (144/153 authored gaming
+fixtures, 22 corpora / 11 languages), 0/102 legitimate-refactor controls
+fired, and 1.24% of replayed accepted test-touching commits flagged at gating
+severity; evidence in `docs/research/evidence/test-integrity-capstone.md`.
+`just integrity-verify` is the fixture-recall + control regression guard.
 
 ### Structural signal (`--features structural`)
 

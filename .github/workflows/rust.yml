@@ -82,6 +82,15 @@ jobs:
         run: |
           cargo clippy -p argot-core -p argot-bench --all-targets --features arch -- -D warnings
           cargo test -p argot-core --features arch arch_graph::
+      # The test-integrity layer (`integrity`) has the same shape as `arch`:
+      # feature-gated, off by default, pure-Rust — cheap enough to lint +
+      # unit-test on the PR path. Corpus-backed recall/FP live in
+      # `just integrity-verify` / `just bench-integrity-fp`.
+      - name: Clippy + test integrity feature (pure-Rust, feature-gated)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cargo clippy -p argot-core -p argot-bench --all-targets --features integrity -- -D warnings
+          cargo test -p argot-core --features integrity
       # The semantic layer links llama.cpp (compiling it from source via cmake is
       # a multi-minute C++ build), so it is kept OFF the PR path to keep PR CI
       # fast — it runs only on push-to-main and manual dispatch (Linux leg),

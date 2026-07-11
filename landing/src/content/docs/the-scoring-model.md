@@ -1,6 +1,6 @@
 ---
 title: The scoring model
-description: The BPE log-ratio, the call-receiver penalty, file clustering, per-corpus auto-detect, the semantic layer, and the architecture graph.
+description: The BPE log-ratio, the call-receiver penalty, file clustering, per-corpus auto-detect, the semantic layer, the architecture graph, and the integrity detector.
 group: Reference
 order: 10
 ---
@@ -101,8 +101,9 @@ A hunk is flagged by the base voice model if the import checker fires **or** the
 exceeds the threshold. The finding carries a stable rule name: `foreign-import` for a foreign
 import, `unfamiliar-callee` when the penalty pushed a below-threshold BPE over the line, and
 `rare-tokens` when raw BPE already crossed it. The semantic layer adds two more rules — `redundant`
-and `misplaced` — and the architecture graph adds `layering` (both below). Scores and rule names
-are always included in the output, and every rule's severity is configurable — see
+and `misplaced` — the architecture graph adds `layering`, and the integrity detector adds
+`test-deleted`, `test-disabled`, and `test-weakened` (all below). Scores and rule names are always
+included in the output, and every rule's severity is configurable — see
 [Configure](/docs/configure/#rules--rule-severities).
 
 ## The semantic layer
@@ -143,3 +144,21 @@ transitive reversal counts), closes a cycle, or leaves a (near-)sink module is f
 Benchmarked on 23 corpora across all 11 supported languages: **244/252 (96.8%)** planted violations
 caught, **0/140** false positives on control edits, worst-case over-fire 2.7%. The check-time
 import resolver covers Python in v1.
+
+## The integrity detector
+
+The fifth detector is event-based, not a scored threshold — no model, no BPE, no similarity
+margin. At fit, argot diffs each accepted commit's test inventory (per-language: test cases,
+assertion sites, skip/disable markers, expected literals) against its parent, reduces the diffs to
+gaming events, and replays 150 accepted commits to learn which events this repo's own history
+trips often enough to be noisy — those are disabled for that repo, and the result is persisted as
+`.argot/integrity.json`. At check, the same diff-to-events reduction runs on the changeset; an
+event fires only when the changeset also modifies production source (a tests-only commit is suite
+curation, not gaming) and its per-repo gate is open. Findings are flagged under **`test-deleted`**,
+**`test-disabled`**, and **`test-weakened`**, all pinned to the `suspicious` confidence tier; the
+first two default to severity `error`, `test-weakened` defaults to `warn`.
+
+Benchmarked on 22 corpora across all 11 supported languages: **144/153 (94.1%)** authored gaming
+tactics caught, **0/102** legitimate-refactor controls fired, and **1.24%** of 3,540 replayed
+accepted test-touching commits flagged at gating severity. Full numbers:
+[`docs/research/evidence/test-integrity-capstone.md`](https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/test-integrity-capstone.md).

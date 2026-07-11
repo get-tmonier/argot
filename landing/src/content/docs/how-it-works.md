@@ -1,11 +1,11 @@
 ---
 title: How it works
-description: Four detectors — a statistical voice model, two embedding-based checks (reinvention, placement), and a module-dependency architecture graph — all learned from your git history.
+description: Five detectors — a statistical voice model, two embedding-based checks (reinvention, placement), a module-dependency architecture graph, and a test-integrity pass — all learned from your git history.
 group: Start
 order: 3
 ---
 
-argot has **four detectors**, all learned entirely from your git history. Each one emits findings
+argot has **five detectors**, all learned entirely from your git history. Each one emits findings
 under a named **rule** (`argot rules` lists them all), and every rule's severity is yours to
 configure — see [Configure](/docs/configure/#rules--rule-severities).
 
@@ -26,6 +26,14 @@ the download is skipped with a printed note — never silently — and the other
 The **architecture detector** builds a module-dependency graph of your repo at fit and flags an
 added internal import that reverses the repo's established layer direction (rule `layering`). Pure
 graph analysis — no model, no network.
+
+The **test-integrity detector** reads *both sides* of a changeset's diff, builds a per-version test
+inventory with the same tree-sitter parsers as the rest of argot, and diffs the two inventories into
+events: a test deleted while the code it exercised survives (rule `test-deleted`), a skip/ignore
+marker added or a test gutted (rule `test-disabled`), or an assertion excised, tautologized, or
+loosened (rule `test-weakened`) — each only alongside a production-code change, never on a
+tests-only commit. The gates for which events fire are learned per repo at fit, from a replay of the
+repo's own accepted history. No model, no network — pure Rust and tree-sitter.
 
 The embedding model is [jina-embeddings-v2-base-code](https://huggingface.co/jinaai/jina-embeddings-v2-base-code)
 by Jina AI (Apache-2.0), run via [llama.cpp](https://github.com/ggml-org/llama.cpp) (MIT). argot
@@ -91,7 +99,7 @@ every diff).
   <line class="d-flow" x1="480" y1="241" x2="520" y2="241"><animate attributeName="stroke-dashoffset" from="23" to="0" dur="1.1s" begin="0.6s" repeatCount="indefinite"></animate></line>
   <line class="d-flow" x1="670" y1="241" x2="710" y2="241"><animate attributeName="stroke-dashoffset" from="23" to="0" dur="1.1s" begin="0.9s" repeatCount="indefinite"></animate></line>
 </svg>
-<figcaption>Run <code>extract → train → calibrate</code> once; the artifacts in <code>.argot/</code> feed every <code>check</code> — the calibrated threshold gates the voice rules, the index and graph power the semantic and layering rules.</figcaption>
+<figcaption>Run <code>extract → train → calibrate</code> once; the artifacts in <code>.argot/</code> feed every <code>check</code> — the calibrated threshold gates the voice rules, the index and graph power the semantic and layering rules, and the accepted-history replay gates the integrity rules.</figcaption>
 </figure>
 
 ### Fit

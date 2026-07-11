@@ -8,6 +8,11 @@ pub mod arch;
 pub mod catalog;
 pub mod dashboard;
 pub mod holdout;
+/// Test-integrity validation (`--mode integrity-verify` / `integrity-fp`).
+/// Feature-gated: drives argot-core's `integrity` sense on the production
+/// fit→check path over authored gaming fixtures + replayed accepted history.
+#[cfg(feature = "integrity")]
+pub mod integrity;
 pub mod metrics;
 pub mod production;
 pub mod report;

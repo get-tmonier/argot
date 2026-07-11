@@ -81,8 +81,9 @@ no separate runtime. It exposes four tools:
 
 **Tool inputs and responses.** `argot.check` and `argot.explain` take `file_path` and `hunk_content`
 (both required) plus optional `file_source` (the full file, for better context); they return
-`out_of_voice`, `score`, `threshold`, `rule` (one of the seven stable rule names: `foreign-import`,
-`unfamiliar-callee`, `rare-tokens`, `convention`, `redundant`, `misplaced`, `layering`), `model`,
+`out_of_voice`, `score`, `threshold`, `rule` (one of the ten stable rule names: `foreign-import`,
+`unfamiliar-callee`, `rare-tokens`, `convention`, `redundant`, `misplaced`, `layering`,
+`test-deleted`, `test-disabled`, `test-weakened`), `model`,
 and — on a hit, or always for `explain` — `evidence`. `argot.voice_context` takes `file_path` (required) and optional `top` (default 10), and
 returns `typical_callees_by_cluster`, `familiar_imports`, and the resolved `language`.
 `argot.fit_status` takes no arguments and returns the full `inspect` report (corpus, calibration,

@@ -1,9 +1,9 @@
 ---
 // "Under the hood" — the section the Demo terminal can't tell: WHAT powers the
-// four rules (a local embedding model, a statistical voice model, an
-// architecture graph — one Rust binary) and how fast it is, with measured
-// numbers. Deliberately zero code samples: the terminal above owns "what it
-// catches"; this section owns "how, and how fast".
+// five rules (a local embedding model, a statistical voice model, an
+// architecture graph, a test-inventory diff — one Rust binary) and how fast
+// it is, with measured numbers. Deliberately zero code samples: the terminal
+// above owns "what it catches"; this section owns "how, and how fast".
 import { emphasize } from '#lib/text';
 import type { SiteContent } from '#i18n/types';
 
@@ -27,7 +27,7 @@ const { engine } = Astro.props.content;
       />
     </div>
 
-    <div class="mt-10 grid grid-cols-1 gap-3 sm:gap-4 lg:mt-14 lg:grid-cols-3">
+    <div class="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:mt-14 lg:grid-cols-4">
       {
         engine.cards.map((card, i) => (
           <article

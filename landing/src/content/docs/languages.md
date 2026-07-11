@@ -1,6 +1,6 @@
 ---
 title: Languages
-description: Tree-sitter tokenization, supported languages, and per-language calibration for monorepos.
+description: Tree-sitter tokenization, supported languages, per-language calibration for monorepos, and test-integrity coverage per language.
 group: Reference
 order: 11
 ---
@@ -51,3 +51,15 @@ scoring:
 - **Comments and docstrings** — blanked before scoring, so prose doesn't inflate the surprise signal.
 - **Test files and conventional directories** — skipped by the built-in `argot:recommended` set, which
   you can extend or replace with `argot.toml`'s `[exclude]`. See [Configure](/docs/configure/).
+
+## Test-integrity coverage
+
+The `integrity` rule group reads tests themselves, so it has its own per-language layer: an
+adapter per language extracts test cases, assertion sites, skip/disable markers, and expected
+literals from each ecosystem's own conventions (pytest/unittest, `it`/`test` blocks, `#[test]`,
+`@Test`, xUnit attributes, gtest/Catch2 macros, and more), and the three integrity rules run
+across all 11 supported languages. Two caveats, published rather than hidden: **C** has no
+universal test framework, so coverage is harness-visible only (the curl/redis-style suites it was
+validated on); **plain Go** can't express walker-visible tautology or comparison-widening events
+— a `t.Error*` call's truth lives in the surrounding `if`-guard, not the call itself — recorded as
+not-applicable for that language rather than silently skipped.

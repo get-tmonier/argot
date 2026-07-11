@@ -4,7 +4,7 @@ const en: SiteContent = {
   meta: {
     title: 'argot — catch the AI code that doesn’t fit your codebase',
     description:
-      'argot is a local guardrail for AI-written code. It learns your repo’s patterns from its own git history, then flags code that doesn’t belong — a dependency you’ve never used, a function you already wrote, logic in the wrong place, an import that breaks your layering. Backed by a code-embedding model that runs on your laptop. No LLM, no cloud, no GPU.',
+      'argot is a local guardrail for AI-written code. It learns your repo’s patterns from its own git history, then flags code that doesn’t belong — a dependency you’ve never used, a function you already wrote, logic in the wrong place, an import that breaks your layering. And when an agent quiets a failing test instead of fixing it — skipped, gutted, or deleted right beside the code it covers — argot pairs the two and says so. Backed by a code-embedding model that runs on your laptop. No LLM, no cloud, no GPU.',
   },
   nav: {
     demo: 'Demo',
@@ -16,7 +16,7 @@ const en: SiteContent = {
     titleLead: 'Lint the rules',
     titleGradient: 'you never wrote down.',
     subtitle:
-      'AI writes valid code that isn’t [[yours]]. argot learns your repo’s voice from its git history — and flags what doesn’t belong, before it merges.',
+      'AI writes valid code that isn’t [[yours]] — and silences the tests that say so. argot learns your repo from its git history and flags both, before the merge.',
     ctaPrimary: 'Read the docs',
     ctaSecondary: 'Star on GitHub',
     install: 'npm i -g @tmonier/argot',
@@ -52,8 +52,27 @@ const en: SiteContent = {
         caption:
           'In this repo, cli imports core — never the other way. This one import quietly reverses the architecture; argot flags the edge itself.',
       },
+      {
+        id: 'test-disabled',
+        label: 'test-disabled',
+        caption:
+          'A failing test goes green because it was skipped, not fixed. argot pairs the disabled test with the production change it covers, and names both.',
+      },
     ],
     seeLive: 'See it on real repos',
+  },
+  trust: {
+    label: 'The other failure mode',
+    title: 'An agent that can’t fix the code will “fix” the test.',
+    body: 'Skip it with a plausible reason, delete the assertion that fails, nudge the expected value, drop the file — the diff looks tidy, CI turns green, and your safety net now has a hole [[exactly where the code is newest]]. argot reads both sides of every diff: the moment a test gets weaker in the same change that touches the code it covers, it names the test and the co-changed file. Your own history teaches it what normal test churn looks like — refactors stay quiet.',
+    moves: [
+      { name: 'skip it', example: '@pytest.mark.skip("flaky")' },
+      { name: 'gut it', example: 'assertions removed, test kept' },
+      { name: 'retarget it', example: 'expected 429 → becomes 200' },
+      { name: 'delete it', example: 'test gone, code stays' },
+    ],
+    caption:
+      'Measured like everything else: [[94%]] of authored gaming edits caught across 22 repos / 11 languages · 0 of 102 legitimate refactors flagged · 1.24% flagged on real accepted commits. test-weakened ships as warn — argot informs, never blocks.',
   },
   replay: {
     label: 'Day one',
@@ -65,7 +84,7 @@ const en: SiteContent = {
   engine: {
     label: 'Under the hood',
     title: 'Semantic understanding. No LLM anywhere.',
-    body: 'Three engines behind the four detectors, one static [[Rust]] binary, all learned from your git history — no API key, no GPU, nothing leaves your machine.',
+    body: 'Four engines behind the five detectors, one static [[Rust]] binary, all learned from your git history — no API key, no GPU, nothing leaves your machine.',
     cards: [
       {
         title: 'A code-embedding model on your laptop',
@@ -78,6 +97,10 @@ const en: SiteContent = {
       {
         title: 'An architecture graph',
         desc: 'Your module-dependency topology, fitted from your own imports: which layers point at which. A new edge that [[reverses the established direction]] is flagged with the direction it breaks.',
+      },
+      {
+        title: 'A test-inventory diff',
+        desc: 'tree-sitter parses every test file at each commit and tracks what each one asserts. When a production change lands beside a test that’s [[skipped, gutted, or deleted]], argot pairs the two and names the test — no model, just a structural diff of the suite.',
       },
     ],
     stats: [
@@ -112,6 +135,11 @@ const en: SiteContent = {
         value: '96.8%',
         title: 'architecture violations caught',
         desc: 'Layering reversals: 244 of 252 caught at [[zero false positives]] — 0 of 140 control edits flagged.',
+      },
+      {
+        value: '94%',
+        title: 'test-gaming edits caught',
+        desc: 'Skipping, gutting, or deleting a test to green a failing suite: 144 of 153 authored edits caught, 0 of 102 legitimate refactors flagged — just [[1.24% flagged on real accepted commits]].',
       },
     ],
     languages:

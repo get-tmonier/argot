@@ -41,9 +41,9 @@ const { replay } = Astro.props.content;
               aria-hidden="true"></span>
           </div>
           <div class="rt-line rt-banner" style="--i: 1">
-            ━━ argot replay · 300 commits, judged by the voice as of c206f19b ━━
+            ━━ argot replay · 300 commits · the voice as of c206f19b ━━
           </div>
-          <div class="rt-line" style="--i: 2">
+          <div class="rt-line rt-wrap" style="--i: 2">
             &nbsp;&nbsp;4 finding(s) argot would have raised <span class="ink">before merge</span>:
           </div>
           <div class="rt-line rt-count" style="--i: 3">
@@ -58,7 +58,7 @@ const { replay } = Astro.props.content;
           <div class="rt-line" style="--i: 6">
             &nbsp;&nbsp;<span class="bang">!</span> fastapi/responses.py:L1-L8&nbsp;&nbsp;<span
               class="flagword">foreign-import</span
-            >&nbsp;&nbsp;· 88021c3
+            ><span class="rt-meta">&nbsp;&nbsp;· 88021c3</span>
           </div>
           <div class="rt-line rt-evidence" style="--i: 7">
             ↳ <span class="flagword">importlib</span> (L1) — 0 of 73 module specifiers in repo
@@ -66,7 +66,7 @@ const { replay } = Astro.props.content;
           <div class="rt-line" style="--i: 8">
             &nbsp;&nbsp;<span class="quest">?</span> fastapi/responses.py:L10-L64&nbsp;&nbsp;<span
               class="amberword">rare-tokens</span
-            >&nbsp;&nbsp;· 88021c3
+            ><span class="rt-meta">&nbsp;&nbsp;· 88021c3</span>
           </div>
           <div class="rt-line rt-evidence" style="--i: 9">
             ↳ _UjsonModule (0×), Protocol (0×), _OrjsonModule (0×) (+1 more)
@@ -118,6 +118,22 @@ const { replay } = Astro.props.content;
     font-size: clamp(11px, 3vw, 13.5px);
     line-height: 1.9;
     white-space: nowrap;
+  }
+  /* Phones: evidence prose wraps instead of clipping; what still overflows
+     (command/code rows) fades out at the right edge so the pan affordance is
+     visible instead of a hard cut. */
+  @media (max-width: 767px) {
+    .rt-body {
+      mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+    }
+    .rt-evidence,
+    .rt-footer,
+    .rt-wrap {
+      white-space: normal;
+    }
+    .rt-meta {
+      display: none;
+    }
   }
   .rt-line {
     display: block;

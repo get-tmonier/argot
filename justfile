@@ -91,6 +91,21 @@ bench-arch-candidates *args:
     cargo build --release -p argot-bench --features arch
     ./target/release/argot-bench --mode arch-candidates --results-dir benchmarks/results/arch {{args}}
 
+# Fit each corpus at its pinned SHA on the production path, apply every
+# authored test-gaming fixture as a real staged edit, judge with
+# `check --staged` (authored controls must stay silent).
+# Gaming-fixture recall guard (`--mode integrity-verify`).
+integrity-verify *args:
+    cargo build --release -p argot-bench --features integrity
+    ./target/release/argot-bench --mode integrity-verify {{args}}
+
+# Replay accepted test-touching commits OUTSIDE the fit's calibration window
+# through the fitted gates (gate = ≤2% flagged).
+# Accepted-history FP for the integrity rules (`--mode integrity-fp`).
+bench-integrity-fp *args:
+    cargo build --release -p argot-bench --features integrity
+    ./target/release/argot-bench --mode integrity-fp {{args}}
+
 # --- checks ---
 
 # Format check + clippy-as-errors + tests. Canonical CI gate.

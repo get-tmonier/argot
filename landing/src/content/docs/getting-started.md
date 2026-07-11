@@ -6,9 +6,10 @@ order: 1
 ---
 
 **argot** learns your repo's patterns from its own git history, then flags AI-written code that
-doesn't fit — on four axes: a dependency, API, or construct it has never used (**foreign**); a new
+doesn't fit — on five axes: a dependency, API, or construct it has never used (**foreign**); a new
 function that reinvents one you already wrote (**redundant**); the right code filed in the wrong
-place (**misplaced**); an internal import that reverses your module layering (**layering**). All
+place (**misplaced**); an internal import that reverses your module layering (**layering**); and a
+test weakened, disabled, or deleted alongside the production change it covers (**integrity**). All
 valid, typed, and lint-clean — but not how anything here is actually built. The base guardrail is
 model-free; the semantic layer that finds reinventions and misplacements runs a small local code
 embedder — one ~100 MB one-time download, still no cloud, no GPU required, nothing leaves your
@@ -100,8 +101,10 @@ src/utils/http-helpers.ts
   something the repo has never used. When the foreign symbol is in the diff, the base voice model
   catches ~98% of them.
 - It **also** flags a **redundant** function (one you already wrote) and **misplaced** code (filed
-  in the wrong package) via the semantic layer's per-repo code-embedding index, and a **layering**
-  break via the architecture graph — each its own rule, each downgradable to `warn` or `off`.
+  in the wrong package) via the semantic layer's per-repo code-embedding index, a **layering**
+  break via the architecture graph, and a **test-deleted** / **test-disabled** / **test-weakened**
+  hit when a test is removed, skipped, or loosened alongside the production change it exercises —
+  each its own rule, each downgradable to `warn` or `off`.
 - It is **honest about its limit**: it does *not* reliably flag an *in-vocabulary* choice — a bare
   `ValueError` where you'd raise `HTTPException`, when every token is already yours. So a clean run
   means "no foreign pattern found," **not** "this matches every convention." argot never gates on
