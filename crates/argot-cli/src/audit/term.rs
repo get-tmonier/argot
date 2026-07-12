@@ -30,15 +30,21 @@ fn group_blurb(group: &str) -> &'static str {
     }
 }
 
-/// Left-ellipsize a path to `max` chars (keeps the filename end, the part
-/// that identifies the finding).
-fn clip_left(s: &str, max: usize) -> String {
+/// Middle-ellipsize a path to `max` chars: keep the leading directories AND
+/// the filename end. Repos with parallel trees (guava's `guava/` +
+/// `android/guava/`) have findings whose only distinguishing part is the
+/// prefix — a left-ellipsis would erase exactly that and render two distinct
+/// files as identical rows.
+fn clip_path(s: &str, max: usize) -> String {
     let n = s.chars().count();
     if n <= max {
         return s.to_string();
     }
-    let tail: String = s.chars().skip(n - (max - 1)).collect();
-    format!("…{tail}")
+    let head_len = (max - 1) / 3;
+    let tail_len = max - 1 - head_len;
+    let head: String = s.chars().take(head_len).collect();
+    let tail: String = s.chars().skip(n - tail_len).collect();
+    format!("{head}…{tail}")
 }
 
 /// Right-clip to `max` chars with a trailing ellipsis.
@@ -263,7 +269,7 @@ fn render_findings(out: &mut String, report: &AuditReport, color: bool) {
         &format!(
             "  {} {}{} · {}",
             glyph(&worst.confidence, color),
-            clip_left(&worst.path, 50),
+            clip_path(&worst.path, 50),
             span(worst),
             bold(&worst.rule),
         ),
@@ -299,7 +305,7 @@ fn render_findings(out: &mut String, report: &AuditReport, color: bool) {
         let shown = &rest[..rest.len().min(8)];
         let rule_w = shown.iter().map(|f| f.rule.len()).max().unwrap_or(0);
         for f in shown {
-            let loc = clip_left(&format!("{}{}", f.path, span(f)), 38);
+            let loc = clip_path(&format!("{}{}", f.path, span(f)), 38);
             let short = f.commit.short.as_deref().unwrap_or("—");
             push(
                 out,
@@ -445,6 +451,24 @@ mod tests {
         let card = render(&report, false);
         assert!(!card.contains("--commits 200"));
         assert!(card.contains("note: history is shorter"));
+    }
+
+    #[test]
+    fn parallel_tree_paths_stay_distinguishable_when_clipped() {
+        // guava ships identical files under guava/ and android/guava/ — the
+        // only distinguishing part is the PREFIX, so clipping must keep both
+        // ends of the path.
+        let a = "guava/src/com/google/thirdparty/publicsuffix/PublicSuffixPatterns.java";
+        let b = "android/guava/src/com/google/thirdparty/publicsuffix/PublicSuffixPatterns.java";
+        let ca = clip_path(a, 38);
+        let cb = clip_path(b, 38);
+        assert_ne!(ca, cb, "{ca} vs {cb}");
+        assert!(ca.chars().count() <= 38);
+        assert!(
+            ca.starts_with("guava/") && cb.starts_with("android/"),
+            "{ca} vs {cb}"
+        );
+        assert!(ca.ends_with(".java") && cb.ends_with(".java"));
     }
 
     #[test]
