@@ -132,6 +132,11 @@ Trust the binary. `argot rules` prints the live rule registry and `argot
 - **Voice guide:** `argot describe-voice --out STYLE.md` writes a
   human-readable description of the learned voice (typical callees, familiar
   imports) you can commit and point agents at.
+- **History scorecard:** `argot audit` scores the last N commits against the
+  voice as it was before them and attributes each finding to its introducing
+  commit — ai-assisted / human / unknown, from concrete commit markers only
+  (agent trailers, bot authors; never style). `--format json|markdown|html`
+  for machine, PR-pasteable, or shareable output. Informational: exit 0.
 - **Everything else:** `argot --help` is the full, always-current command
   surface — trust it over any list in a document.
 - **Docs:** <https://argot.tmonier.com/docs/> · **llms.txt:**

@@ -78,30 +78,42 @@ Windows: `powershell -c "irm https://github.com/get-tmonier/argot/releases/lates
 **Then — sixty seconds of proof, on your own history:**
 
 ```sh
+argot audit      # ⏪ what did AI sneak into your last 50 commits?
+```
+
+`audit` runs on a fresh clone with zero setup: it fits the voice **as it was
+50 commits ago** (in a temp worktree — your tree stays untouched), rescores
+everything since, and attributes every finding to its introducing commit —
+**ai-assisted / human / unknown**, from concrete commit markers only (agent
+`Co-authored-by` trailers, bot authors — never style). Real run on argot's
+own history:
+
+```
+━━ argot audit ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  last 50 commits · 2026-06-01 → 2026-07-11 · 50 commits audited
+  52% carry AI markers (26 of 50) · 1 finding would have met review
+
+  voice    1  code foreign to how this repo writes
+
+  Worst offender — commit cae8349 · ai-assisted
+  ! landing/src/pages/llms-full.txt.ts:L1-32 · foreign-import
+      "feat: v1 launch polish — on…" — Co-Authored-By: Claude Opus 4.8
+      ↳ astro (L1), astro:content (L2), #lib/site (L3) — 0 of 49 module s…
+
+  Merged code is accepted code — read each finding as "would have
+  prompted review before merge", not a bug list. "human" means no AI
+  markers were found; the AI share is a floor, not a census.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+`--since 6m` audits by time, `--format json|markdown|html` gives a stable
+schema, a PR-pasteable card, or a self-contained shareable page. Then
+`argot init` fits today's voice so `argot check` raises these before they
+merge:
+
+```sh
 argot init       # learn this repo's voice (~25 s on a 1,100-file repo)
-argot replay     # ⏪ rewind: what would argot have caught in your last 50 commits?
-```
-
-`replay` fits the voice **as it was 50 commits ago** (in a temp worktree —
-your tree stays untouched) and rescores everything since. Real run on
-FastAPI's history:
-
-```
-━━ argot replay · 300 commits, judged by the voice as of c206f19b ━━
-
-  4 finding(s) argot would have raised before merge, out of 120 hunks:
-
-    foreign-import  ×2
-    rare-tokens     ×2
-
-  worth a look first:
-  ! fastapi/responses.py:L1-L8  foreign-import  · 88021c3
-      ↳ importlib (L1) — 0 of 73 module specifiers in repo
-  ? fastapi/responses.py:L10-L64  rare-tokens  · 88021c3
-      ↳ _UjsonModule (0×), Protocol (0×), _OrjsonModule (0×) (+1 more)
-
-  Merged code is accepted code — read each as "would have prompted review",
-  not as a bug list.
+argot check      # score your working changes against it
 ```
 
 (Everything argot writes in-repo is gitignored except the small `argot.toml` —

@@ -142,7 +142,7 @@ sticky comment updated in place** to green:
 
 ## 6. Gaming a failing test — caught before it ships
 
-Same FastAPI checkout, same pinned commit as the replay example above. Say an
+Same FastAPI checkout, same pinned commit as the examples above. Say an
 agent is asked to fix a failing test after a small change to
 `fastapi/exceptions.py`'s `EndpointContext` — instead of finding out *why*
 `test_text_get` now fails, the easy-looking move is to skip it and ship the

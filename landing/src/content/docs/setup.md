@@ -165,11 +165,13 @@ that too; relay the warning to me rather than suppressing it).
    confirm it's flagged. Then revert. If it is NOT flagged, the voice is still
    diluted by non-authored code — exclude more peripheral directories and repeat.
 
-8. Finish with the proof on our own history: `argot replay`. It fits the voice
+8. Finish with the proof on our own history: `argot audit`. It fits the voice
    as of ~50 commits ago in a temp worktree (our tree stays untouched) and
-   reports what argot would have caught before merge — show me the report. If
-   the in-scope code is younger than the window, replay shrinks it
-   automatically and says so; a quiet replay is also a result.
+   reports what argot would have caught before merge, each finding attributed
+   to its introducing commit (ai-assisted / human / unknown, from concrete
+   commit markers) — show me the card. If the in-scope code is younger than
+   the window, audit shrinks it automatically and says so; a quiet audit is
+   also a result.
 
 9. Summarize what you excluded and why, and the final Verdict.
 

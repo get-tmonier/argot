@@ -1,88 +1,86 @@
 ---
 // "Day one" — the flagship demo command. A guardrail can't be demoed on the
-// code it just learned from, so `argot replay` rewinds instead: fit the voice
-// as it was 50 commits ago, rescore everything since. This section plays a
-// real replay run (FastAPI's history, abridged) with the same line-cascade
-// treatment as DemoTerminal — hand-authored real output, not generated data.
+// code it just learned from, so `argot audit` rewinds instead: fit the voice
+// as it was 50 commits ago, rescore everything since, and attribute each
+// finding to its introducing commit (ai-assisted / human / unknown, concrete
+// commit markers only). This section plays a real audit run (argot's own
+// history, abridged) with the same line-cascade treatment as DemoTerminal —
+// hand-authored real output, not generated data.
 import { emphasize } from '#lib/text';
 import type { SiteContent } from '#i18n/types';
 
 interface Props {
   content: SiteContent;
 }
-const { replay } = Astro.props.content;
+const { audit } = Astro.props.content;
 ---
 
-<section id="replay" class="snap-section relative flex md:min-h-svh items-center">
+<section id="audit" class="snap-section relative flex md:min-h-svh items-center">
   <div
     class="mx-auto grid w-full max-w-6xl grid-cols-1 gap-6 px-5 py-12 md:py-24 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:gap-16"
   >
     <div class="reveal">
-      <p class="mb-3 font-mono text-xs tracking-widest text-ember uppercase">{replay.label}</p>
-      <h2 class="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{replay.title}</h2>
+      <p class="mb-3 font-mono text-xs tracking-widest text-ember uppercase">{audit.label}</p>
+      <h2 class="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{audit.title}</h2>
       <p
         class="mt-4 leading-relaxed text-ink-dim text-pretty sm:mt-5"
-        set:html={emphasize(replay.body)}
+        set:html={emphasize(audit.body)}
       />
     </div>
 
     <div class="reveal flex flex-col gap-4" style="--reveal-delay: 120ms">
-      <div class="replay-terminal" role="group" aria-label="Example argot replay output">
+      <div class="audit-terminal" role="group" aria-label="Example argot audit output">
         <div class="rt-titlebar">
           <span class="rt-dot" style="background: var(--flag)" aria-hidden="true"></span>
           <span class="rt-dot" style="background: var(--amber)" aria-hidden="true"></span>
           <span class="rt-dot" style="background: var(--jade)" aria-hidden="true"></span>
-          <span class="rt-title">argot replay</span>
+          <span class="rt-title">argot audit</span>
         </div>
         <div class="rt-body">
           <div class="rt-line" style="--i: 0">
-            <span class="dim" aria-hidden="true">$</span> argot replay<span
+            <span class="dim" aria-hidden="true">$</span> argot audit<span
               class="cursor"
               aria-hidden="true"></span>
           </div>
           <div class="rt-line rt-banner" style="--i: 1">
-            ━━ argot replay · 300 commits · the voice as of c206f19b ━━
+            ━━ argot audit ━━ last 50 commits · 2026-06-01 → 2026-07-11 ━━
           </div>
           <div class="rt-line rt-wrap" style="--i: 2">
-            &nbsp;&nbsp;4 finding(s) argot would have raised <span class="ink">before merge</span>:
+            &nbsp;&nbsp;<span class="ink">52% carry AI markers</span> (26 of 50) · 1 finding would
+            have met review
           </div>
           <div class="rt-line rt-count" style="--i: 3">
-            &nbsp;&nbsp;&nbsp;&nbsp;foreign-import&nbsp;&nbsp;<span class="flagword">×2</span>
+            &nbsp;&nbsp;&nbsp;&nbsp;voice&nbsp;&nbsp;<span class="flagword">1</span>&nbsp;&nbsp;code
+            foreign to how this repo writes
           </div>
-          <div class="rt-line rt-count" style="--i: 4">
-            &nbsp;&nbsp;&nbsp;&nbsp;rare-tokens&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span
-              class="amberword">×2</span
+          <div class="rt-line" style="--i: 4">
+            &nbsp;&nbsp;<span class="ink">Worst offender</span><span class="rt-meta">
+              — commit cae8349 ·&nbsp;</span><span class="aiword">ai-assisted</span>
+          </div>
+          <div class="rt-line" style="--i: 5">
+            &nbsp;&nbsp;<span class="bang">!</span> landing/src/pages/llms-full.txt.ts:L1-32&nbsp;&nbsp;<span
+              class="flagword">foreign-import</span
             >
           </div>
-          <div class="rt-line dim" style="--i: 5">&nbsp;&nbsp;worth a look first:</div>
-          <div class="rt-line" style="--i: 6">
-            &nbsp;&nbsp;<span class="bang">!</span> fastapi/responses.py:L1-L8&nbsp;&nbsp;<span
-              class="flagword">foreign-import</span
-            ><span class="rt-meta">&nbsp;&nbsp;· 88021c3</span>
+          <div class="rt-line rt-evidence" style="--i: 6">
+            “feat: v1 launch polish…” — <span class="aiword">Co-Authored-By: Claude Opus 4.8</span>
           </div>
           <div class="rt-line rt-evidence" style="--i: 7">
-            ↳ <span class="flagword">importlib</span> (L1) — 0 of 73 module specifiers in repo
+            ↳ <span class="flagword">astro</span> (L1) — 0 of 49 module specifiers in repo
           </div>
-          <div class="rt-line" style="--i: 8">
-            &nbsp;&nbsp;<span class="quest">?</span> fastapi/responses.py:L10-L64&nbsp;&nbsp;<span
-              class="amberword">rare-tokens</span
-            ><span class="rt-meta">&nbsp;&nbsp;· 88021c3</span>
-          </div>
-          <div class="rt-line rt-evidence" style="--i: 9">
-            ↳ _UjsonModule (0×), Protocol (0×), _OrjsonModule (0×) (+1 more)
-          </div>
-          <div class="rt-line rt-footer dim" style="--i: 10">
+          <div class="rt-line rt-footer dim" style="--i: 8">
             &nbsp;&nbsp;Merged code is accepted code — read each as “would have prompted review”.
+            The AI share is a floor, not a census.
           </div>
         </div>
       </div>
-      <p class="text-center text-sm text-muted text-pretty" set:html={emphasize(replay.caption)} />
+      <p class="text-center text-sm text-muted text-pretty" set:html={emphasize(audit.caption)} />
     </div>
   </div>
 </section>
 
 <style>
-  .replay-terminal {
+  .audit-terminal {
     border-radius: 14px;
     border: 1px solid var(--line);
     background: color-mix(in srgb, var(--panel) 80%, #000);
@@ -165,17 +163,16 @@ const { replay } = Astro.props.content;
     color: var(--flag);
     font-weight: 700;
   }
-  .quest {
-    color: var(--amber);
-    font-weight: 700;
-  }
   .flagword {
     color: var(--flag);
     font-weight: 600;
   }
-  .amberword {
-    color: var(--amber);
+  .aiword {
+    color: var(--jade);
     font-weight: 600;
+  }
+  .rt-meta {
+    color: var(--muted);
   }
 
   .cursor::after {
@@ -187,35 +184,35 @@ const { replay } = Astro.props.content;
     vertical-align: -0.15em;
     background: var(--ember);
   }
-  :global(.js) .replay-terminal.is-playing .cursor::after {
+  :global(.js) .audit-terminal.is-playing .cursor::after {
     animation: blink 0.9s step-end 6;
   }
 
   /* Same reveal-cascade contract as DemoTerminal: hidden only once JS confirms
      it can play; reduced-motion / no-IO jumps straight to done. */
-  :global(.js) .replay-terminal:not(.is-playing):not(.is-done) .rt-line {
+  :global(.js) .audit-terminal:not(.is-playing):not(.is-done) .rt-line {
     opacity: 0;
     transform: translateY(7px);
   }
-  .replay-terminal.is-playing .rt-line {
+  .audit-terminal.is-playing .rt-line {
     transition:
       opacity 0.45s var(--ease-out-expo),
       transform 0.45s var(--ease-out-expo);
     transition-delay: calc(var(--i, 0) * 260ms);
   }
-  .replay-terminal.is-playing .rt-line,
-  .replay-terminal.is-done .rt-line {
+  .audit-terminal.is-playing .rt-line,
+  .audit-terminal.is-done .rt-line {
     opacity: 1;
     transform: none;
   }
-  .replay-terminal.is-playing .rt-banner {
+  .audit-terminal.is-playing .rt-banner {
     animation: flag-flash 0.9s var(--ease-out-expo);
     animation-delay: calc(var(--i, 0) * 260ms);
   }
 </style>
 
 <script>
-  for (const root of document.querySelectorAll<HTMLElement>('.replay-terminal')) {
+  for (const root of document.querySelectorAll<HTMLElement>('.audit-terminal')) {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduced || !('IntersectionObserver' in window)) {
       root.classList.add('is-done');

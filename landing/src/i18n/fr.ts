@@ -74,12 +74,12 @@ const fr: SiteContent = {
     caption:
       'Mesuré comme le reste : [[94 %]] des éditions truquées détectées sur 22 dépôts / 11 langages · 0 des 102 refactorings légitimes signalés · 1,24 % de commits réels marqués. test-weakened sort en warn — argot informe, ne bloque jamais.',
   },
-  replay: {
+  audit: {
     label: 'Jour un',
-    title: 'Rembobinez votre historique. Voyez ce qu’il aurait attrapé.',
-    body: 'On ne démontre pas un garde-fou sur le code qu’il vient d’apprendre — alors argot rembobine. [[argot replay]] calibre la voix telle qu’elle était il y a 50 commits et rescore tout ce qui a suivi : une commande, quelques secondes, votre arbre intact.',
+    title: 'Auditez votre historique. Voyez ce que l’IA y a glissé.',
+    body: 'On ne démontre pas un garde-fou sur le code qu’il vient d’apprendre — alors argot rembobine. [[argot audit]] calibre la voix telle qu’elle était il y a 50 commits, rescore tout ce qui a suivi et attribue chaque signalement à son commit d’origine — ai-assisted, human ou unknown, à partir de [[marqueurs de commit concrets]] uniquement, jamais du style. Une commande, zéro config, votre arbre intact.',
     caption:
-      'Vraie exécution sur l’historique de FastAPI : deux imports fraîchement adoptés et le nouveau vocabulaire de streaming — chacun avec [[l’évidence du dépôt lui-même]].',
+      'Vraie exécution sur l’historique d’argot lui-même : [[52 %]] des commits portent des marqueurs IA, et l’unique signalement remonte à un commit assisté par IA — avec [[l’évidence du dépôt lui-même]].',
   },
   engine: {
     label: 'Sous le capot',

@@ -203,25 +203,40 @@ later. Downloads verify the sha256, honor `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY`
 `ARGOT_MODEL_URL` (mirror), `ARGOT_SEMANTIC_MODEL` (local file, no download), and `ARGOT_OFFLINE`
 — see [Configure](/docs/configure/#environment-variables).
 
-## replay
+## audit
 
 ```bash
-argot replay                 # what would argot have caught in your last 50 commits?
-argot replay --commits 200   # wider window
+argot audit                    # what did AI sneak into your last 50 commits?
+argot audit --commits 200      # wider window
+argot audit --since 6m         # by time instead: a duration (90d, 12w, 6m, 1y)…
+argot audit --since 2026-01-01 # …or a date
+argot audit --format json      # stable schema; also: markdown (PR-pasteable),
+                               # html (self-contained, screenshot-ready)
 ```
 
-The install-day question, answered on your own history: replay fits the voice
-**as it was N commits ago** (in a temporary git worktree — your tree and
-`.argot/` are untouched; your current `argot.toml` and semantic index ride
-along, so the historical fit reuses embeddings and takes seconds) and then
-scores `base..HEAD` against it. The report counts findings per rule, shows the
-strongest examples with their evidence, and frames them honestly: merged code
-is accepted code, so each hit reads as *"would have prompted review before
-merge"* — a fire on a dependency you adopted deliberately is a detection
-working as intended. If your in-scope code is younger than the window (a
-rewrite, or early history your current excludes mute entirely), replay
-shrinks the window to the oldest commit it can fit and says so.
-Informational: always exits 0.
+The install-day question, answered on your own history: audit fits the voice
+**as it was at the base of the window** (in a temporary git worktree — your
+tree and `.argot/` are untouched; your current `argot.toml` and semantic index
+ride along, so the historical fit reuses embeddings and takes seconds), scores
+`base..HEAD` with every rule group, and renders a scorecard. It works on a
+fresh clone with no setup at all — no `.argot/`, no `argot.toml`.
+
+Every finding is attributed to its **introducing commit** — `ai-assisted`,
+`human`, or `unknown` — from concrete commit markers only: agent
+`Co-authored-by` trailers (Claude Code, Copilot, Cursor, Codex, aider, …),
+agent bot authors, and agent footer lines. argot never guesses from style, so
+the headline AI share is a floor, not a census, and the card says so.
+
+The card leads with one headline (window, commits, AI share, findings), then
+per-group counts in plain language, then the single worst offender as a
+concrete story — commit, file, evidence line — with the rest below the fold.
+The framing stays honest: merged code is accepted code, so each finding reads
+as *"would have prompted review before merge"* — a fire on a dependency you
+adopted deliberately is a detection working as intended. If your in-scope code
+is younger than the window (a rewrite, or early history your current excludes
+mute entirely), audit shrinks the window to the oldest commit it can fit and
+says so; oversized windows clamp loudly (cap: 1,000 commits), never silently.
+Informational: always exits 0 (2 when it can't run).
 
 ## review
 

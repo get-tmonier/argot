@@ -74,12 +74,12 @@ const en: SiteContent = {
     caption:
       'Measured like everything else: [[94%]] of authored gaming edits caught across 22 repos / 11 languages · 0 of 102 legitimate refactors flagged · 1.24% flagged on real accepted commits. test-weakened ships as warn — argot informs, never blocks.',
   },
-  replay: {
+  audit: {
     label: 'Day one',
-    title: 'Rewind your history. See what it would have caught.',
-    body: 'You can’t demo a guardrail on code it just learned from — so argot rewinds instead. [[argot replay]] fits the voice as it was 50 commits ago and rescores everything since: one command, seconds, your tree untouched.',
+    title: 'Audit your history. See what AI snuck in.',
+    body: 'You can’t demo a guardrail on code it just learned from — so argot rewinds instead. [[argot audit]] fits the voice as it was 50 commits ago, rescores everything since, and attributes each finding to its introducing commit — ai-assisted, human, or unknown, from [[concrete commit markers]] only, never style. One command, zero setup, your tree untouched.',
     caption:
-      'Real run on FastAPI’s history: two newly-adopted imports and the new streaming vocabulary — each with [[the repo’s own evidence]].',
+      'Real run on argot’s own history: [[52%]] of commits carry AI markers, and the one finding traces to an AI-assisted commit — with [[the repo’s own evidence]].',
   },
   engine: {
     label: 'Under the hood',

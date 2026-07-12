@@ -91,15 +91,17 @@ suppressing it).
    the voice is still diluted by non-authored code — exclude more peripheral
    directories and repeat.
 
-8. **Finish with the wow — replay their history:** `argot replay`. It fits the
+8. **Finish with the wow — audit their history:** `argot audit`. It fits the
    voice as it was ~50 commits ago (in a temp worktree — the user's tree is
-   untouched) and reports what argot would have caught before merge, with
-   per-rule counts and evidence. Show the user the report. If the repo's
-   in-scope code is younger than the window (a rewrite, or early history that
-   today's excludes mute entirely), replay shrinks the window automatically
-   and says so. If it says the window touched no supported source files,
-   widen it (`argot replay --commits 200`). A quiet replay is also a result:
-   their recent history is in voice.
+   untouched), reports what argot would have caught before merge per rule
+   group, and attributes each finding to its introducing commit —
+   ai-assisted / human / unknown, from concrete commit markers only. Show
+   the user the card. If the repo's in-scope code is younger than the window
+   (a rewrite, or early history that today's excludes mute entirely), audit
+   shrinks the window automatically and says so. If it says the window
+   touched no supported source files, widen it (`argot audit --commits 200`
+   or `--since 6m`). A quiet audit is also a result: their recent history is
+   in voice.
 
 9. **Optional finishing artifact:** `argot describe-voice --out STYLE.md`
    generates a human-readable guide to the learned voice (typical callees per

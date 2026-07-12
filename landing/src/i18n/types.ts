@@ -44,7 +44,7 @@ export interface SiteContent {
     readonly moves: readonly { readonly name: string; readonly example: string }[];
     readonly caption: string;
   };
-  readonly replay: {
+  readonly audit: {
     readonly label: string;
     readonly title: string;
     readonly body: string;
