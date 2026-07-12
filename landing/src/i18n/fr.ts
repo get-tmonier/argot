@@ -4,10 +4,11 @@ const fr: SiteContent = {
   meta: {
     title: 'argot — détectez le code IA qui ne colle pas à votre dépôt',
     description:
-      'argot est un garde-fou local pour le code écrit par IA. Il apprend les motifs de votre dépôt depuis son historique git, puis signale le code qui n’a pas sa place — une dépendance jamais utilisée, une fonction que vous avez déjà, du code au mauvais endroit, un import qui casse votre architecture. Et quand un agent fait taire un test en échec au lieu de le corriger — sauté, vidé ou supprimé juste à côté du code qu’il couvre — argot associe les deux et le dit. Propulsé par un modèle d’embeddings de code qui tourne sur votre machine. Sans LLM, sans cloud, sans GPU.',
+      'argot est un garde-fou local pour le code écrit par IA. Il apprend les motifs de votre dépôt depuis son historique git, puis signale le code qui n’a pas sa place — une dépendance jamais utilisée, une fonction que vous avez déjà, du code au mauvais endroit, un import qui casse votre architecture. Et quand un agent fait taire un test en échec au lieu de le corriger — sauté, vidé ou supprimé juste à côté du code qu’il couvre — argot associe les deux et le dit. Une commande, argot audit, note votre historique récent sur un clone vierge et attribue chaque signalement à son commit : assisté par IA, humain ou inconnu. Propulsé par un modèle d’embeddings de code qui tourne sur votre machine. Sans LLM, sans cloud, sans GPU.',
   },
   nav: {
     demo: 'Démo',
+    audit: 'Audit',
     engine: 'Sous le capot',
     docs: 'Docs',
   },

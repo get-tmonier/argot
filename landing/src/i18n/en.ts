@@ -4,10 +4,11 @@ const en: SiteContent = {
   meta: {
     title: 'argot — catch the AI code that doesn’t fit your codebase',
     description:
-      'argot is a local guardrail for AI-written code. It learns your repo’s patterns from its own git history, then flags code that doesn’t belong — a dependency you’ve never used, a function you already wrote, logic in the wrong place, an import that breaks your layering. And when an agent quiets a failing test instead of fixing it — skipped, gutted, or deleted right beside the code it covers — argot pairs the two and says so. Backed by a code-embedding model that runs on your laptop. No LLM, no cloud, no GPU.',
+      'argot is a local guardrail for AI-written code. It learns your repo’s patterns from its own git history, then flags code that doesn’t belong — a dependency you’ve never used, a function you already wrote, logic in the wrong place, an import that breaks your layering. And when an agent quiets a failing test instead of fixing it — skipped, gutted, or deleted right beside the code it covers — argot pairs the two and says so. One command, argot audit, scores your recent history on a fresh clone and attributes every finding to its commit: ai-assisted, human, or unknown. Backed by a code-embedding model that runs on your laptop. No LLM, no cloud, no GPU.',
   },
   nav: {
     demo: 'Demo',
+    audit: 'Audit',
     engine: 'Under the hood',
     docs: 'Docs',
   },

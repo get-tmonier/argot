@@ -10,6 +10,7 @@ export interface SiteContent {
   };
   readonly nav: {
     readonly demo: string;
+    readonly audit: string;
     readonly engine: string;
     readonly docs: string;
   };
