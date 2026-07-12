@@ -304,13 +304,22 @@ fn render_findings(out: &mut String, report: &AuditReport, color: bool) {
         let rest = &report.findings[1..];
         let shown = &rest[..rest.len().min(8)];
         let rule_w = shown.iter().map(|f| f.rule.len()).max().unwrap_or(0);
+        let attr_w = shown
+            .iter()
+            .map(|f| f.commit.attribution.as_str().len())
+            .max()
+            .unwrap_or(0);
+        // Location gets whatever WIDTH leaves after the fixed columns
+        // (glyph, rule, 7-char sha, attribution, separators) — long rule
+        // names shrink the path, never the 80-col budget.
+        let loc_w = WIDTH.saturating_sub(4 + 2 + rule_w + 2 + 7 + 2 + attr_w);
         for f in shown {
-            let loc = clip_path(&format!("{}{}", f.path, span(f)), 38);
+            let loc = clip_path(&format!("{}{}", f.path, span(f)), loc_w);
             let short = f.commit.short.as_deref().unwrap_or("—");
             push(
                 out,
                 &format!(
-                    "  {} {loc:<38}  {:<rule_w$}  {short:<7}  {}",
+                    "  {} {loc:<loc_w$}  {:<rule_w$}  {short:<7}  {}",
                     glyph(&f.confidence, color),
                     f.rule,
                     attribution_tag(f.commit.attribution, color)
@@ -478,7 +487,9 @@ mod tests {
             (0..12)
                 .map(|i| {
                     finding(
-                        "foreign-import",
+                        // The registry's longest rule name — the column that
+                        // pushed a real hugo card past 80 cols once.
+                        "unfamiliar-callee",
                         if i % 2 == 0 { "foreign" } else { "unusual" },
                         long_path,
                         Attribution::AiAssisted,
