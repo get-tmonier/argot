@@ -273,6 +273,109 @@ pub fn blame_file<'r>(
     git_repo.blame_file(Path::new(path), Some(&mut opts)).ok()
 }
 
+/// The commit in `base..head` that removed `symbol` from `path`: the newest
+/// commit whose version of the file lacks the name while a parent's version
+/// contains it (pickaxe semantics, `git log -S`). Deletion findings can't be
+/// span-blamed — the deleted lines don't exist at `head`, and blaming the
+/// *neighbouring* lines credits whoever last edited around the deletion.
+pub fn symbol_removal_commit(
+    git_repo: &git2::Repository,
+    base: &str,
+    head: &str,
+    path: &str,
+    symbol: &str,
+) -> Option<String> {
+    let blob_has = |tree: &git2::Tree| -> bool {
+        tree.get_path(Path::new(path))
+            .ok()
+            .and_then(|e| git_repo.find_blob(e.id()).ok())
+            .map(|b| String::from_utf8_lossy(b.content()).contains(symbol))
+            .unwrap_or(false)
+    };
+    let mut walk = git_repo.revwalk().ok()?;
+    walk.set_sorting(git2::Sort::TOPOLOGICAL).ok()?;
+    walk.push(git2::Oid::from_str(head).ok()?).ok()?;
+    walk.hide(git2::Oid::from_str(base).ok()?).ok()?;
+    let entry_oid = |tree: &git2::Tree| tree.get_path(Path::new(path)).map(|e| e.id()).ok();
+    for oid in walk.flatten() {
+        let commit = git_repo.find_commit(oid).ok()?;
+        let tree = commit.tree().ok()?;
+        if blob_has(&tree) {
+            continue;
+        }
+        // TREESAME rule: a merge whose file matches one of its parents just
+        // carried that side's deletion — keep walking to the real deleter.
+        if commit.parent_count() > 1 {
+            let own = entry_oid(&tree);
+            let carried = (0..commit.parent_count()).any(|i| {
+                commit
+                    .parent(i)
+                    .and_then(|p| p.tree())
+                    .map(|t| entry_oid(&t) == own)
+                    .unwrap_or(false)
+            });
+            if carried {
+                continue;
+            }
+        }
+        let parent_had = (0..commit.parent_count()).any(|i| {
+            commit
+                .parent(i)
+                .and_then(|p| p.tree())
+                .map(|t| blob_has(&t))
+                .unwrap_or(false)
+        });
+        if parent_had {
+            return Some(oid.to_string());
+        }
+    }
+    None
+}
+
+/// Deletion fallback: blame sees only lines that still exist at `head`, so a
+/// finding about *removed* code (a deleted test) resolves to nothing. When
+/// exactly ONE commit in `base..head` touched the file, it is provably the
+/// introducer; with several candidates we stay `unknown` rather than guess.
+pub fn sole_touching_commit(
+    git_repo: &git2::Repository,
+    base: &str,
+    head: &str,
+    path: &str,
+) -> Option<String> {
+    let mut walk = git_repo.revwalk().ok()?;
+    walk.push(git2::Oid::from_str(head).ok()?).ok()?;
+    walk.hide(git2::Oid::from_str(base).ok()?).ok()?;
+    let target = Path::new(path);
+    let mut found: Option<String> = None;
+    for oid in walk.flatten() {
+        let commit = git_repo.find_commit(oid).ok()?;
+        let tree = commit.tree().ok()?;
+        let touched = if commit.parent_count() == 0 {
+            tree.get_path(target).is_ok()
+        } else {
+            // The commit authored this file's content iff its entry differs
+            // from EVERY parent — a merge that merely carries one side's
+            // version is not the introducer (git's TREESAME rule).
+            let entry = tree.get_path(target).map(|e| e.id()).ok();
+            (0..commit.parent_count()).all(|i| {
+                let parent_entry = commit
+                    .parent(i)
+                    .and_then(|p| p.tree())
+                    .ok()
+                    .and_then(|t| t.get_path(target).map(|e| e.id()).ok());
+                parent_entry != entry
+            })
+        };
+        if touched {
+            if found.is_some() {
+                return None; // ambiguous — several commits touched the file
+            }
+            found = Some(oid.to_string());
+        }
+    }
+    found
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -409,5 +512,92 @@ mod tests {
             markers,
             vec!["Co-Authored-By: Claude <noreply@anthropic.com>"]
         );
+    }
+
+    /// Stage `files` (path → contents) and commit; returns the new sha.
+    fn commit(repo: &git2::Repository, files: &[(&str, &str)], msg: &str) -> String {
+        let root = repo.workdir().unwrap();
+        let mut index = repo.index().unwrap();
+        for (rel, contents) in files {
+            std::fs::write(root.join(rel), contents).unwrap();
+            index.add_path(Path::new(rel)).unwrap();
+        }
+        index.write().unwrap();
+        let tree = repo.find_tree(index.write_tree().unwrap()).unwrap();
+        let sig = git2::Signature::now("t", "t@example.com").unwrap();
+        let parents: Vec<git2::Commit> = repo
+            .head()
+            .ok()
+            .and_then(|h| h.peel_to_commit().ok())
+            .into_iter()
+            .collect();
+        let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
+        repo.commit(Some("HEAD"), &sig, &sig, msg, &tree, &parent_refs)
+            .unwrap()
+            .to_string()
+    }
+
+    #[test]
+    fn symbol_removal_walk_finds_the_deleting_commit_not_a_neighbour() {
+        let tmp = std::env::temp_dir().join(format!("argot_audit_symrm_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let repo = git2::Repository::init(&tmp).unwrap();
+        let base = commit(
+            &repo,
+            &[(
+                "t.py",
+                "def test_a():\n    assert 1\n\ndef test_b():\n    assert 2\n",
+            )],
+            "base",
+        );
+        // Deleter first, then a later commit edits nearby lines — the walk
+        // must credit the deleter, where neighbour-blame would credit c2.
+        let c1 = commit(
+            &repo,
+            &[("t.py", "def test_b():\n    assert 2\n")],
+            "delete test_a",
+        );
+        let head = commit(
+            &repo,
+            &[("t.py", "def test_b():\n    assert 22\n")],
+            "edit test_b",
+        );
+
+        assert_eq!(
+            symbol_removal_commit(&repo, &base, &head, "t.py", "test_a").as_deref(),
+            Some(c1.as_str())
+        );
+        // A symbol that never existed resolves to nothing.
+        assert_eq!(
+            symbol_removal_commit(&repo, &base, &head, "t.py", "test_zz"),
+            None
+        );
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn sole_touching_commit_attributes_deletions_only_when_provable() {
+        let tmp = std::env::temp_dir().join(format!("argot_audit_sole_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let repo = git2::Repository::init(&tmp).unwrap();
+        let base = commit(
+            &repo,
+            &[("a.py", "def f():\n    pass\n"), ("b.py", "x = 1\n")],
+            "base",
+        );
+        let c1 = commit(&repo, &[("a.py", "def f():\n    return 2\n")], "touch a");
+        commit(&repo, &[("b.py", "x = 2\n")], "touch b once");
+        let head = commit(&repo, &[("b.py", "x = 3\n")], "touch b twice");
+
+        // a.py touched by exactly one commit in range → provable introducer.
+        assert_eq!(
+            sole_touching_commit(&repo, &base, &head, "a.py").as_deref(),
+            Some(c1.as_str())
+        );
+        // b.py touched twice → ambiguous, stays unknown.
+        assert_eq!(sole_touching_commit(&repo, &base, &head, "b.py"), None);
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }

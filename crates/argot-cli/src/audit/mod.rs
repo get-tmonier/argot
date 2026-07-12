@@ -120,6 +120,8 @@ struct CheckHit {
     line_start: usize,
     line_end: usize,
     evidence: Option<String>,
+    /// The named symbol the finding is about (integrity rules: the test).
+    symbol: Option<String>,
 }
 
 fn parse_hits(json: &str) -> (Vec<CheckHit>, u64) {
@@ -145,6 +147,7 @@ fn parse_hits(json: &str) -> (Vec<CheckHit>, u64) {
                             .and_then(|e| e.first())
                             .and_then(|e| e.as_str())
                             .map(String::from),
+                        symbol: h["symbol"].as_str().map(String::from),
                     })
                 })
                 .collect()
@@ -167,12 +170,24 @@ fn attribute_findings(
     let mut findings = Vec::with_capacity(hits.len());
     for h in hits {
         let sha = git_repo.as_ref().and_then(|r| {
+            // A deletion finding has no lines at head for blame to see — and
+            // blaming the *neighbouring* lines credits whoever last edited
+            // around the deletion. Resolve by content instead: the commit
+            // whose diff dropped the named test.
+            if h.rule == "test-deleted" {
+                return h
+                    .symbol
+                    .as_deref()
+                    .and_then(|sym| attribution::symbol_removal_commit(r, base, head, &h.path, sym))
+                    .or_else(|| attribution::sole_touching_commit(r, base, head, &h.path));
+            }
             let blame = blames
                 .entry(h.path.as_str())
                 .or_insert_with(|| attribution::blame_file(r, base, head, &h.path));
             blame
                 .as_ref()
                 .and_then(|b| attribution::introducing_commit(b, base, h.line_start, h.line_end))
+                .or_else(|| attribution::sole_touching_commit(r, base, head, &h.path))
         });
         let commit = match sha.as_ref().and_then(|s| by_sha.get(s)) {
             Some(info) => FindingCommit {

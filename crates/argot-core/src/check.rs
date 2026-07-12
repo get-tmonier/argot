@@ -197,6 +197,12 @@ struct Hit {
     /// feature-gating discipline.
     #[cfg(feature = "integrity")]
     integrity: Option<String>,
+    /// The affected test's name for an integrity finding (`None` for
+    /// whole-file events) — surfaced as `HitRecord.symbol` so consumers can
+    /// act on the name (e.g. audit attributing a deleted test to the commit
+    /// whose diff dropped it) without parsing evidence text.
+    #[cfg(feature = "integrity")]
+    integrity_symbol: Option<String>,
 }
 
 /// The nearest-existing-code evidence attached to a semantic finding (F4). Held
@@ -1216,6 +1222,8 @@ fn score_patches(
                 arch: None,
                 #[cfg(feature = "integrity")]
                 integrity: None,
+                #[cfg(feature = "integrity")]
+                integrity_symbol: None,
             });
         }
     }
@@ -1325,6 +1333,8 @@ fn arch_hits(
             arch: Some(arch_evidence(&edge, violation)),
             #[cfg(feature = "integrity")]
             integrity: None,
+            #[cfg(feature = "integrity")]
+            integrity_symbol: None,
         });
     }
     hits
@@ -1673,6 +1683,7 @@ fn integrity_hits(
                 #[cfg(feature = "arch")]
                 arch: None,
                 integrity: Some(ev.evidence()),
+                integrity_symbol: (!ev.test_name.is_empty()).then(|| ev.test_name.clone()),
             });
         }
     }
@@ -1977,6 +1988,8 @@ fn build_semantic_hit(
         arch: None,
         #[cfg(feature = "integrity")]
         integrity: None,
+        #[cfg(feature = "integrity")]
+        integrity_symbol: None,
     }
 }
 
@@ -2456,6 +2469,10 @@ fn hit_records(hits: &[&Hit], settings: &RuleSettings) -> Vec<HitRecord> {
                 source: h.source.clone(),
                 hash: h.hash.clone(),
                 evidence,
+                #[cfg(feature = "integrity")]
+                symbol: h.integrity_symbol.clone(),
+                #[cfg(not(feature = "integrity"))]
+                symbol: None,
             }
         })
         .collect()

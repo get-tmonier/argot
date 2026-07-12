@@ -79,6 +79,11 @@ pub struct HitRecord {
     pub hash: String,
     /// Rendered per-reason evidence lines (empty when the scorer had none).
     pub evidence: Vec<String>,
+    /// The named symbol a finding is about, when the rule knows one — today
+    /// the affected test of the integrity rules (`test-deleted` & co.), so
+    /// machine consumers can act on the name without parsing evidence text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub symbol: Option<String>,
 }
 
 /// Per-file count of scored hunks (below-threshold ones included), for
@@ -321,6 +326,7 @@ mod tests {
             source: "workdir".to_string(),
             hash: "a1b2c3d4e5f6".to_string(),
             evidence: vec!["↳ axios — 0 of 47 module specifiers in repo".to_string()],
+            symbol: None,
         }
     }
 
