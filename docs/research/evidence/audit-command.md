@@ -144,8 +144,54 @@ run, unedited.
   mini-replay, auto-refresh worktrees) is intentionally untouched — those
   really are replays.
 
-## Example artifacts
+## Example artifacts (unedited output)
 
-Real cards captured during validation (fresh clones, unedited output) live
-with the run logs; the README carries the argot-self-audit terminal card, and
-`landing/src/components/Audit.astro` plays the same run abridged.
+Working copies live in `.scratch/audit-command/examples/` (local); the
+README carries the argot-self-audit card and
+`landing/src/components/Audit.astro` plays the same run abridged. Durable
+copies of the three most telling cards:
+
+argot's own history (the README card — real Claude trailer attributed):
+
+```
+━━ argot audit ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  last 50 commits · 2026-06-01 → 2026-07-11 · 50 commits audited
+  52% carry AI markers (26 of 50) · 1 finding would have met review
+
+  voice    1  code foreign to how this repo writes
+
+  Worst offender — commit cae8349 · ai-assisted
+  ! landing/src/pages/llms-full.txt.ts:L1-32 · foreign-import
+      "feat: v1 launch polish — on…" — Co-Authored-By: Claude Opus 4.8
+      ↳ astro (L1), astro:content (L2), #lib/site (L3) — 0 of 49 module s…
+
+  Merged code is accepted code — read each finding as "would have
+  prompted review before merge", not a bug list. "human" means no AI
+  markers were found; the AI share is a floor, not a census.
+  Next: argot init fits today's voice so argot check raises these
+  before they merge.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+dagster (monorepo, three rule groups firing, 18% AI-marked):
+
+```
+━━ argot audit ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  last 50 commits · 2026-04-30 → 2026-05-04 · 50 commits audited
+  18% carry AI markers (9 of 50) · 9 findings would have met review
+
+  voice           2  code foreign to how this repo writes
+  semantic        5  functions you already had, or code filed oddly
+  architecture    2  imports that break the repo's layering
+
+  Worst offender — commit 648cd19 · human
+  ! python_modules/l…ter-soda/dagster_soda/__init__.py:L1-10 · foreign-import
+  …
+```
+
+offline degradation (semantic marked skipped, never a silent zero):
+
+```
+  voice       2  code foreign to how this repo writes
+  semantic    —  skipped: embedding model not available (offline?)
+```
