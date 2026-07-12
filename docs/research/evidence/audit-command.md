@@ -44,33 +44,66 @@ Per-corpus harness: clone `benchmarks/data/<c>/.repo` → bare `argot audit`
 re-verified against `git log` in the clone, plus an *independent* regex
 recount of AI-marked commits over the whole range.
 
-| corpus | lang | card | json | findings | commits (AI) | indep. AI recount | runtime |
-|---|---|---|---|---|---|---|---|
-| fastapi | Python | OK | OK | 2 | 50 (0) | 0 ✓ | 27 s |
-| faker-js | TS | OK | OK | (see json) | 50 (1) | 1 ✓ | 17 s |
-| express | JS | OK | OK | (see json) | 50 (1) | 1 ✓ | 5 s |
-| bat | Rust | OK | OK | (see json) | 147 (2) | 2 ✓ | 37 s |
-| guava | Java | — | — | — | — | — | — |
-| jellyfin | C# | — | — | — | — | — | — |
-| laravel | PHP | — | — | — | — | — | — |
-| rubocop | Ruby | — | — | — | — | — | — |
-| curl | C | — | — | — | — | — | — |
-| rocksdb | C++ | — | — | — | — | — | — |
-| hugo | Go | — | — | — | — | — | — |
-| dagster | monorepo Py+TS | — | — | — | — | — | — |
-| excalidraw | TS | — | — | — | — | — | — |
+All rows: exit 0 twice, card↔json counts consistent, ≤80-col layout, no ANSI
+piped, independent AI recount = reported. Runtimes are the terminal-card run
+(fresh clone, full fit incl. semantic embed, NO seed) and most ran **under
+3-way CPU contention** — see "runtime" below for the solo gate measurement.
 
-*(table completed below as batches landed — see final numbers)*
+| corpus | lang | findings (v/s/a/i) | hunks | commits (AI) | indep. ✓ | runtime |
+|---|---|---|---|---|---|---|
+| fastapi | Python | 2 (2/0/0/0) | 3 | 50 (0) | ✓ | 27 s |
+| faker-js | TS | 0 | 1057 | 50 (1) | ✓ | 17 s |
+| express | JS | 0 | 14 | 50 (1) | ✓ | 5 s |
+| bat | Rust | 3 (3/0/0/0) | 59 | 147 (2) | ✓ | 37 s |
+| guava | Java | 34 (2/32/0/0) | 573 | 50 (0) | ✓ | 1156 s* |
+| jellyfin | C# | 1 (0/1/0/0) | 115 | 116 (2) | ✓ | 397 s* |
+| laravel | PHP | 11 (0/8/0/3) | 178 | 60 (3) | ✓ | 471 s* |
+| rubocop | Ruby | 1 (0/1/0/0) | 124 | 102 (0) | ✓ | 202 s* |
+| curl | C | 4 (0/4/0/0) | 150 | 50 (0) | ✓ | 271 s* |
+| rocksdb | C++ | 89 (18/71/0/0) | 840 | 50 (0) | ✓ | 1721 s* |
+| hugo | Go | 6 (2/2/0/2) | 191 | 51 (8) | ✓ | 246 s* |
+| dagster | monorepo Py+TS | 9 (2/5/2/0) | 321 | 50 (9) | ✓ | 554 s |
+| excalidraw | TS | 11 (4/5/0/2) | 375 | 50 (3) | ✓ | 113 s |
 
-**Attribution spot-check (the 0-false-`ai-assisted` gate):** every commit the
-classifier marked AI across bat / express / faker-js / argot-itself was
-opened and eyeballed — all carried genuine markers:
-`Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>` (bat),
-`Co-Authored-By: Claude Opus 4.6 <…>` (bat, express),
-`Co-authored-by: Copilot <175728472+Copilot@users.noreply.github.com>`
-(faker-js). The model-name variants confirm matching on the **email**, not
-the display name, was the right call. fastapi's window (Apr 2026) reported
-0/50 — independently confirmed.
+\* under 2–3 concurrent corpus fits on one machine.
+
+Marker classes confirmed on real history: Claude Code trailers (5 model-name
+variants), `🤖 Generated with [Claude Code]` footers (dagster), Copilot
+GitHub trailer (faker-js), VS Code Copilot `copilot@github.com` trailer
+(excalidraw), Cursor `cursoragent@cursor.com` trailer (excalidraw).
+
+Negative control caught in the wild: a dagster commit whose message says
+"auto-reordered with Claude" in *prose* was correctly left `human` — prose
+mentions are not concrete markers — while the window's 9 genuinely-marked
+commits (trailers + `🤖 Generated with [Claude Code]` footers) were all
+caught.
+
+### Fix loop (real defects the validation surfaced, each fixed + pinned by a test)
+
+1. **`fit` progress on stdout** contaminated `--format json`'s document →
+   moved to stderr (status never belongs on a machine format's stdout).
+2. **guava parallel trees** (`guava/` + `android/guava/` ship identical
+   files): left-ellipsized paths erased exactly the distinguishing prefix and
+   rendered two distinct findings as identical rows → middle-ellipsis.
+3. **laravel deleted-test mis-attribution**: span-blame credited `9c01c82`
+   where `git log -S` proves `4a03574` deleted the tests (blame can only see
+   surviving neighbour lines) → `test-deleted` now resolves by content
+   (pickaxe-style walk on the structured `symbol` field added to check's
+   JSON hits), with a provable sole-touching-commit fallback, else honest
+   `unknown`.
+4. **hugo 83-col overflow**: `unfamiliar-callee` (17 chars) pushed rest-rows
+   past 80 → the location column flexes around the widest rule/attribution.
+
+**Attribution spot-check (the 0-false-`ai-assisted` gate):** every commit
+the classifier marked AI across bat / express / faker-js / jellyfin /
+laravel / hugo / argot-itself (17 marked commits) was opened and eyeballed —
+all carried genuine markers: Claude trailers in several model-name variants
+(`Claude Opus 4.8 (1M context)`, `Claude Opus 4.6`, `Claude Sonnet 4.6` —
+all `<noreply@anthropic.com>`, confirming email-matching over name-matching)
+and `Co-authored-by: Copilot <175728472+Copilot@users.noreply.github.com>`
+(faker-js). Zero false `ai-assisted` labels. The 0-AI windows (fastapi,
+guava, rubocop, curl, rocksdb) were independently reconfirmed by a separate
+regex recount over every commit in each range.
 
 **Dogfood (argot's own history):** 50 commits, **52% AI-marked (26/50)**,
 1 finding, worst offender correctly attributed to an `ai-assisted` commit
