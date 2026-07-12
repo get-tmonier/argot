@@ -72,6 +72,29 @@ variants), `🤖 Generated with [Claude Code]` footers (dagster), Copilot
 GitHub trailer (faker-js), VS Code Copilot `copilot@github.com` trailer
 (excalidraw), Cursor `cursoragent@cursor.com` trailer (excalidraw).
 
+### Runtime gate (target: ≤~2 min default window on the largest corpus)
+
+Solo measurements on rocksdb (the slowest corpus, 4k+ C++ files, 840 hunks
+in the window):
+
+| path | time |
+|---|---|
+| fresh clone, zero setup (full semantic embed of the base tree) | **1188 s** |
+| `argot fit` alone on the same clone (HEAD) | 966 s |
+| audit after `argot init` (semantic index seeds the worktree fit) | **368 s** |
+
+**Verdict: met on ordinary repos, honestly missed on giant ones.** 10 of 13
+corpora audit fresh in ≤ ~4 min under contention (fastapi 27 s, express 5 s,
+faker-js 17 s, bat 37 s, excalidraw 113 s solo…); rocksdb and guava are
+embed-dominated — ~80% of the fresh cost is `fit`'s semantic index build,
+which audit inherits and which shows live progress throughout. The seed cuts
+repeat runs 3.2× and the fresh and seeded cards are byte-identical (the seed
+changes speed, never findings). This is the price of zero-setup with the embedding layer
+on repo-scale outliers, published red rather than gamed (no hunk caps, no
+silent semantic skip). Future lever if it ever matters: persist the
+worktree-fit index into the shared cache keyed by (repo, base) so repeat
+audits of the same window are near-instant.
+
 Negative control caught in the wild: a dagster commit whose message says
 "auto-reordered with Claude" in *prose* was correctly left `human` — prose
 mentions are not concrete markers — while the window's 9 genuinely-marked

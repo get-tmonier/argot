@@ -217,9 +217,12 @@ argot audit --format json      # stable schema; also: markdown (PR-pasteable),
 The install-day question, answered on your own history: audit fits the voice
 **as it was at the base of the window** (in a temporary git worktree — your
 tree and `.argot/` are untouched; your current `argot.toml` and semantic index
-ride along, so the historical fit reuses embeddings and takes seconds), scores
-`base..HEAD` with every rule group, and renders a scorecard. It works on a
-fresh clone with no setup at all — no `.argot/`, no `argot.toml`.
+ride along, so the historical fit reuses embeddings), scores `base..HEAD` with
+every rule group, and renders a scorecard. It works on a fresh clone with no
+setup at all — no `.argot/`, no `argot.toml`. Most repos audit in seconds to a
+couple of minutes; on a very large repo the first zero-setup run builds the
+full semantic index (minutes, with live progress) — after `argot init` the
+index seeds the fit and repeat audits are several times faster.
 
 Every finding is attributed to its **introducing commit** — `ai-assisted`,
 `human`, or `unknown` — from concrete commit markers only: agent
