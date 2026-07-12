@@ -20,7 +20,8 @@ use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// The published freshness document (built by the landing from the repo).
-const VERSION_URL: &str = "https://argot.tmonier.com/version.json";
+/// Also the version source for `argot update` — never the GitHub API.
+pub(crate) const VERSION_URL: &str = "https://argot.tmonier.com/version.json";
 /// Env opt-out (`0` disables).
 const UPDATE_CHECK_ENV: &str = "ARGOT_UPDATE_CHECK";
 /// One refresh — and at most one notice — per this window.
@@ -109,7 +110,7 @@ fn parse_version(v: &str) -> Option<(u64, u64, u64)> {
     Some((major, minor, patch))
 }
 
-fn is_newer(candidate: &str, current: &str) -> bool {
+pub(crate) fn is_newer(candidate: &str, current: &str) -> bool {
     match (parse_version(candidate), parse_version(current)) {
         (Some(c), Some(cur)) => c > cur,
         _ => false,

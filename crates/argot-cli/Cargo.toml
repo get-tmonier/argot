@@ -12,10 +12,12 @@ name = "argot"
 path = "src/main.rs"
 
 [features]
-# Off by default: axoupdater drags in an HTTP stack (reqwest/rustls/tokio)
-# that only shipped binaries need. Release builds enable it via
-# dist-workspace.toml; CI and dev loops skip the whole tree.
-self-update = ["dep:axoupdater", "dep:ureq"]
+# Off by default: only shipped binaries need the update path (ureq TLS stack,
+# plus the Windows-only self-replace dance). Release builds enable it via
+# dist-workspace.toml; CI and dev loops skip the whole tree. Update resolution
+# goes through the published version.json + release web download URLs — never
+# the GitHub API and its anonymous 60 req/h rate limit (src/update.rs).
+self-update = ["dep:ureq", "dep:self-replace"]
 # Compiles in the semantic layer (embeddings-backed findings). This is a
 # build-time gate, not a user opt-in: the shipped binary is built with it on and
 # semantic is standard, always-on behaviour. Dev/CI base loops leave it off for
@@ -38,5 +40,7 @@ serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
 clap.workspace = true
-axoupdater = { workspace = true, optional = true }
 ureq = { workspace = true, optional = true }
+
+[target.'cfg(windows)'.dependencies]
+self-replace = { workspace = true, optional = true }

@@ -343,7 +343,7 @@ Built on [tree-sitter](https://tree-sitter.github.io/tree-sitter/) (11 grammars)
 [libgit2](https://libgit2.org/) via [git2](https://docs.rs/git2/), HuggingFace
 [tokenizers](https://github.com/huggingface/tokenizers) (UnixCoder BPE),
 [clap](https://docs.rs/clap/), [Serde](https://serde.rs/), and
-[cargo-dist](https://opensource.axo.dev/cargo-dist/) / [axoupdater](https://github.com/axodotdev/axoupdater).
+[cargo-dist](https://opensource.axo.dev/cargo-dist/).
 The semantic layer links [llama.cpp](https://github.com/ggml-org/llama.cpp) (MIT)
 statically via [`llama-cpp-2`](https://crates.io/crates/llama-cpp-2); its model is
 [**jina-embeddings-v2-base-code**](https://huggingface.co/jinaai/jina-embeddings-v2-base-code)

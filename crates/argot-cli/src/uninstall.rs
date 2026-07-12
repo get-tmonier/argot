@@ -59,7 +59,7 @@ pub struct UninstallPlan {
 }
 
 /// `${XDG_CONFIG_HOME:-~/.config}/argot` — where the shell installer's
-/// receipt lives (axoupdater convention).
+/// receipt lives (cargo-dist convention).
 fn receipt_dir() -> Option<PathBuf> {
     if let Some(x) = std::env::var_os("XDG_CONFIG_HOME").filter(|v| !v.is_empty()) {
         return Some(PathBuf::from(x).join("argot"));

@@ -11,6 +11,8 @@ mod mcp;
 mod review;
 mod uninstall;
 #[cfg(feature = "self-update")]
+mod update;
+#[cfg(feature = "self-update")]
 mod update_check;
 mod voice_diff;
 mod worktree;
@@ -567,56 +569,7 @@ fn run_update() -> ExitCode {
 
 #[cfg(feature = "self-update")]
 fn run_update() -> ExitCode {
-    let current = env!("CARGO_PKG_VERSION");
-
-    let exe = std::env::current_exe().ok();
-    if is_npm_install(exe.as_deref()) {
-        println!("argot {current} was installed via npm; update it with:");
-        println!("  npm install -g @tmonier/argot@latest");
-        return ExitCode::SUCCESS;
-    }
-
-    let mut updater = axoupdater::AxoUpdater::new_for("argot");
-    if updater.load_receipt().is_err() {
-        eprintln!("argot {current}: no install receipt found, cannot self-update.");
-        eprintln!("Re-install with the installer to enable `argot update`:");
-        eprintln!("  curl -LsSf https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.sh | sh");
-        return ExitCode::FAILURE;
-    }
-
-    // Without this guard axoupdater silently reports "no update needed" for
-    // any binary that isn't the one the receipt describes (dev builds, manual
-    // copies) — surface that case honestly instead.
-    if !updater
-        .check_receipt_is_for_this_executable()
-        .unwrap_or(false)
-    {
-        eprintln!(
-            "argot {current}: this executable is not the installed copy recorded in the install receipt; skipping self-update."
-        );
-        eprintln!("Update the installed copy by running `argot update` from it directly.");
-        return ExitCode::FAILURE;
-    }
-
-    println!("argot {current} — checking for updates...");
-    match updater.run_sync() {
-        Ok(Some(result)) => {
-            println!("Updated to argot {}.", result.new_version);
-            // Did this release move the pinned embedding model? Say so now,
-            // so the next fit's ~100 MB download is expected, not a surprise.
-            #[cfg(feature = "semantic")]
-            update_check::model_change_note();
-            ExitCode::SUCCESS
-        }
-        Ok(None) => {
-            println!("Already up to date.");
-            ExitCode::SUCCESS
-        }
-        Err(e) => {
-            eprintln!("Update failed: {e}");
-            ExitCode::FAILURE
-        }
-    }
+    update::run_update()
 }
 
 /// Whether a command should emit its JSON document (the shared `--format
