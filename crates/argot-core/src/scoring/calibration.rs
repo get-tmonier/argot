@@ -1087,6 +1087,7 @@ pub fn run_calibrate(
         eprintln!("argot: semantic rules are off in [rules] — skipping the semantic index");
         None
     } else {
+        let _t = crate::timing::phase("calibrate: embedder load");
         match crate::scoring::semantic::embedder::Embedder::ready() {
             Ok(e) => e,
             Err(e) => {
@@ -1106,16 +1107,20 @@ pub fn run_calibrate(
     // routine refit embeds only what actually changed. A stale/other-model
     // artifact yields no reuse — full re-embed, never mixed spaces.
     #[cfg(feature = "semantic")]
-    let prior_artifact = std::fs::read_to_string(
-        output.with_file_name(crate::scoring::semantic::SEMANTIC_INDEX_FILE),
-    )
-    .ok()
-    .and_then(|raw| crate::scoring::semantic::index::SemanticArtifact::from_json_str(&raw).ok())
-    .filter(|a| a.validate_current().is_ok());
+    let prior_artifact = {
+        let _t = crate::timing::phase("calibrate: semantic prior-artifact load");
+        std::fs::read_to_string(
+            output.with_file_name(crate::scoring::semantic::SEMANTIC_INDEX_FILE),
+        )
+        .ok()
+        .and_then(|raw| crate::scoring::semantic::index::SemanticArtifact::from_json_str(&raw).ok())
+        .filter(|a| a.validate_current().is_ok())
+    };
 
     for (name, (language, lang_files)) in by_lang {
         let adapter = adapter_for(language);
 
+        let t_read = crate::timing::phase(format!("calibrate[{name}]: corpus read+filter"));
         // Read corpus sources once (shared by BPE + call-receiver + evidence).
         let repo_files: Vec<(PathBuf, String)> = lang_files
             .iter()
@@ -1141,12 +1146,16 @@ pub fn run_calibrate(
         let sources: Vec<String> = corpus.iter().map(|(_, s)| s.clone()).collect();
         per_lang_files.insert(name.to_string(), corpus.len());
         total_lines += sources.iter().map(|s| s.lines().count()).sum::<usize>();
+        t_read.done();
 
+        let t_bpe = crate::timing::phase(format!("calibrate[{name}]: bpe build"));
         let bpe = BpeScorer::new(BpeTokenizer::load(), generic_baseline_json, &sources)?;
+        t_bpe.done();
         // import_modules = corpus imports + repo-owned module names
         // (package/tsconfig aliases). Folding resolve_repo_modules matches
         // the bench scorer's import surface: a repo-internal module the
         // corpus never happened to import is still not a foreign voice.
+        let t_cr = crate::timing::phase(format!("calibrate[{name}]: call-receiver build"));
         let mut modules: HashSet<String> = HashSet::new();
         for s in &sources {
             modules.extend(adapter.extract_imports(s));
@@ -1170,10 +1179,13 @@ pub fn run_calibrate(
             detect.data_threshold,
         )
         .map_err(anyhow::Error::msg)?;
+        t_cr.done();
 
         // Candidates for sampling.
+        let t_cand = crate::timing::phase(format!("calibrate[{name}]: candidates collect"));
         let candidates =
             collect_candidates_with(repo_dir, adapter.as_ref(), &path_suppressions, detect);
+        t_cand.done();
         let effective_n_cal = opts.n_cal.min(candidates.len());
         let typicality = TypicalityModel::new(language);
 
@@ -1181,6 +1193,7 @@ pub fn run_calibrate(
         // sampled calibration hunks; a rule that fires often on ordinary code
         // would FP-flood at check time, so fall back to baseline (rare=0).
         let mut resolved_rare = opts.cluster_rare_threshold;
+        let t_probe = crate::timing::phase(format!("calibrate[{name}]: rare-rule probe"));
         if opts.auto_select_asym_cal
             && resolved_rare > 0
             && CR_N_CLUSTERS > 1
@@ -1242,9 +1255,11 @@ pub fn run_calibrate(
                 resolved_rare = 0;
             }
         }
+        t_probe.done();
 
         // Leave-one-file-out counts: calibration hunks are scored as if
         // their file were not in the corpus (see multi_seed_thresholds).
+        let t_thr = crate::timing::phase(format!("calibrate[{name}]: thresholds (multi-seed)"));
         let per_file_counts: PerFileTokenCounts = corpus
             .iter()
             .map(|(p, s)| (p.clone(), bpe.token_counts(s)))
@@ -1266,7 +1281,9 @@ pub fn run_calibrate(
             },
         );
         let threshold = median(seed_thresholds);
+        t_thr.done();
 
+        let t_nf = crate::timing::phase(format!("calibrate[{name}]: new-file thresholds"));
         // Separate new-file threshold: the honest operating point for a
         // genuinely-new file (cluster routing off, real check-time alpha) —
         // never below the existing-file threshold. Applied by check only to
@@ -1289,6 +1306,7 @@ pub fn run_calibrate(
             CR_ROOT_BONUS,
         );
         let new_file_threshold = median(new_file_seeds).max(threshold);
+        t_nf.done();
 
         // Per-slice thresholds: re-calibrate over just the candidates whose file
         // falls in each slice. A slice with too few candidates is skipped — it
@@ -1327,6 +1345,7 @@ pub fn run_calibrate(
         }
 
         // Evidence corpus.
+        let t_ev = crate::timing::phase(format!("calibrate[{name}]: evidence corpus"));
         let evidence = build_evidence_corpus(
             &lang_files,
             adapter.as_ref(),
@@ -1334,6 +1353,7 @@ pub fn run_calibrate(
             opts.evidence_top_n,
             &head,
         );
+        t_ev.done();
 
         // Convention-rarity model: corpus frequencies plus firing bars set at
         // the max feature value over the same multi-seed calibration sample
@@ -1367,6 +1387,7 @@ pub fn run_calibrate(
         // silently when no embedder is available — never load-bearing.
         #[cfg(feature = "semantic")]
         if let Some(emb) = embedder.as_ref() {
+            let t_ext = crate::timing::phase(format!("calibrate[{name}]: semantic fn-extract"));
             let mut funcs = Vec::new();
             for (path, source) in corpus {
                 // Mirror the check-time candidate scope (`batch.ignored_by_pattern`):
@@ -1385,21 +1406,31 @@ pub fn run_calibrate(
                     source,
                 ));
             }
+            t_ext.done();
             if !funcs.is_empty() {
+                let t_prior =
+                    crate::timing::phase(format!("calibrate[{name}]: semantic prior-index load"));
                 let prior_index = prior_artifact
                     .as_ref()
                     .and_then(|a| a.load(name).ok().flatten())
                     .map(|li| li.index);
+                t_prior.done();
                 eprintln!(
                     "argot: building semantic index for {name} ({} functions)…",
                     funcs.len()
                 );
+                let mut t_embed = crate::timing::phase(String::new());
                 match crate::scoring::semantic::index::SemanticIndex::build_with_reuse(
                     emb,
                     &funcs,
                     prior_index.as_ref(),
                 ) {
                     Ok((idx, reused)) if !idx.is_empty() => {
+                        t_embed.relabel(format!(
+                            "calibrate[{name}]: semantic embed ({} fns, {reused} reused)",
+                            funcs.len()
+                        ));
+                        t_embed.done();
                         if reused > 0 {
                             eprintln!(
                                 "argot: {name}: reused {reused} of {} embeddings from the previous fit",
@@ -1409,12 +1440,18 @@ pub fn run_calibrate(
                         // Self-calibrate the placement sense on the fresh index
                         // (adaptive areas, entangled merges, vote parameters —
                         // or disabled when the repo's areas aren't separable).
+                        let t_plc =
+                            crate::timing::phase(format!("calibrate[{name}]: placement calibrate"));
                         let placement =
                             crate::scoring::semantic::placement::calibrate_placement(&idx);
+                        t_plc.done();
                         // Self-calibrate the reinvention sense: mini-replay of
                         // the functions added over the recent window against the
                         // older code (conservative mode for repos practicing
                         // systematic parallel implementation).
+                        let t_rec = crate::timing::phase(format!(
+                            "calibrate[{name}]: reinvention calibrate (recent-fns replay)"
+                        ));
                         let recent = recent_semantic_functions(
                             repo_dir,
                             &funcs,
@@ -1425,7 +1462,11 @@ pub fn run_calibrate(
                             crate::scoring::semantic::redundant::calibrate_reinvention(
                                 &idx, &recent,
                             );
+                        t_rec.done();
+                        let t_ins =
+                            crate::timing::phase(format!("calibrate[{name}]: semantic serialize"));
                         semantic_artifact.insert(name, &idx, placement, reinvention);
+                        t_ins.done();
                     }
                     Ok(_) => {}
                     Err(e) => eprintln!("argot: semantic index for {name} failed: {e}"),
@@ -1489,6 +1530,7 @@ pub fn run_calibrate(
     // unchanged whether or not the semantic layer is compiled in.
     #[cfg(feature = "semantic")]
     if !semantic_artifact.is_empty() {
+        let _t = crate::timing::phase("calibrate: semantic artifact write");
         let sem_path = output.with_file_name(crate::scoring::semantic::SEMANTIC_INDEX_FILE);
         match semantic_artifact.to_json_string() {
             Ok(sem_json) => {
@@ -1507,6 +1549,7 @@ pub fn run_calibrate(
     // Python only in v1; other languages simply produce no graph.
     #[cfg(feature = "arch")]
     if rule_settings.severity_of_reason("layering") != crate::rules::Severity::Off {
+        let _t = crate::timing::phase("calibrate: arch graph");
         use crate::scoring::adapters::Language;
         use crate::scoring::arch_graph::{RepoLayering, LAYERING_FILE};
         let files = crate::train::collect_source_files(repo_dir);
@@ -1539,6 +1582,7 @@ pub fn run_calibrate(
     // the module docs of `scoring::integrity`).
     #[cfg(feature = "integrity")]
     if rule_settings.group_enabled(crate::rules::GROUP_INTEGRITY) {
+        let _t = crate::timing::phase("calibrate: integrity mini-replay");
         use crate::scoring::integrity::{fit_model, INTEGRITY_FILE};
         if let Some(model) = fit_model(repo_dir, &opts.repo_sha) {
             let path = output.with_file_name(INTEGRITY_FILE);

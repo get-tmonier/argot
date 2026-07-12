@@ -1716,6 +1716,7 @@ fn semantic_hits(
     use crate::scoring::semantic::SEMANTIC_INDEX_FILE;
 
     // Load the fit-time index artifact; its absence just means no semantic layer.
+    let t_art = crate::timing::phase("check: semantic artifact read+parse");
     let Ok(raw) = std::fs::read_to_string(argot_dir.join(SEMANTIC_INDEX_FILE)) else {
         return Vec::new();
     };
@@ -1726,6 +1727,7 @@ fn semantic_hits(
             return Vec::new();
         }
     };
+    t_art.done();
     // A stale index (older format, different embedding model) must never be
     // queried — its cosines would be silently wrong. Loud skip + rebuild hint.
     if let Err(reason) = artifact.validate_current() {
@@ -1739,6 +1741,7 @@ fn semantic_hits(
     // Gather the functions this diff defines: a function whose definition line is
     // among the diff's added lines is newly added (its whole body, incl. the def,
     // is in an added hunk) — the reinvention candidates.
+    let t_cand = crate::timing::phase("check: semantic candidate extract");
     let mut candidates: Vec<(usize, &'static str, FunctionRef)> = Vec::new();
     for (bi, batch) in patches.iter().enumerate() {
         if batch.ignored_by_pattern {
@@ -1777,8 +1780,10 @@ fn semantic_hits(
     if candidates.is_empty() {
         return Vec::new();
     }
+    t_cand.done();
 
     // Load only the indices we actually need.
+    let t_idx = crate::timing::phase("check: semantic index decode");
     let mut loaded: HashMap<&'static str, LoadedIndex> = HashMap::new();
     for (_, lang, _) in &candidates {
         if loaded.contains_key(lang) {
@@ -1796,8 +1801,10 @@ fn semantic_hits(
     if candidates.is_empty() {
         return Vec::new();
     }
+    t_idx.done();
 
     // Acquire the embedder once; unavailable model → degrade (no semantic hits).
+    let t_model = crate::timing::phase("check: semantic embedder load");
     let embedder = match Embedder::ready() {
         Ok(Some(e)) => e,
         Ok(None) => {
@@ -1812,7 +1819,11 @@ fn semantic_hits(
         }
     };
 
+    t_model.done();
+
     // Embed all candidate functions in one batch.
+    let t_embed =
+        crate::timing::phase(format!("check: semantic embed ({} fns)", candidates.len()));
     let texts: Vec<&str> = candidates.iter().map(|(_, _, f)| f.text.as_str()).collect();
     let vecs = match embedder.embed(&texts) {
         Ok(v) => v,
@@ -1821,6 +1832,8 @@ fn semantic_hits(
             return Vec::new();
         }
     };
+    t_embed.done();
+    let _t_score = crate::timing::phase("check: semantic score candidates");
 
     // Dev-only feature capture (`ARGOT_SEM_DUMP=<path>`): append one JSON line
     // per candidate — its structural features, nearest neighbours and the fire
@@ -2875,6 +2888,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     // Effective per-rule severities: defaults ⊕ [rules] ⊕ CLI --rule overrides.
     let settings = config.rule_settings(&args.rule_overrides);
 
+    let t_load = crate::timing::phase("check: load scorers");
     let Loaded {
         mut scorers,
         filter_adapters,
@@ -2888,7 +2902,9 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         Ok(l) => l,
         Err((msg, code)) => return CheckOutcome::err(msg, code),
     };
+    t_load.done();
 
+    let t_patches = crate::timing::phase("check: collect patches");
     let (patches, scan_label) = match collect_patches(&args) {
         Ok(v) => v,
         Err(outcome) => {
@@ -2912,6 +2928,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
             return outcome;
         }
     };
+    t_patches.done();
 
     let mut stderr = String::new();
 
@@ -3074,6 +3091,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     // no-op without the feature or when the index/model is unavailable.
     #[cfg(feature = "semantic")]
     let semantic_extra = if settings.group_enabled(rules::GROUP_SEMANTIC) {
+        let _t = crate::timing::phase("check: semantic pass");
         semantic_hits(
             &filtered,
             &args.argot_dir,
@@ -3091,6 +3109,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     // Compute arch hits before `filtered` is moved into `score_patches`.
     #[cfg(feature = "arch")]
     let arch_extra = if settings.severity_of_reason("layering") != RuleSeverity::Off {
+        let _t = crate::timing::phase("check: arch pass");
         arch_hits(
             &filtered,
             &args.argot_dir,
@@ -3106,11 +3125,13 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     // scoring batches carry post-images only, and never deletions).
     #[cfg(feature = "integrity")]
     let integrity_extra = if settings.group_enabled(rules::GROUP_INTEGRITY) {
+        let _t = crate::timing::phase("check: integrity pass");
         integrity_hits(&args, &filter_adapters, &mutes.active, &mut stderr)
     } else {
         Vec::new()
     };
 
+    let t_score = crate::timing::phase("check: score patches (statistical)");
     let (hits, hunk_count, files_scanned) = score_patches(
         filtered,
         &mut scorers,
@@ -3122,6 +3143,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         header_cpp,
         &mut stderr,
     );
+    t_score.done();
 
     // Merge the semantic hits (rebind rather than `mut` so the base build has
     // no unused-mut and stays byte-for-byte identical).

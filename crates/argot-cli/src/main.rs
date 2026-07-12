@@ -815,12 +815,15 @@ fn fit_repo(repo: &Path, slices: &[String]) -> Result<PathBuf, ()> {
     // Progress goes to stderr: fit runs inside commands whose stdout is a
     // machine document (audit --format json) — status must never mix in.
     eprintln!("Step 1/2: training voice model …");
+    let t_train = argot_core::timing::phase("fit: train");
     if let Err(e) = run_train(repo, &repo_corpus, &generic) {
         eprintln!("error: {e}");
         return Err(());
     }
+    t_train.done();
 
     eprintln!("Step 2/2: calibrating threshold …");
+    let t_cal = argot_core::timing::phase("fit: calibrate (total)");
     let generic_bytes = match fs::read(&generic) {
         Ok(b) => b,
         Err(_) => {
@@ -839,6 +842,7 @@ fn fit_repo(repo: &Path, slices: &[String]) -> Result<PathBuf, ()> {
         eprintln!("error: {e}");
         return Err(());
     }
+    t_cal.done();
     Ok(scorer_config)
 }
 

@@ -24,5 +24,6 @@ pub mod scoring;
 pub mod stats;
 pub mod suppress;
 pub mod text;
+pub mod timing;
 pub mod tokenize;
 pub mod train;

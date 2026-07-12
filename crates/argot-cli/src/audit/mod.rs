@@ -314,7 +314,9 @@ pub fn run_audit(repo: &Path, spec: WindowSpec, format: AuditFormat) -> ExitCode
     // is excluded or unsupported would otherwise die on "no source files".
     let config = argot_core::config::ArgotConfig::load(repo);
     let suppressions = config.path_suppressions();
+    let t_fittable = argot_core::timing::phase("audit: max-fittable-window scan");
     let fittable = max_fittable_window(repo, &chain[..walked], &suppressions);
+    t_fittable.done();
     if fittable == 0 {
         eprintln!(
             "error: nothing to audit — none of the last {walked} commit(s) contain source files in \
@@ -336,6 +338,7 @@ pub fn run_audit(repo: &Path, spec: WindowSpec, format: AuditFormat) -> ExitCode
     let base_short = &base.sha[..12.min(base.sha.len())];
 
     eprintln!("argot: auditing your last {walked} commit(s) against the voice as of {base_short}…");
+    let t_wt = argot_core::timing::phase("audit: worktree add + seed");
     let worktree = match TempWorktree::create(repo, &base.sha, "argot-audit") {
         Ok(w) => w,
         Err(e) => {
@@ -346,13 +349,17 @@ pub fn run_audit(repo: &Path, spec: WindowSpec, format: AuditFormat) -> ExitCode
     // Today's config judges the past, and the current semantic index seeds
     // the historical fit (embeddings reuse: seconds, not a full re-embed).
     worktree.adopt_current_config(repo);
+    t_wt.done();
 
     eprintln!("argot: fitting the historical voice (one-off, in a temp worktree)…");
+    let t_fit = argot_core::timing::phase("audit: fit (total)");
     if crate::fit_repo(&worktree.path, &[]).is_err() {
         eprintln!("error: fitting at {base_short} failed");
         return ExitCode::from(2);
     }
+    t_fit.done();
 
+    let t_check = argot_core::timing::phase("audit: check (total)");
     let outcome = run_check(CheckArgs {
         repo_path: worktree.path.to_string_lossy().into_owned(),
         reference: format!("{}..{}", base.sha, head.sha),
@@ -379,9 +386,11 @@ pub fn run_audit(repo: &Path, spec: WindowSpec, format: AuditFormat) -> ExitCode
         return ExitCode::from(2);
     }
 
+    t_check.done();
     let (hits, hunks_scanned) = parse_hits(&outcome.stdout);
 
     eprintln!("argot: attributing {walked} commit(s) of history…");
+    let t_attr = argot_core::timing::phase("audit: attribution");
     let (counts, by_sha) = match attribution::attribute_range(repo, &base.sha, &head.sha) {
         Ok(v) => v,
         Err(e) => {
@@ -390,6 +399,7 @@ pub fn run_audit(repo: &Path, spec: WindowSpec, format: AuditFormat) -> ExitCode
         }
     };
     let findings = attribute_findings(repo, &base.sha, &head.sha, &hits, &by_sha);
+    t_attr.done();
     let groups = group_statuses(&config, &worktree.path.join(".argot"), &findings);
 
     let report = AuditReport {
