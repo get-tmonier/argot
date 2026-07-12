@@ -111,7 +111,7 @@ const en: SiteContent = {
       { value: '4s', label: 'to refresh — unchanged functions reuse their embeddings' },
     ],
     finePrint:
-      'Measured on FastAPI, laptop CPU. Single static binary — no Python, no Node, no runtime to install.',
+      'Measured on FastAPI, laptop CPU. Single static binary — no Python, no Node, no runtime to install. Batched embeddings, a machine-wide embedding cache, and multi-core calibration keep big monorepos fast — without ever changing a result.',
   },
   proof: {
     label: 'Measured, not promised',

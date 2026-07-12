@@ -114,7 +114,7 @@ const fr: SiteContent = {
       },
     ],
     finePrint:
-      'Mesuré sur FastAPI, CPU de portable. Un seul binaire statique — pas de Python, pas de Node, aucun runtime à installer.',
+      'Mesuré sur FastAPI, CPU de portable. Un seul binaire statique — pas de Python, pas de Node, aucun runtime à installer. Embeddings par lots, cache d’embeddings global à la machine et calibration multi-cœur gardent les gros monorepos rapides — sans jamais changer un résultat.',
   },
   proof: {
     label: 'Mesuré, pas promis',
