@@ -32,7 +32,7 @@ export const GET: APIRoute = async () => {
       'statically-linked Rust binary. The base voice model is model-free ' +
       '(statistical, no neural net); a small local code-embedding model powers the ' +
       'semantic layer — an embedding model, not an LLM: no generation, no cloud, ' +
-      'no GPU. argot answers "is this how ' +
+      'no GPU required. argot answers "is this how ' +
       'we write things here?", not "is this valid?".',
     '',
     'argot is a **probabilistic** guardrail — verify before acting on a hit. Every docs ' +
@@ -78,7 +78,7 @@ export const GET: APIRoute = async () => {
     'The semantic layer runs a small local code-embedding model (`jina-embeddings-v2-' +
       'base-code`, Q4 GGUF, ~100 MB, fetched once on first use, statically linked via ' +
       'llama.cpp — CPU-first, Metal-accelerated on macOS). It turns a function into a ' +
-      'vector — no cloud, no GPU, no text generation, nothing leaves your machine. ' +
+      'vector — no cloud, no GPU required, no text generation, nothing leaves your machine. ' +
       'Offline, the semantic rules skip with a clear note and the rest still runs ' +
       '(`argot model fetch` pre-downloads; `ARGOT_OFFLINE=1` never touches the network).',
     '',

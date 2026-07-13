@@ -1,10 +1,11 @@
 # Working with argot
 
 [argot](https://argot.tmonier.com) is a guardrail that flags code **foreign to a
-repo's own patterns** — learned from its git history. Five detectors: a foreign
-dependency/API/idiom, a function the repo already has, code filed in the wrong
-place, an internal import that reverses the repo's layering, and a test
-weakened, disabled, or deleted alongside the production change it covers. It
+repo's own patterns** — learned from its git history. Five learned detectors:
+a foreign dependency/API/idiom, a function the repo already has, code filed in
+the wrong place, an internal import that reverses the repo's layering, and a
+test weakened, disabled, or deleted alongside the production change it covers
+— plus repo-local **custom rules** the team scripts itself (see below). It
 answers *"is this how we write things here?"*, not *"is this valid?"*. This
 file tells a coding agent how to use it well. (Developing argot itself? See
 `CLAUDE.md`.)
@@ -141,7 +142,8 @@ isn't allowed outside the query builder"), you can write the rule yourself:
 Full manifest schema, the host API reference, and a worked example (`no-print`, banning raw
 `print()` calls) are in [Custom rules](https://argot.tmonier.com/docs/custom-rules/). Same
 contract as everything else here: writing the rule is yours to do on request, but muting or
-softening one of its findings is still the human's call.
+softening one of its findings is still the human's call. The **argot-write-rule** skill walks
+this exact loop end-to-end, with `argot rules test <name>` as its gate.
 
 ## If the binary disagrees with this document
 
@@ -152,7 +154,8 @@ Trust the binary. `argot rules` prints the live rule registry and `argot
 
 - **Skills:** `argot-setup` (local), `argot-check` (per-diff), `argot-review-pr`
   (review one PR against the repo's voice), `argot-setup-ci` (wire the GitHub
-  Action) — install with `npx skills add get-tmonier/argot`.
+  Action), `argot-write-rule` (codify a convention as a custom rule) —
+  install with `npx skills add get-tmonier/argot`.
 - **MCP** (proactive): `argot mcp` exposes `voice_context` so you can write
   in-voice from the first token — see
   [the agents guide](https://argot.tmonier.com/docs/agents/).

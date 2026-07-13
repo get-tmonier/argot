@@ -1,21 +1,24 @@
 # argot skills
 
-Four skills that let a coding agent (Claude Code, Cursor, Codex, …) use argot
-well — set it up locally, check changes, review a PR, and wire it into CI.
+Five skills that let a coding agent (Claude Code, Cursor, Codex, …) use argot
+well — set it up locally, check changes, review a PR, wire it into CI, and
+codify the repo's own conventions as custom rules.
 argot watches for five kinds of problem, each with its own rules: code
 **foreign** to the repo's learned voice (`foreign-import`, `unfamiliar-callee`,
 `rare-tokens`, `convention`), functions the repo **already has** (`redundant`),
 code filed in the **wrong area** (`misplaced`), imports that **break the
 repo's layering** (`layering`), and tests **weakened, disabled, or deleted**
 alongside a production change (`test-weakened`, `test-disabled`,
-`test-deleted`). Pick the local path, the CI path, or both.
+`test-deleted`) — plus whatever custom rules a repo has written for itself.
+Pick the local path, the CI path, or both.
 
 | Skill | Path | When it runs |
 |---|---|---|
 | [`argot-setup`](./argot-setup/SKILL.md) | local | Once per repo — fit the model, build the semantic index, and decide what shouldn't shape the repo's voice (writes `argot.toml`). |
-| [`argot-check`](./argot-check/SKILL.md) | local | Per change — score your working diff against all five detectors and act on what fires. |
+| [`argot-check`](./argot-check/SKILL.md) | local | Per change — score your working diff against every configured rule — the five learned detectors plus any custom rules — and act on what fires. |
 | [`argot-review-pr`](./argot-review-pr/SKILL.md) | local | On demand — review a specific PR (or range) against the repo's local model, no checkout. |
 | [`argot-setup-ci`](./argot-setup-ci/SKILL.md) | CI | Wire the GitHub Action — a non-blocking score on every PR (no local setup needed). |
+| [`argot-write-rule`](./argot-write-rule/SKILL.md) | local | On demand — codify a repo convention as a scripted custom rule, fixture-tested before it ever sees a real diff. |
 
 ## Install
 
@@ -26,9 +29,9 @@ alongside a production change (`test-weakened`, `test-disabled`,
 /plugin install argot@argot
 ```
 
-Installs all four skills (as `/argot:argot-setup`, `/argot:argot-check`,
-`/argot:argot-review-pr`, `/argot:argot-setup-ci`) and the argot MCP server
-together.
+Installs all five skills (as `/argot:argot-setup`, `/argot:argot-check`,
+`/argot:argot-review-pr`, `/argot:argot-setup-ci`, `/argot:argot-write-rule`)
+and the argot MCP server together.
 
 **Any agent — the `skills` installer** ([vercel-labs/skills](https://github.com/vercel-labs/skills)):
 
@@ -39,7 +42,7 @@ npx skills add get-tmonier/argot
 **By hand** — copy the folders into your agent's skills dir (Claude Code: `.claude/skills/`):
 
 ```sh
-mkdir -p .claude/skills && cp -R argot-setup argot-check argot-review-pr argot-setup-ci .claude/skills/
+mkdir -p .claude/skills && cp -R argot-setup argot-check argot-review-pr argot-setup-ci argot-write-rule .claude/skills/
 ```
 
 Every path needs the `argot` CLI installed — see the

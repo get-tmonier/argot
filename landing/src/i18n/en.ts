@@ -4,7 +4,7 @@ const en: SiteContent = {
   meta: {
     title: 'argot — catch the AI code that doesn’t fit your codebase',
     description:
-      'A local guardrail for AI-written code. argot learns your repo from its git history and flags what doesn’t belong — foreign dependencies, reinvented functions, broken layering, gamed tests — plus the conventions you script yourself. No LLM, no cloud, no GPU.',
+      'A local guardrail for AI-written code. argot learns your repo from its git history and flags what doesn’t belong — foreign dependencies, reinvented functions, broken layering, gamed tests — plus the conventions you script yourself. No LLM, no cloud, no GPU required.',
   },
   nav: {
     demo: 'Demo',
@@ -17,7 +17,7 @@ const en: SiteContent = {
     titleLead: 'Lint the rules',
     titleGradient: 'you never wrote down.',
     subtitle:
-      'AI writes valid code that isn’t [[yours]] — and silences the tests that say so. argot learns your repo from its git history and flags both, before the merge.',
+      'Every codebase has a way of doing things. argot learns [[yours]] from git history, takes the rules you write yourself, and holds every AI diff to it — before the merge.',
     ctaPrimary: 'Read the docs',
     ctaSecondary: 'Star on GitHub',
     install: 'npm i -g @tmonier/argot',

@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>Your codebase has a voice. argot makes AI code speak it.</strong><br/>
-  <em>A local guardrail that catches AI-written code that doesn't fit your repo — a dependency you've never used, a function you already wrote, logic in the wrong place, an import that breaks your layering, or a test quietly weakened to make a failing suite green. Learned from your git history. No LLM, no cloud, no GPU.</em>
+  <em>Every codebase has a way of doing things. argot learns yours from git history, takes the rules you write yourself, and holds every AI diff to it — a dependency you've never used, a function you already wrote, an import that breaks your layering, a test quietly weakened, a convention only your team knows. 100% local. No LLM, no cloud, no GPU required.</em>
 </p>
 
 <p align="center">
@@ -170,7 +170,7 @@ One documented limit: **masked foreign** — a foreign symbol whose name collide
 
 ## How it works
 
-Five detectors, one source of truth — your git history. A statistical voice model (two frequency tables + a callee-cluster partition — no neural net) catches foreign imports, callees, and token shapes; a local code-embedding model (jina-code via statically-linked llama.cpp) catches reinvention and misplacement; a module-dependency graph catches layering reversals; a test-inventory diff catches gamed tests. Fit in seconds, check in milliseconds, nothing leaves your machine. Full detail: [How it works](https://argot.tmonier.com/docs/how-it-works/) · [The scoring model](https://argot.tmonier.com/docs/the-scoring-model/) · [Performance](https://argot.tmonier.com/docs/performance/) · experiment log in [docs/research/](docs/research/README.md).
+Five learned detectors, one source of truth — your git history — plus the rules you script yourself. A statistical voice model (two frequency tables + a callee-cluster partition — no neural net) catches foreign imports, callees, and token shapes; a local code-embedding model (jina-code via statically-linked llama.cpp) catches reinvention and misplacement; a module-dependency graph catches layering reversals; a test-inventory diff catches gamed tests. Fit in seconds, check in milliseconds, nothing leaves your machine. Full detail: [How it works](https://argot.tmonier.com/docs/how-it-works/) · [The scoring model](https://argot.tmonier.com/docs/the-scoring-model/) · [Performance](https://argot.tmonier.com/docs/performance/) · experiment log in [docs/research/](docs/research/README.md).
 
 ## Contributing
 

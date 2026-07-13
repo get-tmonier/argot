@@ -90,7 +90,7 @@ plus duplicated functions, misfiled code, layering breaks, and a test weakened,
 disabled, or deleted alongside the production change it covers. Trust a
 `foreign-import` hit. It does **not** catch every *in-vocabulary* break — where
 every token is already in the repo and only the choice is wrong. So a clean
-review means "none of the ten rules fired," not "this PR is idiomatic."
+review means "none of the configured rules fired," not "this PR is idiomatic."
 
 ## Decision tree — branch on the rule
 

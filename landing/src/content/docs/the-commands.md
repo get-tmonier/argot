@@ -180,7 +180,7 @@ argot rules                  # RULE / GROUP / SEVERITY / DESCRIPTION table
 argot rules --format json    # the same, machine-readable
 ```
 
-Ten rules in four groups: `voice` (`foreign-import`, `unfamiliar-callee`, `rare-tokens`,
+Ten built-in rules in four groups: `voice` (`foreign-import`, `unfamiliar-callee`, `rare-tokens`,
 `convention`), `semantic` (`redundant`, `misplaced`), `architecture` (`layering`), and `integrity`
 (`test-deleted`, `test-disabled`, `test-weakened`). Configure them in `argot.toml`'s `[rules]` or
 per run with `check --rule` — see [Configure](/docs/configure/#rules--rule-severities). A repo

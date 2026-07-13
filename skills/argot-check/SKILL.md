@@ -54,7 +54,7 @@ informational stderr.
 
 ## The rules
 
-Ten rules in four groups. `argot rules` prints this registry with the
+Ten built-in rules in four groups (plus any repo-local custom rules, group `custom`). `argot rules` prints this registry with the
 repo's effective severities.
 
 | Rule | Group | What it means | What to do |
@@ -124,7 +124,7 @@ production change it covers.
 
 It does **not** catch every *in-vocabulary* break — where every token is
 already in the repo and only the choice is wrong. So **a clean run means "none
-of the ten rules fired," not "this matches every convention."** Don't present
+of the configured rules fired," not "this matches every convention."** Don't present
 a clean argot result as a guarantee the code is idiomatic — it's silent on some
 of the subtle stuff by design.
 
