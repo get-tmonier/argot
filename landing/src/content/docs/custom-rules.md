@@ -93,56 +93,111 @@ And the host functions:
 there is no fitted model, so both **always return `false`**; test the unattested path there
 and the attested path live.
 
-## Worked example: `no-print`
+## Worked example: `ui-stays-presentational`
 
-Ban `print()` calls in Python — this repo logs, never prints.
+The convention: components under `components/ui/` are presentational — they take props and
+render. Data fetching and business logic live in feature hooks. Everyone agrees in review;
+nothing enforces it. In ESLint this is an afternoon with a boundaries plugin and a config file
+nobody wants to own. Here it is ten lines that live next to the convention's own README:
 
 ```toml
-# .argot/rules/no-print/rule.toml
+# .argot/rules/ui-stays-presentational/rule.toml
 [rule]
 schema = 1
-name = "no-print"
-languages = ["python"]
+name = "ui-stays-presentational"
+description = "components/ui/ renders props — data access lives in feature hooks"
+languages = ["typescript"]
 severity = "error"
 ```
 
 ```rhai
-// .argot/rules/no-print/check.rhai
-for m in ts_query("(call function: (identifier) @fn)") {
-    if m.capture == "fn" && m.text == "print" {
-        report_span(m.line, m.end_line, "print() call — this repo logs, never prints", #{
-            evidence: ["use the logger instead"],
+// .argot/rules/ui-stays-presentational/check.rhai
+if !file.path.contains("components/ui/") { return; }
+for m in ts_query("(import_statement source: (string (string_fragment) @from))") {
+    if m.capture == "from" && m.text.contains("/services/") {
+        report_span(m.line, m.end_line, "ui component imports the data layer — take props instead", #{
+            evidence: ["move the call into a feature hook (see components/ui/README.md)"],
         });
     }
 }
 ```
 
-Add a fixture and run the authoring loop before the rule ever sees a real diff:
+Write both fixtures before polishing the script — the silent case is what protects the team
+from a noisy rule:
 
-```python
-# .argot/rules/no-print/tests/fires-on-print/input.py
-print("debug")
+```tsx
+// .argot/rules/ui-stays-presentational/tests/fires-on-service-import/input.tsx
+import { getUser } from '../../services/users';
+export const Avatar = () => <img src={getUser().avatarUrl} />;
 ```
 
 ```json
-// .argot/rules/no-print/tests/fires-on-print/expected.json
-[{"line": 1, "message": "print() call — this repo logs, never prints"}]
+// .argot/rules/ui-stays-presentational/tests/fires-on-service-import/expected.json
+[{"line": 1, "message": "ui component imports the data layer — take props instead"}]
+```
+
+```tsx
+// .argot/rules/ui-stays-presentational/tests/silent-on-props/input.tsx
+export const Avatar = (props: { url: string }) => <img src={props.url} />;
+```
+
+```json
+// .argot/rules/ui-stays-presentational/tests/silent-on-props/expected.json
+[]
 ```
 
 ```bash
-argot rules test no-print
-# ok    no-print :: fires-on-print
+argot rules test ui-stays-presentational
+# ok    ui-stays-presentational :: fires-on-service-import
+# ok    ui-stays-presentational :: silent-on-props
 #
-# 1 case(s), 0 failed
+# 2 case(s), 0 failed
 ```
 
 Once it's green, it's live — the very next `argot check` runs it over real changes:
 
 ```bash
 argot check
-# ! src/app.py:12   no-print — print() call — this repo logs, never prints
-#                   ↳ use the logger instead
+# ! components/ui/Avatar.tsx:1   ui-stays-presentational — ui component imports the data layer — take props instead
+#                                ↳ move the call into a feature hook (see components/ui/README.md)
 ```
+
+## Shapes you'll actually write
+
+**Composite call shapes** — the pattern is two calls nested, which is exactly where flat
+lint rules give up and a tree query doesn't. *"Files are parsed through `lib/config` — its
+loader validates and applies defaults; a raw `JSON.parse` over a file read skips both":*
+
+```rhai
+// parse-through-loader — JSON.parse directly over a file read
+if file.path.contains("lib/config/") { return; } // the loader itself is allowed
+for m in ts_query("(call_expression function: (member_expression) @f
+                    arguments: (arguments (call_expression function: (identifier) @inner)))") {
+    if m.capture == "inner" && m.text.contains("readFile") {
+        report(m.line, "parse through lib/config — a raw JSON.parse skips schema validation and defaults");
+    }
+}
+```
+
+**History-parameterized rules** — the allowlist is the repo's own git log, so the *same rule
+file* is correct in every repo that adopts it, with zero configuration. *"One HTTP client per
+repo — whichever one history already knows":*
+
+```rhai
+// one-http-client — flag any HTTP client this repo has never used
+for m in ts_query("(import_statement source: (string (string_fragment) @mod))") {
+    if m.capture == "mod"
+        && ["axios", "got", "ky", "undici", "superagent"].contains(m.text)
+        && !import_attested(m.text) {
+        report(m.line, m.text + " — this repo already has an HTTP client; history knows which one");
+    }
+}
+```
+
+Drop that rule into a `got` shop and it fires on `axios`; drop it into an `axios` shop and it
+fires on `got`. Nobody edits the rule — each repo's fitted history is the configuration. That's
+what makes custom rules **shareable**: a rule pack can encode the *category* and let every
+repo's own voice supply the allowlist.
 
 ## What only argot can express
 
@@ -181,13 +236,13 @@ exactly like a built-in rule:
   group) in `argot.toml`, or `argot check --rule no-print=warn` per run.
 - **Inline suppression:** `# argot: ignore-next-line rule=no-print — legacy debug shim`.
 - **Durable mute:** `argot mute <hash> --reason "…"`, or a hand-written `[[mute]]` with
-  `rule = "no-print"`.
+  `rule = "ui-stays-presentational"`.
 - **Output:** the rule name appears in human output, `--format json`'s `rule` field, and
   SARIF's `ruleId` — same as `foreign-import` or `redundant`.
 - **Confidence:** every custom finding displays at `suspicious` confidence — a discrete,
   evidenced event, the same tier as the `integrity` rules — never `unusual` or `foreign`.
 - **Listing:** `argot rules` lists custom rules after the built-ins, group `custom`, with their
-  source directory (`.argot/rules/no-print`); `--format json` adds a `source` field to those
+  source directory (`.argot/rules/ui-stays-presentational`); `--format json` adds a `source` field to those
   entries.
 
 See [Configure](/docs/configure/#rules--rule-severities) for the full severity and suppression
@@ -213,12 +268,12 @@ The script runs in a stripped-down Rhai engine, not a general-purpose scripting 
 Fixtures live inside the rule directory, one subdirectory per case:
 
 ```text
-.argot/rules/no-raw-sql/tests/
-  fires-on-execute/
-    input.py          # the file the rule runs over — the whole file is one hunk
-    expected.json      # [{"line": 2, "message": "raw SQL — …"}]
-  silent-on-builder/
-    input.py
+.argot/rules/ui-stays-presentational/tests/
+  fires-on-service-import/
+    input.tsx          # the file the rule runs over — the whole file is one hunk
+    expected.json      # [{"line": 1, "message": "ui component imports the data layer — …"}]
+  silent-on-props/
+    input.tsx
     expected.json      # []
 ```
 
@@ -228,7 +283,7 @@ compared order-independently.
 
 ```bash
 argot rules test              # every discovered rule, every case
-argot rules test no-print     # one rule
+argot rules test ui-stays-presentational     # one rule
 ```
 
 Exit codes: `0` every case passed, `1` at least one failure, `2` a setup problem (an unknown

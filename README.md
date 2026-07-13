@@ -29,7 +29,7 @@
 
 ---
 
-Type checkers ask *"is this valid?"* argot asks the question that used to live in code review: *"is this how **we** do it here?"* — and catches AI code that's flawless, type-correct, lint-clean, and still doesn't belong.
+Type checkers ask *"is this valid?"* argot asks the question that used to live in code review: *"is this how **we** do it here?"* — and catches AI code that's flawless, type-correct, lint-clean, and still doesn't belong. It answers with statistics on your repo's own history — deterministic, replayable, local — never a second LLM judging the first.
 
 It also asks a second question no other tool asks: **did the AI play fair?** When an agent can't make a failing test pass, the cheapest path to "done" is to make the test stop looking. argot reads both sides of every diff and pairs a weakened, disabled, or deleted test with the production change it covers.
 
@@ -105,7 +105,7 @@ fastapi/receipts.py
 
 ## Your conventions, as rules
 
-Every team has conventions no generic linter ships: *"config goes through the loader, never raw `process.env`"*, *"retries use the backoff helper, not a sleep in a loop"*, *"we log, never print"*. They live in review comments and onboarding docs — until an AI agent, who read neither, merges around them. With argot they're **repo-local rules**: a TOML manifest + a small sandboxed script in `.argot/rules/`, versioned with your code, loaded at run time — no plugin build, no recompile, one rule format across all 11 languages.
+Every team has conventions no generic linter ships: *"presentational components take props — they don't fetch"*, *"files are parsed through our loader, never a raw `JSON.parse`"*, *"one HTTP client per repo"*. They live in review comments and onboarding docs — until an AI agent, who read neither, merges around them. With argot they're **repo-local rules**: a TOML manifest + a small sandboxed script in `.argot/rules/`, versioned with your code, loaded at run time — no plugin build, no recompile, one rule format across all 11 languages.
 
 And they can do what no classic linter structurally can. A linter sees one version of one file; argot hands your rule **both sides of the diff** — so you can write rules about what a change *removed*:
 
@@ -152,7 +152,7 @@ Every rule (built-in or yours) defaults through `argot.toml [rules]` — `error`
 | Audits merged history · **attributes findings AI vs human** | ❌ | ❌ | ❌ | ✅ |
 | Learns from *your* history · runs 100% local | ❌ | ❌ | ❌ | ✅ |
 
-argot is additive: it sits *after* your type checker and linter and catches the one thing they can't — code that's valid and lint-clean but unlike anything your team has written.
+argot is additive: it sits *after* your type checker and linter and catches the one thing they can't — code that's valid and lint-clean but unlike anything your team has written. It's the harness around AI output, built from the one thing that can't hallucinate: your repo's own history.
 
 ## Benchmarks
 
@@ -175,7 +175,7 @@ One documented limit: **masked foreign** — a foreign symbol whose name collide
 
 ## How it works
 
-Five learned detectors, one source of truth — your git history — plus the rules you script yourself. A statistical voice model (two frequency tables + a callee-cluster partition — no neural net) catches foreign imports, callees, and token shapes; a local code-embedding model (jina-code via statically-linked llama.cpp) catches reinvention and misplacement; a module-dependency graph catches layering reversals; a test-inventory diff catches gamed tests. Fit in seconds, check in milliseconds, nothing leaves your machine. Full detail: [How it works](https://argot.tmonier.com/docs/how-it-works/) · [The scoring model](https://argot.tmonier.com/docs/the-scoring-model/) · [Performance](https://argot.tmonier.com/docs/performance/) · experiment log in [docs/research/](docs/research/README.md).
+Five learned detectors, one source of truth — your git history — plus the rules you script yourself. A statistical voice model (two frequency tables + a callee-cluster partition — no neural net) catches foreign imports, callees, and token shapes; a local code-embedding model (jina-code via statically-linked llama.cpp) catches reinvention and misplacement; a module-dependency graph catches layering reversals; a test-inventory diff catches gamed tests. Fit in seconds, check in milliseconds, nothing leaves your machine — and nothing generates: every verdict is a statistic you can replay. Full detail: [How it works](https://argot.tmonier.com/docs/how-it-works/) · [The scoring model](https://argot.tmonier.com/docs/the-scoring-model/) · [Performance](https://argot.tmonier.com/docs/performance/) · experiment log in [docs/research/](docs/research/README.md).
 
 ## Contributing
 
