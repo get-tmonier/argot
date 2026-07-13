@@ -143,7 +143,19 @@ impl Embedder {
             .context("create embedding context")?;
 
         let mut out = Vec::with_capacity(texts.len());
-        for text in texts {
+        for &text in texts {
+            // llama.cpp's tokenizer takes a C string and rejects an embedded NUL
+            // byte. Real source can carry one — e.g. a `\0` key separator inside
+            // a template literal — and a single such byte anywhere in the corpus
+            // must not fail the whole language's index. A NUL carries no token,
+            // so strip it (allocating only when one is actually present).
+            let cleaned;
+            let text: &str = if text.as_bytes().contains(&0) {
+                cleaned = text.replace('\0', "");
+                &cleaned
+            } else {
+                text
+            };
             // A single-sequence batch per text: no padding, so the mean pool is
             // over exactly the real tokens.
             let mut tokens = self
@@ -632,6 +644,25 @@ mod tests {
             cross_cos < self_cos - 0.05,
             "unrelated code separates: self={self_cos} cross={cross_cos}"
         );
+    }
+
+    #[test]
+    fn embed_tolerates_a_nul_byte_in_the_source() {
+        let Some(emb) = local_embedder() else {
+            eprintln!("skipping: no local model (set {MODEL_ENV})");
+            return;
+        };
+        // A real function can carry a raw NUL — e.g. a `\0` key separator in a
+        // template literal (seen in the wild: moneta's change-coordinator). The
+        // C-string tokenizer rejects NUL, so we strip it: embedding must succeed
+        // and match the NUL-free text bit-for-bit (the byte carries no token).
+        let with_nul = "const key = `${a}\u{0}${b}`\nreturn key\n";
+        let without = "const key = `${a}${b}`\nreturn key\n";
+        let a = emb
+            .embed_one(with_nul)
+            .expect("NUL must not fail the embed");
+        let b = emb.embed_one(without).unwrap();
+        assert_eq!(a, b, "stripping the NUL yields the NUL-free embedding");
     }
 
     #[test]

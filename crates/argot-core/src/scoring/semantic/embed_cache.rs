@@ -353,6 +353,7 @@ mod tests {
             line: 1,
             end_line: 3,
             text: text.into(),
+            embed_text: text.into(),
             callees: Vec::new(),
             subtokens: Vec::new(),
         };

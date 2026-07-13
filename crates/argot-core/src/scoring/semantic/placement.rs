@@ -495,6 +495,7 @@ mod tests {
             line: 10,
             end_line: 20,
             text: "def f():\n    a\n    b\n    c\n    d\n    e\n    g".into(),
+            embed_text: "def f():\n    a\n    b\n    c\n    d\n    e\n    g".into(),
             callees: Vec::new(),
             subtokens: Vec::new(),
         }
