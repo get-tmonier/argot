@@ -642,7 +642,14 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
     // internal reasons like `none` have no rule and always pass).
     let hits = {
         let mut hits = hits;
-        hits.retain(|h| settings.severity_of_reason(&h.reason) != RuleSeverity::Off);
+        // A rule set to `off` emits nothing; a rule with a [rules] path scope
+        // only keeps findings inside it (applies to every rule — built-in or
+        // custom). `rule-tampered` is never path-scoped away (a guardrail's
+        // alarm must not have a blind spot).
+        hits.retain(|h| {
+            settings.severity_of_reason(&h.reason) != RuleSeverity::Off
+                && (h.reason == "rule_tampered" || settings.covers_path(&h.reason, &h.file_path))
+        });
         hits
     };
 

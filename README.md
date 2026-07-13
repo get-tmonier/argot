@@ -134,11 +134,27 @@ for m in ts_query_old(ROUTES) {
 
 No ESLint plugin can express that rule — there is no "old side" in a linter. And because argot fits your history, a rule's allowlist can be **your own git log**: `import_attested("moment")` asks *"has this repo ever used this date library?"* — no list to hardcode, no list to maintain. Rules run on **changed files only** (adopting one creates zero backlog noise), and their findings are suppressed, configured, and rendered exactly like built-in rules. `argot rules test` is the red/green authoring loop. Full reference + worked examples: [Custom rules](https://argot.tmonier.com/docs/custom-rules/).
 
+## Rules an agent can't game
+
+An AI agent that can't satisfy a check will reach for the next-cheapest green: mute the rule, downgrade it in a local config, `--rule it=off`, or — for a custom rule — just rewrite the script that caught it. Lock the rule and every one of those doors closes:
+
+```toml
+[rules]
+layering = { severity = "error", locked = true }
+custom   = { severity = "error", locked = true }   # lock every repo-local rule
+```
+
+A **locked** rule (opt-in, from the committed `argot.toml` only):
+
+- **freezes its severity** — `argot.local.toml` and `--rule` overrides are refused;
+- **refuses every suppression surface for its findings** — inline `# argot: ignore`, `[[mute]]`, and `[exclude].paths` don't apply;
+- and — the teeth — **weakening the lock is itself a finding.** `rule-tampered` (group `governance`, pinned `error`, unsuppressable) reads *both sides of the diff being checked* and fires when the change removes a lock, downgrades a locked severity, adds a `[[mute]]` on a locked rule, or edits a locked custom rule's script — with a loud run-level warning your CI surfaces (a PR annotation under `--format github`).
+
+Tamper-**evidence**, not tamper-proofing — the same philosophy as the test-integrity rules: an agent *can* touch the alarm, but touching the alarm **is** the alarm. The one quiet way to relax a locked rule is a committed `argot.toml` diff a human reviews. Guide: [Locked rules](https://argot.tmonier.com/docs/configure/#locked-rules--the-agent-cant-turn-off-the-alarm).
+
 ## Configure it like any linter
 
-Every rule (built-in or yours) defaults through `argot.toml [rules]` — `error` / `warn` / `off`, per rule or per group — or per run via `--rule layering=warn`. Excludes are gitignore-style `[exclude].paths`; inline `# argot: ignore-next-line rule=… — reason` and `argot mute <hash>` give line-level and durable committed acceptances.
-
-And for the conventions with zero legitimate exceptions, there's **`locked = true`** — strict mode, per rule: a locked rule's severity is frozen at the committed value, every suppression surface is refused for its findings, and a diff that weakens the lock (removes it, downgrades it, mutes it, or edits a locked custom rule's script) **fires `rule-tampered`** — pinned `error`, unsuppressable. The agent can touch the alarm, but touching the alarm *is* the alarm; the only quiet way out is a committed diff a human reviews. Guides: [Configure](https://argot.tmonier.com/docs/configure/) · [The commands](https://argot.tmonier.com/docs/the-commands/).
+Every rule (built-in or yours) defaults through `argot.toml [rules]` — `error` / `warn` / `off`, per rule or per group — or per run via `--rule layering=warn`. A `[rules]` entry can also scope a rule to paths (`layering = { include = ["src/**"] }`). Excludes are gitignore-style `[exclude].paths`; inline `# argot: ignore-next-line rule=… — reason` and `argot mute <hash>` give line-level and durable committed acceptances. Guides: [Configure](https://argot.tmonier.com/docs/configure/) · [The commands](https://argot.tmonier.com/docs/the-commands/).
 
 ### argot vs. the tools you already run
 

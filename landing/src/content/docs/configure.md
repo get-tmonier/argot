@@ -187,6 +187,29 @@ Severity is about the **exit code**. It's distinct from the *confidence* tier
 (`unusual` / `suspicious` / `foreign`) a hit displays with, which grades the
 evidence — see [Reading the output](/docs/reading-the-output/).
 
+### Path-scoping a rule
+
+Any rule — built-in or custom — can be limited to (or kept out of) a set of paths, from the
+`[rules]` inline-table form:
+
+```toml
+[rules]
+layering   = { severity = "error", include = ["src/**"] }   # only enforce layering under src/
+convention = { exclude = ["legacy/**", "vendor/**"] }        # everywhere except these trees
+custom     = { include = ["packages/api/**"] }               # scope the whole custom group
+```
+
+`include` keeps only findings whose file matches; `exclude` drops findings whose file matches
+(and wins over `include`). Both use the same glob dialect as `[[mute]].path` (`*`/`**` cross
+`/`). A rule-specific entry beats its group's. This is a filter on **findings** — the rule still
+runs, its out-of-scope hits are simply dropped — so it composes with everything else here.
+
+This is distinct from a *custom rule's* manifest `include`/`exclude` (see
+[Custom rules → which files a rule runs on](/docs/custom-rules/#which-files-a-rule-runs-on)):
+the manifest decides which files the rule ever *runs* on (and is the only way to reach files
+argot doesn't score, like `.env`); the `[rules]` scope here is the repo owner narrowing any
+rule's findings after the fact. `rule-tampered` is never path-scoped away.
+
 ### Locked rules — the agent can't turn off the alarm
 
 Opt-in strict mode, per rule or per group, from the **committed** `argot.toml` only:
@@ -220,6 +243,9 @@ the alarm. The one quiet path to relaxing a locked rule is a committed
 `argot.toml` diff that a human reviews.
 
 ## Inline comments — mute one line
+
+> **Locked rules ignore inline ignores.** A `# argot: ignore` comment has no effect on a rule
+> locked with `locked = true` — see [Locked rules](#locked-rules--the-agent-cant-turn-off-the-alarm).
 
 **Location:** in the source file itself, on the line above the code (or around
 the block) you're excusing. The comment token is the language's own line comment:
@@ -272,6 +298,10 @@ The rules:
   a warning.
 
 ## `[[mute]]` — accept a specific hit
+
+> **A `[[mute]]` can't silence a locked rule** — the entry is refused, and *adding* one that
+> targets a locked rule is reported by `rule-tampered`. See
+> [Locked rules](#locked-rules--the-agent-cant-turn-off-the-alarm).
 
 **Location:** the `[[mute]]` tables in `argot.toml`. `argot mute` appends one;
 you can also hand-edit it. It's **committed**, so a mute is a shared, reviewable
@@ -486,11 +516,18 @@ stays out of your way — CI otherwise restores the model from cache or re-fits.
 | Catch a repo's own codegen banner | add it to `[detect].generated-markers` |
 | Tune how aggressively data files are dropped | `[detect].data-threshold` |
 | Make a rule report-only, or turn it off | `[rules]` in `argot.toml` (or `--rule` per run) |
-| Accept one deliberate line | inline `# argot: ignore-next-line — reason` |
-| Accept a specific reported hit for good | `argot mute <hash> --reason …` |
-| Temporarily silence a hit | `argot mute <hash> --expires 30d` |
-| Cover many hits under one path | a `path:` glob `[[mute]]` rule |
+| Limit a rule to (or out of) some paths | `include`/`exclude` on the `[rules]` entry |
+| Accept one deliberate line * | inline `# argot: ignore-next-line — reason` |
+| Accept a specific reported hit for good * | `argot mute <hash> --reason …` |
+| Temporarily silence a hit * | `argot mute <hash> --expires 30d` |
+| Cover many hits under one path * | a `path:` glob `[[mute]]` rule |
+| Make a rule un-silenceable | `locked = true` on its `[rules]` entry |
 | Exclude something on your machine only | `argot.local.toml` |
+
+**\*** The suppression surfaces (inline ignore, `[[mute]]`, `[exclude].paths`) do **not** apply
+to a [**locked** rule](#locked-rules--the-agent-cant-turn-off-the-alarm) — that's the point of a
+lock, so an AI agent can't quiet a rule it can't satisfy. Weakening a lock is itself reported by
+`rule-tampered`.
 
 Suppressed ≠ deleted: `check` drops muted hits from its output and exit code but
 still prints a one-line count on stderr, so a repo full of silent mutes never

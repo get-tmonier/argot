@@ -98,8 +98,8 @@ const en: SiteContent = {
         desc: 'argot rules test runs your fixtures — the [[red/green authoring loop]].',
       },
       {
-        title: 'Lockable',
-        desc: 'locked = true freezes a rule against the agent — muting it, overriding it, or editing it [[is itself the finding]].',
+        title: 'Tamper-evident',
+        desc: 'locked = true freezes a rule; a diff that mutes, downgrades, or rewrites it [[trips rule-tampered]] — pinned error, unsuppressable, a loud PR annotation.',
       },
     ],
     cta: 'Write your first rule',

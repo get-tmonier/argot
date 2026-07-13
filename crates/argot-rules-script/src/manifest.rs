@@ -43,14 +43,19 @@ struct RawRule {
     /// language).
     #[serde(default)]
     languages: Vec<String>,
-    /// Repo-relative path globs this rule runs on (same dialect as
-    /// `[[mute]].path`: fnmatch, `*` crosses `/`). When present, the rule
-    /// runs on **any matching file — supported language or not** (`.env`,
-    /// CI configs, lockfiles…); `languages`, when also given, narrows
-    /// further. When absent, the rule runs on every supported-language file
-    /// (narrowed by `languages`).
+    /// Repo-relative path globs the rule runs on (same dialect as
+    /// `[[mute]].path`: fnmatch, `*` and `**` cross `/`). When present, the
+    /// rule runs on **any matching file — supported language or not**
+    /// (`.env`, CI configs, lockfiles…), narrowed further by `languages` when
+    /// both are given. When absent, the rule runs on every supported-language
+    /// file (narrowed by `languages`).
     #[serde(default)]
-    files: Vec<String>,
+    include: Vec<String>,
+    /// Repo-relative path globs the rule never runs on — subtracted from the
+    /// scope after `include`/`languages`, so `include`-less rules can still
+    /// carve out `**/*.test.ts` and the like.
+    #[serde(default)]
+    exclude: Vec<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -71,8 +76,10 @@ pub struct ScriptRule {
     pub default_severity: Severity,
     /// Scoring language names this rule runs on (empty = all).
     pub languages: Vec<String>,
-    /// Path globs (empty = language-gated only). See the manifest field doc.
-    pub files: Vec<String>,
+    /// Include path globs (empty = language-gated only). See the field docs.
+    pub include: Vec<String>,
+    /// Exclude path globs — subtracted from the scope.
+    pub exclude: Vec<String>,
     /// The Rhai source, read at discovery.
     pub script: String,
     /// The script path, for diagnostics.
@@ -97,21 +104,28 @@ impl ScriptRule {
     }
 
     /// Does this rule run on this file? `language` is `None` for extensions
-    /// argot doesn't score. Default (no `files` globs): supported-language
-    /// files only. With `files` globs: any matching path — plus the
-    /// `languages` narrowing when both are present.
+    /// argot doesn't score. Resolution: `exclude` wins over everything; then
+    /// `include` globs (any match — even an unscored extension), narrowed by
+    /// `languages` when set; with no `include`, the default supported-language
+    /// scope narrowed by `languages`.
     pub fn covers_file(&self, path: &str, language: Option<&str>) -> bool {
-        if self.files.is_empty() {
-            return language.is_some_and(|l| self.covers_language(l));
-        }
-        if !self
-            .files
-            .iter()
-            .any(|g| argot_engine::suppress::fnmatch(path, g))
-        {
+        let glob = |g: &String| argot_engine::suppress::fnmatch(path, g);
+        if self.exclude.iter().any(glob) {
             return false;
         }
-        self.languages.is_empty() || language.is_some_and(|l| self.covers_language(l))
+        let in_scope = if self.include.is_empty() {
+            language.is_some_and(|l| self.covers_language(l))
+        } else {
+            self.include.iter().any(glob)
+                && (self.languages.is_empty() || language.is_some_and(|l| self.covers_language(l)))
+        };
+        in_scope
+    }
+
+    /// True if the rule's `include` globs can claim files argot doesn't score
+    /// (drives the engine's on-demand unscored-file collection).
+    pub fn wants_unscored_files(&self) -> bool {
+        !self.include.is_empty()
     }
 }
 
@@ -164,7 +178,8 @@ pub fn load_rule_dir(dir: &Path) -> Result<ScriptRule, String> {
         description: raw.rule.description,
         default_severity,
         languages: raw.rule.languages,
-        files: raw.rule.files,
+        include: raw.rule.include,
+        exclude: raw.rule.exclude,
         script,
         script_path,
     })

@@ -88,6 +88,12 @@ fn lock_covers(lock: &str, selector: &str) -> bool {
     if lock == selector {
         return true;
     }
+    // A group lock covers its rules. For built-ins that's the registry group;
+    // for the `custom` group, any selector that isn't a built-in rule or a
+    // known group name is a custom rule the group lock owns.
+    if lock == crate::rules::GROUP_CUSTOM {
+        return crate::rules::rule_named(selector).is_none() && !crate::rules::is_group(selector);
+    }
     crate::rules::rule_named(selector).is_some_and(|r| r.group == lock)
 }
 
@@ -120,6 +126,16 @@ fn finding(path: &str, line: usize, body: String, evidence: String) -> Finding {
     }
 }
 
+/// The committed `argot.toml` at HEAD (the lock authority when the config
+/// file itself isn't part of the change being checked).
+fn head_config(repo_path: &str) -> Option<String> {
+    let repo = crate::git_walk::open_repo(repo_path).ok()?;
+    let tree = repo.head().ok()?.peel_to_tree().ok()?;
+    let entry = tree.get_path(std::path::Path::new(CONFIG_FILE)).ok()?;
+    let blob = repo.find_blob(entry.id()).ok()?;
+    Some(String::from_utf8_lossy(blob.content()).to_string())
+}
+
 /// 1-indexed line of the first occurrence of `needle` in `text` (1 fallback).
 fn line_of(text: &str, needle: &str) -> usize {
     text.lines()
@@ -135,12 +151,23 @@ pub(crate) fn tamper_findings(args: &CheckArgs) -> Vec<Finding> {
     let changesets = collect_two_sided(args, &|path| {
         path == CONFIG_FILE || path.starts_with(RULES_DIR_PREFIX)
     });
+    // The lock authority when the config file isn't itself in the diff:
+    // the repo's committed (HEAD) argot.toml — an edit to a locked custom
+    // rule's script must be caught even in a code-only change.
+    let head_locks = head_config(&args.repo_path).map(|t| lock_state(&t));
+
     let mut findings = Vec::new();
     for (source, files) in changesets {
         let config_change = files.iter().find(|f| f.path == CONFIG_FILE);
         let old_state = config_change
             .and_then(|f| f.old.as_deref())
             .map(lock_state)
+            .or_else(|| {
+                head_locks.as_ref().map(|s| LockState {
+                    locked: s.locked.clone(),
+                    mutes: s.mutes.clone(),
+                })
+            })
             .unwrap_or_default();
         if let Some(FileChange {
             old: Some(old),

@@ -273,7 +273,7 @@ fn files_globs_run_rules_on_unscored_extensions() {
     std::fs::create_dir_all(&d).unwrap();
     std::fs::write(
         d.join("rule.toml"),
-        "[rule]\nschema = 1\nname = \"no-plaintext-secrets\"\nseverity = \"error\"\nfiles = [\"*.env\"]\n",
+        "[rule]\nschema = 1\nname = \"no-plaintext-secrets\"\nseverity = \"error\"\ninclude = [\"*.env\"]\n",
     )
     .unwrap();
     std::fs::write(

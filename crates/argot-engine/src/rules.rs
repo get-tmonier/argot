@@ -369,6 +369,33 @@ pub fn selector_names() -> Vec<&'static str> {
         .collect()
 }
 
+/// A per-rule path scope from `[rules]`: a finding of this rule is kept only
+/// when its file matches (glob dialect = `[[mute]].path`: `*`/`**` cross `/`).
+/// `include` empty = every path; `exclude` always subtracts.
+#[derive(Debug, Clone, Default)]
+pub struct RuleScope {
+    pub include: Vec<String>,
+    pub exclude: Vec<String>,
+}
+
+impl RuleScope {
+    /// Does this scope admit `path`?
+    pub fn covers(&self, path: &str) -> bool {
+        if self
+            .exclude
+            .iter()
+            .any(|g| crate::suppress::fnmatch(path, g))
+        {
+            return false;
+        }
+        self.include.is_empty()
+            || self
+                .include
+                .iter()
+                .any(|g| crate::suppress::fnmatch(path, g))
+    }
+}
+
 /// One configuration layer: validated `(selector, severity)` entries from a
 /// single source (`argot.toml`, `argot.local.toml`, or the CLI).
 pub type RulesLayer = Vec<(String, Severity)>;
@@ -382,6 +409,9 @@ pub struct RuleSettings {
     /// Reason codes locked by the committed config: severity frozen at the
     /// committed value, every runtime suppression surface refused.
     locked_reasons: std::collections::HashSet<String>,
+    /// Effective path scope per reason (resolved from `[rules]` include/
+    /// exclude; rule-specific beats group). Empty = the rule has no scope.
+    path_scopes: HashMap<String, RuleScope>,
 }
 
 impl RuleSettings {
@@ -491,7 +521,38 @@ impl RuleSettings {
             by_reason,
             custom_reasons,
             locked_reasons,
+            path_scopes: HashMap::new(),
         }
+    }
+
+    /// Attach the per-selector `[rules]` path scopes: resolve each rule's
+    /// effective scope (its own entry beats its group's; later layers win).
+    /// A finding is later dropped if `covers_path` returns false.
+    pub fn with_path_scopes(mut self, registry: &Registry, scopes: &[(String, RuleScope)]) -> Self {
+        let pick = |name: &str, group: &str| -> Option<RuleScope> {
+            // Last matching entry wins; a rule-specific key beats its group.
+            let specific = scopes.iter().rev().find(|(k, _)| k == name);
+            let grouped = scopes.iter().rev().find(|(k, _)| k == group);
+            specific.or(grouped).map(|(_, s)| s.clone())
+        };
+        for rule in RULES {
+            if let Some(scope) = pick(rule.name, rule.group) {
+                self.path_scopes.insert(rule.reason.to_string(), scope);
+            }
+        }
+        for rule in registry.custom_rules() {
+            if let Some(scope) = pick(&rule.name, GROUP_CUSTOM) {
+                self.path_scopes
+                    .insert(format!("{CUSTOM_REASON_PREFIX}{}", rule.name), scope);
+            }
+        }
+        self
+    }
+
+    /// Does this reason's configured path scope admit `path`? (True when the
+    /// rule has no `[rules]` scope.)
+    pub fn covers_path(&self, reason: &str, path: &str) -> bool {
+        self.path_scopes.get(reason).is_none_or(|s| s.covers(path))
     }
 
     /// Is the rule behind this reason locked? Locked = severity frozen at the
@@ -807,6 +868,55 @@ mod tests {
             warnings[0].contains("raw-sql"),
             "custom rule listed as known"
         );
+    }
+
+    #[test]
+    fn rule_scope_covers_with_include_and_exclude() {
+        let scope = RuleScope {
+            include: vec!["src/**".to_string()],
+            exclude: vec!["src/legacy/**".to_string()],
+        };
+        assert!(scope.covers("src/app.py"));
+        assert!(!scope.covers("src/legacy/old.py"), "exclude wins");
+        assert!(!scope.covers("tests/app.py"), "outside include");
+        // Empty include = every path (minus excludes).
+        let only_exclude = RuleScope {
+            include: vec![],
+            exclude: vec!["**/*.gen.py".to_string()],
+        };
+        assert!(only_exclude.covers("src/app.py"));
+        assert!(!only_exclude.covers("src/x.gen.py"));
+    }
+
+    #[test]
+    fn path_scopes_apply_to_builtins_and_custom_rules() {
+        let mut w = Vec::new();
+        let reg = Registry::with_custom(vec![custom("house")], &mut w);
+        let scopes = vec![
+            (
+                "layering".to_string(),
+                RuleScope {
+                    include: vec!["src/**".to_string()],
+                    exclude: vec![],
+                },
+            ),
+            (
+                "custom".to_string(),
+                RuleScope {
+                    include: vec![],
+                    exclude: vec!["vendor/**".to_string()],
+                },
+            ),
+        ];
+        let s = RuleSettings::resolve_with(&reg, &[]).with_path_scopes(&reg, &scopes);
+        // Built-in scoped by rule name.
+        assert!(s.covers_path("layering", "src/a.py"));
+        assert!(!s.covers_path("layering", "lib/a.py"));
+        // A built-in with no scope is unrestricted.
+        assert!(s.covers_path("import", "anywhere.py"));
+        // Custom rule scoped by its `custom` group entry (exclude).
+        assert!(s.covers_path("custom:house", "src/a.ts"));
+        assert!(!s.covers_path("custom:house", "vendor/x.ts"));
     }
 
     #[test]

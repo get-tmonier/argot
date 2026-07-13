@@ -96,8 +96,8 @@ const fr: SiteContent = {
         desc: 'argot rules test exécute vos fixtures — la [[boucle rouge/vert]] de l’auteur de règles.',
       },
       {
-        title: 'Verrouillable',
-        desc: 'locked = true fige une règle face à l’agent — la couper, la contourner ou l’éditer [[devient le signalement]].',
+        title: 'Inviolable',
+        desc: 'locked = true fige une règle ; un diff qui la coupe, l’abaisse ou la réécrit [[déclenche rule-tampered]] — error épinglé, insuppressible, annotation PR bien visible.',
       },
     ],
     cta: 'Écrivez votre première règle',

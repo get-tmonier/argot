@@ -198,3 +198,84 @@ fn weakening_a_locked_severity_is_rule_tampered_and_unsuppressable() {
         out.stdout
     );
 }
+
+#[cfg(feature = "script")]
+fn write_custom_rule(repo: &Path, name: &str, always_fire: bool) {
+    let d = repo.join(".argot/rules").join(name);
+    std::fs::create_dir_all(&d).unwrap();
+    std::fs::write(
+        d.join("rule.toml"),
+        format!("[rule]\nschema = 1\nname = \"{name}\"\nseverity = \"error\"\n"),
+    )
+    .unwrap();
+    let body = if always_fire {
+        "report(1, \"custom fired\");"
+    } else {
+        "// no-op"
+    };
+    std::fs::write(d.join("check.rhai"), body).unwrap();
+}
+
+#[test]
+#[cfg(feature = "script")]
+fn locking_the_custom_group_freezes_and_protects_scripted_rules() {
+    let repo = prepare_repo("customlock");
+    write_custom_rule(&repo, "house-style", true);
+    // Lock the whole custom group in the committed config.
+    std::fs::write(
+        repo.join("argot.toml"),
+        "[rules]\ncustom = { severity = \"error\", locked = true }\n",
+    )
+    .unwrap();
+    git(&repo, &["add", "-A"]);
+    git(&repo, &["commit", "-qm", "lock custom rules"]);
+
+    // A source change for the language-gated custom rule to fire on.
+    std::fs::write(repo.join("src_change.py"), "def added():\n    return 1\n").unwrap();
+
+    // A mute targeting the locked custom rule is refused — it still fires.
+    std::fs::write(
+        repo.join("argot.toml"),
+        "[rules]\ncustom = { severity = \"error\", locked = true }\n\n[[mute]]\npath = \"**\"\nrule = \"house-style\"\nreason = \"nope\"\n",
+    )
+    .unwrap();
+    let mut a = args(&repo);
+    a.reference = String::new();
+    let out = run_check(a);
+    assert!(
+        out.stdout.contains("house-style"),
+        "locked custom still fires: {}",
+        out.stdout
+    );
+    assert!(
+        out.stdout.contains("rule-tampered"),
+        "adding the mute is tamper: {}",
+        out.stdout
+    );
+
+    // Editing the locked custom rule's script is itself rule-tampered.
+    std::fs::write(
+        repo.join("argot.toml"),
+        "[rules]\ncustom = { severity = \"error\", locked = true }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        repo.join(".argot/rules/house-style/check.rhai"),
+        "// gutted so it never fires",
+    )
+    .unwrap();
+    let mut a = args(&repo);
+    a.reference = String::new();
+    let out = run_check(a);
+    assert!(
+        out.stdout.contains("rule-tampered"),
+        "editing the script is tamper: {}",
+        out.stdout
+    );
+    assert!(
+        out.stdout.contains("house-style"),
+        "names the rule: {}",
+        out.stdout
+    );
+    assert_eq!(out.exit_code, 1);
+}

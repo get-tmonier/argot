@@ -146,7 +146,7 @@ fn run_case(rule: &ScriptRule, ast: &rhai::AST, dir: &Path) -> CaseResult {
                 rule.languages
             ));
         }
-        None if rule.files.is_empty() => {
+        None if rule.include.is_empty() => {
             return fail(format!(
                 "unsupported input extension '{ext}' — scope the rule with `files` globs to \
                  run it on unscored files"

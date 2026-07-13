@@ -75,10 +75,13 @@ substitutes for the fixture gate: the harness is what catches over-fire
    `error` from day one is for conventions with zero legitimate exceptions.
 
 3. **Scaffold `.argot/rules/<name>/`** — `rule.toml` (`schema = 1`, `name`
-   matching the directory, `languages` scoped tightly to where the
-   convention actually applies) and `check.rhai`. There's no manifest-level
-   path scoping yet — if the convention only applies to one area of the tree,
-   guard for it inside the script with `file.path.contains("...")`.
+   matching the directory) and `check.rhai`. **Scope in the manifest, not the
+   script**: `languages` for the language gate; `include` / `exclude` path
+   globs when the convention is area-specific (`include = ["src/domain/**"]`,
+   `exclude = ["**/*.test.ts"]`). `include` can also target files argot
+   doesn't score at all — `.env`, CI configs, lockfiles. Keep `check.rhai`
+   about the *pattern*, never about *which files run* — that belongs in the
+   manifest, where a reader sees the scope at a glance.
 
 4. **Fixtures first, then the script** — this is the gate above. Create
    `tests/<case>/{input.<ext>, expected.json}` for the firing case and the
@@ -101,8 +104,9 @@ substitutes for the fixture gate: the harness is what catches over-fire
 
 Convention: "config is read through the repo's `loadConfig()` helper; raw
 `process.env` reads skip validation and defaults." Detectable — it's a
-member-access shape tree-sitter can query. Scope: TypeScript/JavaScript only,
-outside the config module itself.
+member-access shape tree-sitter can query. Scope: TypeScript/JavaScript, and
+the config module itself is exempt — declared with `exclude` in the manifest,
+so the script stays purely about the pattern.
 
 ```toml
 # .argot/rules/no-direct-env/rule.toml
@@ -112,14 +116,11 @@ name = "no-direct-env"
 description = "config is read through loadConfig() — raw process.env reads skip validation and defaults"
 severity = "warn"
 languages = ["typescript", "javascript"]
+exclude = ["src/config/**"]     # the loader itself is allowed to read process.env
 ```
 
 ```rhai
 // .argot/rules/no-direct-env/check.rhai
-if file.path.contains("src/config") {
-    return; // the config module itself is allowed to touch process.env
-}
-
 for m in ts_query("(member_expression) @e") {
     if m.text.starts_with("process.env") {
         report(m.line, "read config through loadConfig() — raw process.env skips validation and defaults (see src/config.ts)");

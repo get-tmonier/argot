@@ -44,9 +44,11 @@ name = "no-print"          # required — must equal the directory name
 label = "no print calls"   # optional — shown next to a finding; defaults to `name`
 description = "this repo logs, never prints"   # optional — shown by `argot rules`
 severity = "error"         # optional — error | warn | off; defaults to warn
-languages = ["python"]     # optional — scoring language names; empty/omitted = every language
-files = []                 # optional — path globs; when set, the rule runs on ANY matching
-                           #   file (even extensions argot doesn't score, e.g. .env, .yml)
+languages = ["python"]     # optional — restrict to these scored languages (does NOT reach
+                           #   unscored files like .env — use `include` for that)
+include = []               # optional — path globs; runs the rule on ANY matching file,
+                           #   even extensions argot doesn't score (.env, .yml, lockfiles…)
+exclude = []               # optional — path globs subtracted from the scope (e.g. tests)
 
 [engine]
 api = 1                    # optional — host-API generation the script targets; defaults to 1
@@ -60,8 +62,9 @@ script = "check.rhai"      # optional — script path, relative to the rule dir;
 | `rule.label` | no | `name` | Short label shown next to a finding. |
 | `rule.description` | no | `""` | One-line description, shown by `argot rules`. |
 | `rule.severity` | no | `warn` | `error` / `warn` / `off`. **Note the default differs from built-ins**, which default to `error` — a rule just dropped into a repo reports before it gates. |
-| `rule.files` | no | (none) | Repo-relative **path globs** (same dialect as `[[mute]].path`: `*` and `**` cross `/`, `?`, `[abc]`). See *Which files a rule runs on* below. |
-| `rule.languages` | no | every language | Scoring language names — `python`, `typescript`, `javascript`, `go`, `rust`, `java`, `csharp`, `php`, `cpp`, `ruby`, `c` (see [Languages](/docs/languages/)). |
+| `rule.languages` | no | every language | Restrict to these **scored** languages — `python`, `typescript`, `javascript`, `go`, `rust`, `java`, `csharp`, `php`, `cpp`, `ruby`, `c` (see [Languages](/docs/languages/)). This gate is over *supported source files only*; it can't reach a `.env` — that's what `include` is for. |
+| `rule.include` | no | (none) | Repo-relative **path globs** (dialect: `*`/`**` cross `/`, `?`, `[abc]`). When set, the rule runs on any matching path — **including extensions argot doesn't score**. See *Which files a rule runs on*. |
+| `rule.exclude` | no | (none) | Path globs subtracted from the scope — even from the default language scope, so an `include`-less rule can still skip `**/*.test.ts`. |
 | `engine.api` | no | `1` | The host-API generation the script targets. A script asking for a newer generation than the binary provides is skipped, never half-run. |
 | `engine.script` | no | `check.rhai` | Script file, relative to the rule directory. |
 
@@ -73,28 +76,33 @@ stderr** — discovery degrades per rule, never for the whole run.
 
 By **default a rule sees the same files `check` scores** — the source files of the languages
 argot supports (`.py`, `.ts`, `.go`, …), minus anything excluded by `[exclude]` or the
-`argot:recommended` set. `languages` narrows that further to specific languages. So the default
-scope is *"the changed source files, in these languages"* — no configuration needed, which is
-why the built-in rules carry none.
+`argot:recommended` set. No configuration needed, which is why the built-in rules carry none.
 
-Two knobs override that, from the manifest:
+A custom rule's **manifest** narrows or widens that scope with three fields:
 
-- **`languages`** — restrict to a subset of the supported languages. `languages = ["typescript"]`
-  runs the rule only on changed `.ts`/`.tsx` files.
-- **`files`** — repo-relative **path globs**. This is the escape hatch from the language gate: a
-  rule with `files` runs on **any changed file that matches — including extensions argot doesn't
-  score at all**. `files = ["*.env"]` runs on your env files; `files = [".github/workflows/*.yml"]`
-  on CI config; `files = ["**/*.eslintrc*"]` on lint configs. For those unscored files the script
-  still gets `file.path`, `file.ext`, `file.new_text`/`old_text`, and `hunks` — everything except
-  a tree-sitter `language` (it's `""`, and `ts_query` returns nothing, since there's no grammar).
-  When both are given, they **intersect**: `files = ["src/api/**"]` + `languages = ["typescript"]`
-  is *"changed TypeScript under `src/api/`"*.
+- **`languages`** — restrict to a subset of the *scored* languages. `languages = ["typescript"]`
+  runs the rule only on changed `.ts`/`.tsx` files. This gate is over supported source files —
+  **it can't reach a `.env` or a YAML config**; those aren't a "language" argot scores.
+- **`include`** — repo-relative **path globs**, and the escape hatch from the language gate: a
+  rule with `include` runs on **any changed file that matches, including extensions argot doesn't
+  score at all**. `include = ["*.env"]` reaches your env files; `include = [".github/workflows/*.yml"]`
+  CI config; `include = ["**/*.eslintrc*"]` lint configs. For an unscored file the script still
+  gets `file.path`, `file.ext`, `file.new_text`/`old_text`, and `hunks` — everything except a
+  tree-sitter `language` (it's `""`, and `ts_query` returns nothing, since there's no grammar).
+- **`exclude`** — path globs subtracted from whatever the above admit, so even an `include`-less,
+  language-gated rule can carve out `**/*.test.ts` or `**/__tests__/**`.
 
-The glob dialect is exactly `[[mute]].path`'s (see [Configure](/docs/configure/#the-mute-format)):
-`*` and `**` both cross `/`, `?` is one character, `[abc]` / `[a-z]` are character classes.
-Combine with the pre-image and history calls above and you can write, say, *"a secret literal
-added to any `.env` in this change"* or *"a lint rule this repo relies on, deleted from
-`.eslintrc`"* — files a language linter never even opens.
+`include` and `languages` **intersect** (`include = ["src/api/**"]` + `languages = ["typescript"]`
+= *changed TypeScript under `src/api/`*); `exclude` always wins. The glob dialect is exactly
+`[[mute]].path`'s (see [Configure](/docs/configure/#the-mute-format)): `*` and `**` cross `/`,
+`?` is one character, `[abc]` / `[a-z]` are character classes.
+
+> **Scoping any rule, not just custom ones.** The `include`/`exclude` above are a custom rule's
+> *own* scope, declared by its author (and the only way to reach unscored files). A **repo owner**
+> can additionally restrict *any* rule — built-in or custom — to paths from `argot.toml`'s
+> `[rules]`, e.g. `layering = { include = ["src/**"] }` or `convention = { exclude = ["legacy/**"] }`.
+> That's a config-side filter on findings, covered in
+> [Configure → path-scoping a rule](/docs/configure/#path-scoping-a-rule).
 
 ## Host API v1
 
@@ -124,30 +132,30 @@ And the host functions:
 there is no fitted model, so both **always return `false`**; test the unattested path there
 and the attested path live.
 
-## Worked example: `ui-stays-presentational`
+## Worked example: `domain-imports-stay-inward`
 
-The convention: components under `components/ui/` are presentational — they take props and
-render. Data fetching and business logic live in feature hooks. Everyone agrees in review;
-nothing enforces it. In ESLint this is an afternoon with a boundaries plugin and a config file
-nobody wants to own. Here it is ten lines that live next to the convention's own README:
+The convention: the pure domain layer (`src/domain/`) must not reach outward into infrastructure
+(`src/infra/`) — dependencies point inward, ports/adapters keep it testable. Everyone agrees in
+review; nothing enforces it. In ESLint this is an afternoon with a boundaries plugin and a config
+file nobody wants to own. Here it's ten lines that live next to the convention's own README:
 
 ```toml
-# .argot/rules/ui-stays-presentational/rule.toml
+# .argot/rules/domain-imports-stay-inward/rule.toml
 [rule]
 schema = 1
-name = "ui-stays-presentational"
-description = "components/ui/ renders props — data access lives in feature hooks"
+name = "domain-imports-stay-inward"
+description = "src/domain must not import src/infra — dependencies point inward"
 languages = ["typescript"]
 severity = "error"
+include = ["src/domain/**"]     # scope lives in the manifest, not the script
 ```
 
 ```rhai
-// .argot/rules/ui-stays-presentational/check.rhai
-if !file.path.contains("components/ui/") { return; }
+// .argot/rules/domain-imports-stay-inward/check.rhai
 for m in ts_query("(import_statement source: (string (string_fragment) @from))") {
-    if m.capture == "from" && m.text.contains("/services/") {
-        report_span(m.line, m.end_line, "ui component imports the data layer — take props instead", #{
-            evidence: ["move the call into a feature hook (see components/ui/README.md)"],
+    if m.capture == "from" && m.text.contains("/infra/") {
+        report_span(m.line, m.end_line, "domain imports infrastructure — invert the dependency", #{
+            evidence: ["depend on a port defined in the domain (see src/domain/README.md)"],
         });
     }
 }
@@ -156,31 +164,32 @@ for m in ts_query("(import_statement source: (string (string_fragment) @from))")
 Write both fixtures before polishing the script — the silent case is what protects the team
 from a noisy rule:
 
-```tsx
-// .argot/rules/ui-stays-presentational/tests/fires-on-service-import/input.tsx
-import { getUser } from '../../services/users';
-export const Avatar = () => <img src={getUser().avatarUrl} />;
+```ts
+// .argot/rules/domain-imports-stay-inward/tests/fires-on-infra-import/input.ts
+import { PgClient } from '../../infra/postgres';
+export const load = (c: PgClient) => c.query('...');
 ```
 
 ```json
-// .argot/rules/ui-stays-presentational/tests/fires-on-service-import/expected.json
-[{"line": 1, "message": "ui component imports the data layer — take props instead"}]
+// .argot/rules/domain-imports-stay-inward/tests/fires-on-infra-import/expected.json
+[{"line": 1, "message": "domain imports infrastructure — invert the dependency"}]
 ```
 
-```tsx
-// .argot/rules/ui-stays-presentational/tests/silent-on-props/input.tsx
-export const Avatar = (props: { url: string }) => <img src={props.url} />;
+```ts
+// .argot/rules/domain-imports-stay-inward/tests/silent-on-port/input.ts
+import type { Store } from './ports';
+export const load = (s: Store) => s.get();
 ```
 
 ```json
-// .argot/rules/ui-stays-presentational/tests/silent-on-props/expected.json
+// .argot/rules/domain-imports-stay-inward/tests/silent-on-port/expected.json
 []
 ```
 
 ```bash
-argot rules test ui-stays-presentational
-# ok    ui-stays-presentational :: fires-on-service-import
-# ok    ui-stays-presentational :: silent-on-props
+argot rules test domain-imports-stay-inward
+# ok    domain-imports-stay-inward :: fires-on-infra-import
+# ok    domain-imports-stay-inward :: silent-on-port
 #
 # 2 case(s), 0 failed
 ```
@@ -189,8 +198,8 @@ Once it's green, it's live — the very next `argot check` runs it over real cha
 
 ```bash
 argot check
-# ! components/ui/Avatar.tsx:1   ui-stays-presentational — ui component imports the data layer — take props instead
-#                                ↳ move the call into a feature hook (see components/ui/README.md)
+# ! src/domain/orders.ts:1   domain-imports-stay-inward — domain imports infrastructure — invert the dependency
+#                            ↳ depend on a port defined in the domain (see src/domain/README.md)
 ```
 
 ## Shapes you'll actually write
@@ -199,9 +208,13 @@ argot check
 lint rules give up and a tree query doesn't. *"Files are parsed through `lib/config` — its
 loader validates and applies defaults; a raw `JSON.parse` over a file read skips both":*
 
+```toml
+# rule.toml — the loader itself is allowed; scope it out in the manifest
+exclude = ["lib/config/**"]
+```
+
 ```rhai
 // parse-through-loader — JSON.parse directly over a file read
-if file.path.contains("lib/config/") { return; } // the loader itself is allowed
 for m in ts_query("(call_expression function: (member_expression) @f
                     arguments: (arguments (call_expression function: (identifier) @inner)))") {
     if m.capture == "inner" && m.text.contains("readFile") {
@@ -267,20 +280,20 @@ exactly like a built-in rule:
   group) in `argot.toml`, or `argot check --rule no-print=warn` per run.
 - **Inline suppression:** `# argot: ignore-next-line rule=no-print — legacy debug shim`.
 - **Durable mute:** `argot mute <hash> --reason "…"`, or a hand-written `[[mute]]` with
-  `rule = "ui-stays-presentational"`.
+  `rule = "domain-imports-stay-inward"`.
 - **Output:** the rule name appears in human output, `--format json`'s `rule` field, and
   SARIF's `ruleId` — same as `foreign-import` or `redundant`.
 - **Confidence:** every custom finding displays at `suspicious` confidence — a discrete,
   evidenced event, the same tier as the `integrity` rules — never `unusual` or `foreign`.
 - **Listing:** `argot rules` lists custom rules after the built-ins, group `custom`, with their
-  source directory (`.argot/rules/ui-stays-presentational`); `--format json` adds a `source` field to those
+  source directory (`.argot/rules/domain-imports-stay-inward`); `--format json` adds a `source` field to those
   entries.
 
 See [Configure](/docs/configure/#rules--rule-severities) for the full severity and suppression
 reference — nothing here is a new mechanism.
 
 One addition worth knowing: a custom rule can be **locked** —
-`"ui-stays-presentational" = { severity = "error", locked = true }` in the committed
+`"domain-imports-stay-inward" = { severity = "error", locked = true }` in the committed
 `argot.toml`. A locked rule's findings refuse every suppression surface, and a diff that edits
 the rule's own script or manifest fires `rule-tampered` (error, unsuppressable) — so an agent
 can't "fix" a failing check by rewriting the rule that caught it. See
@@ -306,12 +319,12 @@ The script runs in a stripped-down Rhai engine, not a general-purpose scripting 
 Fixtures live inside the rule directory, one subdirectory per case:
 
 ```text
-.argot/rules/ui-stays-presentational/tests/
-  fires-on-service-import/
-    input.tsx          # the file the rule runs over — the whole file is one hunk
-    expected.json      # [{"line": 1, "message": "ui component imports the data layer — …"}]
-  silent-on-props/
-    input.tsx
+.argot/rules/domain-imports-stay-inward/tests/
+  fires-on-infra-import/
+    input.ts           # the file the rule runs over — the whole file is one hunk
+    expected.json      # [{"line": 1, "message": "domain imports infrastructure — …"}]
+  silent-on-port/
+    input.ts
     expected.json      # []
 ```
 
@@ -321,7 +334,7 @@ compared order-independently.
 
 ```bash
 argot rules test              # every discovered rule, every case
-argot rules test ui-stays-presentational     # one rule
+argot rules test domain-imports-stay-inward     # one rule
 ```
 
 Exit codes: `0` every case passed, `1` at least one failure, `2` a setup problem (an unknown

@@ -25,7 +25,7 @@
 //! hidden — a fresh repo with no file falls back to [`ArgotConfig::default`]
 //! (identical values) *and* the next fit writes them out.
 
-use crate::rules::{validate_layer_with, Registry, RuleSettings, RulesLayer};
+use crate::rules::{validate_layer_with, Registry, RuleScope, RuleSettings, RulesLayer};
 use crate::suppress::path_rules::{default_recommended_patterns, PathSuppressions};
 use crate::suppress::rules_file::{build_mutes, RawMute, SuppressionRule, SuppressionsFile};
 use serde::Deserialize;
@@ -217,6 +217,12 @@ pub struct ArgotConfig {
     /// Validated `[rules]` layer from the personal `argot.local.toml` —
     /// applied after the committed layer, refused for locked rules.
     pub rules_local: Vec<RulesLayer>,
+    /// Per-selector path scopes from `[rules]` inline tables (`include` /
+    /// `exclude` globs) — applies to **every** rule, built-in or custom: a
+    /// finding whose file falls outside its rule's (or group's) scope is
+    /// dropped. Distinct from a custom rule's *manifest* include/exclude,
+    /// which also decides which files the rule even runs on (incl. unscored).
+    pub rule_scopes: Vec<(String, crate::rules::RuleScope)>,
     /// Selectors locked by the committed `argot.toml` (inline-table form:
     /// `layering = { severity = "error", locked = true }`). Locked rules
     /// freeze at the committed severity and refuse every runtime suppression
@@ -249,6 +255,7 @@ impl Default for ArgotConfig {
             detect: DetectConfig::default(),
             rules_committed: Vec::new(),
             rules_local: Vec::new(),
+            rule_scopes: Vec::new(),
             rule_locks: Vec::new(),
             update_check: true,
             fit_auto_refresh: true,
@@ -382,10 +389,22 @@ impl ArgotConfig {
         // the lock set. A value is either a bare severity string or the
         // inline-table form `{ severity = "error", locked = true }`.
         let mut rule_locks: Vec<String> = Vec::new();
+        let mut rule_scopes: Vec<(String, RuleScope)> = Vec::new();
+        let globs = |t: &toml::Table, key: &str| -> Vec<String> {
+            t.get(key)
+                .and_then(|v| v.as_array())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|g| g.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
         let parse_rules_table = |raw_rules: BTreeMap<String, toml::Value>,
-                                 origin: &str,
-                                 locks: Option<&mut Vec<String>>,
-                                 warnings: &mut Vec<String>|
+                                     origin: &str,
+                                     locks: Option<&mut Vec<String>>,
+                                     scopes: &mut Vec<(String, RuleScope)>,
+                                     warnings: &mut Vec<String>|
          -> Vec<RulesLayer> {
             if raw_rules.is_empty() {
                 return Vec::new();
@@ -411,6 +430,17 @@ impl ArgotConfig {
                                     )),
                                 }
                             }
+                            let inc = globs(&t, "include");
+                            let exc = globs(&t, "exclude");
+                            if !inc.is_empty() || !exc.is_empty() {
+                                scopes.push((
+                                    k.clone(),
+                                    RuleScope {
+                                        include: inc,
+                                        exclude: exc,
+                                    },
+                                ));
+                            }
                             sev
                         }
                         other => other.to_string(),
@@ -424,9 +454,16 @@ impl ArgotConfig {
             base.rules,
             CONFIG_FILE,
             Some(&mut rule_locks),
+            &mut rule_scopes,
             &mut warnings,
         );
-        let rules_local = parse_rules_table(local.rules, LOCAL_CONFIG_FILE, None, &mut warnings);
+        let rules_local = parse_rules_table(
+            local.rules,
+            LOCAL_CONFIG_FILE,
+            None,
+            &mut rule_scopes,
+            &mut warnings,
+        );
         rule_locks.retain(|l| {
             let known = registry.known_selector(l);
             if !known {
@@ -481,6 +518,7 @@ impl ArgotConfig {
             },
             rules_committed,
             rules_local,
+            rule_scopes,
             rule_locks,
             update_check,
             fit_auto_refresh,
@@ -526,7 +564,8 @@ impl ArgotConfig {
             &later,
             &self.rule_locks,
             &mut warnings,
-        );
+        )
+        .with_path_scopes(registry, &self.rule_scopes);
         (settings, warnings)
     }
 

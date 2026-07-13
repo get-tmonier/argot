@@ -145,12 +145,12 @@ fn covers_file_defaults_to_supported_languages_only() {
 }
 
 #[test]
-fn files_globs_claim_any_extension_and_narrow_with_languages() {
+fn include_globs_claim_any_extension_and_narrow_with_languages() {
     let root = tmp();
     let d = write_rule(
         &root,
         "envs",
-        "[rule]\nschema = 1\nname = \"envs\"\nfiles = [\"**/*.env\", \".github/workflows/*.yml\"]\n",
+        "[rule]\nschema = 1\nname = \"envs\"\ninclude = [\"*.env\", \".github/workflows/*.yml\"]\n",
         "",
     );
     let rule = load_rule_dir(&d).unwrap();
@@ -164,7 +164,7 @@ fn files_globs_claim_any_extension_and_narrow_with_languages() {
     let d = write_rule(
         &root,
         "narrow",
-        "[rule]\nschema = 1\nname = \"narrow\"\nfiles = [\"src/api/**\"]\nlanguages = [\"typescript\"]\n",
+        "[rule]\nschema = 1\nname = \"narrow\"\ninclude = [\"src/api/**\"]\nlanguages = [\"typescript\"]\n",
         "",
     );
     let rule = load_rule_dir(&d).unwrap();
@@ -176,6 +176,41 @@ fn files_globs_claim_any_extension_and_narrow_with_languages() {
     assert!(
         !rule.covers_file("src/ui/x.ts", Some("typescript")),
         "outside the globs"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn exclude_subtracts_from_the_default_language_scope() {
+    let root = tmp();
+    let d = write_rule(
+        &root,
+        "no-tests",
+        "[rule]\nschema = 1\nname = \"no-tests\"\nlanguages = [\"typescript\"]\nexclude = [\"**/*.test.ts\", \"**/__tests__/**\"]\n",
+        "",
+    );
+    let rule = load_rule_dir(&d).unwrap();
+    assert!(rule.covers_file("src/app.ts", Some("typescript")));
+    assert!(
+        !rule.covers_file("src/app.test.ts", Some("typescript")),
+        "excluded"
+    );
+    assert!(
+        !rule.covers_file("src/__tests__/app.ts", Some("typescript")),
+        "excluded dir"
+    );
+    // exclude wins even over an explicit include.
+    let d = write_rule(
+        &root,
+        "envs-not-example",
+        "[rule]\nschema = 1\nname = \"envs-not-example\"\ninclude = [\"*.env\"]\nexclude = [\"*.example.env\"]\n",
+        "",
+    );
+    let rule = load_rule_dir(&d).unwrap();
+    assert!(rule.covers_file("prod.env", None));
+    assert!(
+        !rule.covers_file("prod.example.env", None),
+        "exclude beats include"
     );
     let _ = std::fs::remove_dir_all(&root);
 }

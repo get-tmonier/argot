@@ -72,9 +72,9 @@ impl Detector for ScriptDetector {
     }
 
     fn wants_unscored_files(&self) -> bool {
-        // Only if some rule has `files` globs — otherwise every rule is
-        // language-gated and the extra collection is wasted.
-        self.rules.iter().any(|r| !r.files.is_empty())
+        // Only if some rule's `include` globs can claim unscored files —
+        // otherwise every rule is language-gated and the extra pass is wasted.
+        self.rules.iter().any(|r| r.wants_unscored_files())
     }
 
     /// Discover `.argot/rules/` and contribute the custom vocabulary. Also
