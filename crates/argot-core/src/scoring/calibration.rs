@@ -1484,7 +1484,9 @@ pub fn run_calibrate(
                         t_ins.done();
                     }
                     Ok(_) => {}
-                    Err(e) => eprintln!("argot: semantic index for {name} failed: {e}"),
+                    // `{e:#}` prints anyhow's full cause chain — the inner
+                    // llama.cpp/tokenizer detail, not just the outer context.
+                    Err(e) => eprintln!("argot: semantic index for {name} failed: {e:#}"),
                 }
             }
         }
