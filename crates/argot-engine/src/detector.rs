@@ -45,6 +45,10 @@ pub struct CheckContext<'a> {
     /// Learned-model facts (provided by the base detector after load) —
     /// `None` when no fitted model offers them.
     pub facts: Option<std::sync::Arc<dyn ModelFacts>>,
+    /// In-scope changed files argot does NOT score (unsupported extension):
+    /// `.env`, CI configs, lockfiles… The scripted rules' `files` globs may
+    /// claim them; every other pass ignores this.
+    pub extra_batches: &'a [crate::check::PatchBatch],
 }
 
 /// What the base scan covered (drives `files scanned` in the report meta).
@@ -161,6 +165,14 @@ pub trait Detector {
         _detect: &crate::config::DetectConfig,
     ) -> Result<(), (String, i32)> {
         Ok(())
+    }
+
+    /// True if this detector wants files argot doesn't score (unsupported
+    /// extensions) delivered in `CheckContext::extra_batches`. Default false —
+    /// only the scripted rules, whose `files` globs can target any path, opt
+    /// in, so no other build pays for the extra changeset diff.
+    fn wants_unscored_files(&self) -> bool {
+        false
     }
 
     /// The base model's identity + coverage — implemented by exactly one

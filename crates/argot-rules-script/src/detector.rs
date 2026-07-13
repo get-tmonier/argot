@@ -71,6 +71,12 @@ impl Detector for ScriptDetector {
         "check: scripted rules pass"
     }
 
+    fn wants_unscored_files(&self) -> bool {
+        // Only if some rule has `files` globs — otherwise every rule is
+        // language-gated and the extra collection is wasted.
+        self.rules.iter().any(|r| !r.files.is_empty())
+    }
+
     /// Discover `.argot/rules/` and contribute the custom vocabulary. Also
     /// remembers the rules for `check` — discovery reads each manifest and
     /// script exactly once per run.
@@ -120,7 +126,8 @@ impl Detector for ScriptDetector {
         // (label mismatch, unresolvable side) degrades to no old side.
         let old_sides: std::collections::HashMap<(String, String), String> =
             argot_engine::check::two_sided::collect_two_sided(ctx.args, &|path| {
-                ext_to_lang_ctx(&extension(path), ctx.header_cpp).is_some()
+                let language = ext_to_lang_ctx(&extension(path), ctx.header_cpp);
+                self.rules.iter().any(|r| r.covers_file(path, language))
             })
             .into_iter()
             .flat_map(|(source, files)| {
@@ -130,11 +137,10 @@ impl Detector for ScriptDetector {
             })
             .collect();
         let mut findings = Vec::new();
-        for batch in ctx.batches {
-            let Some(language) = ext_to_lang_ctx(&extension(&batch.file_path), ctx.header_cpp)
-            else {
-                continue;
-            };
+        // Scored batches plus the unscored ones (unsupported extensions —
+        // `.env`, CI configs…): a rule's `files` globs may claim the latter.
+        for batch in ctx.batches.iter().chain(ctx.extra_batches) {
+            let language = ext_to_lang_ctx(&extension(&batch.file_path), ctx.header_cpp);
             let source = String::from_utf8_lossy(&batch.content).into_owned();
             let hunk_ranges: Vec<(usize, usize)> = batch
                 .hunks
@@ -149,7 +155,7 @@ impl Detector for ScriptDetector {
                 .collect();
             let file = host::FileInput {
                 path: &batch.file_path,
-                language,
+                language: language.unwrap_or(""),
                 new_text: &source,
                 old_text: old_sides
                     .get(&(batch.source.clone(), batch.file_path.clone()))
@@ -161,15 +167,18 @@ impl Detector for ScriptDetector {
             let suppressions = FileSuppressions::parse(
                 &batch.file_path,
                 &source,
-                ctx.filter_adapters
-                    .get(language)
+                language
+                    .and_then(|l| ctx.filter_adapters.get(l))
                     .map(|a| a.line_comment_prefix()),
                 ctx.mute_rules,
                 batch.ignored_by_pattern,
                 ctx.registry,
+                ctx.settings,
             );
             for (i, rule) in self.rules.iter().enumerate() {
-                if self.disabled.contains(&rule.name) || !rule.covers_language(language) {
+                if self.disabled.contains(&rule.name)
+                    || !rule.covers_file(&batch.file_path, language)
+                {
                     continue;
                 }
                 let reason = format!("{}{}", rules::CUSTOM_REASON_PREFIX, rule.name);

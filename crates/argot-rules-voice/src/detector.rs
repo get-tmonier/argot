@@ -80,6 +80,7 @@ fn score_patches(
     fit_corpus_files: &HashSet<String>,
     mute_rules: &[SuppressionRule],
     registry: &argot_engine::rules::Registry,
+    settings: &argot_engine::rules::RuleSettings,
     header_cpp: bool,
     stderr: &mut String,
 ) -> (Vec<Finding>, usize, Vec<FileScan>) {
@@ -122,6 +123,7 @@ fn score_patches(
             mute_rules,
             batch.ignored_by_pattern,
             registry,
+            settings,
         );
         for w in suppressions.warnings() {
             let msg = format!("[argot] {}:{}: {}\n", batch.file_path, w.line, w.message);
@@ -353,6 +355,7 @@ impl Detector for VoiceDetector {
             &loaded.fit_corpus_files,
             ctx.mute_rules,
             ctx.registry,
+            ctx.settings,
             ctx.header_cpp,
             ctx.stderr,
         );

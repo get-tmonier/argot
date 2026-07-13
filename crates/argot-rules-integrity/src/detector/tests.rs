@@ -77,6 +77,7 @@ fn integrity_pass_fires_on_a_staged_gaming_edit() {
         &adapters,
         &[],
         argot_engine::rules::Registry::builtin(),
+        &argot_engine::rules::RuleSettings::resolve(&[]),
         &mut stderr,
     );
     assert_eq!(hits.len(), 1, "stderr: {stderr}");

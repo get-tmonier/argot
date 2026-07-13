@@ -212,9 +212,16 @@ impl Default for DetectConfig {
 pub struct ArgotConfig {
     pub exclude: ExcludeConfig,
     pub detect: DetectConfig,
-    /// Validated `[rules]` layers, ascending precedence (base, then local).
-    /// CLI overrides append a third layer via [`ArgotConfig::rule_settings`].
-    pub rules: Vec<RulesLayer>,
+    /// Validated `[rules]` layer from the committed `argot.toml`.
+    pub rules_committed: Vec<RulesLayer>,
+    /// Validated `[rules]` layer from the personal `argot.local.toml` —
+    /// applied after the committed layer, refused for locked rules.
+    pub rules_local: Vec<RulesLayer>,
+    /// Selectors locked by the committed `argot.toml` (inline-table form:
+    /// `layering = { severity = "error", locked = true }`). Locked rules
+    /// freeze at the committed severity and refuse every runtime suppression
+    /// surface; only the committed file — a reviewable diff — can unlock.
+    pub rule_locks: Vec<String>,
     /// `[update].check` — false opts out of the passive update notice.
     pub update_check: bool,
     /// `[fit].auto-refresh` — false opts out of the background refit when the
@@ -240,7 +247,9 @@ impl Default for ArgotConfig {
         ArgotConfig {
             exclude: ExcludeConfig::default(),
             detect: DetectConfig::default(),
-            rules: Vec::new(),
+            rules_committed: Vec::new(),
+            rules_local: Vec::new(),
+            rule_locks: Vec::new(),
             update_check: true,
             fit_auto_refresh: true,
             fit_refresh_after: DEFAULT_FIT_REFRESH_AFTER,
@@ -369,30 +378,64 @@ impl ArgotConfig {
             generated_markers.extend(extra);
         }
 
-        // [rules]: two validated layers, base then local (local wins per key —
-        // a later layer takes precedence in RuleSettings::resolve).
-        let mut rules = Vec::new();
-        for (raw_rules, origin) in [(base.rules, CONFIG_FILE), (local.rules, LOCAL_CONFIG_FILE)] {
+        // [rules]: a committed layer, a local layer, and — committed only —
+        // the lock set. A value is either a bare severity string or the
+        // inline-table form `{ severity = "error", locked = true }`.
+        let mut rule_locks: Vec<String> = Vec::new();
+        let parse_rules_table = |raw_rules: BTreeMap<String, toml::Value>,
+                                 origin: &str,
+                                 locks: Option<&mut Vec<String>>,
+                                 warnings: &mut Vec<String>|
+         -> Vec<RulesLayer> {
             if raw_rules.is_empty() {
-                continue;
+                return Vec::new();
             }
+            let mut lock_sink = locks;
             let entries: Vec<(String, String)> = raw_rules
                 .into_iter()
                 .map(|(k, v)| {
                     let value = match v {
                         toml::Value::String(s) => s,
+                        toml::Value::Table(t) => {
+                            let sev = t
+                                .get("severity")
+                                .and_then(|s| s.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            if t.get("locked").and_then(|l| l.as_bool()) == Some(true) {
+                                match lock_sink.as_deref_mut() {
+                                    Some(sink) => sink.push(k.clone()),
+                                    None => warnings.push(format!(
+                                        "{origin}: [rules] '{k}': locks only apply from the \
+                                         committed argot.toml — ignored"
+                                    )),
+                                }
+                            }
+                            sev
+                        }
                         other => other.to_string(),
                     };
                     (k, value)
                 })
                 .collect();
-            rules.push(validate_layer_with(
-                registry,
-                &entries,
-                origin,
-                &mut warnings,
-            ));
-        }
+            vec![validate_layer_with(registry, &entries, origin, warnings)]
+        };
+        let rules_committed = parse_rules_table(
+            base.rules,
+            CONFIG_FILE,
+            Some(&mut rule_locks),
+            &mut warnings,
+        );
+        let rules_local = parse_rules_table(local.rules, LOCAL_CONFIG_FILE, None, &mut warnings);
+        rule_locks.retain(|l| {
+            let known = registry.known_selector(l);
+            if !known {
+                warnings.push(format!(
+                    "argot.toml: [rules] lock on unknown rule '{l}' — ignored"
+                ));
+            }
+            known
+        });
 
         // [update] / [fit]: scalars — local wins.
         let update_check = local.update.check.or(base.update.check).unwrap_or(true);
@@ -436,7 +479,9 @@ impl ArgotConfig {
                 data_threshold,
                 generated_markers,
             },
-            rules,
+            rules_committed,
+            rules_local,
+            rule_locks,
             update_check,
             fit_auto_refresh,
             fit_refresh_after,
@@ -460,11 +505,29 @@ impl ArgotConfig {
         registry: &Registry,
         cli_overrides: &RulesLayer,
     ) -> RuleSettings {
-        let mut layers = self.rules.clone();
+        self.rule_settings_resolved(registry, cli_overrides).0
+    }
+
+    /// [`ArgotConfig::rule_settings_with`], also returning the refusal
+    /// warnings (a runtime layer touching a locked rule) for stderr.
+    pub fn rule_settings_resolved(
+        &self,
+        registry: &Registry,
+        cli_overrides: &RulesLayer,
+    ) -> (RuleSettings, Vec<String>) {
+        let mut later = self.rules_local.clone();
         if !cli_overrides.is_empty() {
-            layers.push(cli_overrides.clone());
+            later.push(cli_overrides.clone());
         }
-        RuleSettings::resolve_with(registry, &layers)
+        let mut warnings = Vec::new();
+        let settings = RuleSettings::resolve_locked(
+            registry,
+            &self.rules_committed,
+            &later,
+            &self.rule_locks,
+            &mut warnings,
+        );
+        (settings, warnings)
     }
 
     /// The resolved path-level suppression set (scope filter for check,

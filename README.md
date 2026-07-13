@@ -136,7 +136,9 @@ No ESLint plugin can express that rule — there is no "old side" in a linter. A
 
 ## Configure it like any linter
 
-Every rule (built-in or yours) defaults through `argot.toml [rules]` — `error` / `warn` / `off`, per rule or per group — or per run via `--rule layering=warn`. Excludes are gitignore-style `[exclude].paths`; inline `# argot: ignore-next-line rule=… — reason` and `argot mute <hash>` give line-level and durable committed acceptances. Guides: [Configure](https://argot.tmonier.com/docs/configure/) · [The commands](https://argot.tmonier.com/docs/the-commands/).
+Every rule (built-in or yours) defaults through `argot.toml [rules]` — `error` / `warn` / `off`, per rule or per group — or per run via `--rule layering=warn`. Excludes are gitignore-style `[exclude].paths`; inline `# argot: ignore-next-line rule=… — reason` and `argot mute <hash>` give line-level and durable committed acceptances.
+
+And for the conventions with zero legitimate exceptions, there's **`locked = true`** — strict mode, per rule: a locked rule's severity is frozen at the committed value, every suppression surface is refused for its findings, and a diff that weakens the lock (removes it, downgrades it, mutes it, or edits a locked custom rule's script) **fires `rule-tampered`** — pinned `error`, unsuppressable. The agent can touch the alarm, but touching the alarm *is* the alarm; the only quiet way out is a committed diff a human reviews. Guides: [Configure](https://argot.tmonier.com/docs/configure/) · [The commands](https://argot.tmonier.com/docs/the-commands/).
 
 ### argot vs. the tools you already run
 
@@ -149,6 +151,7 @@ Every rule (built-in or yours) defaults through `argot.toml [rules]` — `error`
 | Flags an import that **breaks your layering** | ❌ | ❌ | ❌ | ✅ |
 | Flags a test **quietly weakened to game a failing suite** | ❌ | ❌ | ❌ | ✅ |
 | Enforces **your team's own conventions**, cross-language, on the diff | ❌ | ~ | ❌ | ✅ |
+| **Locked rules** an agent can't mute, override, or rewrite unnoticed | ❌ | ❌ | ❌ | ✅ |
 | Audits merged history · **attributes findings AI vs human** | ❌ | ❌ | ❌ | ✅ |
 | Learns from *your* history · runs 100% local | ❌ | ❌ | ❌ | ✅ |
 

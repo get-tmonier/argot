@@ -145,6 +145,12 @@ contract as everything else here: writing the rule is yours to do on request, bu
 softening one of its findings is still the human's call. The **argot-write-rule** skill walks
 this exact loop end-to-end, with `argot rules test <name>` as its gate.
 
+A rule may be **locked** (`{ severity = "error", locked = true }` in the committed
+`argot.toml`): its findings refuse every suppression surface, runtime severity overrides are
+ignored, and a diff that weakens the lock — or edits a locked custom rule's files — fires
+`rule-tampered` (error, unsuppressable). Do not attempt to mute or soften a locked rule;
+surface the finding to the human instead.
+
 ## If the binary disagrees with this document
 
 Trust the binary. `argot rules` prints the live rule registry and `argot

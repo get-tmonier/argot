@@ -265,3 +265,42 @@ fn unknown_rule_override_fails_fast_but_custom_names_resolve() {
         out.stderr
     );
 }
+
+#[test]
+fn files_globs_run_rules_on_unscored_extensions() {
+    let repo = prepare_repo("envfiles");
+    let d = repo.join(".argot/rules/no-plaintext-secrets");
+    std::fs::create_dir_all(&d).unwrap();
+    std::fs::write(
+        d.join("rule.toml"),
+        "[rule]\nschema = 1\nname = \"no-plaintext-secrets\"\nseverity = \"error\"\nfiles = [\"*.env\"]\n",
+    )
+    .unwrap();
+    std::fs::write(
+        d.join("check.rhai"),
+        r#"
+for h in hunks {
+    if h.text.contains("SECRET=") && file.language == "" {
+        report(h.start, "plaintext secret in an env file — use the secret manager");
+    }
+}
+"#,
+    )
+    .unwrap();
+    // A committed .env, edited in the working tree (an unscored extension —
+    // the voice model has never seen it).
+    std::fs::write(repo.join("deploy.env"), "PORT=8080\n").unwrap();
+    git(&repo, &["add", "deploy.env"]);
+    git(&repo, &["commit", "-qm", "env file"]);
+    std::fs::write(repo.join("deploy.env"), "PORT=8080\nSECRET=hunter2\n").unwrap();
+    let mut a = args(&repo);
+    a.reference = String::new(); // workdir mode
+    let out = run_check(a);
+    assert_eq!(out.exit_code, 1, "{}", out.stderr);
+    assert!(
+        out.stdout.contains("no-plaintext-secrets"),
+        "{}",
+        out.stdout
+    );
+    assert!(out.stdout.contains("deploy.env"), "{}", out.stdout);
+}

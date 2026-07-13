@@ -45,6 +45,8 @@ label = "no print calls"   # optional — shown next to a finding; defaults to `
 description = "this repo logs, never prints"   # optional — shown by `argot rules`
 severity = "error"         # optional — error | warn | off; defaults to warn
 languages = ["python"]     # optional — scoring language names; empty/omitted = every language
+files = []                 # optional — path globs; when set, the rule runs on ANY matching
+                           #   file (even extensions argot doesn't score, e.g. .env, .yml)
 
 [engine]
 api = 1                    # optional — host-API generation the script targets; defaults to 1
@@ -58,6 +60,7 @@ script = "check.rhai"      # optional — script path, relative to the rule dir;
 | `rule.label` | no | `name` | Short label shown next to a finding. |
 | `rule.description` | no | `""` | One-line description, shown by `argot rules`. |
 | `rule.severity` | no | `warn` | `error` / `warn` / `off`. **Note the default differs from built-ins**, which default to `error` — a rule just dropped into a repo reports before it gates. |
+| `rule.files` | no | (none) | Repo-relative **path globs** (same dialect as `[[mute]].path`: `*` and `**` cross `/`, `?`, `[abc]`). See *Which files a rule runs on* below. |
 | `rule.languages` | no | every language | Scoring language names — `python`, `typescript`, `javascript`, `go`, `rust`, `java`, `csharp`, `php`, `cpp`, `ruby`, `c` (see [Languages](/docs/languages/)). |
 | `engine.api` | no | `1` | The host-API generation the script targets. A script asking for a newer generation than the binary provides is skipped, never half-run. |
 | `engine.script` | no | `check.rhai` | Script file, relative to the rule directory. |
@@ -66,14 +69,42 @@ A manifest that fails to parse, names a schema or host-API generation this argot
 understand, or whose `name` doesn't match its directory is **skipped with a warning on
 stderr** — discovery degrades per rule, never for the whole run.
 
+## Which files a rule runs on
+
+By **default a rule sees the same files `check` scores** — the source files of the languages
+argot supports (`.py`, `.ts`, `.go`, …), minus anything excluded by `[exclude]` or the
+`argot:recommended` set. `languages` narrows that further to specific languages. So the default
+scope is *"the changed source files, in these languages"* — no configuration needed, which is
+why the built-in rules carry none.
+
+Two knobs override that, from the manifest:
+
+- **`languages`** — restrict to a subset of the supported languages. `languages = ["typescript"]`
+  runs the rule only on changed `.ts`/`.tsx` files.
+- **`files`** — repo-relative **path globs**. This is the escape hatch from the language gate: a
+  rule with `files` runs on **any changed file that matches — including extensions argot doesn't
+  score at all**. `files = ["*.env"]` runs on your env files; `files = [".github/workflows/*.yml"]`
+  on CI config; `files = ["**/*.eslintrc*"]` on lint configs. For those unscored files the script
+  still gets `file.path`, `file.ext`, `file.new_text`/`old_text`, and `hunks` — everything except
+  a tree-sitter `language` (it's `""`, and `ts_query` returns nothing, since there's no grammar).
+  When both are given, they **intersect**: `files = ["src/api/**"]` + `languages = ["typescript"]`
+  is *"changed TypeScript under `src/api/`"*.
+
+The glob dialect is exactly `[[mute]].path`'s (see [Configure](/docs/configure/#the-mute-format)):
+`*` and `**` both cross `/`, `?` is one character, `[abc]` / `[a-z]` are character classes.
+Combine with the pre-image and history calls above and you can write, say, *"a secret literal
+added to any `.env` in this change"* or *"a lint rule this repo relies on, deleted from
+`.eslintrc`"* — files a language linter never even opens.
+
 ## Host API v1
 
-The script's top-level statements run once per in-scope changed file. Two read-only bindings
-are in scope:
+The script's top-level statements run once per in-scope changed file (see *Which files a rule
+runs on* above). Two read-only bindings are in scope:
 
-- **`file`** — a map: `path` (repo-relative), `language` (scoring name), `new_text` (the
-  post-image source), `old_text` (the pre-image source; `()` for an added file or when the
-  mode can't resolve it).
+- **`file`** — a map: `path` (repo-relative), `language` (scoring name, or `""` for a file the
+  rule claimed via `files` that argot doesn't score), `ext` (the file extension, e.g. `.env`),
+  `new_text` (the post-image source), `old_text` (the pre-image source; `()` for an added file
+  or when the mode can't resolve it).
 - **`hunks`** — an array of maps, one per changed range: `start`, `end` (1-indexed, inclusive
   line numbers), `text` (the hunk's source).
 
@@ -247,6 +278,13 @@ exactly like a built-in rule:
 
 See [Configure](/docs/configure/#rules--rule-severities) for the full severity and suppression
 reference — nothing here is a new mechanism.
+
+One addition worth knowing: a custom rule can be **locked** —
+`"ui-stays-presentational" = { severity = "error", locked = true }` in the committed
+`argot.toml`. A locked rule's findings refuse every suppression surface, and a diff that edits
+the rule's own script or manifest fires `rule-tampered` (error, unsuppressable) — so an agent
+can't "fix" a failing check by rewriting the rule that caught it. See
+[Locked rules](/docs/configure/#locked-rules--the-agent-cant-turn-off-the-alarm).
 
 ## Sandbox guarantees
 

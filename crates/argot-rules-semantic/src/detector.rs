@@ -260,6 +260,7 @@ impl Detector for SemanticDetector {
             ctx.filter_adapters,
             ctx.mute_rules,
             ctx.registry,
+            ctx.settings,
             ctx.detect,
             ctx.header_cpp,
             ctx.stderr,
@@ -280,6 +281,7 @@ fn semantic_hits(
     filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
     mute_rules: &[SuppressionRule],
     registry: &argot_engine::rules::Registry,
+    settings: &argot_engine::rules::RuleSettings,
     detect: &DetectConfig,
     header_cpp: bool,
     stderr: &mut String,
@@ -478,6 +480,7 @@ fn semantic_hits(
                 filter_adapters,
                 mute_rules,
                 registry,
+                settings,
             ));
         }
         // F2 placement (only when F1 didn't already claim the function).
@@ -499,6 +502,7 @@ fn semantic_hits(
                     filter_adapters,
                     mute_rules,
                     registry,
+                    settings,
                 ));
             }
         }
@@ -571,6 +575,7 @@ fn build_semantic_hit(
     filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
     mute_rules: &[SuppressionRule],
     registry: &argot_engine::rules::Registry,
+    settings: &argot_engine::rules::RuleSettings,
 ) -> Finding {
     let hunk_content = f.text.clone();
     let hash = hit_hash(&batch.file_path, reason, &hunk_content);
@@ -584,6 +589,7 @@ fn build_semantic_hit(
         mute_rules,
         false,
         registry,
+        settings,
     );
     let suppressed_by = suppressions.classify(reason, &hash, f.line, f.end_line);
     Finding {

@@ -79,6 +79,8 @@ pub const GROUP_SEMANTIC: &str = "semantic";
 pub const GROUP_ARCHITECTURE: &str = "architecture";
 /// The test-integrity detectors (test gaming: delete / disable / weaken).
 pub const GROUP_INTEGRITY: &str = "integrity";
+/// The guardrail's self-protection (locked-rule tampering).
+pub const GROUP_GOVERNANCE: &str = "governance";
 
 /// Every group name, in display order.
 pub const GROUPS: &[&str] = &[
@@ -86,6 +88,7 @@ pub const GROUPS: &[&str] = &[
     GROUP_SEMANTIC,
     GROUP_ARCHITECTURE,
     GROUP_INTEGRITY,
+    GROUP_GOVERNANCE,
 ];
 
 /// The full registry, in display order. Rules default to `error`
@@ -172,6 +175,14 @@ pub const RULES: &[Rule] = &[
         label: "test weakened alongside code change",
         description: "assertions removed, tautologized, or loosened while production code changes",
         default_severity: Severity::Warn,
+    },
+    Rule {
+        name: "rule-tampered",
+        reason: "rule_tampered",
+        group: GROUP_GOVERNANCE,
+        label: "locked guardrail weakened by this change",
+        description: "this change removes or weakens a locked rule — its lock, severity, a mute on it, or its script",
+        default_severity: Severity::Error,
     },
 ];
 
@@ -368,6 +379,9 @@ pub struct RuleSettings {
     by_reason: HashMap<String, Severity>,
     /// Reason codes of the run's custom rules (for `group_enabled(custom)`).
     custom_reasons: Vec<String>,
+    /// Reason codes locked by the committed config: severity frozen at the
+    /// committed value, every runtime suppression surface refused.
+    locked_reasons: std::collections::HashSet<String>,
 }
 
 impl RuleSettings {
@@ -382,8 +396,26 @@ impl RuleSettings {
     /// the registry's custom rules (group `custom`, defaults from their
     /// manifests).
     pub fn resolve_with(registry: &Registry, layers: &[RulesLayer]) -> Self {
-        let resolve_one = |name: &str, group: &str, default: Severity| {
-            let mut sev = default;
+        Self::resolve_locked(registry, layers, &[], &[], &mut Vec::new())
+    }
+
+    /// Full resolution with **locked rules**: `committed` is the layer from
+    /// the committed `argot.toml` (the only layer that can lock), `later` are
+    /// the runtime layers (`argot.local.toml`, CLI `--rule`). A locked rule's
+    /// severity freezes at defaults ⊕ committed; a later layer touching it is
+    /// refused with a warning. `rule-tampered` (the guardrail's
+    /// self-protection) is intrinsically locked and pinned to `error` — a
+    /// guardrail whose alarm can be configured off is no guardrail.
+    pub fn resolve_locked(
+        registry: &Registry,
+        committed: &[RulesLayer],
+        later: &[RulesLayer],
+        locks: &[String],
+        warnings: &mut Vec<String>,
+    ) -> Self {
+        let fold = |layers: &[RulesLayer], name: &str, group: &str, start: Severity| {
+            let mut sev = start;
+            let mut touched = false;
             for layer in layers {
                 let group_entry = layer
                     .iter()
@@ -393,30 +425,80 @@ impl RuleSettings {
                 let specific = layer.iter().rev().find(|(k, _)| k == name).map(|(_, s)| *s);
                 if let Some(s) = specific.or(group_entry) {
                     sev = s;
+                    touched = true;
                 }
             }
-            sev
+            (sev, touched)
         };
+        let locked = |name: &str, group: &str| locks.iter().any(|l| l == name || l == group);
         let mut by_reason = HashMap::new();
-        for rule in RULES {
-            by_reason.insert(
-                rule.reason.to_string(),
-                resolve_one(rule.name, rule.group, rule.default_severity),
-            );
-        }
+        let mut locked_reasons = std::collections::HashSet::new();
         let mut custom_reasons = Vec::new();
-        for rule in registry.custom_rules() {
-            let reason = format!("{CUSTOM_REASON_PREFIX}{}", rule.name);
-            by_reason.insert(
-                reason.clone(),
-                resolve_one(&rule.name, GROUP_CUSTOM, rule.default_severity),
-            );
-            custom_reasons.push(reason);
+        // Scope: the closure mutably borrows the maps above; end it before
+        // the pinning below reads them.
+        {
+            let mut resolve_one = |reason: String,
+                                   name: &str,
+                                   group: &str,
+                                   default: Severity,
+                                   warnings: &mut Vec<String>| {
+                let (committed_sev, _) = fold(committed, name, group, default);
+                let sev = if locked(name, group) {
+                    locked_reasons.insert(reason.clone());
+                    let (_, touched) = fold(later, name, group, committed_sev);
+                    if touched {
+                        warnings.push(format!(
+                            "rule '{name}' is locked in argot.toml — runtime override ignored"
+                        ));
+                    }
+                    committed_sev
+                } else {
+                    fold(later, name, group, committed_sev).0
+                };
+                by_reason.insert(reason, sev);
+            };
+            for rule in RULES {
+                resolve_one(
+                    rule.reason.to_string(),
+                    rule.name,
+                    rule.group,
+                    rule.default_severity,
+                    warnings,
+                );
+            }
+            for rule in registry.custom_rules() {
+                let reason = format!("{CUSTOM_REASON_PREFIX}{}", rule.name);
+                resolve_one(
+                    reason.clone(),
+                    &rule.name,
+                    GROUP_CUSTOM,
+                    rule.default_severity,
+                    warnings,
+                );
+                custom_reasons.push(reason);
+            }
         }
+        // The self-protection rule is pinned: always error, always locked.
+        if by_reason.get("rule_tampered") != Some(&Severity::Error) {
+            warnings.push(
+                "rule 'rule-tampered' has a fixed severity (error) — configuration ignored"
+                    .to_string(),
+            );
+        }
+        by_reason.insert("rule_tampered".to_string(), Severity::Error);
+        locked_reasons.insert("rule_tampered".to_string());
         RuleSettings {
             by_reason,
             custom_reasons,
+            locked_reasons,
         }
+    }
+
+    /// Is the rule behind this reason locked? Locked = severity frozen at the
+    /// committed config, and no runtime suppression surface (inline, mute,
+    /// exclude) applies to its findings.
+    pub fn is_locked(&self, reason: &str) -> bool {
+        self.locked_reasons.contains(reason)
     }
 
     /// The severity of the rule behind a reason code. Unregistered reasons

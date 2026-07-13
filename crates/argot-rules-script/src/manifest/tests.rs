@@ -130,3 +130,52 @@ fn rejections_are_per_rule_and_explain_themselves() {
     assert!(load_rule_dir(&d).is_err());
     let _ = std::fs::remove_dir_all(&root);
 }
+
+#[test]
+fn covers_file_defaults_to_supported_languages_only() {
+    let root = tmp();
+    let d = write_rule(&root, "plain", "[rule]\nschema = 1\nname = \"plain\"\n", "");
+    let rule = load_rule_dir(&d).unwrap();
+    assert!(rule.covers_file("src/app.py", Some("python")));
+    assert!(
+        !rule.covers_file(".env", None),
+        "unscored files need `files` globs"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn files_globs_claim_any_extension_and_narrow_with_languages() {
+    let root = tmp();
+    let d = write_rule(
+        &root,
+        "envs",
+        "[rule]\nschema = 1\nname = \"envs\"\nfiles = [\"**/*.env\", \".github/workflows/*.yml\"]\n",
+        "",
+    );
+    let rule = load_rule_dir(&d).unwrap();
+    assert!(rule.covers_file("deploy/prod.env", None));
+    assert!(rule.covers_file(".github/workflows/ci.yml", None));
+    assert!(
+        !rule.covers_file("src/app.py", Some("python")),
+        "globs replace the language gate"
+    );
+    // files + languages = intersection.
+    let d = write_rule(
+        &root,
+        "narrow",
+        "[rule]\nschema = 1\nname = \"narrow\"\nfiles = [\"src/api/**\"]\nlanguages = [\"typescript\"]\n",
+        "",
+    );
+    let rule = load_rule_dir(&d).unwrap();
+    assert!(rule.covers_file("src/api/routes.ts", Some("typescript")));
+    assert!(
+        !rule.covers_file("src/api/notes.env", None),
+        "languages narrows"
+    );
+    assert!(
+        !rule.covers_file("src/ui/x.ts", Some("typescript")),
+        "outside the globs"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}

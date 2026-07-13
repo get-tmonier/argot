@@ -83,7 +83,7 @@ const en: SiteContent = {
   customRules: {
     label: 'Your conventions',
     title: 'The sixth detector is yours.',
-    body: 'Five detectors learn your repo. The sixth you write: [[a manifest and a tiny script]] in .argot/rules/, versioned with your code, loaded at run time. The conventions that used to live in review comments — enforced on every diff, across all 11 languages.',
+    body: 'Five detectors learn your repo. The sixth you write: [[a manifest and a tiny script]] in .argot/rules/, versioned with your code, loaded at run time. Any convention, any language — and any file, down to the [[.env and CI configs]] a linter never opens.',
     points: [
       {
         title: 'Two-sided',
@@ -96,6 +96,10 @@ const en: SiteContent = {
       {
         title: 'Test-driven',
         desc: 'argot rules test runs your fixtures — the [[red/green authoring loop]].',
+      },
+      {
+        title: 'Lockable',
+        desc: 'locked = true freezes a rule against the agent — muting it, overriding it, or editing it [[is itself the finding]].',
       },
     ],
     cta: 'Write your first rule',

@@ -5,7 +5,7 @@ description: Codify a repo convention argot's built-ins don't cover into a scrip
 
 # argot-write-rule
 
-argot's ten built-in rules cover patterns most repos eventually hit — foreign
+argot's built-in rules cover patterns most repos eventually hit — foreign
 imports, reinvented functions, layering breaks, gamed tests. Some conventions
 are the repo's own: "route SQL through the query builder, never a
 string-concatenated query," "HTTP calls go through the shared client, not a

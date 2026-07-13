@@ -43,6 +43,14 @@ struct RawRule {
     /// language).
     #[serde(default)]
     languages: Vec<String>,
+    /// Repo-relative path globs this rule runs on (same dialect as
+    /// `[[mute]].path`: fnmatch, `*` crosses `/`). When present, the rule
+    /// runs on **any matching file — supported language or not** (`.env`,
+    /// CI configs, lockfiles…); `languages`, when also given, narrows
+    /// further. When absent, the rule runs on every supported-language file
+    /// (narrowed by `languages`).
+    #[serde(default)]
+    files: Vec<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -63,6 +71,8 @@ pub struct ScriptRule {
     pub default_severity: Severity,
     /// Scoring language names this rule runs on (empty = all).
     pub languages: Vec<String>,
+    /// Path globs (empty = language-gated only). See the manifest field doc.
+    pub files: Vec<String>,
     /// The Rhai source, read at discovery.
     pub script: String,
     /// The script path, for diagnostics.
@@ -84,6 +94,24 @@ impl ScriptRule {
     /// Does this rule run on `language`? (Empty scope = every language.)
     pub fn covers_language(&self, language: &str) -> bool {
         self.languages.is_empty() || self.languages.iter().any(|l| l == language)
+    }
+
+    /// Does this rule run on this file? `language` is `None` for extensions
+    /// argot doesn't score. Default (no `files` globs): supported-language
+    /// files only. With `files` globs: any matching path — plus the
+    /// `languages` narrowing when both are present.
+    pub fn covers_file(&self, path: &str, language: Option<&str>) -> bool {
+        if self.files.is_empty() {
+            return language.is_some_and(|l| self.covers_language(l));
+        }
+        if !self
+            .files
+            .iter()
+            .any(|g| argot_engine::suppress::fnmatch(path, g))
+        {
+            return false;
+        }
+        self.languages.is_empty() || language.is_some_and(|l| self.covers_language(l))
     }
 }
 
@@ -136,6 +164,7 @@ pub fn load_rule_dir(dir: &Path) -> Result<ScriptRule, String> {
         description: raw.rule.description,
         default_severity,
         languages: raw.rule.languages,
+        files: raw.rule.files,
         script,
         script_path,
     })

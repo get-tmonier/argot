@@ -2,7 +2,8 @@
 //!
 //! The contract with rule authors (host API v1):
 //! - The script's top-level statements run once per in-scope changed file.
-//! - In scope: `file` (a map: `path`, `language`, `new_text`, `old_text` —
+//! - In scope: `file` (a map: `path`, `language` — `""` for a file argot
+//!   doesn't score, `ext`, `new_text`, `old_text` —
 //!   the pre-image, `()` for added files) and `hunks`
 //!   (an array of maps: `start`, `end`, `text` — the changed line ranges,
 //!   1-indexed inclusive, post-image).
@@ -200,6 +201,15 @@ pub fn run_on_file(
     let mut file_map = Map::new();
     file_map.insert("path".into(), Dynamic::from(file.path.to_string()));
     file_map.insert("language".into(), Dynamic::from(file.language.to_string()));
+    file_map.insert(
+        "ext".into(),
+        Dynamic::from(
+            std::path::Path::new(file.path)
+                .extension()
+                .map(|e| format!(".{}", e.to_string_lossy()))
+                .unwrap_or_default(),
+        ),
+    );
     file_map.insert("new_text".into(), Dynamic::from(file.new_text.to_string()));
     file_map.insert(
         "old_text".into(),

@@ -135,15 +135,26 @@ fn run_case(rule: &ScriptRule, ast: &rhai::AST, dir: &Path) -> CaseResult {
         ".{}",
         input.extension().unwrap_or_default().to_string_lossy()
     );
-    let Some(language) = argot_lang::ext::ext_to_lang(&ext) else {
-        return fail(format!("unsupported input extension '{ext}'"));
-    };
-    if !rule.covers_language(language) {
-        return fail(format!(
-            "input is {language}, but the rule's manifest scopes languages = {:?}",
-            rule.languages
-        ));
+    // Language from the extension; a rule with `files` globs may legitimately
+    // target extensions argot doesn't score (`.env`, CI configs…) — the
+    // fixture then runs with `file.language == ""` and no tree-sitter.
+    let language = argot_lang::ext::ext_to_lang(&ext);
+    match language {
+        Some(l) if !rule.covers_language(l) => {
+            return fail(format!(
+                "input is {l}, but the rule's manifest scopes languages = {:?}",
+                rule.languages
+            ));
+        }
+        None if rule.files.is_empty() => {
+            return fail(format!(
+                "unsupported input extension '{ext}' — scope the rule with `files` globs to \
+                 run it on unscored files"
+            ));
+        }
+        _ => {}
     }
+    let language = language.unwrap_or("");
     let source = match std::fs::read_to_string(&input) {
         Ok(s) => s,
         Err(e) => return fail(format!("reading input failed: {e}")),

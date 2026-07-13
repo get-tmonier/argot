@@ -42,6 +42,31 @@ fn gate_exit_code(visible: &[&Finding], settings: &RuleSettings, error_on_warnin
         0
     }
 }
+/// Could the changeset's OLD side have carried locks the new config lost?
+/// Cheap gate for the tamper pass: when the current config has no locks, the
+/// pass still must run if the change touches the sensitive surfaces at all —
+/// removing every lock is precisely the tamper case.
+fn detected_locks_possible(args: &CheckArgs) -> bool {
+    // The only cheap, mode-agnostic signal without re-diffing: does the
+    // repo's argot.toml (either side) mention `locked` at all? Read the
+    // committed file; the two-sided pass does the exact work.
+    std::fs::read_to_string(std::path::Path::new(&args.repo_path).join("argot.toml"))
+        .map(|t| t.contains("locked"))
+        .unwrap_or(false)
+        || {
+            // A deleted/edited argot.toml in the diff can hide the marker in
+            // the workdir — fall back to git HEAD's copy.
+            let repo = crate::git_walk::open_repo(&args.repo_path).ok();
+            repo.and_then(|r| {
+                let head = r.head().ok()?.peel_to_tree().ok()?;
+                let entry = head.get_path(std::path::Path::new("argot.toml")).ok()?;
+                let blob = r.find_blob(entry.id()).ok()?;
+                Some(String::from_utf8_lossy(blob.content()).contains("locked"))
+            })
+            .unwrap_or(false)
+        }
+}
+
 /// Freshness walks stop visiting commits here — far past every threshold.
 /// The stale-after threshold itself is `[fit] refresh-after` in argot.toml.
 pub const FRESHNESS_SCAN_CAP: usize = 200;
@@ -315,7 +340,8 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
     // before load_scorers.
     let config = ArgotConfig::load_with(Path::new(&args.repo_path), registry);
     // Effective per-rule severities: defaults ⊕ [rules] ⊕ CLI --rule overrides.
-    let settings = config.rule_settings_with(registry, &args.rule_overrides);
+    // Locked rules freeze at the committed value; refusals surface below.
+    let (settings, lock_warnings) = config.rule_settings_resolved(registry, &args.rule_overrides);
     // Unknown --rule selectors fail fast (exit 2), same contract as before —
     // but judged against the run vocabulary, so custom rules are addressable.
     for (name, _) in &args.rule_overrides {
@@ -460,6 +486,9 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
     for w in &vocab_warnings {
         stderr.push_str(&format!("[argot] {w}\n"));
     }
+    for w in &lock_warnings {
+        stderr.push_str(&format!("[argot] {w}\n"));
+    }
     for w in &config.warnings {
         stderr.push_str(&format!("[argot] {w}\n"));
     }
@@ -500,6 +529,51 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
         })
         .collect();
 
+    // Files argot doesn't score (unsupported extension: `.env`, CI configs,
+    // lockfiles…) but that a registered detector wants — today the scripted
+    // rules' `files` globs. Collected only on demand (`wants_unscored_files`),
+    // so no non-script build pays for the extra diff; whole file is one hunk.
+    let extra_batches: Vec<PatchBatch> =
+        if detectors.iter().any(|r| r.detector.wants_unscored_files()) {
+            let ps = &path_suppressions;
+            let unscored = super::two_sided::collect_two_sided(&args, &|path| {
+                super::ext_to_lang(&super::extension(path)).is_none()
+                    && matches!(
+                        ps.classify(path),
+                        crate::suppress::PathScope::InScope
+                            | crate::suppress::PathScope::UserIgnored
+                    )
+                    && passes_filters(path, &args.only, &args.exclude)
+            });
+            let suppressed_paths: std::collections::HashSet<String> = unscored
+                .iter()
+                .flat_map(|(_, files)| files.iter().map(|f| f.path.clone()))
+                .filter(|p| ps.is_suppressed(p))
+                .collect();
+            unscored
+                .into_iter()
+                .flat_map(|(source, files)| {
+                    let suppressed_paths = &suppressed_paths;
+                    files.into_iter().filter_map(move |f| {
+                        let content = f.new?.into_bytes();
+                        let lines = content.iter().filter(|&&b| b == b'\n').count().max(1) as u32;
+                        Some(PatchBatch {
+                            file_path: f.path.clone(),
+                            content,
+                            hunks: vec![crate::git_walk::HunkSpan {
+                                new_start: 1,
+                                new_lines: lines,
+                            }],
+                            source: source.clone(),
+                            ignored_by_pattern: suppressed_paths.contains(&f.path),
+                        })
+                    })
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+
     // A supported language with no model in this fit gets silently dropped by
     // batch_scope — which is correct scoring, but the user must know their new
     // Go file has zero coverage until the next fit.
@@ -522,6 +596,23 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
     let header_cpp = crate::corpus::header_is_cpp(Path::new(&args.repo_path));
 
     let mut scan = ScanReport::default();
+    // The guardrail's self-protection: does THIS change weaken a rule that
+    // was locked before it? Runs outside the detector loop (it guards the
+    // framework, not a domain), pinned error, unsuppressable — in CI this is
+    // the big red annotation on the PR.
+    let tampered = if config.rule_locks.is_empty() && !detected_locks_possible(&args) {
+        Vec::new()
+    } else {
+        let _t = crate::timing::phase("check: tamper pass");
+        super::tamper::tamper_findings(&args)
+    };
+    if !tampered.is_empty() {
+        stderr.push_str(&format!(
+            "[argot] ⚠ this change weakens a locked guardrail — {} rule-tampered finding(s)\n",
+            tampered.len()
+        ));
+    }
+
     let hits = {
         let mut ctx = CheckContext {
             batches: &filtered,
@@ -535,10 +626,12 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
             stderr: &mut stderr,
             scan: &mut scan,
             facts: facts.clone(),
+            extra_batches: &extra_batches,
         };
         run_detectors(&mut detectors, &mut ctx)
     };
     drop(detectors);
+    let hits: Vec<Finding> = tampered.into_iter().chain(hits).collect();
     let ScanReport {
         hunk_count,
         files_scanned,

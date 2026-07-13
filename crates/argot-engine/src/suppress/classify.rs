@@ -7,6 +7,7 @@
 //! drift from it).
 
 use crate::finding::SuppressedBy;
+use crate::rules::RuleSettings;
 use crate::suppress::{parse_inline, InlineSuppressions, InlineWarning, SuppressionRule};
 
 /// One file's resolved suppression surfaces.
@@ -15,6 +16,7 @@ pub struct FileSuppressions<'a> {
     ignored_by_pattern: bool,
     inline: InlineSuppressions,
     mute_rules: &'a [SuppressionRule],
+    settings: &'a RuleSettings,
 }
 
 impl<'a> FileSuppressions<'a> {
@@ -29,6 +31,7 @@ impl<'a> FileSuppressions<'a> {
         mute_rules: &'a [SuppressionRule],
         ignored_by_pattern: bool,
         registry: &crate::rules::Registry,
+        settings: &'a RuleSettings,
     ) -> Self {
         let inline = comment_prefix
             .map(|p| parse_inline(source, p, registry))
@@ -38,6 +41,7 @@ impl<'a> FileSuppressions<'a> {
             ignored_by_pattern,
             inline,
             mute_rules,
+            settings,
         }
     }
 
@@ -50,6 +54,12 @@ impl<'a> FileSuppressions<'a> {
         line: usize,
         line_end: usize,
     ) -> Option<SuppressedBy> {
+        // A locked rule's findings are unsuppressable: no exclude, no inline,
+        // no mute — the lock means locked. (Weakening the lock itself is the
+        // `rule-tampered` detector's business.)
+        if self.settings.is_locked(reason) {
+            return None;
+        }
         if self.ignored_by_pattern {
             Some(SuppressedBy::Exclude)
         } else if self.inline.suppresses(line, line_end, reason) {

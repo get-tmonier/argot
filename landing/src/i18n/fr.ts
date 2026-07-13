@@ -81,7 +81,7 @@ const fr: SiteContent = {
   customRules: {
     label: 'Vos conventions',
     title: 'Le sixième détecteur, c’est vous.',
-    body: 'Cinq détecteurs apprennent votre dépôt. Le sixième, vous l’écrivez : [[un manifeste et un petit script]] dans .argot/rules/, versionnés avec votre code, chargés à l’exécution. Les conventions qui vivaient en commentaires de review — appliquées à chaque diff, dans les 11 langages.',
+    body: 'Cinq détecteurs apprennent votre dépôt. Le sixième, vous l’écrivez : [[un manifeste et un petit script]] dans .argot/rules/, versionnés avec votre code, chargés à l’exécution. N’importe quelle convention, n’importe quel langage — et n’importe quel fichier, jusqu’aux [[.env et configs CI]] qu’un linter n’ouvre jamais.',
     points: [
       {
         title: 'Des deux côtés du diff',
@@ -94,6 +94,10 @@ const fr: SiteContent = {
       {
         title: 'Pilotée par les tests',
         desc: 'argot rules test exécute vos fixtures — la [[boucle rouge/vert]] de l’auteur de règles.',
+      },
+      {
+        title: 'Verrouillable',
+        desc: 'locked = true fige une règle face à l’agent — la couper, la contourner ou l’éditer [[devient le signalement]].',
       },
     ],
     cta: 'Écrivez votre première règle',

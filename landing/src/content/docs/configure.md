@@ -143,7 +143,7 @@ The same resolved `[exclude]` + `[detect]` govern what argot **learns** from,
 ## `[rules]` — rule severities
 
 **Location:** the `[rules]` section of `argot.toml`. Every finding argot emits
-belongs to one of **ten stable rules**, in four groups:
+belongs to one of **eleven stable rules**, in five groups:
 
 | Group | Rules |
 |---|---|
@@ -151,9 +151,10 @@ belongs to one of **ten stable rules**, in four groups:
 | `semantic` | `redundant` · `misplaced` |
 | `architecture` | `layering` |
 | `integrity` | `test-deleted` · `test-disabled` · `test-weakened` |
+| `governance` | `rule-tampered` — the guardrail's self-protection (see [Locked rules](#locked-rules--the-agent-cant-turn-off-the-alarm)) |
 
-A repo can add a **fifth group, `custom`**: repo-local rules dropped under `.argot/rules/`,
-discovered fresh on every run and configured exactly like the ten above — see
+A repo can add a **sixth group, `custom`**: repo-local rules dropped under `.argot/rules/`,
+discovered fresh on every run and configured exactly like the built-ins — see
 [Custom rules](/docs/custom-rules/).
 
 Each rule carries a **severity**: `error` (reported, fails `argot check` with
@@ -185,6 +186,38 @@ Two companions on the CLI:
 Severity is about the **exit code**. It's distinct from the *confidence* tier
 (`unusual` / `suspicious` / `foreign`) a hit displays with, which grades the
 evidence — see [Reading the output](/docs/reading-the-output/).
+
+### Locked rules — the agent can't turn off the alarm
+
+Opt-in strict mode, per rule or per group, from the **committed** `argot.toml` only:
+
+```toml
+[rules]
+layering = { severity = "error", locked = true }
+custom   = { severity = "error", locked = true }   # lock every repo-local rule
+```
+
+A locked rule is frozen against every runtime relaxation an AI agent might reach for
+when a check fails:
+
+- **Severity is pinned** at the committed value — `argot.local.toml` and `--rule`
+  overrides are refused, with a warning on stderr.
+- **Every suppression surface is refused for its findings** — inline
+  `# argot: ignore…` comments, `[[mute]]` entries, and `[exclude].paths` do not
+  apply. The lock means locked.
+- **Weakening the lock is itself a finding.** The `rule-tampered` rule (group
+  `governance`) reads both sides of the change being checked: a diff that removes a
+  lock, downgrades a locked rule's severity, adds a `[[mute]]` targeting a locked
+  rule, or edits a locked custom rule's script/manifest fires an **error** with the
+  exact weakening named — and a run-level warning that CI surfaces loudly
+  (`--format github` turns it into a PR annotation).
+- `rule-tampered` itself is **pinned**: always `error`, always locked, never
+  suppressable. An alarm you can configure off is not an alarm.
+
+This is tamper-*evidence*, not tamper-proofing — the same philosophy as the
+`integrity` rules: an agent *can* touch the alarm, but touching the alarm **is**
+the alarm. The one quiet path to relaxing a locked rule is a committed
+`argot.toml` diff that a human reviews.
 
 ## Inline comments — mute one line
 

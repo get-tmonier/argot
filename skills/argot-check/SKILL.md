@@ -54,7 +54,7 @@ informational stderr.
 
 ## The rules
 
-Ten built-in rules in four groups (plus any repo-local custom rules, group `custom`). `argot rules` prints this registry with the
+Eleven built-in rules in five groups (plus any repo-local custom rules, group `custom`). `rule-tampered` (group `governance`) fires when the change itself weakens a locked rule — treat it as the highest-priority finding: it means the diff touched the guardrail, not the code. `argot rules` prints this registry with the
 repo's effective severities.
 
 | Rule | Group | What it means | What to do |

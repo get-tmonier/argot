@@ -57,6 +57,7 @@ pub(super) fn integrity_hits(
     filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
     mute_rules: &[SuppressionRule],
     registry: &argot_engine::rules::Registry,
+    settings: &argot_engine::rules::RuleSettings,
     stderr: &mut String,
 ) -> Vec<Finding> {
     use crate::model::{changeset_events, IntegrityModel, INTEGRITY_FILE};
@@ -108,6 +109,7 @@ pub(super) fn integrity_hits(
                     mute_rules,
                     false,
                     registry,
+                    settings,
                 );
                 suppressions.classify(reason, &hash, ev.line, ev.line)
             };
@@ -172,6 +174,7 @@ impl Detector for IntegrityDetector {
             ctx.filter_adapters,
             ctx.mute_rules,
             ctx.registry,
+            ctx.settings,
             ctx.stderr,
         )
     }
