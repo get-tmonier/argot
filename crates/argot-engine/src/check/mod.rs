@@ -25,6 +25,7 @@
 mod collect;
 mod orchestrate;
 pub mod render;
+pub mod two_sided;
 
 #[cfg(test)]
 mod tests;

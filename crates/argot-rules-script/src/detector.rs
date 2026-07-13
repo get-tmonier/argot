@@ -115,6 +115,20 @@ impl Detector for ScriptDetector {
         }
         let changeset_paths: Vec<String> =
             ctx.batches.iter().map(|b| b.file_path.clone()).collect();
+        // Pre-images for `file.old_text` / `ts_query_old`, keyed by
+        // (source label, path) — the same labels the batches carry. A miss
+        // (label mismatch, unresolvable side) degrades to no old side.
+        let old_sides: std::collections::HashMap<(String, String), String> =
+            argot_engine::check::two_sided::collect_two_sided(ctx.args, &|path| {
+                ext_to_lang_ctx(&extension(path), ctx.header_cpp).is_some()
+            })
+            .into_iter()
+            .flat_map(|(source, files)| {
+                files
+                    .into_iter()
+                    .filter_map(move |f| f.old.map(|old| ((source.clone(), f.path), old)))
+            })
+            .collect();
         let mut findings = Vec::new();
         for batch in ctx.batches {
             let Some(language) = ext_to_lang_ctx(&extension(&batch.file_path), ctx.header_cpp)
@@ -137,6 +151,9 @@ impl Detector for ScriptDetector {
                 path: &batch.file_path,
                 language,
                 new_text: &source,
+                old_text: old_sides
+                    .get(&(batch.source.clone(), batch.file_path.clone()))
+                    .map(String::as_str),
                 hunks: &hunk_ranges,
             };
             // The file's suppression surfaces, once per file (shared by every

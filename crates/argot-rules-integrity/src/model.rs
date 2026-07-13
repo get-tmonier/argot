@@ -123,17 +123,9 @@ impl EventKind {
     }
 }
 
-/// One side-pair of a changed file (rename-resolved: a renamed file arrives
-/// as one change with both sides, not delete + add).
-#[derive(Debug, Clone)]
-pub struct FileChange {
-    /// Repo-relative path (post path; pre path when deleted).
-    pub path: String,
-    /// Pre-image text (`None` = added file).
-    pub old: Option<String>,
-    /// Post-image text (`None` = deleted file).
-    pub new: Option<String>,
-}
+/// One side-pair of a changed file — the engine's two-sided collection
+/// shape, re-exported at this slice's historical path.
+pub use argot_engine::check::two_sided::FileChange;
 
 /// One detected gaming event, ready to become a finding.
 #[derive(Debug, Clone)]

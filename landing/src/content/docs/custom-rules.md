@@ -72,15 +72,17 @@ The script's top-level statements run once per in-scope changed file. Two read-o
 are in scope:
 
 - **`file`** — a map: `path` (repo-relative), `language` (scoring name), `new_text` (the
-  post-image source).
+  post-image source), `old_text` (the pre-image source; `()` for an added file or when the
+  mode can't resolve it).
 - **`hunks`** — an array of maps, one per changed range: `start`, `end` (1-indexed, inclusive
   line numbers), `text` (the hunk's source).
 
-And five host functions:
+And the host functions:
 
 | Function | Returns | Does |
 |---|---|---|
 | `ts_query(query)` | array of `#{capture, text, line, end_line}` | Runs a [tree-sitter](https://tree-sitter.github.io/tree-sitter/) query against the file; one map per capture, lines 1-indexed. An invalid query or unsupported language returns an empty array. |
+| `ts_query_old(query)` | same | The same query against the **pre-image** (`file.old_text`) — for rules about what a change *removed*. Empty when there is no old side. |
 | `import_attested(module)` | bool | Did the fitted voice model see this module imported anywhere in this language, at fit time? |
 | `callee_attested(name)` | bool | Same, for a called name. |
 | `changeset_paths()` | array of strings | Every path in the current changeset — for rules that need cross-file context (e.g. "flag X unless a sibling test file also changed"). |
@@ -204,6 +206,9 @@ argot rules test no-print     # one rule
 Exit codes: `0` every case passed, `1` at least one failure, `2` a setup problem (an unknown
 rule name, a script that fails to compile, or no `tests/` directory at all — add one case
 before shipping the rule).
+
+An optional `old.<ext>` sibling in a case directory supplies the pre-image for
+`file.old_text` / `ts_query_old` (absent = the rule sees an added file).
 
 Because the harness has no fitted model, `import_attested`/`callee_attested` return `false` in
 every fixture — write a case for the unattested branch here, and rely on a real `argot check`

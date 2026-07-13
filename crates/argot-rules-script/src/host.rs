@@ -2,10 +2,12 @@
 //!
 //! The contract with rule authors (host API v1):
 //! - The script's top-level statements run once per in-scope changed file.
-//! - In scope: `file` (a map: `path`, `language`, `new_text`) and `hunks`
+//! - In scope: `file` (a map: `path`, `language`, `new_text`, `old_text` —
+//!   the pre-image, `()` for added files) and `hunks`
 //!   (an array of maps: `start`, `end`, `text` — the changed line ranges,
 //!   1-indexed inclusive, post-image).
-//! - Host functions: `ts_query(query)` (tree-sitter query against the file,
+//! - Host functions: `ts_query(query)` / `ts_query_old(query)` (tree-sitter
+//!   query against the post-/pre-image,
 //!   → array of `#{capture, text, line, end_line}` matches),
 //!   `import_attested(module)` / `callee_attested(name)` (the fitted voice
 //!   model's learned facts for this file's language),
@@ -50,6 +52,8 @@ pub struct FileInput<'a> {
     pub language: &'a str,
     /// Post-image source.
     pub new_text: &'a str,
+    /// Pre-image source (`None` = added file, or the mode can't resolve it).
+    pub old_text: Option<&'a str>,
     /// Changed line ranges, 1-indexed inclusive.
     pub hunks: &'a [(usize, usize)],
 }
@@ -149,6 +153,19 @@ pub fn run_on_file(
             ts_query(&language, &source, query)
         });
     }
+    // ts_query_old(query) — the same, against the pre-image (empty when the
+    // file is new or the old side is unresolvable).
+    {
+        let old_source = file.old_text.unwrap_or_default().to_string();
+        let language = file.language.to_string();
+        engine.register_fn("ts_query_old", move |query: &str| -> Array {
+            if old_source.is_empty() {
+                Array::new()
+            } else {
+                ts_query(&language, &old_source, query)
+            }
+        });
+    }
     // Learned voice-model facts for this file's language.
     {
         let facts_c = facts.clone();
@@ -184,6 +201,12 @@ pub fn run_on_file(
     file_map.insert("path".into(), Dynamic::from(file.path.to_string()));
     file_map.insert("language".into(), Dynamic::from(file.language.to_string()));
     file_map.insert("new_text".into(), Dynamic::from(file.new_text.to_string()));
+    file_map.insert(
+        "old_text".into(),
+        file.old_text
+            .map(|t| Dynamic::from(t.to_string()))
+            .unwrap_or(Dynamic::UNIT),
+    );
     scope.push_constant("file", file_map);
     let hunks: Array = file
         .hunks

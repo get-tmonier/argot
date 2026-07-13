@@ -5,6 +5,7 @@ fn file<'a>(source: &'a str, hunks: &'a [(usize, usize)]) -> FileInput<'a> {
         path: "src/app.py",
         language: "python",
         new_text: source,
+        old_text: None,
         hunks,
     }
 }
@@ -128,6 +129,37 @@ if import_attested("requests") && callee_attested("get") && !import_attested("ht
     )
     .unwrap();
     assert_eq!(out[0].line, 7);
+}
+
+#[test]
+fn old_side_reaches_the_script() {
+    let ast = compile(
+        r#"
+// A test that existed before and vanished: present in the pre-image,
+// absent from the post-image.
+let before = ts_query_old("(function_definition name: (identifier) @fn)");
+let after = ts_query("(function_definition name: (identifier) @fn)");
+if before.len() > after.len() && file.old_text != () {
+    report(1, "a function disappeared");
+}
+"#,
+    )
+    .unwrap();
+    let out = run_on_file(
+        &ast,
+        &FileInput {
+            path: "src/app.py",
+            language: "python",
+            new_text: "def keep():\n    pass\n",
+            old_text: Some("def keep():\n    pass\n\ndef gone():\n    pass\n"),
+            hunks: &[(1, 2)],
+        },
+        Vec::new(),
+        None,
+    )
+    .unwrap();
+    assert_eq!(out.len(), 1);
+    assert_eq!(out[0].message, "a function disappeared");
 }
 
 #[test]

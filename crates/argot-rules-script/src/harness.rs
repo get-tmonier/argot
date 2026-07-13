@@ -15,6 +15,9 @@
 //!       expected.json     # []
 //! ```
 //!
+//! An optional `old.<ext>` sibling supplies the pre-image for
+//! `file.old_text` / `ts_query_old` (absent = added file).
+//!
 //! Each case runs the rule over `input.<ext>` exactly as `check` would (the
 //! extension picks the language; the whole file is one hunk) and compares
 //! the reported `(line, message)` pairs against `expected.json`, order-
@@ -153,6 +156,15 @@ fn run_case(rule: &ScriptRule, ast: &rhai::AST, dir: &Path) -> CaseResult {
         Err(e) => return fail(format!("expected.json: {e}")),
     };
 
+    // Optional pre-image fixture: a sibling `old.<ext>` feeds `file.old_text`
+    // / `ts_query_old` (absent = the rule sees an added file).
+    let old_source = std::fs::read_dir(dir).ok().and_then(|entries| {
+        entries
+            .flatten()
+            .map(|e| e.path())
+            .find(|p| p.file_stem().is_some_and(|s| s == "old"))
+            .and_then(|p| std::fs::read_to_string(p).ok())
+    });
     let lines = source.lines().count().max(1);
     let file = host::FileInput {
         path: &format!(
@@ -161,6 +173,7 @@ fn run_case(rule: &ScriptRule, ast: &rhai::AST, dir: &Path) -> CaseResult {
         ),
         language,
         new_text: &source,
+        old_text: old_source.as_deref(),
         hunks: &[(1, lines)],
     };
     let got = match host::run_on_file(ast, &file, vec![file.path.to_string()], None) {
