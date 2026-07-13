@@ -1821,11 +1821,16 @@ fn semantic_hits(
 
     t_model.done();
 
-    // Embed all candidate functions in one batch.
-    let t_embed =
-        crate::timing::phase(format!("check: semantic embed ({} fns)", candidates.len()));
+    // Embed all candidate functions in one batch, serving any the machine-wide
+    // cache already holds (e.g. functions a fit of this repo indexed at HEAD).
+    let t_embed = crate::timing::phase(format!("check: semantic embed ({} fns)", candidates.len()));
+    let embed_cache = crate::scoring::semantic::embed_cache::EmbedCache::open_current();
     let texts: Vec<&str> = candidates.iter().map(|(_, _, f)| f.text.as_str()).collect();
-    let vecs = match embedder.embed(&texts) {
+    let vecs = match crate::scoring::semantic::embed_cache::embed_with_cache(
+        &embedder,
+        &texts,
+        embed_cache.as_ref(),
+    ) {
         Ok(v) => v,
         Err(e) => {
             stderr.push_str(&format!("[argot] semantic embedding failed: {e}\n"));
@@ -1842,14 +1847,48 @@ fn semantic_hits(
     let dump_path = std::env::var_os("ARGOT_SEM_DUMP");
     let mut dump_lines: Vec<String> = Vec::new();
 
+    // Scorer construction is per-language, never per-candidate:
+    // `RedundantScorer::new` builds corpus-wide IDF/DF tables over the whole
+    // index — rebuilt for every candidate it dominated the check phase
+    // (~35 ms × every diff-defined function on a 25k-entry index).
+    let scorers: HashMap<&'static str, (RedundantScorer, PlacementScorer)> = loaded
+        .iter()
+        .map(|(lang, li)| {
+            (
+                *lang,
+                (
+                    RedundantScorer::new(&li.index, &li.reinvention),
+                    PlacementScorer::new(&li.index, &li.placement),
+                ),
+            )
+        })
+        .collect();
+
+    // Evaluate all candidates in parallel: the scorers are read-only, each
+    // candidate is independent, and results come back in candidate order with
+    // F1-before-F2 preserved per candidate — element-for-element identical to
+    // the sequential loop.
+    let evals = crate::par::par_map_indexed(candidates.len(), |i| {
+        let (_, lang, f) = &candidates[i];
+        let (redundant, placement) = &scorers[lang];
+        let found = redundant.evaluate(f, &vecs[i]);
+        // F2 placement is consulted only when F1 didn't claim the function.
+        let mis = if found.is_none() {
+            placement.evaluate(f, &vecs[i])
+        } else {
+            None
+        };
+        (found, mis)
+    });
+
     let mut hits = Vec::new();
-    for ((bi, lang, f), vec) in candidates.iter().zip(&vecs) {
+    for (((bi, lang, f), vec), (found, mis)) in candidates.iter().zip(&vecs).zip(evals) {
         let li = &loaded[lang];
         let batch = &patches[*bi];
         let mut fired: Option<&'static str> = None;
         // F1 first: a duplicate isn't "misplaced", it's "redundant" — the
         // stronger signal wins, one finding per function.
-        if let Some(found) = RedundantScorer::new(&li.index, &li.reinvention).evaluate(f, vec) {
+        if let Some(found) = found {
             fired = Some("redundant");
             let similarity = found.similarity;
             hits.push(build_semantic_hit(
@@ -1870,7 +1909,7 @@ fn semantic_hits(
         }
         // F2 placement (only when F1 didn't already claim the function).
         if fired.is_none() {
-            if let Some(m) = PlacementScorer::new(&li.index, &li.placement).evaluate(f, vec) {
+            if let Some(m) = mis {
                 fired = Some("misplaced");
                 let score = (m.expected_fraction - m.in_area_fraction).max(0.0) as f64;
                 hits.push(build_semantic_hit(

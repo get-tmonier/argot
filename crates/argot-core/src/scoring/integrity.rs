@@ -811,69 +811,39 @@ pub fn fit_model(repo_dir: &Path, repo_sha: &str) -> Option<IntegrityModel> {
     revwalk.push(head.id()).ok()?;
     revwalk.simplify_first_parent().ok()?;
 
-    let mut walked = 0usize;
-    let mut test_touching = 0usize;
-    let mut commits_with: HashMap<EventKind, usize> = HashMap::new();
-
+    // Collect the replay window (single-parent commits, walk order) first,
+    // then replay in parallel: each commit's events depend only on its own
+    // two trees, and per-commit results are aggregated in walk order — the
+    // counts are identical to the sequential replay, only the wall-clock
+    // changes (~34 s single-threaded on a 1.4k-file corpus).
+    let mut oids: Vec<git2::Oid> = Vec::new();
     for oid in revwalk {
-        if walked >= HISTORY_WINDOW {
+        if oids.len() >= HISTORY_WINDOW {
             break;
         }
         let Ok(oid) = oid else { break };
         let Ok(commit) = repo.find_commit(oid) else {
             continue;
         };
-        if commit.parent_count() != 1 {
-            continue;
+        if commit.parent_count() == 1 {
+            oids.push(oid);
         }
-        walked += 1;
-        let Ok(parent) = commit.parent(0) else {
-            continue;
-        };
-        let (Ok(old_tree), Ok(new_tree)) = (parent.tree(), commit.tree()) else {
-            continue;
-        };
-        let Ok(mut diff) = repo.diff_tree_to_tree(Some(&old_tree), Some(&new_tree), None) else {
-            continue;
-        };
-        let _ = diff.find_similar(Some(&mut git2::DiffFindOptions::new()));
+    }
 
-        let mut files = Vec::new();
-        let mut touches_test = false;
-        for d in diff.deltas() {
-            let new_path = d.new_file().path().map(|p| p.to_string_lossy().to_string());
-            let old_path = d.old_file().path().map(|p| p.to_string_lossy().to_string());
-            let path = new_path.clone().or(old_path.clone()).unwrap_or_default();
-            let Some(lang) = language_for_path(&path) else {
-                continue;
-            };
-            if is_test_path(&path, lang) {
-                touches_test = true;
-            }
-            let old = old_path
-                .as_deref()
-                .filter(|_| d.status() != git2::Delta::Added)
-                .and_then(|p| blob_text(&repo, &old_tree, p));
-            let new = new_path
-                .as_deref()
-                .filter(|_| d.status() != git2::Delta::Deleted)
-                .and_then(|p| blob_text(&repo, &new_tree, p));
-            if old.is_none() && new.is_none() {
-                continue;
-            }
-            files.push(FileChange { path, old, new });
-        }
-        // Rust in-file tests: a commit can touch tests without touching a
-        // conventional test path; count it once events prove tests moved.
-        let events = changeset_events(&files);
-        if !events.is_empty() {
-            touches_test = true;
-        }
+    let per_commit = crate::par::par_map_indexed(oids.len(), |i| {
+        // libgit2 is thread-safe across *separate* repository handles; each
+        // replay worker opens its own.
+        let repo = git2::Repository::discover(repo_dir).ok()?;
+        commit_events(&repo, oids[i])
+    });
+
+    let mut test_touching = 0usize;
+    let mut commits_with: HashMap<EventKind, usize> = HashMap::new();
+    for (touches_test, kinds) in per_commit.into_iter().flatten() {
         if !touches_test {
             continue;
         }
         test_touching += 1;
-        let kinds: HashSet<EventKind> = events.iter().map(|e| e.kind).collect();
         for k in kinds {
             *commits_with.entry(k).or_default() += 1;
         }
@@ -907,6 +877,54 @@ pub fn fit_model(repo_dir: &Path, repo_sha: &str) -> Option<IntegrityModel> {
         observed_commits: test_touching,
         gates,
     })
+}
+
+/// Replay one accepted commit: diff it against its (single) parent, build the
+/// two-sided changeset, and reduce it to gaming events. Returns whether the
+/// commit touches tests and the distinct event kinds it trips; `None` when the
+/// commit/trees can't be read (skipped, exactly like the sequential replay's
+/// `continue`).
+fn commit_events(repo: &git2::Repository, oid: git2::Oid) -> Option<(bool, HashSet<EventKind>)> {
+    let commit = repo.find_commit(oid).ok()?;
+    let parent = commit.parent(0).ok()?;
+    let (old_tree, new_tree) = (parent.tree().ok()?, commit.tree().ok()?);
+    let mut diff = repo
+        .diff_tree_to_tree(Some(&old_tree), Some(&new_tree), None)
+        .ok()?;
+    let _ = diff.find_similar(Some(&mut git2::DiffFindOptions::new()));
+
+    let mut files = Vec::new();
+    let mut touches_test = false;
+    for d in diff.deltas() {
+        let new_path = d.new_file().path().map(|p| p.to_string_lossy().to_string());
+        let old_path = d.old_file().path().map(|p| p.to_string_lossy().to_string());
+        let path = new_path.clone().or(old_path.clone()).unwrap_or_default();
+        let Some(lang) = language_for_path(&path) else {
+            continue;
+        };
+        if is_test_path(&path, lang) {
+            touches_test = true;
+        }
+        let old = old_path
+            .as_deref()
+            .filter(|_| d.status() != git2::Delta::Added)
+            .and_then(|p| blob_text(repo, &old_tree, p));
+        let new = new_path
+            .as_deref()
+            .filter(|_| d.status() != git2::Delta::Deleted)
+            .and_then(|p| blob_text(repo, &new_tree, p));
+        if old.is_none() && new.is_none() {
+            continue;
+        }
+        files.push(FileChange { path, old, new });
+    }
+    // Rust in-file tests: a commit can touch tests without touching a
+    // conventional test path; count it once events prove tests moved.
+    let events = changeset_events(&files);
+    if !events.is_empty() {
+        touches_test = true;
+    }
+    Some((touches_test, events.iter().map(|e| e.kind).collect()))
 }
 
 fn blob_text(repo: &git2::Repository, tree: &git2::Tree, path: &str) -> Option<String> {

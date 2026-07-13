@@ -327,16 +327,18 @@ pub fn calibrate_placement(index: &SemanticIndex) -> PlacementConfig {
     }
 
     // Stride-sampled neighbour cache: top max(CAL_KS) per sampled function,
-    // excluding only the function itself.
+    // excluding only the function itself. Each query is an independent scan
+    // of the (read-only) index — computed in parallel, results in sample
+    // order, so the cache is identical to the sequential build (this loop was
+    // ~85 s single-threaded on a 25k-function corpus).
     let step = n.div_ceil(CAL_MAX_SAMPLE).max(1);
     let kmax = *CAL_KS.iter().max().unwrap();
     let sample: Vec<usize> = (0..n).step_by(step).collect();
-    let mut neigh: Vec<Vec<usize>> = Vec::with_capacity(sample.len());
-    for &qi in &sample {
-        let e = index.entry(qi);
+    let neigh: Vec<Vec<usize>> = crate::par::par_map_indexed(sample.len(), |si| {
+        let e = index.entry(sample[si]);
         let ns = index.nearest(&e.vec, kmax, |o| !(o.path == e.path && o.line == e.line));
-        neigh.push(ns.into_iter().map(|x| x.entry_index).collect());
-    }
+        ns.into_iter().map(|x| x.entry_index).collect()
+    });
 
     // Entanglement flow between base areas, from the sampled top-FLOW_K votes.
     let m = uniq.len();
