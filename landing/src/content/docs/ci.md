@@ -54,19 +54,30 @@ first). The model is cached per base commit and only re-fit when the base moves.
 > keyed on the base commit, so you pay it only when the base advances — and on
 > that advance it restores the *previous* base's index first, so the re-fit is
 > incremental (unchanged functions reuse their embeddings; seconds, not
-> minutes). If that
+> minutes). As a second safety net it also caches
+> `~/.cache/argot/embeddings` — the machine-wide, content-addressed embedding
+> cache — under a loose restore-key, so even a fresh runner or a cache miss on
+> `.argot/` re-embeds only the functions that actually changed. If that
 > is still too much — or the runner is locked down — set the Action's
 > **`semantic: false`** input: no download, no index build; the voice,
 > layering, and integrity rules still run — they're pure Rust, no model
 > download.
 >
-> Hand-rolled workflow (no Action)? Reproduce the same two steps:
+> Hand-rolled workflow (no Action)? Reproduce the same steps — cache the model
+> (immutable, keyed on its tag) and the embedding vectors (incremental, loose
+> restore-key):
 >
 > ```yaml
->       - uses: actions/cache@v4
+>       - uses: actions/cache@v4        # the ~100 MB model
 >         with:
 >           path: ~/.cache/argot/models
 >           key: argot-embedding-model-semantic-model-v1-${{ runner.os }}
+>       - uses: actions/cache@v4        # the machine-wide embedding cache
+>         with:
+>           path: ~/.cache/argot/embeddings
+>           key: argot-embeddings-${{ runner.os }}-${{ github.sha }}
+>           restore-keys: |
+>             argot-embeddings-${{ runner.os }}-
 >       - run: argot model fetch    # pre-warm; fails loudly if the download can't happen
 > ```
 >

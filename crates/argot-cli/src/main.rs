@@ -6,6 +6,7 @@
 
 mod audit;
 mod auto_refit;
+mod cache_cmd;
 mod describe;
 mod mcp;
 mod review;
@@ -209,6 +210,9 @@ enum Command {
     List(ListCmd),
     /// Update the argot CLI to the latest release.
     Update,
+    /// Inspect or clear the machine-wide cache (`~/.cache/argot`): the
+    /// downloaded model and the embedding cache.
+    Cache(cache_cmd::CacheCmd),
     /// Remove argot from this machine: every repo's artifacts, the model
     /// cache, global state, and the binary (shows the full list first).
     Uninstall(UninstallCmd),
@@ -2257,6 +2261,7 @@ fn main() -> ExitCode {
         Some(Command::Status(c)) => run_status(c),
         Some(Command::List(c)) => run_list(c),
         Some(Command::Update) => run_update(),
+        Some(Command::Cache(c)) => cache_cmd::run(c.action),
         Some(Command::Uninstall(c)) => uninstall::run_uninstall(c.dry_run, c.yes),
         #[cfg(feature = "self-update")]
         Some(Command::RefreshVersionCache) => {

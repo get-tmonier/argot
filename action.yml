@@ -177,6 +177,21 @@ runs:
         path: ~/.cache/argot/models
         key: argot-embedding-model-semantic-model-v1-${{ runner.os }}
 
+    # The machine-wide, content-addressed embedding cache. Independent of the
+    # base-keyed `.argot` below: on a base advance (or a fresh runner) where
+    # the `.argot` model misses, unchanged functions still serve their vectors
+    # from here instead of re-embedding — an incremental re-fit. Loosely keyed
+    # with restore-keys so it accumulates across runs (512 MB self-capped);
+    # deleting it only costs recompute, never correctness.
+    - name: Cache the embedding vectors
+      if: ${{ inputs.cache == 'true' && inputs.semantic == 'true' }}
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/argot/embeddings
+        key: argot-embeddings-${{ runner.os }}-${{ inputs.argot-version }}-${{ steps.base.outputs.base_sha }}
+        restore-keys: |
+          argot-embeddings-${{ runner.os }}-${{ inputs.argot-version }}-
+
     - name: Fetch the embedding model
       if: ${{ inputs.semantic == 'true' }}
       shell: bash

@@ -91,9 +91,15 @@ which audit inherits and which shows live progress throughout. The seed cuts
 repeat runs 3.2× and the fresh and seeded cards are byte-identical (the seed
 changes speed, never findings). This is the price of zero-setup with the embedding layer
 on repo-scale outliers, published red rather than gamed (no hunk caps, no
-silent semantic skip). Future lever if it ever matters: persist the
-worktree-fit index into the shared cache keyed by (repo, base) so repeat
-audits of the same window are near-instant.
+silent semantic skip).
+
+**Follow-up (delivered):** the runtime was then instrumented and attacked —
+a machine-wide content-addressed embedding cache (repeat encounters reuse
+vectors across checkouts), plus deterministic parallelism for the three
+phases the split surfaced (placement calibrate, integrity replay, check-time
+scoring). Findings stay byte-identical; sequence batching was implemented,
+measured, and **rejected** for flipping a cosine tie. Full phase-split table,
+final numbers, and the B4 anchoring rejection: [`audit-runtime.md`](audit-runtime.md).
 
 Negative control caught in the wild: a dagster commit whose message says
 "auto-reordered with Claude" in *prose* was correctly left `human` — prose

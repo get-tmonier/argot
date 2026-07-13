@@ -203,6 +203,22 @@ later. Downloads verify the sha256, honor `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY`
 `ARGOT_MODEL_URL` (mirror), `ARGOT_SEMANTIC_MODEL` (local file, no download), and `ARGOT_OFFLINE`
 — see [Configure](/docs/configure/#environment-variables).
 
+## cache
+
+The machine-wide cache (`~/.cache/argot`) holds two regenerable things: the downloaded model and the
+content-addressed **embedding cache** that makes repeat fits and audits fast (unchanged functions
+serve their vectors instead of re-embedding — see [Performance](/docs/performance/)).
+
+```bash
+argot cache                  # location + sizes (model, embeddings, total)
+argot cache clear            # drop the embedding cache (functions re-embed next fit)
+argot cache clear --all      # also remove the downloaded model (re-fetched on next use)
+```
+
+Both are pure accelerators — clearing them only costs recompute or a re-download, never correctness.
+(`argot cache clear --all` and `argot model clean` overlap on the model; `cache` is the whole-cache
+view.) `argot uninstall` removes the entire cache directory along with everything else.
+
 ## audit
 
 ```bash
