@@ -31,11 +31,19 @@ pub const EMBED_DIM: usize = 768;
 /// tokenizer at this bound (rare for a single function).
 const N_CTX: u32 = 8192;
 
-/// Sequences packed into one decode. At the ~150-token average function this
-/// is what actually bounds a pack (64 × 150 ≈ 9.6k > the 8192-token budget),
-/// so most packs fill the token budget; the cap only guards the many-tiny-
-/// functions case from unbounded per-decode sequence bookkeeping.
+/// Sequences packed into one decode — bounds per-decode sequence bookkeeping
+/// (and the context's `n_seq_max`); the token budget below is what usually
+/// closes a pack.
 const MAX_BATCH_SEQS: u32 = 64;
+
+/// Token budget per decode. llama.cpp computes an encoder's attention over
+/// the *whole* packed ubatch (cross-sequence pairs are masked but still
+/// spend FLOPs), so packing is a trade: per-decode overhead amortises
+/// linearly while attention grows quadratically with the pack. ~1k tokens
+/// measured marginally best on Apple Metal (the full 8192 window is
+/// attention-bound and slower). A single function longer than the budget
+/// still embeds alone, up to the model's context length.
+const PACK_TOKEN_BUDGET: usize = 1024;
 
 /// The pinned model — `jina-embeddings-v2-base-code`, Q4_K_M GGUF. These exact
 /// bytes cleared parity 1.0 in the P0 spike; the sha256 is the ollama blob name.
@@ -123,9 +131,11 @@ impl Embedder {
     ///
     /// Throughput: texts are packed several sequences per decode (jina-code is
     /// an encoder; llama.cpp mean-pools each sequence independently under its
-    /// per-sequence attention mask), which amortises the per-decode kernel
-    /// launch overhead that dominates when functions are short. Measured ~4×
-    /// on Metal vs one-decode-per-text at ~150-token average functions.
+    /// per-sequence attention mask), which amortises per-decode overhead.
+    /// Measured honestly: a modest ~1.2× on Apple Metal (~29 → ~24 ms per
+    /// ~150-token function — the per-token compute, not the decode count,
+    /// dominates on this stack), so the machine-wide embed cache, not
+    /// batching, is what makes repeat encounters fast.
     pub fn embed(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
         let backend = backend()?;
         // jina-code is an *encoder*: llama.cpp processes a whole batch in a
@@ -170,7 +180,7 @@ impl Embedder {
                         t
                     }
                 };
-                if !seqs.is_empty() && total + tokens.len() > N_CTX as usize {
+                if !seqs.is_empty() && total + tokens.len() > PACK_TOKEN_BUDGET {
                     pending = Some(tokens);
                     break;
                 }
