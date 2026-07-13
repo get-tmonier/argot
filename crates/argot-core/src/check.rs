@@ -14,6 +14,7 @@
 //! remains deferred.
 
 use crate::config::{ArgotConfig, DetectConfig};
+use crate::finding::{Finding, RenderEvidence, SuppressedBy};
 use crate::git_walk::{
     open_repo, resolve_shas, walk_commits, HunkSpan, WalkItem, SUPPORTED_EXTENSIONS,
 };
@@ -33,8 +34,7 @@ use crate::scoring::adapters::ruby::RubyAdapter;
 use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::LanguageAdapter;
-use crate::scoring::evidence::types::{Evidence, EvidenceCorpus, SourceSpan};
-use crate::scoring::evidence::{evidence_caret_spans, evidence_lines_of_interest, format_evidence};
+use crate::scoring::evidence::types::{EvidenceCorpus, SourceSpan};
 use crate::scoring::model::LanguageModel;
 use crate::scoring::sequential::{ScoredHunk, SequentialConfig, SequentialImportBpeScorer};
 use crate::suppress::{
@@ -147,62 +147,6 @@ struct PatchBatch {
     /// suppression is countable), but every hit is dropped from output and
     /// exit-code consideration.
     ignored_by_pattern: bool,
-}
-
-/// Which suppression surface muted a hit (`None` = reported normally).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SuppressedBy {
-    /// An `argot.toml` `[exclude].paths` pattern.
-    Exclude,
-    /// An inline `# argot: ignore` comment.
-    Inline,
-    /// An `argot.toml` `[[mute]]` entry.
-    Mute,
-}
-
-/// One above-threshold hunk plus everything needed to explain it (`_Hit`).
-struct Hit {
-    /// The winning candidate's score (adjusted for contributions), measured
-    /// against the winning candidate's threshold — so severity tiers mean
-    /// the same thing for every reason. A call-receiver hit that crossed on
-    /// a +5 contribution reads as the strong signal it is, not as its raw
-    /// BPE component.
-    score: f64,
-    file_path: String,
-    line: usize,
-    line_end: usize,
-    source: String,
-    reason: String,
-    flagged: bool,
-    threshold: f64,
-    hunk_content: String,
-    /// Per-reason evidence for the winning reason (`None` when the scorer had
-    /// no `EvidenceCorpus`, or the hunk didn't fire a reason with a collector).
-    evidence: Option<Evidence>,
-    /// Content-based hit hash (path + winning reason + normalized hunk).
-    hash: String,
-    /// Set when a suppression surface muted this hit.
-    suppressed_by: Option<SuppressedBy>,
-    /// Nearest-code evidence for a semantic finding (reinvention / placement).
-    /// Feature-gated so the base build has no extra field and stays byte-for-byte
-    /// identical; base statistical Hits carry `None` when the feature is on.
-    #[cfg(feature = "semantic")]
-    semantic: Option<SemanticHitEvidence>,
-    /// Pre-rendered evidence line for a `layering` finding — which established
-    /// direction the new edge violates. Same feature-gating discipline.
-    #[cfg(feature = "arch")]
-    arch: Option<String>,
-    /// Pre-rendered evidence line for a test-integrity finding — the
-    /// weakened/deleted test and the co-changed production source. Same
-    /// feature-gating discipline.
-    #[cfg(feature = "integrity")]
-    integrity: Option<String>,
-    /// The affected test's name for an integrity finding (`None` for
-    /// whole-file events) — surfaced as `HitRecord.symbol` so consumers can
-    /// act on the name (e.g. audit attributing a deleted test to the commit
-    /// whose diff dropped it) without parsing evidence text.
-    #[cfg(feature = "integrity")]
-    integrity_symbol: Option<String>,
 }
 
 /// The nearest-existing-code evidence attached to a semantic finding (F4). Held
@@ -1066,8 +1010,8 @@ fn score_patches(
     mute_rules: &[SuppressionRule],
     header_cpp: bool,
     stderr: &mut String,
-) -> (Vec<Hit>, usize, Vec<FileScan>) {
-    let mut hits: Vec<Hit> = Vec::new();
+) -> (Vec<Finding>, usize, Vec<FileScan>) {
+    let mut hits: Vec<Finding> = Vec::new();
     let mut hunk_count = 0usize;
     let mut file_counts: BTreeMap<String, usize> = BTreeMap::new();
     let mut warned: HashSet<String> = HashSet::new();
@@ -1203,7 +1147,7 @@ fn score_patches(
             } else {
                 None
             };
-            hits.push(Hit {
+            hits.push(Finding {
                 score: scored.score,
                 file_path: batch.file_path.clone(),
                 line,
@@ -1213,17 +1157,11 @@ fn score_patches(
                 flagged,
                 threshold,
                 hunk_content,
-                evidence: scored.evidence,
+                evidence: scored
+                    .evidence
+                    .map(|e| Box::new(e) as Box<dyn RenderEvidence>),
                 hash,
                 suppressed_by,
-                #[cfg(feature = "semantic")]
-                semantic: None,
-                #[cfg(feature = "arch")]
-                arch: None,
-                #[cfg(feature = "integrity")]
-                integrity: None,
-                #[cfg(feature = "integrity")]
-                integrity_symbol: None,
             });
         }
     }
@@ -1241,7 +1179,7 @@ fn score_patches(
     (hits, hunk_count, files_scanned)
 }
 
-/// The architecture-graph pass — additive `Hit`s from the per-repo
+/// The architecture-graph pass — additive `Finding`s from the per-repo
 /// module-dependency graph (`.argot/layering.json`). For each changed file it
 /// takes the ADDED lines, resolves the internal import edges they introduce, and
 /// flags any that reverse an established layer direction or leave a (near-)sink —
@@ -1255,7 +1193,7 @@ fn arch_hits(
     filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
     mute_rules: &[SuppressionRule],
     stderr: &mut String,
-) -> Vec<Hit> {
+) -> Vec<Finding> {
     use crate::scoring::arch_graph::{RepoLayering, LAYERING_FILE};
     let Ok(raw) = std::fs::read_to_string(argot_dir.join(LAYERING_FILE)) else {
         return Vec::new();
@@ -1315,7 +1253,7 @@ fn arch_hits(
         } else {
             None
         };
-        hits.push(Hit {
+        hits.push(Finding {
             score: 1.0,
             file_path: batch.file_path.clone(),
             line: first_line,
@@ -1325,19 +1263,28 @@ fn arch_hits(
             flagged: true,
             threshold: 0.5,
             hunk_content,
-            evidence: None,
+            evidence: Some(Box::new(ArchEvidence(arch_evidence(&edge, violation)))),
             hash,
             suppressed_by,
-            #[cfg(feature = "semantic")]
-            semantic: None,
-            arch: Some(arch_evidence(&edge, violation)),
-            #[cfg(feature = "integrity")]
-            integrity: None,
-            #[cfg(feature = "integrity")]
-            integrity_symbol: None,
         });
     }
     hits
+}
+
+/// The rendered evidence of a `layering` finding — one pre-formatted line
+/// naming the established direction the novel edge violates.
+#[cfg(feature = "arch")]
+struct ArchEvidence(String);
+
+#[cfg(feature = "arch")]
+impl RenderEvidence for ArchEvidence {
+    fn human(&self, use_color: bool, _hunk_start_line: usize) -> Vec<String> {
+        vec![paint(&format!("    ↳ {}", self.0), C_DIM, use_color)]
+    }
+
+    fn machine(&self, _hunk_start_line: usize) -> Vec<String> {
+        vec![format!("↳ {}", self.0)]
+    }
 }
 
 /// The evidence line for a `layering` finding: name the established direction
@@ -1598,7 +1545,33 @@ fn integrity_changesets(
     one("workdir", cs)
 }
 
-/// The test-integrity pass — additive `Hit`s from diffing both sides of the
+/// The rendered evidence of a test-integrity finding — the gamed test and the
+/// co-changed production source, plus the affected test's name (`None` for
+/// whole-file events) surfaced as `HitRecord.symbol` so consumers can act on
+/// the name (e.g. audit attributing a deleted test to the commit whose diff
+/// dropped it) without parsing evidence text.
+#[cfg(feature = "integrity")]
+struct IntegrityEvidence {
+    line: String,
+    symbol: Option<String>,
+}
+
+#[cfg(feature = "integrity")]
+impl RenderEvidence for IntegrityEvidence {
+    fn human(&self, use_color: bool, _hunk_start_line: usize) -> Vec<String> {
+        vec![paint(&format!("    ↳ {}", self.line), C_DIM, use_color)]
+    }
+
+    fn machine(&self, _hunk_start_line: usize) -> Vec<String> {
+        vec![format!("↳ {}", self.line)]
+    }
+
+    fn symbol(&self) -> Option<String> {
+        self.symbol.clone()
+    }
+}
+
+/// The test-integrity pass — additive `Finding`s from diffing both sides of the
 /// change's test files into gaming events, gated by the repo's own learned
 /// event gates (`.argot/integrity.json`). Runs beside the statistical
 /// scorers; a graceful no-op when the changeset carries no tests. Reasons
@@ -1609,7 +1582,7 @@ fn integrity_hits(
     filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
     mute_rules: &[SuppressionRule],
     stderr: &mut String,
-) -> Vec<Hit> {
+) -> Vec<Finding> {
     use crate::scoring::integrity::{changeset_events, IntegrityModel, INTEGRITY_FILE};
 
     let model = match std::fs::read_to_string(args.argot_dir.join(INTEGRITY_FILE)) {
@@ -1665,7 +1638,7 @@ fn integrity_hits(
             } else {
                 None
             };
-            hits.push(Hit {
+            hits.push(Finding {
                 score: 1.0,
                 file_path: ev.file.clone(),
                 line: ev.line,
@@ -1675,22 +1648,19 @@ fn integrity_hits(
                 flagged: true,
                 threshold: 0.5,
                 hunk_content,
-                evidence: None,
+                evidence: Some(Box::new(IntegrityEvidence {
+                    line: ev.evidence(),
+                    symbol: (!ev.test_name.is_empty()).then(|| ev.test_name.clone()),
+                })),
                 hash,
                 suppressed_by,
-                #[cfg(feature = "semantic")]
-                semantic: None,
-                #[cfg(feature = "arch")]
-                arch: None,
-                integrity: Some(ev.evidence()),
-                integrity_symbol: (!ev.test_name.is_empty()).then(|| ev.test_name.clone()),
             });
         }
     }
     hits
 }
 
-/// The semantic pass (F1 reinvention, F2 placement) — additive `Hit`s from
+/// The semantic pass (F1 reinvention, F2 placement) — additive `Finding`s from
 /// the per-repo embedding index. It runs *alongside* the
 /// statistical scorers, never through them: it reads `.argot/semantic-index.json`
 /// plus the embedder, finds the functions the diff *defines*, and flags any that
@@ -1706,7 +1676,7 @@ fn semantic_hits(
     detect: &DetectConfig,
     header_cpp: bool,
     stderr: &mut String,
-) -> Vec<Hit> {
+) -> Vec<Finding> {
     use crate::scoring::semantic::embedder::Embedder;
     use crate::scoring::semantic::index::{
         functions_in_file, FunctionRef, LoadedIndex, SemanticArtifact,
@@ -1987,7 +1957,7 @@ fn dump_semantic_candidate(
     .to_string()
 }
 
-/// Build one semantic `Hit`, applying the mute + inline suppression
+/// Build one semantic `Finding`, applying the mute + inline suppression
 /// surfaces exactly as base hits do. `reason` is `"redundant"` / `"misplaced"`.
 #[cfg(feature = "semantic")]
 #[allow(clippy::too_many_arguments)]
@@ -2000,7 +1970,7 @@ fn build_semantic_hit(
     sem: SemanticHitEvidence,
     filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
     mute_rules: &[SuppressionRule],
-) -> Hit {
+) -> Finding {
     let hunk_content = f.text.clone();
     let hash = hit_hash(&batch.file_path, reason, &hunk_content);
     let inline = ext_to_lang(&extension(&batch.file_path))
@@ -2022,7 +1992,7 @@ fn build_semantic_hit(
     } else {
         None
     };
-    Hit {
+    Finding {
         score,
         file_path: batch.file_path.clone(),
         line: f.line,
@@ -2032,16 +2002,30 @@ fn build_semantic_hit(
         flagged: true,
         threshold,
         hunk_content,
-        evidence: None,
+        evidence: Some(Box::new(sem)),
         hash,
         suppressed_by,
-        semantic: Some(sem),
-        #[cfg(feature = "arch")]
-        arch: None,
-        #[cfg(feature = "integrity")]
-        integrity: None,
-        #[cfg(feature = "integrity")]
-        integrity_symbol: None,
+    }
+}
+
+#[cfg(feature = "semantic")]
+impl RenderEvidence for SemanticHitEvidence {
+    fn human(&self, use_color: bool, _hunk_start_line: usize) -> Vec<String> {
+        format_semantic_evidence(self, use_color)
+    }
+
+    fn machine(&self, _hunk_start_line: usize) -> Vec<String> {
+        format_semantic_evidence(self, false)
+            .into_iter()
+            .map(|l| l.trim().to_string())
+            .collect()
+    }
+
+    fn similarity(&self) -> Option<f32> {
+        match self {
+            SemanticHitEvidence::Redundant { similarity, .. } => Some(*similarity),
+            SemanticHitEvidence::Misplaced { .. } => None,
+        }
     }
 }
 
@@ -2184,7 +2168,7 @@ fn render_hunk_body(
 /// `use_color`; otherwise byte-identical to the parity fixtures. Returns whether
 /// any hunk body was truncated.
 fn render_results(
-    hits: &[&Hit],
+    hits: &[&Finding],
     hunk_lines: Option<usize>,
     use_color: bool,
     out: &mut String,
@@ -2224,7 +2208,7 @@ fn render_results(
     // scores tie at 0.0 and files fall back to first-appearance (walk) order.
     let mut order: Vec<String> = Vec::new();
     let mut file_max: HashMap<String, f64> = HashMap::new();
-    let mut file_hits: HashMap<String, Vec<&Hit>> = HashMap::new();
+    let mut file_hits: HashMap<String, Vec<&Finding>> = HashMap::new();
     for h in hits {
         if !file_hits.contains_key(&h.file_path) {
             order.push(h.file_path.clone());
@@ -2249,7 +2233,7 @@ fn render_results(
         out.push_str(&paint(fp, C_BOLD, use_color));
         out.push('\n');
 
-        let mut fhits: Vec<&Hit> = file_hits[fp].clone();
+        let mut fhits: Vec<&Finding> = file_hits[fp].clone();
         fhits.sort_by_key(|h| h.line); // stable by line asc
 
         for h in &fhits {
@@ -2280,42 +2264,28 @@ fn render_results(
                 paint(&format!("[{}]", h.hash), C_DIM, use_color),
             ));
 
-            // Per-reason evidence (names + `common here:`) sits between the
-            // headline and the hunk body. `hunk_start_line = h.line` lets import
-            // evidence render `(L7)` file-line annotations.
+            // Rule-owned evidence sits between the headline and the hunk body.
+            // `hunk_start_line = h.line` lets import evidence render `(L7)`
+            // file-line annotations.
             if let Some(ev) = &h.evidence {
-                for line in format_evidence(ev, use_color, h.line) {
+                for line in ev.human(use_color, h.line) {
                     out.push_str(&line);
                     out.push('\n');
                 }
-            }
-            // Semantic findings render nearest-existing-code evidence (F4) — a
-            // retrieval lookup, no LLM. Turns the statistic into "here's the
-            // closest thing you already have."
-            #[cfg(feature = "semantic")]
-            if let Some(sem) = &h.semantic {
-                for line in format_semantic_evidence(sem, use_color) {
-                    out.push_str(&line);
-                    out.push('\n');
-                }
-            }
-            // Layering findings name the established direction they break.
-            #[cfg(feature = "arch")]
-            if let Some(arch) = &h.arch {
-                out.push_str(&paint(&format!("    ↳ {arch}"), C_DIM, use_color));
-                out.push('\n');
-            }
-            // Integrity findings name the gamed test and the co-changed source.
-            #[cfg(feature = "integrity")]
-            if let Some(integrity) = &h.integrity {
-                out.push_str(&paint(&format!("    ↳ {integrity}"), C_DIM, use_color));
-                out.push('\n');
             }
 
             // Smart-peek keeps flagged lines in-frame; caret spans drive the
             // eslint-style `^^^^` underlines under the offending bytes.
-            let must_show = evidence_lines_of_interest(h.evidence.as_ref());
-            let caret_spans = evidence_caret_spans(h.evidence.as_ref());
+            let must_show = h
+                .evidence
+                .as_ref()
+                .map(|e| e.lines_of_interest())
+                .unwrap_or_default();
+            let caret_spans = h
+                .evidence
+                .as_ref()
+                .map(|e| e.caret_spans())
+                .unwrap_or_default();
             let (body, overflow) = render_hunk_body(
                 &h.hunk_content,
                 h.line,
@@ -2367,7 +2337,7 @@ fn insert_ignore_comments(source: &str, comments: &[(usize, String)]) -> String 
 /// reviewable, greppable comments instead of a red first run.
 fn add_ignore_comments(
     args: &CheckArgs,
-    visible: &[&Hit],
+    visible: &[&Finding],
     filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
     stderr: String,
 ) -> CheckOutcome {
@@ -2457,7 +2427,7 @@ fn add_ignore_comments(
 /// configured `error` (or when `--error-on-warnings` promotes a warn-only
 /// run), 0 otherwise. Unregistered reasons gate as `error` — a finding never
 /// silently loses its gate.
-fn gate_exit_code(visible: &[&Hit], settings: &RuleSettings, error_on_warnings: bool) -> i32 {
+fn gate_exit_code(visible: &[&Finding], settings: &RuleSettings, error_on_warnings: bool) -> i32 {
     let fails = visible
         .iter()
         .any(|h| settings.severity_of_reason(&h.reason) == RuleSeverity::Error)
@@ -2474,74 +2444,35 @@ fn gate_exit_code(visible: &[&Hit], settings: &RuleSettings, error_on_warnings: 
 /// matching the human rendering; severity is the rule's configured level;
 /// evidence lines are the same per-reason lines the human path prints, with
 /// layout indentation stripped.
-fn hit_records(hits: &[&Hit], settings: &RuleSettings) -> Vec<HitRecord> {
+fn hit_records(hits: &[&Finding], settings: &RuleSettings) -> Vec<HitRecord> {
     hits.iter()
-        .map(|h| {
-            let evidence: Vec<String> = h
+        .map(|h| HitRecord {
+            path: h.file_path.clone(),
+            line_start: h.line,
+            line_end: h.line_end,
+            score: h.score,
+            threshold: h.threshold,
+            confidence: confidence(&h.reason, h.score, h.threshold).to_string(),
+            severity: settings.severity_of_reason(&h.reason).as_str().to_string(),
+            rule: rules::code_for_reason(&h.reason).to_string(),
+            rule_label: rules::label_for_reason(&h.reason).to_string(),
+            source: h.source.clone(),
+            hash: h.hash.clone(),
+            evidence: h
                 .evidence
                 .as_ref()
-                .map(|ev| {
-                    format_evidence(ev, false, h.line)
-                        .into_iter()
-                        .map(|l| l.trim().to_string())
-                        .collect()
-                })
-                .unwrap_or_default();
+                .map(|e| e.machine(h.line))
+                .unwrap_or_default(),
+            symbol: h.evidence.as_ref().and_then(|e| e.symbol()),
             // Verbatim, untruncated flagged specifiers for import findings —
             // machine consumers (e.g. `argot audit`) classify these without
             // re-parsing the rendered evidence, which caps the list at TOP_K.
-            let foreign_specifiers: Vec<String> = match &h.evidence {
-                Some(Evidence::Import(imp)) => imp.foreign_specifiers.clone(),
-                _ => Vec::new(),
-            };
-            #[cfg(feature = "semantic")]
-            let similarity: Option<f32> = match &h.semantic {
-                Some(SemanticHitEvidence::Redundant { similarity, .. }) => Some(*similarity),
-                _ => None,
-            };
-            #[cfg(not(feature = "semantic"))]
-            let similarity: Option<f32> = None;
-            // Semantic findings carry their nearest-code evidence here too, so
-            // JSON and SARIF consumers (GitHub code scanning) get it for free.
-            // Rebind (not `mut`) so the base build stays warning-clean.
-            #[cfg(feature = "semantic")]
-            let evidence = match &h.semantic {
-                Some(sem) => format_semantic_evidence(sem, false)
-                    .into_iter()
-                    .map(|l| l.trim().to_string())
-                    .collect(),
-                None => evidence,
-            };
-            #[cfg(feature = "arch")]
-            let evidence = match &h.arch {
-                Some(arch) => vec![format!("↳ {arch}")],
-                None => evidence,
-            };
-            #[cfg(feature = "integrity")]
-            let evidence = match &h.integrity {
-                Some(integrity) => vec![format!("↳ {integrity}")],
-                None => evidence,
-            };
-            HitRecord {
-                path: h.file_path.clone(),
-                line_start: h.line,
-                line_end: h.line_end,
-                score: h.score,
-                threshold: h.threshold,
-                confidence: confidence(&h.reason, h.score, h.threshold).to_string(),
-                severity: settings.severity_of_reason(&h.reason).as_str().to_string(),
-                rule: rules::code_for_reason(&h.reason).to_string(),
-                rule_label: rules::label_for_reason(&h.reason).to_string(),
-                source: h.source.clone(),
-                hash: h.hash.clone(),
-                evidence,
-                #[cfg(feature = "integrity")]
-                symbol: h.integrity_symbol.clone(),
-                #[cfg(not(feature = "integrity"))]
-                symbol: None,
-                foreign_specifiers,
-                similarity,
-            }
+            foreign_specifiers: h
+                .evidence
+                .as_ref()
+                .map(|e| e.foreign_specifiers())
+                .unwrap_or_default(),
+            similarity: h.evidence.as_ref().and_then(|e| e.similarity()),
         })
         .collect()
 }
@@ -3236,7 +3167,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
 
     // Display gate: --threshold widens to every hit >= N; otherwise show flagged.
     let threshold_override = args.threshold;
-    let above_all: Vec<&Hit> = if let Some(t) = threshold_override {
+    let above_all: Vec<&Finding> = if let Some(t) = threshold_override {
         hits.iter().filter(|h| h.score >= t).collect()
     } else {
         hits.iter().filter(|h| h.flagged).collect()
@@ -3244,7 +3175,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
 
     // Suppressed ≠ deleted: drop muted hits from output and exit-code
     // consideration, but say how many were muted (and by which surface).
-    let (above, suppressed): (Vec<&Hit>, Vec<&Hit>) = above_all
+    let (above, suppressed): (Vec<&Finding>, Vec<&Finding>) = above_all
         .into_iter()
         .partition(|h| h.suppressed_by.is_none());
     if !suppressed.is_empty() {
@@ -3265,7 +3196,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
 
     // --min-confidence drops weaker tiers from both output and banner counts.
     let min_idx = confidence_index(&args.min_confidence);
-    let visible: Vec<&Hit> = above
+    let visible: Vec<&Finding> = above
         .iter()
         .copied()
         .filter(|h| {
@@ -3636,9 +3567,14 @@ mod tests {
         assert_eq!(h.reason, "test_weakened");
         assert_eq!(h.file_path, "tests/test_parser.py");
         assert!(h.flagged);
-        let ev = h.integrity.as_deref().unwrap();
+        let ev = h.evidence.as_ref().unwrap().machine(h.line).join("\n");
         assert!(ev.contains("test_parse"), "{ev}");
         assert!(ev.contains("parser.py"), "{ev}");
+        // The affected test's name is surfaced as the finding's symbol.
+        assert_eq!(
+            h.evidence.as_ref().unwrap().symbol().as_deref(),
+            Some("test_parse")
+        );
         // A hit hash exists so `argot mute` can address it.
         assert_eq!(h.hash.len(), 12);
         let _ = std::fs::remove_dir_all(root);
