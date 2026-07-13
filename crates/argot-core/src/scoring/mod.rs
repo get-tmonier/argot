@@ -5,7 +5,6 @@
 //! filters, calibration, and evidence. The production composite is
 //! `sequential::SequentialImportBpeScorer`.
 
-pub mod adapters;
 /// The architecture-graph sense — a repo's module-dependency topology; flags an
 /// internal edge that reverses an established direction or leaves a sink layer
 /// (the relationship analog of the foreign-vocabulary gate). Feature-gated
@@ -19,7 +18,6 @@ pub mod calibration;
 pub mod call_receiver;
 pub mod conventions;
 pub mod evidence;
-pub mod filters;
 pub mod import_graph;
 /// The test-integrity sense — per-version test inventories diffed into
 /// test-gaming events (rules `test-deleted` / `test-disabled` /
@@ -50,4 +48,12 @@ pub mod typicality;
 
 mod minhash_params_seed0;
 pub(crate) mod numpy_sampler;
-pub(crate) mod ts_parse;
+
+// Language adapters, filters, and the reused-parser helper live in the leaf
+// crate `argot-lang`; re-exported here so `crate::scoring::adapters` /
+// `crate::scoring::filters` / `crate::scoring::ts_parse` keep resolving at
+// their original paths (visibility matches what each was before the move:
+// `adapters`/`filters` were `pub`, `ts_parse` was `pub(crate)`).
+pub use argot_lang::adapters;
+pub use argot_lang::filters;
+pub(crate) use argot_lang::ts_parse;

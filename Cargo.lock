@@ -113,6 +113,7 @@ name = "argot-core"
 version = "0.2.65"
 dependencies = [
  "anyhow",
+ "argot-lang",
  "base64 0.22.1",
  "git2",
  "half",
@@ -123,7 +124,6 @@ dependencies = [
  "serde_yaml",
  "sha2",
  "thiserror",
- "tokenizers",
  "toml",
  "toml_edit",
  "tree-sitter",
@@ -139,6 +139,28 @@ dependencies = [
  "tree-sitter-rust",
  "tree-sitter-typescript",
  "ureq",
+]
+
+[[package]]
+name = "argot-lang"
+version = "0.2.65"
+dependencies = [
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tokenizers",
+ "tree-sitter",
+ "tree-sitter-c",
+ "tree-sitter-c-sharp",
+ "tree-sitter-cpp",
+ "tree-sitter-go",
+ "tree-sitter-java",
+ "tree-sitter-javascript",
+ "tree-sitter-php",
+ "tree-sitter-python",
+ "tree-sitter-ruby",
+ "tree-sitter-rust",
+ "tree-sitter-typescript",
 ]
 
 [[package]]

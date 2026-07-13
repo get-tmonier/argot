@@ -8,6 +8,7 @@ repository.workspace = true
 description = "Voice-linter engine: git walk, tokenization, statistical scorers, calibration (language- and corpus-agnostic)."
 
 [dependencies]
+argot-lang = { path = "../argot-lang" }
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
@@ -25,7 +26,6 @@ tree-sitter-php.workspace = true
 tree-sitter-cpp.workspace = true
 tree-sitter-ruby.workspace = true
 git2.workspace = true
-tokenizers.workspace = true
 md-5.workspace = true
 sha2.workspace = true
 serde_yaml.workspace = true

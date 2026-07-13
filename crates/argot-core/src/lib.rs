@@ -8,11 +8,9 @@
 //!
 //! Pipeline: extract → train → calibrate → check.
 
-pub mod bpe;
 pub mod cache;
 pub mod check;
 pub mod config;
-pub mod dataset;
 pub(crate) mod detector;
 pub mod extract;
 pub(crate) mod finding;
@@ -27,7 +25,12 @@ pub mod rules;
 pub mod scoring;
 pub mod stats;
 pub mod suppress;
-pub mod text;
 pub mod timing;
-pub mod tokenize;
 pub mod train;
+
+// Language-substrate modules (adapters, tokenization, BPE, the dataset wire
+// format) live in the leaf crate `argot-lang` and are re-exported at their
+// original paths so every existing `argot_core::bpe`/`dataset`/`text`/
+// `tokenize` (and, via `scoring::mod`, `scoring::adapters`/`scoring::filters`)
+// caller keeps compiling unchanged.
+pub use argot_lang::{bpe, dataset, text, tokenize};

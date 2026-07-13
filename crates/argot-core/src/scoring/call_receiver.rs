@@ -1865,6 +1865,24 @@ mod tests {
     }
 
     #[test]
+    fn callee_extraction_covers_member_arrow_and_qualified() {
+        // The C++ callee extractor lives here in `call_receiver`; assert its
+        // output routes through the `Language::Cpp` arm end-to-end. Lives
+        // here (rather than the `CppAdapter`'s own tests, in argot-lang)
+        // because argot-lang is a leaf crate and cannot depend on argot-core.
+        let src =
+            "void f() {\n    obj.method();\n    ptr->run();\n    ns::make();\n    bare();\n}\n";
+        let callees: Vec<String> = extract_callees(src, Language::Cpp)
+            .into_iter()
+            .flatten()
+            .collect();
+        assert!(callees.contains(&"obj.method".to_string()));
+        assert!(callees.contains(&"ptr.run".to_string()));
+        assert!(callees.contains(&"ns.make".to_string()));
+        assert!(callees.contains(&"bare".to_string()));
+    }
+
+    #[test]
     fn knows_file_tracks_fit_membership() {
         let cr = toy_scorer(RarityWeighting::Off);
         assert!(cr.knows_file(Path::new("a0.py")), "fit file is known");
