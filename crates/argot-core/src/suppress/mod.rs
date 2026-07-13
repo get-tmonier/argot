@@ -19,6 +19,7 @@
 //! Suppressed ≠ deleted: check drops suppressed hits from output and exit-code
 //! consideration but reports a one-line count summary on stderr.
 
+pub(crate) mod classify;
 pub mod glob;
 pub mod hit_hash;
 pub mod ignore_suggest;
@@ -28,6 +29,7 @@ pub mod mute;
 pub mod path_rules;
 pub mod rules_file;
 
+pub(crate) use classify::FileSuppressions;
 pub use glob::fnmatch;
 pub use hit_hash::hit_hash;
 pub use ignore_suggest::{suggest_ignores, IgnoreCandidate, IgnoreSuggestions};

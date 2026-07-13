@@ -38,8 +38,8 @@ use crate::scoring::evidence::types::{EvidenceCorpus, SourceSpan};
 use crate::scoring::model::LanguageModel;
 use crate::scoring::sequential::{ScoredHunk, SequentialConfig, SequentialImportBpeScorer};
 use crate::suppress::{
-    fnmatch, hit_hash, parse_inline, write_last_check, LastCheckHit, PathScope, PathSuppressions,
-    SuppressionRule,
+    fnmatch, hit_hash, write_last_check, FileSuppressions, LastCheckHit, PathScope,
+    PathSuppressions, SuppressionRule,
 };
 use crate::text::splitlines;
 use git2::{DiffFindOptions, Patch, Status, StatusOptions};
@@ -1039,13 +1039,18 @@ fn score_patches(
         let file_lines = splitlines(&file_source);
         let n_lines = file_lines.len() as i64;
 
-        // Inline suppression comments, parsed from the same content that gets
-        // scored, with the language's own comment token.
-        let inline = ext_to_lang(&ext)
-            .and_then(|l| filter_adapters.get(l))
-            .map(|a| parse_inline(&file_source, a.line_comment_prefix()))
-            .unwrap_or_default();
-        for w in &inline.warnings {
+        // The file's suppression surfaces, resolved once from the same content
+        // that gets scored (inline comments use the language's comment token).
+        let suppressions = FileSuppressions::parse(
+            &batch.file_path,
+            &file_source,
+            ext_to_lang(&ext)
+                .and_then(|l| filter_adapters.get(l))
+                .map(|a| a.line_comment_prefix()),
+            mute_rules,
+            batch.ignored_by_pattern,
+        );
+        for w in suppressions.warnings() {
             let msg = format!("[argot] {}:{}: {}\n", batch.file_path, w.line, w.message);
             if warned.insert(msg.clone()) {
                 stderr.push_str(&msg);
@@ -1135,18 +1140,7 @@ fn score_patches(
                 }
             }
             let hash = hit_hash(&batch.file_path, &reason, &hunk_content);
-            let suppressed_by = if batch.ignored_by_pattern {
-                Some(SuppressedBy::Exclude)
-            } else if inline.suppresses(line, line_end, &reason) {
-                Some(SuppressedBy::Inline)
-            } else if mute_rules
-                .iter()
-                .any(|r| r.matches(&batch.file_path, &reason, &hash))
-            {
-                Some(SuppressedBy::Mute)
-            } else {
-                None
-            };
+            let suppressed_by = suppressions.classify(&reason, &hash, line, line_end);
             hits.push(Finding {
                 score: scored.score,
                 file_path: batch.file_path.clone(),
@@ -1237,22 +1231,16 @@ fn arch_hits(
         };
         let hunk_content = added.clone();
         let hash = hit_hash(&batch.file_path, "layering", &hunk_content);
-        let inline = ext_to_lang(&extension(&batch.file_path))
-            .and_then(|l| filter_adapters.get(l))
-            .map(|a| parse_inline(&source, a.line_comment_prefix()));
-        let suppressed_by = if inline
-            .as_ref()
-            .is_some_and(|i| i.suppresses(first_line, first_line, "layering"))
-        {
-            Some(SuppressedBy::Inline)
-        } else if mute_rules
-            .iter()
-            .any(|r| r.matches(&batch.file_path, "layering", &hash))
-        {
-            Some(SuppressedBy::Mute)
-        } else {
-            None
-        };
+        let suppressions = FileSuppressions::parse(
+            &batch.file_path,
+            &source,
+            ext_to_lang(&extension(&batch.file_path))
+                .and_then(|l| filter_adapters.get(l))
+                .map(|a| a.line_comment_prefix()),
+            mute_rules,
+            false, // ignored-by-pattern batches were skipped above
+        );
+        let suppressed_by = suppressions.classify("layering", &hash, first_line, first_line);
         hits.push(Finding {
             score: 1.0,
             file_path: batch.file_path.clone(),
@@ -1616,27 +1604,23 @@ fn integrity_hits(
                 .and_then(|src| src.lines().nth(ev.line.saturating_sub(1)))
                 .unwrap_or_default()
                 .to_string();
-            let inline = files
-                .iter()
-                .find(|f| f.path == ev.file)
-                .and_then(|f| f.new.as_ref())
-                .and_then(|src| {
-                    ext_to_lang(&extension(&ev.file))
-                        .and_then(|l| filter_adapters.get(l))
-                        .map(|a| parse_inline(src, a.line_comment_prefix()))
-                });
-            let suppressed_by = if inline
-                .as_ref()
-                .is_some_and(|i| i.suppresses(ev.line, ev.line, reason))
-            {
-                Some(SuppressedBy::Inline)
-            } else if mute_rules
-                .iter()
-                .any(|r| r.matches(&ev.file, reason, &hash))
-            {
-                Some(SuppressedBy::Mute)
-            } else {
-                None
+            let suppressed_by = {
+                let new_side = files
+                    .iter()
+                    .find(|f| f.path == ev.file)
+                    .and_then(|f| f.new.as_deref());
+                let suppressions = FileSuppressions::parse(
+                    &ev.file,
+                    new_side.unwrap_or_default(),
+                    new_side.and(
+                        ext_to_lang(&extension(&ev.file))
+                            .and_then(|l| filter_adapters.get(l))
+                            .map(|a| a.line_comment_prefix()),
+                    ),
+                    mute_rules,
+                    false,
+                );
+                suppressions.classify(reason, &hash, ev.line, ev.line)
             };
             hits.push(Finding {
                 score: 1.0,
@@ -1973,25 +1957,17 @@ fn build_semantic_hit(
 ) -> Finding {
     let hunk_content = f.text.clone();
     let hash = hit_hash(&batch.file_path, reason, &hunk_content);
-    let inline = ext_to_lang(&extension(&batch.file_path))
-        .and_then(|l| filter_adapters.get(l))
-        .map(|a| {
-            let src = String::from_utf8_lossy(&batch.content);
-            parse_inline(&src, a.line_comment_prefix())
-        });
-    let suppressed_by = if inline
-        .as_ref()
-        .is_some_and(|i| i.suppresses(f.line, f.end_line, reason))
-    {
-        Some(SuppressedBy::Inline)
-    } else if mute_rules
-        .iter()
-        .any(|r| r.matches(&batch.file_path, reason, &hash))
-    {
-        Some(SuppressedBy::Mute)
-    } else {
-        None
-    };
+    let source = String::from_utf8_lossy(&batch.content);
+    let suppressions = FileSuppressions::parse(
+        &batch.file_path,
+        &source,
+        ext_to_lang(&extension(&batch.file_path))
+            .and_then(|l| filter_adapters.get(l))
+            .map(|a| a.line_comment_prefix()),
+        mute_rules,
+        false,
+    );
+    let suppressed_by = suppressions.classify(reason, &hash, f.line, f.end_line);
     Finding {
         score,
         file_path: batch.file_path.clone(),
@@ -3436,6 +3412,7 @@ fn mute_path_present(repo_path: &str, mute_path: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::suppress::parse_inline;
 
     #[test]
     #[cfg(feature = "arch")]
