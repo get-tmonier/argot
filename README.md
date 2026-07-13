@@ -64,7 +64,7 @@ Copilot, ESLint, SAST — every tool judges by one *global* idea of good code. a
 - 🧱 **96.8%** architecture-violation recall (244/252) at **0%** false positives (0/140 control edits)
 - 🧪 **94.1%** test-gaming catch (144/153 authored fixtures) at **1.24%** gating false-alarm rate on replayed accepted history (0/102 legit-refactor controls fired)
 - ⏪ **`argot audit`** — the history scorecard: % of commits carrying AI markers + every finding attributed to its introducing commit (ai-assisted / human / unknown, [concrete markers only](https://argot.tmonier.com/docs/the-commands/#audit) — never style); terminal, JSON, markdown, or shareable HTML
-- ⚡ **Rust · single static binary** — checks a diff in ~0.2 s (0.6 s when it defines new functions); the one-time fit is ~25 s on a 1,100-file repo, ~4 s to refresh (measured on FastAPI, laptop CPU)
+- ⚡ **Rust · single static binary** — checks a diff in ~0.2 s (0.6 s when it defines new functions); the one-time fit is ~25 s on a 1,100-file repo, ~4 s to refresh (measured on FastAPI, laptop CPU). Scales to monorepos: a machine-wide embedding cache + multi-core calibration bring a ~30k-function repo's warm `fit` to ~2.7 min and a seeded `audit` to ~2.3 min — [byte-identical findings, cold or warm](https://argot.tmonier.com/docs/performance/)
 - 🧠 **A local code-embedding model** (`jina-code`, ~100 MB, CPU-first, Metal on Macs) — semantic understanding from an encoder, **not an LLM**: no generation, no API key, no GPU
 - 🔒 **Nothing leaves your machine** — no telemetry, no account; one cached version check per day (opt-out) is the only network call it ever makes on its own
 

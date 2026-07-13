@@ -19,7 +19,11 @@ Two consequences:
 
 Any perf PR must show (a) a before/after per-phase table and (b) a byte-diff
 of `audit`/`check` output on a pinned clone + pinned window. Method and the
-founding numbers: `docs/research/evidence/audit-runtime.md`.
+founding numbers: `docs/research/evidence/audit-runtime.md`. Cautionary
+precedent recorded there: **sequence batching was implemented, measured
+(~1.2×), and reverted** because the packed-ubatch pooling flipped a cosine
+tie and changed a `redundant` finding's evidence — the byte-diff caught it.
+Drop the lever, not the invariant.
 
 ## Instrumentation
 

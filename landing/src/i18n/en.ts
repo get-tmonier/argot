@@ -109,9 +109,11 @@ const en: SiteContent = {
       { value: '0.6s', label: 'when it defines new functions' },
       { value: '25s', label: 'first fit, 1,100-file repo' },
       { value: '4s', label: 'to refresh — unchanged functions reuse their embeddings' },
+      { value: '2.3 min', label: 'seeded audit of a 30k-function monorepo — down from 6.5' },
+      { value: '2.7 min', label: 'warm refit of that monorepo — down from 17, byte-identical' },
     ],
     finePrint:
-      'Measured on FastAPI, laptop CPU. Single static binary — no Python, no Node, no runtime to install. Batched embeddings, a machine-wide embedding cache, and multi-core calibration keep big monorepos fast — without ever changing a result.',
+      'Measured on FastAPI, laptop CPU. Single static binary — no Python, no Node, no runtime to install. A machine-wide embedding cache and multi-core calibration keep big monorepos fast — without ever changing a result.',
   },
   proof: {
     label: 'Measured, not promised',

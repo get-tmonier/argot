@@ -112,9 +112,11 @@ const fr: SiteContent = {
         value: '4 s',
         label: 'pour rafraîchir — les fonctions inchangées réutilisent leurs embeddings',
       },
+      { value: '2,3 min', label: 'audit seedé d’un monorepo de 30k fonctions — contre 6,5' },
+      { value: '2,7 min', label: 'refit à chaud de ce monorepo — contre 17, résultats identiques' },
     ],
     finePrint:
-      'Mesuré sur FastAPI, CPU de portable. Un seul binaire statique — pas de Python, pas de Node, aucun runtime à installer. Embeddings par lots, cache d’embeddings global à la machine et calibration multi-cœur gardent les gros monorepos rapides — sans jamais changer un résultat.',
+      'Mesuré sur FastAPI, CPU de portable. Un seul binaire statique — pas de Python, pas de Node, aucun runtime à installer. Un cache d’embeddings global à la machine et une calibration multi-cœur gardent les gros monorepos rapides — sans jamais changer un résultat.',
   },
   proof: {
     label: 'Mesuré, pas promis',
