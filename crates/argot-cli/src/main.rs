@@ -778,12 +778,15 @@ fn fit_repo(repo: &Path, slices: &[String]) -> Result<PathBuf, ()> {
             argot_dir.display()
         );
     }
-    // Surface the effective config: write a default argot.toml (excludes +
-    // mutes, today's built-in values made explicit) when absent, and keep the
-    // personal-override file out of version control.
-    if let Err(e) = ensure_config_present(repo) {
-        eprintln!("warning: could not write argot.toml: {e}");
-    }
+    // NB: `fit` is deliberately side-effect-free on the user's tracked tree —
+    // it writes only inside the gitignored `.argot/`. Scaffolding `argot.toml`
+    // and gitignoring the local override is `init`'s job (see `run_init_cmd`).
+    // `fit` runs non-interactively on arbitrary detached checkouts (CI fits on
+    // the PR base, then restores the head), so writing an untracked `argot.toml`
+    // or editing the root `.gitignore` here would make the follow-up checkout
+    // abort — a bootstrap-only failure the first time a repo adds argot.toml.
+    // When `argot.toml` is absent, `config::load` already returns the default
+    // in-memory, so nothing needs to be persisted for the fit to be correct.
     // argot fits from files as they are on disk. If the working tree is dirty,
     // uncommitted code — e.g. an agent's just-written foreign change — would be
     // folded into the learned voice and then read as familiar. Warn so the user
@@ -920,6 +923,13 @@ fn run_init_cmd(c: InitCmd) -> ExitCode {
         Ok(p) => p,
         Err(()) => return ExitCode::from(2),
     };
+
+    // `init` is the interactive, one-time setup — this is where the config is
+    // scaffolded (a default `argot.toml` when absent) and the personal-override
+    // file is kept out of version control. `fit` deliberately does neither.
+    if let Err(e) = ensure_config_present(&c.repo) {
+        eprintln!("warning: could not write argot.toml: {e}");
+    }
 
     let report = match inspect_repo(&c.repo) {
         Ok(r) => r,
@@ -2281,9 +2291,51 @@ fn main() -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::{
-        days_since_fit, ensure_local_config_gitignored, ensure_model_gitignored, is_npm_install,
-        resolve_argot_dir, wants_json,
+        days_since_fit, ensure_local_config_gitignored, ensure_model_gitignored, fit_repo,
+        is_npm_install, resolve_argot_dir, wants_json,
     };
+
+    /// `argot fit` must be side-effect-free on the user's tracked tree — it may
+    /// write only inside the gitignored `.argot/`. Scaffolding `argot.toml` or
+    /// editing the root `.gitignore` during fit breaks the CI Action's
+    /// fit-on-base → restore-head checkout (get-tmonier/vigie#39): the first PR
+    /// to introduce argot.toml aborts the restore and fails a non-blocking check.
+    #[test]
+    fn fit_leaves_the_tracked_tree_clean() {
+        let dir = std::env::temp_dir().join(format!("argot_fit_clean_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let repo = git2::Repository::init(&dir).unwrap();
+        for (name, body) in [
+            ("a.py", "def alpha(x):\n    return x + 1\n"),
+            ("b.py", "def beta(x):\n    return x * 2\n"),
+            ("c.py", "import os\n\ndef gamma():\n    return os.getpid()\n"),
+        ] {
+            std::fs::write(dir.join(name), body).unwrap();
+        }
+        let mut index = repo.index().unwrap();
+        index
+            .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+            .unwrap();
+        index.write().unwrap();
+        let tree = repo.find_tree(index.write_tree().unwrap()).unwrap();
+        let sig = git2::Signature::now("t", "t@t").unwrap();
+        repo.commit(Some("HEAD"), &sig, &sig, "init", &tree, &[])
+            .unwrap();
+
+        // Best-effort fit (the result doesn't matter — the invariant is that it
+        // scaffolds nothing on the tracked tree, whether it succeeds or not).
+        let _ = fit_repo(&dir, &[]);
+
+        assert!(
+            !dir.join("argot.toml").exists(),
+            "fit must not scaffold argot.toml"
+        );
+        assert!(
+            !dir.join(".gitignore").exists(),
+            "fit must not create/modify the root .gitignore"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn model_gitignore_hides_the_whole_model_dir() {

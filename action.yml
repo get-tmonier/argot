@@ -232,6 +232,13 @@ runs:
         # (it's gitignored), so we restore the original ref afterward.
         git -C "$ARGOT_PATH" checkout -q --detach "$BASE_SHA"
         argot fit --repo "$ARGOT_PATH"
+        # Defense in depth: `argot fit` is side-effect-free on the tracked tree,
+        # but should anything leave the working copy dirty (a stray untracked
+        # file, a hook), a plain checkout would abort and fail the non-blocking
+        # check. Reset tracked files and drop untracked ones first — `clean`
+        # WITHOUT `-x` preserves the gitignored, freshly-fitted `.argot/` model.
+        git -C "$ARGOT_PATH" reset -q --hard
+        git -C "$ARGOT_PATH" clean -fdq
         git -C "$ARGOT_PATH" checkout -q --detach "$ORIG_SHA"
 
     - name: Run argot check
