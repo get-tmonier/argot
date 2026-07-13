@@ -1,0 +1,156 @@
+---
+import { emphasize } from '#lib/text';
+import type { SiteContent } from '#i18n/types';
+
+interface Props {
+  content: SiteContent;
+}
+const { customRules } = Astro.props.content;
+
+// The rule-card mockup is UI chrome (like a screenshot), not marketing prose —
+// hardcoded here rather than in i18n, matching CiScore.astro's PR card.
+const ruleCode = `// check.rhai — config goes through loadConfig()
+for m in ts_query("(member_expression) @e") {
+  if m.text.starts_with("process.env") {
+    report(m.line, "use loadConfig() — raw
+      process.env skips validation");
+  }
+}`;
+---
+
+<section id="custom-rules" class="snap-section relative flex md:min-h-svh items-center overflow-hidden">
+  <div class="rules-glow" aria-hidden="true"></div>
+  <div
+    class="mx-auto grid w-full max-w-6xl grid-cols-1 gap-10 px-5 py-16 md:py-24 lg:grid-cols-[1fr_1fr] lg:items-center lg:gap-16"
+  >
+    <div class="reveal">
+      <p class="mb-3 font-mono text-xs tracking-widest text-ember uppercase">{customRules.label}</p>
+      <h2 class="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{customRules.title}</h2>
+      <p class="mt-5 leading-relaxed text-ink-dim text-pretty" set:html={emphasize(customRules.body)} />
+      <ul class="mt-6 flex flex-col gap-3">
+        {
+          customRules.points.map((point) => (
+            <li class="rule-point">
+              <span class="rule-point-title">{point.title}</span>
+              <span class="rule-point-desc" set:html={emphasize(point.desc)} />
+            </li>
+          ))
+        }
+      </ul>
+      <a class="rules-cta" href="/docs/custom-rules/">{customRules.cta} →</a>
+    </div>
+
+    <div class="reveal" style="--reveal-delay: 120ms">
+      <div class="rule-card">
+        <div class="rule-head">
+          <span class="rule-path">.argot/rules/no-direct-env/</span>
+          <span class="rule-pill">severity: warn</span>
+        </div>
+        <pre class="rule-code" aria-label="A custom rule script"><code>{ruleCode}</code></pre>
+        <div class="rule-run">
+          <span class="rule-prompt">$</span> argot rules test no-direct-env
+          <span class="rule-ok">ok</span> fires-on-env · <span class="rule-ok">ok</span> quiet-on-loader
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .rules-glow {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(46rem 26rem at 18% 55%, rgba(230, 126, 69, 0.08), transparent 70%);
+    pointer-events: none;
+  }
+
+  .rule-point {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    border-left: 2px solid var(--line-2);
+    padding-left: 0.85rem;
+  }
+  .rule-point-title {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ember);
+  }
+  .rule-point-desc {
+    font-size: 0.9rem;
+    color: var(--ink-dim);
+  }
+
+  .rules-cta {
+    display: inline-block;
+    margin-top: 1.75rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--ember);
+  }
+  .rules-cta:hover {
+    text-decoration: underline;
+  }
+
+  /* --- the rule-card mockup --- */
+  .rule-card {
+    border-radius: 16px;
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel) 55%, var(--bg) 45%);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.03) inset,
+      0 24px 60px -30px rgba(0, 0, 0, 0.8);
+    overflow: hidden;
+  }
+  .rule-head {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.8rem 1.1rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .rule-path {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--ink);
+  }
+  .rule-pill {
+    margin-left: auto;
+    border-radius: 999px;
+    border: 1px solid var(--line-2);
+    padding: 0.2rem 0.6rem;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .rule-code {
+    margin: 0;
+    padding: 1rem 1.1rem;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    line-height: 1.55;
+    color: var(--ink-dim);
+    overflow-x: auto;
+  }
+  .rule-run {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.75rem 1.1rem;
+    border-top: 1px solid var(--line);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+  .rule-prompt {
+    color: var(--ember);
+  }
+  .rule-ok {
+    color: var(--jade);
+    font-weight: 700;
+  }
+</style>

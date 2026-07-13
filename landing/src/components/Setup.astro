@@ -31,10 +31,16 @@ const html = `<pre><code>${term}</code></pre>`;
 // a copy-to-clipboard chip (the Hero's `.copy-install` script wires it).
 const skillCmd = 'npx skills add get-tmonier/argot';
 
-// The four slash-command skills the install adds. Shown with the `/` prefix so
+// The five slash-command skills the install adds. Shown with the `/` prefix so
 // they read as slash-commands; the description says what each *does* (the skills
 // bring judgment — reading the tree, writing argot.toml — not just a command).
-const skillCmds = ['/argot-setup', '/argot-check', '/argot-review-pr', '/argot-setup-ci'];
+const skillCmds = [
+  '/argot-setup',
+  '/argot-check',
+  '/argot-review-pr',
+  '/argot-setup-ci',
+  '/argot-write-rule',
+];
 ---
 
 <section id="setup" class="snap-section relative flex md:min-h-svh items-center">

@@ -51,6 +51,15 @@ export interface SiteContent {
     readonly body: string;
     readonly caption: string;
   };
+  readonly customRules: {
+    readonly label: string;
+    readonly title: string;
+    readonly body: string;
+    /// Three selling points (short title + one-line desc).
+    readonly points: readonly Feature[];
+    /// Link text to the custom-rules docs page.
+    readonly cta: string;
+  };
   readonly engine: {
     readonly label: string;
     readonly title: string;
