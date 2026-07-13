@@ -2,18 +2,7 @@
 
 use super::{ext_to_lang, extension, PatchBatch, EXT_TO_LANG};
 use crate::config::DetectConfig;
-use crate::scoring::adapters::c::CAdapter;
-use crate::scoring::adapters::cpp::CppAdapter;
-use crate::scoring::adapters::csharp::CSharpAdapter;
-use crate::scoring::adapters::go::GoAdapter;
-use crate::scoring::adapters::java::JavaAdapter;
-use crate::scoring::adapters::javascript::JavaScriptAdapter;
-use crate::scoring::adapters::php::PhpAdapter;
-use crate::scoring::adapters::python::PythonAdapter;
-use crate::scoring::adapters::ruby::RubyAdapter;
-use crate::scoring::adapters::rust::RustAdapter;
-use crate::scoring::adapters::typescript::TypeScriptAdapter;
-use crate::scoring::adapters::LanguageAdapter;
+use crate::scoring::adapters::adapter_for;
 use crate::scoring::evidence::types::EvidenceCorpus;
 use crate::scoring::model::LanguageModel;
 use crate::scoring::sequential::{ScoredHunk, SequentialConfig, SequentialImportBpeScorer};
@@ -31,7 +20,6 @@ pub(super) struct SliceEntry {
 /// Loaded per-language scorers plus the filtering machinery.
 pub(super) struct Loaded {
     pub(super) scorers: HashMap<String, SequentialImportBpeScorer>,
-    pub(super) filter_adapters: HashMap<String, Box<dyn LanguageAdapter>>,
     pub(super) language_extensions: HashSet<String>,
     /// Per-language slice thresholds (per-subdirectory / per-author voice).
     /// Empty for an unsliced fit.
@@ -53,32 +41,16 @@ pub(super) struct Loaded {
     /// manifest records. Lets `check` name which model judged the diff.
     pub(super) model_hash: String,
 }
-fn adapter_for_language(lang: &str) -> Option<Box<dyn LanguageAdapter>> {
-    match lang {
-        "python" => Some(Box::new(PythonAdapter::new())),
-        "typescript" => Some(Box::new(TypeScriptAdapter::new())),
-        "javascript" => Some(Box::new(JavaScriptAdapter::new())),
-        "go" => Some(Box::new(GoAdapter::new())),
-        "rust" => Some(Box::new(RustAdapter::new())),
-        "c" => Some(Box::new(CAdapter::new())),
-        "java" => Some(Box::new(JavaAdapter::new())),
-        "csharp" => Some(Box::new(CSharpAdapter::new())),
-        "php" => Some(Box::new(PhpAdapter::new())),
-        "cpp" => Some(Box::new(CppAdapter::new())),
-        "ruby" => Some(Box::new(RubyAdapter::new())),
-        _ => None,
-    }
-}
 /// Languages present in the change that argot supports but the current fit
 /// has no model for (fitted before the language appeared in the repo).
 pub(super) fn patches_langs_without_model(
     patches: &[PatchBatch],
-    scorers: &HashMap<String, SequentialImportBpeScorer>,
+    fitted_languages: &HashSet<String>,
 ) -> Vec<&'static str> {
     patches
         .iter()
         .filter_map(|b| ext_to_lang(&extension(&b.file_path)))
-        .filter(|lang| !scorers.contains_key(*lang))
+        .filter(|lang| !fitted_languages.contains(*lang))
         .collect()
 }
 /// Best-effort Python `repr` of the `version` value for the mismatch message.
@@ -154,7 +126,6 @@ pub(super) fn load_scorers(
         fs::read(&generic_baseline_json).map_err(|e| (format!("error: {e}\n"), 2))?;
 
     let mut scorers: HashMap<String, SequentialImportBpeScorer> = HashMap::new();
-    let mut filter_adapters: HashMap<String, Box<dyn LanguageAdapter>> = HashMap::new();
 
     for (lang, lang_cfg) in languages {
         let lc = match lang_cfg.as_object() {
@@ -242,7 +213,7 @@ pub(super) fn load_scorers(
             detect: detect.clone(),
         };
 
-        let adapter = match adapter_for_language(lang) {
+        let adapter = match adapter_for(lang) {
             Some(a) => a,
             None => {
                 return Err((
@@ -253,7 +224,6 @@ pub(super) fn load_scorers(
                 ))
             }
         };
-        let filter_adapter = adapter_for_language(lang).expect("adapter already built above");
 
         let model: LanguageModel = match lc.get("model") {
             Some(m) => serde_json::from_value(m.clone()).map_err(|e| {
@@ -282,7 +252,6 @@ pub(super) fn load_scorers(
             )
         })?;
         scorers.insert(lang.clone(), scorer);
-        filter_adapters.insert(lang.clone(), filter_adapter);
     }
 
     let mut language_extensions: HashSet<String> = HashSet::new();
@@ -363,7 +332,6 @@ pub(super) fn load_scorers(
 
     Ok(Loaded {
         scorers,
-        filter_adapters,
         language_extensions,
         fit_sha,
         model_hash,

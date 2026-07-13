@@ -1,9 +1,9 @@
 //! The base statistical pass (the voice group): dispatches each hunk to its
 //! per-language `SequentialImportBpeScorer`.
 
-use super::load::SliceEntry;
+use super::load::{load_scorers, Loaded, SliceEntry};
 use super::{ext_to_lang, ext_to_lang_ctx, extension, PatchBatch};
-use crate::detector::{CheckContext, Detector};
+use crate::detector::{BaseModelInfo, CheckContext, Detector};
 use crate::finding::{Finding, RenderEvidence};
 use crate::output::FileScan;
 use crate::rules::{self, RuleSettings};
@@ -209,17 +209,25 @@ fn score_patches(
         .collect();
     (hits, hunk_count, files_scanned)
 }
-/// The base statistical pass (the voice group) as a detector. Borrows the
-/// loaded per-language model state; the only detector that fills
-/// [`ScanReport`].
-pub(super) struct VoiceDetector<'a> {
-    pub(super) scorers: &'a mut HashMap<String, SequentialImportBpeScorer>,
-    pub(super) slices: &'a HashMap<String, Vec<SliceEntry>>,
-    pub(super) new_file_thresholds: &'a HashMap<String, f64>,
-    pub(super) fit_corpus_files: &'a HashSet<String>,
+/// The base statistical pass (the voice group) as a detector. Owns the
+/// loaded per-language model state (filled by [`Detector::load`]); the only
+/// detector that provides [`crate::detector::BaseModelInfo`] and fills
+/// [`crate::detector::ScanReport`].
+pub(super) struct VoiceDetector {
+    loaded: Option<Loaded>,
+    info: Option<BaseModelInfo>,
 }
 
-impl Detector for VoiceDetector<'_> {
+impl VoiceDetector {
+    pub(super) fn new() -> Self {
+        VoiceDetector {
+            loaded: None,
+            info: None,
+        }
+    }
+}
+
+impl Detector for VoiceDetector {
     fn group(&self) -> &'static str {
         rules::GROUP_VOICE
     }
@@ -235,14 +243,66 @@ impl Detector for VoiceDetector<'_> {
         true
     }
 
+    /// Loads the fit-time model snapshot (`scorer-config.json` v3). A failure
+    /// here fails the whole check — the base model is mandatory.
+    fn load(
+        &mut self,
+        argot_dir: &Path,
+        detect: &crate::config::DetectConfig,
+    ) -> Result<(), (String, i32)> {
+        let loaded = load_scorers(argot_dir, detect)?;
+        self.info = Some(BaseModelInfo {
+            model_hash: loaded.model_hash.clone(),
+            fit_sha: loaded.fit_sha.clone(),
+            language_extensions: loaded.language_extensions.clone(),
+            fitted_languages: loaded.scorers.keys().cloned().collect(),
+        });
+        self.loaded = Some(loaded);
+        Ok(())
+    }
+
+    fn base_info(&self) -> Option<&BaseModelInfo> {
+        self.info.as_ref()
+    }
+
     fn check(&mut self, ctx: &mut CheckContext<'_>) -> Vec<Finding> {
+        let loaded = self
+            .loaded
+            .as_mut()
+            .expect("VoiceDetector::check before load()");
+        // Changeset-wide local bindings: names any file in this change
+        // defines. A change that calls what it also defines (a new feature
+        // naming its own components) is new code, not foreign voice; only
+        // callees neither the corpus nor the changeset knows keep
+        // contributing.
+        let mut changeset_bindings: HashMap<&'static str, HashSet<String>> = HashMap::new();
+        for b in ctx.batches {
+            let ext = extension(&b.file_path);
+            let Some(lang) = ext_to_lang(&ext) else {
+                continue;
+            };
+            let Some(adapter) = ctx.filter_adapters.get(lang) else {
+                continue;
+            };
+            let source = String::from_utf8_lossy(&b.content);
+            changeset_bindings
+                .entry(lang)
+                .or_default()
+                .extend(adapter.callable_definitions(&source));
+        }
+        for (lang, bindings) in changeset_bindings {
+            if let Some(scorer) = loaded.scorers.get_mut(lang) {
+                scorer.set_changeset_bindings(bindings);
+            }
+        }
+
         let (hits, hunk_count, files_scanned) = score_patches(
             ctx.batches,
-            self.scorers,
+            &mut loaded.scorers,
             ctx.filter_adapters,
-            self.slices,
-            self.new_file_thresholds,
-            self.fit_corpus_files,
+            &loaded.slices,
+            &loaded.new_file_thresholds,
+            &loaded.fit_corpus_files,
             ctx.mute_rules,
             ctx.header_cpp,
             ctx.stderr,

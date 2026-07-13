@@ -6,22 +6,23 @@ use super::arch::ArchDetector;
 use super::collect::{batch_scope, collect_patches, passes_filters, BatchScope};
 #[cfg(feature = "integrity")]
 use super::integrity::IntegrityDetector;
-use super::load::{load_scorers, patches_langs_without_model, Loaded};
+use super::load::patches_langs_without_model;
 use super::render::{
     add_ignore_comments, confidence, hit_records, render_machine, render_results, report_meta,
 };
 #[cfg(feature = "semantic")]
 use super::semantic::SemanticDetector;
 use super::voice::VoiceDetector;
-use super::{ext_to_lang, extension, CheckArgs, CheckOutcome, PatchBatch};
+use super::{CheckArgs, CheckOutcome, PatchBatch};
 use crate::config::ArgotConfig;
 use crate::detector::{run_detectors, CheckContext, RegisteredDetector, ScanReport};
 use crate::finding::{Finding, SuppressedBy};
 use crate::git_walk::{open_repo, SUPPORTED_EXTENSIONS};
 use crate::output::OutputFormat;
 use crate::rules::{self, RuleSettings, Severity as RuleSeverity};
+use crate::scoring::adapters::{adapter_for, LanguageAdapter};
 use crate::suppress::{write_last_check, LastCheckHit, SuppressionRule};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::Path;
 
 /// Confidence tier ordering, weakest first. Confidence grades how strong the
@@ -310,21 +311,61 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     // Effective per-rule severities: defaults ⊕ [rules] ⊕ CLI --rule overrides.
     let settings = config.rule_settings_with(registry, &args.rule_overrides);
 
+    // Register this run's detectors — the composition root. The rank pair is
+    // the order table (see detector.rs): execution_rank runs additive passes
+    // first and the base pass last (stderr interleave parity); merge_rank
+    // puts the base pass's findings first (stdout parity). Deleting a rule
+    // group deletes exactly its registration lines.
+    let mut detectors: Vec<RegisteredDetector<'static>> = vec![RegisteredDetector {
+        detector: Box::new(VoiceDetector::new()),
+        execution_rank: 3,
+        merge_rank: 0,
+    }];
+    #[cfg(feature = "semantic")]
+    detectors.push(RegisteredDetector {
+        detector: Box::new(SemanticDetector),
+        execution_rank: 0,
+        merge_rank: 1,
+    });
+    #[cfg(feature = "arch")]
+    detectors.push(RegisteredDetector {
+        detector: Box::new(ArchDetector),
+        execution_rank: 1,
+        merge_rank: 2,
+    });
+    #[cfg(feature = "integrity")]
+    detectors.push(RegisteredDetector {
+        detector: Box::new(IntegrityDetector),
+        execution_rank: 2,
+        merge_rank: 3,
+    });
+
+    // Load lifecycle: the base model is mandatory (its Err fails the check);
+    // additive groups degrade inside their pass instead.
     let t_load = crate::timing::phase("check: load scorers");
-    let Loaded {
-        mut scorers,
-        filter_adapters,
-        language_extensions,
-        fit_sha,
-        model_hash,
-        slices,
-        new_file_thresholds,
-        fit_corpus_files,
-    } = match load_scorers(&args.argot_dir, &config.detect) {
-        Ok(l) => l,
-        Err((msg, code)) => return CheckOutcome::err(msg, code),
-    };
+    for reg in &mut detectors {
+        if let Err((msg, code)) = reg.detector.load(&args.argot_dir, &config.detect) {
+            return CheckOutcome::err(msg, code);
+        }
+    }
     t_load.done();
+    let Some(base) = detectors
+        .iter()
+        .find_map(|r| r.detector.base_info().cloned())
+    else {
+        return CheckOutcome::err(
+            "error: no base detector registered — this is an argot bug\n".to_string(),
+            2,
+        );
+    };
+    // The fitted-language adapter map: comment prefixes for suppression
+    // parsing and per-pass file parsing. Fitted languages only — an unfitted
+    // language's batches are dropped by batch_scope, never parsed.
+    let filter_adapters: HashMap<String, Box<dyn LanguageAdapter>> = base
+        .fitted_languages
+        .iter()
+        .filter_map(|l| adapter_for(l).map(|a| (l.clone(), a)))
+        .collect();
 
     let t_patches = crate::timing::phase("check: collect patches");
     let (patches, scan_label) = match collect_patches(&args) {
@@ -339,7 +380,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
                     format!("0 commit(s) ({})", args.reference),
                     0,
                     Vec::new(),
-                    &model_hash,
+                    &base.model_hash,
                 );
                 return CheckOutcome {
                     stdout: render_machine(args.format, &meta, &[]),
@@ -358,7 +399,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     // same as my colleague's?". On stderr (human) so stdout stays byte-parity;
     // machine formats carry it in the report meta instead.
     if !args.format.is_machine() {
-        stderr.push_str(&format!("[argot] model: {model_hash}\n"));
+        stderr.push_str(&format!("[argot] model: {}\n", base.model_hash));
     }
 
     // Freshness: a stale model turns ordinary drift into noise (a month of
@@ -367,7 +408,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     // — commits touching in-scope source on the default-branch line. A
     // feature branch's own commits don't count (they're the code under
     // judgment, not the voice), and docs-only churn doesn't either.
-    if let Some(fit_sha) = &fit_sha {
+    if let Some(fit_sha) = &base.fit_sha {
         let stale_after = config.fit_refresh_after;
         if let Some(behind) =
             accepted_source_commits_behind(&args.repo_path, fit_sha, &config, stale_after)
@@ -437,7 +478,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     // Go file has zero coverage until the next fit. (Computed pre-filter:
     // those batches don't survive it.)
     {
-        let mut unfitted: Vec<&str> = patches_langs_without_model(&patches, &scorers);
+        let mut unfitted: Vec<&str> = patches_langs_without_model(&patches, &base.fitted_languages);
         unfitted.sort_unstable();
         unfitted.dedup();
         if !unfitted.is_empty() {
@@ -454,7 +495,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     let filtered: Vec<PatchBatch> = patches
         .into_iter()
         .filter_map(|mut b| {
-            match batch_scope(&b.file_path, &language_extensions, &path_suppressions) {
+            match batch_scope(&b.file_path, &base.language_extensions, &path_suppressions) {
                 BatchScope::Drop => return None,
                 BatchScope::ScoreSuppressed => b.ignored_by_pattern = true,
                 BatchScope::Score => {}
@@ -467,7 +508,8 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     // batch_scope — which is correct scoring, but the user must know their new
     // Go file has zero coverage until the next fit.
     {
-        let mut unfitted: Vec<&str> = patches_langs_without_model(&filtered, &scorers);
+        let mut unfitted: Vec<&str> =
+            patches_langs_without_model(&filtered, &base.fitted_languages);
         unfitted.sort_unstable();
         unfitted.dedup();
         if !unfitted.is_empty() {
@@ -479,70 +521,11 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
         }
     }
 
-    // Changeset-wide local bindings: names any file in this change defines.
-    // A change that calls what it also defines (a new feature naming its own
-    // components) is new code, not foreign voice; only callees neither the
-    // corpus nor the changeset knows keep contributing.
-    let mut changeset_bindings: HashMap<&'static str, HashSet<String>> = HashMap::new();
-    for b in &filtered {
-        let ext = extension(&b.file_path);
-        let Some(lang) = ext_to_lang(&ext) else {
-            continue;
-        };
-        let Some(adapter) = filter_adapters.get(lang) else {
-            continue;
-        };
-        let source = String::from_utf8_lossy(&b.content);
-        changeset_bindings
-            .entry(lang)
-            .or_default()
-            .extend(adapter.callable_definitions(&source));
-    }
-    for (lang, bindings) in changeset_bindings {
-        if let Some(scorer) = scorers.get_mut(lang) {
-            scorer.set_changeset_bindings(bindings);
-        }
-    }
-
     // `.h` routes to the same C/C++ model calibrate built it into (repo's
     // translation-unit majority) — computed once from the working tree.
     let header_cpp = crate::scoring::calibration::header_is_cpp(Path::new(&args.repo_path));
 
-    // Register this run's detectors — the composition root. The rank pair is
-    // the order table (see detector.rs): execution_rank runs additive passes
-    // first and the base pass last (stderr interleave parity); merge_rank
-    // puts the base pass's findings first (stdout parity). Deleting a rule
-    // group deletes exactly its registration lines.
     let mut scan = ScanReport::default();
-    let mut detectors: Vec<RegisteredDetector<'_>> = vec![RegisteredDetector {
-        detector: Box::new(VoiceDetector {
-            scorers: &mut scorers,
-            slices: &slices,
-            new_file_thresholds: &new_file_thresholds,
-            fit_corpus_files: &fit_corpus_files,
-        }),
-        execution_rank: 3,
-        merge_rank: 0,
-    }];
-    #[cfg(feature = "semantic")]
-    detectors.push(RegisteredDetector {
-        detector: Box::new(SemanticDetector),
-        execution_rank: 0,
-        merge_rank: 1,
-    });
-    #[cfg(feature = "arch")]
-    detectors.push(RegisteredDetector {
-        detector: Box::new(ArchDetector),
-        execution_rank: 1,
-        merge_rank: 2,
-    });
-    #[cfg(feature = "integrity")]
-    detectors.push(RegisteredDetector {
-        detector: Box::new(IntegrityDetector),
-        execution_rank: 2,
-        merge_rank: 3,
-    });
-
     let hits = {
         let mut ctx = CheckContext {
             batches: &filtered,
@@ -636,7 +619,13 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     // severities decide, see gate_exit_code).
     if args.format.is_machine() {
         let records = hit_records(&visible, &settings, registry);
-        let meta = report_meta(&args, scan_label, hunk_count, files_scanned, &model_hash);
+        let meta = report_meta(
+            &args,
+            scan_label,
+            hunk_count,
+            files_scanned,
+            &base.model_hash,
+        );
         let mut stdout = render_machine(args.format, &meta, &records);
         // In the github format, the health notes ("model drifted", "config
         // changed since fit", "language not fitted") become run-level notices —

@@ -111,6 +111,25 @@ pub trait LanguageAdapter {
     fn line_comment_prefix(&self) -> &'static str;
 }
 
+/// The canonical adapter factory: the boxed [`LanguageAdapter`] for a scoring
+/// language name (`"python"`, `"typescript"`, …), or `None` when unsupported.
+pub fn adapter_for(lang: &str) -> Option<Box<dyn LanguageAdapter>> {
+    match lang {
+        "python" => Some(Box::new(python::PythonAdapter::new())),
+        "typescript" => Some(Box::new(typescript::TypeScriptAdapter::new())),
+        "javascript" => Some(Box::new(javascript::JavaScriptAdapter::new())),
+        "go" => Some(Box::new(go::GoAdapter::new())),
+        "rust" => Some(Box::new(rust::RustAdapter::new())),
+        "c" => Some(Box::new(c::CAdapter::new())),
+        "java" => Some(Box::new(java::JavaAdapter::new())),
+        "csharp" => Some(Box::new(csharp::CSharpAdapter::new())),
+        "php" => Some(Box::new(php::PhpAdapter::new())),
+        "cpp" => Some(Box::new(cpp::CppAdapter::new())),
+        "ruby" => Some(Box::new(ruby::RubyAdapter::new())),
+        _ => None,
+    }
+}
+
 impl LanguageAdapter for python::PythonAdapter {
     fn language(&self) -> Language {
         Language::Python

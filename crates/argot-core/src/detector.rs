@@ -50,6 +50,22 @@ pub(crate) struct ScanReport {
     pub files_scanned: Vec<FileScan>,
 }
 
+/// The base model's identity and coverage, provided by exactly one detector
+/// after [`Detector::load`]. The engine derives everything model-shaped from
+/// this — batch scoping, the report's model line, the freshness warning —
+/// without holding any scorer type itself.
+#[derive(Debug, Clone)]
+pub(crate) struct BaseModelInfo {
+    /// Combined fit-time model fingerprint (the manifest's `model_hash`).
+    pub model_hash: String,
+    /// Repo SHA the model was fitted at (`None` for configs predating it).
+    pub fit_sha: Option<String>,
+    /// File extensions the fitted model covers (batch scoping).
+    pub language_extensions: std::collections::HashSet<String>,
+    /// Languages with a fitted model (the unfitted-language warning).
+    pub fitted_languages: std::collections::HashSet<String>,
+}
+
 /// Everything a fit-time hook may consult. The voice model's own fit IS
 /// `run_calibrate`; this context serves the additive groups' artifacts,
 /// written as `.argot/` siblings of `scorer-config.json` so the base config
@@ -86,6 +102,26 @@ pub(crate) trait Detector {
     /// Failures degrade loudly (stderr) but never fail the fit; the base
     /// statistical model must land regardless.
     fn fit(&mut self, _ctx: &FitContext<'_>) {}
+
+    /// Check-time lifecycle, before the changeset is collected: load this
+    /// group's model state. `Err((message, exit_code))` fails the whole check
+    /// (the base model is mandatory); additive groups instead degrade inside
+    /// [`Detector::check`] (missing artifact → no findings) so the base
+    /// guardrail always runs. Default no-op.
+    fn load(
+        &mut self,
+        _argot_dir: &std::path::Path,
+        _detect: &crate::config::DetectConfig,
+    ) -> Result<(), (String, i32)> {
+        Ok(())
+    }
+
+    /// The base model's identity + coverage — implemented by exactly one
+    /// registered detector (the base pass). The engine refuses to run
+    /// without it.
+    fn base_info(&self) -> Option<&BaseModelInfo> {
+        None
+    }
 
     /// Run the pass and return raw findings (suppression already classified
     /// per finding by the pass via [`crate::suppress::FileSuppressions`]).
