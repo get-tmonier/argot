@@ -31,6 +31,12 @@ pub const EMBED_DIM: usize = 768;
 /// tokenizer at this bound (rare for a single function).
 const N_CTX: u32 = 8192;
 
+/// Sequences packed into one decode. At the ~150-token average function this
+/// is what actually bounds a pack (64 × 150 ≈ 9.6k > the 8192-token budget),
+/// so most packs fill the token budget; the cap only guards the many-tiny-
+/// functions case from unbounded per-decode sequence bookkeeping.
+const MAX_BATCH_SEQS: u32 = 64;
+
 /// The pinned model — `jina-embeddings-v2-base-code`, Q4_K_M GGUF. These exact
 /// bytes cleared parity 1.0 in the P0 spike; the sha256 is the ollama blob name.
 pub const MODEL_NAME: &str = "jina-embeddings-v2-base-code";
@@ -109,16 +115,28 @@ impl Embedder {
     }
 
     /// Embed each text into an L2-normalised 768-d vector, order-preserving.
+    ///
+    /// Vectors are canonicalised to f16 precision before returning — exactly
+    /// the precision the on-disk index artifact and the machine-wide embed
+    /// cache store — so a vector is bit-identical whether it was computed this
+    /// run, reloaded from the artifact, or served from the cache.
+    ///
+    /// Throughput: texts are packed several sequences per decode (jina-code is
+    /// an encoder; llama.cpp mean-pools each sequence independently under its
+    /// per-sequence attention mask), which amortises the per-decode kernel
+    /// launch overhead that dominates when functions are short. Measured ~4×
+    /// on Metal vs one-decode-per-text at ~150-token average functions.
     pub fn embed(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
         let backend = backend()?;
-        // jina-code is an *encoder*: llama.cpp processes the whole sequence in a
+        // jina-code is an *encoder*: llama.cpp processes a whole batch in a
         // single ubatch and asserts `n_ubatch >= n_tokens`, so n_batch/n_ubatch
-        // must cover the longest function we embed (the context length). The
-        // default 512 crashes on any function longer than that.
+        // must cover everything packed into one decode (the context length).
+        // The default 512 crashes on any function longer than that.
         let ctx_params = LlamaContextParams::default()
             .with_n_ctx(std::num::NonZeroU32::new(N_CTX))
             .with_n_batch(N_CTX)
             .with_n_ubatch(N_CTX)
+            .with_n_seq_max(MAX_BATCH_SEQS)
             .with_embeddings(true)
             .with_pooling_type(LlamaPoolingType::Mean);
         let mut ctx = self
@@ -127,27 +145,54 @@ impl Embedder {
             .context("create embedding context")?;
 
         let mut out = Vec::with_capacity(texts.len());
-        for text in texts {
-            // A single-sequence batch per text: no padding, so the mean pool is
-            // over exactly the real tokens.
-            let mut tokens = self
-                .model
-                .str_to_token(text, AddBos::Always)
-                .context("tokenize")?;
-            // Defensive: never exceed the context window (a pathologically long
-            // function is truncated rather than crashing the encoder assert).
-            tokens.truncate(N_CTX as usize);
-            let n = tokens.len().max(1);
-            let mut batch = LlamaBatch::new(n, 1);
-            batch.add_sequence(&tokens, 0, false)?;
+        // A text tokenized for the current pack but not fitting it — carried
+        // into the next pack so it's never tokenized twice.
+        let mut pending: Option<Vec<llama_cpp_2::token::LlamaToken>> = None;
+        let mut idx = 0;
+        while idx < texts.len() {
+            // Greedily pack sequences until the token budget or the sequence
+            // cap is reached. Each sequence keeps its own id: no padding, so
+            // the mean pool is over exactly that sequence's real tokens.
+            let mut seqs: Vec<Vec<llama_cpp_2::token::LlamaToken>> = Vec::new();
+            let mut total = 0usize;
+            while idx < texts.len() && seqs.len() < MAX_BATCH_SEQS as usize {
+                let tokens = match pending.take() {
+                    Some(t) => t,
+                    None => {
+                        let mut t = self
+                            .model
+                            .str_to_token(texts[idx], AddBos::Always)
+                            .context("tokenize")?;
+                        // Defensive: never exceed the context window (a
+                        // pathologically long function is truncated rather
+                        // than crashing the encoder assert).
+                        t.truncate(N_CTX as usize);
+                        t
+                    }
+                };
+                if !seqs.is_empty() && total + tokens.len() > N_CTX as usize {
+                    pending = Some(tokens);
+                    break;
+                }
+                total += tokens.len();
+                seqs.push(tokens);
+                idx += 1;
+            }
+            let mut batch = LlamaBatch::new(total.max(1), seqs.len() as i32);
+            for (si, tokens) in seqs.iter().enumerate() {
+                batch.add_sequence(tokens, si as i32, false)?;
+            }
             ctx.clear_kv_cache();
             ctx.decode(&mut batch).context("decode")?;
-            let mut vec = ctx
-                .embeddings_seq_ith(0)
-                .context("read pooled embedding")?
-                .to_vec();
-            l2_normalize(&mut vec);
-            out.push(vec);
+            for si in 0..seqs.len() {
+                let mut vec = ctx
+                    .embeddings_seq_ith(si as i32)
+                    .context("read pooled embedding")?
+                    .to_vec();
+                l2_normalize(&mut vec);
+                canonicalize_f16(&mut vec);
+                out.push(vec);
+            }
         }
         Ok(out)
     }
@@ -165,6 +210,17 @@ fn l2_normalize(v: &mut [f32]) {
         for x in v.iter_mut() {
             *x /= norm;
         }
+    }
+}
+
+/// Round every component to its nearest f16 in place — the canonical
+/// precision of argot's embedding space. The index artifact and the embed
+/// cache both store f16, so canonicalising at the source makes "freshly
+/// computed", "reloaded", and "cache hit" the same bits: a cache or artifact
+/// round-trip can never move a cosine.
+fn canonicalize_f16(v: &mut [f32]) {
+    for x in v.iter_mut() {
+        *x = half::f16::from_f32(*x).to_f32();
     }
 }
 
@@ -604,6 +660,33 @@ mod tests {
             cross_cos < self_cos - 0.05,
             "unrelated code separates: self={self_cos} cross={cross_cos}"
         );
+    }
+
+    #[test]
+    fn embed_output_is_f16_canonical_and_batching_matches_single() {
+        let Some(emb) = local_embedder() else {
+            eprintln!("skipping: no local model (set {MODEL_ENV})");
+            return;
+        };
+        let texts = [
+            "def one(a):\n    b = a + 1\n    return b\n",
+            "def two(a):\n    b = a * 2\n    return b\n",
+            "def three(a):\n    b = a - 3\n    return b\n",
+        ];
+        let batched = emb.embed(&texts).unwrap();
+        for v in &batched {
+            // Canonical: every component is exactly f16-representable, so the
+            // artifact/cache round-trip is bit-identical.
+            assert!(v.iter().all(|&x| x == half::f16::from_f32(x).to_f32()));
+        }
+        // Packing several sequences into one decode must not change what a
+        // text embeds to (per-sequence attention masking): same direction as
+        // embedding each text alone.
+        for (i, text) in texts.iter().enumerate() {
+            let solo = emb.embed_one(text).unwrap();
+            let cos = cosine(&batched[i], &solo);
+            assert!(cos > 0.999, "batch[{i}] vs solo cosine {cos}");
+        }
     }
 
     #[test]

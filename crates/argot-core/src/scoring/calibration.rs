@@ -1102,6 +1102,15 @@ pub fn run_calibrate(
     #[cfg(feature = "semantic")]
     let mut semantic_artifact =
         crate::scoring::semantic::index::SemanticArtifact::new(opts.repo_sha.clone());
+    // The machine-wide embed cache: a fresh clone or audit worktree of an
+    // already-seen repo reuses vectors across checkouts, not just within one.
+    #[cfg(feature = "semantic")]
+    let embed_cache = if embedder.is_some() {
+        let _t = crate::timing::phase("calibrate: embed-cache load");
+        crate::scoring::semantic::embed_cache::EmbedCache::open_current()
+    } else {
+        None
+    };
     // The previous fit's index, when it exists and was built by THIS model:
     // unchanged functions reuse their vectors (incremental refresh), so a
     // routine refit embeds only what actually changed. A stale/other-model
@@ -1424,17 +1433,23 @@ pub fn run_calibrate(
                     emb,
                     &funcs,
                     prior_index.as_ref(),
+                    embed_cache.as_ref(),
                 ) {
                     Ok((idx, reused)) if !idx.is_empty() => {
                         t_embed.relabel(format!(
-                            "calibrate[{name}]: semantic embed ({} fns, {reused} reused)",
-                            funcs.len()
+                            "calibrate[{name}]: semantic embed ({} fns, {} prior-reused, {} cache-reused)",
+                            funcs.len(),
+                            reused.from_prior,
+                            reused.from_cache
                         ));
                         t_embed.done();
-                        if reused > 0 {
+                        if reused.total() > 0 {
                             eprintln!(
-                                "argot: {name}: reused {reused} of {} embeddings from the previous fit",
-                                funcs.len()
+                                "argot: {name}: reused {} of {} embeddings ({} from the previous fit, {} from the machine cache)",
+                                reused.total(),
+                                funcs.len(),
+                                reused.from_prior,
+                                reused.from_cache
                             );
                         }
                         // Self-calibrate the placement sense on the fresh index

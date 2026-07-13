@@ -23,6 +23,7 @@
 //! Everything here is gated behind `feature = "semantic"`; with the feature off
 //! the base statistical guardrail is byte-for-byte unchanged and pays no cost.
 
+pub mod embed_cache;
 pub mod embedder;
 pub mod index;
 pub mod placement;
