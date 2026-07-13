@@ -31,20 +31,6 @@ pub const EMBED_DIM: usize = 768;
 /// tokenizer at this bound (rare for a single function).
 const N_CTX: u32 = 8192;
 
-/// Sequences packed into one decode — bounds per-decode sequence bookkeeping
-/// (and the context's `n_seq_max`); the token budget below is what usually
-/// closes a pack.
-const MAX_BATCH_SEQS: u32 = 64;
-
-/// Token budget per decode. llama.cpp computes an encoder's attention over
-/// the *whole* packed ubatch (cross-sequence pairs are masked but still
-/// spend FLOPs), so packing is a trade: per-decode overhead amortises
-/// linearly while attention grows quadratically with the pack. ~1k tokens
-/// measured marginally best on Apple Metal (the full 8192 window is
-/// attention-bound and slower). A single function longer than the budget
-/// still embeds alone, up to the model's context length.
-const PACK_TOKEN_BUDGET: usize = 1024;
-
 /// The pinned model — `jina-embeddings-v2-base-code`, Q4_K_M GGUF. These exact
 /// bytes cleared parity 1.0 in the P0 spike; the sha256 is the ollama blob name.
 pub const MODEL_NAME: &str = "jina-embeddings-v2-base-code";
@@ -127,26 +113,28 @@ impl Embedder {
     /// Vectors are canonicalised to f16 precision before returning — exactly
     /// the precision the on-disk index artifact and the machine-wide embed
     /// cache store — so a vector is bit-identical whether it was computed this
-    /// run, reloaded from the artifact, or served from the cache.
+    /// run, reloaded from the artifact, or served from the cache. This is the
+    /// stable representation of this embedding space: the encoder's f32 output
+    /// jitters run-to-run in its low bits (Metal reduction order), but rounds
+    /// to the same f16, so a cache hit and a fresh embed produce identical
+    /// findings.
     ///
-    /// Throughput: texts are packed several sequences per decode (jina-code is
-    /// an encoder; llama.cpp mean-pools each sequence independently under its
-    /// per-sequence attention mask), which amortises per-decode overhead.
-    /// Measured honestly: a modest ~1.2× on Apple Metal (~29 → ~24 ms per
-    /// ~150-token function — the per-token compute, not the decode count,
-    /// dominates on this stack), so the machine-wide embed cache, not
-    /// batching, is what makes repeat encounters fast.
+    /// Encoding is one sequence per decode. Packing several sequences per
+    /// decode was measured (only ~1.2× on Metal — the per-token compute, not
+    /// the decode count, dominates here) and, more importantly, *changed the
+    /// pooled vector's low bits enough to flip a cosine tie in the neighbour
+    /// ranking*, breaking byte-identity of the findings. The machine-wide
+    /// embed cache, not batching, is what makes repeat encounters fast.
     pub fn embed(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
         let backend = backend()?;
-        // jina-code is an *encoder*: llama.cpp processes a whole batch in a
+        // jina-code is an *encoder*: llama.cpp processes the whole sequence in a
         // single ubatch and asserts `n_ubatch >= n_tokens`, so n_batch/n_ubatch
-        // must cover everything packed into one decode (the context length).
-        // The default 512 crashes on any function longer than that.
+        // must cover the longest function we embed (the context length). The
+        // default 512 crashes on any function longer than that.
         let ctx_params = LlamaContextParams::default()
             .with_n_ctx(std::num::NonZeroU32::new(N_CTX))
             .with_n_batch(N_CTX)
             .with_n_ubatch(N_CTX)
-            .with_n_seq_max(MAX_BATCH_SEQS)
             .with_embeddings(true)
             .with_pooling_type(LlamaPoolingType::Mean);
         let mut ctx = self
@@ -155,54 +143,28 @@ impl Embedder {
             .context("create embedding context")?;
 
         let mut out = Vec::with_capacity(texts.len());
-        // A text tokenized for the current pack but not fitting it — carried
-        // into the next pack so it's never tokenized twice.
-        let mut pending: Option<Vec<llama_cpp_2::token::LlamaToken>> = None;
-        let mut idx = 0;
-        while idx < texts.len() {
-            // Greedily pack sequences until the token budget or the sequence
-            // cap is reached. Each sequence keeps its own id: no padding, so
-            // the mean pool is over exactly that sequence's real tokens.
-            let mut seqs: Vec<Vec<llama_cpp_2::token::LlamaToken>> = Vec::new();
-            let mut total = 0usize;
-            while idx < texts.len() && seqs.len() < MAX_BATCH_SEQS as usize {
-                let tokens = match pending.take() {
-                    Some(t) => t,
-                    None => {
-                        let mut t = self
-                            .model
-                            .str_to_token(texts[idx], AddBos::Always)
-                            .context("tokenize")?;
-                        // Defensive: never exceed the context window (a
-                        // pathologically long function is truncated rather
-                        // than crashing the encoder assert).
-                        t.truncate(N_CTX as usize);
-                        t
-                    }
-                };
-                if !seqs.is_empty() && total + tokens.len() > PACK_TOKEN_BUDGET {
-                    pending = Some(tokens);
-                    break;
-                }
-                total += tokens.len();
-                seqs.push(tokens);
-                idx += 1;
-            }
-            let mut batch = LlamaBatch::new(total.max(1), seqs.len() as i32);
-            for (si, tokens) in seqs.iter().enumerate() {
-                batch.add_sequence(tokens, si as i32, false)?;
-            }
+        for text in texts {
+            // A single-sequence batch per text: no padding, so the mean pool is
+            // over exactly the real tokens.
+            let mut tokens = self
+                .model
+                .str_to_token(text, AddBos::Always)
+                .context("tokenize")?;
+            // Defensive: never exceed the context window (a pathologically long
+            // function is truncated rather than crashing the encoder assert).
+            tokens.truncate(N_CTX as usize);
+            let n = tokens.len().max(1);
+            let mut batch = LlamaBatch::new(n, 1);
+            batch.add_sequence(&tokens, 0, false)?;
             ctx.clear_kv_cache();
             ctx.decode(&mut batch).context("decode")?;
-            for si in 0..seqs.len() {
-                let mut vec = ctx
-                    .embeddings_seq_ith(si as i32)
-                    .context("read pooled embedding")?
-                    .to_vec();
-                l2_normalize(&mut vec);
-                canonicalize_f16(&mut vec);
-                out.push(vec);
-            }
+            let mut vec = ctx
+                .embeddings_seq_ith(0)
+                .context("read pooled embedding")?
+                .to_vec();
+            l2_normalize(&mut vec);
+            canonicalize_f16(&mut vec);
+            out.push(vec);
         }
         Ok(out)
     }
@@ -673,7 +635,7 @@ mod tests {
     }
 
     #[test]
-    fn embed_output_is_f16_canonical_and_batching_matches_single() {
+    fn embed_output_is_f16_canonical_and_bit_stable_across_calls() {
         let Some(emb) = local_embedder() else {
             eprintln!("skipping: no local model (set {MODEL_ENV})");
             return;
@@ -683,19 +645,21 @@ mod tests {
             "def two(a):\n    b = a * 2\n    return b\n",
             "def three(a):\n    b = a - 3\n    return b\n",
         ];
-        let batched = emb.embed(&texts).unwrap();
-        for v in &batched {
+        let vecs = emb.embed(&texts).unwrap();
+        for v in &vecs {
             // Canonical: every component is exactly f16-representable, so the
             // artifact/cache round-trip is bit-identical.
             assert!(v.iter().all(|&x| x == half::f16::from_f32(x).to_f32()));
         }
-        // Packing several sequences into one decode must not change what a
-        // text embeds to (per-sequence attention masking): same direction as
-        // embedding each text alone.
+        // Embedding a text in a multi-text call, alone, and a second time must
+        // all yield the *same bits* — the f16 canonicalisation absorbs the
+        // encoder's low-bit run-to-run jitter, which is what makes a cache hit
+        // interchangeable with a fresh embed.
         for (i, text) in texts.iter().enumerate() {
             let solo = emb.embed_one(text).unwrap();
-            let cos = cosine(&batched[i], &solo);
-            assert!(cos > 0.999, "batch[{i}] vs solo cosine {cos}");
+            let again = emb.embed_one(text).unwrap();
+            assert_eq!(vecs[i], solo, "slice vs solo bit-identical");
+            assert_eq!(solo, again, "repeat embed bit-identical");
         }
     }
 
