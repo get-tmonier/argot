@@ -9,11 +9,14 @@ const { customRules } = Astro.props.content;
 
 // The rule-card mockup is UI chrome (like a screenshot), not marketing prose —
 // hardcoded here rather than in i18n, matching CiScore.astro's PR card.
-const ruleCode = `// check.rhai — config goes through loadConfig()
-for m in ts_query("(member_expression) @e") {
-  if m.text.starts_with("process.env") {
-    report(m.line, "use loadConfig() — raw
-      process.env skips validation");
+const ruleCode = `// check.rhai — a route that existed before
+// this change, and is silently gone now
+let now = [];
+for m in ts_query(ROUTES) { now.push(m.text); }
+for m in ts_query_old(ROUTES) {
+  if !now.contains(m.text) {
+    report(m.line, m.text + " removed —
+      deprecate first (docs/api-lifecycle.md)");
   }
 }`;
 ---
@@ -43,13 +46,13 @@ for m in ts_query("(member_expression) @e") {
     <div class="reveal" style="--reveal-delay: 120ms">
       <div class="rule-card">
         <div class="rule-head">
-          <span class="rule-path">.argot/rules/no-direct-env/</span>
-          <span class="rule-pill">severity: warn</span>
+          <span class="rule-path">.argot/rules/no-dropped-endpoints/</span>
+          <span class="rule-pill">severity: error</span>
         </div>
         <pre class="rule-code" aria-label="A custom rule script"><code>{ruleCode}</code></pre>
         <div class="rule-run">
-          <span class="rule-prompt">$</span> argot rules test no-direct-env
-          <span class="rule-ok">ok</span> fires-on-env · <span class="rule-ok">ok</span> quiet-on-loader
+          <span class="rule-prompt">$</span> argot rules test no-dropped-endpoints
+          <span class="rule-ok">ok</span> fires-on-removal · <span class="rule-ok">ok</span> quiet-on-refactor
         </div>
       </div>
     </div>

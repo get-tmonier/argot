@@ -17,7 +17,7 @@ const en: SiteContent = {
     titleLead: 'Lint the rules',
     titleGradient: 'you never wrote down.',
     subtitle:
-      'Every codebase has a way of doing things. argot learns [[yours]] from git history, takes the rules you write yourself, and holds every AI diff to it — before the merge.',
+      'Every codebase has a way of doing things — most of it written nowhere. argot learns [[yours]] and holds every AI diff to it, before the merge.',
     ctaPrimary: 'Read the docs',
     ctaSecondary: 'Star on GitHub',
     install: 'npm i -g @tmonier/argot',
@@ -86,8 +86,8 @@ const en: SiteContent = {
     body: 'Five detectors learn your repo. The sixth you write: [[a manifest and a tiny script]] in .argot/rules/, versioned with your code, loaded at run time. The conventions that used to live in review comments — enforced on every diff, across all 11 languages.',
     points: [
       {
-        title: 'Diff-scoped',
-        desc: 'Rules only see changed files — adopting one creates [[zero backlog noise]].',
+        title: 'Two-sided',
+        desc: 'ts_query_old sees [[what a change removed]] — a rule no classic linter can even express.',
       },
       {
         title: 'History-aware',

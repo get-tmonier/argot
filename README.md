@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>Your codebase has a voice. argot makes AI code speak it.</strong><br/>
-  <em>Every codebase has a way of doing things. argot learns yours from git history, takes the rules you write yourself, and holds every AI diff to it — a dependency you've never used, a function you already wrote, an import that breaks your layering, a test quietly weakened, a convention only your team knows. 100% local. No LLM, no cloud, no GPU required.</em>
+  <em>Every codebase has a way of doing things — most of it written nowhere. argot learns yours from git history and holds every AI diff to it: a dependency you've never used, a function you already wrote, an import that breaks your layering, a test quietly weakened, a convention only your team knows. 100% local. No LLM, no cloud, no GPU required.</em>
 </p>
 
 <p align="center">
@@ -107,27 +107,32 @@ fastapi/receipts.py
 
 Every team has conventions no generic linter ships: *"config goes through the loader, never raw `process.env`"*, *"retries use the backoff helper, not a sleep in a loop"*, *"we log, never print"*. They live in review comments and onboarding docs — until an AI agent, who read neither, merges around them. With argot they're **repo-local rules**: a TOML manifest + a small sandboxed script in `.argot/rules/`, versioned with your code, loaded at run time — no plugin build, no recompile, one rule format across all 11 languages.
 
+And they can do what no classic linter structurally can. A linter sees one version of one file; argot hands your rule **both sides of the diff** — so you can write rules about what a change *removed*:
+
 ```toml
-# .argot/rules/no-direct-env/rule.toml
+# .argot/rules/no-dropped-endpoints/rule.toml
 [rule]
 schema = 1
-name = "no-direct-env"
-description = "config is read through loadConfig() — raw process.env skips validation and defaults"
-severity = "warn"
+name = "no-dropped-endpoints"
+description = "removing a public endpoint requires a deprecation cycle — catch the route that silently disappears in a diff"
+severity = "error"
 languages = ["typescript", "javascript"]
 ```
 
 ```rhai
-// check.rhai — flag process.env reads outside the config module
-if file.path.contains("src/config") { return; }
-for m in ts_query("(member_expression) @e") {
-    if m.text.starts_with("process.env") {
-        report(m.line, "read config through loadConfig() — raw process.env skips validation and defaults (see src/config.ts)");
+// check.rhai — a route that existed before this change, and is gone now
+const ROUTES = "(call_expression function: (member_expression property: (property_identifier) @verb)
+                arguments: (arguments (string (string_fragment) @path)))";
+let now = [];
+for m in ts_query(ROUTES) { if m.capture == "path" { now.push(m.text); } }
+for m in ts_query_old(ROUTES) {
+    if m.capture == "path" && !now.contains(m.text) {
+        report(m.line, "endpoint '" + m.text + "' removed without a deprecation cycle — see docs/api-lifecycle.md");
     }
 }
 ```
 
-Rules run on **changed files only** — adopting one creates zero backlog noise, it just guards new code — and their findings are suppressed, configured, and rendered exactly like built-in rules. Because argot fits your history, a rule can even ask it questions: `import_attested("moment")` means *"has this repo ever used this date library?"* — something no history-blind tool can express. `argot rules test` is the red/green authoring loop. Full reference + worked example: [Custom rules](https://argot.tmonier.com/docs/custom-rules/).
+No ESLint plugin can express that rule — there is no "old side" in a linter. And because argot fits your history, a rule's allowlist can be **your own git log**: `import_attested("moment")` asks *"has this repo ever used this date library?"* — no list to hardcode, no list to maintain. Rules run on **changed files only** (adopting one creates zero backlog noise), and their findings are suppressed, configured, and rendered exactly like built-in rules. `argot rules test` is the red/green authoring loop. Full reference + worked examples: [Custom rules](https://argot.tmonier.com/docs/custom-rules/).
 
 ## Configure it like any linter
 

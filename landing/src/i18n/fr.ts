@@ -17,7 +17,7 @@ const fr: SiteContent = {
     titleLead: 'Lintez les règles',
     titleGradient: 'que personne n’a écrites.',
     subtitle:
-      'Chaque base de code a sa manière de faire. argot apprend [[la vôtre]] depuis l’historique git, prend les règles que vous écrivez vous-même, et y tient chaque diff d’IA — avant le merge.',
+      'Chaque base de code a sa manière de faire — presque jamais écrite. argot apprend [[la vôtre]] et y tient chaque diff d’IA, avant le merge.',
     ctaPrimary: 'Lire la doc',
     ctaSecondary: 'Star sur GitHub',
     install: 'npm i -g @tmonier/argot',
@@ -84,8 +84,8 @@ const fr: SiteContent = {
     body: 'Cinq détecteurs apprennent votre dépôt. Le sixième, vous l’écrivez : [[un manifeste et un petit script]] dans .argot/rules/, versionnés avec votre code, chargés à l’exécution. Les conventions qui vivaient en commentaires de review — appliquées à chaque diff, dans les 11 langages.',
     points: [
       {
-        title: 'À l’échelle du diff',
-        desc: 'Les règles ne voient que les fichiers modifiés — en adopter une crée [[zéro bruit d’historique]].',
+        title: 'Des deux côtés du diff',
+        desc: 'ts_query_old voit [[ce qu’un changement supprime]] — une règle qu’aucun linter classique ne peut exprimer.',
       },
       {
         title: 'Consciente de l’historique',

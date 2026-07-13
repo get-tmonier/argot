@@ -144,6 +144,34 @@ argot check
 #                   ↳ use the logger instead
 ```
 
+## What only argot can express
+
+Two host calls have no equivalent in any classic linter:
+
+**The pre-image.** A linter sees one version of one file; argot hands your rule both sides of
+the diff. `ts_query_old` runs the same tree-sitter query against the file as it was *before* the
+change — so you can write rules about what a diff **removed**:
+
+```rhai
+// no-dropped-endpoints — a route that existed before this change, gone now
+const ROUTES = "(call_expression function: (member_expression property: (property_identifier) @verb)
+                arguments: (arguments (string (string_fragment) @path)))";
+let now = [];
+for m in ts_query(ROUTES) { if m.capture == "path" { now.push(m.text); } }
+for m in ts_query_old(ROUTES) {
+    if m.capture == "path" && !now.contains(m.text) {
+        report(m.line, "endpoint '" + m.text + "' removed without a deprecation cycle — see docs/api-lifecycle.md");
+    }
+}
+```
+
+Pair it with an `old.ts` fixture in the harness (see below) and severity `error`: silently
+dropping a public route now fails the check with the route's name.
+
+**The learned model.** `import_attested(module)` / `callee_attested(name)` consult the fitted
+voice model — your own git history as the allowlist. *"Flag any date library this repo has never
+used"* needs no hardcoded list and never goes stale: the repo's history **is** the list.
+
 ## Severity, suppression, output — identical to a built-in
 
 A custom finding's internal reason is `custom:<name>`, but every user-facing surface treats it
