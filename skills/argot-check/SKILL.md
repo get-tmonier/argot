@@ -70,6 +70,12 @@ repo's effective severities.
 | `test-disabled` | integrity | A skip/ignore marker added, or a test gutted, while production code changes. | Un-skip and fix the code, or record why the skip is temporary; skipping to make a failing suite green is the exact behavior this rule exists to catch. |
 | `test-weakened` | integrity | Assertions removed, tautologized, or loosened while production code changes. | Restore the assertion strength; if the expected value legitimately changed, say why in the commit/PR rather than silently retargeting. |
 
+A repo may also carry its own rules under `.argot/rules/<name>/` — a fifth group, `custom`.
+Treat a `custom`-group hit exactly like any row above: read the rule's `evidence`, act on it, or
+justify and mute. `argot rules` lists every custom rule alongside the built-ins, with its source
+directory, so a quick look there tells you the repo's full vocabulary before you triage a hit you
+don't recognize.
+
 ## Confidence is evidence strength, not priority
 
 `foreign` (`!`) / `suspicious` (`?`) / `unusual` (`.`) grade **how strong the

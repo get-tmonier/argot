@@ -116,6 +116,33 @@ suppression; `argot review-mutes` reports which ones no longer fire
 - Never set a rule to `off` on your own initiative — downgrading to `warn` or
   muting a specific hit with a reason is the recorded, reversible move.
 
+## Custom rules — the repo's own vocabulary
+
+A repo can carry hand-written rules under `.argot/rules/<name>/` (a `rule.toml` manifest plus a
+sandboxed Rhai script), committed alongside the code. `argot check` discovers and runs them
+fresh every time — no rebuild. Their findings behave exactly like a built-in's: same rule name
+in every output, same `[rules]`/`--rule` severities, same inline-comment and `[[mute]]`
+suppressions, just under one more group, `custom`. `argot rules` lists them (with their source
+directory) right after the built-ins — run it to see a repo's full rule vocabulary, built-in and
+custom together.
+
+**When a human asks you to codify a repo convention** ("we never call `X` directly," "raw SQL
+isn't allowed outside the query builder"), you can write the rule yourself:
+
+1. Create `.argot/rules/<name>/rule.toml` (`schema = 1`, `name` matching the directory,
+   `languages` scoped to where the convention applies) and `check.rhai` (a `ts_query(...)` loop
+   calling `report`/`report_span` — host API v1: `file`, `hunks`, `ts_query`,
+   `import_attested`/`callee_attested`, `changeset_paths`).
+2. Add `tests/<case>/{input.<ext>, expected.json}` fixtures — at least one that should fire and
+   one that shouldn't.
+3. Loop `argot rules test <name>` until every case passes, then let a real `argot check` confirm
+   it fires on the intended pattern.
+
+Full manifest schema, the host API reference, and a worked example (`no-print`, banning raw
+`print()` calls) are in [Custom rules](https://argot.tmonier.com/docs/custom-rules/). Same
+contract as everything else here: writing the rule is yours to do on request, but muting or
+softening one of its findings is still the human's call.
+
 ## If the binary disagrees with this document
 
 Trust the binary. `argot rules` prints the live rule registry and `argot

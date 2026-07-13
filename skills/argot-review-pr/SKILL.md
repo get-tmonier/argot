@@ -48,8 +48,10 @@ In `--format human` the meta line reads
 
 ## The rules
 
-Ten rules in four groups (`argot rules` prints the registry with the repo's
-effective severities):
+Ten built-in rules in four groups (`argot rules` prints the registry with the
+repo's effective severities — plus any scripted custom rules the repo carries
+under `.argot/rules/`, group `custom`; treat their findings like any row
+below, with the rule's own message as the evidence):
 
 | Rule | Group | What it means | What to recommend |
 |---|---|---|---|

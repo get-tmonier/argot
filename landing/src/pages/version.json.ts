@@ -21,7 +21,7 @@ const cargo = read('../Cargo.toml');
 const latest = cargo.match(/^version = "([^"]+)"/m)?.[1];
 if (!latest) throw new Error('version.json: no workspace version in Cargo.toml');
 
-const embedder = read('../crates/argot-core/src/scoring/semantic/embedder.rs');
+const embedder = read('../crates/argot-rules-semantic/src/embedder.rs');
 const modelTag = embedder.match(/releases\/download\/([^/"]+)\//)?.[1];
 if (!modelTag) throw new Error('version.json: no model tag in embedder.rs MODEL_URL');
 

@@ -92,6 +92,15 @@ jobs:
           cargo clippy -p argot-core -p argot-bench --all-targets --features integrity -- -D warnings
           cargo test -p argot-core --features integrity
           cargo check -p argot-core --features arch,integrity
+      # The scripted-rules layer (`script`) is pure-Rust (rhai) — same cheap
+      # PR-path shape as arch/integrity. Runs the slice's unit tests plus the
+      # end-to-end pipeline suite (discovery → findings → suppression).
+      - name: Clippy + test script feature (pure-Rust, feature-gated)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cargo clippy -p argot-core -p argot --all-targets --features script -- -D warnings
+          cargo test -p argot-rules-script
+          cargo test -p argot-core --features script --test script_rules
       # The semantic layer links llama.cpp (compiling it from source via cmake is
       # a multi-minute C++ build), so it is kept OFF the PR path to keep PR CI
       # fast — it runs only on push-to-main and manual dispatch (Linux leg),
@@ -112,7 +121,7 @@ jobs:
       # release runners (v0.2.62 broke exactly this way).
       - name: Check the release feature combo
         if: github.event_name != 'pull_request' && matrix.os == 'ubuntu-latest'
-        run: cargo check -p argot --features self-update,semantic,arch,integrity
+        run: cargo check -p argot --features self-update,semantic,arch,integrity,script
       - name: Test (incl. Python-parity golden suites)
         env:
           # On Windows `bash` resolves to the WSL stub (System32, no distro

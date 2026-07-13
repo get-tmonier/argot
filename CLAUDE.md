@@ -25,36 +25,64 @@ just integrity-verify  # gaming-fixture recall + control guard for the integrity
 
 ## Architecture
 
-One Cargo workspace, two crates:
+One Cargo workspace, hexagonal: a rule-blind engine, one crate per rule
+group (a **vertical slice** — deletable without touching the core), and a
+facade holding the composition root.
 
 ```
 crates/
-  argot-core/       # the engine — pure library, does the work
-    scoring/        # scorers (sequential/BPE, call_receiver, conventions, filters,
-                    #   typicality), adapters (per language), calibration,
-                    #   numpy_sampler (numpy-exact RNG for threshold parity)
-      semantic/     # OPT-COMPILE (`--features semantic`): per-repo code
-                    #   embeddings — embedder (llama.cpp/jina-code), index,
-                    #   redundant (F1), placement (F2). See "Semantic layer".
-      arch_graph.rs # OPT-COMPILE (`--features arch`): module-dependency graph →
-                    #   the `layering` rule. See "Architecture layer".
-      structural.rs # OPT-COMPILE (`--features structural`): AST-bigram signal —
-                    #   research-only, NON-GATING, off in releases.
-      integrity.rs  # OPT-COMPILE (`--features integrity`): diffs each
-                    #   changeset's test_inventory/ (per-language test-case
-                    #   facts) into gaming events — test-deleted /
-                    #   test-disabled / test-weakened. See "Integrity layer".
-    rules.rs        # the rule registry: 10 rules / 4 groups, severities, confidence tiers
-    git_walk.rs · tokenize.rs · extract.rs · train.rs · check.rs · inspect.rs ·
-    config.rs · health.rs · output.rs · suppress/ · dataset.rs · stats.rs
-    data/           # embedded unixcoder tokenizer + generic BPE baseline (include_bytes!)
-  argot-cli/        # clap CLI → the single `argot` binary (package name: argot);
-                    # per-command modules: mcp.rs (MCP server) · review.rs ·
-                    # replay.rs · voice_diff.rs · describe.rs (describe-voice) ·
-                    # auto_refit.rs · update_check.rs · uninstall.rs · worktree.rs
+  argot-lang/            # LEAF language substrate: the 11 LanguageAdapter impls,
+                         #   tree-sitter parsing/grammars (ts_parse), tokenize + BPE
+                         #   (embedded unixcoder tokenizer), callee extraction,
+                         #   text utils, dataset wire format, ext→language routing.
+  argot-engine/          # RULE-BLIND engine (zero cargo features, zero slice
+                         #   knowledge): the Detector contract (detector.rs —
+                         #   lifecycle: vocabulary → load → fit_begin/fit_language/
+                         #   fit → check), Finding + RenderEvidence (finding.rs),
+                         #   the rule registry (rules.rs: built-in vocabulary +
+                         #   runtime custom overlay), check orchestration
+                         #   (check/{orchestrate,collect,render}.rs), config.rs,
+                         #   suppress/ (incl. the shared FileSuppressions
+                         #   classifier), output.rs, git/corpus walking, artifact
+                         #   writes, health/timing/cache/stats.
+  argot-rules-voice/     # The base statistical group (always ships): sequential
+                         #   composite (BPE + import + call-receiver + conventions
+                         #   + typicality — arbitration is ONE slice, do not split),
+                         #   calibration, train/extract, model loading/RepoScorers,
+                         #   inspect, ignore-suggest. Feature `structural` (research
+                         #   AST-bigram signal, NON-GATING, off in releases).
+  argot-rules-semantic/  # `redundant` + `misplaced` (embeddings; llama-cpp-2 deps
+                         #   live HERE). See "Semantic layer".
+  argot-rules-arch/      # `layering` (module-dependency graph). See below.
+  argot-rules-integrity/ # test-deleted/-disabled/-weakened. See below.
+  argot-rules-script/    # RUNTIME community rules: `.argot/rules/<name>/`
+                         #   (rule.toml manifest + check.rhai), sandboxed Rhai host
+                         #   API v1 (ts_query, learned-model facts, report), the
+                         #   `argot rules test` harness. See "Scripted rules".
+  argot-core/            # FACADE + COMPOSITION ROOT — exactly two files:
+                         #   lib.rs (re-exports every historical path; the 18
+                         #   parity/integration suites live in its tests/) and
+                         #   compose.rs (which rule groups this build registers;
+                         #   deleting a group = deleting a crate + its lines here).
+                         #   Cargo features semantic/arch/integrity/script are
+                         #   optional slice-crate deps; structural forwards to voice.
+  argot-cli/             # clap CLI → the single `argot` binary (package name: argot);
+                         #   per-command modules: mcp.rs (MCP server) · review.rs ·
+                         #   audit/ · voice_diff.rs · describe.rs (describe-voice) ·
+                         #   auto_refit.rs · update_check.rs · uninstall.rs · worktree.rs
+  argot-bench/           # research harness (never shipped; publish = false)
 ```
 
-The full pipeline is `train` → `calibrate` → `check` (`fit` = train + calibrate, one-shot; `argot init` = fit + health report; `extract` is bench plumbing — the fit → check flow never consumes the dataset). Everything runs in-process in the one binary — no subprocess, no external files. Release binaries build with `features = ["self-update", "semantic", "arch"]` (`dist-workspace.toml`); dev/CI base loops build with none of them.
+Dependency direction is strict: `lang ← engine ← rules-* ← core ← cli/bench`.
+A rule crate never imports another rule crate; the engine never names a slice
+(grep-enforced: no `cfg(feature` and no slice references in argot-engine).
+Every group implements the engine's `Detector` trait and is registered in
+`argot-core/src/compose.rs` with an explicit **order table**:
+execution_rank (additive passes first, voice last — stderr interleave) and
+merge_rank (voice's findings first — stdout order); both are parity-locked
+by the check goldens.
+
+The full pipeline is `train` → `calibrate` → `check` (`fit` = train + calibrate, one-shot; `argot init` = fit + health report; `extract` is bench plumbing — the fit → check flow never consumes the dataset). Everything runs in-process in the one binary — no subprocess, no external files. Release binaries build with `features = ["self-update", "semantic", "arch", "integrity", "script"]` (`dist-workspace.toml`); dev/CI base loops build with none of them.
 
 ### Semantic layer (`--features semantic`)
 
@@ -62,7 +90,7 @@ A second, embedding-based sense layered on the base statistical guardrail. It
 builds a per-repo `SemanticIndex` (embed every function at fit, query at check)
 and emits two rules — `redundant` (F1 reinvention — "you already have this") and
 `misplaced` (F2 placement — "this doesn't belong here"), group `semantic` in the
-rule registry (`src/rules.rs`) — plus nearest-code evidence (F4) on both.
+rule registry (`argot-engine/src/rules.rs`) — plus nearest-code evidence (F4) on both.
 Embedder = llama.cpp statically linked via `llama-cpp-2` (same in-process C-dep
 shape as git2/tree-sitter), model = jina-embeddings-v2-base-code Q4 GGUF
 fetched-on-first-use to `~/.cache/argot/models` (sha256-pinned; the artifact
@@ -108,21 +136,38 @@ fired, and 1.24% of replayed accepted test-touching commits flagged at gating
 severity; evidence in `docs/research/evidence/test-integrity-capstone.md`.
 `just integrity-verify` is the fixture-recall + control regression guard.
 
+### Scripted rules (`--features script`)
+
+Runtime community rules, no recompilation: a rule is
+`.argot/rules/<name>/rule.toml` (schema/api versions, default severity,
+language scope) + `check.rhai` (detection logic; runs once per changed file).
+Host API v1 does the heavy lifting natively — `ts_query()` (tree-sitter),
+`import_attested()`/`callee_attested()` (the fitted voice model's facts via
+the engine's `ModelFacts` port), `file`/`hunks` scope, `report`/`report_span`.
+Sandbox: no I/O, print captured, 1M-op + depth/size caps, 100 ms wall clock
+per file — a runaway rule is disabled for the run, never hangs the check.
+Custom findings carry reason `custom:<name>` (syntactic mapping — suppression
+hot paths need no registry) and behave exactly like built-ins across
+`[rules]`/`--rule`, `rule=` inline scopes, `[[mute]]`, and every output
+format. `argot rules test [name]` is the fixture-based authoring loop
+(`tests/<case>/{input.<ext>, expected.json}`). Same gate shape: pure-Rust
+(rhai), ON in releases.
+
 ### Structural signal (`--features structural`)
 
-`scoring/structural.rs`: 0-usage AST-bigram foreignness. Real signal but not
-gatable (no threshold gives acceptable over-fire everywhere) — kept
-feature-gated, NON-GATING, **off in releases**. Don't re-chase gatability;
-the evidence record explains why.
+`argot-rules-voice/src/scoring/structural.rs`: 0-usage AST-bigram
+foreignness. Real signal but not gatable (no threshold gives acceptable
+over-fire everywhere) — kept feature-gated, NON-GATING, **off in releases**.
+Don't re-chase gatability; the evidence record explains why.
 
-Production code lives under `crates/argot-core/src/scoring/`. Production symbols (types, files, functions) must be named after domain concepts — never after research artefacts (`era`, `phase`, `PhaseNa…`, etc.); those labels belong in eval/research code only.
+Production symbols (types, files, functions) must be named after domain concepts — never after research artefacts (`era`, `phase`, `PhaseNa…`, etc.); those labels belong in eval/research code only.
 
 ## Key conventions
 
 - Language/corpus-agnostic core (see below); errors via `anyhow`/`thiserror`.
 - Dependency versions are pinned for parity with the original Python engine (tree-sitter grammars, `tokenizers` 0.22, libgit2 via `git2`) — see the comments in the root `Cargo.toml`. Don't bump them without re-checking the golden/parity suites.
 - Rust edition 2021, toolchain pinned in `rust-toolchain.toml`. Clippy runs as `-D warnings`; no `#![allow(...)]` blanket suppressions.
-- Test files: unit tests in-module (`#[cfg(test)]`); parity/golden suites in `crates/argot-core/tests/*_parity.rs` (compare Rust output to fixtures captured from the old Python engine).
+- Test files: **production files carry no test code** — each module's unit tests live in a sibling `tests.rs` (`#[cfg(test)] mod tests;` → `<module>/tests.rs`), still compiled out of every release build; parity/golden suites in `crates/argot-core/tests/*_parity.rs` (compare Rust output to fixtures captured from the old Python engine) exercise the fully composed pipeline through the facade.
 
 ## Testing
 
@@ -134,7 +179,7 @@ For non-trivial production logic (scoring math, threshold decisions, cluster log
 
 ## Language and corpus independence
 
-Production code (`crates/argot-core/src/scoring/`) must be language-agnostic and corpus-agnostic. No hardcoded references to Python, TypeScript, FastAPI, faker-js, or any other specific language or corpus. Those appear only in fixtures, benchmarks, and eval scripts. A scorer that only works on Python repos is not a production scorer.
+Production scoring code (the `argot-rules-*` crates and `argot-engine`) must be language-agnostic and corpus-agnostic. No hardcoded references to Python, TypeScript, FastAPI, faker-js, or any other specific language or corpus. Those appear only in fixtures, benchmarks, and eval scripts (language-*specific* code belongs in `argot-lang`'s per-language adapters, behind the uniform `LanguageAdapter` surface). A scorer that only works on Python repos is not a production scorer.
 
 ## Code quality
 

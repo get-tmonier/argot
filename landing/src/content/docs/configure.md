@@ -152,6 +152,10 @@ belongs to one of **ten stable rules**, in four groups:
 | `architecture` | `layering` |
 | `integrity` | `test-deleted` · `test-disabled` · `test-weakened` |
 
+A repo can add a **fifth group, `custom`**: repo-local rules dropped under `.argot/rules/`,
+discovered fresh on every run and configured exactly like the ten above — see
+[Custom rules](/docs/custom-rules/).
+
 Each rule carries a **severity**: `error` (reported, fails `argot check` with
 exit 1), `warn` (reported, does not fail the check), or `off` (the rule does not
 run). **Everything defaults to `error`** (except `test-weakened`, which ships
