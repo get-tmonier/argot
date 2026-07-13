@@ -7,8 +7,17 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::scoring::evidence::types::{Evidence, SourceSpan};
-use crate::scoring::evidence::{evidence_caret_spans, evidence_lines_of_interest, format_evidence};
+/// A 1-indexed line + 0-indexed column range inside a hunk's text.
+///
+/// `col_start` is inclusive, `col_end` exclusive — the half-open convention
+/// tree-sitter uses. Both columns are **byte** offsets in the raw source line;
+/// callers must not align carets against ANSI-highlighted output.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceSpan {
+    pub line: usize,
+    pub col_start: usize,
+    pub col_end: usize,
+}
 
 /// Which suppression surface muted a finding (`None` = reported normally).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,36 +60,6 @@ pub(crate) trait RenderEvidence: Send + Sync {
     /// Caret (`^^^^`) spans keyed by 1-indexed source line.
     fn caret_spans(&self) -> HashMap<usize, Vec<SourceSpan>> {
         HashMap::new()
-    }
-}
-
-/// The statistical voice evidence renders through its existing formatters —
-/// the exact strings the pre-contract render paths produced.
-impl RenderEvidence for Evidence {
-    fn human(&self, use_color: bool, hunk_start_line: usize) -> Vec<String> {
-        format_evidence(self, use_color, hunk_start_line)
-    }
-
-    fn machine(&self, hunk_start_line: usize) -> Vec<String> {
-        format_evidence(self, false, hunk_start_line)
-            .into_iter()
-            .map(|l| l.trim().to_string())
-            .collect()
-    }
-
-    fn foreign_specifiers(&self) -> Vec<String> {
-        match self {
-            Evidence::Import(imp) => imp.foreign_specifiers.clone(),
-            _ => Vec::new(),
-        }
-    }
-
-    fn lines_of_interest(&self) -> HashSet<usize> {
-        evidence_lines_of_interest(Some(self))
-    }
-
-    fn caret_spans(&self) -> HashMap<usize, Vec<SourceSpan>> {
-        evidence_caret_spans(Some(self))
     }
 }
 

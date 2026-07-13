@@ -9,17 +9,9 @@
 use serde_json::Value;
 use std::collections::HashMap;
 
-/// A 1-indexed line + 0-indexed column range inside a hunk's text.
-///
-/// `col_start` is inclusive, `col_end` exclusive — the half-open convention
-/// tree-sitter uses. Both columns are **byte** offsets in the raw source line;
-/// callers must not align carets against ANSI-highlighted output.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SourceSpan {
-    pub line: usize,
-    pub col_start: usize,
-    pub col_end: usize,
-}
+/// The finding contract owns the span type (the shared render paths draw the
+/// carets from it); re-exported here at its historical path.
+pub use crate::finding::SourceSpan;
 
 /// One entry on a `common here:` line — name + observed frequency.
 #[derive(Debug, Clone, PartialEq, Eq)]

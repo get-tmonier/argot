@@ -8,11 +8,44 @@ use crate::finding::{Finding, RenderEvidence};
 use crate::output::FileScan;
 use crate::rules::{self, RuleSettings};
 use crate::scoring::adapters::LanguageAdapter;
+use crate::scoring::evidence::types::Evidence;
+use crate::scoring::evidence::{evidence_caret_spans, evidence_lines_of_interest, format_evidence};
 use crate::scoring::sequential::SequentialImportBpeScorer;
 use crate::suppress::{hit_hash, FileSuppressions, SuppressionRule};
 use crate::text::splitlines;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
+
+/// The statistical voice evidence renders through its existing formatters —
+/// the exact strings the pre-contract render paths produced. The impl lives
+/// with the voice slice (its `Evidence` type), not the contract.
+impl RenderEvidence for Evidence {
+    fn human(&self, use_color: bool, hunk_start_line: usize) -> Vec<String> {
+        format_evidence(self, use_color, hunk_start_line)
+    }
+
+    fn machine(&self, hunk_start_line: usize) -> Vec<String> {
+        format_evidence(self, false, hunk_start_line)
+            .into_iter()
+            .map(|l| l.trim().to_string())
+            .collect()
+    }
+
+    fn foreign_specifiers(&self) -> Vec<String> {
+        match self {
+            Evidence::Import(imp) => imp.foreign_specifiers.clone(),
+            _ => Vec::new(),
+        }
+    }
+
+    fn lines_of_interest(&self) -> HashSet<usize> {
+        evidence_lines_of_interest(Some(self))
+    }
+
+    fn caret_spans(&self) -> HashMap<usize, Vec<crate::finding::SourceSpan>> {
+        evidence_caret_spans(Some(self))
+    }
+}
 
 /// The slice threshold that applies to `rel_path` for `lang`, if any (first
 /// matching slice wins — most-specific specs should be listed first at fit).

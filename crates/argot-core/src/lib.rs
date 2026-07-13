@@ -13,7 +13,7 @@ pub mod check;
 pub mod config;
 pub(crate) mod detector;
 pub mod extract;
-pub(crate) mod finding;
+pub mod finding;
 pub mod git_walk;
 pub mod health;
 pub mod inspect;
