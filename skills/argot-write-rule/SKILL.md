@@ -74,6 +74,21 @@ substitutes for the fixture gate: the harness is what catches over-fire
    to `error` once it has survived a few real PRs without a false alarm —
    `error` from day one is for conventions with zero legitimate exceptions.
 
+   The host API is more than `ts_query`, and some conventions only become
+   detectable with the rest of it — reach for these before concluding a rule
+   isn't writable (full list: the [reference](https://argot.tmonier.com/docs/custom-rules/#host-api-v1)):
+   - **`ts_query_old(q)`** queries the file's *pre-image* — the only way to
+     write a rule about what a change **removed** (a route deleted without a
+     deprecation cycle, a lint config entry dropped). No linter has a "before".
+   - **`import_attested(m)` / `callee_attested(n)`** ask the fitted voice
+     model — the repo's own git history as the allowlist. *"Flag any HTTP
+     client this repo has never used"* needs no hardcoded list and never goes
+     stale. (These return `false` in the fixture harness, which has no model —
+     test the unattested path in fixtures, the attested path live.)
+   - **`file.old_text` / `changeset_paths()`** give the pre-image text and the
+     other paths in the same change, for coupled-file rules (*"this file
+     changed but its sibling didn't"*).
+
 3. **Scaffold `.argot/rules/<name>/`** — `rule.toml` (`schema = 1`, `name`
    matching the directory) and `check.rhai`. **Scope in the manifest, not the
    script**: `languages` for the language gate; `include` / `exclude` path
@@ -178,6 +193,32 @@ argot check
 
 (Custom findings always display at `suspicious` confidence — the `?` glyph —
 never `unusual` or `foreign`; see [argot-check](../argot-check/SKILL.md).)
+
+## Make it un-gameable (optional, for load-bearing conventions)
+
+A custom rule is configured and suppressed like any built-in — which means, by
+default, a future agent that can't satisfy it can also `off` it, mute it, or
+just rewrite the script that caught it. For a convention with **zero legitimate
+exceptions**, lock it in the committed `argot.toml`:
+
+```toml
+[rules]
+"no-raw-sql" = { severity = "error", locked = true }
+# or lock every repo-local rule at once:
+custom       = { severity = "error", locked = true }
+```
+
+A locked rule's severity is frozen (local config and `--rule` are refused), and
+**no suppression surface applies to its findings** — no inline ignore, no
+`[[mute]]`, no `[exclude]`. Weakening the lock, or editing a locked rule's own
+script, is itself reported by the `rule-tampered` rule (pinned `error`,
+unsuppressable) — so the rule you just wrote can't be quietly undone in a later
+diff. Only a committed `argot.toml` change a human reviews can relax it. See
+[Locked rules](https://argot.tmonier.com/docs/configure/#locked-rules--the-agent-cant-turn-off-the-alarm).
+
+Offer this when the user frames the convention as a hard invariant ("must
+never", "always", a security or correctness boundary) — not for a soft style
+preference, where `warn` and a normal mute are the right ergonomics.
 
 ## Hard rules
 
