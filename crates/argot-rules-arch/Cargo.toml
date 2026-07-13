@@ -1,0 +1,19 @@
+[package]
+name = "argot-rules-arch"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The architecture rule group: a repo's module-dependency graph, flagging an internal edge that reverses the learned layer direction, closes a cycle, or leaves a (near-)sink. No cargo features — the whole crate IS the feature, gated one layer up by argot-core's optional dependency."
+
+[dependencies]
+argot-engine = { path = "../argot-engine" }
+argot-lang = { path = "../argot-lang" }
+serde.workspace = true
+serde_json.workspace = true
+tree-sitter.workspace = true
+
+[dev-dependencies]
+serde.workspace = true
+serde_json.workspace = true

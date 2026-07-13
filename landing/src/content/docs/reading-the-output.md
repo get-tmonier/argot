@@ -59,7 +59,8 @@ relative to the calibrated threshold `t` (stored in `.argot/scorer-config.json`)
 | `foreign` | `score ≥ t+1.5` | High-confidence anomaly |
 
 `redundant`, `misplaced`, and `layering` findings are always pinned to `unusual`; the integrity
-findings (`test-deleted`, `test-disabled`, `test-weakened`) are always pinned to `suspicious`.
+findings (`test-deleted`, `test-disabled`, `test-weakened`), `rule-tampered`, and every
+[custom rule](/docs/custom-rules/) are always pinned to `suspicious`.
 None of these carry a score margin — the evidence is an event lookup, not a BPE distance. `argot
 check --min-confidence <tier>` filters the display.
 

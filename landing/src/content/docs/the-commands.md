@@ -180,10 +180,18 @@ argot rules                  # RULE / GROUP / SEVERITY / DESCRIPTION table
 argot rules --format json    # the same, machine-readable
 ```
 
-Ten rules in four groups: `voice` (`foreign-import`, `unfamiliar-callee`, `rare-tokens`,
-`convention`), `semantic` (`redundant`, `misplaced`), `architecture` (`layering`), and `integrity`
-(`test-deleted`, `test-disabled`, `test-weakened`). Configure them in `argot.toml`'s `[rules]` or
-per run with `check --rule` — see [Configure](/docs/configure/#rules--rule-severities).
+Eleven built-in rules in five groups: `voice` (`foreign-import`, `unfamiliar-callee`, `rare-tokens`,
+`convention`), `semantic` (`redundant`, `misplaced`), `architecture` (`layering`), `integrity`
+(`test-deleted`, `test-disabled`, `test-weakened`), and `governance` (`rule-tampered` — pinned
+`error`, unsuppressable; fires when a change weakens a locked rule). Configure them in `argot.toml`'s `[rules]` or
+per run with `check --rule` — see [Configure](/docs/configure/#rules--rule-severities). A repo
+that has dropped its own rules under `.argot/rules/` gets a fifth, dynamic group, `custom`,
+listed right after the built-ins with each rule's source directory — see
+[Custom rules](/docs/custom-rules/).
+
+`argot rules test [name]` runs a custom rule's own fixtures — the authoring loop, not a repo
+check: `0` every case passed, `1` a failure, `2` a setup problem (unknown rule, bad script, no
+`tests/`). See [Custom rules](/docs/custom-rules/#the-argot-rules-test-harness).
 
 ## model
 

@@ -41,7 +41,7 @@ targets = [
 # `integrity` is the test-integrity layer (test-gaming findings `test-deleted` /
 # `test-disabled` / `test-weakened`) — pure-Rust, on in shipped binaries; numbers
 # in docs/research/evidence/test-integrity-*.md.
-features = ["self-update", "semantic", "arch", "integrity"]
+features = ["self-update", "semantic", "arch", "integrity", "script"]
 
 # The `semantic` build compiles llama.cpp from source, which needs cmake + a C++
 # toolchain on every release runner. Declare it per package manager so dist

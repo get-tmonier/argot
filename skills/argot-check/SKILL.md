@@ -54,7 +54,7 @@ informational stderr.
 
 ## The rules
 
-Ten rules in four groups. `argot rules` prints this registry with the
+Eleven built-in rules in five groups (plus any repo-local custom rules, group `custom`). `rule-tampered` (group `governance`) fires when the change itself weakens a locked rule — treat it as the highest-priority finding: it means the diff touched the guardrail, not the code. `argot rules` prints this registry with the
 repo's effective severities.
 
 | Rule | Group | What it means | What to do |
@@ -69,6 +69,12 @@ repo's effective severities.
 | `test-deleted` | integrity | A test (or whole test file) removed while the production code it exercised still exists. | Restore the test or explain why it's obsolete; if the deletion is legitimate (feature removed), the code that exercised it should be gone too. |
 | `test-disabled` | integrity | A skip/ignore marker added, or a test gutted, while production code changes. | Un-skip and fix the code, or record why the skip is temporary; skipping to make a failing suite green is the exact behavior this rule exists to catch. |
 | `test-weakened` | integrity | Assertions removed, tautologized, or loosened while production code changes. | Restore the assertion strength; if the expected value legitimately changed, say why in the commit/PR rather than silently retargeting. |
+
+A repo may also carry its own rules under `.argot/rules/<name>/` — a fifth group, `custom`.
+Treat a `custom`-group hit exactly like any row above: read the rule's `evidence`, act on it, or
+justify and mute. `argot rules` lists every custom rule alongside the built-ins, with its source
+directory, so a quick look there tells you the repo's full vocabulary before you triage a hit you
+don't recognize.
 
 ## Confidence is evidence strength, not priority
 
@@ -118,7 +124,7 @@ production change it covers.
 
 It does **not** catch every *in-vocabulary* break — where every token is
 already in the repo and only the choice is wrong. So **a clean run means "none
-of the ten rules fired," not "this matches every convention."** Don't present
+of the configured rules fired," not "this matches every convention."** Don't present
 a clean argot result as a guarantee the code is idiomatic — it's silent on some
 of the subtle stuff by design.
 

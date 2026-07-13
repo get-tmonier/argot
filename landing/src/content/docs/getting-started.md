@@ -12,7 +12,7 @@ place (**misplaced**); an internal import that reverses your module layering (**
 test weakened, disabled, or deleted alongside the production change it covers (**integrity**). All
 valid, typed, and lint-clean — but not how anything here is actually built. The base guardrail is
 model-free; the semantic layer that finds reinventions and misplacements runs a small local code
-embedder — one ~100 MB one-time download, still no cloud, no GPU required, nothing leaves your
+embedder — one ~100 MB one-time download, still no cloud, nothing leaves your
 machine.
 
 > **Status: alpha.** argot is a probabilistic style linter — treat every flag as a prompt to look,

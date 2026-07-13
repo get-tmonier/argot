@@ -1,0 +1,20 @@
+[package]
+name = "argot-rules-integrity"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The test-integrity rule group: diffs each changeset's test files into gaming events (test-deleted / test-disabled / test-weakened), gated by the repo's own learned event gates. No cargo features — the whole crate IS the feature, gated one layer up by argot-core's optional dependency."
+
+[dependencies]
+argot-engine = { path = "../argot-engine" }
+argot-lang = { path = "../argot-lang" }
+serde.workspace = true
+serde_json.workspace = true
+tree-sitter.workspace = true
+git2.workspace = true
+
+[dev-dependencies]
+serde.workspace = true
+serde_json.workspace = true

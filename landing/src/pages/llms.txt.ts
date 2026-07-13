@@ -32,7 +32,7 @@ export const GET: APIRoute = async () => {
       'statically-linked Rust binary. The base voice model is model-free ' +
       '(statistical, no neural net); a small local code-embedding model powers the ' +
       'semantic layer — an embedding model, not an LLM: no generation, no cloud, ' +
-      'no GPU. argot answers "is this how ' +
+      '100% local. argot answers "is this how ' +
       'we write things here?", not "is this valid?".',
     '',
     'argot is a **probabilistic** guardrail — verify before acting on a hit. Every docs ' +
@@ -78,9 +78,21 @@ export const GET: APIRoute = async () => {
     'The semantic layer runs a small local code-embedding model (`jina-embeddings-v2-' +
       'base-code`, Q4 GGUF, ~100 MB, fetched once on first use, statically linked via ' +
       'llama.cpp — CPU-first, Metal-accelerated on macOS). It turns a function into a ' +
-      'vector — no cloud, no GPU, no text generation, nothing leaves your machine. ' +
+      'vector — no cloud, no text generation, nothing leaves your machine. ' +
       'Offline, the semantic rules skip with a clear note and the rest still runs ' +
       '(`argot model fetch` pre-downloads; `ARGOT_OFFLINE=1` never touches the network).',
+    '',
+    '**Beyond the learned five — your own rules.** A repo can drop scripted rules under ' +
+      '`.argot/rules/<name>/` (a TOML manifest + a sandboxed Rhai script, group `custom`): ' +
+      'repo-specific conventions no generic linter ships, run on every diff across all 11 ' +
+      'languages — and, via path globs, on files argot doesn\'t even score (`.env`, CI ' +
+      'configs). A rule can be **locked** (`{ severity = "error", locked = true }` in the ' +
+      'committed `argot.toml`): its severity freezes and every suppression surface is refused, ' +
+      'so an agent can\'t mute or downgrade a check it can\'t satisfy. Weakening a lock — or ' +
+      'editing a locked rule\'s script — is itself reported by `rule-tampered` (group ' +
+      '`governance`, pinned `error`, unsuppressable). Eleven built-in rules in five groups ' +
+      '(`voice`, `semantic`, `architecture`, `integrity`, `governance`) plus the dynamic ' +
+      '`custom` group; `argot rules` lists them all.',
     '',
     '**The line it won\'t cross:** an in-vocabulary break where every token is already ' +
       'in the repo and only the *choice* is wrong (a bare `ValueError` where the repo ' +
@@ -100,7 +112,7 @@ export const GET: APIRoute = async () => {
     '',
     `- [AGENTS.md](${SITE.github}/blob/main/AGENTS.md): the canonical contract for using argot with a coding agent — the never-block rule, how to read \`argot check\` output, and muting false positives with a reason.`,
     `- [README](${SITE.github}/blob/main/README.md): install, quickstart, what it catches, and the honest benchmarks.`,
-    `- [Skills](${SITE.github}/tree/main/skills): the \`argot-setup\`, \`argot-check\`, \`argot-review-pr\`, and \`argot-setup-ci\` agent skills — \`npx skills add get-tmonier/argot\`.`,
+    `- [Skills](${SITE.github}/tree/main/skills): the \`argot-setup\`, \`argot-check\`, \`argot-review-pr\`, \`argot-setup-ci\`, and \`argot-write-rule\` agent skills — \`npx skills add get-tmonier/argot\`.`,
     `- [Benchmarks](${SITE.domain}/benchmarks): per-repo catch and false-alarm numbers, fed from CI.`,
     '',
   ];

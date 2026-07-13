@@ -1,0 +1,46 @@
+[package]
+name = "argot-rules-voice"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The voice rule group: git walk, tokenization, statistical scorers (BPE surprise, call-receiver, conventions, typicality), calibration, and the extract/train/inspect entry points (language- and corpus-agnostic). argot-core's composition root wires this crate's VoiceDetector in unconditionally — it is not an optional slice."
+
+[dependencies]
+argot-engine = { path = "../argot-engine" }
+argot-lang = { path = "../argot-lang" }
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tree-sitter.workspace = true
+tree-sitter-python.workspace = true
+tree-sitter-typescript.workspace = true
+tree-sitter-javascript.workspace = true
+tree-sitter-go.workspace = true
+tree-sitter-rust.workspace = true
+tree-sitter-c.workspace = true
+tree-sitter-java.workspace = true
+tree-sitter-c-sharp.workspace = true
+tree-sitter-php.workspace = true
+tree-sitter-cpp.workspace = true
+tree-sitter-ruby.workspace = true
+git2.workspace = true
+md-5.workspace = true
+
+[features]
+# The structural-foreignness sense: node-kind bigrams as a repo's structural
+# vocabulary (the shape analog of the foreign-vocabulary gate). Pure-Rust, NO
+# new deps — the gate is purely a build-time boundary so the base guardrail
+# stays byte-for-byte unchanged and the layer stays advisory / measurement-only
+# (it is never wired into the gating exit code). Enabled by the bench to
+# validate the irreducible floor
+# (docs/research/evidence/foreign-structure-gate-floor.md); NOT enabled in the
+# released binary, because the floor proves it is not gatable. NON-GATING and
+# research-only, never wired into `compose`.
+structural = []
+
+[dev-dependencies]
+serde.workspace = true
+serde_json.workspace = true

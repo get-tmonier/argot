@@ -1,0 +1,22 @@
+[package]
+name = "argot-rules-script"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The scripted rule group: community rules loaded at run time from `.argot/rules/<name>/` (a TOML manifest + a Rhai detection script) — no recompilation. The native host API does the heavy lifting (tree-sitter queries, learned-model facts); scripts orchestrate and report. No cargo features — the whole crate IS the feature, gated one layer up by argot-core's optional dependency."
+
+[dependencies]
+argot-engine = { path = "../argot-engine" }
+argot-lang = { path = "../argot-lang" }
+# Pinned minor: the Rhai language surface is part of the rule-author contract
+# (manifest `api` gates the host API; the interpreter shouldn't drift under it).
+rhai = "1.25"
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+tree-sitter.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

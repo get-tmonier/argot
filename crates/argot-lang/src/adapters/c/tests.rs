@@ -1,0 +1,166 @@
+use super::*;
+
+#[test]
+fn callable_bodies_covers_definitions_not_prototypes() {
+    let a = CAdapter::new();
+    let src = "static int add(int a, int b) {\n    int s = a + b;\n    return s;\n}\n\nvoid noop(void);\n";
+    let names: Vec<String> = a
+        .callable_bodies(src)
+        .into_iter()
+        .map(|b| b.symbol)
+        .collect();
+    assert!(names.contains(&"add".to_string()), "{names:?}");
+    // A bodiless prototype is not an embeddable function body.
+    assert!(!names.contains(&"noop".to_string()), "{names:?}");
+}
+
+#[test]
+fn system_includes_are_imports_internal_ones_are_not() {
+    let adapter = CAdapter::new();
+    let src = "#include <stdio.h>\n#include <openssl/ssl.h>\n#include \"foo.h\"\n";
+    let imports = adapter.extract_imports(src);
+    assert!(imports.contains("stdio.h"));
+    // openssl/ssl.h → leading segment "openssl".
+    assert!(imports.contains("openssl"));
+    // Quoted include is repo-internal, not an external import.
+    assert!(!imports.contains("foo.h"));
+    assert!(!imports.contains("foo"));
+}
+
+#[test]
+fn quoted_includes_bind_internal_header_base() {
+    let adapter = CAdapter::new();
+    let src = "#include <stdio.h>\n#include \"foo.h\"\n#include \"net/conn.h\"\n";
+    let bindings = adapter.internal_import_bindings(src);
+    assert!(bindings.contains("foo"));
+    assert!(bindings.contains("conn"));
+    // System headers are not internal bindings.
+    assert!(!bindings.contains("stdio"));
+}
+
+#[test]
+fn import_spans_underline_the_module() {
+    let adapter = CAdapter::new();
+    let src = "#include <stdio.h>\n";
+    let spans = adapter.extract_imports_with_spans(src);
+    assert_eq!(spans.len(), 1);
+    let (module, line, col_start, col_end) = &spans[0];
+    assert_eq!(module, "stdio.h");
+    assert_eq!(*line, 1);
+    // "<" is column 9 (0-indexed), so the module starts at column 10.
+    assert_eq!(*col_start, 10);
+    assert_eq!(*col_end, col_start + "stdio.h".len());
+}
+
+#[test]
+fn callable_definitions_cover_functions_prototypes_and_types() {
+    let adapter = CAdapter::new();
+    let src = "static char *make(void);\nint add(int a, int b) { return a + b; }\n\
+        typedef struct Point { int x; } Point;\nstruct Node { int v; };\n";
+    let defs = adapter.callable_definitions(src);
+    assert!(defs.contains("make"), "prototype");
+    assert!(defs.contains("add"), "definition");
+    assert!(defs.contains("Point"), "typedef name");
+    assert!(defs.contains("Node"), "struct name");
+}
+
+#[test]
+fn value_bindings_cover_vars_and_params_not_functions() {
+    let adapter = CAdapter::new();
+    let src = "int g = 3;\nvoid run(int arg, char *name) { int local = 0; }\n";
+    let values = adapter.value_bindings(src);
+    assert!(values.contains("g"));
+    assert!(values.contains("arg"));
+    assert!(values.contains("name"));
+    assert!(values.contains("local"));
+    // `run` is a callable, not a value binding.
+    assert!(!values.contains("run"));
+}
+
+#[test]
+fn callee_extraction_handles_bare_and_field_calls() {
+    let src = b"void run(void) { foo(); obj->method(x); }";
+    let mut parser = tree_sitter::Parser::new();
+    parser
+        .set_language(&tree_sitter_c::LANGUAGE.into())
+        .unwrap();
+    let tree = parser.parse(&src[..], None).unwrap();
+    let mut callees = Vec::new();
+    let mut stack = vec![tree.root_node()];
+    while let Some(node) = stack.pop() {
+        if node.kind() == "call_expression" {
+            if let Some(c) = callee(node, src) {
+                callees.push(c);
+            }
+        }
+        for i in (0..node.child_count()).rev() {
+            if let Some(c) = node.child(i) {
+                stack.push(c);
+            }
+        }
+    }
+    assert!(callees.contains(&"foo".to_string()));
+    assert!(callees.contains(&"obj.method".to_string()));
+}
+
+#[test]
+fn data_dominant_flags_big_tables() {
+    let adapter = CAdapter::new();
+    let src = "int table[] = {\n1, 2, 3,\n4, 5, 6,\n7, 8, 9,\n10, 11, 12,\n};\n";
+    assert!(adapter.is_data_dominant(src, 0.65));
+    let lines = adapter.data_literal_lines(src);
+    assert!(lines.contains(&1));
+    assert!(lines.contains(&2));
+
+    let code = "int add(int a, int b) {\n    int r = a + b;\n    return r;\n}\n";
+    assert!(!adapter.is_data_dominant(code, 0.65));
+}
+
+#[test]
+fn sampleable_ranges_are_function_bodies() {
+    let adapter = CAdapter::new();
+    let src = "int g;\nint add(int a, int b) {\n    return a + b;\n}\n";
+    let ranges = adapter.enumerate_sampleable_ranges(src);
+    assert_eq!(ranges, vec![(2, 4)]);
+}
+
+#[test]
+fn prose_lines_cover_line_and_block_comments() {
+    let adapter = CAdapter::new();
+    let src = "// header\n/* block\n comment */\nint z = 0;\n";
+    let rows = adapter.prose_line_ranges(src);
+    assert!(rows.contains(&1));
+    assert!(rows.contains(&2));
+    assert!(rows.contains(&3));
+    assert!(!rows.contains(&4));
+}
+
+#[test]
+fn auto_generated_marker_in_header_detected() {
+    let adapter = CAdapter::new();
+    assert!(adapter.is_auto_generated(
+        "/* Generated by bison. DO NOT EDIT. */\nint x;\n",
+        &crate::test_support::generated_markers()
+    ));
+    assert!(!adapter.is_auto_generated(
+        "// a normal handwritten file\nint x;\n",
+        &crate::test_support::generated_markers()
+    ));
+}
+
+#[test]
+fn identifier_noise_contains_keywords_and_types() {
+    let adapter = CAdapter::new();
+    assert!(adapter.identifier_noise().contains("return"));
+    assert!(adapter.identifier_noise().contains("int"));
+    assert_eq!(adapter.identifier_noise().len(), NOISE.len());
+}
+
+#[test]
+fn line_comment_prefix_is_slashes() {
+    let adapter = CAdapter::new();
+    assert_eq!(
+        <CAdapter as LanguageAdapter>::line_comment_prefix(&adapter),
+        "//"
+    );
+}
