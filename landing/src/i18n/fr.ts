@@ -4,7 +4,7 @@ const fr: SiteContent = {
   meta: {
     title: 'argot — détectez le code IA qui ne colle pas à votre dépôt',
     description:
-      'Le harnais du code écrit par IA — des statistiques sur l’historique de votre propre dépôt, pas un second LLM. argot signale ce qui n’a pas sa place — dépendances étrangères, fonctions réinventées, architecture inversée, tests truqués — plus les conventions que vous scriptez vous-même. Sans LLM, sans cloud, aucun GPU requis.',
+      'Le harnais du code écrit par IA — des statistiques sur l’historique de votre propre dépôt, pas un second LLM. argot signale ce qui n’a pas sa place — dépendances étrangères, fonctions réinventées, architecture inversée, tests truqués — plus les conventions que vous scriptez vous-même. Sans LLM, sans cloud, 100 % local.',
   },
   nav: {
     demo: 'Démo',
@@ -105,7 +105,7 @@ const fr: SiteContent = {
     cards: [
       {
         title: 'Un modèle d’embeddings de code sur votre laptop',
-        desc: 'jina-code (~100 Mo, téléchargé une fois) transforme chaque fonction en vecteur — ainsi argot sait que vous [[l’avez déjà écrite]]. Un encodeur, pas un LLM.',
+        desc: 'jina-code (~100 Mo, téléchargé une fois) transforme chaque fonction en vecteur — ainsi argot sait que vous [[l’avez déjà écrite]]. Un encodeur, pas un LLM : le CPU suffit, un GPU (Metal sur Mac) accélère simplement.',
       },
       {
         title: 'Un modèle de voix statistique',

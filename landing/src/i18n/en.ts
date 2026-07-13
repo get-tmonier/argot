@@ -4,7 +4,7 @@ const en: SiteContent = {
   meta: {
     title: 'argot — catch the AI code that doesn’t fit your codebase',
     description:
-      'The harness for AI-written code — statistics on your repo’s own history, not a second LLM. argot flags what doesn’t belong — foreign dependencies, reinvented functions, broken layering, gamed tests — plus the conventions you script yourself. No LLM, no cloud, no GPU required.',
+      'The harness for AI-written code — statistics on your repo’s own history, not a second LLM. argot flags what doesn’t belong — foreign dependencies, reinvented functions, broken layering, gamed tests — plus the conventions you script yourself. No LLM, no cloud, 100% local.',
   },
   nav: {
     demo: 'Demo',
@@ -107,7 +107,7 @@ const en: SiteContent = {
     cards: [
       {
         title: 'A code-embedding model on your laptop',
-        desc: 'jina-code (~100 MB, fetched once) turns every function into a vector — how argot knows you [[already wrote this]]. An encoder, not an LLM.',
+        desc: 'jina-code (~100 MB, fetched once) turns every function into a vector — how argot knows you [[already wrote this]]. An encoder, not an LLM: CPU is plenty, and a GPU (Metal on Macs) just makes it faster.',
       },
       {
         title: 'A statistical voice model',

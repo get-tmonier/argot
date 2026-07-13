@@ -21,7 +21,9 @@ code-embedding index, built at fit with a small local model (`jina-code`, ~100 M
 linked via llama.cpp — CPU-first, Metal-accelerated on macOS, fetched once to a local cache on
 first use). Reinvention flags a new function that duplicates one the repo already has (rule
 `redundant`); placement flags a function filed in the wrong module area (rule `misplaced`). No
-cloud, no GPU required (Metal-accelerated when a Mac has one), no text generation; turn a function into a vector, look up its neighbours. Offline,
+cloud, no text generation; turn a function into a vector, look up its neighbours. It runs on CPU
+— a GPU is never required, though on Macs Metal acceleration picks up the embedding pass for
+free. Offline,
 the download is skipped with a printed note — never silently — and the other detectors still run.
 
 The **architecture detector** builds a module-dependency graph of your repo at fit and flags an
