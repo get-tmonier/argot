@@ -17,19 +17,19 @@ pub(crate) fn default_detectors() -> Vec<RegisteredDetector<'static>> {
     }];
     #[cfg(feature = "semantic")]
     v.push(RegisteredDetector {
-        detector: Box::new(crate::check_passes::semantic::SemanticDetector::new()),
+        detector: Box::new(argot_rules_semantic::SemanticDetector::new()),
         execution_rank: 0,
         merge_rank: 1,
     });
     #[cfg(feature = "arch")]
     v.push(RegisteredDetector {
-        detector: Box::new(crate::check_passes::arch::ArchDetector),
+        detector: Box::new(argot_rules_arch::ArchDetector),
         execution_rank: 1,
         merge_rank: 2,
     });
     #[cfg(feature = "integrity")]
     v.push(RegisteredDetector {
-        detector: Box::new(crate::check_passes::integrity::IntegrityDetector),
+        detector: Box::new(argot_rules_integrity::IntegrityDetector),
         execution_rank: 2,
         merge_rank: 3,
     });
@@ -47,12 +47,10 @@ pub(crate) fn fit_detectors() -> Vec<Box<dyn argot_engine::detector::Detector>> 
     #[allow(unused_mut)]
     let mut v: Vec<Box<dyn argot_engine::detector::Detector>> = Vec::new();
     #[cfg(feature = "semantic")]
-    v.push(Box::new(
-        crate::check_passes::semantic::SemanticDetector::new(),
-    ));
+    v.push(Box::new(argot_rules_semantic::SemanticDetector::new()));
     #[cfg(feature = "arch")]
-    v.push(Box::new(crate::check_passes::arch::ArchDetector));
+    v.push(Box::new(argot_rules_arch::ArchDetector));
     #[cfg(feature = "integrity")]
-    v.push(Box::new(crate::check_passes::integrity::IntegrityDetector));
+    v.push(Box::new(argot_rules_integrity::IntegrityDetector));
     v
 }

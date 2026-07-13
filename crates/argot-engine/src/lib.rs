@@ -15,6 +15,7 @@
 //! statistical scorers live in `argot-core`, which depends on this crate —
 //! never the other way around.
 
+pub mod artifact;
 pub mod cache;
 pub mod check;
 pub mod config;

@@ -28,21 +28,15 @@ tree-sitter-cpp.workspace = true
 tree-sitter-ruby.workspace = true
 git2.workspace = true
 md-5.workspace = true
-sha2.workspace = true
 serde_yaml.workspace = true
 
-# --- semantic layer (feature-gated; absent from the base build) ---
-# Optional here, no accel backend; macOS adds Metal via the target table below.
-llama-cpp-2 = { workspace = true, optional = true }
-ureq = { workspace = true, optional = true }
-half = { workspace = true, optional = true }
-base64 = { workspace = true, optional = true }
-
-# Metal acceleration on macOS only. Cargo unifies this with the base optional
-# entry above, so a macOS `--features semantic` build links llama.cpp with Metal
-# while Linux/Windows fall back to CPU (the release matrix wires other backends).
-[target.'cfg(target_os = "macos")'.dependencies]
-llama-cpp-2 = { workspace = true, optional = true, features = ["metal"] }
+# --- additive rule-group slices (feature-gated; absent from the base build) ---
+# Each slice is its own crate with no cargo features of its own — the whole
+# crate IS the feature; compiling it in is decided here, by making it an
+# optional dependency gated behind the matching feature below.
+argot-rules-semantic = { path = "../argot-rules-semantic", optional = true }
+argot-rules-arch = { path = "../argot-rules-arch", optional = true }
+argot-rules-integrity = { path = "../argot-rules-integrity", optional = true }
 
 [features]
 # The semantic sense: per-repo code embeddings powering the reinvention (F1),
@@ -56,7 +50,7 @@ llama-cpp-2 = { workspace = true, optional = true, features = ["metal"] }
 # cmake/llama.cpp toolchain, and lets CI prove the base statistical guardrail is
 # byte-for-byte unchanged and zero-cost when the layer is absent. Invisible to
 # users — it governs how the binary is built, not whether the feature is on.
-semantic = ["dep:llama-cpp-2", "dep:ureq", "dep:half", "dep:base64"]
+semantic = ["dep:argot-rules-semantic"]
 
 # The structural-foreignness sense: node-kind bigrams as a repo's structural
 # vocabulary (the shape analog of the foreign-vocabulary gate). Pure-Rust, NO new
@@ -65,15 +59,15 @@ semantic = ["dep:llama-cpp-2", "dep:ureq", "dep:half", "dep:base64"]
 # never wired into the gating exit code). Enabled by the bench to validate the
 # irreducible floor (docs/research/evidence/foreign-structure-gate-floor.md); NOT
 # enabled in the released binary (unlike `semantic`), because the floor proves it
-# is not gatable.
+# is not gatable. Stays a module of this crate (not its own slice crate): it is
+# NON-GATING and research-only, never wired into `compose`.
 structural = []
 
 # The architecture-graph sense: a repo's module-dependency topology + the
 # reversal/sink-out fire rule (the relationship analog of the vocabulary gate).
 # Pure-Rust, NO new deps; a build-time boundary so the base guardrail stays
-# byte-for-byte unchanged and the layer stays advisory / measurement-only (never
-# wired into the gating exit code). Enabled by the bench; not (yet) in releases.
-arch = []
+# byte-for-byte unchanged. Enabled by the bench; ON in releases.
+arch = ["dep:argot-rules-arch"]
 
 # The test-integrity sense: catches an agent gaming tests to green a failing
 # suite (weakening / disabling / deleting them alongside a production change).
@@ -83,7 +77,7 @@ arch = []
 # `integrity`). Same build-time-gate shape as `arch`: off in dev/CI base loops
 # so the base guardrail is provably byte-for-byte unchanged; ON in releases
 # (dist-workspace.toml). Evidence: docs/research/evidence/test-integrity-*.md.
-integrity = []
+integrity = ["dep:argot-rules-integrity"]
 
 [dev-dependencies]
 serde.workspace = true

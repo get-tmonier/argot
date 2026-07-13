@@ -5,32 +5,13 @@
 //! filters, calibration, and evidence. The production composite is
 //! `sequential::SequentialImportBpeScorer`.
 
-/// The architecture-graph sense — a repo's module-dependency topology; flags an
-/// internal edge that reverses an established direction or leaves a sink layer
-/// (the relationship analog of the foreign-vocabulary gate). Feature-gated
-/// (`--features arch`), pure-Rust — emits the `layering` rule: absent and
-/// zero-cost off, never wired into the base gating path, base byte-unchanged.
-/// See the module docs + `docs/research/evidence/architecture-graph-foreignness.md`.
-#[cfg(feature = "arch")]
-pub mod arch_graph;
 pub mod bpe_scorer;
 pub mod calibration;
 pub mod call_receiver;
 pub mod conventions;
 pub mod evidence;
 pub mod import_graph;
-/// The test-integrity sense — per-version test inventories diffed into
-/// test-gaming events (rules `test-deleted` / `test-disabled` /
-/// `test-weakened`, group `integrity`). Feature-gated (`--features
-/// integrity`), pure-Rust: absent and zero-cost off, base byte-unchanged.
-#[cfg(feature = "integrity")]
-pub mod integrity;
 pub mod model;
-/// The semantic layer — per-repo code embeddings powering the reinvention
-/// placement and nearest-code-evidence findings. Feature-gated: absent (and
-/// zero-cost) unless built with `--features semantic`.
-#[cfg(feature = "semantic")]
-pub mod semantic;
 pub mod sequential;
 pub mod shape_primitive;
 pub mod shape_primitives;
@@ -42,8 +23,6 @@ pub mod shape_primitives;
 /// `docs/research/evidence/foreign-structure-gate-floor.md`.
 #[cfg(feature = "structural")]
 pub mod structural;
-#[cfg(feature = "integrity")]
-pub mod test_inventory;
 pub mod typicality;
 
 mod minhash_params_seed0;
@@ -57,3 +36,30 @@ pub(crate) mod numpy_sampler;
 pub use argot_lang::adapters;
 pub use argot_lang::filters;
 pub(crate) use argot_lang::ts_parse;
+
+/// The architecture-graph sense — a repo's module-dependency topology; flags an
+/// internal edge that reverses an established direction or leaves a sink layer
+/// (the relationship analog of the foreign-vocabulary gate). Feature-gated
+/// (`--features arch`), pure-Rust, lives in its own crate (`argot-rules-arch`)
+/// — absent and zero-cost off, never wired into the base gating path, base
+/// byte-unchanged. See the module docs +
+/// `docs/research/evidence/architecture-graph-foreignness.md`.
+#[cfg(feature = "arch")]
+pub use argot_rules_arch::graph as arch_graph;
+
+/// The test-integrity sense — per-version test inventories diffed into
+/// test-gaming events (rules `test-deleted` / `test-disabled` /
+/// `test-weakened`, group `integrity`). Feature-gated (`--features
+/// integrity`), pure-Rust, lives in its own crate (`argot-rules-integrity`):
+/// absent and zero-cost off, base byte-unchanged.
+#[cfg(feature = "integrity")]
+pub use argot_rules_integrity::model as integrity;
+#[cfg(feature = "integrity")]
+pub use argot_rules_integrity::test_inventory;
+
+/// The semantic layer — per-repo code embeddings powering the reinvention
+/// placement and nearest-code-evidence findings. Feature-gated, lives in its
+/// own crate (`argot-rules-semantic`): absent (and zero-cost) unless built
+/// with `--features semantic`.
+#[cfg(feature = "semantic")]
+pub use argot_rules_semantic as semantic;

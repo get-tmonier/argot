@@ -11,6 +11,10 @@
 
 pub mod adapters;
 pub mod bpe;
+/// Dotted-callee extraction (per-language call-expression dispatch), shared by
+/// the base call-receiver scorer and the semantic layer's reinvention
+/// confirmation.
+pub mod callees;
 pub mod dataset;
 pub mod ext;
 pub mod filters;

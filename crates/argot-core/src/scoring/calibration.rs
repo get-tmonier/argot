@@ -132,6 +132,10 @@ const CONVENTION_BONUS: f64 = 5.0;
 // `basename`, `is_excluded_path`, and `header_is_cpp` moved to
 // `argot_engine::corpus` (shared with the engine's own check-time `.h`
 // routing and freshness scan); re-exported below at their historical path.
+/// Re-exported so this module's own call sites (`write_atomic(...)`) don't
+/// churn now that the atomic-write helper is shared with the rule slices via
+/// `argot-engine` (see the workspace `CLAUDE.md`'s crate-split notes).
+pub(crate) use argot_engine::artifact::write_atomic;
 use argot_engine::corpus::basename;
 pub use argot_engine::corpus::{header_is_cpp, is_excluded_path};
 use argot_engine::detector::FitContext;
@@ -934,15 +938,6 @@ pub fn calibrate_convention_bars(
 /// `repo_dir` is the target repo (candidate rglob source). `repo_corpus_path`
 /// lists corpus files (from `train`). `generic_baseline_json` is the embedded
 /// baseline bytes.
-/// Write a fit artifact via temp-file + rename, so a fit killed mid-write (a
-/// laptop shutdown, a background refit reaped by the OS) can never leave a
-/// half-written artifact behind — the previous version survives intact.
-pub(crate) fn write_atomic(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
-    let tmp = path.with_extension(format!("tmp.{}", std::process::id()));
-    std::fs::write(&tmp, bytes)?;
-    std::fs::rename(&tmp, path)
-}
-
 pub fn run_calibrate(
     repo_dir: &Path,
     repo_corpus_path: &Path,

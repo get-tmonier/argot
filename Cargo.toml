@@ -4,6 +4,9 @@ members = [
     "crates/argot-core",
     "crates/argot-lang",
     "crates/argot-engine",
+    "crates/argot-rules-semantic",
+    "crates/argot-rules-arch",
+    "crates/argot-rules-integrity",
     "crates/argot-cli",
     "crates/argot-bench",
 ]

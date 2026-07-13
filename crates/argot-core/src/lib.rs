@@ -13,9 +13,11 @@
 //! walking, and the shared rendering/registry plumbing) has moved to the
 //! `argot-engine` crate. This crate re-exports every engine module at its
 //! historical path (below) so existing callers keep compiling unchanged, and
-//! adds [`compose`] — the composition root deciding which rule groups
-//! (`check_passes`: voice always, semantic/architecture/integrity per cargo
-//! feature) this build wires into the engine's `check` loop.
+//! adds [`compose`] — the composition root deciding which rule groups this
+//! build wires into the engine's `check` loop: the base voice pass
+//! (`check_passes`, always in) plus the additive semantic/architecture/
+//! integrity groups, each its own crate (`argot-rules-{semantic,arch,
+//! integrity}`) pulled in as an optional dependency per cargo feature.
 
 pub mod check_passes;
 pub(crate) mod compose;
