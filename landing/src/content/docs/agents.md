@@ -24,7 +24,7 @@ full contract lives in the repo's
 
 ## Skills
 
-Four agent-agnostic skills (Claude Code, Cursor, Codex, …):
+Five agent-agnostic skills (Claude Code, Cursor, Codex, …):
 
 | Skill | When it runs |
 |---|---|
@@ -32,6 +32,7 @@ Four agent-agnostic skills (Claude Code, Cursor, Codex, …):
 | `argot-check` | Per change (local) — score the working diff and surface anything foreign. |
 | `argot-review-pr` | On demand (local) — review one PR or diff range against the repo's voice, no checkout. |
 | `argot-setup-ci` | Once (CI) — wire the GitHub Action for a non-blocking voice score on every PR. |
+| `argot-write-rule` | On demand (local) — codify a repo convention as a scripted custom rule, fixture-tested before it ever sees a real diff. |
 
 In **Claude Code**, install the plugin — it bundles the skills *and* the MCP
 server below in one step:
@@ -81,7 +82,7 @@ no separate runtime. It exposes four tools:
 
 **Tool inputs and responses.** `argot.check` and `argot.explain` take `file_path` and `hunk_content`
 (both required) plus optional `file_source` (the full file, for better context); they return
-`out_of_voice`, `score`, `threshold`, `rule` (one of the ten stable rule names: `foreign-import`,
+`out_of_voice`, `score`, `threshold`, `rule` (one of the built-in scoring rule names — `rule-tampered` and custom rules never surface through a single-hunk MCP check: `foreign-import`,
 `unfamiliar-callee`, `rare-tokens`, `convention`, `redundant`, `misplaced`, `layering`,
 `test-deleted`, `test-disabled`, `test-weakened`), `model`,
 and — on a hit, or always for `explain` — `evidence`. `argot.voice_context` takes `file_path` (required) and optional `top` (default 10), and

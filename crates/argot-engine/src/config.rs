@@ -401,10 +401,10 @@ impl ArgotConfig {
                 .unwrap_or_default()
         };
         let parse_rules_table = |raw_rules: BTreeMap<String, toml::Value>,
-                                     origin: &str,
-                                     locks: Option<&mut Vec<String>>,
-                                     scopes: &mut Vec<(String, RuleScope)>,
-                                     warnings: &mut Vec<String>|
+                                 origin: &str,
+                                 locks: Option<&mut Vec<String>>,
+                                 scopes: &mut Vec<(String, RuleScope)>,
+                                 warnings: &mut Vec<String>|
          -> Vec<RulesLayer> {
             if raw_rules.is_empty() {
                 return Vec::new();

@@ -48,7 +48,7 @@ In `--format human` the meta line reads
 
 ## The rules
 
-Ten built-in rules in four groups (`argot rules` prints the registry with the
+Eleven built-in rules in five groups (`argot rules` prints the registry with the
 repo's effective severities — plus any scripted custom rules the repo carries
 under `.argot/rules/`, group `custom`; treat their findings like any row
 below, with the rule's own message as the evidence):
@@ -65,6 +65,7 @@ below, with the rule's own message as the evidence):
 | `test-deleted` | integrity | A test (or whole test file) removed while the production code it exercised still exists. | Recommend restoring the test or explaining why it's obsolete; if the deletion is legitimate (feature removed), the code that exercised it should be gone too. Call out test-gaming explicitly. |
 | `test-disabled` | integrity | A skip/ignore marker added, or a test gutted, while production code changes. | Recommend un-skipping and fixing the code, or recording why the skip is temporary; skipping to make a failing suite green is the exact behavior this rule exists to catch. |
 | `test-weakened` | integrity | Assertions removed, tautologized, or loosened while production code changes. | Recommend restoring the assertion strength; if the expected value legitimately changed, ask the author to say why rather than silently retargeting. |
+| `rule-tampered` | governance | The diff weakens a rule the repo locked — a lock removed/downgraded, a `[[mute]]` added on a locked rule, or a locked custom rule's script edited. | **Highest priority.** This is the diff touching the guardrail itself. Pinned `error`, unsuppressable — treat any occurrence as "the change tried to disable a check", not a style nit. |
 
 Confidence tiers grade **evidence strength only** — they never drive the exit
 code (severities do), and `redundant` / `misplaced` / `layering` are always

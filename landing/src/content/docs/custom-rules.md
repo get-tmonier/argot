@@ -5,7 +5,7 @@ group: Guide
 order: 12
 ---
 
-argot's ten built-in rules cover the patterns every repo eventually cares about — foreign
+argot's eleven built-in rules cover the patterns every repo eventually cares about — foreign
 imports, reinvented functions, layering, gamed tests. Some conventions are yours alone, though:
 "never call this deprecated internal helper," "route handlers must not touch the ORM directly,"
 "this repo's one rule about raw SQL." For those, write a **custom rule**.
@@ -110,7 +110,7 @@ The script's top-level statements run once per in-scope changed file (see *Which
 runs on* above). Two read-only bindings are in scope:
 
 - **`file`** — a map: `path` (repo-relative), `language` (scoring name, or `""` for a file the
-  rule claimed via `files` that argot doesn't score), `ext` (the file extension, e.g. `.env`),
+  rule claimed via `include` that argot doesn't score), `ext` (the file extension, e.g. `.env`),
   `new_text` (the post-image source), `old_text` (the pre-image source; `()` for an added file
   or when the mode can't resolve it).
 - **`hunks`** — an array of maps, one per changed range: `start`, `end` (1-indexed, inclusive
