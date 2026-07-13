@@ -166,10 +166,22 @@ impl Detector for ScriptDetector {
                 match host::run_on_file(ast, &file, changeset_paths.clone(), ctx.facts.clone()) {
                     Ok(reports) => {
                         for r in reports {
-                            let hunk_content = r.message.clone();
+                            // The finding body is the reported source span
+                            // (like every other rule); the script's message
+                            // leads the evidence lines. Hashing the span —
+                            // not the message — keeps mutes stable across
+                            // rule-message rewording.
+                            let hunk_content = source
+                                .lines()
+                                .skip(r.line.saturating_sub(1))
+                                .take(r.line_end.saturating_sub(r.line) + 1)
+                                .collect::<Vec<_>>()
+                                .join("\n");
                             let hash = hit_hash(&batch.file_path, &reason, &hunk_content);
                             let suppressed_by =
                                 suppressions.classify(&reason, &hash, r.line, r.line_end);
+                            let mut lines = vec![r.message];
+                            lines.extend(r.evidence);
                             findings.push(Finding {
                                 score: 1.0,
                                 file_path: batch.file_path.clone(),
@@ -179,16 +191,11 @@ impl Detector for ScriptDetector {
                                 reason: reason.clone(),
                                 flagged: true,
                                 threshold: 0.5,
-                                hunk_content: r.message,
-                                evidence: (!r.evidence.is_empty() || r.symbol.is_some()).then(
-                                    || {
-                                        Box::new(ScriptEvidence {
-                                            lines: r.evidence,
-                                            symbol: r.symbol,
-                                        })
-                                            as Box<dyn RenderEvidence>
-                                    },
-                                ),
+                                hunk_content,
+                                evidence: Some(Box::new(ScriptEvidence {
+                                    lines,
+                                    symbol: r.symbol,
+                                })),
                                 hash,
                                 suppressed_by,
                             });

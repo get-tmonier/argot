@@ -1264,23 +1264,116 @@ struct BackgroundRefitCmd {
 
 #[derive(Args)]
 struct RulesCmd {
+    #[command(subcommand)]
+    action: Option<RulesAction>,
     /// Path to the repository (its argot.toml decides the effective severities).
-    #[arg(long, default_value = ".")]
+    #[arg(long, default_value = ".", global = true)]
     repo: PathBuf,
     /// Output format: human or json.
     #[arg(long, default_value = "human", value_parser = ["human", "json"])]
     format: String,
 }
 
+#[derive(Subcommand)]
+enum RulesAction {
+    /// Run the fixture tests of this repo's custom rules
+    /// (`.argot/rules/<name>/tests/<case>/{input.<ext>, expected.json}`).
+    Test {
+        /// Test one rule by name (default: every discovered rule).
+        name: Option<String>,
+    },
+}
+
+/// `argot rules test [name]` — the custom-rule authoring loop.
+#[cfg(feature = "script")]
+fn run_rules_test_cmd(repo: &Path, name: Option<&str>) -> ExitCode {
+    let mut warnings = Vec::new();
+    let results = match argot_rules_script::harness::run_rule_tests(
+        &repo.join(".argot"),
+        name,
+        &mut warnings,
+    ) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    for w in &warnings {
+        eprintln!("[argot] {w}");
+    }
+    if results.is_empty() {
+        eprintln!("no custom rules discovered under .argot/rules/");
+        return ExitCode::from(2);
+    }
+    let mut failed = 0usize;
+    for r in &results {
+        match &r.failure {
+            None => println!("ok    {} :: {}", r.rule, r.case),
+            Some(msg) => {
+                failed += 1;
+                println!(
+                    "FAIL  {} :: {}
+      {msg}",
+                    r.rule, r.case
+                );
+            }
+        }
+    }
+    println!(
+        "
+{} case(s), {} failed",
+        results.len(),
+        failed
+    );
+    if failed > 0 {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    }
+}
+
+#[cfg(not(feature = "script"))]
+fn run_rules_test_cmd(_repo: &Path, _name: Option<&str>) -> ExitCode {
+    eprintln!("error: this argot was built without the scripted-rules feature");
+    ExitCode::from(2)
+}
+
 fn run_rules_cmd(c: RulesCmd) -> ExitCode {
+    if let Some(RulesAction::Test { name }) = &c.action {
+        return run_rules_test_cmd(&c.repo, name.as_deref());
+    }
     use argot_core::rules::{GROUPS, RULES};
-    let config = argot_core::config::ArgotConfig::load(&c.repo);
+    // Scripted community rules from `.argot/rules/` — same discovery `check`
+    // runs, so the listing shows exactly the run vocabulary.
+    #[cfg(feature = "script")]
+    let (registry, custom_sources) = {
+        use argot_core::detector::Detector as _;
+        let mut warnings = Vec::new();
+        let mut det = argot_rules_script::ScriptDetector::new();
+        let custom = det.vocabulary(&c.repo.join(".argot"), &mut warnings);
+        for w in &warnings {
+            eprintln!("[argot] {w}");
+        }
+        let mut sources = std::collections::HashMap::new();
+        for r in &custom {
+            sources.insert(r.name.clone(), format!(".argot/rules/{}", r.name));
+        }
+        (
+            argot_core::rules::Registry::with_custom(custom, &mut Vec::new()),
+            sources,
+        )
+    };
+    #[cfg(not(feature = "script"))]
+    let registry = argot_core::rules::Registry::default();
+    let config = argot_core::config::ArgotConfig::load_with(&c.repo, &registry);
     for w in &config.warnings {
         eprintln!("[argot] {w}");
     }
-    let settings = config.rule_settings(&Vec::new());
+    let settings = config.rule_settings_with(&registry, &Vec::new());
     if c.format == "json" {
-        let doc: Vec<serde_json::Value> = RULES
+        #[allow(unused_mut)]
+        let mut doc: Vec<serde_json::Value> = RULES
             .iter()
             .map(|r| {
                 serde_json::json!({
@@ -1292,6 +1385,18 @@ fn run_rules_cmd(c: RulesCmd) -> ExitCode {
                 })
             })
             .collect();
+        #[cfg(feature = "script")]
+        for r in registry.custom_rules() {
+            let reason = format!("{}{}", argot_core::rules::CUSTOM_REASON_PREFIX, r.name);
+            doc.push(serde_json::json!({
+                "name": r.name,
+                "group": argot_core::rules::GROUP_CUSTOM,
+                "severity": settings.severity_of_reason(&reason).as_str(),
+                "label": r.label,
+                "description": r.description,
+                "source": custom_sources.get(&r.name),
+            }));
+        }
         println!(
             "{}",
             serde_json::to_string_pretty(&doc).expect("static json")
@@ -1311,6 +1416,21 @@ fn run_rules_cmd(c: RulesCmd) -> ExitCode {
             r.group,
             settings.severity_of_rule(r).as_str(),
             r.description
+        );
+    }
+    #[cfg(feature = "script")]
+    for r in registry.custom_rules() {
+        let reason = format!("{}{}", argot_core::rules::CUSTOM_REASON_PREFIX, r.name);
+        println!(
+            "{:<name_w$}  {:<group_w$}  {:<8}  {}  [{}]",
+            r.name,
+            argot_core::rules::GROUP_CUSTOM,
+            settings.severity_of_reason(&reason).as_str(),
+            r.description,
+            custom_sources
+                .get(&r.name)
+                .map(String::as_str)
+                .unwrap_or("scripted"),
         );
     }
     println!(
@@ -1722,7 +1842,14 @@ fn parse_rule_override(s: &str) -> Result<(String, argot_core::rules::Severity),
     let (name, sev) = s
         .split_once('=')
         .ok_or_else(|| format!("expected <name>=<severity>, got '{s}'"))?;
-    if !argot_core::rules::known_selector(name) {
+    // Shape-check only: a kebab-case name may be a repo's custom rule, which
+    // is only known once `.argot/rules/` is discovered — run_check validates
+    // every selector against the run vocabulary and exits 2 on an unknown.
+    let kebab = !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit());
+    if !argot_core::rules::known_selector(name) && !kebab {
         return Err(format!(
             "unknown rule '{name}' (known: {})",
             argot_core::rules::selector_names().join(", ")

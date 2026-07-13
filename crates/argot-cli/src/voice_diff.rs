@@ -176,7 +176,11 @@ pub fn markdown_card(s: &VoiceDiffSummary) -> String {
     use std::fmt::Write as _;
     let in_voice = (100.0 - s.out_of_voice_pct).clamp(0.0, 100.0);
     let filled = ((in_voice / 100.0) * 20.0).round() as usize;
-    let bar: String = "█".repeat(filled) + &"░".repeat(20 - filled);
+    // Explicit `.as_str()`: the `+ &String` deref-coercion form stopped
+    // resolving once the `script` feature pulled rhai into the crate graph
+    // (observed E0277 under feature unification); the explicit form is
+    // clearer anyway.
+    let bar: String = "█".repeat(filled) + "░".repeat(20 - filled).as_str();
 
     let mut out = String::new();
     let _ = writeln!(out, "### 🎙️ argot voice check\n");

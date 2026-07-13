@@ -16,6 +16,7 @@
 
 pub mod detector;
 pub mod discover;
+pub mod harness;
 pub mod host;
 pub mod manifest;
 

@@ -14,6 +14,7 @@ argot-lang = { path = "../argot-lang" }
 # (manifest `api` gates the host API; the interpreter shouldn't drift under it).
 rhai = "1.25"
 serde.workspace = true
+serde_json.workspace = true
 toml.workspace = true
 tree-sitter.workspace = true
 

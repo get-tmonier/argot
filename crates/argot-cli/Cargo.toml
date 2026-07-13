@@ -31,10 +31,11 @@ arch = ["argot-core/arch"]
 # `test-deleted`/`test-disabled`/`test-weakened`). Build-time gate like `arch`;
 # off in dev/CI base loops; ON in releases (dist-workspace.toml).
 integrity = ["argot-core/integrity"]
-script = ["argot-core/script"]
+script = ["argot-core/script", "dep:argot-rules-script"]
 
 [dependencies]
 argot-core = { path = "../argot-core" }
+argot-rules-script = { path = "../argot-rules-script", optional = true }
 # Already compiled via argot-core; declared here for audit's history walk.
 git2 = { workspace = true }
 serde.workspace = true
