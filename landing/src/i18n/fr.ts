@@ -4,10 +4,11 @@ const fr: SiteContent = {
   meta: {
     title: 'argot — détectez le code IA qui ne colle pas à votre dépôt',
     description:
-      'argot est un garde-fou local pour le code écrit par IA. Il apprend les motifs de votre dépôt depuis son historique git, puis signale le code qui n’a pas sa place — une dépendance jamais utilisée, une fonction que vous avez déjà, du code au mauvais endroit, un import qui casse votre architecture. Et quand un agent fait taire un test en échec au lieu de le corriger — sauté, vidé ou supprimé juste à côté du code qu’il couvre — argot associe les deux et le dit. Propulsé par un modèle d’embeddings de code qui tourne sur votre machine. Sans LLM, sans cloud, sans GPU.',
+      'argot est un garde-fou local pour le code écrit par IA. Il apprend les motifs de votre dépôt depuis son historique git, puis signale le code qui n’a pas sa place — une dépendance jamais utilisée, une fonction que vous avez déjà, du code au mauvais endroit, un import qui casse votre architecture. Et quand un agent fait taire un test en échec au lieu de le corriger — sauté, vidé ou supprimé juste à côté du code qu’il couvre — argot associe les deux et le dit. Une commande, argot audit, note votre historique récent sur un clone vierge et attribue chaque signalement à son commit : assisté par IA, humain ou inconnu. Propulsé par un modèle d’embeddings de code qui tourne sur votre machine. Sans LLM, sans cloud, sans GPU.',
   },
   nav: {
     demo: 'Démo',
+    audit: 'Audit',
     engine: 'Sous le capot',
     docs: 'Docs',
   },
@@ -74,12 +75,12 @@ const fr: SiteContent = {
     caption:
       'Mesuré comme le reste : [[94 %]] des éditions truquées détectées sur 22 dépôts / 11 langages · 0 des 102 refactorings légitimes signalés · 1,24 % de commits réels marqués. test-weakened sort en warn — argot informe, ne bloque jamais.',
   },
-  replay: {
+  audit: {
     label: 'Jour un',
-    title: 'Rembobinez votre historique. Voyez ce qu’il aurait attrapé.',
-    body: 'On ne démontre pas un garde-fou sur le code qu’il vient d’apprendre — alors argot rembobine. [[argot replay]] calibre la voix telle qu’elle était il y a 50 commits et rescore tout ce qui a suivi : une commande, quelques secondes, votre arbre intact.',
+    title: 'Auditez votre historique. Voyez ce que l’IA y a glissé.',
+    body: 'On ne démontre pas un garde-fou sur le code qu’il vient d’apprendre — alors argot rembobine. [[argot audit]] calibre la voix telle qu’elle était il y a 50 commits, rescore tout ce qui a suivi et attribue chaque signalement à son commit d’origine — ai-assisted, human ou unknown, à partir de [[marqueurs de commit concrets]] uniquement, jamais du style. Une commande, zéro config, votre arbre intact.',
     caption:
-      'Vraie exécution sur l’historique de FastAPI : deux imports fraîchement adoptés et le nouveau vocabulaire de streaming — chacun avec [[l’évidence du dépôt lui-même]].',
+      'Vraie exécution sur l’historique d’argot lui-même : [[52 %]] des commits portent des marqueurs IA, et l’unique signalement remonte à un commit assisté par IA — avec [[l’évidence du dépôt lui-même]].',
   },
   engine: {
     label: 'Sous le capot',
@@ -111,9 +112,11 @@ const fr: SiteContent = {
         value: '4 s',
         label: 'pour rafraîchir — les fonctions inchangées réutilisent leurs embeddings',
       },
+      { value: '2,3 min', label: 'audit seedé d’un monorepo de 30k fonctions — contre 6,5' },
+      { value: '2,7 min', label: 'refit à chaud de ce monorepo — contre 17, résultats identiques' },
     ],
     finePrint:
-      'Mesuré sur FastAPI, CPU de portable. Un seul binaire statique — pas de Python, pas de Node, aucun runtime à installer.',
+      'Mesuré sur FastAPI, CPU de portable. Un seul binaire statique — pas de Python, pas de Node, aucun runtime à installer. Un cache d’embeddings global à la machine et une calibration multi-cœur gardent les gros monorepos rapides — sans jamais changer un résultat.',
   },
   proof: {
     label: 'Mesuré, pas promis',

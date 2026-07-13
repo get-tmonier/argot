@@ -109,6 +109,22 @@ impl Embedder {
     }
 
     /// Embed each text into an L2-normalised 768-d vector, order-preserving.
+    ///
+    /// Vectors are canonicalised to f16 precision before returning — exactly
+    /// the precision the on-disk index artifact and the machine-wide embed
+    /// cache store — so a vector is bit-identical whether it was computed this
+    /// run, reloaded from the artifact, or served from the cache. This is the
+    /// stable representation of this embedding space: the encoder's f32 output
+    /// jitters run-to-run in its low bits (Metal reduction order), but rounds
+    /// to the same f16, so a cache hit and a fresh embed produce identical
+    /// findings.
+    ///
+    /// Encoding is one sequence per decode. Packing several sequences per
+    /// decode was measured (only ~1.2× on Metal — the per-token compute, not
+    /// the decode count, dominates here) and, more importantly, *changed the
+    /// pooled vector's low bits enough to flip a cosine tie in the neighbour
+    /// ranking*, breaking byte-identity of the findings. The machine-wide
+    /// embed cache, not batching, is what makes repeat encounters fast.
     pub fn embed(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
         let backend = backend()?;
         // jina-code is an *encoder*: llama.cpp processes the whole sequence in a
@@ -147,6 +163,7 @@ impl Embedder {
                 .context("read pooled embedding")?
                 .to_vec();
             l2_normalize(&mut vec);
+            canonicalize_f16(&mut vec);
             out.push(vec);
         }
         Ok(out)
@@ -165,6 +182,17 @@ fn l2_normalize(v: &mut [f32]) {
         for x in v.iter_mut() {
             *x /= norm;
         }
+    }
+}
+
+/// Round every component to its nearest f16 in place — the canonical
+/// precision of argot's embedding space. The index artifact and the embed
+/// cache both store f16, so canonicalising at the source makes "freshly
+/// computed", "reloaded", and "cache hit" the same bits: a cache or artifact
+/// round-trip can never move a cosine.
+fn canonicalize_f16(v: &mut [f32]) {
+    for x in v.iter_mut() {
+        *x = half::f16::from_f32(*x).to_f32();
     }
 }
 
@@ -604,6 +632,35 @@ mod tests {
             cross_cos < self_cos - 0.05,
             "unrelated code separates: self={self_cos} cross={cross_cos}"
         );
+    }
+
+    #[test]
+    fn embed_output_is_f16_canonical_and_bit_stable_across_calls() {
+        let Some(emb) = local_embedder() else {
+            eprintln!("skipping: no local model (set {MODEL_ENV})");
+            return;
+        };
+        let texts = [
+            "def one(a):\n    b = a + 1\n    return b\n",
+            "def two(a):\n    b = a * 2\n    return b\n",
+            "def three(a):\n    b = a - 3\n    return b\n",
+        ];
+        let vecs = emb.embed(&texts).unwrap();
+        for v in &vecs {
+            // Canonical: every component is exactly f16-representable, so the
+            // artifact/cache round-trip is bit-identical.
+            assert!(v.iter().all(|&x| x == half::f16::from_f32(x).to_f32()));
+        }
+        // Embedding a text in a multi-text call, alone, and a second time must
+        // all yield the *same bits* — the f16 canonicalisation absorbs the
+        // encoder's low-bit run-to-run jitter, which is what makes a cache hit
+        // interchangeable with a fresh embed.
+        for (i, text) in texts.iter().enumerate() {
+            let solo = emb.embed_one(text).unwrap();
+            let again = emb.embed_one(text).unwrap();
+            assert_eq!(vecs[i], solo, "slice vs solo bit-identical");
+            assert_eq!(solo, again, "repeat embed bit-identical");
+        }
     }
 
     #[test]

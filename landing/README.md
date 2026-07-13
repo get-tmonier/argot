@@ -49,5 +49,12 @@ Connect the repo and set, in the Pages project:
 `landing/bun.lock` and fails if the lockfile drifts from `package.json`, instead of mutating it
 mid-build (bun's equivalent of `npm ci`).
 
+**Rebuild-on-release:** `/version.json` is built from files *outside* this directory
+(`../Cargo.toml`, `../skills/VERSION`, the embedder's model pin) and is what `argot update` and
+the binary's daily notice resolve against. Because the Pages root directory is `landing/`, a
+release commit that only bumps `Cargo.toml` would not trigger a rebuild — so the auto-release
+workflow also stamps `src/data/release.json`, guaranteeing every release redeploys the site. Don't
+add Pages "build watch paths" that could skip those commits.
+
 `public/_headers` ships the security headers and long-cache rules; the sitemap is generated at
 `/sitemap-index.xml`.

@@ -10,6 +10,7 @@ export interface SiteContent {
   };
   readonly nav: {
     readonly demo: string;
+    readonly audit: string;
     readonly engine: string;
     readonly docs: string;
   };
@@ -44,7 +45,7 @@ export interface SiteContent {
     readonly moves: readonly { readonly name: string; readonly example: string }[];
     readonly caption: string;
   };
-  readonly replay: {
+  readonly audit: {
     readonly label: string;
     readonly title: string;
     readonly body: string;

@@ -5,8 +5,8 @@
 //! - every registered repo's `.argot/` directory and `argot.local.toml`
 //!   (machine-local state; the registry in `~/.argot/settings.json` knows
 //!   every repo argot ever ran in),
-//! - the user cache (`~/.cache/argot` / `%LOCALAPPDATA%\argot`): embedding
-//!   models, update-check state,
+//! - the user cache (`~/.cache/argot` / `%LOCALAPPDATA%\argot`): the embedding
+//!   model, the machine-wide embedding cache, update-check state,
 //! - the global registry (`~/.argot/settings.json`),
 //! - the shell installer's receipt dir (`~/.config/argot`),
 //! - the binary itself — deleted for shell/raw installs; npm installs get the
@@ -59,7 +59,7 @@ pub struct UninstallPlan {
 }
 
 /// `${XDG_CONFIG_HOME:-~/.config}/argot` — where the shell installer's
-/// receipt lives (axoupdater convention).
+/// receipt lives (cargo-dist convention).
 fn receipt_dir() -> Option<PathBuf> {
     if let Some(x) = std::env::var_os("XDG_CONFIG_HOME").filter(|v| !v.is_empty()) {
         return Some(PathBuf::from(x).join("argot"));
@@ -129,7 +129,10 @@ pub fn build_plan() -> UninstallPlan {
     let mut user_level = Vec::new();
     if let Ok(cache) = argot_core::cache::cache_dir() {
         if cache.is_dir() {
-            user_level.push(("cache (embedding models, update state)".to_string(), cache));
+            user_level.push((
+                "cache (embedding model, embedding cache, update state)".to_string(),
+                cache,
+            ));
         }
     }
     let settings = crate::settings_path();

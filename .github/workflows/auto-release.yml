@@ -64,6 +64,13 @@ jobs:
           echo "version=$NEW" >> "$GITHUB_OUTPUT"
           sed -i "0,/^version = .*/s//version = \"$NEW\"/" Cargo.toml
           cargo update -p argot-core -p argot
+          # Stamp the release into the landing tree. Cloudflare Pages builds
+          # with root directory `landing/`, so a release commit that only
+          # touches Cargo.toml never triggers a site rebuild — and
+          # /version.json (built from ../Cargo.toml, and what `argot update`
+          # + the daily notice resolve against) goes stale. Touching this
+          # file makes every release commit rebuild the site.
+          printf '{\n  "version": "%s"\n}\n' "$NEW" > landing/src/data/release.json
 
       - name: Commit, tag and push
         if: steps.check.outputs.skip == 'false'
@@ -71,7 +78,7 @@ jobs:
           VERSION=${{ steps.bump.outputs.version }}
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Cargo.toml Cargo.lock
+          git add Cargo.toml Cargo.lock landing/src/data/release.json
           git commit -m "chore: release v$VERSION"
           git tag "v$VERSION"
           git push origin main "v$VERSION"

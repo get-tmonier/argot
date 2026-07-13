@@ -4,12 +4,15 @@
 //! (`extract` → `train` → `calibrate` → `check`, plus the `fit` one-shot and
 //! the suppression commands) runs in-process against `argot-core`.
 
+mod audit;
 mod auto_refit;
+mod cache_cmd;
 mod describe;
 mod mcp;
-mod replay;
 mod review;
 mod uninstall;
+#[cfg(feature = "self-update")]
+mod update;
 #[cfg(feature = "self-update")]
 mod update_check;
 mod voice_diff;
@@ -179,9 +182,10 @@ enum Command {
     Model(ModelCmd),
     /// Score a PR (or diff range) against the local voice without checking it out.
     Review(ReviewCmd),
-    /// Replay your recent commits against the voice fitted just before them —
-    /// what argot would have caught before merge. Informational; exits 0.
-    Replay(ReplayCmd),
+    /// Audit your recent history: score it against the voice fitted just
+    /// before it and attribute each finding to its introducing commit
+    /// (ai-assisted / human / unknown). Informational; exits 0.
+    Audit(AuditCmd),
     /// PR-level out-of-voice metric plus ranked hot-spots for a ref/range.
     /// Informational: always exits 0 (use `check`/`review` to gate).
     #[command(name = "voice-diff")]
@@ -206,6 +210,9 @@ enum Command {
     List(ListCmd),
     /// Update the argot CLI to the latest release.
     Update,
+    /// Inspect or clear the machine-wide cache (`~/.cache/argot`): the
+    /// downloaded model and the embedding cache.
+    Cache(cache_cmd::CacheCmd),
     /// Remove argot from this machine: every repo's artifacts, the model
     /// cache, global state, and the binary (shows the full list first).
     Uninstall(UninstallCmd),
@@ -566,56 +573,7 @@ fn run_update() -> ExitCode {
 
 #[cfg(feature = "self-update")]
 fn run_update() -> ExitCode {
-    let current = env!("CARGO_PKG_VERSION");
-
-    let exe = std::env::current_exe().ok();
-    if is_npm_install(exe.as_deref()) {
-        println!("argot {current} was installed via npm; update it with:");
-        println!("  npm install -g @tmonier/argot@latest");
-        return ExitCode::SUCCESS;
-    }
-
-    let mut updater = axoupdater::AxoUpdater::new_for("argot");
-    if updater.load_receipt().is_err() {
-        eprintln!("argot {current}: no install receipt found, cannot self-update.");
-        eprintln!("Re-install with the installer to enable `argot update`:");
-        eprintln!("  curl -LsSf https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.sh | sh");
-        return ExitCode::FAILURE;
-    }
-
-    // Without this guard axoupdater silently reports "no update needed" for
-    // any binary that isn't the one the receipt describes (dev builds, manual
-    // copies) — surface that case honestly instead.
-    if !updater
-        .check_receipt_is_for_this_executable()
-        .unwrap_or(false)
-    {
-        eprintln!(
-            "argot {current}: this executable is not the installed copy recorded in the install receipt; skipping self-update."
-        );
-        eprintln!("Update the installed copy by running `argot update` from it directly.");
-        return ExitCode::FAILURE;
-    }
-
-    println!("argot {current} — checking for updates...");
-    match updater.run_sync() {
-        Ok(Some(result)) => {
-            println!("Updated to argot {}.", result.new_version);
-            // Did this release move the pinned embedding model? Say so now,
-            // so the next fit's ~100 MB download is expected, not a surprise.
-            #[cfg(feature = "semantic")]
-            update_check::model_change_note();
-            ExitCode::SUCCESS
-        }
-        Ok(None) => {
-            println!("Already up to date.");
-            ExitCode::SUCCESS
-        }
-        Err(e) => {
-            eprintln!("Update failed: {e}");
-            ExitCode::FAILURE
-        }
-    }
+    update::run_update()
 }
 
 /// Whether a command should emit its JSON document (the shared `--format
@@ -634,7 +592,7 @@ fn freshness_hook() {
 fn print_help_banner() {
     let version = env!("CARGO_PKG_VERSION");
     println!(
-        "argot v{version}\n\nCOMMANDS\n  init          Set up argot for this repo (fit + health check; --suggest lists dirs to exclude)\n  fit           Fit the voice model to this repo (= train + calibrate, one-shot)\n  check         Check changes against the fitted voice\n  rules         List every rule with its group and effective severity\n  review        Score a PR (or diff range) against the local voice, no checkout\n  replay        What argot would have caught in your last N commits\n  voice-diff    PR-level out-of-voice metric + hot-spots for a ref/range\n  inspect       Report corpus composition, calibration health, and suitability\n  mute          Mute a hit by hash (appends a [[mute]] to argot.toml)\n  list-mutes    List active suppressions across all surfaces\n  review-mutes  Report (and --prune) hash-scoped mutes whose file is gone\n  model         Manage the local embedding model (fetch / status / clean)\n  status        Show current repository's argot state\n  list          List all registered repositories\n  update        Update the argot CLI\n  mcp           Run an MCP server for LLM coding agents (stdio)\n  describe-voice  Generate a STYLE.md describing the repo's learned voice\n\nTypical first run: argot init && argot check\nRun `argot <command> --help` for details on any command."
+        "argot v{version}\n\nCOMMANDS\n  init          Set up argot for this repo (fit + health check; --suggest lists dirs to exclude)\n  fit           Fit the voice model to this repo (= train + calibrate, one-shot)\n  check         Check changes against the fitted voice\n  rules         List every rule with its group and effective severity\n  review        Score a PR (or diff range) against the local voice, no checkout\n  audit         History scorecard: what argot would have caught, and who wrote it\n  voice-diff    PR-level out-of-voice metric + hot-spots for a ref/range\n  inspect       Report corpus composition, calibration health, and suitability\n  mute          Mute a hit by hash (appends a [[mute]] to argot.toml)\n  list-mutes    List active suppressions across all surfaces\n  review-mutes  Report (and --prune) hash-scoped mutes whose file is gone\n  model         Manage the local embedding model (fetch / status / clean)\n  status        Show current repository's argot state\n  list          List all registered repositories\n  update        Update the argot CLI\n  mcp           Run an MCP server for LLM coding agents (stdio)\n  describe-voice  Generate a STYLE.md describing the repo's learned voice\n\nTypical first run: argot init && argot check\nRun `argot <command> --help` for details on any command."
     );
 }
 
@@ -806,7 +764,7 @@ fn warn_uncommitted(paths: &[String]) {
 fn fit_repo(repo: &Path, slices: &[String]) -> Result<PathBuf, ()> {
     // Every fitted repo lands in the global registry so `argot list`/`status`
     // — and `argot uninstall` — know where artifacts live. argot's own
-    // throwaway worktrees (replay, the background refresh) live under the OS
+    // throwaway worktrees (audit, the background refresh) live under the OS
     // temp dir and are not user repos.
     let canon = |p: &Path| fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
     let repo_canon = canon(repo);
@@ -838,7 +796,7 @@ fn fit_repo(repo: &Path, slices: &[String]) -> Result<PathBuf, ()> {
     // learns its unmerged commits, and argot stops flagging what it has
     // learned. Advisory only — agents, scripts, and hooks drive fit too, so
     // never a prompt — and silent when the branch adds nothing in scope,
-    // on detached HEAD (replay/refresh worktrees), or when the repo declared
+    // on detached HEAD (audit/refresh worktrees), or when the repo declared
     // branch fits intended via `[fit] refresh-from = "current-branch"`.
     let fit_config = argot_core::config::ArgotConfig::load(repo);
     if let Some((branch, n)) = argot_core::check::unmerged_branch_source_commits(
@@ -858,13 +816,18 @@ fn fit_repo(repo: &Path, slices: &[String]) -> Result<PathBuf, ()> {
     let generic = argot_dir.join("generic-baseline.json");
     let scorer_config = argot_dir.join("scorer-config.json");
 
-    println!("Step 1/2: training voice model …");
+    // Progress goes to stderr: fit runs inside commands whose stdout is a
+    // machine document (audit --format json) — status must never mix in.
+    eprintln!("Step 1/2: training voice model …");
+    let t_train = argot_core::timing::phase("fit: train");
     if let Err(e) = run_train(repo, &repo_corpus, &generic) {
         eprintln!("error: {e}");
         return Err(());
     }
+    t_train.done();
 
-    println!("Step 2/2: calibrating threshold …");
+    eprintln!("Step 2/2: calibrating threshold …");
+    let t_cal = argot_core::timing::phase("fit: calibrate (total)");
     let generic_bytes = match fs::read(&generic) {
         Ok(b) => b,
         Err(_) => {
@@ -883,6 +846,7 @@ fn fit_repo(repo: &Path, slices: &[String]) -> Result<PathBuf, ()> {
         eprintln!("error: {e}");
         return Err(());
     }
+    t_cal.done();
     Ok(scorer_config)
 }
 
@@ -1251,13 +1215,34 @@ fn run_check_cmd(c: CheckCmd) -> ExitCode {
 }
 
 #[derive(Args)]
-struct ReplayCmd {
-    /// How many commits back to fit the historical voice (first-parent line).
-    #[arg(long, default_value_t = replay::DEFAULT_COMMITS)]
+struct AuditCmd {
+    /// How many commits back to audit (first-parent line).
+    #[arg(long, default_value_t = audit::DEFAULT_COMMITS, conflicts_with = "since")]
     commits: usize,
+    /// Audit everything since a date (YYYY-MM-DD) or a duration (90d, 12w, 6m, 1y).
+    #[arg(long)]
+    since: Option<String>,
+    /// Output format: terminal, json, markdown, or html.
+    #[arg(long, default_value = "terminal")]
+    format: String,
     /// Path to the repository.
     #[arg(long, default_value = ".")]
     repo: PathBuf,
+}
+
+fn run_audit_cmd(c: AuditCmd) -> ExitCode {
+    let Some(format) = audit::AuditFormat::parse(&c.format) else {
+        eprintln!(
+            "error: unknown --format '{}' — expected terminal, json, markdown, or html",
+            c.format
+        );
+        return ExitCode::from(2);
+    };
+    let spec = match c.since {
+        Some(s) => audit::window::WindowSpec::Since(s),
+        None => audit::window::WindowSpec::Commits(c.commits),
+    };
+    audit::run_audit(&c.repo, spec, format)
 }
 
 #[derive(Args)]
@@ -2276,13 +2261,14 @@ fn main() -> ExitCode {
         Some(Command::Status(c)) => run_status(c),
         Some(Command::List(c)) => run_list(c),
         Some(Command::Update) => run_update(),
+        Some(Command::Cache(c)) => cache_cmd::run(c.action),
         Some(Command::Uninstall(c)) => uninstall::run_uninstall(c.dry_run, c.yes),
         #[cfg(feature = "self-update")]
         Some(Command::RefreshVersionCache) => {
             update_check::run_refresh();
             ExitCode::SUCCESS
         }
-        Some(Command::Replay(c)) => replay::run_replay(&c.repo, c.commits),
+        Some(Command::Audit(c)) => run_audit_cmd(c),
         Some(Command::BackgroundRefit(c)) => {
             auto_refit::run_background_refit(&c.repo);
             ExitCode::SUCCESS

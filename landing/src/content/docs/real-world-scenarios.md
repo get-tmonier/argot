@@ -1,13 +1,14 @@
 ---
 title: Real-world scenarios
-description: argot dogfooded end-to-end on real repositories — setup, the local dev loop, muting, a gamed test, and the CI pull-request flow — with the actual transcripts, good and bad.
+description: argot dogfooded end-to-end on real repositories — setup, the day-one history audit, the local dev loop, muting, a gamed test, and the CI pull-request flow — with the actual transcripts, good and bad.
 group: Guide
 order: 11
 ---
 
 Everything here is a real run of the shipped binary on real repositories —
 [FastAPI](https://github.com/fastapi/fastapi),
-[Saleor](https://github.com/saleor/saleor), and a
+[Saleor](https://github.com/saleor/saleor),
+[Dagster](https://github.com/dagster-io/dagster), and a
 [Hono](https://github.com/honojs/hono) fork. The transcripts are quoted as they
 came out, the misses included. If argot passed something it shouldn't have, you'll
 find it said so.
@@ -44,7 +45,38 @@ $ argot init
 contributor excludes it; an app author building *on* the framework keeps it. This
 is exactly the [`argot.toml` `[exclude]`](/docs/configure/) moment an agent or human owns.
 
-## 2. The local dev loop — argot as a reviewer, before CI
+## 2. Day one — what did AI already sneak in?
+
+Before argot judges your *next* diff, it can score your *last fifty* — on a
+fresh clone, with no setup at all. `argot audit` fits the voice as it was 50
+commits ago in a temp worktree, rescores everything since, and attributes
+every finding to its introducing commit — **ai-assisted / human / unknown**,
+from concrete commit markers only (agent `Co-authored-by` trailers, bot
+authors — never writing style). Real run on
+[Dagster](https://github.com/dagster-io/dagster)'s monorepo:
+
+```text
+━━ argot audit ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  last 50 commits · 2026-04-30 → 2026-05-04 · 50 commits audited
+  18% carry AI markers (9 of 50) · 9 findings would have met review
+
+  voice           2  code foreign to how this repo writes
+  semantic        5  functions you already had, or code filed oddly
+  architecture    2  imports that break the repo's layering
+
+  Worst offender — commit 648cd19 · human
+  ! python_modules/l…ter-soda/dagster_soda/__init__.py:L1-10 · foreign-import
+```
+
+Eighteen percent of the window carries AI markers, three rule groups fire,
+and each finding names its commit. The framing is deliberate: merged code is
+accepted code, so every line reads as *"would have prompted review before
+merge"* — never a bug list. A quiet card is a result too ("your recent
+history speaks the repo's language"), and `--format json|markdown|html`
+turns the card into a stable schema, a PR comment, or a shareable page. Full
+reference: [the `audit` command](/docs/the-commands/#audit).
+
+## 3. The local dev loop — argot as a reviewer, before CI
 
 This is the scenario that matters most: does argot help you write in-voice code
 *before* a commit ever happens? We gave an agent a real task on FastAPI — *"add a
@@ -91,7 +123,7 @@ reinvents one the repo already has (`redundant`) or code filed in the wrong pack
 (`misplaced`) — but it doesn't erase it: a sync-in-async *choice* built entirely
 from FastAPI's own vocabulary is still below the line argot gates on.
 
-## 3. Intentional foreign code — accept it, with a trail
+## 4. Intentional foreign code — accept it, with a trail
 
 Sometimes the foreign thing is a real decision. Mute it by hash with a reason, and
 it stops flagging — with an audit trail:
@@ -108,7 +140,7 @@ Muted [cbc8047c9ecc] — RFC-42: tenacity is our chosen retry library
 The reason lands in `argot.toml` (as a `[[mute]]`) and `argot list-mutes` — the next
 reviewer sees *why*, not just that it was silenced.
 
-## 4. Prevention — before a line is written
+## 5. Prevention — before a line is written
 
 Detection is reactive. For prevention, hand the agent the repo's voice up front:
 
@@ -117,7 +149,7 @@ Detection is reactive. For prevention, hand the agent the repo's voice up front:
 - **`argot mcp`** exposes `voice_context` over MCP, feeding your editor agent the
   repo's established patterns before it generates code. See [Agents](/docs/agents/).
 
-## 5. The CI pull-request flow — flag → fix → green
+## 6. The CI pull-request flow — flag → fix → green
 
 On a Hono fork, an agent opened a PR adding a receipts endpoint written
 **Express-style** (`Router`, `req`/`res`) in an all-Hono codebase. The Action
@@ -140,9 +172,9 @@ sticky comment updated in place** to green:
 > in the Files tab — so a fix commit clears an earlier commit's flag. The card
 > never blocks the merge; the reviewer has the last word. See [CI](/docs/ci/).
 
-## 6. Gaming a failing test — caught before it ships
+## 7. Gaming a failing test — caught before it ships
 
-Same FastAPI checkout, same pinned commit as the replay example above. Say an
+Same FastAPI checkout, same pinned commit as the examples above. Say an
 agent is asked to fix a failing test after a small change to
 `fastapi/exceptions.py`'s `EndpointContext` — instead of finding out *why*
 `test_text_get` now fails, the easy-looking move is to skip it and ship the

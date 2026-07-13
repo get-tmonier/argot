@@ -4,10 +4,11 @@ const en: SiteContent = {
   meta: {
     title: 'argot — catch the AI code that doesn’t fit your codebase',
     description:
-      'argot is a local guardrail for AI-written code. It learns your repo’s patterns from its own git history, then flags code that doesn’t belong — a dependency you’ve never used, a function you already wrote, logic in the wrong place, an import that breaks your layering. And when an agent quiets a failing test instead of fixing it — skipped, gutted, or deleted right beside the code it covers — argot pairs the two and says so. Backed by a code-embedding model that runs on your laptop. No LLM, no cloud, no GPU.',
+      'argot is a local guardrail for AI-written code. It learns your repo’s patterns from its own git history, then flags code that doesn’t belong — a dependency you’ve never used, a function you already wrote, logic in the wrong place, an import that breaks your layering. And when an agent quiets a failing test instead of fixing it — skipped, gutted, or deleted right beside the code it covers — argot pairs the two and says so. One command, argot audit, scores your recent history on a fresh clone and attributes every finding to its commit: ai-assisted, human, or unknown. Backed by a code-embedding model that runs on your laptop. No LLM, no cloud, no GPU.',
   },
   nav: {
     demo: 'Demo',
+    audit: 'Audit',
     engine: 'Under the hood',
     docs: 'Docs',
   },
@@ -74,12 +75,12 @@ const en: SiteContent = {
     caption:
       'Measured like everything else: [[94%]] of authored gaming edits caught across 22 repos / 11 languages · 0 of 102 legitimate refactors flagged · 1.24% flagged on real accepted commits. test-weakened ships as warn — argot informs, never blocks.',
   },
-  replay: {
+  audit: {
     label: 'Day one',
-    title: 'Rewind your history. See what it would have caught.',
-    body: 'You can’t demo a guardrail on code it just learned from — so argot rewinds instead. [[argot replay]] fits the voice as it was 50 commits ago and rescores everything since: one command, seconds, your tree untouched.',
+    title: 'Audit your history. See what AI snuck in.',
+    body: 'You can’t demo a guardrail on code it just learned from — so argot rewinds instead. [[argot audit]] fits the voice as it was 50 commits ago, rescores everything since, and attributes each finding to its introducing commit — ai-assisted, human, or unknown, from [[concrete commit markers]] only, never style. One command, zero setup, your tree untouched.',
     caption:
-      'Real run on FastAPI’s history: two newly-adopted imports and the new streaming vocabulary — each with [[the repo’s own evidence]].',
+      'Real run on argot’s own history: [[52%]] of commits carry AI markers, and the one finding traces to an AI-assisted commit — with [[the repo’s own evidence]].',
   },
   engine: {
     label: 'Under the hood',
@@ -108,9 +109,11 @@ const en: SiteContent = {
       { value: '0.6s', label: 'when it defines new functions' },
       { value: '25s', label: 'first fit, 1,100-file repo' },
       { value: '4s', label: 'to refresh — unchanged functions reuse their embeddings' },
+      { value: '2.3 min', label: 'seeded audit of a 30k-function monorepo — down from 6.5' },
+      { value: '2.7 min', label: 'warm refit of that monorepo — down from 17, byte-identical' },
     ],
     finePrint:
-      'Measured on FastAPI, laptop CPU. Single static binary — no Python, no Node, no runtime to install.',
+      'Measured on FastAPI, laptop CPU. Single static binary — no Python, no Node, no runtime to install. A machine-wide embedding cache and multi-core calibration keep big monorepos fast — without ever changing a result.',
   },
   proof: {
     label: 'Measured, not promised',

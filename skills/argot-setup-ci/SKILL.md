@@ -57,8 +57,9 @@ the user explicitly asks for a gate.
 
 6. If the user prefers a hand-rolled workflow over the Action (or already has
    one), the building blocks are: install argot, `argot model fetch` (cache
-   `~/.cache/argot/models` to keep the download out of every run), `argot fit`,
-   then `argot check --format github` — the
+   `~/.cache/argot/models` to keep the download out of every run; also cache
+   `~/.cache/argot/embeddings` with a loose restore-key so unchanged functions
+   don't re-embed across runs), `argot fit`, then `argot check --format github` — the
    `github` format prints workflow commands that GitHub renders as inline PR
    annotations. For a strict setup, `--error-on-warnings` makes warn-severity
    hits fail the run too. If an existing workflow runs `argot extract && argot

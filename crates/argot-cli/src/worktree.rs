@@ -1,4 +1,4 @@
-//! Throwaway `git worktree` checkouts — shared by `replay` (fit the voice as
+//! Throwaway `git worktree` checkouts — shared by `audit` (fit the voice as
 //! of a past commit) and the background auto-refresh (fit at the accepted
 //! anchor so unmerged or uncommitted work never trains the voice).
 

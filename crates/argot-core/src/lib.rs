@@ -19,10 +19,13 @@ pub mod health;
 pub mod inspect;
 pub mod json;
 pub mod output;
+#[cfg(any(feature = "semantic", feature = "integrity"))]
+pub mod par;
 pub mod rules;
 pub mod scoring;
 pub mod stats;
 pub mod suppress;
 pub mod text;
+pub mod timing;
 pub mod tokenize;
 pub mod train;

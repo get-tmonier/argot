@@ -10,7 +10,7 @@ one Cargo workspace:
   Produces and reads the fit artifacts in `.argot/`.
 - **`crates/argot-cli`** — the clap CLI that wires the pipeline into the single
   `argot` binary (`extract` → `train` → `calibrate` → `check`, or `fit`), plus
-  the user-facing commands (`init`, `review`, `replay`, `voice-diff`,
+  the user-facing commands (`init`, `review`, `audit`, `voice-diff`,
   `inspect`, `status`, `describe-voice`, mutes) and the MCP server (`argot mcp`).
 
 See the **Architecture** section of `CLAUDE.md` for the module layout, and

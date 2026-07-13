@@ -62,16 +62,20 @@ serde_yaml = "0.9"
 # comments). Pure Rust — no effect on the parity-pinned deps.
 toml = "0.8"
 toml_edit = "0.22"
-# `argot update` self-update: reads the install receipt written by the
-# cargo-dist shell installer and re-runs the latest release's installer.
-axoupdater = { version = "0.10", default-features = false, features = ["github_releases", "blocking"] }
+# `argot update` self-update (crates/argot-cli/src/update.rs): the flow is
+# hand-rolled — version from the published version.json, installer from the
+# release's web download URL — so it never touches the GitHub API and its
+# anonymous 60 req/h rate limit. self-replace is the Windows-only cleanup of
+# the parked old binary after an in-place update (unix needs no dance).
+self-replace = "1.5"
 # Semantic layer (feature-gated `semantic`, off by default): llama.cpp linked
 # statically for in-process code embeddings (jina-code Q4 GGUF). Same in-process
 # C-dep shape as git2/libgit2. Metal is enabled per-target in argot-core. None
 # of these touch the base statistical path — they exist only under `semantic`.
 llama-cpp-2 = { version = "0.1.151", default-features = false }
 # One-time fetch-on-first-use of the ~90 MB GGUF (blocking, rustls TLS — pure
-# Rust, preserves the static-binary story). Feature-gated behind `semantic`.
+# Rust, preserves the static-binary story). Feature-gated behind `semantic`
+# and `self-update` (version.json + installer fetch).
 ureq = { version = "2", default-features = false, features = ["tls"] }
 # f16 storage for the semantic index vectors (~4 MB / 2.6k fns in the artifact).
 half = { version = "2", features = ["serde"] }

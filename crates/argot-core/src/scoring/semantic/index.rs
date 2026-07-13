@@ -87,6 +87,21 @@ pub struct Neighbor {
     pub cosine: f32,
 }
 
+/// Where a [`SemanticIndex::build_with_reuse`] got its vectors from, beyond
+/// fresh embedding: this repo's prior fit artifact and the machine-wide
+/// content-addressed embed cache.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct ReuseStats {
+    pub from_prior: usize,
+    pub from_cache: usize,
+}
+
+impl ReuseStats {
+    pub fn total(&self) -> usize {
+        self.from_prior + self.from_cache
+    }
+}
+
 /// A per-language embedding index.
 #[derive(Debug, Clone)]
 pub struct SemanticIndex {
@@ -108,27 +123,31 @@ impl SemanticIndex {
     /// Build an index by embedding `funcs` in one batch (amortises the inference
     /// context). Order of `entries` follows `funcs`.
     pub fn build(embedder: &Embedder, funcs: &[FunctionRef]) -> Result<Self> {
-        Ok(Self::build_with_reuse(embedder, funcs, None)?.0)
+        Ok(Self::build_with_reuse(embedder, funcs, None, None)?.0)
     }
 
-    /// Build the index, reusing vectors from `prior` for functions whose
-    /// embedded text is unchanged (keyed by [`embed_text_hash`]) — the
-    /// incremental-refit path that turns a full re-embed into embedding only
-    /// the new/changed functions. Returns the index and how many vectors were
-    /// reused. A `prior` from another model must never reach here — the caller
-    /// gates on [`SemanticArtifact::validate_current`].
+    /// Build the index, reusing vectors for functions whose embedded text is
+    /// unchanged (keyed by [`embed_text_hash`]) from two sources, in order:
+    /// this repo's `prior` fit artifact (the incremental-refit path) and the
+    /// machine-wide [`EmbedCache`] (the fresh-clone / audit-worktree path).
+    /// Only the residual is embedded; every vector this build learned lands in
+    /// the cache for the next encounter. All three sources hold the same
+    /// f16-canonical bits, so where a vector came from can never change a
+    /// finding. A `prior` from another model must never reach here — the
+    /// caller gates on [`SemanticArtifact::validate_current`].
     pub fn build_with_reuse(
         embedder: &Embedder,
         funcs: &[FunctionRef],
         prior: Option<&SemanticIndex>,
-    ) -> Result<(Self, usize)> {
+        cache: Option<&super::embed_cache::EmbedCache>,
+    ) -> Result<(Self, ReuseStats)> {
         if funcs.is_empty() {
             return Ok((
                 Self {
                     dim: EMBED_DIM,
                     entries: Vec::new(),
                 },
-                0,
+                ReuseStats::default(),
             ));
         }
         // hash → vector of the prior fit (skip pre-hash entries).
@@ -142,25 +161,51 @@ impl SemanticIndex {
         }
 
         let hashes: Vec<String> = funcs.iter().map(|f| embed_text_hash(&f.text)).collect();
-        let to_embed: Vec<usize> = (0..funcs.len())
-            .filter(|&i| !reusable.contains_key(hashes[i].as_str()))
+        let mut stats = ReuseStats::default();
+        let mut resolved: Vec<Option<Vec<f32>>> = Vec::with_capacity(funcs.len());
+        for hash in &hashes {
+            if let Some(v) = reusable.get(hash.as_str()) {
+                stats.from_prior += 1;
+                resolved.push(Some((*v).clone()));
+            } else if let Some(v) = cache.and_then(|c| c.get(hash)) {
+                stats.from_cache += 1;
+                resolved.push(Some(v.clone()));
+            } else {
+                resolved.push(None);
+            }
+        }
+        let texts: Vec<&str> = resolved
+            .iter()
+            .zip(funcs)
+            .filter(|(r, _)| r.is_none())
+            .map(|(_, f)| f.text.as_str())
             .collect();
-        let texts: Vec<&str> = to_embed.iter().map(|&i| funcs[i].text.as_str()).collect();
         let mut fresh = embedder
             .embed(&texts)
             .context("embed corpus functions")?
             .into_iter();
 
         let mut entries = Vec::with_capacity(funcs.len());
-        let mut reused = 0usize;
-        for (i, f) in funcs.iter().enumerate() {
-            let vec = match reusable.get(hashes[i].as_str()) {
+        // Warm the machine-wide cache with everything it doesn't hold yet:
+        // freshly embedded vectors AND prior-artifact reuses (so one fit of a
+        // seeded checkout makes every future clone/worktree a cache hit).
+        let mut persist: Vec<(String, Vec<f32>)> = Vec::new();
+        for ((f, hash), reuse) in funcs.iter().zip(&hashes).zip(resolved) {
+            let (vec, cache_has_it) = match reuse {
                 Some(v) => {
-                    reused += 1;
-                    (*v).clone()
+                    // Reused but absent from the prior artifact ⇒ it came
+                    // from the cache, so the cache already holds it.
+                    let from_cache = !reusable.contains_key(hash.as_str());
+                    (v, from_cache)
                 }
-                None => fresh.next().expect("one fresh vector per to-embed fn"),
+                None => (
+                    fresh.next().expect("one fresh vector per to-embed fn"),
+                    false,
+                ),
             };
+            if cache.is_some() && !cache_has_it {
+                persist.push((hash.clone(), vec.clone()));
+            }
             entries.push(IndexEntry {
                 symbol: f.symbol.clone(),
                 path: f.path.clone(),
@@ -168,15 +213,18 @@ impl SemanticIndex {
                 vec,
                 callees: f.callees.clone(),
                 subtokens: f.subtokens.clone(),
-                text_hash: hashes[i].clone(),
+                text_hash: hash.clone(),
             });
+        }
+        if let Some(c) = cache {
+            c.persist(&persist);
         }
         Ok((
             Self {
                 dim: EMBED_DIM,
                 entries,
             },
-            reused,
+            stats,
         ))
     }
 
@@ -757,14 +805,15 @@ mod tests {
         let f1 = func("a", "def a(x):\n    y = x + 1\n    return y\n");
         let f2 = func("b", "def b(x):\n    y = x * 2\n    return y\n");
         let (first, reused0) =
-            SemanticIndex::build_with_reuse(&emb, &[f1.clone(), f2.clone()], None).unwrap();
-        assert_eq!(reused0, 0);
+            SemanticIndex::build_with_reuse(&emb, &[f1.clone(), f2.clone()], None, None).unwrap();
+        assert_eq!(reused0.total(), 0);
 
         // Second fit: f1 unchanged, f2 replaced by a new function.
         let f3 = func("c", "def c(x):\n    y = x - 3\n    return y\n");
         let (second, reused) =
-            SemanticIndex::build_with_reuse(&emb, &[f1.clone(), f3], Some(&first)).unwrap();
-        assert_eq!(reused, 1, "unchanged f1 reused");
+            SemanticIndex::build_with_reuse(&emb, &[f1.clone(), f3], Some(&first), None).unwrap();
+        assert_eq!(reused.from_prior, 1, "unchanged f1 reused");
+        assert_eq!(reused.from_cache, 0);
         assert_eq!(
             second.entries[0].vec, first.entries[0].vec,
             "bit-identical reuse"
