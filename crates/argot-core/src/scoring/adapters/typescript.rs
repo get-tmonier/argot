@@ -12,8 +12,9 @@
 //!   `require("spec")` calls. `export {a} from "spec"` is an `export_statement`
 //!   (not `import_statement`) and is NOT captured — matching the Python query
 //!   `(import_statement source: (string) @src)`.
-//! - Relative specifiers (`./x`, `../x`) are excluded. Everything else
-//!   (`@/alias`, `@myorg/pkg`, `node:fs`, bare names) is kept verbatim — TS
+//! - Relative specifiers (`./x`, `../x`) and Node.js subpath imports (`#…`,
+//!   private to the declaring package) are excluded as repo-internal. Everything
+//!   else (`@/alias`, `@myorg/pkg`, `node:fs`, bare names) is kept verbatim — TS
 //!   specifiers are never split on `.` the way Python top-level modules are.
 //! - Unlike the Python-language adapter, the TS adapter never bails on
 //!   `root.has_error()`: the Python code only returns empty on a parse
@@ -116,6 +117,16 @@ fn strip_quotes(text: &str) -> &str {
 
 fn is_relative(specifier: &str) -> bool {
     specifier.starts_with("./") || specifier.starts_with("../")
+}
+
+/// Repo-internal by specifier shape alone: a relative path (`./`, `../`) or a
+/// Node.js subpath import (`#…`, private to the declaring package by the Node
+/// resolution spec). Neither names a third-party dependency, so both are kept
+/// out of the foreign-import surface and both bind repo-internal names.
+/// (Workspace packages like `@scope/pkg` are internal too, but only their
+/// resolution can tell — see [`Adapter::resolve_repo_modules`].)
+fn is_internal_specifier(specifier: &str) -> bool {
+    is_relative(specifier) || specifier.starts_with('#')
 }
 
 /// Return the initializer child of a `variable_declarator` — the first named
@@ -241,7 +252,7 @@ fn extract_require_imports(root: Node, source: &str) -> Vec<String> {
         for arg in children(args) {
             if arg.kind() == "string" {
                 let spec = strip_quotes(node_text(arg, source));
-                if !spec.is_empty() && !is_relative(spec) {
+                if !spec.is_empty() && !is_internal_specifier(spec) {
                     mods.push(spec.to_string());
                 }
             }
@@ -273,7 +284,7 @@ fn extract_require_imports_with_spans(
         for arg in children(args) {
             if arg.kind() == "string" {
                 let spec = strip_quotes(node_text(arg, source));
-                if !spec.is_empty() && !is_relative(spec) {
+                if !spec.is_empty() && !is_internal_specifier(spec) {
                     let line = arg.start_position().row + 1;
                     // Skip the opening quote so the underline lands on the spec.
                     let col_start = arg.start_position().column + 1;
@@ -438,6 +449,44 @@ fn read_package_name(data: &serde_json::Value) -> Option<String> {
         .and_then(|v| v.as_str())
         .filter(|s| !s.is_empty())
         .map(str::to_string)
+}
+
+/// The `packages:` globs from `pnpm-workspace.yaml`, if present. pnpm monorepos
+/// declare their member packages here instead of package.json's `workspaces`
+/// field; without reading it, every workspace-internal `@scope/pkg` import reads
+/// as a third-party dependency. Other keys (`catalog:`, `catalogs:`) are ignored.
+fn pnpm_workspace_patterns(repo_root: &Path) -> Vec<String> {
+    #[derive(serde::Deserialize)]
+    struct PnpmWorkspace {
+        #[serde(default)]
+        packages: Vec<String>,
+    }
+    read_text_lossy(&repo_root.join("pnpm-workspace.yaml"))
+        .ok()
+        .and_then(|text| serde_yaml::from_str::<PnpmWorkspace>(&text).ok())
+        .map(|w| w.packages)
+        .unwrap_or_default()
+}
+
+/// Resolve workspace glob `patterns` (npm or pnpm) to the `name` of each member
+/// package.json under `repo_root`, inserting them into `out`.
+fn insert_workspace_package_names(
+    repo_root: &Path,
+    patterns: &[String],
+    out: &mut HashSet<String>,
+) {
+    for pattern in patterns {
+        let glob = format!("{pattern}/package.json");
+        for ws_pkg in glob_paths(repo_root, &glob) {
+            if let Some(ws_name) = read_text_lossy(&ws_pkg)
+                .ok()
+                .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+                .and_then(|data| read_package_name(&data))
+            {
+                out.insert(ws_name);
+            }
+        }
+    }
 }
 
 /// `TypeScriptAdapter` — the language adapter for `.ts` / `.tsx` sources.
@@ -608,7 +657,7 @@ impl TypeScriptAdapter {
                 continue;
             }
             let spec = strip_quotes(node_text(src, source));
-            if !is_relative(spec) {
+            if !is_internal_specifier(spec) {
                 continue;
             }
             for clause in children(node) {
@@ -660,7 +709,7 @@ impl TypeScriptAdapter {
             if let Some(src) = node.child_by_field_name("source") {
                 if src.kind() == "string" {
                     let spec = strip_quotes(node_text(src, source));
-                    if !spec.is_empty() && !is_relative(spec) {
+                    if !spec.is_empty() && !is_internal_specifier(spec) {
                         mods.insert(spec.to_string());
                     }
                 }
@@ -687,7 +736,7 @@ impl TypeScriptAdapter {
             if let Some(src) = node.child_by_field_name("source") {
                 if src.kind() == "string" {
                     let spec = strip_quotes(node_text(src, source));
-                    if !spec.is_empty() && !is_relative(spec) {
+                    if !spec.is_empty() && !is_internal_specifier(spec) {
                         let line = src.start_position().row + 1;
                         // Skip the opening quote so the underline lands on the spec.
                         let col_start = src.start_position().column + 1;
@@ -721,21 +770,16 @@ impl TypeScriptAdapter {
                 if let Some(name) = read_package_name(&data) {
                     exact.insert(name);
                 }
-                for pattern in workspace_patterns(data.get("workspaces")) {
-                    let glob = format!("{pattern}/package.json");
-                    for ws_pkg in glob_paths(repo_root, &glob) {
-                        if let Some(ws_data) = read_text_lossy(&ws_pkg)
-                            .ok()
-                            .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
-                        {
-                            if let Some(ws_name) = read_package_name(&ws_data) {
-                                exact.insert(ws_name);
-                            }
-                        }
-                    }
-                }
+                let patterns = workspace_patterns(data.get("workspaces"));
+                insert_workspace_package_names(repo_root, &patterns, &mut exact);
             }
         }
+
+        // pnpm monorepos declare workspace members in pnpm-workspace.yaml, not
+        // in package.json — read it too so their `@scope/pkg` names count as
+        // repo-internal rather than foreign dependencies.
+        let pnpm_patterns = pnpm_workspace_patterns(repo_root);
+        insert_workspace_package_names(repo_root, &pnpm_patterns, &mut exact);
 
         let tsconfig = repo_root.join("tsconfig.json");
         if tsconfig.exists() {
@@ -1095,5 +1139,44 @@ mod tests {
         assert!(!fnmatch_segment("pkg-*", "other"));
         assert!(fnmatch_segment("[a-c]x", "bx"));
         assert!(!fnmatch_segment("[a-c]x", "dx"));
+    }
+
+    #[test]
+    fn subpath_imports_are_internal_not_foreign() {
+        let adapter = TypeScriptAdapter::new();
+        // Node.js subpath imports (`#…`) resolve inside the declaring package —
+        // they must never enter the foreign-import surface.
+        let src = "import { cmd } from \"#internal/commands\";\nimport z from \"zod\";\n";
+        let imports = adapter.extract_imports(src);
+        assert!(imports.contains("zod"));
+        assert!(!imports.iter().any(|s| s.starts_with('#')), "{imports:?}");
+        // …and their bound names count as repo-internal, like relative imports.
+        let bindings = adapter.internal_import_bindings(src);
+        assert!(bindings.contains("cmd"), "{bindings:?}");
+    }
+
+    #[test]
+    fn pnpm_workspace_packages_resolve_as_internal() {
+        let dir = std::env::temp_dir().join(format!("argot_ts_pnpm_test_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("packages/core")).unwrap();
+        // Root package.json has NO `workspaces` field — pnpm keeps that list in
+        // its own file, the exact shape that used to hide internal packages.
+        std::fs::write(dir.join("package.json"), "{\"name\": \"@acme/repo\"}\n").unwrap();
+        std::fs::write(
+            dir.join("pnpm-workspace.yaml"),
+            "packages:\n  - \"packages/*\"\ncatalog:\n  react: 19.0.0\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("packages/core/package.json"),
+            "{\"name\": \"@acme/core\"}\n",
+        )
+        .unwrap();
+
+        let modules = TypeScriptAdapter::new().resolve_repo_modules(&dir);
+        assert!(modules.exact.contains("@acme/core"), "{:?}", modules.exact);
+        assert!(modules.exact.contains("@acme/repo"), "{:?}", modules.exact);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

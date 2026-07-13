@@ -447,6 +447,25 @@ mod tests {
     }
 
     #[test]
+    fn nested_star_directory_pattern_suppresses_deep_paths() {
+        // A monorepo muting per-tenant scratch: `tenants/*/one-offs/` must prune
+        // the whole subtree, not just its immediate children — otherwise that
+        // scratch code leaks into the corpus and the semantic index as a
+        // reinvention target.
+        let s = from_lines(true, &["tenants/*/one-offs/"]);
+        assert!(
+            s.is_suppressed("tenants/acme/one-offs/bench/foo.ts"),
+            "deep path under a matched dir must be suppressed"
+        );
+        assert!(s.is_suppressed("tenants/acme/one-offs/foo.ts"));
+        assert!(s.matches_user_pattern("tenants/acme/one-offs/bench/foo.ts"));
+        assert!(
+            !s.is_suppressed("tenants/acme/src/foo.ts"),
+            "a sibling dir stays in scope"
+        );
+    }
+
+    #[test]
     fn recommended_false_drops_builtins() {
         let s = from_lines(false, &["vendored/"]);
         assert!(!s.recommended_active());
