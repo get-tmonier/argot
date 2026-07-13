@@ -4,7 +4,7 @@ const fr: SiteContent = {
   meta: {
     title: 'argot — détectez le code IA qui ne colle pas à votre dépôt',
     description:
-      'Un garde-fou local pour le code écrit par IA. argot apprend votre dépôt depuis son historique git et signale ce qui n’a pas sa place — dépendances étrangères, fonctions réinventées, architecture inversée, tests truqués — plus les conventions que vous scriptez vous-même. Sans LLM, sans cloud, aucun GPU requis.',
+      'Le harnais du code écrit par IA — des statistiques sur l’historique de votre propre dépôt, pas un second LLM. argot signale ce qui n’a pas sa place — dépendances étrangères, fonctions réinventées, architecture inversée, tests truqués — plus les conventions que vous scriptez vous-même. Sans LLM, sans cloud, aucun GPU requis.',
   },
   nav: {
     demo: 'Démo',
@@ -13,11 +13,11 @@ const fr: SiteContent = {
     docs: 'Docs',
   },
   hero: {
-    eyebrow: 'Garde-fou du code écrit par IA · appris de votre historique git · 100 % local',
+    eyebrow: 'Le harnais du code écrit par IA · des statistiques, pas un second LLM · 100 % local',
     titleLead: 'Lintez les règles',
     titleGradient: 'que personne n’a écrites.',
     subtitle:
-      'Chaque base de code a sa manière de faire — presque jamais écrite. argot apprend [[la vôtre]] et y tient chaque diff d’IA, avant le merge.',
+      'L’IA écrit le code. argot le tient à la seule chose qui n’hallucine jamais : [[l’historique de votre dépôt]]. Déterministe, mesuré, local.',
     ctaPrimary: 'Lire la doc',
     ctaSecondary: 'Star sur GitHub',
     install: 'npm i -g @tmonier/argot',

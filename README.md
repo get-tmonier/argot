@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>Your codebase has a voice. argot makes AI code speak it.</strong><br/>
-  <em>Every codebase has a way of doing things — most of it written nowhere. argot learns yours from git history and holds every AI diff to it: a dependency you've never used, a function you already wrote, an import that breaks your layering, a test quietly weakened, a convention only your team knows. 100% local. No LLM, no cloud, no GPU required.</em>
+  <em>AI writes the code. argot harnesses it with the one thing that can't hallucinate: your repo's own history. Statistics, not a second LLM — flagging a dependency you've never used, a function you already wrote, an import that breaks your layering, a test quietly weakened, a convention only your team knows. 100% local, deterministic, no GPU required.</em>
 </p>
 
 <p align="center">
