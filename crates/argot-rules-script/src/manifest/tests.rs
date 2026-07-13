@@ -1,0 +1,132 @@
+use super::*;
+use argot_engine::rules::Severity;
+
+fn write_rule(dir: &Path, name: &str, manifest: &str, script: &str) -> std::path::PathBuf {
+    let d = dir.join(name);
+    std::fs::create_dir_all(&d).unwrap();
+    std::fs::write(d.join("rule.toml"), manifest).unwrap();
+    std::fs::write(d.join("check.rhai"), script).unwrap();
+    d
+}
+
+fn tmp() -> std::path::PathBuf {
+    let d = std::env::temp_dir().join(format!(
+        "argot_manifest_{}_{}",
+        std::process::id(),
+        std::thread::current()
+            .name()
+            .unwrap_or("t")
+            .replace(':', "_")
+    ));
+    let _ = std::fs::remove_dir_all(&d);
+    std::fs::create_dir_all(&d).unwrap();
+    d
+}
+
+#[test]
+fn full_manifest_parses_with_all_fields() {
+    let root = tmp();
+    let d = write_rule(
+        &root,
+        "no-raw-sql",
+        r#"
+[rule]
+schema = 1
+name = "no-raw-sql"
+label = "raw SQL string"
+description = "SQL assembled by hand"
+severity = "error"
+languages = ["python", "typescript"]
+
+[engine]
+api = 1
+script = "check.rhai"
+"#,
+        r#"report(1, "x");"#,
+    );
+    let rule = load_rule_dir(&d).unwrap();
+    assert_eq!(rule.name, "no-raw-sql");
+    assert_eq!(rule.label, "raw SQL string");
+    assert_eq!(rule.default_severity, Severity::Error);
+    assert_eq!(rule.languages, vec!["python", "typescript"]);
+    assert!(rule.covers_language("python"));
+    assert!(!rule.covers_language("go"));
+    assert_eq!(rule.script, r#"report(1, "x");"#);
+    let custom = rule.custom_rule();
+    assert_eq!(custom.name, "no-raw-sql");
+    assert_eq!(custom.default_severity, Severity::Error);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn minimal_manifest_gets_the_defaults() {
+    let root = tmp();
+    let d = write_rule(
+        &root,
+        "tiny",
+        "[rule]\nschema = 1\nname = \"tiny\"\n",
+        "report(1, \"y\");",
+    );
+    let rule = load_rule_dir(&d).unwrap();
+    // Defaults: label = name, severity = warn (report before gating),
+    // languages = all.
+    assert_eq!(rule.label, "tiny");
+    assert_eq!(rule.default_severity, Severity::Warn);
+    assert!(rule.covers_language("ruby"));
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn rejections_are_per_rule_and_explain_themselves() {
+    let root = tmp();
+    // schema from the future
+    let d = write_rule(
+        &root,
+        "future",
+        "[rule]\nschema = 9\nname = \"future\"\n",
+        "",
+    );
+    assert!(load_rule_dir(&d).unwrap_err().contains("schema 9"));
+    // api from the future
+    let d = write_rule(
+        &root,
+        "api9",
+        "[rule]\nschema = 1\nname = \"api9\"\n[engine]\napi = 9\n",
+        "",
+    );
+    assert!(load_rule_dir(&d).unwrap_err().contains("host API 9"));
+    // dir/name mismatch
+    let d = write_rule(
+        &root,
+        "dirname",
+        "[rule]\nschema = 1\nname = \"other\"\n",
+        "",
+    );
+    assert!(load_rule_dir(&d).unwrap_err().contains("does not match"));
+    // invalid severity
+    let d = write_rule(
+        &root,
+        "loud",
+        "[rule]\nschema = 1\nname = \"loud\"\nseverity = \"loud\"\n",
+        "",
+    );
+    assert!(load_rule_dir(&d).unwrap_err().contains("invalid severity"));
+    // missing script
+    let d = root.join("noscript");
+    std::fs::create_dir_all(&d).unwrap();
+    std::fs::write(
+        d.join("rule.toml"),
+        "[rule]\nschema = 1\nname = \"noscript\"\n",
+    )
+    .unwrap();
+    assert!(load_rule_dir(&d).unwrap_err().contains("check.rhai"));
+    // unknown manifest keys are rejected (deny_unknown_fields — typos surface)
+    let d = write_rule(
+        &root,
+        "typo",
+        "[rule]\nschema = 1\nname = \"typo\"\nseverety = \"warn\"\n",
+        "",
+    );
+    assert!(load_rule_dir(&d).is_err());
+    let _ = std::fs::remove_dir_all(&root);
+}

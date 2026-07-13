@@ -79,6 +79,7 @@ fn score_patches(
     new_file_thresholds: &HashMap<String, f64>,
     fit_corpus_files: &HashSet<String>,
     mute_rules: &[SuppressionRule],
+    registry: &argot_engine::rules::Registry,
     header_cpp: bool,
     stderr: &mut String,
 ) -> (Vec<Finding>, usize, Vec<FileScan>) {
@@ -120,6 +121,7 @@ fn score_patches(
                 .map(|a| a.line_comment_prefix()),
             mute_rules,
             batch.ignored_by_pattern,
+            registry,
         );
         for w in suppressions.warnings() {
             let msg = format!("[argot] {}:{}: {}\n", batch.file_path, w.line, w.message);
@@ -305,6 +307,12 @@ impl Detector for VoiceDetector {
         self.info.as_ref()
     }
 
+    fn model_facts(&self) -> Option<std::sync::Arc<dyn argot_engine::detector::ModelFacts>> {
+        self.loaded
+            .as_ref()
+            .map(|l| l.facts.clone() as std::sync::Arc<dyn argot_engine::detector::ModelFacts>)
+    }
+
     fn check(&mut self, ctx: &mut CheckContext<'_>) -> Vec<Finding> {
         let loaded = self
             .loaded
@@ -344,6 +352,7 @@ impl Detector for VoiceDetector {
             &loaded.new_file_thresholds,
             &loaded.fit_corpus_files,
             ctx.mute_rules,
+            ctx.registry,
             ctx.header_cpp,
             ctx.stderr,
         );

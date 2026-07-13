@@ -8,6 +8,7 @@ members = [
     "crates/argot-rules-arch",
     "crates/argot-rules-integrity",
     "crates/argot-rules-voice",
+    "crates/argot-rules-script",
     "crates/argot-cli",
     "crates/argot-bench",
 ]

@@ -28,7 +28,7 @@ fn insert_ignore_comments_bottom_up_with_indentation() {
     );
     assert_eq!(lines[7], "    z = 3");
     // The inserted comments parse as real suppressions.
-    let sup = parse_inline(&out, "#");
+    let sup = parse_inline(&out, "#", crate::rules::Registry::builtin());
     assert_eq!(sup.rules.len(), 2);
     assert!(sup.warnings.is_empty());
 }

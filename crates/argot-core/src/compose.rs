@@ -12,7 +12,7 @@ pub(crate) fn default_detectors() -> Vec<RegisteredDetector<'static>> {
     #[allow(unused_mut)]
     let mut v: Vec<RegisteredDetector<'static>> = vec![RegisteredDetector {
         detector: Box::new(argot_rules_voice::VoiceDetector::new()),
-        execution_rank: 3,
+        execution_rank: 4,
         merge_rank: 0,
     }];
     #[cfg(feature = "semantic")]
@@ -32,6 +32,12 @@ pub(crate) fn default_detectors() -> Vec<RegisteredDetector<'static>> {
         detector: Box::new(argot_rules_integrity::IntegrityDetector),
         execution_rank: 2,
         merge_rank: 3,
+    });
+    #[cfg(feature = "script")]
+    v.push(RegisteredDetector {
+        detector: Box::new(argot_rules_script::ScriptDetector::new()),
+        execution_rank: 3,
+        merge_rank: 4,
     });
     v
 }

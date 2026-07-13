@@ -11,9 +11,11 @@ use crate::adapters::Language;
 use std::cell::RefCell;
 use tree_sitter::{Parser, Tree};
 
-fn new_parser(language: Language) -> Parser {
-    let mut parser = Parser::new();
-    let lang: tree_sitter::Language = match language {
+/// The tree-sitter grammar for a scoring language — the one grammar table
+/// every parse in the workspace routes through (scorers, adapters, and the
+/// scripted rules' `ts_query` host call).
+pub fn ts_language(language: Language) -> tree_sitter::Language {
+    match language {
         Language::Python => tree_sitter_python::LANGUAGE.into(),
         Language::Typescript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
         Language::Javascript => tree_sitter_javascript::LANGUAGE.into(),
@@ -25,7 +27,12 @@ fn new_parser(language: Language) -> Parser {
         Language::Php => tree_sitter_php::LANGUAGE_PHP.into(),
         Language::Cpp => tree_sitter_cpp::LANGUAGE.into(),
         Language::Ruby => tree_sitter_ruby::LANGUAGE.into(),
-    };
+    }
+}
+
+fn new_parser(language: Language) -> Parser {
+    let mut parser = Parser::new();
+    let lang: tree_sitter::Language = ts_language(language);
     parser
         .set_language(&lang)
         .expect("tree-sitter grammar loads");

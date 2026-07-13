@@ -35,10 +35,16 @@ pub struct CheckContext<'a> {
     pub header_cpp: bool,
     /// Resolved rule severities.
     pub settings: &'a RuleSettings,
+    /// The run's rule vocabulary (built-ins + discovered custom rules) —
+    /// suppression surfaces validate `rule=` selectors against it.
+    pub registry: &'a crate::rules::Registry,
     /// Ordered stderr sink.
     pub stderr: &'a mut String,
     /// Scan statistics for the report meta — filled by the base detector.
     pub scan: &'a mut ScanReport,
+    /// Learned-model facts (provided by the base detector after load) —
+    /// `None` when no fitted model offers them.
+    pub facts: Option<std::sync::Arc<dyn ModelFacts>>,
 }
 
 /// What the base scan covered (drives `files scanned` in the report meta).
@@ -62,6 +68,17 @@ pub struct BaseModelInfo {
     pub language_extensions: std::collections::HashSet<String>,
     /// Languages with a fitted model (the unfitted-language warning).
     pub fitted_languages: std::collections::HashSet<String>,
+}
+
+/// Learned-model facts a rule pass may consult about another group's model
+/// — today: the scripted rules' host API reads the voice model's attested
+/// imports/callees. An owned snapshot (`Arc`) so passes can hold it while
+/// the providing detector runs.
+pub trait ModelFacts: Send + Sync {
+    /// Is `module` an import the fitted corpus attested for `language`?
+    fn import_attested(&self, language: &str, module: &str) -> bool;
+    /// Is `name` a callee the fitted corpus attested for `language`?
+    fn callee_attested(&self, language: &str, name: &str) -> bool;
 }
 
 /// Everything a fit-time hook may consult. The voice model's own fit IS
@@ -151,6 +168,24 @@ pub trait Detector {
     /// without it.
     fn base_info(&self) -> Option<&BaseModelInfo> {
         None
+    }
+
+    /// Learned-model facts this detector offers other passes (the scripted
+    /// rules' host API). Default none.
+    fn model_facts(&self) -> Option<std::sync::Arc<dyn ModelFacts>> {
+        None
+    }
+
+    /// Custom rule vocabulary this detector contributes — called before the
+    /// run registry is built (and therefore before config validation), so
+    /// discovered rules resolve `[rules]` keys, severities, and suppression
+    /// selectors like built-ins. Warnings surface on stderr. Default none.
+    fn vocabulary(
+        &mut self,
+        _argot_dir: &std::path::Path,
+        _warnings: &mut Vec<String>,
+    ) -> Vec<crate::rules::CustomRule> {
+        Vec::new()
     }
 
     /// Run the pass and return raw findings (suppression already classified

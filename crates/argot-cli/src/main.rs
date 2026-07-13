@@ -1900,7 +1900,11 @@ fn run_list_mutes() -> ExitCode {
         if !source.contains("argot:") {
             continue;
         }
-        let inline = parse_inline(&source, adapter.line_comment_prefix());
+        let inline = parse_inline(
+            &source,
+            adapter.line_comment_prefix(),
+            argot_core::rules::Registry::builtin(),
+        );
         if inline.rules.is_empty() {
             continue;
         }

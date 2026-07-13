@@ -81,7 +81,11 @@ fn valid_date(s: &str) -> bool {
 /// Validate raw `[[mute]]` tables into active/expired rules. `today` is
 /// `YYYY-MM-DD`; entries with `expires < today` land in `expired` with a note.
 /// A malformed single entry is skipped with a warning, never a hard error.
-pub fn build_mutes(raw: Vec<RawMute>, today: &str) -> SuppressionsFile {
+pub fn build_mutes(
+    registry: &crate::rules::Registry,
+    raw: Vec<RawMute>,
+    today: &str,
+) -> SuppressionsFile {
     let mut out = SuppressionsFile::default();
     for (i, r) in raw.into_iter().enumerate() {
         let label = r
@@ -102,7 +106,7 @@ pub fn build_mutes(raw: Vec<RawMute>, today: &str) -> SuppressionsFile {
             continue;
         };
         if let Some(rule) = &r.rule {
-            if !crate::rules::known_selector(rule) {
+            if !registry.known_selector(rule) {
                 out.warnings.push(format!(
                     "argot.toml: mute {label}: unknown rule '{rule}' — entry ignored"
                 ));
@@ -164,6 +168,7 @@ mod tests {
     #[test]
     fn build_valid_mutes() {
         let f = build_mutes(
+            crate::rules::Registry::builtin(),
             vec![
                 raw(
                     Some("src/vendored/**"),
@@ -193,6 +198,7 @@ mod tests {
     #[test]
     fn expired_entry_is_ignored_with_note() {
         let f = build_mutes(
+            crate::rules::Registry::builtin(),
             vec![
                 raw(
                     Some("app.py"),
@@ -220,6 +226,7 @@ mod tests {
     #[test]
     fn missing_reason_entry_skipped_with_warning() {
         let f = build_mutes(
+            crate::rules::Registry::builtin(),
             vec![
                 raw(Some("app.py"), None, None, None, None),
                 raw(Some("ok.py"), None, None, None, Some("fine")),
@@ -236,6 +243,7 @@ mod tests {
     #[test]
     fn invalid_date_and_rule_are_rejected() {
         let f = build_mutes(
+            crate::rules::Registry::builtin(),
             vec![
                 raw(Some("a.py"), None, None, Some("soonish"), Some("r")),
                 raw(Some("b.py"), Some("quantum"), None, None, Some("r")),
@@ -256,6 +264,7 @@ mod tests {
     #[test]
     fn missing_path_entry_skipped() {
         let f = build_mutes(
+            crate::rules::Registry::builtin(),
             vec![raw(None, None, Some("abc123"), None, Some("r"))],
             TODAY,
         );

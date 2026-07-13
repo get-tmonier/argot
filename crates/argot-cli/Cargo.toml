@@ -31,6 +31,7 @@ arch = ["argot-core/arch"]
 # `test-deleted`/`test-disabled`/`test-weakened`). Build-time gate like `arch`;
 # off in dev/CI base loops; ON in releases (dist-workspace.toml).
 integrity = ["argot-core/integrity"]
+script = ["argot-core/script"]
 
 [dependencies]
 argot-core = { path = "../argot-core" }

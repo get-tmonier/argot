@@ -28,6 +28,7 @@ fn arch_hits(
     argot_dir: &Path,
     filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
     mute_rules: &[SuppressionRule],
+    registry: &argot_engine::rules::Registry,
     stderr: &mut String,
 ) -> Vec<Finding> {
     use crate::graph::{RepoLayering, LAYERING_FILE};
@@ -81,6 +82,7 @@ fn arch_hits(
                 .map(|a| a.line_comment_prefix()),
             mute_rules,
             false, // ignored-by-pattern batches were skipped above
+            registry,
         );
         let suppressed_by = suppressions.classify("layering", &hash, first_line, first_line);
         hits.push(Finding {
@@ -170,6 +172,7 @@ impl Detector for ArchDetector {
             &ctx.args.argot_dir,
             ctx.filter_adapters,
             ctx.mute_rules,
+            ctx.registry,
             ctx.stderr,
         )
     }

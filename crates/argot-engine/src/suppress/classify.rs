@@ -28,9 +28,10 @@ impl<'a> FileSuppressions<'a> {
         comment_prefix: Option<&str>,
         mute_rules: &'a [SuppressionRule],
         ignored_by_pattern: bool,
+        registry: &crate::rules::Registry,
     ) -> Self {
         let inline = comment_prefix
-            .map(|p| parse_inline(source, p))
+            .map(|p| parse_inline(source, p, registry))
             .unwrap_or_default();
         FileSuppressions {
             file_path,

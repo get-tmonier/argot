@@ -63,19 +63,19 @@ struct Payload {
     error: Option<String>,
 }
 
-fn parse_payload(rest: &str) -> Payload {
+fn parse_payload(rest: &str, registry: &crate::rules::Registry) -> Payload {
     let mut rest = rest.trim();
     let mut rule = None;
     if let Some(after) = rest.strip_prefix("rule=") {
         let name: String = after.chars().take_while(|c| !c.is_whitespace()).collect();
         rest = after[name.len()..].trim_start();
-        if !crate::rules::known_selector(&name) {
+        if !registry.known_selector(&name) {
             return Payload {
                 rule: None,
                 reason: String::new(),
                 error: Some(format!(
                     "unknown rule '{name}' (expected one of: {})",
-                    crate::rules::selector_names().join(", ")
+                    registry.selector_names().join(", ")
                 )),
             };
         }
@@ -99,7 +99,11 @@ fn parse_payload(rest: &str) -> Payload {
 /// language's line-comment token (`#` for Python, `//` for TypeScript) —
 /// supplied by the language adapter. This is a line-level scan: only comments
 /// whose text starts with `argot:` are considered.
-pub fn parse_inline(source: &str, comment_prefix: &str) -> InlineSuppressions {
+pub fn parse_inline(
+    source: &str,
+    comment_prefix: &str,
+    registry: &crate::rules::Registry,
+) -> InlineSuppressions {
     let mut out = InlineSuppressions::default();
     // Open block: (start_line, rule, reason).
     let mut open_block: Option<(usize, Option<String>, String)> = None;
@@ -118,7 +122,7 @@ pub fn parse_inline(source: &str, comment_prefix: &str) -> InlineSuppressions {
         let directive = directive.trim_start();
 
         if let Some(rest) = directive.strip_prefix("ignore-next-line") {
-            let p = parse_payload(rest);
+            let p = parse_payload(rest, registry);
             if let Some(err) = p.error {
                 out.warnings.push(InlineWarning {
                     line: ln,
@@ -140,7 +144,7 @@ pub fn parse_inline(source: &str, comment_prefix: &str) -> InlineSuppressions {
                 reason: p.reason,
             });
         } else if let Some(rest) = directive.strip_prefix("ignore-block-start") {
-            let p = parse_payload(rest);
+            let p = parse_payload(rest, registry);
             if let Some(err) = p.error {
                 out.warnings.push(InlineWarning {
                     line: ln,
@@ -202,7 +206,7 @@ mod tests {
     #[test]
     fn next_line_python() {
         let src = "x = 1\n# argot: ignore-next-line — vendored oddity\nweird()\nok()\n";
-        let s = parse_inline(src, "#");
+        let s = parse_inline(src, "#", crate::rules::Registry::builtin());
         assert_eq!(
             s.rules,
             vec![InlineRule {
@@ -223,7 +227,7 @@ mod tests {
     #[test]
     fn next_line_typescript() {
         let src = "const a = 1;\n// argot: ignore-next-line - generated glue\nweird();\n";
-        let s = parse_inline(src, "//");
+        let s = parse_inline(src, "//", crate::rules::Registry::builtin());
         assert_eq!(s.rules.len(), 1);
         assert_eq!(s.rules[0].line_start, 3);
         assert_eq!(s.rules[0].reason, "generated glue");
@@ -239,7 +243,7 @@ c()
 # argot: ignore-block-end
 d()
 ";
-        let s = parse_inline(src, "#");
+        let s = parse_inline(src, "#", crate::rules::Registry::builtin());
         assert_eq!(s.rules.len(), 1);
         assert_eq!((s.rules[0].line_start, s.rules[0].line_end), (2, 5));
         assert!(s.suppresses(3, 4, "import"));
@@ -249,7 +253,7 @@ d()
     #[test]
     fn rule_scoped_entry_only_matches_its_rule() {
         let src = "# argot: ignore-next-line rule=rare-tokens — noisy tokens\nweird()\n";
-        let s = parse_inline(src, "#");
+        let s = parse_inline(src, "#", crate::rules::Registry::builtin());
         assert_eq!(s.rules[0].rule.as_deref(), Some("rare-tokens"));
         assert!(s.suppresses(2, 2, "bpe"));
         assert!(!s.suppresses(2, 2, "import"));
@@ -259,7 +263,7 @@ d()
     #[test]
     fn group_scoped_entry_matches_every_rule_in_the_group() {
         let src = "# argot: ignore-next-line rule=semantic — intentional twin\nweird()\n";
-        let s = parse_inline(src, "#");
+        let s = parse_inline(src, "#", crate::rules::Registry::builtin());
         assert!(s.suppresses(2, 2, "redundant"));
         assert!(s.suppresses(2, 2, "misplaced"));
         assert!(!s.suppresses(2, 2, "bpe"));
@@ -269,7 +273,7 @@ d()
     fn semantic_rules_are_suppressible_by_name() {
         let src =
             "# argot: ignore-next-line rule=redundant — intentional reimplementation\nweird()\n";
-        let s = parse_inline(src, "#");
+        let s = parse_inline(src, "#", crate::rules::Registry::builtin());
         assert!(s.suppresses(2, 2, "redundant"));
         assert!(!s.suppresses(2, 2, "misplaced"));
     }
@@ -278,7 +282,7 @@ d()
     fn separator_variants_accepted() {
         for sep in ["—", "-", ":"] {
             let src = format!("# argot: ignore-next-line {sep} why\nx()\n");
-            let s = parse_inline(&src, "#");
+            let s = parse_inline(&src, "#", crate::rules::Registry::builtin());
             assert_eq!(s.rules[0].reason, "why", "separator {sep:?}");
         }
     }
@@ -286,7 +290,7 @@ d()
     #[test]
     fn missing_reason_warns_and_ignores() {
         let src = "# argot: ignore-next-line\nweird()\n# argot: ignore-block-start\nx()\n";
-        let s = parse_inline(src, "#");
+        let s = parse_inline(src, "#", crate::rules::Registry::builtin());
         assert!(s.rules.is_empty());
         assert_eq!(s.warnings.len(), 2);
         assert!(s.warnings[0].message.contains("missing reason"));
@@ -298,7 +302,7 @@ d()
     #[test]
     fn unknown_rule_warns_and_ignores() {
         let src = "# argot: ignore-next-line rule=quantum — hmm\nweird()\n";
-        let s = parse_inline(src, "#");
+        let s = parse_inline(src, "#", crate::rules::Registry::builtin());
         assert!(s.rules.is_empty());
         assert_eq!(s.warnings.len(), 1);
         assert!(s.warnings[0].message.contains("unknown rule 'quantum'"));
@@ -307,7 +311,7 @@ d()
     #[test]
     fn unclosed_block_suppresses_to_eof_with_warning() {
         let src = "a()\n# argot: ignore-block-start — tail is generated\nb()\nc()\n";
-        let s = parse_inline(src, "#");
+        let s = parse_inline(src, "#", crate::rules::Registry::builtin());
         assert_eq!(s.rules.len(), 1);
         assert_eq!((s.rules[0].line_start, s.rules[0].line_end), (2, 4));
         assert_eq!(s.warnings.len(), 1);
@@ -317,7 +321,7 @@ d()
     #[test]
     fn stray_block_end_warns() {
         let src = "# argot: ignore-block-end\n";
-        let s = parse_inline(src, "#");
+        let s = parse_inline(src, "#", crate::rules::Registry::builtin());
         assert!(s.rules.is_empty());
         assert!(s.warnings[0].message.contains("without a matching"));
     }
@@ -325,7 +329,7 @@ d()
     #[test]
     fn non_argot_comments_are_ignored() {
         let src = "# just a comment\nx = 1  # argot: not-a-directive\n";
-        let s = parse_inline(src, "#");
+        let s = parse_inline(src, "#", crate::rules::Registry::builtin());
         assert!(s.rules.is_empty());
         assert!(s.warnings.is_empty());
     }

@@ -259,6 +259,7 @@ impl Detector for SemanticDetector {
             &ctx.args.argot_dir,
             ctx.filter_adapters,
             ctx.mute_rules,
+            ctx.registry,
             ctx.detect,
             ctx.header_cpp,
             ctx.stderr,
@@ -272,11 +273,13 @@ impl Detector for SemanticDetector {
 /// reinvent existing code. Returns extra hits to merge into the report. Empty
 /// (a clean graceful degrade) when the index or model is unavailable, so the
 /// base guardrail is entirely unaffected.
+#[allow(clippy::too_many_arguments)] // one hop below CheckContext; dissolves with it
 fn semantic_hits(
     patches: &[PatchBatch],
     argot_dir: &Path,
     filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
     mute_rules: &[SuppressionRule],
+    registry: &argot_engine::rules::Registry,
     detect: &DetectConfig,
     header_cpp: bool,
     stderr: &mut String,
@@ -474,6 +477,7 @@ fn semantic_hits(
                 },
                 filter_adapters,
                 mute_rules,
+                registry,
             ));
         }
         // F2 placement (only when F1 didn't already claim the function).
@@ -494,6 +498,7 @@ fn semantic_hits(
                     },
                     filter_adapters,
                     mute_rules,
+                    registry,
                 ));
             }
         }
@@ -565,6 +570,7 @@ fn build_semantic_hit(
     sem: SemanticHitEvidence,
     filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
     mute_rules: &[SuppressionRule],
+    registry: &argot_engine::rules::Registry,
 ) -> Finding {
     let hunk_content = f.text.clone();
     let hash = hit_hash(&batch.file_path, reason, &hunk_content);
@@ -577,6 +583,7 @@ fn build_semantic_hit(
             .map(|a| a.line_comment_prefix()),
         mute_rules,
         false,
+        registry,
     );
     let suppressed_by = suppressions.classify(reason, &hash, f.line, f.end_line);
     Finding {

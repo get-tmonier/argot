@@ -296,19 +296,39 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
         );
     }
 
+    let mut detectors = detectors;
+
+    // The run's rule vocabulary: built-ins plus whatever custom rules the
+    // registered detectors discover (the scripted-rules slice reads
+    // `.argot/rules/`). Built BEFORE config loads, so custom `[rules]` keys,
+    // severities, and suppression selectors resolve like built-in ones.
+    let mut vocab_warnings: Vec<String> = Vec::new();
+    let custom: Vec<rules::CustomRule> = detectors
+        .iter_mut()
+        .flat_map(|r| r.detector.vocabulary(&args.argot_dir, &mut vocab_warnings))
+        .collect();
+    let registry = &rules::Registry::with_custom(custom, &mut vocab_warnings);
+
     // argot.toml config: excludes + `[detect]` heuristics + `[rules]` +
     // `[[mute]]`. Loaded once here — the `[detect]` markers gate the check-time
     // auto-generated skip built into each scorer, so they must be in place
     // before load_scorers.
-    // The run's rule vocabulary: built-ins plus (in a scripted-rules build)
-    // whatever `.argot/rules/` carries — discovered before config validation
-    // so custom [rules] keys and severities resolve like built-in ones.
-    let registry = rules::Registry::builtin();
     let config = ArgotConfig::load_with(Path::new(&args.repo_path), registry);
     // Effective per-rule severities: defaults ⊕ [rules] ⊕ CLI --rule overrides.
     let settings = config.rule_settings_with(registry, &args.rule_overrides);
-
-    let mut detectors = detectors;
+    // Unknown --rule selectors fail fast (exit 2), same contract as before —
+    // but judged against the run vocabulary, so custom rules are addressable.
+    for (name, _) in &args.rule_overrides {
+        if !registry.known_selector(name) {
+            return CheckOutcome::err(
+                format!(
+                    "error: --rule: unknown rule '{name}' (known: {})\n",
+                    registry.selector_names().join(", ")
+                ),
+                2,
+            );
+        }
+    }
 
     // Load lifecycle: the base model is mandatory (its Err fails the check);
     // additive groups degrade inside their pass instead.
@@ -319,6 +339,9 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
         }
     }
     t_load.done();
+    // Learned-model facts for passes that consume them (the scripted rules'
+    // host API) — provided by the base detector once loaded.
+    let facts = detectors.iter().find_map(|r| r.detector.model_facts());
     let Some(base) = detectors
         .iter()
         .find_map(|r| r.detector.base_info().cloned())
@@ -434,11 +457,14 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
     // Suppression surfaces from argot.toml (config loaded above): the resolved
     // path set (recommended built-ins + `[exclude].paths`, the same set
     // calibration samples from) and the `[[mute]]` rules (expiry vs `args.today`).
+    for w in &vocab_warnings {
+        stderr.push_str(&format!("[argot] {w}\n"));
+    }
     for w in &config.warnings {
         stderr.push_str(&format!("[argot] {w}\n"));
     }
     let path_suppressions = config.path_suppressions();
-    let mutes = config.mutes(&args.today);
+    let mutes = config.mutes_with(registry, &args.today);
     for w in &mutes.warnings {
         stderr.push_str(&format!("[argot] {w}\n"));
     }
@@ -505,8 +531,10 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
             detect: &config.detect,
             header_cpp,
             settings: &settings,
+            registry,
             stderr: &mut stderr,
             scan: &mut scan,
+            facts: facts.clone(),
         };
         run_detectors(&mut detectors, &mut ctx)
     };

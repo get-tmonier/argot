@@ -18,8 +18,32 @@ pub(super) struct SliceEntry {
     pub(super) threshold: f64,
 }
 /// Loaded per-language scorers plus the filtering machinery.
+/// The fitted model's per-language attested sets, snapshotted at load for
+/// the scripted rules' host API ([`argot_engine::detector::ModelFacts`]).
+#[derive(Debug, Default)]
+pub(super) struct VoiceFacts {
+    /// language → attested import modules (specifiers + repo-owned modules).
+    imports: HashMap<String, HashSet<String>>,
+    /// language → attested callees.
+    callees: HashMap<String, HashSet<String>>,
+}
+
+impl argot_engine::detector::ModelFacts for VoiceFacts {
+    fn import_attested(&self, language: &str, module: &str) -> bool {
+        self.imports
+            .get(language)
+            .is_some_and(|s| s.contains(module))
+    }
+
+    fn callee_attested(&self, language: &str, name: &str) -> bool {
+        self.callees.get(language).is_some_and(|s| s.contains(name))
+    }
+}
+
 pub(super) struct Loaded {
     pub(super) scorers: HashMap<String, SequentialImportBpeScorer>,
+    /// Learned facts exposed to other passes (the scripted rules' host API).
+    pub(super) facts: std::sync::Arc<VoiceFacts>,
     pub(super) language_extensions: HashSet<String>,
     /// Per-language slice thresholds (per-subdirectory / per-author voice).
     /// Empty for an unsliced fit.
@@ -114,6 +138,7 @@ pub(super) fn load_scorers(
         fs::read(&generic_baseline_json).map_err(|e| (format!("error: {e}\n"), 2))?;
 
     let mut scorers: HashMap<String, SequentialImportBpeScorer> = HashMap::new();
+    let mut facts = VoiceFacts::default();
 
     for (lang, lang_cfg) in languages {
         let lc = match lang_cfg.as_object() {
@@ -240,6 +265,24 @@ pub(super) fn load_scorers(
             )
         })?;
         scorers.insert(lang.clone(), scorer);
+        facts.imports.insert(
+            lang.clone(),
+            get_strings("import_modules").into_iter().collect(),
+        );
+        facts.callees.insert(
+            lang.clone(),
+            lc.get("model")
+                .and_then(|m| m.get("call_receiver"))
+                .and_then(|cr| cr.get("attested"))
+                .and_then(Value::as_array)
+                .map(|a| {
+                    a.iter()
+                        .filter_map(Value::as_str)
+                        .map(String::from)
+                        .collect()
+                })
+                .unwrap_or_default(),
+        );
     }
 
     let mut language_extensions: HashSet<String> = HashSet::new();
@@ -320,6 +363,7 @@ pub(super) fn load_scorers(
 
     Ok(Loaded {
         scorers,
+        facts: std::sync::Arc::new(facts),
         language_extensions,
         fit_sha,
         model_hash,

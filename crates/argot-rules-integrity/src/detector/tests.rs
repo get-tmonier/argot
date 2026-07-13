@@ -72,7 +72,13 @@ fn integrity_pass_fires_on_a_staged_gaming_edit() {
     let adapters: HashMap<String, Box<dyn LanguageAdapter>> = HashMap::new();
     let mut stderr = String::new();
     // No artifact on disk → permissive default gates.
-    let hits = integrity_hits(&args, &adapters, &[], &mut stderr);
+    let hits = integrity_hits(
+        &args,
+        &adapters,
+        &[],
+        argot_engine::rules::Registry::builtin(),
+        &mut stderr,
+    );
     assert_eq!(hits.len(), 1, "stderr: {stderr}");
     let h = &hits[0];
     assert_eq!(h.reason, "test_weakened");

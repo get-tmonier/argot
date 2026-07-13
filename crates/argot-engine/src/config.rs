@@ -480,7 +480,13 @@ impl ArgotConfig {
     /// The durable mutes, validated and split into active/expired against
     /// `today` (`YYYY-MM-DD`).
     pub fn mutes(&self, today: &str) -> SuppressionsFile {
-        build_mutes(self.mutes.clone(), today)
+        self.mutes_with(Registry::builtin(), today)
+    }
+
+    /// [`ArgotConfig::mutes`] validating `[[mute]].rule` selectors against a
+    /// run vocabulary (built-ins + the repo's custom rules).
+    pub fn mutes_with(&self, registry: &Registry, today: &str) -> SuppressionsFile {
+        build_mutes(registry, self.mutes.clone(), today)
     }
 }
 

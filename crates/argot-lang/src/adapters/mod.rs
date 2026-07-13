@@ -111,6 +111,27 @@ pub trait LanguageAdapter {
     fn line_comment_prefix(&self) -> &'static str;
 }
 
+impl Language {
+    /// The scoring language for its canonical name (`"python"`, …) — the
+    /// inverse of the names `ext::ext_to_lang` yields.
+    pub fn from_scoring_name(name: &str) -> Option<Language> {
+        Some(match name {
+            "python" => Language::Python,
+            "typescript" => Language::Typescript,
+            "javascript" => Language::Javascript,
+            "go" => Language::Go,
+            "rust" => Language::Rust,
+            "c" => Language::C,
+            "java" => Language::Java,
+            "csharp" => Language::CSharp,
+            "php" => Language::Php,
+            "cpp" => Language::Cpp,
+            "ruby" => Language::Ruby,
+            _ => return None,
+        })
+    }
+}
+
 /// The canonical adapter factory: the boxed [`LanguageAdapter`] for a scoring
 /// language name (`"python"`, `"typescript"`, …), or `None` when unsupported.
 pub fn adapter_for(lang: &str) -> Option<Box<dyn LanguageAdapter>> {

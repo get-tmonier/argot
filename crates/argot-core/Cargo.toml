@@ -25,6 +25,7 @@ anyhow.workspace = true
 argot-rules-semantic = { path = "../argot-rules-semantic", optional = true }
 argot-rules-arch = { path = "../argot-rules-arch", optional = true }
 argot-rules-integrity = { path = "../argot-rules-integrity", optional = true }
+argot-rules-script = { path = "../argot-rules-script", optional = true }
 
 [features]
 # The semantic sense: per-repo code embeddings powering the reinvention (F1),
@@ -66,6 +67,9 @@ arch = ["dep:argot-rules-arch"]
 # so the base guardrail is provably byte-for-byte unchanged; ON in releases
 # (dist-workspace.toml). Evidence: docs/research/evidence/test-integrity-*.md.
 integrity = ["dep:argot-rules-integrity"]
+# Scripted community rules from `.argot/rules/` (Rhai + manifest). Pure
+# Rust; ON in releases (dist-workspace.toml).
+script = ["dep:argot-rules-script"]
 
 [dev-dependencies]
 serde.workspace = true
