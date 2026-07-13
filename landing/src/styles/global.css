@@ -171,7 +171,10 @@ a:hover > .tmonier-wordmark {
    confidence split used everywhere else. */
 @keyframes flag-flash {
   0% {
-    background: color-mix(in srgb, var(--flag) 16%, transparent);
+    background: color-mix(in srgb, var(--flag) 34%, transparent);
+  }
+  22% {
+    background: color-mix(in srgb, var(--flag) 24%, transparent);
   }
   100% {
     background: transparent;
@@ -179,7 +182,10 @@ a:hover > .tmonier-wordmark {
 }
 @keyframes flag-flash-amber {
   0% {
-    background: color-mix(in srgb, var(--amber) 16%, transparent);
+    background: color-mix(in srgb, var(--amber) 32%, transparent);
+  }
+  22% {
+    background: color-mix(in srgb, var(--amber) 22%, transparent);
   }
   100% {
     background: transparent;
