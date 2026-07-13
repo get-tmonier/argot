@@ -2308,7 +2308,10 @@ mod tests {
         for (name, body) in [
             ("a.py", "def alpha(x):\n    return x + 1\n"),
             ("b.py", "def beta(x):\n    return x * 2\n"),
-            ("c.py", "import os\n\ndef gamma():\n    return os.getpid()\n"),
+            (
+                "c.py",
+                "import os\n\ndef gamma():\n    return os.getpid()\n",
+            ),
         ] {
             std::fs::write(dir.join(name), body).unwrap();
         }

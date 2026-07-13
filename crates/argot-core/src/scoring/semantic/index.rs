@@ -166,7 +166,10 @@ impl SemanticIndex {
             }
         }
 
-        let hashes: Vec<String> = funcs.iter().map(|f| embed_text_hash(&f.embed_text)).collect();
+        let hashes: Vec<String> = funcs
+            .iter()
+            .map(|f| embed_text_hash(&f.embed_text))
+            .collect();
         let mut stats = ReuseStats::default();
         let mut resolved: Vec<Option<Vec<f32>>> = Vec::with_capacity(funcs.len());
         for hash in &hashes {
@@ -931,7 +934,11 @@ class C:
         assert!(big.text.contains("return total"));
         // `text` is the real source (own name intact — shown verbatim in a
         // finding); `embed_text` is the name-normalised copy fed to the embedder.
-        assert!(big.text.contains("def big("), "real name kept for display: {}", big.text);
+        assert!(
+            big.text.contains("def big("),
+            "real name kept for display: {}",
+            big.text
+        );
         assert!(
             big.embed_text.contains("def f(") && !big.embed_text.contains("def big("),
             "own name normalised for embedding only: {}",
