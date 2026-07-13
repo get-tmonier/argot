@@ -277,9 +277,7 @@ impl Registry {
 
     /// A valid `[rules]` / `rule=` / `--rule` key against this vocabulary?
     pub fn known_selector(&self, name: &str) -> bool {
-        known_selector(name)
-            || name == GROUP_CUSTOM
-            || self.custom_named(name).is_some()
+        known_selector(name) || name == GROUP_CUSTOM || self.custom_named(name).is_some()
     }
 
     /// Every selector a user can write, for error messages. Groups first
@@ -666,7 +664,10 @@ mod tests {
             &mut warnings,
         );
         assert_eq!(
-            reg.custom_rules().iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
+            reg.custom_rules()
+                .iter()
+                .map(|c| c.name.as_str())
+                .collect::<Vec<_>>(),
             vec!["raw-sql"]
         );
         assert_eq!(warnings.len(), 4);
@@ -720,7 +721,10 @@ mod tests {
         assert_eq!(layer, vec![("raw-sql".to_string(), Severity::Error)]);
         assert_eq!(warnings.len(), 1);
         assert!(warnings[0].contains("unknown rule 'unknown-thing'"));
-        assert!(warnings[0].contains("raw-sql"), "custom rule listed as known");
+        assert!(
+            warnings[0].contains("raw-sql"),
+            "custom rule listed as known"
+        );
     }
 
     #[test]

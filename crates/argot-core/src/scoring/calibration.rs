@@ -1000,7 +1000,7 @@ pub fn calibrate_convention_bars(
 /// Write a fit artifact via temp-file + rename, so a fit killed mid-write (a
 /// laptop shutdown, a background refit reaped by the OS) can never leave a
 /// half-written artifact behind — the previous version survives intact.
-fn write_atomic(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+pub(crate) fn write_atomic(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
     let tmp = path.with_extension(format!("tmp.{}", std::process::id()));
     std::fs::write(&tmp, bytes)?;
     std::fs::rename(&tmp, path)
@@ -1069,9 +1069,8 @@ pub fn run_calibrate(
     // later; the health artifact records which configuration this fit reflects.
     let config_fingerprint_at_fit = crate::health::config_fingerprint(&config);
     // Effective [rules] severities — a group turned off in argot.toml skips
-    // its whole fit-time artifact (semantic index / layering graph) and cost.
-    // Only the feature-gated layers read it.
-    #[cfg(any(feature = "semantic", feature = "arch", feature = "integrity"))]
+    // its whole fit-time artifact (semantic index / layering graph) and cost,
+    // via the fit-detector loop's `enabled` gate.
     let rule_settings = config.rule_settings(&Vec::new());
     // Fit from committed HEAD, not the working tree — an uncommitted foreign
     // edit must not be learned as part of the voice it's about to be checked
@@ -1559,52 +1558,29 @@ pub fn run_calibrate(
         }
     }
 
-    // Architecture-graph artifact (`.argot/layering.json`), alongside
-    // scorer-config.json. Feature-gated + in its own file so the base config is
-    // byte-for-byte unchanged whether or not the layer is compiled in. Built from
-    // the same voice-file collection production fits on (config-respecting) —
-    // Python only in v1; other languages simply produce no graph.
-    #[cfg(feature = "arch")]
-    if rule_settings.severity_of_reason("layering") != crate::rules::Severity::Off {
-        let _t = crate::timing::phase("calibrate: arch graph");
-        use crate::scoring::adapters::Language;
-        use crate::scoring::arch_graph::{RepoLayering, LAYERING_FILE};
-        let files = crate::train::collect_source_files(repo_dir);
-        let mut sources: Vec<(String, String)> = Vec::new();
-        for abs in &files {
-            if abs.extension().and_then(|e| e.to_str()) != Some("py") {
-                continue;
-            }
-            if let (Ok(rel), Ok(src)) = (abs.strip_prefix(repo_dir), std::fs::read_to_string(abs)) {
-                sources.push((rel.to_string_lossy().replace('\\', "/"), src));
-            }
-        }
-        let graph = RepoLayering::fit(
-            sources.iter().map(|(p, s)| (p.as_str(), s.as_str())),
-            Language::Python,
-        );
-        if graph.edge_count() > 0 {
-            let path = output.with_file_name(LAYERING_FILE);
-            if let Err(e) = write_atomic(&path, graph.to_json(&opts.repo_sha).as_bytes()) {
-                eprintln!("argot: writing layering graph failed: {e}");
-            }
-        }
-    }
-
-    // Test-integrity gates (`.argot/integrity.json`), alongside
-    // scorer-config.json — feature-gated + its own file so the base config is
-    // byte-for-byte unchanged. A mini-replay over the repo's accepted-history
-    // window measures each gaming event's natural rate and disables the
-    // classes this repo's normal development trips too often (FP-first; see
-    // the module docs of `scoring::integrity`).
-    #[cfg(feature = "integrity")]
-    if rule_settings.group_enabled(crate::rules::GROUP_INTEGRITY) {
-        let _t = crate::timing::phase("calibrate: integrity mini-replay");
-        use crate::scoring::integrity::{fit_model, INTEGRITY_FILE};
-        if let Some(model) = fit_model(repo_dir, &opts.repo_sha) {
-            let path = output.with_file_name(INTEGRITY_FILE);
-            if let Err(e) = write_atomic(&path, model.to_json().as_bytes()) {
-                eprintln!("argot: writing integrity gates failed: {e}");
+    // The additive groups' fit hooks — each writes its own `.argot/` sibling
+    // artifact (the base config stays byte-for-byte unchanged whatever is
+    // compiled in). Same registration-line pattern as the check loop: an off
+    // group is skipped whole; deleting a rule group deletes its lines here.
+    // (The voice model's fit IS this function; the semantic index build stays
+    // integrated above — see `SemanticDetector`'s doc.)
+    // Not a `vec![]` literal: cfg attributes only attach to statements.
+    #[allow(clippy::vec_init_then_push, unused_mut)]
+    {
+        use crate::detector::{Detector, FitContext};
+        let mut fit_detectors: Vec<Box<dyn Detector>> = Vec::new();
+        #[cfg(feature = "arch")]
+        fit_detectors.push(Box::new(crate::check::ArchDetector));
+        #[cfg(feature = "integrity")]
+        fit_detectors.push(Box::new(crate::check::IntegrityDetector));
+        let fit_ctx = FitContext {
+            repo_dir,
+            output,
+            repo_sha: &opts.repo_sha,
+        };
+        for detector in &mut fit_detectors {
+            if detector.enabled(&rule_settings) {
+                detector.fit(&fit_ctx);
             }
         }
     }

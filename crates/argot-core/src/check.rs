@@ -1322,7 +1322,7 @@ impl RenderEvidence for ArchEvidence {
 
 /// The architecture group's detection pass.
 #[cfg(feature = "arch")]
-struct ArchDetector;
+pub(crate) struct ArchDetector;
 
 #[cfg(feature = "arch")]
 impl Detector for ArchDetector {
@@ -1332,6 +1332,42 @@ impl Detector for ArchDetector {
 
     fn timing_label(&self) -> &'static str {
         "check: arch pass"
+    }
+
+    /// Architecture-graph artifact (`.argot/layering.json`), a sibling of
+    /// scorer-config.json so the base config is byte-for-byte unchanged
+    /// whether or not the layer is compiled in. Built from the same
+    /// voice-file collection production fits on (config-respecting) —
+    /// Python only in v1; other languages simply produce no graph.
+    fn fit(&mut self, ctx: &crate::detector::FitContext<'_>) {
+        let _t = crate::timing::phase("calibrate: arch graph");
+        use crate::scoring::adapters::Language;
+        use crate::scoring::arch_graph::{RepoLayering, LAYERING_FILE};
+        let files = crate::train::collect_source_files(ctx.repo_dir);
+        let mut sources: Vec<(String, String)> = Vec::new();
+        for abs in &files {
+            if abs.extension().and_then(|e| e.to_str()) != Some("py") {
+                continue;
+            }
+            if let (Ok(rel), Ok(src)) =
+                (abs.strip_prefix(ctx.repo_dir), std::fs::read_to_string(abs))
+            {
+                sources.push((rel.to_string_lossy().replace('\\', "/"), src));
+            }
+        }
+        let graph = RepoLayering::fit(
+            sources.iter().map(|(p, s)| (p.as_str(), s.as_str())),
+            Language::Python,
+        );
+        if graph.edge_count() > 0 {
+            let path = ctx.output.with_file_name(LAYERING_FILE);
+            if let Err(e) = crate::scoring::calibration::write_atomic(
+                &path,
+                graph.to_json(ctx.repo_sha).as_bytes(),
+            ) {
+                eprintln!("argot: writing layering graph failed: {e}");
+            }
+        }
     }
 
     fn check(&mut self, ctx: &mut CheckContext<'_>) -> Vec<Finding> {
@@ -1716,7 +1752,7 @@ fn integrity_hits(
 
 /// The integrity group's detection pass.
 #[cfg(feature = "integrity")]
-struct IntegrityDetector;
+pub(crate) struct IntegrityDetector;
 
 #[cfg(feature = "integrity")]
 impl Detector for IntegrityDetector {
@@ -1728,6 +1764,25 @@ impl Detector for IntegrityDetector {
         "check: integrity pass"
     }
 
+    /// Test-integrity gates (`.argot/integrity.json`), a sibling of
+    /// scorer-config.json so the base config is byte-for-byte unchanged. A
+    /// mini-replay over the repo's accepted-history window measures each
+    /// gaming event's natural rate and disables the classes this repo's
+    /// normal development trips too often (FP-first; see the module docs of
+    /// `scoring::integrity`).
+    fn fit(&mut self, ctx: &crate::detector::FitContext<'_>) {
+        let _t = crate::timing::phase("calibrate: integrity mini-replay");
+        use crate::scoring::integrity::{fit_model, INTEGRITY_FILE};
+        if let Some(model) = fit_model(ctx.repo_dir, ctx.repo_sha) {
+            let path = ctx.output.with_file_name(INTEGRITY_FILE);
+            if let Err(e) =
+                crate::scoring::calibration::write_atomic(&path, model.to_json().as_bytes())
+            {
+                eprintln!("argot: writing integrity gates failed: {e}");
+            }
+        }
+    }
+
     fn check(&mut self, ctx: &mut CheckContext<'_>) -> Vec<Finding> {
         integrity_hits(ctx.args, ctx.filter_adapters, ctx.mute_rules, ctx.stderr)
     }
@@ -1735,6 +1790,13 @@ impl Detector for IntegrityDetector {
 
 /// The semantic group's detection pass. Skipped whole when both semantic
 /// rules are off: no index load, no model download, no cost.
+///
+/// Its fit-time index build stays integrated in `run_calibrate` (not the
+/// [`Detector::fit`] hook): the embedding pass shares the calibration loop's
+/// per-language corpus reads, the one loaded embedder, and the prior
+/// artifact's incremental vector reuse. A standalone hook would re-read the
+/// corpus and reorder fit diagnostics for no deletion value — revisit when
+/// the slice moves to its own crate.
 #[cfg(feature = "semantic")]
 struct SemanticDetector;
 

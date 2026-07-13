@@ -386,7 +386,12 @@ impl ArgotConfig {
                     (k, value)
                 })
                 .collect();
-            rules.push(validate_layer_with(registry, &entries, origin, &mut warnings));
+            rules.push(validate_layer_with(
+                registry,
+                &entries,
+                origin,
+                &mut warnings,
+            ));
         }
 
         // [update] / [fit]: scalars — local wins.

@@ -50,6 +50,21 @@ pub(crate) struct ScanReport {
     pub files_scanned: Vec<FileScan>,
 }
 
+/// Everything a fit-time hook may consult. The voice model's own fit IS
+/// `run_calibrate`; this context serves the additive groups' artifacts,
+/// written as `.argot/` siblings of `scorer-config.json` so the base config
+/// stays byte-for-byte unchanged whatever is compiled in.
+// Only the feature-gated groups' fit hooks read the fields today.
+#[cfg_attr(not(any(feature = "arch", feature = "integrity")), allow(dead_code))]
+pub(crate) struct FitContext<'a> {
+    pub repo_dir: &'a std::path::Path,
+    /// The `scorer-config.json` output path — sibling artifacts derive their
+    /// paths via `with_file_name`.
+    pub output: &'a std::path::Path,
+    /// The repo SHA this fit reflects (stamped into each artifact).
+    pub repo_sha: &'a str,
+}
+
 /// One rule group's detection pass.
 pub(crate) trait Detector {
     /// The group this detector's rules belong to (gates the whole pass).
@@ -65,6 +80,12 @@ pub(crate) trait Detector {
     fn enabled(&self, settings: &RuleSettings) -> bool {
         settings.group_enabled(self.group())
     }
+
+    /// Fit-time hook: build this group's artifact(s) as `.argot/` sibling
+    /// files. Default no-op — a group with no learned state skips it.
+    /// Failures degrade loudly (stderr) but never fail the fit; the base
+    /// statistical model must land regardless.
+    fn fit(&mut self, _ctx: &FitContext<'_>) {}
 
     /// Run the pass and return raw findings (suppression already classified
     /// per finding by the pass via [`crate::suppress::FileSuppressions`]).
