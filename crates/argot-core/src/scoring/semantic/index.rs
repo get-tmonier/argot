@@ -73,7 +73,13 @@ pub struct FunctionRef {
     pub line: usize,
     /// 1-indexed last line of the definition (for check-time finding spans).
     pub end_line: usize,
+    /// The function's real source text — what the user wrote, shown verbatim in
+    /// a finding's hunk body.
     pub text: String,
+    /// The text actually embedded (and content-hashed for reuse): `text` with
+    /// the function's own name replaced by a neutral placeholder. Kept distinct
+    /// from `text` so the normalisation never leaks into what a finding displays.
+    pub embed_text: String,
     /// Sorted, deduped callee names within this function.
     pub callees: Vec<String>,
     /// Sorted, deduped identifier subtokens within this function.
@@ -160,7 +166,7 @@ impl SemanticIndex {
             }
         }
 
-        let hashes: Vec<String> = funcs.iter().map(|f| embed_text_hash(&f.text)).collect();
+        let hashes: Vec<String> = funcs.iter().map(|f| embed_text_hash(&f.embed_text)).collect();
         let mut stats = ReuseStats::default();
         let mut resolved: Vec<Option<Vec<f32>>> = Vec::with_capacity(funcs.len());
         for hash in &hashes {
@@ -178,7 +184,7 @@ impl SemanticIndex {
             .iter()
             .zip(funcs)
             .filter(|(r, _)| r.is_none())
-            .map(|(_, f)| f.text.as_str())
+            .map(|(_, f)| f.embed_text.as_str())
             .collect();
         let mut fresh = embedder
             .embed(&texts)
@@ -386,7 +392,8 @@ pub fn functions_in_file(
             path: rel_path.to_string(),
             line: body.start_line,
             end_line: e,
-            text: embed_text,
+            text,
+            embed_text,
             callees,
             subtokens,
         });
@@ -799,6 +806,7 @@ mod tests {
             line: 1,
             end_line: 3,
             text: text.into(),
+            embed_text: text.into(),
             callees: Vec::new(),
             subtokens: Vec::new(),
         };
@@ -921,6 +929,14 @@ class C:
         assert_eq!(big.path, "src/m.py");
         assert_eq!(big.line, 1);
         assert!(big.text.contains("return total"));
+        // `text` is the real source (own name intact — shown verbatim in a
+        // finding); `embed_text` is the name-normalised copy fed to the embedder.
+        assert!(big.text.contains("def big("), "real name kept for display: {}", big.text);
+        assert!(
+            big.embed_text.contains("def f(") && !big.embed_text.contains("def big("),
+            "own name normalised for embedding only: {}",
+            big.embed_text
+        );
         // Subtokens extracted from the body identifiers (≥3 chars).
         assert!(
             big.subtokens.contains(&"total".to_string()),

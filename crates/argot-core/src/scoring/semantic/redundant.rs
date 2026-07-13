@@ -213,6 +213,7 @@ pub fn calibrate_reinvention(index: &SemanticIndex, recent: &[bool]) -> Reinvent
             line: e.line,
             end_line: e.line + 10,
             text: "x\n".repeat(12),
+            embed_text: "x\n".repeat(12),
             callees: e.callees.clone(),
             subtokens: e.subtokens.clone(),
         };
@@ -600,7 +601,8 @@ mod tests {
             path: path.into(),
             line: 10,
             end_line: 16,
-            text,
+            text: text.clone(),
+            embed_text: text,
             callees: callees.iter().map(|s| s.to_string()).collect(),
             subtokens: subtokens.iter().map(|s| s.to_string()).collect(),
         }
@@ -950,6 +952,7 @@ mod tests {
             end_line: 4,
             text: "def normalize_slug(s):\n    a = s.strip()\n    b = a.lower()\n    return b"
                 .into(),
+            embed_text: "def f(s):\n    a = s.strip()\n    b = a.lower()\n    return b".into(),
             callees: vec![],
             subtokens: vec!["slug".into(), "normalize".into(), "whitespace".into()],
         };
@@ -1009,6 +1012,7 @@ mod tests {
             line: 1,
             end_line: 3,
             text: "fn show() {\n    round()\n}".into(), // 3 lines, below the substance floor
+            embed_text: "fn f() {\n    round()\n}".into(),
             callees: vec!["round".into(), "x".into(), "y".into()], // callee_jac ≈0.20 (weak)
             subtokens: vec!["show".into()],
         };
