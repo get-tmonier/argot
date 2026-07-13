@@ -36,6 +36,12 @@ fn git(repo: &Path, args: &[&str]) {
         .arg("-C")
         .arg(repo)
         .args(args)
+        // CI runners carry no global git identity — supply one so commits in
+        // the fixtures succeed (mirrors locked_rules.rs).
+        .env("GIT_AUTHOR_NAME", "t")
+        .env("GIT_AUTHOR_EMAIL", "t@t")
+        .env("GIT_COMMITTER_NAME", "t")
+        .env("GIT_COMMITTER_EMAIL", "t@t")
         .status()
         .expect("run git");
     assert!(status.success(), "git {args:?} failed");
