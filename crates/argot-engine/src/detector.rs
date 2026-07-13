@@ -13,25 +13,23 @@ use crate::config::DetectConfig;
 use crate::finding::Finding;
 use crate::output::FileScan;
 use crate::rules::RuleSettings;
-use crate::scoring::adapters::LanguageAdapter;
 use crate::suppress::SuppressionRule;
+use argot_lang::adapters::LanguageAdapter;
 
 /// Everything a detection pass may consult, engine-owned and shared across
 /// detectors. Detectors read the changeset and write findings + diagnostics;
 /// only the base (voice) detector fills [`CheckContext::scan`].
-pub(crate) struct CheckContext<'a> {
+pub struct CheckContext<'a> {
     /// The scoped, filtered changeset batches (post-images + hunk spans).
     pub batches: &'a [crate::check::PatchBatch],
     /// The full check invocation (repo path, mode, argot dir, …). The
     /// integrity pass re-derives two-sided changesets from it.
-    #[cfg_attr(not(feature = "integrity"), allow(dead_code))]
     pub args: &'a crate::check::CheckArgs,
     /// Per-language adapters for comment prefixes / parsing.
     pub filter_adapters: &'a HashMap<String, Box<dyn LanguageAdapter>>,
     /// Active `[[mute]]` rules.
     pub mute_rules: &'a [SuppressionRule],
     /// `[detect]` configuration (read by the semantic pass).
-    #[cfg_attr(not(feature = "semantic"), allow(dead_code))]
     pub detect: &'a DetectConfig,
     /// Repo-wide `.h` → C/C++ routing majority.
     pub header_cpp: bool,
@@ -45,7 +43,7 @@ pub(crate) struct CheckContext<'a> {
 
 /// What the base scan covered (drives `files scanned` in the report meta).
 #[derive(Default)]
-pub(crate) struct ScanReport {
+pub struct ScanReport {
     pub hunk_count: usize,
     pub files_scanned: Vec<FileScan>,
 }
@@ -55,7 +53,7 @@ pub(crate) struct ScanReport {
 /// this — batch scoping, the report's model line, the freshness warning —
 /// without holding any scorer type itself.
 #[derive(Debug, Clone)]
-pub(crate) struct BaseModelInfo {
+pub struct BaseModelInfo {
     /// Combined fit-time model fingerprint (the manifest's `model_hash`).
     pub model_hash: String,
     /// Repo SHA the model was fitted at (`None` for configs predating it).
@@ -70,9 +68,7 @@ pub(crate) struct BaseModelInfo {
 /// `run_calibrate`; this context serves the additive groups' artifacts,
 /// written as `.argot/` siblings of `scorer-config.json` so the base config
 /// stays byte-for-byte unchanged whatever is compiled in.
-// Only the feature-gated groups' fit hooks read the fields today.
-#[cfg_attr(not(any(feature = "arch", feature = "integrity")), allow(dead_code))]
-pub(crate) struct FitContext<'a> {
+pub struct FitContext<'a> {
     pub repo_dir: &'a std::path::Path,
     /// The `scorer-config.json` output path — sibling artifacts derive their
     /// paths via `with_file_name`.
@@ -82,7 +78,7 @@ pub(crate) struct FitContext<'a> {
 }
 
 /// One rule group's detection pass.
-pub(crate) trait Detector {
+pub trait Detector {
     /// The group this detector's rules belong to (gates the whole pass).
     fn group(&self) -> &'static str;
 
@@ -135,7 +131,7 @@ pub(crate) trait Detector {
 /// interleave. `merge_rank` orders findings in the report — the base pass
 /// first, then the additive passes — preserving stdout. Both projections come
 /// from the registration site; change them only with the check goldens.
-pub(crate) struct RegisteredDetector<'a> {
+pub struct RegisteredDetector<'a> {
     pub detector: Box<dyn Detector + 'a>,
     /// Position in the pass execution order (stderr interleave parity).
     pub execution_rank: usize,
@@ -145,7 +141,7 @@ pub(crate) struct RegisteredDetector<'a> {
 
 /// Run every registered detector by ascending `execution_rank`, then merge
 /// their findings by ascending `merge_rank`.
-pub(crate) fn run_detectors(
+pub fn run_detectors(
     detectors: &mut [RegisteredDetector<'_>],
     ctx: &mut CheckContext<'_>,
 ) -> Vec<Finding> {

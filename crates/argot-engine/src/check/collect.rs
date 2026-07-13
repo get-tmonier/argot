@@ -61,6 +61,18 @@ pub(super) fn passes_filters(fp: &str, only: &[String], exclude: &[String]) -> b
     }
     true
 }
+/// Languages present in the change that argot supports but the current fit
+/// has no model for (fitted before the language appeared in the repo).
+pub(super) fn patches_langs_without_model(
+    patches: &[PatchBatch],
+    fitted_languages: &HashSet<String>,
+) -> Vec<&'static str> {
+    patches
+        .iter()
+        .filter_map(|b| crate::check::ext_to_lang(&extension(&b.file_path)))
+        .filter(|lang| !fitted_languages.contains(*lang))
+        .collect()
+}
 /// Yield batches for committed changes (`_committed_patches`), source = 7-char SHA.
 fn committed_patches(repo_path: &str, shas: &HashSet<String>) -> anyhow::Result<Vec<PatchBatch>> {
     let mut out = Vec::new();

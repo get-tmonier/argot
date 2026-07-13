@@ -2,17 +2,18 @@
 //! per-language `SequentialImportBpeScorer`.
 
 use super::load::{load_scorers, Loaded, SliceEntry};
-use super::{ext_to_lang, ext_to_lang_ctx, extension, PatchBatch};
-use crate::detector::{BaseModelInfo, CheckContext, Detector};
-use crate::finding::{Finding, RenderEvidence};
-use crate::output::FileScan;
-use crate::rules::{self, RuleSettings};
 use crate::scoring::adapters::LanguageAdapter;
 use crate::scoring::evidence::types::Evidence;
 use crate::scoring::evidence::{evidence_caret_spans, evidence_lines_of_interest, format_evidence};
 use crate::scoring::sequential::SequentialImportBpeScorer;
-use crate::suppress::{hit_hash, FileSuppressions, SuppressionRule};
 use crate::text::splitlines;
+use argot_engine::check::PatchBatch;
+use argot_engine::detector::{BaseModelInfo, CheckContext, Detector};
+use argot_engine::finding::{Finding, RenderEvidence};
+use argot_engine::output::FileScan;
+use argot_engine::rules::{self, RuleSettings};
+use argot_engine::suppress::{hit_hash, FileSuppressions, SuppressionRule};
+use argot_lang::ext::{ext_to_lang, ext_to_lang_ctx, extension};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 
@@ -42,7 +43,7 @@ impl RenderEvidence for Evidence {
         evidence_lines_of_interest(Some(self))
     }
 
-    fn caret_spans(&self) -> HashMap<usize, Vec<crate::finding::SourceSpan>> {
+    fn caret_spans(&self) -> HashMap<usize, Vec<argot_engine::finding::SourceSpan>> {
         evidence_caret_spans(Some(self))
     }
 }
@@ -246,13 +247,13 @@ fn score_patches(
 /// loaded per-language model state (filled by [`Detector::load`]); the only
 /// detector that provides [`crate::detector::BaseModelInfo`] and fills
 /// [`crate::detector::ScanReport`].
-pub(super) struct VoiceDetector {
+pub(crate) struct VoiceDetector {
     loaded: Option<Loaded>,
     info: Option<BaseModelInfo>,
 }
 
 impl VoiceDetector {
-    pub(super) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         VoiceDetector {
             loaded: None,
             info: None,
@@ -281,7 +282,7 @@ impl Detector for VoiceDetector {
     fn load(
         &mut self,
         argot_dir: &Path,
-        detect: &crate::config::DetectConfig,
+        detect: &argot_engine::config::DetectConfig,
     ) -> Result<(), (String, i32)> {
         let loaded = load_scorers(argot_dir, detect)?;
         self.info = Some(BaseModelInfo {

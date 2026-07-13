@@ -2,14 +2,15 @@
 //! findings from the per-repo embedding index (`.argot/semantic-index.json`),
 //! plus F4 nearest-code evidence. Group `semantic`.
 
-use super::render::{paint, C_DIM};
-use super::{ext_to_lang, ext_to_lang_ctx, extension, PatchBatch};
-use crate::config::DetectConfig;
-use crate::detector::{CheckContext, Detector};
-use crate::finding::{Finding, RenderEvidence};
-use crate::rules;
 use crate::scoring::adapters::LanguageAdapter;
-use crate::suppress::{hit_hash, FileSuppressions, SuppressionRule};
+use argot_engine::check::render::{paint, C_DIM};
+use argot_engine::check::PatchBatch;
+use argot_engine::config::DetectConfig;
+use argot_engine::detector::{CheckContext, Detector};
+use argot_engine::finding::{Finding, RenderEvidence};
+use argot_engine::rules;
+use argot_engine::suppress::{hit_hash, FileSuppressions, SuppressionRule};
+use argot_lang::ext::{ext_to_lang, ext_to_lang_ctx, extension};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
@@ -43,7 +44,7 @@ pub(super) enum SemanticHitEvidence {
 /// corpus and reorder fit diagnostics for no deletion value — revisit when
 /// the slice moves to its own crate.
 #[cfg(feature = "semantic")]
-pub(super) struct SemanticDetector;
+pub(crate) struct SemanticDetector;
 
 #[cfg(feature = "semantic")]
 impl Detector for SemanticDetector {

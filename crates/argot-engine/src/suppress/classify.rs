@@ -10,7 +10,7 @@ use crate::finding::SuppressedBy;
 use crate::suppress::{parse_inline, InlineSuppressions, InlineWarning, SuppressionRule};
 
 /// One file's resolved suppression surfaces.
-pub(crate) struct FileSuppressions<'a> {
+pub struct FileSuppressions<'a> {
     file_path: &'a str,
     ignored_by_pattern: bool,
     inline: InlineSuppressions,

@@ -21,7 +21,7 @@ pub struct SourceSpan {
 
 /// Which suppression surface muted a finding (`None` = reported normally).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SuppressedBy {
+pub enum SuppressedBy {
     /// An `argot.toml` `[exclude].paths` pattern.
     Exclude,
     /// An inline `# argot: ignore` comment.
@@ -33,7 +33,7 @@ pub(crate) enum SuppressedBy {
 /// Rule-owned evidence rendering — how a finding explains itself on each
 /// output surface. Implemented once per rule group; the shared render paths
 /// call the trait and never match on the group.
-pub(crate) trait RenderEvidence: Send + Sync {
+pub trait RenderEvidence: Send + Sync {
     /// Human-format lines, exactly as printed under the finding headline
     /// (including layout indentation and optional ANSI color).
     fn human(&self, use_color: bool, hunk_start_line: usize) -> Vec<String>;
@@ -64,7 +64,7 @@ pub(crate) trait RenderEvidence: Send + Sync {
 }
 
 /// One above-threshold finding plus everything needed to explain it.
-pub(crate) struct Finding {
+pub struct Finding {
     /// The winning candidate's score (adjusted for contributions), measured
     /// against the winning candidate's threshold — so severity tiers mean
     /// the same thing for every reason. A call-receiver hit that crossed on

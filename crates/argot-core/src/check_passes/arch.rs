@@ -3,13 +3,14 @@
 //! closes a cycle, or leaves a (near-)sink. Group `architecture`, reason
 //! `layering`.
 
-use super::render::{paint, C_DIM};
-use super::{ext_to_lang, extension, PatchBatch};
-use crate::detector::{CheckContext, Detector};
-use crate::finding::{Finding, RenderEvidence};
-use crate::rules;
 use crate::scoring::adapters::LanguageAdapter;
-use crate::suppress::{hit_hash, FileSuppressions, SuppressionRule};
+use argot_engine::check::render::{paint, C_DIM};
+use argot_engine::check::PatchBatch;
+use argot_engine::detector::{CheckContext, Detector};
+use argot_engine::finding::{Finding, RenderEvidence};
+use argot_engine::rules;
+use argot_engine::suppress::{hit_hash, FileSuppressions, SuppressionRule};
+use argot_lang::ext::{ext_to_lang, extension};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -132,7 +133,7 @@ impl Detector for ArchDetector {
     /// whether or not the layer is compiled in. Built from the same
     /// voice-file collection production fits on (config-respecting) —
     /// Python only in v1; other languages simply produce no graph.
-    fn fit(&mut self, ctx: &crate::detector::FitContext<'_>) {
+    fn fit(&mut self, ctx: &argot_engine::detector::FitContext<'_>) {
         let _t = crate::timing::phase("calibrate: arch graph");
         use crate::scoring::adapters::Language;
         use crate::scoring::arch_graph::{RepoLayering, LAYERING_FILE};

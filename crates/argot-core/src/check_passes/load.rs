@@ -1,11 +1,11 @@
 //! Per-language scorer loading from `.argot/scorer-config.json`.
 
-use super::{ext_to_lang, extension, PatchBatch, EXT_TO_LANG};
-use crate::config::DetectConfig;
 use crate::scoring::adapters::adapter_for;
 use crate::scoring::evidence::types::EvidenceCorpus;
 use crate::scoring::model::LanguageModel;
 use crate::scoring::sequential::{ScoredHunk, SequentialConfig, SequentialImportBpeScorer};
+use argot_engine::config::DetectConfig;
+use argot_lang::ext::{ext_to_lang, extension, EXT_TO_LANG};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -40,18 +40,6 @@ pub(super) struct Loaded {
     /// Combined fingerprint of the fit-time model — the same `model_hash` the
     /// manifest records. Lets `check` name which model judged the diff.
     pub(super) model_hash: String,
-}
-/// Languages present in the change that argot supports but the current fit
-/// has no model for (fitted before the language appeared in the repo).
-pub(super) fn patches_langs_without_model(
-    patches: &[PatchBatch],
-    fitted_languages: &HashSet<String>,
-) -> Vec<&'static str> {
-    patches
-        .iter()
-        .filter_map(|b| ext_to_lang(&extension(&b.file_path)))
-        .filter(|lang| !fitted_languages.contains(*lang))
-        .collect()
 }
 /// Best-effort Python `repr` of the `version` value for the mismatch message.
 fn py_repr(v: &Value) -> String {

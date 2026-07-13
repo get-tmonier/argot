@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/argot-core",
     "crates/argot-lang",
+    "crates/argot-engine",
     "crates/argot-cli",
     "crates/argot-bench",
 ]

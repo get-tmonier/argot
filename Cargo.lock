@@ -113,6 +113,7 @@ name = "argot-core"
 version = "0.2.65"
 dependencies = [
  "anyhow",
+ "argot-engine",
  "argot-lang",
  "base64 0.22.1",
  "git2",
@@ -124,8 +125,6 @@ dependencies = [
  "serde_yaml",
  "sha2",
  "thiserror",
- "toml",
- "toml_edit",
  "tree-sitter",
  "tree-sitter-c",
  "tree-sitter-c-sharp",
@@ -139,6 +138,21 @@ dependencies = [
  "tree-sitter-rust",
  "tree-sitter-typescript",
  "ureq",
+]
+
+[[package]]
+name = "argot-engine"
+version = "0.2.65"
+dependencies = [
+ "anyhow",
+ "argot-lang",
+ "git2",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+ "toml",
+ "toml_edit",
 ]
 
 [[package]]

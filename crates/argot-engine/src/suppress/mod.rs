@@ -18,21 +18,26 @@
 //!
 //! Suppressed ≠ deleted: check drops suppressed hits from output and exit-code
 //! consideration but reports a one-line count summary on stderr.
+//!
+//! `ignore_suggest` (the `argot init --suggest` candidate scan) stays in
+//! `argot-core`, not here: it classifies files by [`crate`]-external language
+//! machinery (`inspect::adapter_for`, `scoring::calibration::language_for_filename`)
+//! that is itself downstream of this rule-agnostic engine, so it cannot live
+//! on this side without an illegal engine → core dependency. `argot_core::suppress`
+//! re-exports it at its historical path.
 
-pub(crate) mod classify;
+pub mod classify;
 pub mod glob;
 pub mod hit_hash;
-pub mod ignore_suggest;
 pub mod inline;
 pub mod last_check;
 pub mod mute;
 pub mod path_rules;
 pub mod rules_file;
 
-pub(crate) use classify::FileSuppressions;
+pub use classify::FileSuppressions;
 pub use glob::fnmatch;
 pub use hit_hash::hit_hash;
-pub use ignore_suggest::{suggest_ignores, IgnoreCandidate, IgnoreSuggestions};
 pub use inline::{parse_inline, InlineRule, InlineSuppressions, InlineWarning};
 pub use last_check::{read_last_check, write_last_check, LastCheckHit, LAST_CHECK_FILE};
 pub use mute::{mute_hash, DEFAULT_MUTE_REASON};

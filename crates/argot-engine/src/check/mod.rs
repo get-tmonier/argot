@@ -13,39 +13,27 @@
 //! glyph + tier, dim on secondary detail); syntax highlighting of hunk bodies
 //! remains deferred.
 //!
-//! Submodules, by responsibility: [`load`] (per-language scorer loading),
-//! [`collect`] (git patch collection), [`voice`] (the base statistical pass),
-//! [`render`] (human/machine rendering), [`orchestrate`] (`run_check` and the
-//! freshness/review-mutes plumbing), plus the feature-gated additive passes
-//! [`semantic`], [`arch`], [`integrity`].
+//! This module is the rule-agnostic half of `check`: patch collection
+//! ([`collect`]), rendering ([`render`]), and the orchestration loop
+//! ([`orchestrate`] — [`run_check`] and the freshness/review-mutes plumbing).
+//! [`run_check`] takes the run's registered [`crate::detector::Detector`]s as
+//! a parameter — which rule groups actually run (the base voice pass, plus
+//! whichever of semantic/architecture/integrity a build compiles in) is
+//! decided by the composition root one layer up (`argot-core`'s
+//! `compose::default_detectors`), never by this crate.
 
 mod collect;
-mod load;
 mod orchestrate;
-mod render;
-mod voice;
-
-#[cfg(feature = "arch")]
-mod arch;
-#[cfg(feature = "integrity")]
-mod integrity;
-#[cfg(feature = "semantic")]
-mod semantic;
+pub mod render;
 
 #[cfg(test)]
 mod tests;
 
-pub use load::RepoScorers;
 pub use orchestrate::{
     accepted_anchor, accepted_source_commits_behind, commits_since_fit, freshness_anchor,
     in_scope_commits_between, run_check, run_review_mutes, unmerged_branch_source_commits,
     ReviewOutcome, FRESHNESS_SCAN_CAP,
 };
-
-#[cfg(feature = "arch")]
-pub(crate) use arch::ArchDetector;
-#[cfg(feature = "integrity")]
-pub(crate) use integrity::IntegrityDetector;
 
 use crate::git_walk::HunkSpan;
 use crate::output::OutputFormat;
@@ -106,19 +94,23 @@ impl CheckOutcome {
 /// One file's diff in a single source (`_PatchBatch`). `source` is
 /// `workdir`/`staged`/`untracked` for working-tree origins, or a 7-char commit
 /// SHA for committed changes.
-pub(crate) struct PatchBatch {
-    file_path: String,
-    content: Vec<u8>,
-    hunks: Vec<HunkSpan>,
-    source: String,
+///
+/// Fields are `pub` (not `pub(crate)`): the feature-gated rule-group passes
+/// that read patch content (`voice`/`semantic`/`arch`/`integrity`) live in
+/// `argot-core`'s `check_passes`, a different crate, since this is the
+/// rule-agnostic engine they plug into.
+pub struct PatchBatch {
+    pub file_path: String,
+    pub content: Vec<u8>,
+    pub hunks: Vec<HunkSpan>,
+    pub source: String,
     /// The file matched a user `[exclude].paths` pattern: still scored (so the
     /// suppression is countable), but every hit is dropped from output and
     /// exit-code consideration.
-    ignored_by_pattern: bool,
+    pub ignored_by_pattern: bool,
 }
 
 // Extension → language routing — a thin re-export of `argot-lang`'s `ext`
 // module (moved there since it's language-substrate, not check-specific
 // logic, and both `check` and out-of-process consumers depend on it).
-pub(crate) use argot_lang::ext::EXT_TO_LANG;
 pub use argot_lang::ext::{ext_to_lang, ext_to_lang_ctx, extension};

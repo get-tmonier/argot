@@ -3,14 +3,15 @@
 //! `test-weakened`), gated by the repo's own learned event gates. Group
 //! `integrity`.
 
-use super::render::{paint, C_DIM};
-use super::{ext_to_lang, extension, CheckArgs};
-use crate::detector::{CheckContext, Detector};
-use crate::finding::{Finding, RenderEvidence};
-use crate::git_walk::{open_repo, resolve_shas};
-use crate::rules;
 use crate::scoring::adapters::LanguageAdapter;
-use crate::suppress::{hit_hash, FileSuppressions, SuppressionRule};
+use argot_engine::check::render::{paint, C_DIM};
+use argot_engine::check::CheckArgs;
+use argot_engine::detector::{CheckContext, Detector};
+use argot_engine::finding::{Finding, RenderEvidence};
+use argot_engine::git_walk::{open_repo, resolve_shas};
+use argot_engine::rules;
+use argot_engine::suppress::{hit_hash, FileSuppressions, SuppressionRule};
+use argot_lang::ext::{ext_to_lang, extension};
 use git2::DiffFindOptions;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -380,7 +381,7 @@ impl Detector for IntegrityDetector {
     /// gaming event's natural rate and disables the classes this repo's
     /// normal development trips too often (FP-first; see the module docs of
     /// `scoring::integrity`).
-    fn fit(&mut self, ctx: &crate::detector::FitContext<'_>) {
+    fn fit(&mut self, ctx: &argot_engine::detector::FitContext<'_>) {
         let _t = crate::timing::phase("calibrate: integrity mini-replay");
         use crate::scoring::integrity::{fit_model, INTEGRITY_FILE};
         if let Some(model) = fit_model(ctx.repo_dir, ctx.repo_sha) {

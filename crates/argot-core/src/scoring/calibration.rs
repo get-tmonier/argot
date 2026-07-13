@@ -129,23 +129,11 @@ const CR_PARSE_ERROR_FALLBACK: bool = true;
 /// bar (same magnitude as the cluster bonus).
 const CONVENTION_BONUS: f64 = 5.0;
 
-fn basename(path: &Path) -> String {
-    path.file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_default()
-}
-
-/// The built-in `argot:recommended` path exclusion (formerly the hardcoded
-/// list here; now [`crate::suppress::recommended_excluded`]). Public because
-/// the benchmark harness applies the same calibration-scope filter to real-PR
-/// control hunks — bench calls resolve to recommended-set-only semantics
-/// (lock-step: calibration scope and scoring scope must agree).
-pub fn is_excluded_path(path: &Path, source_dir: &Path) -> bool {
-    match crate::suppress::rel_string(path, source_dir) {
-        Some(rel) => crate::suppress::recommended_excluded(&rel),
-        None => true,
-    }
-}
+// `basename`, `is_excluded_path`, and `header_is_cpp` moved to
+// `argot_engine::corpus` (shared with the engine's own check-time `.h`
+// routing and freshness scan); re-exported below at their historical path.
+use argot_engine::corpus::basename;
+pub use argot_engine::corpus::{header_is_cpp, is_excluded_path};
 
 /// Recursively list files under `dir` matching `ext` (e.g. ".py"), sorted.
 fn rglob_sorted(dir: &Path, ext: &str) -> Vec<PathBuf> {
@@ -167,53 +155,6 @@ fn rglob_sorted(dir: &Path, ext: &str) -> Vec<PathBuf> {
     walk(dir, ext, &mut out);
     out.sort();
     out
-}
-
-/// Which language this repo's ambiguous `.h` headers belong to. `.h` is used by
-/// both C and C++; a header-only C++ library keeps its logic in `.h` with the
-/// translation units in `.cc`/`.cpp`, so filing every `.h` under C (the naive
-/// default) starves the C++ model and mis-scores the bulk of the code. Decide
-/// per repo by translation-unit majority — `.cpp`/`.cc`/`.cxx` (C++) vs `.c`
-/// (C). Computed identically wherever the pipeline classifies a `.h` (extract,
-/// calibrate, check) so the stages stay in lock-step.
-pub fn header_is_cpp(source_dir: &Path) -> bool {
-    fn walk(dir: &Path, root: &Path, c: &mut usize, cpp: &mut usize) {
-        let Ok(entries) = std::fs::read_dir(dir) else {
-            return;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            match entry.file_type() {
-                Ok(t) if t.is_dir() => {
-                    let name = basename(&path);
-                    // Speed prune: never any authored voice in these; the
-                    // per-file `is_excluded_path` below is the correctness gate.
-                    if matches!(name.as_str(), ".git" | "node_modules" | "target" | "vendor") {
-                        continue;
-                    }
-                    walk(&path, root, c, cpp);
-                }
-                Ok(t) if t.is_file() => {
-                    if is_excluded_path(&path, root) {
-                        continue;
-                    }
-                    let name = basename(&path);
-                    if name.ends_with(".c") {
-                        *c += 1;
-                    } else if name.ends_with(".cpp")
-                        || name.ends_with(".cc")
-                        || name.ends_with(".cxx")
-                    {
-                        *cpp += 1;
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-    let (mut c, mut cpp) = (0usize, 0usize);
-    walk(source_dir, source_dir, &mut c, &mut cpp);
-    cpp > c
 }
 
 /// [`language_for_filename`], but resolving the C/C++ `.h` ambiguity with a
@@ -1570,9 +1511,9 @@ pub fn run_calibrate(
         use crate::detector::{Detector, FitContext};
         let mut fit_detectors: Vec<Box<dyn Detector>> = Vec::new();
         #[cfg(feature = "arch")]
-        fit_detectors.push(Box::new(crate::check::ArchDetector));
+        fit_detectors.push(Box::new(crate::check_passes::arch::ArchDetector));
         #[cfg(feature = "integrity")]
-        fit_detectors.push(Box::new(crate::check::IntegrityDetector));
+        fit_detectors.push(Box::new(crate::check_passes::integrity::IntegrityDetector));
         let fit_ctx = FitContext {
             repo_dir,
             output,
@@ -1833,29 +1774,6 @@ mod tests {
             language_for_filename_ctx("x.py", true),
             Some(Language::Python)
         );
-    }
-
-    #[test]
-    fn header_is_cpp_follows_translation_unit_majority() {
-        let base = std::env::temp_dir().join(format!("argot_hdr_{}", std::process::id()));
-
-        // C++-majority: more .cc than .c → headers are C++.
-        let cpp_repo = base.join("cpp");
-        std::fs::create_dir_all(&cpp_repo).unwrap();
-        for f in ["a.cc", "b.cc", "core.h", "util.c"] {
-            std::fs::write(cpp_repo.join(f), "x\n").unwrap();
-        }
-        assert!(header_is_cpp(&cpp_repo), "2 .cc vs 1 .c → C++");
-
-        // C-majority: more .c than C++ TUs → headers are C.
-        let c_repo = base.join("c");
-        std::fs::create_dir_all(&c_repo).unwrap();
-        for f in ["a.c", "b.c", "c.c", "net.h"] {
-            std::fs::write(c_repo.join(f), "x\n").unwrap();
-        }
-        assert!(!header_is_cpp(&c_repo), "3 .c vs 0 C++ TU → C");
-
-        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[test]

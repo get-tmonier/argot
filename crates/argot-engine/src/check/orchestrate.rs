@@ -1,18 +1,12 @@
 //! `run_check` (the `check` entry point), the freshness/staleness plumbing,
 //! and `argot review-mutes`.
 
-#[cfg(feature = "arch")]
-use super::arch::ArchDetector;
-use super::collect::{batch_scope, collect_patches, passes_filters, BatchScope};
-#[cfg(feature = "integrity")]
-use super::integrity::IntegrityDetector;
-use super::load::patches_langs_without_model;
+use super::collect::{
+    batch_scope, collect_patches, passes_filters, patches_langs_without_model, BatchScope,
+};
 use super::render::{
     add_ignore_comments, confidence, hit_records, render_machine, render_results, report_meta,
 };
-#[cfg(feature = "semantic")]
-use super::semantic::SemanticDetector;
-use super::voice::VoiceDetector;
 use super::{CheckArgs, CheckOutcome, PatchBatch};
 use crate::config::ArgotConfig;
 use crate::detector::{run_detectors, CheckContext, RegisteredDetector, ScanReport};
@@ -20,8 +14,8 @@ use crate::finding::{Finding, SuppressedBy};
 use crate::git_walk::{open_repo, SUPPORTED_EXTENSIONS};
 use crate::output::OutputFormat;
 use crate::rules::{self, RuleSettings, Severity as RuleSeverity};
-use crate::scoring::adapters::{adapter_for, LanguageAdapter};
 use crate::suppress::{write_last_check, LastCheckHit, SuppressionRule};
+use argot_lang::adapters::LanguageAdapter;
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -165,7 +159,7 @@ pub fn in_scope_commits_between(
                 .path()
                 .or(d.old_file().path())
                 .and_then(|p| p.to_str())
-                .is_some_and(|rel| crate::train::is_corpus_source(rel, suppressions))
+                .is_some_and(|rel| crate::corpus::is_corpus_source(rel, suppressions))
         });
         if touches {
             in_scope += 1;
@@ -265,8 +259,11 @@ pub fn accepted_source_commits_behind(
         stop_at,
     )
 }
-/// Entry point (`check.py:main`). Never exits the process — returns the outcome.
-pub fn run_check(args: CheckArgs) -> CheckOutcome {
+/// Entry point (`check.py:main`). Never exits the process — returns the
+/// outcome. The composition root: `detectors` is the run's registered rule
+/// groups, decided one layer up by `argot-core`'s `compose::default_detectors`
+/// (which rule groups a given build wires in), not by this engine.
+pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> CheckOutcome {
     // Mutual-exclusion validation — fail fast with a clear message (exit 2).
     let ref_nonempty = !args.reference.is_empty();
     let commit_set = args
@@ -311,34 +308,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     // Effective per-rule severities: defaults ⊕ [rules] ⊕ CLI --rule overrides.
     let settings = config.rule_settings_with(registry, &args.rule_overrides);
 
-    // Register this run's detectors — the composition root. The rank pair is
-    // the order table (see detector.rs): execution_rank runs additive passes
-    // first and the base pass last (stderr interleave parity); merge_rank
-    // puts the base pass's findings first (stdout parity). Deleting a rule
-    // group deletes exactly its registration lines.
-    let mut detectors: Vec<RegisteredDetector<'static>> = vec![RegisteredDetector {
-        detector: Box::new(VoiceDetector::new()),
-        execution_rank: 3,
-        merge_rank: 0,
-    }];
-    #[cfg(feature = "semantic")]
-    detectors.push(RegisteredDetector {
-        detector: Box::new(SemanticDetector),
-        execution_rank: 0,
-        merge_rank: 1,
-    });
-    #[cfg(feature = "arch")]
-    detectors.push(RegisteredDetector {
-        detector: Box::new(ArchDetector),
-        execution_rank: 1,
-        merge_rank: 2,
-    });
-    #[cfg(feature = "integrity")]
-    detectors.push(RegisteredDetector {
-        detector: Box::new(IntegrityDetector),
-        execution_rank: 2,
-        merge_rank: 3,
-    });
+    let mut detectors = detectors;
 
     // Load lifecycle: the base model is mandatory (its Err fails the check);
     // additive groups degrade inside their pass instead.
@@ -364,7 +334,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     let filter_adapters: HashMap<String, Box<dyn LanguageAdapter>> = base
         .fitted_languages
         .iter()
-        .filter_map(|l| adapter_for(l).map(|a| (l.clone(), a)))
+        .filter_map(|l| argot_lang::adapters::adapter_for(l).map(|a| (l.clone(), a)))
         .collect();
 
     let t_patches = crate::timing::phase("check: collect patches");
@@ -523,7 +493,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
 
     // `.h` routes to the same C/C++ model calibrate built it into (repo's
     // translation-unit majority) — computed once from the working tree.
-    let header_cpp = crate::scoring::calibration::header_is_cpp(Path::new(&args.repo_path));
+    let header_cpp = crate::corpus::header_is_cpp(Path::new(&args.repo_path));
 
     let mut scan = ScanReport::default();
     let hits = {

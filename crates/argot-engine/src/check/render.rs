@@ -1,14 +1,13 @@
 //! Human and machine rendering of `check` findings, plus `--add-ignores`.
 
 use super::{ext_to_lang, extension, CheckArgs, CheckOutcome};
-use crate::finding::Finding;
+use crate::finding::{Finding, SourceSpan};
 use crate::output::{
     render_github, render_json, render_sarif, FileScan, HitRecord, OutputFormat, ReportMeta,
 };
 use crate::rules::{self, RuleSettings};
-use crate::scoring::adapters::LanguageAdapter;
-use crate::scoring::evidence::types::SourceSpan;
 use crate::text::splitlines;
+use argot_lang::adapters::LanguageAdapter;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::Path;
@@ -20,7 +19,10 @@ const C_RED: &str = "\x1b[31m";
 const C_YELLOW: &str = "\x1b[33m";
 const C_BLUE: &str = "\x1b[34m";
 const C_BOLD: &str = "\x1b[1m";
-pub(super) const C_DIM: &str = "\x1b[2m";
+/// `pub` (not `pub(super)`): the feature-gated rule-group passes in
+/// `argot-core`'s `check_passes` — a different crate — reuse this dim accent
+/// for their own evidence rendering.
+pub const C_DIM: &str = "\x1b[2m";
 const C_RESET: &str = "\x1b[0m";
 /// The accent color for a confidence tier: red (foreign), yellow (suspicious),
 /// blue (unusual).
@@ -32,7 +34,10 @@ fn confidence_color(tier: &str) -> &'static str {
     }
 }
 /// Wrap `text` in an ANSI code when `use_color`, else return it unchanged.
-pub(super) fn paint(text: &str, color: &str, use_color: bool) -> String {
+///
+/// `pub` (not `pub(super)`): reused cross-crate by `argot-core`'s
+/// `check_passes` evidence renderers (semantic/arch/integrity).
+pub fn paint(text: &str, color: &str, use_color: bool) -> String {
     if use_color {
         format!("{color}{text}{C_RESET}")
     } else {

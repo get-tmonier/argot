@@ -9,6 +9,7 @@ description = "Voice-linter engine: git walk, tokenization, statistical scorers,
 
 [dependencies]
 argot-lang = { path = "../argot-lang" }
+argot-engine = { path = "../argot-engine" }
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
@@ -29,8 +30,6 @@ git2.workspace = true
 md-5.workspace = true
 sha2.workspace = true
 serde_yaml.workspace = true
-toml.workspace = true
-toml_edit.workspace = true
 
 # --- semantic layer (feature-gated; absent from the base build) ---
 # Optional here, no accel backend; macOS adds Metal via the target table below.
