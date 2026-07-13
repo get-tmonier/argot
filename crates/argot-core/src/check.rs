@@ -14,6 +14,7 @@
 //! remains deferred.
 
 use crate::config::{ArgotConfig, DetectConfig};
+use crate::detector::{run_detectors, CheckContext, Detector, RegisteredDetector, ScanReport};
 use crate::finding::{Finding, RenderEvidence, SuppressedBy};
 use crate::git_walk::{
     open_repo, resolve_shas, walk_commits, HunkSpan, WalkItem, SUPPORTED_EXTENSIONS,
@@ -138,7 +139,7 @@ impl CheckOutcome {
 /// One file's diff in a single source (`_PatchBatch`). `source` is
 /// `workdir`/`staged`/`untracked` for working-tree origins, or a 7-char commit
 /// SHA for committed changes.
-struct PatchBatch {
+pub(crate) struct PatchBatch {
     file_path: String,
     content: Vec<u8>,
     hunks: Vec<HunkSpan>,
@@ -1001,7 +1002,7 @@ fn chain_workdir_patches(repo_path: &str) -> anyhow::Result<Vec<PatchBatch>> {
 /// `(hits, hunk_count, per-file hunk counts)`.
 #[allow(clippy::too_many_arguments)]
 fn score_patches(
-    patches: Vec<PatchBatch>,
+    patches: &[PatchBatch],
     scorers: &mut HashMap<String, SequentialImportBpeScorer>,
     filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
     slices: &HashMap<String, Vec<SliceEntry>>,
@@ -1173,6 +1174,50 @@ fn score_patches(
     (hits, hunk_count, files_scanned)
 }
 
+/// The base statistical pass (the voice group) as a detector. Borrows the
+/// loaded per-language model state; the only detector that fills
+/// [`ScanReport`].
+struct VoiceDetector<'a> {
+    scorers: &'a mut HashMap<String, SequentialImportBpeScorer>,
+    slices: &'a HashMap<String, Vec<SliceEntry>>,
+    new_file_thresholds: &'a HashMap<String, f64>,
+    fit_corpus_files: &'a HashSet<String>,
+}
+
+impl Detector for VoiceDetector<'_> {
+    fn group(&self) -> &'static str {
+        rules::GROUP_VOICE
+    }
+
+    fn timing_label(&self) -> &'static str {
+        "check: score patches (statistical)"
+    }
+
+    /// Always runs: it owns the scan statistics (hunk/file counts in the
+    /// report meta), and internal reasons (`none` under `--threshold`) have
+    /// no rule to gate on. Off-rule findings are dropped by the engine.
+    fn enabled(&self, _settings: &RuleSettings) -> bool {
+        true
+    }
+
+    fn check(&mut self, ctx: &mut CheckContext<'_>) -> Vec<Finding> {
+        let (hits, hunk_count, files_scanned) = score_patches(
+            ctx.batches,
+            self.scorers,
+            ctx.filter_adapters,
+            self.slices,
+            self.new_file_thresholds,
+            self.fit_corpus_files,
+            ctx.mute_rules,
+            ctx.header_cpp,
+            ctx.stderr,
+        );
+        ctx.scan.hunk_count = hunk_count;
+        ctx.scan.files_scanned = files_scanned;
+        hits
+    }
+}
+
 /// The architecture-graph pass — additive `Finding`s from the per-repo
 /// module-dependency graph (`.argot/layering.json`). For each changed file it
 /// takes the ADDED lines, resolves the internal import edges they introduce, and
@@ -1272,6 +1317,31 @@ impl RenderEvidence for ArchEvidence {
 
     fn machine(&self, _hunk_start_line: usize) -> Vec<String> {
         vec![format!("↳ {}", self.0)]
+    }
+}
+
+/// The architecture group's detection pass.
+#[cfg(feature = "arch")]
+struct ArchDetector;
+
+#[cfg(feature = "arch")]
+impl Detector for ArchDetector {
+    fn group(&self) -> &'static str {
+        rules::GROUP_ARCHITECTURE
+    }
+
+    fn timing_label(&self) -> &'static str {
+        "check: arch pass"
+    }
+
+    fn check(&mut self, ctx: &mut CheckContext<'_>) -> Vec<Finding> {
+        arch_hits(
+            ctx.batches,
+            &ctx.args.argot_dir,
+            ctx.filter_adapters,
+            ctx.mute_rules,
+            ctx.stderr,
+        )
     }
 }
 
@@ -1642,6 +1712,53 @@ fn integrity_hits(
         }
     }
     hits
+}
+
+/// The integrity group's detection pass.
+#[cfg(feature = "integrity")]
+struct IntegrityDetector;
+
+#[cfg(feature = "integrity")]
+impl Detector for IntegrityDetector {
+    fn group(&self) -> &'static str {
+        rules::GROUP_INTEGRITY
+    }
+
+    fn timing_label(&self) -> &'static str {
+        "check: integrity pass"
+    }
+
+    fn check(&mut self, ctx: &mut CheckContext<'_>) -> Vec<Finding> {
+        integrity_hits(ctx.args, ctx.filter_adapters, ctx.mute_rules, ctx.stderr)
+    }
+}
+
+/// The semantic group's detection pass. Skipped whole when both semantic
+/// rules are off: no index load, no model download, no cost.
+#[cfg(feature = "semantic")]
+struct SemanticDetector;
+
+#[cfg(feature = "semantic")]
+impl Detector for SemanticDetector {
+    fn group(&self) -> &'static str {
+        rules::GROUP_SEMANTIC
+    }
+
+    fn timing_label(&self) -> &'static str {
+        "check: semantic pass"
+    }
+
+    fn check(&mut self, ctx: &mut CheckContext<'_>) -> Vec<Finding> {
+        semantic_hits(
+            ctx.batches,
+            &ctx.args.argot_dir,
+            ctx.filter_adapters,
+            ctx.mute_rules,
+            ctx.detect,
+            ctx.header_cpp,
+            ctx.stderr,
+        )
+    }
 }
 
 /// The semantic pass (F1 reinvention, F2 placement) — additive `Finding`s from
@@ -3048,89 +3165,60 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     // translation-unit majority) — computed once from the working tree.
     let header_cpp = crate::scoring::calibration::header_is_cpp(Path::new(&args.repo_path));
 
-    // Additive semantic pass over the same scoped batches (borrowed before
-    // score_patches consumes them). Produces reinvention/placement hits; a
-    // no-op without the feature or when the index/model is unavailable.
+    // Register this run's detectors — the composition root. The rank pair is
+    // the order table (see detector.rs): execution_rank runs additive passes
+    // first and the base pass last (stderr interleave parity); merge_rank
+    // puts the base pass's findings first (stdout parity). Deleting a rule
+    // group deletes exactly its registration lines.
+    let mut scan = ScanReport::default();
+    let mut detectors: Vec<RegisteredDetector<'_>> = vec![RegisteredDetector {
+        detector: Box::new(VoiceDetector {
+            scorers: &mut scorers,
+            slices: &slices,
+            new_file_thresholds: &new_file_thresholds,
+            fit_corpus_files: &fit_corpus_files,
+        }),
+        execution_rank: 3,
+        merge_rank: 0,
+    }];
     #[cfg(feature = "semantic")]
-    let semantic_extra = if settings.group_enabled(rules::GROUP_SEMANTIC) {
-        let _t = crate::timing::phase("check: semantic pass");
-        semantic_hits(
-            &filtered,
-            &args.argot_dir,
-            &filter_adapters,
-            &mutes.active,
-            &config.detect,
+    detectors.push(RegisteredDetector {
+        detector: Box::new(SemanticDetector),
+        execution_rank: 0,
+        merge_rank: 1,
+    });
+    #[cfg(feature = "arch")]
+    detectors.push(RegisteredDetector {
+        detector: Box::new(ArchDetector),
+        execution_rank: 1,
+        merge_rank: 2,
+    });
+    #[cfg(feature = "integrity")]
+    detectors.push(RegisteredDetector {
+        detector: Box::new(IntegrityDetector),
+        execution_rank: 2,
+        merge_rank: 3,
+    });
+
+    let hits = {
+        let mut ctx = CheckContext {
+            batches: &filtered,
+            args: &args,
+            filter_adapters: &filter_adapters,
+            mute_rules: &mutes.active,
+            detect: &config.detect,
             header_cpp,
-            &mut stderr,
-        )
-    } else {
-        // Both semantic rules are off: no index load, no model, no cost.
-        Vec::new()
+            settings: &settings,
+            stderr: &mut stderr,
+            scan: &mut scan,
+        };
+        run_detectors(&mut detectors, &mut ctx)
     };
-
-    // Compute arch hits before `filtered` is moved into `score_patches`.
-    #[cfg(feature = "arch")]
-    let arch_extra = if settings.severity_of_reason("layering") != RuleSeverity::Off {
-        let _t = crate::timing::phase("check: arch pass");
-        arch_hits(
-            &filtered,
-            &args.argot_dir,
-            &filter_adapters,
-            &mutes.active,
-            &mut stderr,
-        )
-    } else {
-        Vec::new()
-    };
-
-    // The test-integrity pass collects its own two-sided changesets (the
-    // scoring batches carry post-images only, and never deletions).
-    #[cfg(feature = "integrity")]
-    let integrity_extra = if settings.group_enabled(rules::GROUP_INTEGRITY) {
-        let _t = crate::timing::phase("check: integrity pass");
-        integrity_hits(&args, &filter_adapters, &mutes.active, &mut stderr)
-    } else {
-        Vec::new()
-    };
-
-    let t_score = crate::timing::phase("check: score patches (statistical)");
-    let (hits, hunk_count, files_scanned) = score_patches(
-        filtered,
-        &mut scorers,
-        &filter_adapters,
-        &slices,
-        &new_file_thresholds,
-        &fit_corpus_files,
-        &mutes.active,
-        header_cpp,
-        &mut stderr,
-    );
-    t_score.done();
-
-    // Merge the semantic hits (rebind rather than `mut` so the base build has
-    // no unused-mut and stays byte-for-byte identical).
-    #[cfg(feature = "semantic")]
-    let hits = {
-        let mut hits = hits;
-        hits.extend(semantic_extra);
-        hits
-    };
-
-    // Merge the architecture-graph hits (same rebind discipline).
-    #[cfg(feature = "arch")]
-    let hits = {
-        let mut hits = hits;
-        hits.extend(arch_extra);
-        hits
-    };
-
-    // Merge the test-integrity hits (same rebind discipline).
-    #[cfg(feature = "integrity")]
-    let hits = {
-        let mut hits = hits;
-        hits.extend(integrity_extra);
-        hits
-    };
+    drop(detectors);
+    let ScanReport {
+        hunk_count,
+        files_scanned,
+    } = scan;
 
     // A rule set to `off` emits nothing: its findings are dropped entirely
     // (an off rule inside an otherwise-enabled group reaches this filter;

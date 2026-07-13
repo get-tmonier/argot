@@ -13,6 +13,7 @@ pub mod cache;
 pub mod check;
 pub mod config;
 pub mod dataset;
+pub(crate) mod detector;
 pub mod extract;
 pub(crate) mod finding;
 pub mod git_walk;
