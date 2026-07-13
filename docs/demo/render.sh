@@ -42,11 +42,13 @@ echo "==> planting the out-of-voice hunk (fastapi/receipts.py)"
 cp "$HERE/receipts.py" "$WORK/fastapi/receipts.py"
 git -C "$WORK" add fastapi/receipts.py
 
-echo "==> recording demo.gif"
+echo "==> recording demo.webp + demo.gif"
 cp "$HERE/demo.tape" "$WORK/demo.tape"
 ( cd "$WORK" && PATH="$(dirname "$ARGOT"):$PATH" vhs demo.tape )
-mv "$WORK/demo.gif" "$HERE/demo.gif"
+for asset in demo.webp demo.gif; do
+  [ -f "$WORK/$asset" ] && mv "$WORK/$asset" "$HERE/$asset"
+done
 git -C "$WORK" reset --hard --quiet HEAD 2>/dev/null || true
 git -C "$WORK" clean -fdq -e .argot 2>/dev/null || true
 
-echo "==> wrote $HERE/demo.gif"
+echo "==> wrote $HERE/demo.webp + $HERE/demo.gif"
