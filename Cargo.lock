@@ -118,24 +118,9 @@ dependencies = [
  "argot-rules-arch",
  "argot-rules-integrity",
  "argot-rules-semantic",
- "git2",
- "md-5",
+ "argot-rules-voice",
  "serde",
  "serde_json",
- "serde_yaml",
- "thiserror",
- "tree-sitter",
- "tree-sitter-c",
- "tree-sitter-c-sharp",
- "tree-sitter-cpp",
- "tree-sitter-go",
- "tree-sitter-java",
- "tree-sitter-javascript",
- "tree-sitter-php",
- "tree-sitter-python",
- "tree-sitter-ruby",
- "tree-sitter-rust",
- "tree-sitter-typescript",
 ]
 
 [[package]]
@@ -213,6 +198,32 @@ dependencies = [
  "serde_json",
  "sha2",
  "ureq",
+]
+
+[[package]]
+name = "argot-rules-voice"
+version = "0.2.65"
+dependencies = [
+ "anyhow",
+ "argot-engine",
+ "argot-lang",
+ "git2",
+ "md-5",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tree-sitter",
+ "tree-sitter-c",
+ "tree-sitter-c-sharp",
+ "tree-sitter-cpp",
+ "tree-sitter-go",
+ "tree-sitter-java",
+ "tree-sitter-javascript",
+ "tree-sitter-php",
+ "tree-sitter-python",
+ "tree-sitter-ruby",
+ "tree-sitter-rust",
+ "tree-sitter-typescript",
 ]
 
 [[package]]

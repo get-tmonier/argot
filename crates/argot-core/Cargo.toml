@@ -5,30 +5,18 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Voice-linter engine: git walk, tokenization, statistical scorers, calibration (language- and corpus-agnostic)."
+description = "Facade + composition root: re-exports argot-engine/argot-lang/argot-rules-voice at their historical paths and wires this build's rule groups (voice always-on, semantic/architecture/integrity additive) into the engine's check loop."
 
 [dependencies]
 argot-lang = { path = "../argot-lang" }
 argot-engine = { path = "../argot-engine" }
-serde.workspace = true
-serde_json.workspace = true
+# The voice rule group always ships — unlike the additive slices below, it is
+# not an optional dependency behind a cargo feature.
+argot-rules-voice = { path = "../argot-rules-voice" }
+# Only for the `scoring::calibration::run_calibrate` facade wrapper's return
+# type (it closes over `compose::fit_detectors()`, so it can't just be a
+# `pub use` of the voice crate's own `run_calibrate`).
 anyhow.workspace = true
-thiserror.workspace = true
-tree-sitter.workspace = true
-tree-sitter-python.workspace = true
-tree-sitter-typescript.workspace = true
-tree-sitter-javascript.workspace = true
-tree-sitter-go.workspace = true
-tree-sitter-rust.workspace = true
-tree-sitter-c.workspace = true
-tree-sitter-java.workspace = true
-tree-sitter-c-sharp.workspace = true
-tree-sitter-php.workspace = true
-tree-sitter-cpp.workspace = true
-tree-sitter-ruby.workspace = true
-git2.workspace = true
-md-5.workspace = true
-serde_yaml.workspace = true
 
 # --- additive rule-group slices (feature-gated; absent from the base build) ---
 # Each slice is its own crate with no cargo features of its own — the whole
@@ -59,9 +47,9 @@ semantic = ["dep:argot-rules-semantic"]
 # never wired into the gating exit code). Enabled by the bench to validate the
 # irreducible floor (docs/research/evidence/foreign-structure-gate-floor.md); NOT
 # enabled in the released binary (unlike `semantic`), because the floor proves it
-# is not gatable. Stays a module of this crate (not its own slice crate): it is
-# NON-GATING and research-only, never wired into `compose`.
-structural = []
+# is not gatable. Lives in `argot-rules-voice` (the crate whose `scoring` module
+# it extends); this feature just forwards the build-time gate through.
+structural = ["argot-rules-voice/structural"]
 
 # The architecture-graph sense: a repo's module-dependency topology + the
 # reversal/sink-out fire rule (the relationship analog of the vocabulary gate).

@@ -11,7 +11,7 @@ pub(crate) fn default_detectors() -> Vec<RegisteredDetector<'static>> {
     // `v` after the literal.
     #[allow(unused_mut)]
     let mut v: Vec<RegisteredDetector<'static>> = vec![RegisteredDetector {
-        detector: Box::new(crate::check_passes::voice::VoiceDetector::new()),
+        detector: Box::new(argot_rules_voice::VoiceDetector::new()),
         execution_rank: 3,
         merge_rank: 0,
     }];
