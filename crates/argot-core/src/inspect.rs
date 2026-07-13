@@ -219,6 +219,37 @@ pub(crate) fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
     }
 }
 
+/// Every language variant, for consumers that must sweep all adapters.
+const ALL_LANGUAGES: [Language; 11] = [
+    Language::Python,
+    Language::Typescript,
+    Language::Javascript,
+    Language::Go,
+    Language::Rust,
+    Language::C,
+    Language::Java,
+    Language::CSharp,
+    Language::Php,
+    Language::Cpp,
+    Language::Ruby,
+];
+
+/// Union of every language adapter's repo-internal module identities for `repo`
+/// (workspace / own package names + path-alias prefixes). Lets a consumer tell
+/// an internal module reference from a third-party dependency without knowing
+/// the file's language — e.g. `argot audit` dropping foreign-import findings
+/// that point at the repo's own workspace packages, including ones created
+/// after the audited base commit (so the base-time fit couldn't see them).
+pub fn resolve_repo_internal_modules(repo: &Path) -> crate::scoring::adapters::RepoModules {
+    let mut out = crate::scoring::adapters::RepoModules::default();
+    for lang in ALL_LANGUAGES {
+        let m = adapter_for(lang).resolve_repo_modules(repo);
+        out.exact.extend(m.exact);
+        out.prefixes.extend(m.prefixes);
+    }
+    out
+}
+
 /// Walk the repo and classify every file the way calibration would: extension
 /// routing, then the resolved path-suppression set (recommended built-ins +
 /// `[exclude].paths` — the same set calibrate and check consult), then the

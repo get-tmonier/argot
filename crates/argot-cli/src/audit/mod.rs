@@ -122,6 +122,10 @@ struct CheckHit {
     evidence: Option<String>,
     /// The named symbol the finding is about (integrity rules: the test).
     symbol: Option<String>,
+    /// Verbatim flagged module specifiers (foreign-import findings only).
+    foreign_specifiers: Vec<String>,
+    /// Nearest-function cosine similarity (semantic `redundant` findings only).
+    similarity: Option<f32>,
 }
 
 fn parse_hits(json: &str) -> (Vec<CheckHit>, u64) {
@@ -148,12 +152,172 @@ fn parse_hits(json: &str) -> (Vec<CheckHit>, u64) {
                             .and_then(|e| e.as_str())
                             .map(String::from),
                         symbol: h["symbol"].as_str().map(String::from),
+                        foreign_specifiers: h["foreign_specifiers"]
+                            .as_array()
+                            .map(|arr| {
+                                arr.iter()
+                                    .filter_map(|s| s.as_str().map(String::from))
+                                    .collect()
+                            })
+                            .unwrap_or_default(),
+                        similarity: h["similarity"].as_f64().map(|v| v as f32),
                     })
                 })
                 .collect()
         })
         .unwrap_or_default();
     (hits, hunks)
+}
+
+/// Minimum nearest-function similarity for a `redundant` finding to survive the
+/// history sweep. A per-commit `check` runs the rule at its liberal tier (a
+/// strong structural match fires down to cos 0.70), which reads right when
+/// you're looking at one change; swept across every hunk of a window, that
+/// per-hunk noise floor stacks into a wall of low-confidence "you already have
+/// this" matches — many of them generic helpers or a monorepo's deliberate
+/// per-package parallels. A scorecard needs per-finding precision, so it keeps
+/// only clearly-close matches — the 0.85 bar the rule's own conservative mode
+/// uses.
+const AUDIT_REDUNDANT_MIN_SIMILARITY: f32 = 0.85;
+
+/// The package identity of a module specifier: `@scope/name` for a scoped
+/// package, the first path segment otherwise. Subpath entry points
+/// (`@scope/name/sub`, `pkg/sub`) share their package's identity, so importing a
+/// new entry point of a package the repo already owns resolves as internal.
+fn package_identity(spec: &str) -> &str {
+    let mut slashes = spec.match_indices('/').map(|(i, _)| i);
+    if spec.starts_with('@') {
+        slashes.next(); // end of `@scope`
+        match slashes.next() {
+            Some(i) => &spec[..i], // `@scope/name`
+            None => spec,
+        }
+    } else {
+        match slashes.next() {
+            Some(i) => &spec[..i], // first segment
+            None => spec,
+        }
+    }
+}
+
+/// True when a module specifier resolves to repo-internal code: a workspace /
+/// own package name, a subpath of one, or a path-alias prefix. Relative and
+/// `#…` specifiers never reach the foreign-import surface, so they aren't here.
+fn spec_is_internal(spec: &str, internal: &argot_core::scoring::adapters::RepoModules) -> bool {
+    internal.exact.contains(spec)
+        || internal.exact.contains(package_identity(spec))
+        || internal.prefixes.iter().any(|p| spec.starts_with(p))
+}
+
+/// Curate raw per-hunk `check` hits into the scorecard's findings: a history
+/// sweep over every hunk surfaces a rule's per-hunk noise floor at scale, so the
+/// audit (unlike `check`) drops findings that aren't actionable in aggregate.
+/// `check` itself is untouched — the pre-commit gate still sees everything.
+fn curate_hits(
+    hits: Vec<CheckHit>,
+    internal: &argot_core::scoring::adapters::RepoModules,
+) -> Vec<CheckHit> {
+    hits.into_iter().filter(|h| keep_hit(h, internal)).collect()
+}
+
+/// Whether a curated audit keeps `h` (see [`curate_hits`]).
+fn keep_hit(h: &CheckHit, internal: &argot_core::scoring::adapters::RepoModules) -> bool {
+    match h.rule.as_str() {
+        // Drop when every flagged specifier resolves to repo-internal code — a
+        // workspace package (possibly created after the base commit, so the
+        // base-time fit couldn't know it) or a subpath of one. Importing your
+        // own package is never a foreign dependency. Findings with no structured
+        // specifiers are left alone.
+        "foreign-import" => {
+            h.foreign_specifiers.is_empty()
+                || !h
+                    .foreign_specifiers
+                    .iter()
+                    .all(|s| spec_is_internal(s, internal))
+        }
+        // Keep only findings that actually name the unfamiliar callee. When the
+        // scorer can't (the foreignness is distributional, not a single foreign
+        // call), the evidence degrades to "common here: …" — what's NORMAL, not
+        // what's off — which isn't actionable on a scorecard.
+        "unfamiliar-callee" => h
+            .evidence
+            .as_deref()
+            .map(|e| e.starts_with('↳'))
+            .unwrap_or(false),
+        // History sweep keeps only clearly-close reinventions (see the const).
+        "redundant" => h
+            .similarity
+            .map(|s| s >= AUDIT_REDUNDANT_MIN_SIMILARITY)
+            .unwrap_or(true),
+        _ => true,
+    }
+}
+
+/// The external package identities a foreign-import hit introduces — its flagged
+/// specifiers minus any that resolve to repo-internal code, collapsed to package
+/// identity and de-duplicated. Empty when every specifier is internal.
+fn external_package_ids(
+    h: &CheckHit,
+    internal: &argot_core::scoring::adapters::RepoModules,
+) -> Vec<String> {
+    let mut ids: Vec<String> = h
+        .foreign_specifiers
+        .iter()
+        .filter(|s| !spec_is_internal(s, internal))
+        .map(|s| package_identity(s).to_string())
+        .collect();
+    ids.sort();
+    ids.dedup();
+    ids
+}
+
+/// Collapse per-file foreign-import hits into one finding per distinct new
+/// dependency. A history sweep re-flags the same adoption in every file that
+/// imports it (a UI kit landing in 8 components, a data layer in 8 modules) and
+/// re-lists each subpath — one adoption, told once, is the scorecard's job.
+/// Hits are grouped by their set of external package identities (internal
+/// specifiers, e.g. a co-imported workspace package, drop out of both the key
+/// and the rendered evidence); the first hit of each group represents it, its
+/// evidence rewritten to the package(s) plus a file count. Hits with no
+/// structured specifiers pass through untouched.
+fn dedup_foreign_imports(
+    hits: Vec<CheckHit>,
+    internal: &argot_core::scoring::adapters::RepoModules,
+) -> Vec<CheckHit> {
+    let mut out: Vec<CheckHit> = Vec::new();
+    // (external-id key, distinct paths, representative hit), first-seen order.
+    let mut groups: Vec<(Vec<String>, Vec<String>, CheckHit)> = Vec::new();
+    for h in hits {
+        if h.rule != "foreign-import" {
+            out.push(h);
+            continue;
+        }
+        let ids = external_package_ids(&h, internal);
+        if ids.is_empty() {
+            // No external specifier survives (all internal) — nothing to report.
+            // `curate_hits` already drops these; belt and braces.
+            continue;
+        }
+        if let Some((_, paths, _)) = groups.iter_mut().find(|(key, ..)| *key == ids) {
+            if !paths.contains(&h.path) {
+                paths.push(h.path.clone());
+            }
+        } else {
+            groups.push((ids, vec![h.path.clone()], h));
+        }
+    }
+    for (ids, paths, mut rep) in groups {
+        let joined = ids.join(", ");
+        let files = paths.len();
+        rep.foreign_specifiers = ids;
+        rep.evidence = Some(if files > 1 {
+            format!("↳ {joined} — new to the repo ({files} files)")
+        } else {
+            format!("↳ {joined} — new to the repo")
+        });
+        out.push(rep);
+    }
+    out
 }
 
 /// Attribute every finding to its introducing commit: one bounded blame per
@@ -388,6 +552,12 @@ pub fn run_audit(repo: &Path, spec: WindowSpec, format: AuditFormat) -> ExitCode
 
     t_check.done();
     let (hits, hunks_scanned) = parse_hits(&outcome.stdout);
+    // Curate the raw per-hunk hits into scorecard findings. Internal modules are
+    // resolved from the real repo (HEAD), not the base worktree, so a workspace
+    // package created within the window still reads as internal.
+    let internal_modules = argot_core::inspect::resolve_repo_internal_modules(repo);
+    let hits = curate_hits(hits, &internal_modules);
+    let hits = dedup_foreign_imports(hits, &internal_modules);
 
     eprintln!("argot: attributing {walked} commit(s) of history…");
     let t_attr = argot_core::timing::phase("audit: attribution");
@@ -435,4 +605,174 @@ pub fn run_audit(repo: &Path, spec: WindowSpec, format: AuditFormat) -> ExitCode
         AuditFormat::Terminal => print!("{}", term::render(&report, color)),
     }
     ExitCode::SUCCESS
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use argot_core::scoring::adapters::RepoModules;
+
+    fn internal_set(exact: &[&str], prefixes: &[&str]) -> RepoModules {
+        RepoModules {
+            exact: exact.iter().map(|s| s.to_string()).collect(),
+            prefixes: prefixes.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+
+    fn hit(rule: &str) -> CheckHit {
+        CheckHit {
+            rule: rule.to_string(),
+            rule_label: rule.to_string(),
+            confidence: "unusual".to_string(),
+            severity: "error".to_string(),
+            path: "src/x.ts".to_string(),
+            line_start: 1,
+            line_end: 2,
+            evidence: None,
+            symbol: None,
+            foreign_specifiers: Vec::new(),
+            similarity: None,
+        }
+    }
+
+    #[test]
+    fn package_identity_scoped_unscoped_and_subpaths() {
+        assert_eq!(package_identity("@acme/core"), "@acme/core");
+        assert_eq!(package_identity("@acme/core/sub"), "@acme/core");
+        assert_eq!(package_identity("@acme/core/deep/path"), "@acme/core");
+        assert_eq!(package_identity("react"), "react");
+        assert_eq!(package_identity("react-dom/client"), "react-dom");
+        assert_eq!(package_identity("@scope"), "@scope");
+    }
+
+    #[test]
+    fn internal_specifier_matches_exact_subpath_and_prefix() {
+        let internal = internal_set(&["@acme/core", "@acme/http"], &["#/"]);
+        assert!(spec_is_internal("@acme/core", &internal));
+        // Subpath of an owned package resolves internal via package identity.
+        assert!(spec_is_internal("@acme/http/serve-static", &internal));
+        assert!(spec_is_internal("#/utils", &internal));
+        // A real third-party dependency is not internal.
+        assert!(!spec_is_internal("@base-ui/react/tooltip", &internal));
+        assert!(!spec_is_internal("zod", &internal));
+    }
+
+    #[test]
+    fn foreign_import_dropped_only_when_all_specifiers_internal() {
+        let internal = internal_set(&["@acme/core", "@acme/http"], &[]);
+        // All internal → dropped.
+        let mut all_internal = hit("foreign-import");
+        all_internal.foreign_specifiers =
+            vec!["@acme/core".into(), "@acme/http/serve-static".into()];
+        assert!(!keep_hit(&all_internal, &internal));
+        // Mixed internal + external → kept (a real dependency remains).
+        let mut mixed = hit("foreign-import");
+        mixed.foreign_specifiers = vec!["@acme/core".into(), "zod".into()];
+        assert!(keep_hit(&mixed, &internal));
+        // No structured specifiers → left alone.
+        assert!(keep_hit(&hit("foreign-import"), &internal));
+    }
+
+    #[test]
+    fn unfamiliar_callee_dropped_without_a_named_callee() {
+        let internal = internal_set(&[], &[]);
+        let mut named = hit("unfamiliar-callee");
+        named.evidence = Some("↳ store.findMany — 0 of 42 callees in this cluster".into());
+        assert!(keep_hit(&named, &internal));
+        let mut common_only = hit("unfamiliar-callee");
+        common_only.evidence = Some("common here: Effect.gen (117×)".into());
+        assert!(!keep_hit(&common_only, &internal));
+        // No evidence at all → not actionable → dropped.
+        assert!(!keep_hit(&hit("unfamiliar-callee"), &internal));
+    }
+
+    #[test]
+    fn redundant_dropped_below_the_similarity_bar() {
+        let internal = internal_set(&[], &[]);
+        let mut strong = hit("redundant");
+        strong.similarity = Some(0.92);
+        assert!(keep_hit(&strong, &internal));
+        let mut weak = hit("redundant");
+        weak.similarity = Some(0.74);
+        assert!(!keep_hit(&weak, &internal));
+        // Exactly at the bar survives.
+        let mut boundary = hit("redundant");
+        boundary.similarity = Some(AUDIT_REDUNDANT_MIN_SIMILARITY);
+        assert!(keep_hit(&boundary, &internal));
+    }
+
+    #[test]
+    fn unrelated_rules_pass_through_untouched() {
+        let internal = internal_set(&["@acme/core"], &[]);
+        assert!(keep_hit(&hit("rare-tokens"), &internal));
+        assert!(keep_hit(&hit("test-deleted"), &internal));
+        assert!(keep_hit(&hit("layering"), &internal));
+    }
+
+    fn fi(path: &str, specs: &[&str]) -> CheckHit {
+        let mut h = hit("foreign-import");
+        h.path = path.to_string();
+        h.foreign_specifiers = specs.iter().map(|s| s.to_string()).collect();
+        h
+    }
+
+    #[test]
+    fn dedup_collapses_a_dependency_adopted_across_files() {
+        let internal = internal_set(&["@acme/core"], &[]);
+        let hits = vec![
+            fi("src/a.tsx", &["@base-ui/react/input"]),
+            fi("src/b.tsx", &["@base-ui/react/switch"]),
+            fi(
+                "src/c.tsx",
+                &["@base-ui/react/toggle", "@base-ui/react/toggle-group"],
+            ),
+            fi("src/x.ts", &["@vendor/xlsx"]),
+        ];
+        let out = dedup_foreign_imports(hits, &internal);
+        assert_eq!(out.len(), 2, "base-ui collapses to one, excel stands alone");
+        let base = out
+            .iter()
+            .find(|h| h.foreign_specifiers == ["@base-ui/react"])
+            .expect("base-ui group");
+        assert_eq!(
+            base.evidence.as_deref(),
+            Some("↳ @base-ui/react — new to the repo (3 files)")
+        );
+        let excel = out
+            .iter()
+            .find(|h| h.foreign_specifiers == ["@vendor/xlsx"])
+            .expect("excel group");
+        assert_eq!(
+            excel.evidence.as_deref(),
+            Some("↳ @vendor/xlsx — new to the repo")
+        );
+    }
+
+    #[test]
+    fn dedup_drops_internal_specifiers_from_a_mixed_finding() {
+        let internal = internal_set(&["@acme/core", "@acme/rpc"], &[]);
+        // A file importing a real new dep alongside its own workspace packages:
+        // the finding stays (real dep), the internal names leave the evidence.
+        let hits = vec![fi(
+            "src/server.ts",
+            &["@acme/rpc", "@acme/core", "@vendor/queue"],
+        )];
+        let out = dedup_foreign_imports(hits, &internal);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].foreign_specifiers, ["@vendor/queue"]);
+        assert_eq!(
+            out[0].evidence.as_deref(),
+            Some("↳ @vendor/queue — new to the repo")
+        );
+    }
+
+    #[test]
+    fn dedup_leaves_other_rules_alone() {
+        let internal = internal_set(&[], &[]);
+        let mut red = hit("redundant");
+        red.similarity = Some(0.9);
+        let out = dedup_foreign_imports(vec![red], &internal);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].rule, "redundant");
+    }
 }

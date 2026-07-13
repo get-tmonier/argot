@@ -2487,6 +2487,20 @@ fn hit_records(hits: &[&Hit], settings: &RuleSettings) -> Vec<HitRecord> {
                         .collect()
                 })
                 .unwrap_or_default();
+            // Verbatim, untruncated flagged specifiers for import findings —
+            // machine consumers (e.g. `argot audit`) classify these without
+            // re-parsing the rendered evidence, which caps the list at TOP_K.
+            let foreign_specifiers: Vec<String> = match &h.evidence {
+                Some(Evidence::Import(imp)) => imp.foreign_specifiers.clone(),
+                _ => Vec::new(),
+            };
+            #[cfg(feature = "semantic")]
+            let similarity: Option<f32> = match &h.semantic {
+                Some(SemanticHitEvidence::Redundant { similarity, .. }) => Some(*similarity),
+                _ => None,
+            };
+            #[cfg(not(feature = "semantic"))]
+            let similarity: Option<f32> = None;
             // Semantic findings carry their nearest-code evidence here too, so
             // JSON and SARIF consumers (GitHub code scanning) get it for free.
             // Rebind (not `mut`) so the base build stays warning-clean.
@@ -2525,6 +2539,8 @@ fn hit_records(hits: &[&Hit], settings: &RuleSettings) -> Vec<HitRecord> {
                 symbol: h.integrity_symbol.clone(),
                 #[cfg(not(feature = "integrity"))]
                 symbol: None,
+                foreign_specifiers,
+                similarity,
             }
         })
         .collect()

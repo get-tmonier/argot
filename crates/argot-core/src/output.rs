@@ -84,6 +84,16 @@ pub struct HitRecord {
     /// machine consumers can act on the name without parsing evidence text.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub symbol: Option<String>,
+    /// The module specifiers a `foreign-import` finding flagged (verbatim,
+    /// untruncated), so machine consumers can classify them without parsing the
+    /// rendered — and truncated — evidence text. Empty for every other rule.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub foreign_specifiers: Vec<String>,
+    /// Cosine similarity to the nearest existing function for a semantic
+    /// `redundant` finding — the structured form of the "similarity 0.xx"
+    /// evidence tail. `None` for every other rule (and every base build).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub similarity: Option<f32>,
 }
 
 /// Per-file count of scored hunks (below-threshold ones included), for
@@ -327,6 +337,12 @@ mod tests {
             hash: "a1b2c3d4e5f6".to_string(),
             evidence: vec!["↳ axios — 0 of 47 module specifiers in repo".to_string()],
             symbol: None,
+            foreign_specifiers: if rule == "foreign-import" {
+                vec!["axios".to_string()]
+            } else {
+                Vec::new()
+            },
+            similarity: None,
         }
     }
 

@@ -33,14 +33,23 @@ pub fn collect_bpe_evidence(
         is_meaningful,
     );
     let counts = &evidence_corpus.identifiers;
+    let mut entries: Vec<CommonEntry> = names
+        .into_iter()
+        .map(|n| {
+            let count = counts.get(&n).copied().unwrap_or(0);
+            CommonEntry { name: n, count }
+        })
+        .collect();
+    // Lead with the genuinely rare names. Reconstruction orders by BPE surprise,
+    // which correlates with rarity but not perfectly — a common word (`not`,
+    // 285×) can top the list because its token was surprising *in this
+    // sequence*, reading as a contradiction under a "rare tokens" heading. A
+    // stable sort by ascending attestation puts the novel `(0×)` names first (so
+    // the formatter's top-3 shows them) while preserving surprise order within a
+    // tier.
+    entries.sort_by_key(|e| e.count);
     BpeEvidence {
-        surprising_identifiers: names
-            .into_iter()
-            .map(|n| {
-                let count = counts.get(&n).copied().unwrap_or(0);
-                CommonEntry { name: n, count }
-            })
-            .collect(),
+        surprising_identifiers: entries,
     }
 }
 
@@ -77,13 +86,15 @@ mod tests {
         assert_eq!(
             evidence.surprising_identifiers,
             vec![
-                CommonEntry {
-                    name: "mongoose".to_string(),
-                    count: 5
-                },
+                // Rarest-first: the novel `url (0×)` leads the attested
+                // `mongoose (5×)`, though reconstruction saw mongoose first.
                 CommonEntry {
                     name: "url".to_string(),
                     count: 0
+                },
+                CommonEntry {
+                    name: "mongoose".to_string(),
+                    count: 5
                 },
             ],
             "an identifier absent from the corpus renders as count=0, not dropped"
