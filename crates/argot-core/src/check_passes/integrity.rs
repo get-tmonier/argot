@@ -382,6 +382,10 @@ impl Detector for IntegrityDetector {
     /// normal development trips too often (FP-first; see the module docs of
     /// `scoring::integrity`).
     fn fit(&mut self, ctx: &argot_engine::detector::FitContext<'_>) {
+        // Self-gated: an off group writes no artifact and pays no cost.
+        if !self.enabled(ctx.settings) {
+            return;
+        }
         let _t = crate::timing::phase("calibrate: integrity mini-replay");
         use crate::scoring::integrity::{fit_model, INTEGRITY_FILE};
         if let Some(model) = fit_model(ctx.repo_dir, ctx.repo_sha) {

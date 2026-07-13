@@ -134,6 +134,10 @@ impl Detector for ArchDetector {
     /// voice-file collection production fits on (config-respecting) —
     /// Python only in v1; other languages simply produce no graph.
     fn fit(&mut self, ctx: &argot_engine::detector::FitContext<'_>) {
+        // Self-gated: an off group writes no artifact and pays no cost.
+        if !self.enabled(ctx.settings) {
+            return;
+        }
         let _t = crate::timing::phase("calibrate: arch graph");
         use crate::scoring::adapters::Language;
         use crate::scoring::arch_graph::{RepoLayering, LAYERING_FILE};

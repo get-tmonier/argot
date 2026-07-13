@@ -75,6 +75,29 @@ pub struct FitContext<'a> {
     pub output: &'a std::path::Path,
     /// The repo SHA this fit reflects (stamped into each artifact).
     pub repo_sha: &'a str,
+    /// Effective `[rules]` severities — fit hooks self-gate on their group so
+    /// an off group produces no artifact and pays no cost (and can explain
+    /// the skip, which a loop-level gate could not).
+    pub settings: &'a RuleSettings,
+}
+
+/// One language's corpus, observed mid-calibration. The base fit reads every
+/// language's sources exactly once; a detector whose artifact derives from
+/// the same corpus (e.g. an embedding index) hooks
+/// [`Detector::fit_language`] instead of re-reading the tree — one read,
+/// and the fit diagnostics keep their per-language interleave.
+pub struct FitLanguageContext<'a> {
+    /// The scoring language name (`"python"`, …).
+    pub language: &'a str,
+    /// Absolute path + source of every filtered corpus file of this language
+    /// (data-dominant and auto-generated files already excluded).
+    pub files: &'a [(std::path::PathBuf, String)],
+    /// The language's adapter.
+    pub adapter: &'a dyn argot_lang::adapters::LanguageAdapter,
+    /// The resolved path-suppression set (the same set calibration samples
+    /// from — lock-step principle).
+    pub suppressions: &'a crate::suppress::PathSuppressions,
+    pub repo_dir: &'a std::path::Path,
 }
 
 /// One rule group's detection pass.
@@ -93,10 +116,21 @@ pub trait Detector {
         settings.group_enabled(self.group())
     }
 
-    /// Fit-time hook: build this group's artifact(s) as `.argot/` sibling
-    /// files. Default no-op — a group with no learned state skips it.
-    /// Failures degrade loudly (stderr) but never fail the fit; the base
-    /// statistical model must land regardless.
+    /// Fit-time lifecycle, before the per-language calibration loop: acquire
+    /// whatever the group's fit needs once (a model load, a prior artifact).
+    /// Self-gated (consult `ctx.settings`); failures degrade loudly, never
+    /// fail the fit. Default no-op.
+    fn fit_begin(&mut self, _ctx: &FitContext<'_>) {}
+
+    /// Fit-time observation of one language's corpus, inside the calibration
+    /// loop — see [`FitLanguageContext`]. Default no-op.
+    fn fit_language(&mut self, _lang: &FitLanguageContext<'_>) {}
+
+    /// Fit-time hook, after the base model is written: build/write this
+    /// group's artifact(s) as `.argot/` sibling files. Self-gated; default
+    /// no-op — a group with no learned state skips it. Failures degrade
+    /// loudly (stderr) but never fail the fit; the base statistical model
+    /// must land regardless.
     fn fit(&mut self, _ctx: &FitContext<'_>) {}
 
     /// Check-time lifecycle, before the changeset is collected: load this

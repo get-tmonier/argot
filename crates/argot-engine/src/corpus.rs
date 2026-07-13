@@ -67,6 +67,13 @@ pub fn collect_source_files(repo_path: &Path) -> Vec<PathBuf> {
     collect_source_files_with(repo_path, &suppressions)
 }
 
+/// Repo-relative, `/`-separated form of `path` (best-effort: strips the repo
+/// prefix when present, and normalizes Windows separators).
+pub fn rel_to_repo(path: &Path, repo_dir: &Path) -> String {
+    let rel = path.strip_prefix(repo_dir).unwrap_or(path);
+    rel.to_string_lossy().replace('\\', "/")
+}
+
 /// [`collect_source_files`] against an already-resolved suppression set.
 pub fn collect_source_files_with(
     repo_path: &Path,

@@ -17,7 +17,7 @@ pub(crate) fn default_detectors() -> Vec<RegisteredDetector<'static>> {
     }];
     #[cfg(feature = "semantic")]
     v.push(RegisteredDetector {
-        detector: Box::new(crate::check_passes::semantic::SemanticDetector),
+        detector: Box::new(crate::check_passes::semantic::SemanticDetector::new()),
         execution_rank: 0,
         merge_rank: 1,
     });
@@ -33,5 +33,26 @@ pub(crate) fn default_detectors() -> Vec<RegisteredDetector<'static>> {
         execution_rank: 2,
         merge_rank: 3,
     });
+    v
+}
+
+/// The fit-time lifecycle detectors, in artifact-write order (semantic, arch,
+/// integrity — the fit diagnostics' byte order). The voice model's own fit IS
+/// `run_calibrate`, so it does not register here; hooks self-gate on the
+/// resolved `[rules]` severities.
+// Not a `vec![]` literal: every element is cfg-gated, and cfg attributes
+// only attach to statements.
+#[allow(clippy::vec_init_then_push)]
+pub(crate) fn fit_detectors() -> Vec<Box<dyn argot_engine::detector::Detector>> {
+    #[allow(unused_mut)]
+    let mut v: Vec<Box<dyn argot_engine::detector::Detector>> = Vec::new();
+    #[cfg(feature = "semantic")]
+    v.push(Box::new(
+        crate::check_passes::semantic::SemanticDetector::new(),
+    ));
+    #[cfg(feature = "arch")]
+    v.push(Box::new(crate::check_passes::arch::ArchDetector));
+    #[cfg(feature = "integrity")]
+    v.push(Box::new(crate::check_passes::integrity::IntegrityDetector));
     v
 }
