@@ -181,6 +181,130 @@ pub fn rule_for_reason(reason: &str) -> Option<&'static Rule> {
     RULES.iter().find(|r| r.reason == reason)
 }
 
+/// The reserved group name for runtime-loaded (community) rules, and the
+/// namespace prefix of their reason codes: a custom rule `<name>` emits
+/// findings with reason `custom:<name>`. The prefix keeps custom reasons
+/// collision-proof against internal codes and makes the reason ↔ rule-name
+/// mapping syntactic — the suppression hot paths never need a registry.
+pub const GROUP_CUSTOM: &str = "custom";
+/// The reason-code prefix for custom rules (see [`GROUP_CUSTOM`]).
+pub const CUSTOM_REASON_PREFIX: &str = "custom:";
+
+/// The custom rule name behind a reason code, when the reason is in the
+/// custom namespace.
+fn custom_name_of_reason(reason: &str) -> Option<&str> {
+    reason.strip_prefix(CUSTOM_REASON_PREFIX)
+}
+
+/// One runtime-registered rule (loaded from `.argot/rules/<name>/`), group
+/// [`GROUP_CUSTOM`]. The built-in vocabulary stays the static [`RULES`]
+/// table — always known, feature-independent — while custom rules overlay it
+/// per run through [`Registry`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CustomRule {
+    /// Stable user-facing name (kebab-case) — same surfaces as a built-in
+    /// rule name. Reason code is derived: `custom:<name>`.
+    pub name: String,
+    /// Short human label shown next to a finding.
+    pub label: String,
+    /// One-line description for `argot rules`.
+    pub description: String,
+    /// The manifest's default severity (overridable via `[rules]`/`--rule`).
+    pub default_severity: Severity,
+}
+
+/// The run's rule vocabulary: the static built-in table plus any custom rules
+/// discovered at startup. Engine paths that must know every rule (config
+/// validation, severity resolution, output labels) resolve through this;
+/// paths where the mapping is syntactic (suppression matching) keep using the
+/// free functions.
+#[derive(Debug, Default)]
+pub struct Registry {
+    custom: Vec<CustomRule>,
+}
+
+impl Registry {
+    /// The built-ins-only registry (no custom rules).
+    pub fn builtin() -> &'static Registry {
+        static BUILTIN: Registry = Registry { custom: Vec::new() };
+        &BUILTIN
+    }
+
+    /// Overlay validated custom rules onto the built-in vocabulary. Rejects
+    /// (per rule, with a message) non-kebab-case names and collisions with
+    /// built-in rule names, group names, or an earlier custom rule; rejected
+    /// rules are skipped so one bad manifest never takes down the run.
+    pub fn with_custom(rules: Vec<CustomRule>, warnings: &mut Vec<String>) -> Registry {
+        let mut custom: Vec<CustomRule> = Vec::new();
+        for rule in rules {
+            let name = rule.name.as_str();
+            let kebab = !name.is_empty()
+                && name
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit());
+            if !kebab {
+                warnings.push(format!(
+                    "custom rule '{name}': not kebab-case — skipped (lowercase, digits, '-')"
+                ));
+                continue;
+            }
+            if rule_named(name).is_some() || is_group(name) || name == GROUP_CUSTOM {
+                warnings.push(format!(
+                    "custom rule '{name}': collides with a built-in rule or group name — skipped"
+                ));
+                continue;
+            }
+            if custom.iter().any(|c| c.name == name) {
+                warnings.push(format!(
+                    "custom rule '{name}': duplicate of an earlier custom rule — skipped"
+                ));
+                continue;
+            }
+            custom.push(rule);
+        }
+        Registry { custom }
+    }
+
+    /// The registered custom rules, in registration order.
+    pub fn custom_rules(&self) -> &[CustomRule] {
+        &self.custom
+    }
+
+    /// Custom-rule lookup by user-facing name.
+    pub fn custom_named(&self, name: &str) -> Option<&CustomRule> {
+        self.custom.iter().find(|c| c.name == name)
+    }
+
+    /// A valid `[rules]` / `rule=` / `--rule` key against this vocabulary?
+    pub fn known_selector(&self, name: &str) -> bool {
+        known_selector(name)
+            || name == GROUP_CUSTOM
+            || self.custom_named(name).is_some()
+    }
+
+    /// Every selector a user can write, for error messages. Groups first
+    /// (custom last), then rules in display order.
+    pub fn selector_names(&self) -> Vec<&str> {
+        let mut names: Vec<&str> = GROUPS.to_vec();
+        names.push(GROUP_CUSTOM);
+        names.extend(RULES.iter().map(|r| r.name));
+        names.extend(self.custom.iter().map(|c| c.name.as_str()));
+        names
+    }
+
+    /// The human label for a reason — built-in table first, then the custom
+    /// namespace, then the raw reason.
+    pub fn label_for_reason<'a>(&'a self, reason: &'a str) -> &'a str {
+        if let Some(rule) = rule_for_reason(reason) {
+            return rule.label;
+        }
+        custom_name_of_reason(reason)
+            .and_then(|n| self.custom_named(n))
+            .map(|c| c.label.as_str())
+            .unwrap_or(reason)
+    }
+}
+
 /// Look a rule up by its user-facing name.
 pub fn rule_named(name: &str) -> Option<&'static Rule> {
     RULES.iter().find(|r| r.name == name)
@@ -192,10 +316,14 @@ pub fn is_group(name: &str) -> bool {
 }
 
 /// The user-facing rule code for a reason: the rule name when the reason is
-/// registered, the raw reason otherwise (internal codes like `none` surface
-/// as-is under `--threshold` overrides).
+/// registered, the custom rule name for `custom:` reasons (syntactic — the
+/// namespace prefix IS the mapping), the raw reason otherwise (internal codes
+/// like `none` surface as-is under `--threshold` overrides).
 pub fn code_for_reason(reason: &str) -> &str {
-    rule_for_reason(reason).map(|r| r.name).unwrap_or(reason)
+    if let Some(rule) = rule_for_reason(reason) {
+        return rule.name;
+    }
+    custom_name_of_reason(reason).unwrap_or(reason)
 }
 
 /// The human label for a reason (falls back to the raw reason).
@@ -205,13 +333,21 @@ pub fn label_for_reason(reason: &str) -> &str {
 
 /// Does `selector` (a rule name or group name) cover the rule behind `reason`?
 /// Used by the suppression surfaces (`rule=` inline scopes, `[[mute]].rule`).
+/// Custom reasons match syntactically: their rule name is the reason minus
+/// the `custom:` prefix, their group is always `custom`.
 pub fn selector_matches_reason(selector: &str, reason: &str) -> bool {
+    if let Some(name) = custom_name_of_reason(reason) {
+        return selector == name || selector == GROUP_CUSTOM;
+    }
     rule_for_reason(reason).is_some_and(|r| r.name == selector || r.group == selector)
 }
 
-/// A valid `rule=` / `[[mute]].rule` / `--rule` / `[rules]` key?
+/// A valid `rule=` / `[[mute]].rule` / `--rule` / `[rules]` key? The `custom`
+/// group is always valid vocabulary — it scopes whatever custom rules a repo
+/// carries, and a selector's validity must not depend on which repo the
+/// command runs in.
 pub fn known_selector(name: &str) -> bool {
-    is_group(name) || rule_named(name).is_some()
+    is_group(name) || name == GROUP_CUSTOM || rule_named(name).is_some()
 }
 
 /// Every selector a user can write, for error messages.
@@ -219,6 +355,7 @@ pub fn selector_names() -> Vec<&'static str> {
     GROUPS
         .iter()
         .copied()
+        .chain([GROUP_CUSTOM])
         .chain(RULES.iter().map(|r| r.name))
         .collect()
 }
@@ -230,7 +367,9 @@ pub type RulesLayer = Vec<(String, Severity)>;
 /// The resolved per-rule severities.
 #[derive(Debug, Clone, Default)]
 pub struct RuleSettings {
-    by_reason: HashMap<&'static str, Severity>,
+    by_reason: HashMap<String, Severity>,
+    /// Reason codes of the run's custom rules (for `group_enabled(custom)`).
+    custom_reasons: Vec<String>,
 }
 
 impl RuleSettings {
@@ -238,27 +377,48 @@ impl RuleSettings {
     /// each layer in order — config base, config local, CLI). Within a layer a
     /// rule-specific entry beats a group entry regardless of order.
     pub fn resolve(layers: &[RulesLayer]) -> Self {
-        let mut by_reason = HashMap::new();
-        for rule in RULES {
-            let mut sev = rule.default_severity;
+        Self::resolve_with(Registry::builtin(), layers)
+    }
+
+    /// [`RuleSettings::resolve`] against a run vocabulary: built-in rules plus
+    /// the registry's custom rules (group `custom`, defaults from their
+    /// manifests).
+    pub fn resolve_with(registry: &Registry, layers: &[RulesLayer]) -> Self {
+        let resolve_one = |name: &str, group: &str, default: Severity| {
+            let mut sev = default;
             for layer in layers {
-                let group = layer
+                let group_entry = layer
                     .iter()
                     .rev()
-                    .find(|(k, _)| k == rule.group)
+                    .find(|(k, _)| k == group)
                     .map(|(_, s)| *s);
-                let specific = layer
-                    .iter()
-                    .rev()
-                    .find(|(k, _)| k == rule.name)
-                    .map(|(_, s)| *s);
-                if let Some(s) = specific.or(group) {
+                let specific = layer.iter().rev().find(|(k, _)| k == name).map(|(_, s)| *s);
+                if let Some(s) = specific.or(group_entry) {
                     sev = s;
                 }
             }
-            by_reason.insert(rule.reason, sev);
+            sev
+        };
+        let mut by_reason = HashMap::new();
+        for rule in RULES {
+            by_reason.insert(
+                rule.reason.to_string(),
+                resolve_one(rule.name, rule.group, rule.default_severity),
+            );
         }
-        RuleSettings { by_reason }
+        let mut custom_reasons = Vec::new();
+        for rule in registry.custom_rules() {
+            let reason = format!("{CUSTOM_REASON_PREFIX}{}", rule.name);
+            by_reason.insert(
+                reason.clone(),
+                resolve_one(&rule.name, GROUP_CUSTOM, rule.default_severity),
+            );
+            custom_reasons.push(reason);
+        }
+        RuleSettings {
+            by_reason,
+            custom_reasons,
+        }
     }
 
     /// The severity of the rule behind a reason code. Unregistered reasons
@@ -280,6 +440,12 @@ impl RuleSettings {
     /// gate for skipping a whole detector pass (and its costs: index load,
     /// model download).
     pub fn group_enabled(&self, group: &str) -> bool {
+        if group == GROUP_CUSTOM {
+            return self
+                .custom_reasons
+                .iter()
+                .any(|r| self.severity_of_reason(r) != Severity::Off);
+        }
         RULES
             .iter()
             .filter(|r| r.group == group)
@@ -295,12 +461,22 @@ pub fn validate_layer(
     origin: &str,
     warnings: &mut Vec<String>,
 ) -> RulesLayer {
+    validate_layer_with(Registry::builtin(), raw, origin, warnings)
+}
+
+/// [`validate_layer`] against a run vocabulary (built-ins + custom rules).
+pub fn validate_layer_with(
+    registry: &Registry,
+    raw: &[(String, String)],
+    origin: &str,
+    warnings: &mut Vec<String>,
+) -> RulesLayer {
     let mut layer = RulesLayer::new();
     for (key, value) in raw {
-        if !known_selector(key) {
+        if !registry.known_selector(key) {
             warnings.push(format!(
                 "{origin}: [rules] unknown rule '{key}' — ignored (known: {})",
-                selector_names().join(", ")
+                registry.selector_names().join(", ")
             ));
             continue;
         }
@@ -445,5 +621,116 @@ mod tests {
         assert_eq!(label_for_reason("bpe"), "rare token sequence");
         assert_eq!(code_for_reason("none"), "none");
         assert_eq!(label_for_reason("none"), "none");
+    }
+
+    fn custom(name: &str) -> CustomRule {
+        CustomRule {
+            name: name.to_string(),
+            label: format!("{name} label"),
+            description: format!("{name} description"),
+            default_severity: Severity::Warn,
+        }
+    }
+
+    #[test]
+    fn custom_reasons_map_syntactically() {
+        assert_eq!(code_for_reason("custom:raw-sql"), "raw-sql");
+        assert!(selector_matches_reason("raw-sql", "custom:raw-sql"));
+        assert!(selector_matches_reason("custom", "custom:raw-sql"));
+        assert!(!selector_matches_reason("voice", "custom:raw-sql"));
+        assert!(!selector_matches_reason("other-rule", "custom:raw-sql"));
+    }
+
+    #[test]
+    fn custom_group_is_always_valid_vocabulary() {
+        assert!(known_selector("custom"));
+        assert!(selector_names().contains(&"custom"));
+        // But a rule name must still not shadow it (with_custom rejects).
+        let mut warnings = Vec::new();
+        let reg = Registry::with_custom(vec![custom("custom")], &mut warnings);
+        assert!(reg.custom_rules().is_empty());
+        assert_eq!(warnings.len(), 1);
+    }
+
+    #[test]
+    fn with_custom_rejects_collisions_and_bad_names() {
+        let mut warnings = Vec::new();
+        let reg = Registry::with_custom(
+            vec![
+                custom("raw-sql"),
+                custom("raw-sql"),        // duplicate
+                custom("foreign-import"), // shadows a built-in rule
+                custom("voice"),          // shadows a group
+                custom("Bad_Name"),       // not kebab-case
+            ],
+            &mut warnings,
+        );
+        assert_eq!(
+            reg.custom_rules().iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
+            vec!["raw-sql"]
+        );
+        assert_eq!(warnings.len(), 4);
+        assert!(reg.known_selector("raw-sql"));
+        assert!(!reg.known_selector("unregistered-rule"));
+        assert_eq!(reg.label_for_reason("custom:raw-sql"), "raw-sql label");
+        assert_eq!(reg.label_for_reason("custom:unknown"), "custom:unknown");
+        assert_eq!(reg.label_for_reason("bpe"), "rare token sequence");
+    }
+
+    #[test]
+    fn custom_severities_resolve_through_the_same_layers() {
+        let mut warnings = Vec::new();
+        let reg = Registry::with_custom(vec![custom("raw-sql")], &mut warnings);
+        assert!(warnings.is_empty());
+
+        // Manifest default applies with no layers.
+        let s = RuleSettings::resolve_with(&reg, &[]);
+        assert_eq!(s.severity_of_reason("custom:raw-sql"), Severity::Warn);
+        assert!(s.group_enabled(GROUP_CUSTOM));
+
+        // Rule-specific beats the `custom` group entry within a layer.
+        let layer = vec![
+            ("custom".to_string(), Severity::Off),
+            ("raw-sql".to_string(), Severity::Error),
+        ];
+        let s = RuleSettings::resolve_with(&reg, &[layer]);
+        assert_eq!(s.severity_of_reason("custom:raw-sql"), Severity::Error);
+
+        // Group off with no specific → the whole custom pass can be skipped.
+        let s = RuleSettings::resolve_with(&reg, &[vec![("custom".to_string(), Severity::Off)]]);
+        assert_eq!(s.severity_of_reason("custom:raw-sql"), Severity::Off);
+        assert!(!s.group_enabled(GROUP_CUSTOM));
+        // Built-in groups are untouched by the custom layer.
+        assert!(s.group_enabled(GROUP_VOICE));
+    }
+
+    #[test]
+    fn validate_layer_with_accepts_custom_keys() {
+        let mut warnings = Vec::new();
+        let reg = Registry::with_custom(vec![custom("raw-sql")], &mut warnings);
+        let layer = validate_layer_with(
+            &reg,
+            &[
+                ("raw-sql".to_string(), "error".to_string()),
+                ("unknown-thing".to_string(), "off".to_string()),
+            ],
+            "argot.toml",
+            &mut warnings,
+        );
+        assert_eq!(layer, vec![("raw-sql".to_string(), Severity::Error)]);
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].contains("unknown rule 'unknown-thing'"));
+        assert!(warnings[0].contains("raw-sql"), "custom rule listed as known");
+    }
+
+    #[test]
+    fn builtin_registry_matches_free_functions() {
+        let reg = Registry::builtin();
+        assert!(reg.custom_rules().is_empty());
+        for r in RULES {
+            assert!(reg.known_selector(r.name));
+            assert_eq!(reg.label_for_reason(r.reason), r.label);
+        }
+        assert_eq!(reg.selector_names(), selector_names());
     }
 }

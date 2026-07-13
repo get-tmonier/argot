@@ -2537,7 +2537,11 @@ fn gate_exit_code(visible: &[&Finding], settings: &RuleSettings, error_on_warnin
 /// matching the human rendering; severity is the rule's configured level;
 /// evidence lines are the same per-reason lines the human path prints, with
 /// layout indentation stripped.
-fn hit_records(hits: &[&Finding], settings: &RuleSettings) -> Vec<HitRecord> {
+fn hit_records(
+    hits: &[&Finding],
+    settings: &RuleSettings,
+    registry: &rules::Registry,
+) -> Vec<HitRecord> {
     hits.iter()
         .map(|h| HitRecord {
             path: h.file_path.clone(),
@@ -2548,7 +2552,7 @@ fn hit_records(hits: &[&Finding], settings: &RuleSettings) -> Vec<HitRecord> {
             confidence: confidence(&h.reason, h.score, h.threshold).to_string(),
             severity: settings.severity_of_reason(&h.reason).as_str().to_string(),
             rule: rules::code_for_reason(&h.reason).to_string(),
-            rule_label: rules::label_for_reason(&h.reason).to_string(),
+            rule_label: registry.label_for_reason(&h.reason).to_string(),
             source: h.source.clone(),
             hash: h.hash.clone(),
             evidence: h
@@ -2963,9 +2967,13 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     // `[[mute]]`. Loaded once here — the `[detect]` markers gate the check-time
     // auto-generated skip built into each scorer, so they must be in place
     // before load_scorers.
-    let config = ArgotConfig::load(Path::new(&args.repo_path));
+    // The run's rule vocabulary: built-ins plus (in a scripted-rules build)
+    // whatever `.argot/rules/` carries — discovered before config validation
+    // so custom [rules] keys and severities resolve like built-in ones.
+    let registry = rules::Registry::builtin();
+    let config = ArgotConfig::load_with(Path::new(&args.repo_path), registry);
     // Effective per-rule severities: defaults ⊕ [rules] ⊕ CLI --rule overrides.
-    let settings = config.rule_settings(&args.rule_overrides);
+    let settings = config.rule_settings_with(registry, &args.rule_overrides);
 
     let t_load = crate::timing::phase("check: load scorers");
     let Loaded {
@@ -3292,7 +3300,7 @@ pub fn run_check(args: CheckArgs) -> CheckOutcome {
     // warnings stay on stderr. Exit semantics match the human path (rule
     // severities decide, see gate_exit_code).
     if args.format.is_machine() {
-        let records = hit_records(&visible, &settings);
+        let records = hit_records(&visible, &settings, registry);
         let meta = report_meta(&args, scan_label, hunk_count, files_scanned, &model_hash);
         let mut stdout = render_machine(args.format, &meta, &records);
         // In the github format, the health notes ("model drifted", "config

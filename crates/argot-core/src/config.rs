@@ -25,7 +25,7 @@
 //! hidden — a fresh repo with no file falls back to [`ArgotConfig::default`]
 //! (identical values) *and* the next fit writes them out.
 
-use crate::rules::{validate_layer, RuleSettings, RulesLayer};
+use crate::rules::{validate_layer_with, Registry, RuleSettings, RulesLayer};
 use crate::suppress::path_rules::{default_recommended_patterns, PathSuppressions};
 use crate::suppress::rules_file::{build_mutes, RawMute, SuppressionRule, SuppressionsFile};
 use serde::Deserialize;
@@ -322,6 +322,12 @@ impl ArgotConfig {
     /// Absent files fall back to defaults; a malformed file degrades to defaults
     /// with a warning rather than failing the run.
     pub fn load(repo_root: &Path) -> Self {
+        Self::load_with(repo_root, Registry::builtin())
+    }
+
+    /// [`ArgotConfig::load`] validating `[rules]` keys against a run
+    /// vocabulary (built-ins + the repo's custom rules).
+    pub fn load_with(repo_root: &Path, registry: &Registry) -> Self {
         let mut warnings = Vec::new();
         let mut collect = |path: &Path| match read_raw(path) {
             Ok(raw) => raw,
@@ -380,7 +386,7 @@ impl ArgotConfig {
                     (k, value)
                 })
                 .collect();
-            rules.push(validate_layer(&entries, origin, &mut warnings));
+            rules.push(validate_layer_with(registry, &entries, origin, &mut warnings));
         }
 
         // [update] / [fit]: scalars — local wins.
@@ -439,11 +445,21 @@ impl ArgotConfig {
     /// Resolve the effective per-rule severities: registry defaults ⊕ config
     /// layers ⊕ the (already-validated) CLI `--rule` overrides.
     pub fn rule_settings(&self, cli_overrides: &RulesLayer) -> RuleSettings {
+        self.rule_settings_with(Registry::builtin(), cli_overrides)
+    }
+
+    /// [`ArgotConfig::rule_settings`] against a run vocabulary — custom rules
+    /// resolve from their manifest defaults through the same layers.
+    pub fn rule_settings_with(
+        &self,
+        registry: &Registry,
+        cli_overrides: &RulesLayer,
+    ) -> RuleSettings {
         let mut layers = self.rules.clone();
         if !cli_overrides.is_empty() {
             layers.push(cli_overrides.clone());
         }
-        RuleSettings::resolve(&layers)
+        RuleSettings::resolve_with(registry, &layers)
     }
 
     /// The resolved path-level suppression set (scope filter for check,
