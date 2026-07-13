@@ -54,7 +54,10 @@ impl Phase {
 impl Drop for Phase {
     fn drop(&mut self) {
         if let Some(label) = &self.label {
-            eprintln!("[timing] {label}: {:.2}s", self.start.elapsed().as_secs_f64());
+            eprintln!(
+                "[timing] {label}: {:.2}s",
+                self.start.elapsed().as_secs_f64()
+            );
         }
     }
 }
