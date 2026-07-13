@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Download the pinned GGUF and check its sha256
         run: |
-          SRC=crates/argot-core/src/scoring/semantic/embedder.rs
+          SRC=crates/argot-rules-semantic/src/embedder.rs
           URL=$(grep -o 'https://[^"]*\.gguf' "$SRC" | head -1)
           SHA=$(grep -m1 'MODEL_SHA256' "$SRC" | grep -o '[0-9a-f]\{64\}')
           echo "pinned: $URL"
