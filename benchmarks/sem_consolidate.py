@@ -17,7 +17,7 @@ The fire sets are deterministic at a fixed window, so the labels' genuine-rate a
 to the sweep's raw fire count (exact when fully labelled, scaled when sampled — the row
 is marked `fp_sampled`). Usage: benchmarks/sem_consolidate.py [--window N]
 """
-import json, os, glob, subprocess, sys
+import json, os, glob, subprocess, sys, datetime
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RESULTS = os.path.join(ROOT, "benchmarks", "results")
@@ -102,8 +102,8 @@ def main():
 
     commit = subprocess.run(["git", "-C", ROOT, "rev-parse", "--short", "HEAD"],
                             capture_output=True, text=True).stdout.strip()
-    doc = {"generated_at": "2026-07-08", "commit": commit, "window": WINDOW,
-           "reinvention": f1, "misplacement": f2}
+    doc = {"generated_at": datetime.date.today().isoformat(), "commit": commit,
+           "window": WINDOW, "reinvention": f1, "misplacement": f2}
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     json.dump(doc, open(OUT, "w"), indent=1)
 

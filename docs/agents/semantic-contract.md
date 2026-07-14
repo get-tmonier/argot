@@ -35,9 +35,9 @@ recently added functions against the index and estimates the false-fire rate.
 Repos that practice *systematic parallel implementation* (per-locale providers,
 checkout/order mirrors, protocol-variant families) trip a **twin-rate guard**
 and get a stricter **conservative mode** automatically. This is what holds
-false-fire ≤ 2.8%/hunk on all 31 corpora with no per-corpus exceptions — do not
-replace it with hardcoded per-repo knobs (`CLAUDE.md`: no corpus-specific
-strings in prod).
+reinvention false-fire to a median 0.4%/hunk (≤ 2% on 30 of 31 corpora; jellyfin
+the lone outlier at 4.5%) — do not replace it with hardcoded per-repo knobs
+(`CLAUDE.md`: no corpus-specific strings in prod).
 
 ## F2 · placement — learned granularity, honest abstention
 

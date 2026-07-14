@@ -143,7 +143,7 @@ const fr: SiteContent = {
         desc: '595 sur 605 — en ne se déclenchant que sur [[0,29 % des vraies modifications]].',
       },
       {
-        value: '94 %',
+        value: '89 %',
         title: 'réinventions détectées · médiane',
         desc: 'Des réécritures des [[propres fonctions]] du dépôt, retracées à l’originale.',
       },
@@ -160,7 +160,7 @@ const fr: SiteContent = {
       {
         value: '94 %',
         title: 'trucages de tests détectés',
-        desc: '144 sur 153 · 0 refactoring légitime signalé · [[1,24 %]] des commits acceptés touchant aux tests, à sévérité bloquante.',
+        desc: '144 sur 153 · 0 refactoring légitime signalé · [[1,12 %]] des commits acceptés touchant aux tests, à sévérité bloquante.',
       },
     ],
     languages:

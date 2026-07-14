@@ -27,11 +27,26 @@ Usage:
   benchmarks/sem_all.py --out PATH        # results JSONL (default results/sem_all.jsonl)
 Env: ARGOT (binary), ARGOT_SEMANTIC_MODEL (gguf path).
 """
-import argparse, json, os, subprocess, sys, time, shutil, glob
+import argparse, json, os, subprocess, sys, time, shutil, glob, yaml
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "benchmarks", "data")
 FIXT = os.path.join(ROOT, "benchmarks", "semantic-fixtures")
+
+
+def _load_pins():
+    """Pinned fit SHA per corpus — `targets.yaml` `prs[0]` (`pr: 0` = the primary
+    HEAD), the SAME commit the base/arch/integrity benches fit at. Fitting the pin
+    (not the mirror's drifting HEAD) keeps the semantic numbers reproducible and
+    comparable across layers."""
+    try:
+        t = yaml.safe_load(open(os.path.join(ROOT, "benchmarks", "targets.yaml")))
+        return {c["name"]: c["prs"][0]["sha"] for c in t.get("targets", []) if c.get("prs")}
+    except Exception:
+        return {}
+
+
+PINS = _load_pins()
 
 # corpus → source language (drives sem_bench's plant extension + the reported label)
 LANG = {"fastapi": "python", "rich": "python", "faker": "python", "scrapy": "python",
@@ -69,11 +84,14 @@ def last_json(s):
 
 
 def clean(repo, corpus):
-    """Restore the clone to a pristine HEAD checkout and drop everything a prior
+    """Restore the clone to a pristine checkout at the corpus's PINNED fit SHA
+    (targets.yaml — the same commit base/arch/integrity fit, so numbers are
+    reproducible and not the mirror's drifting HEAD) and drop everything a prior
     fit/bench could have left behind (fit artifacts + any planted reimpl dir left
-    by a killed sem_bench — those would otherwise get baked into the next voice)."""
-    head = git(repo, "rev-parse", "HEAD")
-    git(repo, "checkout", "-q", "-f", head)
+    by a killed sem_bench — those would otherwise get baked into the next voice).
+    Falls back to HEAD for a corpus absent from targets.yaml."""
+    sha = PINS.get(corpus) or git(repo, "rev-parse", "HEAD")
+    git(repo, "checkout", "-q", "-f", sha)
     git(repo, "checkout", "-q", "--", ".gitignore")
     for art in ("argot.toml", ".argotignore"):
         try:
@@ -82,7 +100,7 @@ def clean(repo, corpus):
             pass
     shutil.rmtree(os.path.join(repo, ".argot"), ignore_errors=True)
     shutil.rmtree(os.path.join(repo, plant_rel(corpus)), ignore_errors=True)
-    return head
+    return sha
 
 
 def fit(repo, env, timeout):
