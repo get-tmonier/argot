@@ -119,7 +119,11 @@ def main():
             "overfire_new_pct": rate(f.get("fp_new_overfire") or f.get("fp_new_file")),
             "under_sampled": f.get("under_sampled", False),
         })
-    json.dump({"generated_at": "2026-07-08", "corpora": rows}, open(OUT, "w"), indent=1)
+    # Same-provenance stamp: foreign.json must carry the run that produced the
+    # dashboard it joins against, so the two datasets can never silently drift.
+    dash = json.load(open(LATEST))
+    json.dump({"generated_at": dash["generated_at"][:10], "commit": dash["commit"],
+               "corpora": rows}, open(OUT, "w"), indent=1)
 
     agg = defaultdict(lambda: [0, 0])
     for r in rows:

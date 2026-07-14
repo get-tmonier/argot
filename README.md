@@ -178,7 +178,7 @@ argot is additive: it sits *after* your type checker and linter and catches the 
 
 **Honest, leak-free numbers**, measured by the real `fit → check` pipeline — foreign fixtures spliced into real host files; false alarms counted on a temporal holdout the model never saw:
 
-- **Foreign catch — 604/618 (98%)** when the foreign symbol is visible in the diff · **false alarms 0.22%** of 22,785 real hunks (worst corpus 1.17%)
+- **Foreign catch — 595/605 (98%)** when the foreign symbol is visible in the diff · **false alarms 0.29%** of 22,513 real hunks (worst corpus 1.46%)
 - **Architecture — 244/252 (96.8%)** caught · **0/140** controls flagged · ≤2.7% over-fire on replayed real history
 - **Reinvention — median 94%** at ≤2.8% false fires per hunk · **Misplacement — 86–99% (median 96%)** at ≤1.5%, where the repo has separable architecture
 - **Test-integrity — 144/153 (94.1%)** gaming tactics caught · **0/102** legitimate-refactor controls · 1.24% of 3,540 replayed accepted test-touching commits flagged at gating severity

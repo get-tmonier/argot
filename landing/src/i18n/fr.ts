@@ -140,7 +140,7 @@ const fr: SiteContent = {
       {
         value: '98 %',
         title: 'motifs étrangers détectés',
-        desc: '604 sur 618 — en ne se déclenchant que sur [[0,22 % des vraies modifications]].',
+        desc: '595 sur 605 — en ne se déclenchant que sur [[0,29 % des vraies modifications]].',
       },
       {
         value: '94 %',

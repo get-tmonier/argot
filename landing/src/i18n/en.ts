@@ -141,7 +141,7 @@ const en: SiteContent = {
       {
         value: '98%',
         title: 'foreign patterns caught',
-        desc: '604 of 618 — while firing on just [[0.22% of real edits]].',
+        desc: '595 of 605 — while firing on just [[0.29% of real edits]].',
       },
       {
         value: '94%',
