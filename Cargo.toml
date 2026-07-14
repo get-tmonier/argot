@@ -60,8 +60,9 @@ tree-sitter-ruby = "0.23"
 # when a commit in the blame graph has an empty author email (`name <>`) —
 # `hunk_from_entry` fails, `blame_internal` inserts the NULL unchecked, and
 # `git_blame_free` segfaults (reproduced on rubocop, `argot audit`
-# attribution). Re-upgrade only once upstream guards that insert; the
-# `blame_survives_empty_email_author` test is the canary.
+# attribution). Reported: https://github.com/libgit2/libgit2/issues/7313.
+# Re-upgrade only once that lands; the `blame_survives_empty_email_author`
+# test is the canary.
 git2 = { version = "0.19", default-features = false, features = ["vendored-libgit2"] }
 # Same codebase as the Python `tokenizers` (0.22.2) that transformers wraps;
 # loading the exact serialised `tokenizer.json` gives bit-identical `encode`.
