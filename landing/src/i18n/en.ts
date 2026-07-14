@@ -106,7 +106,7 @@ const en: SiteContent = {
   },
   engine: {
     label: 'Under the hood',
-    title: 'Semantic understanding. No LLM anywhere.',
+    title: 'Semantic understanding. No generative LLM anywhere.',
     body: 'Four engines, one static [[Rust]] binary, all learned from your git history — nothing leaves your machine.',
     cards: [
       {
@@ -141,7 +141,7 @@ const en: SiteContent = {
       {
         value: '98%',
         title: 'foreign patterns caught',
-        desc: '604 of 618 — while firing on just [[0.22% of real edits]].',
+        desc: '595 of 605 — while firing on just [[0.29% of real edits]].',
       },
       {
         value: '94%',
@@ -156,12 +156,12 @@ const en: SiteContent = {
       {
         value: '96.8%',
         title: 'architecture violations caught',
-        desc: '244 of 252 layering reversals, at [[zero false positives]] (0 of 140 controls).',
+        desc: '244 of 252 layering reversals, at [[zero false positives]] on control edits (0 of 140 · ≤2.7% over-fire on replayed history).',
       },
       {
         value: '94%',
         title: 'test-gaming edits caught',
-        desc: '144 of 153 · 0 legitimate refactors flagged · [[1.24%]] on real accepted commits.',
+        desc: '144 of 153 · 0 legitimate refactors flagged · [[1.24%]] of accepted test-touching commits, at gating severity.',
       },
     ],
     languages:

@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>Your codebase has a voice. argot makes AI code speak it.</strong><br/>
-  <em>AI writes the code. argot harnesses it with the one thing that can't hallucinate: your repo's own history. Statistics, not a second LLM — flagging a dependency you've never used, a function you already wrote, an import that breaks your layering, a test quietly weakened, a convention only your team knows. 100% local, deterministic.</em>
+  <em>AI writes the code. argot harnesses it with the one thing that can't hallucinate: your repo's own history. Statistics, not a second LLM — flagging a dependency you've never used, a function you already wrote, an import that breaks your layering, a test quietly weakened, a convention only your team knows. 100% local, replayable.</em>
 </p>
 
 <p align="center">
@@ -22,6 +22,7 @@
   <a href="https://www.npmjs.com/package/@tmonier/argot"><img src="https://img.shields.io/npm/v/@tmonier/argot?logo=npm" alt="npm" /></a>
   <a href="https://github.com/get-tmonier/argot/actions/workflows/ci.yml"><img src="https://github.com/get-tmonier/argot/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://github.com/get-tmonier/argot/blob/main/LICENSE"><img src="https://img.shields.io/github/license/get-tmonier/argot?color=E67E45" alt="License" /></a>
+  <img src="https://img.shields.io/badge/status-alpha-5B8DEF" alt="Status: alpha" />
   <img src="https://img.shields.io/badge/rust-single%20static%20binary-DEA584?logo=rust&logoColor=white" alt="Rust" />
   <img src="https://img.shields.io/badge/100%25-local%20%C2%B7%20no%20cloud-brightgreen" alt="100% local, no cloud" />
   &nbsp;·&nbsp;<a href="https://argot.tmonier.com/docs/languages/">11 languages →</a>
@@ -29,7 +30,7 @@
 
 ---
 
-Type checkers ask *"is this valid?"* argot asks the question that used to live in code review: *"is this how **we** do it here?"* — and catches AI code that's flawless, type-correct, lint-clean, and still doesn't belong. It answers with statistics on your repo's own history — deterministic, replayable, local — never a second LLM judging the first.
+Type checkers ask *"is this valid?"* argot asks the question that used to live in code review: *"is this how **we** do it here?"* — and catches AI code that's flawless, type-correct, lint-clean, and still doesn't belong. It answers with statistics on your repo's own history — the statistical core deterministic and replayable, everything local — never a second LLM judging the first.
 
 It also asks a second question no other tool asks: **did the AI play fair?** When an agent can't make a failing test pass, the cheapest path to "done" is to make the test stop looking. argot reads both sides of every diff and pairs a weakened, disabled, or deleted test with the production change it covers.
 
@@ -177,12 +178,12 @@ argot is additive: it sits *after* your type checker and linter and catches the 
 
 **Honest, leak-free numbers**, measured by the real `fit → check` pipeline — foreign fixtures spliced into real host files; false alarms counted on a temporal holdout the model never saw:
 
-- **Foreign catch — 604/618 (98%)** when the foreign symbol is visible in the diff · **false alarms 0.22%** of 22,785 real hunks (worst corpus 1.17%)
-- **Architecture — 244/252 (96.8%)** caught · **0/140** controls flagged
-- **Reinvention — median 94%** · **Misplacement — 86–99%** where the repo has separable architecture
-- **Test-integrity — 144/153 (94.1%)** gaming tactics caught · **0/102** legitimate-refactor controls · 1.24% of 3,540 replayed accepted commits flagged
+- **Foreign catch — 595/605 (98%)** when the foreign symbol is visible in the diff · **false alarms 0.29%** of 22,513 real hunks (worst corpus 1.46%)
+- **Architecture — 244/252 (96.8%)** caught · **0/140** controls flagged · ≤2.7% over-fire on replayed real history
+- **Reinvention — median 94%** at ≤2.8% false fires per hunk · **Misplacement — 86–99% (median 96%)** at ≤1.5%, where the repo has separable architecture
+- **Test-integrity — 144/153 (94.1%)** gaming tactics caught · **0/102** legitimate-refactor controls · 1.24% of 3,540 replayed accepted test-touching commits flagged at gating severity
 
-One documented limit: **masked foreign** — a foreign symbol whose name collides with one you already use — is statistically invisible to a voice model. We publish that number rather than hide it. Per-language and per-corpus tables, methodology, confidence intervals: [benchmarks page](https://argot.tmonier.com/benchmarks) (CI-fed, can't drift from what ships). Want a language validated? [Open an issue](https://github.com/get-tmonier/argot/issues/new).
+One documented limit: **masked foreign** — a foreign symbol whose name collides with one you already use — is statistically invisible to a voice model. We publish that number rather than hide it. And the method, stated plainly: catch rates are measured on fixtures we authored under a [pre-registered rubric](benchmarks/catalogs/RUBRIC.md) frozen before scoring; false alarms are counted on real commits the model never saw. Independent validation is welcome — that's what the reproducible harness is for. Per-language and per-corpus tables, methodology, confidence intervals: [benchmarks page](https://argot.tmonier.com/benchmarks) (CI-fed, can't drift from what ships). Want a language validated? [Open an issue](https://github.com/get-tmonier/argot/issues/new).
 
 ## CI
 

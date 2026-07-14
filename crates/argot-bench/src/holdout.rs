@@ -71,20 +71,24 @@ pub struct SplitFp {
     pub ci95: Option<(f64, f64)>,
 }
 
-/// Whether a hit's winning reason is an *over-fire* (a false alarm on the
+/// Whether a hit's winning rule is an *over-fire* (a false alarm on the
 /// repo's own code) rather than a *novel-pattern detection*.
 ///
-/// The import and call-receiver stages fire only on a symbol/module verified
-/// 0-usage in the repo at the fit SHA (a foreign import, an unattested
-/// callee/namespace) — argot's one job — so a fire there on a real later commit
-/// is a correct detection of a genuinely-new pattern (a new dependency, a new
-/// stdlib API), not a false alarm. The bpe stage (distributional surprise over
-/// the repo's *own* tokens) and the convention stage carry no 0-usage guarantee,
-/// so a fire there is counted as over-fire. Conservative: this *over*-counts
-/// over-fire (some bpe fires are real novel patterns), making the reported
-/// over-fire rate an honest ceiling on argot's true false-alarm rate.
-pub fn is_overfire(reason: &str) -> bool {
-    matches!(reason, "bpe" | "convention")
+/// `foreign-import` and `unfamiliar-callee` fire only on a symbol/module
+/// verified 0-usage in the repo at the fit SHA (a foreign import, an
+/// unattested callee/namespace) — argot's one job — so a fire there on a real
+/// later commit is a correct detection of a genuinely-new pattern (a new
+/// dependency, a new stdlib API), not a false alarm. Every other rule
+/// (`rare-tokens`' distributional surprise over the repo's *own* tokens,
+/// `convention`, and anything future) carries no 0-usage guarantee, so its
+/// fires count as over-fire. Conservative: this *over*-counts over-fire (some
+/// rare-tokens fires are real novel patterns), making the reported over-fire
+/// rate an honest ceiling on argot's true false-alarm rate.
+///
+/// Takes the hit's `rule` field (the check JSON schema's stable rule name —
+/// the pre-v1 `reason` codes no longer appear in the output).
+pub fn is_overfire(rule: &str) -> bool {
+    !matches!(rule, "foreign-import" | "unfamiliar-callee")
 }
 
 /// Per-language tally within one commit. `*_overfire` counts the subset of
@@ -355,7 +359,7 @@ pub fn run_corpus_holdout(target: &Target, opts: &HoldoutOptions) -> Result<Hold
                 continue;
             };
             let new_file = !fit_files.contains(path);
-            let reason = h["reason"].as_str().unwrap_or("");
+            let reason = h["rule"].as_str().unwrap_or("");
             let overfire = is_overfire(reason);
             let tally = by_lang.entry(lang.to_string()).or_default();
             if new_file {
@@ -574,6 +578,25 @@ pub fn write_holdout_reports(results_dir: &Path, reports: &[HoldoutReport]) -> R
 mod tests {
     use super::*;
     use crate::targets::{PrPin, Target};
+
+    /// The over-fire split reads the check JSON's `rule` field; this binds the
+    /// classifier to the live rule registry so a rule rename can't silently
+    /// reclassify every fire as a detection again (the July 2026 0.000% bug).
+    #[test]
+    fn overfire_split_tracks_the_rule_registry() {
+        let names: Vec<&str> = argot_core::rules::RULES.iter().map(|r| r.name).collect();
+        for detection in ["foreign-import", "unfamiliar-callee"] {
+            assert!(names.contains(&detection), "{detection} left the registry");
+            assert!(!is_overfire(detection));
+        }
+        for name in &names {
+            if !matches!(*name, "foreign-import" | "unfamiliar-callee") {
+                assert!(is_overfire(name), "{name} must count as over-fire");
+            }
+        }
+        // An unknown/missing rule field must never pass as a detection.
+        assert!(is_overfire(""));
+    }
 
     fn git(dir: &Path, args: &[&str]) {
         let st = Command::new("git")

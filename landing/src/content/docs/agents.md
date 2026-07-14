@@ -78,7 +78,7 @@ no separate runtime. It exposes four tools:
 | `argot.voice_context` | **before** generating code for a file | typical callees and familiar imports for the file's language — bias generation toward local idioms |
 | `argot.check` | on a generated hunk | whether it's out of voice, the score, the rule that fired, and evidence |
 | `argot.explain` | to understand a hit | the rule plus the full evidence trail |
-| `argot.fit_status` | to gauge trust | corpus composition, calibration freshness, and a Ready / Marginal / Not-recommended verdict |
+| `argot.fit_status` | to gauge trust | corpus composition, calibration freshness, and a Ready / Ready-with-notes / Not-recommended verdict |
 
 **Tool inputs and responses.** `argot.check` and `argot.explain` take `file_path` and `hunk_content`
 (both required) plus optional `file_source` (the full file, for better context); they return

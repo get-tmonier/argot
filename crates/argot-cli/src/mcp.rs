@@ -116,7 +116,7 @@ fn tool_definitions() -> Value {
         },
         {
             "name": "argot.fit_status",
-            "description": "Report whether the repo is well-fitted for argot: corpus composition, calibration freshness, and a Ready / Marginal / Not-recommended verdict.",
+            "description": "Report whether the repo is well-fitted for argot: corpus composition, calibration freshness, and a Ready / Ready-with-notes / Not-recommended verdict.",
             "inputSchema": json!({ "type": "object", "properties": {} }),
         },
     ])

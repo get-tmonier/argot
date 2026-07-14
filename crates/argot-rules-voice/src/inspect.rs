@@ -54,7 +54,8 @@ pub const POLYGLOT_MINORITY_SHARE: f64 = 0.20;
 #[serde(rename_all = "snake_case")]
 pub enum Verdict {
     Ready,
-    Marginal,
+    /// Fitted and usable — the yellow notes are tuning hints, not blockers.
+    ReadyWithNotes,
     NotRecommended,
 }
 
@@ -573,14 +574,14 @@ pub fn compute_verdict(corpus: &CorpusReport) -> (Verdict, Vec<Reason>) {
     (verdict_from_reasons(&reasons), reasons)
 }
 
-/// Any red → not recommended; any reason at all → marginal; else ready.
+/// Any red → not recommended; any reason at all → ready-with-notes; else ready.
 pub fn verdict_from_reasons(reasons: &[Reason]) -> Verdict {
     if reasons.iter().any(|r| r.level == ReasonLevel::Red) {
         Verdict::NotRecommended
     } else if reasons.is_empty() {
         Verdict::Ready
     } else {
-        Verdict::Marginal
+        Verdict::ReadyWithNotes
     }
 }
 

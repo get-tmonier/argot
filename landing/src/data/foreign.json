@@ -1,5 +1,6 @@
 {
- "generated_at": "2026-07-08",
+ "generated_at": "2026-07-14",
+ "commit": "7be8b1eb",
  "corpora": [
   {
    "corpus": "bat",
@@ -13,7 +14,7 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 93,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     },
     "foreign_api": {
      "caught": 6,
@@ -23,7 +24,7 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 75,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     }
    },
    "secondary": {},
@@ -44,7 +45,7 @@
      "masked_total": 1,
      "masked_pct": 100,
      "overall_pct": 100,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     },
     "foreign_api": {
      "caught": 5,
@@ -54,7 +55,7 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 83,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     }
    },
    "secondary": {
@@ -76,7 +77,7 @@
      "masked_total": 1,
      "masked_pct": 100,
      "overall_pct": 50,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     }
    },
    "overfire_existing_pct": 0.0,
@@ -96,7 +97,7 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 86,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     },
     "foreign_api": {
      "caught": 7,
@@ -106,7 +107,7 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 88,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     }
    },
    "secondary": {},
@@ -127,7 +128,7 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 86,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     },
     "foreign_api": {
      "caught": 6,
@@ -137,7 +138,7 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 75,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     }
    },
    "secondary": {},
@@ -151,49 +152,39 @@
    "language": "Python",
    "classes": {
     "foreign_import": {
-     "caught": 11,
-     "total": 11,
+     "caught": 6,
+     "total": 6,
      "pct": 100,
      "masked_caught": 0,
      "masked_total": 0,
      "masked_pct": null,
      "overall_pct": 100,
-     "reason": "import"
+     "reason": "foreign-import"
     },
     "foreign_api": {
-     "caught": 7,
-     "total": 10,
-     "pct": 70,
-     "masked_caught": 3,
-     "masked_total": 7,
-     "masked_pct": 43,
-     "overall_pct": 59,
-     "reason": "import"
+     "caught": 3,
+     "total": 3,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 60,
+     "reason": "foreign-import"
     }
    },
    "secondary": {
     "semantic_convention": {
      "caught": 3,
-     "total": 8,
-     "pct": 38,
-     "masked_caught": 2,
-     "masked_total": 3,
-     "masked_pct": 67,
-     "overall_pct": 45,
-     "reason": "import"
-    },
-    "naming_shape_break": {
-     "caught": 0,
-     "total": 1,
-     "pct": 0,
-     "masked_caught": 0,
-     "masked_total": 0,
-     "masked_pct": null,
-     "overall_pct": 0,
-     "reason": null
+     "total": 7,
+     "pct": 43,
+     "masked_caught": 1,
+     "masked_total": 2,
+     "masked_pct": 50,
+     "overall_pct": 44,
+     "reason": "foreign-import"
     }
    },
-   "overfire_existing_pct": 0.14,
+   "overfire_existing_pct": 0.0,
    "detection_existing_pct": 0.0,
    "overfire_new_pct": 0.0,
    "under_sampled": false
@@ -210,7 +201,7 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 92,
-     "reason": "import"
+     "reason": "foreign-import"
     },
     "foreign_api": {
      "caught": 5,
@@ -220,7 +211,7 @@
      "masked_total": 1,
      "masked_pct": 100,
      "overall_pct": 100,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     }
    },
    "secondary": {
@@ -262,7 +253,7 @@
      "masked_total": 1,
      "masked_pct": 100,
      "overall_pct": 100,
-     "reason": "import"
+     "reason": "foreign-import"
     },
     "foreign_api": {
      "caught": 10,
@@ -272,7 +263,7 @@
      "masked_total": 3,
      "masked_pct": 0,
      "overall_pct": 71,
-     "reason": "import"
+     "reason": "foreign-import"
     }
    },
    "secondary": {
@@ -284,7 +275,7 @@
      "masked_total": 2,
      "masked_pct": 50,
      "overall_pct": 17,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     }
    },
    "overfire_existing_pct": 0.0,
@@ -304,7 +295,7 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 92,
-     "reason": "import"
+     "reason": "foreign-import"
     },
     "foreign_api": {
      "caught": 5,
@@ -314,7 +305,7 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 83,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     }
    },
    "secondary": {
@@ -356,7 +347,7 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 92,
-     "reason": "import"
+     "reason": "foreign-import"
     },
     "foreign_api": {
      "caught": 11,
@@ -366,7 +357,7 @@
      "masked_total": 6,
      "masked_pct": 50,
      "overall_pct": 78,
-     "reason": "import"
+     "reason": "foreign-import"
     }
    },
    "secondary": {
@@ -378,7 +369,7 @@
      "masked_total": 1,
      "masked_pct": 100,
      "overall_pct": 100,
-     "reason": "import"
+     "reason": "foreign-import"
     }
    },
    "overfire_existing_pct": 0.92,
@@ -398,7 +389,7 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 91,
-     "reason": "import"
+     "reason": "foreign-import"
     },
     "foreign_api": {
      "caught": 8,
@@ -408,7 +399,7 @@
      "masked_total": 3,
      "masked_pct": 33,
      "overall_pct": 82,
-     "reason": "import"
+     "reason": "foreign-import"
     }
    },
    "secondary": {
@@ -420,7 +411,7 @@
      "masked_total": 11,
      "masked_pct": 18,
      "overall_pct": 29,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     }
    },
    "overfire_existing_pct": 0.0,
@@ -433,39 +424,39 @@
    "language": "Python",
    "classes": {
     "foreign_import": {
-     "caught": 12,
-     "total": 12,
+     "caught": 11,
+     "total": 11,
      "pct": 100,
      "masked_caught": 0,
-     "masked_total": 3,
-     "masked_pct": 0,
-     "overall_pct": 80,
-     "reason": "import"
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 100,
+     "reason": "foreign-import"
     },
     "foreign_api": {
-     "caught": 8,
+     "caught": 9,
      "total": 9,
-     "pct": 89,
-     "masked_caught": 0,
-     "masked_total": 6,
-     "masked_pct": 0,
-     "overall_pct": 53,
-     "reason": "import"
+     "pct": 100,
+     "masked_caught": 1,
+     "masked_total": 5,
+     "masked_pct": 20,
+     "overall_pct": 71,
+     "reason": "foreign-import"
     }
    },
    "secondary": {
     "semantic_convention": {
-     "caught": 11,
-     "total": 20,
-     "pct": 55,
-     "masked_caught": 3,
-     "masked_total": 6,
+     "caught": 12,
+     "total": 14,
+     "pct": 86,
+     "masked_caught": 1,
+     "masked_total": 2,
      "masked_pct": 50,
-     "overall_pct": 54,
-     "reason": "call_receiver"
+     "overall_pct": 81,
+     "reason": "unfamiliar-callee"
     }
    },
-   "overfire_existing_pct": 0.35,
+   "overfire_existing_pct": 1.46,
    "detection_existing_pct": 0.87,
    "overfire_new_pct": 0.0,
    "under_sampled": false
@@ -482,7 +473,7 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 93,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     },
     "foreign_api": {
      "caught": 6,
@@ -492,7 +483,7 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 67,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     }
    },
    "secondary": {},
@@ -513,7 +504,7 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 91,
-     "reason": "import"
+     "reason": "foreign-import"
     },
     "foreign_api": {
      "caught": 8,
@@ -523,7 +514,7 @@
      "masked_total": 3,
      "masked_pct": 0,
      "overall_pct": 67,
-     "reason": "import"
+     "reason": "foreign-import"
     }
    },
    "secondary": {
@@ -535,7 +526,7 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 33,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     },
     "naming_shape_break": {
      "caught": 0,
@@ -565,7 +556,7 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 86,
-     "reason": "import"
+     "reason": "foreign-import"
     },
     "foreign_api": {
      "caught": 7,
@@ -575,7 +566,7 @@
      "masked_total": 3,
      "masked_pct": 33,
      "overall_pct": 80,
-     "reason": "bpe"
+     "reason": "rare-tokens"
     }
    },
    "secondary": {
@@ -587,7 +578,7 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 10,
-     "reason": "bpe"
+     "reason": "rare-tokens"
     },
     "naming_shape_break": {
      "caught": 0,
@@ -617,7 +608,7 @@
      "masked_total": 2,
      "masked_pct": 100,
      "overall_pct": 100,
-     "reason": "import"
+     "reason": "foreign-import"
     },
     "foreign_api": {
      "caught": 8,
@@ -627,7 +618,7 @@
      "masked_total": 3,
      "masked_pct": 100,
      "overall_pct": 100,
-     "reason": "import"
+     "reason": "foreign-import"
     }
    },
    "secondary": {
@@ -639,7 +630,7 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 11,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     },
     "naming_shape_break": {
      "caught": 0,
@@ -669,7 +660,7 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 86,
-     "reason": "import"
+     "reason": "foreign-import"
     },
     "foreign_api": {
      "caught": 11,
@@ -679,7 +670,7 @@
      "masked_total": 5,
      "masked_pct": 20,
      "overall_pct": 75,
-     "reason": "import"
+     "reason": "foreign-import"
     }
    },
    "secondary": {
@@ -691,7 +682,7 @@
      "masked_total": 3,
      "masked_pct": 0,
      "overall_pct": 40,
-     "reason": "import"
+     "reason": "foreign-import"
     }
    },
    "overfire_existing_pct": 0.0,
@@ -711,7 +702,7 @@
      "masked_total": 1,
      "masked_pct": 100,
      "overall_pct": 100,
-     "reason": "import"
+     "reason": "foreign-import"
     },
     "foreign_api": {
      "caught": 7,
@@ -721,7 +712,7 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 78,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     }
    },
    "secondary": {},
@@ -742,7 +733,7 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 92,
-     "reason": "import"
+     "reason": "foreign-import"
     },
     "foreign_api": {
      "caught": 9,
@@ -752,7 +743,7 @@
      "masked_total": 2,
      "masked_pct": 100,
      "overall_pct": 100,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     }
    },
    "secondary": {
@@ -764,7 +755,7 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 85,
-     "reason": "bpe"
+     "reason": "rare-tokens"
     }
    },
    "overfire_existing_pct": 0.0,
@@ -784,7 +775,7 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 92,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     },
     "foreign_api": {
      "caught": 7,
@@ -794,7 +785,7 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 70,
-     "reason": "import"
+     "reason": "foreign-import"
     }
    },
    "secondary": {},
@@ -815,7 +806,7 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 86,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     },
     "foreign_api": {
      "caught": 7,
@@ -825,7 +816,7 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 88,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     }
    },
    "secondary": {},
@@ -846,7 +837,7 @@
      "masked_total": 0,
      "masked_pct": null,
      "overall_pct": 100,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     },
     "foreign_api": {
      "caught": 10,
@@ -856,7 +847,7 @@
      "masked_total": 4,
      "masked_pct": 25,
      "overall_pct": 79,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     }
    },
    "secondary": {
@@ -868,7 +859,7 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 33,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     },
     "naming_shape_break": {
      "caught": 0,
@@ -898,7 +889,7 @@
      "masked_total": 0,
      "masked_pct": null,
      "overall_pct": 100,
-     "reason": "import"
+     "reason": "foreign-import"
     },
     "foreign_api": {
      "caught": 8,
@@ -908,7 +899,7 @@
      "masked_total": 6,
      "masked_pct": 0,
      "overall_pct": 50,
-     "reason": "import"
+     "reason": "foreign-import"
     }
    },
    "secondary": {
@@ -920,7 +911,7 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 50,
-     "reason": "import"
+     "reason": "foreign-import"
     }
    },
    "overfire_existing_pct": 0.11,
@@ -940,7 +931,7 @@
      "masked_total": 2,
      "masked_pct": 50,
      "overall_pct": 93,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     },
     "foreign_api": {
      "caught": 8,
@@ -950,7 +941,7 @@
      "masked_total": 2,
      "masked_pct": 50,
      "overall_pct": 82,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     }
    },
    "secondary": {
@@ -992,7 +983,7 @@
      "masked_total": 3,
      "masked_pct": 67,
      "overall_pct": 93,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     },
     "foreign_api": {
      "caught": 8,
@@ -1002,7 +993,7 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 89,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     }
    },
    "secondary": {
@@ -1014,7 +1005,7 @@
      "masked_total": 3,
      "masked_pct": 0,
      "overall_pct": 10,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     },
     "naming_shape_break": {
      "caught": 1,
@@ -1024,7 +1015,7 @@
      "masked_total": 0,
      "masked_pct": null,
      "overall_pct": 50,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     }
    },
    "overfire_existing_pct": 0.18,
@@ -1044,7 +1035,7 @@
      "masked_total": 0,
      "masked_pct": null,
      "overall_pct": 100,
-     "reason": "import"
+     "reason": "foreign-import"
     },
     "foreign_api": {
      "caught": 8,
@@ -1054,7 +1045,7 @@
      "masked_total": 4,
      "masked_pct": 25,
      "overall_pct": 75,
-     "reason": "import"
+     "reason": "foreign-import"
     }
    },
    "secondary": {
@@ -1066,7 +1057,7 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 50,
-     "reason": "import"
+     "reason": "foreign-import"
     }
    },
    "overfire_existing_pct": 0.0,
@@ -1086,7 +1077,7 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 92,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     },
     "foreign_api": {
      "caught": 8,
@@ -1096,7 +1087,7 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 80,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     }
    },
    "secondary": {
@@ -1108,7 +1099,7 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 10,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     },
     "naming_shape_break": {
      "caught": 0,
@@ -1138,7 +1129,7 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 82,
-     "reason": "import"
+     "reason": "foreign-import"
     },
     "foreign_api": {
      "caught": 12,
@@ -1148,7 +1139,7 @@
      "masked_total": 3,
      "masked_pct": 0,
      "overall_pct": 80,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     }
    },
    "secondary": {
@@ -1160,7 +1151,7 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 11,
-     "reason": "bpe"
+     "reason": "rare-tokens"
     },
     "naming_shape_break": {
      "caught": 0,
@@ -1190,7 +1181,7 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 93,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     },
     "foreign_api": {
      "caught": 6,
@@ -1200,7 +1191,7 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 75,
-     "reason": "call_receiver"
+     "reason": "unfamiliar-callee"
     }
    },
    "secondary": {},
@@ -1221,7 +1212,7 @@
      "masked_total": 1,
      "masked_pct": 0,
      "overall_pct": 93,
-     "reason": "import"
+     "reason": "foreign-import"
     },
     "foreign_api": {
      "caught": 9,
@@ -1231,7 +1222,7 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 75,
-     "reason": "import"
+     "reason": "foreign-import"
     }
    },
    "secondary": {
@@ -1243,7 +1234,7 @@
      "masked_total": 2,
      "masked_pct": 0,
      "overall_pct": 50,
-     "reason": "import"
+     "reason": "foreign-import"
     }
    },
    "overfire_existing_pct": 0.0,
@@ -1263,7 +1254,7 @@
      "masked_total": 3,
      "masked_pct": 0,
      "overall_pct": 80,
-     "reason": "import"
+     "reason": "foreign-import"
     },
     "foreign_api": {
      "caught": 6,
@@ -1273,7 +1264,7 @@
      "masked_total": 3,
      "masked_pct": 0,
      "overall_pct": 67,
-     "reason": "import"
+     "reason": "foreign-import"
     }
    },
    "secondary": {},
@@ -1294,7 +1285,7 @@
      "masked_total": 1,
      "masked_pct": 100,
      "overall_pct": 100,
-     "reason": "import"
+     "reason": "foreign-import"
     },
     "foreign_api": {
      "caught": 12,
@@ -1304,7 +1295,7 @@
      "masked_total": 3,
      "masked_pct": 0,
      "overall_pct": 80,
-     "reason": "import"
+     "reason": "foreign-import"
     }
    },
    "secondary": {
@@ -1316,11 +1307,11 @@
      "masked_total": 2,
      "masked_pct": 100,
      "overall_pct": 78,
-     "reason": "import"
+     "reason": "foreign-import"
     }
    },
-   "overfire_existing_pct": 0.19,
-   "detection_existing_pct": 0.19,
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.0,
    "overfire_new_pct": 0.0,
    "under_sampled": false
   }

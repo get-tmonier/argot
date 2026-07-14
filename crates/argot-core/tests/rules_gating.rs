@@ -268,10 +268,12 @@ fn unfitted_language_in_the_diff_is_noted() {
     let mut a = args(&repo);
     a.reference = String::new(); // workdir mode sees the untracked file
     let out = run_check(a);
-    assert!(
+    assert_eq!(
         out.stderr
-            .contains("go file(s) — no model in the current fit"),
-        "{}",
+            .matches("go file(s) — no model in the current fit")
+            .count(),
+        1,
+        "warning printed exactly once: {}",
         out.stderr
     );
 }

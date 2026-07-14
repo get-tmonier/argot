@@ -1,5 +1,14 @@
 # Issue #92 — recovery investigation capstone
 
+> **Superseded — do not cite these numbers.** The recall figures below were
+> measured on the invalid mid-fix snapshot recorded in
+> [honest-rebench](issue92-honest-rebench.md) (see its supersession note),
+> under the pre-v2 metric that gated every fixture class at once. The
+> investigation's *conclusions* (port faithful, calibration sound, adapters
+> correct — a scope question, not a bug) stand and fed the v2 novel-pattern
+> scope. Current numbers are CI-fed:
+> [argot.tmonier.com/benchmarks](https://argot.tmonier.com/benchmarks).
+
 **Date:** 2026-07-03 · **Branch:** `bench/92-temporal-holdout`. Ties together the
 session's hunt for *why* honest-bench recall is low and whether it's a bug.
 Companion to: [honest-rebench](issue92-honest-rebench.md),
@@ -11,8 +20,8 @@ Companion to: [honest-rebench](issue92-honest-rebench.md),
 
 ## The question
 
-Honest bench: **10/24 corpora pass FP**, hard-class recall **66.8%**, no
-non-Python language clears the ≥85% recall gate. Was this a **bug** — in the
+The mid-fix honest-bench snapshot showed low hard-class recall outside
+Python under the pre-v2 all-classes gate. Was this a **bug** — in the
 Python→Rust port, the #92 calibration, or the new-language adapters — or a real
 limit?
 

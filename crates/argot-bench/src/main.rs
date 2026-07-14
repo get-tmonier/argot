@@ -7,7 +7,7 @@
 
 use anyhow::{Context, Result};
 use argot_bench::scorer::BenchKnobs;
-use argot_bench::{holdout, production, report, run, targets};
+use argot_bench::{holdout, pool, production, report, run, targets};
 
 /// Current time as an ISO-8601 UTC string (dashboard metadata only).
 fn iso_utc_now() -> String {
@@ -44,6 +44,12 @@ struct Cli {
     /// Smoke mode: 1 fixture per category, 50 controls, small n_cal, primary PR only.
     #[arg(long)]
     quick: bool,
+
+    /// Corpora to run concurrently — each corpus is an independent
+    /// fit → replay, so this scales wall-clock near-linearly.
+    /// 0 = auto (min(cores, 8)).
+    #[arg(long, default_value_t = 0)]
+    jobs: usize,
 
     /// Bench mode: `honest` (the headline numbers — production-path recall
     /// on the curated catalogs + leak-free temporal-holdout FP, merged into
@@ -304,6 +310,12 @@ fn real_main() -> Result<ExitCode> {
         return Ok(ExitCode::SUCCESS);
     }
 
+    let jobs = if cli.jobs == 0 {
+        pool::default_jobs()
+    } else {
+        cli.jobs
+    };
+
     if cli.mode == "holdout" || cli.mode == "honest" {
         let hopts = holdout::HoldoutOptions {
             data_dir: opts.data_dir.clone(),
@@ -318,36 +330,46 @@ fn real_main() -> Result<ExitCode> {
         // corpus is minutes, not the PR-comment budget) — recall only.
         let run_holdout = cli.mode == "holdout" || !cli.quick;
         if run_holdout {
-            for target in &selected {
+            let results = pool::run_indexed(&selected, jobs, |target| {
                 let started = std::time::Instant::now();
                 let r = holdout::run_corpus_holdout(target, &hopts)
-                    .with_context(|| format!("corpus {} (holdout)", target.name))?;
-                eprintln!(
-                    "[{}] holdout done in {:.0}s",
-                    target.name,
-                    started.elapsed().as_secs_f64()
-                );
-                reports.push(r);
+                    .with_context(|| format!("corpus {} (holdout)", target.name));
+                if r.is_ok() {
+                    eprintln!(
+                        "[{}] holdout done in {:.0}s",
+                        target.name,
+                        started.elapsed().as_secs_f64()
+                    );
+                }
+                r
+            });
+            for r in results {
+                reports.push(r?);
             }
             let md = holdout::write_holdout_reports(&cli.results_dir, &reports)?;
             print!("{md}");
         }
         if cli.mode == "honest" {
-            let mut prod_reports = Vec::new();
-            for target in &selected {
+            let results = pool::run_indexed(&selected, jobs, |target| {
                 if !opts.catalogs_dir.join(&target.name).is_dir() {
                     eprintln!("[{}] no catalog — holdout-only corpus", target.name);
-                    continue;
+                    return None;
                 }
                 let started = std::time::Instant::now();
                 let r = production::run_corpus_production(target, &opts)
-                    .with_context(|| format!("corpus {} (production)", target.name))?;
-                eprintln!(
-                    "[{}] production done in {:.0}s",
-                    target.name,
-                    started.elapsed().as_secs_f64()
-                );
-                prod_reports.push(r);
+                    .with_context(|| format!("corpus {} (production)", target.name));
+                if r.is_ok() {
+                    eprintln!(
+                        "[{}] production done in {:.0}s",
+                        target.name,
+                        started.elapsed().as_secs_f64()
+                    );
+                }
+                Some(r)
+            });
+            let mut prod_reports = Vec::new();
+            for r in results.into_iter().flatten() {
+                prod_reports.push(r?);
             }
             let md = production::write_production_reports(
                 &cli.results_dir,
@@ -410,16 +432,22 @@ fn real_main() -> Result<ExitCode> {
         std::collections::BTreeMap::new();
 
     if run_catalog {
-        let mut reports = Vec::new();
-        for target in &selected {
+        let results = pool::run_indexed(&selected, jobs, |target| {
             let started = std::time::Instant::now();
-            let mut rs = run::run_corpus(target, &opts)
-                .with_context(|| format!("corpus {}", target.name))?;
-            eprintln!(
-                "[{}] catalog done in {:.0}s",
-                target.name,
-                started.elapsed().as_secs_f64()
-            );
+            let rs =
+                run::run_corpus(target, &opts).with_context(|| format!("corpus {}", target.name));
+            if rs.is_ok() {
+                eprintln!(
+                    "[{}] catalog done in {:.0}s",
+                    target.name,
+                    started.elapsed().as_secs_f64()
+                );
+            }
+            rs
+        });
+        let mut reports = Vec::new();
+        for (target, rs) in selected.iter().zip(results) {
+            let mut rs = rs?;
             for r in &rs {
                 let entry = catalog_recall.entry(target.name.clone()).or_insert((0, 0));
                 entry.0 += r.n_flagged_fixtures;
@@ -441,17 +469,22 @@ fn real_main() -> Result<ExitCode> {
     }
 
     if run_production {
-        let mut prod_reports = Vec::new();
-        for target in &selected {
+        let results = pool::run_indexed(&selected, jobs, |target| {
             let started = std::time::Instant::now();
             let r = production::run_corpus_production(target, &opts)
-                .with_context(|| format!("corpus {} (production)", target.name))?;
-            eprintln!(
-                "[{}] production done in {:.0}s",
-                target.name,
-                started.elapsed().as_secs_f64()
-            );
-            prod_reports.push(r);
+                .with_context(|| format!("corpus {} (production)", target.name));
+            if r.is_ok() {
+                eprintln!(
+                    "[{}] production done in {:.0}s",
+                    target.name,
+                    started.elapsed().as_secs_f64()
+                );
+            }
+            r
+        });
+        let mut prod_reports = Vec::new();
+        for r in results {
+            prod_reports.push(r?);
         }
         let md =
             production::write_production_reports(&cli.results_dir, &prod_reports, &catalog_recall)?;

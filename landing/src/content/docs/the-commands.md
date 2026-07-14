@@ -13,7 +13,7 @@ rest — `rules`, `model`, `review`, `voice-diff`, `inspect`, `mute` — are on 
 ## init
 
 Fits the voice model to the repo (`fit`), prints a health check (corpus composition + a
-Ready / Marginal / Not-recommended verdict — [what drives it](/docs/health-and-freshness/#the-verdict--ready--marginal--not-recommended)),
+Ready / Ready-with-notes / Not-recommended verdict — [what drives it](/docs/health-and-freshness/#the-verdict--ready--ready-with-notes--not-recommended)),
 and writes a `.argot/.gitignore` so the rebuildable
 model stays out of version control. This is the one command a new repo needs.
 
@@ -306,7 +306,7 @@ produces — no extra modeling.
 ## inspect
 
 Reports whether the repo is a good fit for argot (corpus composition, calibration health, a
-Ready / Marginal / Not-recommended verdict), and can dump the fitted model artifact:
+Ready / Ready-with-notes / Not-recommended verdict), and can dump the fitted model artifact:
 
 ```bash
 argot inspect                       # suitability verdict for the repo

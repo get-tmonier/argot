@@ -4,9 +4,10 @@
 > The "100% recall, 0 FP" figures below were measured **train-on-test** (FP by
 > replaying commits the model had trained on) on **softball** recall fixtures
 > (whole new files whose only break was a foreign import — exactly what an
-> import-graph scorer catches by construction). Under the leak-free protocol
-> (temporal-holdout FP + curated hard-class recall) the honest numbers are far
-> lower; see [`evidence/issue92-honest-rebench.md`](evidence/issue92-honest-rebench.md).
+> import-graph scorer catches by construction). Issue #92 rebuilt the
+> protocol (temporal-holdout FP, leave-one-file-out calibration) and
+> pre-registered the v2 novel-pattern scope; the current, CI-fed numbers
+> live at [argot.tmonier.com/benchmarks](https://argot.tmonier.com/benchmarks).
 > This document is retained as the phase-13/14 historical record.
 
 > **TL;DR.** A 180-line `ImportGraphScorer` — zero training, no model,

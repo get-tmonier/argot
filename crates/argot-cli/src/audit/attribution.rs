@@ -537,6 +537,61 @@ mod tests {
             .to_string()
     }
 
+    /// Canary for the libgit2 pin (root Cargo.toml): the 1.9.x blame rewrite
+    /// inserts a NULL hunk when a commit in the blame graph has an empty
+    /// author email (`name <>`) and segfaults in `git_blame_free`. Found on
+    /// rubocop (`argot audit`, commit 3bff9d37 authored `5hun-s <>`). On the
+    /// pinned 1.8.x this passes; on a buggy 1.9.x it crashes the test runner.
+    #[test]
+    fn blame_survives_empty_email_author() {
+        let tmp = std::env::temp_dir().join(format!("argot_audit_noemail_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        let repo = git2::Repository::init(&tmp).unwrap();
+        let base = commit(&repo, &[("a.py", "x = 1\n")], "base");
+
+        // The trigger commit: author/committer with an empty email. libgit2
+        // refuses to *create* such a signature — which is exactly why its
+        // 1.9 blame chokes on one it merely *reads* (other tools write them
+        // in the wild) — so forge the raw commit object through the ODB,
+        // which does not validate content.
+        std::fs::write(tmp.join("a.py"), "x = 1\ny = 2\n").unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(Path::new("a.py")).unwrap();
+        index.write().unwrap();
+        let tree = index.write_tree().unwrap();
+        let raw = format!(
+            "tree {tree}\nparent {base}\n\
+             author no-email <> 1700000000 +0000\n\
+             committer no-email <> 1700000000 +0000\n\nempty-email edit\n"
+        );
+        let c1 = repo
+            .odb()
+            .unwrap()
+            .write(git2::ObjectType::Commit, raw.as_bytes())
+            .unwrap()
+            .to_string();
+        let head_ref = repo.head().unwrap().name().unwrap().to_string();
+        repo.reference(
+            &head_ref,
+            git2::Oid::from_str(&c1).unwrap(),
+            true,
+            "forge empty-email commit",
+        )
+        .unwrap();
+
+        let head = commit(&repo, &[("a.py", "x = 1\ny = 2\nz = 3\n")], "head");
+
+        let blame = blame_file(&repo, &base, &head, "a.py").expect("blame succeeds");
+        assert_eq!(
+            introducing_commit(&blame, &base, 2, 2).as_deref(),
+            Some(c1.as_str()),
+            "the empty-email commit is still attributable"
+        );
+        drop(blame); // 1.9.x segfaults here (free_hunk on a NULL hunk)
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
     #[test]
     fn symbol_removal_walk_finds_the_deleting_commit_not_a_neighbour() {
         let tmp = std::env::temp_dir().join(format!("argot_audit_symrm_{}", std::process::id()));

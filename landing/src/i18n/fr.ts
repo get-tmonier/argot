@@ -104,7 +104,7 @@ const fr: SiteContent = {
   },
   engine: {
     label: 'Sous le capot',
-    title: 'De la compréhension sémantique. Aucun LLM nulle part.',
+    title: 'De la compréhension sémantique. Aucun LLM génératif nulle part.',
     body: 'Quatre moteurs, un binaire [[Rust]] statique, tous appris de votre historique git — rien ne quitte votre machine.',
     cards: [
       {
@@ -140,7 +140,7 @@ const fr: SiteContent = {
       {
         value: '98 %',
         title: 'motifs étrangers détectés',
-        desc: '604 sur 618 — en ne se déclenchant que sur [[0,22 % des vraies modifications]].',
+        desc: '595 sur 605 — en ne se déclenchant que sur [[0,29 % des vraies modifications]].',
       },
       {
         value: '94 %',
@@ -155,12 +155,12 @@ const fr: SiteContent = {
       {
         value: '96,8 %',
         title: 'violations d’architecture détectées',
-        desc: '244 inversions de layering sur 252, à [[zéro faux positif]] (0 sur 140 contrôles).',
+        desc: '244 inversions de layering sur 252, à [[zéro faux positif]] sur les contrôles (0 sur 140 · ≤2,7 % de sur-signalement sur l’historique rejoué).',
       },
       {
         value: '94 %',
         title: 'trucages de tests détectés',
-        desc: '144 sur 153 · 0 refactoring légitime signalé · [[1,24 %]] sur les commits acceptés réels.',
+        desc: '144 sur 153 · 0 refactoring légitime signalé · [[1,24 %]] des commits acceptés touchant aux tests, à sévérité bloquante.',
       },
     ],
     languages:

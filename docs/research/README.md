@@ -1,12 +1,11 @@
 # argot research
 
-> **⚠️ Errata (2026-07, issue [#92](https://github.com/get-tmonier/argot/issues/92)):**
-> every false-positive number in this log measured before July 2026 replayed
-> commits that were ancestors of the fit SHA (train-on-test), and recall was
-> measured against thresholds calibrated with the same leak — the numbers are
-> materially optimistic. The historical text below is preserved as a research
-> record. Current, leak-free numbers:
-> [issue92-honest-rebench](evidence/issue92-honest-rebench.md).
+> This log is the chronological research record — numbers in era narratives
+> and dated evidence docs reflect the harness and metric definitions of their
+> time, and several were later superseded (issue
+> [#92](https://github.com/get-tmonier/argot/issues/92) rebuilt the
+> calibration and the metric). The current, CI-fed numbers are the only
+> citable ones: [argot.tmonier.com/benchmarks](https://argot.tmonier.com/benchmarks).
 
 > **How a GPU-hungry neural scorer became a ~220-line statistical pipeline.**
 > Twelve eras, three dead ends, two breakthroughs, a parsing-artifact
@@ -588,12 +587,12 @@ That era reported **160/171 fixtures (93.6%)** through the real `argot fit` →
 `argot check` pipeline — but issue #92 later showed those recall fixtures were
 softballs (whole new files whose only break was a foreign import) and, worse,
 that the whole benchmark was **train-on-test**: FP was measured by replaying
-commits the model had already trained on. Under the leak-free re-measurement
-(temporal-holdout FP, curated hard-class recall spliced into real files) the
-honest numbers are materially lower — see
-[`evidence/issue92-honest-rebench.md`](evidence/issue92-honest-rebench.md) and
-the Phase A/B follow-ups. The 93.6% above is retained as the era-15 record, not
-a current claim.
+commits the model had already trained on. Issue #92 rebuilt the protocol
+(temporal-holdout FP, leave-one-file-out calibration) and pre-registered the
+v2 novel-pattern scope in `benchmarks/catalogs/RUBRIC.md`; the current,
+CI-fed numbers live at
+[argot.tmonier.com/benchmarks](https://argot.tmonier.com/benchmarks). The
+93.6% above is retained as the era-15 record, not a current claim.
 
 The live roadmap has moved from the scorer to the product surface — broader
 language coverage, editor/agent integration, a versioned model artifact, and a

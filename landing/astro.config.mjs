@@ -11,7 +11,7 @@ export default defineConfig({
   site: 'https://argot.tmonier.com',
   output: 'static',
   prefetch: { prefetchAll: true, defaultStrategy: 'viewport' },
-  integrations: [sitemap()],
+  integrations: [sitemap({ filter: (page) => !page.includes('/caught-in-the-wild') })],
   i18n: {
     defaultLocale: 'en',
     locales: ['en', 'fr'],

@@ -69,12 +69,12 @@ fn tiny_repo_is_not_recommended_for_low_candidates() {
 }
 
 #[test]
-fn mid_size_repo_is_marginal() {
+fn mid_size_repo_is_ready_with_notes() {
     let dir = temp_repo("mid");
     fs::write(dir.join("app.py"), py_functions(80)).unwrap();
     let report = inspect_repo(&dir).unwrap();
     assert_eq!(report.corpus.languages["python"].candidate_hunks, 80);
-    assert_eq!(report.verdict, Verdict::Marginal);
+    assert_eq!(report.verdict, Verdict::ReadyWithNotes);
     let reason = report
         .reasons
         .iter()
@@ -103,7 +103,7 @@ fn healthy_single_language_repo_is_ready() {
 }
 
 #[test]
-fn polyglot_mix_is_marginal_with_polyglot_reason() {
+fn polyglot_mix_is_ready_with_notes_with_polyglot_reason() {
     let dir = temp_repo("polyglot");
     for f in 0..5 {
         fs::write(dir.join(format!("mod_{f}.py")), py_functions(50)).unwrap();
@@ -111,7 +111,7 @@ fn polyglot_mix_is_marginal_with_polyglot_reason() {
     }
     let report = inspect_repo(&dir).unwrap();
     assert!(report.corpus.meaningfully_mixed);
-    assert_eq!(report.verdict, Verdict::Marginal);
+    assert_eq!(report.verdict, Verdict::ReadyWithNotes);
     let reason = report
         .reasons
         .iter()

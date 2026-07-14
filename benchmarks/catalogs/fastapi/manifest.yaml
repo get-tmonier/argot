@@ -58,50 +58,6 @@ fixtures:
   difficulty: medium
   host_file: fastapi/dependencies/utils.py
   host_inject_at_line: 1058
-- id: exception_handling_1
-  file: breaks/paradigm_break_subtle_wrong_exception.py
-  category: exception_handling
-  class: semantic_convention
-  hunk_start_line: 49
-  hunk_end_line: 89
-  rationale: "decorators, Pydantic models, and Depends() are all idiomatic; the break is confined to the raise statements: ValueError, KeyError, and RuntimeError are raised instead of HTTPException \u2014\
-    \ plain Python exceptions propagate as unhandled 500s rather than the intended 404/503 status codes, and this exception vocabulary is absent from the FastAPI corpus"
-  difficulty: medium
-  host_file: docs_src/sql_databases/tutorial002_an_py310.py
-  host_inject_at_line: 104
-- id: downstream_http_1
-  file: breaks/paradigm_break_subtle_manual_status_check.py
-  category: downstream_http
-  class: semantic_convention
-  hunk_start_line: 29
-  hunk_end_line: 65
-  rationale: "FastAPI + httpx corpus uses response.raise_for_status() to propagate downstream errors; manually checking `if response.status_code >= 400: raise HTTPException(...)` at every call site instead\
-    \ of calling raise_for_status() is a structural pattern absent from the corpus \u2014 all tokens are individually present but the branching structure is non-idiomatic"
-  difficulty: hard
-  host_file: docs_src/openapi_callbacks/tutorial001_py310.py
-  host_inject_at_line: 52
-- id: async_blocking_1
-  file: breaks/paradigm_break_subtle_sync_endpoint.py
-  category: async_blocking
-  class: semantic_convention
-  hunk_start_line: 41
-  hunk_end_line: 85
-  rationale: "the FastAPI corpus is dominated by async def endpoints; sync def endpoints with blocking I/O (time.sleep, requests.get, blocking DB calls) block the event loop's thread pool \u2014 the decorator\
-    \ and Depends() vocabulary is correct but the sync + blocking-I/O combination is structurally absent from the corpus"
-  difficulty: hard
-  host_file: docs_src/websockets_/tutorial002_an_py310.py
-  host_inject_at_line: 93
-- id: exception_handling_2
-  file: breaks/paradigm_break_subtle_exception_swallow.py
-  category: exception_handling
-  class: semantic_convention
-  hunk_start_line: 51
-  hunk_end_line: 109
-  rationale: "decorators, Pydantic models, Depends(), HTTPException, and async def are all idiomatic; the break is purely structural: every endpoint body is wrapped in try/except Exception: pass or except\
-    \ Exception as e: logger.warning \u2014 broad exception-swallowing is absent from the FastAPI corpus, which propagates errors or handles specific exception types"
-  difficulty: hard
-  host_file: docs_src/security/tutorial005_an_py310.py
-  host_inject_at_line: 183
 - id: routing_2
   file: breaks/paradigm_break_starlette_mount.py
   category: routing
@@ -157,17 +113,6 @@ fixtures:
   difficulty: medium
   host_file: fastapi/responses.py
   host_inject_at_line: 99
-- id: exception_handling_3
-  file: breaks/paradigm_break_bare_except.py
-  category: exception_handling
-  class: semantic_convention
-  hunk_start_line: 18
-  hunk_end_line: 71
-  rationale: "every endpoint body wrapped in bare except: (no exception type) that silently returns empty data \u2014 broad exception-swallowing with no HTTPException or logging is an anti-pattern absent\
-    \ from the FastAPI corpus"
-  difficulty: medium
-  host_file: docs_src/security/tutorial004_an_py310.py
-  host_inject_at_line: 151
 - id: async_blocking_2
   file: breaks/paradigm_break_event_loop_blocking.py
   category: async_blocking
@@ -202,18 +147,6 @@ fixtures:
   difficulty: medium
   host_file: fastapi/background.py
   host_inject_at_line: 62
-- id: async_blocking_3
-  file: breaks/paradigm_break_sync_file_io_async.py
-  category: async_blocking
-  class: semantic_convention
-  hunk_start_line: 40
-  hunk_end_line: 86
-  rationale: 'OOV axis: blocking open() / Path.read_text() / json.loads() tight-loop calls inside async def endpoint bodies. Corpus evidence: 0 instances of open() or .read_text() inside AsyncFunctionDef
-    bodies at endpoint scope across docs_src/ and tests/. Async endpoints in the corpus use aiofiles or offload to threads via anyio.to_thread.run_sync() (fastapi/concurrency.py lines 32, 39). Fixture simulates
-    a realistic document-storage API that reads and writes JSON files synchronously in every async endpoint, blocking the event loop for the full disk-operation duration.'
-  difficulty: medium
-  host_file: docs_src/stream_data/tutorial001_py310.py
-  host_inject_at_line: 66
 - id: background_tasks_2
   file: breaks/paradigm_break_multiprocessing_background.py
   category: background_tasks
@@ -249,17 +182,6 @@ fixtures:
   difficulty: medium
   host_file: fastapi/datastructures.py
   host_inject_at_line: 187
-- id: dependency_injection_1
-  file: breaks/paradigm_break_manual_generator_drain.py
-  category: dependency_injection
-  class: semantic_convention
-  hunk_start_line: 51
-  hunk_end_line: 112
-  rationale: "Endpoints call next(get_db()) manually and manage teardown with try/finally, bypassing FastAPI's Depends() lifecycle. 428 Depends() sites in corpus vs 0 manual-drain sites \u2014 OOV structural\
-    \ pattern."
-  difficulty: medium
-  host_file: docs_src/dependencies/tutorial008b_an_py310.py
-  host_inject_at_line: 33
 - id: dependency_injection_2
   file: breaks/paradigm_break_class_instance_no_depends.py
   category: dependency_injection
@@ -282,28 +204,6 @@ fixtures:
   difficulty: easy
   host_file: fastapi/encoders.py
   host_inject_at_line: 348
-- id: downstream_http_3
-  file: breaks/paradigm_break_aiohttp_no_context.py
-  category: downstream_http
-  class: semantic_convention
-  hunk_start_line: 24
-  hunk_end_line: 61
-  rationale: ''
-  difficulty: medium
-  host_file: docs_src/sql_databases/tutorial001_an_py310.py
-  host_inject_at_line: 74
-- id: exception_handling_4
-  file: breaks/paradigm_break_json_error_response.py
-  category: exception_handling
-  class: semantic_convention
-  hunk_start_line: 51
-  hunk_end_line: 100
-  rationale: 'Endpoints return JSONResponse({"error": str(e)}) directly from except blocks instead of raising HTTPException. Canonical pattern: raise HTTPException(status_code=..., detail=...) at 78 corpus
-    sites. Single axis: error response constructed and returned at call site vs. raised and dispatched through registered exception handlers. Inline JSONResponse({"error": ...}) at endpoint scope is rare
-    in corpus.'
-  difficulty: uncaught
-  host_file: docs_src/security/tutorial003_an_py310.py
-  host_inject_at_line: 95
 - id: exception_handling_5
   file: breaks/paradigm_break_traceback_in_response.py
   category: exception_handling
@@ -327,29 +227,6 @@ fixtures:
   difficulty: medium
   host_file: fastapi/exception_handlers.py
   host_inject_at_line: 35
-- id: routing_3
-  file: breaks/paradigm_break_imperative_route_loop.py
-  category: routing
-  class: foreign_api
-  hunk_start_line: 77
-  hunk_end_line: 90
-  rationale: ''
-  difficulty: uncaught
-  host_file: docs_src/bigger_applications/app_an_py310/routers/items.py
-  host_inject_at_line: 39
-- id: serialization_2
-  file: breaks/paradigm_break_manual_dict_response.py
-  category: serialization
-  class: semantic_convention
-  hunk_start_line: 45
-  hunk_end_line: 106
-  rationale: "Break axis: explicit field-by-field dict construction with manual float(), bool(), and .isoformat() coercions at every endpoint instead of response_model=. Canonical pattern: docs_src/response_model/tutorial001_py310.py:17-27\
-    \ shows response_model=list[Item] and response_model=Item on every route with no manual coercions; corpus has 163 response_model= sites. OOV evidence: explicit float()/bool()/.isoformat() coercions\
-    \ at endpoint scope appear 0 times in the FastAPI corpus \u2014 type coercion is handled entirely by Pydantic in the idiomatic pattern. Single axis of deviation: absence of response_model= plus presence\
-    \ of per-field coercion idiom."
-  difficulty: medium
-  host_file: docs_src/sql_databases/tutorial002_py310.py
-  host_inject_at_line: 103
 - id: serialization_3
   file: breaks/paradigm_break_msgpack_response.py
   category: serialization
@@ -557,43 +434,3 @@ fixtures:
   difficulty: medium
   host_file: fastapi/sse.py
   host_inject_at_line: 223
-- id: foreign_concurrency_apscheduler_1
-  file: breaks/break_foreign_concurrency_apscheduler.py
-  category: foreign_concurrency
-  class: foreign_import
-  hunk_start_line: 17
-  hunk_end_line: 28
-  rationale: "from apscheduler.schedulers.background import BackgroundScheduler + scheduler.add_job/start run a periodic cleanup, replacing FastAPI's request-scoped model — apscheduler appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. Foreign deep-submodule import (top-level apscheduler) + scheduler API in-hunk."
-  difficulty: medium
-  host_file: docs_src/sql_databases/tutorial001_an_py310.py
-  host_inject_at_line: 74
-- id: foreign_concurrency_celery_1
-  file: breaks/break_foreign_concurrency_celery.py
-  category: foreign_concurrency
-  class: foreign_import
-  hunk_start_line: 17
-  hunk_end_line: 28
-  rationale: "celery loaded through importlib.import_module('celery') (importlib attested) so NO static foreign top-level import appears; the tells are _celery_mod.Celery and the @_app.task decorator on a dynamically-loaded handle. celery appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. HARD: masked import — detection relies on the call-receiver stage."
-  difficulty: hard
-  host_file: docs_src/background_tasks/tutorial001_py310.py
-  host_inject_at_line: 16
-- id: foreign_concurrency_eventlet_1
-  file: breaks/break_foreign_concurrency_eventlet.py
-  category: foreign_concurrency
-  class: foreign_import
-  hunk_start_line: 17
-  hunk_end_line: 24
-  rationale: "eventlet loaded through importlib.import_module('eventlet') (importlib attested) so NO static foreign import appears; the tells are _eventlet.GreenPool and _pool.imap on a dynamically-loaded handle. eventlet appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. HARD: masked import — a foreign green-thread runtime reached only through callees."
-  difficulty: hard
-  host_file: docs_src/extra_data_types/tutorial001_an_py310.py
-  host_inject_at_line: 29
-- id: foreign_concurrency_gevent_1
-  file: breaks/break_foreign_concurrency_gevent.py
-  category: foreign_concurrency
-  class: foreign_import
-  hunk_start_line: 17
-  hunk_end_line: 25
-  rationale: "gevent loaded through importlib.import_module('gevent') (importlib attested) so NO static foreign import appears; the tells are _gevent.spawn/_gevent.joinall on a dynamically-loaded handle. gevent appears at 0 fastapi source sites at the pinned SHA (git grep sum = 0) and is absent from pyproject.toml. HARD: masked import — a foreign coroutine runtime reached only through callees."
-  difficulty: hard
-  host_file: docs_src/body/tutorial001_py310.py
-  host_inject_at_line: 18

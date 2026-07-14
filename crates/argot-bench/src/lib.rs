@@ -14,6 +14,9 @@ pub mod holdout;
 #[cfg(feature = "integrity")]
 pub mod integrity;
 pub mod metrics;
+/// Corpus-level parallel driver (`--jobs`): independent corpora fan out over
+/// a work-stealing pool, results return in input order.
+pub mod pool;
 pub mod production;
 pub mod report;
 pub mod run;

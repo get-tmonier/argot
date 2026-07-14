@@ -107,9 +107,10 @@ or per run with `argot check --rule <name|group>=<severity>`. In strict CI,
 
 ## Gauge trust first
 
-Run `argot inspect` and read the verdict. If it's **Marginal** or **Not
-recommended**, the statistical voice model isn't well-calibrated on this repo —
-down-weight the `voice`-group hits accordingly and say so.
+Run `argot inspect` and read the verdict. If it's **Not recommended**, the
+statistical voice model isn't well-calibrated on this repo — down-weight the
+`voice`-group hits accordingly and say so. **Ready — with notes** is usable
+as-is; the notes say what to keep an eye on.
 
 ## What a hit means — and what a clean run doesn't
 

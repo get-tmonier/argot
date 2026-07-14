@@ -131,12 +131,18 @@ impl Embedder {
         // single ubatch and asserts `n_ubatch >= n_tokens`, so n_batch/n_ubatch
         // must cover the longest function we embed (the context length). The
         // default 512 crashes on any function longer than that.
-        let ctx_params = LlamaContextParams::default()
+        let mut ctx_params = LlamaContextParams::default()
             .with_n_ctx(std::num::NonZeroU32::new(N_CTX))
             .with_n_batch(N_CTX)
             .with_n_ubatch(N_CTX)
             .with_embeddings(true)
             .with_pooling_type(LlamaPoolingType::Mean);
+        // `ARGOT_THREADS` caps llama's compute threads too — same knob as the
+        // engine's worker pool, so one setting tames the whole binary.
+        if let Some(n) = argot_engine::par::thread_cap() {
+            let n = i32::try_from(n).unwrap_or(i32::MAX);
+            ctx_params = ctx_params.with_n_threads(n).with_n_threads_batch(n);
+        }
         let mut ctx = self
             .model
             .new_context(backend, ctx_params)

@@ -175,6 +175,31 @@ pub fn run_corpus_production(target: &Target, opts: &RunOptions) -> Result<Produ
     // the per-corpus `argot.toml` (e.g. vendored trees excluded).
     sync_corpus_config(&opts.catalogs_dir, &target.name, &repo_dir)?;
 
+    // A fixture whose host lands under a suppressed path can never produce a
+    // countable hit — its "miss" would be a config artifact deflating the
+    // headline, not a measurement. The catalog and the corpus argot.toml must
+    // move together; fail the run instead of publishing the artifact.
+    let suppressions = argot_core::config::ArgotConfig::load(&repo_dir).path_suppressions();
+    let dead: Vec<&str> = catalog
+        .fixtures
+        .iter()
+        .filter(|f| {
+            f.host_file
+                .as_deref()
+                .is_some_and(|h| suppressions.is_suppressed(h))
+        })
+        .map(|f| f.id.as_str())
+        .collect();
+    if !dead.is_empty() {
+        anyhow::bail!(
+            "[{}] {} fixture(s) hosted under suppressed paths — remove them from the \
+             manifest or un-exclude their hosts: {}",
+            target.name,
+            dead.len(),
+            dead.join(", ")
+        );
+    }
+
     eprintln!(
         "[{}] production fit (train → calibrate) @ {}",
         target.name,
@@ -222,7 +247,7 @@ pub fn run_corpus_production(target: &Target, opts: &RunOptions) -> Result<Produ
             .unwrap_or_default();
         let reasons: Vec<String> = hits
             .iter()
-            .filter_map(|h| h["reason"].as_str().map(String::from))
+            .filter_map(|h| h["rule"].as_str().map(String::from))
             .collect();
         let max_score = hits
             .iter()
