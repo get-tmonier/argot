@@ -1,0 +1,68 @@
+---
+import Base from '#layouts/Base.astro';
+import CaughtCard from '#components/CaughtCard.astro';
+import { SITE } from '#lib/site';
+import { CASES, REPO_COUNT } from '#lib/caught-in-the-wild';
+
+const locale = 'fr';
+---
+
+<Base
+  title="Caught in the wild · argot"
+  description="Cinq signalements réels d’argot lancé sur l’historique git de 33 dépôts open source — vérifiés, datés, jamais moqueurs."
+  locale={locale}
+>
+  <header class="sticky top-0 z-40 border-b border-line bg-bg/80 backdrop-blur-md">
+    <div class="mx-auto flex h-16 max-w-5xl items-center justify-between gap-4 px-5">
+      <a href="/fr/" class="flex items-center gap-2.5" aria-label="argot — accueil">
+        <span class="wordmark text-lg">ar<span class="g">g</span>ot</span>
+        <span class="rounded-md border border-line px-2 py-0.5 font-mono text-xs text-muted"
+          >caught in the wild</span
+        >
+      </a>
+      <div class="flex items-center gap-2 sm:gap-3">
+        <a
+          href="/fr/docs/"
+          class="rounded-md px-2 py-1.5 text-sm text-ink-dim transition-colors hover:text-ink"
+          >Docs</a
+        >
+        <a
+          href="/caught-in-the-wild/"
+          class="rounded-md border border-line px-2.5 py-1 text-xs font-medium text-ink-dim uppercase transition-colors hover:border-line-2 hover:text-ink"
+          aria-label="Switch to en">en</a
+        >
+        <a
+          href={SITE.github}
+          target="_blank"
+          rel="noopener"
+          class="rounded-md border border-line bg-panel/60 px-3 py-1.5 text-sm transition-colors hover:border-line-2"
+          >GitHub ↗</a
+        >
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-5xl px-5 py-16">
+    <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">Caught in the wild</h1>
+    <p class="mt-4 leading-relaxed text-ink-dim text-pretty">
+      En juillet 2026, nous avons fait tourner argot sur les 12 derniers mois d’historique de
+      {REPO_COUNT} dépôts open source réels — dagster, hono, rich, saleor, faker, et{' '}
+      {REPO_COUNT - 5} autres — et vérifié chaque signalement ci-dessous de façon adversariale
+      contre le code à HEAD. Ce ne sont pas des exemples synthétiques : de vrais diffs, de vrais
+      commits, de vrais dépôts entretenus par des équipes qui écrivent un code excellent. C’est
+      justement le sujet. Même les meilleures bases de code accumulent des conventions que
+      personne n’a écrites noir sur blanc, et le code qui en enfreint une n’a pas l’air suspect —
+      il ressemble à une PR plausible, bien typée, parfaitement raisonnable.
+    </p>
+
+    <div class="mt-10 flex flex-col gap-8">
+      {CASES.map((item, index) => <CaughtCard item={item} index={index} locale={locale} />)}
+    </div>
+
+    <p class="mt-12 text-sm text-muted text-pretty">
+      Méthodologie : pour chaque cas, argot a calibré sa voix au commit précédent le changement,
+      noté le commit introducteur à froid, et le signalement a été attaqué indépendamment par un
+      relecteur chargé de le réfuter — chacun des cas ci-dessus y a survécu.
+    </p>
+  </main>
+</Base>

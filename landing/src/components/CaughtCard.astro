@@ -1,0 +1,170 @@
+---
+import CodeWindow from '#components/CodeWindow.astro';
+import type { CaughtCase } from '#lib/caught-in-the-wild';
+
+interface Props {
+  item: CaughtCase;
+  index: number;
+  locale: 'en' | 'fr';
+}
+const { item, index, locale } = Astro.props;
+const shortSha = item.commitSha.slice(0, 7);
+const amber = item.tier === 'unusual';
+const label = locale === 'fr' ? 'Cas' : 'Case';
+const whyLabel = locale === 'fr' ? 'Pourquoi aucun linter ne l’attrape —' : 'Why no linter catches this —';
+const upstreamLabel = locale === 'fr' ? 'Correctif en amont ↗' : 'Upstream fix ↗';
+---
+
+<article class="reveal rounded-2xl border border-line bg-panel/20 p-6 sm:p-8">
+  <p class="font-mono text-xs tracking-widest text-ember uppercase">
+    {label} {String(index + 1).padStart(2, '0')}
+  </p>
+  <div class="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+    <h2 class="text-2xl font-bold tracking-tight">{item.repo}</h2>
+    <span class="rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-muted">
+      {item.language}
+    </span>
+    <span
+      class="rounded border border-line px-1.5 py-0.5 font-mono text-[10px]"
+      class:list={[item.attribution === 'ai-assisted' ? 'text-jade' : 'text-muted']}
+    >
+      {item.attribution}
+    </span>
+  </div>
+  <p class="mt-2 text-sm text-muted">
+    commit — “{item.commitSubject}”
+  </p>
+
+  <div class="mt-5">
+    <CodeWindow code={item.diff} lang="diff" title={item.path} />
+  </div>
+
+  <div class="verdict mt-5">
+    <div class="v-titlebar">
+      <span class="v-dot" style="background: var(--flag)" aria-hidden="true"></span>
+      <span class="v-dot" style="background: var(--amber)" aria-hidden="true"></span>
+      <span class="v-dot" style="background: var(--jade)" aria-hidden="true"></span>
+      <span class="v-title">argot check</span>
+    </div>
+    <div class="v-body">
+      <div class="v-file">{item.path}</div>
+      <div class="v-flag" class:list={[amber && 'amber']}>
+        <span class="mark" class:list={[amber ? 'dot' : 'bang']}>{amber ? '.' : '!'}</span>
+        <span class="loc">{item.loc}</span>
+        <span class="flag-word" class:list={[amber && 'amber']}>{item.tier}</span>
+        <span class="sep" aria-hidden="true">·</span>
+        <span class="flag-word" class:list={[amber && 'amber']}>{item.rule}</span>
+        <span class="hash">[{shortSha}]</span>
+      </div>
+      <div class="v-evidence"><span aria-hidden="true">↳</span> {item.evidence}</div>
+    </div>
+  </div>
+
+  <p class="mt-5 leading-relaxed text-ink-dim text-pretty">{item.story[locale]}</p>
+  <p class="mt-3 text-sm leading-relaxed text-muted text-pretty">
+    <strong class="font-medium text-ink-dim">{whyLabel}</strong> {item.whyNoLinter[locale]}
+  </p>
+
+  {
+    item.upstreamUrl && (
+      <a
+        href={item.upstreamUrl}
+        target="_blank"
+        rel="noopener"
+        class="mt-4 inline-flex items-center gap-1.5 text-sm text-ember transition-colors hover:text-ember-bright"
+      >
+        {upstreamLabel}
+      </a>
+    )
+  }
+</article>
+
+<style>
+  .verdict {
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel) 80%, #000);
+    overflow: hidden;
+  }
+  .v-titlebar {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel-2) 60%, transparent);
+  }
+  .v-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 999px;
+    opacity: 0.85;
+  }
+  .v-title {
+    margin-left: 8px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .v-body {
+    padding: clamp(14px, 3.6vw, 20px);
+    font-family: var(--font-mono);
+    font-size: clamp(11px, 3vw, 13.5px);
+    line-height: 1.9;
+    overflow-x: auto;
+  }
+  .v-file {
+    font-weight: 700;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  .v-flag {
+    margin-top: 0.5em;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.15em 0.55em;
+    border-left: 2px solid var(--flag);
+    margin-left: -0.6em;
+    padding-left: 0.6em;
+  }
+  .v-flag.amber {
+    border-left-color: var(--amber);
+  }
+  .v-evidence {
+    margin-top: 0.15em;
+    padding-left: 1.6em;
+    color: var(--ink-dim);
+    white-space: normal;
+  }
+  .mark.bang {
+    color: var(--flag);
+    font-weight: 700;
+  }
+  .mark.dot {
+    color: var(--amber);
+    font-weight: 700;
+  }
+  .loc {
+    color: var(--muted);
+  }
+  .sep {
+    color: var(--muted);
+  }
+  .flag-word {
+    color: var(--flag);
+    font-weight: 600;
+  }
+  .flag-word.amber {
+    color: var(--amber);
+  }
+  .hash {
+    margin-left: auto;
+    border-radius: 6px;
+    border: 1px solid var(--line-2);
+    padding: 0.05em 0.5em;
+    font-size: 0.85em;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+</style>
