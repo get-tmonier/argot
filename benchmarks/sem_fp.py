@@ -55,7 +55,7 @@ def git(*args):
 
 def parse_fire(commit, h):
     """Build a structured fire record from one JSON hit + its F4 evidence."""
-    reason = h.get("reason")
+    reason = h.get("rule")
     ev = h.get("evidence", []) or []
     rec = {
         "commit": commit,
@@ -122,7 +122,7 @@ def main():
         hit_red = hit_mis = 0
         total_hits += len(doc.get("hits", []))
         for h in doc.get("hits", []):
-            r = h.get("reason")
+            r = h.get("rule")
             if r == "redundant":
                 hit_red += 1
                 fires.append(parse_fire(c, h))

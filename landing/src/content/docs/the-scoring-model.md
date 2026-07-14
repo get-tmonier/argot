@@ -118,8 +118,8 @@ the layer no-ops and the base guardrail still runs.
 At check, each new function is embedded and matched against the index:
 
 - **`redundant`** — the function's nearest cross-file neighbour is a near-duplicate above a similarity
-  margin. Evidence: `↳ duplicates <symbol> (path:line) — similarity 0.86`. Catches 85–100% of
-  reinventions per repo (median 94%).
+  margin. Evidence: `↳ duplicates <symbol> (path:line) — similarity 0.86`. Catches 28–100% of
+  reinventions per repo (median 89%).
 - **`misplaced`** — the function's nearest semantic neighbours concentrate in a different package or
   area than the one it was filed under. Evidence: `↳ looks like <area> code filed under <actual-area>`.
 
@@ -159,6 +159,6 @@ curation, not gaming) and its per-repo gate is open. Findings are flagged under 
 first two default to severity `error`, `test-weakened` defaults to `warn`.
 
 Benchmarked on 22 corpora across all 11 supported languages: **144/153 (94.1%)** authored gaming
-tactics caught, **0/102** legitimate-refactor controls fired, and **1.24%** of 3,540 replayed
+tactics caught, **0/102** legitimate-refactor controls fired, and **1.12%** of 5,268 replayed
 accepted test-touching commits flagged at gating severity. Full numbers:
 [`docs/research/evidence/test-integrity-capstone.md`](https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/test-integrity-capstone.md).

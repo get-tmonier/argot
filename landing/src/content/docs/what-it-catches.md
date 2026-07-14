@@ -182,8 +182,8 @@ never fails the check on its own, downgradeable or upgradeable per repo.
 
 On the benchmark — 22 corpora across 11 languages — the detector caught **144 of 153 (94.1%)**
 authored gaming tactics, with **0 of 102** legitimate-refactor controls (moves, renames, deletions
-alongside a removed feature, genuine strengthening) fired. Replayed against 3,540 real accepted
-test-touching commits *outside* the fit's calibration window, only **1.24%** were flagged at
+alongside a removed feature, genuine strengthening) fired. Replayed against 5,268 real accepted
+test-touching commits *outside* the fit's calibration window, only **1.12%** were flagged at
 gating (error) severity — the honest cost of running this against real history, not a fixture
 rate. The hardest tactic is expected-value retargeting (16/21, 76%): a bare literal retarget is
 statically indistinguishable from a healthy TDD update, so it only fires in repos whose accepted
@@ -241,7 +241,7 @@ misuse of your own vocabulary.
 Treat a hit as a prompt to look, never a verdict. **Foreign** catches are reliable — 98% when the
 symbol is visible in the change. **Redundant** and **misplaced** surface the nearest existing code
 and let you judge; **layering** shows the edge that runs against the graph. **Integrity** catches
-94.1% of authored gaming tactics at a 1.24% cost on real accepted history, and reports
+94.1% of authored gaming tactics at a 1.12% cost on real accepted history, and reports
 `test-weakened` findings without failing the check by default. Every rule is configurable
 (`error` / `warn` / `off` — see [Configure](/docs/configure/#rules--rule-severities)). And there's
 a **line it won't cross** — a wrong choice built entirely from vocabulary you already have; argot

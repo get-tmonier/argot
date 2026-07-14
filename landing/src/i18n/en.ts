@@ -144,7 +144,7 @@ const en: SiteContent = {
         desc: '595 of 605 — while firing on just [[0.29% of real edits]].',
       },
       {
-        value: '94%',
+        value: '89%',
         title: 'reinventions caught · median',
         desc: 'Rewrites of the repo’s [[own functions]], traced back to the original.',
       },
@@ -161,7 +161,7 @@ const en: SiteContent = {
       {
         value: '94%',
         title: 'test-gaming edits caught',
-        desc: '144 of 153 · 0 legitimate refactors flagged · [[1.24%]] of accepted test-touching commits, at gating severity.',
+        desc: '144 of 153 · 0 legitimate refactors flagged · [[1.12%]] of accepted test-touching commits, at gating severity.',
       },
     ],
     languages:

@@ -128,7 +128,7 @@ def main():
 
     fired = {}  # fixture_id -> evidence line
     for h in doc.get("hits", []):
-        if h.get("reason") != "redundant":
+        if h.get("rule") != "redundant":
             continue
         path = h.get("path", "")
         m = re.search(r"reinv_(\d+)", path)

@@ -246,7 +246,7 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
       drags in. It has <strong>five distinct detectors</strong>: four get their own
       scorecard below, each with its own catch metric and its own false-alarm metric;
       the fifth catches an AI agent gaming a test to force a failing suite green,
-      benchmarked separately (94% of authored edits caught, 1.24% flagged on real
+      benchmarked separately (94% of authored edits caught, 1.12% flagged on real
       accepted commits).
     </p>
     <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -509,10 +509,11 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
             history</strong>: a mini-replay of the repo's recently added functions estimates
             its false-fire rate, and repos that practice systematic parallel implementation
             (saleor's checkout/order mirrors) automatically get a stricter mode. On the
-            leak-free clean-commit replay this lands at
-            <strong>≤ 2.8%/hunk on all 31 corpora</strong> — no exceptions carved out (the
-            former outliers: jellyfin 7.7→2.3%, curl 6.9→1.2%, laravel 6.8→1.6%,
-            saleor 7.5→2.4%). <code class="text-xs">redundant</code> is
+            leak-free clean-commit replay this lands at a
+            <strong>median 0.4%/hunk, ≤ 2% on 30 of 31 corpora</strong> — jellyfin the lone
+            exception at 4.5% (its C# tree at the pinned commit both over-fires and
+            under-catches; the twin-rate guard holds every other repo).
+            <code class="text-xs">redundant</code> is
             measured separately — never folded into the headline catch/over-fire numbers:
             argot names the nearest existing function and lets you decide. (Like every rule
             it fails the check by default; set it to <code class="text-xs">warn</code> or
@@ -572,10 +573,10 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
             — a flat single-package library gets silence, not noise (marked “—” below).
             <strong>Catch</strong> = transplant recall: a real function re-filed into a foreign
             but existing package fires <code class="text-xs">misplaced</code>
-            {f2RecallMed != null && (<> at <strong>86–99% on every judging repo</strong> (median {f2RecallMed}%)</>)}
+            {f2RecallMed != null && (<> at <strong>85–99% on every judging repo</strong> (median {f2RecallMed}%)</>)}
             — up from a median of 66% (and literally 0% on composer, whose whole tree sat in
             one fixed-depth area) before the self-calibration. <strong>False-fire</strong> = the
-            leak-free clean-commit holdout: <strong>≤ 1.5% of hunks on every repo</strong>. The
+            leak-free clean-commit holdout: <strong>≤ 1.2% of hunks on every repo</strong>. The
             former outliers are gone the honest way — fmt (20%: a header-only layout with no
             separable architecture) now abstains, and junit5 (5.5%: near-identical
             <code class="text-xs">junit-platform-*</code> siblings) merges them and lands at 0.

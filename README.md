@@ -180,8 +180,8 @@ argot is additive: it sits *after* your type checker and linter and catches the 
 
 - **Foreign catch — 595/605 (98%)** when the foreign symbol is visible in the diff · **false alarms 0.29%** of 22,513 real hunks (worst corpus 1.46%)
 - **Architecture — 244/252 (96.8%)** caught · **0/140** controls flagged · ≤2.7% over-fire on replayed real history
-- **Reinvention — median 94%** at ≤2.8% false fires per hunk · **Misplacement — 86–99% (median 96%)** at ≤1.5%, where the repo has separable architecture
-- **Test-integrity — 144/153 (94.1%)** gaming tactics caught · **0/102** legitimate-refactor controls · 1.24% of 3,540 replayed accepted test-touching commits flagged at gating severity
+- **Reinvention — median 89%** at ≤4.5% false fires per hunk · **Misplacement — 85–99% (median 96%)** at ≤1.2%, where the repo has separable architecture
+- **Test-integrity — 144/153 (94.1%)** gaming tactics caught · **0/102** legitimate-refactor controls · 1.12% of 5,268 replayed accepted test-touching commits flagged at gating severity
 
 One documented limit: **masked foreign** — a foreign symbol whose name collides with one you already use — is statistically invisible to a voice model. We publish that number rather than hide it. And the method, stated plainly: catch rates are measured on fixtures we authored under a [pre-registered rubric](benchmarks/catalogs/RUBRIC.md) frozen before scoring; false alarms are counted on real commits the model never saw. Independent validation is welcome — that's what the reproducible harness is for. Per-language and per-corpus tables, methodology, confidence intervals: [benchmarks page](https://argot.tmonier.com/benchmarks) (CI-fed, can't drift from what ships). Want a language validated? [Open an issue](https://github.com/get-tmonier/argot/issues/new).
 

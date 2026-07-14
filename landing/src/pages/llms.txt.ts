@@ -71,7 +71,7 @@ export const GET: APIRoute = async () => {
     '**5 · Test integrity — the test-inventory diff:** a test weakened, disabled, or ' +
       'deleted alongside the production change it covers — the shape of an agent ' +
       'gaming a failing suite. 94% of authored gaming edits caught across 22 corpora / ' +
-      '11 languages, 1.24% of real accepted test-touching commits flagged at gating ' +
+      '11 languages, 1.12% of real accepted test-touching commits flagged at gating ' +
       'severity, zero fires on legitimate-refactor controls. Rules (group ' +
       '`integrity`): `test-deleted`, `test-disabled`, `test-weakened` (ships `warn`).',
     '',
