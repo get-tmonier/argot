@@ -61,6 +61,13 @@ the core count. (Sequence-level batching of the embedder was tried and
 dropped — it perturbed the low bits enough to flip a cosine tie and change a
 finding; the invariant wins over the lever.)
 
+**Sharing the machine:** set `ARGOT_THREADS=<n>` to cap every worker pool in
+the binary — the calibration/scoring phases and the embedder's compute
+threads — so a `fit` in a pre-commit hook doesn't saturate the machine while
+you build. It only changes wall-clock, never a finding. There is no memory
+knob: peak RSS is dominated by the embedding model plus the per-thread
+working set, so lowering `ARGOT_THREADS` also lowers peak memory.
+
 ## Measured numbers
 
 Everyday repo — FastAPI (1,100 files, laptop CPU): `check` ~0.2 s per diff

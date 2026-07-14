@@ -10,13 +10,26 @@
 
 use std::num::NonZeroUsize;
 
-/// Map `f` over `0..n` on up to `available_parallelism` scoped threads,
-/// returning results in index order. Falls back to a plain sequential map
-/// when `n` is small or only one core is available.
+/// Global worker-thread cap from `ARGOT_THREADS` (≥ 1): the one operational
+/// knob for sharing a machine — a pre-commit fit shouldn't saturate every
+/// core. Honored by every heavy phase (this pool and the embedder's llama
+/// threads). Unset or invalid → no cap.
+pub fn thread_cap() -> Option<usize> {
+    parse_thread_cap(std::env::var("ARGOT_THREADS").ok().as_deref())
+}
+
+fn parse_thread_cap(raw: Option<&str>) -> Option<usize> {
+    raw?.trim().parse::<usize>().ok().filter(|&n| n >= 1)
+}
+
+/// Map `f` over `0..n` on up to `available_parallelism` scoped threads
+/// (capped by [`thread_cap`]), returning results in index order. Falls back
+/// to a plain sequential map when `n` is small or only one core is available.
 pub fn par_map_indexed<R: Send>(n: usize, f: impl Fn(usize) -> R + Sync) -> Vec<R> {
     let threads = std::thread::available_parallelism()
         .map(NonZeroUsize::get)
         .unwrap_or(1)
+        .min(thread_cap().unwrap_or(usize::MAX))
         .min(n);
     if threads <= 1 {
         return (0..n).map(f).collect();
@@ -54,6 +67,17 @@ mod tests {
             let seq: Vec<usize> = (0..n).map(|i| i * i + 1).collect();
             assert_eq!(par, seq, "n={n}");
         }
+    }
+
+    #[test]
+    fn thread_cap_parses_only_positive_integers() {
+        assert_eq!(parse_thread_cap(Some("4")), Some(4));
+        assert_eq!(parse_thread_cap(Some(" 2 ")), Some(2));
+        assert_eq!(parse_thread_cap(Some("0")), None);
+        assert_eq!(parse_thread_cap(Some("-1")), None);
+        assert_eq!(parse_thread_cap(Some("all")), None);
+        assert_eq!(parse_thread_cap(Some("")), None);
+        assert_eq!(parse_thread_cap(None), None);
     }
 
     #[test]

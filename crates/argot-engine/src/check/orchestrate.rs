@@ -508,8 +508,7 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
         unfitted.dedup();
         if !unfitted.is_empty() {
             stderr.push_str(&format!(
-                "[argot] this change touches {} file(s) — no model in the current fit;                  run `argot fit` to cover them
-",
+                "[argot] this change touches {} file(s) — no model in the current fit; run `argot fit` to cover them\n",
                 unfitted.join("/"),
             ));
         }
@@ -573,23 +572,6 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
         } else {
             Vec::new()
         };
-
-    // A supported language with no model in this fit gets silently dropped by
-    // batch_scope — which is correct scoring, but the user must know their new
-    // Go file has zero coverage until the next fit.
-    {
-        let mut unfitted: Vec<&str> =
-            patches_langs_without_model(&filtered, &base.fitted_languages);
-        unfitted.sort_unstable();
-        unfitted.dedup();
-        if !unfitted.is_empty() {
-            stderr.push_str(&format!(
-                "[argot] this change touches {} file(s) — no model in the current fit;                  run `argot fit` to cover them
-",
-                unfitted.join("/"),
-            ));
-        }
-    }
 
     // `.h` routes to the same C/C++ model calibrate built it into (repo's
     // translation-unit majority) — computed once from the working tree.

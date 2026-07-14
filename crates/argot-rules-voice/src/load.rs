@@ -94,8 +94,8 @@ pub(super) fn load_scorers(
     let config_json = argot_dir.join("scorer-config.json");
 
     for (p, msg) in [
-        (&generic_baseline_json, "run `argot fit` first"),
-        (&config_json, "run `argot calibrate` first"),
+        (&generic_baseline_json, "run `argot init` first"),
+        (&config_json, "run `argot init` first"),
     ] {
         if !p.exists() {
             return Err((format!("error: {} not found — {}\n", p.display(), msg), 2));

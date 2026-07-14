@@ -68,7 +68,7 @@ what-shapes-the-voice calls for you. Going by hand, make them yourself first:
 cd your-repo
 argot init --suggest   # which dirs look like they shouldn't shape the voice
 #   → review, add them to argot.toml [exclude].paths, then:
-argot init         # learn your repo's voice, then a health check (Ready / Marginal / …)
+argot init         # learn your repo's voice, then a health check (Ready / Ready with notes / …)
 argot check        # score uncommitted changes (or pass a ref/range)
 argot audit        # the fun one: what argot would have caught in your last 50 commits, and who wrote it
 ```

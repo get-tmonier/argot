@@ -1,5 +1,13 @@
 # Issue #92 — honest re-bench after the calibration fixes
 
+> **Superseded — do not cite these numbers.** This is a mid-investigation
+> snapshot taken between the #92 calibration fixes, before the v2
+> novel-pattern scope (`benchmarks/catalogs/RUBRIC.md`) and the
+> class-decoupled bench
+> ([foreign-classification-decoupled](foreign-classification-decoupled.md))
+> redefined what is gated and how it is scored. Current numbers are CI-fed:
+> [argot.tmonier.com/benchmarks](https://argot.tmonier.com/benchmarks).
+
 **Date:** 2026-07-03 · **Branch:** `bench/92-temporal-holdout` · Protocol as
 in [issue92-temporal-holdout-baseline.md](issue92-temporal-holdout-baseline.md)
 (leak-free temporal holdout; commit-level bootstrap 95% CIs).
@@ -78,56 +86,26 @@ thresholds. New catalogs follow `benchmarks/catalogs/RUBRIC.md` (frozen
 before scoring: ≥3 wrong_error_discipline, ≥2 wrong_concurrency, ≥3
 wrong_api_within_known_lib, ≥2 naming_shape_break, ≤2 foreign_import).
 
-| Corpus | Lang | Recall | Verdict |
-|---|---|---:|---|
-| rich | python | 11/16 (68.8%) | ❌ |
-| fastapi | python | 32/32 (100%) | ✅ (legacy catalog) |
-| faker | python | 16/16 (100%) | ✅ (legacy catalog, softer classes) |
-| saleor | python | 14/14 (100%) | ✅ (legacy catalog) |
-| wagtail | python | 14/14 (100%) | ✅ (legacy catalog) |
-| hono | typescript | 12/17 (70.6%) | ❌ |
-| faker-js | typescript | 8/17 (47.1%) | ❌ |
-| ink | typescript | 15/17 (88.2%) | ✅ (legacy catalog) |
-| excalidraw | typescript | 9/14 (64.3%) | ❌ |
-| outline | typescript | 9/14 (64.3%) | ❌ |
-| dagster | multi | 18/24 (75.0%) | ❌ |
-| gh-cli | go | 5/13 (38.5%) | ❌ |
-| ripgrep | rust | 4/13 (30.8%) | ❌ |
-| guava | java | 8/14 (57.1%) | ❌ |
-| powershell | csharp | 7/13 (53.8%) | ❌ |
-| redis | c | 3/14 (21.4%) | ❌ |
-| rocksdb | cpp | 3/13 (23.1%) | ❌ |
-| homebrew | ruby | 5/13 (38.5%) | ❌ |
-| laravel | php | 8/13 (61.5%) | ❌ |
-
-**Aggregate honest recall: 201/301 (66.8%). No language other than Python
-meets the 85% gate; on the hard-rubric catalogs specifically, no language
-meets it.** The miss
-pattern is uniform: foreign-import and some concurrency/API fixtures fire;
-in-vocabulary breaks (error discipline, naming shape, API misuse composed
-of tokens the repo already uses) do not. This is the flip side of the
-honest threshold: the leaky calibration used to sit low enough that those
-fixtures crossed — on the same distribution that produced 5–45% FP on
-legitimate code. The old "100% recall / FP ≤ 2%" pairs were two views of
-the same leak.
-
-## The honest trade-off, stated plainly
-
-With a unigram-surprise scorer, "unseen but idiomatic" and "foreign voice"
-overlap heavily in score space. The honest operating point catches
-tripwire-class breaks (foreign imports, strongly foreign API surfaces) at
-low FP; it does not deliver the advertised hard-class recall at any
-threshold. Closing that gap needs a scorer that models *sequence/structure*
-rather than token rarity — future research, not tuning.
+The recall table and aggregate originally recorded here were measured on an
+intermediate state between the calibration-fix commits and mixed gated with
+never-gated fixture classes under a single 85% gate — an invalid snapshot,
+removed. The per-class investigation that followed
+([investigation-capstone](issue92-investigation-capstone.md)) ruled out a
+bug and led to the v2 novel-pattern scope; the class-decoupled bench and
+the CI dashboard carry the current recall numbers. The one durable finding
+from this run stands: with a unigram-surprise scorer, "unseen but idiomatic"
+and "foreign voice" overlap in score space, so in-vocabulary breaks (error
+discipline, naming shape) are out of scope for the voice rule — that scope
+line is now pre-registered in `benchmarks/catalogs/RUBRIC.md`.
 
 ## Skeptical reproduction (fresh clones)
 
 rich, guava and laravel were re-cloned from GitHub into an empty data dir
 (no cached datasets, no fitted artifacts, no planted fixtures possible) and
 re-run end-to-end via `argot-bench --mode honest`. Every number reproduced
-**exactly** — FP existing/new and recall identical to the tables above
-(deterministic pipeline + pinned SHAs): rich 2.81%/3.11% + 11/16, guava
-2.06%/0.00% + 8/14, laravel 0.84%/11.48% + 8/13.
+**exactly** — FP existing/new identical to the tables above
+(deterministic pipeline + pinned SHAs): rich 2.81%/3.11%, guava
+2.06%/0.00%, laravel 0.84%/11.48%.
 
 ## Sample-bar follow-up (widened windows)
 

@@ -1,6 +1,6 @@
 ---
 title: Health & freshness
-description: How argot judges its own fit (the Ready / Marginal / Not recommended verdict), keeps the model fresh in the background, and detects drift — so you never have to guess when to refit.
+description: How argot judges its own fit (the Ready / Ready-with-notes / Not recommended verdict), keeps the model fresh in the background, and detects drift — so you never have to guess when to refit.
 group: Guide
 order: 6
 ---
@@ -31,7 +31,7 @@ the one place that explains the whole loop.
 <figcaption><code>fit</code> writes the voice and its own health record; <code>check</code> reads both — and when the snapshot goes stale, it quietly schedules the next <code>fit</code> itself.</figcaption>
 </figure>
 
-## The verdict — Ready / Marginal / Not recommended
+## The verdict — Ready / Ready with notes / Not recommended
 
 Every `fit`/`init` ends with a verdict on the corpus it just learned from. It
 is a statement about **calibration confidence**, not about your code:
@@ -39,16 +39,17 @@ is a statement about **calibration confidence**, not about your code:
 | Signal | Verdict |
 |---|---|
 | A modeled language has **under 50 candidate hunks** to calibrate on | Not recommended — the threshold would be unstable |
-| Under **200 candidate hunks** | Marginal — usable, but seed-sensitive |
+| Under **200 candidate hunks** | Ready — with notes: usable, but the threshold is seed-sensitive |
 | **No supported source files** at all | Not recommended |
-| Two+ languages each hold ≥ 20% of the corpus | Marginal note — consider [per-language thresholds](/docs/the-commands/#sliced-calibration-per-subdirectory--per-author) (argot calibrates one per language automatically) |
+| Two+ languages each hold ≥ 20% of the corpus | Ready — with notes: consider [per-language thresholds](/docs/the-commands/#sliced-calibration-per-subdirectory--per-author) (argot calibrates one per language automatically) |
 | The calibrated threshold leaves no headroom for phrasing detection | Not recommended — argot would be an import tripwire only on this fit |
 
 Only languages that meaningfully shape the corpus (≥ 20% of modeled files)
 drive the verdict — a stray `.c` file in a TypeScript repo can't turn it red.
-**Marginal is fine for small repos**: the goal is a corpus that reflects how
-the team writes, not a green label. When the verdict isn't Ready, the fix loop
-is [Setup — if the verdict isn't Ready](/docs/setup/#if-the-verdict-isnt-ready).
+**Notes are expected on small repos**: they are tuning hints, not blockers —
+the goal is a corpus that reflects how the team writes, not a spotless label.
+When the verdict isn't a clean Ready, the fix loop is
+[Setup — if the verdict isn't a clean Ready](/docs/setup/#if-the-verdict-isnt-a-clean-ready).
 
 ## health.json — the fit's self-record
 

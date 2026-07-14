@@ -35,9 +35,11 @@ check path="." ref="HEAD~1..HEAD":
 # --- benchmarks (crates/argot-bench) ---
 
 # Full recall/FP bench over every corpus in benchmarks/targets.yaml.
-bench:
+# Corpora run concurrently (`--jobs`, default min(cores, 8)) — each corpus is
+# an independent fit → replay, and results are order-stable at any job count.
+bench *args:
     cargo build --release -p argot-bench
-    ./target/release/argot-bench --results-dir benchmarks/results/latest
+    ./target/release/argot-bench --results-dir benchmarks/results/latest {{args}}
 
 # ~1 min smoke: one fixture per category + 50 controls on ink.
 bench-quick:

@@ -927,8 +927,18 @@ fn run_init_cmd(c: InitCmd) -> ExitCode {
     // `init` is the interactive, one-time setup — this is where the config is
     // scaffolded (a default `argot.toml` when absent) and the personal-override
     // file is kept out of version control. `fit` deliberately does neither.
-    if let Err(e) = ensure_config_present(&c.repo) {
-        eprintln!("warning: could not write argot.toml: {e}");
+    match ensure_config_present(&c.repo) {
+        Ok((wrote_config, appended_gitignore)) => {
+            if wrote_config {
+                println!("Wrote argot.toml — the commented default config; commit it.");
+            }
+            if appended_gitignore {
+                println!(
+                    "Added argot.local.toml to .gitignore — personal overrides stay uncommitted."
+                );
+            }
+        }
+        Err(e) => eprintln!("warning: could not write argot.toml: {e}"),
     }
 
     let report = match inspect_repo(&c.repo) {
@@ -949,12 +959,19 @@ fn run_init_cmd(c: InitCmd) -> ExitCode {
             drift_suggestions_note(&c.repo);
             println!("Next:  argot check          # score your working changes");
         }
-        Verdict::Marginal | Verdict::NotRecommended => {
+        Verdict::ReadyWithNotes => {
             println!("Voice model fitted → {}", scorer_config.display());
+            drift_suggestions_note(&c.repo);
+            println!("Next:  argot check          # score your working changes");
+            println!("The notes above are tuning hints, not blockers. To refine the corpus:");
             println!(
-                "The corpus looks {}. Next steps:",
-                verdict_word(report.verdict)
+                "  • argot init --suggest    # directories you may want to exclude from the voice"
             );
+            println!("  • edit argot.toml [exclude], then re-run  argot init");
+        }
+        Verdict::NotRecommended => {
+            println!("Voice model fitted → {}", scorer_config.display());
+            println!("The corpus looks not recommended yet. Next steps:");
             println!(
                 "  • argot init --suggest    # directories you may want to exclude from the voice"
             );
@@ -963,14 +980,6 @@ fn run_init_cmd(c: InitCmd) -> ExitCode {
         }
     }
     ExitCode::SUCCESS
-}
-
-fn verdict_word(v: Verdict) -> &'static str {
-    match v {
-        Verdict::Ready => "ready",
-        Verdict::Marginal => "marginal",
-        Verdict::NotRecommended => "not recommended yet",
-    }
 }
 
 fn run_init_suggest(c: &InitCmd) -> ExitCode {
@@ -1062,15 +1071,18 @@ fn ensure_model_gitignored(argot_dir: &Path) -> std::io::Result<()> {
 /// Surface the effective config on fit: write a default `argot.toml` when
 /// absent (idempotent), and keep the personal-override `argot.local.toml` out
 /// of version control. Best-effort; a read-only tree must not fail the fit.
-fn ensure_config_present(repo: &Path) -> Result<(), String> {
-    argot_core::config::write_default_if_absent(repo)?;
-    ensure_local_config_gitignored(repo);
-    Ok(())
+/// Returns (wrote `argot.toml`, appended to `.gitignore`) so `init` can say
+/// out loud which files it touched.
+fn ensure_config_present(repo: &Path) -> Result<(bool, bool), String> {
+    let wrote_config = argot_core::config::write_default_if_absent(repo)?;
+    let appended_gitignore = ensure_local_config_gitignored(repo);
+    Ok((wrote_config, appended_gitignore))
 }
 
 /// Add `argot.local.toml` to the repo-root `.gitignore` when not already
 /// covered — the local overrides are personal and uncommitted by design.
-fn ensure_local_config_gitignored(repo: &Path) {
+/// Returns true when the entry was appended.
+fn ensure_local_config_gitignored(repo: &Path) -> bool {
     use argot_core::config::LOCAL_CONFIG_FILE;
     let gitignore = repo.join(".gitignore");
     let existing = fs::read_to_string(&gitignore).unwrap_or_default();
@@ -1078,7 +1090,7 @@ fn ensure_local_config_gitignored(repo: &Path) {
         .lines()
         .any(|l| l.trim() == LOCAL_CONFIG_FILE || l.trim() == format!("/{LOCAL_CONFIG_FILE}"))
     {
-        return;
+        return false;
     }
     let mut content = existing;
     if !content.is_empty() && !content.ends_with('\n') {
@@ -1087,7 +1099,7 @@ fn ensure_local_config_gitignored(repo: &Path) {
     content.push_str(&format!(
         "\n# argot personal config overrides — not shared with the team.\n{LOCAL_CONFIG_FILE}\n"
     ));
-    let _ = fs::write(&gitignore, content);
+    fs::write(&gitignore, content).is_ok()
 }
 
 #[derive(Args)]
@@ -1694,7 +1706,7 @@ fn render_inspect_human(report: &InspectReport, use_color: bool, today: &str) ->
     // Verdict.
     let verdict_label = match report.verdict {
         Verdict::Ready => paint("Ready", ANSI_GREEN, use_color),
-        Verdict::Marginal => paint("Marginal", ANSI_YELLOW, use_color),
+        Verdict::ReadyWithNotes => paint("Ready — with notes", ANSI_YELLOW, use_color),
         Verdict::NotRecommended => paint("Not recommended", ANSI_RED, use_color),
     };
     let _ = writeln!(
@@ -2491,12 +2503,15 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join(".gitignore"), "target/\n").unwrap();
-        ensure_local_config_gitignored(&dir);
+        assert!(ensure_local_config_gitignored(&dir), "first call appends");
         let body = std::fs::read_to_string(dir.join(".gitignore")).unwrap();
         assert!(body.contains("target/"), "existing entries preserved");
         assert!(body.contains("argot.local.toml"), "local config ignored");
         // Idempotent — a second call adds nothing.
-        ensure_local_config_gitignored(&dir);
+        assert!(
+            !ensure_local_config_gitignored(&dir),
+            "second call is a no-op"
+        );
         let body2 = std::fs::read_to_string(dir.join(".gitignore")).unwrap();
         assert_eq!(body, body2, "second call is a no-op");
         let _ = std::fs::remove_dir_all(&dir);

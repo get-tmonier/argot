@@ -30,7 +30,7 @@ suppressing it).
    one or a few packages; everything else is peripheral.
 
 3. **Fit and check health:** `argot init`. Read the **Verdict** line
-   (Ready / Marginal / Not recommended) and the corpus summary. If it's already
+   (Ready / Ready with notes / Not recommended) and the corpus summary. If it's already
    **Ready** with a clean corpus, you may not need to exclude anything — but
    still do step 7 (verify the catch).
 
@@ -136,7 +136,7 @@ stays quiet). When the user reports argot got noisy, or that note appears:
 - **Minimal and reversible.** Every `argot.toml` `[exclude].paths` entry is a
   human-readable decision the user can undo. When unsure whether something is
   authored voice, ask rather than exclude.
-- **Don't chase a perfect verdict.** Marginal is fine for small repos; the goal
+- **Don't chase a spotless verdict.** Notes are expected on small repos; the goal
   is a corpus that reflects how the team actually writes code, not a green label.
 
 See [Configure](https://argot.tmonier.com/docs/configure/) for the full

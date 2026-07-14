@@ -157,9 +157,6 @@ const latest =
 // whose name collides with one of the repo's own, an attested root namespace,
 // or a dynamic import; a documented statistical limit).
 const bd = latest?.totals.foreign_by_difficulty;
-const visCaught = bd ? bd.easy.caught + bd.medium.caught : 0;
-const visTotal = bd ? bd.easy.total + bd.medium.total : 0;
-const visPct = visTotal ? (100 * visCaught) / visTotal : 0;
 // Masked foreign = hard + the "uncaught"-tagged fixtures (name collisions,
 // dynamic imports, attested root namespaces) — the documented statistical limit.
 const maskedCaught = bd ? bd.hard.caught + (bd.uncaught?.caught ?? 0) : 0;
@@ -354,9 +351,9 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
         <>
           <div class="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div class="rounded-xl border border-line p-4">
-              <div class="text-2xl font-bold">{visPct.toFixed(0)}%</div>
+              <div class="text-2xl font-bold">{fForeign.vis}%</div>
               <div class="text-sm text-muted">
-                catch · <strong>visible</strong> foreign ({visCaught}/{visTotal})
+                catch · <strong>visible</strong> foreign, gated classes ({fForeign.visCaught}/{fForeign.visTotal})
               </div>
             </div>
             <div class="rounded-xl border border-line p-4">
@@ -364,7 +361,7 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
                 {(latest.totals.foreign_recall_pct ?? 0).toFixed(0)}%
               </div>
               <div class="text-sm text-muted">
-                catch · all fixtures ({latest.totals.foreign_caught}/{latest.totals.foreign_fixtures}, easy→hard)
+                catch · <strong>every</strong> class &amp; tier, incl. ungated ({latest.totals.foreign_caught}/{latest.totals.foreign_fixtures})
               </div>
             </div>
             <div class="rounded-xl border border-line p-4">

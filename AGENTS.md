@@ -59,8 +59,9 @@ Everything defaults to `error` except `test-weakened`, which ships as `warn`
 on routine test churn.
 
 **Gauge trust first.** Run `argot inspect` (or MCP `argot.fit_status`). If the
-verdict is **Marginal** or **Not recommended**, down-weight every hit — the model
-isn't well-calibrated on this repo yet.
+verdict is **Not recommended**, down-weight every hit — the model isn't
+well-calibrated on this repo yet. **Ready — with notes** is usable as-is; the
+notes say what to keep an eye on.
 
 ## What it catches — and what a clean run doesn't mean
 

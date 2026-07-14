@@ -71,10 +71,11 @@ your accepted history to learn per-repo gates for the test-integrity rules
 (`.argot/integrity.json`), so `test-deleted`/`test-disabled`/`test-weakened` are tuned to
 how this repo actually treats tests before your first `check`.
 
-### If the verdict isn't Ready
+### If the verdict isn't a clean Ready
 
-If it's **Marginal** or **Not recommended**, the corpus is usually either too
-small or polluted by generated/data directories argot can't recognize by name.
+If it's **Ready — with notes** or **Not recommended**, the corpus is usually
+either too small or polluted by generated/data directories argot can't
+recognize by name.
 Ask for evidence:
 
 ```text
@@ -175,9 +176,9 @@ that too; relay the warning to me rather than suppressing it).
 
 9. Summarize what you excluded and why, and the final Verdict.
 
-Don't chase a green "Ready". If the verdict stays **Marginal** only because the
-repo is small (few candidate hunks), that's fine — Marginal is usable and
-excluding more won't help. Keep excluding only when the corpus is polluted by
+Don't chase a spotless "Ready". If the verdict stays **Ready — with notes**
+only because the repo is small (few candidate hunks), that's fine — the notes
+are tuning hints, not blockers, and excluding more won't help. Keep excluding only when the corpus is polluted by
 non-authored code (step 7 reveals this). Keep it minimal and reversible — every
 `[exclude].paths` entry is a decision I can undo.
 ```
