@@ -222,7 +222,7 @@ pub fn run_corpus_production(target: &Target, opts: &RunOptions) -> Result<Produ
             .unwrap_or_default();
         let reasons: Vec<String> = hits
             .iter()
-            .filter_map(|h| h["reason"].as_str().map(String::from))
+            .filter_map(|h| h["rule"].as_str().map(String::from))
             .collect();
         let max_score = hits
             .iter()
