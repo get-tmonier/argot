@@ -66,7 +66,7 @@ tree-sitter-ruby = "0.23"
 # attribution). Reported: https://github.com/libgit2/libgit2/issues/7313.
 # Re-upgrade only once that lands; the `blame_survives_empty_email_author`
 # test is the canary.
-git2 = { version = "0.19", default-features = false, features = ["vendored-libgit2"] }
+git2 = { version = "0.21", default-features = false, features = ["vendored-libgit2"] }
 # Same codebase as the Python `tokenizers` (0.22.2) that transformers wraps;
 # loading the exact serialised `tokenizer.json` gives bit-identical `encode`.
 # onig feature matches the regex engine the Python wheels ship with.
