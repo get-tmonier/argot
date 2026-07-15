@@ -74,7 +74,7 @@ tokenizers = { version = "0.22", default-features = false, features = ["onig"] }
 # MinHash uses md5(callee) — hashlib.md5 parity.
 md-5 = "0.10"
 # Hit hashes (suppression surface) — pure-Rust SHA-256.
-sha2 = "0.10"
+sha2 = "0.11"
 # `.argot/suppressions.yaml` loader — pure Rust (unsafe-libyaml), keeps the
 # single-static-binary story.
 serde_yaml = "0.9"
