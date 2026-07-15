@@ -70,7 +70,7 @@ git2 = { version = "0.19", default-features = false, features = ["vendored-libgi
 # Same codebase as the Python `tokenizers` (0.22.2) that transformers wraps;
 # loading the exact serialised `tokenizer.json` gives bit-identical `encode`.
 # onig feature matches the regex engine the Python wheels ship with.
-tokenizers = { version = "0.22", default-features = false, features = ["onig"] }
+tokenizers = { version = "0.23", default-features = false, features = ["onig"] }
 # MinHash uses md5(callee) — hashlib.md5 parity.
 md-5 = "0.10"
 # Hit hashes (suppression surface) — pure-Rust SHA-256.
