@@ -1,0 +1,47 @@
+name: fuzz
+
+# Weekly (and on-demand) fuzzing of argot's untrusted-input parsers — kept OFF
+# the PR path (nightly + libFuzzer + a cargo-fuzz build are too heavy for every
+# PR). A short bounded run per target catches easy crashes and stops the
+# harnesses (fuzz/) from rotting. See fuzz/README.md.
+
+on:
+  schedule:
+    - cron: "0 4 * * 1" # Mondays 04:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fuzz:
+    name: cargo-fuzz (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [tokenize, ts_parse]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install nightly toolchain (libFuzzer needs nightly)
+        run: |
+          rustup toolchain install nightly --profile minimal
+          rustup default nightly
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: fuzz
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+      - name: Fuzz ${{ matrix.target }} (bounded)
+        run: cargo fuzz run ${{ matrix.target }} -- -max_total_time=60 -rss_limit_mb=4096
+      - name: Upload crash reproducers
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-artifacts-${{ matrix.target }}
+          path: fuzz/artifacts/
+          if-no-files-found: ignore
