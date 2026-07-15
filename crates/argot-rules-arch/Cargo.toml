@@ -5,6 +5,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+# Internal crate: shipped only inside the `argot` binary, never published to
+# crates.io (path deps forbid it). Marked non-publishable so it cannot leak.
+publish = false
 description = "The architecture rule group: a repo's module-dependency graph, flagging an internal edge that reverses the learned layer direction, closes a cycle, or leaves a (near-)sink. No cargo features — the whole crate IS the feature, gated one layer up by argot-core's optional dependency."
 
 [dependencies]
@@ -17,3 +20,6 @@ tree-sitter.workspace = true
 [dev-dependencies]
 serde.workspace = true
 serde_json.workspace = true
+
+[lints]
+workspace = true

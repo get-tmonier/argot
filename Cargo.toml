@@ -12,6 +12,9 @@ members = [
     "crates/argot-cli",
     "crates/argot-bench",
 ]
+# The cargo-fuzz harness is its own nightly/libFuzzer workspace (fuzz/), never
+# part of the main build.
+exclude = ["fuzz"]
 
 [workspace.package]
 version = "0.2.70"
@@ -78,8 +81,8 @@ serde_yaml = "0.9"
 # `argot.toml` config surface: `toml` for serde reads, `toml_edit` for
 # format-preserving writes (mute append / prune keep the user's hand edits and
 # comments). Pure Rust — no effect on the parity-pinned deps.
-toml = "0.8"
-toml_edit = "0.22"
+toml = "1"
+toml_edit = "0.25"
 # `argot update` self-update (crates/argot-cli/src/update.rs): the flow is
 # hand-rolled — version from the published version.json, installer from the
 # release's web download URL — so it never touches the GitHub API and its
@@ -99,6 +102,12 @@ ureq = { version = "2", default-features = false, features = ["tls"] }
 half = { version = "2", features = ["serde"] }
 # Compact base64 packing of the f16 index vectors in the (gitignored) artifact.
 base64 = "0.22"
+
+# Workspace-wide lints, inherited by every member crate via `[lints] workspace =
+# true`. argot's own code contains no `unsafe`; deny it at compile time so it
+# cannot be introduced without a deliberate, reviewed `#[allow(unsafe_code)]`.
+[workspace.lints.rust]
+unsafe_code = "deny"
 
 [profile.release]
 lto = true

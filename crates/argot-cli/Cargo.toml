@@ -6,6 +6,13 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "argot — voice linter CLI. Single statically-linked binary replacing the TS/Bun CLI and Python engine."
+# Not published to crates.io (internal path deps); distributed as a prebuilt
+# binary via cargo-dist + npm. `dist = true` keeps it in the release plan even
+# though it is unpublishable.
+publish = false
+
+[package.metadata.dist]
+dist = true
 
 [[bin]]
 name = "argot"
@@ -46,3 +53,6 @@ ureq = { workspace = true, optional = true }
 
 [target.'cfg(windows)'.dependencies]
 self-replace = { workspace = true, optional = true }
+
+[lints]
+workspace = true

@@ -5,6 +5,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+# Internal crate: shipped only inside the `argot` binary, never published to
+# crates.io (path deps forbid it). Marked non-publishable so it cannot leak.
+publish = false
 description = "The semantic rule group: per-repo code embeddings powering the reinvention (F1) and placement (F2) findings, plus F4 nearest-code evidence. No cargo features — the whole crate IS the feature, gated one layer up by argot-core's optional dependency."
 
 [dependencies]
@@ -32,3 +35,6 @@ llama-cpp-2 = { workspace = true, features = ["metal"] }
 [dev-dependencies]
 serde.workspace = true
 serde_json.workspace = true
+
+[lints]
+workspace = true

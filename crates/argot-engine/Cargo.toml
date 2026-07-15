@@ -5,6 +5,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+# Internal crate: shipped only inside the `argot` binary, never published to
+# crates.io (path deps forbid it). Marked non-publishable so it cannot leak.
+publish = false
 description = "Rule-agnostic guardrail engine: the detector contract, check orchestration, config, suppression surfaces, and git/corpus walking — no rule-group logic, no cargo features."
 
 [dependencies]
@@ -21,3 +24,6 @@ toml_edit.workspace = true
 [dev-dependencies]
 serde.workspace = true
 serde_json.workspace = true
+
+[lints]
+workspace = true
