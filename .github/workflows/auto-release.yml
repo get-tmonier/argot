@@ -16,7 +16,7 @@ jobs:
     name: Verify pinned semantic-model asset
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Download the pinned GGUF and check its sha256
         run: |
           SRC=crates/argot-rules-semantic/src/embedder.rs
@@ -36,7 +36,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           # PAT required: GITHUB_TOKEN pushes don't trigger downstream workflows
           token: ${{ secrets.RELEASE_PAT }}

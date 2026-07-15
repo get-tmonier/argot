@@ -44,7 +44,7 @@ jobs:
     name: cargo-deny (advisories · licenses · bans · sources)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: EmbarkStudios/cargo-deny-action@c3bbe7e4e3f7baeee1a3dd9aec0a3b2aded580fb # v2.1.1
         with:
           command: check
@@ -68,7 +68,7 @@ jobs:
       # (test failures still report file:line from source, not debuginfo).
       CARGO_PROFILE_DEV_DEBUG: 0
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # extract walks git history; the smoke step needs it
       - name: Install Rust toolchain (pinned by rust-toolchain.toml)
