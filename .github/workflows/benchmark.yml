@@ -34,17 +34,17 @@ jobs:
     env:
       ARGOT_BENCH_COMMIT: ${{ github.event.pull_request.head.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install Rust toolchain (pinned)
         run: rustup show
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - name: Run quick bench (ink)
         run: |
           cargo build --release -p argot-bench
           ./target/release/argot-bench --corpus ink --quick \
             --results-dir benchmarks/results/quick
       - name: Comment results on the PR
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
@@ -84,10 +84,10 @@ jobs:
     env:
       ARGOT_BENCH_COMMIT: ${{ github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install Rust toolchain (pinned)
         run: rustup show
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - name: Run full bench
         run: |
           cargo build --release -p argot-bench
