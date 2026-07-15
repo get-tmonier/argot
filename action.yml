@@ -128,6 +128,23 @@ runs:
         archive="${RUNNER_TEMP}/argot.${ext}"
         echo "Downloading $url"
         curl --proto '=https' --tlsv1.2 -fsSL --retry 3 "$url" -o "$archive"
+        # Verify the archive against the release's per-artifact SHA-256 sidecar
+        # (cargo-dist publishes `<artifact>.sha256` next to every binary) before
+        # trusting the download. Fail closed: a missing sidecar or a mismatch
+        # aborts the install. sha256sum on Linux / Git-Bash-on-Windows, shasum
+        # on macOS.
+        curl --proto '=https' --tlsv1.2 -fsSL --retry 3 "${url}.sha256" -o "${archive}.sha256"
+        expected="$(awk '{print $1}' "${archive}.sha256")"
+        if command -v sha256sum >/dev/null 2>&1; then
+          actual="$(sha256sum "$archive" | awk '{print $1}')"
+        else
+          actual="$(shasum -a 256 "$archive" | awk '{print $1}')"
+        fi
+        if [ -z "$expected" ] || [ "$actual" != "$expected" ]; then
+          echo "::error::argot binary checksum verification failed for ${url} (expected '${expected:-<none>}', got '${actual}')"
+          exit 1
+        fi
+        echo "Checksum verified: $actual"
         # bsdtar (the `tar` on GitHub's Windows runners) extracts .zip too, so
         # one code path serves both archive kinds.
         tar -xf "$archive" -C "$install_dir" --strip-components=1
@@ -172,7 +189,7 @@ runs:
     # verifies the sha256 either way (a cache hit costs one hash pass).
     - name: Cache the embedding model
       if: ${{ inputs.cache == 'true' && inputs.semantic == 'true' }}
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ~/.cache/argot/models
         key: argot-embedding-model-semantic-model-v1-${{ runner.os }}
@@ -185,7 +202,7 @@ runs:
     # deleting it only costs recompute, never correctness.
     - name: Cache the embedding vectors
       if: ${{ inputs.cache == 'true' && inputs.semantic == 'true' }}
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ~/.cache/argot/embeddings
         key: argot-embeddings-${{ runner.os }}-${{ inputs.argot-version }}-${{ steps.base.outputs.base_sha }}
@@ -200,7 +217,7 @@ runs:
     - name: Cache argot model (keyed on the base)
       if: ${{ inputs.cache == 'true' }}
       id: model-cache
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ${{ inputs.path }}/.argot
         # Keyed on the base commit, not the working tree: every PR against the
@@ -309,7 +326,7 @@ runs:
 
     - name: Comment voice score on the PR
       if: ${{ inputs.comment-pr == 'true' && github.event_name == 'pull_request' && steps.card.outputs.card != '' }}
-      uses: actions/github-script@v7
+      uses: actions/github-script@v9
       env:
         ARGOT_CARD: ${{ steps.card.outputs.card }}
       with:
@@ -333,7 +350,7 @@ runs:
 
     - name: Upload SARIF to code scanning
       if: ${{ inputs.upload-sarif == 'true' && inputs.format == 'sarif' }}
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@v4
       with:
         sarif_file: ${{ inputs.output-file }}
         category: argot

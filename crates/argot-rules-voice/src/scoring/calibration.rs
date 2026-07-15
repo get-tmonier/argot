@@ -645,7 +645,9 @@ pub fn language_for_filename(name: &str) -> Option<Language> {
 }
 
 fn median(mut v: Vec<f64>) -> f64 {
-    v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    // NaN-safe total order: a degenerate NaN sorts to an end instead of
+    // panicking. Identical to `partial_cmp` for finite values.
+    v.sort_by(|a, b| a.total_cmp(b));
     let n = v.len();
     if n == 0 {
         return 0.0;

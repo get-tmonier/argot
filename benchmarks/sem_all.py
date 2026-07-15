@@ -24,10 +24,12 @@ Usage:
   benchmarks/sem_all.py --only recall|fp  # run just one half
   benchmarks/sem_all.py --window N        # FP holdout window (default 200)
   benchmarks/sem_all.py --fit-timeout S   # per-fit wall clock (default 2400s)
+  benchmarks/sem_all.py --jobs N          # corpora to run concurrently (default 1)
   benchmarks/sem_all.py --out PATH        # results JSONL (default results/sem_all.jsonl)
 Env: ARGOT (binary), ARGOT_SEMANTIC_MODEL (gguf path).
 """
 import argparse, json, os, subprocess, sys, time, shutil, glob, yaml
+import concurrent.futures, threading
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "benchmarks", "data")
@@ -204,12 +206,23 @@ def main():
     ap.add_argument("--fit-timeout", type=int, default=2400)
     ap.add_argument("--step-timeout", type=int, default=1800)
     ap.add_argument("--out", default=os.path.join(ROOT, "benchmarks", "results", "sem_all.jsonl"))
+    ap.add_argument("--jobs", type=int, default=1,
+                    help="corpora to run concurrently (default 1 = sequential). Each "
+                         "worker's argot uses ARGOT_THREADS = cpu//jobs so N fits divide "
+                         "the CPU instead of oversubscribing it. Results are unchanged: the "
+                         "embed cache is content-addressed and thread count doesn't affect "
+                         "embeddings, so parallelism only trades wall-clock, never numbers.")
     args = ap.parse_args()
 
     env = dict(os.environ)
     env["ARGOT"] = os.path.join(ROOT, "target", "release", "argot")
     env.setdefault("ARGOT_SEMANTIC_MODEL",
                    os.path.expanduser("~/.cache/argot/models/jina-embeddings-v2-base-code-Q4_K_M.gguf"))
+    # Divide the CPU across the N concurrent fits (llama + the engine pool both
+    # honour ARGOT_THREADS). jobs=1 leaves it unset → argot uses all cores, so
+    # the sequential path is byte-for-byte the pre-parallel behaviour.
+    if args.jobs > 1 and "ARGOT_THREADS" not in env:
+        env["ARGOT_THREADS"] = str(max(1, (os.cpu_count() or 1) // args.jobs))
 
     corpora = args.corpora or sorted(d for d in os.listdir(FIXT)
                                      if os.path.isdir(os.path.join(FIXT, d)) and not d.startswith("."))
@@ -219,22 +232,43 @@ def main():
     # fresh run: truncate the results file so it reflects exactly this sweep
     open(args.out, "w").close()
 
-    print(f"sem_all: {len(corpora)} corpora, only={args.only or 'recall+fp'}, "
-          f"window={args.window}, fit_timeout={args.fit_timeout}s → {args.out}", flush=True)
+    n = len(corpora)
+    threads_note = f" (ARGOT_THREADS={env['ARGOT_THREADS']})" if args.jobs > 1 else ""
+    print(f"sem_all: {n} corpora, only={args.only or 'recall+fp'}, "
+          f"window={args.window}, fit_timeout={args.fit_timeout}s, jobs={args.jobs}{threads_note} "
+          f"→ {args.out}", flush=True)
+
+    lock = threading.Lock()
+    done = [0]
     t0 = time.time()
-    for i, c in enumerate(corpora, 1):
+
+    def process(item):
+        _, c = item
         ts = time.time()
-        row = do_corpus(c, args, env, fires_dir)
-        with open(args.out, "a") as fh:
-            fh.write(json.dumps(row) + "\n")
-        f1 = (row.get("f1") or {}).get("recall")
-        f2 = (row.get("f2") or {}).get("recall")
-        fp = row.get("fp") or {}
-        errs = f"  ERRORS: {row['errors']}" if row["errors"] else ""
-        print(f"[{i}/{len(corpora)}] {c:12s} F1={f1} F2={f2} "
-              f"redFP={fp.get('redundant_fp')} misFP={fp.get('misplaced_fp')} "
-              f"({time.time()-ts:.0f}s){errs}", flush=True)
-    print(f"\nsem_all DONE: {len(corpora)} corpora in {(time.time()-t0)/60:.1f} min → {args.out}", flush=True)
+        # Per-worker env copy: do_corpus/subprocess calls never mutate it, but a
+        # private copy keeps the threads fully independent.
+        row = do_corpus(c, args, dict(env), fires_dir)
+        with lock:
+            with open(args.out, "a") as fh:
+                fh.write(json.dumps(row) + "\n")
+            done[0] += 1
+            f1 = (row.get("f1") or {}).get("recall")
+            f2 = (row.get("f2") or {}).get("recall")
+            fp = row.get("fp") or {}
+            errs = f"  ERRORS: {row['errors']}" if row["errors"] else ""
+            print(f"[{done[0]}/{n}] {c:12s} F1={f1} F2={f2} "
+                  f"redFP={fp.get('redundant_fp')} misFP={fp.get('misplaced_fp')} "
+                  f"({time.time()-ts:.0f}s){errs}", flush=True)
+
+    if args.jobs > 1:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as ex:
+            list(ex.map(process, enumerate(corpora, 1)))
+    else:
+        for item in enumerate(corpora, 1):
+            process(item)
+
+    print(f"\nsem_all DONE: {n} corpora in {(time.time()-t0)/60:.1f} min "
+          f"(jobs={args.jobs}) → {args.out}", flush=True)
 
 
 if __name__ == "__main__":

@@ -49,12 +49,19 @@ bench-quick:
 # Semantic-layer bench (F1 reinvention + F2 placement: recall AND clean-commit FP)
 # over every corpus with fixtures. Builds the semantic binary (feature is off in
 # dev/CI, on only for shipped builds), then runs the unified driver. Pass corpora
-# to scope (`just bench-semantic rich hono`); needs numpy (benchmarks/requirements.txt)
-# and the jina GGUF (auto-downloaded, or ARGOT_SEMANTIC_MODEL=<path>). Robust: each
-# fit is timeout+retry-guarded so one huge corpus (e.g. dagster, 14.8k fns) can't stall.
+# to scope (`just bench-semantic rich hono`); needs numpy + PyYAML
+# (benchmarks/requirements.txt) and the jina GGUF (auto-downloaded, or
+# ARGOT_SEMANTIC_MODEL=<path>). Robust: each fit is timeout+retry-guarded so one
+# huge corpus (e.g. dagster, 14.8k fns) can't stall.
+#
+# Runs SEM_JOBS corpora concurrently (default 4), each argot capped to
+# ARGOT_THREADS=cpu//jobs so the fits divide the CPU instead of oversubscribing.
+# Verified iso: the embed cache is content-addressed and thread-count-invariant,
+# so parallelism only trades wall-clock, never numbers (measured 73m→25.5m, 2.86x,
+# byte-identical results). `SEM_JOBS=1 just bench-semantic` forces sequential.
 bench-semantic *corpora:
     cargo build --release -p argot --features semantic
-    python3 benchmarks/sem_all.py {{corpora}}
+    python3 benchmarks/sem_all.py --jobs ${SEM_JOBS:-4} {{corpora}}
     python3 benchmarks/sem_consolidate.py   # → landing/src/data/semantic.json
 
 # Structural-foreignness floor validation over every corpus: real multi-language

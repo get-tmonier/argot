@@ -39,3 +39,6 @@ arch = ["argot-core/arch"]
 # drives argot-core's feature-gated test-gaming detector over authored gaming
 # fixtures + replayed accepted history.
 integrity = ["argot-core/integrity", "dep:git2"]
+
+[lints]
+workspace = true

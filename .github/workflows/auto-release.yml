@@ -16,7 +16,7 @@ jobs:
     name: Verify pinned semantic-model asset
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Download the pinned GGUF and check its sha256
         run: |
           SRC=crates/argot-rules-semantic/src/embedder.rs
@@ -24,7 +24,7 @@ jobs:
           SHA=$(grep -m1 'MODEL_SHA256' "$SRC" | grep -o '[0-9a-f]\{64\}')
           echo "pinned: $URL"
           echo "expect: $SHA"
-          curl -fsSL --retry 3 -o model.gguf "$URL"
+          curl --proto '=https' --tlsv1.2 -fsSL --retry 3 -o model.gguf "$URL"
           GOT=$(sha256sum model.gguf | cut -d' ' -f1)
           echo "got:    $GOT"
           test "$GOT" = "$SHA"
@@ -36,7 +36,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # PAT required: GITHUB_TOKEN pushes don't trigger downstream workflows
           token: ${{ secrets.RELEASE_PAT }}

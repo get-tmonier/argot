@@ -5,6 +5,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+# Internal crate: shipped only inside the `argot` binary, never published to
+# crates.io (path deps forbid it). Marked non-publishable so it cannot leak.
+publish = false
 description = "Language substrate: tree-sitter language adapters, tokenization, BPE, and the dataset wire format (language- and corpus-agnostic; no argot-core dependency, no cargo features)."
 
 [dependencies]
@@ -24,3 +27,6 @@ tree-sitter-cpp.workspace = true
 tree-sitter-ruby.workspace = true
 tokenizers.workspace = true
 serde_yaml.workspace = true
+
+[lints]
+workspace = true

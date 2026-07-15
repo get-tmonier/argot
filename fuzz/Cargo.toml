@@ -1,0 +1,34 @@
+[package]
+name = "argot-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+# argot's main untrusted-input surface: arbitrary source bytes fed to the
+# tree-sitter grammars and the tokenizer. (The other untrusted surface — git
+# diffs — is parsed by libgit2, a C library best fuzzed upstream; see README.)
+argot-lang = { path = "../crates/argot-lang" }
+
+[[bin]]
+name = "tokenize"
+path = "fuzz_targets/tokenize.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ts_parse"
+path = "fuzz_targets/ts_parse.rs"
+test = false
+doc = false
+bench = false
+
+# Detach from the parent argot workspace: cargo-fuzz keeps its own lockfile and
+# builds on nightly with libFuzzer instrumentation, which must not touch the
+# main build.
+[workspace]

@@ -5,6 +5,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+# Internal crate: shipped only inside the `argot` binary, never published to
+# crates.io (path deps forbid it). Marked non-publishable so it cannot leak.
+publish = false
 description = "Facade + composition root: re-exports argot-engine/argot-lang/argot-rules-voice at their historical paths and wires this build's rule groups (voice always-on, semantic/architecture/integrity additive) into the engine's check loop."
 
 [dependencies]
@@ -74,3 +77,6 @@ script = ["dep:argot-rules-script"]
 [dev-dependencies]
 serde.workspace = true
 serde_json.workspace = true
+
+[lints]
+workspace = true

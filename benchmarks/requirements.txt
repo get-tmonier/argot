@@ -2,3 +2,5 @@
 # sem_*.py helpers it calls). The Rust pipeline itself has NO Python dependency —
 # this is bench/eval tooling only. Install: pip install -r benchmarks/requirements.txt
 numpy>=2.0
+# sem_all.py loads targets.yaml for the pinned fit SHAs.
+PyYAML>=6.0

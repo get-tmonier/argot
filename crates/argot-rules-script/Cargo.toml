@@ -5,6 +5,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+# Internal crate: shipped only inside the `argot` binary, never published to
+# crates.io (path deps forbid it). Marked non-publishable so it cannot leak.
+publish = false
 description = "The scripted rule group: community rules loaded at run time from `.argot/rules/<name>/` (a TOML manifest + a Rhai detection script) — no recompilation. The native host API does the heavy lifting (tree-sitter queries, learned-model facts); scripts orchestrate and report. No cargo features — the whole crate IS the feature, gated one layer up by argot-core's optional dependency."
 
 [dependencies]
@@ -20,3 +23,6 @@ tree-sitter.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
+
+[lints]
+workspace = true

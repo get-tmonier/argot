@@ -33,7 +33,9 @@ pub struct Percentiles {
 /// Port of `compute_percentiles`.
 pub fn compute_percentiles(scores: &[f64]) -> Percentiles {
     let mut sorted = scores.to_vec();
-    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    // `total_cmp` gives a NaN-safe total order (a stray NaN sorts to an end
+    // instead of panicking); for finite scores it is identical to `partial_cmp`.
+    sorted.sort_by(|a, b| a.total_cmp(b));
     Percentiles {
         min: sorted[0],
         p25: percentile(&sorted, 25.0),
@@ -64,7 +66,7 @@ pub fn compute_auc(good_scores: &[f64], bad_scores: &[f64]) -> f64 {
     let mut all: Vec<(f64, bool)> = Vec::with_capacity(n_pos + n_neg);
     all.extend(good_scores.iter().map(|&s| (s, false)));
     all.extend(bad_scores.iter().map(|&s| (s, true)));
-    all.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+    all.sort_by(|a, b| a.0.total_cmp(&b.0));
 
     // Average ranks (1-based); tied scores share the mean of their positions.
     let mut sum_pos_ranks = 0.0f64;
@@ -124,5 +126,23 @@ mod tests {
         let good = [0.5, 0.5, 0.1];
         let bad = [0.5, 0.9, 0.5];
         approx(compute_auc(&good, &bad), 0.777_777_777_777_777_8);
+    }
+
+    #[test]
+    fn percentiles_do_not_panic_on_nan() {
+        // A degenerate NaN in the scores must not panic the sort (the old
+        // `partial_cmp().unwrap()` did). `total_cmp` sorts it deterministically.
+        let scores = [0.3, f64::NAN, 0.1, 0.9, 0.2];
+        let p = compute_percentiles(&scores);
+        // Finite endpoints are still recovered from the finite values.
+        approx(p.min, 0.1);
+    }
+
+    #[test]
+    fn auc_does_not_panic_on_nan() {
+        // AUC over scores that include a NaN must not panic.
+        let good = [0.1, f64::NAN, 0.2];
+        let bad = [0.8, 0.9, 0.5];
+        let _ = compute_auc(&good, &bad);
     }
 }

@@ -3,6 +3,10 @@
 Thanks for helping make argot better. It's a single statically-linked Rust
 binary — no Python, no Node, no runtime deps — so the on-ramp is short.
 
+By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md). Found a
+security issue? **Don't open a public issue** — follow the private disclosure
+process in [SECURITY.md](SECURITY.md).
+
 ## Dev setup
 
 You need the Rust toolchain and [`just`](https://github.com/casey/just):

@@ -1,0 +1,86 @@
+# cargo-deny configuration — supply-chain gate run in CI (`cargo deny check`).
+#
+# Four checks: advisories (RustSec CVEs / unmaintained), licenses (only the
+# permissive set below), bans (dependency hygiene), and sources (crates.io only).
+# See https://embarkstudios.github.io/cargo-deny/.
+#
+# argot pins several dependencies for byte-for-byte parity with the Python
+# engine it replaces (see the root Cargo.toml). When a pinned dep draws a
+# security advisory that cannot be resolved without breaking that pin, it is
+# ignored HERE with an explicit, dated justification — so the tool keeps
+# surfacing NEW advisories instead of being switched off.
+
+[graph]
+# Check the same feature set the shipped binary is built with, so CI sees the
+# real dependency tree (llama.cpp, self-update, etc.), not just the base loop.
+all-features = true
+
+[advisories]
+# Fail on any advisory not explicitly ignored below.
+yanked = "deny"
+ignore = [
+    # git2 is pinned to 0.19 (libgit2 1.8.1) on purpose: the 1.9.x blame rewrite
+    # segfaults on commits with an empty author email (upstream libgit2 #7313).
+    # The three advisories below all require git2 >= 0.20.4/0.21, which pulls
+    # libgit2 1.9.x and reintroduces that crash. They are `unsound` (potential
+    # UB), not actively-exploited vulnerabilities, and none sits on argot's code
+    # paths (argot does only local git ops — the network transports are compiled
+    # out — and never calls Remote::list). Re-evaluate once #7313 lands and the
+    # `blame_survives_empty_email_author` canary lets us move git2 forward.
+    "RUSTSEC-2026-0008", # git2: UB dereferencing an empty Buf
+    "RUSTSEC-2026-0183", # git2: UB in Remote::list() — argot never lists remotes
+    "RUSTSEC-2026-0184", # git2: UB in Signature from a buffer-created BlameHunk
+    # `paste` is an unmaintained-but-complete proc-macro pulled in transitively
+    # by tokenizers (macro_rules_attribute). No safe upgrade exists and there is
+    # no known defect — it is simply feature-frozen. Ubiquitous across the
+    # ecosystem; drop this once tokenizers stops depending on it.
+    "RUSTSEC-2024-0436", # paste: no longer maintained
+]
+
+[licenses]
+# Only permissive / public-domain-equivalent licenses are allowed globally.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+confidence-threshold = 0.9
+
+# Two weak-copyleft transitive deps, allowed per-crate (not project-wide) so the
+# exposure stays explicit and auditable.
+[[licenses.exceptions]]
+# smartstring (via rhai): MPL-2.0 is file-level weak copyleft; we link it
+# statically and unmodified, which MPL-2.0 permits.
+name = "smartstring"
+allow = ["MPL-2.0"]
+
+[[licenses.exceptions]]
+# r-efi: LGPL, but a getrandom target-conditional dep for `*-uefi` targets only.
+# argot never builds for UEFI, so it is present in the lockfile yet never
+# compiled or linked into any shipped binary.
+name = "r-efi"
+allow = ["LGPL-2.1-or-later"]
+
+[bans]
+# Duplicate versions are normal in a large tree (base64, getrandom, windows-sys,
+# …); surface them without failing CI.
+multiple-versions = "warn"
+# We pin exact/caret versions in every workspace manifest — a `*` req would be a
+# mistake worth catching. Workspace-internal path deps use `*` by design, so
+# they are exempted.
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+# crates.io only: no git or alternative-registry dependencies.
+unknown-registry = "deny"
+unknown-git = "deny"
