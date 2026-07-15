@@ -302,7 +302,7 @@ jobs:
           pattern: artifacts-*
           path: npm/
           merge-multiple: true
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           # Node 24 (current LTS); Node 20 reached end-of-life in April 2026.
           # Manual patch — cargo-dist 0.32 hardcodes 20.x with no config knob,
