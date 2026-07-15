@@ -7,6 +7,11 @@ members = ["cargo:."]
 cargo-dist-version = "0.32.0"
 # CI backends to support
 ci = "github"
+# release.yml is hand-patched (npm-publish node-version 20.x -> 24.x, since
+# cargo-dist 0.32 hardcodes 20.x with no config knob). Tell `dist plan` not to
+# fail its CI-freshness check on that deliberate drift. Re-apply the node patch
+# after any `dist generate`.
+allow-dirty = ["ci"]
 # Emit Sigstore build-provenance attestations for every release artifact
 # (GitHub `actions/attest-build-provenance`), so downloads can be verified with
 # `gh attestation verify`. Adds `id-token`/`attestations` write scopes to the
