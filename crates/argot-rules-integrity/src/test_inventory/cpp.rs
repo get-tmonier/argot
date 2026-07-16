@@ -152,8 +152,8 @@ pub(super) fn extract(root: tree_sitter::Node, src: &str) -> TestInventory {
             let Some(params) = decl.child_by_field_name("parameters") else {
                 return;
             };
-            let args: Vec<&str> = (0..params.named_child_count())
-                .filter_map(|i| params.named_child(i))
+            let args: Vec<&str> = argot_lang::ts_parse::named_child_nodes(params)
+                .into_iter()
                 .filter_map(|p| p.child_by_field_name("type"))
                 .map(|t| node_text(t, src))
                 .collect();

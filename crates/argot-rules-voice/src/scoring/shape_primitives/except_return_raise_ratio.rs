@@ -75,11 +75,8 @@ fn count_returns_raises(root: Node, src: &[u8], language: Language) -> (usize, u
         } else if is_raise(node, src, language) {
             raises += 1;
         }
-        let n = node.child_count();
-        for i in (0..n).rev() {
-            if let Some(c) = node.child(i) {
-                stack.push(c);
-            }
+        for c in argot_lang::ts_parse::child_nodes(node).into_iter().rev() {
+            stack.push(c);
         }
     }
     (returns, raises)
@@ -102,11 +99,8 @@ fn count_in_handlers(root: Node, src: &[u8], language: Language) -> (usize, usiz
             returns += r;
             raises += x;
         }
-        let n = node.child_count();
-        for i in (0..n).rev() {
-            if let Some(c) = node.child(i) {
-                stack.push(c);
-            }
+        for c in argot_lang::ts_parse::child_nodes(node).into_iter().rev() {
+            stack.push(c);
         }
     }
     (returns, raises)

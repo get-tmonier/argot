@@ -90,13 +90,11 @@ pub(super) fn extract(root: tree_sitter::Node, src: &str) -> TestInventory {
                 .map(|a| {
                     let mut count = ident_count(a);
                     // Discount the testing handles passed as plain args.
-                    for i in 0..a.named_child_count() {
-                        if let Some(ch) = a.named_child(i) {
-                            if ch.kind() == "identifier" {
-                                let t = node_text(ch, src);
-                                if t == "t" || t == "b" {
-                                    count = count.saturating_sub(1);
-                                }
+                    for ch in argot_lang::ts_parse::named_child_nodes(a) {
+                        if ch.kind() == "identifier" {
+                            let t = node_text(ch, src);
+                            if t == "t" || t == "b" {
+                                count = count.saturating_sub(1);
                             }
                         }
                     }

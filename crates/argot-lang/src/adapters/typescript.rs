@@ -534,10 +534,8 @@ impl TypeScriptAdapter {
                 }
                 _ => {}
             }
-            for i in (0..node.child_count()).rev() {
-                if let Some(c) = node.child(i) {
-                    stack.push(c);
-                }
+            for c in children(node).into_iter().rev() {
+                stack.push(c);
             }
         }
         out
@@ -580,10 +578,8 @@ impl TypeScriptAdapter {
                     end_line: node.end_position().row + 1,
                 });
             }
-            for i in (0..node.child_count()).rev() {
-                if let Some(c) = node.child(i) {
-                    stack.push(c);
-                }
+            for c in children(node).into_iter().rev() {
+                stack.push(c);
             }
         }
         out
@@ -615,23 +611,19 @@ impl TypeScriptAdapter {
                         _ if n.kind() == "variable_declarator" && n.id() != node.id() => {}
                         _ => {}
                     }
-                    for i in (0..n.child_count()).rev() {
-                        if let Some(c) = n.child(i) {
-                            if n.kind() == "variable_declarator"
-                                && n.child_by_field_name("value").map(|v| v.id()) == Some(c.id())
-                            {
-                                continue;
-                            }
-                            inner.push(c);
+                    for c in children(n).into_iter().rev() {
+                        if n.kind() == "variable_declarator"
+                            && n.child_by_field_name("value").map(|v| v.id()) == Some(c.id())
+                        {
+                            continue;
                         }
+                        inner.push(c);
                     }
                 }
                 continue;
             }
-            for i in (0..node.child_count()).rev() {
-                if let Some(c) = node.child(i) {
-                    stack.push(c);
-                }
+            for c in children(node).into_iter().rev() {
+                stack.push(c);
             }
         }
         out

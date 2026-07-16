@@ -83,22 +83,17 @@ pub(super) fn extract(root: tree_sitter::Node, src: &str) -> TestInventory {
             return;
         }
         let mut modifiers = None;
-        for i in 0..n.named_child_count() {
-            if let Some(c) = n.named_child(i) {
-                if c.kind() == "modifiers" {
-                    modifiers = Some(c);
-                    break;
-                }
+        for c in argot_lang::ts_parse::named_child_nodes(n) {
+            if c.kind() == "modifiers" {
+                modifiers = Some(c);
+                break;
             }
         }
         let Some(modifiers) = modifiers else {
             return;
         };
         let mut annotation_names = Vec::new();
-        for i in 0..modifiers.named_child_count() {
-            let Some(a) = modifiers.named_child(i) else {
-                continue;
-            };
+        for a in argot_lang::ts_parse::named_child_nodes(modifiers) {
             if matches!(a.kind(), "annotation" | "marker_annotation") {
                 if let Some(name) = annotation_name(a, src) {
                     annotation_names.push(name);

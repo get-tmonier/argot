@@ -28,10 +28,7 @@ pub(super) fn extract(root: tree_sitter::Node, src: &str) -> TestInventory {
         if let Some(parent) = n.parent() {
             if parent.kind() == "decorated_definition" {
                 span_node = parent;
-                for i in 0..parent.named_child_count() {
-                    let Some(c) = parent.named_child(i) else {
-                        continue;
-                    };
+                for c in argot_lang::ts_parse::named_child_nodes(parent) {
                     if c.kind() == "decorator" {
                         let t = node_text(c, src);
                         if t.contains("skip") || t.contains("xfail") {

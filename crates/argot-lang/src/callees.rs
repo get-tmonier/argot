@@ -398,11 +398,8 @@ fn walk_preorder(root: Node, mut visit: impl FnMut(Node)) {
     let mut stack = vec![root];
     while let Some(node) = stack.pop() {
         visit(node);
-        let n = node.child_count();
-        for i in (0..n).rev() {
-            if let Some(c) = node.child(i) {
-                stack.push(c);
-            }
+        for c in crate::ts_parse::child_nodes(node).into_iter().rev() {
+            stack.push(c);
         }
     }
 }

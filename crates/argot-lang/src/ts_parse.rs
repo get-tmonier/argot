@@ -70,5 +70,23 @@ pub fn parse(source: &str, language: Language) -> Option<Tree> {
     }
 }
 
+/// The direct children of `node`, in left-to-right tree order.
+///
+/// tree-sitter's index accessor `Node::child(i)` takes a `u32` and costs
+/// log(i) per call; a cursor walk is the idiomatic linear traversal and keeps
+/// callers free of `usize`→`u32` index casts. Reverse the result for the
+/// stack-based pre-order DFS the scorers use (push children reversed so they
+/// pop left-to-right).
+pub fn child_nodes<'t>(node: tree_sitter::Node<'t>) -> Vec<tree_sitter::Node<'t>> {
+    let mut cursor = node.walk();
+    node.children(&mut cursor).collect()
+}
+
+/// The named direct children of `node`, in tree order (skips anonymous tokens).
+pub fn named_child_nodes<'t>(node: tree_sitter::Node<'t>) -> Vec<tree_sitter::Node<'t>> {
+    let mut cursor = node.walk();
+    node.named_children(&mut cursor).collect()
+}
+
 #[cfg(test)]
 mod tests;

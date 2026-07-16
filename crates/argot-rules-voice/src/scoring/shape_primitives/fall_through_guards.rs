@@ -69,11 +69,8 @@ fn guards_before_return(func: Node, if_types: &[&str], return_type: &str) -> usi
         } else if if_types.contains(&kind) {
             if_bytes.push(node.start_byte());
         }
-        let n = node.child_count();
-        for i in (0..n).rev() {
-            if let Some(c) = node.child(i) {
-                stack.push(c);
-            }
+        for c in argot_lang::ts_parse::child_nodes(node).into_iter().rev() {
+            stack.push(c);
         }
     }
     match first_return {
@@ -94,11 +91,8 @@ fn file_avg_guards(source: &str, language: Language) -> Option<f64> {
         if funcs.contains(&node.kind()) {
             counts.push(guards_before_return(node, ifs, ret) as f64);
         }
-        let n = node.child_count();
-        for i in (0..n).rev() {
-            if let Some(c) = node.child(i) {
-                stack.push(c);
-            }
+        for c in argot_lang::ts_parse::child_nodes(node).into_iter().rev() {
+            stack.push(c);
         }
     }
     if counts.is_empty() {

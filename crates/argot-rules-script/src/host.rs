@@ -27,6 +27,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use streaming_iterator::StreamingIterator;
 
 /// Hard operation cap per (rule, file) — far above any sane pattern rule.
 const MAX_OPERATIONS: u64 = 1_000_000;
@@ -269,8 +270,10 @@ fn ts_query(language: &str, source: &str, query: &str) -> Array {
     let mut cursor = tree_sitter::QueryCursor::new();
     let names = compiled.capture_names();
     let mut out = Array::new();
-    let matches = cursor.matches(&compiled, tree.root_node(), source.as_bytes());
-    for m in matches {
+    // tree-sitter 0.25+ returns a StreamingIterator from `matches`, not a
+    // std Iterator — drive it with `.next()` via the streaming-iterator trait.
+    let mut matches = cursor.matches(&compiled, tree.root_node(), source.as_bytes());
+    while let Some(m) = matches.next() {
         for cap in m.captures {
             let node = cap.node;
             let mut entry = Map::new();
