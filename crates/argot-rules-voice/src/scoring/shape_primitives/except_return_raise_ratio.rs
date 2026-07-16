@@ -1,5 +1,4 @@
-//! Except-block return/raise ratio — port of
-//! `engine/argot/scoring/scorers/except_return_raise_ratio.py`.
+//! Except-block return/raise ratio.
 //!
 //! Within each handler subtree (`except_clause` / `catch_clause`),
 //! ratio = returns / (returns + raises). Nested handlers are counted
@@ -83,8 +82,7 @@ fn count_returns_raises(root: Node, src: &[u8], language: Language) -> (usize, u
 }
 
 /// Sum `(returns, raises)` across every handler subtree under `root`. Nested
-/// handlers are walked independently (double-counting is intentional, matching
-/// the Python `_count_in_handlers`).
+/// handlers are walked independently (double-counting is intentional).
 fn count_in_handlers(root: Node, src: &[u8], language: Language) -> (usize, usize) {
     let handler_type = match handler_kind(language) {
         Some(h) => h,

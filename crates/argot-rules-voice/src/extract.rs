@@ -1,4 +1,4 @@
-//! Dataset extraction — port of `engine/argot/extract.py`.
+//! Dataset extraction.
 //!
 //! Walks git history, tokenises each changed hunk plus up to
 //! [`CONTEXT_LINES`] of surrounding context, and writes one JSON
@@ -33,8 +33,8 @@ pub struct ExtractStats {
 /// Extract records from `repo_path` (optionally scoped to `reference`) and
 /// write them as JSONL to `out`. Returns record counts.
 ///
-/// Mirrors `extract.py`: topological walk, single-parent commits only, hunk
-/// bounds clamped to the post-image, context of [`CONTEXT_LINES`] each side.
+/// Topological walk, single-parent commits only, hunk bounds clamped to the
+/// post-image, context of [`CONTEXT_LINES`] each side.
 pub fn write_dataset<W: Write>(
     repo_path: &str,
     reference: Option<&str>,

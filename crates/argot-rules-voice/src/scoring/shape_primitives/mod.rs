@@ -1,7 +1,6 @@
 //! The five built-in shape primitives + shared tree-sitter helpers.
 //!
-//! Each primitive is a port of one Python module under
-//! `engine/argot/scoring/scorers/`:
+//! The five primitives:
 //! - [`namespace_jsd`] — receiver-namespace coverage divergence (JS distance),
 //! - [`call_scope_fraction`] — fraction of calls at module scope,
 //! - [`typical_call_density`] — under-coverage of cluster-typical callees,
@@ -27,8 +26,7 @@ pub use typical_call_density::TypicalCallDensity;
 use crate::scoring::adapters::Language;
 use tree_sitter::{Node, Parser, Tree};
 
-/// Parse `source` with the language grammar. Mirrors the Python primitives'
-/// `parser.parse(source.encode("utf-8"))` with a broad except → `None`.
+/// Parse `source` with the language grammar; any parse failure yields `None`.
 pub(crate) fn parse(source: &str, language: Language) -> Option<Tree> {
     let mut parser = Parser::new();
     let lang: tree_sitter::Language = match language {
@@ -48,8 +46,7 @@ pub(crate) fn parse(source: &str, language: Language) -> Option<Tree> {
     parser.parse(source, None)
 }
 
-/// Pre-order DFS matching the Python `_walk` / `_walk_nodes` (stack, reversed
-/// children), invoking `visit` on every node.
+/// Pre-order DFS (stack, reversed children), invoking `visit` on every node.
 pub(crate) fn walk_preorder(root: Node, mut visit: impl FnMut(Node)) {
     let mut stack = vec![root];
     while let Some(node) = stack.pop() {
@@ -60,8 +57,7 @@ pub(crate) fn walk_preorder(root: Node, mut visit: impl FnMut(Node)) {
     }
 }
 
-/// Call-expression node kinds per language (matches `_PY_CALL_TYPES` /
-/// `_TS_CALL_TYPES` in `call_receiver.py`).
+/// Call-expression node kinds per language.
 pub(crate) fn is_call_kind(kind: &str, language: Language) -> bool {
     match language {
         Language::Python => kind == "call",

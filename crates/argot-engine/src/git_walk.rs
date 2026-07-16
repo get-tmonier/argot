@@ -1,9 +1,9 @@
-//! Git history walk — port of `engine/argot/git_walk.py`.
+//! Git history walk.
 //!
-//! Uses `git2` (libgit2 bindings) — the same C library `pygit2` binds — so
-//! the diff, hunk boundaries, and `find_similar` rename detection match the
-//! Python engine exactly. The revwalk uses libgit2's topological sort, giving
-//! the identical commit visitation order.
+//! Uses `git2` (libgit2 bindings), so the diff, hunk boundaries, and
+//! `find_similar` rename detection are exactly libgit2's — deterministic and
+//! reproducible. The revwalk uses libgit2's topological sort, giving a fixed
+//! commit visitation order.
 
 use anyhow::{Context, Result};
 use git2::{DiffFindOptions, Oid, Patch, Repository, RepositoryOpenFlags, Sort, StatusOptions};
@@ -12,10 +12,10 @@ use std::ffi::OsStr;
 use std::ops::ControlFlow;
 use std::path::Path;
 
-/// Open a repository the way `pygit2.Repository(path)` does: default flags
-/// (`git_repository_open_ext(path, 0, NULL)`), which searches parent
-/// directories for a `.git`. git2's plain `Repository::open` does NOT search,
-/// so this centralised opener is required for parity.
+/// Open a repository with default flags (`git_repository_open_ext(path, 0,
+/// NULL)`), which searches parent directories for a `.git`. git2's plain
+/// `Repository::open` does NOT search, so this centralised opener is required
+/// for the repo to resolve when `path` is a subdirectory of the worktree.
 pub fn open_repo(path: &str) -> std::result::Result<Repository, git2::Error> {
     Repository::open_ext(
         path,
@@ -38,7 +38,7 @@ pub struct HunkSpan {
 }
 
 /// One `(commit, file, post-blob, hunks)` yield of the walk. Commit-level
-/// fields are duplicated per changed file, mirroring the Python generator.
+/// fields are duplicated per changed file.
 #[derive(Debug, Clone)]
 pub struct WalkItem {
     pub commit_id: String,
@@ -52,8 +52,8 @@ pub struct WalkItem {
     pub hunks: Vec<HunkSpan>,
 }
 
-/// Whether `path` opens as a git repository — mirrors the guard
-/// `pygit2.Repository(path)` raising `GitError` (with parent search).
+/// Whether `path` opens as a git repository, searching parent directories for
+/// a `.git` (via [`open_repo`]).
 pub fn repo_exists(path: &str) -> bool {
     open_repo(path).is_ok()
 }
@@ -237,8 +237,8 @@ where
         let commit_tree = commit.tree()?;
 
         let mut diff = repo.diff_tree_to_tree(Some(&parent_tree), Some(&commit_tree), None)?;
-        // Default find options → GIT_DIFF_FIND_BY_CONFIG, matching pygit2's
-        // `diff.find_similar()` with no args.
+        // Default find options → GIT_DIFF_FIND_BY_CONFIG — `find_similar` with
+        // no explicit options.
         let mut find_opts = DiffFindOptions::new();
         diff.find_similar(Some(&mut find_opts))?;
 
@@ -274,7 +274,7 @@ where
             }
 
             // Post-image blob from the commit's tree; skip if the path is
-            // absent (deleted) or not a blob — matching Python's KeyError skip.
+            // absent (deleted) or not a blob.
             let entry = match commit_tree.get_path(Path::new(&file_path)) {
                 Ok(e) => e,
                 Err(_) => continue,

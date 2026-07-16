@@ -1,4 +1,4 @@
-//! Golden-fixture parity test for the typicality filter.
+//! Golden-fixture regression test for the typicality filter.
 //!
 //! The golden (`tests/fixtures/typicality/golden.json`) maps
 //! language → sample name → the source and the expected features/verdicts. The

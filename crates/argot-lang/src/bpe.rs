@@ -1,11 +1,10 @@
 //! BPE tokenisation — the production scoring tokenizer.
 //!
-//! The Python engine loads `microsoft/unixcoder-base` via
-//! `transformers.AutoTokenizer` and calls
+//! The tokenizer is `microsoft/unixcoder-base`, invoked as
 //! `encode(source, add_special_tokens=False)`. That fast tokenizer is backed
 //! by HuggingFace's Rust `tokenizers` library; we embed the exact serialised
 //! `tokenizer.json` and load it with the same library, so `encode` is
-//! bit-identical.
+//! bit-identical to the reference.
 
 use std::collections::HashMap;
 use tokenizers::Tokenizer;
@@ -15,7 +14,7 @@ use tokenizers::Tokenizer;
 /// self-contained artifact (no HF Hub round-trip, no torch).
 const TOKENIZER_JSON: &[u8] = include_bytes!("../data/unixcoder_tokenizer.json");
 
-/// Byte-level BPE tokenizer matching the Python production path.
+/// Byte-level BPE tokenizer — the production scoring path.
 pub struct BpeTokenizer {
     inner: Tokenizer,
 }
@@ -48,7 +47,7 @@ impl BpeTokenizer {
     /// evidence BPE reconstruction only walks ASCII identifier bytes (see
     /// `evidence::bpe_reconstruction`), and every multi-byte UTF-8 char is a
     /// boundary in both coordinate systems, so byte-space reconstruction
-    /// yields identifiers identical to Python's char-space code.
+    /// yields identifiers identical to a char-space reconstruction.
     pub fn encode_with_offsets(&self, text: &str) -> (Vec<u32>, Vec<(usize, usize)>) {
         let encoding = self
             .inner
@@ -57,7 +56,7 @@ impl BpeTokenizer {
         (encoding.get_ids().to_vec(), encoding.get_offsets().to_vec())
     }
 
-    /// Reverse vocab lookup — Python `self._id_to_token.get(id, "")`.
+    /// Reverse vocab lookup: token text for `id`, or `None` if unknown.
     pub fn id_to_token(&self, id: u32) -> Option<String> {
         self.inner.id_to_token(id)
     }

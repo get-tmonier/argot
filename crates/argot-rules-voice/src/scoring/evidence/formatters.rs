@@ -1,9 +1,8 @@
 //! Per-reason renderers that turn an [`Evidence`] payload into lines.
 //!
-//! Port of `engine/argot/scoring/evidence/formatters.py`. Each reason gets its
-//! own render path; all shared layout decisions live in [`super::layout`]. The
-//! formatters own only the per-reason "where to read names from" choice and the
-//! no-color / color rendering toggle.
+//! Each reason gets its own render path; all shared layout decisions live in
+//! [`super::layout`]. The formatters own only the per-reason "where to read
+//! names from" choice and the no-color / color rendering toggle.
 
 use super::layout::{
     format_common_here_line, format_frequency, format_rarity, should_show_common_here,

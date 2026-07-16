@@ -1,4 +1,4 @@
-//! Golden parity for the five shape primitives — checks both
+//! Golden regression for the five shape primitives — checks both
 //! `fit_cluster_baseline` (against `expected_baseline`) and `score` (against
 //! `expected_score`) for every captured case. Goldens are authoritative; the
 //! implementation is fixed to match them, never the reverse.

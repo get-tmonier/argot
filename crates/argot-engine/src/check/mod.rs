@@ -1,13 +1,13 @@
-//! `check` — port of `engine/argot/check.py`.
+//! `check`.
 //!
 //! Loads the `.argot/` artifacts (v2 `scorer-config.json`, `repo-corpus.txt`,
 //! `generic-baseline.json`), collects git patches for the requested mode
 //! (commit / range / workdir / staged / unstaged), scores each hunk through the
 //! per-language `SequentialImportBpeScorer`, and renders a decision.
 //!
-//! This is a behaviour-preserving port: the rendered stdout is byte-identical
-//! to the Python engine's (in the `NO_COLOR` / non-tty path), including the
-//! per-reason `↳` evidence lines and the eslint-style `^^^^` caret underlines
+//! The rendered stdout is byte-stable — locked by the check goldens — in the
+//! `NO_COLOR` / non-tty path, including the per-reason `↳` evidence lines and
+//! the eslint-style `^^^^` caret underlines
 //! when the config carries an `evidence_corpus` block. On a color-capable tty
 //! the human render adds per-severity ANSI accents (red/yellow/blue on the
 //! glyph + tier, dim on secondary detail); syntax highlighting of hunk bodies

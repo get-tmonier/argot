@@ -1,5 +1,5 @@
-//! Statistics helpers — port of `engine/argot/stats.py` (plus the percentile
-//! math reused by threshold calibration).
+//! Statistics helpers — the percentile math (also reused by threshold
+//! calibration) and AUC.
 //!
 //! `percentile` reproduces numpy's default linear interpolation; `auc`
 //! reproduces `sklearn.metrics.roc_auc_score` for binary labels via the

@@ -1,5 +1,4 @@
-//! Call-receiver scorer — port of
-//! `engine/argot/scoring/scorers/call_receiver.py`.
+//! Call-receiver scorer.
 //!
 //! Tracks distinct call-expression callees across the repo corpus and
 //! penalises unattested callees in a hunk (soft additive BPE penalty).
@@ -610,7 +609,7 @@ impl CallReceiverScorer {
 
     /// Attach additive shape primitives and fit their per-cluster baselines
     /// over the (non-data-dominant, clustered) corpus files. An empty
-    /// primitive list is a true no-op, matching the Python scorer.
+    /// primitive list is a true no-op.
     pub fn with_shape_primitives(
         mut self,
         primitives: Vec<Box<dyn ShapePrimitive>>,
@@ -1079,8 +1078,8 @@ impl CallReceiverScorer {
             }
         }
         // Shape-primitive dispatch: additive scalars, final cap still bounds
-        // the total. Skipped on root-error hunks, matching the Python scorer
-        // (the host fallback feeds callee extraction only).
+        // the total. Skipped on root-error hunks (the host fallback feeds
+        // callee extraction only).
         if !self.shape_primitives.is_empty() && !has_root_error(hunk, self.language) {
             if let Some(cid) = self.cluster_id_for_hunk_file(file_path, file_source) {
                 let cluster_size = self.cluster_sizes.get(&cid).copied().unwrap_or(0);

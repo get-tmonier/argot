@@ -1,13 +1,12 @@
 //! Bit-exact reproduction of numpy's `default_rng(seed).choice(pop, n, replace=False)`
 //! for calibration hunk sampling.
 //!
-//! The Python engine samples calibration hunks with
-//! `sorted(np.random.default_rng(seed).choice(len(candidates), n, replace=False))`
-//! (see `engine/argot/scoring/calibration/random_hunk_sampler.py`). The BPE
-//! threshold is `max(cal_scores)` over that sampled pool, so a *different* pool
-//! yields a *different* threshold. To keep the calibrated threshold identical to
-//! the Python engine on every corpus, this module reproduces numpy's RNG stream
-//! and its `choice` algorithm exactly:
+//! Calibration hunks are sampled with
+//! `sorted(np.random.default_rng(seed).choice(len(candidates), n, replace=False))`.
+//! The BPE threshold is `max(cal_scores)` over that sampled pool, so a
+//! *different* pool yields a *different* threshold. So that the calibrated
+//! threshold is stable and reproducible across runs, this module reproduces
+//! numpy's RNG stream and its `choice` algorithm exactly:
 //!
 //! 1. `SeedSequence(seed).generate_state(4, uint64)` → PCG64 seed + increment
 //!    (`bit_generator.pyx`).

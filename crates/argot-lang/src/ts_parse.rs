@@ -1,8 +1,8 @@
 //! Thread-local reused tree-sitter parsers for the scoring hot path.
 //!
 //! Creating a `Parser` and reloading the grammar on every call is pure
-//! overhead — the Python engine keeps module-level parsers (`_PY_PARSER`,
-//! `_TS_PARSER`) and reuses them. In scoring, `extract_imports`,
+//! overhead — a reused parser per language avoids re-creating the grammar on
+//! every call. In scoring, `extract_imports`,
 //! `extract_callees`, `prose_line_ranges`, and typicality each parse per hunk,
 //! plus per corpus file at fit; reusing one parser per language per thread
 //! removes thousands of parser allocations. Trees are owned, so reuse is safe.

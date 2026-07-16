@@ -1,4 +1,4 @@
-//! Parity for the deterministic parts of the call-receiver scorer: callee
+//! Golden test for the deterministic parts of the call-receiver scorer: callee
 //! extraction (Python + TypeScript) and MinHash signatures. The KMeans-derived
 //! cluster assignments are NOT byte-tested (the partition is not reproducible
 //! across implementations) — those are gated on the benchmark AUC instead.

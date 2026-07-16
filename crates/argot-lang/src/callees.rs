@@ -76,8 +76,8 @@ fn extract_python_callee(call_node: Node, src: &[u8]) -> Option<String> {
 /// Ruby nests a dotted chain (`a.b.c`) through the `receiver` field rather than
 /// via separate attribute nodes, so we walk down receivers collecting method
 /// segments. A bare call (no receiver) yields just its method name (self
-/// scope). A literal/complex receiver is dropped (`None`), matching the Python
-/// extractor's "only identifier/constant heads survive" rule.
+/// scope). A literal/complex receiver is dropped (`None`) — only
+/// identifier/constant heads survive.
 fn extract_ruby_callee(call_node: Node, src: &[u8]) -> Option<String> {
     let mut parts: Vec<String> = Vec::new();
     let mut node = call_node;
@@ -394,7 +394,7 @@ fn extract_java_callee(call_node: Node, src: &[u8]) -> Option<String> {
 }
 
 fn walk_preorder(root: Node, mut visit: impl FnMut(Node)) {
-    // Stack DFS pushing reversed children, matching Python `_walk_nodes`.
+    // Stack DFS pushing reversed children, for pre-order traversal.
     let mut stack = vec![root];
     while let Some(node) = stack.pop() {
         visit(node);

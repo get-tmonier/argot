@@ -1,4 +1,4 @@
-//! Structural file filters — port of `engine/argot/scoring/filters`.
+//! Structural file filters.
 //!
 //! Language- and corpus-agnostic heuristics that decide whether a file is
 //! worth sampling: data-dominant tables and auto-generated headers are

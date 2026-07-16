@@ -1,13 +1,11 @@
-//! Shape-primitive interface + registry — port of
-//! `engine/argot/scoring/scorers/shape_primitive.py`,
-//! `shape_primitive_registry.py`, and `shape_primitive_registrations.py`.
+//! Shape-primitive interface + registry.
 //!
 //! A shape primitive is a swappable, per-cluster scalar AST-shape term that
 //! rides alongside the call-receiver scorer. Each primitive fits a baseline on
 //! its cluster's files, then scores a hunk against that baseline, returning a
 //! single non-negative contribution clipped to `cluster_bonus_clip`.
 //!
-//! Design constraints (binding, from the Python Protocol docstring):
+//! Design constraints (binding):
 //! - one scalar per primitive; composition happens at the caller,
 //! - swappable: same trait, same per-cluster baseline mechanism,
 //! - language-agnostic: defined on tree-sitter node kinds,
@@ -62,7 +60,7 @@ pub enum Baseline {
 
 /// Per-cluster scalar AST-shape primitive.
 ///
-/// Lifecycle mirrors the Python Protocol: `fit_cluster_baseline` once per
+/// Lifecycle: `fit_cluster_baseline` once per
 /// cluster, then `score` per hunk. Both take `&self`; primitives that need to
 /// remember the fit-time language use interior mutability and expose it via
 /// [`ShapePrimitive::set_language`].
@@ -85,13 +83,13 @@ pub trait ShapePrimitive {
     fn score(&self, hunk: &str, baseline: Option<&Baseline>, cluster_size: usize) -> f64;
     /// Inject the language a language-stateful primitive would otherwise
     /// capture during `fit_cluster_baseline`. No-op for stateless primitives.
-    /// Used when a baseline is supplied without a preceding fit (mirrors the
-    /// Python primitives capturing `self._language` in fit).
+    /// Used when a baseline is supplied without a preceding fit (a stateful
+    /// primitive normally captures its language during `fit_cluster_baseline`).
     fn set_language(&self, _language: Language) {}
 }
 
 /// Factory that builds a fresh primitive instance (fresh baseline state per
-/// build, matching the Python `ShapePrimitiveFactory`).
+/// build).
 pub type ShapePrimitiveFactory = fn() -> Box<dyn ShapePrimitive>;
 
 /// Name → factory registry. `BTreeMap` keeps `known()` alphabetical for free.
@@ -139,7 +137,7 @@ impl ShapePrimitiveRegistry {
     }
 
     /// Translate names into freshly-built instances. Unknown names fail loudly
-    /// (no silent skip), matching the Python `KeyError`.
+    /// (no silent skip).
     pub fn build(&self, names: &[String]) -> Result<Vec<Box<dyn ShapePrimitive>>, String> {
         let mut out = Vec::with_capacity(names.len());
         for name in names {

@@ -1,4 +1,4 @@
-//! Golden-fixture parity test for the Python language adapter.
+//! Golden-fixture regression test for the Python language adapter.
 //!
 //! The golden (`tests/fixtures/adapter_py/golden.json`) pins the expected
 //! output of every adapter method over a set of source samples. The

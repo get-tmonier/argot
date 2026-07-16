@@ -1,11 +1,11 @@
-//! Typicality filter — port of `engine/argot/scoring/filters/typicality.py`.
+//! Typicality filter.
 //!
 //! AST-derived structural predicate. Drops structurally atypical hunks (data
 //! tables, generated boilerplate) from both the calibration pool and
 //! inference-time control scoring. Parses source directly with the pinned
 //! tree-sitter Python / TypeScript grammars and walks the tree manually
 //! (matching the style in `tokenize.rs` and `scoring/adapters/python.rs`), so
-//! the five features and two verdicts match the Python engine exactly.
+//! the five features and two verdicts match the golden reference exactly.
 
 use std::collections::{HashMap, HashSet};
 
@@ -14,7 +14,7 @@ use tree_sitter::Node;
 use crate::scoring::adapters::Language;
 
 // Node types per language. Values are tree-sitter grammar node-type strings,
-// copied verbatim from `typicality.py`.
+// listed verbatim.
 const PY_LITERAL_NODE_TYPES: &[&str] = &[
     "string",
     "concatenated_string",

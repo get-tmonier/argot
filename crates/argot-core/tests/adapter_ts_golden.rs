@@ -1,4 +1,4 @@
-//! Golden-fixture parity test for the TypeScript language adapter.
+//! Golden-fixture regression test for the TypeScript language adapter.
 //!
 //! The golden (`tests/fixtures/adapter_ts/golden.json`) pins the expected
 //! output of every adapter method over a set of source samples;

@@ -1,5 +1,4 @@
-//! Import-graph foreign-module scorer — port of
-//! `engine/argot/scoring/scorers/import_graph.py`.
+//! Import-graph foreign-module scorer.
 //!
 //! Counts the top-level modules a hunk imports that were never seen in the
 //! repo's own source. Score 0 = no foreign imports; score ≥ 1 =

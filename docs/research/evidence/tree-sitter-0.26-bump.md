@@ -49,7 +49,7 @@ Only three corpora moved, **none on the gated (production) tier**:
 Every other corpus is byte-identical. The +2 fixtures land in the secondary
 tier that never gates in production.
 
-Independently, **every parity golden (`crates/argot-core/tests/*_parity.rs`)
+Independently, **every golden (`crates/argot-core/tests/*_golden.rs`)
 still passes unchanged** — the newer grammars parse the golden fixtures
 identically across the tokenized surface — and `just verify` is green.
 

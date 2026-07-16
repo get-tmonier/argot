@@ -1,15 +1,14 @@
 //! Reconstruct whole-identifier names from BPE-piece-level surprise spans.
 //!
-//! Port of `engine/argot/scoring/evidence/bpe_reconstruction.py`. Real
-//! identifiers are usually split across multiple BPE pieces (`mongoose` →
-//! `mongo` + `ose`). Reconstruction expands each surprising piece's span left
+//! Real identifiers are usually split across multiple BPE pieces (`mongoose`
+//! → `mongo` + `ose`). Reconstruction expands each surprising piece's span left
 //! and right over the identifier character class in the source itself, then
 //! keeps the substrings matching the identifier rule.
 //!
 //! Coordinate note: the Rust tokenizer reports **byte** offsets. Because the
 //! identifier alphabet is ASCII-only, every non-ASCII byte is a boundary in
 //! both byte- and char-space, so byte-space reconstruction yields identifiers
-//! identical to the Python char-space code.
+//! identical to a char-space reconstruction.
 
 use argot_lang::bpe::BpeTokenizer;
 use std::collections::HashSet;

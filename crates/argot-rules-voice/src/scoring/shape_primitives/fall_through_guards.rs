@@ -1,5 +1,4 @@
-//! Fall-through-guard count — port of
-//! `engine/argot/scoring/scorers/fall_through_guards.py`.
+//! Fall-through-guard count.
 //!
 //! Per function (`function_definition` / `function_declaration`), count
 //! `if_statement` nodes whose `start_byte` is strictly less than the earliest

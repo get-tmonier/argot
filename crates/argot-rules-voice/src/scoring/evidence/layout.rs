@@ -1,8 +1,7 @@
 //! Shared layout primitives for the per-reason evidence formatters.
 //!
-//! Port of `engine/argot/scoring/evidence/layout.py`. Centralised so all three
-//! formatters render overflow / frequency / floor / rarity wording
-//! identically. The UX caps and floors are the constants here.
+//! Centralised so all three formatters render overflow / frequency / floor /
+//! rarity wording identically. The UX caps and floors are the constants here.
 
 use super::types::{CommonEntry, RarityStat};
 

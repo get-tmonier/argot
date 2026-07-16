@@ -1,9 +1,9 @@
 //! `SequentialImportBpeScorer` — the production composite scorer.
 //!
-//! Port of `engine/argot/scoring/scorers/sequential_import_bpe.py`. Composes:
-//! typicality short-circuit → import-graph stage → BPE surprise stage →
-//! call-receiver contribution → multi-reason resolution. Evidence collection
-//! is deferred (returns `None`) until the evidence layer is ported.
+//! Composes: typicality short-circuit → import-graph stage → BPE surprise
+//! stage → call-receiver contribution → multi-reason resolution. Per-reason
+//! evidence is collected for the winning reason when the scorer is built with
+//! an `EvidenceCorpus`.
 
 use crate::scoring::adapters::LanguageAdapter;
 use crate::scoring::bpe_scorer::BpeScorer;
