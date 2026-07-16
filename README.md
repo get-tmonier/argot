@@ -74,6 +74,8 @@ argot audit      # ⏪ what did AI sneak into your last 50 commits?
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
+The terminal card ends with a copy-paste **share caption**, and `argot audit --format html` is a screenshot-ready card — post your score.
+
 Then fit today's voice so `check` raises these *before* they merge:
 
 ```sh
@@ -191,7 +193,7 @@ One documented limit: **masked foreign** — a foreign symbol whose name collide
 - uses: get-tmonier/argot@main   # non-blocking voice score on every PR
 ```
 
-`--format github` prints inline PR annotations; `--format sarif` feeds code scanning; `--format json` is a stable schema. Copy-paste setups incl. pre-commit: [the CI guide](https://argot.tmonier.com/docs/ci/).
+`--format github` prints inline PR annotations; `--format sarif` feeds code scanning; `--format json` is a stable schema. Add `publish-badge: true` (with `contents: write`) for a live README badge — `argot · N% in-voice`, updated on every push. Copy-paste setups incl. pre-commit: [the CI guide](https://argot.tmonier.com/docs/ci/).
 
 ## How it works
 

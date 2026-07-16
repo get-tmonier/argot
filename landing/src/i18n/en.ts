@@ -23,6 +23,7 @@ const en: SiteContent = {
     install: 'npm i -g @tmonier/argot',
     installNote: 'MIT · single static binary · macOS · Linux · Windows · 100% local',
     installAlt: 'or install without npm',
+    watchFilm: 'Watch the film',
   },
   demo: {
     label: 'The second question',
@@ -76,7 +77,7 @@ const en: SiteContent = {
   audit: {
     label: 'Day one',
     title: 'Audit your history. See what AI snuck in.',
-    body: '[[argot audit]] fits the voice as of 50 commits ago, rescores everything since, and attributes each finding — [[ai-assisted, human, or unknown]] — from commit markers, never style. One command, zero setup, your tree untouched.',
+    body: '[[argot audit]] fits the voice as of 50 commits ago, rescores everything since, and attributes each finding — [[ai-assisted, human, or unknown]] — from commit markers, never style. One command, zero setup, your tree untouched — and a card [[built to screenshot and share]].',
     caption:
       'On argot’s own history: [[52%]] of commits carry AI markers — and the one finding traces to an AI-assisted commit.',
   },
@@ -192,6 +193,8 @@ const en: SiteContent = {
     title: 'A voice score on every PR. Never a merge gate.',
     body: 'A visual score and the hot-spots on each PR — [[non-blocking by default]]. Intentional? One argot mute, committed as an audit trail.',
     caption: 'Lands in the Actions summary, a sticky PR comment, and the Security tab.',
+    badge:
+      'Pin it in your README — a [[live badge]] that refreshes on every push. Every visitor, every fork, sees the repo still speaks its own voice.',
   },
   cta: {
     title: 'Add the layer your CI is missing.',

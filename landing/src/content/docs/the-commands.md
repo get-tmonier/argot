@@ -296,12 +296,18 @@ argot voice-diff main..HEAD              # metric + hot-spots for a range
 argot voice-diff HEAD~5..HEAD --top 5    # show the 5 worst spots (default 10)
 argot voice-diff main..HEAD --format json      # machine-readable summary
 argot voice-diff main..HEAD --format markdown  # the GitHub score card (used by the Action)
+argot voice-diff main..HEAD --format shields   # shields.io endpoint JSON → a README badge
+argot voice-diff main..HEAD --format svg       # a standalone, self-contained SVG badge
 ```
 
-`--format` accepts `human` (default), `json`, or `markdown` (the PR-comment / job-summary score
-card). The metric is the smoothed proportion of hunks above threshold, so a tiny diff with one
-anomalous hunk doesn't read 100%. It's pure aggregation over the same per-hunk scores `check`
-produces — no extra modeling.
+`--format` accepts `human` (default), `json`, `markdown` (the PR-comment /
+job-summary score card), `shields`, or `svg`. The last two render the repo's
+**in-voice %** (the positive complement of the metric) as a badge — `shields`
+prints a [shields.io endpoint](/docs/ci/#a-voice-badge-for-your-readme) JSON the
+GitHub Action publishes on each default-branch push, `svg` a standalone,
+self-contained badge. The metric is the smoothed proportion of hunks above
+threshold, so a tiny diff with one anomalous hunk doesn't read 100%. It's pure
+aggregation over the same per-hunk scores `check` produces — no extra modeling.
 
 ## inspect
 

@@ -1550,9 +1550,10 @@ struct VoiceDiffCmd {
     /// Path to the repository.
     #[arg(long, default_value = ".")]
     repo: PathBuf,
-    /// Output format: human, json, or markdown (a PR-comment / job-summary
-    /// score card).
-    #[arg(long, default_value = "human", value_parser = ["human", "json", "markdown"])]
+    /// Output format: human, json, markdown (a PR-comment / job-summary score
+    /// card), shields (shields.io endpoint JSON for a README badge), or svg (a
+    /// self-contained badge).
+    #[arg(long, default_value = "human", value_parser = ["human", "json", "markdown", "shields", "svg"])]
     format: String,
     /// Hot-spots to list.
     #[arg(long = "top", value_name = "N", default_value_t = voice_diff::DEFAULT_TOP)]

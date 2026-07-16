@@ -23,6 +23,7 @@ const fr: SiteContent = {
     install: 'npm i -g @tmonier/argot',
     installNote: 'MIT · binaire statique unique · macOS · Linux · Windows · 100 % local',
     installAlt: 'ou installer sans npm',
+    watchFilm: 'Voir le film',
   },
   demo: {
     label: 'La deuxième question',
@@ -74,7 +75,7 @@ const fr: SiteContent = {
   audit: {
     label: 'Jour un',
     title: 'Auditez votre historique. Voyez ce que l’IA y a glissé.',
-    body: '[[argot audit]] calibre la voix telle qu’elle était il y a 50 commits, rescore tout ce qui a suivi et attribue chaque signalement — [[ai-assisted, human ou unknown]] — depuis les marqueurs de commit, jamais le style. Une commande, zéro config, votre arbre intact.',
+    body: '[[argot audit]] calibre la voix telle qu’elle était il y a 50 commits, rescore tout ce qui a suivi et attribue chaque signalement — [[ai-assisted, human ou unknown]] — depuis les marqueurs de commit, jamais le style. Une commande, zéro config, votre arbre intact — et une carte [[faite pour être capturée et partagée]].',
     caption:
       'Sur l’historique d’argot lui-même : [[52 %]] des commits portent des marqueurs IA — et l’unique signalement remonte à un commit assisté par IA.',
   },
@@ -191,6 +192,8 @@ const fr: SiteContent = {
     title: 'Un score de voix sur chaque PR. Jamais une porte de merge.',
     body: 'Un score visuel et les points chauds sur chaque PR — [[non bloquant par défaut]]. Intentionnel ? Un argot mute, versionné comme trace d’audit.',
     caption: 'Atterrit dans le résumé Actions, un commentaire de PR épinglé, et l’onglet Security.',
+    badge:
+      'Épinglez-le dans votre README — un [[badge en direct]] rafraîchi à chaque push. Chaque visiteur, chaque fork, voit que le dépôt parle toujours sa propre voix.',
   },
   cta: {
     title: 'Ajoutez la couche qui manque à votre CI.',

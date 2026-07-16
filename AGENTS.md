@@ -173,7 +173,13 @@ Trust the binary. `argot rules` prints the live rule registry and `argot
   voice as it was before them and attributes each finding to its introducing
   commit — ai-assisted / human / unknown, from concrete commit markers only
   (agent trailers, bot authors; never style). `--format json|markdown|html`
-  for machine, PR-pasteable, or shareable output. Informational: exit 0.
+  for machine, PR-pasteable, or shareable output; the terminal and html cards
+  print a copy-pasteable share caption. Informational: exit 0.
+- **Voice badge:** `argot voice-diff <range> --format shields` prints a
+  shields.io endpoint JSON (`--format svg` a standalone badge) for a live
+  "N% in-voice" README badge; the GitHub Action's `publish-badge: true` keeps
+  it fresh on each default-branch push — see
+  [CI](https://argot.tmonier.com/docs/ci/#a-voice-badge-for-your-readme).
 - **Everything else:** `argot --help` is the full, always-current command
   surface — trust it over any list in a document.
 - **Docs:** <https://argot.tmonier.com/docs/> · **llms.txt:**

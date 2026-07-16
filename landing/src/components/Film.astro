@@ -1,0 +1,195 @@
+---
+// The launch film — a featured, click-to-play modal opened by any
+// `[data-film-open]` trigger (the hero's "Watch the film" pill).
+//
+// Perf: the trigger is pure CSS and this modal ships as empty chrome. The
+// poster and the ~30 MB video are attached by JS *only when the modal opens*
+// (a facade), so nothing video-related touches the initial page load — the
+// bytes download on the first click, never before.
+import type { SiteContent } from '#i18n/types';
+
+interface Props {
+  content: SiteContent;
+}
+const { hero } = Astro.props.content;
+---
+
+<div
+  id="film-modal"
+  class="film-modal"
+  role="dialog"
+  aria-modal="true"
+  aria-label={hero.watchFilm}
+  hidden
+>
+  <div class="film-backdrop" data-film-close></div>
+  <div class="film-stage">
+    <button type="button" class="film-close" data-film-close aria-label="Close">
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        aria-hidden="true"
+      >
+        <path d="M6 6l12 12M18 6L6 18"></path>
+      </svg>
+    </button>
+    <!-- src + poster are set on open; empty here so nothing loads up front. -->
+    <video class="film-video" playsinline controls preload="none" width="1080" height="1350"></video>
+  </div>
+</div>
+
+<style>
+  .film-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: grid;
+    place-items: center;
+    padding: 1.5rem 1rem;
+  }
+  .film-modal[hidden] {
+    display: none;
+  }
+  .film-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(4, 5, 8, 0.84);
+    backdrop-filter: blur(8px);
+    animation: film-fade 0.2s ease;
+  }
+  .film-stage {
+    position: relative;
+    z-index: 1;
+    width: min(92vw, 30rem);
+    aspect-ratio: 4 / 5;
+    max-height: calc(100svh - 3rem);
+    animation: film-pop 0.28s var(--ease-out-expo);
+  }
+  .film-video {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 16px;
+    background: #000;
+    box-shadow:
+      0 40px 120px -30px rgba(0, 0, 0, 0.9),
+      0 0 0 1px var(--line);
+  }
+  .film-close {
+    position: absolute;
+    top: -0.85rem;
+    right: -0.85rem;
+    display: grid;
+    place-items: center;
+    width: 2.3rem;
+    height: 2.3rem;
+    border-radius: 999px;
+    border: 1px solid var(--line-2);
+    background: var(--panel);
+    color: var(--ink);
+    cursor: pointer;
+    transition:
+      background-color 0.2s,
+      color 0.2s;
+  }
+  .film-close:hover {
+    background: var(--bg-2);
+    color: var(--ember-bright);
+  }
+  .film-close:focus-visible {
+    outline: 2px solid var(--ember);
+    outline-offset: 2px;
+  }
+  /* On phones the corner button would sit off-screen — park it above. */
+  @media (max-width: 640px) {
+    .film-close {
+      top: -2.9rem;
+      right: 0;
+    }
+  }
+  @keyframes film-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes film-pop {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .film-backdrop,
+    .film-stage {
+      animation: none;
+    }
+  }
+</style>
+
+<script>
+  const modal = document.getElementById('film-modal');
+  const video = modal?.querySelector<HTMLVideoElement>('video') ?? null;
+
+  if (modal && video) {
+    let lastFocus: HTMLElement | null = null;
+
+    const open = () => {
+      lastFocus = document.activeElement as HTMLElement | null;
+      // Facade: attach the poster + source only now, so the video's bytes
+      // download on first open, never as part of the initial page load.
+      if (!video.getAttribute('src')) {
+        video.setAttribute('poster', '/argot-film-poster.jpg');
+        video.setAttribute('src', 'https://media.argot.tmonier.com/argot-film-final.mp4');
+      }
+      modal.hidden = false;
+      document.body.style.overflow = 'hidden';
+      if (location.hash !== '#film') history.replaceState(null, '', '#film');
+      (modal.querySelector('.film-close') as HTMLElement | null)?.focus();
+      void video.play().catch(() => {
+        /* autoplay-with-sound blocked — the controls let the viewer start it */
+      });
+    };
+
+    const close = () => {
+      modal.hidden = true;
+      document.body.style.overflow = '';
+      video.pause();
+      if (location.hash === '#film') {
+        history.replaceState(null, '', location.pathname + location.search);
+      }
+      lastFocus?.focus();
+    };
+
+    document
+      .querySelectorAll<HTMLElement>('[data-film-open]')
+      .forEach((el) => el.addEventListener('click', open));
+    modal
+      .querySelectorAll<HTMLElement>('[data-film-close]')
+      .forEach((el) => el.addEventListener('click', close));
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal.hidden) close();
+    });
+
+    // Deep link: /#film opens the film directly (shareable), and the hash
+    // keeps the modal in sync with the back button.
+    const syncHash = () => {
+      if (location.hash === '#film') open();
+      else if (!modal.hidden) close();
+    };
+    syncHash();
+    window.addEventListener('hashchange', syncHash);
+  }
+</script>
