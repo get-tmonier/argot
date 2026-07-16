@@ -25,6 +25,13 @@ const PROTOCOL_VERSION: &str = "2024-11-05";
 
 /// Run the stdio server loop until stdin closes.
 pub fn run_mcp(repo: PathBuf) -> ExitCode {
+    // Startup log → STDERR only. stdout is the JSON-RPC channel; anything
+    // non-protocol printed there corrupts the stream. Clients capture this into
+    // their MCP logs, and a manual terminal run shows the server actually
+    // launched (a stdio server is otherwise silent, which reads as "hung").
+    let fitted = repo.join(".argot").join("scorer-config.json").is_file();
+    eprintln!("{}", startup_banner(&repo, fitted));
+
     let stdin = std::io::stdin();
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
@@ -42,6 +49,22 @@ pub fn run_mcp(repo: PathBuf) -> ExitCode {
         }
     }
     ExitCode::SUCCESS
+}
+
+/// The one-line startup log written to STDERR (never stdout — that's the
+/// JSON-RPC channel). Reports version, the repo, and whether a model is fitted,
+/// so a silent stdio server is visibly alive and its readiness is obvious.
+fn startup_banner(repo: &Path, fitted: bool) -> String {
+    format!(
+        "argot {} · MCP server ready on stdio · repo: {} · model: {} · waiting for a client",
+        env!("CARGO_PKG_VERSION"),
+        repo.display(),
+        if fitted {
+            "fitted"
+        } else {
+            "not fitted (run `argot init`)"
+        },
+    )
 }
 
 /// Turn one incoming JSON-RPC line into the serialized response line, or `None`
@@ -325,5 +348,17 @@ mod tests {
         });
         let result = dispatch("tools/call", &params, &tmp).unwrap();
         assert_eq!(result["isError"], true);
+    }
+
+    #[test]
+    fn startup_banner_reports_version_repo_and_fit() {
+        let f = startup_banner(Path::new("/x"), true);
+        assert!(f.contains(env!("CARGO_PKG_VERSION")));
+        assert!(f.contains("/x"));
+        assert!(f.contains("stdio"));
+        assert!(f.contains("model: fitted"));
+        let u = startup_banner(Path::new("."), false);
+        assert!(u.contains("not fitted"));
+        assert!(u.contains("argot init"));
     }
 }
