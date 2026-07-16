@@ -1,32 +1,47 @@
-# Dependabot keeps dependencies and CI actions patched, and — together with the
-# repo's Dependabot security updates — opens PRs when a dependency draws an
-# advisory. Note: many Cargo deps are deliberately version-pinned for parity
-# with the Python engine (see the root Cargo.toml); those PRs are triaged and
-# often closed, but the alert itself is the value. cargo-deny (deny.toml) is the
-# gating check in CI.
+# Dependabot, tuned for a solo maintainer: keep the essential signal, drop the
+# churn. The philosophy after the first flood of PRs:
+#   - Monthly, not weekly.
+#   - Minor/patch only, grouped into one PR per ecosystem. Major-version bumps
+#     are ignored for *scheduled* updates — they need a manual review and, for
+#     Cargo, a parity re-check, so they're done by hand, not by a bot PR.
+#   - Security updates are UNAFFECTED: a `version-update:semver-major` ignore
+#     only suppresses scheduled version bumps, never Dependabot security-alert
+#     PRs, which keep flowing (and for 0.x deps land as minor/patch anyway).
+# Many Cargo deps are deliberately version-pinned for parity with the Python
+# engine (see the root Cargo.toml); cargo-deny (deny.toml) is the gating check.
 version: 2
 updates:
   # Rust dependencies (whole workspace).
   - package-ecosystem: cargo
     directory: "/"
     schedule:
-      interval: weekly
+      interval: monthly
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps)"
     groups:
-      # One PR for the low-risk churn; majors still come in on their own.
       cargo-minor-patch:
         update-types:
           - minor
           - patch
+    ignore:
+      # Majors are reviewed and bumped by hand (parity goldens + benchmarks).
+      # Security fixes land as minor/patch, so they are not caught by this.
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
+      # tree-sitter core + every grammar are ABI-locked to each other and to the
+      # tokenization parity goldens: they only move together in a deliberate,
+      # benchmarked migration, never via an isolated bot PR. Grammars parse
+      # local source and carry no security surface, so a full ignore is safe.
+      - dependency-name: "tree-sitter*"
 
   # GitHub Actions — keeps the SHA-pinned third-party actions current
   # (Dependabot rewrites the pinned SHA and updates the trailing version tag).
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
-      interval: weekly
+      interval: monthly
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(ci)"
@@ -35,12 +50,16 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
 
   # Landing site (Astro) dependencies.
   - package-ecosystem: npm
     directory: "/landing"
     schedule:
-      interval: weekly
+      interval: monthly
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(landing-deps)"
@@ -49,3 +68,7 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major

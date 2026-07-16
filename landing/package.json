@@ -22,22 +22,23 @@
     "check": "bun run lint && bun run format && bun run typecheck"
   },
   "dependencies": {
-    "@astrojs/sitemap": "3.7.0",
+    "@astrojs/markdown-remark": "7.2.1",
+    "@astrojs/sitemap": "3.7.3",
     "@fontsource-variable/inter": "5.2.8",
     "@fontsource/jetbrains-mono": "5.2.8",
     "@fontsource/vollkorn-sc": "^5.2.8",
-    "astro": "6.0.0-beta.17"
+    "astro": "7.0.9"
   },
   "devDependencies": {
-    "@astrojs/check": "0.9.6",
-    "@tailwindcss/vite": "4.2.1",
-    "katex": "0.16.25",
-    "oxfmt": "0.52.0",
-    "oxlint": "1.67.0",
+    "@astrojs/check": "0.9.9",
+    "@tailwindcss/vite": "4.3.2",
+    "katex": "0.17.0",
+    "oxfmt": "0.59.0",
+    "oxlint": "1.74.0",
     "rehype-katex": "7",
     "remark-math": "6",
-    "tailwindcss": "4.2.1",
+    "tailwindcss": "4.3.2",
     "typescript": "5.9.3",
-    "vite": "7.3.5"
+    "vite": "8.1.5"
   }
 }

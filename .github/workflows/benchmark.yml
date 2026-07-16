@@ -34,7 +34,7 @@ jobs:
     env:
       ARGOT_BENCH_COMMIT: ${{ github.event.pull_request.head.sha }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install Rust toolchain (pinned)
         run: rustup show
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
@@ -84,7 +84,7 @@ jobs:
     env:
       ARGOT_BENCH_COMMIT: ${{ github.sha }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install Rust toolchain (pinned)
         run: rustup show
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2

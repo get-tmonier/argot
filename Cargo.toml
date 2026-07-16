@@ -67,14 +67,16 @@ tree-sitter-ruby = "0.23"
 # Re-upgrade only once that lands; the `blame_survives_empty_email_author`
 # test is the canary.
 git2 = { version = "0.19", default-features = false, features = ["vendored-libgit2"] }
-# Same codebase as the Python `tokenizers` (0.22.2) that transformers wraps;
-# loading the exact serialised `tokenizer.json` gives bit-identical `encode`.
-# onig feature matches the regex engine the Python wheels ship with.
-tokenizers = { version = "0.22", default-features = false, features = ["onig"] }
+# The HuggingFace `tokenizers` crate: loading the exact serialised
+# `tokenizer.json` gives `encode` output byte-identical to the Python
+# `tokenizers` (0.22.2) that transformers wraps — re-verified across the
+# 0.22 → 0.23 bump by the parity goldens. onig feature matches the regex
+# engine the Python wheels ship with.
+tokenizers = { version = "0.23", default-features = false, features = ["onig"] }
 # MinHash uses md5(callee) — hashlib.md5 parity.
-md-5 = "0.10"
+md-5 = "0.11"
 # Hit hashes (suppression surface) — pure-Rust SHA-256.
-sha2 = "0.10"
+sha2 = "0.11"
 # `.argot/suppressions.yaml` loader — pure Rust (unsafe-libyaml), keeps the
 # single-static-binary story.
 serde_yaml = "0.9"
