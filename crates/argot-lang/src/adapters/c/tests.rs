@@ -93,10 +93,8 @@ fn callee_extraction_handles_bare_and_field_calls() {
                 callees.push(c);
             }
         }
-        for i in (0..node.child_count()).rev() {
-            if let Some(c) = node.child(i) {
-                stack.push(c);
-            }
+        for c in crate::ts_parse::child_nodes(node).into_iter().rev() {
+            stack.push(c);
         }
     }
     assert!(callees.contains(&"foo".to_string()));

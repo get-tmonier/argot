@@ -6,9 +6,9 @@
 //! `run_check`'s stdout is byte-identical to each committed golden and the
 //! exit code matches.
 //!
-//! Historically this compared against the Python engine's output with a
-//! committed Python-generated config; the v3 model artifact (era 15) is a
-//! deliberate divergence, so these are now self-contained pipeline goldens.
+//! The committed model artifact and config are produced by this same pipeline,
+//! so these are self-contained goldens — a diff is a regression until the
+//! golden is deliberately re-blessed (`ARGOT_UPDATE_GOLDENS=1`).
 //!
 //! Requires `git` and `bash` on PATH (build step).
 

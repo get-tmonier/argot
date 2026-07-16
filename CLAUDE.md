@@ -4,7 +4,7 @@ A guardrail that flags code foreign to a repo's own patterns — the dependencie
 
 ## Guiding principle
 
-**In doubt, optimise for code that's easy to change.** The Pragmatic Programmer / craftsmanship lens: the right design is the one a future contributor (human or agent) can extend, refactor, or revert without archaeology. When two options look equally correct, pick the one with the smaller blast radius and clearer seams. Don't add abstractions before the second use case shows up; don't keep dead code "just in case"; don't suppress a check when the underlying code is the real fix. Strict tooling (clippy `-D warnings`, the parity golden suites) exists to surface change-cost early — work with it, not around it.
+**In doubt, optimise for code that's easy to change.** The Pragmatic Programmer / craftsmanship lens: the right design is the one a future contributor (human or agent) can extend, refactor, or revert without archaeology. When two options look equally correct, pick the one with the smaller blast radius and clearer seams. Don't add abstractions before the second use case shows up; don't keep dead code "just in case"; don't suppress a check when the underlying code is the real fix. Strict tooling (clippy `-D warnings`, the golden suites) exists to surface change-cost early — work with it, not around it.
 
 ## Task runner
 
@@ -165,9 +165,9 @@ Production symbols (types, files, functions) must be named after domain concepts
 ## Key conventions
 
 - Language/corpus-agnostic core (see below); errors via `anyhow`/`thiserror`.
-- Dependency versions are pinned for parity with the original Python engine (tree-sitter grammars, `tokenizers` 0.22, libgit2 via `git2`) — see the comments in the root `Cargo.toml`. Don't bump them without re-checking the golden/parity suites.
+- A few deps are chosen for stable, reproducible output, guarded by the golden suites (not by freezing versions) — see the comments in the root `Cargo.toml`. Re-check those suites when bumping. (`tokenizers` 0.22 → 0.23 and the tree-sitter grammars 0.23 → latest, core 0.26, were both bumped with the golden suites re-verified green and the honest bench flat — evidence in `docs/research/evidence/`; `git2` stays on 0.19 until libgit2 fixes the 1.9.x blame segfault — the `blame_survives_empty_email_author` canary is the gate.)
 - Rust edition 2021, toolchain pinned in `rust-toolchain.toml`. Clippy runs as `-D warnings`; no `#![allow(...)]` blanket suppressions.
-- Test files: **production files carry no test code** — each module's unit tests live in a sibling `tests.rs` (`#[cfg(test)] mod tests;` → `<module>/tests.rs`), still compiled out of every release build; parity/golden suites in `crates/argot-core/tests/*_parity.rs` (compare Rust output to fixtures captured from the old Python engine) exercise the fully composed pipeline through the facade.
+- Test files: **production files carry no test code** — each module's unit tests live in a sibling `tests.rs` (`#[cfg(test)] mod tests;` → `<module>/tests.rs`), still compiled out of every release build; golden suites in `crates/argot-core/tests/*_golden.rs` (assert the fully composed pipeline's output against committed reference fixtures) exercise the composed pipeline through the facade.
 
 ## Testing
 

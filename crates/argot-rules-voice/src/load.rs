@@ -216,8 +216,7 @@ pub(super) fn load_scorers(
             convention_bonus: get_f64("convention_bonus", 5.0),
             import_modules: get_strings("import_modules"),
             import_module_prefixes: get_strings("import_module_prefixes"),
-            // Parse the optional `evidence_corpus` block. Unlike the Python
-            // loader (which requires it), the Rust port keeps evidence optional:
+            // Parse the optional `evidence_corpus` block. Evidence is optional:
             // a config without the block simply renders no `↳` evidence lines,
             // so the pre-evidence check goldens stay byte-identical.
             evidence_corpus: lc

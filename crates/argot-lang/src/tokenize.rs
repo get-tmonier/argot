@@ -1,15 +1,14 @@
-//! Tokenisation — port of `engine/argot/tokenize.py`.
+//! Tokenisation.
 //!
 //! Parses source with tree-sitter and returns the flat list of leaf tokens
 //! (nodes with no children and a non-empty byte span), in pre-order. Grammar
-//! versions are pinned in `Cargo.toml` to match the Python engine so parse
-//! trees — and therefore tokens — are identical.
+//! versions are kept current in `Cargo.toml`; parse-tree — and therefore
+//! token — stability is guarded by the golden suites, not by freezing versions.
 
 use crate::dataset::{Language, Token};
 use tree_sitter::{Node, Parser};
 
-/// Map a file path to its language, mirroring Python's
-/// `EXTENSION_TO_LANGUAGE` over `Path(path).suffix.lower()`.
+/// Map a file path to its language, keyed by `Path(path).suffix.lower()`.
 pub fn language_for_path(path: &str) -> Option<Language> {
     match path_suffix_lower(path).as_str() {
         ".ts" | ".tsx" => Some(Language::Typescript),

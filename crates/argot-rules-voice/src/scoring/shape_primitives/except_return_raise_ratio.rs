@@ -1,5 +1,4 @@
-//! Except-block return/raise ratio — port of
-//! `engine/argot/scoring/scorers/except_return_raise_ratio.py`.
+//! Except-block return/raise ratio.
 //!
 //! Within each handler subtree (`except_clause` / `catch_clause`),
 //! ratio = returns / (returns + raises). Nested handlers are counted
@@ -75,19 +74,15 @@ fn count_returns_raises(root: Node, src: &[u8], language: Language) -> (usize, u
         } else if is_raise(node, src, language) {
             raises += 1;
         }
-        let n = node.child_count();
-        for i in (0..n).rev() {
-            if let Some(c) = node.child(i) {
-                stack.push(c);
-            }
+        for c in argot_lang::ts_parse::child_nodes(node).into_iter().rev() {
+            stack.push(c);
         }
     }
     (returns, raises)
 }
 
 /// Sum `(returns, raises)` across every handler subtree under `root`. Nested
-/// handlers are walked independently (double-counting is intentional, matching
-/// the Python `_count_in_handlers`).
+/// handlers are walked independently (double-counting is intentional).
 fn count_in_handlers(root: Node, src: &[u8], language: Language) -> (usize, usize) {
     let handler_type = match handler_kind(language) {
         Some(h) => h,
@@ -102,11 +97,8 @@ fn count_in_handlers(root: Node, src: &[u8], language: Language) -> (usize, usiz
             returns += r;
             raises += x;
         }
-        let n = node.child_count();
-        for i in (0..n).rev() {
-            if let Some(c) = node.child(i) {
-                stack.push(c);
-            }
+        for c in argot_lang::ts_parse::child_nodes(node).into_iter().rev() {
+            stack.push(c);
         }
     }
     (returns, raises)

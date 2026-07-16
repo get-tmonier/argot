@@ -1,12 +1,11 @@
-//! Wire format for the dataset JSONL — a faithful port of
-//! `engine/argot/dataset.py`. Every hunk emitted conforms to this schema.
+//! Wire format for the dataset JSONL. Every hunk emitted conforms to this
+//! schema.
 //!
-//! Field order is significant: the Python engine writes records with
-//! `json.dumps(asdict(record))`, which serialises dataclass fields in
-//! declaration order. serde serialises struct fields in declaration order
-//! too, so keeping the field order identical here is what makes the JSONL
-//! byte-compatible (given a Python-style separator formatter — see
-//! argot-core's `json` module).
+//! Field order is significant and fixed: records serialise their fields in
+//! declaration order (the `json.dumps(asdict(record))` convention). serde
+//! serialises struct fields in declaration order too, so keeping the field
+//! order as written here is what makes the JSONL byte-compatible (given a
+//! `json.dumps`-style separator formatter — see argot-core's `json` module).
 
 use serde::{Deserialize, Serialize};
 
@@ -47,8 +46,8 @@ pub struct Token {
     pub end_line: usize,
 }
 
-/// One emitted hunk (`dataset.HunkRecord`). Field order mirrors the Python
-/// dataclass exactly for JSONL byte parity.
+/// One emitted hunk. Field order is fixed (declaration order) for JSONL byte
+/// parity.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HunkRecord {
     pub commit_sha: String,

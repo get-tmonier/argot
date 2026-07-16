@@ -1,8 +1,8 @@
 //! Smoke test for calibration: run the full pipeline (train → calibrate) on
 //! the check fixture repo and assert a schema-valid, check-consumable v3
 //! scorer-config.json is emitted — including the fit-time model snapshot.
-//! The threshold VALUE is a documented divergence from numpy (see
-//! PORTING-NOTES), so this asserts structure, not exact values.
+//! The threshold VALUE depends on the sampled calibration hunks, so this
+//! asserts structure, not exact values.
 
 use argot_core::scoring::calibration::{run_calibrate, CalibrateOptions};
 use argot_core::train::{run_train, GENERIC_BASELINE_JSON};

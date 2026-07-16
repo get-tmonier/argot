@@ -1,9 +1,8 @@
 //! Collector for [`CallReceiverEvidence`] payloads.
 //!
-//! Port of `engine/argot/scoring/evidence/call_receiver.py`. Cluster-scoped:
-//! the `common here:` slice and the rarity denominator come from the hunk
-//! file's MinHash cluster. Singleton / unknown clusters fall back to a
-//! repo-empty framing rather than printing a wrong cluster's data.
+//! Cluster-scoped: the `common here:` slice and the rarity denominator come
+//! from the hunk file's MinHash cluster. Singleton / unknown clusters fall
+//! back to a repo-empty framing rather than printing a wrong cluster's data.
 
 use super::types::{CallReceiverEvidence, CommonEntry, EvidenceCorpus, RarityStat};
 

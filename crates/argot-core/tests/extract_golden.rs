@@ -1,11 +1,11 @@
-//! Byte-parity test for the extract pipeline.
+//! Byte-exact golden test for the extract pipeline.
 //!
 //! Builds the deterministic fixture repo (fixed authors/dates → reproducible
-//! SHAs) and asserts the Rust extractor reproduces the golden `dataset.jsonl`
-//! captured from the Python engine, byte-for-byte.
+//! SHAs) and asserts the extractor reproduces the committed golden
+//! `dataset.jsonl` byte-for-byte.
 //!
 //! Requires `git` and `bash` on PATH (build step); the golden bytes are
-//! committed so no Python is needed at test time.
+//! committed, so the test is self-contained.
 
 use std::path::PathBuf;
 use std::process::Command;

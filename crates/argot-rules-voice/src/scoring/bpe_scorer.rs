@@ -1,8 +1,7 @@
 //! BPE token-surprise scoring — the BPE half of `SequentialImportBpeScorer`.
 //!
 //! For a hunk, the score is the maximum per-token log-likelihood ratio of the
-//! generic baseline vs. the repo corpus, over "meaningful" tokens. Faithful
-//! port of `_token_surprise` / `_bpe_score` / `_is_meaningful_token`.
+//! generic baseline vs. the repo corpus, over "meaningful" tokens.
 
 use crate::scoring::model::BpeStats;
 use anyhow::{Context, Result};

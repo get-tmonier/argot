@@ -1,5 +1,5 @@
-//! Parity for BPE token-surprise scoring against a Python golden captured
-//! from `SequentialImportBpeScorer._bpe_score` over a fixed corpus.
+//! Regression test for BPE token-surprise scoring: the golden pins the
+//! per-token surprise output over a fixed corpus.
 
 use argot_core::bpe::BpeTokenizer;
 use argot_core::scoring::bpe_scorer::BpeScorer;

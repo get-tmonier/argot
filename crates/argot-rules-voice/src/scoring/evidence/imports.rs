@@ -1,8 +1,7 @@
 //! Collector for [`ImportEvidence`] payloads.
 //!
-//! Port of `engine/argot/scoring/evidence/imports.py`. Names the foreign
-//! specifiers and shows the repo's typical top-level imports, keeping the
-//! framing strictly factual.
+//! Names the foreign specifiers and shows the repo's typical top-level
+//! imports, keeping the framing strictly factual.
 
 use super::types::{CommonEntry, EvidenceCorpus, ImportEvidence, RarityStat, SourceSpan};
 

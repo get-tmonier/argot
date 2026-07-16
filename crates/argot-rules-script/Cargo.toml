@@ -18,6 +18,9 @@ argot-lang = { path = "../argot-lang" }
 rhai = "1.25"
 serde.workspace = true
 serde_json.workspace = true
+# tree-sitter 0.25+ returns a StreamingIterator from QueryCursor::matches;
+# the trait lives in this crate (a tree-sitter dependency).
+streaming-iterator = "0.1"
 toml.workspace = true
 tree-sitter.workspace = true
 

@@ -1,5 +1,4 @@
-//! Receiver-namespace coverage divergence — port of
-//! `engine/argot/scoring/scorers/namespace_jsd.py`.
+//! Receiver-namespace coverage divergence.
 //!
 //! Jensen-Shannon distance (base-2, range [0, 1]) between the hunk's
 //! namespace-prefix distribution and the cluster's pooled distribution.

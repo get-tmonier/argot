@@ -1,5 +1,4 @@
-//! Data-dominant file detector — port of
-//! `engine/argot/scoring/filters/data_dominant.py`.
+//! Data-dominant file detector.
 //!
 //! A structural, I/O-free heuristic: parse with tree-sitter and walk
 //! module-level statements plus top-level class bodies. Any `assignment`

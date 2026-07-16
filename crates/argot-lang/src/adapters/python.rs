@@ -1,11 +1,8 @@
-//! Python language adapter — port of
-//! `engine/argot/scoring/parsers/python_ts.py` +
-//! `engine/argot/scoring/adapters/python_adapter.py`.
+//! Python language adapter.
 //!
-//! Everything here is a behaviour-preserving port of the tree-sitter parsing
-//! logic. The Python engine uses tree-sitter's Query API; we replicate the
-//! same captures with manual `TreeCursor` traversal (the 0.23 streaming Query
-//! API is a footgun — see `tokenize.rs` for the same manual-walk style).
+//! The tree-sitter captures are extracted with manual `TreeCursor` traversal
+//! rather than the Query API (the 0.23 streaming Query API is a footgun — see
+//! `tokenize.rs` for the same manual-walk style).
 //!
 //! Parity notes worth keeping in mind:
 //! - `import numpy as np` is NOT captured (the `dotted_name` sits under an
@@ -98,7 +95,7 @@ fn node_starts_line(node: Node, source: &str) -> bool {
         .is_none_or(|prefix| prefix.bytes().all(|b| b == b' ' || b == b'\t'))
 }
 
-/// `_is_docstring` from `python_ts.py`, replicated with node-id equality.
+/// Docstring detection, matched with node-id equality.
 fn is_docstring(node: Node) -> bool {
     let parent = match node.parent() {
         Some(p) => p,

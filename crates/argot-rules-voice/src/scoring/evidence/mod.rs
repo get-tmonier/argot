@@ -1,4 +1,4 @@
-//! Evidence layer — port of `engine/argot/scoring/evidence`.
+//! Evidence layer.
 //!
 //! Per-reason `Evidence` payloads carried on `ScoredHunk`, the shared layout
 //! primitives, the per-reason renderers (`format_evidence`), and the

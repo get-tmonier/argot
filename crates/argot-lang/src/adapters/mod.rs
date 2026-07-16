@@ -1,4 +1,4 @@
-//! Language adapters — port of `engine/argot/scoring/adapters`.
+//! Language adapters.
 //!
 //! An adapter wraps a language's tree-sitter parser plus the structural
 //! filters (data-dominant, auto-generated) behind a uniform surface used by
@@ -55,9 +55,8 @@ pub struct CallableBody {
     pub end_line: usize,
 }
 
-/// Uniform language-adapter surface (port of the Python `LanguageAdapter`
-/// Protocol). Implemented by `PythonAdapter` and `TypeScriptAdapter`; the
-/// scorers dispatch through `&dyn LanguageAdapter`.
+/// Uniform language-adapter surface. Implemented by `PythonAdapter` and
+/// `TypeScriptAdapter`; the scorers dispatch through `&dyn LanguageAdapter`.
 pub trait LanguageAdapter {
     /// Function/method definitions with their line ranges — the embeddable units
     /// for the semantic index. Default empty: a language with no implementation
@@ -405,7 +404,7 @@ impl LanguageAdapter for ruby::RubyAdapter {
 }
 
 /// The set of module specifiers a repo owns, split into exact matches and
-/// prefix matches. Mirrors Python's `RepoModules` dataclass.
+/// prefix matches.
 ///
 /// For Python this is always empty — internal modules are discovered via
 /// `extract_imports` at fit time, and there are no prefix rules — but the

@@ -79,11 +79,9 @@ pub(super) fn extract(root: tree_sitter::Node, src: &str) -> TestInventory {
                 }
             };
             let mut subject_idents = 0usize;
-            for i in 0..c.named_child_count() {
-                if let Some(ch) = c.named_child(i) {
-                    if ch.kind() == "token_tree" {
-                        subject_idents += ident_count(ch);
-                    }
+            for ch in argot_lang::ts_parse::named_child_nodes(c) {
+                if ch.kind() == "token_tree" {
+                    subject_idents += ident_count(ch);
                 }
             }
             assertions.push(AssertionSite {

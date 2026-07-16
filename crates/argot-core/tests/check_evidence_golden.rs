@@ -135,7 +135,7 @@ fn base_args(repo: &Path) -> CheckArgs {
 /// so we compare `stdout + "exit=<code>\n"` byte-for-byte.
 fn assert_golden(stdout: &str, exit_code: i32, golden_name: &str) {
     let actual = format!("{stdout}exit={exit_code}\n");
-    // See check_parity.rs: deliberate rendering changes regenerate goldens.
+    // See check_golden.rs: deliberate rendering changes regenerate goldens.
     if std::env::var_os("ARGOT_UPDATE_GOLDENS").is_some() {
         std::fs::write(fixture_evidence_dir().join(golden_name), &actual).expect("update golden");
         return;

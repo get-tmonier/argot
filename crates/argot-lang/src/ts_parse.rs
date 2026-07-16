@@ -1,8 +1,8 @@
 //! Thread-local reused tree-sitter parsers for the scoring hot path.
 //!
 //! Creating a `Parser` and reloading the grammar on every call is pure
-//! overhead — the Python engine keeps module-level parsers (`_PY_PARSER`,
-//! `_TS_PARSER`) and reuses them. In scoring, `extract_imports`,
+//! overhead — a reused parser per language avoids re-creating the grammar on
+//! every call. In scoring, `extract_imports`,
 //! `extract_callees`, `prose_line_ranges`, and typicality each parse per hunk,
 //! plus per corpus file at fit; reusing one parser per language per thread
 //! removes thousands of parser allocations. Trees are owned, so reuse is safe.
@@ -68,6 +68,24 @@ pub fn parse(source: &str, language: Language) -> Option<Tree> {
         Language::Cpp => CPP_PARSER.with(|p| p.borrow_mut().parse(source, None)),
         Language::Ruby => RB_PARSER.with(|p| p.borrow_mut().parse(source, None)),
     }
+}
+
+/// The direct children of `node`, in left-to-right tree order.
+///
+/// tree-sitter's index accessor `Node::child(i)` takes a `u32` and costs
+/// log(i) per call; a cursor walk is the idiomatic linear traversal and keeps
+/// callers free of `usize`→`u32` index casts. Reverse the result for the
+/// stack-based pre-order DFS the scorers use (push children reversed so they
+/// pop left-to-right).
+pub fn child_nodes<'t>(node: tree_sitter::Node<'t>) -> Vec<tree_sitter::Node<'t>> {
+    let mut cursor = node.walk();
+    node.children(&mut cursor).collect()
+}
+
+/// The named direct children of `node`, in tree order (skips anonymous tokens).
+pub fn named_child_nodes<'t>(node: tree_sitter::Node<'t>) -> Vec<tree_sitter::Node<'t>> {
+    let mut cursor = node.walk();
+    node.named_children(&mut cursor).collect()
 }
 
 #[cfg(test)]

@@ -1,8 +1,7 @@
-//! Parity for the deterministic parts of the call-receiver scorer: callee
+//! Golden test for the deterministic parts of the call-receiver scorer: callee
 //! extraction (Python + TypeScript) and MinHash signatures. The KMeans-derived
-//! cluster assignments are NOT byte-parity-tested against Python (sklearn's
-//! partition is not reproducible; see PORTING-NOTES) — those are gated on the
-//! benchmark AUC instead.
+//! cluster assignments are NOT byte-tested (the partition is not reproducible
+//! across implementations) — those are gated on the benchmark AUC instead.
 
 use argot_core::scoring::adapters::python::PythonAdapter;
 use argot_core::scoring::adapters::Language;
@@ -85,7 +84,7 @@ struct WcGolden {
 
 #[test]
 fn weighted_contribution_matches_python_golden_n_clusters_1() {
-    // n_clusters=1 => no KMeans, fully reproducible vs Python.
+    // n_clusters=1 => no KMeans, fully reproducible.
     let corpus_dir =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/bpe_score/corpus");
     let mut files: Vec<PathBuf> = std::fs::read_dir(&corpus_dir)

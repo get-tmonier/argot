@@ -1,10 +1,10 @@
 //! Per-reason `Evidence` payloads plus the pre-computed `EvidenceCorpus`.
 //!
-//! Port of `engine/argot/scoring/evidence/types.py`. The shape is uniform —
-//! names + a rarity stat + a small `common here` sample — but each reason
-//! scopes the data differently (BPE / import repo-wide; call-receiver
-//! cluster-scoped). Renderers dispatch on the [`Evidence`] enum variant, not
-//! on a string `reason`, so per-reason label conventions stay out of `check`.
+//! The shape is uniform — names + a rarity stat + a small `common here`
+//! sample — but each reason scopes the data differently (BPE / import
+//! repo-wide; call-receiver cluster-scoped). Renderers dispatch on the
+//! [`Evidence`] enum variant, not on a string `reason`, so per-reason label
+//! conventions stay out of `check`.
 
 use serde_json::Value;
 use std::collections::HashMap;
@@ -55,7 +55,7 @@ pub struct ImportEvidence {
     pub rarity: RarityStat,
     pub common_here: Vec<CommonEntry>,
     /// Insertion-ordered `(spec, span)` pairs; a small linear-lookup map
-    /// mirroring the Python dict (specifiers without a span are omitted).
+    /// (specifiers without a span are omitted).
     pub foreign_specifier_spans: Vec<(String, SourceSpan)>,
 }
 
@@ -115,9 +115,8 @@ fn parse_common_entries(v: &Value) -> Option<Vec<CommonEntry>> {
 }
 
 impl EvidenceCorpus {
-    /// Parse the scorer-config `evidence_corpus` block. Inverse of the Python
-    /// `EvidenceCorpus.from_json_dict`: JSON keys come back as strings, and
-    /// cluster ids are coerced to `usize` so they line up with the
+    /// Parse the scorer-config `evidence_corpus` block. JSON keys come back as
+    /// strings, and cluster ids are coerced to `usize` so they line up with the
     /// call-receiver scorer's cluster maps. Returns `None` when the block is
     /// absent or malformed — the check-time loader then renders no evidence
     /// (the Rust port keeps evidence optional so a config without the block

@@ -359,10 +359,8 @@ pub(crate) fn walk_named<'t>(
     let mut stack = vec![root];
     while let Some(n) = stack.pop() {
         f(n);
-        for i in (0..n.named_child_count()).rev() {
-            if let Some(c) = n.named_child(i) {
-                stack.push(c);
-            }
+        for c in argot_lang::ts_parse::named_child_nodes(n).into_iter().rev() {
+            stack.push(c);
         }
     }
 }

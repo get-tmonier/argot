@@ -26,33 +26,36 @@ license = "MIT"
 repository = "https://github.com/get-tmonier/argot"
 homepage = "https://argot.tmonier.com"
 
-# Dependency versions are pinned for parity with the Python engine being
-# replaced:
-#   - tree-sitter grammars must match the ABI/grammar the Python engine used
-#     (tree_sitter 0.23.2, python 0.23.6, typescript 0.23.2, javascript 0.23.1)
-#     so parse trees — and therefore tokenization — are byte-identical.
-#   - git2 wraps libgit2, the SAME C library pygit2 (1.19.2 → libgit2 1.9.x)
+# Several deps are chosen for stable, reproducible output, guarded by the golden
+# suites (crates/argot-core/tests/*_golden.rs) rather than by freezing versions:
+#   - tree-sitter grammars are kept current (core 0.26 + latest per-grammar).
+#     The 0.23 → latest bump was verified to leave every golden green and the
+#     honest bench flat (parse trees stable across the tokenized surface —
+#     headline gated recall 85.6% and worst over-fire 1.46% both unchanged;
+#     evidence in docs/research/evidence/). tree-sitter 0.26 accepts ABI 15, so
+#     no grammar is held back for ABI.
+#   - git2 wraps libgit2, the same C library pygit2 (1.19.2 → libgit2 1.9.x)
 #     binds. gix (pure-Rust) would risk diff-hunk divergence; git2 gives exact
-#     diff/find_similar parity. This is a deliberate choice over the goal's
-#     "gix preferred" default, justified by the parity gate.
+#     diff/find_similar output. A deliberate choice over the goal's
+#     "gix preferred" default, justified by the golden gate.
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"
 thiserror = "2"
 clap = { version = "4", features = ["derive"] }
-tree-sitter = "0.23"
-tree-sitter-python = "0.23"
+tree-sitter = "0.26"
+tree-sitter-python = "0.25"
 tree-sitter-typescript = "0.23"
-tree-sitter-javascript = "0.23"
-tree-sitter-go = "0.23"
-tree-sitter-rust = "0.23"
-tree-sitter-c = "0.23"
+tree-sitter-javascript = "0.25"
+tree-sitter-go = "0.25"
+tree-sitter-rust = "0.24"
+tree-sitter-c = "0.24"
 tree-sitter-java = "0.23"
-# Pinned to 0.23.0: later 0.23.x (0.23.5) ship a grammar built at ABI 15, which
-# tree-sitter 0.23.2 (max ABI 14) rejects with LanguageError. 0.23.0 is ABI 14.
-tree-sitter-c-sharp = "=0.23.0"
-tree-sitter-php = "0.23"
+# Unpinned from =0.23.0 now that tree-sitter 0.26 accepts ABI 15 (0.23.5's
+# grammar); the old pin existed because tree-sitter 0.23.2 (max ABI 14) rejected it.
+tree-sitter-c-sharp = "0.23"
+tree-sitter-php = "0.24"
 tree-sitter-cpp = "0.23"
 tree-sitter-ruby = "0.23"
 # Vendored libgit2, no ssh/https/openssl: argot only does local git operations,
@@ -67,14 +70,16 @@ tree-sitter-ruby = "0.23"
 # Re-upgrade only once that lands; the `blame_survives_empty_email_author`
 # test is the canary.
 git2 = { version = "0.19", default-features = false, features = ["vendored-libgit2"] }
-# Same codebase as the Python `tokenizers` (0.22.2) that transformers wraps;
-# loading the exact serialised `tokenizer.json` gives bit-identical `encode`.
-# onig feature matches the regex engine the Python wheels ship with.
-tokenizers = { version = "0.22", default-features = false, features = ["onig"] }
+# The HuggingFace `tokenizers` crate: loading the exact serialised
+# `tokenizer.json` gives `encode` output byte-identical to the Python
+# `tokenizers` (0.22.2) that transformers wraps — re-verified across the
+# 0.22 → 0.23 bump by the parity goldens. onig feature matches the regex
+# engine the Python wheels ship with.
+tokenizers = { version = "0.23", default-features = false, features = ["onig"] }
 # MinHash uses md5(callee) — hashlib.md5 parity.
-md-5 = "0.10"
+md-5 = "0.11"
 # Hit hashes (suppression surface) — pure-Rust SHA-256.
-sha2 = "0.10"
+sha2 = "0.11"
 # `.argot/suppressions.yaml` loader — pure Rust (unsafe-libyaml), keeps the
 # single-static-binary story.
 serde_yaml = "0.9"

@@ -1,6 +1,6 @@
-//! Extension → language routing — port of `check`'s `_EXT_TO_LANG`.
+//! Extension → language routing.
 
-/// Extension → language name (`_EXT_TO_LANG`).
+/// Extension → language name.
 pub const EXT_TO_LANG: &[(&str, &str)] = &[
     (".py", "python"),
     (".ts", "typescript"),
@@ -39,7 +39,7 @@ pub fn ext_to_lang_ctx(ext: &str, header_is_cpp: bool) -> Option<&'static str> {
     ext_to_lang(ext)
 }
 
-/// Python `Path(path).suffix.lower()` (`git_walk._extension`).
+/// Python `Path(path).suffix.lower()`.
 pub fn extension(path: &str) -> String {
     let name = match path.rfind('/') {
         Some(i) => &path[i + 1..],

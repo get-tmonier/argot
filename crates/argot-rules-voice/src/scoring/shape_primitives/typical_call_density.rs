@@ -1,5 +1,4 @@
-//! Typical-call-density under-coverage — port of
-//! `engine/argot/scoring/scorers/typical_call_density.py`.
+//! Typical-call-density under-coverage.
 //!
 //! Per-file density = (#call nodes whose non-`None` callee is in the cluster's
 //! top-10) / (total call nodes, including unresolved callees). The top-10 is

@@ -1,4 +1,4 @@
-//! `train` (a.k.a. `fit`) — port of `engine/argot/train.py`.
+//! `train` (a.k.a. `fit`).
 //!
 //! Collects the repo's production source files into `repo-corpus.txt` and
 //! emits the pre-baked BPE generic baseline. There is no model training here;
@@ -16,7 +16,7 @@ use std::path::Path;
 pub use argot_engine::corpus::{collect_source_files, collect_source_files_with, is_corpus_source};
 
 /// The generic BPE baseline (`generic_tokens_bpe.json`), embedded so the
-/// binary is self-contained (Python `train.py` copies this file).
+/// binary is self-contained.
 pub const GENERIC_BASELINE_JSON: &[u8] = include_bytes!("../data/generic_tokens_bpe.json");
 
 /// Result of a `train` run.

@@ -1,4 +1,4 @@
-//! Calibration — port of `engine/argot/scoring/calibration/`.
+//! Calibration.
 //!
 //! Collects sampleable hunks, calibrates a BPE threshold over multiple seeds,
 //! builds the evidence corpus, and emits `scorer-config.json` (v3, carrying
@@ -6,7 +6,7 @@
 //!
 //! Calibration-hunk sampling reproduces numpy's `default_rng(seed).choice(...)`
 //! bit-for-bit (see [`crate::scoring::numpy_sampler`]), so the calibrated
-//! `max(cal_scores)` threshold matches the Python engine exactly on every corpus.
+//! `max(cal_scores)` threshold is stable and reproducible across runs.
 
 use crate::scoring::adapters::c::CAdapter;
 use crate::scoring::adapters::cpp::CppAdapter;
@@ -351,7 +351,7 @@ pub fn collect_candidates_with(
 /// bit-exact reproduction of Python's
 /// `sorted(np.random.default_rng(seed).choice(len, n, replace=False))`
 /// (see [`crate::scoring::numpy_sampler`]). Matching numpy's RNG here keeps the
-/// calibrated `max(cal_scores)` threshold identical to the Python engine.
+/// calibrated `max(cal_scores)` threshold stable and reproducible across runs.
 /// Public so the benchmark harness samples with the same RNG.
 pub fn sample_indices(len: usize, n: usize, seed: u64) -> Vec<usize> {
     crate::scoring::numpy_sampler::choice_sorted(len, n, seed)
@@ -624,10 +624,8 @@ pub fn language_name(language: Language) -> &'static str {
 /// `.ts`/`.tsx` → typescript; `.js`/`.jsx` → javascript; `.cs` → csharp).
 /// Public so `inspect` classifies files with exactly the calibration routing.
 pub fn language_for_filename(name: &str) -> Option<Language> {
-    let ext = match name.rfind('.') {
-        Some(i) => &name[i..],
-        None => return None,
-    };
+    let i = name.rfind('.')?;
+    let ext = &name[i..];
     match ext {
         ".py" => Some(Language::Python),
         ".ts" | ".tsx" => Some(Language::Typescript),
@@ -805,8 +803,8 @@ pub fn multi_seed_new_file_thresholds(
     seed_thresholds
 }
 
-/// Options for `run_calibrate` (defaults mirror the Python CLI, including the
-/// asymmetric-calibration knobs the final Python calibrator shipped).
+/// Options for `run_calibrate` (defaults are the shipped calibration values,
+/// including the asymmetric-calibration knobs).
 pub struct CalibrateOptions {
     pub n_cal: usize,
     pub seed: u64,

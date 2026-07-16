@@ -120,10 +120,8 @@ fn count_node_kinds(
                 total += 1;
             }
         }
-        for i in (0..node.child_count()).rev() {
-            if let Some(c) = node.child(i) {
-                stack.push(c);
-            }
+        for c in argot_lang::ts_parse::child_nodes(node).into_iter().rev() {
+            stack.push(c);
         }
     }
     total

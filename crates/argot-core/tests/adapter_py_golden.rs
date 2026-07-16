@@ -1,9 +1,10 @@
-//! Golden-fixture parity test for the Python language adapter.
+//! Golden-fixture regression test for the Python language adapter.
 //!
-//! The golden (`tests/fixtures/adapter_py/golden.json`) was captured from the
-//! Python engine. Each sample carries a source string and the expected output
-//! of every adapter method. The Rust `PythonAdapter` must reproduce all of
-//! them exactly — this is the objective acceptance test for the port.
+//! The golden (`tests/fixtures/adapter_py/golden.json`) pins the expected
+//! output of every adapter method over a set of source samples. The
+//! `PythonAdapter` must reproduce all of them exactly — the golden is
+//! authoritative, so a diff here is a regression until the golden is
+//! deliberately re-blessed.
 
 use std::collections::HashMap;
 use std::path::PathBuf;

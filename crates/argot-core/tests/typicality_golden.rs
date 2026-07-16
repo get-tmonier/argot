@@ -1,10 +1,10 @@
-//! Golden-fixture parity test for the typicality filter.
+//! Golden-fixture regression test for the typicality filter.
 //!
-//! The golden (`tests/fixtures/typicality/golden.json`) was captured from the
-//! Python engine (`engine/argot/scoring/filters/typicality.py`). It maps
+//! The golden (`tests/fixtures/typicality/golden.json`) maps
 //! language → sample name → the source and the expected features/verdicts. The
-//! Rust port must reproduce every one exactly — this is the objective
-//! acceptance test for the port.
+//! implementation must reproduce every one exactly — the golden is
+//! authoritative, so a diff here is a regression until it is deliberately
+//! re-blessed.
 
 use std::collections::HashMap;
 use std::path::PathBuf;

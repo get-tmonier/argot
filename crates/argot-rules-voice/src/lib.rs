@@ -1,8 +1,8 @@
 //! The voice rule group — argot's base statistical guardrail.
 //!
-//! This is a behaviour-preserving port of the original Python engine
-//! (`engine/argot`): git walk → tokenize → score (BPE surprise, call-receiver,
-//! conventions, typicality) → calibrate → check. Unlike the additive
+//! The base guardrail pipeline: git walk → tokenize → score (BPE surprise,
+//! call-receiver, conventions, typicality) → calibrate → check. Unlike the
+//! additive
 //! `argot-rules-{semantic,arch,integrity}` slices, this crate is not a cargo
 //! feature — argot-core's composition root ([`compose`](../argot_core/index.html))
 //! wires [`VoiceDetector`] into the engine's `check` loop unconditionally; the

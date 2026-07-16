@@ -260,7 +260,7 @@ struct McpCmd {
     repo: PathBuf,
 }
 
-// --- repo context / registry (port of fs-repo-context.adapter.ts) ---
+// --- repo context / registry ---
 
 #[derive(Serialize, Deserialize, Default, Clone)]
 struct RepoEntry {
@@ -2124,8 +2124,8 @@ struct ScoreCmd {
     #[arg(long = "cluster-rare-threshold", default_value_t = 0)]
     cluster_rare_threshold: usize,
     /// Repo root for resolving the repo's own module names (package.json name /
-    /// workspace packages). Matches Python inference's `repo_root=` so
-    /// self-package imports (`import … from 'ink'`) are attested, not foreign.
+    /// workspace packages). Used so self-package imports (`import … from
+    /// 'ink'`) are attested, not foreign.
     #[arg(long = "repo-root")]
     repo_root: Option<PathBuf>,
 }
@@ -2195,9 +2195,9 @@ fn run_score_cmd(c: ScoreCmd) -> ExitCode {
             mods.insert(m);
         }
     }
-    // Repo-module resolution (matches Python inference's `repo_root=`): the
-    // repo's own package name and workspace packages attest self-imports so
-    // e.g. `import … from 'ink'` in an ink checkout is internal, not foreign.
+    // Repo-module resolution: the repo's own package name and workspace
+    // packages attest self-imports so e.g. `import … from 'ink'` in an ink
+    // checkout is internal, not foreign.
     let mut import_module_prefixes: Vec<String> = Vec::new();
     if let Some(root) = &c.repo_root {
         let repo_mods = adapter.resolve_repo_modules(root);
@@ -2304,7 +2304,7 @@ struct ExtractArgs {
 
 fn run_extract(a: ExtractArgs) -> ExitCode {
     let repo_path = a.repo.to_string_lossy().into_owned();
-    // `pygit2.Repository(path)` raising GitError → exit 2.
+    // No git repository at `path` → exit 2.
     if !repo_exists(&repo_path) {
         eprintln!("error: repository not found at '{}'", repo_path);
         return ExitCode::from(2);

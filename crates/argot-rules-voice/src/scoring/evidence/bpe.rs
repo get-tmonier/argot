@@ -1,8 +1,8 @@
 //! Collector for [`BpeEvidence`] payloads.
 //!
-//! Port of `engine/argot/scoring/evidence/bpe.py`. Reconstructs the offending
-//! identifiers from the surprising token spans and pairs each with its
-//! repo-wide attestation count so the rendered line is self-explanatory.
+//! Reconstructs the offending identifiers from the surprising token spans and
+//! pairs each with its repo-wide attestation count so the rendered line is
+//! self-explanatory.
 
 use super::bpe_reconstruction::surprising_identifiers;
 use super::types::{BpeEvidence, CommonEntry, EvidenceCorpus};

@@ -539,9 +539,17 @@ fn stream_with_progress(
 /// Hex sha256 of a file.
 fn sha256_file(path: &Path) -> Result<String> {
     use sha2::{Digest, Sha256};
+    use std::io::Read;
     let mut file = std::fs::File::open(path).context("open file for hashing")?;
     let mut hasher = Sha256::new();
-    std::io::copy(&mut file, &mut hasher).context("hash file")?;
+    let mut buf = [0u8; 64 * 1024];
+    loop {
+        let n = file.read(&mut buf).context("hash file")?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
     Ok(hasher
         .finalize()
         .iter()

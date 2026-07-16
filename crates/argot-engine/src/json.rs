@@ -1,6 +1,6 @@
-//! Python-compatible JSON serialisation.
+//! `json.dumps`-compatible JSON serialisation.
 //!
-//! The Python engine emits JSON with `json.dumps`, whose defaults differ from
+//! Output JSON follows the `json.dumps` convention, whose defaults differ from
 //! serde_json's compact output in two parity-relevant ways:
 //!   1. Separators are `", "` (items) and `": "` (key/value) — spaces that
 //!      serde_json omits.

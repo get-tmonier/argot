@@ -1,14 +1,13 @@
-//! Call-scope distribution — port of
-//! `engine/argot/scoring/scorers/call_scope_fraction.py`.
+//! Call-scope distribution.
 //!
 //! Fraction of call nodes with no enclosing function ancestor (module scope)
 //! vs all call nodes. Two-sided tail-z ramp.
 //!
 //! The scope boundary is grammar-specific: tree-sitter-python uses
 //! `function_definition`, tree-sitter-typescript uses `function_declaration`.
-//! (The original port carried the Python literal for both grammars, so the
-//! fraction was constantly 1.0 on TypeScript and the primitive always
-//! abstained there — since fixed.)
+//! (Using tree-sitter-python's `function_definition` for both grammars would
+//! make the fraction constantly 1.0 on TypeScript and the primitive always
+//! abstain there — hence the per-grammar boundary.)
 
 use crate::scoring::adapters::Language;
 use crate::scoring::shape_primitive::{Baseline, ShapePrimitive};

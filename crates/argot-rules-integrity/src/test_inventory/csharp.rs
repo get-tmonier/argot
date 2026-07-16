@@ -69,17 +69,11 @@ fn method_attributes<'t>(
     src: &str,
 ) -> Vec<(String, tree_sitter::Node<'t>)> {
     let mut out = Vec::new();
-    for i in 0..n.named_child_count() {
-        let Some(list) = n.named_child(i) else {
-            continue;
-        };
+    for list in argot_lang::ts_parse::named_child_nodes(n) {
         if list.kind() != "attribute_list" {
             continue;
         }
-        for j in 0..list.named_child_count() {
-            let Some(a) = list.named_child(j) else {
-                continue;
-            };
+        for a in argot_lang::ts_parse::named_child_nodes(list) {
             if a.kind() != "attribute" {
                 continue;
             }
@@ -138,17 +132,11 @@ pub(super) fn extract(root: tree_sitter::Node, src: &str) -> TestInventory {
             if !TEST_ATTRIBUTES.contains(&name.as_str()) {
                 continue;
             }
-            for k in 0..node.named_child_count() {
-                let Some(al) = node.named_child(k) else {
-                    continue;
-                };
+            for al in argot_lang::ts_parse::named_child_nodes(*node) {
                 if al.kind() != "attribute_argument_list" {
                     continue;
                 }
-                for m in 0..al.named_child_count() {
-                    let Some(arg) = al.named_child(m) else {
-                        continue;
-                    };
+                for arg in argot_lang::ts_parse::named_child_nodes(al) {
                     if node_text(arg, src).contains("Skip") {
                         skip_markers += 1;
                         disabled = true;
