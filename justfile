@@ -154,6 +154,36 @@ dogfood path=".":
     test -s .argot/scorer-config.json || (echo "✗ scorer-config.json missing" && exit 1)
     @echo "✓ dogfood: pipeline ran end-to-end, both .py and .ts rows, scorer-config emitted"
 
+# --- showcase: dogfood argot on real OSS repos (proof-post / demo assets) ---
+
+# Run the SHIPPED `argot audit` (zero-setup, no fit) across popular repos →
+# per-repo JSON + screenshot-ready HTML cards under {{out}}, then a summary.
+# Needs `argot` on PATH (`just build`, then add target/release, or install it).
+# Override the list: just audit-map "fastapi/fastapi cli/cli".
+audit-map repos="fastapi/fastapi django/django pallets/flask encode/httpx vercel/next.js facebook/react vuejs/core withastro/astro golang/go cli/cli rust-lang/cargo" out="benchmarks/results/audit-map":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    command -v argot >/dev/null || { echo "✗ argot not on PATH — 'just build' then add target/release, or install argot"; exit 1; }
+    mkdir -p "{{out}}"
+    for slug in {{repos}}; do
+      name="${slug//\//_}"
+      echo "→ $slug"
+      tmp="$(mktemp -d)"
+      if git clone --quiet --depth 200 "https://github.com/$slug" "$tmp/repo" 2>/dev/null; then
+        ( cd "$tmp/repo" && argot audit --commits 50 --format json ) > "{{out}}/$name.json" 2>/dev/null || echo "  audit(json) failed"
+        ( cd "$tmp/repo" && argot audit --commits 50 --format html ) > "{{out}}/$name.html" 2>/dev/null || echo "  audit(html) failed"
+      else
+        echo "  clone failed — skipping"
+      fi
+      rm -rf "$tmp"
+    done
+    echo "── audit-map → {{out}}/ ──"
+    for f in "{{out}}"/*.json; do
+      [ -e "$f" ] || continue
+      command -v jq >/dev/null && printf '%-26s commits=%s ai=%s findings=%s\n' \
+        "$(basename "$f" .json)" "$(jq '.commits.total' "$f")" "$(jq '.commits.ai_assisted' "$f")" "$(jq '.findings | length' "$f")"
+    done
+
 # --- landing site (argot.tmonier.com) · standalone project, own deps ---
 
 landing:

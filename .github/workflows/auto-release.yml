@@ -71,6 +71,10 @@ jobs:
           # + the daily notice resolve against) goes stale. Touching this
           # file makes every release commit rebuild the site.
           printf '{\n  "version": "%s"\n}\n' "$NEW" > landing/src/data/release.json
+          # Keep the MCP registry manifest in lockstep (server + npm package version).
+          if [ -f server.json ]; then
+            jq --arg v "$NEW" '.version = $v | (.packages[]?.version) = $v' server.json > server.json.tmp && mv server.json.tmp server.json
+          fi
 
       - name: Commit, tag and push
         if: steps.check.outputs.skip == 'false'
@@ -78,7 +82,7 @@ jobs:
           VERSION=${{ steps.bump.outputs.version }}
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Cargo.toml Cargo.lock landing/src/data/release.json
+          git add Cargo.toml Cargo.lock landing/src/data/release.json server.json
           git commit -m "chore: release v$VERSION"
           git tag "v$VERSION"
           git push origin main "v$VERSION"

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.get-tmonier/argot",
+  "title": "argot",
+  "description": "Flags code foreign to your repo's patterns, learned from git history. Local; statistics, no LLM.",
+  "version": "0.2.72",
+  "websiteUrl": "https://argot.tmonier.com",
+  "repository": {
+    "url": "https://github.com/get-tmonier/argot",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@tmonier/argot",
+      "version": "0.2.72",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        { "type": "positional", "value": "mcp" },
+        { "type": "named", "name": "--repo", "value": "." }
+      ]
+    }
+  ]
+}
