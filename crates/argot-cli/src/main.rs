@@ -8,6 +8,7 @@ mod audit;
 mod auto_refit;
 mod cache_cmd;
 mod describe;
+mod hook;
 mod mcp;
 mod review;
 mod uninstall;
@@ -228,6 +229,11 @@ enum Command {
     /// Generate a STYLE.md describing the repo's learned voice.
     #[command(name = "describe-voice")]
     DescribeVoice(DescribeVoiceCmd),
+    /// Pre-write guardrail for coding agents: reads a Claude Code PreToolUse
+    /// event on stdin and asks before a dependency foreign to the repo is
+    /// written. Wired into `.claude/settings.json` by `argot-setup` on opt-in.
+    #[command(hide = true)]
+    Hook(HookCmd),
 }
 
 #[derive(Args)]
@@ -241,6 +247,13 @@ struct DescribeVoiceCmd {
     /// Write to this file instead of stdout (e.g. `STYLE.md`).
     #[arg(long, value_name = "FILE")]
     out: Option<PathBuf>,
+}
+
+#[derive(Args)]
+struct HookCmd {
+    /// Path to the repository (defaults to the project dir).
+    #[arg(long, default_value = ".")]
+    repo: PathBuf,
 }
 
 #[derive(Args)]
@@ -1550,9 +1563,10 @@ struct VoiceDiffCmd {
     /// Path to the repository.
     #[arg(long, default_value = ".")]
     repo: PathBuf,
-    /// Output format: human, json, or markdown (a PR-comment / job-summary
-    /// score card).
-    #[arg(long, default_value = "human", value_parser = ["human", "json", "markdown"])]
+    /// Output format: human, json, markdown (a PR-comment / job-summary score
+    /// card), shields (shields.io endpoint JSON for a README badge), or svg (a
+    /// self-contained badge).
+    #[arg(long, default_value = "human", value_parser = ["human", "json", "markdown", "shields", "svg"])]
     format: String,
     /// Hot-spots to list.
     #[arg(long = "top", value_name = "N", default_value_t = voice_diff::DEFAULT_TOP)]
@@ -2428,6 +2442,7 @@ fn main() -> ExitCode {
         }
         Some(Command::Mcp(c)) => mcp::run_mcp(c.repo),
         Some(Command::DescribeVoice(c)) => describe::run_describe_voice(c.repo, c.top, c.out),
+        Some(Command::Hook(c)) => hook::run_hook(c.repo),
     }
 }
 

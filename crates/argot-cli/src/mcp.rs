@@ -71,7 +71,7 @@ fn dispatch(method: &str, params: &Value, repo: &Path) -> Result<Value, RpcError
             "protocolVersion": PROTOCOL_VERSION,
             "capabilities": { "tools": {} },
             "serverInfo": { "name": "argot", "version": env!("CARGO_PKG_VERSION") },
-            "instructions": "argot scores code against a repo's learned voice. Call argot.voice_context before generating code for a file to bias toward the local idioms; call argot.check on generated hunks to catch out-of-voice code.",
+            "instructions": "argot scores code against this repo's learned voice — statistics on its git history, not an LLM. BEFORE you add a dependency/import or write a new file, call argot.voice_context for the target path to see the repo's familiar imports and idioms, and prefer them; treat a name absent there as a signal to reconsider unless it's deliberate. After generating a hunk, call argot.check to catch anything out of voice.",
         })),
         "tools/list" => Ok(json!({ "tools": tool_definitions() })),
         "tools/call" => tools_call(params, repo),

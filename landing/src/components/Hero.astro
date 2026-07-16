@@ -96,6 +96,27 @@ const rules = [
       </a>
     </div>
 
+    <div class="mt-4">
+      <button
+        type="button"
+        data-film-open
+        aria-haspopup="dialog"
+        class="film-trigger group inline-flex items-center gap-2 text-sm font-medium text-ink-dim transition-colors hover:text-ink"
+      >
+        <span
+          class="grid place-items-center rounded-full border border-line-2 bg-panel/70 transition-colors group-hover:border-ember"
+          style="width: 1.9rem; height: 1.9rem"
+          aria-hidden="true"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" class="text-ember" style="margin-left: 1px">
+            <path d="M8 5v14l11-7z"></path>
+          </svg>
+        </span>
+        {hero.watchFilm}
+        <span class="text-muted">· 0:45</span>
+      </button>
+    </div>
+
     <div class="mt-5 flex flex-col items-center gap-2">
       <button
         type="button"

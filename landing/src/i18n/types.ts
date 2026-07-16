@@ -24,6 +24,7 @@ export interface SiteContent {
     readonly install: string;
     readonly installNote: string;
     readonly installAlt: string;
+    readonly watchFilm: string;
   };
   readonly demo: {
     readonly label: string;
@@ -97,6 +98,7 @@ export interface SiteContent {
     readonly title: string;
     readonly body: string;
     readonly caption: string;
+    readonly badge: string;
   };
   readonly cta: {
     readonly title: string;

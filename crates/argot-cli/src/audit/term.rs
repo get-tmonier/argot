@@ -57,6 +57,28 @@ fn clip_right(s: &str, max: usize) -> String {
     format!("{head}…")
 }
 
+/// Greedy word-wrap to `width` columns — for the share caption, the one bit of
+/// card text whose length isn't known ahead of time.
+fn wrap(text: &str, width: usize) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut cur = String::new();
+    for word in text.split_whitespace() {
+        if cur.is_empty() {
+            cur = word.to_string();
+        } else if cur.chars().count() + 1 + word.chars().count() <= width {
+            cur.push(' ');
+            cur.push_str(word);
+        } else {
+            lines.push(std::mem::take(&mut cur));
+            cur = word.to_string();
+        }
+    }
+    if !cur.is_empty() {
+        lines.push(cur);
+    }
+    lines
+}
+
 fn glyph(confidence: &str, color: bool) -> String {
     match confidence {
         "foreign" => paint("!", "31", color),
@@ -245,6 +267,18 @@ pub fn render(report: &AuditReport, color: bool) -> String {
         ),
     );
     push(&mut out, "  before they merge.");
+
+    // Share affordance: the copy-pasteable hook, wrapped to the card width.
+    if let Some(cap) = super::report::share_caption(report) {
+        push(&mut out, "");
+        push(
+            &mut out,
+            &dim(&format!("  Share this {}", "─".repeat(WIDTH - 13))),
+        );
+        for line in wrap(&format!("{cap} argot.tmonier.com"), WIDTH - 2) {
+            push(&mut out, &dim(&format!("  {line}")));
+        }
+    }
     push(&mut out, &bold(&"━".repeat(WIDTH)));
     out
 }
@@ -438,6 +472,10 @@ mod tests {
         assert!(card.contains("skipped: embedding model not available"));
         assert!(card.contains("would have\n  prompted review before merge"));
         assert!(card.contains("argot init"));
+        // The share affordance carries the hook and the URL.
+        assert!(card.contains("Share this"));
+        assert!(card.contains("2 patterns foreign to this"));
+        assert!(card.contains("argot.tmonier.com"));
     }
 
     #[test]

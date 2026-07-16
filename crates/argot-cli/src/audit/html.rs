@@ -95,12 +95,30 @@ const STYLE: &str = r#"
   .frame { color: var(--muted); font-size: 12.5px; margin-top: 22px; border-top: 1px solid var(--line);
            padding-top: 12px; }
   .frame code { font-family: var(--mono); font-size: 12px; }
+  .brand { color: var(--muted); font-size: 12px; margin-top: 16px; text-align: center;
+           letter-spacing: .02em; }
+  .brand b { color: var(--accent); font-weight: 600; }
 "#;
 
 pub fn render(report: &AuditReport) -> String {
     let w = &report.window;
     let c = &report.commits;
     let share = super::report::ai_share_pct(c.ai_assisted, c.total);
+    // Open-graph / Twitter meta so a shared link previews with the hook. No
+    // og:image — the card stays self-contained; the screenshot is the image.
+    let social = match super::report::share_caption(report) {
+        Some(cap) => format!(
+            "<meta property=\"og:type\" content=\"website\">\n\
+             <meta property=\"og:title\" content=\"argot audit\">\n\
+             <meta property=\"og:description\" content=\"{cap}\">\n\
+             <meta property=\"og:url\" content=\"https://argot.tmonier.com\">\n\
+             <meta name=\"twitter:card\" content=\"summary\">\n\
+             <meta name=\"twitter:title\" content=\"argot audit\">\n\
+             <meta name=\"twitter:description\" content=\"{cap}\">\n",
+            cap = esc(&cap)
+        ),
+        None => String::new(),
+    };
     let window_label = match &w.requested {
         RequestedWindow::Commits(_) => format!("last {} commits", w.effective_commits),
         RequestedWindow::Since(s) => format!("since {} ({} commits)", esc(s), w.effective_commits),
@@ -240,11 +258,15 @@ pub fn render(report: &AuditReport) -> String {
          not a census.<br>Next: <code>argot init</code> fits today's voice so \
          <code>argot check</code> raises these before they merge.</p>\n",
     );
+    body.push_str(
+        "<p class=\"brand\"><b>argot</b> · learns your repo's voice from its git \
+         history · argot.tmonier.com</p>\n",
+    );
 
     format!(
         "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
-         <title>argot audit</title>\n<style>{STYLE}</style>\n</head>\n<body>\n\
+         {social}<title>argot audit</title>\n<style>{STYLE}</style>\n</head>\n<body>\n\
          <div class=\"card\">\n{body}</div>\n</body>\n</html>\n"
     )
 }
@@ -319,5 +341,9 @@ mod tests {
         assert!(html.contains("Claude &lt;noreply@anthropic.com&gt;"));
         assert!(html.contains("40%"));
         assert!(html.contains("Worst offender"));
+        // Social preview meta + brand footer, still self-contained (no og:image).
+        assert!(html.contains("og:description"));
+        assert!(html.contains("class=\"brand\""));
+        assert!(!html.contains("og:image"));
     }
 }

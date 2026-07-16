@@ -17,6 +17,9 @@
 #   4. Renders a non-blocking "voice score" card into the Actions job summary,
 #      and (on pull requests) into a single sticky PR comment.
 #   5. Optionally uploads the SARIF file to GitHub code scanning.
+#   6. Optionally publishes a shields.io "voice score" badge to a `badges`
+#      branch (publish-badge: true; needs `contents: write`) so a README badge
+#      stays fresh — see https://argot.tmonier.com/docs/ci/ for the snippet.
 #
 # Supported runners: Linux (x64/arm64), macOS (arm64/x64), and Windows (x64) —
 # the targets argot publishes prebuilt binaries for.
@@ -86,6 +89,14 @@ inputs:
       Off by default: argot is a statistical guardrail, so it informs the PR
       (score card + code-scanning annotations) without gating the merge. Opt in
       only if you deliberately want a hard gate.
+    required: false
+    default: "false"
+  publish-badge:
+    description: >-
+      On a push to the default branch, publish a shields.io endpoint JSON
+      (the repo's current in-voice %) to a `badges` branch, so a README badge
+      stays fresh. Off by default; needs `contents: write`. Embed it with
+      `[![argot](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/OWNER/REPO/badges/argot.json)](https://argot.tmonier.com)`.
     required: false
     default: "false"
 
@@ -347,6 +358,73 @@ runs:
           } else {
             await github.rest.issues.createComment({ owner, repo, issue_number, body });
           }
+
+    - name: Generate voice badge
+      id: badge
+      if: ${{ inputs.publish-badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && steps.base.outputs.range != '' }}
+      shell: bash
+      env:
+        ARGOT_PATH: ${{ inputs.path }}
+        ARGOT_RANGE: ${{ steps.base.outputs.range }}
+      run: |
+        set -euo pipefail
+        # Reuse the same range the check scored — no extra fit. The shields
+        # endpoint JSON is a single line; hand it to the publish step as output.
+        json="$(argot voice-diff "$ARGOT_RANGE" --repo "$ARGOT_PATH" --format shields 2>/dev/null || true)"
+        if [ -z "$json" ]; then
+          echo "voice-diff produced no badge JSON (model not fitted?) — skipping."
+          echo "json=" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        printf 'json=%s\n' "$json" >> "$GITHUB_OUTPUT"
+
+    - name: Publish voice badge to the badges branch
+      if: ${{ steps.badge.outputs.json != '' }}
+      uses: actions/github-script@v9
+      env:
+        ARGOT_BADGE_JSON: ${{ steps.badge.outputs.json }}
+      with:
+        github-token: ${{ github.token }}
+        script: |
+          const content = (process.env.ARGOT_BADGE_JSON || '').trim() + '\n';
+          const { owner, repo } = context.repo;
+          const branch = 'badges';
+          const path = 'argot.json';
+          // Unchanged score → no commit, so a quiet repo never churns history.
+          try {
+            const existing = await github.rest.repos.getContent({ owner, repo, path, ref: branch });
+            const cur = Buffer.from(existing.data.content, 'base64').toString('utf8');
+            if (cur.trim() === content.trim()) { core.info('argot badge unchanged — no commit.'); return; }
+          } catch (e) { /* file or branch absent → created below */ }
+          const blob = await github.rest.git.createBlob({
+            owner, repo, encoding: 'base64',
+            content: Buffer.from(content).toString('base64'),
+          });
+          // Build on the current badges head when it exists (preserving any
+          // sibling badge files), else start a root commit for a new branch.
+          let parents = [];
+          let base_tree;
+          try {
+            const ref = await github.rest.git.getRef({ owner, repo, ref: `heads/${branch}` });
+            parents = [ref.data.object.sha];
+            const head = await github.rest.git.getCommit({ owner, repo, commit_sha: ref.data.object.sha });
+            base_tree = head.data.tree.sha;
+          } catch (e) { /* branch absent — root commit */ }
+          const tree = await github.rest.git.createTree({
+            owner, repo,
+            ...(base_tree ? { base_tree } : {}),
+            tree: [{ path, mode: '100644', type: 'blob', sha: blob.data.sha }],
+          });
+          const commit = await github.rest.git.createCommit({
+            owner, repo, tree: tree.data.sha, parents,
+            message: 'chore(argot): update voice badge [skip ci]',
+          });
+          try {
+            await github.rest.git.updateRef({ owner, repo, ref: `heads/${branch}`, sha: commit.data.sha, force: true });
+          } catch (e) {
+            await github.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha: commit.data.sha });
+          }
+          core.info(`argot badge published → ${branch}/${path}`);
 
     - name: Upload SARIF to code scanning
       if: ${{ inputs.upload-sarif == 'true' && inputs.format == 'sarif' }}

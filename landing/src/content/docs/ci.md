@@ -113,6 +113,38 @@ The card looks like this:
 >
 > > **Informational — not a merge gate.**
 
+## A voice badge for your README
+
+Show the repo's current in-voice score right in your README — the same number
+the score card reports, as a live [shields.io](https://shields.io) badge. Flip
+on the `publish-badge` input, and grant the job `contents: write`:
+
+```yaml
+permissions:
+  contents: write          # publish-badge commits to a `badges` branch
+  pull-requests: write
+  security-events: write
+# …
+      - uses: get-tmonier/argot@main
+        with:
+          publish-badge: true
+```
+
+On every push to your **default branch** the Action writes the score to a
+`badges` branch (a tiny `argot.json` — nothing lands on `main`), and you embed
+it:
+
+```md
+[![argot](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/OWNER/REPO/badges/argot.json)](https://argot.tmonier.com)
+```
+
+It renders **`argot | 98% in-voice`** — green when the code flowing into the
+repo sounds like the repo, redder as more of it reads foreign. The score is
+reused from the range the Action already scored (no extra fit), and an unchanged
+score never adds a commit. Prefer a static, self-contained file (no shields.io
+round-trip)? `argot voice-diff <range> --format svg` prints the badge as a
+standalone SVG.
+
 ## Let an AI agent wire it in
 
 Prefer to hand it off? Paste this into Claude Code (or Cursor, Aider, any agent)
@@ -219,6 +251,7 @@ All inputs are optional.
 | `rules` | *(empty)* | Space-separated rule severity overrides passed to `argot check --rule`, e.g. `misplaced=warn semantic=off`. Empty = the repo's `argot.toml` `[rules]`. |
 | `semantic` | `true` | Run the semantic rules (`redundant`/`misplaced`). `false` sets `ARGOT_OFFLINE=1` — no model download, no index build; the voice, layering, and integrity rules still run. |
 | `fail-on-hits` | `false` | Fail the job when argot finds hits above the threshold. Off by default — argot informs without gating. |
+| `publish-badge` | `false` | On a push to the default branch, publish the repo's in-voice score to a `badges` branch as a shields.io endpoint JSON, for a live README badge. Needs `contents: write`. |
 
 ### Action outputs
 
@@ -308,6 +341,8 @@ argot check main..HEAD --format json      # stable JSON: hits, scores, hashes
 argot check main..HEAD --format sarif      # SARIF 2.1.0 for any code scanner
 argot check main..HEAD --format github     # inline PR annotations, no upload step
 argot voice-diff main..HEAD --format markdown   # the score card
+argot voice-diff main..HEAD --format shields    # shields.io endpoint JSON (README badge)
+argot voice-diff main..HEAD --format svg        # a standalone, self-contained SVG badge
 ```
 
 Exit codes: `0` clean · `1` at least one `error`-severity finding · `2`

@@ -103,12 +103,39 @@ suppressing it).
    or `--since 6m`). A quiet audit is also a result: their recent history is
    in voice.
 
-9. **Optional finishing artifact:** `argot describe-voice --out STYLE.md`
+9. **Optional — the pre-write guardrail (Claude Code):** offer to have argot
+   *ask* before the agent introduces a dependency this repo has never used —
+   the reviewer's "is this intentional?" beat, moved to write time. It is
+   **opt-in and per-repo**; nothing fires unless you add it here. If the user
+   wants it, merge this into the repo's `.claude/settings.json` (committed,
+   team-shared) or `.claude/settings.local.json` (personal, gitignored) — do
+   NOT overwrite an existing `hooks` block, merge into it:
+
+   ```json
+   {
+     "hooks": {
+       "PreToolUse": [
+         {
+           "matcher": "Write|Edit|MultiEdit",
+           "hooks": [
+             { "type": "command", "command": "argot hook --repo \"${CLAUDE_PROJECT_DIR}\"", "timeout": 10000 }
+           ]
+         }
+       ]
+     }
+   }
+   ```
+
+   It fires only on a genuinely foreign dependency (argot's highest-precision
+   signal), **asks** — never silently blocks — and is a no-op until the repo is
+   fitted. To turn it off, remove that entry. Leave it out unless the user asks.
+
+10. **Optional finishing artifact:** `argot describe-voice --out STYLE.md`
    generates a human-readable guide to the learned voice (typical callees per
    file cluster, the familiar import surface). Offer it when the user wants a
    committed, reviewable description of what argot learned.
 
-10. **Summarize** for the user: what you excluded and why, and the final Verdict.
+11. **Summarize** for the user: what you excluded and why, and the final Verdict.
    `argot.toml` is committed (the excludes/detect/mutes are a shared, reviewable
    decision); argot also wrote a `.argot/.gitignore` so the rebuildable model
    itself isn't committed (regenerate with `argot fit`), and gitignored

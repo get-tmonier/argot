@@ -158,6 +158,31 @@ pub fn ai_share_pct(ai_assisted: usize, total: usize) -> usize {
         .unwrap_or(0)
 }
 
+/// The one-sentence, copy-pasteable caption for sharing an audit result — the
+/// provocative hook (count of patterns foreign to the repo + the AI-marker
+/// share). `None` when nothing was scored (a docs-only window has nothing to
+/// share). Carries no URL; callers append their own.
+pub fn share_caption(report: &AuditReport) -> Option<String> {
+    if report.hunks_scanned == 0 {
+        return None;
+    }
+    let share = ai_share_pct(report.commits.ai_assisted, report.commits.total);
+    let commits = report.window.effective_commits;
+    let n = report.findings.len();
+    Some(if n == 0 {
+        format!(
+            "argot audited my last {commits} commits — 0 patterns foreign to this \
+             repo's own style ({share}% of commits carried AI markers)."
+        )
+    } else {
+        format!(
+            "argot audited my last {commits} commits: {n} pattern{} foreign to this \
+             repo's own style, {share}% of commits carried AI markers.",
+            if n == 1 { "" } else { "s" }
+        )
+    })
+}
+
 fn severity_rank(s: &str) -> usize {
     match s {
         "error" => 1,
@@ -243,5 +268,51 @@ mod tests {
         assert_eq!(f["rule"], "foreign-import");
         assert_eq!(f["commit"]["attribution"], "human");
         assert_eq!(f["commit"]["short"], "aaaaaaa");
+    }
+
+    fn report_with(findings: Vec<Finding>, hunks: u64) -> AuditReport {
+        AuditReport {
+            schema_version: SCHEMA_VERSION,
+            generated_by: "argot vtest".into(),
+            window: WindowReport {
+                requested: RequestedWindow::Commits(50),
+                effective_commits: 50,
+                clamp: None,
+                clamp_note: None,
+                base: "b".repeat(40),
+                head: "h".repeat(40),
+                base_date: "2026-05-28".into(),
+                head_date: "2026-07-12".into(),
+            },
+            commits: CommitsReport {
+                total: 200,
+                ai_assisted: 66,
+                human: 134,
+                unknown: 0,
+            },
+            hunks_scanned: hunks,
+            groups: vec![],
+            findings,
+        }
+    }
+
+    #[test]
+    fn share_caption_leads_with_the_hook() {
+        // ai_share_pct(66, 200) = 33.
+        let mut report = report_with(
+            vec![finding("foreign-import", "foreign", "error", "x.py")],
+            900,
+        );
+        let cap = share_caption(&report).unwrap();
+        assert!(cap.contains("1 pattern foreign"), "{cap}");
+        assert!(cap.contains("33% of commits carried AI markers"), "{cap}");
+        // A quiet audit brags positively rather than going silent.
+        report.findings.clear();
+        assert!(share_caption(&report)
+            .unwrap()
+            .contains("0 patterns foreign"));
+        // A docs-only window has nothing to share.
+        report.hunks_scanned = 0;
+        assert!(share_caption(&report).is_none());
     }
 }

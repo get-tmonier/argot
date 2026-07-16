@@ -68,6 +68,14 @@ const score = 92;
         class="text-center text-sm text-muted text-pretty"
         set:html={emphasize(ciScore.caption)}
       />
+
+      <div class="badge-wrap">
+        <span class="badge" role="img" aria-label={`argot ${score} percent in-voice badge`}>
+          <span class="badge-l">argot</span>
+          <span class="badge-r">{score}% in-voice</span>
+        </span>
+        <p class="badge-note text-pretty" set:html={emphasize(ciScore.badge)} />
+      </div>
     </div>
   </div>
 </section>
@@ -225,6 +233,42 @@ const score = 92;
     margin-top: 1rem;
     font-size: 0.72rem;
     line-height: 1.5;
+    color: var(--muted);
+  }
+
+  /* --- the README badge you get to keep --- */
+  .badge-wrap {
+    margin-top: 0.4rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.65rem;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: stretch;
+    border-radius: 6px;
+    overflow: hidden;
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    font-weight: 600;
+    line-height: 1;
+    box-shadow: 0 10px 26px -16px rgba(0, 0, 0, 0.85);
+  }
+  .badge-l {
+    background: #3f3f46;
+    color: #fff;
+    padding: 0.42rem 0.62rem;
+  }
+  .badge-r {
+    background: #4cc417;
+    color: #fff;
+    padding: 0.42rem 0.62rem;
+  }
+  .badge-note {
+    max-width: 27rem;
+    text-align: center;
+    font-size: 0.8rem;
     color: var(--muted);
   }
 </style>

@@ -249,6 +249,90 @@ pub fn markdown_card(s: &VoiceDiffSummary) -> String {
     out
 }
 
+/// The badge score = in-voice %, the positive complement of the out-of-voice
+/// metric. A README badge is a thing you pin and keep, so it uses the positive
+/// framing (green when high) — the provocative AI-share number belongs on the
+/// one-time `argot audit` card, not a persistent badge.
+fn in_voice_pct(s: &VoiceDiffSummary) -> f64 {
+    (100.0 - s.out_of_voice_pct).clamp(0.0, 100.0)
+}
+
+/// Score → (shields colour keyword, SVG hex). Coverage-badge semantics: green
+/// high, red low, so the badge reads at a glance the way a coverage badge does.
+fn badge_color(in_voice: f64) -> (&'static str, &'static str) {
+    match in_voice {
+        s if s >= 95.0 => ("brightgreen", "#4c1"),
+        s if s >= 85.0 => ("green", "#97ca00"),
+        s if s >= 70.0 => ("yellowgreen", "#a4a61d"),
+        s if s >= 50.0 => ("yellow", "#dfb317"),
+        s if s >= 30.0 => ("orange", "#fe7d37"),
+        _ => ("red", "#e05d44"),
+    }
+}
+
+/// Minimal XML text escape for the SVG badge.
+fn xml_esc(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
+/// A [shields.io endpoint](https://shields.io/badges/endpoint-badge) JSON
+/// document. Published by CI to a stable URL, it lets a README badge stay fresh
+/// without argot hosting anything: `img.shields.io/endpoint?url=<the JSON>`
+/// renders the current score. `schemaVersion` 1 is shields' stable contract.
+pub fn shields_endpoint(s: &VoiceDiffSummary) -> String {
+    let in_voice = in_voice_pct(s);
+    let (color, _) = badge_color(in_voice);
+    let doc = serde_json::json!({
+        "schemaVersion": 1,
+        "label": "argot",
+        "message": format!("{in_voice:.0}% in-voice"),
+        "color": color,
+    });
+    format!("{doc}\n")
+}
+
+/// A self-contained flat SVG badge — zero external requests (same ethos as the
+/// audit HTML card), for a static badge committed to a repo or embedded in
+/// docs. The shields endpoint is the fresher path; this is the offline one.
+pub fn badge_svg(s: &VoiceDiffSummary) -> String {
+    let in_voice = in_voice_pct(s);
+    let (_, hex) = badge_color(in_voice);
+    let label = "argot";
+    let message = format!("{in_voice:.0}% in-voice");
+    // Approximate Verdana-11 advance width; the shields endpoint renders
+    // pixel-perfect, so a rough width here only affects the offline SVG.
+    let char_w = 7u32;
+    let pad = 12u32; // 6px each side
+    let tw = |t: &str| t.chars().count() as u32 * char_w;
+    let (ltw, mtw) = (tw(label), tw(&message));
+    let (lw, mw) = (ltw + pad, mtw + pad);
+    let total = lw + mw;
+    // ×10 coordinates for the scale(.1) trick shields uses for crisp text.
+    let lcx = lw * 5;
+    let mcx = lw * 10 + mw * 5;
+    let (ltl, mtl) = (ltw * 10, mtw * 10);
+    let label_e = xml_esc(label);
+    let message_e = xml_esc(&message);
+    let aria = format!("{label_e}: {message_e}");
+    format!(
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="{total}" height="20" role="img" aria-label="{aria}">
+<title>{aria}</title>
+<linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient>
+<clipPath id="r"><rect width="{total}" height="20" rx="3" fill="#fff"/></clipPath>
+<g clip-path="url(#r)"><rect width="{lw}" height="20" fill="#555"/><rect x="{lw}" width="{mw}" height="20" fill="{hex}"/><rect width="{total}" height="20" fill="url(#s)"/></g>
+<g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="110" text-rendering="geometricPrecision">
+<text aria-hidden="true" x="{lcx}" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="{ltl}">{label_e}</text>
+<text x="{lcx}" y="140" transform="scale(.1)" textLength="{ltl}">{label_e}</text>
+<text aria-hidden="true" x="{mcx}" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="{mtl}">{message_e}</text>
+<text x="{mcx}" y="140" transform="scale(.1)" textLength="{mtl}">{message_e}</text></g>
+</svg>
+"##
+    )
+}
+
 pub fn run_voice_diff(target: &str, repo: PathBuf, format: &str, top_n: usize) -> ExitCode {
     let Some(summary) = summary_for_ref(&repo, target, top_n) else {
         eprintln!("error: could not score '{target}' — run `argot fit` first?");
@@ -263,6 +347,14 @@ pub fn run_voice_diff(target: &str, repo: PathBuf, format: &str, top_n: usize) -
     }
     if format == "markdown" {
         print!("{}", markdown_card(&summary));
+        return ExitCode::SUCCESS;
+    }
+    if format == "shields" {
+        print!("{}", shields_endpoint(&summary));
+        return ExitCode::SUCCESS;
+    }
+    if format == "svg" {
+        print!("{}", badge_svg(&summary));
         return ExitCode::SUCCESS;
     }
     println!("{}", one_liner(&summary));
@@ -372,5 +464,48 @@ mod tests {
         assert_eq!(s.hot_spots.len(), 2);
         assert_eq!(s.hot_spots[0].file, "b.py"); // highest score first
         assert_eq!(s.hot_spots[1].file, "c.py");
+    }
+
+    #[test]
+    fn badge_color_follows_coverage_semantics() {
+        assert_eq!(badge_color(100.0).0, "brightgreen");
+        assert_eq!(badge_color(95.0).0, "brightgreen");
+        assert_eq!(badge_color(90.0).0, "green");
+        assert_eq!(badge_color(75.0).0, "yellowgreen");
+        assert_eq!(badge_color(60.0).0, "yellow");
+        assert_eq!(badge_color(40.0).0, "orange");
+        assert_eq!(badge_color(10.0).0, "red");
+    }
+
+    #[test]
+    fn shields_endpoint_is_valid_and_positively_framed() {
+        // One flagged hunk in a large diff → high in-voice %.
+        let json = shields_endpoint(&summarize(&[hit("a.py", 1, 6.0, "unusual")], 100, 10));
+        let doc: Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(doc["schemaVersion"], 1);
+        assert_eq!(doc["label"], "argot");
+        let msg = doc["message"].as_str().unwrap();
+        assert!(msg.ends_with("% in-voice"), "{msg}");
+        assert_eq!(doc["color"], "brightgreen");
+    }
+
+    #[test]
+    fn shields_endpoint_clean_diff_is_one_hundred_percent() {
+        let doc: Value = serde_json::from_str(&shields_endpoint(&summarize(&[], 30, 10))).unwrap();
+        assert_eq!(doc["message"], "100% in-voice");
+        assert_eq!(doc["color"], "brightgreen");
+    }
+
+    #[test]
+    fn badge_svg_is_self_contained() {
+        let svg = badge_svg(&summarize(&[hit("a.py", 1, 6.0, "unusual")], 100, 10));
+        assert!(svg.starts_with("<svg"));
+        assert!(svg.trim_end().ends_with("</svg>"));
+        assert!(svg.contains("in-voice"));
+        assert!(svg.contains("argot"));
+        // No external resource references (internal url(#…) refs are fine).
+        for banned in ["href=", "src=", "<image", "url(http", "@import"] {
+            assert!(!svg.contains(banned), "unexpected external ref: {banned}");
+        }
     }
 }

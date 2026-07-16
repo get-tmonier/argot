@@ -55,7 +55,19 @@ the user explicitly asks for a gate.
    (a sticky PR comment + the Actions job summary) and inline code-scanning
    annotations. It never fails the build.
 
-6. If the user prefers a hand-rolled workflow over the Action (or already has
+6. **Offer a live README badge.** If the user wants one, add `contents: write`
+   to `permissions` and `publish-badge: true` under the action's `with:`. On
+   each push to the default branch the Action publishes the in-voice score to a
+   `badges` branch; give the user the snippet to paste in their README:
+
+   ```md
+   [![argot](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/OWNER/REPO/badges/argot.json)](https://argot.tmonier.com)
+   ```
+
+   It renders `argot | N% in-voice`, green when in voice. (For a static badge
+   with no shields.io round-trip: `argot voice-diff <range> --format svg`.)
+
+7. If the user prefers a hand-rolled workflow over the Action (or already has
    one), the building blocks are: install argot, `argot model fetch` (cache
    `~/.cache/argot/models` to keep the download out of every run; also cache
    `~/.cache/argot/embeddings` with a loose restore-key so unchanged functions

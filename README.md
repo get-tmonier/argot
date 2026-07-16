@@ -28,6 +28,12 @@
   &nbsp;·&nbsp;<a href="https://argot.tmonier.com/docs/languages/">11 languages →</a>
 </p>
 
+<p align="center">
+  <a href="https://argot.tmonier.com/#film"><img src="landing/public/argot-film-poster.jpg" alt="Watch the argot launch film" width="220" /></a>
+  <br/>
+  <em>🎬 <a href="https://argot.tmonier.com/#film">Watch the 45-second launch film</a></em>
+</p>
+
 ---
 
 Type checkers ask *"is this valid?"* argot asks the question that used to live in code review: *"is this how **we** do it here?"* — and catches AI code that's flawless, type-correct, lint-clean, and still doesn't belong. It answers with statistics on your repo's own history — the statistical core deterministic and replayable, everything local — never a second LLM judging the first.
@@ -74,6 +80,8 @@ argot audit      # ⏪ what did AI sneak into your last 50 commits?
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
+The terminal card ends with a copy-paste **share caption**, and `argot audit --format html` is a screenshot-ready card — post your score.
+
 Then fit today's voice so `check` raises these *before* they merge:
 
 ```sh
@@ -82,6 +90,8 @@ argot check      # score your working changes against it
 ```
 
 Accuracy is a function of setup — argot learns from what it's allowed to see. Best path: `npx skills add get-tmonier/argot`, then `/argot-setup` in your coding agent (Claude Code, Cursor, 70+ agents) reads your repo, excludes what shouldn't shape the voice, and verifies the catch. Full guide: [Setup](https://argot.tmonier.com/docs/setup/) · [Getting started](https://argot.tmonier.com/docs/getting-started/).
+
+argot also runs as an **MCP server** (`argot mcp`) your agent can consult while it writes, and ships as a **Claude Code plugin** — the five skills plus the MCP server in one install: `/plugin marketplace add get-tmonier/argot`.
 
 ## Demo
 
@@ -191,7 +201,7 @@ One documented limit: **masked foreign** — a foreign symbol whose name collide
 - uses: get-tmonier/argot@main   # non-blocking voice score on every PR
 ```
 
-`--format github` prints inline PR annotations; `--format sarif` feeds code scanning; `--format json` is a stable schema. Copy-paste setups incl. pre-commit: [the CI guide](https://argot.tmonier.com/docs/ci/).
+`--format github` prints inline PR annotations; `--format sarif` feeds code scanning; `--format json` is a stable schema. Add `publish-badge: true` (with `contents: write`) for a live README badge — `argot · N% in-voice`, updated on every push. Copy-paste setups incl. pre-commit: [the CI guide](https://argot.tmonier.com/docs/ci/).
 
 ## How it works
 
