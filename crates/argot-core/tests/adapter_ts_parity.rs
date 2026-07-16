@@ -1,12 +1,11 @@
 //! Golden-fixture parity test for the TypeScript language adapter.
 //!
-//! The golden (`tests/fixtures/adapter_ts/golden.json`) was captured from the
-//! Python engine (`engine/argot/scoring/adapters/typescript.py`). Each sample
-//! carries a source string and the expected output of every adapter method;
+//! The golden (`tests/fixtures/adapter_ts/golden.json`) pins the expected
+//! output of every adapter method over a set of source samples;
 //! `resolve_repo_modules` is computed against the fixture repo, and
-//! `identifier_noise` is the full sorted noise set. The Rust
-//! `TypeScriptAdapter` must reproduce all of them exactly — this is the
-//! objective acceptance test for the port.
+//! `identifier_noise` is the full sorted noise set. The `TypeScriptAdapter`
+//! must reproduce all of them exactly — the golden is authoritative, so a diff
+//! here is a regression until the golden is deliberately re-blessed.
 
 use std::collections::HashMap;
 use std::path::PathBuf;

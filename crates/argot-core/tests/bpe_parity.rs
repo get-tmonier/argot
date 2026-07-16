@@ -1,5 +1,5 @@
-//! BPE encode parity against golden encodes captured from the Python
-//! `transformers` `microsoft/unixcoder-base` tokenizer.
+//! BPE encode regression test: the golden token-id encodes pin the expected
+//! output of the embedded `microsoft/unixcoder-base` tokenizer.
 //!
 //! Golden set spans real source files (Python + TypeScript), unicode, and
 //! whitespace edge cases — ~14.5k token ids total.

@@ -2,8 +2,8 @@
 # Build a deterministic git repo for extract parity testing.
 #
 # Fixed author/committer identity and dates make the commit SHAs
-# reproducible, so a golden dataset.jsonl captured from the Python engine
-# stays valid across rebuilds. Usage: build_fixture.sh <target_dir>
+# reproducible, so the committed golden dataset.jsonl stays valid across
+# rebuilds. Usage: build_fixture.sh <target_dir>
 set -euo pipefail
 
 DEST="${1:?usage: build_fixture.sh <target_dir>}"

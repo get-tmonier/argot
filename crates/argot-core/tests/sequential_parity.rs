@@ -1,6 +1,6 @@
-//! Integration parity for `SequentialImportBpeScorer.score_hunk` with the
-//! call-receiver DISABLED (alpha=0) — isolates typicality + import + BPE +
-//! multi-reason resolution, fully reproducible vs Python (no KMeans).
+//! Integration golden for the sequential composite scorer's per-hunk scoring
+//! with the call-receiver DISABLED (alpha=0) — isolates typicality + import +
+//! BPE + multi-reason resolution, fully reproducible (no KMeans).
 
 use argot_core::scoring::adapters::python::PythonAdapter;
 use argot_core::scoring::sequential::{SequentialConfig, SequentialImportBpeScorer};
