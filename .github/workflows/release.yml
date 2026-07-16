@@ -312,10 +312,60 @@ jobs:
       - run: |
           for release in $(echo "$PLAN" | jq --compact-output '.releases[] | select([.artifacts[] | endswith("-npm-package.tar.gz")] | any)'); do
             pkg=$(echo "$release" | jq '.artifacts[] | select(endswith("-npm-package.tar.gz"))' --raw-output)
-            npm publish --access public "./npm/${pkg}"
+            tarball="./npm/${pkg}"
+            # The MCP registry requires the npm package to self-declare its server
+            # name via `mcpName` (cargo-dist has no knob for it). Inject it, then
+            # publish the patched package dir. Best-effort — on ANY failure, fall
+            # back to the original tarball so a release never breaks over this.
+            # MANUAL PATCH: re-apply after any `dist generate` (see dist-workspace.toml).
+            dir=""
+            if tmp="$(mktemp -d)" && tar -xzf "$tarball" -C "$tmp" \
+               && pjson="$(find "$tmp" -maxdepth 2 -name package.json | head -1)" && [ -n "$pjson" ] \
+               && jq '.mcpName = "io.github.get-tmonier/argot"' "$pjson" > "$pjson.tmp" && mv "$pjson.tmp" "$pjson"; then
+              dir="$(dirname "$pjson")"
+              echo "injected mcpName; publishing $dir"
+            else
+              echo "::warning::could not inject mcpName into ${pkg}; publishing original tarball"
+            fi
+            if [ -n "$dir" ]; then
+              npm publish --access public "$dir"
+            else
+              npm publish --access public "$tarball"
+            fi
           done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Publish server.json to the MCP registry under the io.github.get-tmonier org
+  # namespace via GitHub OIDC — no secret, no personal account. Runs after the
+  # npm package (with its injected mcpName) is live. A failure here never blocks
+  # the release (announce does not depend on it). MANUAL PATCH: not emitted by
+  # cargo-dist; re-add after any `dist generate` (see dist-workspace.toml).
+  publish-mcp:
+    needs:
+      - plan
+      - publish-npm
+    runs-on: "ubuntu-22.04"
+    permissions:
+      "id-token": "write"
+      "contents": "read"
+    if: ${{ !fromJson(needs.plan.outputs.val).announcement_is_prerelease || fromJson(needs.plan.outputs.val).publish_prereleases }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install mcp-publisher
+        run: |
+          curl --proto '=https' --tlsv1.2 -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+      - name: Publish to the MCP registry (GitHub OIDC → org namespace)
+        run: |
+          ./mcp-publisher login github-oidc
+          # npm can take a moment to propagate the version the registry validates
+          # against; retry a few times (the OIDC token lives ~5 min).
+          for i in 1 2 3 4 5; do
+            if ./mcp-publisher publish; then exit 0; fi
+            echo "publish retry ${i} (npm may still be propagating)…"
+            sleep 30
+          done
+          exit 1
 
   announce:
     needs:
