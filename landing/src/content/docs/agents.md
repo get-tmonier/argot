@@ -115,10 +115,44 @@ layer's **first use**, which fetches the ~100 MB code-embedding model to a local
 cache once; after that — and for everything the base voice model does — nothing
 touches the network.
 
+## Pre-write guardrail — ask before foreign code (Claude Code)
+
+The MCP server is passive: the agent has to *choose* to call `voice_context`.
+The pre-write guardrail makes it active. It's a Claude Code `PreToolUse` hook
+that runs `argot hook` on every `Write`/`Edit`: argot scores the code about to
+be written and, **only** when it introduces a dependency the repo has never used
+(argot's highest-precision signal), returns an `ask` so you confirm before it
+lands — naming the foreign dependency and what the repo uses instead. Everything
+else passes silently; it never auto-blocks, and it's a no-op until the repo is
+fitted.
+
+It's **opt-in and per-repo** — `argot-setup` offers it, adding this to your
+`.claude/settings.json` (or `.claude/settings.local.json` for personal-only):
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "argot hook --repo \"${CLAUDE_PROJECT_DIR}\"", "timeout": 10000 }
+        ]
+      }
+    ]
+  }
+}
+```
+
+To turn it off, remove that entry. (Other agents don't expose an equivalent
+pre-write hook yet — use the MCP `voice_context` tool there.)
+
 ## Which to use
 
 - **Just want a safety net?** Install the skills — zero config, runs at
   commit time.
 - **Want the agent to write in-voice up front?** Add the MCP server.
+- **Want a beat before a *new dependency* lands?** Add the pre-write guardrail
+  (Claude Code) — it asks before the agent introduces something foreign.
 - **Both** is the best of it: proactive context while generating, plus the
   commit-time check. They don't conflict.

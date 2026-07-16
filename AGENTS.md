@@ -166,6 +166,10 @@ Trust the binary. `argot rules` prints the live rule registry and `argot
 - **MCP** (proactive): `argot mcp` exposes `voice_context` so you can write
   in-voice from the first token — see
   [the agents guide](https://argot.tmonier.com/docs/agents/).
+- **Pre-write guardrail** (Claude Code, opt-in): a `PreToolUse` hook (`argot
+  hook`) that *asks* before you introduce a dependency foreign to the repo —
+  wired into `.claude/settings.json` by `argot-setup`. Never auto-blocks; a
+  no-op until the repo is fitted.
 - **Voice guide:** `argot describe-voice --out STYLE.md` writes a
   human-readable description of the learned voice (typical callees, familiar
   imports) you can commit and point agents at.
