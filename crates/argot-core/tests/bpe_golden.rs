@@ -28,7 +28,7 @@ fn encode_matches_python_golden() {
             got,
             s.ids,
             "sample {i} diverges (text starts {:?})",
-            &s.text.chars().take(40).collect::<String>()
+            s.text.chars().take(40).collect::<String>()
         );
         total += s.ids.len();
     }

@@ -624,10 +624,8 @@ pub fn language_name(language: Language) -> &'static str {
 /// `.ts`/`.tsx` → typescript; `.js`/`.jsx` → javascript; `.cs` → csharp).
 /// Public so `inspect` classifies files with exactly the calibration routing.
 pub fn language_for_filename(name: &str) -> Option<Language> {
-    let ext = match name.rfind('.') {
-        Some(i) => &name[i..],
-        None => return None,
-    };
+    let i = name.rfind('.')?;
+    let ext = &name[i..];
     match ext {
         ".py" => Some(Language::Python),
         ".ts" | ".tsx" => Some(Language::Typescript),
