@@ -75,6 +75,21 @@ jobs:
           if [ -f server.json ]; then
             jq --arg v "$NEW" '.version = $v | (.packages[]?.version) = $v' server.json > server.json.tmp && mv server.json.tmp server.json
           fi
+          # Keep the Claude Code plugin manifest in lockstep: an explicit version
+          # that never bumps ships NO skill/hook updates to installed users
+          # (Claude Code only pulls a new version when this field changes).
+          if [ -f .claude-plugin/plugin.json ]; then
+            jq --arg v "$NEW" '.version = $v' .claude-plugin/plugin.json > .claude-plugin/plugin.json.tmp && mv .claude-plugin/plugin.json.tmp .claude-plugin/plugin.json
+          fi
+          # Bump the `npx skills` installer version (skills/VERSION) only when the
+          # skills tree actually changed since the last release — matching how it
+          # was bumped by hand (one increment per skills change, not per release),
+          # so skills-installed users are prompted to update exactly when it matters.
+          PREV_TAG=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
+          if [ -f skills/VERSION ] && [ -n "$PREV_TAG" ] && ! git diff --quiet "$PREV_TAG" HEAD -- skills/; then
+            echo "$(( $(cat skills/VERSION) + 1 ))" > skills/VERSION
+            echo "skills/ changed since $PREV_TAG — bumped skills/VERSION to $(cat skills/VERSION)"
+          fi
 
       - name: Commit, tag and push
         if: steps.check.outputs.skip == 'false'
@@ -82,7 +97,7 @@ jobs:
           VERSION=${{ steps.bump.outputs.version }}
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Cargo.toml Cargo.lock landing/src/data/release.json server.json
+          git add Cargo.toml Cargo.lock landing/src/data/release.json server.json .claude-plugin/plugin.json skills/VERSION
           git commit -m "chore: release v$VERSION"
           git tag "v$VERSION"
           git push origin main "v$VERSION"

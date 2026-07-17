@@ -30,8 +30,13 @@ Pick the local path, the CI path, or both.
 ```
 
 Installs all five skills (as `/argot:argot-setup`, `/argot:argot-check`,
-`/argot:argot-review-pr`, `/argot:argot-setup-ci`, `/argot:argot-write-rule`)
-and the argot MCP server together.
+`/argot:argot-review-pr`, `/argot:argot-setup-ci`, `/argot:argot-write-rule`),
+the argot MCP server, and a pre-write guardrail hook — together. The hook is
+opt-in and non-blocking, and it only ever activates in a repo you've **fitted**
+with argot: in any other repo it's a single filesystem check that runs no
+`argot` process at all — so the plugin adds no cost to your other projects.
+Where it is active, it never blocks a write; at most it **asks** you to confirm
+when an edit reaches for a dependency the repo has never used.
 
 **Any agent — the `skills` installer** ([vercel-labs/skills](https://github.com/vercel-labs/skills)):
 

@@ -91,7 +91,7 @@ argot check      # score your working changes against it
 
 Accuracy is a function of setup — argot learns from what it's allowed to see. Best path: `npx skills add get-tmonier/argot`, then `/argot-setup` in your coding agent (Claude Code, Cursor, 70+ agents) reads your repo, excludes what shouldn't shape the voice, and verifies the catch. Full guide: [Setup](https://argot.tmonier.com/docs/setup/) · [Getting started](https://argot.tmonier.com/docs/getting-started/).
 
-argot also runs as an **MCP server** (`argot mcp`) your agent can consult while it writes, and ships as a **Claude Code plugin** — the five skills plus the MCP server in one install: `/plugin marketplace add get-tmonier/argot`.
+argot also runs as an **MCP server** (`argot mcp`) your agent can consult while it writes, and ships as a **Claude Code plugin** — the five skills, the MCP server, and an opt-in pre-write guardrail hook in one install: `/plugin marketplace add get-tmonier/argot`.
 
 ## Demo
 
