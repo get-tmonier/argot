@@ -103,13 +103,21 @@ suppressing it).
    or `--since 6m`). A quiet audit is also a result: their recent history is
    in voice.
 
-9. **Optional — the pre-write guardrail (Claude Code):** offer to have argot
-   *ask* before the agent introduces a dependency this repo has never used —
-   the reviewer's "is this intentional?" beat, moved to write time. It is
-   **opt-in and per-repo**; nothing fires unless you add it here. If the user
-   wants it, merge this into the repo's `.claude/settings.json` (committed,
-   team-shared) or `.claude/settings.local.json` (personal, gitignored) — do
-   NOT overwrite an existing `hooks` block, merge into it:
+9. **The pre-write guardrail (Claude Code):** argot can *ask* before the agent
+   introduces a dependency this repo has never used — the reviewer's "is this
+   intentional?" beat, moved to write time. It fires only on a genuinely foreign
+   dependency (argot's highest-precision signal), **asks** — never silently
+   blocks — and is a no-op until the repo is fitted (which you just did).
+
+   **If the user installed the argot Claude Code plugin, it's already handled** —
+   the plugin ships this guardrail, and now that the repo is fitted it will start
+   asking. Nothing to add; skip to the next step.
+
+   Only if the user is **not** on the plugin (e.g. they installed the skills via
+   `npx skills`) and wants the guardrail, merge this into the repo's
+   `.claude/settings.json` (committed, team-shared) or `.claude/settings.local.json`
+   (personal, gitignored) — do NOT overwrite an existing `hooks` block, merge
+   into it:
 
    ```json
    {
@@ -126,9 +134,9 @@ suppressing it).
    }
    ```
 
-   It fires only on a genuinely foreign dependency (argot's highest-precision
-   signal), **asks** — never silently blocks — and is a no-op until the repo is
-   fitted. To turn it off, remove that entry. Leave it out unless the user asks.
+   Don't add this if the plugin is installed — the plugin already provides the
+   hook, and a second copy in `settings.json` would run it twice. To turn it off,
+   remove that entry.
 
 10. **Optional finishing artifact:** `argot describe-voice --out STYLE.md`
    generates a human-readable guide to the learned voice (typical callees per

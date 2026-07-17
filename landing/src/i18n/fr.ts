@@ -183,6 +183,9 @@ const fr: SiteContent = {
       'un score de voix non bloquant sur chaque PR',
       'transforme une convention d’équipe en règle testée',
     ],
+    pluginNote:
+      'Sur Claude Code ? Une seule installation ajoute les skills, le serveur MCP et le garde-fou pré-écriture.',
+    pluginCta: 'Obtenir le plugin',
     ctaLocal: 'Ou pilotez le CLI à la main',
     ctaCi: 'le guide CI',
     caption: 'Le modèle calibré reste hors de votre historique git.',

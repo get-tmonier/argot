@@ -2,7 +2,7 @@
 title: CI
 description: A non-blocking voice score on every PR — a visual score card, a sticky comment, and code-scanning annotations. Never a merge gate unless you ask.
 group: Guide
-order: 10
+order: 11
 ---
 
 argot in CI is **non-blocking by design**. It's a statistical guardrail, so it
