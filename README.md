@@ -14,6 +14,8 @@
   &nbsp;·&nbsp;
   <a href="https://argot.tmonier.com/benchmarks">Benchmarks</a>
   &nbsp;·&nbsp;
+  <a href="https://argot.tmonier.com/caught-in-the-wild">Caught in the wild</a>
+  &nbsp;·&nbsp;
   <a href="docs/research/README.md">Research log</a>
 </p>
 
@@ -201,6 +203,8 @@ argot is additive: it sits *after* your type checker and linter and catches the 
 - **Test-integrity — 144/153 (94.1%)** gaming tactics caught · **0/102** legitimate-refactor controls · 1.12% of 5,268 replayed accepted test-touching commits flagged at gating severity
 
 One documented limit: **masked foreign** — a foreign symbol whose name collides with one you already use — is statistically invisible to a voice model. We publish that number rather than hide it. And the method, stated plainly: catch rates are measured on fixtures we authored under a [pre-registered rubric](benchmarks/catalogs/RUBRIC.md) frozen before scoring; false alarms are counted on real commits the model never saw. Independent validation is welcome — that's what the reproducible harness is for. Per-language and per-corpus tables, methodology, confidence intervals: [benchmarks page](https://argot.tmonier.com/benchmarks) (CI-fed, can't drift from what ships). Want a language validated? [Open an issue](https://github.com/get-tmonier/argot/issues/new).
+
+Numbers are one thing; real diffs are another. **[Caught in the wild](https://argot.tmonier.com/caught-in-the-wild)** collects verified findings from running argot over the last year of history on 33 real open-source repos (dagster, hono, rich, saleor, faker, and more) — each one adversarially attacked by a reviewer briefed to disprove it, and every one survived.
 
 ## CI
 

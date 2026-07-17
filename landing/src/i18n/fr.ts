@@ -169,6 +169,7 @@ const fr: SiteContent = {
     finePrint:
       'Rappel sur des motifs plantés dans de vrais fichiers ; fausses alertes par holdout temporel. Même l’angle mort structurel — l’étranger masqué — est publié, pas caché.',
     benchmarksCta: 'Tous les chiffres par dépôt →',
+    caughtCta: 'À voir sur le vif →',
   },
   setup: {
     label: 'Configuration · conçu pour les agents',

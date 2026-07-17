@@ -170,6 +170,7 @@ const en: SiteContent = {
     finePrint:
       'Recall on patterns planted in real files; false alarms on a temporal holdout. Even the structural blind spot — masked foreign — is published, not hidden.',
     benchmarksCta: 'Full per-repo numbers →',
+    caughtCta: 'See it caught in the wild →',
   },
   setup: {
     label: 'Setup · built for agents',
