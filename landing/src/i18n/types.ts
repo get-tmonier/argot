@@ -114,5 +114,6 @@ export interface SiteContent {
     readonly builtBy: string;
     readonly docs: string;
     readonly npm: string;
+    readonly privacy: string;
   };
 }

@@ -1,0 +1,156 @@
+---
+import Base from '#layouts/Base.astro';
+import { SITE } from '#lib/site';
+
+const locale = 'en';
+// Stable "last updated" — bump by hand when the policy text changes, so the
+// date reflects real revisions, not the build clock.
+const updated = '17 July 2026';
+---
+
+<Base
+  title="Privacy · argot"
+  description="argot runs entirely on your machine — no telemetry, no accounts, and your code never leaves your computer."
+  locale={locale}
+>
+  <header class="sticky top-0 z-40 border-b border-line bg-bg/80 backdrop-blur-md">
+    <div class="mx-auto flex h-16 max-w-3xl items-center justify-between gap-4 px-5">
+      <a href="/" class="flex items-center gap-2.5" aria-label="argot — home">
+        <span class="wordmark text-lg">ar<span class="g">g</span>ot</span>
+        <span class="rounded-md border border-line px-2 py-0.5 font-mono text-xs text-muted"
+          >privacy</span
+        >
+      </a>
+      <div class="flex items-center gap-2 sm:gap-3">
+        <a
+          href="/docs/"
+          class="rounded-md px-2 py-1.5 text-sm text-ink-dim transition-colors hover:text-ink"
+          >Docs</a
+        >
+        <a
+          href={SITE.github}
+          target="_blank"
+          rel="noopener"
+          class="rounded-md border border-line bg-panel/60 px-3 py-1.5 text-sm transition-colors hover:border-line-2"
+          >GitHub ↗</a
+        >
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-3xl px-5 py-16">
+    <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">Privacy</h1>
+    <p class="mt-4 text-lg leading-relaxed text-ink-dim text-pretty">
+      argot processes your code entirely on your machine. It does not collect, transmit, or store
+      your source code, your git history, or anything derived from them — and there is no account and
+      no telemetry.
+    </p>
+    <p class="mt-2 font-mono text-xs text-muted">Last updated: {updated}</p>
+
+    <section class="mt-10 flex flex-col gap-8">
+      <div>
+        <h2 class="text-xl font-semibold tracking-tight">The short version</h2>
+        <p class="mt-3 leading-relaxed text-ink-dim text-pretty">
+          argot is a local command-line tool. It reads your code and git history on your own computer
+          to build a per-repo model, and runs every check against that local model. Nothing is
+          uploaded, and no one — including argot's maintainers — receives your code, your findings, or
+          usage data.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold tracking-tight">What we don't collect</h2>
+        <ul class="mt-3 flex flex-col gap-2 text-ink-dim">
+          <li class="flex gap-2.5"><span class="text-ember">—</span> No telemetry, usage analytics, or crash reporting.</li>
+          <li class="flex gap-2.5"><span class="text-ember">—</span> No account, login, or personal identifiers.</li>
+          <li class="flex gap-2.5"><span class="text-ember">—</span> No source code, snippets, or scan results ever leave your machine.</li>
+        </ul>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold tracking-tight">Network activity</h2>
+        <p class="mt-3 leading-relaxed text-ink-dim text-pretty">
+          argot works fully offline. It makes an outbound request in only these cases — none of which
+          send your code:
+        </p>
+        <ul class="mt-3 flex flex-col gap-3 text-ink-dim">
+          <li class="flex gap-2.5">
+            <span class="text-ember">—</span>
+            <span
+              ><strong class="font-medium text-ink">Model download (once, optional).</strong> The first
+              time the semantic checks run, argot fetches a code-embedding model (~100&nbsp;MB,
+              checksum-pinned) from its public release host to a local cache
+              (<code class="text-ink">~/.cache/argot/models</code>). This downloads a file; it uploads
+              nothing.</span
+            >
+          </li>
+          <li class="flex gap-2.5">
+            <span class="text-ember">—</span>
+            <span
+              ><strong class="font-medium text-ink">Update check (optional, at most once a day).</strong>
+              argot fetches a small version file to tell you if a newer release exists — a plain request
+              with no code and no identifiers. Turn it off with <code class="text-ink">check = false</code>
+              under <code class="text-ink">[update]</code> in <code class="text-ink">argot.toml</code>
+              (or <code class="text-ink">ARGOT_UPDATE_CHECK=0</code>).</span
+            >
+          </li>
+          <li class="flex gap-2.5">
+            <span class="text-ember">—</span>
+            <span
+              ><strong class="font-medium text-ink">Installation.</strong> The curl installer and npm
+              fetch the binary from GitHub Releases / npm, under their own privacy terms.</span
+            >
+          </li>
+        </ul>
+        <p class="mt-3 leading-relaxed text-ink-dim text-pretty">
+          Set <code class="text-ink">ARGOT_OFFLINE=1</code> to forbid all network access: argot then
+          skips the model download and the update check entirely, and says so rather than failing
+          silently.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold tracking-tight">Continuous integration</h2>
+        <p class="mt-3 leading-relaxed text-ink-dim text-pretty">
+          The argot GitHub Action runs inside your own CI. It fits the model and checks the diff on
+          your runners, reads the pull-request diff through GitHub's API with your token, and writes
+          the results back to your PR. Nothing is sent to argot's maintainers.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold tracking-tight">The Claude Code plugin & MCP server</h2>
+        <p class="mt-3 leading-relaxed text-ink-dim text-pretty">
+          The <a href="/docs/plugin/" class="text-ember hover:text-ember-bright">plugin</a> runs your
+          local <code class="text-ink">argot</code> binary. The MCP server answers your coding agent
+          with statistics derived from your local repository, on your machine. Neither transmits your
+          code off your computer.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold tracking-tight">This website</h2>
+        <p class="mt-3 leading-relaxed text-ink-dim text-pretty">
+          argot.tmonier.com is a static site with no analytics, no tracking pixels, and no advertising
+          or tracking cookies. It is served by Cloudflare Pages, which may keep standard server request
+          logs (such as IP address, timestamp, and requested URL) for security and operation under
+          Cloudflare's own terms.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold tracking-tight">Changes & contact</h2>
+        <p class="mt-3 leading-relaxed text-ink-dim text-pretty">
+          We may update this policy; the date above marks the latest revision, and its full history is
+          public in the argot repository. Questions? Open an issue on
+          <a href={SITE.github} target="_blank" rel="noopener" class="text-ember hover:text-ember-bright"
+            >GitHub</a
+          > or reach the maintainer at
+          <a href={SITE.portfolio} target="_blank" rel="noopener" class="text-ember hover:text-ember-bright"
+            >tmonier.com</a
+          >.
+        </p>
+      </div>
+    </section>
+  </main>
+</Base>
