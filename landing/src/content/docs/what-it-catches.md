@@ -246,3 +246,7 @@ and let you judge; **layering** shows the edge that runs against the graph. **In
 (`error` / `warn` / `off` — see [Configure](/docs/configure/#rules--rule-severities)). And there's
 a **line it won't cross** — a wrong choice built entirely from vocabulary you already have; argot
 won't gate on that, and says so.
+
+See these catches on real code: [Caught in the wild](/caught-in-the-wild) collects verified findings
+from running argot over 33 open-source repositories' git history — each one adversarially attacked by
+a reviewer briefed to disprove it, and every one survived.

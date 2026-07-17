@@ -54,12 +54,19 @@ const { proof } = Astro.props.content;
       {proof.finePrint}
     </p>
 
-    <p class="reveal mt-3 text-center">
+    <p class="reveal mt-3 flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 text-center">
       <a
         href="/benchmarks"
         class="group inline-flex items-center gap-1 text-xs font-medium text-ember transition-colors hover:text-ember-bright"
       >
         {proof.benchmarksCta.replace(/\s*→$/, '')}
+        <span aria-hidden="true" class="transition-transform group-hover:translate-x-0.5">→</span>
+      </a>
+      <a
+        href="/caught-in-the-wild"
+        class="group inline-flex items-center gap-1 text-xs font-medium text-ember transition-colors hover:text-ember-bright"
+      >
+        {proof.caughtCta.replace(/\s*→$/, '')}
         <span aria-hidden="true" class="transition-transform group-hover:translate-x-0.5">→</span>
       </a>
     </p>
