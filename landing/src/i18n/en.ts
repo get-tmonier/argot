@@ -211,6 +211,7 @@ const en: SiteContent = {
     builtBy: 'Built by Damien Meur',
     docs: 'Docs',
     npm: 'npm',
+    privacy: 'Privacy',
   },
 };
 
