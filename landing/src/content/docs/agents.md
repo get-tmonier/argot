@@ -34,8 +34,8 @@ Five agent-agnostic skills (Claude Code, Cursor, Codex, …):
 | `argot-setup-ci` | Once (CI) — wire the GitHub Action for a non-blocking voice score on every PR. |
 | `argot-write-rule` | On demand (local) — codify a repo convention as a scripted custom rule, fixture-tested before it ever sees a real diff. |
 
-In **Claude Code**, install the plugin — it bundles the skills *and* the MCP
-server below in one step:
+In **Claude Code**, install the [plugin](/docs/plugin/) — it bundles the skills,
+the MCP server below, *and* the pre-write guardrail in one step:
 
 ```text
 /plugin marketplace add get-tmonier/argot
@@ -126,26 +126,32 @@ lands — naming the foreign dependency and what the repo uses instead. Everythi
 else passes silently; it never auto-blocks, and it's a no-op until the repo is
 fitted.
 
-It's **opt-in and per-repo** — `argot-setup` offers it, adding this to your
-`.claude/settings.json` (or `.claude/settings.local.json` for personal-only):
+It's **opt-in and a no-op until the repo is fitted**. How it's wired depends on
+how you installed argot:
 
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Write|Edit|MultiEdit",
-        "hooks": [
-          { "type": "command", "command": "argot hook --repo \"${CLAUDE_PROJECT_DIR}\"", "timeout": 10000 }
-        ]
-      }
-    ]
+- **With the [plugin](/docs/plugin/)** — it's already included. The plugin ships
+  the guardrail; once you fit a repo, it starts asking. Nothing to add.
+- **With the skills alone** (`npx skills`) — `argot-setup` can add it to your
+  `.claude/settings.json` (or `.claude/settings.local.json` for personal-only):
+
+  ```json
+  {
+    "hooks": {
+      "PreToolUse": [
+        {
+          "matcher": "Write|Edit|MultiEdit",
+          "hooks": [
+            { "type": "command", "command": "argot hook --repo \"${CLAUDE_PROJECT_DIR}\"", "timeout": 10000 }
+          ]
+        }
+      ]
+    }
   }
-}
-```
+  ```
 
-To turn it off, remove that entry. (Other agents don't expose an equivalent
-pre-write hook yet — use the MCP `voice_context` tool there.)
+  Don't add this **and** run the plugin — the hook would fire twice. To turn it
+  off, remove the entry. (Other agents don't expose an equivalent pre-write hook
+  yet — use the MCP `voice_context` tool there.)
 
 ## Which to use
 

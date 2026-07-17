@@ -184,6 +184,9 @@ const en: SiteContent = {
       'a non-blocking voice score on every PR',
       'turns a team convention into a tested custom rule',
     ],
+    pluginNote:
+      'On Claude Code? One install adds the skills, the MCP server, and the pre-write guardrail together.',
+    pluginCta: 'Get the plugin',
     ctaLocal: 'Or drive the CLI by hand',
     ctaCi: 'the CI guide',
     caption: 'The fitted model stays out of your git history.',

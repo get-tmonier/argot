@@ -90,6 +90,8 @@ export interface SiteContent {
     readonly installLabel: string;
     readonly skillsIntro: string;
     readonly skillDescs: readonly string[];
+    readonly pluginNote: string;
+    readonly pluginCta: string;
     readonly ctaLocal: string;
     readonly ctaCi: string;
   };

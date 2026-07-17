@@ -2,7 +2,7 @@
 title: Custom rules
 description: Write your own rule — a rule.toml manifest plus a sandboxed Rhai script under .argot/rules/<name>/ — versioned with the repo, discovered fresh on every run, no recompiling argot. Same severities, suppressions, and output surfaces as every built-in.
 group: Guide
-order: 12
+order: 13
 ---
 
 argot's eleven built-in rules cover the patterns every repo eventually cares about — foreign
