@@ -36,6 +36,24 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Fail fast with an actionable message if RELEASE_PAT has expired or been
+      # revoked. Otherwise it surfaces as a cryptic "could not read Username"
+      # inside actions/checkout — the PAT is only needed so the release push
+      # triggers the downstream Release workflow (a GITHUB_TOKEN push does not).
+      - name: Verify RELEASE_PAT is valid
+        env:
+          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
+        run: |
+          if [ -z "$RELEASE_PAT" ]; then
+            echo "::error::RELEASE_PAT secret is empty — set a token with Contents+Workflows write as the RELEASE_PAT repo secret."
+            exit 1
+          fi
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $RELEASE_PAT" https://api.github.com/user)
+          if [ "$code" != "200" ]; then
+            echo "::error::RELEASE_PAT is invalid or expired (GitHub API returned HTTP $code). Regenerate it at https://github.com/settings/tokens (fine-grained: Contents+Workflows write on get-tmonier/argot, or classic: repo+workflow), then update the RELEASE_PAT repo secret."
+            exit 1
+          fi
+
       - uses: actions/checkout@v7
         with:
           # PAT required: GITHUB_TOKEN pushes don't trigger downstream workflows
