@@ -435,13 +435,15 @@ argot uninstall --dry-run    # just show the plan
 argot uninstall --yes        # no prompt (required when not on a terminal)
 ```
 
-It removes every registered repo's `.argot/` and `argot.local.toml`, the model cache
-(`~/.cache/argot`), the global registry (`~/.argot/settings.json`), the installer receipt, and —
-for curl/raw installs — the binary itself. It detects how argot was installed: an npm install gets
-the exact `npm uninstall -g @tmonier/argot` command instead, since npm owns those files. Two things
-are deliberately left, each listed with a note: **git-tracked files** (`argot.toml`, a committed CI
-workflow) — argot never edits your tracked tree, remove those via git — and externally installed
-agent skills / MCP registrations, which live in your agent's config, not argot's. The full file
-inventory is the [table in Configure](/docs/configure/#which-files-argot-writes-and-where).
+It removes every registered repo's `.argot/` **build state** (the fitted model, indexes, and
+caches) and `argot.local.toml`, the model cache (`~/.cache/argot`), the global registry
+(`~/.argot/settings.json`), the installer receipt, and — for curl/raw installs — the binary itself.
+It detects how argot was installed: an npm install gets the exact `npm uninstall -g @tmonier/argot`
+command instead, since npm owns those files. What it deliberately leaves, each listed with a note:
+**your authored source** — git-tracked files (`argot.toml`, a committed CI workflow) and your custom
+rules under `.argot/rules/` — argot never deletes what you wrote or committed, remove those via git;
+and externally installed agent skills / MCP registrations (and any pre-write hook in your agent's
+config), which live in your agent's config, not argot's. The full file inventory is the
+[table in Configure](/docs/configure/#which-files-argot-writes-and-where).
 
 See [Reading the output](/docs/reading-the-output/) for how to interpret a `check` run.
