@@ -210,6 +210,7 @@ const fr: SiteContent = {
     builtBy: 'Créé par Damien Meur',
     docs: 'Docs',
     npm: 'npm',
+    privacy: 'Confidentialité',
   },
 };
 
