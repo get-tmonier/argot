@@ -12,11 +12,15 @@
 //! - the binary itself — deleted for shell/raw installs; npm installs get the
 //!   exact `npm uninstall -g` command instead (npm owns those files).
 //!
-//! What it deliberately leaves: **git-tracked files** (`argot.toml`, a CI
-//! workflow argot-setup-ci committed). Editing the user's tracked tree behind
-//! their back is worse than leaving a small config file; each one is listed
-//! with a note so removal stays a git decision.
+//! What it deliberately leaves: **authored source**, never build state —
+//! git-tracked files (`argot.toml`, a CI workflow argot-setup-ci committed, or
+//! a voice model a user chose to commit) and the custom-rules tree
+//! (`.argot/rules/`, hand-written and committed with the repo). The rest of
+//! `.argot/` is a rebuildable artifact and goes. Editing the user's tracked
+//! tree behind their back is worse than leaving a small config file; each kept
+//! path is listed with a note so removal stays a git decision.
 
+use std::collections::BTreeSet;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -90,12 +94,59 @@ fn is_tracked(root: &Path, rel: &str) -> bool {
         .is_some_and(|idx| idx.get_path(Path::new(rel), 0).is_some())
 }
 
+/// Top-level entries under `.argot/` that hold authored source we must keep,
+/// not delete: git-tracked files (a voice model a user deliberately committed)
+/// and the custom-rules tree (`.argot/rules/`, hand-written and committed with
+/// the repo — see the write-rule flow). Everything else under `.argot/` is
+/// rebuildable build state. Returned as absolute paths of the *top-level* child
+/// so the caller can keep a whole subtree (e.g. `.argot/rules/`) intact.
+fn preserved_argot_children(root: &Path, argot_dir: &Path) -> BTreeSet<PathBuf> {
+    let mut keep = BTreeSet::new();
+    if let Some(idx) = git2::Repository::open(root)
+        .ok()
+        .and_then(|r| r.index().ok())
+    {
+        for entry in idx.iter() {
+            let Ok(rel) = std::str::from_utf8(&entry.path) else {
+                continue;
+            };
+            if let Some(sub) = rel.strip_prefix(".argot/") {
+                if let Some(top) = sub.split('/').find(|s| !s.is_empty()) {
+                    keep.insert(argot_dir.join(top));
+                }
+            }
+        }
+    }
+    let rules = argot_dir.join("rules");
+    if rules.is_dir() {
+        keep.insert(rules);
+    }
+    keep
+}
+
 fn repo_artifacts(root: &Path) -> RepoArtifacts {
     let mut removable = Vec::new();
     let mut tracked_left = Vec::new();
     let argot_dir = root.join(".argot");
     if argot_dir.is_dir() {
-        removable.push(argot_dir);
+        // `.argot/` is mostly rebuildable build state, but it can also hold
+        // authored source (custom rules, a committed model). Nuking the whole
+        // dir would delete that — remove only the build artifacts, keep the
+        // rest, and list what's kept.
+        let keep = preserved_argot_children(root, &argot_dir);
+        if keep.is_empty() {
+            removable.push(argot_dir);
+        } else {
+            if let Ok(entries) = std::fs::read_dir(&argot_dir) {
+                for entry in entries.flatten() {
+                    let p = entry.path();
+                    if !keep.contains(&p) {
+                        removable.push(p);
+                    }
+                }
+            }
+            tracked_left.extend(keep);
+        }
     }
     let local = root.join(argot_core::config::LOCAL_CONFIG_FILE);
     if local.is_file() {
@@ -229,7 +280,7 @@ fn render_plan(plan: &UninstallPlan) -> String {
         );
     }
     out.push_str(
-        "\nAlso not touched (not argot's files): installed agent skills (`npx skills`,\nClaude plugin) and any MCP registration in your agent's config.\n",
+        "\nAlso not touched (not argot's files): installed agent skills (`npx skills`,\nClaude plugin), any MCP registration, and a pre-write hook argot-setup may have\nadded to your agent's config (e.g. .claude/settings.json).\n",
     );
     out
 }
@@ -327,6 +378,31 @@ mod tests {
         let a = repo_artifacts(&dir);
         assert!(a.tracked_left.iter().any(|p| p.ends_with("argot.toml")));
         assert!(!a.removable.iter().any(|p| p.ends_with("argot.toml")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn keeps_authored_rules_but_removes_generated_state() {
+        let dir = std::env::temp_dir().join(format!("argot_uninst_rules_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join(".argot/rules/no-raw-sql")).unwrap();
+        std::fs::write(dir.join(".argot/rules/no-raw-sql/rule.toml"), "").unwrap();
+        std::fs::write(dir.join(".argot/scorer-config.json"), "{}").unwrap();
+        std::fs::write(dir.join(".argot/.gitignore"), "*\n").unwrap();
+        git2::Repository::init(&dir).unwrap();
+
+        let a = repo_artifacts(&dir);
+        // Build state is removed…
+        assert!(a
+            .removable
+            .iter()
+            .any(|p| p.ends_with(".argot/scorer-config.json")));
+        assert!(a.removable.iter().any(|p| p.ends_with(".argot/.gitignore")));
+        // …but the authored rules tree is kept and listed, never deleted.
+        assert!(a.tracked_left.iter().any(|p| p.ends_with(".argot/rules")));
+        assert!(!a.removable.iter().any(|p| p.ends_with("rules")));
+        // And the whole `.argot/` dir is not blindly scheduled for removal.
+        assert!(!a.removable.iter().any(|p| p.ends_with(".argot")));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
