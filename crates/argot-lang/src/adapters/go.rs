@@ -199,6 +199,33 @@ pub struct GoAdapter {
     noise: HashSet<String>,
 }
 
+/// Fold a Go module major-version suffix (`/v2`, `/v3`, …) out of an import
+/// path so a version bump (`x/y/bson` → `x/y/v2/bson`) is not read as a
+/// brand-new dependency (issue: a `/vN` bump flagged foreign). Only pure `vN`
+/// segments with N ≥ 2 are dropped — Go's major-version convention. `v1` and
+/// API-version segments like `k8s.io/api/autoscaling/v1` carry no `/vN` suffix
+/// (v1 modules have none), so a genuinely new API surface (`.../v2`) still
+/// folds to a different key than the attested `.../v1` and stays flagged.
+fn fold_go_major_version(spec: &str) -> String {
+    if !spec.contains("/v") {
+        return spec.to_string();
+    }
+    let kept: Vec<&str> = spec
+        .split('/')
+        .filter(|seg| !is_major_version(seg))
+        .collect();
+    kept.join("/")
+}
+
+/// A pure `vN` path segment with N ≥ 2 (Go major-version marker). `v1`, `v0`,
+/// and mixed segments like `v2beta1` are not markers.
+fn is_major_version(seg: &str) -> bool {
+    seg.strip_prefix('v')
+        .filter(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+        .and_then(|n| n.parse::<u32>().ok())
+        .is_some_and(|n| n >= 2)
+}
+
 impl GoAdapter {
     pub fn new() -> Self {
         Self {
@@ -206,8 +233,9 @@ impl GoAdapter {
         }
     }
 
-    /// Module paths imported in `source` — the full quoted path (`"fmt"`,
-    /// `"github.com/x/y"`), never split on `/`.
+    /// Module paths imported in `source` (`"fmt"`, `"github.com/x/y"`), with any
+    /// Go major-version suffix folded out (`fold_go_major_version`) so v1 and v2
+    /// of the same module share a key.
     pub fn extract_imports(&self, source: &str) -> HashSet<String> {
         let tree = parse(source);
         let mut out = HashSet::new();
@@ -218,7 +246,7 @@ impl GoAdapter {
             if let Some(path) = node.child_by_field_name("path") {
                 let spec = strip_quotes(node_text(path, source));
                 if !spec.is_empty() {
-                    out.insert(spec.to_string());
+                    out.insert(fold_go_major_version(spec));
                 }
             }
         }
@@ -237,10 +265,13 @@ impl GoAdapter {
             };
             for line in text.lines() {
                 if let Some(rest) = line.trim().strip_prefix("module ") {
-                    let path = rest.trim().trim_matches('"');
-                    if !path.is_empty() {
-                        modules.exact.insert(path.to_string());
+                    let raw = rest.trim().trim_matches('"');
+                    if !raw.is_empty() {
+                        // Fold `/vN` so imports normalized by `extract_imports`
+                        // match the repo's own module the same way.
+                        let path = fold_go_major_version(raw);
                         modules.prefixes.insert(format!("{path}/"));
+                        modules.exact.insert(path);
                     }
                     break;
                 }
@@ -268,8 +299,10 @@ impl GoAdapter {
                 let line = path.start_position().row + 1;
                 // Skip the opening quote so the underline lands on the path.
                 let col_start = path.start_position().column + 1;
+                // Columns cover the original path text (caret lands on the real
+                // `/v2/…`); the key is folded to match `extract_imports`.
                 let col_end = col_start + spec.len();
-                out.push((spec.to_string(), line, col_start, col_end));
+                out.push((fold_go_major_version(spec), line, col_start, col_end));
             }
         }
         out.sort_by(|a, b| (a.1, a.2, &a.0).cmp(&(b.1, b.2, &b.0)));

@@ -34,6 +34,28 @@ pub fn collect_two_sided(
     args: &CheckArgs,
     keep: &dyn Fn(&str) -> bool,
 ) -> Vec<(String, Vec<FileChange>)> {
+    collect_two_sided_impl(args, keep, false)
+}
+
+/// Like [`collect_two_sided`] but a `base..head` range yields one changeset per
+/// commit (each diffed against its own parent), so per-accepted-unit reasoning
+/// — the integrity pass's "did *this* commit also touch production?" gate —
+/// never lets one commit's production edit satisfy the gate for another
+/// commit's tests-only change. This is the audit-window false positive: the
+/// aggregate range diff unions ~50 commits, so a production change anywhere in
+/// the window looks co-changed with a test deletion anywhere else in it.
+pub fn collect_two_sided_per_commit(
+    args: &CheckArgs,
+    keep: &dyn Fn(&str) -> bool,
+) -> Vec<(String, Vec<FileChange>)> {
+    collect_two_sided_impl(args, keep, true)
+}
+
+fn collect_two_sided_impl(
+    args: &CheckArgs,
+    keep: &dyn Fn(&str) -> bool,
+    split_ranges: bool,
+) -> Vec<(String, Vec<FileChange>)> {
     const MAX_BLOB: usize = 400_000;
 
     fn tree_text(repo: &git2::Repository, tree: &git2::Tree, path: &str) -> Option<String> {
@@ -176,6 +198,21 @@ pub fn collect_two_sided(
             let base_id = repo
                 .merge_base(base_c.id(), head_c.id())
                 .unwrap_or_else(|_| base_c.id());
+            if split_ranges {
+                // Per accepted unit: enumerate the range's commits and diff each
+                // against its own parent (via `per_commit`), instead of one
+                // aggregate diff over the whole window.
+                let mut shas: HashSet<String> = HashSet::new();
+                if let Ok(mut walk) = repo.revwalk() {
+                    if walk.push(head_c.id()).is_ok() {
+                        let _ = walk.hide(base_id);
+                        for oid in walk.flatten() {
+                            shas.insert(oid.to_string());
+                        }
+                    }
+                }
+                return per_commit(&shas);
+            }
             let Ok(base_tree) = repo.find_commit(base_id).and_then(|c| c.tree()) else {
                 return Vec::new();
             };

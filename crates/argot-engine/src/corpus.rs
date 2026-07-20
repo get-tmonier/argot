@@ -74,6 +74,32 @@ pub fn rel_to_repo(path: &Path, repo_dir: &Path) -> String {
     rel.to_string_lossy().replace('\\', "/")
 }
 
+/// Corpus files the built-in `argot:recommended` set would exclude but that are
+/// shaping the voice anyway. The corpus walk applies only the user's
+/// `[exclude].paths` (recommended governs check scope, not corpus collection —
+/// see [`collect_source_files`]), so config/tooling/doc files the recommended
+/// set covers train the model silently unless the reader names them.
+///
+/// This is a *detection* surface, not an auto-exclude: argot reports the
+/// mismatch so the reader can drop them via `[exclude].paths` (or knowingly keep
+/// them). Driven entirely by the resolved recommended set, so a repo that
+/// disables it (`[exclude].recommended = []`) reports nothing — no hardcoded
+/// filename edge cases. Returned repo-relative and sorted.
+pub fn recommended_excluded_in_corpus(repo_dir: &Path) -> Vec<String> {
+    let suppressions = crate::config::ArgotConfig::load(repo_dir).path_suppressions();
+    if !suppressions.recommended_active() {
+        return Vec::new();
+    }
+    let mut leaked: Vec<String> = collect_source_files_with(repo_dir, &suppressions)
+        .iter()
+        .map(|p| rel_to_repo(p, repo_dir))
+        .filter(|rel| suppressions.classify(rel) == crate::suppress::PathScope::Recommended)
+        .collect();
+    leaked.sort();
+    leaked.dedup();
+    leaked
+}
+
 /// [`collect_source_files`] against an already-resolved suppression set.
 pub fn collect_source_files_with(
     repo_path: &Path,
@@ -326,6 +352,22 @@ mod tests {
         // non-source extensions
         assert!(!is_corpus_source("README.md", &s));
         assert!(!is_corpus_source("app/data.json", &s));
+    }
+
+    #[test]
+    fn recommended_excluded_in_corpus_flags_config_but_not_code() {
+        // A config file shapes the voice (corpus applies only user patterns),
+        // but the recommended set would exclude it — so it's surfaced as a
+        // misconfiguration, while ordinary code is not.
+        let tmp = std::env::temp_dir().join(format!("argot_leak_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(tmp.join("src")).unwrap();
+        fs::write(tmp.join("src/app.ts"), "export const x = 1;\n").unwrap();
+        fs::write(tmp.join("vite.config.ts"), "export default {};\n").unwrap();
+        let leaked = recommended_excluded_in_corpus(&tmp);
+        assert!(leaked.iter().any(|p| p == "vite.config.ts"), "{leaked:?}");
+        assert!(!leaked.iter().any(|p| p == "src/app.ts"), "{leaked:?}");
+        let _ = fs::remove_dir_all(&tmp);
     }
 
     #[test]

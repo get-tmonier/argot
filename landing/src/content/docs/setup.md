@@ -126,9 +126,11 @@ that too; relay the warning to me rather than suppressing it).
    ships. In a monorepo (multiple packages/workspaces), that's usually one or a
    few packages; everything else is peripheral.
 
-3. Fit and check health: `argot init`. Read the "Verdict" and corpus summary. If
-   it's already **Ready** with a clean corpus, you may not need to exclude
-   anything — but still verify the catch (step 7).
+3. Fit and check health: `argot init`. Read the "Verdict" and corpus summary,
+   and note any "files … are shaping the voice" warning it prints — those are
+   config/tooling files to exclude in step 5. If it's already **Ready** with a
+   clean corpus and no such warning, you may not need to exclude anything — but
+   still verify the catch (step 7).
 
 4. Get argot's statistical suggestions: `argot init --suggest --format json` —
    directories that are mostly auto-generated or data files, with counts. Note:
@@ -149,10 +151,17 @@ that too; relay the warning to me rather than suppressing it).
    - legacy or archived modules that aren't how we write code today
    - COMMITTED duplicate snapshots of our own code (an editor-history dir, a
      `backup/`/`old/` tree) — gitignored ones are already skipped automatically
-   argot already excludes tests, docs, examples, and build output by default, so
-   focus on the repo-specific directories above. Sanity-check the result:
-   `.argot/repo-corpus.txt` lists every file that shaped the voice — skim it
-   and make sure nothing surprising is there.
+   - config / tooling files that slipped into the voice — `vitest.config.ts`,
+     `*.config.*`, `.eslintrc*`, `.babelrc*`, and the like, plus a stray `docs/`,
+     `scripts/`, or `examples/` tree. **`argot init` flags these for you**: a note
+     like "N files argot:recommended would exclude are shaping the voice (…)".
+     Add every path that note names to `[exclude].paths`.
+   argot keeps tests and build output (`build/`, `dist/`) out of the voice on its
+   own, and the `argot:recommended` set scopes config/rc/docs out of what it
+   *scores* — but the fit corpus only honors `[exclude].paths`, so those files can
+   still shape the voice until you exclude them. Heed the fit-time note above, and
+   sanity-check `.argot/repo-corpus.txt` — it lists every file that shaped the
+   voice; skim it and make sure nothing surprising is there.
 
 6. Edit `argot.toml`'s `[exclude].paths` at the repo root — add each directory
    as a gitignore-style pattern (one per array entry, each with a trailing

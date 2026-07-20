@@ -10,7 +10,7 @@ use argot_engine::rules;
 use argot_engine::suppress::{hit_hash, FileSuppressions, SuppressionRule};
 use argot_lang::adapters::LanguageAdapter;
 use argot_lang::ext::{ext_to_lang, extension};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 #[cfg(test)]
@@ -36,15 +36,23 @@ fn arch_hits(
     let Ok(raw) = std::fs::read_to_string(argot_dir.join(LAYERING_FILE)) else {
         return Vec::new();
     };
-    let Some(graph) = RepoLayering::from_json(&raw) else {
+    let graphs = RepoLayering::set_from_json(&raw);
+    if graphs.is_empty() {
         stderr.push_str("[argot] layering graph unreadable\n");
         return Vec::new();
-    };
+    }
+    // Route each changed file to the graph fitted for its language.
+    let by_lang: std::collections::HashMap<&str, &RepoLayering> =
+        graphs.iter().map(|g| (g.language_tag(), g)).collect();
     let mut hits = Vec::new();
     for batch in patches {
-        if batch.ignored_by_pattern || !batch.file_path.ends_with(".py") {
-            continue; // v1: Python resolver only
+        if batch.ignored_by_pattern {
+            continue;
         }
+        let Some(graph) = ext_to_lang(&extension(&batch.file_path)).and_then(|l| by_lang.get(l))
+        else {
+            continue; // no layering graph for this file's language
+        };
         let source = String::from_utf8_lossy(&batch.content);
         let lines: Vec<&str> = source.lines().collect();
         // Concatenate the ADDED lines (1-indexed) — the imports the diff introduces.
@@ -140,31 +148,52 @@ impl Detector for ArchDetector {
             return;
         }
         let _t = argot_engine::timing::phase("calibrate: arch graph");
-        use crate::graph::{RepoLayering, LAYERING_FILE};
-        use argot_lang::adapters::Language;
+        use crate::graph::{tag_lang, RepoLayering, LAYERING_FILE};
         let files = argot_engine::corpus::collect_source_files(ctx.repo_dir);
-        let mut sources: Vec<(String, String)> = Vec::new();
+        // Group the corpus by language — one graph per language whose resolver
+        // runs, so a polyglot repo gets a layering graph for each side (each
+        // resolver is validated per-language by `just arch-verify`).
+        let mut by_lang: BTreeMap<&'static str, Vec<(String, String)>> = BTreeMap::new();
         for abs in &files {
-            if abs.extension().and_then(|e| e.to_str()) != Some("py") {
+            let Some(lang) = ext_to_lang(&extension(&abs.to_string_lossy())) else {
                 continue;
-            }
+            };
             if let (Ok(rel), Ok(src)) =
                 (abs.strip_prefix(ctx.repo_dir), std::fs::read_to_string(abs))
             {
-                sources.push((rel.to_string_lossy().replace('\\', "/"), src));
+                by_lang
+                    .entry(lang)
+                    .or_default()
+                    .push((rel.to_string_lossy().replace('\\', "/"), src));
             }
         }
-        let graph = RepoLayering::fit(
-            sources.iter().map(|(p, s)| (p.as_str(), s.as_str())),
-            Language::Python,
-        );
-        if graph.edge_count() > 0 {
-            let path = ctx.output.with_file_name(LAYERING_FILE);
-            if let Err(e) =
-                argot_engine::artifact::write_atomic(&path, graph.to_json(ctx.repo_sha).as_bytes())
-            {
-                eprintln!("argot: writing layering graph failed: {e}");
+        let mut graphs: Vec<RepoLayering> = Vec::new();
+        for (lang, sources) in &by_lang {
+            let graph = RepoLayering::fit(
+                sources.iter().map(|(p, s)| (p.as_str(), s.as_str())),
+                tag_lang(lang),
+            );
+            if graph.edge_count() > 0 {
+                graphs.push(graph);
             }
+        }
+        if graphs.is_empty() {
+            // Make the abstention visible so a quiet `layering` isn't mistaken
+            // for a clean bill of health.
+            let why = if by_lang.is_empty() {
+                "no supported source found"
+            } else {
+                "no confident layer order (a flat, or facade/barrel-heavy, module graph)"
+            };
+            eprintln!("argot: layering found {why} — the rule will not run for this repo.");
+            return;
+        }
+        let path = ctx.output.with_file_name(LAYERING_FILE);
+        if let Err(e) = argot_engine::artifact::write_atomic(
+            &path,
+            RepoLayering::set_to_json(&graphs, ctx.repo_sha).as_bytes(),
+        ) {
+            eprintln!("argot: writing layering graph failed: {e}");
         }
     }
 

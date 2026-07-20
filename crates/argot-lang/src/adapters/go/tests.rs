@@ -26,10 +26,42 @@ fn resolve_repo_modules_reads_go_mod_module_paths() {
     std::fs::write(dir.join("sub/go.mod"), "module github.com/acme/helper\n").unwrap();
 
     let modules = GoAdapter::new().resolve_repo_modules(&dir);
-    assert!(modules.exact.contains("github.com/acme/tool/v2"));
-    assert!(modules.prefixes.contains("github.com/acme/tool/v2/"));
+    // The `/v2` major-version suffix folds, so the repo's own module keys the
+    // same whether an internal import writes the v1 or v2 form.
+    assert!(modules.exact.contains("github.com/acme/tool"));
+    assert!(modules.prefixes.contains("github.com/acme/tool/"));
+    assert!(!modules.exact.contains("github.com/acme/tool/v2"));
     assert!(modules.prefixes.contains("github.com/acme/helper/"));
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn major_version_suffix_folds_but_api_versions_do_not() {
+    let adapter = GoAdapter::new();
+    // A `/v2` module import folds to the same key as its v1 form, so a version
+    // bump is not read as a brand-new dependency.
+    let v2 =
+        adapter.extract_imports("package main\n\nimport \"go.mongodb.org/mongo-driver/v2/bson\"\n");
+    assert!(v2.contains("go.mongodb.org/mongo-driver/bson"), "{v2:?}");
+    assert!(!v2.contains("go.mongodb.org/mongo-driver/v2/bson"));
+
+    // v1 and mixed API-version segments are never major-version markers.
+    assert_eq!(
+        fold_go_major_version("k8s.io/api/autoscaling/v1"),
+        "k8s.io/api/autoscaling/v1"
+    );
+    assert_eq!(
+        fold_go_major_version("k8s.io/api/apps/v2beta1"),
+        "k8s.io/api/apps/v2beta1"
+    );
+    // A genuine `/v2` API surface folds to a *different* key than the attested
+    // v1, so it still reads as new (no false negative).
+    assert_eq!(
+        fold_go_major_version("k8s.io/api/autoscaling/v2"),
+        "k8s.io/api/autoscaling"
+    );
+    assert_eq!(fold_go_major_version("fmt"), "fmt");
+    assert_eq!(fold_go_major_version("github.com/x/y"), "github.com/x/y");
 }
 
 #[test]

@@ -217,7 +217,12 @@ fn tool_check(args: &Value, repo: &Path, explain: bool) -> Result<Value, String>
         // The stable rule name (registry) — matches `check` JSON's `rule`.
         "rule": argot_core::rules::code_for_reason(scored.reason.as_str()),
     });
-    // Evidence: always for explain; and on a fired hunk for check.
+    // Evidence: the human summary for both `explain` and a fired `check`; plus,
+    // for `explain` only, the full structured payload — every surprising
+    // identifier / foreign specifier / unfamiliar callee with its raw attestation
+    // count and rarity numerator/denominator, untruncated (the summary caps names
+    // at three). That's what makes `explain` genuinely richer than `check` rather
+    // than a byte-for-byte duplicate.
     if explain || scored.flagged {
         if let Some(ev) = &scored.evidence {
             let lines: Vec<String> = format_evidence(ev, false, 1)
@@ -225,6 +230,9 @@ fn tool_check(args: &Value, repo: &Path, explain: bool) -> Result<Value, String>
                 .map(|l| l.trim().to_string())
                 .collect();
             out["evidence"] = json!(lines);
+            if explain {
+                out["evidence_detail"] = serde_json::to_value(ev).unwrap_or(Value::Null);
+            }
         }
     }
     Ok(out)

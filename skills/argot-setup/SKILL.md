@@ -30,9 +30,11 @@ suppressing it).
    one or a few packages; everything else is peripheral.
 
 3. **Fit and check health:** `argot init`. Read the **Verdict** line
-   (Ready / Ready with notes / Not recommended) and the corpus summary. If it's already
-   **Ready** with a clean corpus, you may not need to exclude anything — but
-   still do step 7 (verify the catch).
+   (Ready / Ready with notes / Not recommended) and the corpus summary, and note
+   any "files … are shaping the voice" warning it prints — those are config/tooling
+   files to exclude in step 5. If it's already **Ready** with a clean corpus and no
+   such warning, you may not need to exclude anything — but still do step 7 (verify
+   the catch).
 
    `argot init` also builds the repo's **semantic index** (for the `redundant`
    and `misplaced` rules). On first use it downloads the jina-code embedding
@@ -67,12 +69,20 @@ suppressing it).
      editor-history dir, a `backup/`/`old/` tree, copied-in worktrees) —
      gitignored ones are already skipped automatically; committed ones
      double-weight stale code and need an explicit exclude
+   - config / tooling files that slipped into the voice — `vitest.config.ts`,
+     `*.config.*`, `.eslintrc*`, `.babelrc*`, and the like, plus a stray `docs/`,
+     `scripts/`, or `examples/` tree. **`argot init` flags these for you**: a note
+     like "N files argot:recommended would exclude are shaping the voice (…)".
+     Add every path that note names to `[exclude].paths`.
 
    Sanity-check the fitted corpus: `.argot/repo-corpus.txt` lists every file
    that shaped the voice — skim it and make sure nothing surprising is there.
 
-   argot already excludes tests, docs, examples, and build output by default —
-   focus on the repo-specific dirs above.
+   argot keeps tests and build output (`build/`, `dist/`) out of the voice on its
+   own, and the `argot:recommended` set scopes config/rc/docs out of what it
+   *scores* — but the fit corpus only honors `[exclude].paths`, so those files can
+   still shape the voice until you exclude them (that's what the fit-time note is
+   for). Focus on the repo-specific dirs above.
 
 6. **Edit `argot.toml`** at the repo root (`argot init` writes a default one).
    Add the directories you're excluding to `[exclude].paths` — gitignore-style

@@ -557,28 +557,41 @@ impl SequentialImportBpeScorer {
             }
         }
 
-        // 2. Import stage (over the hunk's own imports).
+        // Blank the hunk's prose lines (docstring/comment rows, identified from
+        // full-file context) once — shared by the import and BPE stages. An
+        // `import` that lives inside a docstring or comment is not real code:
+        // on the range/commit path the hunk arrives as a fragment whose opening
+        // `"""` may lie above the window, so tree-sitter would otherwise reparse
+        // the interior `import x` line as a genuine statement and flag it
+        // foreign (B1). Masking prose rows first removes that false positive
+        // while leaving real code untouched. Falls back to the raw fragment only
+        // when there's no file context (the bench synthetic path).
+        let prose_blanked: Option<String> =
+            if let (Some(fs), Some(hs), Some(he)) = (file_source, hunk_start_line, hunk_end_line) {
+                let file_prose = &self.file_derived(fs).prose_rows;
+                let hunk_prose_local: HashSet<usize> = file_prose
+                    .iter()
+                    .copied()
+                    .filter(|&ln| hs <= ln && ln <= he)
+                    .map(|ln| ln - hs + 1)
+                    .collect();
+                Some(blank_prose_lines(hunk_content, &hunk_prose_local))
+            } else {
+                None
+            };
+        let masked_input: &str = prose_blanked.as_deref().unwrap_or(hunk_content);
+
+        // 2. Import stage (over the hunk's own imports, prose lines blanked).
         let foreign: HashSet<String> = self
             .adapter
-            .extract_imports(hunk_content)
+            .extract_imports(masked_input)
             .into_iter()
             .filter(|spec| self.import_scorer.is_foreign(spec))
             .collect();
         let import_score = foreign.len() as f64;
 
-        // 3. BPE stage (optionally blank prose lines within the hunk span).
-        let mut bpe_input = hunk_content.to_string();
-        if let (Some(fs), Some(hs), Some(he)) = (file_source, hunk_start_line, hunk_end_line) {
-            let file_prose = &self.file_derived(fs).prose_rows;
-            let hunk_prose_local: HashSet<usize> = file_prose
-                .iter()
-                .copied()
-                .filter(|&ln| hs <= ln && ln <= he)
-                .map(|ln| ln - hs + 1)
-                .collect();
-            bpe_input = blank_prose_lines(hunk_content, &hunk_prose_local);
-        }
-        let bpe_score = self.bpe.bpe_score(&bpe_input);
+        // 3. BPE stage (same prose-blanked input).
+        let bpe_score = self.bpe.bpe_score(masked_input);
 
         // 4. Call-receiver contribution (always computed when configured).
         // Parse-error host context: an explicit one wins; otherwise the file
@@ -797,7 +810,7 @@ impl SequentialImportBpeScorer {
             let evidence = self.collect_evidence(
                 winner.0,
                 hunk_content,
-                &bpe_input,
+                masked_input,
                 file_path,
                 file_source,
                 &foreign,

@@ -600,14 +600,21 @@ pub fn build_scorer(
     // --- Import-module snapshot: corpus imports + repo-owned module names.
     // The retired harness built its scorer with `repo_root=repo_dir`, which
     // folds package/tsconfig aliases into the known-module surface.
-    let mut modules: HashSet<String> = HashSet::new();
+    // File-frequency count so `import_modules` is ordered most-used first
+    // (mirrors production calibration): membership is order-independent, the
+    // ordering only sharpens the `familiar_imports` display surface.
+    let mut counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     for (_, s) in corpus {
-        modules.extend(adapter.extract_imports(s));
+        for m in adapter.extract_imports(s) {
+            *counts.entry(m).or_insert(0) += 1;
+        }
     }
     let repo_modules = adapter.resolve_repo_modules(repo_dir);
-    modules.extend(repo_modules.exact.iter().cloned());
-    let mut import_modules: Vec<String> = modules.into_iter().collect();
-    import_modules.sort();
+    for m in repo_modules.exact.iter().cloned() {
+        counts.entry(m).or_insert(0);
+    }
+    let mut import_modules: Vec<String> = counts.keys().cloned().collect();
+    import_modules.sort_by(|a, b| counts[b].cmp(&counts[a]).then_with(|| a.cmp(b)));
     let mut import_module_prefixes: Vec<String> = repo_modules.prefixes.into_iter().collect();
     import_module_prefixes.sort();
 

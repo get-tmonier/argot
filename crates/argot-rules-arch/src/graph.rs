@@ -106,7 +106,7 @@ fn lang_tag(l: Language) -> &'static str {
     }
 }
 
-fn tag_lang(s: &str) -> Language {
+pub fn tag_lang(s: &str) -> Language {
     match s {
         "typescript" => Language::Typescript,
         "javascript" => Language::Javascript,
@@ -682,9 +682,14 @@ impl RepoLayering {
         s
     }
 
-    /// Serialize the fitted graph for persistence in `.argot/layering.json`.
-    pub fn to_json(&self, repo_sha: &str) -> String {
-        let art = LayeringArtifact {
+    /// The tag of the language whose resolver built this graph — the routing
+    /// key `check` matches a changed file against (`ext_to_lang`).
+    pub fn language_tag(&self) -> &'static str {
+        lang_tag(self.language)
+    }
+
+    fn to_artifact(&self, repo_sha: &str) -> LayeringArtifact {
+        LayeringArtifact {
             repo_sha: repo_sha.to_string(),
             language: lang_tag(self.language).to_string(),
             internal: self.internal.iter().cloned().collect(),
@@ -701,13 +706,10 @@ impl RepoLayering {
                 .iter()
                 .map(|(p, l)| (p.clone(), l.clone()))
                 .collect(),
-        };
-        serde_json::to_string(&art).unwrap_or_default()
+        }
     }
 
-    /// Restore a fitted graph persisted by [`to_json`]. `None` on unreadable JSON.
-    pub fn from_json(s: &str) -> Option<Self> {
-        let art: LayeringArtifact = serde_json::from_str(s).ok()?;
+    fn from_artifact(art: LayeringArtifact) -> Self {
         let mut me = RepoLayering {
             language: tag_lang(&art.language),
             internal: art.internal.into_iter().collect(),
@@ -719,7 +721,39 @@ impl RepoLayering {
             reach: HashMap::new(),
         };
         me.recompute_reach();
-        Some(me)
+        me
+    }
+
+    /// Serialize a single fitted graph (used in tests / single-language paths).
+    pub fn to_json(&self, repo_sha: &str) -> String {
+        serde_json::to_string(&self.to_artifact(repo_sha)).unwrap_or_default()
+    }
+
+    /// Restore a single graph persisted by [`to_json`]. `None` on unreadable JSON.
+    pub fn from_json(s: &str) -> Option<Self> {
+        let art: LayeringArtifact = serde_json::from_str(s).ok()?;
+        Some(Self::from_artifact(art))
+    }
+
+    /// Serialize a per-language set of graphs for `.argot/layering.json` — one
+    /// artifact per language whose resolver produced a non-empty graph, so
+    /// `check` can route each changed file to its language's graph.
+    pub fn set_to_json(graphs: &[RepoLayering], repo_sha: &str) -> String {
+        let arts: Vec<LayeringArtifact> = graphs.iter().map(|g| g.to_artifact(repo_sha)).collect();
+        serde_json::to_string(&arts).unwrap_or_default()
+    }
+
+    /// Restore the per-language set persisted by [`set_to_json`]. Empty on
+    /// unreadable JSON. Falls back to a legacy single-graph artifact so a repo
+    /// fitted before the multi-language format degrades to its one graph rather
+    /// than erroring every check until it is re-fitted.
+    pub fn set_from_json(s: &str) -> Vec<RepoLayering> {
+        if let Ok(arts) = serde_json::from_str::<Vec<LayeringArtifact>>(s) {
+            return arts.into_iter().map(Self::from_artifact).collect();
+        }
+        serde_json::from_str::<LayeringArtifact>(s)
+            .map(|art| vec![Self::from_artifact(art)])
+            .unwrap_or_default()
     }
 
     /// Import mass into `layer` (sum of incoming edge weights) — a layer's
@@ -2127,6 +2161,53 @@ mod tests {
             ),
             Some(Violation::Reversal)
         );
+    }
+
+    #[test]
+    fn per_language_set_json_roundtrips_and_routes_by_language() {
+        let ts = RepoLayering::fit(
+            vec![
+                (
+                    "src/middleware/auth.ts",
+                    "import { cookie } from '../helper/cookie';\n",
+                ),
+                ("src/helper/cookie.ts", "export const cookie = 1;\n"),
+            ],
+            Language::Typescript,
+        );
+        let java = RepoLayering::fit(
+            vec![
+                (
+                    "guava/src/com/google/common/collect/Lists.java",
+                    "package com.google.common.collect;\nimport com.google.common.base.Preconditions;\n",
+                ),
+                (
+                    "guava/src/com/google/common/base/Preconditions.java",
+                    "package com.google.common.base;\n",
+                ),
+            ],
+            Language::Java,
+        );
+        assert!(ts.edge_count() > 0 && java.edge_count() > 0);
+
+        let json = RepoLayering::set_to_json(&[ts, java], "sha1");
+        let set = RepoLayering::set_from_json(&json);
+        assert_eq!(set.len(), 2);
+        let by: std::collections::HashMap<&str, &RepoLayering> =
+            set.iter().map(|g| (g.language_tag(), g)).collect();
+        // Each language's graph routes and fires its own reversal.
+        assert_eq!(
+            by["typescript"].fires(
+                "src/helper/cookie.ts",
+                "import { x } from '../middleware/auth';\n"
+            ),
+            Some(Violation::Reversal)
+        );
+
+        // A legacy single-graph artifact still loads as a one-element set.
+        let legacy = RepoLayering::set_from_json(&by["java"].to_json("sha2"));
+        assert_eq!(legacy.len(), 1);
+        assert_eq!(legacy[0].language_tag(), "java");
     }
 
     #[test]
