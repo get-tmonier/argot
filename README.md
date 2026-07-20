@@ -27,7 +27,7 @@
   <img src="https://img.shields.io/badge/status-alpha-5B8DEF" alt="Status: alpha" />
   <img src="https://img.shields.io/badge/rust-single%20static%20binary-DEA584?logo=rust&logoColor=white" alt="Rust" />
   <img src="https://img.shields.io/badge/100%25-local%20%C2%B7%20no%20cloud-brightgreen" alt="100% local, no cloud" />
-  &nbsp;·&nbsp;<a href="https://argot.tmonier.com/docs/languages/">11 languages →</a>
+  &nbsp;·&nbsp;<a href="https://argot.tmonier.com/docs/languages/">12 languages →</a>
 </p>
 
 <p align="center">
@@ -125,7 +125,7 @@ fastapi/receipts.py
 
 ## Your conventions, as rules
 
-Every team has conventions no generic linter ships: *"presentational components take props — they don't fetch"*, *"files are parsed through our loader, never a raw `JSON.parse`"*, *"one HTTP client per repo"*. They live in review comments and onboarding docs — until an AI agent, who read neither, merges around them. With argot they're **repo-local rules**: a TOML manifest + a small sandboxed script in `.argot/rules/`, versioned with your code, loaded at run time — no plugin build, no recompile, one rule format across all 11 languages.
+Every team has conventions no generic linter ships: *"presentational components take props — they don't fetch"*, *"files are parsed through our loader, never a raw `JSON.parse`"*, *"one HTTP client per repo"*. They live in review comments and onboarding docs — until an AI agent, who read neither, merges around them. With argot they're **repo-local rules**: a TOML manifest + a small sandboxed script in `.argot/rules/`, versioned with your code, loaded at run time — no plugin build, no recompile, one rule format across all 12 languages.
 
 And they can do what no classic linter structurally can. A linter sees one version of one file; argot hands your rule **both sides of the diff** — so you can write rules about what a change *removed*:
 

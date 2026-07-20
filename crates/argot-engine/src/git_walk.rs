@@ -27,7 +27,7 @@ pub fn open_repo(path: &str) -> std::result::Result<Repository, git2::Error> {
 /// Extensions the extractor considers, matching `SUPPORTED_EXTENSIONS`.
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
     ".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".rs", ".c", ".h", ".java", ".cs", ".php", ".cpp",
-    ".cc", ".hpp", ".cxx", ".rb",
+    ".cc", ".hpp", ".cxx", ".rb", ".pas", ".pp", ".dpr", ".lpr", ".inc",
 ];
 
 /// A hunk's post-image span, as reported by the diff (1-indexed start).

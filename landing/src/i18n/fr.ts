@@ -165,7 +165,7 @@ const fr: SiteContent = {
       },
     ],
     languages:
-      'Un seul [[binaire statique]], 11 langages : Python · TypeScript · JavaScript · Go · Rust · Java · C# · C · C++ · Ruby · PHP.',
+      'Un seul [[binaire statique]], 12 langages : Python · TypeScript · JavaScript · Go · Rust · Java · C# · C · C++ · Ruby · PHP · Pascal.',
     finePrint:
       'Rappel sur des motifs plantés dans de vrais fichiers ; fausses alertes par holdout temporel. Même l’angle mort structurel — l’étranger masqué — est publié, pas caché.',
     benchmarksCta: 'Tous les chiffres par dépôt →',

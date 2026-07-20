@@ -41,6 +41,7 @@ pub(crate) fn parse(source: &str, language: Language) -> Option<Tree> {
         Language::Php => tree_sitter_php::LANGUAGE_PHP.into(),
         Language::Cpp => tree_sitter_cpp::LANGUAGE.into(),
         Language::Ruby => tree_sitter_ruby::LANGUAGE.into(),
+        Language::Pascal => tree_sitter_pascal::LANGUAGE.into(),
     };
     parser.set_language(&lang).ok()?;
     parser.parse(source, None)
@@ -80,6 +81,7 @@ pub(crate) fn is_call_kind(kind: &str, language: Language) -> bool {
         ),
         Language::Cpp => kind == "call_expression",
         Language::Ruby => kind == "call",
+        Language::Pascal => kind == "exprCall",
     }
 }
 

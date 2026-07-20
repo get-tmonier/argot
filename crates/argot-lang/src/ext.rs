@@ -19,6 +19,11 @@ pub const EXT_TO_LANG: &[(&str, &str)] = &[
     (".hpp", "cpp"),
     (".cxx", "cpp"),
     (".rb", "ruby"),
+    (".pas", "pascal"),
+    (".pp", "pascal"),
+    (".dpr", "pascal"),
+    (".lpr", "pascal"),
+    (".inc", "pascal"),
 ];
 
 /// The scoring language name for a lowercase file extension (with dot), or

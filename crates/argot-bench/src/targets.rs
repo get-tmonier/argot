@@ -40,6 +40,7 @@ const TARGET_LANGUAGES: &[&str] = &[
     "php",
     "cpp",
     "ruby",
+    "pascal",
     "multi",
 ];
 

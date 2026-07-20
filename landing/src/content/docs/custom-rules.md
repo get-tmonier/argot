@@ -62,7 +62,7 @@ script = "check.rhai"      # optional — script path, relative to the rule dir;
 | `rule.label` | no | `name` | Short label shown next to a finding. |
 | `rule.description` | no | `""` | One-line description, shown by `argot rules`. |
 | `rule.severity` | no | `warn` | `error` / `warn` / `off`. **Note the default differs from built-ins**, which default to `error` — a rule just dropped into a repo reports before it gates. |
-| `rule.languages` | no | every language | Restrict to these **scored** languages — `python`, `typescript`, `javascript`, `go`, `rust`, `java`, `csharp`, `php`, `cpp`, `ruby`, `c` (see [Languages](/docs/languages/)). This gate is over *supported source files only*; it can't reach a `.env` — that's what `include` is for. |
+| `rule.languages` | no | every language | Restrict to these **scored** languages — `python`, `typescript`, `javascript`, `go`, `rust`, `java`, `csharp`, `php`, `cpp`, `ruby`, `c`, `pascal` (see [Languages](/docs/languages/)). This gate is over *supported source files only*; it can't reach a `.env` — that's what `include` is for. |
 | `rule.include` | no | (none) | Repo-relative **path globs** (dialect: `*`/`**` cross `/`, `?`, `[abc]`). When set, the rule runs on any matching path — **including extensions argot doesn't score**. See *Which files a rule runs on*. |
 | `rule.exclude` | no | (none) | Path globs subtracted from the scope — even from the default language scope, so an `include`-less rule can still skip `**/*.test.ts`. |
 | `engine.api` | no | `1` | The host-API generation the script targets. A script asking for a newer generation than the binary provides is skipped, never half-run. |

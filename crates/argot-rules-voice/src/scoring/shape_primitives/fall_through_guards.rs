@@ -28,6 +28,7 @@ fn func_kinds(language: Language) -> &'static [&'static str] {
         Language::Php => &["function_definition", "method_declaration"],
         Language::Cpp => &["function_definition"],
         Language::Ruby => &["method", "singleton_method"],
+        Language::Pascal => &["defProc"],
     }
 }
 
@@ -38,6 +39,8 @@ fn if_kinds(language: Language) -> &'static [&'static str] {
     match language {
         Language::Ruby => &["if", "if_modifier", "unless", "unless_modifier"],
         Language::Rust => &["if_expression"],
+        // Pascal `if … then` is an `if` node; there is no postfix guard form.
+        Language::Pascal => &["if", "ifElse"],
         _ => &["if_statement"],
     }
 }
@@ -113,6 +116,7 @@ fn score_hunk_avg(hunk: &str) -> Option<f64> {
         .or_else(|| file_avg_guards(hunk, Language::Php))
         .or_else(|| file_avg_guards(hunk, Language::Cpp))
         .or_else(|| file_avg_guards(hunk, Language::Ruby))
+        .or_else(|| file_avg_guards(hunk, Language::Pascal))
 }
 
 /// Fall-through-guard count primitive.

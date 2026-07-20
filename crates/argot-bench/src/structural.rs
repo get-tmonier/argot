@@ -57,6 +57,7 @@ fn ext_lang(path: &str) -> Option<Language> {
         "php" => Language::Php,
         "cc" | "cpp" | "cxx" | "hpp" | "hh" => Language::Cpp,
         "rb" => Language::Ruby,
+        "pas" | "pp" | "dpr" | "lpr" | "inc" => Language::Pascal,
         _ => return None,
     })
 }

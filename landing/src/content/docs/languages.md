@@ -21,8 +21,8 @@ error-tolerant parser. Two properties matter here:
 
 ## Supported out of the box
 
-Python, TypeScript, JavaScript, Go, Rust, Java, C#, C, C++, Ruby, and PHP —
-eleven languages, each with its own tree-sitter adapter, each benchmarked on a
+Python, TypeScript, JavaScript, Go, Rust, Java, C#, C, C++, Ruby, PHP, and
+Pascal — twelve languages, each with its own tree-sitter adapter, each benchmarked on a
 real open-source corpus. TypeScript and JavaScript are **separate** adapters and
 separate models: `.ts`/`.tsx` and `.js`/`.jsx` are written differently, so argot
 learns each voice on its own (and treats a TypeScript repo's transpiled `.js`

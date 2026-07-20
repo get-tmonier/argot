@@ -23,6 +23,7 @@ mod cpp;
 mod csharp;
 mod go;
 mod java;
+mod pascal;
 mod php;
 mod python;
 mod ruby;
@@ -114,6 +115,7 @@ pub fn extract(source: &str, language: Language) -> TestInventory {
         Language::Php => php::extract(root, source),
         Language::C => c::extract(root, source),
         Language::Cpp => cpp::extract(root, source),
+        Language::Pascal => pascal::extract(root, source),
     }
 }
 
@@ -171,6 +173,18 @@ pub fn is_test_path(path: &str, language: Language) -> bool {
                 || base.contains("test_")
                 || base.contains("_unittest.")
         }
+        // FPCUnit/DUnit units are conventionally `*Tests.pas` / `test*.pas`, or
+        // live under a tests/ tree; content detection covers the rest.
+        Language::Pascal => {
+            in_test_dir
+                || base.starts_with("test")
+                || base.ends_with("test.pas")
+                || base.ends_with("tests.pas")
+                || base.ends_with("test.pp")
+                || base.ends_with("tests.pp")
+                || base.ends_with("test.dpr")
+                || base.ends_with("tests.dpr")
+        }
     }
 }
 
@@ -191,6 +205,7 @@ pub fn language_for_path(path: &str) -> Option<Language> {
         "php" => Some(Language::Php),
         "c" | "h" => Some(Language::C),
         "cc" | "cpp" | "cxx" | "hpp" | "hh" | "hxx" => Some(Language::Cpp),
+        "pas" | "pp" | "dpr" | "lpr" | "inc" => Some(Language::Pascal),
         _ => None,
     }
 }

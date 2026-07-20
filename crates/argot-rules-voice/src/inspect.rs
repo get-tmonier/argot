@@ -14,6 +14,7 @@ use crate::scoring::adapters::csharp::CSharpAdapter;
 use crate::scoring::adapters::go::GoAdapter;
 use crate::scoring::adapters::java::JavaAdapter;
 use crate::scoring::adapters::javascript::JavaScriptAdapter;
+use crate::scoring::adapters::pascal::PascalAdapter;
 use crate::scoring::adapters::php::PhpAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::ruby::RubyAdapter;
@@ -217,11 +218,12 @@ pub(crate) fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
         Language::Php => Box::new(PhpAdapter::new()),
         Language::Cpp => Box::new(CppAdapter::new()),
         Language::Ruby => Box::new(RubyAdapter::new()),
+        Language::Pascal => Box::new(PascalAdapter::new()),
     }
 }
 
 /// Every language variant, for consumers that must sweep all adapters.
-const ALL_LANGUAGES: [Language; 11] = [
+const ALL_LANGUAGES: [Language; 12] = [
     Language::Python,
     Language::Typescript,
     Language::Javascript,
@@ -233,6 +235,7 @@ const ALL_LANGUAGES: [Language; 11] = [
     Language::Php,
     Language::Cpp,
     Language::Ruby,
+    Language::Pascal,
 ];
 
 /// Union of every language adapter's repo-internal module identities for `repo`
@@ -338,6 +341,7 @@ fn scan_corpus(repo_dir: &Path) -> CorpusReport {
             "php" => Language::Php,
             "cpp" => Language::Cpp,
             "ruby" => Language::Ruby,
+            "pascal" => Language::Pascal,
             _ => Language::Typescript,
         };
         let adapter = adapters

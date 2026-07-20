@@ -293,3 +293,35 @@ targets:
       - { pr: 0, sha: 04174cbfaac1f9555400b5332d69056e6aab9cc6 }
       - { pr: 21059, sha: 7ea106ddcb6af7db8f36d62a28dbaba94d33598e }
       - { pr: 21058, sha: 75ec753226010867270787b412f3dae412e421e6 }
+
+  # --- Pascal corpora (12th language) ---
+  # Two large, tight-voiced Object Pascal repos for the honest temporal-holdout
+  # FP bench + curated fixture recall. Both compile on FreePascal *and* Delphi;
+  # Castle is a 3D/2D game engine (94% Pascal, subdir-layered src/), mORMot2 is a
+  # client-server/ORM/SOA framework (flat src/ with dotted `mormot.*` units).
+  - name: castle-engine
+    url: https://github.com/castle-engine/castle-engine
+    language: pascal
+    prs:
+      - { pr: 0, sha: 3e20e07c30ba409c6b60c4e881f58b7b3a0f6dcc }
+  - name: mormot2
+    url: https://github.com/synopse/mORMot2
+    language: pascal
+    prs:
+      - { pr: 0, sha: 6e7a32550aeda0b43971de36e374e872fbd35e49 }
+  # Uncle's FreePascal/Lazarus/MSEgui repos — added as extra real-world
+  # validation (audio lib + MSEide-based IDE). Smaller than the two primaries, so
+  # measured but not part of the gated headline (RUBRIC: small corpora calibrate a
+  # low threshold → over-fire creeps).
+  - name: uos
+    url: https://github.com/fredvs/uos
+    language: pascal
+    holdout_window: 300
+    prs:
+      - { pr: 0, sha: ffd165382aeae1cc1bf80673d5c02497c06f4efa }
+  - name: ideu
+    url: https://github.com/fredvs/ideU
+    language: pascal
+    holdout_window: 300
+    prs:
+      - { pr: 0, sha: 305387a0712b08afd508277f8df9f6925c966171 }

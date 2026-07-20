@@ -166,7 +166,7 @@ const en: SiteContent = {
       },
     ],
     languages:
-      'One [[static binary]], 11 languages: Python · TypeScript · JavaScript · Go · Rust · Java · C# · C · C++ · Ruby · PHP.',
+      'One [[static binary]], 12 languages: Python · TypeScript · JavaScript · Go · Rust · Java · C# · C · C++ · Ruby · PHP · Pascal.',
     finePrint:
       'Recall on patterns planted in real files; false alarms on a temporal holdout. Even the structural blind spot — masked foreign — is published, not hidden.',
     benchmarksCta: 'Full per-repo numbers →',

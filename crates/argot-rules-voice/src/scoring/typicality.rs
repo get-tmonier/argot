@@ -302,6 +302,33 @@ const RB_CONTROL_NODE_TYPES: &[&str] = &[
     "module",
 ];
 
+const PASCAL_LITERAL_NODE_TYPES: &[&str] = &[
+    "literalNumber",
+    "literalString",
+    "literalChar",
+    "kTrue",
+    "kFalse",
+    "kNil",
+];
+
+const PASCAL_CONTROL_NODE_TYPES: &[&str] = &[
+    "if",
+    "ifElse",
+    "while",
+    "repeat",
+    "for",
+    "foreach",
+    "case",
+    "with",
+    "try",
+    "block",
+    "goto",
+    "defProc",
+    "declProc",
+    "declClass",
+    "declType",
+];
+
 // Absolute cutoffs for the structural predicate.
 const LITERAL_RATIO_CUTOFF: f64 = 0.80;
 const NAMED_LEAF_COUNT_GATE: usize = 5;
@@ -343,6 +370,7 @@ fn node_type_sets(language: Language) -> (HashSet<&'static str>, HashSet<&'stati
         Language::Php => (PHP_LITERAL_NODE_TYPES, PHP_CONTROL_NODE_TYPES),
         Language::Cpp => (CPP_LITERAL_NODE_TYPES, CPP_CONTROL_NODE_TYPES),
         Language::Ruby => (RB_LITERAL_NODE_TYPES, RB_CONTROL_NODE_TYPES),
+        Language::Pascal => (PASCAL_LITERAL_NODE_TYPES, PASCAL_CONTROL_NODE_TYPES),
     };
     (
         literal.iter().copied().collect(),
