@@ -82,7 +82,7 @@ bench-structural *args:
 bench-arch *args:
     cargo build --release -p argot-bench --features arch
     ./target/release/argot-bench --mode arch --results-dir benchmarks/results/arch \
-      {{ if args == "" { "--corpus saleor,scrapy,wagtail,fastapi,faker,dagster,composer,laravel,ripgrep,bat,guava,junit5,powershell,jellyfin,rubocop,gh-cli,hugo,hono,eslint,excalidraw,faker-js,curl,rocksdb" } else { args } }}
+      {{ if args == "" { "--corpus saleor,scrapy,wagtail,fastapi,faker,dagster,composer,laravel,ripgrep,bat,guava,junit5,powershell,jellyfin,rubocop,gh-cli,hugo,hono,eslint,excalidraw,faker-js,curl,rocksdb,mormot2,castle-engine" } else { args } }}
 
 # Fast fixture-recall guard (`--mode arch-verify`): fit each corpus at HEAD and
 # score its authored fixtures, skipping the slow holdout replay (~25s for all 23
@@ -92,7 +92,7 @@ bench-arch *args:
 arch-verify *args:
     cargo build --release -p argot-bench --features arch
     ./target/release/argot-bench --mode arch-verify \
-      {{ if args == "" { "--corpus saleor,scrapy,wagtail,fastapi,faker,dagster,composer,laravel,ripgrep,bat,guava,junit5,powershell,jellyfin,rubocop,gh-cli,hugo,hono,eslint,excalidraw,faker-js,curl,rocksdb" } else { args } }}
+      {{ if args == "" { "--corpus saleor,scrapy,wagtail,fastapi,faker,dagster,composer,laravel,ripgrep,bat,guava,junit5,powershell,jellyfin,rubocop,gh-cli,hugo,hono,eslint,excalidraw,faker-js,curl,rocksdb,mormot2,castle-engine" } else { args } }}
 
 # Dump the resolver-verified 0-usage candidate menu (`--mode arch-candidates`) —
 # ready-to-author fixture rows (host_file + verified import_line) per corpus.

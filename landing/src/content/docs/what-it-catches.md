@@ -180,10 +180,10 @@ retargeted. All three are pinned to the `suspicious` confidence tier. `test-dele
 `test-disabled` default to `error`; **`test-weakened` ships `warn`** — reported on every run,
 never fails the check on its own, downgradeable or upgradeable per repo.
 
-On the benchmark — 22 corpora across 11 languages — the detector caught **144 of 153 (94.1%)**
-authored gaming tactics, with **0 of 102** legitimate-refactor controls (moves, renames, deletions
-alongside a removed feature, genuine strengthening) fired. Replayed against 5,268 real accepted
-test-touching commits *outside* the fit's calibration window, only **1.12%** were flagged at
+On the benchmark — 23 corpora across 12 languages — the detector caught **155 of 164 (94.5%)**
+authored gaming tactics, with **0 of 106** legitimate-refactor controls (moves, renames, deletions
+alongside a removed feature, genuine strengthening) fired. Replayed against 5,330 real accepted
+test-touching commits *outside* the fit's calibration window, only **1.13%** were flagged at
 gating (error) severity — the honest cost of running this against real history, not a fixture
 rate. The hardest tactic is expected-value retargeting (16/21, 76%): a bare literal retarget is
 statically indistinguishable from a healthy TDD update, so it only fires in repos whose accepted

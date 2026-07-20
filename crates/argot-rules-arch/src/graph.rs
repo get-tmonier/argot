@@ -40,11 +40,11 @@
 //! # Language support
 //!
 //! Resolves internal imports for **Python, Go, TypeScript/JavaScript, Rust, Java,
-//! PHP, C#, Ruby, C, and C++**. Each language plugs in via [`Language`]-dispatch
+//! PHP, C#, Ruby, C, C++, and Pascal**. Each language plugs in via [`Language`]-dispatch
 //! in [`RepoLayering::file_edges`] (per-language `*_targets`) plus a `detect_context`
 //! arm (roots / internal names / module prefix). Two layer families:
 //!
-//! - **Path-anchored** (Python/Go/TS/JS/Rust/Ruby/C/C++): the layer is the first
+//! - **Path-anchored** (Python/Go/TS/JS/Rust/Ruby/C/C++/Pascal): the layer is the first
 //!   path component under a source root, resolved straight off the file path.
 //! - **Namespace-anchored** (Java/PHP/C#): the layer is the first namespace
 //!   component after the base package/root namespace. Because the package tree

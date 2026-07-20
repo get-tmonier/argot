@@ -109,6 +109,35 @@ behaviour by design (identical to every other language's call-receiver gate).
 Foreign_api fixtures are therefore authored as bare foreign free-functions, and
 some host clusters need ≥2–3 distinct 0-usage callees to clear the rare-threshold.
 
+## Architecture + integrity capstones (Pascal joins both)
+
+**Architecture** (`arch_violations.yaml`, resolver-verified via `--mode arch-candidates`): both
+corpora, 10 authored violations each (mix sink_out / reversal / transitive_reversal across the
+`src/<layer>/` topology — mORMot2 16 layers, Castle 19) + 4 forward controls each.
+
+| Corpus | violation recall | control-FP | over-fire (holdout) |
+|---|---:|---:|---:|
+| mormot2 | 10/10 | 0/4 | 0.0% (0/150) |
+| castle-engine | 10/10 | 0/4 | 0.0% (0/156) |
+
+New arch capstone aggregate: **25 corpora / 12 languages · 264/272 = 97.1% · control-FP 0/148 ·
+over-fire mean 0.37% (2.7% worst)**.
+
+**Integrity** (`integrity_fixtures.yaml`): Castle uses FPCUnit (`TCastleTestCase`, `procedure
+Test*`, `AssertEquals`/`Check*`) — **11/11 caught across 6 tactics** (assertion_deletion ×3,
+tautologization ×1, comparison_widening ×3, skip_disable ×2, body_gutting ×1, test_deletion ×1),
+0/4 controls, gating-FP 1/62 = 1.6% (1 test_deleted on the replay). mORMot2 is **N/A** — its
+bespoke `TSynTestCase` framework (RTTI-discovered, non-`Test`-prefixed methods) is outside the
+detectable FPCUnit/DUnit convention. New integrity capstone aggregate: **23 corpora / 12
+languages · 155/164 = 94.5% · 0/106 controls · 45/3602 = 1.25% gating-FP**.
+
+**Two integrity wiring gaps fixed** (`test_inventory/mod.rs`), both additive + Pascal-scoped:
+- `tautology_capable()` was case-sensitive lowercase-only (`assertEquals`), never matching Pascal's
+  PascalCase `AssertEquals`/`AssertTrue` — added the FPCUnit/DUnit names, so `tautologization` fires.
+- `defined_symbols()` matched only other grammars' node kinds — added Pascal `defProc` (name via the
+  header's `genericDot rhs`/identifier), `declProc`, `declType`, so `test-deleted` can confirm a
+  deleted test's production subject still exists. Both unit-tested.
+
 ## Bench fix — CRLF corpora
 
 mORMot2 (and most Delphi-heritage source) is **CRLF**. The bench's fixture

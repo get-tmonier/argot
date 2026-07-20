@@ -1,5 +1,15 @@
 # Test-integrity guard — capstone (definitive numbers + journey)
 
+> **➕ EXTENDED (2026-07-20) — Pascal added as the 12th language.** castle-engine (FPCUnit)
+> contributes 11 fixtures across 6 tactics: **11/11 caught, 0/4 controls, gating-FP 1/62 = 1.6%.**
+> Fixing two Pascal wiring gaps in `test_inventory/mod.rs` (`tautology_capable` was
+> case-sensitive-lowercase → missed PascalCase `AssertEquals`; `defined_symbols` lacked the Pascal
+> `defProc`/`declType` node kinds → `test-deleted` couldn't confirm survival) enabled the
+> tautologization + test_deletion tactics. mORMot2 is N/A (bespoke `TSynTestCase` framework outside
+> the FPCUnit/DUnit convention). New aggregate: **23 corpora / 12 languages · 155/164 = 94.5% catch
+> · 0/106 controls · 45/3602 = 1.25% gating-FP.** See [`pascal-language-port.md`](pascal-language-port.md).
+> The 11-language canonical run below is the original.
+
 **Date:** 2026-07-10 · **Branch:** `feat/new-signal` · **Rubric:**
 `benchmarks/catalogs/RUBRIC-INTEGRITY.md` (frozen taxonomy + one recorded
 amendment) · **Scout evidence:** `test-integrity-feasibility-scout.md`

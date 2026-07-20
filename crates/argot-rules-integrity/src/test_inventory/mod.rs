@@ -242,6 +242,34 @@ pub fn defined_symbols(source: &str, language: Language) -> HashSet<String> {
             }
             return;
         }
+        // Pascal: a `defProc` (implementation body) binds its name on the
+        // header's `name` — a `genericDot` (`TClass.Method`, the method is its
+        // `rhs`) or a bare identifier; `declType`/`declProc` expose a direct
+        // `name`. None match the generic node-kind arm below, so without this a
+        // test's deleted subject never looks "still defined" and `test-deleted`
+        // can't fire for Pascal.
+        if matches!(n.kind(), "defProc" | "declProc" | "declType") {
+            let name_node = if n.kind() == "defProc" {
+                n.child_by_field_name("header")
+                    .and_then(|h| h.child_by_field_name("name"))
+            } else {
+                n.child_by_field_name("name")
+            };
+            if let Some(name) = name_node {
+                let ident = if name.kind() == "genericDot" {
+                    name.child_by_field_name("rhs")
+                } else {
+                    Some(name)
+                };
+                if let Some(id) = ident {
+                    let t = node_text(id, source);
+                    if t.len() > 2 {
+                        defs.insert(t.to_string());
+                    }
+                }
+            }
+            return;
+        }
         if !matches!(
             n.kind(),
             "function_definition"
@@ -371,6 +399,20 @@ pub fn tautology_capable(callee: &str) -> bool {
         "require.False",
         "assert.Exactly",
         "require.Exactly",
+        // FPCUnit / DUnit / DUnitX (Pascal, PascalCase — the CORE list above is
+        // case-sensitive and its `assertEqual`/`assertTrue` entries never match
+        // Pascal's `AssertEquals`/`AssertTrue`, so a Pascal `AssertEquals(1, 1)`
+        // could not be flagged a tautology without these).
+        "AssertEquals",
+        "AssertTrue",
+        "AssertFalse",
+        "AssertSame",
+        "AssertNull",
+        "AssertNotNull",
+        "CheckEquals",
+        "CheckTrue",
+        "CheckFalse",
+        "CheckSame",
     ];
     CORE.contains(&callee)
         || callee.starts_with("EXPECT_")
@@ -486,6 +528,30 @@ mod tests {
         assert!(defs.contains("getPath"), "{defs:?}");
         assert!(defs.contains("build"), "{defs:?}");
         assert!(defs.contains("legacy"), "{defs:?}");
+    }
+
+    #[test]
+    fn defined_symbols_and_tautology_cover_pascal() {
+        // Pascal `defProc` binds its name on the header (a `TClass.Method`
+        // genericDot or a bare identifier); `declType` names the class. Both must
+        // land in `defined_symbols` so a deleted test's subject reads as "still
+        // defined" and `test-deleted` can fire.
+        let src = "unit U;\ninterface\ntype\n  TWidget = class(TObject)\n  end;\n\
+                   implementation\n\
+                   function TWidget.Area: Integer;\nbegin\n  Result := 1;\nend;\n\
+                   procedure Helper;\nbegin\nend;\nend.\n";
+        let defs = defined_symbols(src, Language::Pascal);
+        assert!(
+            defs.contains("Area"),
+            "method via genericDot header: {defs:?}"
+        );
+        assert!(defs.contains("Helper"), "bare proc: {defs:?}");
+        assert!(defs.contains("TWidget"), "type: {defs:?}");
+        // PascalCase FPCUnit asserts must be tautology-capable (the CORE list is
+        // case-sensitive; its camelCase entries never match Pascal).
+        assert!(tautology_capable("AssertEquals"));
+        assert!(tautology_capable("AssertTrue"));
+        assert!(tautology_capable("CheckEquals"));
     }
 
     #[test]
