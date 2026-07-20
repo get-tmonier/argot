@@ -12,7 +12,7 @@ use std::collections::{HashMap, HashSet};
 /// `col_start` is inclusive, `col_end` exclusive — the half-open convention
 /// tree-sitter uses. Both columns are **byte** offsets in the raw source line;
 /// callers must not align carets against ANSI-highlighted output.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct SourceSpan {
     pub line: usize,
     pub col_start: usize,

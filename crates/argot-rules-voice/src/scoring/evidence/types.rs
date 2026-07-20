@@ -6,6 +6,7 @@
 //! [`Evidence`] enum variant, not on a string `reason`, so per-reason label
 //! conventions stay out of `check`.
 
+use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -14,7 +15,7 @@ use std::collections::HashMap;
 pub use argot_engine::finding::SourceSpan;
 
 /// One entry on a `common here:` line — name + observed frequency.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CommonEntry {
     pub name: String,
     pub count: i64,
@@ -24,7 +25,7 @@ pub struct CommonEntry {
 ///
 /// `noun` and `where_` are the two lexical halves of the rendered fragment —
 /// e.g. `noun="identifiers"` + `where_="repo"` → "identifiers in repo".
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct RarityStat {
     pub flagged_count: i64,
     pub attested_total: i64,
@@ -41,7 +42,7 @@ impl RarityStat {
 
 /// Evidence for a BPE-fired hit: identifiers reconstructed from surprising
 /// token spans, each paired with its repo-wide attestation count.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct BpeEvidence {
     pub surprising_identifiers: Vec<CommonEntry>,
 }
@@ -49,7 +50,7 @@ pub struct BpeEvidence {
 /// Evidence for an import-fired hit: the foreign top-level specifiers, plus
 /// their `{spec -> SourceSpan}` map (insertion-ordered) for `(L7)` annotation
 /// and caret underlines.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ImportEvidence {
     pub foreign_specifiers: Vec<String>,
     pub rarity: RarityStat,
@@ -71,7 +72,7 @@ impl ImportEvidence {
 
 /// Evidence for a call-receiver-fired hit: the unattested callees, scoped to
 /// the hunk file's MinHash cluster.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CallReceiverEvidence {
     pub unfamiliar_callees: Vec<String>,
     pub rarity: RarityStat,
@@ -79,7 +80,7 @@ pub struct CallReceiverEvidence {
 }
 
 /// Runtime union of evidence payloads. Renderers dispatch on the variant.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum Evidence {
     Bpe(BpeEvidence),
     Import(ImportEvidence),
@@ -87,7 +88,7 @@ pub enum Evidence {
 }
 
 /// Denominators for the rarity stats baked into [`EvidenceCorpus`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct EvidenceCorpusTotals {
     pub import_specifiers_attested: i64,
     pub callees_attested_by_cluster: HashMap<usize, i64>,
@@ -95,7 +96,7 @@ pub struct EvidenceCorpusTotals {
 
 /// Pre-computed per-dimension samples persisted in the scorer config's
 /// `evidence_corpus` block. Loaded at check time by the per-reason collectors.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct EvidenceCorpus {
     pub imports: Vec<CommonEntry>,
     pub identifiers: HashMap<String, i64>,
