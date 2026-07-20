@@ -17,9 +17,12 @@ mod tests;
 
 /// The integrity pass's changesets: the engine's two-sided collection,
 /// scoped to files whose language has a test inventory (path filter applied
-/// before any blob read).
+/// before any blob read). Uses the **per-commit** variant so a `base..head`
+/// range (e.g. `argot audit`) is reasoned about one accepted unit at a time —
+/// the "did this change also touch production?" gate must see each commit
+/// separately, never the whole window's union.
 fn integrity_changesets(args: &CheckArgs) -> Vec<(String, Vec<crate::model::FileChange>)> {
-    argot_engine::check::two_sided::collect_two_sided(args, &|path| {
+    argot_engine::check::two_sided::collect_two_sided_per_commit(args, &|path| {
         crate::test_inventory::language_for_path(path).is_some()
     })
 }

@@ -44,6 +44,10 @@ pub struct CaseResult {
     pub case: String,
     /// `None` = pass; `Some` = a human-readable failure.
     pub failure: Option<String>,
+    /// A setup problem (no `tests/` dir, script won't compile) rather than a
+    /// real test-outcome mismatch — the CLI maps these to exit 2, not 1, so CI
+    /// can tell "the rule is broken" from "a test failed".
+    pub setup: bool,
 }
 
 /// Run every test case of every discovered rule (or just `filter`'s).
@@ -87,6 +91,7 @@ fn run_one_rule(argot_dir: &Path, rule: &ScriptRule) -> Vec<CaseResult> {
                 "no tests/ directory — add {}/tests/<case>/{{input.<ext>, expected.json}}",
                 rule.name
             )),
+            setup: true,
         }];
     };
     let ast = match host::compile(&rule.script) {
@@ -96,6 +101,7 @@ fn run_one_rule(argot_dir: &Path, rule: &ScriptRule) -> Vec<CaseResult> {
                 rule: rule.name.clone(),
                 case: "(compile)".to_string(),
                 failure: Some(format!("script failed to compile: {e}")),
+                setup: true,
             }]
         }
     };
@@ -120,6 +126,7 @@ fn run_case(rule: &ScriptRule, ast: &rhai::AST, dir: &Path) -> CaseResult {
         rule: rule.name.clone(),
         case: case.clone(),
         failure: Some(msg),
+        setup: false,
     };
 
     // The single `input.<ext>` file drives the case.
@@ -207,6 +214,7 @@ fn run_case(rule: &ScriptRule, ast: &rhai::AST, dir: &Path) -> CaseResult {
             rule: rule.name.clone(),
             case,
             failure: None,
+            setup: false,
         }
     } else {
         fail(format!(

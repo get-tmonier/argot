@@ -32,11 +32,11 @@ fn proposed_content(tool_input: &Value) -> String {
     if let Some(c) = tool_input.get("content").and_then(Value::as_str) {
         return c.to_string();
     }
-    // Edit (current shape): `edits: [{ old_text, new_text }]`.
+    // MultiEdit: `edits: [{ old_string, new_string }]` (Claude Code's shape).
     if let Some(edits) = tool_input.get("edits").and_then(Value::as_array) {
         return edits
             .iter()
-            .filter_map(|e| e.get("new_text").and_then(Value::as_str))
+            .filter_map(|e| e.get("new_string").and_then(Value::as_str))
             .collect::<Vec<_>>()
             .join("\n");
     }
@@ -144,8 +144,8 @@ mod tests {
             "import x\n"
         );
         let edit = json!({"edits": [
-            {"old_text": "a", "new_text": "import y"},
-            {"old_text": "b", "new_text": "z"}
+            {"old_string": "a", "new_string": "import y"},
+            {"old_string": "b", "new_string": "z"}
         ]});
         assert_eq!(proposed_content(&edit), "import y\nz");
         assert_eq!(

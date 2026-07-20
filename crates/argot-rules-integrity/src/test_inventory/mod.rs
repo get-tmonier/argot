@@ -205,6 +205,28 @@ pub fn defined_symbols(source: &str, language: Language) -> HashSet<String> {
         return defs;
     };
     walk_named(tree.root_node(), &mut |n| {
+        // TS/JS `const foo = () => {}` / `const foo = function () {}` — the
+        // dominant modern export form. The callable's name is the declarator
+        // binding, not a `name` field on the (anonymous) function node, so the
+        // node-kind arm below never sees it. Without this, a co-located test
+        // exercising `foo` looks like it covers nothing and its deletion reads
+        // as legitimate (B4: test-deleted blind to arrow/const exports).
+        if n.kind() == "variable_declarator" {
+            let is_callable = n
+                .child_by_field_name("value")
+                .is_some_and(|v| matches!(v.kind(), "arrow_function" | "function_expression"));
+            if is_callable {
+                if let Some(name) = n.child_by_field_name("name") {
+                    if name.kind().ends_with("identifier") {
+                        let t = node_text(name, source);
+                        if t.len() > 2 {
+                            defs.insert(t.to_string());
+                        }
+                    }
+                }
+            }
+            return;
+        }
         if !matches!(
             n.kind(),
             "function_definition"
@@ -436,6 +458,19 @@ mod tests {
     fn empty_and_unparseable_sources_yield_empty_inventories() {
         assert!(extract("", Language::Python).is_empty());
         assert!(extract("not really code {{{", Language::Go).is_empty());
+    }
+
+    #[test]
+    fn defined_symbols_captures_ts_arrow_and_const_exports() {
+        // The modern TS export forms bind the name on the declarator, not on the
+        // anonymous function node (B4 — test-deleted was blind to these).
+        let src = "export const getPath = (url: string) => url.slice(1);\n\
+                   export const build = function () { return 1; };\n\
+                   export function legacy() { return 2; }\n";
+        let defs = defined_symbols(src, Language::Typescript);
+        assert!(defs.contains("getPath"), "{defs:?}");
+        assert!(defs.contains("build"), "{defs:?}");
+        assert!(defs.contains("legacy"), "{defs:?}");
     }
 
     #[test]

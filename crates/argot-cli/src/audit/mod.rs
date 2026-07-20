@@ -558,6 +558,19 @@ pub fn run_audit(repo: &Path, spec: WindowSpec, format: AuditFormat) -> ExitCode
     let internal_modules = argot_core::inspect::resolve_repo_internal_modules(repo);
     let hits = curate_hits(hits, &internal_modules);
     let hits = dedup_foreign_imports(hits, &internal_modules);
+    // One row per affected symbol: a single test can trip several `test-weakened`
+    // detectors (assertions removed *and* a literal retargeted), which land as
+    // distinct hits on different lines. Collapse repeats that name the same
+    // symbol; hits without a symbol (foreign/redundant/…) are never touched.
+    let hits = {
+        let mut seen = std::collections::HashSet::new();
+        hits.into_iter()
+            .filter(|h| {
+                h.symbol.is_none()
+                    || seen.insert((h.rule.clone(), h.path.clone(), h.symbol.clone()))
+            })
+            .collect::<Vec<_>>()
+    };
 
     eprintln!("argot: attributing {walked} commit(s) of history…");
     let t_attr = argot_core::timing::phase("audit: attribution");

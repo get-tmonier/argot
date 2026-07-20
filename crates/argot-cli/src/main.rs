@@ -871,6 +871,7 @@ fn run_fit_cmd(c: FitCmd) -> ExitCode {
         Ok(scorer_config) => {
             println!("Done. Scorer config: {}", scorer_config.display());
             drift_suggestions_note(&c.repo);
+            config_in_voice_note(&c.repo);
             freshness_hook();
             ExitCode::SUCCESS
         }
@@ -927,6 +928,29 @@ fn drift_suggestions_note(repo: &Path) {
     println!("      npx skills add get-tmonier/argot   then run /argot-setup");
 }
 
+/// After a fit, report files the built-in `argot:recommended` set would exclude
+/// that are shaping the voice anyway — config/tooling/doc files the corpus walk
+/// keeps because it applies only `[exclude].paths`. A misconfiguration argot
+/// detects and surfaces rather than silently auto-dropping: the reader decides
+/// whether to add them to `[exclude].paths`. Quiet on a clean repo.
+fn config_in_voice_note(repo: &Path) {
+    let leaked = argot_core::corpus::recommended_excluded_in_corpus(repo);
+    if leaked.is_empty() {
+        return;
+    }
+    let names: Vec<&str> = leaked.iter().take(3).map(String::as_str).collect();
+    let more = if leaked.len() > 3 { ", …" } else { "" };
+    let plural = if leaked.len() != 1 { "s" } else { "" };
+    println!();
+    println!(
+        "note: {} file{plural} argot:recommended would exclude are shaping the voice ({}{more}).",
+        leaked.len(),
+        names.join(", ")
+    );
+    println!("      These look like config/tooling, not authored code. Drop them from the");
+    println!("      model by adding them to argot.toml [exclude].paths, then re-run argot init.");
+}
+
 fn run_init_cmd(c: InitCmd) -> ExitCode {
     if c.suggest {
         return run_init_suggest(&c);
@@ -970,11 +994,13 @@ fn run_init_cmd(c: InitCmd) -> ExitCode {
         Verdict::Ready => {
             println!("Voice model fitted → {}", scorer_config.display());
             drift_suggestions_note(&c.repo);
+            config_in_voice_note(&c.repo);
             println!("Next:  argot check          # score your working changes");
         }
         Verdict::ReadyWithNotes => {
             println!("Voice model fitted → {}", scorer_config.display());
             drift_suggestions_note(&c.repo);
+            config_in_voice_note(&c.repo);
             println!("Next:  argot check          # score your working changes");
             println!("The notes above are tuning hints, not blockers. To refine the corpus:");
             println!(
@@ -984,6 +1010,7 @@ fn run_init_cmd(c: InitCmd) -> ExitCode {
         }
         Verdict::NotRecommended => {
             println!("Voice model fitted → {}", scorer_config.display());
+            config_in_voice_note(&c.repo);
             println!("The corpus looks not recommended yet. Next steps:");
             println!(
                 "  • argot init --suggest    # directories you may want to exclude from the voice"
@@ -1351,6 +1378,12 @@ fn run_rules_test_cmd(repo: &Path, name: Option<&str>) -> ExitCode {
         results.len(),
         failed
     );
+    // A setup problem (no tests/ dir, script won't compile) is exit 2 — distinct
+    // from exit 1 for a genuine test-outcome mismatch — so CI can tell "the rule
+    // is broken" from "a test failed".
+    if results.iter().any(|r| r.setup) {
+        return ExitCode::from(2);
+    }
     if failed > 0 {
         ExitCode::FAILURE
     } else {

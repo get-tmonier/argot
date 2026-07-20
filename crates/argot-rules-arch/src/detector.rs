@@ -165,6 +165,18 @@ impl Detector for ArchDetector {
             {
                 eprintln!("argot: writing layering graph failed: {e}");
             }
+        } else if sources.is_empty() {
+            // Make the abstention visible so a quiet `layering` isn't mistaken
+            // for a clean bill of health.
+            eprintln!(
+                "argot: layering rule (v1) analyzes Python only — no Python source found, \
+                 so it will not run for this repo."
+            );
+        } else {
+            eprintln!(
+                "argot: layering found no confident layer order (a flat, or facade/barrel-heavy, \
+                 module graph) — the rule will not run for this repo."
+            );
         }
     }
 

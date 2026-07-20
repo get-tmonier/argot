@@ -94,6 +94,32 @@ fn bare_hunks_skip_the_data_row_gate() {
     ));
 }
 
+/// B1: an `import` that lives inside a docstring is not real code, so it must
+/// not fire `foreign-import` even when the hunk (a range/commit-path fragment)
+/// slices the docstring interior. A real top-level foreign import still fires.
+#[test]
+fn import_inside_a_docstring_is_not_flagged_foreign() {
+    let mut scorer = toy_scorer();
+    let file = "import math\n\n\ndef run(xs):\n    \"\"\"Do the thing.\n\n    Example::\n\n        import gevent\n        gevent.spawn(run)\n    \"\"\"\n    return math.fsum(xs)\n";
+    let lines: Vec<&str> = file.lines().collect();
+    // A hunk covering the docstring body (lines 5..=11), including `import gevent`.
+    let hunk = lines[4..11].join("\n");
+    let scored = scorer.score_hunk(&hunk, Some(file), Some(5), Some(11), None);
+    assert_ne!(
+        scored.reason,
+        Reason::Import,
+        "a docstring-embedded import must not fire foreign-import: {scored:?}"
+    );
+
+    // Control: a genuinely introduced top-level foreign import still fires.
+    let real = scorer.score_hunk("import gevent\ngevent.spawn(f)", None, None, None, None);
+    assert_eq!(
+        real.reason,
+        Reason::Import,
+        "a real foreign import must still fire: {real:?}"
+    );
+}
+
 /// Local-binding attestation: callees the change itself defines (in the
 /// host file or the changeset) or imports from repo-internal paths do not
 /// count as unattested — only truly neighbourhood-less callees fire.

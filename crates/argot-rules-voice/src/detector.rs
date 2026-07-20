@@ -137,11 +137,15 @@ fn score_patches(
             *file_counts.entry(batch.file_path.clone()).or_insert(0) += 1;
             let hunk_start = hunk.new_start as i64 - 1;
             let hunk_end = hunk_start + hunk.new_lines as i64;
-            if hunk_start < 0 || hunk_end > n_lines {
+            if hunk_start < 0 || hunk_start >= n_lines {
                 continue;
             }
             let hs = hunk_start as usize;
-            let he = hunk_end as usize;
+            // Clamp the end to the file: git's post-image line count can exceed
+            // `splitlines`' when the last line has no trailing newline ("\ No
+            // newline at end of file"). Dropping the whole hunk there missed an
+            // import appended at the very bottom of a file (B6).
+            let he = hunk_end.min(n_lines) as usize;
             let hunk_content = file_lines[hs..he].join("\n");
             // file_path routes the hunk to its fit-time cluster (falling back
             // to Jaccard-nearest for files the model has never seen) — the
