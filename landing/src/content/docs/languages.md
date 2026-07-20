@@ -21,8 +21,8 @@ error-tolerant parser. Two properties matter here:
 
 ## Supported out of the box
 
-Python, TypeScript, JavaScript, Go, Rust, Java, C#, C, C++, Ruby, and PHP —
-eleven languages, each with its own tree-sitter adapter, each benchmarked on a
+Python, TypeScript, JavaScript, Go, Rust, Java, C#, C, C++, Ruby, PHP, and
+Pascal — twelve languages, each with its own tree-sitter adapter, each benchmarked on a
 real open-source corpus. TypeScript and JavaScript are **separate** adapters and
 separate models: `.ts`/`.tsx` and `.js`/`.jsx` are written differently, so argot
 learns each voice on its own (and treats a TypeScript repo's transpiled `.js`
@@ -57,8 +57,8 @@ scoring:
 The `integrity` rule group reads tests themselves, so it has its own per-language layer: an
 adapter per language extracts test cases, assertion sites, skip/disable markers, and expected
 literals from each ecosystem's own conventions (pytest/unittest, `it`/`test` blocks, `#[test]`,
-`@Test`, xUnit attributes, gtest/Catch2 macros, and more), and the three integrity rules run
-across all 11 supported languages. Two caveats, published rather than hidden: **C** has no
+`@Test`, xUnit attributes, gtest/Catch2 macros, FPCUnit/DUnit `procedure Test*`, and more), and
+the three integrity rules run across all 12 supported languages. Two caveats, published rather than hidden: **C** has no
 universal test framework, so coverage is harness-visible only (the curl/redis-style suites it was
 validated on); **plain Go** can't express walker-visible tautology or comparison-widening events
 — a `t.Error*` call's truth lives in the surrounding `if`-guard, not the call itself — recorded as

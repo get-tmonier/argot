@@ -48,6 +48,7 @@ fn corpus_lang(target: &Target) -> Option<Language> {
         "php" => Language::Php,
         "csharp" => Language::CSharp,
         "ruby" => Language::Ruby,
+        "pascal" => Language::Pascal,
         "c" => Language::C,
         "cpp" => Language::Cpp,
         // Polyglot corpora (e.g. dagster) are Python-primary for the arch layer —
@@ -70,6 +71,7 @@ fn lang_files(language: Language) -> (&'static [&'static str], &'static [&'stati
         Language::Php => (&["php"], &[]),
         Language::CSharp => (&["cs"], &[]),
         Language::Ruby => (&["rb"], &[]),
+        Language::Pascal => (&["pas", "pp", "dpr", "lpr", "inc"], &[]),
         Language::C => (&["c", "h"], &[]),
         Language::Cpp => (&["cc", "cpp", "cxx", "hpp", "hh", "h"], &[]),
     }
@@ -508,6 +510,7 @@ pub fn run_arch_candidates(
                         Language::Typescript
                             | Language::Javascript
                             | Language::Ruby
+                            | Language::Pascal
                             | Language::C
                             | Language::Cpp
                     )

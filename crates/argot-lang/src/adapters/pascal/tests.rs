@@ -1,0 +1,194 @@
+use super::*;
+
+const UNIT: &str = r#"unit MyUnit;
+
+interface
+
+uses
+  SysUtils, Classes, Generics.Collections;
+
+type
+  TWidget = class(TObject)
+  public
+    constructor Create;
+    function Area: Integer;
+  end;
+
+const
+  MAX = 10;
+
+implementation
+
+uses
+  StrUtils;
+
+constructor TWidget.Create;
+begin
+  inherited Create;
+end;
+
+function TWidget.Area: Integer;
+var
+  Tmp: Integer;
+begin
+  Tmp := MAX;
+  Result := Tmp;
+  WriteLn(Format('area=%d', [Tmp]));
+end;
+
+end.
+"#;
+
+#[test]
+fn uses_clause_yields_top_segments() {
+    let a = PascalAdapter::new();
+    let imports = a.extract_imports(UNIT);
+    // interface + implementation uses, dotted unit collapses to its top segment.
+    assert!(imports.contains("SysUtils"), "{imports:?}");
+    assert!(imports.contains("Classes"), "{imports:?}");
+    assert!(
+        imports.contains("Generics"),
+        "dotted → top segment: {imports:?}"
+    );
+    assert!(
+        imports.contains("StrUtils"),
+        "impl-section uses: {imports:?}"
+    );
+}
+
+#[test]
+fn internal_import_bindings_always_empty() {
+    let a = PascalAdapter::new();
+    // Pascal has no relative-import form; internal units are resolved via
+    // resolve_repo_modules, not this hook.
+    assert!(a.internal_import_bindings(UNIT).is_empty());
+}
+
+#[test]
+fn import_spans_point_at_top_segment() {
+    let a = PascalAdapter::new();
+    let spans = a.extract_imports_with_spans("uses Winapi.Windows, System.SysUtils;\n");
+    let specs: Vec<&str> = spans.iter().map(|(s, ..)| s.as_str()).collect();
+    assert!(specs.contains(&"Winapi"), "{specs:?}");
+    assert!(specs.contains(&"System"), "{specs:?}");
+    let (spec, line, col_start, col_end) = &spans[0];
+    assert_eq!(*line, 1);
+    assert_eq!(col_end - col_start, spec.len());
+}
+
+#[test]
+fn callable_definitions_capture_procs_and_types() {
+    let a = PascalAdapter::new();
+    let defs = a.callable_definitions(UNIT);
+    assert!(defs.contains("TWidget"), "type name: {defs:?}");
+    assert!(defs.contains("Create"), "constructor: {defs:?}");
+    assert!(defs.contains("Area"), "function: {defs:?}");
+}
+
+#[test]
+fn callable_bodies_cover_impl_definitions() {
+    let a = PascalAdapter::new();
+    let names: Vec<String> = a
+        .callable_bodies(UNIT)
+        .into_iter()
+        .map(|b| b.symbol)
+        .collect();
+    assert!(names.contains(&"Create".to_string()), "{names:?}");
+    assert!(names.contains(&"Area".to_string()), "{names:?}");
+}
+
+#[test]
+fn value_bindings_capture_vars_args_and_assignments() {
+    let a = PascalAdapter::new();
+    let vals = a.value_bindings(UNIT);
+    assert!(vals.contains("Tmp"), "local var: {vals:?}");
+    assert!(vals.contains("MAX"), "const name: {vals:?}");
+    assert!(vals.contains("Result"), "assignment lhs: {vals:?}");
+}
+
+#[test]
+fn code_file_is_not_data_dominant() {
+    let a = PascalAdapter::new();
+    assert!(!a.is_data_dominant(UNIT, 0.65));
+}
+
+#[test]
+fn const_table_is_data_dominant() {
+    let a = PascalAdapter::new();
+    let src = "const\n  A: array[0..2] of Integer = (1, 2, 3);\n  B: array[0..2] of Integer = (4, 5, 6);\n  C: array[0..2] of Integer = (7, 8, 9);\n";
+    assert!(!a.data_literal_lines(src).is_empty(), "table rows detected");
+    assert!(a.is_data_dominant(src, 0.5));
+}
+
+#[test]
+fn auto_generated_header_is_detected() {
+    let a = PascalAdapter::new();
+    let src = "{ This file is auto-generated. Do not edit. }\nunit Gen;\ninterface\nimplementation\nend.\n";
+    assert!(a.is_auto_generated(src, &crate::test_support::generated_markers()));
+}
+
+#[test]
+fn prose_ranges_cover_all_comment_forms() {
+    let a = PascalAdapter::new();
+    let src = "// line comment\n{ brace block }\n(* paren block *)\nprocedure P; begin end;\n";
+    let rows = a.prose_line_ranges(src);
+    assert!(rows.contains(&1), "// : {rows:?}");
+    assert!(rows.contains(&2), "{{}} : {rows:?}");
+    assert!(rows.contains(&3), "(* *) : {rows:?}");
+    assert!(!rows.contains(&4), "code line is not prose: {rows:?}");
+}
+
+#[test]
+fn sampleable_ranges_cover_proc_bodies() {
+    let a = PascalAdapter::new();
+    let ranges = a.enumerate_sampleable_ranges(UNIT);
+    // The two implementation bodies (Create, Area) are enumerated as defProc spans.
+    assert!(ranges.len() >= 2, "{ranges:?}");
+}
+
+#[test]
+fn interface_only_unit_falls_back_to_type_spans() {
+    let a = PascalAdapter::new();
+    // No implementation bodies — the class type declaration is the fallback.
+    let src = "unit U;\ninterface\ntype\n  TFoo = class\n    procedure Bar;\n  end;\nimplementation\nend.\n";
+    let ranges = a.enumerate_sampleable_ranges(src);
+    assert!(!ranges.is_empty(), "type span fallback: {ranges:?}");
+}
+
+#[test]
+fn identifier_noise_contains_keywords() {
+    let a = PascalAdapter::new();
+    assert!(a.identifier_noise().contains("begin"));
+    assert!(a.identifier_noise().contains("procedure"));
+    assert!(a.identifier_noise().contains("Result"));
+}
+
+#[test]
+fn module_declaration_name_reads_unit_program_library() {
+    assert_eq!(
+        module_declaration_name("unit SysFoo;\ninterface\n").as_deref(),
+        Some("SysFoo")
+    );
+    assert_eq!(
+        module_declaration_name("program Hello;\nbegin\nend.\n").as_deref(),
+        Some("Hello")
+    );
+    // Dotted unit name kept verbatim (top-segment split happens at registration).
+    assert_eq!(
+        module_declaration_name("unit mormot.core.base;\n").as_deref(),
+        Some("mormot.core.base")
+    );
+    // License header before the declaration is skipped.
+    assert_eq!(
+        module_declaration_name("{ (c) 2026 license\n  multi-line }\nunit Later;\n").as_deref(),
+        Some("Later")
+    );
+    // An include fragment with no module header yields nothing.
+    assert_eq!(module_declaration_name("  x := x + 1;\n"), None);
+}
+
+#[test]
+fn name_top_segment_splits_on_dot() {
+    assert_eq!(name_top_segment("mormot.core.json"), "mormot");
+    assert_eq!(name_top_segment("SysUtils"), "SysUtils");
+}

@@ -26,6 +26,8 @@ fn handler_kind(language: Language) -> Option<&'static str> {
         | Language::Cpp
         | Language::Php => Some("catch_clause"),
         Language::Ruby => Some("rescue"),
+        // Pascal `try … except <handler> end`.
+        Language::Pascal => Some("exceptionHandler"),
         Language::Go | Language::Rust | Language::C => None,
     }
 }
@@ -45,6 +47,8 @@ fn is_raise(node: Node, src: &[u8], language: Language) -> bool {
         Language::Python => node.kind() == "raise_statement",
         // PHP raises via a throw *expression*, not a statement.
         Language::Php => node.kind() == "throw_expression",
+        // Pascal `raise E.Create(...)` — a dedicated `raise` node.
+        Language::Pascal => node.kind() == "raise",
         Language::Ruby => {
             node.kind() == "call"
                 && node.child_by_field_name("receiver").is_none()
@@ -128,6 +132,7 @@ fn ratio_for_hunk(hunk: &str) -> Option<f64> {
         .or_else(|| ratio_for_source(hunk, Language::Php))
         .or_else(|| ratio_for_source(hunk, Language::Cpp))
         .or_else(|| ratio_for_source(hunk, Language::Ruby))
+        .or_else(|| ratio_for_source(hunk, Language::Pascal))
 }
 
 /// Except-block return/raise ratio primitive.

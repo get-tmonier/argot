@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 
 const SOURCE_EXTENSIONS: &[&str] = &[
     ".py", ".ts", ".tsx", ".js", ".jsx", ".go", ".rs", ".c", ".h", ".java", ".cs", ".php", ".cpp",
-    ".cc", ".hpp", ".cxx", ".rb",
+    ".cc", ".hpp", ".cxx", ".rb", ".pas", ".pp", ".dpr", ".lpr", ".inc",
 ];
 
 const EXCLUDE_DIRS: &[&str] = &[

@@ -1,5 +1,11 @@
 # Architecture-graph foreignness: a discrete, low-FP "has no place here" signal
 
+> **➕ EXTENDED (2026-07-20) — Pascal added as the 12th language.** Two resolver-verified
+> corpora (mormot2, castle-engine) with 10 authored violations each: **20/20 caught, 0/8 control
+> FPs, 0.0% over-fire** on both. New aggregate: **25 corpora / 12 languages · 264/272 = 97.1% real
+> recall · control-FP 0/148 = 0% · over-fire mean 0.37% (2.7% worst).** See
+> [`pascal-language-port.md`](pascal-language-port.md). The 11-language run below is the original.
+>
 > **✅ RESOLVED (2026-07-09, final) — every corpus ≥88% real recall. See the bottom section.**
 > Pre-correction 85–90% "catch" was coverage-inflated. After fixing three resolver
 > layer-assignment bugs (C#/Rust/Java), adding transitive-reversal classification, extending

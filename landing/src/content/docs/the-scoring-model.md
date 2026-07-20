@@ -141,8 +141,8 @@ transitive reversal counts), closes a cycle, or leaves a (near-)sink module is f
 **`layering`** ("crosses a module boundary"), pinned to the `unusual` confidence tier, severity
 `error` by default.
 
-Benchmarked on 23 corpora across all 11 supported languages: **244/252 (96.8%)** planted violations
-caught, **0/140** false positives on control edits, worst-case over-fire 2.7%. The check-time
+Benchmarked on 25 corpora across all 12 supported languages: **264/272 (97.1%)** planted violations
+caught, **0/148** false positives on control edits, worst-case over-fire 2.7%. The check-time
 import resolver covers Python in v1.
 
 ## The integrity detector
@@ -158,7 +158,7 @@ curation, not gaming) and its per-repo gate is open. Findings are flagged under 
 **`test-disabled`**, and **`test-weakened`**, all pinned to the `suspicious` confidence tier; the
 first two default to severity `error`, `test-weakened` defaults to `warn`.
 
-Benchmarked on 22 corpora across all 11 supported languages: **144/153 (94.1%)** authored gaming
-tactics caught, **0/102** legitimate-refactor controls fired, and **1.12%** of 5,268 replayed
+Benchmarked on 23 corpora across all 12 supported languages: **155/164 (94.5%)** authored gaming
+tactics caught, **0/106** legitimate-refactor controls fired, and **1.13%** of 5,330 replayed
 accepted test-touching commits flagged at gating severity. Full numbers:
 [`docs/research/evidence/test-integrity-capstone.md`](https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/test-integrity-capstone.md).

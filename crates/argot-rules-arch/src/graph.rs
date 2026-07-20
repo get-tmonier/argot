@@ -40,11 +40,11 @@
 //! # Language support
 //!
 //! Resolves internal imports for **Python, Go, TypeScript/JavaScript, Rust, Java,
-//! PHP, C#, Ruby, C, and C++**. Each language plugs in via [`Language`]-dispatch
+//! PHP, C#, Ruby, C, C++, and Pascal**. Each language plugs in via [`Language`]-dispatch
 //! in [`RepoLayering::file_edges`] (per-language `*_targets`) plus a `detect_context`
 //! arm (roots / internal names / module prefix). Two layer families:
 //!
-//! - **Path-anchored** (Python/Go/TS/JS/Rust/Ruby/C/C++): the layer is the first
+//! - **Path-anchored** (Python/Go/TS/JS/Rust/Ruby/C/C++/Pascal): the layer is the first
 //!   path component under a source root, resolved straight off the file path.
 //! - **Namespace-anchored** (Java/PHP/C#): the layer is the first namespace
 //!   component after the base package/root namespace. Because the package tree
@@ -88,6 +88,11 @@ struct LayeringArtifact {
     /// derived from the file's namespace, not its directory (C#). Empty otherwise.
     #[serde(default)]
     file_layer: Vec<(String, String)>,
+    /// Fit-time unit-name→layer index for Pascal: a `uses Foo` carries no path,
+    /// so the target layer is resolved through this map (built from each file's
+    /// `unit`/`program` declaration). Empty for every other language.
+    #[serde(default)]
+    unit_index: Vec<(String, String)>,
 }
 
 fn lang_tag(l: Language) -> &'static str {
@@ -103,6 +108,7 @@ fn lang_tag(l: Language) -> &'static str {
         Language::Php => "php",
         Language::Cpp => "cpp",
         Language::Ruby => "ruby",
+        Language::Pascal => "pascal",
     }
 }
 
@@ -118,6 +124,7 @@ pub fn tag_lang(s: &str) -> Language {
         "php" => Language::Php,
         "cpp" => Language::Cpp,
         "ruby" => Language::Ruby,
+        "pascal" => Language::Pascal,
         _ => Language::Python,
     }
 }
@@ -170,6 +177,10 @@ pub struct RepoLayering {
     /// flat dotted directories). Consulted first by [`layer_of`]. Empty for
     /// path-anchored languages.
     file_layer: HashMap<String, String>,
+    /// Unit-name→layer index (Pascal only): resolves a pathless `uses Foo` to the
+    /// layer of the file declaring `unit Foo`. Keyed by the lowercased unit name
+    /// (Pascal identifiers are case-insensitive). Empty for every other language.
+    unit_index: HashMap<String, String>,
     /// Transitive reachability over the edge graph: `reach[b]` = every layer `b`
     /// can reach by following edges. Used to detect back-edges (`a → b` where
     /// `b →* a`). Derived from `edges`; recomputed at fit and after deserialize.
@@ -186,6 +197,7 @@ impl Default for RepoLayering {
             edges: HashMap::new(),
             sinks: HashSet::new(),
             file_layer: HashMap::new(),
+            unit_index: HashMap::new(),
             reach: HashMap::new(),
         }
     }
@@ -213,6 +225,7 @@ impl RepoLayering {
             edges: HashMap::new(),
             sinks: HashSet::new(),
             file_layer: HashMap::new(),
+            unit_index: HashMap::new(),
             reach: HashMap::new(),
         };
         // Languages whose source layer is namespace-derived (not directory-derived)
@@ -223,6 +236,16 @@ impl RepoLayering {
             for (path, source) in &files {
                 if let Some(l) = me.derive_self_layer(source) {
                     me.file_layer.insert((*path).to_string(), l);
+                }
+            }
+        }
+        // Pascal `uses Foo` carries no path, so build a unit-name→layer index
+        // from each file's `unit`/`program` declaration BEFORE edges (so
+        // `pascal_targets` can resolve used units to their layer).
+        if me.language == Language::Pascal {
+            for (path, source) in &files {
+                if let (Some(name), Some(layer)) = (pascal_module_name(source), me.layer_of(path)) {
+                    me.unit_index.insert(name.to_ascii_lowercase(), layer);
                 }
             }
         }
@@ -366,6 +389,7 @@ impl RepoLayering {
             Language::Php => self.php_targets(source),
             Language::CSharp => self.cs_targets(source),
             Language::Ruby => self.ruby_targets(path, source),
+            Language::Pascal => self.pascal_targets(source),
             Language::C | Language::Cpp => self.c_targets(path, source),
         };
         targets
@@ -532,6 +556,19 @@ impl RepoLayering {
         out
     }
 
+    /// Target layers of a Pascal file's internal `uses`: each used unit resolved
+    /// through the fit-time unit-name→layer index. External units (SysUtils,
+    /// third-party) are absent from the index and contribute no edge.
+    fn pascal_targets(&self, source: &str) -> Vec<String> {
+        let mut out = Vec::new();
+        for unit in pascal_used_units(source) {
+            if let Some(layer) = self.unit_index.get(&unit.to_ascii_lowercase()) {
+                out.push(layer.clone());
+            }
+        }
+        out
+    }
+
     /// Target layers of a C/C++ file's internal `#include "…"` (quoted). System
     /// (`<…>`) includes are external and skipped. A dotted-relative include is
     /// resolved against the file dir; a project-relative one contributes its first
@@ -661,6 +698,16 @@ impl RepoLayering {
                     candidates.push(format!("#include \"{spec}\"\n"));
                 }
             }
+            Language::Pascal => {
+                // `uses <unit>;` for a real unit that lives in the target layer
+                // (resolved through the unit-name→layer index); the resolver
+                // keys on the unit name, so any unit in the layer works.
+                for (unit, layer) in &self.unit_index {
+                    if layer == target_layer {
+                        candidates.push(format!("uses {unit};\n"));
+                    }
+                }
+            }
         }
         let want = (src, target_layer.to_string());
         candidates
@@ -706,6 +753,11 @@ impl RepoLayering {
                 .iter()
                 .map(|(p, l)| (p.clone(), l.clone()))
                 .collect(),
+            unit_index: self
+                .unit_index
+                .iter()
+                .map(|(u, l)| (u.clone(), l.clone()))
+                .collect(),
         }
     }
 
@@ -718,6 +770,7 @@ impl RepoLayering {
             edges: art.edges.into_iter().map(|(a, b, w)| ((a, b), w)).collect(),
             sinks: art.sinks.into_iter().collect(),
             file_layer: art.file_layer.into_iter().collect(),
+            unit_index: art.unit_index.into_iter().collect(),
             reach: HashMap::new(),
         };
         me.recompute_reach();
@@ -918,6 +971,7 @@ fn detect_context(
         Language::Php => detect_php_context(files),
         Language::CSharp => detect_csharp_context(files),
         Language::Ruby => detect_ruby_context(paths),
+        Language::Pascal => detect_pascal_context(paths),
         Language::C | Language::Cpp => (c_source_roots(paths), HashSet::new(), None),
     }
 }
@@ -1116,6 +1170,31 @@ fn detect_ruby_context(paths: &[&str]) -> (Vec<String>, HashSet<String>, Option<
     for p in paths {
         let top = p.split('/').next().unwrap_or("");
         if matches!(top, "lib" | "app") && p.contains('/') {
+            roots.insert(top.to_string());
+        }
+    }
+    let roots = sorted_roots(roots);
+    let mut internal: HashSet<String> = HashSet::new();
+    for p in paths {
+        if let Some(layer) = layer_under(&roots, p) {
+            if layer != "__root__" {
+                internal.insert(layer);
+            }
+        }
+    }
+    (roots, internal, None)
+}
+
+/// Pascal: roots are the repo root plus any top-level `src`/`source`/`packages`
+/// dir; the layer is the first component under a root. `internal` collects those
+/// layer names (parity with the other path-anchored resolvers). The pathless
+/// `uses` resolution itself goes through the unit-name→layer index, built in
+/// `fit`.
+fn detect_pascal_context(paths: &[&str]) -> (Vec<String>, HashSet<String>, Option<String>) {
+    let mut roots: HashSet<String> = HashSet::from([String::new()]);
+    for p in paths {
+        let top = p.split('/').next().unwrap_or("");
+        if matches!(top, "src" | "source" | "packages" | "units" | "lib") && p.contains('/') {
             roots.insert(top.to_string());
         }
     }
@@ -1659,6 +1738,62 @@ fn ruby_requires(source: &str) -> Vec<(String, String)> {
         }
     });
     out
+}
+
+/// The full (dotted) unit name of a `moduleName` node — its `identifier`
+/// children joined with `.` (`mormot.core.base`, `CastleScene`).
+fn pascal_module_name_text(module_name: tree_sitter::Node, bytes: &[u8]) -> String {
+    let mut c = module_name.walk();
+    module_name
+        .named_children(&mut c)
+        .filter(|n| n.kind() == "identifier")
+        .map(|n| node_text(n, bytes))
+        .collect::<Vec<_>>()
+        .join(".")
+}
+
+/// The full unit names pulled in by every `uses` clause (interface and
+/// implementation section) — used to resolve internal-unit → layer edges.
+fn pascal_used_units(source: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    walk_named(source, Language::Pascal, |node, bytes| {
+        if node.kind() != "declUses" {
+            return;
+        }
+        let mut c = node.walk();
+        for ch in node.named_children(&mut c) {
+            if ch.kind() == "moduleName" {
+                let name = pascal_module_name_text(ch, bytes);
+                if !name.is_empty() {
+                    out.push(name);
+                }
+            }
+        }
+    });
+    out
+}
+
+/// The declared module name of a Pascal file — the `moduleName` of its first
+/// `unit`/`program`/`library` node. Backs the fit-time unit-name→layer index.
+fn pascal_module_name(source: &str) -> Option<String> {
+    let tree = ts_parse::parse(source, Language::Pascal)?;
+    let bytes = source.as_bytes();
+    let root = tree.root_node();
+    let mut c = root.walk();
+    for node in root.named_children(&mut c) {
+        if matches!(node.kind(), "unit" | "program" | "library") {
+            let mut cc = node.walk();
+            for ch in node.named_children(&mut cc) {
+                if ch.kind() == "moduleName" {
+                    let name = pascal_module_name_text(ch, bytes);
+                    if !name.is_empty() {
+                        return Some(name);
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 /// `(is_system, header)` for each `#include` in a C/C++ file: `is_system` for
@@ -2253,5 +2388,32 @@ mod tests {
             restored.classify(&("models".into(), "views".into())),
             Some(Violation::Reversal)
         );
+    }
+
+    #[test]
+    fn pascal_uses_resolves_through_unit_index() {
+        // Pascal `uses` carries no path; the target layer is resolved through the
+        // fit-time unit-name→layer index built from each file's `unit` decl.
+        let files = vec![
+            (
+                "src/core/base.pas",
+                "unit core.base;\ninterface\nimplementation\nend.\n",
+            ),
+            (
+                "src/net/client.pas",
+                "unit net.client;\ninterface\nuses core.base;\nimplementation\nend.\n",
+            ),
+        ];
+        let g = RepoLayering::fit(files, Language::Pascal);
+        assert!(g.contains_edge(&("net".into(), "core".into())));
+        assert!(g.is_sink("core"));
+        // A core unit reaching back up to net reverses the learned direction.
+        assert_eq!(
+            g.fires("src/core/base.pas", "uses net.client;\n"),
+            Some(Violation::Reversal)
+        );
+        // Unit index survives the artifact round-trip.
+        let restored = RepoLayering::from_json(&g.to_json("cafe")).expect("valid json");
+        assert!(restored.contains_edge(&("net".into(), "core".into())));
     }
 }

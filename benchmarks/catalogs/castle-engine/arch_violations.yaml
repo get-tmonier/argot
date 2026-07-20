@@ -1,0 +1,190 @@
+# Architecture-graph violation fixtures for castle-engine (Object Pascal). Each
+# `import_line` (a Pascal `uses <unit>;`) added to `host_file` creates the
+# internal edge source_layer -> target_layer. Every row below is a
+# resolver-VERIFIED 0-usage candidate from the `--mode arch-candidates` dump
+# (`/tmp/arch-cand/candidates-castle-engine.md`) — no edge was invented; the
+# resolver confirmed each import line produces exactly the src->tgt edge, and
+# assigned each `kind`. The bench (`crates/argot-bench/src/arch.rs`) reads only
+# `host_file` + `import_line`; the `source_layer`/`target_layer`/`kind`/
+# `rationale` fields are documentation of what the resolver saw.
+#
+# Layer model (Castle Game Engine `src/` subdirectories, per the repo's own
+# "Source Architecture" table in CLAUDE.md/README): the engine is layered
+#   base -> base_rendering -> {images, fonts, audio, files} -> transform ->
+#   scene -> ui -> window
+# with the integration/edge layers (`delphi`, `lcl`), the mobile-`services`
+# layer, `castlescript`, and the `compatibility` shims sitting above/beside the
+# engine and consuming it. Each src/ subdir is a layer; a unit's layer is its
+# owning subdir (`RepoLayering::layer_of`). 19 layers, 142 catchable + 35
+# forward 0-usage candidates at the pinned SHA.
+#
+# Chosen for diversity: a mix of sink_out / reversal / transitive_reversal
+# spanning several layer pairs and popularity tiers, all hosted in real `.pas`
+# units (never `.inc`/`.dpr`). Controls are `forward` rows — 0-usage edges that
+# respect the learned direction (integration layers depending on the engine),
+# which `RepoLayering::classify` returns `None` for; they must stay silent.
+
+violations:
+  # ---- sink_out: the SOURCE layer is a measured (near-)sink in the learned
+  #      graph (out_mass <= 0.5*(in_mass+out_mass)) — it is consumed far more
+  #      than it reaches across into other src/ layers, so ANY new outbound
+  #      cross-layer edge from it is the anomaly, whatever the target's usual
+  #      position. classify() -> SinkOut.
+  - host_file: "src/window/castleinternalwindowmodes.pas"
+    source_layer: "window"
+    import_line: "uses castletransform;\n"
+    target_layer: "transform"
+    kind: "sink_out"
+    rationale: >-
+      castleinternalwindowmodes.pas is a low-level window-mode helper. The
+      `window` layer is a near-sink here — its units are depended on by the
+      LCL/Delphi/deprecated integration layers far more than they reach across
+      into other engine layers. A window-internals unit newly reaching down into
+      the `transform` (3D/2D hierarchy) layer is an outbound edge from a layer
+      the repo keeps as a leaf. 0-usage edge; classify() -> SinkOut.
+  - host_file: "src/services/castleactivityrecognition.pas"
+    source_layer: "services"
+    import_line: "uses castleglversion;\n"
+    target_layer: "base_rendering"
+    kind: "sink_out"
+    rationale: >-
+      The mobile `services` layer (activity/analytics platform integrations) is
+      a near-sink: it is a thin platform-facing leaf that other layers do not
+      import back. A services unit pulling in `base_rendering` (castleglversion,
+      the GL-version detection unit) is a fresh outbound cross-layer edge from a
+      sink. 0-usage; classify() -> SinkOut.
+  - host_file: "src/fonts/castlefonts.pas"
+    source_layer: "fonts"
+    import_line: "uses castleinternalabstractsoundbackend;\n"
+    target_layer: "audio"
+    kind: "sink_out"
+    rationale: >-
+      castlefonts.pas is the core font unit; the `fonts` layer is a near-sink
+      consumed by ui/scene/window rendering. Fonts have no reason to reach into
+      the `audio` layer's sound backend, and the repo never routes fonts -> audio
+      in either direction. A new fonts -> audio edge is a sink-out. classify() ->
+      SinkOut.
+
+  # ---- reversal: the learned cross-layer edge runs target -> source (the
+  #      higher layer depends on the lower one); the added source -> target edge
+  #      is its exact 0-usage reverse. classify() -> Reversal.
+  - host_file: "src/files/castlecomponentserialize.pas"
+    source_layer: "files"
+    import_line: "uses castleinternalgdkwayland;\n"
+    target_layer: "window"
+    kind: "reversal"
+    rationale: >-
+      The learned direction is window -> files: the windowing layer loads data
+      (component serialization, URLs) through the `files` layer. castlecomponent-
+      serialize.pas reaching up into `window` (the GDK/Wayland platform backend)
+      inverts that — a low-level data unit would now depend on the top platform
+      layer. 0-usage; the reverse is attested, so classify() -> Reversal.
+  - host_file: "src/images/castleimages.pas"
+    source_layer: "images"
+    import_line: "uses castleuicontrols;\n"
+    target_layer: "ui"
+    kind: "reversal"
+    rationale: >-
+      The learned direction is ui -> images: UI controls draw and own images.
+      castleimages.pas (the core image unit) reaching up into `ui`
+      (castleuicontrols, the TCastleUserInterface base) reverses the dependency —
+      the image layer would depend on the widget layer that draws it. 0-usage
+      reverse of an attested edge; classify() -> Reversal.
+  - host_file: "src/images/castleimages.pas"
+    source_layer: "images"
+    import_line: "uses castletransform;\n"
+    target_layer: "transform"
+    kind: "reversal"
+    rationale: >-
+      The learned direction is transform -> images: the transform/scene-graph
+      layer consumes images (textures, sprite frames). A core image unit reaching
+      up into `transform` reverses that established direction. 0-usage; the
+      reverse is attested, so classify() -> Reversal, not a fresh forward edge.
+  - host_file: "src/audio/castleinternalabstractsoundbackend.pas"
+    source_layer: "audio"
+    import_line: "uses castleinternalgdkwayland;\n"
+    target_layer: "window"
+    kind: "reversal"
+    rationale: >-
+      The learned direction is window -> audio (the platform/window layer wires
+      up sound at startup). The abstract sound-backend unit reaching up into the
+      `window` GDK/Wayland backend inverts that — the audio abstraction would
+      depend on a concrete windowing backend it is meant to be independent of.
+      0-usage reverse of an attested edge; classify() -> Reversal.
+
+  # ---- transitive_reversal: the target already reaches the source transitively
+  #      through the intermediate layers; the new source -> target edge closes
+  #      that path into a cycle, reversing the learned partial order.
+  #      classify() -> TransitiveReversal.
+  - host_file: "src/castlescript/castlecurves.pas"
+    source_layer: "castlescript"
+    import_line: "uses castleinternalgdkwayland;\n"
+    target_layer: "window"
+    kind: "transitive_reversal"
+    rationale: >-
+      `window` already depends on `castlescript` transitively (window pulls in
+      ui/scene, which reach the CastleScript expression layer). castlecurves.pas
+      adding a direct castlescript -> window edge closes that chain into a cycle,
+      reversing the learned order transitively. 0-usage; classify() ->
+      TransitiveReversal.
+  - host_file: "src/services/castleactivityrecognition.pas"
+    source_layer: "services"
+    import_line: "uses castletransform;\n"
+    target_layer: "transform"
+    kind: "transitive_reversal"
+    rationale: >-
+      The `transform` layer reaches `services` transitively through the higher
+      layers that consume both. A services unit adding a direct services ->
+      transform edge closes that into a transitive cycle against the learned
+      direction. 0-usage; classify() -> TransitiveReversal.
+  - host_file: "src/images/castleimages.pas"
+    source_layer: "images"
+    import_line: "uses castleinternalabstractsoundbackend;\n"
+    target_layer: "audio"
+    kind: "transitive_reversal"
+    rationale: >-
+      `audio` reaches `images` transitively (audio-facing higher layers pull in
+      the image layer for icons/UI). castleimages.pas adding a direct images ->
+      audio edge to the sound backend closes that path into a cycle, a transitive
+      reversal of the learned order. 0-usage; classify() -> TransitiveReversal.
+
+controls:
+  # Forward 0-usage edges: an integration/edge layer depending on a lower engine
+  # layer respects the learned direction, so classify() returns None. Must stay
+  # silent even though the specific import is novel (0-usage) — these prove the
+  # gate distinguishes organic forward growth from a reversal/sink.
+  - host_file: "src/delphi/castlecontrolcontainer.pas"
+    source_layer: "delphi"
+    import_line: "uses castleinternalgdkwayland;\n"
+    target_layer: "window"
+    rationale: >-
+      The `delphi` VCL-integration layer sits above the engine and legitimately
+      depends on `window`. delphi -> window is forward (nothing under window/
+      imports the delphi integration back), so classify() falls through to None.
+      Novel edge, but must stay silent.
+  - host_file: "src/lcl/castlecontrol.pas"
+    source_layer: "lcl"
+    import_line: "uses custapp;\n"
+    target_layer: "compatibility"
+    rationale: >-
+      The `lcl` (Lazarus Component Library integration) layer depending on the
+      `compatibility` shims (custapp) is forward — integration code building on
+      the compat layer, the direction the repo already uses. classify() -> None.
+      Must stay silent.
+  - host_file: "src/castlescript/castlecurves.pas"
+    source_layer: "castlescript"
+    import_line: "uses castleglversion;\n"
+    target_layer: "base_rendering"
+    rationale: >-
+      castlescript -> base_rendering is forward: the scripting layer building on
+      the low-level rendering layer respects the learned bottom-up direction, and
+      no base_rendering -> castlescript reverse is attested. classify() -> None.
+      Must stay silent.
+  - host_file: "src/delphi/castlecontrolcontainer.pas"
+    source_layer: "delphi"
+    import_line: "uses castleinternalabstractsoundbackend;\n"
+    target_layer: "audio"
+    rationale: >-
+      The `delphi` integration layer depending on `audio` (the sound backend) is
+      forward — the same top-consumes-engine direction the repo already has.
+      classify() -> None. Must stay silent.

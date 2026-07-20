@@ -22,6 +22,7 @@ pub fn language_for_path(path: &str) -> Option<Language> {
         ".php" => Some(Language::Php),
         ".cpp" | ".cc" | ".hpp" | ".cxx" => Some(Language::Cpp),
         ".rb" => Some(Language::Ruby),
+        ".pas" | ".pp" | ".dpr" | ".lpr" | ".inc" => Some(Language::Pascal),
         _ => None,
     }
 }
@@ -57,6 +58,7 @@ fn ts_language(lang: Language) -> tree_sitter::Language {
         Language::Php => tree_sitter_php::LANGUAGE_PHP.into(),
         Language::Cpp => tree_sitter_cpp::LANGUAGE.into(),
         Language::Ruby => tree_sitter_ruby::LANGUAGE.into(),
+        Language::Pascal => tree_sitter_pascal::LANGUAGE.into(),
     }
 }
 

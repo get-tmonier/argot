@@ -27,6 +27,7 @@ pub fn ts_language(language: Language) -> tree_sitter::Language {
         Language::Php => tree_sitter_php::LANGUAGE_PHP.into(),
         Language::Cpp => tree_sitter_cpp::LANGUAGE.into(),
         Language::Ruby => tree_sitter_ruby::LANGUAGE.into(),
+        Language::Pascal => tree_sitter_pascal::LANGUAGE.into(),
     }
 }
 
@@ -51,6 +52,7 @@ thread_local! {
     static PHP_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Php));
     static CPP_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Cpp));
     static RB_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Ruby));
+    static PAS_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Pascal));
 }
 
 /// Parse `source` with a reused per-thread parser for `language`.
@@ -67,6 +69,7 @@ pub fn parse(source: &str, language: Language) -> Option<Tree> {
         Language::Php => PHP_PARSER.with(|p| p.borrow_mut().parse(source, None)),
         Language::Cpp => CPP_PARSER.with(|p| p.borrow_mut().parse(source, None)),
         Language::Ruby => RB_PARSER.with(|p| p.borrow_mut().parse(source, None)),
+        Language::Pascal => PAS_PARSER.with(|p| p.borrow_mut().parse(source, None)),
     }
 }
 

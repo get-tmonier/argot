@@ -31,7 +31,7 @@ facade holding the composition root.
 
 ```
 crates/
-  argot-lang/            # LEAF language substrate: the 11 LanguageAdapter impls,
+  argot-lang/            # LEAF language substrate: the 12 LanguageAdapter impls,
                          #   tree-sitter parsing/grammars (ts_parse), tokenize + BPE
                          #   (embedded unixcoder tokenizer), callee extraction,
                          #   text utils, dataset wire format, ext→language routing.
@@ -114,8 +114,8 @@ forbids all network.
 The `layering` rule (group `architecture`): flags an internal module-dependency
 edge that reverses the repo's learned layer direction, closes a cycle, or lands
 on a (near-)sink. Same build-time-gate shape as `semantic` — off in dev/CI base
-loops, ON in releases. Validated at 244/252 (96.8%) real recall / 0 control FPs
-across 23 corpora (evidence in `docs/research/evidence/`); `just arch-verify`
+loops, ON in releases. Validated at 264/272 (97.1%) real recall / 0 control FPs
+across 25 corpora / 12 languages (evidence in `docs/research/evidence/`); `just arch-verify`
 is the ~25 s fixture-recall regression guard.
 
 ### Integrity layer (`--features integrity`)
@@ -130,9 +130,9 @@ are suite curation, not gaming) and are pinned confidence `suspicious`. Same
 build-time-gate shape as `semantic`/`arch` — off in dev/CI base loops, ON in
 releases. Per-repo gates are learned at fit from a mini-replay of the repo's
 accepted history and stored in `.argot/integrity.json` (a rebuildable sibling
-of `scorer-config.json`). Validated at 94.1% catch (144/153 authored gaming
-fixtures, 22 corpora / 11 languages), 0/102 legitimate-refactor controls
-fired, and 1.24% of replayed accepted test-touching commits flagged at gating
+of `scorer-config.json`). Validated at 94.5% catch (155/164 authored gaming
+fixtures, 23 corpora / 12 languages), 0/106 legitimate-refactor controls
+fired, and 1.25% of replayed accepted test-touching commits flagged at gating
 severity; evidence in `docs/research/evidence/test-integrity-capstone.md`.
 `just integrity-verify` is the fixture-recall + control regression guard.
 

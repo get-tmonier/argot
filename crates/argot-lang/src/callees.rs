@@ -50,6 +50,9 @@ fn cpp_call_types(kind: &str) -> bool {
 fn rb_call_types(kind: &str) -> bool {
     kind == "call"
 }
+fn pascal_call_types(kind: &str) -> bool {
+    kind == "exprCall"
+}
 
 fn extract_python_callee(call_node: Node, src: &[u8]) -> Option<String> {
     let mut callee = call_node.child_by_field_name("function")?;
@@ -377,6 +380,31 @@ fn extract_cpp_callee(call_node: Node, src: &[u8]) -> Option<String> {
     }
 }
 
+/// Dotted-callee signature for a Pascal `exprCall` node. The `entity` field is
+/// the callee: a bare `identifier` (`WriteLn`), or an `exprDot` chain
+/// (`GlobalList.Add`, `Self.FValue.Do`) whose `lhs`/`rhs` fields unwind into
+/// dotted parts. A call/subscript at the head contributes the `<call>` sentinel.
+fn extract_pascal_callee(call_node: Node, src: &[u8]) -> Option<String> {
+    let mut entity = call_node.child_by_field_name("entity")?;
+    let mut parts: Vec<String> = Vec::new();
+    while entity.kind() == "exprDot" {
+        let rhs = entity.child_by_field_name("rhs")?;
+        parts.insert(0, node_text(rhs, src));
+        entity = entity.child_by_field_name("lhs")?;
+    }
+    match entity.kind() {
+        "identifier" => {
+            parts.insert(0, node_text(entity, src));
+            Some(parts.join("."))
+        }
+        "exprCall" | "exprSubscript" | "exprBrackets" | "exprParens" => {
+            parts.insert(0, "<call>".to_string());
+            Some(parts.join("."))
+        }
+        _ => None,
+    }
+}
+
 fn extract_java_callee(call_node: Node, src: &[u8]) -> Option<String> {
     if call_node.kind() == "object_creation_expression" {
         let ty = call_node.child_by_field_name("type")?;
@@ -442,6 +470,7 @@ pub fn extract_callees(source: &str, language: Language) -> Vec<Option<String>> 
         Language::Php => php_call_types as fn(&str) -> bool,
         Language::Cpp => cpp_call_types as fn(&str) -> bool,
         Language::Ruby => rb_call_types as fn(&str) -> bool,
+        Language::Pascal => pascal_call_types as fn(&str) -> bool,
     };
     let extractor = match language {
         Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
@@ -455,6 +484,7 @@ pub fn extract_callees(source: &str, language: Language) -> Vec<Option<String>> 
         Language::Php => extract_php_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Cpp => extract_cpp_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Ruby => extract_ruby_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::Pascal => extract_pascal_callee as fn(Node, &[u8]) -> Option<String>,
     };
     walk_preorder(tree.root_node(), |node| {
         if is_call(node.kind()) {
@@ -520,6 +550,7 @@ pub fn callees_in_source_region(
         Language::Php => php_call_types as fn(&str) -> bool,
         Language::Cpp => cpp_call_types as fn(&str) -> bool,
         Language::Ruby => rb_call_types as fn(&str) -> bool,
+        Language::Pascal => pascal_call_types as fn(&str) -> bool,
     };
     let extractor = match language {
         Language::Python => extract_python_callee as fn(Node, &[u8]) -> Option<String>,
@@ -533,6 +564,7 @@ pub fn callees_in_source_region(
         Language::Php => extract_php_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Cpp => extract_cpp_callee as fn(Node, &[u8]) -> Option<String>,
         Language::Ruby => extract_ruby_callee as fn(Node, &[u8]) -> Option<String>,
+        Language::Pascal => extract_pascal_callee as fn(Node, &[u8]) -> Option<String>,
     };
     let mut out = Vec::new();
     walk_preorder(tree.root_node(), |node| {

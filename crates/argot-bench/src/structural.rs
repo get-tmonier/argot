@@ -3,7 +3,7 @@
 //! Validates the irreducible floor from
 //! `docs/research/evidence/foreign-structure-gate-floor.md` on REAL
 //! infrastructure — closing the two gaps the Python proxy left:
-//!   1. real multi-language tree-sitter extraction (11 languages, not Python
+//!   1. real multi-language tree-sitter extraction (12 languages, not Python
 //!      `ast` only), via `argot_core::scoring::structural`;
 //!   2. real temporal-holdout over-fire (each corpus's own clean commits after a
 //!      HEAD~window fit), not a random 70/30 function split.
@@ -57,6 +57,7 @@ fn ext_lang(path: &str) -> Option<Language> {
         "php" => Language::Php,
         "cc" | "cpp" | "cxx" | "hpp" | "hh" => Language::Cpp,
         "rb" => Language::Ruby,
+        "pas" | "pp" | "dpr" | "lpr" | "inc" => Language::Pascal,
         _ => return None,
     })
 }

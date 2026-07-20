@@ -10,6 +10,7 @@ pub mod csharp;
 pub mod go;
 pub mod java;
 pub mod javascript;
+pub mod pascal;
 pub mod php;
 pub mod python;
 pub mod ruby;
@@ -26,7 +27,7 @@ pub(crate) const HEADER_LINE_LIMIT: usize = 20;
 
 /// Scoring-side language tag. JavaScript is a first-class language with its own
 /// adapter and model, so scoring distinguishes Python, TypeScript, JavaScript,
-/// Go, Rust, C, Java, C#, PHP, C++, and Ruby.
+/// Go, Rust, C, Java, C#, PHP, C++, Ruby, and Pascal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Language {
     Python,
@@ -40,6 +41,7 @@ pub enum Language {
     Php,
     Cpp,
     Ruby,
+    Pascal,
 }
 
 /// A callable definition (function or method) with its 1-indexed inclusive line
@@ -126,6 +128,7 @@ impl Language {
             "php" => Language::Php,
             "cpp" => Language::Cpp,
             "ruby" => Language::Ruby,
+            "pascal" => Language::Pascal,
             _ => return None,
         })
     }
@@ -146,6 +149,7 @@ pub fn adapter_for(lang: &str) -> Option<Box<dyn LanguageAdapter>> {
         "php" => Some(Box::new(php::PhpAdapter::new())),
         "cpp" => Some(Box::new(cpp::CppAdapter::new())),
         "ruby" => Some(Box::new(ruby::RubyAdapter::new())),
+        "pascal" => Some(Box::new(pascal::PascalAdapter::new())),
         _ => None,
     }
 }

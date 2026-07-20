@@ -1,0 +1,217 @@
+corpus: mormot2
+language: pascal
+categories:
+- foreign_import
+- foreign_api
+- foreign_concurrency
+- naming_shape_break
+- semantic_convention
+injection_hosts:
+- pr: 0
+  sha: 6e7a32550aeda0b43971de36e374e872fbd35e49
+fixtures:
+- id: fi_indy_1
+  file: breaks/break_foreign_indy_1.pas
+  category: foreign_import
+  hunk_start_line: 2
+  hunk_end_line: 19
+  rationale: 'uses IdHTTP + Indy TIdHTTP/TIdSSLIOHandlerSocketOpenSSL to fetch an
+    alternate download over HTTPS. Verified foreign at the pinned SHA: IdHTTP,
+    IdTCPClient and IdSSLOpenSSL are 0 grep hits across src/*.pas. mORMot2 is
+    famously self-contained — it ships its own HTTP client stack in mormot.net.client
+    (THttpClientSocket / TSimpleHttpClient / TWinHttp) and never depends on Indy.'
+  difficulty: easy
+  host_file: src/net/mormot.net.client.pas
+  host_inject_at_line: 2342
+- id: fi_synapse_1
+  file: breaks/break_foreign_synapse_1.pas
+  category: foreign_import
+  hunk_start_line: 2
+  hunk_end_line: 16
+  rationale: 'uses httpsend + blcksock + synautil (Ararat Synapse) with THTTPSend to
+    fetch a URL. Verified foreign at the pinned SHA: httpsend, blcksock and synautil
+    are 0 grep hits across src/*.pas. mORMot2 rolls its own socket + HTTP stack
+    (mormot.net.sock TCrtSocket, mormot.net.client THttpClientSocket) and never
+    depends on Synapse.'
+  difficulty: easy
+  host_file: src/net/mormot.net.http.pas
+  host_inject_at_line: 2720
+- id: fi_zeos_1
+  file: breaks/break_foreign_zeos_1.pas
+  category: foreign_import
+  hunk_start_line: 2
+  hunk_end_line: 23
+  rationale: 'uses ZConnection + ZDataset (ZeosLib component layer) with TZConnection
+    + TZQuery to run a query. Verified foreign at the pinned SHA: the ZConnection and
+    ZDataset units and TZQuery are 0 grep hits across src/*.pas (TZConnection appears
+    only inside a doc comment in mormot.db.sql.zeos.pas). mORMot2 has its own DB layer
+    mormot.db.sql.* and only ever binds Zeos at the low-level zdbc interface, never
+    the visual ZConnection/ZDataset components.'
+  difficulty: easy
+  host_file: src/db/mormot.db.sql.pas
+  host_inject_at_line: 3109
+- id: fi_dcpcrypt_1
+  file: breaks/break_foreign_dcpcrypt_1.pas
+  category: foreign_import
+  hunk_start_line: 2
+  hunk_end_line: 18
+  rationale: 'uses DCPrijndael + DCPsha256 (DCPcrypt) with TDCP_rijndael to encrypt a
+    buffer. Verified foreign at the pinned SHA: DCPcrypt, DCPrijndael, DCPsha256,
+    TDCP_rijndael and TDCP_sha256 are all 0 grep hits across src/*.pas. mORMot2 ships
+    its own crypto in mormot.crypt.core (TAes / TAesCbc / Sha256) and never depends on
+    DCPcrypt.'
+  difficulty: easy
+  host_file: src/crypt/mormot.crypt.core.pas
+  host_inject_at_line: 2894
+- id: fa_indy_1
+  file: breaks/break_foreign_api_indy_1.pas
+  category: foreign_api
+  hunk_start_line: 2
+  hunk_end_line: 16
+  rationale: 'Qualified Indy TIdHTTP call with no uses clause, whose foreign tells are the
+    foreign-type call TIdEncoderMIME.DecodeString and the bare Indy free function
+    GmtToLocalDateTime (IdGlobalProtocols, parsing the HTTP Last-Modified header) — the harder
+    call-receiver path. Verified foreign at the pinned SHA: TIdHTTP, TIdEncoderMIME, DecodeString
+    and GmtToLocalDateTime are all 0 grep hits across src/*.pas. mORMot2 standardises on its own
+    THttpClientSocket / TSimpleHttpClient in mormot.net.client and its own date/MIME handling; it
+    never depends on Indy. (Note: the generic verbs a foreign HTTP client exposes —
+    Create/Get/Free — are universal method names the repo attests, so on the call-receiver path
+    the load-bearing signal is the bare repo-undefined foreign free function and the
+    foreign-type-qualified call, not the dotted verb.)'
+  difficulty: medium
+  host_file: src/net/mormot.net.client.pas
+  host_inject_at_line: 2094
+- id: fa_indytcp_1
+  file: breaks/break_foreign_api_indytcp_1.pas
+  category: foreign_api
+  hunk_start_line: 2
+  hunk_end_line: 17
+  rationale: 'Qualified Indy TIdTCPClient call with no uses clause, whose foreign tells are the
+    bare Indy free function MakeCanonicalIPv4Address (IdGlobal) plus the distinctive methods
+    Sock.OpenWriteBuffer / Sock.CheckForGracefulDisconnect (call-receiver path). Verified foreign
+    at the pinned SHA: TIdTCPClient, MakeCanonicalIPv4Address, OpenWriteBuffer and
+    CheckForGracefulDisconnect are all 0 grep hits across src/*.pas. mORMot2 uses its own
+    TCrtSocket / TNetSocket socket abstraction in mormot.net.sock, never Indy TCP components.'
+  difficulty: medium
+  host_file: src/net/mormot.net.client.pas
+  host_inject_at_line: 2178
+- id: fa_zeos_1
+  file: breaks/break_foreign_api_zeos_1.pas
+  category: foreign_api
+  hunk_start_line: 2
+  hunk_end_line: 16
+  rationale: 'Qualified ZeosLib TZQuery call with no uses clause, whose foreign tells are the
+    bare Zeos free functions RawSQLDateToDateTime / ZRawToUnicode (ZSysUtils/ZEncoding) plus the
+    distinctive method Query.ParamByName (call-receiver path). Verified foreign at the pinned SHA:
+    TZQuery, RawSQLDateToDateTime, ZRawToUnicode and ParamByName are all 0 grep hits across
+    src/*.pas. mORMot2 runs SQL through its own TSqlDBConnection / TSqlDBStatement in
+    mormot.db.sql, not the Zeos component dataset API.'
+  difficulty: medium
+  host_file: src/db/mormot.db.sql.pas
+  host_inject_at_line: 3137
+- id: fa_dcp_1
+  file: breaks/break_foreign_api_dcp_1.pas
+  category: foreign_api
+  hunk_start_line: 2
+  hunk_end_line: 14
+  rationale: 'Qualified DCPcrypt TDCP_rijndael call with no uses clause, whose foreign tell is
+    the bare DCPcrypt free function Base64EncodeStr (DCPbase64) plus the distinctive methods
+    Cipher.InitStr / Cipher.EncryptCBC (call-receiver path). Verified foreign at the pinned SHA:
+    TDCP_rijndael, TDCP_sha256, Base64EncodeStr, InitStr and EncryptCBC are all 0 grep hits
+    across src/*.pas. mORMot2 encrypts with its own TAes / TAesCbc in mormot.crypt.core, never
+    DCPcrypt.'
+  difficulty: medium
+  host_file: src/crypt/mormot.crypt.core.pas
+  host_inject_at_line: 2904
+- id: fa_synapse_1
+  file: breaks/break_foreign_api_synapse_1.pas
+  category: foreign_api
+  hunk_start_line: 2
+  hunk_end_line: 14
+  rationale: 'Qualified Synapse THTTPSend.Create / Http.HTTPMethod call with no uses clause
+    (call-receiver path). Verified foreign at the pinned SHA: THTTPSend is 0 grep hits
+    across src/*.pas. mORMot2 posts through its own TSimpleHttpClient / THttpClientSocket
+    in mormot.net.client, not Synapse THTTPSend.'
+  difficulty: medium
+  host_file: src/net/mormot.net.http.pas
+  host_inject_at_line: 2733
+- id: fc_omni_1
+  file: breaks/break_foreign_omni_1.pas
+  category: foreign_concurrency
+  class: foreign_import
+  hunk_start_line: 2
+  hunk_end_line: 13
+  rationale: 'uses OtlParallel + OtlTaskControl (OmniThreadLibrary) with IOmniTaskControl /
+    CreateTask to run a background task. Verified foreign at the pinned SHA: OtlParallel,
+    OtlTaskControl, OmniThreadLibrary, IOmniTaskControl and IOmniTask are all 0 grep hits
+    across src/*.pas. mORMot2 has its own threading in mormot.core.threads (TSynThreadPool /
+    TLoggedWorkThread) and never depends on OmniThreadLibrary. Foreign concurrency folds into
+    the foreign_import scoring class per the RUBRIC.'
+  difficulty: easy
+  host_file: src/core/mormot.core.threads.pas
+  host_inject_at_line: 1913
+- id: fc_mtprocs_1
+  file: breaks/break_foreign_mtprocs_1.pas
+  category: foreign_concurrency
+  class: foreign_import
+  hunk_start_line: 2
+  hunk_end_line: 15
+  rationale: 'uses MTProcs (FPC MultiThreadProcs) with TProcThreadPool.DoParallel to run a
+    parallel-for. Verified foreign at the pinned SHA: the MTProcs unit, TProcThreadPool,
+    ProcThreadPool and DoParallel are all 0 grep hits across src/*.pas. mORMot2 uses its own
+    mormot.core.threads primitives (TSynThreadPool / TLoggedWorkThread) and never MTProcs.
+    Foreign concurrency folds into the foreign_import scoring class per the RUBRIC. (The
+    Delphi PPL alternative System.Threading was rejected as a fixture: its top unit segment
+    System is already attested via System.SysUtils/System.Classes in the corpus, so the
+    import stage correctly does not treat a System.* unit as foreign — a real, honest
+    property of the namespace-root import identity, not a fixture to force.)'
+  difficulty: easy
+  host_file: src/core/mormot.core.threads.pas
+  host_inject_at_line: 1919
+- id: ns_snake_1
+  file: breaks/break_naming_snake_1.pas
+  category: naming_shape_break
+  hunk_start_line: 2
+  hunk_end_line: 12
+  rationale: 'snake_case identifiers (get_orm_record_by_id, orm_table, record_id, table_index,
+    field_count) foreign to mORMot2 morphology — the repo is uniformly PascalCase for routines
+    and locals (GetTableIndexExisting, aTable, RawUtf8). Secondary class (naming morphology),
+    reported not gated; fires on the distributional/convention surprise of the alien token shape.'
+  difficulty: hard
+  host_file: src/orm/mormot.orm.core.pas
+  host_inject_at_line: 5122
+- id: ns_snake_2
+  file: breaks/break_naming_snake_2.pas
+  category: naming_shape_break
+  hunk_start_line: 2
+  hunk_end_line: 10
+  rationale: 'snake_case identifiers (build_rest_callback_url, base_uri, session_id, url_buffer,
+    query_string) foreign to mORMot2 PascalCase morphology. Secondary class (naming morphology),
+    reported not gated.'
+  difficulty: hard
+  host_file: src/rest/mormot.rest.core.pas
+  host_inject_at_line: 1949
+- id: sc_stringlist_1
+  file: breaks/break_semantic_stringlist_1.pas
+  category: semantic_convention
+  hunk_start_line: 2
+  hunk_end_line: 13
+  rationale: 'Misuse of the repo''s own attested vocabulary: stdlib string + SysUtils.Format +
+    TStringList where mORMot2 standardises on RawUtf8 + FormatUtf8 + TRawUtf8List. All attested
+    constructs exist elsewhere but the repo avoids them for these roles. Secondary class,
+    reported not gated (a proven local limit).'
+  difficulty: hard
+  host_file: src/core/mormot.core.json.pas
+  host_inject_at_line: 2518
+- id: sc_exception_1
+  file: breaks/break_semantic_exception_1.pas
+  category: semantic_convention
+  hunk_start_line: 2
+  hunk_end_line: 7
+  rationale: 'Misuse of the repo''s own attested vocabulary: bare Exception.CreateFmt + writeln
+    logging where mORMot2 raises its own ESynException hierarchy and logs through TSynLog. Both
+    the plain Exception and writeln are constructs the repo avoids. Secondary class, reported
+    not gated.'
+  difficulty: hard
+  host_file: src/rest/mormot.rest.core.pas
+  host_inject_at_line: 1965

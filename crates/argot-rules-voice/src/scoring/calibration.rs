@@ -14,6 +14,7 @@ use crate::scoring::adapters::csharp::CSharpAdapter;
 use crate::scoring::adapters::go::GoAdapter;
 use crate::scoring::adapters::java::JavaAdapter;
 use crate::scoring::adapters::javascript::JavaScriptAdapter;
+use crate::scoring::adapters::pascal::PascalAdapter;
 use crate::scoring::adapters::php::PhpAdapter;
 use crate::scoring::adapters::python::PythonAdapter;
 use crate::scoring::adapters::ruby::RubyAdapter;
@@ -302,6 +303,7 @@ pub fn collect_candidates_with(
         Language::Cpp if header_is_cpp(source_dir) => vec![".cpp", ".cc", ".hpp", ".cxx", ".h"],
         Language::Cpp => vec![".cpp", ".cc", ".hpp", ".cxx"],
         Language::Ruby => vec![".rb"],
+        Language::Pascal => vec![".pas", ".pp", ".dpr", ".lpr", ".inc"],
     };
     let head = HeadSource::new(source_dir);
     let mut out = Vec::new();
@@ -599,6 +601,7 @@ fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
         Language::Php => Box::new(PhpAdapter::new()),
         Language::Cpp => Box::new(CppAdapter::new()),
         Language::Ruby => Box::new(RubyAdapter::new()),
+        Language::Pascal => Box::new(PascalAdapter::new()),
     }
 }
 
@@ -617,6 +620,7 @@ pub fn language_name(language: Language) -> &'static str {
         Language::Php => "php",
         Language::Cpp => "cpp",
         Language::Ruby => "ruby",
+        Language::Pascal => "pascal",
     }
 }
 
@@ -638,6 +642,7 @@ pub fn language_for_filename(name: &str) -> Option<Language> {
         ".php" => Some(Language::Php),
         ".cpp" | ".cc" | ".hpp" | ".cxx" => Some(Language::Cpp),
         ".rb" => Some(Language::Ruby),
+        ".pas" | ".pp" | ".dpr" | ".lpr" | ".inc" => Some(Language::Pascal),
         _ => None,
     }
 }

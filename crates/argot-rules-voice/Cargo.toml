@@ -29,6 +29,7 @@ tree-sitter-c-sharp.workspace = true
 tree-sitter-php.workspace = true
 tree-sitter-cpp.workspace = true
 tree-sitter-ruby.workspace = true
+tree-sitter-pascal.workspace = true
 git2.workspace = true
 md-5.workspace = true
 

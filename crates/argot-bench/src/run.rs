@@ -249,6 +249,18 @@ pub fn fixture_scoring_input(
                 // Phase D: synthesize the hunk-in-host content the catalog
                 // metadata describes; the parse-error callee fallback reads
                 // the hunk's region from this spliced AST.
+                //
+                // Preserve the host's line ending: `.lines()` strips `\r`, so a
+                // naive `join("\n")` would rewrite a CRLF host (Delphi/FreePascal
+                // sources are conventionally CRLF) LF-only — every line reads as
+                // changed and the planted diff drowns the fixture. Re-join with
+                // the host's own terminator so the staged diff is exactly the
+                // injected block.
+                let eol = if host_content.contains("\r\n") {
+                    "\r\n"
+                } else {
+                    "\n"
+                };
                 let host_lines: Vec<&str> = host_content.lines().collect();
                 let inject_idx = inject_at.saturating_sub(1).min(host_lines.len());
                 let mut spliced: Vec<&str> =
@@ -257,7 +269,7 @@ pub fn fixture_scoring_input(
                 spliced.extend_from_slice(&cleaned_lines);
                 spliced.extend_from_slice(&host_lines[inject_idx..]);
                 host_context = Some((
-                    spliced.join("\n"),
+                    spliced.join(eol),
                     inject_idx + clean_hs,
                     inject_idx + clean_he,
                 ));
@@ -430,6 +442,7 @@ fn record_matches_language(rec: &HunkRec, lang: Language) -> bool {
         Language::Php => rec.language == "php",
         Language::Cpp => rec.language == "cpp",
         Language::Ruby => rec.language == "ruby",
+        Language::Pascal => rec.language == "pascal",
     }
 }
 
@@ -500,6 +513,7 @@ pub fn run_corpus(target: &Target, opts: &RunOptions) -> Result<Vec<CorpusReport
             Language::Php => "php",
             Language::Cpp => "cpp",
             Language::Ruby => "ruby",
+            Language::Pascal => "pascal",
         };
         let fixtures: Vec<&Fixture> = if catalog.language == "multi" {
             all_fixtures

@@ -1,0 +1,217 @@
+corpus: castle-engine
+language: pascal
+categories:
+- foreign_import
+- foreign_api
+- foreign_concurrency
+- naming_shape_break
+- semantic_convention
+injection_hosts:
+- pr: 0
+  sha: 3e20e07c30ba409c6b60c4e881f58b7b3a0f6dcc
+fixtures:
+- id: fi_synapse_http_1
+  file: breaks/break_fi_synapse_http_1.pas
+  category: foreign_import
+  class: foreign_import
+  hunk_start_line: 2
+  hunk_end_line: 23
+  rationale: 'uses httpsend (Ararat Synapse THTTPSend) to fetch a URL, replacing
+    Castle''s own CastleDownload stack. Verified foreign at the pinned SHA: httpsend
+    and THTTPSend are 0 grep hits across src (excluding the vendored vampyre tree).
+    Castle ships CastleDownload (TCastleDownload + fphttpclient/Indy backends) and
+    never depends on Synapse (the only "synapse" mention in src is a comment header
+    in castleinternalforfpc32xopenssl.pas, no unit import).'
+  difficulty: easy
+  host_file: src/files/castleuriutils.pas
+  host_inject_at_line: 671
+- id: fi_zeos_db_1
+  file: breaks/break_fi_zeos_db_1.pas
+  category: foreign_import
+  class: foreign_import
+  hunk_start_line: 2
+  hunk_end_line: 26
+  rationale: 'uses ZConnection, ZDataset (Zeos Database Objects) with TZConnection/
+    TZQuery to persist components to SQL. Verified foreign at the pinned SHA:
+    ZConnection, ZDataset, TZConnection and TZQuery are 0 grep hits across src. A
+    3D/2D game engine bundles no relational DB client; Castle persists via its own
+    CastleComponentSerialize (fpjson-based).'
+  difficulty: easy
+  host_file: src/files/castlecomponentserialize.pas
+  host_inject_at_line: 492
+- id: fi_superobject_json_1
+  file: breaks/break_fi_superobject_json_1.pas
+  category: foreign_import
+  class: foreign_import
+  hunk_start_line: 2
+  hunk_end_line: 14
+  rationale: 'uses superobject (a third-party JSON DOM lib) with ISuperObject/SO().
+    Verified foreign at the pinned SHA: superobject, ISuperObject and TSuperObject
+    are 0 grep hits across src. Castle standardises on FPC fpjson (fpjson/jsonparser
+    are used across src), so a foreign JSON library is out of voice.'
+  difficulty: easy
+  host_file: src/files/castlecomponentserialize.pas
+  host_inject_at_line: 422
+- id: fi_sqldb_sqlite_1
+  file: breaks/break_fi_sqldb_sqlite_1.pas
+  category: foreign_import
+  class: foreign_import
+  hunk_start_line: 2
+  hunk_end_line: 25
+  rationale: 'uses sqldb, sqlite3conn (FPC''s SQL DB layer) with TSQLite3Connection/
+    TSQLQuery to cache a file index in SQLite. Verified foreign at the pinned SHA:
+    sqldb, sqlite3conn, TSQLite3Connection and TSQLQuery are 0 grep hits across src.
+    The engine''s file layer (CastleFilesUtils/CastleUriUtils) uses no database.'
+  difficulty: easy
+  host_file: src/files/castlefilesutils.pas
+  host_inject_at_line: 494
+- id: fa_synapse_ftp_1
+  file: breaks/break_fa_synapse_ftp_1.pas
+  category: foreign_api
+  class: foreign_api
+  hunk_start_line: 2
+  hunk_end_line: 6
+  rationale: 'FtpPutFile (Ararat Synapse FTP convenience free-function) called bare
+    with no import — the call-receiver path. Verified foreign at the pinned SHA:
+    FtpPutFile and ftpsend are 0 grep hits across src. Castle has no FTP client;
+    downloads go through CastleDownload.'
+  difficulty: medium
+  host_file: src/files/castlefilesutils.pas
+  host_inject_at_line: 476
+- id: fa_gr32_bitmap_1
+  file: breaks/break_fa_gr32_bitmap_1.pas
+  category: foreign_api
+  class: foreign_api
+  hunk_start_line: 2
+  hunk_end_line: 10
+  rationale: 'Color32 + Gray32 + WinColor (Graphics32 / GR32 colour free-functions)
+    called bare with no import — the call-receiver path. Verified foreign at the
+    pinned SHA: Color32, Gray32 and WinColor are 0 grep hits across src once the
+    vendored vampyre_imaginglib tree (which ships an optional ImagingGraphics32
+    bridge) is excluded via argot.toml. Castle''s own colour API is CastleColors,
+    so GR32 is foreign.'
+  difficulty: medium
+  host_file: src/images/castleimages.pas
+  host_inject_at_line: 1465
+- id: fa_superobject_2
+  file: breaks/break_fa_superobject_2.pas
+  category: foreign_api
+  class: foreign_api
+  hunk_start_line: 2
+  hunk_end_line: 9
+  rationale: 'SO() (superobject JSON DOM factory free-function) called bare with no
+    import — the call-receiver path. Verified foreign at the pinned SHA: SO is never
+    a callee in src (the fpjson/fpc code uses no such factory) and TSuperObject/
+    ISuperObject are 0 grep hits. Castle serializes via fpjson.'
+  difficulty: medium
+  host_file: src/files/castlecomponentserialize.pas
+  host_inject_at_line: 454
+- id: fa_synapse_httpget_1
+  file: breaks/break_fa_synapse_httpget_1.pas
+  category: foreign_api
+  class: foreign_api
+  hunk_start_line: 2
+  hunk_end_line: 9
+  rationale: 'HttpGetText + HttpGetBinary + HttpPostURL (Ararat Synapse HTTP
+    convenience free-functions) called bare with no import — the call-receiver path.
+    Verified foreign at the pinned SHA: HttpGetText, HttpGetBinary and HttpPostURL
+    are 0 grep hits across src. Castle''s HTTP fetch is CastleDownload, not Synapse.'
+  difficulty: medium
+  host_file: src/base/castleclassutils.pas
+  host_inject_at_line: 1193
+- id: fc_omnithread_1
+  file: breaks/break_fc_omnithread_1.pas
+  category: foreign_concurrency
+  class: foreign_import
+  hunk_start_line: 2
+  hunk_end_line: 12
+  rationale: 'uses OtlParallel, OtlCommon (OmniThreadLibrary) with Parallel.ForEach
+    / IOmniParallelLoop to update shapes across threads. Verified foreign at the
+    pinned SHA: OtlParallel, OtlCommon and IOmniParallelLoop are 0 grep hits across
+    src. Castle uses plain TThread where it threads at all; it bundles no parallel
+    runtime. Foreign concurrency lib folds into the foreign_import class.'
+  difficulty: easy
+  host_file: src/scene/castlescenecore.pas
+  host_inject_at_line: 2506
+- id: fc_mtprocs_1
+  file: breaks/break_fc_mtprocs_1.pas
+  category: foreign_concurrency
+  class: foreign_import
+  hunk_start_line: 2
+  hunk_end_line: 12
+  rationale: 'uses MTProcs (multithreadprocslaz) with ProcThreadPool/TProcThreadPool
+    to convert pixels in parallel. Verified foreign at the pinned SHA: MTProcs,
+    ProcThreadPool and TProcThreadPool are 0 grep hits across src. Castle''s image
+    code is single-threaded; it depends on no parallel-for library. Foreign
+    concurrency lib folds into the foreign_import class.'
+  difficulty: easy
+  host_file: src/images/castleimages.pas
+  host_inject_at_line: 1472
+- id: fc_asynccalls_1
+  file: breaks/break_fc_asynccalls_1.pas
+  category: foreign_concurrency
+  class: foreign_import
+  hunk_start_line: 2
+  hunk_end_line: 11
+  rationale: 'uses AsyncCalls (Andreas Hausladen''s async-task library) with
+    IAsyncCall/AsyncCall to run heightmap generation off-thread. Verified foreign at
+    the pinned SHA: AsyncCalls, IAsyncCall and AsyncCall are 0 grep hits across src.
+    Castle uses plain TThread where it threads at all; it bundles no async runtime.
+    Foreign concurrency lib folds into the foreign_import class.'
+  difficulty: easy
+  host_file: src/scene/castleterrain.pas
+  host_inject_at_line: 772
+- id: ns_snakecase_1
+  file: breaks/break_ns_snakecase_1.pas
+  category: naming_shape_break
+  class: naming_shape_break
+  hunk_start_line: 2
+  hunk_end_line: 9
+  rationale: 'snake_case identifiers (compute_triangle_area, first_vertex, edge_one)
+    spliced into castleshapes.pas, whose own vocabulary is exclusively PascalCase
+    (TTriangleHelper, UpdateSceneSpace, ShapeNode) as mandated by Castle''s coding
+    conventions. Secondary coverage only — not gated.'
+  difficulty: medium
+  host_file: src/scene/castleshapes.pas
+  host_inject_at_line: 1265
+- id: ns_hungarian_1
+  file: breaks/break_ns_hungarian_1.pas
+  category: naming_shape_break
+  class: naming_shape_break
+  hunk_start_line: 2
+  hunk_end_line: 18
+  rationale: 'Hungarian-notation locals (bIsVisible, nVisibleCount, iIndex, strLabel)
+    spliced into castleviewport.pas, whose identifiers carry no type prefixes
+    (TCastleViewport, GlobalLights, SetupUniforms). Secondary coverage only — not
+    gated.'
+  difficulty: uncaught
+  host_file: src/scene/castleviewport.pas
+  host_inject_at_line: 1446
+- id: sc_raw_writeln_log_1
+  file: breaks/break_sc_raw_writeln_log_1.pas
+  category: semantic_convention
+  class: semantic_convention
+  hunk_start_line: 2
+  hunk_end_line: 6
+  rationale: 'Raw Writeln(''WARNING: ...'') diagnostics bypassing Castle''s own
+    attested logging convention — the engine routes every diagnostic through
+    CastleLog''s WritelnLog/WritelnWarning (255 and 145 uses across src). Misuse of
+    the repo''s own vocabulary, not a foreign dependency. Secondary coverage only —
+    not gated, and a proven hard case for local detection (RUBRIC capstone).'
+  difficulty: uncaught
+  host_file: src/scene/castlescenecore.pas
+  host_inject_at_line: 2494
+- id: sc_halt_exit_1
+  file: breaks/break_sc_halt_exit_1.pas
+  category: semantic_convention
+  class: semantic_convention
+  hunk_start_line: 2
+  hunk_end_line: 9
+  rationale: 'Halt(1) hard process-exit from a library routine instead of raising an
+    exception — Castle library code never Halts (Halt is 0 grep hits across src
+    once the vendored vampyre/demos trees are excluded; the engine propagates errors
+    with typed exceptions). Misuse of the repo''s own error-handling convention.
+    Secondary coverage only — not gated.'
+  difficulty: uncaught
+  host_file: src/files/castlefilesutils.pas
+  host_inject_at_line: 466

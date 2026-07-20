@@ -250,7 +250,7 @@ the alarm. The one quiet path to relaxing a locked rule is a committed
 **Location:** in the source file itself, on the line above the code (or around
 the block) you're excusing. The comment token is the language's own line comment:
 **`#` for Python and Ruby, `//` for everything else** (TypeScript/JavaScript, Go,
-Rust, C, C++, Java, C#, PHP) — the language adapter supplies it.
+Rust, C, C++, Java, C#, PHP, Pascal) — the language adapter supplies it.
 
 When an exception is deliberate, say so where it lives. This block uses every
 form:

@@ -1,0 +1,12 @@
+# What a Castle Game Engine maintainer would mute: these are bundled third-party
+# libraries with their own naming and voice, not the engine's own Object Pascal.
+# vampyre_imaginglib is the vendored Vampyre Imaging Library (image codecs),
+# physics/kraft is the vendored Kraft physics engine, and scene/load/pasgltf is
+# the vendored PasGLTF glTF parser. Left in, they pollute the learned voice (and
+# would falsely attest foreign image/networking symbols they reference).
+[exclude]
+paths = [
+  "src/vampyre_imaginglib/",
+  "src/physics/kraft/",
+  "src/scene/load/pasgltf/",
+]

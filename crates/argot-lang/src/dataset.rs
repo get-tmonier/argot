@@ -34,6 +34,7 @@ pub enum Language {
     Php,
     Cpp,
     Ruby,
+    Pascal,
 }
 
 /// A single leaf token from the tree-sitter parse (`dataset.Token`).

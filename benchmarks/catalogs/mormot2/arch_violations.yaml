@@ -1,0 +1,228 @@
+# Architecture-graph violation fixtures for mormot2 (mORMot 2, Object Pascal).
+# Each `import_line` (a Pascal `uses <unit>;`) added to `host_file` creates the
+# internal edge source_layer -> target_layer. Violations cross a boundary the
+# repo never crosses in that direction; controls respect the established flow
+# (structurally forward edges that must stay quiet).
+#
+# Layer detection for Pascal (`RepoLayering::layer_of` -> `layer_under`, and the
+# fit-time `unit_index`): the resolver learns `src` as a source root, so a file's
+# layer is the FIRST path component under it — `src/rest/mormot.rest.core.pas` ->
+# layer `rest`, `src/orm/mormot.orm.base.pas` -> `orm`, etc. A `uses mormot.x.y`
+# clause carries no path, so it is resolved through the unit-name->layer index
+# built at fit from every file's `unit`/`program` declaration: `uses
+# mormot.rest.core` -> the file declaring `unit mormot.rest.core` (under src/rest)
+# -> target layer `rest`. mORMot's src/ subtree is one directory per layer:
+#   core  — mormot.core.*  : base types, RTTI, JSON, OS — the foundation
+#   lib   — mormot.lib.*   : static/dynamic FFI bindings (libcurl, sqlite, openssl)
+#   crypt — mormot.crypt.* : hashing, ciphers, RSA, X.509, JWT
+#   net   — mormot.net.*   : sockets, HTTP/WS client & server, LDAP, DNS, ACME
+#   db    — mormot.db.*    : SQL/NoSQL database access
+#   orm   — mormot.orm.*   : the ORM (TOrm, SQLite3 storage)
+#   soa   — mormot.soa.*   : interface-based services (client/server)
+#   rest  — mormot.rest.*  : the REST server/client tying ORM + SOA over HTTP
+#   app   — mormot.app.*   : daemon/console/agent app framework
+#   ui    — mormot.ui.*    : VCL/LCL grids and controls
+#   script/tools/misc      : JS-engine bindings / CLI tools / misc helpers
+#
+# Fire rule (`RepoLayering::classify`, checked in this order for a NOVEL 0-usage
+# edge a -> b):
+#   1. reverse edge b -> a attested            -> Reversal
+#   2. else b transitively reaches a (b ->* a)  -> TransitiveReversal (closes a cycle)
+#   3. else a is a (near-)sink                  -> SinkOut
+#   4. else                                     -> None (organic forward edge)
+# A (near-)sink is a net-importee: a layer whose outbound mass is <= 0.5 * its
+# total mass (imported at least as much as it imports out). Target popularity
+# (in-mass) at this corpus's pinned SHA, from the resolver-verified candidate
+# menu (`--mode arch-candidates`): rest 151, soa 109, orm 53, db 44, net 31,
+# crypt 20, lib 15, app 8, ui 3, {script,tools,misc} 1. The heavily-imported
+# service layers (rest/soa/orm/db/net/crypt) and the low FFI layer (lib) are
+# net-importees; app/soa/orm read as (near-)sinks in the fitted graph.
+#
+# Every row below is a resolver-VERIFIED 0-usage candidate for this corpus (its
+# import_line was synthesized and checked to create the stated src->tgt edge);
+# none were invented. All `.pas` hosts. 10 violations (5 sink_out, 3 reversal,
+# 2 transitive_reversal) across 6 target layers and 8 source layers; 4 forward
+# controls.
+
+violations:
+  # ---- sink_out (source is a fitted net-importee; a novel outbound edge from it
+  #      is the tell — no reverse or transitive-reverse edge exists) ----
+  - host_file: "src/app/mormot.app.agl.pas"
+    source_layer: "app"
+    import_line: "uses mormot.rest.core;\n"
+    target_layer: "rest"
+    kind: "sink_out"
+    rationale: >-
+      app (the daemon/agent framework) is a net-importee in the fitted graph — a
+      (near-)sink imported at least as much as it imports out — and it does NOT
+      currently import mormot.rest.core (0-usage). rest is not a reverse of any
+      attested rest->app edge and rest does not transitively reach app, so the
+      novel outbound edge app->rest trips the sink-out rule: a sink layer suddenly
+      reaching out to the most-imported service layer (rest, in-mass 151).
+
+  - host_file: "src/misc/mormot.misc.iso.pas"
+    source_layer: "misc"
+    import_line: "uses mormot.orm.sqlite3;\n"
+    target_layer: "orm"
+    kind: "sink_out"
+    rationale: >-
+      misc is a tiny leaf helper layer (in-mass 1) and a net-importee. A misc
+      unit newly pulling in mormot.orm.sqlite3 — the ORM's SQLite3 storage engine
+      — is an outbound edge from a sink into the ORM (in-mass 53). Neither orm->misc
+      nor any orm ->* misc path is attested, so classify falls through to SinkOut:
+      a miscellaneous helper has no business owning a dependency on the ORM.
+
+  - host_file: "src/soa/mormot.soa.client.pas"
+    source_layer: "soa"
+    import_line: "uses mormot.net.client;\n"
+    target_layer: "net"
+    kind: "sink_out"
+    rationale: >-
+      soa (interface-based services) is heavily imported (in-mass 109) and reads
+      as a near-sink. soa client calls are meant to travel through the rest layer
+      (mormot.rest.client), which wraps net; a soa unit reaching mormot.net.client
+      directly bypasses that seam. net->soa is not attested and net does not reach
+      soa transitively from this edge's perspective, so the outbound soa->net edge
+      from a net-importee layer fires as SinkOut.
+
+  - host_file: "src/orm/mormot.orm.base.pas"
+    source_layer: "orm"
+    import_line: "uses mormot.net.client;\n"
+    target_layer: "net"
+    kind: "sink_out"
+    rationale: >-
+      orm is a net-importee (in-mass 53). Remote ORM traffic is meant to go through
+      the rest client (which owns the net dependency), never straight from an ORM
+      base unit into mormot.net.client. With no attested net->orm reverse and no
+      net ->* orm path, orm leaving its sink position with an outbound edge to net
+      (in-mass 31) is flagged SinkOut — the ORM core taking on a raw HTTP-client
+      dependency it never had.
+
+  - host_file: "src/soa/mormot.soa.client.pas"
+    source_layer: "soa"
+    import_line: "uses mormot.crypt.rsa;\n"
+    target_layer: "crypt"
+    kind: "sink_out"
+    rationale: >-
+      Second outbound edge from the soa near-sink, this time into mormot.crypt.rsa
+      (raw RSA primitives, crypt in-mass 20). soa services obtain crypto through the
+      auth/rest surface, not by depending on the RSA unit directly. crypt->soa is
+      unattested and crypt does not reach soa, so the edge is neither a reversal nor
+      a transitive reversal — a net-importee (soa) emitting a novel outbound edge is
+      SinkOut.
+
+  # ---- reversal (the reverse edge b -> a is directly attested; a -> b inverts it) ----
+  - host_file: "src/lib/mormot.lib.curl.pas"
+    source_layer: "lib"
+    import_line: "uses mormot.rest.core;\n"
+    target_layer: "rest"
+    kind: "reversal"
+    rationale: >-
+      lib is the lowest layer — thin FFI bindings to external C libraries. The
+      attested direction is rest -> lib (rest units link static libraries through
+      the lib bindings); nothing under lib imports rest. A libcurl-binding unit
+      pulling in mormot.rest.core reverses that established foundation->consumer
+      edge directly, so classify returns Reversal (the reverse rest->lib edge is
+      in the graph).
+
+  - host_file: "src/db/mormot.db.core.pas"
+    source_layer: "db"
+    import_line: "uses mormot.soa.client;\n"
+    target_layer: "soa"
+    kind: "reversal"
+    rationale: >-
+      The attested direction is soa -> db: interface-based services query the
+      database layer. A db core unit importing mormot.soa.client inverts that — the
+      storage layer would now depend on the service layer that sits above it. The
+      reverse edge soa->db is directly attested in the fitted graph, so db->soa is
+      a Reversal, not a fresh forward edge.
+
+  - host_file: "src/rest/mormot.rest.client.pas"
+    source_layer: "rest"
+    import_line: "uses mormot.ui.gdiplus;\n"
+    target_layer: "ui"
+    kind: "reversal"
+    rationale: >-
+      The attested direction is ui -> rest: the VCL/LCL UI layer (grids, controls)
+      consumes the REST client to render server data. A rest client unit importing
+      mormot.ui.gdiplus (a GDI+ imaging unit) reverses that — the transport layer
+      would depend on the presentation layer it is meant to be agnostic of. ui->rest
+      is attested, so this back-edge classifies as Reversal.
+
+  # ---- transitive_reversal (no direct b -> a, but b ->* a: b already reaches a
+  #      through the layering, so a -> b closes a cycle against the near-DAG) ----
+  - host_file: "src/net/mormot.net.acme.pas"
+    source_layer: "net"
+    import_line: "uses mormot.soa.client;\n"
+    target_layer: "soa"
+    kind: "transitive_reversal"
+    rationale: >-
+      soa sits above net in the stack: soa transitively reaches net (soa depends on
+      the rest/db layers, which depend on net) even though no soa unit imports a net
+      unit directly. There is no direct soa->net edge to make this a plain Reversal,
+      but reach[soa] already contains net, so a novel net->soa edge (an ACME/TLS
+      networking unit reaching up into SOA client services) closes a cycle against
+      the established near-DAG flow — TransitiveReversal.
+
+  - host_file: "src/lib/mormot.lib.curl.pas"
+    source_layer: "lib"
+    import_line: "uses mormot.orm.sqlite3;\n"
+    target_layer: "orm"
+    kind: "transitive_reversal"
+    rationale: >-
+      orm transitively depends on lib: the ORM's SQLite3 storage links the static
+      SQLite library through the lib FFI bindings (orm ->* lib), so orm already
+      reaches lib through the layering. No direct orm->lib edge names this specific
+      pair as a plain reversal, but reach[orm] contains lib, so a novel lib->orm
+      edge (a libcurl binding importing the ORM's SQLite3 engine) closes that cycle
+      — a back-edge in the near-DAG, TransitiveReversal.
+
+controls:
+  # Forward edges: high-level consumer layers (script engine, UI) reaching DOWN to
+  # the heavily-imported service layers — the organic direction. Each is a novel
+  # 0-usage edge whose source is NOT a sink, whose reverse is unattested, and which
+  # closes no cycle, so classify falls through every branch to None. Must stay quiet.
+  - host_file: "src/script/mormot.script.core.pas"
+    source_layer: "script"
+    import_line: "uses mormot.rest.core;\n"
+    target_layer: "rest"
+    rationale: >-
+      script (the JS-engine binding layer) is a top-of-stack consumer, not a
+      net-importee — it imports out more than it is imported, so it is not a sink.
+      A script core unit pulling in mormot.rest.core is exactly the forward
+      direction the framework expects (scripting exposed over REST); rest->script
+      is unattested and rest does not reach script, so classify returns None. Must
+      NOT fire.
+
+  - host_file: "src/ui/mormot.ui.controls.pas"
+    source_layer: "ui"
+    import_line: "uses mormot.soa.client;\n"
+    target_layer: "soa"
+    rationale: >-
+      ui is a presentation-layer consumer (in-mass 3) that reaches down into the
+      service and transport layers to display data; it is not a sink. A UI controls
+      unit importing mormot.soa.client to call a remote service is a clean forward
+      edge — soa->ui is unattested and no cycle is closed — so classify falls
+      through to None. Must NOT fire.
+
+  - host_file: "src/script/mormot.script.core.pas"
+    source_layer: "script"
+    import_line: "uses mormot.db.sql.ibx;\n"
+    target_layer: "db"
+    rationale: >-
+      Same forward shape, different target: the script layer reaching down into the
+      db layer (the Firebird/Interbase SQL driver, mormot.db.sql.ibx). script is a
+      source, not a sink; db->script is unattested and db does not reach script, so
+      the novel script->db edge is organic-direction and classify returns None.
+      Must NOT fire.
+
+  - host_file: "src/ui/mormot.ui.controls.pas"
+    source_layer: "ui"
+    import_line: "uses mormot.net.client;\n"
+    target_layer: "net"
+    rationale: >-
+      ui reaching down into net (the HTTP client) is again the expected consumer
+      direction — a UI unit fetching data over HTTP. ui is not a sink, net->ui is
+      unattested, and no cycle is closed, so classify returns None. Kept as a
+      control to prove the gate stays silent on legitimate downward edges from the
+      presentation layer. Must NOT fire.

@@ -12,7 +12,7 @@ pub struct PrPin {
     pub sha: String,
 }
 
-/// A pinned corpus. `language` is one of the ten scoring languages, or
+/// A pinned corpus. `language` is one of the twelve scoring languages, or
 /// `multi` for polyglot monorepos.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Target {
@@ -40,6 +40,7 @@ const TARGET_LANGUAGES: &[&str] = &[
     "php",
     "cpp",
     "ruby",
+    "pascal",
     "multi",
 ];
 
