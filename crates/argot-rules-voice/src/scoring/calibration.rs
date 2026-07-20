@@ -31,7 +31,7 @@ use argot_lang::bpe::BpeTokenizer;
 use argot_lang::text::{read_text_lossy, splitlines, splitlines_keepends, universal_newlines};
 use md5::{Digest, Md5};
 use serde::Serialize;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 const MIN_BODY_LINES: usize = 5;
@@ -1070,14 +1070,27 @@ pub fn run_calibrate(
         // the bench scorer's import surface: a repo-internal module the
         // corpus never happened to import is still not a foreign voice.
         let t_cr = argot_engine::timing::phase(format!("calibrate[{name}]: call-receiver build"));
-        let mut modules: HashSet<String> = HashSet::new();
+        // Count how many corpus files import each module. `extract_imports`
+        // returns a per-file set, so this is a file-frequency (each module counts
+        // once per file). The membership use (`is_foreign`) is order-independent;
+        // ordering `import_modules` by frequency only sharpens the *display*
+        // surfaces (`familiar_imports` in inspect / MCP `voice_context`) so the
+        // most-used imports lead instead of the alphabetically-first ones.
+        let mut counts: HashMap<String, usize> = HashMap::new();
         for s in &sources {
-            modules.extend(adapter.extract_imports(s));
+            for m in adapter.extract_imports(s) {
+                *counts.entry(m).or_insert(0) += 1;
+            }
         }
         let resolved = adapter.resolve_repo_modules(repo_dir);
-        modules.extend(resolved.exact.iter().cloned());
-        let mut import_modules: Vec<String> = modules.into_iter().collect();
-        import_modules.sort();
+        for m in resolved.exact.iter().cloned() {
+            // Repo-owned modules belong in the set (never foreign) but are not an
+            // imported dependency — keep them, ranked last (count 0).
+            counts.entry(m).or_insert(0);
+        }
+        let mut import_modules: Vec<String> = counts.keys().cloned().collect();
+        // Most-imported first; alphabetical tie-break keeps it deterministic.
+        import_modules.sort_by(|a, b| counts[b].cmp(&counts[a]).then_with(|| a.cmp(b)));
         let mut import_module_prefixes: Vec<String> = resolved.prefixes.into_iter().collect();
         import_module_prefixes.sort();
         let mut call_receiver = CallReceiverScorer::new(
